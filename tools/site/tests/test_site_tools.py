@@ -82,6 +82,16 @@ class EvidenceCatalogTests(unittest.TestCase):
         with self.assertRaises(catalog.CatalogError):
             catalog.render_catalog(index([escaping]))
 
+    def test_physical_environment_is_visible_and_closed(self):
+        physical = entry()
+        physical["evidence"]["environment"] = "physical-mpi-cuda"
+        rendered = catalog.render_catalog(index([physical]))
+        self.assertIn("environment: physical-mpi-cuda", rendered)
+
+        physical["evidence"]["environment"] = "unreviewed-runner"
+        with self.assertRaises(catalog.CatalogError):
+            catalog.render_catalog(index([physical]))
+
 
 class SiteCheckTests(unittest.TestCase):
     def test_local_link_checker_accepts_existing_and_rejects_escape(self):

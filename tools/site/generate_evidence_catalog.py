@@ -30,6 +30,7 @@ ENTRY_KEYS = {
     "evidence",
 }
 STATUSES = {"proposed", "specified", "implemented", "verified", "validated"}
+ENVIRONMENTS = {"host-cpu", "physical-mpi-cuda"}
 
 
 class CatalogError(ValueError):
@@ -86,17 +87,24 @@ def _evidence_label(value: Any, context: str) -> str:
     if not isinstance(value, dict):
         raise CatalogError(f"{context} must be null or an object")
 
+    environment = value.get("environment", "host-cpu")
+    if environment not in ENVIRONMENTS:
+        raise CatalogError(f"{context}.environment is not recognized")
+
     if "runner" in value:
-        expected = {"runner", "script"}
-        _object(value, context, expected)
+        required = {"runner", "script"}
+        optional = {"environment"}
+        if not required <= set(value) or not set(value) <= required | optional:
+            raise CatalogError(f"{context} is not a Python evidence target")
         runner = _text(value["runner"], f"{context}.runner")
         if runner != "python-installed-wheel":
             raise CatalogError(f"{context}.runner is not supported")
         script = _text(value["script"], f"{context}.script")
-        return f"{runner}: {script}"
+        suffix = "" if environment == "host-cpu" else f" [{environment}]"
+        return f"{runner}: {script}{suffix}"
 
     required = {"package", "test"}
-    optional = {"features", "table"}
+    optional = {"features", "table", "environment"}
     actual = set(value)
     if not required <= actual or not actual <= required | optional:
         raise CatalogError(f"{context} is not a Cargo evidence target")
@@ -109,6 +117,8 @@ def _evidence_label(value: Any, context: str) -> str:
             details.append(f"features: {', '.join(features)}")
     if "table" in value:
         details.append(f"table: {_text(value['table'], f'{context}.table')}")
+    if environment != "host-cpu":
+        details.append(f"environment: {environment}")
     suffix = f" ({'; '.join(details)})" if details else ""
     return f"Cargo: {package}/{test}{suffix}"
 
