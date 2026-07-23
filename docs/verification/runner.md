@@ -118,6 +118,13 @@ invokes `PYTHON` (or `python3`) with the single declared script. The script must
 be a normalized repository-relative regular `.py` file; no arguments are
 accepted. Both runners use the repository root and never invoke a shell.
 
+Cargo evidence for `physical-mpi-cuda` is ignored by generic Cargo suites.
+Selecting that typed environment makes the runner append the fixed test-harness
+arguments `-- --ignored`; the test still fails closed when its explicitly
+selected physical topology is unavailable. This keeps ordinary compilation and
+feature coverage separate from a hardware claim without adding free-form
+manifest arguments.
+
 Optional evidence artifacts must be normalized relative paths that resolve to
 files inside the repository. Unknown runner identities or evidence keys,
 duplicate capabilities, unknown statuses, missing artifacts/scripts,
