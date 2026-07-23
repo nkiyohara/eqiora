@@ -73,7 +73,7 @@ diffsol = { version = "=0.16.1", default-features = false, features = ["nalgebra
 # cudarc 0.18.2 is the exact binding/runtime baseline covered by current device
 # evidence. A 0.19 upgrade is a separate adapter-and-hardware-evidence slice,
 # not an incidental consequence of the workspace MSRV decision.
-cudarc = { version = "=0.18.2", default-features = false, features = ["std", "driver", "cuda-12000", "dynamic-loading"] }
+cudarc = { version = "=0.19.8", default-features = false, features = ["std", "driver", "cuda-12000", "dynamic-loading"] }
 libloading = "=0.8.9"
 
 # Internal crates (see docs/architecture.md#dependency-layers and `cargo xtask check-layers`)
