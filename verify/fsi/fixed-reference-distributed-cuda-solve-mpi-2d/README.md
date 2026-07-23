@@ -26,10 +26,11 @@ EQIORA_MPI_CUDA_DEVICE_SELECTORS=0,1,2,3 \
 cargo test --locked -p eqiora \
   --features mpi-cuda \
   --test fixed_reference_fsi_distributed_cuda_solve_mpi_2d \
-  -- --test-threads=1
+  -- --ignored --test-threads=1
 
 EQIORA_MPI_CUDA_DEVICE_SELECTORS=0,1,2,3 \
 cargo run --locked -p eqiora-verify -- run \
+  --environment physical-mpi-cuda \
   --case fsi.fixed-reference-distributed-cuda-solve-mpi-2d
 ```
 
@@ -42,4 +43,6 @@ transient FSI, ALE, remeshing, and a durable composite Run artifact.
 The public hosted gate selects the separate `host-cpu` evidence environment.
 It validates this complete manifest and reports the physical target as
 `not-selected`; it does not claim to repeat the run. Unfiltered verification
-and an exact `physical-mpi-cuda` run retain the failure behavior above.
+and an exact `physical-mpi-cuda` run retain the failure behavior above. Generic
+Cargo suites leave the parent orchestration test ignored; the typed evidence
+runner is the repository-owned path that activates it.

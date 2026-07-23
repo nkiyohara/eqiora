@@ -66,6 +66,7 @@ const CPU_MPI_CUDA_ABSOLUTE: f64 = 2.0e-10;
 const CPU_MPI_CUDA_RELATIVE: f64 = 2.0e-10;
 
 #[test]
+#[ignore = "requires an explicitly selected physical MPI-CUDA topology"]
 fn fixed_reference_fsi_distributed_cuda_solve_mpi_2d_runs_on_one_two_and_four_ranks() {
     if env::var_os(CHILD_ENV).is_some() {
         return;

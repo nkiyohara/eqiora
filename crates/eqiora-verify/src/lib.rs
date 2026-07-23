@@ -447,6 +447,9 @@ impl SystemEvidenceRunner {
                 if !target.features.is_empty() {
                     command.arg("--features").arg(target.features.join(","));
                 }
+                if target.environment == EvidenceEnvironment::PhysicalMpiCuda {
+                    command.args(["--", "--ignored"]);
+                }
                 command
             }
             EvidenceTarget::PythonInstalledWheel(target) => {
@@ -1321,6 +1324,35 @@ script = "tools/ci/python_evidence.py"
             ]
         );
         assert_eq!(cargo.get_current_dir(), Some(root));
+
+        let physical_target = EvidenceTarget::Cargo(CargoEvidenceTarget {
+            package: "eqiora".to_owned(),
+            test: "physical_case".to_owned(),
+            features: vec!["mpi-cuda".to_owned()],
+            table: None,
+            environment: EvidenceEnvironment::PhysicalMpiCuda,
+        });
+        let physical = runner.command(root, &physical_target);
+        assert_eq!(physical.get_program(), "cargo-evidence");
+        assert_eq!(
+            physical
+                .get_args()
+                .map(|argument| argument.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            [
+                "test",
+                "--locked",
+                "-p",
+                "eqiora",
+                "--test",
+                "physical_case",
+                "--features",
+                "mpi-cuda",
+                "--",
+                "--ignored",
+            ]
+        );
+        assert_eq!(physical.get_current_dir(), Some(root));
 
         let python_target =
             EvidenceTarget::PythonInstalledWheel(PythonInstalledWheelEvidenceTarget {
