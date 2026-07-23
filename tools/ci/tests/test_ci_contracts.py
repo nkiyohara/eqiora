@@ -60,7 +60,7 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertIn("--workspace --all-targets --all-features --locked", msrv)
         self.assertIn("libopenmpi-dev", msrv)
 
-    def test_quality_installs_the_declared_numpy_floor_for_embedded_python(self) -> None:
+    def test_quality_installs_declared_python_evidence_prerequisites(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
             encoding="utf-8"
         )
@@ -75,7 +75,9 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertIn(action, quality)
         self.assertIn('python-version: "3.12"', quality)
         self.assertIn('["tested-numpy-floor"]', quality)
+        self.assertIn('["uv"]', quality)
         self.assertIn("python -m pip install --only-binary=:all:", quality)
+        self.assertIn("uv --version", quality)
         self.assertIn("name: Host-CPU verification evidence", quality)
         self.assertIn(
             "eqiora-verify -- run --environment host-cpu",

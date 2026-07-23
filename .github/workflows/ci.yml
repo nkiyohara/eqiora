@@ -100,6 +100,13 @@ jobs:
             python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["tool"]["eqiora-distribution"]["tested-numpy-floor"])'
           )"
           python -m pip install --only-binary=:all: "$requirement"
+      - name: Install the declared Python candidate builder
+        run: |
+          requirement="$(
+            python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["tool"]["eqiora-distribution"]["uv"])'
+          )"
+          python -m pip install --only-binary=:all: "$requirement"
+          uv --version
       - name: Install stable Rust
         run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
       - name: Formatting
