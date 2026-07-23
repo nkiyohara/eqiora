@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 import tomllib
 import unittest
@@ -14,7 +15,11 @@ sys.path.insert(0, str(CI_ROOT))
 from check_gate import evaluate, parse_relevance  # noqa: E402
 from classify_changes import SURFACES, changed_paths, classify, render_outputs  # noqa: E402
 from python_jax_gate import uv_gate_command as jax_uv_gate_command  # noqa: E402
-from python_package_gate import uv_gate_command  # noqa: E402
+from python_package_gate import (  # noqa: E402
+    uv_gate_command,
+    venv_environment,
+    venv_python,
+)
 from python_torch_gate import uv_gate_command as torch_uv_gate_command  # noqa: E402
 
 
@@ -190,6 +195,19 @@ class DependencyIdentityTests(unittest.TestCase):
 
 
 class PythonPackageGateTests(unittest.TestCase):
+    def test_fallback_activates_venv_for_pep517_backend_tools(self) -> None:
+        virtual_environment = Path("/tmp/eqiora-test-venv")
+        environment = venv_environment(
+            virtual_environment,
+            base={"PATH": "/usr/bin"},
+        )
+
+        self.assertEqual(environment["VIRTUAL_ENV"], str(virtual_environment))
+        self.assertEqual(
+            environment["PATH"],
+            f"{venv_python(virtual_environment).parent}{os.pathsep}/usr/bin",
+        )
+
     def test_uv_rebuilds_the_current_noneditable_project(self) -> None:
         command = uv_gate_command("uv", "/usr/bin/python3")
 
