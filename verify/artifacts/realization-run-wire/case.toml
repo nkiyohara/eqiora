@@ -1,0 +1,25 @@
+id = "artifacts.realization-run-wire"
+status = "verified"
+scope = "typed-realization-and-run-provenance"
+reference_kind = "typed-round-trip-and-cross-artifact-invariants"
+
+capabilities = [
+  "model-realization-content-linkage",
+  "versioned-realization-envelope",
+  "complete-solver-plan-wire",
+  "typed-layout-and-partition-references",
+  "typed-execution-topology",
+  "versioned-run-provenance",
+  "policy-drift-fail-closed",
+  "frozen-realization-v1-v2-v3-golden-bytes",
+]
+
+[problem]
+model = "canonical one-dimensional Poisson"
+realizations = "replicated default and explicit distributed layout"
+transports = "host serial and loopback"
+encoding = "eqiora.canonical-json/v1"
+
+[evidence]
+package = "eqiora-artifact"
+test = "realization_run_wire"

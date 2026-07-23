@@ -1,0 +1,19 @@
+model unstructured_shape_compliance {
+  domain rectangle = box(0, 1, 0, 1);
+  domain x_lower = boundary(rectangle, axis = 0, side = lower);
+  domain x_upper = boundary(rectangle, axis = 0, side = upper);
+  domain y_lower = boundary(rectangle, axis = 1, side = lower);
+  domain y_upper = boundary(rectangle, axis = 1, side = upper);
+  representation scalar_space = continuum;
+
+  field potential on rectangle as scalar_space: 1 = 0;
+  parameter load: 1 / m ^ 2 = 1;
+
+  relation balance continuous on rectangle {
+    -div(grad(potential)) - load = 0;
+  }
+  relation x_lower_value continuous on x_lower { trace(potential) = 0; }
+  relation x_upper_value continuous on x_upper { trace(potential) = 0; }
+  relation y_lower_value continuous on y_lower { trace(potential) = 0; }
+  relation y_upper_value continuous on y_upper { trace(potential) = 0; }
+}

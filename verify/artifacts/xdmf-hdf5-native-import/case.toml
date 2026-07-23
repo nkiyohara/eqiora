@@ -1,0 +1,66 @@
+id = "artifacts.xdmf-hdf5-native-import"
+status = "verified"
+scope = "bounded-native-hdf5-file-image-resolution-for-one-xdmf-uniform-grid"
+reference_kind = "checked-in-real-hdf5-source-exact-runtime-provenance-and-hostile-profile-corpus"
+
+capabilities = [
+  "complete-caller-owned-hdf5-file-image-capability",
+  "core-vfd-native-vol-resolution",
+  "whole-hard-link-graph-audit-before-read",
+  "batch-request-preflight-before-read",
+  "exact-u64-and-f64-dataset-resolution",
+  "native-binding-and-library-provenance",
+  "persisted-native-import-replay",
+  "forbidden-hdf5-storage-construct-rejection",
+]
+
+[problem]
+metadata = "one bounded XDMF 3 Uniform Tri3 grid with four HDF DataItems"
+source = "one complete caller-owned HDF5 file image shared by every DataItem"
+mesh = "unit square with four vertices and two positively oriented affine triangles"
+fields = "one node scalar and one cell vector2 field"
+storage = "internal unfiltered non-VDS exact standard u64 or IEEE f64 datasets"
+runtime = "exact hdf5-metno binding plus observed statically linked HDF5 release"
+
+[falsifiers]
+soft_link = "reject before values"
+external_link = "reject before values without opening target"
+filter_pipeline = "reject before values or plugin execution"
+external_raw_storage = "reject before values without opening target"
+virtual_dataset = "reject before values without opening source"
+compound_datatype = "reject before values"
+unlinked_committed_datatype = "reject before values"
+object_attribute = "reject before values"
+hard_link_alias = "reject before values"
+hard_link_cycle = "reject before values"
+request_shape_or_scalar_mismatch = "reject before values"
+source_byte_mutation = "reject before verified lineage"
+source_or_work_limit_excess = "reject before values"
+caller_resolved_manifest_substitution = "reject as distinct runtime provenance"
+
+[claim_boundary]
+complete_file_image = true
+source_locators = 1
+implicit_filesystem_or_network_access = false
+native_hdf5_parsing = true
+whole_reachable_graph_audit = true
+hard_links_only = true
+acyclic_unaliased_tree = true
+attributes = false
+external_storage = false
+filters = false
+virtual_datasets = false
+custom_datatypes = false
+committed_datatypes = false
+scalar_types = ["standard-u64", "ieee-f64"]
+temporal_collections = false
+export = false
+in_process_hostile_environment_containment = false
+native_library_defect_containment = false
+native_library_internal_work_bound = false
+
+[evidence]
+package = "eqiora"
+test = "xdmf_hdf5_native_import"
+features = ["hdf5"]
+table = "expected/source.sha256"

@@ -1,0 +1,40 @@
+component SampledPController {
+  public parameter setpoint: 1 / s;
+  public parameter gain: kg * m ^ 2 / (s ^ 2 * A);
+  public port measured_speed: signal input 1 / s;
+  public port command: signal output kg * m ^ 2 / (s ^ 3 * A);
+
+  field held_voltage: kg * m ^ 2 / (s ^ 3 * A) = 0;
+  clock sample = periodic(period = 1 / 100, phase = 0 / 1);
+
+  relation update periodic(sample) {
+    next(held_voltage) - gain * (setpoint - measured_speed) = 0;
+    command - next(held_voltage) = 0;
+  }
+}
+
+model Main {
+  instance source: drive.ControlledVoltageSource;
+  instance motor: drive.PermanentMagnetDcMotor(
+    resistance = 2,
+    inductance = 0.5,
+    motor_constant = 0.1
+  );
+  instance load: drive.InertialLoad(
+    inertia = 0.05,
+    damping = 0.1
+  );
+  instance sensor: drive.SpeedSensor;
+  instance ground: electrical.Ground;
+  instance controller: SampledPController(
+    setpoint = 10,
+    gain = 1
+  );
+
+  connect signal controller.command -> source.command;
+  connect signal sensor.speed -> controller.measured_speed;
+  connect conserving source.positive, motor.positive;
+  connect conserving source.negative, motor.negative, ground.terminal;
+  connect conserving motor.shaft, load.shaft, sensor.shaft;
+}
+

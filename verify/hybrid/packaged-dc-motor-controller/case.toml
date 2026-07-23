@@ -1,0 +1,89 @@
+id = "hybrid.packaged-dc-motor-controller"
+status = "verified"
+scope = "exact-three-package-scalar-electromechanical-host-serial"
+reference_kind = "exact-sampled-linear-state-transition"
+
+capabilities = [
+  "exact-offline-model-package-graph",
+  "deterministic-component-flattening",
+  "literal-component-parameter-specialization",
+  "joint-continuous-physical-residual",
+  "nominal-electrical-and-rotational-connectors",
+  "exact-periodic-sample-and-hold",
+  "consistent-initial-restoration",
+  "dimensioned-physical-trajectory-observation",
+  "constitutive-and-junction-residual-reacceptance",
+  "electromechanical-power-balance",
+  "canonical-run-v1-lineage",
+  "exact-package-run-binding",
+]
+
+[problem]
+electrical_package = "Eqiora.Electrical.Basic@0.1.0"
+drive_package = "Eqiora.Electromechanical.DcDrive@0.1.0"
+root_package = "org.example.dc_motor_control@0.1.0"
+resistance_ohm = 2.0
+inductance_henry = 0.5
+motor_constant_si = 0.1
+inertia_kg_m2 = 0.05
+damping_kg_m2_per_s = 0.1
+speed_setpoint_per_s = 10.0
+proportional_gain_si = 1.0
+sample_period_s = 0.01
+
+[canonical_contract]
+packages = 3
+physical_ports = 8
+physical_unknowns = 16
+continuous_fields = 6
+continuous_signal_outputs = 1
+continuous_unknowns = 23
+continuous_residuals = 23
+periodic_unknowns = 2
+periodic_residuals = 2
+kernel_parameters = 0
+model_wire = 2
+package_wire = 1
+run_wire = 1
+package_run_binding_wire = 1
+
+[numerical_contract]
+method = "backward-euler"
+coarse_maximum_step_s = 0.002
+accepted_maximum_step_s = 0.001
+end_time_s = 0.1
+absolute_tolerance = 1e-10
+relative_tolerance = 1e-10
+maximum_nonlinear_iterations = 32
+maximum_semantic_steps = 1000000
+maximum_current_state_error_a = 3e-3
+maximum_angular_speed_state_error_per_s = 3e-3
+maximum_held_voltage_error_v = 3e-3
+maximum_fine_to_coarse_error_ratio = 0.62
+maximum_voltage_residual_v = 2e-8
+maximum_current_residual_a = 2e-8
+maximum_angular_speed_residual_per_s = 2e-8
+maximum_torque_residual_n_m = 2e-8
+maximum_power_balance_residual_w = 3e-8
+
+[claim_boundary]
+scalar_type = "f64"
+placement = "one host process, one worker"
+reference_executor_only = true
+ideal_linear_motor = true
+exact_single_periodic_clock = true
+event_or_guard_composition = false
+general_dae_or_index_reduction = false
+production_solver = false
+code_generation = false
+fixed_point_or_real_time_schedule = false
+mpi_or_gpu = false
+dynamic_plugins = false
+broad_component_library = false
+run_emitted_after_numerical_acceptance = true
+failed_execution_emits_run_binding = false
+general_result_artifact = false
+
+[evidence]
+package = "eqiora"
+test = "packaged_dc_motor_controller"

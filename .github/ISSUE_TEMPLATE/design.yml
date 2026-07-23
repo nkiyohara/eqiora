@@ -1,0 +1,33 @@
+name: Design proposal
+description: Propose or challenge an architectural or semantic decision
+title: "design: "
+labels: ["design"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: State the problem without assuming a particular solution.
+    validations:
+      required: true
+  - type: textarea
+    id: formulation
+    attributes:
+      label: Proposed formulation
+      description: Include invariants and ownership boundaries.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Compare at least two credible alternatives.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Falsifying evidence or experiment
+      description: What smallest test could change this decision?
+    validations:
+      required: true

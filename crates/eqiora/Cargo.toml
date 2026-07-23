@@ -1,0 +1,92 @@
+[package]
+name = "eqiora"
+description = "Eqiora public facade: the curated API surface for users and physics packages"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+faer = ["dep:eqiora-backend-faer"]
+mpi = ["dep:eqiora-backend-mpi", "dep:mpi"]
+diffsol = ["dep:eqiora-backend-diffsol"]
+cuda = ["dep:eqiora-backend-cuda", "eqiora-backend-cuda/cuda-runtime"]
+mpi-cuda = ["mpi", "cuda", "dep:eqiora-backend-mpi-cuda", "eqiora-backend-mpi-cuda/runtime"]
+threaded = ["dep:eqiora-fabric", "eqiora-api/threaded"]
+gmsh = ["dep:eqiora-io-gmsh"]
+xdmf = ["dep:eqiora-io-xdmf", "eqiora-api/xdmf"]
+hdf5 = ["xdmf", "dep:eqiora-io-hdf5", "eqiora-api/hdf5"]
+vtu = ["dep:eqiora-io-vtu", "eqiora-api/vtu"]
+cad-truck = ["dep:eqiora-cad-truck"]
+
+[dependencies]
+eqiora-api = { workspace = true }
+eqiora-assembly = { workspace = true }
+eqiora-artifact = { workspace = true }
+eqiora-backend-faer = { workspace = true, optional = true }
+eqiora-backend-mpi = { workspace = true, optional = true, features = ["mpi-runtime"] }
+eqiora-backend-mpi-cuda = { workspace = true, optional = true }
+eqiora-backend-diffsol = { workspace = true, optional = true, features = ["diffsol-runtime"] }
+eqiora-backend-cuda = { workspace = true, optional = true }
+eqiora-compiler = { workspace = true }
+eqiora-core = { workspace = true }
+eqiora-diff = { workspace = true }
+eqiora-device = { workspace = true }
+eqiora-distributed = { workspace = true }
+eqiora-fabric = { workspace = true, optional = true }
+eqiora-schema = { workspace = true }
+eqiora-graph = { workspace = true }
+eqiora-geometry = { workspace = true }
+eqiora-ir = { workspace = true }
+eqiora-cad-truck = { workspace = true, optional = true }
+eqiora-io-gmsh = { workspace = true, optional = true }
+eqiora-io-hdf5 = { workspace = true, optional = true }
+eqiora-io-vtu = { workspace = true, optional = true }
+eqiora-io-xdmf = { workspace = true, optional = true }
+eqiora-lang = { workspace = true }
+eqiora-meshing = { workspace = true }
+mpi = { workspace = true, optional = true }
+eqiora-numerics = { workspace = true }
+eqiora-package = { workspace = true }
+eqiora-realization = { workspace = true }
+eqiora-runtime = { workspace = true }
+eqiora-sem = { workspace = true }
+eqiora-solver = { workspace = true }
+eqiora-time = { workspace = true }
+
+[dev-dependencies]
+cap-std = { workspace = true }
+eqiora-backend-faer = { workspace = true }
+eqiora-execution = { workspace = true }
+eqiora-fabric = { workspace = true }
+eqiora-spatial-distribution = { workspace = true }
+rustix = { workspace = true }
+quick-xml = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+
+[lints]
+workspace = true
+
+[[example]]
+name = "canonical_cartesian_poisson_cuda_collect"
+required-features = ["cuda"]
+
+[[example]]
+name = "fixed_reference_fsi_cuda_collect"
+required-features = ["cuda"]
+
+[[test]]
+name = "xdmf_uniform_grid_import"
+required-features = ["xdmf"]
+
+[[test]]
+name = "xdmf_hdf5_native_import"
+required-features = ["hdf5"]
+
+[[test]]
+name = "vtu_unstructured_grid_import"
+required-features = ["vtu"]

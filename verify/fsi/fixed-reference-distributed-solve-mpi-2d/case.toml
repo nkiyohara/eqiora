@@ -1,0 +1,87 @@
+id = "fsi.fixed-reference-distributed-solve-mpi-2d"
+status = "verified"
+scope = "fixed-reference-fsi-accepted-owner-shards-physical-mpi-minres-solve-2d"
+reference_kind = "mpi-transport-independent-complete-cpu-path-sharing-canonical-physics-and-lowering"
+
+capabilities = [
+  "authenticated-fixed-affine-simplex-fsi-lineage",
+  "accepted-owner-row-payloads-as-sole-rank-local-csr-and-rhs-source",
+  "assembly-derived-exact-solver-row-ownership",
+  "sparsity-derived-solver-vector-halo",
+  "full-pressure-row-continuity-target-lineage-retention",
+  "distributed-symmetric-indefinite-operator-admission",
+  "identity-preconditioned-reproducible-mpi-minres",
+  "explicit-global-index-complete-vector-gather",
+  "native-complete-host-reacceptance-on-every-rank",
+  "rank-agreed-output-and-domain-separated-execution-summary",
+  "unchanged-fixed-reference-fsi-finish",
+  "normalized-cpu-mpi-field-conformance",
+  "synchronized-forged-owner-authority-falsifier",
+  "rank-agreed-observed-mpi-runtime-provenance",
+  "one-two-four-rank-one-host-evidence",
+]
+
+[problem]
+ambient_dimension = 2
+cells = 8
+materials = "four inertial-fluid triangles and four dynamic-solid triangles"
+interface = "the exact two-facet conforming interface at x = 1 m"
+targets = "reduced solve system and full reconstruction/continuity-evidence system"
+step = "one fixed-reference monolithic backward-Euler step"
+ranks = "one, two, and four"
+physical_nodes = 1
+
+[distributed_contract]
+operator_source = "accepted reduced owner-row payloads are the sole source of rank-local CSR and RHS storage"
+row_ownership = "exact reduced-target ownership derived from equation-supporting packet producers"
+halo = "derived only from off-owner columns in the accepted reduced shards"
+complete_reduced_system = "distinct content-identical object used only for identity and complete-host verification, never local-shard construction"
+full_system = "lineage witness for full pressure-row continuity; interface action and energy are reevaluated independently"
+solver = "identity-preconditioned reproducible f64 MINRES for a symmetric-indefinite operator"
+gather = "paired explicit global owner indices and values on every rank"
+
+[numerical_contract]
+normalized_cpu_mpi_absolute = 2e-10
+normalized_cpu_mpi_relative = 2e-10
+tolerance_domain = "dimensionless algebraic coefficients and each physical Field divided by its exact Realization scale"
+cross_rank_count_bit_identity = false
+within_run_rank_agreement = "exact output bits and domain-separated operator/output/report/owner/layout/admission/process-group/trace summary"
+reduction = "reproducible within one admitted process-group shape"
+
+[falsifiers]
+direct_forged_solver_row_ownership = "one locally coherent second owner authority yields common MPI admission rejection before numerical work"
+composition_reduced_or_full_target_drift = "assembly-to-FSI binder rejects before solve acceptance"
+prerequisite_explicit_index_gather_or_host_reacceptance_drift = "RFC 0058 evidence rejects before output exposure"
+prerequisite_rank_local_action_failure = "RFC 0058 generic MPI evidence rejects without deadlock or partial output"
+unchanged_fsi_finish_drift = "native FSI acceptance rejects independently"
+
+[claim_boundary]
+fixed_reference_fsi_2d = true
+physical_mpi_assembly_and_solve = true
+physical_nodes = 1
+ranks = "one-two-four"
+replicated_mesh = true
+accepted_owner_payload_local_storage = true
+distributed_minres = true
+explicit_index_complete_gather = true
+host_reacceptance_on_every_rank = true
+replicated_physical_finish = true
+rank_count_independent_model_and_operator_meaning = true
+rank_count_independent_solution_bits = false
+distributed_field = false
+physical_multi_node_execution = false
+scalability = false
+transient_fsi_trajectory = false
+hybrid_rank_thread_execution = false
+mpi_cuda_execution = false
+gpu_execution = false
+process_failure_recovery = false
+ale_or_remeshing = false
+durable_distributed_execution_receipt = false
+rank_agreed_mpi_runtime_observation = true
+durable_symmetric_indefinite_distributed_run = false
+
+[evidence]
+package = "eqiora"
+test = "fixed_reference_fsi_distributed_solve_mpi_2d"
+features = ["mpi"]

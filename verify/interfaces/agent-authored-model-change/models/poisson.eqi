@@ -1,0 +1,15 @@
+model poisson {
+  domain interval = box(0, 1);
+  domain lower_end = boundary(interval, axis = 0, side = lower);
+  domain upper_end = boundary(interval, axis = 0, side = upper);
+  representation scalar_space = continuum;
+
+  field potential on interval as scalar_space: 1 = 0;
+  parameter source_scale: 1 / m ^ 2 = 1;
+
+  relation balance continuous on interval {
+    -div(grad(potential)) - source_scale = 0;
+  }
+  relation lower_value continuous on lower_end { trace(potential) = 0; }
+  relation upper_value continuous on upper_end { trace(potential) = 0; }
+}

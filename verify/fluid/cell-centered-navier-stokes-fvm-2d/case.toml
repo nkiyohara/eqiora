@@ -1,0 +1,93 @@
+id = "fluid.cell-centered-navier-stokes-fvm-2d"
+status = "verified"
+scope = "canonical-fixed-domain-transient-navier-stokes-collocated-cell-centered-fvm-reference-2d"
+reference_kind = "retained-face-replay-pressure-mode-falsification-and-step-doubling"
+
+capabilities = [
+  "canonical-transient-navier-stokes-cell-centered-fvm-2d",
+  "typed-collocated-pressure-velocity-realization",
+  "transient-consistent-momentum-weighted-face-flux",
+  "monolithic-backward-euler-collocated-flow",
+  "independent-momentum-and-continuity-replay",
+  "analytic-jvp-centered-reassembly",
+  "cartesian-checkerboard-pressure-action",
+]
+
+[problem]
+model = "../fixed-domain-transient-navier-stokes-2d/models/direct.eqi"
+domain = "[0 m, 1 m] x [0 m, 1 m]"
+density = "1 kg/m^3"
+dynamic_viscosity = "0.05 kg/(m s)"
+boundary = "complete homogeneous velocity trace"
+initial_velocity = "nonzero discrete curl of one boundary-closed Cartesian cell streamfunction"
+initial_pressure = "zero-integral zero pressure"
+cells_per_axis = 4
+steps = 2
+time_step = "0.01 s"
+
+[canonical_contract]
+model_codec = 5
+source_bytes_are_reused_without_copy = true
+canonical_round_trip_and_digest_are_exact = true
+canonical_lowerer_is_shared_with_mini_fem = true
+fvm_method_in_model = false
+pressure_stabilization_in_model = false
+
+[realization]
+velocity_space = "component-wise cell constant"
+pressure_space = "cell constant"
+mesh = "generated uniform Cartesian 2D with at least two cells per axis"
+pressure_closure = "one zero-integral constraint"
+time_method = "backward Euler"
+convection = "implicit centered using the unique face mass flux"
+traction = "centered Cartesian Newtonian traction"
+coupling = "linearly exact momentum-weighted face flux"
+positive_momentum_scale = "BDF1 mass plus local Cartesian Newtonian normal V1"
+transient_face_history = "previous accepted face flux BDF1 V1"
+nonlinear_method = "monolithic damped Newton with block-specific acceptance"
+linear_method = "identity-preconditioned reproducible BiCGSTAB"
+target = "one-worker offline host CPU"
+
+[acceptance]
+two_positive_steps = true
+discretely_divergence_free_nonzero_initial_velocity = true
+exact_model_realization_and_solver_lineage = true
+momentum_continuity_and_gauge_targets_are_block_specific = true
+retained_face_momentum_and_continuity_replay = true
+unique_face_flux_is_reused_by_continuity_and_convection = true
+all_analytic_jvp_columns_match_centered_reassembly = true
+constant_and_affine_pressure_correction_is_roundoff_zero = true
+x_y_and_xy_checkerboard_pressure_modes_have_nonzero_action = true
+global_mass_and_interior_face_cancellation = true
+nonunit_l_u_p_scale_invariance = true
+coordinate_reflection_and_velocity_reversal = true
+backward_euler_fixed_mesh_step_doubling_ratio = "1.6 to 2.4"
+
+[falsifiers]
+missing_or_reoriented_face_action = "reject independent replay"
+distinct_continuity_or_convection_flux = "reject flux-reuse replay"
+momentum_continuity_or_gauge_failure = "reject block-specific step acceptance"
+analytic_jvp_drift = "reject step acceptance"
+constant_or_affine_pressure_correction = "reject step acceptance"
+omitted_checkerboard_coupling = "reject zero checkerboard action"
+nonzero_boundary_face_history = "reject transient coupling"
+one_cell_per_axis = "reject Realization construction"
+model_revision_field_transformation_target_or_schedule_drift = "reject finalization"
+
+[claim_boundary]
+intrinsic_dimension = 2
+generated_uniform_cartesian_mesh_only = true
+complete_homogeneous_velocity_trace_only = true
+constant_density_and_viscosity_only = true
+cell_centered_collocated_storage_only = true
+backward_euler_only = true
+cpu_reference_only = true
+fem_fvm_same_program_comparison = false
+open_periodic_or_nonzero_boundaries = false
+unstructured_nonorthogonal_ale_gpu_or_mpi = false
+production_preconditioner_or_scale = false
+durable_restartable_face_history = false
+
+[evidence]
+package = "eqiora"
+test = "cell_centered_navier_stokes_2d"

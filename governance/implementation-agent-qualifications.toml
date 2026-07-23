@@ -1,0 +1,10 @@
+schema_version = 1
+benchmark = "DeepSWE"
+benchmark_version = "1.1"
+minimum_score_basis_points = 7000
+configuration = []
+
+# Entries are added only after maintainer review of immutable evaluation
+# evidence for one complete configuration. An empty registry is intentional.
+# Provenance is optional, but every identifier that is supplied fails closed
+# unless it resolves to a current entry in this protected-base registry.

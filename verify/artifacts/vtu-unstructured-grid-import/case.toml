@@ -1,0 +1,73 @@
+id = "artifacts.vtu-unstructured-grid-import"
+status = "verified"
+scope = "bounded-vtk-xml-ascii-one-piece-tri3-mesh-and-selected-field-import"
+reference_kind = "official-vtk-python-writer-and-independent-exact-decoded-summary"
+
+capabilities = [
+  "bounded-vtu-xml-ascii-preflight",
+  "one-piece-homogeneous-tri3-reconstruction",
+  "point-scalar-field-selection",
+  "cell-vector2-field-selection",
+  "reference-writer-nonsemantic-information-metadata",
+  "external-import-source-identity",
+]
+
+[problem]
+format = "VTK XML UnstructuredGrid 0.1, serial .vtu, ASCII DataArray payloads"
+generator = "VTK Python 9.5.2 vtkXMLUnstructuredGridWriter"
+grid = "one Piece containing a unit square"
+mesh = "four Float64 XYZ points and two positively oriented VTK_TRIANGLE cells"
+point_field = "temperature scalar Float64 with four tuples"
+cell_field = "flux two-component Float64 vector with two tuples"
+selection = "exact structural element paths: Piece [0,0], PointData field [0,0,0,0], CellData field [0,0,1,0]"
+
+[falsifiers]
+multiple_piece = "reject"
+wrong_offsets_or_types = "reject"
+binary_encoding = "reject"
+compressor = "reject"
+non_finite_geometry = "reject"
+missing_structural_selector = "reject"
+resource_limit_excess = "reject"
+
+[metamorphic]
+source_byte_mutation = "accepted content unchanged; source and manifest identity change"
+field_name_rename = "structural selection and accepted content unchanged; display provenance changes"
+
+[claim_boundary]
+vtk_file_type = "UnstructuredGrid"
+vtk_xml_version = "0.1"
+pieces = 1
+encoding = "ascii"
+compression = false
+byte_order = "LittleEndian"
+header_type = "UInt32"
+mesh_dimension = 2
+geometry_components = 3
+zero_z_plane = true
+cell_family = "Tri3"
+vtk_cell_type = 5
+tet4_fixture = false
+homogeneous_cells = true
+point_scalar = true
+cell_vector_components = 2
+structural_piece_selector = [0, 0]
+structural_field_selectors = ["0/0/0/0", "0/0/1/0"]
+structural_geometry_selector = "0/0/2/0"
+structural_topology_selector = "0/0/3"
+association_and_name_are_selection_identity = false
+association_and_name_are_validated_metadata = true
+information_key_metadata_is_semantic = false
+inline_binary = false
+appended_binary = false
+multiple_pieces = false
+mixed_or_high_order_cells = false
+curved_geometry = false
+temporal_collections = false
+export = false
+
+[evidence]
+package = "eqiora"
+test = "vtu_unstructured_grid_import"
+features = ["vtu"]
+table = "expected/summary.json"

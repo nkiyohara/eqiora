@@ -1,0 +1,78 @@
+id = "numerics.canonical-cartesian-poisson-mpi"
+status = "verified"
+scope = "canonical-2d-cartesian-poisson-finalized-graph-bound-mpi-execution-receipt"
+reference_kind = "analytic-and-independent-serial-reference"
+
+capabilities = [
+  "parent-shared-canonical-model-artifact",
+  "decoded-realization-semantic-derivation-replay",
+  "q1-fem-finalized-mpi-handoff",
+  "tpfa-finalized-mpi-handoff",
+  "rotated-cyclic-unique-ownership",
+  "canonical-six-artifact-roundtrip-and-rank-agreement",
+  "distributed-content-dag-validation",
+  "transport-neutral-distributed-deployment-binding",
+  "pre-numerical-workspace-process-group-admission",
+  "plan-sealed-mpi-admission",
+  "jacobi-cg-reproducible-solve",
+  "actual-preallocated-bounded-collective-trace",
+  "fixed-nine-step-distributed-execution-dag",
+  "explicit-index-replication",
+  "native-serial-host-true-residual-acceptance-on-every-rank",
+  "independent-serial-host-receipt-replay",
+  "domain-separated-final-receipt-agreement-before-output-exposure",
+  "rank-agreed-operator-output-partition-layout-and-admission-identities",
+  "method-native-reconstruction-and-balance",
+  "independent-serial-reference-conformance",
+  "observed-mpi-run-provenance",
+  "content-linkage-without-semantic-derivation-falsification",
+  "one-two-four-rank-evidence",
+]
+
+[problem]
+equation = "-div(grad(u)) = 2 pi^2 sin(pi x) sin(pi y)"
+domain = "(0, 1) x (0, 1)"
+boundary = "u = 0 on the complete boundary"
+exact_solution = "sin(pi x) sin(pi y)"
+cells_per_axis = 16
+methods = "continuous Q1 Galerkin FEM and orthogonal cell-centered TPFA"
+
+[numerical_contract]
+serial_mpi_absolute = 2e-12
+serial_mpi_relative = 2e-12
+maximum_l2_error = 2e-3
+maximum_relative_balance = 2e-11
+ranks = "one, two, and four"
+workers_per_rank = 1
+reduction = "reproducible"
+
+[claim_boundary]
+physical_nodes = 1
+physical_mpi_execution = true
+replicated_mesh = true
+replicated_assembly = true
+replicated_finish = true
+transport_neutral_distributed_deployment_binding = true
+actual_bounded_collective_trace = true
+fixed_execution_macro_dag = true
+native_host_acceptance = true
+independent_receipt_replay = true
+final_receipt_agreement = true
+rank_agreed_output_identity = true
+distributed_field = false
+physical_multi_node_execution = false
+scalability = false
+hybrid_rank_thread_execution = false
+fast_reduction = false
+mpi_cuda_execution = false
+fsi_execution = false
+minimum_residual_execution = false
+process_failure_recovery = false
+general_distributed_pde = false
+durable_execution_receipt = false
+public_execution_graph_api = false
+
+[evidence]
+package = "eqiora"
+test = "canonical_cartesian_poisson_mpi"
+features = ["mpi"]

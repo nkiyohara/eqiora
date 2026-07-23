@@ -1,0 +1,44 @@
+id = "interfaces.python-distribution-candidate"
+status = "verified"
+scope = "commit-bound-sdist-and-linux-x86-64-per-cpython-wheel-family"
+reference_kind = "clean-installed-artifact-matrix-and-runtime-stub-parity"
+
+capabilities = [
+  "python-self-contained-source-distribution",
+  "python-manylinux-wheel-family",
+  "python-complete-pep-561-surface",
+  "python-distribution-candidate-provenance",
+]
+
+[claim_boundary]
+source_tree = "clean-commit"
+source_tag_required_by_registered_evidence = false
+wheel_source = "rebuilt-sdist"
+ordinary_gil_cpython = ["3.11", "3.12", "3.13", "3.14"]
+operating_system = "linux"
+architecture = "x86_64"
+platform_floor = "manylinux_2_17"
+per_cpython_abi = true
+abi3 = false
+base_and_numpy_each_wheel = true
+async_and_cancellation_each_wheel = true
+strict_base_typing_each_wheel = true
+public_base_smoke_each_wheel = true
+numpy_floor_profile = "cpython-3.12-numpy-2.1.0"
+torch_profile = "cpython-3.13-torch-2.13.0"
+jax_profile = "cpython-3.13-jax-jaxlib-0.11.0"
+framework_public_smoke = "cpython-3.13"
+runtime_stub_parity = "cpython-3.13-all-extras"
+testpypi = false
+production_pypi = false
+reproducible_build = false
+signature = false
+macos = false
+windows = false
+free_threaded_cpython = false
+gpu_wheel = false
+bundled_mpi = false
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_distribution_gate.py"

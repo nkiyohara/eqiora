@@ -1,0 +1,37 @@
+model Main {
+  domain body = box(0, 1, 0, 1);
+  domain x_lower = boundary(body, axis = 0, side = lower);
+  domain x_upper = boundary(body, axis = 0, side = upper);
+  domain y_lower = boundary(body, axis = 1, side = lower);
+  domain y_upper = boundary(body, axis = 1, side = upper);
+  representation space = continuum;
+
+  field velocity on body as space: m / s shape spatial_vector;
+  field pressure on body as space: kg / (m * s ^ 2) = 0;
+  field force_potential on body as space: kg / (m * s ^ 2) = 0;
+  parameter dynamic_viscosity: kg / (m * s) = 2;
+  parameter wave_number: 1 / m = 6.283185307179586;
+  parameter force_scale: kg / (m * s ^ 2) = 1;
+
+  relation force_definition continuous on body {
+    force_potential
+      - force_scale * (
+          sin(wave_number * coordinate(0))
+          + sin(wave_number * coordinate(1))
+        ) = 0;
+  }
+  relation momentum continuous on body {
+    -div(
+      2 * dynamic_viscosity * symmetric_part(grad(velocity))
+      - isotropic_lift(pressure)
+    ) - grad(force_potential) = 0;
+  }
+  relation incompressibility continuous on body {
+    div(velocity) = 0;
+  }
+
+  relation x_lower_value continuous on x_lower { trace(velocity) = 0; }
+  relation x_upper_value continuous on x_upper { trace(velocity) = 0; }
+  relation y_lower_value continuous on y_lower { trace(velocity) = 0; }
+  relation y_upper_value continuous on y_upper { trace(velocity) = 0; }
+}

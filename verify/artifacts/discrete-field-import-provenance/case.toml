@@ -1,0 +1,39 @@
+id = "artifacts.discrete-field-import-provenance"
+status = "verified"
+scope = "mesh-bound-discrete-field-identity-and-external-import-lineage-assertion"
+reference_kind = "public-facade-canonical-identity-and-fail-closed-reference-validation"
+
+capabilities = [
+  "vertex-scalar-and-cell-vector-field-identity",
+  "field-content-versus-source-layout-provenance-separation",
+  "external-import-lineage-assertion",
+  "cross-wired-reference-rejection",
+  "bounded-field-and-manifest-decoding",
+]
+
+[problem]
+mesh = "affine-simplex square with four vertices and two triangle cells"
+fields = "Vertex scalar plus entity-major two-component Cell vector"
+provenance_variants = "distinct metadata/source bytes, display names, locators, and storage selectors over equal resolved values"
+execution = "public eqiora facade contract construction and replay only"
+
+[falsifiers]
+cross_wired_observation = "reject"
+reordered_accepted_fields = "reject"
+nonfinite_field_value = "reject"
+field_value_count_mismatch = "reject"
+field_decoder_limit_excess = "reject"
+manifest_decoder_limit_excess = "reject"
+
+[claim_boundary]
+accepted_field_content_identity = true
+external_lineage_assertion_identity = true
+reference_validation = true
+format_adapter_execution = false
+source_to_artifact_derivation = false
+xdmf_hdf5_or_vtu = false
+time_series = false
+
+[evidence]
+package = "eqiora"
+test = "discrete_field_import_provenance"

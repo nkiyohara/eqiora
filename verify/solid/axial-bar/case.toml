@@ -1,0 +1,37 @@
+id = "solid.axial-bar"
+status = "verified"
+scope = "canonical-model"
+reference_kind = "analytic"
+
+capabilities = [
+  "canonical-spatial-lowering",
+  "default-realization",
+  "linear-elasticity",
+  "physical-units",
+  "essential-bc",
+  "natural-bc",
+  "reaction-recovery",
+]
+
+[problem]
+equation = "-d(E A du/dx)/dx = 0"
+domain = "[0 m, 2 m]"
+boundary = "u(0) = 0; E A u'(2) = 10000 N"
+youngs_modulus_pa = 200e9
+area_m2 = 0.01
+
+[quantities.tip_displacement]
+expected_m = 1e-5
+absolute_tolerance_m = 2e-17
+
+[quantities.stress]
+expected_pa = 1e6
+absolute_tolerance_pa = 2e-6
+
+[quantities.clamp_reaction]
+expected_n = -10000
+absolute_tolerance_n = 2e-7
+
+[evidence]
+package = "eqiora-numerics"
+test = "canonical_axial_bar"

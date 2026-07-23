@@ -1,0 +1,18 @@
+connector Pin = scalar_physical(across = 1, through = 1);
+
+component Leaf {
+  public port left: conserving on Pin;
+  public port right: conserving on Pin;
+}
+
+component ClosedPair {
+  instance leaf: Leaf;
+  relation law continuous {
+    across(leaf.left) + across(leaf.right) = 0;
+  }
+  connect conserving leaf.left, leaf.right;
+}
+
+model Main {
+  instance pair: ClosedPair;
+}

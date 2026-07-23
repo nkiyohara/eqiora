@@ -1,0 +1,21 @@
+connector Pin = scalar_physical(across = 1, through = 1);
+
+component Leaf {
+  public port p: conserving on Pin;
+  relation owner continuous { across(p) = 0; }
+}
+
+component Pair {
+  public port p: conserving on Pin;
+  public port q: conserving on Pin;
+  instance left: Leaf;
+  instance right: Leaf;
+  connect conserving p, left.p;
+  connect conserving q, right.p;
+}
+
+model Network {
+  instance pair: Pair;
+  instance outside: Leaf;
+  connect conserving pair.p, pair.q, outside.p;
+}

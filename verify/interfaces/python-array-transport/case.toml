@@ -1,0 +1,31 @@
+id = "interfaces.python-array-transport"
+status = "verified"
+scope = "python-immutable-cpu-result-array-producer"
+reference_kind = "in-process-pyo3-and-installed-wheel-array-falsifiers"
+
+capabilities = [
+  "python-array-descriptor",
+  "python-numpy-readonly-zero-copy",
+  "python-versioned-dlpack-snapshot",
+]
+
+[claim_boundary]
+device = "cpu:0"
+dtype = "native-endian-float64"
+rank = 1
+c_contiguous = true
+aligned = true
+result_owner_transfer = true
+numpy_zero_copy = true
+numpy_readonly = true
+dlpack_version = "1.x"
+dlpack_copy_on_export = true
+dlpack_zero_copy = false
+array_input = false
+gpu = false
+distributed = false
+sparse = false
+
+[evidence]
+package = "eqiora-python"
+test = "python_array_transport"

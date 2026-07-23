@@ -1,0 +1,60 @@
+id = "differentiation.spatial-poisson-fem-fvm"
+status = "verified"
+scope = "lowered-relation-and-complete-field-output-differentiation"
+reference_kind = "independent-centered-finite-difference"
+
+capabilities = [
+  "explicit-parameter-role-selection",
+  "canonical-spatial-parameter-identity",
+  "analytic-spatial-expression-jvp",
+  "constitutive-parameter-action",
+  "source-parameter-action",
+  "essential-boundary-parameter-action",
+  "assembled-linearized-relation",
+  "q1-fem-parameter-assembly",
+  "tpfa-fvm-parameter-assembly",
+  "forward-sensitivity",
+  "adjoint-gradient",
+  "complete-primary-field-output-projection",
+  "fem-eliminated-boundary-output-action",
+  "paired-output-jvp-vjp",
+  "exact-model-realization-bound-program",
+  "immutable-selected-parameter-point-binding",
+  "static-program-multiple-accepted-evaluations",
+  "non-default-point-primal-jvp-vjp",
+  "exact-evaluation-point-evidence",
+  "p0-p1-p0-repeatability",
+  "concurrent-evaluation-isolation",
+  "inseparable-point-realization-solution-ownership",
+  "equal-primal-distinct-derivative-falsifier",
+  "normal-transposed-solve-provenance",
+  "jvp-vjp-duality",
+  "independent-centered-finite-difference",
+]
+
+[problem]
+equation = "-div(grad(u)) = s sin(pi x) sin(pi y)"
+domain = "(0, 1) x (0, 1)"
+boundary = "u = 0 on the complete boundary"
+selected_parameters = "source_scale, diffusion, boundary_offset; wave_number is explicitly frozen"
+outputs = "method-native unknown oracle plus complete primary Field application projection"
+objective = "J(u) = integral(u^2)"
+
+[claim_boundary]
+spatial_dimension = 2
+methods = ["continuous-q1-galerkin", "cell-centred-tpfa"]
+scalar = "native-f64"
+execution = "host-serial"
+program_identity_is_static_across_points = true
+evaluation_point_is_immutable_and_evidenced = true
+unselected_parameters_remain_canonical = true
+semantic_model_mutation = false
+python_alternate_point_api = false
+pytorch_operator = false
+batching = false
+gpu = false
+distributed = false
+
+[evidence]
+package = "eqiora"
+test = "spatial_poisson_differentiation"

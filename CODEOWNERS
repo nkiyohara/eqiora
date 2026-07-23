@@ -1,0 +1,28 @@
+# Bootstrap ownership. Replace this rule only when a real public maintainer or
+# working group accepts a documented path under GOVERNANCE.md.
+* @nkiyohara
+
+# Central contracts. These explicit paths define review responsibility even
+# while every bootstrap responsibility resolves to the same maintainer.
+/crates/eqiora-core/ @nkiyohara
+/crates/eqiora-schema/ @nkiyohara
+/crates/eqiora-graph/ @nkiyohara
+/crates/eqiora-sem/ @nkiyohara
+/crates/eqiora-lang/ @nkiyohara
+/crates/eqiora-compiler/ @nkiyohara
+/crates/eqiora-artifact/ @nkiyohara
+/crates/eqiora-package/ @nkiyohara
+/crates/eqiora-realization/ @nkiyohara
+/crates/eqiora-solver/ @nkiyohara
+/crates/eqiora-device/ @nkiyohara
+/crates/eqiora-distributed/ @nkiyohara
+/rfcs/ @nkiyohara
+
+# Outward lanes remain independently reviewable after their central contract
+# is stable. Bootstrap ownership does not imply central-contract ownership.
+/crates/eqiora-io-*/ @nkiyohara
+/crates/eqiora-backend-*/ @nkiyohara
+/bindings/python/ @nkiyohara
+/crates/eqiora-python/ @nkiyohara
+/studio/ @nkiyohara
+/verify/ @nkiyohara

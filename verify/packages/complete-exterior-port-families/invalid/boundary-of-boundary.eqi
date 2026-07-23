@@ -1,0 +1,17 @@
+public component ExteriorContract {
+  public support body: volume(ambient_dimension = 2);
+  public support exterior: complete_exterior(parent = body);
+}
+
+model Main {
+  domain body = box(0, 1, 0, 1);
+  domain x_lower = boundary(body, axis = 0, side = lower);
+  domain edge = boundary(x_lower, axis = 0, side = lower);
+  domain x_upper = boundary(body, axis = 0, side = upper);
+  domain y_lower = boundary(body, axis = 1, side = lower);
+
+  instance contains_edge: ExteriorContract(
+    support body = body,
+    support exterior = boundaries(x_lower, x_upper, y_lower, edge)
+  );
+}

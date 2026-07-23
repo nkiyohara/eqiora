@@ -1,0 +1,49 @@
+id = "solid.dynamic-linear-solid-semantics-2d"
+status = "verified"
+scope = "exact-package-first-order-isotropic-elastodynamics-velocity-traction-semantics"
+reference_kind = "canonical-package-equivalence-and-fail-closed-structural-recognition"
+
+capabilities = [
+  "first-order-displacement-velocity-kinematics",
+  "positive-density-linear-momentum",
+  "power-conjugate-solid-velocity-traction-boundary",
+  "retained-flux-zero-and-live-port-dispositions",
+  "exact-package-to-direct-lowered-meaning-equivalence",
+]
+
+[problem]
+solid_dependency = "Eqiora.Solid.LinearElasticity@0.4.0"
+solid_semantic_digest = "35fd309d5fc8287f526482a1843bf936d52a71046b5fadd68bf8d9b3aecbcfc3"
+solid_source_digest = "9776d28253484ee8898554ddf9a0fa5fe2f590de66922e61a04494fe6cf1c043"
+mechanics_dependency = "Eqiora.Mechanics.Interfaces@0.1.0"
+ambient_dimension = 2
+density_kg_per_m3 = 5.0
+shear_modulus_pa = 3.0
+first_lame_parameter_pa = 4.0
+
+[canonical_contract]
+model_wire = 4
+volume_fields = 3
+volume_relations = 3
+boundary_members = 4
+trace_field = "velocity"
+stress_field = "displacement"
+time_discretization_in_model = false
+dependency_alias_spelling_is_nonsemantic = true
+boundary_declaration_and_family_order_is_nonsemantic = true
+literal_component_parameters_are_constants = true
+packaged_literal_parameter_directions = 0
+
+[claim_boundary]
+canonical_and_package_semantics = true
+method_neutral_boundary_inventory = true
+mesh_or_mass_matrix = false
+shaped_dynamic_initial_state_artifact = false
+time_step_or_integrator = false
+structural_dynamics_execution = false
+fsi_or_transfer = false
+ale_or_cad = false
+
+[evidence]
+package = "eqiora"
+test = "dynamic_linear_solid_semantics_2d"

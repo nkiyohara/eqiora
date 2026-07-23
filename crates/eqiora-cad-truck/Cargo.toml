@@ -1,0 +1,18 @@
+[package]
+name = "eqiora-cad-truck"
+description = "Eqiora L3: bounded Truck STEP and Cartesian CAD realization adapter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+eqiora-core = { workspace = true }
+eqiora-geometry = { workspace = true }
+truck-modeling = { workspace = true }
+truck-stepio = { workspace = true }
+truck-topology = { workspace = true }
+
+[lints]
+workspace = true

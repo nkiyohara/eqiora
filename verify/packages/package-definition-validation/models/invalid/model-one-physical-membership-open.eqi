@@ -1,0 +1,15 @@
+connector Pin = scalar_physical(across = 1, through = 1);
+
+component OpenTriple {
+  public port a: conserving on Pin;
+  public port b: conserving on Pin;
+  public port c: conserving on Pin;
+}
+
+model Main {
+  instance triple: OpenTriple;
+  relation owner continuous {
+    across(triple.a) + across(triple.b) + across(triple.c) = 0;
+  }
+  connect conserving triple.a, triple.b;
+}

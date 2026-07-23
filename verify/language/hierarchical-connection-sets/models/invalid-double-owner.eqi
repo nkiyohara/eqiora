@@ -1,0 +1,12 @@
+connector Pin = scalar_physical(across = 1, through = 1);
+
+component Broken {
+  public port p: conserving on Pin;
+  public port q: conserving on Pin;
+  relation first_owner continuous { across(p) = 0; }
+  relation second_owner continuous { through(p) = 0; }
+  relation q_owner continuous { across(q) = 0; }
+  connect conserving p, q;
+}
+
+model Network { instance broken: Broken; }

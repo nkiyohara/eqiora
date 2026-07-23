@@ -1,0 +1,49 @@
+id = "interfaces.python-pytorch-differentiation"
+status = "verified"
+scope = "installed-wheel-in-process-cpu-f64-pytorch-2-13-first-order-autograd"
+reference_kind = "eqiora-vjp-and-centered-finite-difference"
+
+capabilities = [
+  "python-pytorch-functional-custom-operator",
+  "python-pytorch-fake-kernel",
+  "python-pytorch-registered-vjp-autograd",
+  "python-pytorch-fullgraph-compile",
+  "python-pytorch-installed-wheel",
+]
+
+[problem]
+equation = "-div(k grad(u)) = s sin(pi x) sin(pi y)"
+domain = "(0, 1) x (0, 1)"
+inputs = ["source_scale", "diffusion", "boundary_offset"]
+output = "complete primary scalar Field"
+methods = ["continuous-q1-galerkin", "cell-centred-tpfa"]
+execution = "in-process-cpu:0-native-f64"
+torch_range = ">=2.13,<2.14"
+exact_tested_torch = "2.13.0"
+
+[claim_boundary]
+functional_no_input_mutation = true
+fresh_non_aliasing_output = true
+static_program_identity = true
+immutable_runtime_parameter_point = true
+registered_fake_kernel = true
+registered_first_order_vjp = true
+fullgraph_compile = true
+retained_graph_backward = true
+process_local_registry = true
+cpu_device = 0
+dtype = "float64"
+input_rank = 1
+contiguous_input = true
+hidden_device_transfer = false
+double_backward = false
+vmap = false
+gpu = false
+autocast = false
+tensor_subclasses = false
+export_or_serialization = false
+multiprocessing = false
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_torch_gate.py"

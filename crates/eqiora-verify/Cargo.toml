@@ -1,0 +1,17 @@
+[package]
+name = "eqiora-verify"
+description = "Eqiora L4: machine-readable verification case contracts and evidence runner"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+[lints]
+workspace = true

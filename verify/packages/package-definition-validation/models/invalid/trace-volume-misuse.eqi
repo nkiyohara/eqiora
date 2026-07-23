@@ -1,0 +1,8 @@
+model Valid {}
+
+model Invalid {
+  domain line = box(0, 1);
+  representation space = continuum;
+  field state on line as space: 1 = 0;
+  relation invalid continuous on line { trace(state) - state = 0; }
+}

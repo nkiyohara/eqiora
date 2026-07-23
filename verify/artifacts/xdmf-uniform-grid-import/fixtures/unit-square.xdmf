@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Xdmf Version="3.0">
+  <Domain>
+    <Grid Name="unit-square" GridType="Uniform">
+      <Topology TopologyType="Triangle" NumberOfElements="2">
+        <DataItem Format="HDF" DataType="UInt" Precision="8" Dimensions="2 3">unit-square.h5:/mesh/topology</DataItem>
+      </Topology>
+      <Geometry GeometryType="XY">
+        <DataItem Format="HDF" DataType="Float" Precision="8" Dimensions="4 2">unit-square.h5:/mesh/geometry</DataItem>
+      </Geometry>
+      <Attribute Name="temperature" AttributeType="Scalar" Center="Node">
+        <DataItem Format="HDF" DataType="Float" Precision="8" Dimensions="4">unit-square.h5:/fields/temperature</DataItem>
+      </Attribute>
+      <Attribute Name="flux" AttributeType="Vector" Center="Cell">
+        <DataItem Format="HDF" DataType="Float" Precision="8" Dimensions="2 2">unit-square.h5:/fields/flux</DataItem>
+      </Attribute>
+    </Grid>
+  </Domain>
+</Xdmf>

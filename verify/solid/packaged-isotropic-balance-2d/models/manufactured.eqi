@@ -1,0 +1,38 @@
+model Main {
+  domain body = box(0, 1, 0, 1);
+  domain x_lower = boundary(body, axis = 0, side = lower);
+  domain x_upper = boundary(body, axis = 0, side = upper);
+  domain y_lower = boundary(body, axis = 1, side = lower);
+  domain y_upper = boundary(body, axis = 1, side = upper);
+  representation space = continuum;
+
+  field displacement on body as space: m shape spatial_vector;
+  field load_potential on body as space: kg / (m * s ^ 2) = 0;
+  parameter mu: kg / (m * s ^ 2) = 3;
+  parameter lambda: kg / (m * s ^ 2) = 2;
+  parameter wave_number: 1 / m = 3.141592653589793;
+  parameter load_scale: kg / (m * s ^ 2) = 1;
+
+  relation load continuous on body {
+    load_potential
+      - load_scale * (
+          sin(wave_number * coordinate(0)) ^ 2
+          + sin(wave_number * coordinate(1)) ^ 2
+          - 4
+            * sin(wave_number * coordinate(0)) ^ 2
+            * sin(wave_number * coordinate(1)) ^ 2
+        ) = 0;
+  }
+  instance balance_law: solid.IsotropicBalanceWithPotential2d(
+    support body = body,
+    field displacement = displacement,
+    field load_potential = load_potential,
+    mu = mu,
+    lambda = lambda
+  );
+
+  relation x_lower_value continuous on x_lower { trace(displacement) = 0; }
+  relation x_upper_value continuous on x_upper { trace(displacement) = 0; }
+  relation y_lower_value continuous on y_lower { trace(displacement) = 0; }
+  relation y_upper_value continuous on y_upper { trace(displacement) = 0; }
+}

@@ -1,0 +1,42 @@
+id = "numerics.mpi-distributed"
+status = "verified"
+scope = "generic-complete-csr-mpi-bridge"
+reference_kind = "executable-admission-and-fault-falsification"
+
+capabilities = [
+  "application-owned-mpi-lifetime",
+  "duplicated-execution-communicator",
+  "thread-support-validation",
+  "mpi-halo-exchange",
+  "rank-ordered-reproducible-reduction",
+  "native-fast-all-reduce",
+  "plan-sealed-collective-admission",
+  "preallocated-communication-workspace",
+  "monotonic-collective-step",
+  "distributed-conjugate-gradient",
+  "distributed-jacobi-preconditioning",
+  "independent-global-true-residual",
+  "explicit-index-owner-gather",
+  "complete-host-reacceptance",
+  "post-admission-common-failure",
+  "timeout-bounded-liveness-falsification",
+  "one-two-four-rank-evidence",
+]
+
+[problem]
+operator = "twelve-row tridiagonal CSR"
+scalar = "f64"
+ranks = "one, two, and four"
+runtime = "system MPI on one host"
+
+[claim_boundary]
+physical_nodes = 1
+distributed_krylov = true
+process_failure_recovery = false
+canonical_spatial_handoff = false
+typed_distributed_artifacts = false
+
+[evidence]
+package = "eqiora-backend-mpi"
+test = "mpi_distributed"
+features = ["mpi-runtime", "mpi-test-hooks"]

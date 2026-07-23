@@ -1,0 +1,94 @@
+id = "fluid.port-closed-si-mini-stokes-2d"
+status = "verified"
+scope = "power-conjugate-fluid-boundary-package-and-port-closed-si-mini-execution"
+reference_kind = "direct-package-boundary-role-equivalence-and-existing-stokes-oracle"
+
+capabilities = [
+  "exact-velocity-traction-mechanical-interface-package",
+  "package-neutral-stokes-boundary-inventory",
+  "port-closed-canonical-si-mini-stokes-execution",
+  "identity-preserving-component-coefficient-binding",
+  "direct-package-coefficient-primal-jvp-vjp-equivalence",
+]
+
+[dependencies]
+mechanics = "Eqiora.Mechanics.Interfaces@0.1.0"
+mechanics_semantic_digest = "f8c5b9000415d3288a68377d507d16b3524bf17a3aa0a54aee9b003d187534f4"
+mechanics_source_digest = "407744105ebeb9577944169cae56a44eec30565050588dc2407461d7cf43725d"
+fluid = "Eqiora.Fluid.Incompressible@0.2.0"
+fluid_semantic_digest = "39a8eadba1f1c0028d23b42f506b6899320f46e4ef7ba7b45dec3e0524d2c01b"
+fluid_source_digest = "69ac5967d961c2ae4aa558ee020020093329f0050397d54893e465a3ff22eaba"
+resolution = "exact-offline-transitive-closure"
+
+[problem]
+equations = "-div(2 mu sym(grad(u)) - p I) - grad(q) = 0; div(u) = 0"
+domain = "(0 m, 4 m) x (0 m, 2 m)"
+dynamic_viscosity = "6 Pa s"
+force_potential = "q = 0.75 Pa/m * (x - 2 m)"
+exact_velocity = "u = (0, 0) m/s"
+exact_pressure = "p = q"
+pressure_normalization = "integral_Omega p = 0"
+boundary = "zero complete velocity trace on all four sides"
+
+[interface]
+connector = "Eqiora.Mechanics.Interfaces::VelocityTractionBoundary"
+trace = "velocity: m/s, spatial vector"
+flux = "parent-outward Cauchy traction: Pa, spatial vector"
+pairing = "Euclidean boundary duality interpreted as mechanical power"
+fluid_relation = "trace(u)=trace(port); normal(2 mu sym(grad(u))-pI)=flux(port)"
+closed_terminal = "ZeroVelocity2d"
+
+[canonical_contract]
+direct_boundary = "four direct trace(u)=0 Relations"
+packaged_boundary = "complete-exterior fluid interface plus four exact zero-velocity terminals"
+normalized_disposition = "TraceZero on every exact Cartesian side"
+package_name_is_dispatch_key = false
+component_name_is_dispatch_key = false
+dependency_alias_is_dispatch_key = false
+component_parameter_binding = "one root dynamic-viscosity Parameter identity forwarded into volume and boundary slots"
+coefficient_equality = "exact lowering-expression identity, not equal current values"
+occurrence_parameter_fabrication = false
+
+[realization]
+path = "exact Field-wise v2 coherent-SI MINI P1-bubble/P1 plus reference MINRES"
+admitted_boundary = "all sides TraceZero"
+flux_zero = "retained as zero normal pressure; selects no zero-integral constraint"
+live_port_binding = "retained by semantic lowering; rejected before mesh inspection"
+mesh = "same connected 4 by 2 physical affine-triangle artifact as RFC 0045"
+scales = "L=4 m, U=0.5 m/s, P=0.75 Pa; G and Theta derived"
+
+[acceptance]
+exact_package_chain_replays = true
+direct_and_package_roles_match_by_axis_and_side = true
+direct_and_package_dimensionless_algebra_equal = true
+direct_and_package_physical_results_equal = true
+pressure_gauge_and_global_balance_reaccepted = true
+zero_traction_selects_pressure_boundary_and_live_port_fails_before_mesh = true
+direct_package_coefficient_primal_equal = true
+direct_package_coefficient_jvp_equal = true
+direct_package_coefficient_reverse_vjp_equal = true
+
+[falsifiers]
+wrong_connector_dimension_shape_frame_or_nominal_identity = "reject-package-compilation-or-junction"
+wrong_boundary_parent_or_side_completeness = "reject-canonical-lowering"
+wrong_stress_factor_viscosity_or_pressure_sign = "reject-canonical-lowering"
+equal_valued_independent_viscosity_parameter = "reject-canonical-lowering"
+zero_traction_terminal = "lower-as-FluxZero-then-select-no-gauge-pressure-boundary"
+unresolved_compatible_terminal = "lower-as-PortBinding-then-reject-plan-before-mesh"
+invalid_mesh_with_unsupported_disposition = "boundary-diagnostic-must-win"
+model_revision_field_domain_scale_space_solver_or_mesh_drift = "existing-exact-finalization-gates"
+
+[claim_boundary]
+intrinsic_dimension = 2
+complete_cartesian_exterior_only = true
+homogeneous_velocity_trace_execution_only = true
+natural_open_slip_or_nonzero_boundary_execution = false
+live_trace_space_or_port_execution = false
+solid_velocity_boundary_or_structural_dynamics = false
+displacement_velocity_conversion = false
+ale_or_moving_geometry = false
+fluid_structure_interaction = false
+
+[evidence]
+package = "eqiora"
+test = "port_closed_si_mini_stokes_2d"

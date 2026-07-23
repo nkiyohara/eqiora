@@ -1,0 +1,32 @@
+{
+  "schema": "eqiora.verify.package-definition-validation.v1",
+  "valid_identity": {
+    "name": "org.eqiora.verify.definition_validation",
+    "version": "0.1.0",
+    "semantic_digest": "2320ab08b1303c24c0c5d81ecf9afe65e3f67419fb407b7b80b5b74d2ecddd3e",
+    "source_digest": "018f373e21d19b56a5182dc194eb1081b4a836c5e0e9f2ac800689569b3f0a78"
+  },
+  "diagnostics": [
+    { "case": "unused-public-relation", "code": "EQ0603", "message_fragment": "addition/subtraction combines" },
+    { "case": "unused-private-relation", "code": "EQ0603", "message_fragment": "addition/subtraction combines" },
+    { "case": "missing-nested-binding", "code": "EQ0603", "message_fragment": "required Parameter `period` has no instance binding" },
+    { "case": "wrong-nested-binding", "code": "EQ0603", "message_fragment": "Parameter binding has dimension" },
+    { "case": "required-private-parameter", "code": "EQ0603", "message_fragment": "required private Parameter `hidden` has no default" },
+    { "case": "invalid-second-model", "code": "EQ0603", "message_fragment": "addition/subtraction combines" },
+    { "case": "unused-connector-dimension", "code": "EQ0603", "message_fragment": "unknown SI base-dimension symbol `mystery`" },
+    { "case": "unused-recursive-cycle", "code": "EQ0603", "message_fragment": "recursive component definition graph" },
+    { "case": "over-depth-definition", "code": "EQ0604", "message_fragment": "future Model-relative instance depth" },
+    { "case": "gradient-parameter-support", "code": "EQ0603", "message_fragment": "gradient operand has no spatial Domain support" },
+    { "case": "coordinate-outside-domain", "code": "EQ0603", "message_fragment": "coordinate axis 1 is outside Domain dimension 1" },
+    { "case": "coordinate-without-domain", "code": "EQ0603", "message_fragment": "coordinate operator requires a Cartesian Relation scope" },
+    { "case": "cross-domain-fields", "code": "EQ0603", "message_fragment": "expression combines incompatible supports" },
+    { "case": "trace-volume-misuse", "code": "EQ0603", "message_fragment": "trace/normal operator requires an AppliesOn boundary Domain" },
+    { "case": "normal-volume-misuse", "code": "EQ0603", "message_fragment": "trace/normal operator requires an AppliesOn boundary Domain" },
+    { "case": "boundary-of-boundary", "code": "EQ0603", "message_fragment": "boundary parent" },
+    { "case": "private-physical-port-open", "code": "EQ0603", "message_fragment": "private physical Port `terminal` requires exactly one owning Relation" },
+    { "case": "public-physical-port-double-owner", "code": "EQ0603", "message_fragment": "physical endpoint `terminal` cannot have more than one owning Relation" },
+    { "case": "model-child-physical-port-open", "code": "EQ0603", "message_fragment": "Model child public physical Port `open.terminal` requires exactly one owning Relation" },
+    { "case": "model-one-physical-membership-open", "code": "EQ0603", "message_fragment": "Model child public physical Port `triple.c` requires exactly one conserving Connection membership" },
+    { "case": "model-two-instances-one-open", "code": "EQ0603", "message_fragment": "Model child public physical Port `open.a` requires exactly one conserving Connection membership" }
+  ]
+}

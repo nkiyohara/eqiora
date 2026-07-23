@@ -1,0 +1,54 @@
+id = "interfaces.python-jax-differentiation"
+status = "verified"
+scope = "installed-wheel-linux-x86-64-cpython-3-13-cpu-f64-jax-0-11-first-order-typed-ffi"
+reference_kind = "eqiora-primal-jvp-vjp"
+
+capabilities = [
+  "python-jax-typed-ffi",
+  "python-jax-static-abstract-evaluation",
+  "python-jax-first-order-jvp-vjp",
+  "python-jax-jit-custom-call",
+  "python-jax-installed-wheel",
+]
+
+[problem]
+equation = "-div(k grad(u)) = s sin(pi x) sin(pi y)"
+domain = "(0, 1) x (0, 1)"
+inputs = ["source_scale", "diffusion", "boundary_offset"]
+output = "complete primary scalar Field"
+methods = ["continuous-q1-galerkin", "cell-centred-tpfa"]
+execution = "in-process-host-cpu-platform-native-f64"
+operating_system = "linux"
+architecture = "x86_64"
+python = "3.13"
+exact_tested_jax = "0.11.0"
+exact_tested_jaxlib = "0.11.0"
+
+[claim_boundary]
+static_program_identity = true
+immutable_runtime_parameter_point = true
+typed_xla_ffi = true
+python_host_callback = false
+eager_primal_jvp_vjp = true
+jit_primal_jvp_vjp = true
+first_order_gradient = true
+static_shape = true
+device_platform = "cpu"
+dtype = "float64"
+input_rank = 1
+hidden_device_transfer = false
+vmap = false
+higher_order = false
+gpu = false
+tpu = false
+direct_concrete_sharding = false
+explicit_compiled_sharding = false
+pmap = false
+rejects_explicit_compiled_input_sharding = true
+rejects_pmap = true
+export_or_serialization = false
+performance = false
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_jax_gate.py"

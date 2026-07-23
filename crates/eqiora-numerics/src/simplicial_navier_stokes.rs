@@ -1,0 +1,37 @@
+//! Fixed-domain transient incompressible Navier--Stokes on the 2D MINI pair.
+//!
+//! The Semantic Model owns the conservative momentum relation. This numerical
+//! realization selects backward Euler and the skew-symmetric convective form,
+//! whose discrete self-action is exactly zero even though MINI velocity is
+//! only weakly divergence free. Mesh motion, stabilization, turbulence, and
+//! backend-specific algebra remain outside this module.
+
+mod acceptance;
+mod api;
+mod assembly;
+pub(crate) mod element;
+mod newton;
+
+use eqiora_core::Diagnostic;
+use eqiora_core::diagnostic::codes;
+
+pub use api::{
+    MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d,
+    SimplicialMiniNavierStokesStepEvidence2d, SimplicialMiniNavierStokesTrajectory2d,
+};
+pub use newton::{
+    advance_simplicial_mini_navier_stokes_2d,
+    advance_simplicial_mini_navier_stokes_2d_with_assembly,
+};
+
+const DIMENSION: usize = 2;
+const COMPONENTS: usize = 2;
+const REQUIRED_CONVECTIVE_QUADRATURE_EXACTNESS: usize = 8;
+
+fn invalid(message: impl Into<String>) -> Diagnostic {
+    Diagnostic::error(codes::INVALID_DISCRETIZATION, message)
+}
+
+fn solve_failed(message: impl Into<String>) -> Diagnostic {
+    Diagnostic::error(codes::NUMERICAL_SOLVE_FAILED, message)
+}

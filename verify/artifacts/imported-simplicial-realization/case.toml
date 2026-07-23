@@ -1,0 +1,46 @@
+id = "artifacts.imported-simplicial-realization"
+status = "verified"
+scope = "content-addressed-imported-affine-simplex-realization"
+reference_kind = "typed-round-trip-exact-single-dof-and-worker-independent-ordered-assembly"
+
+capabilities = [
+  "versioned-affine-simplex-mesh-envelope",
+  "canonical-mesh-bytes-and-domain-separated-digest",
+  "reconstructed-topology-geometry-and-quality-validation",
+  "content-addressed-realization-mesh-reference",
+  "mesh-kind-capability-admission",
+  "realization-mesh-dimension-validation",
+  "continuous-p1-simplex-centroid-execution",
+  "canonical-model-to-imported-mesh-assembly",
+  "ordered-parallel-simplex-p1-assembly",
+  "separate-assembly-and-solve-placement-evidence",
+  "resource-limited-mesh-decoding",
+  "forged-quality-evidence-rejection",
+]
+
+[problem]
+equation = "-div(grad(u)) = 1"
+domain = "unit square"
+boundary = "u = 0 on the complete boundary"
+mesh = "four positively oriented affine triangles sharing one interior vertex"
+space = "continuous P1 Lagrange"
+quadrature = "simplex centroid"
+exact_discrete_center_value = "1 / 12"
+
+[claim_boundary]
+mesh_revision = "fixed topology and affine f64 geometry"
+verified_pde_dimension = 2
+mesh_contract_dimension = "runtime-dimensional"
+cell_family = "simplex only"
+field_components = 1
+element_order = 1
+external_file_importers = false
+curved_geometry = false
+mixed_cells = false
+global_nonoverlap_proof = false
+distributed_mesh = false
+adaptive_refinement = false
+
+[evidence]
+package = "eqiora"
+test = "imported_simplicial_realization"

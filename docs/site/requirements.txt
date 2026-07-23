@@ -1,0 +1,2 @@
+# Site tooling only. It is not a runtime dependency of Eqiora.
+mkdocs-material==9.7.7

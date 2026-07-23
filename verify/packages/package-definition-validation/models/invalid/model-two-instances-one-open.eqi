@@ -1,0 +1,18 @@
+connector Pin = scalar_physical(across = 1, through = 1);
+
+component OpenPair {
+  public port a: conserving on Pin;
+  public port b: conserving on Pin;
+}
+
+model Main {
+  instance closed: OpenPair;
+  instance open: OpenPair;
+  relation closed_owner continuous {
+    across(closed.a) + across(closed.b) = 0;
+  }
+  relation open_owner continuous {
+    across(open.a) + across(open.b) = 0;
+  }
+  connect conserving closed.a, closed.b;
+}

@@ -1,0 +1,67 @@
+public connector ScalarTransportBoundary = field_physical(
+  trace = concentration: K,
+  flux = transport_flux: K * m / s,
+  shape = [],
+  frame = invariant,
+  pairing = euclidean_boundary_duality
+);
+
+public component PeriodicTransportSide2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public field slot concentration on body as continuum: K;
+  public field slot flow_potential on body as continuum: m ^ 2 / s;
+  public parameter diffusivity: m ^ 2 / s;
+  public port transport: conserving ScalarTransportBoundary over face;
+
+  relation periodic_binding continuous on face {
+    trace(concentration) - trace(transport) = 0;
+    normal(
+      concentration * grad(flow_potential)
+      - diffusivity * grad(concentration)
+    ) - flux(transport) = 0;
+  }
+}
+
+model Main {
+  domain body = box(0, 1, 0, 1);
+  domain x_lower = boundary(body, axis = 0, side = lower);
+  domain x_upper = boundary(body, axis = 0, side = upper);
+  domain y_lower = boundary(body, axis = 1, side = lower);
+  domain y_upper = boundary(body, axis = 1, side = upper);
+  representation space = continuum;
+  field concentration on body as space: K = 0;
+  field flow_potential on body as space: m ^ 2 / s = 0;
+  parameter speed: m / s = 1;
+  parameter diffusivity: m ^ 2 / s = 0.2;
+  parameter inflow_concentration: K = 1;
+  relation flow_definition continuous on body {
+    flow_potential - speed * coordinate(1) = 0;
+  }
+  relation transport continuous on body {
+    derivative(concentration)
+      + div(concentration * grad(flow_potential))
+      - div(diffusivity * grad(concentration)) = 0;
+  }
+  instance x_lower_periodic: PeriodicTransportSide2d(
+    support body = body,
+    support face = x_lower,
+    field concentration = concentration,
+    field flow_potential = flow_potential,
+    diffusivity = diffusivity
+  );
+  instance x_upper_periodic: PeriodicTransportSide2d(
+    support body = body,
+    support face = x_upper,
+    field concentration = concentration,
+    field flow_potential = flow_potential,
+    diffusivity = diffusivity
+  );
+  relation y_lower_trace continuous on y_lower {
+    trace(concentration) - inflow_concentration = 0;
+  }
+  relation y_upper_flux continuous on y_upper {
+    normal(diffusivity * grad(concentration)) = 0;
+  }
+  connect periodic x_lower_periodic.transport, x_upper_periodic.transport;
+}

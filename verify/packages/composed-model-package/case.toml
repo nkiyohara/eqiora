@@ -1,0 +1,70 @@
+id = "packages.composed-model-package"
+status = "verified"
+scope = "exact-three-package-closed-scalar-electrical-host-serial"
+reference_kind = "frozen-package-artifact-identities-and-analytic-dc"
+
+capabilities = [
+  "transitive-composed-model-package",
+  "exact-three-package-component-closure",
+  "package-component-source-lineage-permutation",
+  "installed-transitive-component-execution",
+]
+
+[problem]
+leaf = "Eqiora.Electrical.Basic@0.1.0"
+intermediate = "Eqiora.Electrical.Circuits@0.1.0"
+root = "org.example.closed_circuit@0.1.0"
+source_voltage = 12.0
+parallel_resistances = [2.0, 4.0]
+
+[canonical_contract]
+packages = 3
+dependency_edges = 2
+root_direct_dependencies = 1
+physical_unknowns = 14
+physical_residuals = 14
+model_wire = 2
+package_wire = 1
+
+[numerical_contract]
+relative_tolerance = 1e-12
+absolute_tolerance = 1e-14
+maximum_iterations = 100
+maximum_value_error = 2e-11
+maximum_semantic_residual_norm = 1.2e-11
+
+[claim_boundary]
+complete_dependency_release_closure_supplied = true
+exact_dependency_edges = "root --circuits--> Circuits --basic--> Basic"
+dependency_input_order_invariant = true
+store_insertion_order_invariant = true
+root_release_and_lock_order_invariant = true
+semantic_source_permutation_preserves_package_and_model_identity = true
+source_only_change_updates_resolution_and_compilation_lineage = true
+installed_exact_replay = true
+public_component_interface = "three typed scalar Parameters; no Ports"
+package_qualified_three_level_provenance = true
+package_release_validates_all_connectors_components_and_models = true
+definition_validation_precedes_release_identity = true
+definition_validation_exposes_graph_identity = false
+selected_model_compilation_replays_exact_semantics = true
+selected_model_compilation_lowers_occurrences = true
+root_transitive_alias_access = false
+private_component_import = false
+selected_model_dimension_failure_returns_model = false
+cross_boundary_connection_set_union = false
+public_physical_boundary_ports = false
+imported_model_references = false
+multi_package_atomic_transaction = false
+directory_or_registry_discovery = false
+version_range_resolution = false
+network_access = false
+signing_or_trust = false
+dynamic_plugins = false
+scalar_type = "f64"
+placement = "one host process, one worker"
+static_affine = true
+
+[evidence]
+package = "eqiora"
+test = "composed_model_package"

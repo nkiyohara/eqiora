@@ -1,0 +1,38 @@
+id = "numerics.threaded-cpu"
+status = "verified"
+scope = "host-threaded-ordered-assembly-and-linear-execution"
+reference_kind = "worker-independent-assembly-reaction-and-true-residual"
+
+capabilities = [
+  "run-owned-rayon-pool",
+  "ordered-parallel-p1-assembly",
+  "ordered-parallel-q1-assembly-2d-3d",
+  "ordered-parallel-tpfa-cell-facet-assembly-2d-3d",
+  "multi-target-local-packet",
+  "separate-assembly-placement-evidence",
+  "partitioned-row-operator",
+  "fixed-order-parallel-inner-product",
+  "reproducible-worker-independent-result",
+  "execution-placement-evidence",
+  "host-worker-capability-fail-closed",
+  "portable-typed-realization-dag",
+  "deployment-bound-host-execution-receipt",
+  "exact-provider-release-provenance",
+  "same-id-provider-version-substitution-rejection",
+  "serial-rayon-common-logical-execution-dag",
+  "pre-pool-capability-rejection",
+  "exact-realization-admission-tuples",
+  "resolved-operator-property-sealing",
+]
+
+[problem]
+model = "canonical one-, two-, and three-dimensional Poisson"
+method = "continuous P1/Q1 Galerkin FEM and orthogonal cell-centered TPFA"
+scalar = "f64"
+layout = "replicated"
+workers = "one and four"
+
+[evidence]
+package = "eqiora"
+test = "threaded_cpu"
+features = ["threaded"]

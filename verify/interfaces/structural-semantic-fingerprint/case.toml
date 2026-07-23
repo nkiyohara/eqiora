@@ -1,0 +1,31 @@
+id = "interfaces.structural-semantic-fingerprint"
+status = "verified"
+scope = "alpha-normalized-structural-semantic-comparison-v1"
+reference_kind = "public-rust-fingerprint-and-comparison"
+
+capabilities = [
+  "closed-semantic-model-projection",
+  "exact-alpha-normalized-graph-labeling",
+  "source-native-route-comparison",
+  "artifact-codec-independent-comparison",
+  "nominal-identity-and-rewiring-falsifiers",
+  "type-support-clock-and-boundary-falsifiers",
+  "bounded-fail-closed-construction",
+]
+
+[problem]
+scalar = "dx/dt + rate*x = 0"
+physical = "one nominal electrical Domain, three conserving Ports, and one N-ary Connection"
+generation = "eqiora.structural-semantic-fingerprint/v1"
+
+[claim_boundary]
+exact_model_artifact_identity = false
+persistent_entity_identity = false
+mathematical_equivalence = false
+cross_generation_equality = false
+durable_cache_key = false
+semantic_merge = false
+
+[evidence]
+package = "eqiora"
+test = "structural_semantic_fingerprint"

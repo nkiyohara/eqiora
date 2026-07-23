@@ -1,0 +1,9 @@
+model Main {
+  instance source: components.IdealVoltageSource(voltage = 12);
+  instance load: components.ResistiveBranch(resistance = 2);
+  instance ground: components.Ground;
+
+  connect conserving source.positive, load.positive;
+  connect conserving source.negative, load.negative;
+  connect conserving load.negative, ground.terminal;
+}

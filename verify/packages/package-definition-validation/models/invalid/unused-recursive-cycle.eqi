@@ -1,0 +1,9 @@
+public component A {
+  instance b: B;
+}
+
+public component B {
+  instance a: A;
+}
+
+model Empty {}

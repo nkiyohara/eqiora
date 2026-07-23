@@ -1,0 +1,60 @@
+id = "fsi.fixed-reference-distributed-assembly-loopback-2d"
+status = "verified"
+scope = "fixed-reference-fsi-cell-owned-row-routed-loopback-assembly-2d"
+reference_kind = "independent-complete-cpu-reference-assembly"
+
+capabilities = [
+  "authenticated-fixed-affine-simplex-mesh-identity",
+  "exact-unique-cell-ownership",
+  "authenticated-assembly-packet-set-binding",
+  "derived-owned-ghost-entity-layout",
+  "equation-support-derived-target-row-ownership",
+  "exactly-once-cell-packet-evaluation",
+  "canonical-packet-local-assembly-delta",
+  "owner-routed-reproducible-row-reduction",
+  "bitwise-reduced-and-full-csr-rhs-reconstruction",
+  "unchanged-canonical-fsi-acceptance",
+  "one-two-four-partition-loopback-evidence",
+]
+
+[problem]
+ambient_dimension = 2
+cells = 8
+materials = "four inertial-fluid triangles and four dynamic-solid triangles"
+interface = "the exact two-facet conforming interface at x = 1 m"
+targets = "reduced solve system and full reaction/interface-evidence system"
+partitions = "one, two, and four"
+
+[ownership_contract]
+cell_owner = "the sole explicit ownership input"
+lower_entity_owner = "minimum owner in the incident top-cell star"
+row_owner = "minimum owner of cell packets whose actual equation map contains the row"
+packet_producer = "the owner of the same-index canonical cell"
+reduction_order = "target ordinal, then ascending global packet index"
+
+[falsifiers]
+duplicate_missing_or_out_of_range_cell_claim = "reject"
+same_cell_count_foreign_mesh_packet_set = "reject before packet evaluation"
+empty_cell_partition = "reject"
+unsupported_target_row = "reject"
+missing_duplicate_or_wrong_producer_route = "reject"
+wrong_target_destination_or_payload_route = "reject"
+missing_or_duplicate_local_route_admission = "reject"
+nonminimal_or_unsupported_collective_row_owner = "reject"
+arrival_order_changes_bits = "reject"
+reconstructed_reduced_or_full_system_drift = "reject"
+
+[claim_boundary]
+fixed_reference_fsi_2d = true
+physical_mpi_transport = false
+distributed_minres_or_fsi_solve = false
+physical_multi_node_execution = false
+distributed_field_or_parallel_io = false
+scalability = false
+gpu_assembly_or_execution = false
+ale_or_remeshing = false
+durable_distributed_assembly_artifact = false
+
+[evidence]
+package = "eqiora"
+test = "fixed_reference_fsi_distributed_assembly_loopback_2d"

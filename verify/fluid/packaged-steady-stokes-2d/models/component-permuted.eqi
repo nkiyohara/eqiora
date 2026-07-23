@@ -1,0 +1,16 @@
+public component SteadyStokesWithPotential2d {
+  relation incompressibility continuous on body {
+    div(velocity) = 0;
+  }
+  relation momentum continuous on body {
+    -div(
+      2 * dynamic_viscosity * symmetric_part(grad(velocity))
+      - isotropic_lift(pressure)
+    ) - grad(force_potential) = 0;
+  }
+  public parameter dynamic_viscosity: kg / (m * s);
+  public field slot force_potential on body as continuum: kg / (m * s ^ 2);
+  public field slot pressure on body as continuum: kg / (m * s ^ 2);
+  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public support body: volume(ambient_dimension = 2);
+}

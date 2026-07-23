@@ -1,0 +1,66 @@
+id = "geometry.cad-semantic-selection-box"
+status = "verified"
+scope = "bounded-step-stock-sketch-extrusion-intersection-semantic-selection"
+reference_kind = "content-bound-truck-cad-to-semantic-geometry-mesh-projection"
+
+capabilities = [
+  "bounded-step-cuboid-import",
+  "fully-constrained-rectangle-extrusion",
+  "bounded-axis-aligned-boolean-intersection",
+  "cad-design-and-build-evidence",
+  "domain-owned-application-projection-selection",
+  "explicit-cad-cross-revision-selection-retention",
+  "cad-geometry-mesh-physics-boundary-projection",
+]
+
+[problem]
+source = "one exact millimetre STEP MANIFOLD_SOLID_BREP cuboid"
+feature = "one fully constrained XY rectangle extruded in positive z"
+boolean = "exact positive-volume axis-aligned intersection"
+model = "one 3D Cartesian body, complete six-boundary family, and connected field-physical boundary Ports"
+mesh = "one deterministic six-tetrahedron affine-simplex realization"
+successor = "one independently accepted body successor with changed dimensions"
+
+[canonical_contract]
+cad_role = "Realization of an exact Semantic Domain, never a new Semantic node kind"
+design_identity = "exact Model, target Domain, complete STEP digest, source unit, sketch, feature, boolean, and distinct tolerances"
+build_identity = "exact design, adapter/kernel versions, normalized observations, no-repair disposition, and Geometry Identity"
+selection_identity = "exact Geometry Identity digest plus exact Semantic Domain"
+projection_identity = "application triangles and semantic rows project Domain identity; renderer indices cannot enter a request"
+mesh_mapping = "ordinary Geometry Identity and GeometryMeshCorrespondence artifacts"
+physics_mapping = "ordinary AppliesOn Relations and BoundaryPhysical Ports projected from the canonical Model"
+cross_revision_retention = "explicit total one-to-one geometry-revision association only"
+
+[falsifiers]
+changed_or_truncated_step_bytes = "reject"
+source_unit_mismatch = "reject"
+source_uncertainty_or_cad_tolerance_substitution = "reject on exact build replay"
+open_multiple_nonplanar_or_nonaxis_step_topology = "reject"
+adapter_identity_substitution = "reject on replay"
+stale_geometry_selection = "reject"
+unknown_domain_selection = "reject"
+selection_from_wrong_association_source = "reject"
+missing_split_merged_or_ambiguous_successor = "inherited from registered geometry.fixed-reference-interface-identity-2d revision-association evidence"
+
+[type_level_exclusions]
+repaired_output = "unrepresentable because V1 exposes only CadRepairDispositionV1::None"
+kernel_face_selection = "unrepresentable in the public artifact, API, and Studio CAD sub-protocol"
+
+[claim_boundary]
+one_closed_planar_cuboid_step_source = true
+one_fully_constrained_rectangular_sketch = true
+one_positive_z_extrusion = true
+one_axis_aligned_intersection = true
+application_table_and_viewport_projection = true
+general_step_assemblies_or_curves = false
+general_boolean_kernel = false
+healing_or_defeaturing = false
+general_brep_persistence = false
+universal_topology_naming = false
+revolve_sweep_loft_fillet_or_patterns = false
+ale_or_remeshing = false
+
+[evidence]
+package = "eqiora"
+test = "cad_semantic_selection"
+features = ["cad-truck"]

@@ -1,0 +1,126 @@
+id = "fluid.fixed-domain-transient-navier-stokes-2d"
+status = "verified"
+scope = "canonical-fixed-domain-transient-incompressible-navier-stokes-mini-reference-2d"
+reference_kind = "scaled-cpu-newton-krylov-step-doubling"
+
+capabilities = [
+  "canonical-conservative-navier-stokes-semantics-2d",
+  "typed-outer-product-model-wire-v5",
+  "typed-transient-fieldwise-realization",
+  "typed-portable-realization-dag",
+  "artifact-authenticated-mesh-revision",
+  "fixed-domain-mini-p1-backward-euler",
+  "direct-nonlinear-residual-and-analytic-jacobian",
+  "energy-skew-conservative-defect-identity",
+  "cpu-reference-newton-krylov",
+  "mini-mass-norm-first-order-time-refinement",
+]
+
+[problem]
+domain = "[0 m, 1 m] x [0 m, 1 m]"
+density = "1 kg/m^3"
+dynamic_viscosity = "0.05 kg/(m s)"
+body_force = "zero during transient advance"
+initial_state = "accepted nonzero weakly incompressible MINI Stokes state"
+boundary = "homogeneous velocity trace on all four exact Cartesian sides"
+steps = 2
+time_step = "0.01 s"
+
+[canonical_contract]
+momentum = "rho derivative(u) + div(rho outer_product(u,u)) - div(2 mu sym(grad(u)) - p I) - grad(q) = 0"
+constraint = "div(u) = 0"
+density_identity = "one exact revision-local tape in inertia and conservative flux"
+activation = "continuous"
+mesh_motion = false
+time_method_in_model = false
+nonlinear_solver_in_model = false
+
+[realization]
+velocity_space = "continuous vector (P1 + one normalized cell bubble)^2"
+pressure_space = "continuous scalar P1 with one zero-integral constraint"
+advection = "typed EnergySkewConvection transformation selected from the conservative canonical relation, with the exact global defect recorded"
+time_method = "backward Euler"
+quadrature = "positive 5 x 5 Duffy-Gauss, triangle total-degree exactness 8"
+nonlinear_method = "direct-residual damped Newton with an analytic Jacobian checked column by column"
+linear_method = "identity-preconditioned fast-reduction BiCGSTAB"
+target = "one-worker host CPU"
+block_system = "mass + advection + stiffness + mixed constraint + load"
+run_directive = "step count is separate from Realization identity"
+
+[scaling]
+native = "L, U, P"
+derived_time = "L/U"
+dimensionless_density = "rho U^2/P"
+dimensionless_viscosity = "mu U/(P L)"
+dimensionless_step = "dt U/L"
+physical_reconstruction = true
+
+[time_refinement]
+common_final_time = "0.04 s"
+step_sizes = [0.02, 0.01, 0.005]
+expected_step_doubling_ratio_minimum = 1.7
+expected_step_doubling_ratio_maximum = 2.4
+spatial_mesh_is_fixed = true
+error_norm = "consistent MINI velocity mass norm"
+nonlinear_sensitivity_bound = "tenfold-tighter solve differs by less than 1e-3 of the finest time difference in the same MINI mass norm"
+
+[acceptance]
+explicit_model_wire_v5_round_trip = true
+package_neutral_canonical_lowering = true
+typed_transient_realization_is_resolved = true
+portable_domain_field_transformation_and_solve_dag_drives_admission = true
+portable_placement_contains_no_environment_local_ordinal = true
+authenticated_mesh_envelope_is_bound_to_block_system = true
+explicit_realization_revision_is_preserved = true
+solver_backend_identity_is_preserved = true
+validated_block_materialization_count_is_retained = true
+two_nontrivial_steps = true
+direct_nonlinear_residual_reassembly = true
+tighter_nonlinear_trajectory_is_negligible_for_refinement = true
+all_analytic_jacobian_columns_match_centered_differences = true
+weak_incompressibility = true
+zero_pressure_integral = true
+nonzero_convective_action = true
+zero_skew_convective_self_work = true
+conservative_to_skew_defect_identity = true
+strictly_increasing_time = true
+mini_mass_norm_first_order_time_refinement = true
+
+[falsifiers]
+wrong_outer_product_operand = "reject-canonical-lowering"
+density_identity_or_value_drift = "reject-canonical-lowering"
+advective_form_or_hidden_ale_velocity = "reject-canonical-lowering"
+incomplete_boundary_relation = "reject-closed-model-lowering"
+inconsistent_essential_initial_velocity = "reject-before-assembly"
+inconsistent_weakly_divergence_free_initial_velocity = "reject-before-assembly"
+nonzero_initial_pressure_mean = "reject-before-assembly"
+nonzero_initial_gauge_multiplier = "reject-before-assembly"
+stale_mesh_state = "reject-before-assembly"
+foreign_mesh_digest_and_data_pair = "unrepresentable-at-public-facade"
+pressure_policy_drift = "reject-before-assembly"
+solver_backend_drift = "unrepresentable-after-preparation"
+quadrature_below_degree_eight = "reject-local-operator"
+relative_tolerance_at_or_above_one = "reject-plan-construction"
+wrong_analytic_jacobian = "reject-before-step-acceptance"
+nonlinear_nonconvergence = "reject-without-state-mutation"
+unrepresentable_or_nonmonotone_time = "reject-before-step-acceptance"
+
+[claim_boundary]
+intrinsic_dimension = 2
+fixed_affine_triangle_mesh = true
+mini_p1_only = true
+complete_homogeneous_velocity_trace_only = true
+constant_density_and_viscosity_only = true
+backward_euler_only = true
+cpu_reference_only = true
+turbulence_compressibility_free_surface_or_multiphase = false
+ale_or_remeshing = false
+production_preconditioner = false
+gpu_or_mpi = false
+adjoint_or_sensitivity = false
+durable_trajectory_artifact = false
+
+[evidence]
+package = "eqiora"
+test = "transient_mini_navier_stokes_2d"
+features = ["faer"]

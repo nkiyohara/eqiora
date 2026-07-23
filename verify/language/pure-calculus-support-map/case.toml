@@ -1,0 +1,47 @@
+id = "language.pure-calculus-support-map"
+status = "verified"
+scope = "bounded-proof-carrying-pure-calculus-and-semantic-trace-support-map"
+reference_kind = "typed-expansion-exact-proof-replay-and-support-identity-falsifiers"
+
+capabilities = [
+  "content-addressed-capture-free-pure-operator-definition",
+  "typed-symmetric-part-and-isotropic-lift-expansion",
+  "replayable-exact-rational-normalization-proof",
+  "identity-preserving-component-scalarization",
+  "typed-local-scalar-input-slots-without-semantic-placeholders",
+  "semantic-parent-volume-to-boundary-trace-support-map",
+  "package-neutral-elasticity-stokes-and-fsi-regression",
+]
+conformance_kits = ["pure-calculus-support-map-v1"]
+
+[proof_contract]
+calculus = "bounded topological exact component DAG"
+definition_identity = "SHA-256 over canonical typed definition content"
+normalization = "exact rational commutative polynomial classification v1"
+execution_reassociation_authorized = false
+typed_context_required_for_equivalence = true
+
+[component_scalarization]
+input_slot = "dense IR-local ordinal plus exact ScalarSymbolCoordinate"
+fabricated_semantic_identity = false
+durable_slot_wire = false
+
+[support_map]
+source = "exact parent Cartesian Volume support"
+target = "exact owning Boundary support"
+orientation = "parent outward"
+pairing = "pointwise value"
+numerical_transfer_data = false
+
+[claim_boundary]
+model_or_transaction_v5 = false
+new_kernel_node_or_expression_kind = false
+source_level_user_pure_operator = false
+universal_weak_form_or_symbolic_algebra = false
+floating_point_reassociation = false
+mesh_interpolation_mortar_or_quotient = false
+dynamic_plugin_or_callback = false
+
+[evidence]
+package = "eqiora-ir"
+test = "pure_calculus_support_map"

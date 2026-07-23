@@ -1,0 +1,9 @@
+connector Pin = scalar_physical(across = 1, through = 1);
+
+component Broken {
+  public port terminal: conserving on Pin;
+  relation first continuous { across(terminal) = 0; }
+  relation second continuous { through(terminal) = 0; }
+}
+
+model Main {}

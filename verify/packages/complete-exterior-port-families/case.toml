@@ -1,0 +1,46 @@
+id = "packages.complete-exterior-port-families"
+status = "verified"
+scope = "hierarchy-only-complete-cartesian-exterior-and-pointwise-boundary-families"
+reference_kind = "canonical-kernel-identity-provenance-and-fail-closed-diagnostics"
+
+capabilities = [
+  "exact-cartesian-complete-exterior",
+  "statically-elaborated-boundary-port-families",
+  "statically-elaborated-boundary-relation-families",
+  "pointwise-boundary-connection-families",
+  "nested-complete-exterior-forwarding",
+]
+
+[claim_boundary]
+exact_cartesian_complete_exterior = true
+statically_elaborated_boundary_port_family = true
+statically_elaborated_boundary_relation_family = true
+pointwise_boundary_connection_family = true
+nested_complete_exterior_forwarding = true
+kernel_collection_or_wire_change = false
+arbitrary_boundary_subset_or_loop = false
+mesh_or_trace_space = false
+mixed_boundary_numerical_solve = false
+live_coupled_execution = false
+
+[canonical_contract]
+model_wire = 3
+ambient_dimension = 2
+complete_exterior_members = 4
+nested_forwarding_depth = 2
+ordinary_ports = 8
+ordinary_relations = 8
+ordinary_activations = 8
+ordinary_connections = 4
+dependency_alias_spellings = 2
+invalid_source_fixtures = 12
+family_kernel_entities = 0
+family_wire_payloads = 0
+exact_member_identity_is_not_ordinal = true
+member_and_declaration_order_are_nonsemantic = true
+transitive_binding_provenance_is_complete = true
+implicit_family_connections = false
+
+[evidence]
+package = "eqiora"
+test = "complete_exterior_port_families"

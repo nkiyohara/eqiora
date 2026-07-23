@@ -1,0 +1,112 @@
+id = "solid.conforming-elasticity-pair-2d"
+status = "verified"
+scope = "exact-two-body-coincident-full-side-conforming-q1-elasticity-interface"
+reference_kind = "analytic-heterogeneous-interface-convergence-and-equilibrium"
+
+capabilities = [
+  "package-neutral-two-body-elasticity-lowering",
+  "realization-owned-conforming-interface-map",
+  "monolithic-quotient-q1-elasticity-assembly",
+  "weak-interface-action-equilibrium",
+  "exact-package-to-interface-execution-equivalence",
+  "heterogeneous-piecewise-quadratic-convergence",
+]
+conformance_kits = ["canonical-tensor-structure-operators-v1"]
+
+[problem]
+equation = "-div(2 mu sym(grad(u)) + lambda I div(u)) - grad(q) = 0 on each body"
+domains = "left = (0 m, 1/2 m) x (0 m, 1 m); right = (1/2 m, 1 m) x (0 m, 1 m)"
+parameters = "mu_left = 3 Pa; mu_right = 6 Pa; lambda = 0 Pa; ell = 1 m"
+load = "q_left = 2 mu_left x / ell; q_right = mu_right x / ell"
+external_boundary = "u = 0 on left x-lower; outward traction = 0 on every other external side"
+interface = "continuous displacement and balanced parent-outward traction at x = 1/2 m"
+exact_left = "u_left = (x - x^2 / (2 ell), 0)"
+exact_right = "u_right = (3/16 + x/2 - x^2/4, 0) for ell = 1 m"
+
+[canonical_contract]
+spatial_dimension = 2
+model_wire = 4
+semantic_domains = 2
+interface_ports = 2
+interface_connection = "one ordinary conserving Connection"
+boundary_inventory = "TraceZero | FluxZero | PortBinding"
+body_local_lowering = true
+whole_model_connection_closure = true
+package_dispatch = false
+
+[package]
+name = "Eqiora.Solid.LinearElasticity"
+version = "0.3.0"
+semantic_sha256 = "0c924488dbd09fe6f126a73915ac2f7fd376ffcb23b55bbbc054ef7db6470498"
+source_sha256 = "86a40f3e0a8b51bd609a66561a0ffee77b9e6cd7fd391274351d1b91773fd214"
+authority = "verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0"
+
+[realization]
+method = "continuous-galerkin"
+meshes = "two independent generated uniform Cartesian meshes"
+space = "continuous-q1-two-component"
+interface_map = "exact tangential-topology vertex bijection to quotient global degrees of freedom"
+quadrature = "tensor-product-gauss-legendre-2-per-axis"
+scalar_type = "f64"
+vector_layout = "replicated"
+placement = "one-host-worker"
+solver = "conjugate-gradient"
+refinements_per_body = [2, 4, 8]
+horizontal_cell_width = "h = 1 / (2 n)"
+direct_package_numeric_equivalence = true
+
+[convergence.displacement_l2]
+expected = "h^2 / sqrt(192)"
+minimum_order = 1.99
+
+[convergence.displacement_h1_seminorm]
+expected = "h * sqrt(5 / 96)"
+minimum_order = 0.99
+
+[interface]
+exact_trace = "[3/8, 0]"
+negative_body_exact_outward_traction = "[3, 0]"
+positive_body_exact_outward_traction = "[-3, 0]"
+negative_body_weak_action = "[3, 0]"
+positive_body_weak_action = "[-3, 0]"
+weak_action_sum_tolerance = 2e-11
+all_oracle_interface_rows_free = true
+constrained_endpoint_excluded_from_equilibrium = true
+
+[traction_recovery]
+kind = "independent-Q1-stress-facet-quadrature"
+negative_body_raw = "[3 + 3 h, 0]"
+positive_body_raw = "[-3 + 3 h, 0]"
+raw_sum = "[6 h, 0]"
+minimum_order = 0.99
+algebraic_interface_action_is_distinct = true
+
+[equilibrium]
+left_integrated_body_force = "[3, 0]"
+right_integrated_body_force = "[3, 0]"
+constrained_external_reaction = "[-6, 0]"
+global_balance_tolerance = 2e-11
+
+[falsifiers]
+connection_member_count_other_than_two = "reject"
+same_side_interface = "reject"
+additional_uninterpreted_live_port_relation = "reject-before-realization"
+unanchored_pair = "reject-before-mesh"
+one_point_reduced_integration = "reject-before-assembly"
+
+[claim_boundary]
+exactly_two_bodies = true
+complete_coincident_cartesian_side = true
+matching_q1_trace_topology = true
+general_multi_domain_execution = false
+nonmatching_or_mortar_transfer = false
+nitsche_penalty_or_lagrange_multiplier = false
+arbitrary_interface_subset = false
+three_dimensional_elasticity = false
+mixed_or_high_order_space = false
+nonlinear_or_dynamic_elasticity = false
+stokes_or_fsi = false
+
+[evidence]
+package = "eqiora"
+test = "conforming_elasticity_pair_2d"

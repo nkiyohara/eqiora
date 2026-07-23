@@ -1,0 +1,127 @@
+id = "fluid.cartesian-advection-diffusion-fvm-2d"
+status = "verified"
+scope = "canonical-potential-driven-cell-centered-advection-diffusion-fvm-upwind-and-minmod-reference-2d"
+reference_kind = "analytic-zero-initial-inflow-step-space-time-refinement-and-reflection"
+
+capabilities = [
+  "canonical-potential-driven-scalar-transport-2d",
+  "typed-cell-centered-fvm-transport-realization",
+  "conservative-owner-neighbor-face-assembly",
+  "closed-assembly-receipt-and-complete-operator-replay",
+  "first-order-upwind-flow-reversal",
+  "previous-state-cartesian-minmod-imex-second-order",
+  "bounded-face-reconstruction-and-courant-admission",
+  "realization-only-convection-scheme-selection",
+  "backward-euler-transport-time-refinement",
+  "global-transport-balance",
+  "constant-state-preservation-and-boundedness",
+  "canonical-scalar-initial-state-consumption",
+  "non-unit-physical-scaling-invariance",
+  "reference-bicgstab-general-jacobi",
+]
+
+[problem]
+equation = "derivative(c) + div(c grad(psi)) - div(kappa grad(c)) = 0"
+domain = "[0 m, 1 m] x [0 m, 1 m]"
+advector = "grad(psi) = (+/- 1, 0) m/s"
+diffusivity = "0.2 m^2/s"
+direct_boundary = "left trace 1 K; right zero diffusive flux; horizontal zero diffusive flux"
+mirrored_boundary = "right trace 1 K; left zero diffusive flux; horizontal zero diffusive flux"
+source = "zero"
+
+[canonical_contract]
+transported_state = "one scalar differential continuum Field"
+initial_state = "one spatially uniform scalar canonical Field value; no caller or mesh-shaped substitution"
+advector = "coordinate gradient of one structurally affine exactly defined scalar potential Field"
+diffusion = "one positive structurally coordinate-independent coherent-SI expression"
+boundary_data = "one structurally coordinate-independent scalar expression per exact boundary Relation"
+boundary_role = "derived from parent-outward advector sign and exact boundary Relation"
+method_in_model = false
+boundary_name_as_physics = false
+
+[realization]
+spatial_method = "cell-centered finite volume"
+mesh = "generated uniform Cartesian 2D"
+quadrature = "cell centroid"
+field_space = "cell constant"
+convection_profiles = ["implicit first-order upwind", "explicit previous-state Cartesian minmod"]
+diffusion = "orthogonal two-point flux"
+time_profiles = ["fully implicit backward Euler", "explicit-convection implicit-diffusion Euler"]
+linear_operator = "general"
+linear_solver = "Jacobi-preconditioned reproducible one-worker host f64 BiCGSTAB"
+
+[convergence]
+spatial_mesh_cells_per_axis = [4, 8, 16]
+spatial_time_step = "dt = h^2 / 2"
+spatial_time_to_mesh_ratio = "dt / h = h / 2 -> 0"
+spatial_l2_minimum_order = 0.8
+minmod_spatial_l2_minimum_order = 1.6
+temporal_minimum_order = 0.8
+temporal_mesh_is_fixed = true
+
+[acceptance]
+same_canonical_path_for_direct_and_mirrored_models = true
+one_oriented_flux_packet_per_face = true
+assembly_receipt_matches_packet_target_and_placement_inventory = true
+complete_csr_and_rhs_match_independent_physical_operator_reconstruction = true
+equal_and_opposite_interior_scatter = true
+per_step_global_balance_maximum_relative_defect = 5e-11
+accumulated_global_balance_maximum_relative_defect = 5e-11
+constant_state_is_preserved = true
+zero_source_solution_remains_in_initial_and_inflow_hull = true
+minmod_face_values_remain_in_previous_and_inflow_hull = true
+minmod_solution_remains_in_initial_and_inflow_hull = true
+zero_advection_has_no_advective_face_range = true
+minmod_limiter_activates = true
+minmod_courant_number_maximum = 0.5
+minmod_improves_on_first_order_at_finest_registered_mesh = true
+flow_reversal_selects_the_mirrored_donor = true
+model_identity_is_independent_of_realization_reconstruction = true
+unsupported_reconstruction_does_not_fallback = true
+physical_solution_is_invariant_under_nonunit_coordinate_state_and_weak_scales = true
+
+[falsifiers]
+missing_inflow_relation = "models/invalid/missing-inflow-relation.eqi: reject before assembly"
+outflow_trace_substitution = "models/invalid/outflow-trace.eqi: reject before assembly"
+mirrored_roles_not_exchanged = "models/invalid/mirrored-unswapped.eqi: reject before assembly"
+nonaffine_potential = "models/invalid/nonaffine-potential.eqi: reject during closed lowering"
+varying_boundary_data = "models/invalid/varying-boundary.eqi: reject during closed lowering"
+relation_or_field_identity_drift = "reject realization admission"
+method_space_or_quadrature_drift = "reject realization admission"
+duplicated_face_work = "injected duplicate face packet: reject independent complete-operator and right-hand-side replay"
+forged_assembly_receipt = "foreign packet count or placement: reject before system exposure"
+solver_substitution = "foreign plan, orientation, or execution: reject at the finalized finish boundary"
+unsupported_convection_scheme = "reject during Realization resolution without fallback"
+excessive_minmod_courant_number = "reject before assembly"
+physical_scale_substitution = "must preserve reconstructed physical state and conservation evidence"
+
+[claim_boundary]
+intrinsic_dimension = 2
+fixed_cartesian_mesh = true
+scalar_state = true
+spatially_uniform_scalar_canonical_initial = true
+affine_potential_advector = true
+constant_positive_diffusion = true
+structurally_coordinate_independent_boundary_data = true
+first_order_upwind = true
+previous_state_cartesian_minmod = true
+observed_minmod_spatial_order_greater_than = 1.6
+backward_difference_only = true
+imex_euler = true
+cpu_reference_only = true
+caller_or_mesh_shaped_initial_state = false
+spatially_varying_boundary_data = false
+periodic_boundary = false
+general_vector_advector = false
+source_terms = false
+unstructured_or_nonorthogonal_fvm = false
+general_limiter_family = false
+endpoint_nonlinear_muscl = false
+multidirectional_bounded_transport = false
+incompressible_pressure_velocity_coupling = false
+ale_or_remeshing = false
+gpu_or_mpi = false
+
+[evidence]
+package = "eqiora-numerics"
+test = "canonical_transport"

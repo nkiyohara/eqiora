@@ -1,0 +1,15 @@
+model resistor {
+  domain electrical = scalar_physical(
+    across = kg * m ^ 2 / (s ^ 3 * A),
+    through = A
+  );
+  port positive: conserving on electrical;
+  port negative: conserving on electrical;
+  port tap: conserving on electrical;
+  parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 2;
+  relation law continuous {
+    across(positive) - across(negative) - resistance * through(positive) = 0;
+    through(positive) + through(negative) + through(tap) = 0;
+  }
+  connect conserving positive, negative, tap;
+}

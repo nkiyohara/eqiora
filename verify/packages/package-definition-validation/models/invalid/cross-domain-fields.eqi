@@ -1,0 +1,10 @@
+model Valid {}
+
+model Invalid {
+  domain left = box(0, 1);
+  domain right = box(0, 1);
+  representation space = continuum;
+  field a on left as space: 1 = 0;
+  field b on right as space: 1 = 0;
+  relation invalid continuous on left { a - b = 0; }
+}

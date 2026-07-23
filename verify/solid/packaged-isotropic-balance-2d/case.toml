@@ -1,0 +1,75 @@
+id = "solid.packaged-isotropic-balance-2d"
+status = "verified"
+scope = "exact-two-package-2d-isotropic-balance-to-host-serial-q1-csr-cg"
+reference_kind = "identity-normalized-structure-lowered-equivalence-convergence-and-exact-lineage"
+
+capabilities = [
+  "exact-packaged-isotropic-balance-component",
+  "field-slot-to-name-independent-elasticity-lowering",
+  "packaged-and-explicit-flat-elasticity-equivalence",
+  "identity-preserving-root-parameter-forwarding",
+  "packaged-elasticity-realization-and-run-lineage",
+]
+
+[problem]
+dependency = "Eqiora.Solid.LinearElasticity@0.1.0"
+equation = "-div(2 mu sym(grad(u)) + lambda I div(u)) - grad(q) = 0"
+domain = "(0 m, 1 m) x (0 m, 1 m)"
+fields = "u: [2] spatial displacement; q: invariant scalar load potential"
+boundary = "u = [0, 0] on all four root-owned sides"
+
+[canonical_contract]
+packages = 2
+package_wire = 1
+model_wire = 4
+component_owned_domains = 0
+component_owned_fields = 0
+component_owned_relations = 1
+component_support_slots = 1
+component_field_slots = 2
+component_parameters = 2
+root_owned_fields = 2
+root_owned_parameters = 4
+root_owned_boundary_domains = 4
+root_owned_boundary_relations = 4
+identity_normalized_flat_structure = true
+lowered_operator_equivalence = true
+cross_frontend_expression_dag_identity = false
+dependency_alias_and_order_invariance = true
+provider_package_name_is_not_a_lowering_or_execution_key = true
+
+[realization]
+method = "continuous-galerkin"
+mesh = "generated-cartesian"
+space = "continuous-q1"
+quadrature = "tensor-product-gauss-legendre-2-per-axis"
+scalar_type = "f64"
+vector_layout = "replicated"
+solver = "conjugate-gradient"
+placement = "one-host-process-one-worker"
+realization_wire = 1
+run_wire = 2
+
+[claim_boundary]
+material = "constant intrinsic-2d isotropic small strain"
+load = "root-owned manufactured and nonzero affine conservative potentials"
+boundary = "four root-owned homogeneous displacement traces"
+exact_offline_package_compilation = true
+explicit_flat_equivalence = true
+package_execution_binding = true
+traction_port_or_boundary_partition = false
+plane_stress_or_plane_strain = false
+three_dimensional_execution = false
+unstructured_mixed_high_order_or_adaptive = false
+nonlinear_dynamic_or_fsi = false
+general_package_executor = false
+
+[equilibrium]
+quantity = "boundary-reaction-plus-integrated-grad-q-per-component"
+nonzero_affine_potential = true
+integrated_body_force = "[1, 0]"
+maximum_absolute_error = 2e-11
+
+[evidence]
+package = "eqiora"
+test = "packaged_isotropic_balance_2d"

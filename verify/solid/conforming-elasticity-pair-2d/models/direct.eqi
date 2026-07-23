@@ -1,0 +1,157 @@
+public connector QuasistaticMechanicalBoundary = field_physical(
+  trace = displacement: m,
+  flux = traction: kg / (m * s ^ 2),
+  shape = spatial_vector,
+  frame = spatial,
+  pairing = euclidean_boundary_duality
+);
+
+public component IsotropicMechanicalInterface2d {
+  public support body: volume(ambient_dimension = 2);
+  public support exterior: complete_exterior(parent = body);
+  public field slot displacement on body as continuum: m shape spatial_vector;
+  public parameter mu: kg / (m * s ^ 2);
+  public parameter lambda: kg / (m * s ^ 2);
+
+  public port mechanical[boundary in exterior]:
+    conserving QuasistaticMechanicalBoundary over boundary;
+
+  relation boundary_interface[boundary in exterior] continuous on boundary {
+    trace(displacement)
+      - trace(mechanical[boundary = boundary]) = 0;
+    normal(
+      2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))
+    ) - flux(mechanical[boundary = boundary]) = 0;
+  }
+}
+
+public component FixedDisplacement2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public port mechanical:
+    conserving QuasistaticMechanicalBoundary over face;
+
+  relation prescribed_displacement continuous on face {
+    trace(mechanical) = 0;
+  }
+}
+
+public component ZeroTraction2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public port mechanical:
+    conserving QuasistaticMechanicalBoundary over face;
+
+  relation prescribed_traction continuous on face {
+    flux(mechanical) = 0;
+  }
+}
+
+model Main {
+  domain left = box(0, 0.5, 0, 1);
+  domain left_x_lower = boundary(left, axis = 0, side = lower);
+  domain left_x_upper = boundary(left, axis = 0, side = upper);
+  domain left_y_lower = boundary(left, axis = 1, side = lower);
+  domain left_y_upper = boundary(left, axis = 1, side = upper);
+  domain right = box(0.5, 1, 0, 1);
+  domain right_x_lower = boundary(right, axis = 0, side = lower);
+  domain right_x_upper = boundary(right, axis = 0, side = upper);
+  domain right_y_lower = boundary(right, axis = 1, side = lower);
+  domain right_y_upper = boundary(right, axis = 1, side = upper);
+  representation space = continuum;
+
+  field left_displacement on left as space: m shape spatial_vector;
+  field left_load_potential on left as space: kg / (m * s ^ 2) = 0;
+  field right_displacement on right as space: m shape spatial_vector;
+  field right_load_potential on right as space: kg / (m * s ^ 2) = 0;
+  parameter mu_left: kg / (m * s ^ 2) = 3;
+  parameter mu_right: kg / (m * s ^ 2) = 6;
+  parameter lambda: kg / (m * s ^ 2) = 0;
+  parameter length_scale: m = 1;
+
+  relation left_load continuous on left {
+    left_load_potential
+      - 2 * mu_left * coordinate(0) / length_scale = 0;
+  }
+  relation left_balance continuous on left {
+    -div(
+      2 * mu_left * symmetric_part(grad(left_displacement))
+      + lambda * isotropic_lift(div(left_displacement))
+    ) - grad(left_load_potential) = 0;
+  }
+  relation right_load continuous on right {
+    right_load_potential
+      - mu_right * coordinate(0) / length_scale = 0;
+  }
+  relation right_balance continuous on right {
+    -div(
+      2 * mu_right * symmetric_part(grad(right_displacement))
+      + lambda * isotropic_lift(div(right_displacement))
+    ) - grad(right_load_potential) = 0;
+  }
+
+  instance left_boundary: IsotropicMechanicalInterface2d(
+    support body = left,
+    support exterior = boundaries(
+      left_x_lower,
+      left_x_upper,
+      left_y_lower,
+      left_y_upper
+    ),
+    field displacement = left_displacement,
+    mu = mu_left,
+    lambda = lambda
+  );
+  instance right_boundary: IsotropicMechanicalInterface2d(
+    support body = right,
+    support exterior = boundaries(
+      right_x_lower,
+      right_x_upper,
+      right_y_lower,
+      right_y_upper
+    ),
+    field displacement = right_displacement,
+    mu = mu_right,
+    lambda = lambda
+  );
+  instance fixed: FixedDisplacement2d(
+    support body = left,
+    support face = left_x_lower
+  );
+  instance left_y_lower_free: ZeroTraction2d(
+    support body = left,
+    support face = left_y_lower
+  );
+  instance left_y_upper_free: ZeroTraction2d(
+    support body = left,
+    support face = left_y_upper
+  );
+  instance right_x_upper_free: ZeroTraction2d(
+    support body = right,
+    support face = right_x_upper
+  );
+  instance right_y_lower_free: ZeroTraction2d(
+    support body = right,
+    support face = right_y_lower
+  );
+  instance right_y_upper_free: ZeroTraction2d(
+    support body = right,
+    support face = right_y_upper
+  );
+
+  connect conserving left_boundary.mechanical[boundary = left_x_lower],
+    fixed.mechanical;
+  connect conserving left_boundary.mechanical[boundary = left_y_lower],
+    left_y_lower_free.mechanical;
+  connect conserving left_boundary.mechanical[boundary = left_y_upper],
+    left_y_upper_free.mechanical;
+  connect conserving right_boundary.mechanical[boundary = right_x_upper],
+    right_x_upper_free.mechanical;
+  connect conserving right_boundary.mechanical[boundary = right_y_lower],
+    right_y_lower_free.mechanical;
+  connect conserving right_boundary.mechanical[boundary = right_y_upper],
+    right_y_upper_free.mechanical;
+  connect conserving left_boundary.mechanical[boundary = left_x_upper],
+    right_boundary.mechanical[boundary = right_x_lower];
+}

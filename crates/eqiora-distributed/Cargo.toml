@@ -1,0 +1,16 @@
+[package]
+name = "eqiora-distributed"
+description = "Eqiora L2: transport-neutral distributed algebra contracts and loopback oracle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+eqiora-core = { workspace = true }
+eqiora-solver = { workspace = true }
+sha2 = { workspace = true }
+
+[lints]
+workspace = true

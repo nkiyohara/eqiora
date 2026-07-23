@@ -1,0 +1,24 @@
+id = "numerics.distributed-layout"
+status = "verified"
+scope = "distributed-layout-and-halo-protocol"
+reference_kind = "global-action-versus-partitioned-loopback"
+
+capabilities = [
+  "unique-global-ownership",
+  "ordered-owned-and-ghost-layout",
+  "sparsity-derived-halo-plan",
+  "owned-row-csr-shards",
+  "loopback-halo-execution",
+  "loopback-reproducible-collective",
+  "partition-capability-fail-closed",
+]
+
+[problem]
+operator = "twelve-row tridiagonal CSR"
+scalar = "f64"
+partitions = "one, two, and four"
+transport = "single-process loopback oracle"
+
+[evidence]
+package = "eqiora-distributed"
+test = "distributed_loopback"

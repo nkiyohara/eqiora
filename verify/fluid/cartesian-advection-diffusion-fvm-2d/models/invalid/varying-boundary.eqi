@@ -1,0 +1,37 @@
+model Main {
+  domain body = box(0, 1, 0, 1);
+  domain x_lower = boundary(body, axis = 0, side = lower);
+  domain x_upper = boundary(body, axis = 0, side = upper);
+  domain y_lower = boundary(body, axis = 1, side = lower);
+  domain y_upper = boundary(body, axis = 1, side = upper);
+  representation space = continuum;
+
+  field concentration on body as space: K = 0;
+  field flow_potential on body as space: m ^ 2 / s = 0;
+  parameter speed: m / s = 1;
+  parameter diffusivity: m ^ 2 / s = 0.2;
+  parameter inflow: K = 1;
+  parameter slope: K / m = 0.1;
+
+  relation flow_definition continuous on body {
+    flow_potential - speed * coordinate(0) = 0;
+  }
+  relation transport continuous on body {
+    derivative(concentration)
+      + div(concentration * grad(flow_potential))
+      - div(diffusivity * grad(concentration)) = 0;
+  }
+
+  relation x_lower_value continuous on x_lower {
+    trace(concentration) - (inflow + slope * coordinate(1)) = 0;
+  }
+  relation x_upper_flux continuous on x_upper {
+    normal(diffusivity * grad(concentration)) = 0;
+  }
+  relation y_lower_flux continuous on y_lower {
+    normal(diffusivity * grad(concentration)) = 0;
+  }
+  relation y_upper_flux continuous on y_upper {
+    normal(diffusivity * grad(concentration)) = 0;
+  }
+}

@@ -1,0 +1,9 @@
+connector Pin = scalar_physical(across = 1, through = 1);
+
+component OpenTerminal {
+  public port terminal: conserving on Pin;
+}
+
+model Main {
+  instance open: OpenTerminal;
+}

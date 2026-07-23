@@ -1,0 +1,13 @@
+public pure operator identity(x: scalar) -> scalar = component(x);
+public pure operator dyadic(a: spatial[1], b: spatial[1]) -> spatial[2]
+  = component(a, 0) * component(b, 1);
+
+model Main {
+  representation space = continuum;
+  domain body = box(0, 1, 0, 1);
+  field right on body as space: 1 shape spatial_vector;
+  field left on body as space: 1 shape spatial_vector;
+  relation balance continuous on body {
+    div(div(dyadic(left, right))) = 0;
+  }
+}

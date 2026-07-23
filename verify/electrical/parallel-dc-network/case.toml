@@ -1,0 +1,55 @@
+id = "electrical.parallel-dc-network"
+status = "verified"
+scope = "source-and-client-neutral-native-flat-scalar-physical-affine-host-serial"
+reference_kind = "source-native-parity-analytic-and-canonical-dag-reacceptance"
+
+capabilities = [
+  "source-and-client-neutral-native-scalar-physical-domain-and-ports",
+  "immutable-draft-local-domain-and-port-identity",
+  "explicit-public-model-document-v2-boundary",
+  "nominal-domain-identity",
+  "deterministic-three-and-four-port-junction-residuals",
+  "model-envelope-v2-roundtrip",
+  "bound-affine-scalar-operator-admission",
+  "canonical-general-csr-handoff",
+  "explicit-canonical-initial-guess",
+  "source-native-analytic-initial-residual-reacceptance",
+  "faer-bicgstab-identity-fast-host-serial",
+  "semantic-dag-residual-reacceptance",
+  "analytic-voltage-current-and-junction-balance",
+  "unrelated-relation-lowering-isolation",
+]
+
+[problem]
+source_voltage = 12.0
+parallel_resistances = [2.0, 4.0]
+high_junction_ports = 3
+ground_junction_ports = 4
+ground = "explicit one-port Relation"
+
+[numerical_contract]
+relative_tolerance = 1e-12
+absolute_tolerance = 1e-14
+maximum_iterations = 100
+source_native_parity_witness = "exact analytic vector in each canonical unknown order"
+maximum_value_error = 2e-11
+maximum_semantic_residual_norm = 1.2e-11
+arbitrary_initial_guess_convergence = false
+
+[claim_boundary]
+scalar_type = "f64"
+placement = "one host process, one worker"
+flat = true
+linear_time_invariant = true
+single_scalar_across_through_pair = true
+nonlinear_components = false
+transient_or_dae = false
+hierarchy = false
+switched_topology = false
+component_library = false
+signal_or_controller_coupling = false
+mpi_or_gpu = false
+
+[evidence]
+package = "eqiora"
+test = "scalar_physical_dc"

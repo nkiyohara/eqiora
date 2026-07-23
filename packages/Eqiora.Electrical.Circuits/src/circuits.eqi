@@ -1,0 +1,13 @@
+public component ParallelDc {
+  public parameter supply_voltage: kg * m ^ 2 / (s ^ 3 * A);
+  public parameter resistance_two: kg * m ^ 2 / (s ^ 3 * A ^ 2);
+  public parameter resistance_four: kg * m ^ 2 / (s ^ 3 * A ^ 2);
+
+  instance source: basic.IdealVoltageSource(voltage = supply_voltage);
+  instance resistor_two: basic.Resistor(resistance = resistance_two);
+  instance resistor_four: basic.Resistor(resistance = resistance_four);
+  instance ground: basic.Ground;
+
+  connect conserving source.positive, resistor_two.positive, resistor_four.positive;
+  connect conserving source.negative, resistor_two.negative, resistor_four.negative, ground.terminal;
+}

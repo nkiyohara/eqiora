@@ -1,0 +1,86 @@
+id = "fsi.fixed-topology-ale-monolithic-2d"
+status = "verified"
+scope = "fixed-topology-current-geometry-navier-stokes-linear-solid-monolithic-backward-euler-2d"
+reference_kind = "independent-reassembly-and-step-refinement-cpu-reference"
+
+capabilities = [
+  "immutable-reference-topology-and-current-geometry-state",
+  "sealed-p1-harmonic-mesh-motion-action",
+  "conservative-endpoint-ale-action-with-affine-gcl",
+  "monolithic-first-order-navier-stokes-linear-solid-fsi-2d",
+  "replayable-fixed-topology-moving-state-lineage",
+]
+
+[problem]
+ambient_dimension = 2
+topology = "one immutable refined conforming affine-triangle fluid/solid topology"
+fluid_interior = "at least one unconstrained fluid vertex"
+interface = "one complete conforming fluid/solid boundary"
+fluid_space = "continuous (P1 + cell bubble)^2 velocity / continuous P1 pressure"
+solid_space = "continuous vector P1 velocity and displacement state"
+mesh_motion = "component-wise P1 harmonic extension from the accepted absolute solid/interface displacement"
+time_method = "at least two monolithic backward-Euler steps"
+execution = "one-thread host CPU reference Newton--Krylov path"
+
+[semantic_contract]
+fluid = "ordinary conservative transient incompressible Navier--Stokes Relations"
+solid = "ordinary first-order small-strain dynamic-solid Relations"
+interface = "ordinary conserving velocity/traction Connection"
+ale_semantic_node = false
+mesh_velocity_field = false
+
+[realization_contract]
+reference_topology = "immutable connectivity, order, memberships, and interface quotient"
+current_geometry = "reference coordinates plus accepted absolute solid displacement and its harmonic fluid extension"
+geometry_action = "current affine maps, backward-difference mesh velocity, spatial velocity gradient, metric rate, and GCL correction derived together"
+fluid_configuration = "current endpoint ALE geometry"
+solid_configuration = "reference geometry"
+fluid_action = "backward Euler plus energy-skew relative convection and one-half div(w) geometric correction"
+coupling = "monolithic, with geometry differentiated through the solid-displacement candidate"
+linear_operator_property = "general nonsymmetric"
+
+[acceptance]
+direct_v5_source_lowers_to_complete_typed_ale_roles = true
+zero_motion_matches_fixed_domain_local_action = true
+affine_metric_identity = "dJ/dt = J div(w) on every moving cell"
+compatible_zero_trace_constant_stream_probe_is_preserved = true
+harmonic_motion_is_independently_reapplied = true
+mesh_velocity_is_the_consecutive_coordinate_quotient = true
+analytic_jacobian_matches_centered_reassembly = true
+weak_incompressibility_and_solid_kinematics_close = true
+interface_trace_action_and_power_balance_close = true
+positive_orientation_and_declared_path_quality_hold = true
+moving_geometry_and_spatial_trajectory_lineage_replays = true
+time_refinement = "first order in one common reference-topology mass norm"
+
+[falsifiers]
+stale_model_geometry_correspondence_mesh_realization_or_predecessor = "reject before accepted evidence"
+changed_connectivity_order_vertex_count_or_membership = "reject as unsupported topology change"
+independently_supplied_or_changed_mesh_velocity = "reject"
+omitted_geometric_correction = "reject through the compatible constant-stream witness"
+nonreplayable_absolute_current_coordinates = "reject"
+discontinuous_interface_motion_or_velocity = "reject"
+inverted_degenerate_low_quality_or_path_inverting_geometry = "reject before physics assembly or state publication"
+incomplete_harmonic_solve_or_changed_fixed_boundary = "reject"
+wrong_analytic_jacobian_or_nonlinear_nonconvergence = "reject without state mutation"
+broken_geometry_state_or_spatial_trajectory_chain = "reject"
+
+[claim_boundary]
+immutable_topology = true
+current_affine_geometry = true
+intrinsic_dimension = 2
+serial_cpu_reference = true
+monolithic_coupling = true
+backward_euler_first_order = true
+p1_harmonic_motion = true
+topology_change_or_remeshing = false
+ale_sensitivity_or_fsi_adjoint = false
+gpu_or_mpi_ale = false
+exact_moving_volume_energy_identity = false
+production_mesh_smoother = false
+finite_strain_or_contact = false
+
+[evidence]
+package = "eqiora"
+test = "fixed_topology_ale_fsi_2d"
+features = ["faer"]

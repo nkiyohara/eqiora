@@ -1,0 +1,104 @@
+id = "solid.mixed-boundary-elasticity-2d"
+status = "verified"
+scope = "package-neutral-direct-and-exact-package-mixed-boundary-q1-elasticity"
+reference_kind = "analytic-inventory-csr-convergence-and-balance-equivalence"
+
+capabilities = [
+  "package-neutral-elasticity-boundary-inventory",
+  "exact-two-port-zero-terminal-elimination",
+  "mixed-essential-natural-cartesian-q1-elasticity",
+  "finalized-elasticity-csr-handoff",
+  "exact-package-to-realization-equivalence",
+  "identity-preserving-component-coefficient-binding",
+  "direct-package-coefficient-primal-jvp-vjp-equivalence",
+  "recovered-natural-traction-convergence",
+]
+conformance_kits = ["canonical-tensor-structure-operators-v1"]
+
+[problem]
+equation = "-div(2 mu sym(grad(u)) + lambda I div(u)) - grad(q) = 0"
+domain = "(0 m, 1 m) x (0 m, 1 m)"
+parameters = "mu = 3 Pa; lambda = 0 Pa; ell = 1 m"
+load = "q = 2 mu x / ell"
+boundary = "u = 0 on x = 0; outward traction = 0 on x = 1, y = 0, y = 1"
+exact_solution = "u = (x - x^2 / (2 ell), 0)"
+
+[canonical_contract]
+spatial_dimension = 2
+model_wire = 4
+boundary_inventory = "TraceZero | FluxZero | PortBinding"
+direct_and_package_inventory_equal = true
+package_dispatch = false
+live_port_binding_retained = true
+component_parameter_binding = "one root Parameter identity forwarded into volume and boundary slots"
+coefficient_equality = "exact lowering-expression identity, not equal current values"
+occurrence_parameter_fabrication = false
+
+[acceptance]
+direct_package_coefficient_primal_equal = true
+direct_package_coefficient_jvp_equal = true
+direct_package_coefficient_reverse_vjp_equal = true
+
+[package]
+name = "Eqiora.Solid.LinearElasticity"
+version = "0.3.0"
+semantic_sha256 = "0c924488dbd09fe6f126a73915ac2f7fd376ffcb23b55bbbc054ef7db6470498"
+source_sha256 = "86a40f3e0a8b51bd609a66561a0ffee77b9e6cd7fd391274351d1b91773fd214"
+semantic_terminals = ["FixedDisplacement2d", "ZeroTraction2d"]
+
+[realization]
+method = "continuous-galerkin"
+mesh = "generated-uniform-cartesian"
+space = "continuous-q1-two-component"
+quadrature = "tensor-product-gauss-legendre-2-per-axis"
+scalar_type = "f64"
+vector_layout = "replicated"
+placement = "one-host-worker"
+solver = "conjugate-gradient"
+finalized_system_direct_package_bit_equal = true
+full_assembly_target_direct_package_bit_equal = true
+
+[convergence.displacement_l2]
+expected = "h^2 / sqrt(120)"
+minimum_order = 1.99
+
+[convergence.displacement_h1_seminorm]
+expected = "h / sqrt(12)"
+minimum_order = 0.99
+
+[equilibrium]
+integrated_body_force = "[6, 0]"
+constrained_reaction = "[-6, 0]"
+global_balance_tolerance = 2e-11
+
+[traction]
+recovery = "independent-Q1-stress-facet-quadrature"
+x_lower_resultant = "[-6 + 3 h, 0]"
+x_upper_resultant = "[3 h, 0]"
+y_lower_resultant = "[0, 0]"
+y_upper_resultant = "[0, 0]"
+free_boundary_minimum_order = 0.99
+algebraic_reaction_is_distinct = true
+
+[falsifiers]
+boundary_volume_stress_mismatch = "reject"
+equal_valued_independent_stress_parameter = "reject"
+additional_direct_relation = "reject"
+duplicate_cartesian_side = "reject"
+simultaneous_trace_and_flux_terminal = "reject"
+live_multiport_q1_realization = "reject-before-mesh"
+
+[claim_boundary]
+nonzero_boundary_data = false
+arbitrary_boundary_subsets = false
+live_trace_space_coupling = false
+nonmatching_transfer = false
+mixed_or_high_order_space = false
+unstructured_mesh = false
+three_dimensional_elasticity = false
+stokes_or_fsi = false
+nonlinear_or_dynamic_elasticity = false
+
+[evidence]
+package = "eqiora"
+test = "mixed_boundary_elasticity_2d"

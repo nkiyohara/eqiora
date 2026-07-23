@@ -1,0 +1,3 @@
+public connector Broken = scalar_physical(across = mystery, through = A);
+
+model Empty {}

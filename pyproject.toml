@@ -1,0 +1,81 @@
+[build-system]
+requires = ["maturin==1.14.1"]
+build-backend = "maturin"
+
+[project]
+name = "eqiora"
+dynamic = ["version"]
+description = "Typed mathematical modeling and execution from one canonical model"
+readme = "bindings/python/README.md"
+requires-python = ">=3.11,<3.15"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Eqiora contributors" }]
+dependencies = ["numpy>=2.1,<3"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Rust",
+  "Topic :: Scientific/Engineering",
+  "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+jax = [
+    "jax==0.11.0; python_version >= '3.12'",
+    "jaxlib==0.11.0; python_version >= '3.12'",
+]
+torch = ["torch>=2.13,<2.14"]
+
+[project.urls]
+Homepage = "https://eqiora.org"
+Documentation = "https://eqiora.org"
+Repository = "https://github.com/nkiyohara/eqiora"
+Issues = "https://github.com/nkiyohara/eqiora/issues"
+Changelog = "https://github.com/nkiyohara/eqiora/blob/main/CHANGELOG.md"
+Security = "https://github.com/nkiyohara/eqiora/security/policy"
+
+[tool.maturin]
+exclude = [
+    ".git/**",
+    "**/.git/**",
+    "target/**",
+    "**/target/**",
+    "**/__pycache__/**",
+    "**/*.pyc",
+    "**/*.pyo",
+    "bindings/python/.venv/**",
+    "bindings/python/dist/**",
+    "studio/node_modules/**",
+    "studio/dist/**",
+    "studio/src-tauri/target/**",
+    "studio/src-tauri/gen/**",
+    "studio/test-results/**",
+    "studio/playwright-report/**",
+]
+locked = true
+manifest-path = "crates/eqiora-python/Cargo.toml"
+module-name = "eqiora._eqiora"
+python-source = "bindings/python/python"
+sdist-generator = "git"
+strip = true
+
+[tool.eqiora-distribution]
+ordinary-gil-cpython = ["3.11", "3.12", "3.13", "3.14"]
+wheel-platform = "manylinux_2_17_x86_64"
+extras-python = "3.13"
+numpy-floor-python = "3.12"
+tested-numpy-floor = "numpy==2.1.0"
+uv = "uv==0.11.31"
+pytest = "pytest==9.1.1"
+mypy = "mypy==2.3.0"
+twine = "twine==6.2.0"
+tested-torch = "torch==2.13.0"
+tested-jax = ["jax==0.11.0", "jaxlib==0.11.0"]

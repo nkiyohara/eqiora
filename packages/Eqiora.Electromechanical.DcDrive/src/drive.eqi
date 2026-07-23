@@ -1,0 +1,69 @@
+public connector RotationalFlange = scalar_physical(
+  across = 1 / s,
+  through = kg * m ^ 2 / s ^ 2
+);
+
+public component ControlledVoltageSource {
+  public port positive: conserving on electrical.Pin;
+  public port negative: conserving on electrical.Pin;
+  public port command: signal input kg * m ^ 2 / (s ^ 3 * A);
+
+  field applied_voltage: kg * m ^ 2 / (s ^ 3 * A) = 0;
+
+  relation law continuous {
+    applied_voltage - command = 0;
+    across(positive) - across(negative) - applied_voltage = 0;
+    through(positive) + through(negative) = 0;
+  }
+}
+
+public component PermanentMagnetDcMotor {
+  public parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2);
+  public parameter inductance: kg * m ^ 2 / (s ^ 2 * A ^ 2);
+  public parameter motor_constant: kg * m ^ 2 / (s ^ 2 * A);
+  public port positive: conserving on electrical.Pin;
+  public port negative: conserving on electrical.Pin;
+  public port shaft: conserving on RotationalFlange;
+
+  field current: A = 0;
+  field speed: 1 / s = 0;
+  field electromagnetic_torque: kg * m ^ 2 / s ^ 2 = 0;
+
+  relation coupled_law continuous {
+    across(positive) - across(negative)
+      - resistance * current
+      - inductance * derivative(current)
+      - motor_constant * speed = 0;
+    through(positive) - current = 0;
+    through(positive) + through(negative) = 0;
+    across(shaft) - speed = 0;
+    electromagnetic_torque - motor_constant * current = 0;
+    through(shaft) + electromagnetic_torque = 0;
+  }
+}
+
+public component InertialLoad {
+  public parameter inertia: kg * m ^ 2;
+  public parameter damping: kg * m ^ 2 / s;
+  public port shaft: conserving on RotationalFlange;
+
+  field speed: 1 / s = 0;
+  field reaction_torque: kg * m ^ 2 / s ^ 2 = 0;
+
+  relation dynamics continuous {
+    across(shaft) - speed = 0;
+    reaction_torque - inertia * derivative(speed) - damping * speed = 0;
+    through(shaft) - reaction_torque = 0;
+  }
+}
+
+public component SpeedSensor {
+  public port shaft: conserving on RotationalFlange;
+  public port speed: signal output 1 / s;
+
+  relation measurement continuous {
+    through(shaft) = 0;
+    speed - across(shaft) = 0;
+  }
+}
+

@@ -1,0 +1,77 @@
+id = "fluid.cartesian-periodic-transport-fvm-2d"
+status = "verified"
+scope = "typed-spatial-periodic-connection-through-conservative-cartesian-fvm-seam-2d"
+reference_kind = "transverse-spectral-oracle-and-nonsymmetric-seam-basis-action"
+
+capabilities = [
+  "spatial-periodic-boundary-connection",
+  "model-and-transaction-wire-v6",
+  "cartesian-periodic-facet-bijection",
+  "conservative-periodic-fvm-seam",
+  "periodic-upwind-flow-reversal",
+  "transverse-periodic-spectral-convergence",
+]
+
+[problem]
+equation = "derivative(c) + div(c grad(psi)) - div(kappa grad(c)) = 0"
+domain = "[0 m, 1 m] x [0 m, 1 m]"
+periodic_pair = "x-lower identified with x-upper by the unique parent-derived translation"
+transverse_advector = "grad(psi) = (0, 1) m/s"
+seam_advector = "grad(psi) = (+/-1, 0) m/s"
+diffusivity = "0.2 m^2/s"
+
+[canonical_contract]
+connection = "exactly two opposite field-physical boundary Ports with one nominal Connector and parent"
+translation = "derived from exact Cartesian embeddings; no caller vector or tolerance"
+boundary_relation = "trace equality and total conservative flux equality through one exact owned Port"
+ordinary_conserving_union = false
+periodic_connection_union = false
+
+[realization]
+spatial_method = "cell-centered finite volume"
+mesh = "generated uniform Cartesian 2D"
+periodic_pairing = "exact tangential Cartesian facet index"
+periodic_action = "one existing interior-face packet per pair"
+convection = "implicit first-order upwind"
+diffusion = "orthogonal two-point flux"
+target = "serial host f64 reference"
+
+[acceptance]
+periodic_facets_form_a_complete_bijection = true
+one_equal_and_opposite_packet_per_pair = true
+periodic_packets_are_excluded_from_exterior_flux = true
+constant_state_is_preserved = true
+global_balance_maximum_relative_defect = 5e-11
+transverse_solution_is_constant_along_periodic_rows = true
+transverse_spectral_l2_minimum_order = 0.8
+positive_and_negative_seam_donors_match_oriented_flux = true
+nonmatching_tangential_pair_has_zero_action = true
+
+[falsifiers]
+wrong_port_count_or_membership = "reject during source construction or semantic validation"
+connector_parent_axis_or_side_mismatch = "reject before a periodic junction is published"
+forged_side_or_nonfinite_period = "reject in the shared boundary contract"
+missing_duplicate_or_mispaired_facet = "reject before assembly"
+omitted_duplicate_reversed_seam = "nonsymmetric basis-action oracle changes"
+unsupported_reconstruction = "reject during Realization resolution without fallback"
+missing_periodic_capability = "reject during Realization resolution without fallback"
+nonfinite_transport_coefficient = "reject before a face action is returned"
+
+[claim_boundary]
+intrinsic_dimension = 2
+cartesian_translation = true
+conforming_uniform_facet_pairing = true
+scalar_transport = true
+first_order_upwind = true
+cpu_reference_only = true
+minmod_periodic_reconstruction = false
+rotational_or_sheared_periodicity = false
+nonconforming_periodic_mesh = false
+unstructured_periodic_mesh = false
+vector_or_tensor_periodic_transform = false
+ale_or_remeshing = false
+gpu_or_mpi = false
+
+[evidence]
+package = "eqiora-numerics"
+test = "canonical_transport"

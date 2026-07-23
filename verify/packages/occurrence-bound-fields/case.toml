@@ -1,0 +1,46 @@
+id = "packages.occurrence-bound-fields"
+status = "verified"
+scope = "local-and-exact-package-continuum-field-slot-elaboration"
+reference_kind = "canonical-kernel-identity-provenance-and-fail-closed-diagnostics"
+
+capabilities = [
+  "occurrence-bound-component-fields",
+  "nested-field-slot-forwarding",
+  "exact-package-field-binding-alias-invariance",
+  "field-binding-source-provenance",
+  "shared-instance-binding-budget",
+  "legacy-source-identity-compatibility",
+]
+
+[canonical_contract]
+model_wire = 3
+package_wire = 1
+root_owned_fields = 2
+expanded_relations = 2
+nested_forwarding_depth = 2
+binding_spans_per_nested_relation = 6
+dependency_alias_spellings = 2
+field_slot_kernel_entities = 0
+field_slot_display_aliases = 0
+field_slot_wire_payloads = 0
+target_field_identity_is_preserved = true
+support_binding_precedes_field_binding = true
+package_name_is_not_an_execution_key = true
+legacy_source_identity_bytes_are_unchanged = true
+
+[claim_boundary]
+representation = "continuum"
+support = "exact volume"
+target_selection = "visible bare-name Field or forwarded Field slot"
+scalar_and_spatial_vector = true
+local_compilation = true
+exact_offline_package_compilation = true
+kernel_or_wire_change = false
+discrete_function_space_or_array = false
+pure_operator = false
+boundary_partition_or_physical_port = false
+numerical_solve = false
+
+[evidence]
+package = "eqiora"
+test = "occurrence_bound_fields"

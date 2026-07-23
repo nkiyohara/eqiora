@@ -1,0 +1,60 @@
+id = "numerics.global-matrix-free-action"
+status = "verified"
+scope = "host-reference-global-packet-linear-action"
+reference_kind = "hand-calculated-nonsymmetric-oracle-plus-independent-assembled-csr-and-affine-solution"
+
+capabilities = [
+  "device-neutral-local-action-to-global-packet-projection",
+  "constraint-aware-matrix-free-rhs",
+  "ordered-host-global-linear-action",
+  "caller-owned-buffer-normal-row-and-transpose-action",
+  "matrix-free-diagonal-action",
+  "identity-cg-over-matrix-free-operator",
+  "assembled-csr-independent-acceptance",
+  "cartesian-q1-one-through-three-dimensional-conformance",
+]
+
+[problem]
+equation = "-div(1.25 grad(u)) = 0"
+domain = "(-0.75, 1.25)^d for d in 1, 2, 3"
+boundary = "u = 1 + sum_i ((i + 1) / 8) x_i on the complete boundary"
+exact_solution = "the same affine harmonic field"
+cells_per_axis = 3
+method = "continuous Cartesian Q1 Galerkin FEM"
+
+[numerical_contract]
+action_absolute = 3e-13
+solve_absolute = 5e-12
+independent_true_residual = 2e-12
+exact_field_absolute = 2e-12
+
+[falsifiers]
+nonsymmetric_forward = "exact hand oracle rejects row/column or packet-order drift"
+nonsymmetric_transpose = "exact hand oracle and adjoint identity reject reusing the normal action"
+duplicate_projection = "same-packet and cross-packet duplicate rows and columns must add"
+skipped_equation = "a None equation row contributes neither operator nor RHS"
+fixed_column = "positive and negative fixed values move only to RHS"
+invalid_shape_or_index = "constructor and action tests reject empty work, out-of-range DOFs, wrong buffers, and non-finite input"
+incomplete_target = "missing rows and exact cross-packet cancellation fail the shared structural gate"
+nonfinite_accumulation = "cross-packet RHS and operator overflow fail before a system is exposed"
+
+[claim_boundary]
+host_serial_f64 = true
+complete_replicated_vector = true
+cartesian_q1_dimensions = "1 through 3"
+csr_stored_by_matrix_free_operator = false
+temporary_coordinate_structural_gate = true
+assembly_free_general_source_rhs = false
+canonical_realization_without_csr_oracle = false
+bit_identical_to_csr_action = false
+threaded_execution_evidence = false
+distributed_execution = false
+accelerator_execution = false
+heterogeneous_or_ragged_local_action_ir = false
+nonlinear_or_time_dependent_action = false
+performance_or_memory_advantage = false
+durable_operator_artifact = false
+
+[evidence]
+package = "eqiora"
+test = "global_matrix_free_action"

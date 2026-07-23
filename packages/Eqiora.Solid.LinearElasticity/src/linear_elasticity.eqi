@@ -1,0 +1,107 @@
+public component IsotropicBalanceWithPotential2d {
+  public support body: volume(ambient_dimension = 2);
+  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot load_potential on body as continuum: kg / (m * s ^ 2);
+  public parameter mu: kg / (m * s ^ 2);
+  public parameter lambda: kg / (m * s ^ 2);
+
+  relation balance continuous on body {
+    -div(
+      2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))
+    ) - grad(load_potential) = 0;
+  }
+}
+
+public connector QuasistaticMechanicalBoundary = field_physical(
+  trace = displacement: m,
+  flux = traction: kg / (m * s ^ 2),
+  shape = spatial_vector,
+  frame = spatial,
+  pairing = euclidean_boundary_duality
+);
+
+public component IsotropicMechanicalInterface2d {
+  public support body: volume(ambient_dimension = 2);
+  public support exterior: complete_exterior(parent = body);
+  public field slot displacement on body as continuum: m shape spatial_vector;
+  public parameter mu: kg / (m * s ^ 2);
+  public parameter lambda: kg / (m * s ^ 2);
+
+  public port mechanical[boundary in exterior]:
+    conserving QuasistaticMechanicalBoundary over boundary;
+
+  relation boundary_interface[boundary in exterior] continuous on boundary {
+    trace(displacement)
+      - trace(mechanical[boundary = boundary]) = 0;
+    normal(
+      2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))
+    ) - flux(mechanical[boundary = boundary]) = 0;
+  }
+}
+
+public component FixedDisplacement2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public port mechanical:
+    conserving QuasistaticMechanicalBoundary over face;
+
+  relation prescribed_displacement continuous on face {
+    trace(mechanical) = 0;
+  }
+}
+
+public component ZeroTraction2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public port mechanical:
+    conserving QuasistaticMechanicalBoundary over face;
+
+  relation prescribed_traction continuous on face {
+    flux(mechanical) = 0;
+  }
+}
+
+public component IsotropicElastodynamicsWithPotential2d {
+  public support body: volume(ambient_dimension = 2);
+  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot load_potential on body as continuum: kg / (m * s ^ 2);
+  public parameter density: kg / m ^ 3;
+  public parameter mu: kg / (m * s ^ 2);
+  public parameter lambda: kg / (m * s ^ 2);
+
+  relation kinematics continuous on body {
+    derivative(displacement) - velocity = 0;
+  }
+  relation momentum continuous on body {
+    density * derivative(velocity)
+      - div(
+        2 * mu * symmetric_part(grad(displacement))
+        + lambda * isotropic_lift(div(displacement))
+      )
+      - grad(load_potential) = 0;
+  }
+}
+
+public component ElastodynamicMechanicalInterface2d {
+  public support body: volume(ambient_dimension = 2);
+  public support exterior: complete_exterior(parent = body);
+  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public parameter mu: kg / (m * s ^ 2);
+  public parameter lambda: kg / (m * s ^ 2);
+
+  public port mechanical[boundary in exterior]:
+    conserving mechanics.VelocityTractionBoundary over boundary;
+
+  relation boundary_interface[boundary in exterior] continuous on boundary {
+    trace(velocity)
+      - trace(mechanical[boundary = boundary]) = 0;
+    normal(
+      2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))
+    ) - flux(mechanical[boundary = boundary]) = 0;
+  }
+}

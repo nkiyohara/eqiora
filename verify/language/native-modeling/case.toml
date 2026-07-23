@@ -1,0 +1,32 @@
+id = "language.native-modeling"
+status = "verified"
+scope = "client-neutral-native-scalar-model-definition"
+reference_kind = "source-native-structure-artifact-and-trajectory-equivalence"
+
+capabilities = [
+  "immutable-native-declarations",
+  "builder-local-symbol-identity",
+  "shared-source-native-typed-lowering",
+  "shared-structural-semantic-fingerprint",
+  "versioned-transaction-atomic-commit",
+  "canonical-model-artifact-round-trip",
+  "declaration-path-diagnostics",
+]
+
+[problem]
+model = "scalar exponential decay"
+declarations = "Field, Parameter, one continuous Relation"
+operators = "constants, references, arithmetic, and time derivative"
+comparison = "generation-v1 structural semantic fingerprint and reference trajectory"
+
+[claim_boundary]
+scalar = true
+continuous = true
+spatial = false
+hybrid = false
+components = false
+python_callback_operators = false
+
+[evidence]
+package = "eqiora"
+test = "native_modeling"

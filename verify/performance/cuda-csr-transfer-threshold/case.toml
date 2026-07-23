@@ -1,0 +1,27 @@
+id = "performance.cuda-csr-transfer-threshold"
+status = "implemented"
+scope = "cold-one-shot-cuda-csr-transfer-inclusive-threshold"
+reference_kind = "serial-host-action-and-independent-raw-median-replay"
+
+capabilities = [
+  "fixed-refinement-protocol",
+  "fresh-device-resources-per-sample",
+  "transfer-inclusive-cuda-observation",
+  "outer-execution-wall-minus-recorded-acceptance",
+  "alternating-measurement-order",
+  "host-oracle-per-sample",
+  "durable-crossing-rule",
+  "privacy-bounded-environment-provenance",
+]
+
+[problem]
+operator = "2D Dirichlet five-point CSR action"
+refinements = "64, 128, 256, 512, 1024, 2048, 4096"
+scalar = "f64"
+cuda_index = "i64"
+host = "serial allocation-free multiply_into"
+device = "one visible NVIDIA GPU, fresh setup and pageable transfers per sample"
+
+[evidence]
+package = "eqiora-backend-cuda"
+test = "cuda_transfer_threshold_evidence"

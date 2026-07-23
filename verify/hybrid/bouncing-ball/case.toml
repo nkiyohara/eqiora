@@ -1,0 +1,33 @@
+id = "hybrid.bouncing-ball"
+status = "implemented"
+scope = "canonical-hybrid"
+reference_kind = "analytic-first-impact"
+
+capabilities = [
+  "directed-zero-crossing",
+  "implicit-root-localization",
+  "coincident-event-grouping",
+  "atomic-reset",
+  "pre-post-event-sampling",
+  "zero-time-zeno-diagnostic",
+]
+
+[problem]
+flow = "h' = v; v' = -g"
+guard = "h = 0, falling"
+reset = "next(h) = 0; next(v) = -e pre(v)"
+initial = "h = 1 m; v = 0 m/s"
+gravity_m_per_s2 = 9.81
+restitution = 0.8
+
+[claim_boundary]
+verified = false
+pending = [
+  "time-step convergence",
+  "long-time energy trend",
+  "mathematical Zeno classification",
+]
+
+[evidence]
+package = "eqiora-sem"
+test = "reference_event"

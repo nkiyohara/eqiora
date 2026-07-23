@@ -1,0 +1,30 @@
+id = "artifacts.model-reference-lineage"
+status = "verified"
+scope = "version-neutral-typed-model-artifact-reference"
+reference_kind = "explicit-wire-round-trip-and-cross-domain-rejection"
+
+capabilities = [
+  "sealed-model-artifact-reference",
+  "model-wire-v1-v2-v3-realization-linkage",
+  "unchanged-realization-v1-wire",
+  "run-v2-content-lineage",
+  "wire-domain-digest-preservation",
+  "cross-wire-substitution-fail-closed",
+]
+
+[problem]
+models = "explicit Model v1 spatial, v2 scalar-physical, and v3 field-boundary artifacts"
+lineage = "selected Model artifact -> Realization v1 -> Run v2"
+encoding = "eqiora.canonical-json/v1"
+
+[claim_boundary]
+wire_autodetection = false
+schema_upgrade = false
+cross_schema_digest_equivalence = false
+model_execution = false
+numerical_acceptance = false
+physical_result_storage = false
+
+[evidence]
+package = "eqiora"
+test = "model_artifact_reference_lineage"

@@ -1,0 +1,17 @@
+model Main {
+  domain solid_interface = boundary(solid, axis = 0, side = lower);
+  domain solid = box(1, 2, 0, 1);
+  domain fluid_interface = boundary(fluid, axis = 0, side = upper);
+  domain fluid = box(0, 1, 0, 1);
+
+  instance solid_side: mechanics.BoundarySide(
+    support interface = solid_interface,
+    support body = solid
+  );
+  instance fluid_side: mechanics.BoundarySide(
+    support interface = fluid_interface,
+    support body = fluid
+  );
+
+  connect conserving solid_side.mechanical, fluid_side.mechanical;
+}

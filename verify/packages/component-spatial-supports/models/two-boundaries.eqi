@@ -1,0 +1,23 @@
+component BoundaryState {
+  public support body: volume(ambient_dimension = 2);
+  public support interface: boundary(parent = body);
+  representation state_space = continuum;
+  field state on body as state_space: 1 = 0;
+  relation volume_law continuous on body { state = 0; }
+  relation coordinate_law continuous on body { coordinate(1) - coordinate(1) = 0; }
+  relation interface_law continuous on interface { trace(state) = 0; }
+}
+
+model Coupled {
+  domain fluid = box(0, 1, 0, 1);
+  domain left = boundary(fluid, axis = 0, side = lower);
+  domain right = boundary(fluid, axis = 0, side = upper);
+  instance left_state: BoundaryState(
+    support body = fluid,
+    support interface = left
+  );
+  instance right_state: BoundaryState(
+    support body = fluid,
+    support interface = right
+  );
+}

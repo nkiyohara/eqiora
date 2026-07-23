@@ -1,0 +1,71 @@
+id = "geometry.fixed-reference-interface-identity-2d"
+status = "verified"
+scope = "exact-content-bound-semantic-geometry-mesh-interface-correspondence-2d"
+reference_kind = "fixed-reference-two-body-incidence-and-revision-lineage"
+
+capabilities = [
+  "exact-semantic-domain-to-geometry-entity-correspondence",
+  "exact-geometry-entity-to-mesh-membership-correspondence",
+  "parent-outward-orientation-derived-from-incidence",
+  "content-bound-two-body-interface-witness",
+  "explicit-total-one-to-one-revision-retention",
+  "explicit-model-v1-v5-replayable-geometry-boundary",
+  "geometry-owned-coherent-si-classification-tolerance",
+]
+
+[problem]
+ambient_dimension = 2
+fluid_domain = "[0 m, 1 m] x [0 m, 1 m]"
+solid_domain = "[1 m, 2 m] x [0 m, 1 m]"
+interface = "x = 1 m, with distinct fluid and solid Boundary Domains"
+semantic_connection = "one ordinary conserving Connection"
+mesh = "one conforming positively oriented affine-triangle mesh"
+body_partition = "disjoint fluid and solid cell subsets covering the mesh"
+
+[canonical_contract]
+semantic_identity = "exact Model Domain ID"
+geometry_identity = "exact entity in one content-addressed geometry revision"
+mesh_identity = "exact cell or facet membership in one content-addressed mesh revision"
+body_mapping = "volume Domain -> geometry body -> nonempty cell subset"
+boundary_mapping = "Boundary Domain -> geometry boundary -> complete relative facet subset"
+interface_membership = "the two distinct interface Boundaries map to one equal complete facet set"
+orientation = "derived OutwardFrom(parent) from oriented incidence"
+caller_supplied_normal_sign = false
+selected_body_and_association_candidate_order_is_nonsemantic = true
+model_replay = "sealed explicit Model v1-v5 replay with exact wire-domain digest retained"
+classification_tolerance = "geometry-producer-owned coherent-SI precision, content-bound into Geometry Identity"
+
+[revision_retention]
+kind = "explicit total one-to-one geometry-entity successor relation"
+source_and_target_domain_ulids_may_differ = true
+selection_retention_is_explicit = true
+mesh_entity_count_may_change = true
+missing_split_merged_or_ambiguous_is_rejected = true
+
+[falsifiers]
+stale_model_geometry_or_mesh_digest = "reject"
+unknown_wrong_kind_dimension_or_parent_domain = "reject"
+out_of_range_duplicate_overlapping_missing_or_surplus_entity = "reject"
+invalid_parent_subset_facet_adjacency = "reject"
+partial_unequal_or_noncoincident_interface_membership = "reject"
+equal_facing_interface_outward_orientation = "reject"
+coincident_shadow_boundary_identity = "reject"
+incomplete_one_to_many_many_to_one_or_ambiguous_revision_lineage = "reject"
+cross_wire_model_substitution = "reject"
+tighter_geometry_precision_rejects_displaced_interface = "reject"
+
+[claim_boundary]
+fixed_reference_cartesian_2d = true
+one_conforming_affine_simplex_mesh = true
+two_disjoint_body_cell_subsets = true
+complete_shared_interface_facet_set = true
+cad_or_step_brep = false
+gmsh_physical_group_semantics = false
+universal_topology_naming = false
+trace_transfer_or_quotient = false
+moving_geometry_or_ale = false
+fsi_assembly_or_solve = false
+
+[evidence]
+package = "eqiora-artifact"
+test = "geometry_identity_fsi_2d"

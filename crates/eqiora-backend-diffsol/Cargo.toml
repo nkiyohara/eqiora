@@ -1,0 +1,20 @@
+[package]
+name = "eqiora-backend-diffsol"
+description = "Eqiora L3: isolated Diffsol adaptive time-integration adapter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+diffsol-runtime = ["dep:diffsol"]
+
+[dependencies]
+diffsol = { workspace = true, optional = true }
+eqiora-core = { workspace = true }
+eqiora-time = { workspace = true }
+
+[lints]
+workspace = true

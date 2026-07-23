@@ -1,0 +1,3 @@
+tip_displacement_m = 1e-5
+stress_pa = 1e6
+clamp_reaction_n = -10000

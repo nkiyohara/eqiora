@@ -1,0 +1,38 @@
+id = "hybrid.registered-event"
+status = "verified"
+scope = "content-linked-explicit-ode-root-to-restart"
+reference_kind = "analytic-bouncing-ball-first-impact-and-flight"
+
+capabilities = [
+  "content-addressed-root-registration",
+  "bounded-root-registration-wire",
+  "canonical-root-callback-order",
+  "backend-root-proposal-linkage",
+  "grouped-implicit-reset",
+  "saltation-after-localization",
+  "explicit-post-reset-restart",
+  "registration-mismatch-rejection",
+]
+
+[problem]
+flow = "h' = v; v' = -g"
+guard = "h = 0, falling"
+reset = "next(h) = 0; next(v) = -e pre(v)"
+initial = "h(0) = 1; v(0) = 0"
+reference = "first impact at sqrt(2/g), analytic reset, saltation, and 0.1 s post-impact flight"
+
+[claim_boundary]
+flow_class = "explicit ODE with the same flow Relation before and after reset"
+event_group = "one structurally identical scalar guard and direction"
+root_selection = "first localized callback before one horizon"
+general_dae = false
+distinct_simultaneous_guards = false
+periodic_tick_coincidence = false
+event_priority = false
+mode_change = false
+checkpoint_lineage = false
+
+[evidence]
+package = "eqiora"
+test = "canonical_time_execution"
+features = ["diffsol"]

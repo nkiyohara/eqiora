@@ -1,0 +1,3 @@
+model Main {
+  instance load: components.ResistiveBranch(resistance = 2);
+}

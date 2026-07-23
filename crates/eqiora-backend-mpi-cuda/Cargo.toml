@@ -1,0 +1,29 @@
+[package]
+name = "eqiora-backend-mpi-cuda"
+description = "Eqiora L3: host-staged MPI and rank-local CUDA composition adapter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+runtime = [
+    "eqiora-backend-cuda/cuda-runtime",
+    "eqiora-backend-mpi/mpi-runtime",
+]
+
+[dependencies]
+eqiora-assembly = { workspace = true }
+eqiora-backend-cuda = { workspace = true }
+eqiora-backend-mpi = { workspace = true }
+eqiora-core = { workspace = true }
+eqiora-device = { workspace = true }
+eqiora-distributed = { workspace = true }
+eqiora-execution = { workspace = true }
+eqiora-solver = { workspace = true }
+sha2 = { workspace = true }
+
+[lints]
+workspace = true

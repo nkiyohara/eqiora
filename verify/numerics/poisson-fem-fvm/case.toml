@@ -1,0 +1,45 @@
+id = "numerics.poisson-fem-fvm"
+status = "verified"
+scope = "canonical-spatial"
+reference_kind = "analytic"
+
+capabilities = [
+  "canonical-coordinate-expression",
+  "dimension-aware-unary-math",
+  "shared-fem-fvm-lowering",
+  "oriented-mesh",
+  "reference-quadrature",
+  "cell-local-fem",
+  "cell-facet-local-fvm",
+  "dirichlet-elimination",
+  "sparse-assembly",
+  "convergence",
+  "global-conservation",
+]
+
+[problem]
+equation = "-u'' = pi^2 sin(pi x)"
+domain = "[0, 1]"
+boundary = "u(0) = u(1) = 0"
+exact_solution = "sin(pi x)"
+
+[convergence.fem_l2]
+norm = "continuous-L2"
+minimum_order = 1.9
+
+[convergence.fvm_l2]
+norm = "continuous-L2-linear-reconstruction"
+minimum_order = 1.9
+
+[conservation.fem]
+quantity = "endpoint-reactions-plus-integrated-source"
+maximum_relative_error = 2e-12
+
+[conservation.fvm]
+quantity = "outward-boundary-flux-plus-integrated-source"
+maximum_relative_error = 2e-12
+
+[evidence]
+package = "eqiora-numerics"
+test = "poisson_fem_fvm"
+table = "expected/convergence.csv"

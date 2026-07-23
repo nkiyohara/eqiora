@@ -1,0 +1,9 @@
+model Main {
+  domain fluid = box(0, 1, 0, 1);
+  domain other = box(0, 1, 0, 1);
+  domain interface = boundary(other, axis = 0, side = upper);
+  instance side: mechanics.BoundarySide(
+    support body = fluid,
+    support interface = interface
+  );
+}

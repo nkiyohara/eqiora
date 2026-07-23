@@ -1,0 +1,1 @@
+{"schema":"eqiora.author-manifest.v1","name":"Eqiora.Mechanics.Interfaces","version":"0.2.0","dependencies":[],"bundle":[{"path":"README.md","role":"documentation"},{"path":"src/interfaces.eqi","role":"model_source"}]}

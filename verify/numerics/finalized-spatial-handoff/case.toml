@@ -1,0 +1,25 @@
+id = "numerics.finalized-spatial-handoff"
+status = "verified"
+scope = "canonical-cartesian-scalar-elliptic-finalized-linear-handoff"
+reference_kind = "cpu-regression-and-falsifying-cross-wire"
+
+capabilities = [
+  "opaque-method-neutral-finalized-problem",
+  "finalized-linear-system-handoff",
+  "sole-solver-plan-handoff",
+  "independent-backend-selection",
+  "accepted-solution-reconstruction",
+  "fem-fvm-symmetric-boundary",
+  "independent-receiving-system-residual-reacceptance",
+  "plan-and-topology-fail-closed",
+]
+
+[problem]
+model = "canonical two-dimensional Poisson"
+methods = "continuous Q1 Galerkin FEM and orthogonal cell-centered TPFA"
+systems = "same-size distinct 9x9 finalized systems with one shared absolute residual target"
+backend = "deterministic reference CPU"
+
+[evidence]
+package = "eqiora"
+test = "finalized_spatial_handoff"

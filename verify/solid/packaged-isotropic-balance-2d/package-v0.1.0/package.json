@@ -1,0 +1,1 @@
+{"schema":"eqiora.author-manifest.v1","name":"Eqiora.Solid.LinearElasticity","version":"0.1.0","dependencies":[],"bundle":[{"path":"README.md","role":"documentation"},{"path":"src/linear_elasticity.eqi","role":"model_source"}]}

@@ -1,0 +1,60 @@
+connector Pin = scalar_physical(
+  across = kg * m ^ 2 / (s ^ 3 * A),
+  through = A
+);
+
+component Ground {
+  relation law continuous {
+    across(terminal) = 0;
+  }
+
+  public port terminal: conserving on Pin;
+}
+
+component Resistor {
+  public port negative: conserving on Pin;
+  public port positive: conserving on Pin;
+  public parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2);
+
+  relation law continuous {
+    across(positive) - across(negative) - resistance * through(positive) = 0;
+    through(positive) + through(negative) = 0;
+  }
+}
+
+component VoltageSource {
+  public port negative: conserving on Pin;
+  public parameter voltage: kg * m ^ 2 / (s ^ 3 * A);
+  public port positive: conserving on Pin;
+
+  relation law continuous {
+    across(positive) - across(negative) - voltage = 0;
+    through(positive) + through(negative) = 0;
+  }
+}
+
+component ParallelDc {
+  public parameter resistance_four: kg * m ^ 2 / (s ^ 3 * A ^ 2);
+  public parameter supply_voltage: kg * m ^ 2 / (s ^ 3 * A);
+  public parameter resistance_two: kg * m ^ 2 / (s ^ 3 * A ^ 2);
+
+  instance ground: Ground;
+  instance resistor_four: Resistor(resistance = resistance_four);
+  instance source: VoltageSource(voltage = supply_voltage);
+  instance resistor_two: Resistor(resistance = resistance_two);
+
+  connect conserving ground.terminal, resistor_four.negative, resistor_two.negative, source.negative;
+  connect conserving resistor_four.positive, resistor_two.positive, source.positive;
+}
+
+model component_elaboration {
+  parameter resistance_four: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 4;
+  parameter supply_voltage: kg * m ^ 2 / (s ^ 3 * A) = 12;
+  parameter resistance_two: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 2;
+
+  instance circuit: ParallelDc(
+    resistance_four = resistance_four,
+    resistance_two = resistance_two,
+    supply_voltage = supply_voltage
+  );
+}

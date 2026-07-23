@@ -1,0 +1,3 @@
+public pure operator identity(x: scalar) -> scalar = component(x);
+public pure operator dyadic(a: spatial[1], b: spatial[1]) -> spatial[2]
+  = component(a, 0) * component(b, 1);

@@ -1,0 +1,49 @@
+id = "differentiation.unstructured-shape-compliance"
+status = "verified"
+scope = "fixed-connectivity-affine-simplex-shape-differentiation"
+reference_kind = "independent-rebuild-centered-difference-and-continuous-series"
+
+capabilities = [
+  "runtime-dimensional-simplicial-topology",
+  "cell-local-positive-orientation-gate",
+  "scale-invariant-mean-ratio-quality-gate",
+  "explicit-domain-coordinate-to-vertex-velocity-map",
+  "p1-fem-simplex-residual-action",
+  "typed-scalar-objective-linearization",
+  "quadrature-defined-continuous-field-compliance",
+  "forward-shape-sensitivity",
+  "adjoint-compliance-gradient",
+  "independent-recompile-remesh-centered-finite-difference",
+  "continuous-rectangle-series-comparison",
+]
+
+[problem]
+equation = "-div(grad(u)) = 1"
+domain = "(0, Lx) x (0, Ly)"
+boundary = "u = 0 on the complete boundary"
+mesh = "fixed-connectivity distorted triangular mesh with alternating diagonals"
+selected_coordinates = "upper x and upper y bounds of the canonical Cartesian Domain"
+verification_point = "Lx = 1.15, Ly = 0.85"
+objective = "J_h = integral(source * u_h) dx"
+continuous_reference = "odd Fourier-sine series for rectangular Poisson compliance"
+
+[claim_boundary]
+derivative = "discretize-then-differentiate"
+topology = "fixed"
+cell_geometry = "full-dimensional affine simplex"
+topology_contract = "runtime-dimensional; unit evidence includes 2D triangles and a 3D tetrahedron"
+verified_pde_dimension = 2
+verified_method = "continuous P1 FEM"
+local_injectivity = true
+global_nonoverlap = false
+continuous_field_objective = true
+continuous_shape_calculus = false
+remeshing = false
+adaptive_refinement = false
+topology_change = false
+mixed_or_high_order_elements = false
+production_optimizer = false
+
+[evidence]
+package = "eqiora"
+test = "unstructured_shape_compliance"

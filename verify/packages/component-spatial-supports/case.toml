@@ -1,0 +1,45 @@
+id = "packages.component-spatial-supports"
+status = "verified"
+scope = "local-and-exact-package-2d-scalar-volume-boundary-support-lowering"
+reference_kind = "canonical-model-topology-provenance-and-fail-closed-diagnostics"
+
+capabilities = [
+  "occurrence-bound-component-spatial-supports",
+  "nested-spatial-support-forwarding",
+  "exact-package-spatial-support-alias-invariance",
+  "support-binding-source-provenance",
+]
+
+[canonical_contract]
+local_volume_domains = 1
+local_boundary_domains = 2
+local_component_occurrences = 2
+exact_boundary_bindings = 2
+package_forwarding_depth = 2
+dependency_alias_spellings = 2
+model_wire = 2
+package_wire = 1
+support_slot_kernel_entities = 0
+support_slot_display_aliases = 0
+defined_on_and_applies_on_use_exact_enclosing_domain_identity = true
+dependency_alias_spelling_preserves_canonical_model = true
+support_binding_provenance_is_complete = true
+
+[claim_boundary]
+support_families = "Volume and Boundary"
+spatial_dimension = 2
+field_shape = "scalar"
+relation_shape = "scalar residual"
+local_compilation = true
+exact_offline_package_compilation = true
+nested_support_forwarding = "root Model -> imported wrapper -> nested Component"
+invalid_contract_exposes_model_or_transaction = false
+field_valued_ports_or_issue_98 = false
+vector_or_tensor_execution = false
+mesh_or_realization = false
+numerical_solve = false
+fluid_structure_interaction = false
+
+[evidence]
+package = "eqiora"
+test = "component_spatial_supports"

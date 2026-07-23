@@ -1,0 +1,512 @@
+//! State, material, scale, load, and boundary contracts.
+
+use std::collections::BTreeSet;
+
+use eqiora_core::Diagnostic;
+
+use crate::{
+    AffineGeometryMap, GeometryMap, MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh,
+    VertexId,
+};
+
+use super::partition::FixedReferenceFsiPartition;
+use super::{invalid, required_quadrature_exactness};
+
+/// Positive material data for the bounded linear FSI realization.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FixedReferenceFsiMaterial<const D: usize> {
+    fluid_density: f64,
+    fluid_dynamic_viscosity: f64,
+    solid_density: f64,
+    solid_shear_modulus: f64,
+    solid_first_lame_parameter: f64,
+}
+
+impl<const D: usize> FixedReferenceFsiMaterial<D> {
+    /// Construct stable Newtonian-fluid and isotropic-linear-solid data.
+    ///
+    /// # Errors
+    /// Rejects non-finite/non-positive densities, viscosity, or shear modulus,
+    /// and rejects a Lamé pair unless `lambda + 2 mu / D` is positive.
+    pub fn new(
+        fluid_density: f64,
+        fluid_dynamic_viscosity: f64,
+        solid_density: f64,
+        solid_shear_modulus: f64,
+        solid_first_lame_parameter: f64,
+    ) -> Result<Self, Diagnostic> {
+        require_supported_dimension::<D>()?;
+        if !fluid_density.is_finite()
+            || fluid_density <= 0.0
+            || !fluid_dynamic_viscosity.is_finite()
+            || fluid_dynamic_viscosity <= 0.0
+            || !solid_density.is_finite()
+            || solid_density <= 0.0
+            || !solid_shear_modulus.is_finite()
+            || solid_shear_modulus <= 0.0
+            || !solid_first_lame_parameter.is_finite()
+            || solid_first_lame_parameter + 2.0 * solid_shear_modulus / D as f64 <= 0.0
+        {
+            return Err(invalid(
+                "fixed-reference FSI material data must be finite and coercive in its admitted dimension",
+            ));
+        }
+        Ok(Self {
+            fluid_density,
+            fluid_dynamic_viscosity,
+            solid_density,
+            solid_shear_modulus,
+            solid_first_lame_parameter,
+        })
+    }
+
+    /// Fluid mass density.
+    #[must_use]
+    pub const fn fluid_density(self) -> f64 {
+        self.fluid_density
+    }
+
+    /// Fluid dynamic viscosity.
+    #[must_use]
+    pub const fn fluid_dynamic_viscosity(self) -> f64 {
+        self.fluid_dynamic_viscosity
+    }
+
+    /// Solid mass density.
+    #[must_use]
+    pub const fn solid_density(self) -> f64 {
+        self.solid_density
+    }
+
+    /// Solid shear modulus `mu`.
+    #[must_use]
+    pub const fn solid_shear_modulus(self) -> f64 {
+        self.solid_shear_modulus
+    }
+
+    /// Solid first Lamé parameter `lambda`.
+    #[must_use]
+    pub const fn solid_first_lame_parameter(self) -> f64 {
+        self.solid_first_lame_parameter
+    }
+}
+
+/// Established two-dimensional material API.
+pub type FixedReferenceFsiMaterial2d = FixedReferenceFsiMaterial<2>;
+
+/// Three-dimensional material data with the dimension-correct coercivity gate.
+pub type FixedReferenceFsiMaterial3d = FixedReferenceFsiMaterial<3>;
+
+/// Characteristic profile defining the dimensionless monolithic algebra.
+///
+/// For velocity scale `U`, pressure scale `P`, and length scale `L`, physical
+/// unknowns satisfy `x = D x_hat` and the captured system is the direct
+/// congruence `A_hat = D^T A D / Theta`, `b_hat = D^T b / Theta`, with
+/// `Theta = P U L^(D - 1)` in ambient dimension `D`. The solver therefore
+/// never receives a dimensionally mixed saddle matrix.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FixedReferenceFsiScale<const D: usize> {
+    length: f64,
+    velocity: f64,
+    pressure: f64,
+}
+
+impl<const D: usize> FixedReferenceFsiScale<D> {
+    /// Construct finite positive characteristic length, velocity, and pressure.
+    ///
+    /// # Errors
+    /// Returns `EQ0801` when any scale is non-finite or non-positive.
+    pub fn new(length: f64, velocity: f64, pressure: f64) -> Result<Self, Diagnostic> {
+        require_supported_dimension::<D>()?;
+        if [length, velocity, pressure]
+            .into_iter()
+            .any(|value| !value.is_finite() || value <= 0.0)
+        {
+            return Err(invalid(
+                "fixed-reference FSI scales must be finite and positive",
+            ));
+        }
+        let value = Self {
+            length,
+            velocity,
+            pressure,
+        };
+        if [value.action(), value.energy(), value.power()]
+            .into_iter()
+            .any(|scale| !scale.is_finite() || scale <= 0.0)
+        {
+            return Err(invalid(
+                "fixed-reference FSI derived dimensional scales must remain finite and positive",
+            ));
+        }
+        Ok(value)
+    }
+
+    /// Characteristic length.
+    #[must_use]
+    pub const fn length(self) -> f64 {
+        self.length
+    }
+
+    /// Characteristic velocity.
+    #[must_use]
+    pub const fn velocity(self) -> f64 {
+        self.velocity
+    }
+
+    /// Characteristic pressure.
+    #[must_use]
+    pub const fn pressure(self) -> f64 {
+        self.pressure
+    }
+
+    pub(crate) fn action(self) -> f64 {
+        self.pressure * self.length.powi((D - 1) as i32)
+    }
+
+    pub(crate) fn energy(self) -> f64 {
+        self.pressure * self.length.powi(D as i32)
+    }
+
+    pub(crate) fn power(self) -> f64 {
+        self.pressure * self.velocity * self.length.powi((D - 1) as i32)
+    }
+}
+
+/// Established two-dimensional scale API.
+pub type FixedReferenceFsiScale2d = FixedReferenceFsiScale<2>;
+
+/// Three-dimensional scale profile with area-valued interface action.
+pub type FixedReferenceFsiScale3d = FixedReferenceFsiScale<3>;
+
+/// Complete time/material/scale selection for one backward-Euler step.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FixedReferenceFsiStepConfig<const D: usize> {
+    time_step: f64,
+    material: FixedReferenceFsiMaterial<D>,
+    scale: FixedReferenceFsiScale<D>,
+    load: FixedReferenceFsiLoad,
+}
+
+impl<const D: usize> FixedReferenceFsiStepConfig<D> {
+    /// Bind one positive time step to admitted material and scale contracts.
+    ///
+    /// # Errors
+    /// Returns `EQ0801` when `time_step` is non-finite or non-positive.
+    pub fn new(
+        time_step: f64,
+        material: FixedReferenceFsiMaterial<D>,
+        scale: FixedReferenceFsiScale<D>,
+        load: FixedReferenceFsiLoad,
+    ) -> Result<Self, Diagnostic> {
+        if !time_step.is_finite() || time_step <= 0.0 {
+            return Err(invalid(
+                "fixed-reference FSI time step must be finite and positive",
+            ));
+        }
+        Ok(Self {
+            time_step,
+            material,
+            scale,
+            load,
+        })
+    }
+
+    /// Backward-Euler step width.
+    #[must_use]
+    pub const fn time_step(self) -> f64 {
+        self.time_step
+    }
+
+    /// Material selection.
+    #[must_use]
+    pub const fn material(self) -> FixedReferenceFsiMaterial<D> {
+        self.material
+    }
+
+    /// Acceptance scales.
+    #[must_use]
+    pub const fn scale(self) -> FixedReferenceFsiScale<D> {
+        self.scale
+    }
+
+    /// Explicit v1 load policy.
+    #[must_use]
+    pub const fn load(self) -> FixedReferenceFsiLoad {
+        self.load
+    }
+}
+
+/// Established two-dimensional backward-Euler step contract.
+pub type FixedReferenceFsiStepConfig2d = FixedReferenceFsiStepConfig<2>;
+
+/// Three-dimensional backward-Euler step contract.
+pub type FixedReferenceFsiStepConfig3d = FixedReferenceFsiStepConfig<3>;
+
+/// Bounded load vocabulary for the first CPU reference realization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FixedReferenceFsiLoad {
+    /// No fluid body force, solid body force, or prescribed traction.
+    #[default]
+    Zero,
+}
+
+/// Established two-dimensional load name.
+pub type FixedReferenceFsiLoad2d = FixedReferenceFsiLoad;
+
+/// Three-dimensional load name over the same semantic policy.
+pub type FixedReferenceFsiLoad3d = FixedReferenceFsiLoad;
+
+/// Homogeneous essential velocity closure.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FixedReferenceFsiBoundary<const D: usize> {
+    fixed_zero_velocity_vertices: Vec<VertexId>,
+}
+
+impl<const D: usize> FixedReferenceFsiBoundary<D> {
+    /// Construct the complete homogeneous exterior-velocity closure.
+    ///
+    /// The interface remains live.  An interface endpoint that also belongs
+    /// to the exterior is naturally constrained once by this inventory.
+    ///
+    /// # Errors
+    /// Returns `EQ0801` if the mesh does not have the admitted dimension.
+    pub fn homogeneous_exterior(mesh: &SimplicialMesh) -> Result<Self, Diagnostic> {
+        require_mesh_dimension::<D>(mesh)?;
+        let fixed_zero_velocity_vertices = (0..mesh.vertices().len())
+            .filter(|&vertex| {
+                mesh.is_boundary_entity(MeshEntity::new(0, vertex))
+                    .expect("accepted vertex owns boundary classification")
+            })
+            .map(VertexId::new)
+            .collect();
+        Ok(Self {
+            fixed_zero_velocity_vertices,
+        })
+    }
+
+    /// Vertices carrying an exact zero velocity trace.
+    #[must_use]
+    pub fn fixed_zero_velocity_vertices(&self) -> &[VertexId] {
+        &self.fixed_zero_velocity_vertices
+    }
+
+    #[cfg(test)]
+    pub(super) fn from_fixed_zero_velocity_vertices(vertices: Vec<VertexId>) -> Self {
+        Self {
+            fixed_zero_velocity_vertices: vertices,
+        }
+    }
+}
+
+/// Established two-dimensional boundary API.
+pub type FixedReferenceFsiBoundary2d = FixedReferenceFsiBoundary<2>;
+
+/// Three-dimensional homogeneous exterior-velocity boundary.
+pub type FixedReferenceFsiBoundary3d = FixedReferenceFsiBoundary<3>;
+
+/// Complete previous-step state for the fixed-reference spaces.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FixedReferenceFsiState<const D: usize> {
+    vertex_velocity: Vec<[f64; D]>,
+    fluid_cell_bubble_velocity: Vec<[f64; D]>,
+    solid_displacement: Vec<[f64; D]>,
+}
+
+impl<const D: usize> FixedReferenceFsiState<D> {
+    /// Admit one finite state in the exact partition layout.
+    ///
+    /// Solid displacement is represented in mesh-vertex order to make the
+    /// shared trace explicit; entries outside the solid closure must be exact
+    /// zero.  Fluid bubble entries follow `partition.fluid_cells()` order.
+    ///
+    /// # Errors
+    /// Returns `EQ0801` for an incompatible shape, non-finite coefficient, or
+    /// non-zero displacement outside the solid closure.
+    pub fn new(
+        mesh: &SimplicialMesh,
+        partition: &FixedReferenceFsiPartition<D>,
+        vertex_velocity: Vec<[f64; D]>,
+        fluid_cell_bubble_velocity: Vec<[f64; D]>,
+        solid_displacement: Vec<[f64; D]>,
+    ) -> Result<Self, Diagnostic> {
+        require_mesh_dimension::<D>(mesh)?;
+        let vertex_count = mesh.vertices().len();
+        if vertex_velocity.len() != vertex_count
+            || solid_displacement.len() != vertex_count
+            || fluid_cell_bubble_velocity.len() != partition.fluid_cells().len()
+            || vertex_velocity
+                .iter()
+                .chain(&fluid_cell_bubble_velocity)
+                .chain(&solid_displacement)
+                .flatten()
+                .any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "fixed-reference FSI state must be finite and match its exact partition layout",
+            ));
+        }
+        let solid = partition
+            .solid_vertices()
+            .iter()
+            .map(|vertex| vertex.index())
+            .collect::<BTreeSet<_>>();
+        if solid_displacement
+            .iter()
+            .enumerate()
+            .any(|(vertex, value)| !solid.contains(&vertex) && *value != [0.0; D])
+        {
+            return Err(invalid(
+                "fixed-reference FSI displacement must be exact zero outside the solid closure",
+            ));
+        }
+        Ok(Self {
+            vertex_velocity,
+            fluid_cell_bubble_velocity,
+            solid_displacement,
+        })
+    }
+
+    /// Previous shared mesh-vertex velocity coefficients.
+    #[must_use]
+    pub fn vertex_velocity(&self) -> &[[f64; D]] {
+        &self.vertex_velocity
+    }
+
+    /// Previous fluid MINI bubble coefficients in fluid-cell order.
+    #[must_use]
+    pub fn fluid_cell_bubble_velocity(&self) -> &[[f64; D]] {
+        &self.fluid_cell_bubble_velocity
+    }
+
+    /// Previous solid P1 displacement in mesh-vertex order.
+    #[must_use]
+    pub fn solid_displacement(&self) -> &[[f64; D]] {
+        &self.solid_displacement
+    }
+}
+
+/// Established two-dimensional fixed-reference state API.
+pub type FixedReferenceFsiState2d = FixedReferenceFsiState<2>;
+
+/// Three-dimensional fixed-reference state over tetrahedral spaces.
+pub type FixedReferenceFsiState3d = FixedReferenceFsiState<3>;
+
+pub(crate) fn validate_problem<const D: usize>(
+    mesh: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<D>,
+    boundary: &FixedReferenceFsiBoundary<D>,
+    previous: &FixedReferenceFsiState<D>,
+    config: FixedReferenceFsiStepConfig<D>,
+    quadrature: &QuadratureRule,
+) -> Result<(), Diagnostic> {
+    require_mesh_dimension::<D>(mesh)?;
+    let replayed = FixedReferenceFsiPartition::<D>::new(
+        mesh,
+        partition.fluid_cells().to_vec(),
+        partition.solid_cells().to_vec(),
+        partition.interface_facets().to_vec(),
+    )?;
+    if &replayed != partition {
+        return Err(invalid(
+            "fixed-reference FSI partition cache differs from exact mesh replay",
+        ));
+    }
+    if config.load != FixedReferenceFsiLoad::Zero {
+        return Err(invalid(
+            "fixed-reference FSI v1 admits only the explicit zero-load policy",
+        ));
+    }
+    let required_exactness = required_quadrature_exactness::<D>();
+    if quadrature.reference_cell() != crate::ReferenceCell::simplex(D)?
+        || quadrature.polynomial_exactness().unwrap_or(0) < required_exactness
+    {
+        return Err(invalid(format!(
+            "fixed-reference FSI requires matching simplex quadrature exact through degree {required_exactness}",
+        )));
+    }
+    let fixed = boundary
+        .fixed_zero_velocity_vertices
+        .iter()
+        .map(|vertex| vertex.index())
+        .collect::<BTreeSet<_>>();
+    if fixed.len() != boundary.fixed_zero_velocity_vertices.len()
+        || fixed.iter().any(|vertex| *vertex >= mesh.vertices().len())
+    {
+        return Err(invalid(
+            "fixed-reference FSI boundary inventory must contain unique valid vertices",
+        ));
+    }
+    for vertex in 0..mesh.vertices().len() {
+        if mesh
+            .is_boundary_entity(MeshEntity::new(0, vertex))
+            .expect("accepted vertex owns boundary classification")
+            && !fixed.contains(&vertex)
+        {
+            return Err(invalid(
+                "fixed-reference FSI v1 requires homogeneous velocity on the complete exterior",
+            ));
+        }
+    }
+    if fixed
+        .iter()
+        .any(|&vertex| previous.vertex_velocity[vertex] != [0.0; D])
+    {
+        return Err(invalid(
+            "fixed-reference FSI previous state violates the homogeneous velocity closure",
+        ));
+    }
+    FixedReferenceFsiState::<D>::new(
+        mesh,
+        partition,
+        previous.vertex_velocity.clone(),
+        previous.fluid_cell_bubble_velocity.clone(),
+        previous.solid_displacement.clone(),
+    )?;
+    Ok(())
+}
+
+pub(super) fn require_mesh_dimension<const D: usize>(
+    mesh: &SimplicialMesh,
+) -> Result<(), Diagnostic> {
+    require_supported_dimension::<D>()?;
+    if mesh.topological_dimension() != D
+        || mesh
+            .vertices()
+            .iter()
+            .any(|coordinates| coordinates.len() != D)
+    {
+        return Err(invalid(format!(
+            "fixed-reference FSI requires one intrinsic {D}D affine-simplex mesh",
+        )));
+    }
+    Ok(())
+}
+
+pub(super) fn require_local_geometry_dimension<const D: usize>(
+    geometry: &AffineGeometryMap,
+    quadrature: &QuadratureRule,
+) -> Result<(), Diagnostic> {
+    require_supported_dimension::<D>()?;
+    let required_exactness = required_quadrature_exactness::<D>();
+    if geometry.reference_cell() != quadrature.reference_cell()
+        || geometry.reference_cell().dimension() != D
+        || geometry.physical_dimension() != D
+        || quadrature.polynomial_exactness().unwrap_or(0) < required_exactness
+    {
+        return Err(invalid(format!(
+            "fixed-reference FSI cell requires a matching affine simplex and degree-{required_exactness} quadrature",
+        )));
+    }
+    Ok(())
+}
+
+fn require_supported_dimension<const D: usize>() -> Result<(), Diagnostic> {
+    if matches!(D, 2 | 3) {
+        Ok(())
+    } else {
+        Err(invalid(
+            "fixed-reference FSI reference contracts admit dimensions two and three",
+        ))
+    }
+}

@@ -1,0 +1,99 @@
+id = "packages.offline-model-package"
+status = "verified"
+scope = "exact-two-package-scalar-electrical-host-serial"
+reference_kind = "canonical-package-identities-provenance-and-analytic-dc"
+
+capabilities = [
+  "closed-model-package-manifest",
+  "capability-rooted-package-directory-input",
+  "retained-local-package-store-replay",
+  "atomic-local-package-store-installation",
+  "compiler-derived-release-preparation",
+  "domain-separated-semantic-and-source-identity",
+  "lock-derived-from-exact-releases",
+  "exact-offline-resolution-record",
+  "compiler-source-recanonicalization",
+  "direct-public-package-reference",
+  "package-qualified-source-provenance",
+  "canonical-model-compilation-record",
+  "canonical-run-v1-lineage",
+  "exact-package-run-binding",
+  "analytic-packaged-parallel-dc",
+]
+
+[problem]
+library = "Eqiora.Electrical.Basic@0.1.0"
+root = "org.example.parallel@0.1.0"
+source_voltage = 12.0
+parallel_resistances = [2.0, 4.0]
+
+[canonical_contract]
+packages = 2
+physical_unknowns = 14
+physical_residuals = 14
+model_wire = 2
+package_wire = 1
+run_wire = 1
+package_run_binding_wire = 1
+
+[numerical_contract]
+relative_tolerance = 1e-12
+absolute_tolerance = 1e-14
+maximum_iterations = 100
+maximum_value_error = 2e-11
+maximum_semantic_residual_norm = 1.2e-11
+
+[claim_boundary]
+exact_dependencies_only = true
+author_semantic_payload = false
+package_directory_input = "explicit root, package.json, and closed manifest inventory only"
+retained_directory_capability = true
+unlisted_files_affect_release = false
+post_root_path_component_symlinks_followed = false
+directory_walk_or_discovery = false
+workspace_inference = false
+multi_file_filesystem_snapshot = false
+cross_platform_runtime_verification = false
+complete_dependency_release_closure_supplied = true
+release_replayed_under_final_exact_namespace = true
+offline_in_memory_store = true
+offline_directory_store = "explicit exact lock and retained read-only root"
+store_entry_lookup = "source-bundle digest only"
+store_directory_enumeration = false
+store_final_entry_nonblocking = true
+store_unrelated_entries_affect_resolution = false
+restart_reproduces_frozen_identities = true
+local_store_installation = "one canonical release, atomic no-clobber"
+installer_directory_enumeration = false
+installer_equal_content_idempotent = true
+post_install_mutation_rejected_on_replay = true
+store_overwrite_or_delete = false
+multi_package_atomic_transaction = false
+staging_garbage_collection = false
+directory_entry_crash_durability = false
+hostile_same_root_writer = false
+permission_based_immutability = false
+network_filesystem_runtime = false
+windows_or_macos_install_runtime = false
+shared_principal_installation = false
+lock_generation_or_update_ux = false
+scalar_type = "f64"
+placement = "one host process, one worker"
+static_affine = true
+run_emitted_after_numerical_and_provenance_acceptance = true
+failed_solve_emits_run_binding = false
+version_range_resolution = false
+registry_or_network = false
+cli_package_authoring = false
+python_or_studio_package_workflows = false
+signing_or_trust = false
+package_build_scripts = false
+dynamic_plugins = false
+durable_diagnostic_provenance_wire = false
+general_result_artifact = false
+typed_realization_or_run_v2 = false
+transient_hybrid_mpi_or_gpu = false
+
+[evidence]
+package = "eqiora"
+test = "offline_model_package"

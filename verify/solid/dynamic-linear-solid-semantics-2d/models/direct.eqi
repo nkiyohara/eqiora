@@ -1,0 +1,37 @@
+model Main {
+  domain body = box(0, 2, 0, 1);
+  domain x_lower = boundary(body, axis = 0, side = lower);
+  domain x_upper = boundary(body, axis = 0, side = upper);
+  domain y_lower = boundary(body, axis = 1, side = lower);
+  domain y_upper = boundary(body, axis = 1, side = upper);
+  representation space = continuum;
+
+  field displacement on body as space: m shape spatial_vector;
+  field velocity on body as space: m / s shape spatial_vector;
+  field load_potential on body as space: kg / (m * s ^ 2) = 0;
+  parameter density: kg / m ^ 3 = 5;
+  parameter mu: kg / (m * s ^ 2) = 3;
+  parameter lambda: kg / (m * s ^ 2) = 4;
+  parameter load_gradient: kg / (m ^ 2 * s ^ 2) = 2;
+  parameter load_origin: m = 1;
+
+  relation load_definition continuous on body {
+    load_potential - load_gradient * (coordinate(0) - load_origin) = 0;
+  }
+  relation kinematics continuous on body {
+    derivative(displacement) - velocity = 0;
+  }
+  relation momentum continuous on body {
+    density * derivative(velocity)
+      - div(
+        2 * mu * symmetric_part(grad(displacement))
+        + lambda * isotropic_lift(div(displacement))
+      )
+      - grad(load_potential) = 0;
+  }
+
+  relation x_lower_velocity continuous on x_lower { trace(velocity) = 0; }
+  relation x_upper_velocity continuous on x_upper { trace(velocity) = 0; }
+  relation y_lower_velocity continuous on y_lower { trace(velocity) = 0; }
+  relation y_upper_velocity continuous on y_upper { trace(velocity) = 0; }
+}

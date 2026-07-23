@@ -1,0 +1,71 @@
+id = "fsi.fixed-reference-monolithic-step-2d"
+status = "verified"
+scope = "fixed-reference-inertial-fluid-linear-solid-monolithic-backward-euler-2d"
+reference_kind = "content-bound-cpu-reference-coupled-saddle-step"
+
+capabilities = [
+  "canonical-inertial-incompressible-newtonian-semantics-2d",
+  "canonical-fixed-reference-fluid-solid-interface-projection-2d",
+  "exact-conforming-mini-p1-velocity-trace-quotient",
+  "monolithic-backward-euler-fluid-solid-step",
+  "complete-operator-pressure-closure",
+  "deterministic-finalized-fsi-operator",
+  "portable-typed-realization-dag",
+]
+
+[problem]
+ambient_dimension = 2
+fluid_domain = "[0 m, 1 m] x [0 m, 1 m]"
+solid_domain = "[1 m, 2 m] x [0 m, 1 m]"
+interface = "one complete conforming side at x = 1 m"
+mesh = "one exact fixed affine-triangle mesh partitioned by RFC 0049 correspondence"
+fluid_space = "continuous (P1 + cell bubble)^2 velocity / continuous P1 pressure"
+solid_space = "continuous vector P1 velocity and displacement state"
+time_method = "one backward-Euler step with exact displacement elimination"
+execution = "one-thread host CPU reference MINRES with reproducible reductions"
+
+[canonical_contract]
+fluid_momentum = "rho_f * derivative(u_f) - div(2 mu_f sym(grad(u_f)) - p I) - grad(q_f) = 0"
+fluid_constraint = "div(u_f) = 0"
+solid_kinematics = "derivative(d_s) - v_s = 0"
+solid_momentum = "rho_s * derivative(v_s) - div(sigma_s(d_s)) - grad(q_s) = 0"
+interface = "ordinary conserving velocity/traction Connection"
+fsi_kernel_node = false
+direct_and_package_authoring_are_package_neutral = true
+
+[realization_contract]
+velocity_unknown = "one exact quotient over full-mesh P1 interface vertices, with fluid bubbles"
+pressure_unknown = "P1 on exact fluid-support vertices"
+solid_displacement_update = "d_next = d_previous + dt * v_next"
+operator_property = "symmetric-indefinite"
+pressure_reference = "absolute pressure determined by the complete coupled operator"
+zero_integral_pressure_gauge = false
+dimensionless_local_assembly = true
+
+[falsifiers]
+stale_or_cross_wired_artifact = "reject"
+wrong_parent_orientation_or_partial_interface = "reject"
+incompatible_connector_shape_support_unit_or_frame = "reject"
+missing_extra_or_unrepresented_live_port = "reject"
+unmatched_interface_trace_topology = "reject"
+missing_fluid_or_solid_mass = "reject"
+duplicated_interface_velocity_or_sign_flipped_action = "reject"
+stale_pressure_gauge_or_unclosed_pressure_mode = "reject"
+cross_wired_step_state_solver_or_execution = "reject"
+
+[claim_boundary]
+fixed_reference = true
+one_monolithic_step = true
+inertial_stokes_without_advection = true
+linear_small_strain_solid = true
+durable_spatial_snapshot_or_trajectory = false
+navier_stokes_advection = false
+ale_or_remeshing = false
+partitioned_coupling = false
+gpu_or_mpi = false
+adjoint_or_shape_sensitivity = false
+cad = false
+
+[evidence]
+package = "eqiora"
+test = "fixed_reference_monolithic_fsi_step_2d"

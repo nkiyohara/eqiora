@@ -1,0 +1,37 @@
+id = "time.diffsol-adaptive"
+status = "verified"
+scope = "adaptive-ode-and-mass-matrix-dae"
+reference_kind = "analytic-solutions-and-algebraic-constraint"
+
+capabilities = [
+  "equation-class-admission",
+  "tsitouras45-nonstiff-ode",
+  "bdf-stiff-ode",
+  "rank-deficient-mass-matrix-dae",
+  "consistent-initialization",
+  "continuous-forward-parameter-sensitivity",
+  "parameter-independent-mass-forward-sensitivity",
+  "unproven-mass-parameter-dependence-rejection",
+  "root-proposal-external-reset-restart",
+  "owned-dense-output",
+]
+
+[problem]
+nonstiff = "analytic scalar exponential decay"
+stiff = "analytic scalar tracking mode with rate 1000"
+dae = "index-one two-state constraint with singular diagonal mass matrix"
+mass_sensitivity = "analytic full and rank-deficient systems with proven M_p=0"
+scalar = "f64"
+backend = "Diffsol 0.16.1 with NalgebraLU"
+
+[claim_boundary]
+general_implicit_dae = false
+canonical_event_ordering = false
+root_reset = "proposal-and-eqiora-owned-restart"
+sensitivity = "forward-ode-and-parameter-independent-mass"
+parameter_dependent_mass = false
+
+[evidence]
+package = "eqiora-backend-diffsol"
+test = "adaptive_time"
+features = ["diffsol-runtime"]

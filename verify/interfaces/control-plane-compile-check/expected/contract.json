@@ -1,0 +1,23 @@
+{
+  "schema": "eqiora.verify.control-plane-compile-check/v1",
+  "accepted": {
+    "request": "accepted-v1.json",
+    "requestId": "shared-accepted-v1",
+    "outcome": "accepted",
+    "modelWire": "v1",
+    "modelSchema": "eqiora.model-envelope/v1"
+  },
+  "rejectedSource": {
+    "request": "rejected-source-v1.json",
+    "requestId": "shared-rejected-source-v1",
+    "outcome": "rejected",
+    "diagnosticSource": "kernel",
+    "diagnosticCode": "EQ0602"
+  },
+  "unsupportedProtocol": {
+    "request": "unsupported-protocol-v1.json",
+    "diagnosticSource": "control",
+    "diagnosticCode": "EQ0001"
+  },
+  "forbiddenResponseFields": ["source", "mesh", "fields", "trajectory"]
+}

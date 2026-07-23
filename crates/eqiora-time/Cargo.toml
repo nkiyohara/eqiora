@@ -1,0 +1,16 @@
+[package]
+name = "eqiora-time"
+description = "Eqiora L2: backend-neutral lowered time problems, plans, and evidence"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+eqiora-core = { workspace = true }
+num-rational = { workspace = true }
+num-traits = { workspace = true }
+
+[lints]
+workspace = true

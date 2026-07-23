@@ -1,0 +1,36 @@
+id = "differentiation.discrete-implicit-step"
+status = "verified"
+scope = "one-accepted-residual-native-implicit-euler-step"
+reference_kind = "analytic-and-centered-finite-difference"
+
+capabilities = [
+  "discrete-step-residual",
+  "explicit-previous-state-parameter-layout",
+  "step-jvp-vjp-duality",
+  "implicit-step-forward-sensitivity",
+  "implicit-step-adjoint-gradient",
+  "nonsymmetric-transpose-solve",
+  "unaccepted-step-rejection",
+]
+
+[problem]
+residual = "(1 + z) (x_dot + p x) = 0; z - x^2 = 0"
+step = "implicit Euler, h = 0.1"
+unknown = "y_next = [x_next, z_next]"
+parameters = "[y_previous, canonical rate p]"
+objective = "z_next + 0.5 x_previous - 0.25 z_previous + 0.125 p"
+
+[claim_boundary]
+equation_class = "one semi-explicit index-one residual-native DAE"
+method = "implicit Euler"
+accepted_steps = 1
+time_and_step_size_derivatives = false
+adaptive_controller_derivative = false
+bdf_history = false
+trajectory_adjoint = false
+checkpoint_lineage = false
+derivative_run_provenance = false
+
+[evidence]
+package = "eqiora"
+test = "discrete_time_differentiation"

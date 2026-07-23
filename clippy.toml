@@ -1,0 +1,2 @@
+# Keep Clippy's MSRV-sensitive suggestions aligned with Cargo.toml.
+msrv = "1.89"

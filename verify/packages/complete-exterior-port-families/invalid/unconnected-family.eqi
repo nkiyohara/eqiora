@@ -1,0 +1,32 @@
+public connector MechanicalBoundary = field_physical(
+  trace = displacement: m,
+  flux = traction: kg / (m * s ^ 2),
+  shape = spatial_vector,
+  frame = spatial,
+  pairing = euclidean_boundary_duality
+);
+
+public component ExteriorLaw {
+  public support body: volume(ambient_dimension = 2);
+  public support exterior: complete_exterior(parent = body);
+  public port mechanical[boundary in exterior]:
+    conserving MechanicalBoundary over boundary;
+  relation boundary_law[boundary in exterior] continuous on boundary {
+    trace(mechanical[boundary = boundary])
+      - trace(mechanical[boundary = boundary]) = 0;
+    flux(mechanical[boundary = boundary])
+      - flux(mechanical[boundary = boundary]) = 0;
+  }
+}
+
+model Main {
+  domain body = box(0, 1, 0, 1);
+  domain x_lower = boundary(body, axis = 0, side = lower);
+  domain x_upper = boundary(body, axis = 0, side = upper);
+  domain y_lower = boundary(body, axis = 1, side = lower);
+  domain y_upper = boundary(body, axis = 1, side = upper);
+  instance solid: ExteriorLaw(
+    support body = body,
+    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper)
+  );
+}

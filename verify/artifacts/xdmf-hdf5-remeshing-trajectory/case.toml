@@ -1,0 +1,63 @@
+id = "artifacts.xdmf-hdf5-remeshing-trajectory"
+status = "verified"
+scope = "bounded-xdmf3-hdf5-projection-of-one-2d-v2-to-v3-remeshing-trajectory"
+reference_kind = "replayed-content-addressed-cpu-trajectory-and-native-hdf5-audit"
+
+capabilities = [
+  "typed-remeshing-trajectory-storage-lineage",
+  "xdmf3-temporal-collection-export",
+  "complete-native-hdf5-file-image-export",
+  "zero-time-remesh-presentation-seam",
+  "lossless-hidden-mini-bubble-storage",
+  "same-runtime-deterministic-storage-regeneration",
+]
+
+[problem]
+source = "the exact V2 source prefix and V3 remesh continuation from fsi.remeshing-transfer-2d"
+topology = "two distinct 2D affine Tri3 meshes across one zero-model-time seam"
+fields = "complete P1 and MINI physical Field snapshots at every externally presented state"
+metadata = "one XDMF 3 temporal Collection with current geometry and HDF DataItems"
+storage = "one complete caller-owned HDF5 file image with content-addressed contiguous datasets"
+execution = "bounded one-thread host CPU reference and one exact native HDF5 runtime profile"
+
+[projection_contract]
+authority = "validated canonical spatial trajectory and referenced artifacts"
+seam = "omit the V2 source tip and present the exact same-time V3 remesh target in its place"
+geometry = "current GeometryState coordinates, never reference coordinates"
+xdmf_fields = "Vertex coefficient blocks only, as Node Attributes"
+hdf5_fields = "every coefficient block, including the hidden Cell-associated MINI bubble"
+dataset_identity = "content-addressed logical artifact paths"
+lineage = "exact adapter, runtime, trajectory, frame, state, mesh, geometry, Field, snapshot, block, and raw-output identities"
+
+[falsifiers]
+source_tip_exposed_at_seam = "frame inventory assertion fails"
+remesh_target_not_presented_at_seam = "exact target-state assertion fails"
+cell_block_exposed_as_xdmf_attribute = "metadata assertion fails"
+hidden_mini_bubble_lost_or_changed = "independent native HDF5 read differs from the logical block"
+storage_or_metadata_substitution = "exact replay verification rejects"
+wall_clock_dependent_bytes = "two-second-separated regeneration differs"
+
+[claim_boundary]
+intrinsic_dimension = 2
+cell_topology = "affine-tri3"
+trajectory_profile = "one exact V2 source prefix followed by one V3 remesh and continuation"
+temporal_xdmf_export = true
+complete_hdf5_file_image_export = true
+current_geometry = true
+content_addressed_datasets = true
+same_runtime_exact_regeneration = true
+temporal_import = false
+arbitrary_trajectory_shape = false
+higher_order_or_three_dimensional_export = false
+cell_centered_xdmf_presentation = false
+compression_chunking_or_filters = false
+partial_lazy_or_parallel_io = false
+filesystem_write_authority = false
+cross_runtime_raw_byte_identity = false
+production_scale = false
+
+[evidence]
+package = "eqiora"
+test = "remeshing_transfer_2d"
+features = ["faer", "hdf5"]
+

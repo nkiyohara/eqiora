@@ -1,0 +1,9 @@
+connector Pin = scalar_physical(across = 1, through = 1);
+
+component OpenTerminal { public port p: conserving on Pin; }
+
+model Network {
+  instance left: OpenTerminal;
+  instance right: OpenTerminal;
+  connect conserving left.p, right.p;
+}

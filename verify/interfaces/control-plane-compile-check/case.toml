@@ -1,0 +1,29 @@
+id = "interfaces.control-plane-compile-check"
+status = "verified"
+scope = "client-neutral-bounded-compile-check-control-v1"
+reference_kind = "shared-wire-fixtures-and-ordinary-compiler-admission"
+
+capabilities = [
+  "curated-rust-public-facade",
+  "versioned-compile-check-control",
+  "cross-client-compile-contract",
+  "fail-closed-control-negotiation",
+  "control-data-plane-separation",
+]
+
+conformance_kits = ["control-compile-check-v1"]
+
+[claim_boundary]
+compile_check = true
+model_wires = ["v1", "v2", "v3", "v4", "v5", "v6"]
+preview = false
+execute = false
+cancel = false
+artifact_inspect = false
+artifact_diff = false
+scientific_data_transport = false
+remote_transport = false
+
+[evidence]
+package = "eqiora"
+test = "control_plane_compile_check"

@@ -1,0 +1,46 @@
+id = "packages.package-definition-validation"
+status = "verified"
+scope = "complete-exact-source-definition-graph-static-admission"
+reference_kind = "frozen-package-identity-and-source-diagnostic-falsifiers"
+
+capabilities = [
+  "occurrence-free-package-definition-validation",
+  "symbolic-required-public-parameters",
+  "complete-connector-component-model-admission",
+  "spatial-shape-support-definition-typing",
+  "compositional-scalar-physical-endpoint-closure",
+  "definition-local-physical-connection-partitions",
+]
+
+[canonical_contract]
+package_wire = 1
+required_public_parameters_are_free = true
+selected_occurrences_created = false
+package_digest_domain_changed = false
+artifact_digest_domain_changed = false
+
+[claim_boundary]
+all_connectors_components_models_checked = true
+unused_and_private_definitions_checked = true
+non_selected_models_checked = true
+symbolic_nested_parameter_forwarding = true
+source_file_input_order_invariant = true
+declaration_order_semantically_invariant = true
+definition_diagnostic_source_span = true
+definition_diagnostic_graph_path = false
+public_component_physical_slots_may_remain_open = true
+private_physical_slots_close_exactly_once = true
+ownerless_public_child_requires_connection_membership = true
+repeated_physical_fragments_are_idempotent = true
+occurrence_level_exposure_elimination = false
+solvability = false
+execution_success = false
+field_valued_physical_boundary_interfaces = false
+cross_boundary_connection_set_union = false
+imported_model_references = false
+registry_or_network = false
+dynamic_plugins = false
+
+[evidence]
+package = "eqiora"
+test = "package_definition_validation"

@@ -1,0 +1,12 @@
+public component NormalPressureTraction2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public field slot pressure on body as continuum: kg / (m * s ^ 2);
+  public port mechanical:
+    conserving mechanics.VelocityTractionBoundary over face;
+
+  relation prescribed_traction continuous on face {
+    flux(mechanical)
+      - normal(isotropic_lift(pressure)) = 0;
+  }
+}

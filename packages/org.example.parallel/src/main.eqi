@@ -1,0 +1,9 @@
+model Main {
+  instance source: electrical.IdealVoltageSource(voltage = 12);
+  instance resistor_two: electrical.Resistor(resistance = 2);
+  instance resistor_four: electrical.Resistor(resistance = 4);
+  instance ground: electrical.Ground;
+
+  connect conserving source.positive, resistor_two.positive, resistor_four.positive;
+  connect conserving source.negative, resistor_two.negative, resistor_four.negative, ground.terminal;
+}

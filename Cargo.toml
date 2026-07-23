@@ -1,0 +1,127 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "tools/xtask"]
+
+[workspace.package]
+version = "0.1.0-alpha.1"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/nkiyohara/eqiora"
+rust-version = "1.89"
+
+[workspace.dependencies]
+# External dependencies are pinned here; member crates use `workspace = true`.
+base64 = "0.22"
+# Safe, handle-relative filesystem access for the untrusted package store. The
+# last v3 release keeps one io-lifetimes/Windows support line and passes the
+# workspace-MSRV plus Linux/macOS/Windows build gates; re-audit before moving
+# to v4.
+cap-fs-ext = "=3.4.5"
+cap-std = "=3.4.5"
+ulid = "3"
+# Canonical artifact bytes must preserve every finite IEEE-754 value across
+# serialize -> decode -> serialize. The default fast parser may choose an
+# adjacent representable value for some decimals, which would change digests.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+serde = { version = "1", features = ["derive"] }
+semver = "1"
+unicode-normalization = "0.1"
+toml = "1.1.3"
+sha2 = "0.11.0"
+clap = { version = "4.6.2", features = ["derive"] }
+faer = { version = "=0.24.4", default-features = false, features = ["std", "linalg"] }
+pyo3 = "0.29.0"
+numpy = "0.29.0"
+rayon = "=1.12.0"
+rustix = { version = "=1.1.4", features = ["fs"] }
+mpi = "=0.8.2"
+num-rational = "0.4.2"
+num-traits = "0.2.19"
+mshio = "=0.4.2"
+# XDMF metadata is an untrusted syntax boundary. Keep the reviewed pull-parser
+# release exact and apply Eqiora-owned depth/count/text/work budgets around it;
+# dependency parsing never grants filesystem or network authority.
+quick-xml = { version = "=0.41.0", default-features = false }
+# Native HDF5 remains an optional L3 adapter. The reviewed met.no binding is
+# pinned exactly and linked to its bundled HDF5 source so builds do not acquire
+# an ambient host-library ABI. No compression/plugin feature is enabled: the
+# admitted file-image profile rejects every filter pipeline before data reads.
+hdf5-metno = { version = "=0.13.0", default-features = false, features = ["static"] }
+hdf5-metno-sys = { version = "=0.12.0", package = "hdf5-metno-sys", default-features = false, features = ["static"] }
+# Adaptive Shewchuk predicates decide only the topology of bounded 2D
+# common-refinement intersections. Keep the reviewed release exact: changing
+# predicate behavior requires replaying remesh coverage and conservation
+# evidence rather than an incidental dependency bump.
+robust = "=1.2.0"
+# The first CAD adapter is confined to the bounded line/plane cuboid subset.
+# `truck-shapeops` is intentionally excluded: its current default graph pulls
+# vulnerable legacy compression/XML crates. These exact Rust-native crates pass
+# the workspace MSRV build gate; re-audit their unmaintained transitive
+# notices before widening the adapter.
+truck-modeling = "=0.6.0"
+truck-stepio = "=0.3.0"
+truck-topology = "=0.6.0"
+# Diffsol 0.16.1 has unconditional public re-exports for both host matrix
+# families, so both upstream features are required even though this adapter
+# currently executes with NalgebraLU. Keep the dependency optional at the L3
+# adapter boundary. Its nalgebra 0.35 graph establishes Rust 1.89 as the single
+# production-workspace MSRV; Cargo cannot express a feature-specific MSRV.
+# 0.16.1 also replaces the BDF order-change scratch Vec after upstream found
+# stack-buffer corruption of its metadata; do not relax this pin without
+# rerunning every registered BDF, mass-matrix, and sensitivity case.
+diffsol = { version = "=0.16.1", default-features = false, features = ["nalgebra", "faer"] }
+# cudarc 0.18.2 is the exact binding/runtime baseline covered by current device
+# evidence. A 0.19 upgrade is a separate adapter-and-hardware-evidence slice,
+# not an incidental consequence of the workspace MSRV decision.
+cudarc = { version = "=0.18.2", default-features = false, features = ["std", "driver", "cuda-12000", "dynamic-loading"] }
+libloading = "=0.8.9"
+
+# Internal crates (see docs/architecture.md#dependency-layers and `cargo xtask check-layers`)
+eqiora = { version = "0.1.0-alpha.1", path = "crates/eqiora" }
+eqiora-api = { version = "0.1.0-alpha.1", path = "crates/eqiora-api" }
+eqiora-assembly = { version = "0.1.0-alpha.1", path = "crates/eqiora-assembly" }
+eqiora-core = { version = "0.1.0-alpha.1", path = "crates/eqiora-core" }
+eqiora-compiler = { version = "0.1.0-alpha.1", path = "crates/eqiora-compiler" }
+eqiora-schema = { version = "0.1.0-alpha.1", path = "crates/eqiora-schema" }
+eqiora-graph = { version = "0.1.0-alpha.1", path = "crates/eqiora-graph" }
+eqiora-geometry = { version = "0.1.0-alpha.1", path = "crates/eqiora-geometry" }
+eqiora-ir = { version = "0.1.0-alpha.1", path = "crates/eqiora-ir" }
+eqiora-io-gmsh = { version = "0.1.0-alpha.1", path = "crates/eqiora-io-gmsh" }
+eqiora-io-hdf5 = { version = "0.1.0-alpha.1", path = "crates/eqiora-io-hdf5" }
+eqiora-io-vtu = { version = "0.1.0-alpha.1", path = "crates/eqiora-io-vtu" }
+eqiora-io-xdmf = { version = "0.1.0-alpha.1", path = "crates/eqiora-io-xdmf" }
+eqiora-cad-truck = { version = "0.1.0-alpha.1", path = "crates/eqiora-cad-truck" }
+eqiora-lang = { version = "0.1.0-alpha.1", path = "crates/eqiora-lang" }
+eqiora-meshing = { version = "0.1.0-alpha.1", path = "crates/eqiora-meshing" }
+eqiora-numerics = { version = "0.1.0-alpha.1", path = "crates/eqiora-numerics" }
+eqiora-package = { version = "0.1.0-alpha.1", path = "crates/eqiora-package" }
+eqiora-runtime = { version = "0.1.0-alpha.1", path = "crates/eqiora-runtime" }
+eqiora-sem = { version = "0.1.0-alpha.1", path = "crates/eqiora-sem" }
+eqiora-artifact = { version = "0.1.0-alpha.1", path = "crates/eqiora-artifact" }
+eqiora-backend-faer = { version = "0.1.0-alpha.1", path = "crates/eqiora-backend-faer" }
+eqiora-backend-mpi = { version = "0.1.0-alpha.1", path = "crates/eqiora-backend-mpi" }
+eqiora-backend-mpi-cuda = { version = "0.1.0-alpha.1", path = "crates/eqiora-backend-mpi-cuda" }
+eqiora-backend-diffsol = { version = "0.1.0-alpha.1", path = "crates/eqiora-backend-diffsol" }
+eqiora-backend-cuda = { version = "0.1.0-alpha.1", path = "crates/eqiora-backend-cuda" }
+eqiora-diff = { version = "0.1.0-alpha.1", path = "crates/eqiora-diff" }
+eqiora-device = { version = "0.1.0-alpha.1", path = "crates/eqiora-device" }
+eqiora-distributed = { version = "0.1.0-alpha.1", path = "crates/eqiora-distributed" }
+eqiora-execution = { version = "0.1.0-alpha.1", path = "crates/eqiora-execution" }
+eqiora-fabric = { version = "0.1.0-alpha.1", path = "crates/eqiora-fabric" }
+eqiora-realization = { version = "0.1.0-alpha.1", path = "crates/eqiora-realization" }
+eqiora-solver = { version = "0.1.0-alpha.1", path = "crates/eqiora-solver" }
+eqiora-spatial-distribution = { version = "0.1.0-alpha.1", path = "crates/eqiora-spatial-distribution" }
+eqiora-time = { version = "0.1.0-alpha.1", path = "crates/eqiora-time" }
+
+[workspace.lints.rust]
+# Unsafe code is confined to dedicated modules with `// SAFETY:` comments.
+# Crates that need it (runtime, fabric, ml) locally `#![allow(unsafe_code)]`
+# in those modules only.
+unsafe_code = "deny"
+rust_2018_idioms = { level = "deny", priority = -1 }
+unused_lifetimes = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "deny"

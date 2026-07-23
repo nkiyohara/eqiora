@@ -1,0 +1,31 @@
+[package]
+name = "eqiora-artifact"
+description = "Eqiora L3: versioned model artifacts and reproducible run manifests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+eqiora-core = { workspace = true }
+eqiora-distributed = { workspace = true }
+eqiora-graph = { workspace = true }
+eqiora-geometry = { workspace = true }
+eqiora-ir = { workspace = true }
+eqiora-meshing = { workspace = true }
+eqiora-realization = { workspace = true }
+eqiora-schema = { workspace = true }
+eqiora-sem = { workspace = true }
+eqiora-solver = { workspace = true }
+eqiora-time = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+ulid = { workspace = true }
+
+[dev-dependencies]
+eqiora-compiler = { workspace = true }
+
+[lints]
+workspace = true

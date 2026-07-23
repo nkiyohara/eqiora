@@ -1,0 +1,6 @@
+model ComponentwiseGradientResidual {
+  domain line = box(0, 1);
+  representation space = continuum;
+  field displacement on line as space: m = 0;
+  relation equilibrium continuous on line { grad(displacement) = 0; }
+}

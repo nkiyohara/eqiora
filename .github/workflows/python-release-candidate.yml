@@ -1,0 +1,235 @@
+name: Python release candidate
+
+run-name: Python candidate / ${{ inputs.commit }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Exact clean public commit to build and stage
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-candidate-${{ inputs.commit }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and accept one candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    outputs:
+      manifest_sha256: ${{ steps.identity.outputs.manifest_sha256 }}
+    steps:
+      - name: Check out the exact candidate source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the exact requested commit
+        env:
+          CANDIDATE_COMMIT: ${{ inputs.commit }}
+        run: |
+          [[ "$CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_COMMIT"
+      - name: Set up candidate driver
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install exact uv release
+        run: python -m pip install --disable-pip-version-check "uv==0.11.31"
+      - name: Build from sdist and run every installed-artifact profile
+        run: >-
+          python3 tools/release/python_candidate.py
+          --require-tag
+          --out "$RUNNER_TEMP/candidate-dist"
+      - name: Separate and verify the immutable candidate manifest
+        id: identity
+        env:
+          CANDIDATE_COMMIT: ${{ inputs.commit }}
+        run: |
+          mkdir "$RUNNER_TEMP/candidate-manifest"
+          mapfile -t manifests < <(find "$RUNNER_TEMP/candidate-dist" -maxdepth 1 -type f -name '*-python-candidate.json')
+          test "${#manifests[@]}" -eq 1
+          mv "${manifests[0]}" "$RUNNER_TEMP/candidate-manifest/"
+          manifest="$RUNNER_TEMP/candidate-manifest/$(basename "${manifests[0]}")"
+          python3 tools/release/candidate_manifest.py \
+            --manifest "$manifest" \
+            --artifacts "$RUNNER_TEMP/candidate-dist" \
+            --expected-commit "$CANDIDATE_COMMIT"
+          manifest_sha256="$(sha256sum "$manifest" | cut -d ' ' -f 1)"
+          echo "manifest_sha256=$manifest_sha256" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Eqiora Python candidate"
+            echo
+            echo "- Source commit: \`$CANDIDATE_COMMIT\`"
+            echo "- Manifest SHA-256: \`$manifest_sha256\`"
+            echo "- Candidate tag: \`v0.1.0a1\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain exact distribution bytes
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: eqiora-python-candidate-dists
+          path: ${{ runner.temp }}/candidate-dist/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+      - name: Retain candidate manifest separately
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: eqiora-python-candidate-manifest
+          path: ${{ runner.temp }}/candidate-manifest/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish_testpypi:
+    name: Publish exact bytes to TestPyPI
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/eqiora/0.1.0a1/
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download accepted distribution bytes
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: eqiora-python-candidate-dists
+          path: candidate-dist
+      - name: Trusted publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # v1.14.1
+        with:
+          packages-dir: candidate-dist
+          repository-url: https://test.pypi.org/legacy/
+          print-hash: true
+          verbose: true
+
+  replay_download:
+    name: Reacquire and hash TestPyPI bytes
+    needs: [build, publish_testpypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the exact accepted source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - name: Download candidate manifest
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: eqiora-python-candidate-manifest
+          path: candidate-manifest
+      - name: Download exact TestPyPI version and compare every hash
+        env:
+          MANIFEST_SHA256: ${{ needs.build.outputs.manifest_sha256 }}
+        run: |
+          mapfile -t manifests < <(find candidate-manifest -maxdepth 1 -type f -name '*-python-candidate.json')
+          test "${#manifests[@]}" -eq 1
+          python3 tools/release/testpypi_replay.py \
+            --manifest "${manifests[0]}" \
+            --manifest-sha256 "$MANIFEST_SHA256" \
+            --out "$RUNNER_TEMP/testpypi-dist"
+      - name: Retain exact TestPyPI replay bytes
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: eqiora-testpypi-replay-dists
+          path: ${{ runner.temp }}/testpypi-dist/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  replay_base:
+    name: TestPyPI CPython ${{ matrix.python }}
+    needs: replay_download
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - name: Check out smoke-test source only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - name: Set up supported CPython
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Download TestPyPI-accepted bytes
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: eqiora-testpypi-replay-dists
+          path: testpypi-dist
+      - name: Install local exact wheel with dependencies from production PyPI
+        env:
+          PYTHON_MINOR: ${{ matrix.python }}
+        run: |
+          compact="${PYTHON_MINOR//./}"
+          mapfile -t wheels < <(find testpypi-dist -maxdepth 1 -type f -name "eqiora-*-cp${compact}-cp${compact}-*.whl")
+          test "${#wheels[@]}" -eq 1
+          python -m pip install \
+            --disable-pip-version-check \
+            --index-url https://pypi.org/simple \
+            --only-binary=:all: \
+            "${wheels[0]}"
+      - name: Run installed public quick start outside the checkout
+        working-directory: ${{ runner.temp }}
+        run: >-
+          python -I "$GITHUB_WORKSPACE/tools/release/python_public_smoke.py"
+          --expected-version 0.1.0a1
+          --profile base
+
+  replay_frameworks:
+    name: TestPyPI ${{ matrix.profile }} quick start
+    needs: replay_download
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [torch, jax]
+    steps:
+      - name: Check out smoke-test source only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - name: Set up the exact framework interpreter
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Download TestPyPI-accepted bytes
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: eqiora-testpypi-replay-dists
+          path: testpypi-dist
+      - name: Install exact wheel and selected extra from production PyPI
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          mapfile -t wheels < <(find testpypi-dist -maxdepth 1 -type f -name 'eqiora-*-cp313-cp313-*.whl')
+          test "${#wheels[@]}" -eq 1
+          python -m pip install \
+            --disable-pip-version-check \
+            --index-url https://pypi.org/simple \
+            --only-binary=:all: \
+            "${wheels[0]}[$PROFILE]"
+      - name: Run installed framework quick start outside the checkout
+        working-directory: ${{ runner.temp }}
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: >-
+          python -I "$GITHUB_WORKSPACE/tools/release/python_public_smoke.py"
+          --expected-version 0.1.0a1
+          --profile "$PROFILE"

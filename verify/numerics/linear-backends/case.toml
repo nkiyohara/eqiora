@@ -1,0 +1,26 @@
+id = "numerics.linear-backends"
+status = "verified"
+scope = "linear-execution"
+reference_kind = "independent-backend-and-analytic"
+
+capabilities = [
+  "backend-neutral-solver-plan",
+  "allocation-free-linear-operator",
+  "reference-cg",
+  "faer-cg",
+  "faer-bicgstab",
+  "deployment-bound-faer-provider-release",
+  "jacobi-preconditioning",
+  "true-residual-acceptance",
+  "capability-fail-closed",
+]
+
+[problem]
+spd = "canonical Poisson plus a 2x2 analytic system"
+nonsymmetric = "manufactured 2x2 general operator"
+scalar = "f64"
+layout = "replicated"
+
+[evidence]
+package = "eqiora"
+test = "faer_spatial"

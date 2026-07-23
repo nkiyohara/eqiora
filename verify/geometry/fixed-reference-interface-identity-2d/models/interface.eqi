@@ -1,0 +1,44 @@
+public connector MechanicalBoundary = field_physical(
+  trace = velocity: m / s,
+  flux = traction: kg / (m * s ^ 2),
+  shape = spatial_vector,
+  frame = spatial,
+  pairing = euclidean_boundary_duality
+);
+
+public component InterfaceSide2d {
+  public support body: volume(ambient_dimension = 2);
+  public support face: boundary(parent = body);
+  public port mechanical:
+    conserving MechanicalBoundary over face;
+
+  relation retain_interface_port continuous on face {
+    trace(mechanical) = 0;
+    flux(mechanical) = 0;
+  }
+}
+
+model Main {
+  domain fluid = box(0, 1, 0, 1);
+  domain fluid_x_lower = boundary(fluid, axis = 0, side = lower);
+  domain fluid_x_upper = boundary(fluid, axis = 0, side = upper);
+  domain fluid_y_lower = boundary(fluid, axis = 1, side = lower);
+  domain fluid_y_upper = boundary(fluid, axis = 1, side = upper);
+
+  domain solid = box(1, 2, 0, 1);
+  domain solid_x_lower = boundary(solid, axis = 0, side = lower);
+  domain solid_x_upper = boundary(solid, axis = 0, side = upper);
+  domain solid_y_lower = boundary(solid, axis = 1, side = lower);
+  domain solid_y_upper = boundary(solid, axis = 1, side = upper);
+
+  instance fluid_side: InterfaceSide2d(
+    support body = fluid,
+    support face = fluid_x_upper
+  );
+  instance solid_side: InterfaceSide2d(
+    support body = solid,
+    support face = solid_x_lower
+  );
+
+  connect conserving fluid_side.mechanical, solid_side.mechanical;
+}

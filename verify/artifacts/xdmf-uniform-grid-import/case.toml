@@ -1,0 +1,68 @@
+id = "artifacts.xdmf-uniform-grid-import"
+status = "verified"
+scope = "bounded-xdmf-3-hdf-referenced-uniform-tri3-mesh-and-field-import"
+reference_kind = "independently-readable-hdf5-source-exact-normalized-arrays-and-fail-closed-replay"
+
+capabilities = [
+  "bounded-xdmf-3-metadata-to-typed-import-plan",
+  "caller-owned-external-array-resolution",
+  "uniform-tri3-xy-mesh-reconstruction",
+  "node-scalar-field-reconstruction",
+  "cell-vector2-field-reconstruction",
+  "xdmf-request-selector-validation",
+  "resolved-array-and-accepted-artifact-cross-binding-rejection",
+  "external-import-manifest-source-identity",
+]
+
+[problem]
+format = "XDMF 3 metadata with HDF DataItems"
+grid = "one Domain containing one Uniform grid"
+mesh = "unit square with four vertices and two positively oriented affine triangles"
+geometry = "XY f64 with shape [4, 2]"
+topology = "Triangle u64 with shape [2, 3]"
+node_field = "temperature scalar f64 with shape [4]"
+cell_field = "flux two-component vector f64 with shape [2, 2]"
+resolution = "pure typed plan plus caller-owned resolver over complete source bytes"
+
+[falsifiers]
+cross_wired_selector = "reject"
+cross_wired_array = "reject"
+cross_wired_artifact = "reject"
+same_shape_resolver_rebinding = "distinct fresh import; reject against persisted artifacts"
+source_byte_mutation = "distinct manifest identity"
+dtd_or_entity = "reject"
+xinclude = "reject"
+metadata_or_array_limit_excess = "reject"
+wrong_shape = "reject"
+wrong_scalar_type = "reject"
+wrong_array_order = "reject"
+truncated_metadata = "reject"
+
+[claim_boundary]
+xdmf_version = "3.0"
+domains = 1
+grids = 1
+grid_type = "Uniform"
+mesh_dimension = 2
+cell_family = "Tri3"
+geometry_type = "XY"
+node_scalar = true
+cell_vector_components = 2
+hdf_references = true
+pure_typed_plan = true
+caller_owned_resolver = true
+native_hdf5_parsing = false
+source_to_array_derivation = false
+resolver_honesty = false
+implicit_filesystem_or_network_access = false
+temporal_collections = false
+export = false
+mixed_or_high_order_cells = false
+curved_geometry = false
+general_xdmf = false
+
+[evidence]
+package = "eqiora"
+test = "xdmf_uniform_grid_import"
+features = ["xdmf"]
+table = "expected/source.sha256"

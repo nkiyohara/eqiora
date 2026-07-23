@@ -1,0 +1,791 @@
+use std::collections::BTreeSet;
+
+use eqiora::compatibility::ExactModelCodec;
+use eqiora::compiler::source_identity::{LocalSourceIdentity, LocalSourceIdentityLimits};
+use eqiora::compiler::{CompiledModel, compile};
+use eqiora::entity::kinds;
+use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore};
+use eqiora::kernel::{ExprNode, KernelNode, SymbolRef};
+use eqiora::package::{
+    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
+    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageCompilationError,
+    PackagePreparationError, PackageReleaseV1, PackagedModelDocument, QualifiedName,
+    ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
+};
+use eqiora::sem::KernelProgram;
+use eqiora::{Entity, Id, RawId};
+
+const LOCAL_NESTED: &str =
+    include_str!("../../../verify/packages/occurrence-bound-fields/models/nested-fields.eqi");
+const VERSION: &str = "0.1.0";
+const COMPONENT_PACKAGE: &str = r#"
+public component FieldLaw {
+  public support body: volume(ambient_dimension = 2);
+  public field slot scalar_state on body as continuum: 1;
+  public field slot displacement on body as continuum: m shape spatial_vector;
+
+  relation scalar_identity continuous on body {
+    scalar_state - scalar_state = 0;
+  }
+  relation vector_identity continuous on body {
+    displacement - displacement = 0;
+  }
+}
+
+public component FieldLawWrapper {
+  public support body: volume(ambient_dimension = 2);
+  public field slot scalar_state on body as continuum: 1;
+  public field slot displacement on body as continuum: m shape spatial_vector;
+
+  instance inner: FieldLaw(
+    support body = body,
+    field scalar_state = scalar_state,
+    field displacement = displacement
+  );
+}
+"#;
+const COMPONENT_PACKAGE_PERMUTED: &str = r#"
+public component FieldLawWrapper {
+  public field slot displacement on body as continuum: m shape spatial_vector;
+  public field slot scalar_state on body as continuum: 1;
+  public support body: volume(ambient_dimension = 2);
+
+  instance inner: FieldLaw(
+    field displacement = displacement,
+    field scalar_state = scalar_state,
+    support body = body
+  );
+}
+
+public component FieldLaw {
+  relation vector_identity continuous on body {
+    displacement - displacement = 0;
+  }
+  public field slot displacement on body as continuum: m shape spatial_vector;
+  relation scalar_identity continuous on body {
+    scalar_state - scalar_state = 0;
+  }
+  public field slot scalar_state on body as continuum: 1;
+  public support body: volume(ambient_dimension = 2);
+}
+"#;
+
+fn compile_one(file: &str, source: &str) -> CompiledModel {
+    let mut compiled = compile(file, source).expect("Field-slot fixture compiles");
+    assert_eq!(compiled.len(), 1, "fixture has exactly one root Model");
+    compiled.pop().expect("one compiled Model")
+}
+
+fn typed<I>(compiled: &CompiledModel, name: &str) -> Id<I>
+where
+    I: Entity,
+{
+    compiled
+        .symbols()
+        .get(name)
+        .and_then(RawId::downcast)
+        .unwrap_or_else(|| panic!("missing typed symbol `{name}`"))
+}
+
+fn has_edge(
+    program: &KernelProgram,
+    kind: EdgeKind,
+    from: impl Into<RawId>,
+    to: impl Into<RawId>,
+) -> bool {
+    let from = from.into();
+    let to = to.into();
+    program
+        .edges()
+        .iter()
+        .any(|edge| edge.kind() == kind && edge.from() == from && edge.to() == to)
+}
+
+fn admitted(compiled: CompiledModel) -> KernelProgram {
+    let model = compiled.model();
+    let (transaction, _, _) = compiled.into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).expect("atomic graph admission");
+    KernelProgram::from_snapshot(&store.snapshot(), model).expect("accepted Kernel program")
+}
+
+fn relation_field_symbols(
+    program: &KernelProgram,
+    relation: Id<kinds::Relation>,
+) -> BTreeSet<RawId> {
+    program
+        .typed_relation_residual(relation)
+        .expect("accepted Relation retains a typing proof")
+        .expression()
+        .nodes()
+        .iter()
+        .filter_map(|node| match node {
+            ExprNode::Symbol(SymbolRef::Field(field)) => Some(field.erase()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn assert_diagnostic_contains(diagnostics: &[eqiora::Diagnostic], fragments: &[&str]) {
+    assert!(
+        diagnostics.iter().any(|diagnostic| fragments
+            .iter()
+            .all(|fragment| diagnostic.message().contains(fragment))),
+        "expected one diagnostic containing {fragments:?}, got {diagnostics:#?}"
+    );
+}
+
+fn assert_compile_rejects_without_graph_mutation(name: &str, source: &str, expected: &[&str]) {
+    let store = InMemoryGraphStore::new();
+    let before = store.snapshot();
+    let diagnostics = compile(&format!("{name}.eqi"), source).expect_err(name);
+    assert_diagnostic_contains(&diagnostics, expected);
+    let after = store.snapshot();
+    assert_eq!(
+        after.revision(),
+        before.revision(),
+        "{name}: graph revision"
+    );
+    assert_eq!(after.nodes().len(), before.nodes().len(), "{name}: nodes");
+    assert_eq!(after.edges().len(), before.edges().len(), "{name}: edges");
+    assert_eq!(
+        after.ontology_views().len(),
+        before.ontology_views().len(),
+        "{name}: ontology views"
+    );
+}
+
+fn source_identity(source: &str) -> LocalSourceIdentity {
+    let document = eqiora::language::parse("identity.eqi", source)
+        .into_document()
+        .expect("identity fixture parses");
+    LocalSourceIdentity::from_document(&document).expect("bounded source identity")
+}
+
+fn package_sources(
+    name: &str,
+    dependencies: Vec<DependencyRequirementV1>,
+    source: &str,
+    reverse_files: bool,
+) -> AuthorPackageSourcesV1 {
+    let model_path = NormalizedRelativePath::parse("src/model.eqi").expect("model source path");
+    let readme_path = NormalizedRelativePath::parse("README.md").expect("documentation path");
+    let manifest = AuthorManifestV1::new(
+        QualifiedName::parse(name).expect("package name"),
+        ExactVersion::parse(VERSION).expect("package version"),
+        dependencies,
+        vec![
+            BundleEntryV1::new(model_path.clone(), BundleRoleV1::ModelSource),
+            BundleEntryV1::new(readme_path.clone(), BundleRoleV1::Documentation),
+        ],
+    )
+    .expect("closed author manifest");
+    let mut files = vec![
+        SourceFileV1::new(
+            model_path,
+            BundleRoleV1::ModelSource,
+            source.as_bytes().to_vec(),
+        ),
+        SourceFileV1::new(
+            readme_path,
+            BundleRoleV1::Documentation,
+            b"Occurrence-bound Field evidence.\n".to_vec(),
+        ),
+    ];
+    if reverse_files {
+        files.reverse();
+    }
+    AuthorPackageSourcesV1::new(manifest, files).expect("closed package sources")
+}
+
+fn component_release(source: &str, reverse_files: bool) -> PackageReleaseV1 {
+    prepare_package_release_v1(
+        package_sources(
+            "Eqiora.Verify.OccurrenceBoundFields",
+            Vec::new(),
+            source,
+            reverse_files,
+        ),
+        &[],
+    )
+    .expect("occurrence-free Field-slot definitions validate")
+}
+
+fn root_source(alias: &str, permuted: bool) -> String {
+    if permuted {
+        format!(
+            r#"
+model Main {{
+  instance law: {alias}.FieldLawWrapper(
+    field displacement = displacement,
+    field scalar_state = scalar_state,
+    support body = body
+  );
+  field displacement on body as space: m shape spatial_vector;
+  field scalar_state on body as space: 1 = 0;
+  representation space = continuum;
+  domain body = box(0, 1, 0, 1);
+}}
+"#
+        )
+    } else {
+        format!(
+            r#"
+model Main {{
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field scalar_state on body as space: 1 = 0;
+  field displacement on body as space: m shape spatial_vector;
+  instance law: {alias}.FieldLawWrapper(
+    support body = body,
+    field scalar_state = scalar_state,
+    field displacement = displacement
+  );
+}}
+"#
+        )
+    }
+}
+
+fn root_release(
+    components: &PackageReleaseV1,
+    alias: &str,
+    permuted: bool,
+    reverse_files: bool,
+) -> PackageReleaseV1 {
+    let dependency = DependencyRequirementV1::new(
+        QualifiedName::parse(alias).expect("dependency alias"),
+        components
+            .package_identity()
+            .expect("component package identity"),
+    )
+    .expect("exact dependency requirement");
+    prepare_package_release_v1(
+        package_sources(
+            "org.eqiora.verify.occurrence_bound_fields",
+            vec![dependency],
+            &root_source(alias, permuted),
+            reverse_files,
+        ),
+        std::slice::from_ref(components),
+    )
+    .expect("root Field-slot package validates")
+}
+
+fn compile_locked(components: &PackageReleaseV1, root: &PackageReleaseV1) -> PackagedModelDocument {
+    let resolution =
+        ResolutionRecordV1::from_exact_releases(root, std::slice::from_ref(components))
+            .expect("exact offline resolution");
+    let mut store = InMemoryPackageStore::default();
+    store.insert(components).expect("insert component release");
+    store.insert(root).expect("insert root release");
+    let packaged =
+        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V3)
+            .expect("compile exact package occurrence");
+    packaged
+        .compilation()
+        .validate_against(&resolution)
+        .expect("package compilation matches exact resolution");
+    packaged
+}
+
+#[test]
+fn nested_slots_disappear_into_exact_field_and_support_identity() {
+    let compiled = compile_one("nested-fields.eqi", LOCAL_NESTED);
+    let body = typed::<kinds::Domain>(&compiled, "body");
+    let scalar = typed::<kinds::Field>(&compiled, "scalar_state");
+    let displacement = typed::<kinds::Field>(&compiled, "displacement");
+    let scalar_relation = typed::<kinds::Relation>(&compiled, "law.inner.scalar_identity");
+    let vector_relation = typed::<kinds::Relation>(&compiled, "law.inner.vector_identity");
+
+    for eliminated in [
+        "law.body",
+        "law.scalar_state",
+        "law.displacement",
+        "law.inner.body",
+        "law.inner.scalar_state",
+        "law.inner.displacement",
+    ] {
+        assert_eq!(
+            compiled.symbols().get(eliminated),
+            None,
+            "slot `{eliminated}` must not become a display alias"
+        );
+    }
+
+    let provenance = compiled.provenance().expect("hierarchy provenance");
+    for relation in [scalar_relation, vector_relation] {
+        let source = provenance
+            .get_by_graph_id(relation.erase())
+            .expect("expanded Relation provenance");
+        let bindings = source
+            .binding_spans()
+            .iter()
+            .map(|span| &LOCAL_NESTED[span.start as usize..span.end as usize])
+            .collect::<Vec<_>>();
+        assert_eq!(
+            bindings.len(),
+            6,
+            "two levels each contribute three bindings"
+        );
+        for expected in [
+            "support body = body",
+            "field scalar_state = scalar_state",
+            "field displacement = displacement",
+        ] {
+            assert_eq!(
+                bindings
+                    .iter()
+                    .filter(|binding| **binding == expected)
+                    .count(),
+                2,
+                "inner and outer occurrences retain the `{expected}` span"
+            );
+        }
+    }
+
+    let program = admitted(compiled);
+    assert_eq!(
+        program
+            .nodes()
+            .filter(|node| matches!(node, KernelNode::Field(_)))
+            .count(),
+        2,
+        "only the two root-owned Fields enter the Kernel"
+    );
+    assert_eq!(
+        program
+            .nodes()
+            .filter(|node| matches!(node, KernelNode::Relation(_)))
+            .count(),
+        2,
+        "slot binding must not synthesize equality Relations"
+    );
+    assert_eq!(
+        relation_field_symbols(&program, scalar_relation),
+        BTreeSet::from([scalar.erase()])
+    );
+    assert_eq!(
+        relation_field_symbols(&program, vector_relation),
+        BTreeSet::from([displacement.erase()])
+    );
+    for field in [scalar, displacement] {
+        assert!(has_edge(&program, EdgeKind::DefinedOn, field, body));
+    }
+    for (relation, field) in [(scalar_relation, scalar), (vector_relation, displacement)] {
+        assert!(has_edge(&program, EdgeKind::AppliesOn, relation, body));
+        assert!(has_edge(&program, EdgeKind::DependsOn, relation, field));
+    }
+
+    let document = ExactModelCodec::V3
+        .compile("nested-fields.eqi", LOCAL_NESTED)
+        .expect("Field slots cross the unchanged Model v3 wire");
+    let wire = String::from_utf8(document.canonical_json().expect("canonical Model wire"))
+        .expect("canonical JSON is UTF-8");
+    assert!(!wire.contains("field_slot"));
+    assert!(!wire.contains("field_binding"));
+}
+
+#[test]
+fn rebinding_changes_source_identity_and_the_exact_relation_target() {
+    let first = r#"
+component C {
+  public support body: volume(ambient_dimension = 2);
+  public field slot state on body as continuum: 1;
+  relation identity continuous on body { state - state = 0; }
+}
+model M {
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field first on body as space: 1 = 0;
+  field second on body as space: 1 = 0;
+  instance law: C(support body = body, field state = first);
+}
+"#;
+    let second = first.replace("field state = first", "field state = second");
+    assert_ne!(source_identity(first), source_identity(&second));
+
+    for (name, source, selected, rejected) in [
+        ("first", first, "first", "second"),
+        ("second", second.as_str(), "second", "first"),
+    ] {
+        let compiled = compile_one(&format!("rebound-{name}.eqi"), source);
+        let relation = typed::<kinds::Relation>(&compiled, "law.identity");
+        let selected = typed::<kinds::Field>(&compiled, selected);
+        let rejected = typed::<kinds::Field>(&compiled, rejected);
+        let program = admitted(compiled);
+        let symbols = relation_field_symbols(&program, relation);
+        assert_eq!(symbols, BTreeSet::from([selected.erase()]));
+        assert!(!symbols.contains(&rejected.erase()));
+    }
+}
+
+#[test]
+fn invalid_field_slots_fail_closed_before_transaction_or_graph_exposure() {
+    let component = r#"
+component FieldLaw {
+  public support body: volume(ambient_dimension = 2);
+  public field slot scalar_state on body as continuum: 1;
+  public field slot displacement on body as continuum: m shape spatial_vector;
+  relation scalar_identity continuous on body { scalar_state - scalar_state = 0; }
+  relation vector_identity continuous on body { displacement - displacement = 0; }
+}
+"#;
+    let cases = [
+        (
+            "missing",
+            r#"
+model M {
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field scalar_state on body as space: 1 = 0;
+  field displacement on body as space: m shape spatial_vector;
+  instance law: FieldLaw(support body = body, field displacement = displacement);
+}
+"#,
+            &["has no binding for required Field slot", "scalar_state"][..],
+        ),
+        (
+            "duplicate",
+            r#"
+model M {
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field scalar_state on body as space: 1 = 0;
+  field displacement on body as space: m shape spatial_vector;
+  instance law: FieldLaw(
+    support body = body,
+    field scalar_state = scalar_state,
+    field scalar_state = scalar_state,
+    field displacement = displacement
+  );
+}
+"#,
+            &["duplicate binding for Field slot", "scalar_state"][..],
+        ),
+        (
+            "unknown",
+            r#"
+model M {
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field scalar_state on body as space: 1 = 0;
+  field displacement on body as space: m shape spatial_vector;
+  instance law: FieldLaw(
+    support body = body,
+    field scalar_state = scalar_state,
+    field displacement = displacement,
+    field ghost = scalar_state
+  );
+}
+"#,
+            &["unknown Field slot", "ghost"][..],
+        ),
+        (
+            "wrong-kind",
+            r#"
+model M {
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  parameter gain: 1 = 0;
+  field displacement on body as space: m shape spatial_vector;
+  instance law: FieldLaw(
+    support body = body,
+    field scalar_state = gain,
+    field displacement = displacement
+  );
+}
+"#,
+            &["gain", "is not an enclosing Field"][..],
+        ),
+        (
+            "dimension",
+            r#"
+model M {
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field scalar_state on body as space: m = 0;
+  field displacement on body as space: m shape spatial_vector;
+  instance law: FieldLaw(
+    support body = body,
+    field scalar_state = scalar_state,
+    field displacement = displacement
+  );
+}
+"#,
+            &["scalar_state", "disagree in physical dimension"][..],
+        ),
+        (
+            "shape",
+            r#"
+model M {
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field scalar_state on body as space: 1 = 0;
+  field displacement on body as space: m = 0;
+  instance law: FieldLaw(
+    support body = body,
+    field scalar_state = scalar_state,
+    field displacement = displacement
+  );
+}
+"#,
+            &["displacement", "exact value shape"][..],
+        ),
+        (
+            "frame",
+            r#"
+model M {
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field scalar_state on body as space: 1 = 0;
+  field displacement on body as space: m shape [2];
+  instance law: FieldLaw(
+    support body = body,
+    field scalar_state = scalar_state,
+    field displacement = displacement
+  );
+}
+"#,
+            &["displacement", "coordinate frame"][..],
+        ),
+        (
+            "exact-support",
+            r#"
+model M {
+  domain body = box(0, 1, 0, 1);
+  domain other = box(0, 1, 0, 1);
+  representation space = continuum;
+  field scalar_state on other as space: 1 = 0;
+  field displacement on other as space: m shape spatial_vector;
+  instance law: FieldLaw(
+    support body = body,
+    field scalar_state = scalar_state,
+    field displacement = displacement
+  );
+}
+"#,
+            &["scalar_state", "exact spatial support"][..],
+        ),
+    ];
+
+    for (name, model, expected) in cases {
+        assert_compile_rejects_without_graph_mutation(
+            name,
+            &format!("{component}{model}"),
+            expected,
+        );
+    }
+
+    assert_compile_rejects_without_graph_mutation(
+        "non-continuum-slot",
+        r#"
+component C {
+  public support body: volume(ambient_dimension = 2);
+  public field slot state on body as discrete: 1;
+}
+model M {}
+"#,
+        &["expected `continuum`"],
+    );
+    assert_compile_rejects_without_graph_mutation(
+        "ambient-dimension",
+        &format!(
+            r#"{component}
+model M {{
+  domain line = box(0, 1);
+  representation space = continuum;
+  field scalar_state on line as space: 1 = 0;
+  field displacement on line as space: m shape spatial_vector;
+  instance law: FieldLaw(
+    support body = line,
+    field scalar_state = scalar_state,
+    field displacement = displacement
+  );
+}}
+"#
+        ),
+        &["requires ambient dimension 2"],
+    );
+}
+
+#[test]
+fn parameter_support_and_field_bindings_share_one_bounded_identity_budget() {
+    let source = r#"
+component C {
+  public parameter gain: 1;
+  public support body: volume(ambient_dimension = 2);
+  public field slot state on body as continuum: 1;
+  relation identity continuous on body { gain * state - state = 0; }
+}
+model M {
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field state on body as space: 1 = 0;
+  instance law: C(gain = 1, support body = body, field state = state);
+}
+"#;
+    let document = eqiora::language::parse("binding-budget.eqi", source)
+        .into_document()
+        .expect("budget fixture parses");
+    let limits = LocalSourceIdentityLimits {
+        max_bindings_per_instance: 2,
+        ..LocalSourceIdentityLimits::default()
+    };
+    let diagnostic = LocalSourceIdentity::from_document_with_limits(&document, limits)
+        .expect_err("three binding families share one limit");
+    assert!(diagnostic.message().contains("3 bindings"));
+    assert!(diagnostic.message().contains("2 binding limit"));
+
+    let store = InMemoryGraphStore::new();
+    let snapshot = store.snapshot();
+    assert_eq!(snapshot.revision(), store.snapshot().revision());
+    assert_eq!(snapshot.nodes().len(), 0);
+    assert_eq!(snapshot.edges().len(), 0);
+}
+
+#[test]
+fn exact_packages_normalize_alias_declaration_binding_and_file_order() {
+    let components = component_release(COMPONENT_PACKAGE, false);
+    let permuted_components = component_release(COMPONENT_PACKAGE_PERMUTED, true);
+    assert_eq!(
+        components
+            .package_identity()
+            .expect("component package identity"),
+        permuted_components
+            .package_identity()
+            .expect("permuted component identity"),
+        "definition declaration, binding, and input-file order are non-semantic"
+    );
+
+    let root = root_release(&components, "laws", false, false);
+    let permuted_root = root_release(&permuted_components, "constitutive_components", true, true);
+    assert_eq!(
+        root.package_identity().expect("root package identity"),
+        permuted_root
+            .package_identity()
+            .expect("permuted root identity"),
+        "an exact dependency alias and source order do not enter package meaning"
+    );
+
+    let packaged = compile_locked(&components, &root);
+    let permuted = compile_locked(&permuted_components, &permuted_root);
+    assert_eq!(
+        packaged.model().canonical_json().expect("canonical Model"),
+        permuted
+            .model()
+            .canonical_json()
+            .expect("permuted canonical Model")
+    );
+    assert_eq!(
+        packaged.model().digest().expect("canonical Model digest"),
+        permuted.model().digest().expect("permuted Model digest")
+    );
+    for eliminated in [
+        "law.body",
+        "law.scalar_state",
+        "law.displacement",
+        "law.inner.body",
+        "law.inner.scalar_state",
+        "law.inner.displacement",
+    ] {
+        assert_eq!(packaged.model().aliases().get(eliminated), None);
+    }
+
+    let scalar: Id<kinds::Field> = packaged.model().aliases()["scalar_state"]
+        .downcast()
+        .expect("root scalar Field");
+    let displacement: Id<kinds::Field> = packaged.model().aliases()["displacement"]
+        .downcast()
+        .expect("root displacement Field");
+    let scalar_relation: Id<kinds::Relation> =
+        packaged.model().aliases()["law.inner.scalar_identity"]
+            .downcast()
+            .expect("expanded scalar Relation");
+    let vector_relation: Id<kinds::Relation> =
+        packaged.model().aliases()["law.inner.vector_identity"]
+            .downcast()
+            .expect("expanded vector Relation");
+    let provenance = packaged
+        .provenance()
+        .get_by_graph_id(scalar_relation.erase())
+        .expect("cross-package Field-binding provenance");
+    assert_eq!(provenance.binding_spans().len(), 6);
+    assert!(
+        provenance
+            .binding_spans()
+            .iter()
+            .any(|span| span.file.contains("Eqiora.Verify.OccurrenceBoundFields"))
+    );
+    assert!(provenance.binding_spans().iter().any(|span| {
+        span.file
+            .contains("org.eqiora.verify.occurrence_bound_fields")
+    }));
+    assert_eq!(
+        relation_field_symbols(packaged.model().program(), scalar_relation),
+        BTreeSet::from([scalar.erase()])
+    );
+    assert_eq!(
+        relation_field_symbols(packaged.model().program(), vector_relation),
+        BTreeSet::from([displacement.erase()])
+    );
+}
+
+#[test]
+fn invalid_exact_package_binding_never_exposes_a_packaged_model() {
+    let components = component_release(COMPONENT_PACKAGE, false);
+    let alias = "laws";
+    let invalid = root_source(alias, false).replace("    field scalar_state = scalar_state,\n", "");
+    let dependency = DependencyRequirementV1::new(
+        QualifiedName::parse(alias).expect("dependency alias"),
+        components
+            .package_identity()
+            .expect("component package identity"),
+    )
+    .expect("exact dependency requirement");
+    let root_sources = package_sources(
+        "org.eqiora.verify.occurrence_bound_fields",
+        vec![dependency],
+        &invalid,
+        false,
+    );
+
+    let diagnostics =
+        match prepare_package_release_v1(root_sources, std::slice::from_ref(&components)) {
+            Err(PackagePreparationError::Diagnostics(diagnostics)) => diagnostics,
+            Err(error) => panic!("unexpected package preparation failure: {error}"),
+            Ok(root) => {
+                let resolution = ResolutionRecordV1::from_exact_releases(
+                    &root,
+                    std::slice::from_ref(&components),
+                )
+                .expect("exact offline resolution");
+                let mut store = InMemoryPackageStore::default();
+                store.insert(&components).expect("insert component release");
+                store.insert(&root).expect("insert root release");
+                match PackagedModelDocument::compile_locked(
+                    &store,
+                    &resolution,
+                    "Main",
+                    ExactModelCodec::V3,
+                ) {
+                    Err(PackageCompilationError::Diagnostics(diagnostics)) => diagnostics,
+                    Err(error) => panic!("unexpected locked compilation failure: {error}"),
+                    Ok(_) => panic!("invalid exact package exposed a packaged Model"),
+                }
+            }
+        };
+    assert_diagnostic_contains(
+        &diagnostics,
+        &["has no binding for required Field slot", "scalar_state"],
+    );
+}
+
+#[test]
+fn legacy_source_identity_golden_is_unchanged_without_field_slots() {
+    let identity = source_identity("model minimal { parameter gain: 1 = 2; }");
+    assert_eq!(
+        identity.to_string(),
+        "dba42a75e6e12596d935fc7161127605c1c769e89a9686e8e93ac4ab150e63a5"
+    );
+}

@@ -1,0 +1,4 @@
+model Main {
+  parameter duration: s = 1;
+  instance wrapper: Wrapper(period = duration);
+}

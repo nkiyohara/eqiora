@@ -1,0 +1,58 @@
+model Main {
+  domain body = box(0, 4, 0, 2);
+  domain x_lower = boundary(body, axis = 0, side = lower);
+  domain x_upper = boundary(body, axis = 0, side = upper);
+  domain y_lower = boundary(body, axis = 1, side = lower);
+  domain y_upper = boundary(body, axis = 1, side = upper);
+  representation space = continuum;
+
+  field velocity on body as space: m / s shape spatial_vector;
+  field pressure on body as space: kg / (m * s ^ 2) = 0;
+  field force_potential on body as space: kg / (m * s ^ 2) = 0;
+  field ambient_pressure on body as space: kg / (m * s ^ 2) = 0;
+  parameter force_gradient: kg / (m ^ 2 * s ^ 2) = 0.75;
+  parameter pressure_zero_coordinate: m = 2;
+  parameter ambient_pressure_value: kg / (m * s ^ 2) = 4.5;
+
+  relation force_definition continuous on body {
+    force_potential
+      - force_gradient * (coordinate(0) - pressure_zero_coordinate) = 0;
+  }
+  relation ambient_pressure_definition continuous on body {
+    ambient_pressure - ambient_pressure_value = 0;
+  }
+  instance law: fluid.SteadyStokesWithPotential2d(
+    support body = body,
+    field velocity = velocity,
+    field pressure = pressure,
+    field force_potential = force_potential,
+    dynamic_viscosity = 6
+  );
+  instance boundary: fluid.NewtonianMechanicalInterface2d(
+    support body = body,
+    support exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
+    field velocity = velocity,
+    field pressure = pressure,
+    dynamic_viscosity = 6
+  );
+
+  instance x_lower_zero: mechanics.ZeroVelocity2d(
+    support body = body, support face = x_lower
+  );
+  instance x_upper_pressure: loads.NormalPressureTraction2d(
+    support body = body,
+    support face = x_upper,
+    field pressure = ambient_pressure
+  );
+  instance y_lower_zero: mechanics.ZeroVelocity2d(
+    support body = body, support face = y_lower
+  );
+  instance y_upper_zero: mechanics.ZeroVelocity2d(
+    support body = body, support face = y_upper
+  );
+
+  connect conserving boundary.mechanical[boundary = x_lower], x_lower_zero.mechanical;
+  connect conserving boundary.mechanical[boundary = x_upper], x_upper_pressure.mechanical;
+  connect conserving boundary.mechanical[boundary = y_lower], y_lower_zero.mechanical;
+  connect conserving boundary.mechanical[boundary = y_upper], y_upper_zero.mechanical;
+}

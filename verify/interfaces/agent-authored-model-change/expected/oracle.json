@@ -1,0 +1,6 @@
+{
+  "schema": "eqiora.verify.agent-authored-model-change-oracle/v1",
+  "target_alias": "source_scale",
+  "expected_field_values": [0.0, 0.1875, 0.25, 0.1875, 0.0],
+  "absolute_tolerance": 1e-14
+}

@@ -1,0 +1,26 @@
+id = "differentiation.implicit-relation"
+status = "verified"
+scope = "smooth-static-implicit-f64"
+reference_kind = "analytic-and-centered-finite-difference"
+
+capabilities = [
+  "explicit-differentiation-roles",
+  "scalar-ssa-primal",
+  "scalar-ssa-jvp",
+  "scalar-ssa-vjp",
+  "jvp-vjp-duality",
+  "implicit-forward-sensitivity",
+  "implicit-adjoint-gradient",
+  "nonsymmetric-transpose-solve",
+  "unconverged-point-rejection",
+]
+
+[problem]
+relation = "two-equation nonlinear implicit residual"
+state_jacobian = "nonsymmetric 2x2"
+scalar = "f64"
+activation = "smooth static"
+
+[evidence]
+package = "eqiora"
+test = "implicit_differentiation"

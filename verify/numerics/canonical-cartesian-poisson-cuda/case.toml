@@ -1,0 +1,64 @@
+id = "numerics.canonical-cartesian-poisson-cuda"
+status = "implemented"
+scope = "canonical-2d-cartesian-poisson-finalized-cuda-handoff"
+reference_kind = "public-source-physical-recollection-required"
+
+capabilities = [
+  "public-optional-cuda-facade",
+  "exact-call-site-capability-intersection",
+  "q1-fem-finalized-cuda-handoff",
+  "tpfa-finalized-cuda-handoff",
+  "jacobi-cg-fast-device-solve",
+  "pre-device-allocation-single-device-deployment-binding",
+  "graph-bound-implicit-zero-cuda-execution",
+  "typed-cuda-transfer-and-generation-trace",
+  "waited-input-solve-and-output-fences",
+  "immutable-complete-host-output-execution-receipt",
+  "serial-host-true-residual-acceptance",
+  "additional-serial-host-receipt-replay",
+  "method-native-reconstruction",
+  "reference-cpu-conformance-tolerance",
+  "complete-source-identity-alpha-renaming",
+]
+
+[problem]
+equation = "-div(grad(u)) = 2 pi^2 sin(pi x) sin(pi y)"
+domain = "(0, 1) x (0, 1)"
+boundary = "u = 0 on the complete boundary"
+exact_solution = "sin(pi x) sin(pi y)"
+cells_per_axis = 16
+methods = "continuous Q1 Galerkin FEM and orthogonal cell-centered TPFA"
+
+[numerical_contract]
+cpu_cuda_absolute = 2e-12
+cpu_cuda_relative = 2e-12
+maximum_l2_error = 2e-3
+maximum_relative_balance = 2e-11
+
+[claim_boundary]
+physical_execution_in_ordinary_ci = false
+portable_committed_device_evidence = false
+hardware_attestation = false
+general_cuda_capability = false
+durable_solution_artifact = false
+durable_execution_receipt = false
+curated_public_graph_execution_api = false
+arbitrary_initial_guess = false
+free_memory_reservation = false
+persistent_device_residency = false
+pinned_host_transfer = false
+transfer_compute_overlap = false
+gpu_assembly = false
+matrix_free_cuda = false
+reproducible_device_reduction = false
+multi_queue_execution = false
+multi_gpu_execution = false
+mpi_cuda_execution = false
+fsi_cuda_minres = false
+performance_or_scale_claim = false
+cpu_fallback = false
+general_pde_cuda_lowering = false
+
+[evidence]
+package = "eqiora"
+test = "canonical_cartesian_poisson_cuda_evidence"

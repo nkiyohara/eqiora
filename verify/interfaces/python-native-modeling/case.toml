@@ -1,0 +1,36 @@
+id = "interfaces.python-native-modeling"
+status = "verified"
+scope = "python-native-scalar-scalar-physical-and-bounded-spatial-model-construction"
+reference_kind = "public-rust-replay-and-reference-execution"
+
+capabilities = [
+  "python-frozen-client-neutral-draft",
+  "python-native-scalar-field-parameter-relation",
+  "python-native-multi-residual-relation",
+  "python-native-scalar-physical-domain-port-connection",
+  "python-native-cartesian-domain-representation-field-relation",
+  "python-native-grad-div-trace",
+  "shared-rust-lowering-and-atomic-commit",
+  "exact-python-artifact-replay",
+  "source-python-structural-fingerprint-comparison",
+  "identity-and-membership-fail-closed",
+]
+
+[problem]
+scalar = "dx/dt + rate*x = 0"
+physical = "one nominal electrical Domain, three conserving Ports, and one N-ary Connection"
+spatial = "one-dimensional constant-source Poisson with two essential boundaries"
+codec = "current v6"
+
+[claim_boundary]
+source_python_exact_identity_equal = false
+structural_semantic_fingerprint = true
+spatial = "one-dimensional bounded Cartesian scalar elliptic"
+shaped_spatial_values = false
+hybrid = false
+components = false
+python_callback_operators = false
+
+[evidence]
+package = "eqiora-python"
+test = "python_native_modeling"

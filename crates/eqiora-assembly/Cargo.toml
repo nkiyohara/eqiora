@@ -1,0 +1,15 @@
+[package]
+name = "eqiora-assembly"
+description = "Eqiora L2: local contribution, constraint-aware assembly, and sparse algebra contracts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+eqiora-core = { workspace = true }
+eqiora-solver = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,53 @@
+{
+  "source": {
+    "type": "UnstructuredGrid",
+    "version": "0.1",
+    "byteOrder": "LittleEndian",
+    "headerType": "UInt32",
+    "encoding": "ascii",
+    "pieceCount": 1
+  },
+  "piece": {
+    "structuralSelector": [0, 0],
+    "index": 0,
+    "pointCount": 4,
+    "cellCount": 2
+  },
+  "mesh": {
+    "geometryStructuralSelector": [0, 0, 2, 0],
+    "topologyStructuralSelector": [0, 0, 3],
+    "topologicalDimension": 2,
+    "pointsXyz": [
+      [0.0, 0.0, 0.0],
+      [1.0, 0.0, 0.0],
+      [1.0, 1.0, 0.0],
+      [0.0, 1.0, 0.0]
+    ],
+    "connectivity": [0, 1, 2, 0, 2, 3],
+    "offsets": [3, 6],
+    "vtkCellTypes": [5, 5],
+    "signedDoubleAreasXy": [1.0, 1.0]
+  },
+  "selectedFields": [
+    {
+      "structuralSelector": [0, 0, 0, 0],
+      "pieceIndex": 0,
+      "association": "point",
+      "name": "temperature",
+      "scalarType": "Float64",
+      "components": 1,
+      "tuples": 4,
+      "values": [300.0, 310.0, 320.0, 330.0]
+    },
+    {
+      "structuralSelector": [0, 0, 1, 0],
+      "pieceIndex": 0,
+      "association": "cell",
+      "name": "flux",
+      "scalarType": "Float64",
+      "components": 2,
+      "tuples": 2,
+      "valuesTupleMajor": [1.0, 0.0, 0.0, 1.0]
+    }
+  ]
+}

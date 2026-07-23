@@ -1,0 +1,67 @@
+id = "fluid.packaged-steady-stokes-2d"
+status = "verified"
+scope = "exact-package-and-direct-flat-canonical-steady-incompressible-stokes-2d"
+reference_kind = "semantic-entity-bijection-lowered-equivalence-and-exact-package-replay"
+
+capabilities = [
+  "exact-packaged-steady-incompressible-stokes-component",
+  "field-slot-to-name-independent-steady-stokes-lowering",
+  "packaged-and-direct-flat-steady-stokes-equivalence",
+  "identity-preserving-component-parameter-binding",
+  "literal-component-parameter-specialization",
+  "signed-zero-semantic-canonicalization",
+]
+
+[problem]
+dependency = "Eqiora.Fluid.Incompressible@0.1.0"
+component = "SteadyStokesWithPotential2d"
+equations = "-div(2 mu sym(grad(u)) - I p) - grad(q) = 0; div(u) = 0"
+domain = "(0 m, 1 m) x (0 m, 1 m)"
+fields = "u: [2] velocity; p: scalar pressure; q: scalar force potential"
+boundary = "u = [0, 0] on all four root-owned sides"
+
+[canonical_contract]
+packages = 2
+package_wire = 1
+model_wire = 4
+component_owned_domains = 0
+component_owned_fields = 0
+component_owned_relations = 2
+component_support_slots = 1
+component_field_slots = 3
+component_parameters = 1
+root_owned_fields = 3
+root_owned_boundary_domains = 4
+root_owned_boundary_relations = 4
+complete_semantic_entity_identity_bijection = true
+identity_normalized_stokes_lowering_equivalence = true
+cross_frontend_expression_dag_canonicalization = false
+dependency_alias_file_declaration_and_binding_order_model_invariance = true
+provider_name_is_lowering_key = false
+whole_model_name_independent_lowering = true
+component_parameter_binding = "forwarded Model Parameter or typed lexical expression"
+occurrence_parameter_fabrication = false
+
+[parameter_binding]
+forwarded_parameter_retains_one_direction = true
+literal_has_parameter_direction = false
+literal_change_requires_recompilation = true
+literal_change_changes_model_digest = true
+arithmetic_binding_chain_rule = "primal, JVP, and VJP"
+positive_negative_zero_package_identity_equal = true
+positive_negative_zero_model_bytes_equal = true
+positive_negative_zero_source_digest_distinct = true
+
+[claim_boundary]
+physics = "steady incompressible Newtonian two-dimensional volume law"
+forcing = "root-owned nonconstant zero-mean scalar potential"
+boundary = "complete root-owned homogeneous velocity trace"
+exact_offline_release_resolution_and_compilation_replay = true
+numerical_stokes_execution = false
+mesh_element_quadrature_pressure_gauge_or_solver = false
+natural_open_or_live_port_boundaries = false
+transient_navier_stokes_ale_or_fsi = false
+
+[evidence]
+package = "eqiora"
+test = "packaged_steady_stokes_2d"

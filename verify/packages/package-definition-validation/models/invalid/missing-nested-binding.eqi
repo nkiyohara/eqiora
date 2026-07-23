@@ -1,0 +1,9 @@
+public component Child {
+  public parameter period: s;
+}
+
+public component Parent {
+  instance child: Child;
+}
+
+model Empty {}

@@ -1,0 +1,36 @@
+id = "artifacts.implicit-time-restart-lineage"
+status = "verified"
+scope = "residual-native-semantic-checkpoint-and-restart"
+reference_kind = "canonical-operator-replay-and-uninterrupted-reference-run"
+
+capabilities = [
+  "accepted-state-derivative-checkpoint",
+  "canonical-residual-replay",
+  "cycle-free-content-lineage",
+  "parent-output-linkage",
+  "checkpoint-derived-provided-initial-data",
+  "child-run-time-linkage",
+  "semantic-restart-equivalence",
+  "finite-float-byte-round-trip",
+]
+
+[problem]
+residual = "(1 + z) (x_dot + p x) = 0; z - x^2 = 0"
+parent_interval = "[0.0, 0.1]"
+child_interval = "[0.1, 0.2]"
+method = "reference implicit Euler, h = 0.1"
+encoding = "eqiora.canonical-json/v1"
+
+[claim_boundary]
+checkpoint_kind = "accepted semantic state/derivative pair"
+restart_kind = "provided-state semantic restart"
+adaptive_controller_history = false
+bdf_history = false
+bitwise_backend_continuation = false
+multi_step_adjoint = false
+hybrid_event_lineage = false
+durable_backend_native_payload = false
+
+[evidence]
+package = "eqiora"
+test = "implicit_time_restart_lineage"

@@ -1,0 +1,75 @@
+id = "fluid.mixed-static-pressure-mini-stokes-2d"
+status = "verified"
+scope = "mixed-velocity-normal-pressure-canonical-si-mini-execution"
+reference_kind = "exact-affine-pressure-facet-load-and-global-balance"
+
+capabilities = [
+  "exact-normal-pressure-boundary-load-package",
+  "boundary-determined-pressure-without-gauge",
+  "ordered-mini-traction-facet-assembly",
+]
+
+[dependencies]
+mechanics = "Eqiora.Mechanics.Interfaces@0.1.0"
+mechanics_semantic_digest = "f8c5b9000415d3288a68377d507d16b3524bf17a3aa0a54aee9b003d187534f4"
+mechanics_source_digest = "407744105ebeb9577944169cae56a44eec30565050588dc2407461d7cf43725d"
+fluid = "Eqiora.Fluid.Incompressible@0.2.0"
+fluid_semantic_digest = "39a8eadba1f1c0028d23b42f506b6899320f46e4ef7ba7b45dec3e0524d2c01b"
+fluid_source_digest = "69ac5967d961c2ae4aa558ee020020093329f0050397d54893e465a3ff22eaba"
+loads = "Eqiora.Mechanics.BoundaryLoads@0.1.0"
+loads_semantic_digest = "0899e52e88dc3744f3dcceeb34e72bc50080bc11d495fc5d0586461cf756eed7"
+loads_source_digest = "0655266ee49789fd6fce31955be7c3f22dc0e38fa8946cf4446056553eb287fb"
+resolution = "exact-offline-transitive-closure"
+
+[problem]
+equations = "-div(2 mu sym(grad(u)) - p I) - grad(q) = 0; div(u) = 0"
+domain = "(0 m, 4 m) x (0 m, 2 m)"
+dynamic_viscosity = "6 Pa s"
+force_potential = "q = 0.75 Pa/m * (x - 2 m)"
+exact_velocity = "u = (0, 0) m/s"
+exact_pressure = "p = q + 3 Pa = 0.75 Pa/m * x + 1.5 Pa"
+essential_boundary = "x=0, y=0, y=2: u=0"
+pressure_boundary = "x=4: sigma n = -4.5 Pa n"
+
+[realization]
+method = "intrinsic-2d affine-triangle MINI P1-bubble/P1"
+pressure_constraint = "none; absolute pressure is boundary-determined"
+volume_operator = "11x11 momentum-continuity cell"
+constraint_operator = "absent"
+facet_operator = "exact constant-traction P1 edge functional"
+assembly_targets = "reduced-loaded, full-loaded, full-volume-only"
+solver = "reference MINRES"
+
+[acceptance]
+pressure_integral_pa_m2 = 24.0
+body_force_n_per_m = [6.0, 0.0]
+applied_traction_n_per_m = [-9.0, 0.0]
+essential_reaction_n_per_m = [3.0, 0.0]
+right_midpoint_action_n_per_m = [-4.5, 0.0]
+gauge_absent = true
+direct_and_package_algebra_equal = true
+scale_profiles_reconstruct_equal_physics = true
+
+[falsifiers]
+wrong_terminal_or_direct_pressure_sign = "reject-canonical-lowering"
+ambient_field_aliases_solution_pressure_or_force_potential = "reject-canonical-lowering"
+ambient_definition_missing_duplicate_or_nonconstant = "reject-lowering-or-realization"
+wrong_parent_support_dimension_shape_frame_or_connector = "reject-compile-or-lowering"
+stale_zero_integral_constraint_or_gauge_scale = "reject-exact-plan"
+all_traction_boundary = "reject-realization-before-mesh-assembly"
+traction_on_bubble_interior_pressure_or_gauge_row = "reject-algebra-evidence"
+semantic_mesh_side_mismatch = "reject-before-local-assembly"
+package_model_field_mesh_scale_or_solver_drift = "reject-exact-lineage"
+
+[claim_boundary]
+intrinsic_dimension = 2
+constant_normal_pressure_only = true
+coordinate_varying_or_general_vector_traction = false
+live_port_or_trace_transfer = false
+pure_traction = false
+open_slip_nitsche_or_periodic_boundary = false
+navier_stokes_ale_or_fsi = false
+
+[evidence]
+package = "eqiora"
+test = "mixed_static_pressure_mini_stokes_2d"

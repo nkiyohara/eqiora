@@ -1,0 +1,100 @@
+id = "fsi.fixed-topology-ale-monolithic-3d"
+status = "verified"
+scope = "fixed-topology-current-geometry-navier-stokes-linear-solid-monolithic-backward-euler-tetrahedral-3d"
+reference_kind = "independent-reassembly-step-refinement-and-artifact-replay-cpu-reference"
+
+capabilities = [
+  "dimension-parametric-direct-and-exact-package-ale-fsi-lowering",
+  "immutable-tetrahedral-reference-topology-and-current-geometry-state",
+  "positive-degree-eleven-duffy-simplex-quadrature",
+  "sealed-vector-p1-harmonic-mesh-motion-action",
+  "conservative-endpoint-ale-action-with-affine-gcl-3d",
+  "monolithic-first-order-navier-stokes-linear-solid-fsi-3d",
+  "replayable-three-dimensional-moving-state-lineage",
+  "accepted-trajectory-public-result-asset",
+]
+
+[problem]
+ambient_dimension = 3
+topology = "15 vertices and 28 conforming affine tetrahedra over one fluid and one solid volume"
+fluid_interior = "one genuine unconstrained fluid-interior vertex"
+interface = "four conforming triangular facets with one shared interior trace vertex"
+fluid_space = "continuous (P1 + cell bubble)^3 velocity / continuous P1 pressure"
+solid_space = "continuous vector P1 velocity and displacement state"
+mesh_motion = "component-wise P1 harmonic extension from accepted absolute solid/interface displacement"
+time_method = "monolithic backward Euler at h, h/2, and h/4 to one common final time"
+execution = "one-thread host CPU reference Newton--Krylov path"
+
+[semantic_contract]
+fluid = "ordinary conservative transient incompressible Navier--Stokes Relations"
+solid = "ordinary first-order isotropic small-strain dynamic-solid Relations"
+interface = "ordinary conserving velocity/traction Connection"
+direct_and_package_authoring = "distinct authoring lineages lower to matching typed physical roles and coefficients"
+ale_semantic_node = false
+mesh_velocity_field = false
+numerical_method_in_package = false
+
+[realization_contract]
+reference_topology = "immutable tetrahedral connectivity, order, memberships, and interface quotient"
+quadrature = "positive three-dimensional Duffy--Gauss--Legendre rule with declared total degree eleven"
+current_geometry = "reference coordinates plus accepted absolute solid displacement and its harmonic fluid extension"
+geometry_action = "current affine maps, backward-difference mesh velocity, spatial velocity gradient, metric rate, and GCL correction derived together"
+path_gate = "complete cubic determinant path over theta in [0,1]"
+fluid_configuration = "current endpoint ALE geometry"
+solid_configuration = "reference geometry"
+coupling = "monolithic, with geometry differentiated through the solid-displacement candidate"
+linear_operator_property = "general nonsymmetric"
+
+[acceptance]
+direct_and_exact_package_authoring_lower_to_matching_3d_roles = true
+legacy_2d_package_release_identities_are_unchanged = true
+exact_dependency_digest_mismatch_fails_before_elaboration = true
+affine_metric_identity = "dJ/dt = J div(w) on every moving tetrahedron"
+compatible_constant_stream_probe_is_preserved = true
+omitted_gcl_term_produces_a_nonzero_witness = true
+mesh_velocity_is_the_consecutive_coordinate_quotient = true
+analytic_jacobian_matches_centered_complete_residual_reassembly = true
+weak_incompressibility_and_solid_kinematics_close = true
+interface_trace_action_and_power_balance_close = true
+positive_orientation_and_complete_path_quality_hold = true
+three_accepted_states_publish_complete_field_and_geometry_lineage = true
+geometry_states_replay_from_complete_displacement_blocks_and_the_exact_harmonic_relation = true
+time_refinement = "bounded first order in one common reference-topology mass norm"
+public_result_asset_is_derived_from_the_accepted_trajectory = true
+
+[falsifiers]
+dimension_shape_or_boundary_closure_mismatch = "reject during canonical lowering"
+old_or_digest_mismatched_package_dependency = "reject before elaboration"
+changed_connectivity_order_membership_or_interface_orientation = "reject before execution"
+caller_authored_or_changed_mesh_velocity = "reject"
+omitted_geometric_correction = "reject through the active constant-stream witness"
+substituted_model_mesh_correspondence_realization_or_predecessor = "reject before publication"
+positive_but_nondriven_coordinates_or_substituted_displacement_blocks = "reject before GeometryState publication"
+realization_and_reference_mesh_quality_gate_mismatch = "reject before moving-context admission"
+discontinuous_interface_motion_or_velocity = "reject"
+inverted_degenerate_low_quality_or_path_inverting_geometry = "reject before physics assembly or state publication"
+wrong_analytic_jacobian_or_nonlinear_nonconvergence = "reject without state mutation"
+cross_wired_geometry_and_field_state = "reject"
+broken_geometry_state_or_spatial_trajectory_chain = "reject"
+
+[claim_boundary]
+immutable_topology = true
+affine_tetrahedra = true
+intrinsic_dimension = 3
+serial_cpu_reference = true
+monolithic_coupling = true
+backward_euler_first_order = true
+p1_harmonic_motion = true
+topology_change_or_tetrahedral_remeshing = false
+curved_or_high_order_geometry = false
+finite_strain_or_contact = false
+ale_sensitivity_or_fsi_adjoint = false
+gpu_or_mpi_ale = false
+exact_moving_volume_energy_identity = false
+production_preconditioner_or_mesh_smoother = false
+performance_or_scale = false
+
+[evidence]
+package = "eqiora"
+test = "fixed_topology_ale_fsi_3d"
+features = ["faer"]

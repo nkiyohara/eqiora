@@ -1,0 +1,12 @@
+public component ExteriorContract {
+  public support body: volume(ambient_dimension = 2);
+  public support exterior: complete_exterior(parent = body);
+}
+
+model Main {
+  domain body = box(0, 1, 0, 1);
+  instance empty: ExteriorContract(
+    support body = body,
+    support exterior = boundaries()
+  );
+}

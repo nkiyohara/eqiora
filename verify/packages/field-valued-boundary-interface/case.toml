@@ -1,0 +1,56 @@
+id = "packages.field-valued-boundary-interface"
+status = "verified"
+scope = "exact-package-coincident-cartesian-2d-vector-boundary-host-serial"
+reference_kind = "canonical-identity-and-analytic-pointwise-interface-balance"
+
+capabilities = [
+  "exact-field-value-shape-and-frame",
+  "mesh-independent-boundary-trace-flux-port",
+  "coincident-cross-package-boundary-connection",
+  "componentwise-vector-residual-scalarization",
+  "explicit-model-wire-v3",
+  "pointwise-trace-flux-power-diagnostics",
+  "eliminated-field-exposure-catalog",
+]
+conformance_kits = ["field-valued-boundary-interface-v1"]
+
+[problem]
+dependency = "Eqiora.Verify.FieldBoundary@0.1.0"
+root = "org.eqiora.verify.field_valued_boundary_interface@0.1.0"
+ambient_dimension = 2
+value_shape = [2]
+interface_coordinate = 1.0
+
+[canonical_contract]
+model_wire = 3
+connector_count = 1
+port_count = 2
+connection_count = 1
+junction_vector_roots = 2
+junction_scalar_rows = 4
+parent_and_orientation_are_derived = true
+mesh_payload_fields = 0
+
+[diagnostic_contract]
+maximum_zero_defect = 0.0
+trace_falsifier_minimum = 1.0
+flux_falsifier_minimum = 1.0
+power_falsifier_minimum = 1.0
+
+[claim_boundary]
+geometry = "two coincident axis-aligned Cartesian boundaries"
+connector = "one exact trace/flux dual pair"
+frame = "model-global SpatialCartesian"
+pairing = "EuclideanBoundaryDuality"
+package_resolution = "exact offline in-memory"
+execution = "pointwise scalar Operator IR only"
+result_projection_for_eliminated_exposure = "identity-and-support-replay-only"
+mesh_or_facets = false
+quadrature_or_spaces = false
+transfer_or_nonmatching_interface = false
+stokes_elasticity_or_fsi_solve = false
+mpi_or_gpu = false
+
+[evidence]
+package = "eqiora"
+test = "field_valued_boundary_interface"

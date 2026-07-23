@@ -1,0 +1,82 @@
+id = "fsi.remeshing-transfer-2d"
+status = "verified"
+scope = "zero-time-conservative-remesh-target-continuation-and-v3-trajectory-2d"
+reference_kind = "independent-common-refinement-cpu-reference"
+
+capabilities = [
+  "accepted-ale-fsi-state-to-topology-distinct-realization",
+  "material-and-current-spatial-common-refinement",
+  "field-role-specific-conservative-transfer",
+  "ordinary-positive-time-target-finalization",
+  "replayable-remesh-and-continuation-trajectory-lineage",
+]
+
+[problem]
+ambient_dimension = 2
+source_topology = "15 vertices, 16 affine triangles, and two interface facets"
+target_topology = "17 vertices, 20 affine triangles, and four interface facets"
+overlap = "genuine many-to-many material and current-spatial common refinements"
+source_state = "one accepted nondegenerate ALE FSI step with MINI bubble, absolute pressure, shared velocity, and solid displacement"
+remesh_duration = "exactly zero model time"
+target_continuation = "one ordinary positive-time backward-Euler target step"
+execution = "bounded one-thread host CPU reference path"
+
+[semantic_contract]
+model = "one unchanged canonical V5 fluid/solid Relation network"
+geometry = "one unchanged semantic GeometryIdentity with exact retained-body association"
+remeshing_is_model_time = false
+mesh_indices_are_semantic_identity = false
+
+[realization_contract]
+displacement = "absolute material-chart P1 L2 projection before target harmonic geometry"
+velocity = "one coupled constrained projection; fluid in current spatial chart and solid in material chart"
+pressure = "absolute current-spatial P1 L2 projection without gauge recentering"
+target_execution = "ordinary finalized fixed-topology ALE FSI operator after the zero-time seam"
+transfer_policy = "exact five-by-five triangle Duffy quadrature and identity-preconditioned reproducible MINRES"
+normalization = "one typed L/U/P profile shared exactly by both Realizations and the transfer plan"
+
+[acceptance]
+source_and_target_vertex_cell_and_interface_facet_counts_differ = true
+target_interface_strictly_refines_every_source_trace_kink = true
+material_and_current_overlaps_are_genuinely_many_to_many = true
+source_mini_bubble_pressure_shared_velocity_and_displacement_are_nondegenerate = true
+displacement_geometry_velocity_and_pressure_roles_are_explicit = true
+shared_and_exterior_velocity_trace_defects_are_separate = true
+weak_incompressibility_momentum_and_absolute_pressure_moment_replay = true
+algebraic_and_physical_acceptance_defects_are_dimensionless = true
+scale_profiles_replay_overlap_connectivity_constraint_roles_and_dimensionless_acceptance = true
+physical_target_agrees_within_the_registered_nonsemantic_observation_bound = true
+target_continuation_advances_by_one_positive_time_step = true
+v2_source_prefix_and_v3_remesh_continuation_replay_canonical_bytes = true
+
+[scale_profile_observation]
+classification = "non-semantic verification tolerance"
+maximum_dimensionless_physical_field_drift = 1.0e-9
+
+[falsifiers]
+stale_target_mesh_digest = "reject before numerical transfer"
+swapped_mesh_bytes = "reject at artifact resource replay before numerical admission"
+changed_semantic_or_realization_identity = "reject at the seam"
+changed_time_or_transfer_policy = "reject at the seam"
+stale_field_snapshot_inventory = "reject receipt replay"
+zero_duration_continuation = "reject geometry publication"
+broken_source_prefix_or_target_predecessor = "reject trajectory publication"
+
+[claim_boundary]
+intrinsic_dimension = 2
+affine_triangles = true
+serial_cpu_reference = true
+p1_mini_fields = true
+fixed_semantic_geometry = true
+production_remesher = false
+adaptive_error_estimator = false
+higher_order_or_three_dimensional_transfer = false
+ale_or_remesh_sensitivity = false
+gpu_or_mpi_remeshing = false
+durable_checkpoint_restart_or_process_resume = false
+iterative_stopping_or_coefficient_bit_identity_across_scale_profiles = false
+
+[evidence]
+package = "eqiora"
+test = "remeshing_transfer_2d"
+features = ["faer"]

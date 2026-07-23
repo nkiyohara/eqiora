@@ -1,0 +1,169 @@
+id = "fluid.fieldwise-si-mini-stokes-2d"
+status = "verified"
+scope = "canonical-and-exact-package-coherent-si-fieldwise-mini-stokes-2d"
+reference_kind = "analytic-affine-solution-symmetric-congruence-and-artifact-replay"
+
+capabilities = [
+  "canonical-fieldwise-coherent-si-mini-stokes-execution",
+  "exact-package-and-direct-flat-numerical-equivalence",
+  "dimensionless-symmetric-congruence-assembly",
+  "realization-v2-and-run-v2-linked-replay",
+  "profile-invariant-physical-reconstruction",
+  "portable-typed-realization-dag",
+]
+
+[dependency]
+release = "Eqiora.Fluid.Incompressible@0.1.0"
+component = "SteadyStokesWithPotential2d"
+fixture = "../packaged-steady-stokes-2d/package-v0.1.0"
+resolution = "exact-offline"
+
+[problem]
+equations = "-div(2 mu sym(grad(u)) - p I) - grad(q) = 0; div(u) = 0"
+domain = "(0 m, 4 m) x (0 m, 2 m)"
+dynamic_viscosity = "6 Pa s"
+force_potential = "q = 3 Pa * (x / (4 m) - 1/2)"
+body_force = "grad(q) = (0.75 Pa/m, 0)"
+exact_velocity = "u = (0, 0) m/s"
+exact_pressure = "p = q"
+pressure_normalization = "integral_Omega p = 0"
+essential_boundary = "u = (0, 0) m/s on all four sides"
+integrated_body_force = "(6 N/m, 0)"
+complete_boundary_reaction = "(-6 N/m, 0)"
+
+[semantic_boundary]
+direct_flat_fixture = true
+exact_package_fixture = true
+ordinary_canonical_lowering_for_both = true
+package_dispatch_in_numerical_adapter = false
+algebraic_unknowns = "exact velocity and pressure Field identities"
+retained_coefficient_data = "force-potential Field and scalar expression tape"
+
+[mesh]
+family = "connected affine triangles over the physical 4 m by 2 m rectangle"
+cartesian_cells = [4, 2]
+triangles = 16
+connected_components = 1
+boundary = "all exterior facets lie on exactly one canonical box side"
+imported_artifact_validation = true
+
+[spaces]
+velocity = "continuous vector (P1 + one normalized cell bubble)^2"
+pressure = "continuous scalar P1"
+force_potential = "canonical coefficient data; no algebraic allocation"
+constraint = "one Realization-owned ZeroIntegral on the exact pressure Field"
+
+[quadrature]
+assembly_rule = "positive triangle Duffy transform"
+points_per_square_axis = 3
+minimum_triangle_total_degree_exactness = 4
+
+[profiles.a]
+coordinate_scale = "4 m"
+velocity_scale = "0.5 m/s"
+pressure_scale = "0.75 Pa"
+derived_gauge_scale = "0.125 1/s"
+derived_weak_functional_scale = "1.5 W/m"
+dimensionless_viscosity = 1.0
+dimensionless_body_force = [4.0, 0.0]
+dimensionless_integrated_body_force = [2.0, 0.0]
+
+[profiles.b]
+coordinate_scale = "4 m"
+velocity_scale = "1 m/s"
+pressure_scale = "1.5 Pa"
+derived_gauge_scale = "0.25 1/s"
+derived_weak_functional_scale = "6 W/m"
+dimensionless_viscosity = 1.0
+dimensionless_body_force = [2.0, 0.0]
+dimensionless_integrated_body_force = [1.0, 0.0]
+
+[realization]
+method = "continuous-galerkin"
+mesh = "exact imported affine-simplex artifact"
+layout = "ordered reduced MINI velocity-pressure-gauge blocks"
+matrix_property = "symmetric-indefinite"
+solver = "eqiora.reference minimum-residual identity reproducible f64"
+target = "one-worker offline host"
+realization_wire = 2
+run_manifest_wire = 2
+profile_change_changes_realization_digest = true
+profile_change_does_not_change_model_bytes = true
+
+[congruence_oracle]
+production = "direct dimensionless assembly"
+verification_only = "coefficientwise A_hat = D A D / Theta and b_hat = D b / Theta over the complete reduced CSR"
+coverage = "every stored velocity, pressure, and gauge block coefficient and every RHS row"
+left_and_right_block_scales = true
+common_weak_functional_scale = true
+profile_a_and_b_matrices_are_identical = true
+profile_a_and_b_right_hand_sides_are_distinct = true
+
+[artifact_replay]
+model_v4 = "canonical bytes and digest"
+realization_v2 = "byte-identical decode and re-encode with domain-separated digest"
+mesh = "digest, intrinsic dimension, and imported-plan binding"
+run_v2 = "unchanged schema linked to exact Model, Realization, layout, target, and reduction"
+run_manifest_is_execution_attestation = false
+
+[tolerances]
+dimensionless_relative_residual = 1e-11
+dimensionless_absolute_residual = 1e-13
+maximum_velocity_component = 2e-10
+maximum_pressure_vertex_error = 2e-10
+maximum_absolute_pressure_integral = 2e-10
+maximum_absolute_gauge_multiplier = 2e-10
+maximum_absolute_force_balance_error = 2e-9
+maximum_profile_physical_difference = 2e-10
+maximum_congruence_coefficient_error = 2e-13
+
+[acceptance]
+direct_and_package_pass_ordinary_role_lowering = true
+direct_and_package_dimensionless_algebra_equal = true
+direct_and_package_physical_results_equal = true
+realization_v2_and_run_v2_replay = true
+finalized_csr_exactly_symmetric = true
+independent_dimensionless_true_residual = true
+physical_velocity_pressure_gauge_and_balance = true
+two_profile_physical_invariance = true
+
+[falsifiers]
+missing_duplicate_unrelated_or_unknown_field_binding = "reject-before-assembly"
+force_potential_as_algebraic_unknown = "reject-before-assembly"
+field_shape_frame_support_representation_or_dimension_mismatch = "reject-canonical-lowering"
+unsupported_velocity_pressure_space_pair = "reject-before-assembly"
+missing_duplicate_or_nonpressure_mean_constraint = "reject-before-assembly"
+disconnected_mesh_with_single_gauge = "reject-before-assembly"
+invalid_or_nonpositive_characteristic_scale = "reject-realization"
+forged_or_incorrectly_derived_gauge_or_weak_scale = "reject-realization"
+unordered_per_dof_scaling = "not-an-admitted-contract"
+one_sided_scaling_or_inverse_reconstruction = "detect-by-congruence-and-physical-oracles"
+mixed_dimensional_raw_residual = "not-accepted-as-solution-evidence"
+quadrature_below_degree_four = "reject-before-assembly"
+loss_of_finalized_symmetry = "detect-before-solve-by-exact-csr-oracle"
+cg_general_operator_or_unsupported_minres_preconditioner = "reject-exact-solver-capability"
+model_revision_domain_field_mesh_or_scale_drift = "reject-replay-or-finalization"
+unchanged_realization_identity_after_scale_change = "detect"
+run_reduction_worker_topology_or_realization_digest_drift = "reject-run-linkage"
+
+[claim_boundary]
+intrinsic_dimension = 2
+physical_geometry = "one connected 4 m by 2 m Cartesian rectangle"
+affine_triangles_only = true
+complete_homogeneous_velocity_trace_only = true
+conservative_affine_force_potential_only = true
+mini_p1_bubble_p1_only = true
+one_global_pressure_constraint_only = true
+reference_minres_only = true
+general_vector_body_force = false
+natural_open_slip_or_live_port_boundaries = false
+transient_navier_stokes_turbulence_multiphase_or_ale = false
+fluid_structure_interaction = false
+alternative_mixed_spaces_or_stabilization = false
+automatic_scaling_or_conditioning_claim = false
+production_preconditioning_parallel_solve_mpi_or_cuda = false
+general_result_artifact_or_execution_attestation = false
+
+[evidence]
+package = "eqiora"
+test = "fieldwise_si_mini_stokes_2d"

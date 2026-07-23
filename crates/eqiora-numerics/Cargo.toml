@@ -1,0 +1,30 @@
+[package]
+name = "eqiora-numerics"
+description = "Eqiora L3: numerical realizations and verified solver kernels"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+eqiora-assembly = { workspace = true }
+eqiora-artifact = { workspace = true }
+eqiora-core = { workspace = true }
+eqiora-distributed = { workspace = true }
+eqiora-execution = { workspace = true }
+eqiora-graph = { workspace = true }
+eqiora-ir = { workspace = true }
+eqiora-meshing = { workspace = true }
+eqiora-realization = { workspace = true }
+eqiora-schema = { workspace = true }
+eqiora-sem = { workspace = true }
+eqiora-solver = { workspace = true }
+eqiora-spatial-distribution = { workspace = true }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+eqiora-compiler = { workspace = true }
+
+[lints]
+workspace = true

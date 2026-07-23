@@ -1,0 +1,202 @@
+//! **eqiora-sem** — the reference interpreter for the semantic kernel
+//! (Layer L2).
+//!
+//! This crate is the **semantic oracle**: small, slow, obviously correct.
+//! The normative meaning of an Eqiora program is "the language spec plus the
+//! behavior of this interpreter". Every optimized execution path — compiler,
+//! GPU backends, distributed runtime, fixed-step codegen — must match this
+//! crate within the numerical contract, never the other way around.
+//!
+//! Standing rules for contributors:
+//!
+//! - **No optimizations. Ever.** Clarity beats speed here by design; the
+//!   target size is a few thousand lines one person can read end to end.
+//! - Kernel concepts only: Domain, Representation, Field, Parameter,
+//!   Port, Relation, Activation, Connection, ClockDomain. Standard-ontology
+//!   named-subgraph views select and organize kernel nodes but are ignored by
+//!   interpretation after that selection; they never acquire node semantics.
+//! - When this crate and the spec text disagree, an RFC decides which is
+//!   right, and both get fixed.
+
+mod boundary_physical;
+mod conserving;
+mod evaluate;
+mod event;
+mod interpreter;
+mod program;
+mod solver;
+
+pub use boundary_physical::{BoundaryJunctionGeometry, BoundaryJunctionResidual};
+pub use conserving::{
+    ComposedResidualSystem, JunctionResidual, PhysicalUnknown, RelationResidual,
+    ScalarPhysicalSubsystemId,
+};
+pub use interpreter::{
+    ExecutionDirective, ExecutionObserver, ExecutionOutcome, ExecutionProgress, ReferenceConfig,
+};
+pub use program::KernelProgram;
+
+use eqiora_core::Diagnostic;
+use eqiora_core::{DynQuantity, RawId};
+use eqiora_schema::kernel::{ExprDag, SymbolRef};
+
+/// Expression-evaluation hook used by conformance backends.
+///
+/// [`Interpreter::run`] always uses the canonical DAG evaluator. The separate
+/// hook lets an independently lowered Operator IR reuse the exact activation
+/// calendar and reference numerics while proving expression conformance.
+#[doc(hidden)]
+pub trait ExpressionBackend {
+    /// Evaluate every residual root with values supplied in semantic-symbol
+    /// form.
+    fn evaluate(
+        &self,
+        owner: RawId,
+        expression: &ExprDag,
+        resolve: &mut dyn FnMut(SymbolRef) -> Option<f64>,
+    ) -> Result<Vec<f64>, Diagnostic>;
+}
+
+/// One sample of one field along a trajectory.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Sample {
+    /// Model time, seconds.
+    time: f64,
+    /// Field the sample belongs to.
+    field: RawId,
+    /// Sampled value. The reference interpreter carries dimensions at
+    /// runtime — it is the oracle, so it re-checks everything.
+    value: DynQuantity,
+}
+
+/// One accepted scalar physical value along a reference trajectory.
+///
+/// These samples expose the algebraic values already accepted by the joint
+/// residual solve. They are observations, not additional state or hidden
+/// Semantic Kernel nodes.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PhysicalSample {
+    time: f64,
+    unknown: PhysicalUnknown,
+    value: DynQuantity,
+}
+
+impl PhysicalSample {
+    pub(crate) const fn new(time: f64, unknown: PhysicalUnknown, value: DynQuantity) -> Self {
+        Self {
+            time,
+            unknown,
+            value,
+        }
+    }
+
+    /// Model time in seconds.
+    #[must_use]
+    pub const fn time(&self) -> f64 {
+        self.time
+    }
+
+    /// Canonical across or through slot.
+    #[must_use]
+    pub const fn unknown(&self) -> PhysicalUnknown {
+        self.unknown
+    }
+
+    /// Accepted coherent-SI value with its physical dimension.
+    #[must_use]
+    pub const fn value(&self) -> DynQuantity {
+        self.value
+    }
+}
+
+impl Sample {
+    pub(crate) const fn new(time: f64, field: RawId, value: DynQuantity) -> Self {
+        Self { time, field, value }
+    }
+
+    /// Model time in seconds.
+    #[must_use]
+    pub const fn time(&self) -> f64 {
+        self.time
+    }
+
+    /// Sampled Field.
+    #[must_use]
+    pub const fn field(&self) -> RawId {
+        self.field
+    }
+
+    /// Dimensioned sample value.
+    #[must_use]
+    pub const fn value(&self) -> DynQuantity {
+        self.value
+    }
+}
+
+/// Reference trajectory: the ground truth that conformance models
+/// compare every optimized execution against.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Trajectory {
+    /// Samples in non-decreasing time order.
+    samples: Vec<Sample>,
+    /// Accepted scalar physical algebraic observations.
+    physical_samples: Vec<PhysicalSample>,
+}
+
+impl Trajectory {
+    pub(crate) const fn new(samples: Vec<Sample>, physical_samples: Vec<PhysicalSample>) -> Self {
+        Self {
+            samples,
+            physical_samples,
+        }
+    }
+
+    /// Samples in non-decreasing model-time order.
+    #[must_use]
+    pub fn samples(&self) -> &[Sample] {
+        &self.samples
+    }
+
+    /// Scalar physical values at accepted trajectory boundaries.
+    #[must_use]
+    pub fn physical_samples(&self) -> &[PhysicalSample] {
+        &self.physical_samples
+    }
+
+    /// Last recorded value for one Field.
+    #[must_use]
+    pub fn last_value(&self, field: RawId) -> Option<DynQuantity> {
+        self.samples
+            .iter()
+            .rev()
+            .find(|sample| sample.field == field)
+            .map(|sample| sample.value)
+    }
+
+    /// Last accepted value for one physical across or through slot.
+    #[must_use]
+    pub fn last_physical_value(&self, unknown: PhysicalUnknown) -> Option<DynQuantity> {
+        self.physical_samples
+            .iter()
+            .rev()
+            .find(|sample| sample.unknown == unknown)
+            .map(|sample| sample.value)
+    }
+}
+
+/// The reference interpreter.
+///
+/// Construction is trivial on purpose: the interpreter has no configuration
+/// that could make "the meaning of a program" ambiguous.
+#[derive(Debug, Default)]
+pub struct Interpreter {
+    _private: (),
+}
+
+impl Interpreter {
+    /// Create the interpreter.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { _private: () }
+    }
+}

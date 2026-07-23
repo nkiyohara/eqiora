@@ -1,0 +1,5 @@
+public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
+  = component(left, 0) * component(right, 1);
+
+public pure operator identity(value: scalar) -> scalar
+  = component(value);

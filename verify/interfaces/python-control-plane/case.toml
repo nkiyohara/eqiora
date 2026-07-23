@@ -1,0 +1,36 @@
+id = "interfaces.python-control-plane"
+status = "verified"
+scope = "python-opaque-model-revision-value-edit-and-structured-failure-boundary"
+reference_kind = "in-process-pyo3-module-and-public-rust-facade-replay"
+
+capabilities = [
+  "python-opaque-model-identity",
+  "python-immutable-revision-identity",
+  "python-exact-artifact-replay",
+  "python-optimistic-value-edit",
+  "python-structured-failure-taxonomy",
+  "python-panic-containment",
+  "python-control-data-plane-separation",
+]
+
+[claim_boundary]
+current_model_wire = "v6"
+source_compile = true
+exact_artifact_replay = true
+immutable_revision = true
+scalar_value_edit = true
+atomic_child_commit = true
+stale_edit_rejection = true
+structured_diagnostics = true
+panic_containment = true
+imports_array_or_framework_modules_at_initialization = false
+native_modeling_vocabulary = false
+async_execution = false
+cancellation = false
+progress = false
+array_exchange = false
+framework_integration = false
+
+[evidence]
+package = "eqiora-python"
+test = "python_control_plane"

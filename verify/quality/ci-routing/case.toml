@@ -1,0 +1,20 @@
+id = "quality.ci-routing"
+status = "specified"
+scope = "change-owned-pr-and-full-compatibility-ci"
+reference_kind = "ownership-contract-and-live-actions-observation"
+
+capabilities = [
+  "always-reported-aggregate-gate",
+  "fail-closed-change-classification",
+  "minimum-maximum-python-pr-matrix",
+  "base-owned-ci-definition-trust-guard",
+  "exact-commit-manual-dispatch",
+  "no-duplicate-main-push-suite",
+]
+
+[claim_boundary]
+merge_queue = false
+self_hosted_pull_requests = false
+cache_performance_claim = false
+scheduled_execution = false
+independent_human_review = false

@@ -1,0 +1,14 @@
+[package]
+name = "eqiora-lang"
+description = "Eqiora L1: lossless lexer, parser AST, formatter, and source diagnostics"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+eqiora-core = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,1 @@
+{"schema":"eqiora.author-manifest.v1","name":"org.example.closed_circuit","version":"0.1.0","dependencies":[{"alias":"circuits","target":{"name":"Eqiora.Electrical.Circuits","version":"0.1.0","semantic_digest":"3548b5a047c9be4a942743a8b52e4951f6962c04e628ffcabf2d6c6cb1e4e2b2"}}],"bundle":[{"path":"README.md","role":"documentation"},{"path":"src/main.eqi","role":"model_source"}]}

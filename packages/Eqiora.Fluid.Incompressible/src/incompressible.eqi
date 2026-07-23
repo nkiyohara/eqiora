@@ -1,0 +1,37 @@
+public component SteadyStokesWithPotential2d {
+  public support body: volume(ambient_dimension = 2);
+  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot pressure on body as continuum: kg / (m * s ^ 2);
+  public field slot force_potential on body as continuum: kg / (m * s ^ 2);
+  public parameter dynamic_viscosity: kg / (m * s);
+
+  relation momentum continuous on body {
+    -div(
+      2 * dynamic_viscosity * symmetric_part(grad(velocity))
+      - isotropic_lift(pressure)
+    ) - grad(force_potential) = 0;
+  }
+  relation incompressibility continuous on body {
+    div(velocity) = 0;
+  }
+}
+
+public component NewtonianMechanicalInterface2d {
+  public support body: volume(ambient_dimension = 2);
+  public support exterior: complete_exterior(parent = body);
+  public field slot velocity on body as continuum: m / s shape spatial_vector;
+  public field slot pressure on body as continuum: kg / (m * s ^ 2);
+  public parameter dynamic_viscosity: kg / (m * s);
+
+  public port mechanical[boundary in exterior]:
+    conserving mechanics.VelocityTractionBoundary over boundary;
+
+  relation boundary_interface[boundary in exterior] continuous on boundary {
+    trace(velocity)
+      - trace(mechanical[boundary = boundary]) = 0;
+    normal(
+      2 * dynamic_viscosity * symmetric_part(grad(velocity))
+      - isotropic_lift(pressure)
+    ) - flux(mechanical[boundary = boundary]) = 0;
+  }
+}

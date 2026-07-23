@@ -1,0 +1,70 @@
+id = "packages.hierarchical-physical-boundary"
+status = "verified"
+scope = "exact-two-package-hierarchical-scalar-physical-host-serial"
+reference_kind = "canonical-package-model-equivalence-and-analytic-dc"
+
+capabilities = [
+  "exact-package-public-physical-port-forwarding",
+  "cross-package-connection-set-union",
+  "ownerless-package-boundary-exposure-elimination",
+  "connection-partition-semantic-identity",
+  "multi-origin-cross-package-connection-provenance",
+  "affine-solve-after-hierarchical-package-lowering",
+  "versioned-physical-exposure-catalog",
+  "post-run-physical-observation-binding",
+]
+conformance_kits = ["hierarchical-conserving-connection-sets-v1"]
+
+[problem]
+dependency = "Eqiora.Verify.PhysicalComponents@0.1.0"
+root = "org.eqiora.verify.hierarchical_physical_boundary@0.1.0"
+source_voltage = 12.0
+resistance = 2.0
+
+[canonical_contract]
+packages = 2
+dependency_edges = 1
+retained_physical_ports = 5
+eliminated_forwarding_ports = 2
+canonical_connections = 2
+physical_unknowns = 10
+physical_residuals = 10
+model_wire = 2
+package_wire = 1
+nary_low_net_origins = 2
+partitioned_low_net_origins = 3
+connection_owner = "exact root Model least common ancestor"
+ordered_affine_problem_equal = true
+compilation_lineage_difference = "root source digest only"
+projection_meaning_ignores_source_partition = true
+projection_catalog_retains_source_lineage = true
+observation_binding_is_post_run_and_value_free = true
+
+[numerical_contract]
+relative_tolerance = 1e-12
+absolute_tolerance = 1e-14
+maximum_iterations = 100
+maximum_value_error = 2e-11
+maximum_semantic_residual_norm = 1e-11
+
+[claim_boundary]
+exact_dependencies_only = true
+offline_in_memory_store = true
+source_digest_distinguishes_fragment_partition = true
+semantic_package_identity_ignores_fragment_partition = true
+canonical_model_ignores_fragment_partition = true
+provenance_is_not_canonical_model_content = true
+ownerless_public_exposure_is_kernel_entity = false
+ownerless_public_exposure_is_entity_alias = false
+unclosed_imported_boundary_fails_before_model_exposure = true
+port_family = "nominal scalar physical"
+hierarchy_depth = "root Model -> imported ResistiveBranch -> private Resistor"
+field_valued_interfaces = false
+inside_outside_or_orientation_semantics = false
+nonlinear_transient_or_hybrid = false
+directory_or_registry_discovery = false
+mpi_or_gpu = false
+
+[evidence]
+package = "eqiora"
+test = "packaged_hierarchical_physical_boundary"

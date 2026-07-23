@@ -1,0 +1,45 @@
+id = "differentiation.spatial-shape-optimization"
+status = "verified"
+scope = "fixed-topology-discrete-shape-differentiation"
+reference_kind = "independent-centered-finite-difference"
+
+capabilities = [
+  "typed-spatial-design-coordinates",
+  "affine-geometry-map-jvp",
+  "orthogonality-preserving-cartesian-mesh-motion",
+  "coordinate-and-parameter-expression-jvp",
+  "q1-fem-discrete-shape-action",
+  "tpfa-fvm-discrete-shape-action",
+  "forward-shape-sensitivity",
+  "adjoint-shape-gradient",
+  "independent-recompiled-centered-finite-difference",
+  "gradient-consuming-backtracking-optimization",
+]
+
+[problem]
+equation = "-div(grad(u)) = 1"
+domain = "(0, Lx) x (0, Ly)"
+boundary = "u = 0 on the complete boundary"
+selected_coordinates = "upper x and upper y bounds of the canonical Cartesian Domain"
+verification_point = "Lx = 1.15, Ly = 0.85"
+objective = "negative arithmetic mean of each method-native algebraic unknown vector"
+optimization_parameterization = "Lx = exp(s), Ly = exp(-s), preserving area exactly"
+optimizer = "adjoint gradient with Armijo backtracking from s = 0.45"
+
+[claim_boundary]
+derivative = "discretize-then-differentiate"
+topology = "fixed"
+mesh_motion = "global affine pullback of normalized Cartesian axis coordinates"
+verified_dimension = 2
+verified_methods = "Q1 FEM and orthogonal TPFA FVM"
+continuous_shape_calculus = false
+remeshing = false
+adaptive_refinement = false
+topology_change = false
+nonorthogonal_fvm = false
+continuous_objective = false
+production_optimizer = false
+
+[evidence]
+package = "eqiora"
+test = "spatial_shape_optimization"

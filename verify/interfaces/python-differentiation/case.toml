@@ -1,0 +1,57 @@
+id = "interfaces.python-differentiation"
+status = "verified"
+scope = "python-exact-model-realization-bound-immutable-point-first-order-implicit-differentiation"
+reference_kind = "centered-finite-difference-and-jvp-vjp-duality"
+
+capabilities = [
+  "python-model-bound-parameter-and-field-references",
+  "python-opaque-differentiable-program",
+  "python-immutable-parameter-point-evaluation",
+  "accepted-complete-field-primal",
+  "parameter-point-owned-staging",
+  "cpu-f64-input-staging",
+  "cpu-f64-dlpack-input-staging",
+  "implicit-output-jvp",
+  "implicit-output-vjp",
+  "typed-normal-and-transposed-solve-evidence",
+  "fem-eliminated-boundary-output-action",
+  "fem-fvm-centered-finite-difference",
+  "jvp-vjp-duality",
+  "foreign-identity-and-array-admission-falsifiers",
+]
+
+[problem]
+equation = "-div(k grad(u)) = s sin(pi x) sin(pi y)"
+domain = "(0, 1) x (0, 1)"
+inputs = ["source_scale", "diffusion", "boundary_offset"]
+frozen = ["wave_number"]
+output = "complete primary scalar Field"
+methods = ["continuous-q1-galerkin", "cell-centred-tpfa"]
+execution = "host-serial-native-f64"
+
+[claim_boundary]
+static_program_identity_is_exact_model_revision = true
+immutable_alternate_parameter_point_evaluation = true
+selected_parameters_are_explicit_runtime_inputs = true
+unselected_parameters_are_frozen_from_model = true
+complete_field_output = true
+normal_and_transposed_actions = true
+numpy_input_is_owned_staging_copy = true
+dlpack_input_device = "cpu:0"
+dlpack_protocol_copy = false
+dlpack_input_is_owned_staging_copy = true
+recompile_for_new_parameter_point = false
+persisted_program = false
+implicit_or_partial_parameter_override = false
+multiple_outputs = false
+objective_dsl = false
+gpu = false
+framework_adapter = false
+general_run_input = false
+zero_copy_input = false
+gpu_stream = false
+higher_order = false
+
+[evidence]
+package = "eqiora-python"
+test = "python_differentiation"

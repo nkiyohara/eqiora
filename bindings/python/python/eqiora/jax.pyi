@@ -1,0 +1,19 @@
+from __future__ import annotations
+
+import jax
+
+from . import DifferentiableProgram
+
+class JaxProgram:
+    def __init__(self, program: DifferentiableProgram) -> None: ...
+    @property
+    def program(self) -> DifferentiableProgram: ...
+    @property
+    def input_shape(self) -> tuple[int]: ...
+    @property
+    def output_shape(self) -> tuple[int]: ...
+    def __call__(self, parameters: jax.Array) -> jax.Array: ...
+
+def bind(program: DifferentiableProgram) -> JaxProgram: ...
+
+__all__ = ["JaxProgram", "bind"]

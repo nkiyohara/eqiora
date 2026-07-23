@@ -1,0 +1,107 @@
+model Main {
+  domain fluid_domain = box(0, 1, 0, 1);
+  domain fluid_x_lower = boundary(fluid_domain, axis = 0, side = lower);
+  domain fluid_x_upper = boundary(fluid_domain, axis = 0, side = upper);
+  domain fluid_y_lower = boundary(fluid_domain, axis = 1, side = lower);
+  domain fluid_y_upper = boundary(fluid_domain, axis = 1, side = upper);
+
+  domain solid_domain = box(1, 2, 0, 1);
+  domain solid_x_lower = boundary(solid_domain, axis = 0, side = lower);
+  domain solid_x_upper = boundary(solid_domain, axis = 0, side = upper);
+  domain solid_y_lower = boundary(solid_domain, axis = 1, side = lower);
+  domain solid_y_upper = boundary(solid_domain, axis = 1, side = upper);
+  representation space = continuum;
+
+  field fluid_velocity on fluid_domain as space: m / s shape spatial_vector;
+  field fluid_pressure on fluid_domain as space: kg / (m * s ^ 2) = 0;
+  field fluid_load_potential on fluid_domain as space: kg / (m * s ^ 2) = 0;
+  parameter fluid_zero_pressure: kg / (m * s ^ 2) = 0;
+  relation fluid_load_definition continuous on fluid_domain {
+    fluid_load_potential - fluid_zero_pressure = 0;
+  }
+  instance fluid_law: inertial.InertialStokesWithPotential2d(
+    support body = fluid_domain,
+    field velocity = fluid_velocity,
+    field pressure = fluid_pressure,
+    field force_potential = fluid_load_potential,
+    density = 2,
+    dynamic_viscosity = 0.5
+  );
+  instance fluid_boundary: fluid.NewtonianMechanicalInterface2d(
+    support body = fluid_domain,
+    support exterior = boundaries(
+      fluid_x_lower, fluid_x_upper, fluid_y_lower, fluid_y_upper
+    ),
+    field velocity = fluid_velocity,
+    field pressure = fluid_pressure,
+    dynamic_viscosity = 0.5
+  );
+
+  field solid_displacement on solid_domain as space: m shape spatial_vector;
+  field solid_velocity on solid_domain as space: m / s shape spatial_vector;
+  field solid_load_potential on solid_domain as space: kg / (m * s ^ 2) = 0;
+  parameter solid_zero_pressure: kg / (m * s ^ 2) = 0;
+  relation solid_load_definition continuous on solid_domain {
+    solid_load_potential - solid_zero_pressure = 0;
+  }
+  instance solid_law: solid.IsotropicElastodynamicsWithPotential2d(
+    support body = solid_domain,
+    field displacement = solid_displacement,
+    field velocity = solid_velocity,
+    field load_potential = solid_load_potential,
+    density = 3,
+    mu = 4,
+    lambda = 2
+  );
+  instance solid_boundary: solid.ElastodynamicMechanicalInterface2d(
+    support body = solid_domain,
+    support exterior = boundaries(
+      solid_x_lower, solid_x_upper, solid_y_lower, solid_y_upper
+    ),
+    field displacement = solid_displacement,
+    field velocity = solid_velocity,
+    mu = 4,
+    lambda = 2
+  );
+
+  instance fluid_x_lower_zero: mechanics.ZeroVelocity2d(
+    support body = fluid_domain, support face = fluid_x_lower
+  );
+  instance fluid_y_lower_zero: mechanics.ZeroVelocity2d(
+    support body = fluid_domain, support face = fluid_y_lower
+  );
+  instance fluid_y_upper_zero: mechanics.ZeroVelocity2d(
+    support body = fluid_domain, support face = fluid_y_upper
+  );
+  instance solid_x_upper_zero: mechanics.ZeroVelocity2d(
+    support body = solid_domain, support face = solid_x_upper
+  );
+  instance solid_y_lower_zero: mechanics.ZeroVelocity2d(
+    support body = solid_domain, support face = solid_y_lower
+  );
+  instance solid_y_upper_zero: mechanics.ZeroVelocity2d(
+    support body = solid_domain, support face = solid_y_upper
+  );
+
+  connect conserving
+    fluid_boundary.mechanical[boundary = fluid_x_lower],
+    fluid_x_lower_zero.mechanical;
+  connect conserving
+    fluid_boundary.mechanical[boundary = fluid_y_lower],
+    fluid_y_lower_zero.mechanical;
+  connect conserving
+    fluid_boundary.mechanical[boundary = fluid_y_upper],
+    fluid_y_upper_zero.mechanical;
+  connect conserving
+    solid_boundary.mechanical[boundary = solid_x_upper],
+    solid_x_upper_zero.mechanical;
+  connect conserving
+    solid_boundary.mechanical[boundary = solid_y_lower],
+    solid_y_lower_zero.mechanical;
+  connect conserving
+    solid_boundary.mechanical[boundary = solid_y_upper],
+    solid_y_upper_zero.mechanical;
+  connect conserving
+    fluid_boundary.mechanical[boundary = fluid_x_upper],
+    solid_boundary.mechanical[boundary = solid_x_lower];
+}

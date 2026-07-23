@@ -1,0 +1,46 @@
+id = "numerics.physics-neutral-discrete-block-system"
+status = "verified"
+scope = "private-physics-neutral-discrete-block-system-first-spatial-slice"
+reference_kind = "structural-falsifier-and-existing-cpu-physics-regression"
+
+capabilities = [
+  "private-exact-field-relation-and-support-inventory",
+  "normalized-block-identity",
+  "exact-parameter-coordinate-retention",
+  "checked-assembly-packet-partition",
+  "checked-assembly-target-membership",
+  "typed-essential-backward-euler-and-trace-quotient-transformations",
+  "algebraic-closure-inventory",
+  "canonical-csr-materialization-binding",
+  "shared-finalized-linear-solution-reacceptance",
+]
+
+[problem]
+primary_path = "fixed-reference 2D fluid-solid monolithic backward-Euler step"
+additional_consumers = "coherent-SI MINI Stokes and conforming two-body elasticity"
+materialization = "unchanged canonical CSR produced through checked ordered AssemblyWork"
+visibility = "crate-private implementation contract"
+
+[falsifiers]
+builder_insertion_order = "normalize"
+foreign_or_missing_relation = "reject"
+wrong_relation_support = "reject"
+distinct_parameter_identity = "retain"
+missing_backward_euler_or_trace_quotient = "reject"
+missing_or_duplicate_packet = "reject"
+wrong_packet_target_membership = "reject before scatter"
+closure_or_auxiliary_drift = "reject"
+solver_plan_or_execution_topology_drift = "reject before reconstruction"
+
+[claim_boundary]
+public_block_api = false
+durable_block_artifact = false
+generic_dof_range_layout = false
+universal_weak_form = false
+matrix_free_execution = false
+new_jvp_vjp_or_adjoint = false
+gpu_or_distributed_assembly = false
+
+[evidence]
+package = "eqiora"
+test = "fixed_reference_monolithic_fsi_step_2d"

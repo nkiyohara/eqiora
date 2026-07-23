@@ -1,0 +1,13 @@
+model Network {
+  domain physical = scalar_physical(across = 1, through = 1);
+  port a: conserving on physical;
+  port b: conserving on physical;
+  port c: conserving on physical;
+  relation owner continuous {
+    across(a) - across(b) = 0;
+    across(b) - across(c) = 0;
+    through(a) + through(b) + through(c) = 0;
+  }
+  connect conserving a, b;
+  connect conserving b, c;
+}

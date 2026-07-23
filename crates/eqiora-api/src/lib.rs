@@ -1,0 +1,1769 @@
+//! Shared application operations for thin Eqiora clients.
+//!
+//! This L4 crate composes compiler, transaction wire, graph commit, immutable
+//! model artifact, and reference execution contracts without introducing a
+//! second model semantics. Python and Studio adapters add language- or
+//! UI-specific ergonomics around these owned Rust values.
+
+mod cad;
+pub mod control;
+mod differentiation;
+#[cfg(any(feature = "vtu", feature = "xdmf"))]
+mod external_data;
+mod ml_dataset;
+pub mod package;
+mod remeshing_trajectory;
+mod spatial;
+mod spatial_data;
+mod transient_fluid;
+
+pub use cad::*;
+pub use differentiation::*;
+pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
+#[cfg(any(feature = "vtu", feature = "xdmf"))]
+pub use external_data::*;
+pub use ml_dataset::*;
+pub use remeshing_trajectory::RemeshingTrajectoryReplayInputV1;
+#[cfg(feature = "hdf5")]
+pub use remeshing_trajectory::{
+    VerifiedXdmfHdf5TrajectoryExportV1, XdmfHdf5TrajectoryExportArtifactsV1,
+    XdmfHdf5TrajectoryExportLimits, export_xdmf_hdf5_trajectory_v1,
+    verify_xdmf_hdf5_trajectory_storage_v1,
+};
+pub use spatial::*;
+pub use spatial_data::*;
+pub use transient_fluid::*;
+
+use std::collections::BTreeMap;
+use std::time::{Duration, Instant};
+
+use eqiora_artifact::{
+    CanonicalModelArtifact, DecoderLimits, ModelArtifactReference, ModelEnvelopeV1,
+    ModelEnvelopeV2, ModelEnvelopeV3, ModelEnvelopeV4, ModelEnvelopeV5, ModelEnvelopeV6,
+    ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3,
+    ModelTransactionEnvelopeV4, ModelTransactionEnvelopeV5, ModelTransactionEnvelopeV6,
+};
+use eqiora_compiler::{CompiledModel, ModelSymbols};
+use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, EntityKind, RawId};
+use eqiora_graph::{GraphStore, InMemoryGraphStore, Op, Precondition, Revision, Transaction};
+use eqiora_lang::ModelDraft;
+use eqiora_sem::{
+    ExecutionDirective, ExecutionObserver, ExecutionOutcome, ExecutionProgress, Interpreter,
+    KernelProgram, ReferenceConfig, Trajectory,
+};
+use serde::{Deserialize, Serialize};
+
+/// Stable identity of the deliberately conservative semantic reference path.
+pub const REFERENCE_EXECUTION_ADAPTER: &str = "eqiora.reference";
+
+/// Versioned, fully resolved controls for one semantic-reference run.
+///
+/// Clients may present this value, but they do not recreate its admission
+/// rules. The key is replayed immediately before execution so an accepted
+/// preview cannot silently become a different numerical request.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ReferenceRunPlan {
+    config: ReferenceConfig,
+}
+
+impl ReferenceRunPlan {
+    /// Resolve the bounded reference configuration used by execution.
+    ///
+    /// # Errors
+    /// Returns the same structured configuration diagnostic as the semantic
+    /// interpreter when either model-time control is invalid.
+    pub fn new(end_time: f64, max_step: f64) -> Result<Self, Diagnostic> {
+        ReferenceConfig::new(end_time, max_step).map(|config| Self { config })
+    }
+
+    /// Stable key for exact preview-to-run replay within protocol v1.
+    #[must_use]
+    pub fn key(self) -> String {
+        format!(
+            "eqiora.reference-plan/v1:{:016x}:{:016x}",
+            self.config.end_time().to_bits(),
+            self.config.max_step().to_bits()
+        )
+    }
+
+    /// Resolved interpreter configuration.
+    #[must_use]
+    pub const fn config(self) -> ReferenceConfig {
+        self.config
+    }
+
+    /// Execution adapter identity, separate from the model and UI.
+    #[must_use]
+    pub const fn adapter(self) -> &'static str {
+        REFERENCE_EXECUTION_ADAPTER
+    }
+
+    /// Adapter implementation version recorded with run evidence.
+    #[must_use]
+    pub const fn adapter_version(self) -> &'static str {
+        env!("CARGO_PKG_VERSION")
+    }
+
+    /// Reference integration method.
+    #[must_use]
+    pub const fn integration_method(self) -> ReferenceIntegrationMethod {
+        ReferenceIntegrationMethod::BackwardEuler
+    }
+
+    /// Reference nonlinear method.
+    #[must_use]
+    pub const fn nonlinear_method(self) -> ReferenceNonlinearMethod {
+        ReferenceNonlinearMethod::DenseFiniteDifferenceNewton
+    }
+
+    /// Concrete producer placement.
+    #[must_use]
+    pub const fn placement(self) -> ReferenceExecutionPlacement {
+        ReferenceExecutionPlacement::HostSerial
+    }
+
+    /// Acceptance meaning for the semantic oracle.
+    #[must_use]
+    pub const fn acceptance(self) -> ReferenceAcceptance {
+        ReferenceAcceptance::SemanticOracle
+    }
+}
+
+/// Time integration selected by a [`ReferenceRunPlan`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReferenceIntegrationMethod {
+    /// Fixed backward Euler with exact activation boundaries.
+    BackwardEuler,
+}
+
+/// Nonlinear solve selected by a [`ReferenceRunPlan`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReferenceNonlinearMethod {
+    /// Small dense Newton with a finite-difference Jacobian.
+    DenseFiniteDifferenceNewton,
+}
+
+/// Execution placement selected by a [`ReferenceRunPlan`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReferenceExecutionPlacement {
+    /// One serial host worker; no process-global pool is touched.
+    HostSerial,
+}
+
+/// Meaning of accepting one completed reference result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReferenceAcceptance {
+    /// This path defines semantic conformance and is not an optimized producer
+    /// checked by a second numerical backend.
+    SemanticOracle,
+}
+
+/// One accepted reference-execution boundary exposed to application clients.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ReferenceRunProgress {
+    model_time: f64,
+    end_time: f64,
+    accepted_steps: usize,
+    maximum_steps: usize,
+}
+
+impl ReferenceRunProgress {
+    /// Last fully accepted model time in seconds.
+    #[must_use]
+    pub const fn model_time(self) -> f64 {
+        self.model_time
+    }
+
+    /// Requested inclusive final model time in seconds.
+    #[must_use]
+    pub const fn end_time(self) -> f64 {
+        self.end_time
+    }
+
+    /// Number of fully accepted time/event steps.
+    #[must_use]
+    pub const fn accepted_steps(self) -> usize {
+        self.accepted_steps
+    }
+
+    /// Configured accepted-step safety limit.
+    #[must_use]
+    pub const fn maximum_steps(self) -> usize {
+        self.maximum_steps
+    }
+}
+
+impl From<ExecutionProgress> for ReferenceRunProgress {
+    fn from(progress: ExecutionProgress) -> Self {
+        Self {
+            model_time: progress.model_time(),
+            end_time: progress.end_time(),
+            accepted_steps: progress.accepted_steps(),
+            maximum_steps: progress.maximum_steps(),
+        }
+    }
+}
+
+/// Decision returned by a reference-run observer at an accepted boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReferenceRunDirective {
+    /// Continue execution.
+    Continue,
+    /// Cancel without constructing partial result evidence.
+    Cancel,
+}
+
+/// Bounded application observer for reference-run progress and cancellation.
+pub trait ReferenceRunObserver {
+    /// Inspect one accepted boundary and decide whether execution continues.
+    fn observe(&mut self, progress: ReferenceRunProgress) -> ReferenceRunDirective;
+}
+
+/// Evidence that cancellation was observed at an accepted boundary.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ReferenceRunCancellation {
+    plan: ReferenceRunPlan,
+    elapsed: Duration,
+    progress: ReferenceRunProgress,
+}
+
+impl ReferenceRunCancellation {
+    /// Exact accepted plan that was cancelled.
+    #[must_use]
+    pub const fn plan(self) -> ReferenceRunPlan {
+        self.plan
+    }
+
+    /// Wall time through cancellation observation.
+    #[must_use]
+    pub const fn elapsed(self) -> Duration {
+        self.elapsed
+    }
+
+    /// Last fully accepted semantic-execution boundary.
+    #[must_use]
+    pub const fn progress(self) -> ReferenceRunProgress {
+        self.progress
+    }
+}
+
+/// Terminal result of a controlled reference run.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReferenceRunOutcome {
+    /// Complete accepted result and evidence.
+    Completed(ReferenceRunResult),
+    /// Accepted cancellation boundary; no partial result is admitted.
+    Cancelled(ReferenceRunCancellation),
+}
+
+struct SemanticObserver<'a, O> {
+    observer: &'a mut O,
+}
+
+impl<O: ReferenceRunObserver> ExecutionObserver for SemanticObserver<'_, O> {
+    fn observe(&mut self, progress: ExecutionProgress) -> ExecutionDirective {
+        match self.observer.observe(progress.into()) {
+            ReferenceRunDirective::Continue => ExecutionDirective::Continue,
+            ReferenceRunDirective::Cancel => ExecutionDirective::Cancel,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct UninterruptedReferenceRun;
+
+impl ReferenceRunObserver for UninterruptedReferenceRun {
+    fn observe(&mut self, _progress: ReferenceRunProgress) -> ReferenceRunDirective {
+        ReferenceRunDirective::Continue
+    }
+}
+
+/// One exact, optimistic-concurrency-checked quantitative model edit.
+///
+/// The plan owns the same versioned transaction wire used by language and
+/// binding clients. Presentation adapters may show its before/after values and
+/// replay key, but cannot bypass graph validation or silently retarget it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ValueEditPlan {
+    base_digest: String,
+    base_revision: Revision,
+    target: RawId,
+    before: DynQuantity,
+    after: DynQuantity,
+    transaction: VersionedModelTransactionEnvelope,
+    transaction_digest: String,
+}
+
+impl ValueEditPlan {
+    /// Versioned exact key over the base artifact and transaction wire.
+    #[must_use]
+    pub fn key(&self) -> String {
+        format!(
+            "eqiora.value-edit-plan/v1:{}:{}",
+            self.base_digest, self.transaction_digest
+        )
+    }
+
+    /// Canonical model content identity against which the edit was prepared.
+    #[must_use]
+    pub fn base_digest(&self) -> &str {
+        &self.base_digest
+    }
+
+    /// Graph revision required by the edit transaction.
+    #[must_use]
+    pub const fn base_revision(&self) -> Revision {
+        self.base_revision
+    }
+
+    /// Stable Field or Parameter identity targeted by the edit.
+    #[must_use]
+    pub const fn target(&self) -> RawId {
+        self.target
+    }
+
+    /// Value required by the optimistic precondition.
+    #[must_use]
+    pub const fn before(&self) -> DynQuantity {
+        self.before
+    }
+
+    /// Replacement value in coherent SI units with unchanged dimension.
+    #[must_use]
+    pub const fn after(&self) -> DynQuantity {
+        self.after
+    }
+
+    /// Domain-separated identity of the exact ordered transaction wire.
+    #[must_use]
+    pub fn transaction_digest(&self) -> &str {
+        &self.transaction_digest
+    }
+
+    /// Exact transaction codec retained by this immutable plan.
+    #[must_use]
+    pub const fn exact_codec(&self) -> ExactModelCodec {
+        self.transaction.exact_codec()
+    }
+
+    /// Canonical bytes of the shared model-transaction envelope.
+    ///
+    /// # Errors
+    /// Returns an artifact diagnostic if serialization unexpectedly fails.
+    pub fn transaction_json(&self) -> Result<Vec<u8>, Diagnostic> {
+        self.transaction.canonical_json()
+    }
+}
+
+/// One accepted value edit and the immutable child model it produced.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ValueEditResult {
+    plan: ValueEditPlan,
+    document: ModelDocument,
+    result_digest: String,
+}
+
+impl ValueEditResult {
+    /// Exact plan committed by the graph store.
+    #[must_use]
+    pub const fn plan(&self) -> &ValueEditPlan {
+        &self.plan
+    }
+
+    /// Canonical child model identity.
+    #[must_use]
+    pub fn result_digest(&self) -> &str {
+        &self.result_digest
+    }
+
+    /// Child graph revision produced by the atomic commit.
+    #[must_use]
+    pub fn result_revision(&self) -> Revision {
+        self.document.program.revision()
+    }
+
+    /// Borrow the immutable child model.
+    #[must_use]
+    pub const fn document(&self) -> &ModelDocument {
+        &self.document
+    }
+
+    /// Transfer ownership of the child model to a cache or binding.
+    #[must_use]
+    pub fn into_document(self) -> ModelDocument {
+        self.document
+    }
+}
+
+/// Exact historical Model/Transaction artifact codec.
+///
+/// Ordinary authoring uses [`ModelDocument::compile`] or
+/// [`ModelDocument::define`] and does not choose this value. Artifact replay,
+/// compatibility tests, and conformance tools select one codec explicitly;
+/// Eqiora never guesses from bytes or retries another generation.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum ExactModelCodec {
+    /// The original scalar model and transaction vocabulary.
+    #[serde(rename = "v1")]
+    V1,
+    /// Scalar physical Domains, Ports, and across/through symbols.
+    #[serde(rename = "v2")]
+    V2,
+    /// Exact shaped Fields and field-valued boundary physical interfaces.
+    #[serde(rename = "v3")]
+    V3,
+    /// Canonical symmetric-part and isotropic-lift tensor operators.
+    #[serde(rename = "v4")]
+    V4,
+    /// Expression-local, content-addressed canonical pure operators.
+    #[serde(rename = "v5")]
+    V5,
+    /// Spatial-periodic boundary Connections.
+    #[serde(rename = "v6")]
+    V6,
+}
+
+impl ExactModelCodec {
+    /// Codec currently used by the ordinary authoring profile.
+    ///
+    /// This mapping is not a stability promise for the current semantic
+    /// vocabulary. Exact artifacts retain the codec selected when authored.
+    pub const CURRENT: Self = Self::V6;
+
+    /// Exact generation spelling used by compatibility protocols.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::V1 => "v1",
+            Self::V2 => "v2",
+            Self::V3 => "v3",
+            Self::V4 => "v4",
+            Self::V5 => "v5",
+            Self::V6 => "v6",
+        }
+    }
+
+    /// Immutable artifact schema owned by this codec.
+    #[must_use]
+    pub const fn model_schema(self) -> &'static str {
+        match self {
+            Self::V1 => "eqiora.model-envelope/v1",
+            Self::V2 => "eqiora.model-envelope/v2",
+            Self::V3 => "eqiora.model-envelope/v3",
+            Self::V4 => "eqiora.model-envelope/v4",
+            Self::V5 => "eqiora.model-envelope/v5",
+            Self::V6 => "eqiora.model-envelope/v6",
+        }
+    }
+
+    /// Compile source through exactly this historical Model/Transaction codec.
+    ///
+    /// # Errors
+    /// Returns compiler, semantic, or artifact diagnostics without trying a
+    /// different codec.
+    pub fn compile(self, filename: &str, source: &str) -> Result<ModelDocument, Vec<Diagnostic>> {
+        ModelDocument::compile_for_codec(filename, source, self)
+    }
+
+    /// Define a native draft through exactly this historical codec.
+    ///
+    /// # Errors
+    /// Returns graph-path, semantic, or artifact diagnostics without trying a
+    /// different codec.
+    pub fn define(self, draft: &ModelDraft) -> Result<ModelDocument, Vec<Diagnostic>> {
+        ModelDocument::define_for_codec(draft, self)
+    }
+
+    /// Replay bytes using exactly this historical Model decoder.
+    ///
+    /// # Errors
+    /// Returns artifact or semantic diagnostics when the bytes do not belong
+    /// to this codec. No sniffing or fallback occurs.
+    pub fn replay(self, data: &[u8]) -> Result<ModelDocument, Vec<Diagnostic>> {
+        ModelDocument::replay_codec(data, self)
+    }
+
+    /// Whether this wire admits nominal scalar physical semantics.
+    #[must_use]
+    pub const fn supports_scalar_physical(self) -> bool {
+        matches!(self, Self::V2 | Self::V3 | Self::V4 | Self::V5 | Self::V6)
+    }
+
+    /// Whether this wire admits exact shaped values and field-valued boundary
+    /// physical interfaces.
+    #[must_use]
+    pub const fn supports_boundary_physical(self) -> bool {
+        matches!(self, Self::V3 | Self::V4 | Self::V5 | Self::V6)
+    }
+
+    /// Whether this wire admits the closed canonical tensor-operator
+    /// vocabulary.
+    #[must_use]
+    pub const fn supports_tensor_operators(self) -> bool {
+        matches!(self, Self::V4 | Self::V5 | Self::V6)
+    }
+
+    /// Whether this wire admits expression-local content-addressed pure operators.
+    #[must_use]
+    pub const fn supports_pure_operators(self) -> bool {
+        matches!(self, Self::V5 | Self::V6)
+    }
+
+    /// Whether this wire admits spatial-periodic boundary Connections.
+    #[must_use]
+    pub const fn supports_spatial_periodic(self) -> bool {
+        matches!(self, Self::V6)
+    }
+
+    fn replay_transaction(self, transaction: &Transaction) -> Result<Transaction, Diagnostic> {
+        let envelope = self.encode_transaction(transaction)?;
+        let bytes = envelope.canonical_json()?;
+        self.decode_transaction(&bytes)?.to_transaction()
+    }
+
+    fn encode_transaction(
+        self,
+        transaction: &Transaction,
+    ) -> Result<VersionedModelTransactionEnvelope, Diagnostic> {
+        match self {
+            Self::V1 => ModelTransactionEnvelopeV1::from_transaction(transaction)
+                .map(VersionedModelTransactionEnvelope::V1),
+            Self::V2 => ModelTransactionEnvelopeV2::from_transaction(transaction)
+                .map(VersionedModelTransactionEnvelope::V2),
+            Self::V3 => ModelTransactionEnvelopeV3::from_transaction(transaction)
+                .map(VersionedModelTransactionEnvelope::V3),
+            Self::V4 => ModelTransactionEnvelopeV4::from_transaction(transaction)
+                .map(VersionedModelTransactionEnvelope::V4),
+            Self::V5 => ModelTransactionEnvelopeV5::from_transaction(transaction)
+                .map(VersionedModelTransactionEnvelope::V5),
+            Self::V6 => ModelTransactionEnvelopeV6::from_transaction(transaction)
+                .map(VersionedModelTransactionEnvelope::V6),
+        }
+    }
+
+    fn decode_transaction(
+        self,
+        bytes: &[u8],
+    ) -> Result<VersionedModelTransactionEnvelope, Diagnostic> {
+        match self {
+            Self::V1 => ModelTransactionEnvelopeV1::from_json(bytes, DecoderLimits::default())
+                .map(VersionedModelTransactionEnvelope::V1),
+            Self::V2 => ModelTransactionEnvelopeV2::from_json(bytes, DecoderLimits::default())
+                .map(VersionedModelTransactionEnvelope::V2),
+            Self::V3 => ModelTransactionEnvelopeV3::from_json(bytes, DecoderLimits::default())
+                .map(VersionedModelTransactionEnvelope::V3),
+            Self::V4 => ModelTransactionEnvelopeV4::from_json(bytes, DecoderLimits::default())
+                .map(VersionedModelTransactionEnvelope::V4),
+            Self::V5 => ModelTransactionEnvelopeV5::from_json(bytes, DecoderLimits::default())
+                .map(VersionedModelTransactionEnvelope::V5),
+            Self::V6 => ModelTransactionEnvelopeV6::from_json(bytes, DecoderLimits::default())
+                .map(VersionedModelTransactionEnvelope::V6),
+        }
+    }
+
+    fn encode_program(self, program: &KernelProgram) -> Result<VersionedModelEnvelope, Diagnostic> {
+        match self {
+            Self::V1 => ModelEnvelopeV1::from_program(program).map(VersionedModelEnvelope::V1),
+            Self::V2 => ModelEnvelopeV2::from_program(program).map(VersionedModelEnvelope::V2),
+            Self::V3 => ModelEnvelopeV3::from_program(program).map(VersionedModelEnvelope::V3),
+            Self::V4 => ModelEnvelopeV4::from_program(program).map(VersionedModelEnvelope::V4),
+            Self::V5 => ModelEnvelopeV5::from_program(program).map(VersionedModelEnvelope::V5),
+            Self::V6 => ModelEnvelopeV6::from_program(program).map(VersionedModelEnvelope::V6),
+        }
+    }
+
+    fn decode_model(self, bytes: &[u8]) -> Result<VersionedModelEnvelope, Diagnostic> {
+        match self {
+            Self::V1 => ModelEnvelopeV1::from_json(bytes, DecoderLimits::default())
+                .map(VersionedModelEnvelope::V1),
+            Self::V2 => ModelEnvelopeV2::from_json(bytes, DecoderLimits::default())
+                .map(VersionedModelEnvelope::V2),
+            Self::V3 => ModelEnvelopeV3::from_json(bytes, DecoderLimits::default())
+                .map(VersionedModelEnvelope::V3),
+            Self::V4 => ModelEnvelopeV4::from_json(bytes, DecoderLimits::default())
+                .map(VersionedModelEnvelope::V4),
+            Self::V5 => ModelEnvelopeV5::from_json(bytes, DecoderLimits::default())
+                .map(VersionedModelEnvelope::V5),
+            Self::V6 => ModelEnvelopeV6::from_json(bytes, DecoderLimits::default())
+                .map(VersionedModelEnvelope::V6),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum VersionedModelEnvelope {
+    V1(ModelEnvelopeV1),
+    V2(ModelEnvelopeV2),
+    V3(ModelEnvelopeV3),
+    V4(ModelEnvelopeV4),
+    V5(ModelEnvelopeV5),
+    V6(ModelEnvelopeV6),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum VersionedModelTransactionEnvelope {
+    V1(ModelTransactionEnvelopeV1),
+    V2(ModelTransactionEnvelopeV2),
+    V3(ModelTransactionEnvelopeV3),
+    V4(ModelTransactionEnvelopeV4),
+    V5(ModelTransactionEnvelopeV5),
+    V6(ModelTransactionEnvelopeV6),
+}
+
+impl VersionedModelTransactionEnvelope {
+    fn canonical_json(&self) -> Result<Vec<u8>, Diagnostic> {
+        match self {
+            Self::V1(envelope) => envelope.canonical_json(),
+            Self::V2(envelope) => envelope.canonical_json(),
+            Self::V3(envelope) => envelope.canonical_json(),
+            Self::V4(envelope) => envelope.canonical_json(),
+            Self::V5(envelope) => envelope.canonical_json(),
+            Self::V6(envelope) => envelope.canonical_json(),
+        }
+    }
+
+    fn digest(&self) -> Result<String, Diagnostic> {
+        match self {
+            Self::V1(envelope) => envelope.digest(),
+            Self::V2(envelope) => envelope.digest(),
+            Self::V3(envelope) => envelope.digest(),
+            Self::V4(envelope) => envelope.digest(),
+            Self::V5(envelope) => envelope.digest(),
+            Self::V6(envelope) => envelope.digest(),
+        }
+        .map(|digest| digest.to_string())
+    }
+
+    fn to_transaction(&self) -> Result<Transaction, Diagnostic> {
+        match self {
+            Self::V1(envelope) => envelope.to_transaction(),
+            Self::V2(envelope) => envelope.to_transaction(),
+            Self::V3(envelope) => envelope.to_transaction(),
+            Self::V4(envelope) => envelope.to_transaction(),
+            Self::V5(envelope) => envelope.to_transaction(),
+            Self::V6(envelope) => envelope.to_transaction(),
+        }
+    }
+
+    const fn exact_codec(&self) -> ExactModelCodec {
+        match self {
+            Self::V1(_) => ExactModelCodec::V1,
+            Self::V2(_) => ExactModelCodec::V2,
+            Self::V3(_) => ExactModelCodec::V3,
+            Self::V4(_) => ExactModelCodec::V4,
+            Self::V5(_) => ExactModelCodec::V5,
+            Self::V6(_) => ExactModelCodec::V6,
+        }
+    }
+}
+
+impl VersionedModelEnvelope {
+    fn canonical_json(&self) -> Result<Vec<u8>, Diagnostic> {
+        match self {
+            Self::V1(envelope) => envelope.canonical_json(),
+            Self::V2(envelope) => envelope.canonical_json(),
+            Self::V3(envelope) => envelope.canonical_json(),
+            Self::V4(envelope) => envelope.canonical_json(),
+            Self::V5(envelope) => envelope.canonical_json(),
+            Self::V6(envelope) => envelope.canonical_json(),
+        }
+    }
+
+    fn digest(&self) -> Result<String, Diagnostic> {
+        match self {
+            Self::V1(envelope) => envelope.digest(),
+            Self::V2(envelope) => envelope.digest(),
+            Self::V3(envelope) => envelope.digest(),
+            Self::V4(envelope) => envelope.digest(),
+            Self::V5(envelope) => envelope.digest(),
+            Self::V6(envelope) => envelope.digest(),
+        }
+        .map(|digest| digest.to_string())
+    }
+
+    const fn exact_codec(&self) -> ExactModelCodec {
+        match self {
+            Self::V1(_) => ExactModelCodec::V1,
+            Self::V2(_) => ExactModelCodec::V2,
+            Self::V3(_) => ExactModelCodec::V3,
+            Self::V4(_) => ExactModelCodec::V4,
+            Self::V5(_) => ExactModelCodec::V5,
+            Self::V6(_) => ExactModelCodec::V6,
+        }
+    }
+
+    fn to_program(&self) -> Result<KernelProgram, Vec<Diagnostic>> {
+        match self {
+            Self::V1(envelope) => envelope.to_program(),
+            Self::V2(envelope) => envelope.to_program(),
+            Self::V3(envelope) => envelope.to_program(),
+            Self::V4(envelope) => envelope.to_program(),
+            Self::V5(envelope) => envelope.to_program(),
+            Self::V6(envelope) => envelope.to_program(),
+        }
+    }
+}
+
+/// One immutable, validated canonical model revision plus non-semantic source
+/// aliases used by client presentation layers.
+#[derive(Debug, Clone)]
+pub struct ModelDocument {
+    program: KernelProgram,
+    envelope: VersionedModelEnvelope,
+    aliases: BTreeMap<String, RawId>,
+    store: InMemoryGraphStore,
+}
+
+impl PartialEq for ModelDocument {
+    fn eq(&self, other: &Self) -> bool {
+        self.program == other.program
+            && self.envelope == other.envelope
+            && self.aliases == other.aliases
+    }
+}
+
+impl ModelDocument {
+    /// Compile exactly one source model with the current semantic vocabulary.
+    ///
+    /// The current profile selects its artifact codec internally. Callers that
+    /// reproduce a historical artifact must use [`ExactModelCodec::compile`].
+    ///
+    /// # Errors
+    /// Returns all compiler/semantic diagnostics, or one artifact diagnostic,
+    /// when no unique valid model revision can be constructed.
+    pub fn compile(filename: &str, source: &str) -> Result<Self, Vec<Diagnostic>> {
+        ExactModelCodec::CURRENT.compile(filename, source)
+    }
+
+    fn compile_for_codec(
+        filename: &str,
+        source: &str,
+        exact_codec: ExactModelCodec,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let mut compiled = eqiora_compiler::compile(filename, source)?;
+        if compiled.len() != 1 {
+            return Err(vec![Diagnostic::error(
+                codes::LANGUAGE_LOWERING_ERROR,
+                format!(
+                    "compile requires exactly one model declaration, found {}",
+                    compiled.len()
+                ),
+            )]);
+        }
+        Self::accept_compiled(compiled.remove(0), exact_codec)
+    }
+
+    /// Define exactly one model from immutable client-neutral declarations
+    /// using the current semantic vocabulary.
+    ///
+    /// Native construction skips text parsing only. It crosses the same typed
+    /// compiler lowerer, versioned transaction wire, atomic graph commit, and
+    /// canonical artifact reconstruction as [`Self::compile`].
+    ///
+    /// # Errors
+    /// Returns graph-path compiler/semantic diagnostics, or one artifact
+    /// diagnostic, when no valid model revision can be constructed.
+    pub fn define(draft: &ModelDraft) -> Result<Self, Vec<Diagnostic>> {
+        ExactModelCodec::CURRENT.define(draft)
+    }
+
+    fn define_for_codec(
+        draft: &ModelDraft,
+        exact_codec: ExactModelCodec,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Self::accept_compiled(eqiora_compiler::lower_draft(draft)?, exact_codec)
+    }
+
+    pub(crate) fn accept_compiled(
+        compiled: CompiledModel,
+        exact_codec: ExactModelCodec,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let aliases = aliases(compiled.symbols());
+        let model = compiled.model();
+
+        // Every source/UI/language client crosses the same bounded,
+        // versioned transaction representation before graph mutation.
+        let transaction = exact_codec
+            .replay_transaction(compiled.transaction())
+            .map_err(single_diagnostic)?;
+
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction)?;
+        let program = KernelProgram::from_snapshot(&store.snapshot(), model)?;
+        Self::from_store(store, program, aliases, exact_codec)
+    }
+
+    fn replay_codec(data: &[u8], exact_codec: ExactModelCodec) -> Result<Self, Vec<Diagnostic>> {
+        let envelope = exact_codec.decode_model(data).map_err(single_diagnostic)?;
+        let (transaction, model, source_revision) = match &envelope {
+            VersionedModelEnvelope::V1(envelope) => {
+                let (transaction, model) = envelope.to_transaction()?;
+                (transaction, model, envelope.source_revision())
+            }
+            VersionedModelEnvelope::V2(envelope) => {
+                let (transaction, model) = envelope.to_transaction()?;
+                (transaction, model, envelope.source_revision())
+            }
+            VersionedModelEnvelope::V3(envelope) => {
+                let (transaction, model) = envelope.to_transaction()?;
+                (transaction, model, envelope.source_revision())
+            }
+            VersionedModelEnvelope::V4(envelope) => {
+                let (transaction, model) = envelope.to_transaction()?;
+                (transaction, model, envelope.source_revision())
+            }
+            VersionedModelEnvelope::V5(envelope) => {
+                let (transaction, model) = envelope.to_transaction()?;
+                (transaction, model, envelope.source_revision())
+            }
+            VersionedModelEnvelope::V6(envelope) => {
+                let (transaction, model) = envelope.to_transaction()?;
+                (transaction, model, envelope.source_revision())
+            }
+        };
+        let store = InMemoryGraphStore::restore_snapshot(transaction, Revision(source_revision))?;
+        let program = KernelProgram::from_snapshot(&store.snapshot(), model)?;
+        Ok(Self {
+            program,
+            envelope,
+            aliases: BTreeMap::new(),
+            store,
+        })
+    }
+
+    fn from_store(
+        store: InMemoryGraphStore,
+        program: KernelProgram,
+        aliases: BTreeMap<String, RawId>,
+        exact_codec: ExactModelCodec,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let program = KernelProgram::from_snapshot(&store.snapshot(), program.model())?;
+        let envelope = exact_codec
+            .encode_program(&program)
+            .map_err(single_diagnostic)?;
+        // Reconstruct once more from the public artifact so client behavior
+        // cannot accidentally depend on an in-memory compiler-only state.
+        let bytes = envelope.canonical_json().map_err(single_diagnostic)?;
+        let envelope = exact_codec
+            .decode_model(&bytes)
+            .map_err(single_diagnostic)?;
+        envelope.to_program()?;
+        Ok(Self {
+            program,
+            envelope,
+            aliases,
+            store,
+        })
+    }
+
+    /// Validated immutable execution input.
+    #[must_use]
+    pub const fn program(&self) -> &KernelProgram {
+        &self.program
+    }
+
+    /// Exact artifact codec retained by this immutable document.
+    #[must_use]
+    pub const fn exact_codec(&self) -> ExactModelCodec {
+        self.envelope.exact_codec()
+    }
+
+    /// Version-neutral typed identity of the explicitly selected Model
+    /// artifact.
+    ///
+    /// The digest remains domain-separated by [`Self::exact_codec`]; this
+    /// method does not auto-detect, upgrade, or erase the selected wire.
+    ///
+    /// # Errors
+    /// Returns an artifact diagnostic only if validated envelope state cannot
+    /// be decoded.
+    pub fn artifact_reference(&self) -> Result<ModelArtifactReference, Diagnostic> {
+        match &self.envelope {
+            VersionedModelEnvelope::V1(envelope) => envelope.artifact_reference(),
+            VersionedModelEnvelope::V2(envelope) => envelope.artifact_reference(),
+            VersionedModelEnvelope::V3(envelope) => envelope.artifact_reference(),
+            VersionedModelEnvelope::V4(envelope) => envelope.artifact_reference(),
+            VersionedModelEnvelope::V5(envelope) => envelope.artifact_reference(),
+            VersionedModelEnvelope::V6(envelope) => envelope.artifact_reference(),
+        }
+    }
+
+    /// Non-semantic source aliases in deterministic lexical order.
+    #[must_use]
+    pub const fn aliases(&self) -> &BTreeMap<String, RawId> {
+        &self.aliases
+    }
+
+    /// Canonical compact JSON bytes for this immutable model.
+    ///
+    /// # Errors
+    /// Returns an artifact diagnostic if invariant replay fails.
+    pub fn canonical_json(&self) -> Result<Vec<u8>, Diagnostic> {
+        self.envelope.canonical_json()
+    }
+
+    /// Domain-separated semantic content digest.
+    ///
+    /// # Errors
+    /// Returns an artifact diagnostic if invariant replay fails.
+    pub fn digest(&self) -> Result<String, Diagnostic> {
+        self.envelope.digest()
+    }
+
+    /// Alpha-normalized structural comparison evidence for this Model.
+    ///
+    /// The fingerprint intentionally excludes occurrence IDs, source names,
+    /// graph revision, and exact artifact codec.  It never substitutes for
+    /// [`Self::artifact_reference`] in execution, replay, provenance, or
+    /// mutation preconditions.
+    ///
+    /// # Errors
+    /// Returns an artifact diagnostic when exact bounded graph
+    /// canonicalization cannot represent this fingerprint generation.
+    pub fn structural_fingerprint(&self) -> Result<StructuralSemanticFingerprint, Diagnostic> {
+        StructuralSemanticFingerprint::from_program(&self.program)
+    }
+
+    /// Compare alpha-normalized Semantic Kernel structure without weakening
+    /// either exact Model artifact identity.
+    ///
+    /// Equal digests are followed by exact private canonical-byte comparison,
+    /// so a cryptographic collision fails closed.
+    ///
+    /// # Errors
+    /// Returns an artifact diagnostic for unsupported meaning, exhausted
+    /// canonicalization limits, or unequal projections with a colliding hash.
+    pub fn structurally_equivalent(&self, other: &Self) -> Result<bool, Diagnostic> {
+        eqiora_artifact::structurally_equivalent(&self.program, &other.program)
+    }
+
+    /// Resolve one finite Field/Parameter value change into the shared,
+    /// versioned model-transaction wire without mutating this document.
+    ///
+    /// The transaction requires both the current graph revision and the exact
+    /// current quantity. A no-op, non-finite value, missing target, or target
+    /// outside the quantitative node vocabulary is rejected before commit.
+    ///
+    /// # Errors
+    /// Returns a structured graph or artifact diagnostic when the edit cannot
+    /// be represented exactly.
+    pub fn preview_value_edit(
+        &self,
+        target: RawId,
+        new_value_si: f64,
+    ) -> Result<ValueEditPlan, Diagnostic> {
+        if !new_value_si.is_finite() {
+            return Err(Diagnostic::error(
+                codes::INVALID_OPERATION,
+                "model value edits require one finite coherent-SI scalar",
+            ));
+        }
+        let Some(node) = self.program.node(target) else {
+            return Err(Diagnostic::error(
+                codes::NODE_NOT_FOUND,
+                format!("value-edit target {target} is outside this model revision"),
+            ));
+        };
+        if !matches!(node.id().kind(), EntityKind::Field | EntityKind::Parameter) {
+            return Err(Diagnostic::error(
+                codes::INVALID_OPERATION,
+                format!("value edits are not valid for {:?}", node.id().kind()),
+            ));
+        }
+        let Some(before) = self.program.value(target) else {
+            return Err(Diagnostic::error(
+                codes::INVALID_OPERATION,
+                format!("value-edit target {target} has no revision-local scalar value"),
+            ));
+        };
+        let after = DynQuantity::new(new_value_si, before.dim());
+        if before == after {
+            return Err(Diagnostic::error(
+                codes::INVALID_OPERATION,
+                "value edit would not change canonical model content",
+            ));
+        }
+
+        let label = self
+            .aliases
+            .iter()
+            .find_map(|(name, &id)| (id == target).then_some(name.as_str()))
+            .map_or_else(
+                || format!("set model value {target}"),
+                |name| format!("set model value {name}"),
+            );
+        let base_revision = self.store.revision();
+        let mut transaction = Transaction::new(label);
+        transaction
+            .require(Precondition::RevisionIs(base_revision))
+            .require(Precondition::ValueEquals {
+                target,
+                expected: before,
+            })
+            .push(Op::SetValue {
+                target,
+                value: after,
+            });
+        let transaction = self.exact_codec().encode_transaction(&transaction)?;
+        let transaction_digest = transaction.digest()?;
+        Ok(ValueEditPlan {
+            base_digest: self.digest()?,
+            base_revision,
+            target,
+            before,
+            after,
+            transaction,
+            transaction_digest,
+        })
+    }
+
+    /// Replay and atomically commit one exact value-edit plan, returning a new
+    /// immutable document while leaving this base document unchanged.
+    ///
+    /// # Errors
+    /// Returns structured diagnostics if model identity, transaction identity,
+    /// optimistic preconditions, graph invariants, or artifact replay differ
+    /// from the accepted preview.
+    pub fn commit_value_edit(
+        &self,
+        plan: ValueEditPlan,
+    ) -> Result<ValueEditResult, Vec<Diagnostic>> {
+        if plan.exact_codec() != self.exact_codec()
+            || plan.base_digest != self.digest().map_err(single_diagnostic)?
+            || plan.base_revision != self.store.revision()
+        {
+            return Err(vec![Diagnostic::error(
+                codes::PRECONDITION_FAILED,
+                "value-edit plan no longer matches the selected model revision",
+            )]);
+        }
+        let bytes = plan
+            .transaction
+            .canonical_json()
+            .map_err(single_diagnostic)?;
+        let replay = self
+            .exact_codec()
+            .decode_transaction(&bytes)
+            .map_err(single_diagnostic)?;
+        if replay.digest().map_err(single_diagnostic)? != plan.transaction_digest {
+            return Err(vec![Diagnostic::error(
+                codes::INVALID_ARTIFACT,
+                "value-edit transaction identity changed during replay",
+            )]);
+        }
+
+        let mut store = self.store.clone();
+        store.commit(replay.to_transaction().map_err(single_diagnostic)?)?;
+        let program = KernelProgram::from_snapshot(&store.snapshot(), self.program.model())?;
+        let document = Self::from_store(store, program, self.aliases.clone(), self.exact_codec())?;
+        let result_digest = document.digest().map_err(single_diagnostic)?;
+        Ok(ValueEditResult {
+            plan,
+            document,
+            result_digest,
+        })
+    }
+
+    /// Execute the normative reference interpreter and collect owned,
+    /// field-local result series.
+    ///
+    /// # Errors
+    /// Returns configuration, semantic, or execution diagnostics.
+    pub fn run_reference(
+        &self,
+        end_time: f64,
+        max_step: f64,
+    ) -> Result<ReferenceRunResult, Vec<Diagnostic>> {
+        let plan = ReferenceRunPlan::new(end_time, max_step).map_err(single_diagnostic)?;
+        self.run_reference_plan(plan)
+    }
+
+    /// Execute one previously resolved reference plan.
+    ///
+    /// # Errors
+    /// Returns structured semantic or numerical diagnostics. Adapter evidence
+    /// is created only after the trajectory has completed successfully.
+    pub fn run_reference_plan(
+        &self,
+        plan: ReferenceRunPlan,
+    ) -> Result<ReferenceRunResult, Vec<Diagnostic>> {
+        let mut observer = UninterruptedReferenceRun;
+        match self.run_reference_plan_controlled(plan, &mut observer)? {
+            ReferenceRunOutcome::Completed(result) => Ok(result),
+            ReferenceRunOutcome::Cancelled(_) => {
+                unreachable!("the uninterrupted observer cannot request cancellation")
+            }
+        }
+    }
+
+    /// Execute one plan while observing only fully accepted semantic steps.
+    ///
+    /// Cancellation is a typed terminal outcome, not an execution diagnostic.
+    /// No partial series or successful-run evidence is constructed.
+    ///
+    /// # Errors
+    /// Returns the same structured semantic or numerical diagnostics as
+    /// [`Self::run_reference_plan`].
+    pub fn run_reference_plan_controlled(
+        &self,
+        plan: ReferenceRunPlan,
+        observer: &mut impl ReferenceRunObserver,
+    ) -> Result<ReferenceRunOutcome, Vec<Diagnostic>> {
+        let started = Instant::now();
+        let mut semantic_observer = SemanticObserver { observer };
+        let outcome = Interpreter::new().run_controlled(
+            &self.program,
+            plan.config(),
+            &mut semantic_observer,
+        )?;
+        match outcome {
+            ExecutionOutcome::Completed(trajectory) => self
+                .reference_result(plan, started, trajectory)
+                .map(ReferenceRunOutcome::Completed),
+            ExecutionOutcome::Cancelled(progress) => {
+                Ok(ReferenceRunOutcome::Cancelled(ReferenceRunCancellation {
+                    plan,
+                    elapsed: started.elapsed(),
+                    progress: progress.into(),
+                }))
+            }
+        }
+    }
+
+    fn reference_result(
+        &self,
+        plan: ReferenceRunPlan,
+        started: Instant,
+        trajectory: Trajectory,
+    ) -> Result<ReferenceRunResult, Vec<Diagnostic>> {
+        let names = preferred_names(&self.aliases);
+        let mut grouped = BTreeMap::<RawId, ReferenceSeries>::new();
+        for sample in trajectory.samples() {
+            let series = grouped
+                .entry(sample.field())
+                .or_insert_with(|| ReferenceSeries {
+                    field: sample.field(),
+                    name: names.get(&sample.field()).cloned(),
+                    dimension: sample.value().dim(),
+                    time: Vec::new(),
+                    values: Vec::new(),
+                });
+            if series.dimension != sample.value().dim() {
+                return Err(vec![Diagnostic::error(
+                    codes::DIMENSION_MISMATCH,
+                    format!(
+                        "field {} changed physical dimension along its trajectory",
+                        sample.field()
+                    ),
+                )]);
+            }
+            series.time.push(sample.time());
+            series.values.push(sample.value().value());
+        }
+        let series: Vec<_> = grouped.into_values().collect();
+        let sample_count = series.iter().map(|series| series.time.len()).sum();
+        Ok(ReferenceRunResult {
+            evidence: ReferenceRunEvidence {
+                plan,
+                elapsed: started.elapsed(),
+                field_count: series.len(),
+                sample_count,
+            },
+            series,
+        })
+    }
+}
+
+/// Completed reference run with independently sampled field series.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReferenceRunResult {
+    evidence: ReferenceRunEvidence,
+    series: Vec<ReferenceSeries>,
+}
+
+impl ReferenceRunResult {
+    /// Resolved plan and measured output evidence for this accepted run.
+    #[must_use]
+    pub const fn evidence(&self) -> &ReferenceRunEvidence {
+        &self.evidence
+    }
+
+    /// Series in stable Field-ID order.
+    #[must_use]
+    pub fn series(&self) -> &[ReferenceSeries] {
+        &self.series
+    }
+
+    /// Transfer ownership of all series to a binding or renderer adapter.
+    #[must_use]
+    pub fn into_series(self) -> Vec<ReferenceSeries> {
+        self.series
+    }
+}
+
+/// Auditable metadata produced only by a successful semantic-reference run.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ReferenceRunEvidence {
+    plan: ReferenceRunPlan,
+    elapsed: Duration,
+    field_count: usize,
+    sample_count: usize,
+}
+
+impl ReferenceRunEvidence {
+    /// Exact resolved plan used by the interpreter.
+    #[must_use]
+    pub const fn plan(self) -> ReferenceRunPlan {
+        self.plan
+    }
+
+    /// Measured wall time covering semantic execution and owned-result
+    /// projection. This is observational evidence, not model time.
+    #[must_use]
+    pub const fn elapsed(self) -> Duration {
+        self.elapsed
+    }
+
+    /// Number of field-local result series returned.
+    #[must_use]
+    pub const fn field_count(self) -> usize {
+        self.field_count
+    }
+
+    /// Total number of field-local samples returned across all series.
+    #[must_use]
+    pub const fn sample_count(self) -> usize {
+        self.sample_count
+    }
+}
+
+/// One owned, read-only-by-contract field series in coherent SI units.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReferenceSeries {
+    field: RawId,
+    name: Option<String>,
+    dimension: DimExponents,
+    time: Vec<f64>,
+    values: Vec<f64>,
+}
+
+impl ReferenceSeries {
+    /// Stable Field ID.
+    #[must_use]
+    pub const fn field(&self) -> RawId {
+        self.field
+    }
+
+    /// Preferred source alias, when source symbols are available.
+    #[must_use]
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    /// Physical dimension shared by all values.
+    #[must_use]
+    pub const fn dimension(&self) -> DimExponents {
+        self.dimension
+    }
+
+    /// Field-local model times in seconds.
+    #[must_use]
+    pub fn time(&self) -> &[f64] {
+        &self.time
+    }
+
+    /// Field-local values in coherent SI units.
+    #[must_use]
+    pub fn values(&self) -> &[f64] {
+        &self.values
+    }
+
+    /// Transfer the two owned buffers without copying.
+    #[must_use]
+    pub fn into_buffers(self) -> (Vec<f64>, Vec<f64>) {
+        (self.time, self.values)
+    }
+}
+
+fn aliases(symbols: &ModelSymbols) -> BTreeMap<String, RawId> {
+    symbols
+        .iter()
+        .map(|(name, id)| (name.to_owned(), id))
+        .collect()
+}
+
+fn preferred_names(aliases: &BTreeMap<String, RawId>) -> BTreeMap<RawId, String> {
+    let mut names = BTreeMap::new();
+    for (name, &id) in aliases {
+        names.entry(id).or_insert_with(|| name.clone());
+    }
+    names
+}
+
+fn single_diagnostic(diagnostic: Diagnostic) -> Vec<Diagnostic> {
+    vec![diagnostic]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        ExactModelCodec, ModelDocument, ReferenceAcceptance, ReferenceExecutionPlacement,
+        ReferenceIntegrationMethod, ReferenceNonlinearMethod, ReferenceRunDirective,
+        ReferenceRunObserver, ReferenceRunOutcome, ReferenceRunPlan, ReferenceRunProgress,
+        VersionedModelEnvelope,
+    };
+    use eqiora_artifact::ReplayableCanonicalModelArtifact;
+    use eqiora_core::DimExponents;
+    use eqiora_lang::{DraftExpression, DraftField, DraftParameter, DraftRelation, ModelDraft};
+
+    const SOURCE: &str = r#"
+model decay {
+  field x: 1 = 1;
+  parameter rate: 1 / s = 1;
+  relation flow continuous {
+    derivative(x) + rate * x = 0;
+  }
+}
+"#;
+
+    #[test]
+    fn one_application_path_closes_compile_wire_artifact_and_run() {
+        let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
+        assert_eq!(document.exact_codec(), ExactModelCodec::V6);
+        let bytes = document.canonical_json().unwrap();
+        let digest = document.digest().unwrap();
+        let reconstructed = ExactModelCodec::V6.replay(&bytes).unwrap();
+        assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
+        assert_eq!(reconstructed.digest().unwrap(), digest);
+
+        let mut zero_revision: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        zero_revision["source_revision"] = serde_json::Value::from(0);
+        let diagnostics = ExactModelCodec::V6
+            .replay(&serde_json::to_vec(&zero_revision).unwrap())
+            .unwrap_err();
+        assert_eq!(diagnostics[0].code().0, "EQ0901");
+
+        let result = document.run_reference(0.2, 0.1).unwrap();
+        let evidence = *result.evidence();
+        assert_eq!(
+            evidence.plan().key(),
+            "eqiora.reference-plan/v1:3fc999999999999a:3fb999999999999a"
+        );
+        assert_eq!(
+            evidence.plan().integration_method(),
+            ReferenceIntegrationMethod::BackwardEuler
+        );
+        assert_eq!(
+            evidence.plan().nonlinear_method(),
+            ReferenceNonlinearMethod::DenseFiniteDifferenceNewton
+        );
+        assert_eq!(
+            evidence.plan().placement(),
+            ReferenceExecutionPlacement::HostSerial
+        );
+        assert_eq!(
+            evidence.plan().acceptance(),
+            ReferenceAcceptance::SemanticOracle
+        );
+        assert_eq!(evidence.field_count(), 1);
+        assert_eq!(evidence.sample_count(), 3);
+        assert_eq!(result.series().len(), 1);
+        let series = &result.series()[0];
+        assert_eq!(series.name(), Some("x"));
+        assert_eq!(series.time(), [0.0, 0.1, 0.2]);
+        assert_eq!(series.values().len(), 3);
+        assert!((series.values()[2] - 1.0 / 1.1_f64.powi(2)).abs() < 1.0e-15);
+    }
+
+    #[test]
+    fn native_definition_closes_the_same_artifact_and_execution_path() {
+        let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
+        let rate = DraftParameter::new(
+            "rate",
+            DimExponents {
+                time: -1,
+                ..DimExponents::DIMENSIONLESS
+            },
+            1.0,
+        );
+        let flow = DraftRelation::continuous(
+            "flow",
+            [DraftExpression::derivative(&state) + rate.expression() * state.expression()],
+        );
+        let draft = ModelDraft::new("decay", [state.into(), rate.into(), flow.into()]).unwrap();
+
+        let native = ModelDocument::define(&draft).unwrap();
+        let explicit_v1 = ExactModelCodec::V1.define(&draft).unwrap();
+        let explicit_v2 = ExactModelCodec::V2.define(&draft).unwrap();
+        let explicit_v3 = ExactModelCodec::V3.define(&draft).unwrap();
+        let explicit_v4 = ExactModelCodec::V4.define(&draft).unwrap();
+        let explicit_v5 = ExactModelCodec::V5.define(&draft).unwrap();
+        let explicit_v6 = ExactModelCodec::V6.define(&draft).unwrap();
+        assert_eq!(native.exact_codec(), ExactModelCodec::V6);
+        assert_eq!(explicit_v1.exact_codec(), ExactModelCodec::V1);
+        assert_eq!(explicit_v2.exact_codec(), ExactModelCodec::V2);
+        assert_eq!(explicit_v3.exact_codec(), ExactModelCodec::V3);
+        assert_eq!(explicit_v4.exact_codec(), ExactModelCodec::V4);
+        assert_eq!(explicit_v5.exact_codec(), ExactModelCodec::V5);
+        assert_eq!(explicit_v6.exact_codec(), ExactModelCodec::V6);
+        assert!(ExactModelCodec::V2.supports_scalar_physical());
+        assert!(ExactModelCodec::V3.supports_scalar_physical());
+        assert!(!ExactModelCodec::V2.supports_boundary_physical());
+        assert!(ExactModelCodec::V3.supports_boundary_physical());
+        assert!(ExactModelCodec::V4.supports_scalar_physical());
+        assert!(ExactModelCodec::V4.supports_boundary_physical());
+        assert!(!ExactModelCodec::V3.supports_tensor_operators());
+        assert!(ExactModelCodec::V4.supports_tensor_operators());
+        assert!(ExactModelCodec::V5.supports_tensor_operators());
+        assert!(ExactModelCodec::V6.supports_tensor_operators());
+        assert!(!ExactModelCodec::V4.supports_pure_operators());
+        assert!(ExactModelCodec::V5.supports_pure_operators());
+        assert!(ExactModelCodec::V6.supports_pure_operators());
+        assert!(!ExactModelCodec::V5.supports_spatial_periodic());
+        assert!(ExactModelCodec::V6.supports_spatial_periodic());
+        assert!(
+            String::from_utf8_lossy(&explicit_v2.canonical_json().unwrap())
+                .contains("eqiora.model-envelope/v2")
+        );
+        assert!(
+            String::from_utf8_lossy(&explicit_v3.canonical_json().unwrap())
+                .contains("eqiora.model-envelope/v3")
+        );
+        assert!(
+            String::from_utf8_lossy(&explicit_v4.canonical_json().unwrap())
+                .contains("eqiora.model-envelope/v4")
+        );
+        let bytes = native.canonical_json().unwrap();
+        let reconstructed = ExactModelCodec::V6.replay(&bytes).unwrap();
+        assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
+        assert_eq!(native.aliases().len(), 3);
+
+        let source_values = ModelDocument::compile("decay.eqi", SOURCE)
+            .unwrap()
+            .run_reference(0.2, 0.1)
+            .unwrap()
+            .series()[0]
+            .values()
+            .to_vec();
+        let native_values = native.run_reference(0.2, 0.1).unwrap().series()[0]
+            .values()
+            .to_vec();
+        assert_eq!(native_values, source_values);
+    }
+
+    #[test]
+    fn current_v6_authoring_retains_the_v4_tensor_vocabulary() {
+        let source = r#"
+model elastic_relation {
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field displacement on body as space: m shape spatial_vector;
+  parameter mu: kg / (m * s ^ 2) = 2;
+  parameter lambda: kg / (m * s ^ 2) = 3;
+  relation balance continuous on body {
+    -div(
+      2 * mu * symmetric_part(grad(displacement))
+      + lambda * isotropic_lift(div(displacement))
+    ) = 0;
+  }
+}
+"#;
+        assert!(ExactModelCodec::V3.compile("elastic.eqi", source).is_err());
+
+        let document = ModelDocument::compile("elastic.eqi", source).unwrap();
+        let exact_v4 = ExactModelCodec::V4.compile("elastic.eqi", source).unwrap();
+        let bytes = document.canonical_json().unwrap();
+        assert_eq!(document.exact_codec(), ExactModelCodec::V6);
+        assert_eq!(exact_v4.exact_codec(), ExactModelCodec::V4);
+        assert!(String::from_utf8_lossy(&bytes).contains("symmetric-part"));
+        assert!(String::from_utf8_lossy(&bytes).contains("isotropic-lift"));
+        assert!(ExactModelCodec::V4.replay(&bytes).is_err());
+        let replay = ExactModelCodec::V6.replay(&bytes).unwrap();
+        assert_eq!(replay.canonical_json().unwrap(), bytes);
+        assert_eq!(replay.digest().unwrap(), document.digest().unwrap());
+    }
+
+    #[test]
+    fn current_v6_closes_generic_pure_operators_while_exact_v4_rejects_them() {
+        let source = r#"
+public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
+  = component(left, 0) * component(right, 1);
+model pure_relation {
+  domain body = box(0, 1, 0, 1);
+  representation space = continuum;
+  field left on body as space: 1 shape spatial_vector;
+  field right on body as space: 1 shape spatial_vector;
+  relation balance continuous on body {
+    div(div(dyadic(left, right))) = 0;
+  }
+}
+"#;
+        let current = ModelDocument::compile("pure-relation.eqi", source).unwrap();
+        assert_eq!(current.exact_codec(), ExactModelCodec::V6);
+        assert!(
+            ExactModelCodec::V4
+                .compile("pure-relation.eqi", source)
+                .is_err()
+        );
+
+        let bytes = current.canonical_json().unwrap();
+        let json = String::from_utf8_lossy(&bytes);
+        assert!(json.contains("pure-operator-application"));
+        assert!(json.contains("eqiora.model-envelope/v6"));
+        assert!(ExactModelCodec::V4.replay(&bytes).is_err());
+        let replay = ExactModelCodec::V6.replay(&bytes).unwrap();
+        assert_eq!(replay.canonical_json().unwrap(), bytes);
+        assert_eq!(replay.digest().unwrap(), current.digest().unwrap());
+    }
+
+    #[test]
+    fn invalid_source_and_run_policy_remain_structured_diagnostics() {
+        let diagnostics =
+            ModelDocument::compile("broken.eqi", "model broken { field ; }").unwrap_err();
+        assert!(!diagnostics.is_empty());
+        assert!(diagnostics[0].code().0.starts_with("EQ"));
+
+        let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
+        assert_eq!(
+            document.run_reference(1.0, 0.0).unwrap_err()[0].code().0,
+            "EQ0501"
+        );
+    }
+
+    #[test]
+    fn value_edit_retains_current_v6_and_explicit_v1_codec_provenance() {
+        for codec in [ExactModelCodec::CURRENT, ExactModelCodec::V1] {
+            let document = codec.compile("decay.eqi", SOURCE).unwrap();
+            let base_digest = document.digest().unwrap();
+            let rate = document.aliases()["rate"];
+            let relation = document.aliases()["flow"];
+
+            let plan = document.preview_value_edit(rate, 2.0).unwrap();
+            assert_eq!(plan.base_digest(), base_digest);
+            assert_eq!(plan.base_revision().0, 1);
+            assert_eq!(plan.target(), rate);
+            assert_eq!(plan.before().value(), 1.0);
+            assert_eq!(plan.after().value(), 2.0);
+            assert_eq!(plan.before().dim(), plan.after().dim());
+            assert_eq!(plan.exact_codec(), codec);
+            assert!(plan.key().starts_with("eqiora.value-edit-plan/v1:"));
+            assert!(
+                String::from_utf8(plan.transaction_json().unwrap())
+                    .unwrap()
+                    .contains(&format!(
+                        "eqiora.model-transaction-envelope/{}",
+                        codec.as_str()
+                    ))
+            );
+
+            let result = document.commit_value_edit(plan.clone()).unwrap();
+            assert_eq!(result.plan(), &plan);
+            assert_eq!(result.result_revision().0, 2);
+            assert_ne!(result.result_digest(), base_digest);
+            assert_eq!(result.document().exact_codec(), codec);
+            assert_eq!(document.program().revision().0, 1);
+            assert_eq!(document.program().value(rate).unwrap().value(), 1.0);
+            assert_eq!(
+                result.document().program().value(rate).unwrap().value(),
+                2.0
+            );
+
+            let public_artifact_replay = match &result.document().envelope {
+                VersionedModelEnvelope::V1(envelope) => envelope.replay_model().unwrap(),
+                VersionedModelEnvelope::V2(envelope) => envelope.replay_model().unwrap(),
+                VersionedModelEnvelope::V3(envelope) => envelope.replay_model().unwrap(),
+                VersionedModelEnvelope::V4(envelope) => envelope.replay_model().unwrap(),
+                VersionedModelEnvelope::V5(envelope) => envelope.replay_model().unwrap(),
+                VersionedModelEnvelope::V6(envelope) => envelope.replay_model().unwrap(),
+            };
+            assert_eq!(public_artifact_replay.program().revision().0, 2);
+            assert_eq!(
+                public_artifact_replay
+                    .artifact_reference()
+                    .semantic_revision()
+                    .get(),
+                2
+            );
+
+            let child_bytes = result.document().canonical_json().unwrap();
+            let replayed_child = codec.replay(&child_bytes).unwrap();
+            assert_eq!(replayed_child.program().revision().0, 2);
+            let grandchild_plan = replayed_child.preview_value_edit(rate, 3.0).unwrap();
+            assert_eq!(grandchild_plan.base_revision().0, 2);
+            let grandchild = replayed_child.commit_value_edit(grandchild_plan).unwrap();
+            assert_eq!(grandchild.result_revision().0, 3);
+            assert_eq!(
+                grandchild.document().program().value(rate).unwrap().value(),
+                3.0
+            );
+
+            assert_eq!(
+                result.document().commit_value_edit(plan).unwrap_err()[0]
+                    .code()
+                    .0,
+                "EQ0106"
+            );
+            assert_eq!(
+                document.preview_value_edit(rate, 1.0).unwrap_err().code().0,
+                "EQ0105"
+            );
+            assert_eq!(
+                document
+                    .preview_value_edit(rate, f64::NAN)
+                    .unwrap_err()
+                    .code()
+                    .0,
+                "EQ0105"
+            );
+            assert_eq!(
+                document
+                    .preview_value_edit(relation, 2.0)
+                    .unwrap_err()
+                    .code()
+                    .0,
+                "EQ0105"
+            );
+        }
+
+        let v1 = ExactModelCodec::V1.compile("decay.eqi", SOURCE).unwrap();
+        let v1_plan = v1.preview_value_edit(v1.aliases()["rate"], 2.0).unwrap();
+        let current = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
+        assert_eq!(
+            current.commit_value_edit(v1_plan).unwrap_err()[0].code().0,
+            "EQ0106"
+        );
+    }
+
+    #[test]
+    fn value_edit_identity_includes_the_exact_base_artifact() {
+        let base = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
+        let rate = base.aliases()["rate"];
+        let state = base.aliases()["x"];
+
+        let left = base
+            .commit_value_edit(base.preview_value_edit(rate, 2.0).unwrap())
+            .unwrap()
+            .into_document();
+        let right = base
+            .commit_value_edit(base.preview_value_edit(rate, 3.0).unwrap())
+            .unwrap()
+            .into_document();
+        let left_plan = left.preview_value_edit(state, 2.0).unwrap();
+        let right_plan = right.preview_value_edit(state, 2.0).unwrap();
+
+        assert_eq!(left_plan.base_revision(), right_plan.base_revision());
+        assert_eq!(
+            left_plan.transaction_digest(),
+            right_plan.transaction_digest(),
+            "the same graph-local transaction is reusable only against its exact base artifact"
+        );
+        assert_ne!(left_plan.base_digest(), right_plan.base_digest());
+        assert_ne!(left_plan.key(), right_plan.key());
+        assert_ne!(left_plan, right_plan);
+        assert_eq!(
+            left.commit_value_edit(right_plan).unwrap_err()[0].code().0,
+            "EQ0106"
+        );
+    }
+
+    #[test]
+    fn plan_key_distinguishes_exact_floating_point_requests() {
+        let baseline = ReferenceRunPlan::new(1.0, 0.1).unwrap();
+        let same = ReferenceRunPlan::new(1.0, 1.0e-1).unwrap();
+        let different = ReferenceRunPlan::new(1.0, f64::from_bits(0.1_f64.to_bits() + 1)).unwrap();
+
+        assert_eq!(baseline.key(), same.key());
+        assert_ne!(baseline.key(), different.key());
+    }
+
+    #[derive(Debug, Default)]
+    struct CancelAfterThreeAcceptedSteps {
+        observed: Vec<ReferenceRunProgress>,
+    }
+
+    impl ReferenceRunObserver for CancelAfterThreeAcceptedSteps {
+        fn observe(&mut self, progress: ReferenceRunProgress) -> ReferenceRunDirective {
+            self.observed.push(progress);
+            if progress.accepted_steps() >= 3 {
+                ReferenceRunDirective::Cancel
+            } else {
+                ReferenceRunDirective::Continue
+            }
+        }
+    }
+
+    #[test]
+    fn controlled_run_cancels_only_at_an_accepted_boundary() {
+        let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
+        let plan = ReferenceRunPlan::new(1.0, 0.1).unwrap();
+        let mut observer = CancelAfterThreeAcceptedSteps::default();
+
+        let outcome = document
+            .run_reference_plan_controlled(plan, &mut observer)
+            .unwrap();
+        let ReferenceRunOutcome::Cancelled(cancellation) = outcome else {
+            panic!("observer must cancel the run");
+        };
+
+        assert_eq!(
+            observer
+                .observed
+                .iter()
+                .map(|progress| progress.accepted_steps())
+                .collect::<Vec<_>>(),
+            [0, 1, 2, 3]
+        );
+        let progress = cancellation.progress();
+        assert_eq!(cancellation.plan(), plan);
+        assert_eq!(progress.accepted_steps(), 3);
+        assert_eq!(progress.end_time(), 1.0);
+        assert_eq!(progress.maximum_steps(), plan.config().max_steps());
+        assert!((progress.model_time() - 0.3).abs() <= f64::EPSILON);
+    }
+
+    #[derive(Debug, Default)]
+    struct RecordingObserver {
+        observed: Vec<ReferenceRunProgress>,
+    }
+
+    impl ReferenceRunObserver for RecordingObserver {
+        fn observe(&mut self, progress: ReferenceRunProgress) -> ReferenceRunDirective {
+            self.observed.push(progress);
+            ReferenceRunDirective::Continue
+        }
+    }
+
+    #[test]
+    fn controlled_completion_preserves_the_reference_result() {
+        let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
+        let plan = ReferenceRunPlan::new(0.4, 0.1).unwrap();
+        let expected = document.run_reference_plan(plan).unwrap();
+        let mut observer = RecordingObserver::default();
+
+        let outcome = document
+            .run_reference_plan_controlled(plan, &mut observer)
+            .unwrap();
+        let ReferenceRunOutcome::Completed(actual) = outcome else {
+            panic!("recording observer cannot cancel the run");
+        };
+
+        assert_eq!(actual.series(), expected.series());
+        assert_eq!(actual.evidence().plan(), expected.evidence().plan());
+        assert_eq!(
+            observer
+                .observed
+                .iter()
+                .map(|progress| progress.accepted_steps())
+                .collect::<Vec<_>>(),
+            [0, 1, 2, 3]
+        );
+        assert!(
+            observer
+                .observed
+                .windows(2)
+                .all(|pair| pair[0].model_time() < pair[1].model_time())
+        );
+    }
+}

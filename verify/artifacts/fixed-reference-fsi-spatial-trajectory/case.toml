@@ -1,0 +1,60 @@
+id = "artifacts.fixed-reference-fsi-spatial-trajectory"
+status = "verified"
+scope = "durable-fixed-reference-fsi-spatial-state-trajectory-and-reference-only-dataset-view"
+reference_kind = "content-addressed-cpu-reference-spatial-trajectory"
+
+capabilities = [
+  "mesh-bound-multiblock-field-snapshot",
+  "complete-fixed-reference-multiphysics-state",
+  "immutable-segmented-spatial-trajectory",
+  "acyclic-run-trajectory-output",
+  "reference-only-identity-dataset-view",
+  "logical-field-storage-layout-separation",
+]
+
+[problem]
+ambient_dimension = 2
+source_operator = "fsi.fixed-reference-monolithic-step-2d"
+accepted_states = 2
+accepted_steps = "t1 = dt, t2 = 2 dt"
+field_inventory = "fluid velocity, fluid pressure, solid velocity, solid displacement"
+fluid_velocity_blocks = "continuous P1 Vertex plus simplex bubble Cell"
+execution = "one-thread host CPU reference with reproducible reductions"
+
+[artifact_contract]
+logical_leaf = "canonical mesh-bound DiscreteFieldEnvelopeV1"
+field_snapshot = "exact semantic Field, support, physical type, and complete coefficient blocks"
+spatial_state = "complete Realization-selected physical Field inventory at one accepted coordinate"
+trajectory = "immutable segment-prefix publication without embedded numerical values"
+run_output = "final trajectory is an exact Run output without a digest cycle"
+dataset_view = "identity-only state and Field reference selection"
+storage = "optional raw chunks over unchanged canonical logical-Field bytes"
+
+[falsifiers]
+stale_or_cross_wired_resource = "reject"
+wrong_or_incomplete_field_blocks = "reject"
+nonzero_value_outside_support = "reject"
+incomplete_or_duplicate_state_inventory = "reject"
+nonmonotone_duplicate_or_noncanonical_state_order = "reject"
+missing_overlapping_or_substituted_segment = "reject"
+mutated_trajectory_prefix = "reject"
+missing_reordered_truncated_or_substituted_storage_chunk = "reject"
+incomplete_dataset_source = "reject"
+artifact_substitution_under_expected_digest = "reject"
+
+[claim_boundary]
+two_fixed_reference_steps = true
+durable_spatial_state = true
+immutable_segmented_trajectory = true
+reference_only_dataset_view = true
+storage_layout_independent_logical_identity = true
+general_transient_cfd = false
+spatial_state_restart = false
+variable_step = false
+ale_or_remeshing = false
+xdmf_or_hdf5 = false
+ml_feature_or_split_semantics = false
+
+[evidence]
+package = "eqiora"
+test = "fixed_reference_fsi_spatial_trajectory"

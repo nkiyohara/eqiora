@@ -1,0 +1,25 @@
+id = "numerics.preconditioner-stress"
+status = "verified"
+scope = "host-local-spd-preconditioner-evidence"
+reference_kind = "manufactured-congruence-scaled-diffusion"
+
+capabilities = [
+  "backend-neutral-preconditioner-policy",
+  "controlled-diagonal-contrast-sequence",
+  "coupled-spd-operator",
+  "identity-jacobi-iteration-comparison",
+  "reference-cg",
+  "faer-cg",
+  "true-residual-acceptance",
+]
+
+[problem]
+operator = "S T S with T the one-dimensional Dirichlet discrete Laplacian"
+dimension = 64
+diagonal_contrasts = [1.0, 1.0e2, 1.0e4, 1.0e6]
+scalar = "f64"
+layout = "replicated"
+
+[evidence]
+package = "eqiora"
+test = "preconditioner_stress"

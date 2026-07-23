@@ -1,0 +1,7 @@
+model Valid {}
+
+model Invalid {
+  field distance: m = 0;
+  parameter elapsed: s = 1;
+  relation invalid continuous { distance + elapsed = 0; }
+}

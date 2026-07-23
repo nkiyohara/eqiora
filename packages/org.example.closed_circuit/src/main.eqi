@@ -1,0 +1,7 @@
+model Main {
+  instance circuit: circuits.ParallelDc(
+    supply_voltage = 12,
+    resistance_two = 2,
+    resistance_four = 4
+  );
+}

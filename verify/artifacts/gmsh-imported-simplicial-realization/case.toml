@@ -1,0 +1,61 @@
+id = "artifacts.gmsh-imported-simplicial-realization"
+status = "verified"
+scope = "bounded-gmsh-4.1-to-content-addressed-affine-simplex-realization"
+reference_kind = "official-generator-ascii-binary-equivalence-exact-digest-and-single-dof-solution"
+
+capabilities = [
+  "bounded-ascii-gmsh-4-1-preflight",
+  "bounded-binary-gmsh-4-1-preflight",
+  "public-facade-feature-wiring",
+  "decoded-work-and-fallible-memory-budget",
+  "aggregate-decoded-byte-work-and-ignored-element-bounds",
+  "checked-ascii-extreme-declaration-closure",
+  "allocation-free-token-dense-ascii-closure",
+  "remaining-encoded-byte-count-bounds",
+  "portable-endian-and-size-t-decoding",
+  "official-and-four-representation-truncation-closure",
+  "ascii-binary-canonical-mesh-equivalence",
+  "isolated-pinned-mshio-adapter",
+  "sparse-tag-and-multiblock-reconstruction",
+  "shared-simplicial-topology-geometry-and-quality-validation",
+  "canonical-mesh-bytes-and-domain-separated-digest",
+  "content-addressed-realization-mesh-reference",
+  "continuous-p1-simplex-centroid-execution",
+  "canonical-model-to-external-mesh-assembly",
+  "malformed-input-and-resource-limit-rejection",
+]
+
+[problem]
+equation = "-div(grad(u)) = 1"
+domain = "unit square"
+boundary = "u = 0 on the complete boundary"
+mesh = "four positively oriented affine triangles emitted by Gmsh 4.15.2"
+space = "continuous P1 Lagrange"
+quadrature = "simplex centroid"
+exact_discrete_center_value = "1 / 12"
+
+[claim_boundary]
+format = "Gmsh MSH 4.1 ASCII and binary"
+generator = "Gmsh 4.15.2"
+verified_pde_dimension = 2
+import_contract_dimensions = [2, 3]
+cell_family = "full-dimensional linear simplex only"
+field_components = 1
+element_order = 1
+physical_group_semantics = false
+binary_file_type = 1
+binary_size_t_widths = [4, 8]
+binary_endian_orders = ["little", "big"]
+result_field_semantics = false
+embedded_manifolds = false
+curved_geometry = false
+mixed_cells = false
+global_nonoverlap_proof = false
+distributed_mesh = false
+adaptive_refinement = false
+
+[evidence]
+package = "eqiora"
+test = "gmsh_imported_simplicial_realization"
+features = ["gmsh"]
+table = "expected/mesh.sha256"

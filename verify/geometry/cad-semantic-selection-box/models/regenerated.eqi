@@ -1,0 +1,40 @@
+public connector MechanicalBoundary3d = field_physical(
+  trace = velocity: m / s,
+  flux = traction: kg / (m * s ^ 2),
+  shape = spatial_vector,
+  frame = spatial,
+  pairing = euclidean_boundary_duality
+);
+
+public component LoadedFace3d {
+  public support body: volume(ambient_dimension = 3);
+  public support face: boundary(parent = body);
+  public port mechanical:
+    conserving MechanicalBoundary3d over face;
+
+  relation boundary_law continuous on face {
+    trace(mechanical) = 0;
+    flux(mechanical) = 0;
+  }
+}
+
+model Main {
+  domain body = box(-0.6, 0.6, -0.4, 0.4, -0.5, 0.5);
+  domain x_lower = boundary(body, axis = 0, side = lower);
+  domain x_upper = boundary(body, axis = 0, side = upper);
+  domain y_lower = boundary(body, axis = 1, side = lower);
+  domain y_upper = boundary(body, axis = 1, side = upper);
+  domain z_lower = boundary(body, axis = 2, side = lower);
+  domain z_upper = boundary(body, axis = 2, side = upper);
+
+  instance loaded: LoadedFace3d(
+    support body = body,
+    support face = x_upper
+  );
+  instance reaction: LoadedFace3d(
+    support body = body,
+    support face = x_upper
+  );
+
+  connect conserving loaded.mechanical, reaction.mechanical;
+}

@@ -1,0 +1,45 @@
+id = "numerics.cartesian-poisson-3d-fem-fvm"
+status = "verified"
+scope = "canonical-spatial"
+reference_kind = "analytic"
+
+capabilities = [
+  "three-dimensional-canonical-lowering",
+  "runtime-dimensional-cartesian-mesh",
+  "shared-fem-fvm-lowering",
+  "tensor-product-quadrature",
+  "q1-cell-local-fem",
+  "orthogonal-facet-local-tpfa",
+  "dirichlet-elimination",
+  "sparse-assembly",
+  "continuous-reconstruction",
+  "convergence",
+  "global-conservation",
+]
+
+[problem]
+equation = "-div(grad(u)) = 3 pi^2 sin(pi x) sin(pi y) sin(pi z)"
+domain = "(0, 1) x (0, 1) x (0, 1)"
+boundary = "u = 0 on the complete boundary"
+exact_solution = "sin(pi x) sin(pi y) sin(pi z)"
+
+[convergence.fem_l2]
+norm = "continuous-L2-Q1"
+minimum_order = 1.9
+
+[convergence.fvm_l2]
+norm = "continuous-L2-dual-grid-Q1-reconstruction"
+minimum_order = 1.9
+
+[conservation.fem]
+quantity = "boundary-reactions-plus-integrated-source"
+maximum_relative_error = 2e-11
+
+[conservation.fvm]
+quantity = "outward-boundary-flux-plus-integrated-source"
+maximum_relative_error = 2e-11
+
+[evidence]
+package = "eqiora-numerics"
+test = "cartesian_poisson_3d_fem_fvm"
+table = "expected/convergence.csv"

@@ -1,0 +1,16 @@
+[package]
+name = "eqiora-io-hdf5"
+description = "Eqiora L3: bounded native HDF5 file-image resolver and writer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+eqiora-core = { workspace = true }
+hdf5-metno = { workspace = true }
+hdf5-metno-sys = { workspace = true }
+
+[lints]
+workspace = true

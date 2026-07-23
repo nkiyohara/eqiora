@@ -1,0 +1,54 @@
+# cargo-deny policy. FFI sys-crates register their pins and licenses here when
+# an FFI adapter is introduced.
+
+[licenses]
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+]
+
+# hdf5-metno-src 0.10.2 vendors the HDF Group's unmodified 3-clause BSD
+# license but exposes its historical `HDF5` label rather than an SPDX
+# expression. Pin both the crate release and cargo-deny's normalized license
+# hash so a source/license change fails closed.
+[[licenses.clarify]]
+crate = "hdf5-metno-src@0.10.2"
+expression = "BSD-3-Clause"
+license-files = [
+    { path = "ext/hdf5/LICENSE", hash = 0x221a80ac },
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[advisories]
+yanked = "deny"
+# faer 0.24.4 -> gemm/pulp currently requires paste 1.0.15. RUSTSEC-2024-0436
+# reports that paste is unmaintained, not a vulnerability, and has no safe
+# upgrade. The dependency is confined to the optional L3 faer adapter.
+#
+# mpi 0.8.2 -> conv 0.3.3 currently requires custom_derive 0.1.7.
+# RUSTSEC-2025-0058 is likewise an unmaintained notice with no safe upgrade,
+# confined to the optional L3 MPI adapter.
+#
+# truck-stepio/modeling/topology 0.x currently depend on the unmaintained
+# cgmath 0.18.0 and proc-macro-error 1.0.4. RUSTSEC-2026-0196 and
+# RUSTSEC-2024-0370 are maintenance notices without reported vulnerabilities
+# or safe upstream upgrades. They are confined to the optional L3 CAD adapter;
+# `truck-shapeops` is excluded because its graph contains actual vulnerabilities.
+#
+# Remove each exact exception when its upstream graph permits it; never broaden
+# an exception to another advisory.
+ignore = [
+    "RUSTSEC-2024-0436",
+    "RUSTSEC-2025-0058",
+    "RUSTSEC-2026-0196",
+    "RUSTSEC-2024-0370",
+]

@@ -1,0 +1,75 @@
+id = "fsi.fixed-reference-distributed-cuda-solve-mpi-2d"
+status = "verified"
+scope = "fixed-reference-fsi-host-staged-mpi-cuda-owner-shard-solve-2d"
+reference_kind = "one-host-physical-mpi-cuda-with-complete-cpu-reference"
+
+capabilities = [
+  "accepted-owner-row-shards-as-sole-rank-local-csr-source",
+  "one-visible-ordinal-zero-cuda-device-per-mpi-rank",
+  "rank-agreed-distinct-physical-cuda-uuid-topology",
+  "host-staged-halo-and-reproducible-mpi-minres",
+  "resident-deterministic-cuda-rectangular-csr-action",
+  "single-matrix-upload-with-monotone-action-generations",
+  "waited-input-action-output-completion-evidence",
+  "complete-host-residual-reacceptance-on-every-rank",
+  "unchanged-fixed-reference-fsi-finish",
+  "normalized-cpu-mpi-cuda-field-conformance",
+  "one-two-four-rank-and-device-one-host-evidence",
+]
+
+[problem]
+ambient_dimension = 2
+cells = 8
+materials = "four inertial-fluid triangles and four dynamic-solid triangles"
+interface = "the exact two-facet conforming interface at x = 1 m"
+step = "one fixed-reference monolithic backward-Euler step"
+ranks_and_devices = "one, two, and four"
+physical_nodes = 1
+
+[execution_contract]
+assembly = "accepted MPI owner-routed reduced and full targets"
+solver = "identity-preconditioned reproducible f64 MINRES on host-owned MPI Krylov vectors"
+local_action = "one deterministic resident rectangular CUDA CSR action per rank"
+transport = "explicit HostStaged input and owned-row output"
+placement = "one process-visible ordinal-zero device and one distinct physical UUID per rank"
+matrix_residency = "row offsets, columns, and values upload exactly once per rank and run"
+acceptance = "explicit-index complete gather, every-rank host residual replay, and unchanged FSI finish"
+
+[numerical_contract]
+normalized_cpu_mpi_cuda_absolute = 2e-10
+normalized_cpu_mpi_cuda_relative = 2e-10
+tolerance_domain = "dimensionless algebraic coefficients and each physical Field divided by its exact Realization scale"
+cross_rank_count_bit_identity = false
+
+[falsifiers]
+missing_or_ambiguous_local_rank = "the launcher wrapper fails before CUDA discovery"
+missing_duplicate_or_insufficient_device_selectors = "the parent or collective topology contract fails before numerical publication"
+device_ordinal_or_live_descriptor_drift = "composite admission/runtime preparation fails collectively"
+owner_layout_operator_transport_or_solver_drift = "L2 admission or MPI collective admission fails closed"
+matrix_reupload_generation_or_completion_drift = "rank-local CUDA evidence validation fails"
+cpu_or_physics_disagreement = "complete-host replay or unchanged FSI finish rejects"
+
+[claim_boundary]
+fixed_reference_fsi_2d = true
+one_monolithic_step = true
+physical_nodes = 1
+ranks_and_cuda_devices = "one-two-four"
+one_device_per_rank = true
+host_staged_transport = true
+resident_local_csr_action = true
+host_owned_distributed_krylov = true
+replicated_physical_finish = true
+gpu_assembly = false
+gpu_aware_mpi = false
+device_resident_distributed_krylov = false
+multiple_devices_per_rank = false
+physical_multi_node_execution = false
+performance_or_scale_claim = false
+transient_fsi_trajectory = false
+ale_or_remeshing = false
+durable_composite_run = false
+
+[evidence]
+package = "eqiora"
+test = "fixed_reference_fsi_distributed_cuda_solve_mpi_2d"
+features = ["mpi-cuda"]

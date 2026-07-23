@@ -1,0 +1,65 @@
+id = "fsi.fixed-reference-distributed-assembly-mpi-2d"
+status = "verified"
+scope = "fixed-reference-fsi-cell-owned-row-routed-physical-mpi-assembly-2d"
+reference_kind = "independent-complete-cpu-reference-assembly"
+
+capabilities = [
+  "authenticated-fixed-affine-simplex-mesh-identity",
+  "exact-unique-cell-ownership",
+  "equation-support-derived-target-row-ownership",
+  "rank-local-exactly-once-cell-packet-evaluation",
+  "bounded-checked-mpi-route-transport",
+  "owner-routed-reproducible-row-reduction",
+  "bitwise-reduced-and-full-csr-rhs-reconstruction",
+  "rank-agreed-distributed-assembly-receipt",
+  "pre-variable-collective-layout-disagreement-rejection",
+  "unchanged-canonical-fsi-acceptance",
+  "one-two-four-rank-one-host-evidence",
+]
+
+[problem]
+ambient_dimension = 2
+cells = 8
+materials = "four inertial-fluid triangles and four dynamic-solid triangles"
+interface = "the exact two-facet conforming interface at x = 1 m"
+targets = "reduced solve system and full reaction/interface-evidence system"
+ranks = "one, two, and four"
+physical_nodes = 1
+
+[ownership_contract]
+cell_owner = "the sole explicit ownership input"
+row_owner = "minimum owner of cell packets whose actual equation map contains the row"
+packet_producer = "the owner of the same-index canonical cell"
+reduction_order = "target ordinal, then ascending global packet index"
+two_rank_split = "solid cells on rank zero; fluid cells on rank one"
+four_rank_split = "cell index modulo four"
+
+[falsifiers]
+rank_local_foreign_mesh_revision = "common rejection before variable-size collectives"
+collective_disagreement_hang = "bounded parent timeout failure"
+reconstructed_reduced_or_full_system_drift = "reject"
+reduced_operator_fingerprint_drift = "reject"
+fsi_acceptance_drift = "reject"
+
+[claim_boundary]
+fixed_reference_fsi_2d = true
+physical_mpi_assembly = true
+physical_nodes = 1
+replicated_mesh = true
+complete_host_reconstruction = true
+serial_host_minres_after_reconstruction = true
+distributed_minres_or_fsi_solve = false
+distributed_field = false
+parallel_io = false
+physical_multi_node_execution = false
+scalability = false
+hybrid_rank_thread_execution = false
+mpi_cuda_execution = false
+process_failure_recovery = false
+ale_or_remeshing = false
+durable_distributed_assembly_artifact = false
+
+[evidence]
+package = "eqiora"
+test = "fixed_reference_fsi_distributed_assembly_mpi_2d"
+features = ["mpi"]

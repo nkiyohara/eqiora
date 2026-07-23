@@ -1,0 +1,84 @@
+name: Documentation site
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/pages.yml"
+      - "crates/eqiora-verify/**"
+      - "docs/site/**"
+      - "mkdocs.yml"
+      - "tools/site/**"
+      - "verify/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/pages.yml"
+      - "crates/eqiora-verify/**"
+      - "docs/site/**"
+      - "mkdocs.yml"
+      - "tools/site/**"
+      - "verify/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build static documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: docs/site/requirements.txt
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - name: Install site toolchain
+        run: python -m pip install --disable-pip-version-check --requirement docs/site/requirements.txt
+      - name: Project validated evidence catalog
+        run: |
+          cargo run --locked --quiet -p eqiora-verify -- index --format json > "$RUNNER_TEMP/capability-index.json"
+          python tools/site/generate_evidence_catalog.py \
+            --input "$RUNNER_TEMP/capability-index.json" \
+            --output docs/site/evidence/index.md
+      - name: Check site source and tooling
+        run: |
+          python tools/site/check_site.py .
+          python -m unittest discover -s tools/site/tests -v
+      - name: Build strict static site
+        run: mkdocs build --strict
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: build/site
+
+  deploy:
+    name: Deploy static documentation
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

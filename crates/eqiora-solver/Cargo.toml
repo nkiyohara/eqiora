@@ -1,0 +1,15 @@
+[package]
+name = "eqiora-solver"
+description = "Eqiora L2: backend-neutral solver plans, contracts, capabilities, and reference oracle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+eqiora-core = { workspace = true }
+sha2 = { workspace = true }
+
+[lints]
+workspace = true

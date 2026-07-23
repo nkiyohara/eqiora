@@ -1,0 +1,33 @@
+name: CI definition trust
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-definition-trust-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  trust:
+    name: CI definition trust
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the exact protected base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Inspect changed-file metadata only
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 tools/ci/check_trust_boundary.py
+          --repository "$GITHUB_REPOSITORY"
+          --pull-number "${{ github.event.pull_request.number }}"
+          --expected-file-count "${{ github.event.pull_request.changed_files }}"

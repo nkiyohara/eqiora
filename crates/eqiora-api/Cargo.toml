@@ -1,0 +1,43 @@
+[package]
+name = "eqiora-api"
+description = "Shared application service for Eqiora language and Studio clients"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+threaded = ["dep:eqiora-fabric"]
+xdmf = ["dep:eqiora-io-xdmf"]
+hdf5 = ["xdmf", "dep:eqiora-io-hdf5"]
+vtu = ["dep:eqiora-io-vtu"]
+
+[dependencies]
+eqiora-artifact = { workspace = true }
+eqiora-compiler = { workspace = true }
+eqiora-core = { workspace = true }
+eqiora-diff = { workspace = true }
+eqiora-execution = { workspace = true }
+eqiora-fabric = { workspace = true, optional = true }
+eqiora-graph = { workspace = true }
+eqiora-io-xdmf = { workspace = true, optional = true }
+eqiora-io-hdf5 = { workspace = true, optional = true }
+eqiora-io-vtu = { workspace = true, optional = true }
+eqiora-ir = { workspace = true }
+eqiora-geometry = { workspace = true }
+eqiora-lang = { workspace = true }
+eqiora-meshing = { workspace = true }
+eqiora-numerics = { workspace = true }
+eqiora-package = { workspace = true }
+eqiora-realization = { workspace = true }
+eqiora-sem = { workspace = true }
+eqiora-solver = { workspace = true }
+eqiora-schema = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,90 @@
+id = "fluid.same-program-fem-fvm-navier-stokes-2d"
+status = "verified"
+scope = "one-borrowed-canonical-program-distinct-fem-fvm-affine-pressure-equilibrium-2d"
+reference_kind = "common-analytic-equilibrium-and-exact-identity-replay"
+
+capabilities = [
+  "same-program-fem-fvm-transient-navier-stokes-2d",
+  "common-canonical-boundary-meaning-across-spatial-realizations",
+  "affine-pressure-conservative-load-equilibrium",
+  "linearly-exact-cell-centered-boundary-pressure",
+]
+
+[problem]
+model = "models/hydrostatic.eqi"
+domain = "[0 m, 1 m] x [0 m, 1 m]"
+density = "1 kg/m^3"
+dynamic_viscosity = "0.05 kg/(m s)"
+force_potential = "(1 Pa/m) x"
+boundary = "complete homogeneous velocity trace"
+initial_velocity = "zero"
+initial_pressure = "zero"
+exact_velocity = "zero"
+exact_pressure = "x - 0.5 Pa under the zero-integral gauge"
+cells_per_axis = 4
+steps = 1
+time_step = "0.01 s"
+
+[canonical_contract]
+model_codec = 5
+source_is_compiled_exactly_once = true
+one_borrowed_kernel_program_enters_both_paths = true
+model_revision_and_field_identities_are_equal = true
+boundary_inventory_is_shared = true
+spatial_method_in_model = false
+
+[fem_realization]
+method = "continuous Galerkin"
+velocity_space = "MINI P1 plus cell bubble"
+pressure_space = "continuous P1"
+mesh = "32 aligned affine triangles"
+time_method = "backward Euler"
+solver = "faer BiCGSTAB, identity preconditioner, fast reduction"
+target = "one-worker offline host CPU"
+
+[fvm_realization]
+method = "collocated cell-centered finite volume"
+velocity_space = "cell constant"
+pressure_space = "cell constant"
+mesh = "4 x 4 generated Cartesian cells"
+time_method = "backward Euler"
+solver = "reference BiCGSTAB, identity preconditioner, reproducible reduction"
+target = "one-worker offline host CPU"
+
+[acceptance]
+distinct_spatial_realization_methods = true
+equal_final_model_field_identities_and_time = true
+nonzero_canonical_body_force = true
+both_initial_residuals_are_nonzero = true
+nonzero_final_pressure_span = true
+maximum_fem_velocity_coefficient = "below 2e-9 m/s"
+maximum_fvm_velocity_component = "below 2e-9 m/s"
+maximum_fem_affine_pressure_defect_at_every_vertex = "below 2e-9 Pa"
+maximum_fem_affine_pressure_defect_at_common_cell_centers = "below 2e-9 Pa"
+maximum_fvm_affine_pressure_defect_at_common_cell_centers = "below 2e-9 Pa"
+maximum_common_cell_center_pressure_difference = "below 2e-9 Pa"
+
+[falsifiers]
+cell_center_boundary_pressure_without_linear_reconstruction = "fails exact equilibrium"
+zero_or_unapplied_force_potential = "fails body-force and pressure-span assertions"
+same_spatial_method_in_both_paths = "fails distinct method assertion"
+model_revision_or_field_identity_drift = "fails exact lineage assertion or admission"
+pressure_sign_or_gauge_drift = "fails common analytic oracle"
+
+[claim_boundary]
+intrinsic_dimension = 2
+aligned_unit_square_meshes_only = true
+affine_conservative_load_equilibrium_only = true
+complete_homogeneous_velocity_trace_only = true
+constant_density_and_viscosity_only = true
+backward_euler_only = true
+serial_cpu_reference_only = true
+general_cross_mesh_projection = false
+nonzero_velocity_cross_method_transient_convergence = false
+method_superiority_or_production_accuracy = false
+unstructured_nonorthogonal_ale_gpu_or_mpi = false
+
+[evidence]
+package = "eqiora"
+test = "same_program_fem_fvm_navier_stokes_2d"
+features = ["faer"]

@@ -1,0 +1,62 @@
+id = "artifacts.ml-dataset-remeshing-2d"
+status = "verified"
+scope = "typed-training-only-ragged-ml-dataset-over-one-2d-remeshing-trajectory"
+reference_kind = "fresh-content-addressed-cpu-derivation"
+
+capabilities = [
+  "storage-independent-ml-dataset-lineage",
+  "typed-feature-target-window-descriptors",
+  "time-ordered-disjoint-train-validation-test-splits",
+  "training-only-population-standardization",
+  "owned-ragged-active-support-materialization",
+  "exact-fresh-dataset-replay",
+]
+
+[problem]
+source = "the exact V2 source prefix and V3 remesh continuation from fsi.remeshing-transfer-2d"
+frames = "three strict-time frames after replacing the same-time V2 source tip with the V3 remesh target"
+samples = "three singleton windows assigned in order to training, validation, and test"
+features = "fluid velocity with active Vertex and Cell-associated MINI bubble blocks"
+targets = "fluid pressure with one active Vertex block"
+execution = "bounded one-thread host CPU derivation and owned materialization"
+
+[dataset_contract]
+authority = "validated canonical trajectory, states, snapshots, and logical coefficient blocks"
+descriptor_identity = "role, window offset, Field, support Domain, coherent-SI dimension, value shape, and frame"
+split = "nonempty ordered training, validation, and test with no shared state artifact"
+normalization = "per descriptor, association, and component population statistics fitted from training only"
+constant_channel = "zero population variance is explicit with scale one"
+spatial_shape = "active support entities remain ragged and mesh-local across remeshing"
+storage = "XDMF paths, HDF5 layout, chunks, and framework tensors are absent from logical identity"
+
+[falsifiers]
+descriptor_declaration_order = "reversed declarations reproduce exact artifact and arrays"
+different_feature_target_roles = "fresh replay rejects the retained expected Dataset"
+held_out_normalization_leakage = "stored mean, population deviation, and count match an independent raw-training-only oracle"
+remesh_padding = "source and target active Vertex widths differ while exact mesh identities remain attached"
+hidden_mini_bubble_loss = "every sample retains the Cell-associated feature block"
+normalized_value_substitution = "every active entity and normalized scalar must match the independent fixture oracle"
+decoder_budget = "sample count below the manifest inventory rejects decoding"
+materialization_budget = "one fewer allowed block, active entity, or scalar rejects before value output"
+
+[claim_boundary]
+intrinsic_dimension = 2
+trajectory_profile = "one exact V2 source prefix followed by one V3 remesh and continuation"
+window_length = 1
+partition_samples = 1
+cpu_owned_f64 = true
+active_support_only = true
+ragged_blocks = true
+interpolation_or_padding = false
+dense_dynamic_batching = false
+random_or_cross_validation_split = false
+arbitrary_transforms = false
+framework_tensor_adapter = false
+training_or_model_registry = false
+gpu_or_distributed_loader = false
+production_scale = false
+
+[evidence]
+package = "eqiora"
+test = "remeshing_transfer_2d"
+features = ["faer"]

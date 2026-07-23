@@ -1,0 +1,15 @@
+connector Pin = scalar_physical(across = 1, through = 1);
+
+component Terminal {
+  public port p: conserving on Pin;
+  relation owner continuous { across(p) = 0; }
+}
+
+model Network {
+  instance a: Terminal;
+  instance b: Terminal;
+  instance c: Terminal;
+  instance d: Terminal;
+  connect conserving a.p, b.p;
+  connect conserving c.p, d.p;
+}

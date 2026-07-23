@@ -1,0 +1,47 @@
+id = "time.general-implicit-dae"
+status = "verified"
+scope = "canonical-time"
+reference_kind = "analytic"
+
+capabilities = [
+  "general-implicit-residual",
+  "state-dependent-derivative-jacobian",
+  "nonlinear-derivative-residual",
+  "differential-algebraic-partition",
+  "consistent-initialization",
+  "residual-jvp",
+  "implicit-euler-reference",
+  "temporal-convergence",
+  "algebraic-constraint",
+  "residual-native-run-provenance",
+]
+
+[problem]
+equation = "(1 + z) (x_dot + x) = 0; z - x^2 = 0"
+initial_guess = "x = 1, z = 0, x_dot = 0, z_dot = 0"
+exact_solution = "x(t) = exp(-t), z(t) = exp(-2t)"
+nonlinear_branch_check = "x_dot^2 - 1 = 0 with provided x_dot = +1"
+
+[convergence]
+norm = "terminal-state-l2"
+minimum_order = 0.9
+
+[constraint]
+quantity = "abs(z - x^2)"
+maximum_error = 1e-12
+
+[claim_boundary]
+dae_class = "fixture-known-semi-explicit-index-one"
+production_backend = false
+adaptive_time_integration = false
+structural_index_analysis = false
+automatic_branch_selection = false
+residual_run_provenance = true
+checkpoint_restart_lineage = false
+dae_sensitivity = false
+hybrid_dae_events = false
+
+[evidence]
+package = "eqiora"
+test = "canonical_implicit_dae"
+table = "expected/convergence.csv"

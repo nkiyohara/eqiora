@@ -1,0 +1,45 @@
+id = "time.canonical-first-order"
+status = "verified"
+scope = "canonical-relation-to-first-order-time-system"
+reference_kind = "analytic-ode-and-constant-mass-systems"
+
+capabilities = [
+  "canonical-relation-lowering",
+  "structural-derivative-classification",
+  "residual-permutation-scale-normalization",
+  "scalar-ir-jvp",
+  "canonical-parameter-jvp",
+  "diffsol-adaptive-execution",
+  "exact-binary-rational-rank",
+  "full-mass-matrix-lowering",
+  "rank-deficient-mass-matrix-lowering",
+  "parameter-independent-mass-forward-sensitivity",
+  "consistent-initialization",
+  "first-order-state-dependent-mass-rejection",
+  "verifiable-lowering-artifact",
+  "typed-time-run-provenance",
+]
+
+[problem]
+equations = "x' = -2x; z' = x"
+analytic = "x(t) = exp(-2t); z(t) = (1-exp(-2t))/2"
+source = "validated Semantic Kernel Relation"
+backend = "Diffsol 0.16.1 Tsitouras 5(4) and BDF"
+dae = "diag(1,0) mass matrix with x+z=1 constraint under BDF"
+dense_full = "M=[[1,1],[1,-1]] with x=exp(-t), y=exp(-2t)"
+dense_singular = "M=[[1,1],[1,1]] with x=y=exp(-t) and no zero row"
+sensitivity = "analytic rate derivatives for dense full and singular systems"
+
+[claim_boundary]
+explicit_ode = "full constant-monomial-derivative-jacobian"
+constant_mass_matrix = "exact-rank-over-represented-binary-rational-coefficients"
+rank_deficient_mass = "positive-rank-constant-matrix-with-or-without-zero-rows"
+dense_mass_matrix = "full-and-rank-deficient"
+state_dependent_mass_matrix = false
+parameter_dependent_mass_matrix = false
+general_implicit_dae = false
+
+[evidence]
+package = "eqiora"
+test = "canonical_time_execution"
+features = ["diffsol"]

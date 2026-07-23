@@ -1,0 +1,10 @@
+public component Leaf {
+  public parameter period: s;
+  public parameter offset: s = period;
+  relation invariant continuous { offset - period = 0; }
+}
+
+public component Wrapper {
+  public parameter period: s;
+  instance leaf: Leaf(period = period);
+}

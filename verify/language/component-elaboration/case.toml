@@ -1,0 +1,61 @@
+id = "language.component-elaboration"
+status = "verified"
+scope = "local-source-nested-scalar-physical-component-elaboration-host-serial"
+reference_kind = "canonical-identity-provenance-flat-normalization-and-analytic-dc"
+
+capabilities = [
+  "typed-local-component-definitions",
+  "deterministic-nested-instance-paths",
+  "typed-scalar-parameter-binding",
+  "lexical-component-parameter-forwarding",
+  "private-component-scope",
+  "nominal-connector-elaboration",
+  "canonical-flat-relation-network",
+  "explicit-flat-semantic-equivalence",
+  "immutable-elaboration-provenance",
+  "analytic-hierarchical-parallel-dc",
+]
+conformance_kits = ["hierarchical-conserving-connection-sets-v1"]
+
+[problem]
+model = "closed nested parallel DC network"
+source_voltage = 12.0
+parallel_resistances = [2.0, 4.0]
+component_depth = "root model -> ParallelDc -> leaf devices"
+high_junction_ports = 3
+ground_junction_ports = 4
+
+[canonical_contract]
+physical_domains = 1
+parameters = 3
+ports = 7
+relations = 4
+activations = 4
+connections = 2
+physical_unknowns = 14
+physical_residuals = 14
+
+[numerical_contract]
+relative_tolerance = 1e-12
+absolute_tolerance = 1e-14
+maximum_iterations = 100
+initial_guess = "all canonical scalar unknowns = 1 coherent-SI unit"
+maximum_value_error = 2e-11
+maximum_semantic_residual_norm = 1.2e-11
+
+[claim_boundary]
+source_scope = "one local compilation unit"
+scalar_type = "f64"
+placement = "one host process, one worker"
+static_affine = true
+package_resolution = false
+native_python_or_studio_hierarchy = false
+cross_boundary_connection_set_union = false
+inside_outside_or_root_boundary_semantics = false
+nonlinear_transient_or_hybrid = false
+mpi_or_gpu = false
+durable_provenance_wire = false
+
+[evidence]
+package = "eqiora"
+test = "component_hierarchy"

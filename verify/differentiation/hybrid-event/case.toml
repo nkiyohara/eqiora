@@ -1,0 +1,36 @@
+id = "differentiation.hybrid-event"
+status = "verified"
+scope = "localized-transversal-explicit-ode-event"
+reference_kind = "analytic-bouncing-ball-first-impact"
+
+capabilities = [
+  "canonical-guard-linearization",
+  "grouped-implicit-reset-linearization",
+  "event-time-forward-sensitivity",
+  "reset-state-and-parameter-jacobians",
+  "saltation-matrix",
+  "crossing-direction-admission",
+  "grazing-fail-closed",
+]
+
+[problem]
+flow = "h' = v; v' = -g"
+guard = "h = 0, falling"
+reset = "next(h) = 0; next(v) = -e pre(v)"
+parameters = "gravity g and restitution e"
+linearization = "analytic first impact from h(0)=1 and v(0)=0"
+
+[claim_boundary]
+flow_class = "explicit ODE with the same flow Relation before and after reset"
+event_group = "one structurally identical scalar guard and direction"
+reset_class = "constant full-monomial implicit Next Jacobian"
+localized_point = "supplied with explicit guard tolerance"
+dae = false
+mode_change = false
+distinct_simultaneous_guards = false
+grazing_generalization = false
+trajectory_adjoint = false
+
+[evidence]
+package = "eqiora-runtime"
+test = "canonical_hybrid_sensitivity"

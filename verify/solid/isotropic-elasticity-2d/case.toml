@@ -1,0 +1,93 @@
+id = "solid.isotropic-elasticity-2d"
+status = "verified"
+scope = "canonical-two-field-2d-isotropic-elasticity-to-host-serial-q1-csr-cg"
+reference_kind = "analytic-local-patch-manufactured-convergence-and-component-balance"
+
+capabilities = [
+  "canonical-two-field-isotropic-elasticity-lowering",
+  "two-dimensional-cartesian-q1-vector-elasticity",
+  "elasticity-local-rigid-shear-dilatation-and-cross-block",
+  "elasticity-affine-patch",
+  "elasticity-continuous-l2-h1-convergence",
+  "elasticity-componentwise-equilibrium",
+  "typed-elasticity-realization-and-run-lineage",
+  "legacy-finalizer-exact-operator-property-seal",
+]
+conformance_kits = ["canonical-tensor-structure-operators-v1"]
+
+[problem]
+equation = "-div(2 mu sym(grad(u)) + lambda I div(u)) - grad(q) = 0"
+domain = "(0 m, 1 m) x (0 m, 1 m)"
+fields = "u: [2] spatial displacement; q: invariant scalar load potential"
+load_definition = "q = q0 (sin(kx)^2 + sin(ky)^2 - 4 sin(kx)^2 sin(ky)^2)"
+boundary = "u = [0, 0] on the complete boundary"
+exact_solution = "u = -grad(q0 sin(kx)^2 sin(ky)^2 / (2 k^2 (lambda + 2 mu)))"
+
+[canonical_contract]
+spatial_dimension = 2
+model_wire = 4
+fields = 2
+volume_relations = 2
+homogeneous_boundary_relations = 4
+constant_lame_coefficients = true
+load_is_canonical_supported_potential = true
+method_in_model = false
+package_compilation = false
+
+[realization]
+method = "continuous-galerkin"
+mesh = "generated-cartesian"
+space = "continuous-q1"
+components = 2
+quadrature = "tensor-product-gauss-legendre-2-per-axis"
+assembly = "ordered-local-contribution-to-csr"
+scalar_type = "f64"
+vector_layout = "replicated"
+solver = "conjugate-gradient"
+placement = "one-host-process-one-worker"
+realization_wire = 1
+run_wire = 2
+
+[local_operator]
+cell_dofs = 8
+symmetric_stiffness = true
+rigid_translation_energy = "zero"
+infinitesimal_rotation_energy = "zero"
+pure_shear_energy = "2 mu on the unit square"
+uniform_dilatation_energy = "2 (mu + lambda) on the unit square"
+nonzero_cross_component_block = true
+
+[patch]
+mesh = "2 x 2 affine Cartesian cells"
+field = "exact affine displacement sampled at Q1 vertices"
+checks = "constant gradient and strain; zero interior residual; analytical boundary resultant"
+canonical_nonzero_vector_boundary_claim = false
+
+[convergence.displacement_l2]
+norm = "continuous-L2-Q1-vector"
+minimum_order = 1.9
+
+[convergence.displacement_h1_seminorm]
+norm = "continuous-H1-seminorm-Q1-vector"
+minimum_order = 0.9
+
+[equilibrium]
+quantity = "boundary-reaction-plus-integrated-grad-q-per-component"
+maximum_relative_error = 5e-11
+requires_nonzero_affine_potential_falsifier = true
+
+[claim_boundary]
+model_package = false
+public_physical_port_or_fsi = false
+plane_stress_or_plane_strain = false
+three_dimensional_execution = false
+traction_boundary = false
+nonzero_public_vector_boundary = false
+unstructured_or_adaptive_mesh = false
+mixed_or_high_order_space = false
+nonlinear_or_dynamic_elasticity = false
+durable_vector_or_stress_result = false
+
+[evidence]
+package = "eqiora"
+test = "isotropic_elasticity_2d"

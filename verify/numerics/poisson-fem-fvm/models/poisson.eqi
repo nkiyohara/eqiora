@@ -1,0 +1,20 @@
+model manufactured_poisson {
+  domain interval = box(0, 1);
+  domain lower_end = boundary(interval, axis = 0, side = lower);
+  domain upper_end = boundary(interval, axis = 0, side = upper);
+  representation scalar_space = continuum;
+
+  field potential on interval as scalar_space: 1 = 0;
+  parameter wave_number: 1 / m = 3.141592653589793;
+  parameter source_scale: 1 / m ^ 2 = 9.869604401089358;
+
+  relation balance continuous on interval {
+    -div(grad(potential)) - source_scale * sin(wave_number * coordinate(0)) = 0;
+  }
+  relation lower_value continuous on lower_end {
+    trace(potential) = 0;
+  }
+  relation upper_value continuous on upper_end {
+    trace(potential) = 0;
+  }
+}

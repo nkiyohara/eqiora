@@ -1,0 +1,16 @@
+[package]
+name = "eqiora-sem"
+description = "Eqiora L2: reference interpreter for the semantic kernel (the semantic oracle)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+eqiora-core = { workspace = true }
+eqiora-graph = { workspace = true }
+eqiora-schema = { workspace = true }
+
+[lints]
+workspace = true

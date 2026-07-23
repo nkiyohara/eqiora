@@ -1,0 +1,46 @@
+id = "solid.packaged-elastic-boundary-2d"
+status = "verified"
+scope = "exact-package-complete-exterior-displacement-traction-semantics"
+reference_kind = "canonical-package-model-identity-and-typed-boundary-relations"
+
+capabilities = [
+  "exact-packaged-quasistatic-mechanical-boundary",
+  "complete-exterior-isotropic-traction-family",
+  "package-neutral-flat-boundary-network",
+]
+
+[problem]
+dependency = "Eqiora.Solid.LinearElasticity@0.2.0"
+dependency_semantic_digest = "6a9bbf1cc1eef6816e4da6f7f537e7428548cafe934aacb472247ddbb18f8220"
+dependency_source_digest = "75312dc6b2909ed5cb99fa09e57701f5f7748a0b31cdada38d0a448c9ab1cd46"
+ambient_dimension = 2
+exterior_members = 4
+trace = "displacement: m, spatial vector"
+flux = "parent-outward traction: kg / (m s^2), spatial vector"
+pairing = "euclidean boundary duality interpreted as virtual work"
+
+[canonical_contract]
+package_wire = 1
+model_wire = 4
+generated_ports = 4
+generated_relations = 4
+generated_activations = 4
+component_owned_domains = 0
+component_owned_fields = 0
+root_owned_volume_domains = 1
+root_owned_boundary_domains = 4
+member_order_is_nonsemantic = true
+dependency_alias_spelling_is_nonsemantic = true
+
+[claim_boundary]
+continuum_boundary_semantics = true
+exact_cartesian_complete_exterior = true
+mesh_or_facet_space = false
+essential_elimination = false
+mixed_boundary_numerical_solve = false
+live_port_binding_realization = false
+fluid_structure_coupling = false
+
+[evidence]
+package = "eqiora"
+test = "packaged_elastic_boundary_2d"

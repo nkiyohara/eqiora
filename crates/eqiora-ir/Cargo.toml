@@ -1,0 +1,16 @@
+[package]
+name = "eqiora-ir"
+description = "Eqiora L2: backend-independent Semantic and scalar Operator IR"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+eqiora-core = { workspace = true }
+eqiora-schema = { workspace = true }
+sha2 = { workspace = true }
+
+[lints]
+workspace = true

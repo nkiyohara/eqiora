@@ -1,0 +1,38 @@
+id = "language.canonical-tensor-operators"
+status = "verified"
+scope = "canonical-volume-tensor-structure-operators-and-explicit-wire-v4"
+reference_kind = "typed-semantics-component-scalarization-and-artifact-roundtrip"
+
+capabilities = [
+  "square-spatial-cartesian-symmetric-part",
+  "supported-invariant-scalar-isotropic-lift",
+  "canonical-source-lowering-and-identity-parametric-semantic-typing",
+  "deterministic-pointwise-tensor-component-scalarization",
+  "explicit-model-and-transaction-wire-v4",
+  "legacy-wire-closure",
+]
+conformance_kits = ["canonical-tensor-structure-operators-v1"]
+
+[canonical_contract]
+symmetric_part_input = "exact spatial Cartesian [d,d] tensor on a Cartesian volume"
+symmetric_part_output = "same dimension, shape, frame, and support"
+isotropic_lift_input = "invariant scalar on a Cartesian volume"
+isotropic_lift_output = "same dimension and support; spatial Cartesian [d,d]"
+model_wire = "eqiora.model-envelope/v4"
+transaction_wire = "eqiora.model-transaction-envelope/v4"
+legacy_wire_v3_closed = true
+
+[claim_boundary]
+canonical_source_lowering = true
+identity_parametric_semantic_typing = true
+pointwise_component_scalarization = true
+model_and_transaction_v4_roundtrip = true
+elasticity_specific_kernel_node = false
+elasticity_package_or_material_library = false
+spatial_discretization_or_assembly = false
+numerical_execution_or_convergence = false
+solid_results_or_fsi = false
+
+[evidence]
+package = "eqiora"
+test = "canonical_tensor_operators"

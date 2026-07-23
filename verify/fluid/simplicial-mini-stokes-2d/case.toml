@@ -1,0 +1,130 @@
+id = "fluid.simplicial-mini-stokes-2d"
+status = "verified"
+scope = "nondimensional-connected-affine-triangle-mini-stokes-reference-minres"
+reference_kind = "analytic-manufactured-convergence-gauge-and-balance"
+
+capabilities = [
+  "two-dimensional-affine-triangle-stokes-numerical-realization",
+  "continuous-mini-p1-bubble-velocity-p1-pressure",
+  "positive-degree-four-assembly-and-degree-six-error-duffy-quadrature",
+  "global-mean-pressure-gauge",
+  "ordered-reduced-and-full-mixed-assembly",
+  "bit-identical-serial-and-ordered-rayon-assembly",
+  "symmetric-indefinite-reference-minres",
+  "mixed-field-convergence-and-equilibrium",
+]
+
+[problem]
+equation = "-div(2 mu sym(grad(u)) - p I) = f; div(u) = 0"
+domain = "unitless (0, 1) x (0, 1)"
+viscosity = 1.0
+body_force = "[-1, 0]"
+essential_boundary = "u = (x^2, -2 x y) on the complete boundary"
+exact_velocity = "u = (x^2, -2 x y)"
+exact_pressure = "p = x - 1/2"
+pressure_normalization = "integral p = 0"
+
+[semantic_boundary]
+canonical_model = false
+model_package = false
+numerical_callbacks_only = true
+physical_units = false
+
+[mesh]
+family = "uniform unit-square affine triangles"
+connected_components = 1
+refinements = [2, 4, 8]
+quality_gate = 0.5
+
+[spaces]
+velocity = "continuous vector (P1 + one normalized cell bubble)^2"
+pressure = "continuous scalar P1"
+bubble = "27 lambda_0 lambda_1 lambda_2"
+velocity_trace = "continuous vector P1"
+pressure_nullspace = "one global constant mode"
+
+[quadrature]
+assembly_rule = "positive Duffy transform of three-point Gauss-Legendre per square axis"
+assembly_triangle_total_degree_exactness = 4
+assembly_strict_minimum_exactness = 4
+error_norm_rule = "independent positive Duffy transform of four-point Gauss-Legendre per square axis"
+error_norm_triangle_total_degree_exactness = 6
+
+[assembly]
+local_unknowns = "8 velocity + 3 pressure + 1 global-gauge occurrence"
+target_0 = "reduced solve system with complete-boundary P1 velocity eliminated"
+target_1 = "uneliminated full system for constrained velocity reaction"
+ordering = "existing ordered local-contribution assembly"
+matrix_property = "symmetric-indefinite"
+
+[solve]
+backend = "eqiora.reference"
+algorithm = "minimum-residual"
+preconditioner = "identity"
+reduction = "reproducible"
+scalar_type = "f64"
+relative_tolerance = 1e-11
+absolute_tolerance = 1e-13
+maximum_iterations = 10000
+requires_independent_true_residual = true
+
+[convergence.velocity_l2]
+minimum_order = 1.75
+
+[convergence.velocity_h1_seminorm]
+minimum_order = 0.85
+
+[convergence.pressure_l2]
+minimum_order = 0.85
+
+[convergence.discrete_divergence_l2]
+minimum_order = 0.85
+
+[gauge]
+maximum_absolute_pressure_mean = 2e-10
+maximum_absolute_multiplier = 2e-10
+
+[equilibrium]
+quantity = "constrained-boundary-reaction-plus-integrated-body-force-per-component"
+maximum_absolute_error = 2e-9
+
+[structure]
+reduced_csr_is_exactly_symmetric = true
+complete_boundary_flux_checked_before_assembly = true
+single_gauge_requires_connected_mesh = true
+weak_continuity_residual_checked_separately = true
+serial_and_four_worker_assembly_are_bit_identical = true
+
+[falsifiers]
+incompatible_prescribed_p1_boundary_flux = "reject-before-assembly"
+disconnected_mesh_with_single_gauge = "reject-before-assembly"
+triangle_quadrature_below_degree_four = "reject-before-assembly"
+nonpositive_viscosity = "reject"
+nonfinite_body_force = "reject"
+nonfinite_essential_velocity = "reject"
+conjugate_gradient_for_symmetric_indefinite_operator = "reject-exact-solver-capability"
+minimum_residual_with_jacobi = "reject-exact-solver-capability"
+non_2d_simplex_mesh = "reject-realization-boundary"
+
+[claim_boundary]
+nondimensional_only = true
+intrinsic_dimension = 2
+affine_triangles_only = true
+complete_essential_velocity_only = true
+single_connected_fluid_domain = true
+canonical_stokes = false
+fluid_model_package = false
+physical_fluid_port_or_fsi = false
+natural_or_open_boundary = false
+navier_stokes_or_transient_flow = false
+general_mixed_space_selection = false
+nonreference_solver_backend = false
+faer_minres = false
+block_preconditioner = false
+distributed_or_device_execution = false
+parallel_linear_solve = false
+durable_minres_artifact_v1 = false
+
+[evidence]
+package = "eqiora"
+test = "simplicial_mini_stokes_2d"

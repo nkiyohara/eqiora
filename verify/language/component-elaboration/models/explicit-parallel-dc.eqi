@@ -1,0 +1,41 @@
+model explicit_parallel_dc {
+  domain electrical = scalar_physical(
+    across = kg * m ^ 2 / (s ^ 3 * A),
+    through = A
+  );
+
+  parameter supply_voltage: kg * m ^ 2 / (s ^ 3 * A) = 12;
+  parameter resistance_two: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 2;
+  parameter resistance_four: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 4;
+
+  port source_positive: conserving on electrical;
+  port source_negative: conserving on electrical;
+  port resistor_two_positive: conserving on electrical;
+  port resistor_two_negative: conserving on electrical;
+  port resistor_four_positive: conserving on electrical;
+  port resistor_four_negative: conserving on electrical;
+  port ground_terminal: conserving on electrical;
+
+  relation voltage_source continuous {
+    across(source_positive) - across(source_negative) - supply_voltage = 0;
+    through(source_positive) + through(source_negative) = 0;
+  }
+  relation two_ohm_resistor continuous {
+    across(resistor_two_positive)
+      - across(resistor_two_negative)
+      - resistance_two * through(resistor_two_positive) = 0;
+    through(resistor_two_positive) + through(resistor_two_negative) = 0;
+  }
+  relation four_ohm_resistor continuous {
+    across(resistor_four_positive)
+      - across(resistor_four_negative)
+      - resistance_four * through(resistor_four_positive) = 0;
+    through(resistor_four_positive) + through(resistor_four_negative) = 0;
+  }
+  relation explicit_ground continuous {
+    across(ground_terminal) = 0;
+  }
+
+  connect conserving source_positive, resistor_two_positive, resistor_four_positive;
+  connect conserving source_negative, resistor_two_negative, resistor_four_negative, ground_terminal;
+}

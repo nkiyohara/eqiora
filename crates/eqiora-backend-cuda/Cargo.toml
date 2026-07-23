@@ -1,0 +1,31 @@
+[package]
+name = "eqiora-backend-cuda"
+description = "Eqiora L3: isolated CUDA device, sparse-action, and linear-solver adapter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+cuda-runtime = ["dep:cudarc", "dep:libloading"]
+
+[dependencies]
+eqiora-assembly = { workspace = true }
+eqiora-core = { workspace = true }
+eqiora-device = { workspace = true }
+eqiora-execution = { workspace = true }
+eqiora-solver = { workspace = true }
+cudarc = { workspace = true, optional = true }
+libloading = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true
+
+[[example]]
+name = "cuda_csr_transfer_threshold"
+required-features = ["cuda-runtime"]

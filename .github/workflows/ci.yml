@@ -1,0 +1,279 @@
+name: CI
+
+run-name: CI / ${{ github.event_name }} / ${{ github.event.pull_request.head.sha || inputs.commit }}
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full 40-character commit SHA to verify
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || inputs.commit }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_WARNINGS: deny
+
+jobs:
+  changes:
+    name: Change ownership
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      target_sha: ${{ steps.classify.outputs.target_sha }}
+      full: ${{ steps.classify.outputs.full }}
+      rust: ${{ steps.classify.outputs.rust }}
+      msrv: ${{ steps.classify.outputs.msrv }}
+      python: ${{ steps.classify.outputs.python }}
+      studio: ${{ steps.classify.outputs.studio }}
+      dependency_policy: ${{ steps.classify.outputs.dependency_policy }}
+      cubecl_experiment: ${{ steps.classify.outputs.cubecl_experiment }}
+      python_versions: ${{ steps.classify.outputs.python_versions }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || inputs.commit }}
+          persist-credentials: false
+      - name: Test CI ownership and aggregate contracts
+        run: python3 -m unittest discover -s tools/ci/tests -v
+      - name: Classify exact change surface
+        id: classify
+        env:
+          CI_EVENT_NAME: ${{ github.event_name }}
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_REQUESTED_COMMIT: ${{ inputs.commit }}
+        run: |
+          python3 tools/ci/classify_changes.py \
+            --event "$CI_EVENT_NAME" \
+            --base "$CI_BASE_SHA" \
+            --head "$CI_HEAD_SHA" \
+            --requested-commit "$CI_REQUESTED_COMMIT" >> "$GITHUB_OUTPUT"
+
+  documentation:
+    name: Documentation contract
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.changes.outputs.target_sha }}
+          persist-credentials: false
+      - name: Check local links and required entry points
+        run: |
+          python3 tools/ci/check_docs.py .
+          python3 tools/ci/check_public_release_tree.py .
+
+  quality:
+    name: Stable quality gate
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.changes.outputs.target_sha }}
+          persist-credentials: false
+      - name: Install MPI build and runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes libopenmpi-dev openmpi-bin libclang-dev libffi-dev
+          mpirun --version
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+      - name: Formatting
+        run: cargo +stable fmt --all -- --check
+      - name: Clippy
+        run: cargo +stable clippy --workspace --all-targets --all-features --keep-going -- -D warnings
+      - name: Tests
+        run: cargo +stable test --workspace --all-targets --locked
+      - name: Full feature tests
+        if: needs.changes.outputs.full == 'true'
+        run: cargo +stable test --workspace --all-targets --all-features --locked
+      - name: Verification evidence
+        run: cargo +stable run --locked -p eqiora-verify -- verify
+      - name: Dependency layers
+        run: cargo +stable xtask check-layers
+      - name: Public facade
+        run: cargo +stable xtask check-facade
+      - name: Documentation
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo +stable doc --workspace --no-deps --locked
+
+  msrv:
+    name: MSRV 1.89
+    needs: changes
+    if: needs.changes.outputs.msrv == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.changes.outputs.target_sha }}
+          persist-credentials: false
+      - name: Install optional-adapter build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes libopenmpi-dev openmpi-bin libclang-dev libffi-dev
+      - name: Install MSRV
+        run: rustup toolchain install 1.89.0 --profile minimal
+      - name: Check every production feature and target
+        run: cargo +1.89.0 check --workspace --all-targets --all-features --locked
+
+  dependency_policy:
+    name: Dependency policy
+    needs: changes
+    if: needs.changes.outputs.dependency_policy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.changes.outputs.target_sha }}
+          persist-credentials: false
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          command: check
+
+  cubecl_experiment:
+    name: Isolated CubeCL contract experiment
+    needs: changes
+    if: needs.changes.outputs.cubecl_experiment == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.changes.outputs.target_sha }}
+          persist-credentials: false
+      - name: Install latest stable Rust
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+      - name: Formatting
+        run: cargo +stable fmt --manifest-path experiments/cubecl-local-action/Cargo.toml -- --check
+      - name: Clippy
+        run: cargo +stable clippy --manifest-path experiments/cubecl-local-action/Cargo.toml --locked --all-targets -- -D warnings
+      - name: Device-independent contract tests
+        run: cargo +stable test --manifest-path experiments/cubecl-local-action/Cargo.toml --locked
+
+  python_wheel:
+    name: Python ${{ matrix.python }} installed wheel
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ${{ fromJSON(needs.changes.outputs.python_versions) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.changes.outputs.target_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Test installed wheel
+        run: python tools/ci/python_package_gate.py
+
+  studio:
+    name: Studio projection and native boundary
+    needs: changes
+    if: needs.changes.outputs.studio == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.changes.outputs.target_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.18.0
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Install native WebView dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+      - name: Install stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy
+          rustup toolchain install 1.89.0 --profile minimal
+      - name: Install locked frontend dependencies
+        working-directory: studio
+        run: npm ci
+      - name: Frontend quality and unit tests
+        working-directory: studio
+        run: |
+          npm run check
+          npm test
+          npm run build
+      - name: Accessible interaction tests
+        working-directory: studio
+        run: npm run test:e2e
+      - name: Native adapter formatting
+        run: cargo +stable fmt --manifest-path studio/src-tauri/Cargo.toml -- --check
+      - name: Native adapter MSRV
+        run: cargo +1.89.0 check --manifest-path studio/src-tauri/Cargo.toml --locked --all-targets
+      - name: Native adapter Clippy
+        run: cargo +stable clippy --manifest-path studio/src-tauri/Cargo.toml --locked --all-targets -- -D warnings
+      - name: Native adapter tests
+        run: cargo +stable test --manifest-path studio/src-tauri/Cargo.toml --locked
+      - name: Production shell build
+        working-directory: studio
+        run: npm run tauri build -- --no-bundle
+
+  gate:
+    name: CI gate
+    if: always()
+    needs:
+      - changes
+      - documentation
+      - quality
+      - msrv
+      - dependency_policy
+      - cubecl_experiment
+      - python_wheel
+      - studio
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.changes.outputs.target_sha || github.sha }}
+          persist-credentials: false
+      - name: Require every relevant result
+        env:
+          CI_RELEVANCE: >-
+            {"rust":"${{ needs.changes.outputs.rust }}",
+             "msrv":"${{ needs.changes.outputs.msrv }}",
+             "python":"${{ needs.changes.outputs.python }}",
+             "studio":"${{ needs.changes.outputs.studio }}",
+             "dependency_policy":"${{ needs.changes.outputs.dependency_policy }}",
+             "cubecl_experiment":"${{ needs.changes.outputs.cubecl_experiment }}"}
+          CI_RESULTS: >-
+            {"changes":"${{ needs.changes.result }}",
+             "documentation":"${{ needs.documentation.result }}",
+             "quality":"${{ needs.quality.result }}",
+             "msrv":"${{ needs.msrv.result }}",
+             "dependency_policy":"${{ needs.dependency_policy.result }}",
+             "cubecl_experiment":"${{ needs.cubecl_experiment.result }}",
+             "python_wheel":"${{ needs.python_wheel.result }}",
+             "studio":"${{ needs.studio.result }}"}
+        run: python3 tools/ci/check_gate.py

@@ -1,0 +1,30 @@
+[package]
+name = "eqiora-backend-mpi"
+description = "Eqiora L3: MPI transport adapter for distributed algebra contracts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+mpi-runtime = [
+    "dep:eqiora-assembly",
+    "dep:eqiora-spatial-distribution",
+    "dep:mpi",
+]
+mpi-test-hooks = ["mpi-runtime"]
+
+[dependencies]
+eqiora-assembly = { workspace = true, optional = true }
+eqiora-core = { workspace = true }
+eqiora-distributed = { workspace = true }
+eqiora-execution = { workspace = true }
+eqiora-solver = { workspace = true }
+eqiora-spatial-distribution = { workspace = true, optional = true }
+mpi = { workspace = true, optional = true }
+sha2 = { workspace = true }
+
+[lints]
+workspace = true

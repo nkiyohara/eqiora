@@ -1,0 +1,65 @@
+id = "language.hierarchical-connection-sets"
+status = "verified"
+scope = "local-source-hierarchical-scalar-physical-connection-set-normalization"
+reference_kind = "canonical-artifact-equivalence-exposure-elimination-and-source-falsifiers"
+
+capabilities = [
+  "definition-local-conserving-fragment-equivalence",
+  "direct-flat-scalar-physical-fragment-normalization",
+  "two-level-explicit-forwarding-connection-set-union",
+  "independent-occurrence-partitions-and-explicit-join",
+  "declaration-fragment-and-member-order-invariance",
+  "duplicate-fragment-idempotence-with-complete-origins",
+  "ownerless-public-port-elimination-without-entity-alias",
+  "ownerless-public-exposure-occurrence-cut-projection",
+  "sibling-exposure-fragment-cut-separation",
+  "relation-owned-public-port-retention",
+  "multi-origin-canonical-connection-provenance",
+  "topology-identity-and-provenance-resource-limits",
+  "nominal-physical-and-directed-signal-separation",
+  "physical-owner-and-membership-fail-closed-admission",
+]
+conformance_kits = ["hierarchical-conserving-connection-sets-v1"]
+
+[canonical_contract]
+nary_and_chain_model_identity_equal = true
+nary_and_chain_transaction_equal = true
+nary_and_chain_model_v2_bytes_equal = true
+nary_and_chain_model_digest_equal = true
+chain_connection_origins = 2
+wrapper_canonical_connections = 1
+wrapper_retained_ports = 2
+wrapper_eliminated_exposures = 1
+flat_nary_connections = 1
+flat_chain_connections = 1
+nary_permutation_compilations = 36
+chain_permutation_compilations = 48
+two_level_forwarding_origins = 3
+two_level_forwarding_eliminated_exposures = 2
+two_level_forwarding_distinct_projections = 2
+wrapper_projection_interior_ports = 1
+sibling_exposure_distinct_cuts = 2
+disjoint_occurrence_connection_sets = 2
+explicitly_joined_occurrence_connection_sets = 1
+duplicate_fragment_origins = 2
+relation_owned_public_port_retained = true
+
+[claim_boundary]
+source_scope = "one local compilation unit"
+port_family = "nominal scalar physical"
+hierarchy_depth = "root Model -> Outer -> Inner -> Leaf"
+cross_definition_occurrence_union = "two explicit public forwarding levels joined by the root Model"
+ownerless_public_exposure_is_kernel_entity = false
+ownerless_public_exposure_is_entity_alias = false
+compiler_exposure_cut_projection = true
+artifact_sealed_exposure_observation = false
+field_valued_interfaces = false
+inside_outside_or_orientation_semantics = false
+package_resolution = false
+nonlinear_transient_or_hybrid = false
+execution_or_solvability = false
+mpi_or_gpu = false
+
+[evidence]
+package = "eqiora"
+test = "hierarchical_connection_sets"
