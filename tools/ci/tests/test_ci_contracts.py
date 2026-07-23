@@ -75,7 +75,12 @@ class HostedTriggerTests(unittest.TestCase):
             "5fda3b95a4ea91299a34e894583c3862153e4b97"
         )
 
-        self.assertNotIn(action, quality)
+        self.assertIn(action, quality)
+        self.assertIn('python-version: "3.12"', quality)
+        self.assertIn('["tested-numpy-floor"]', quality)
+        self.assertIn("python -m pip install --only-binary=:all:", quality)
+        self.assertNotIn('["uv"]', quality)
+        self.assertNotIn("uv --version", quality)
         self.assertNotIn("eqiora-verify -- run --environment host-cpu", quality)
         self.assertIn("name: Host-CPU verification evidence", evidence)
         self.assertIn("runs-on: ubuntu-latest", evidence)
