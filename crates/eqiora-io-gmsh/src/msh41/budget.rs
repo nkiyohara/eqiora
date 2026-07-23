@@ -4,13 +4,14 @@ use eqiora_core::Diagnostic;
 
 use super::{GmshImportLimits, invalid_import};
 
-// These charges bound simultaneous adapter preflight, worst-case sparse
-// `mshio` materialization, canonical reconstruction, and the upper closure
-// expansion of `SimplicialMesh`. They intentionally use machine words rather
-// than dependency-private allocator layouts. Hash entries are charged at four
-// words and topology entries at thirty-two words, covering keys, duplicated
-// closure vectors, tree bookkeeping, boundary state, and construction
-// temporaries for the admitted two- and three-dimensional simplex families.
+// These charges bound simultaneous structural indexes, owned coordinate and
+// connectivity decoding, tag lookup, canonical reconstruction, and the upper
+// closure expansion of `SimplicialMesh`. They intentionally remain
+// conservative across the ASCII and binary decoder layouts. Hash entries are
+// charged at four words and topology entries at thirty-two words, covering
+// keys, duplicated closure vectors, tree bookkeeping, boundary state, and
+// construction temporaries for the admitted two- and three-dimensional
+// simplex families.
 const WORD: usize = size_of::<usize>();
 const VECTOR_HEADER_BYTES: usize = 3 * WORD;
 const HASH_ENTRY_BYTES: usize = 4 * WORD;
@@ -22,7 +23,7 @@ const TOPOLOGY_ENTITY_BYTES: usize = 32 * WORD;
 const ASCII_LINE_INDEX_BYTES: usize = 6 * WORD;
 const ASCII_SECTION_INDEX_BYTES: usize = 4 * 5 * WORD;
 
-/// Aggregate resource account consumed before the isolated parser runs.
+/// Aggregate resource account consumed by the owned bounded decoder.
 pub(super) struct DecodedBudget {
     remaining_bytes: usize,
     remaining_work: usize,
@@ -62,8 +63,9 @@ impl DecodedBudget {
     }
 
     pub(super) fn charge_entity_references(&mut self, count: usize) -> Result<(), Diagnostic> {
-        // The parser retains i32 references; one word also covers vector
-        // capacity rounding and the second decode pass.
+        // One word per reference conservatively covers validation scratch and
+        // capacity rounding even though admitted entity references are not
+        // retained in the canonical mesh.
         self.charge_product(count, WORD, 3, "$Entities boundary references")
     }
 

@@ -1,6 +1,6 @@
 [package]
 name = "eqiora-studio"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 description = "Accessible native projection of canonical Eqiora models"
 authors = ["Eqiora contributors"]
 edition = "2024"
@@ -16,7 +16,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
-eqiora = { path = "../../crates/eqiora", default-features = false, features = ["cad-truck", "threaded"] }
+eqiora = { version = "=0.1.0-alpha.1", path = "../../crates/eqiora", default-features = false, features = ["cad-truck", "threaded"] }
 serde = { version = "1.0.228", features = ["derive"] }
 tauri = { version = "=2.11.5", features = [] }
 

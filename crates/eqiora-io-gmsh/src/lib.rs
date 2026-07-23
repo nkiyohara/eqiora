@@ -5,8 +5,8 @@
 //! success never bypasses the topology, geometry, orientation, or quality
 //! invariants used by numerical assembly. Caller-owned semantic and aggregate
 //! decoded-resource limits, remaining-byte lower bounds, and fallible
-//! declaration-sized reservations close the decoder boundary before dependency
-//! parsing.
+//! declaration-sized reservations close every declaration-controlled path in
+//! the owned decoder.
 
 mod msh41;
 

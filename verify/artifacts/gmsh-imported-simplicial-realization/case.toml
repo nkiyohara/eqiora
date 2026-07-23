@@ -4,8 +4,8 @@ scope = "bounded-gmsh-4.1-to-content-addressed-affine-simplex-realization"
 reference_kind = "official-generator-ascii-binary-equivalence-exact-digest-and-single-dof-solution"
 
 capabilities = [
-  "bounded-ascii-gmsh-4-1-preflight",
-  "bounded-binary-gmsh-4-1-preflight",
+  "bounded-ascii-gmsh-4-1-decoder",
+  "bounded-binary-gmsh-4-1-decoder",
   "public-facade-feature-wiring",
   "decoded-work-and-fallible-memory-budget",
   "aggregate-decoded-byte-work-and-ignored-element-bounds",
@@ -15,7 +15,7 @@ capabilities = [
   "portable-endian-and-size-t-decoding",
   "official-and-four-representation-truncation-closure",
   "ascii-binary-canonical-mesh-equivalence",
-  "isolated-pinned-mshio-adapter",
+  "owned-bounded-msh41-decoder",
   "sparse-tag-and-multiblock-reconstruction",
   "shared-simplicial-topology-geometry-and-quality-validation",
   "canonical-mesh-bytes-and-domain-separated-digest",

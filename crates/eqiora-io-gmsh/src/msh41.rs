@@ -1,11 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
-use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
-use mshio::mshfile::ElementType;
 
 mod binary;
 mod budget;
@@ -14,15 +12,15 @@ use budget::DecodedBudget;
 
 const MSH_VERSION: &str = "4.1";
 
-/// Decoded-work and input-size policy applied before the third-party parser.
+/// Decoded-work and input-size policy applied by the owned bounded decoder.
 ///
 /// Every declared loop is charged to one of these semantic count budgets.
 /// Binary counts must also fit the minimum records encodable in the remaining
 /// input. Aggregate decoded-byte and work budgets conservatively cover
-/// preflight state, worst-case sparse parser materialization, canonical output,
-/// and simplex topology closure; declaration-sized importer storage also uses
-/// fallible reservation. The byte budget is a deterministic logical account,
-/// not a promise of exact allocator RSS.
+/// structural indexes, decoded coordinates and connectivity, lookup state,
+/// canonical output, and simplex topology closure; declaration-sized importer
+/// storage also uses fallible reservation. The byte budget is a deterministic
+/// logical account, not a promise of exact allocator RSS.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GmshImportLimits {
     /// Maximum complete input size.
@@ -41,7 +39,7 @@ pub struct GmshImportLimits {
     pub max_elements: usize,
     /// Maximum lower-dimensional elements decoded but omitted from canonical cells.
     pub max_ignored_elements: usize,
-    /// Maximum aggregate logical bytes for preflight, parser, and canonical mesh state.
+    /// Maximum aggregate logical bytes for decoder and canonical mesh state.
     pub max_decoded_bytes: usize,
     /// Maximum aggregate decode, lookup, and topology-construction work units.
     pub max_decoded_work: usize,
@@ -128,7 +126,7 @@ impl GmshSimplexImporter {
         self.dimension
     }
 
-    /// Resource policy applied before dependency parsing.
+    /// Resource policy applied throughout bounded decoding.
     #[must_use]
     pub const fn limits(self) -> GmshImportLimits {
         self.limits
@@ -148,11 +146,11 @@ impl GmshSimplexImporter {
         }
         let encoding = declared_encoding(bytes)?;
         let mut decoded_budget = DecodedBudget::new(self.limits);
-        let preflight = match encoding {
+        let decoded = match encoding {
             InputEncoding::Ascii => {
                 let text = std::str::from_utf8(bytes)
                     .map_err(|_| invalid_import("ASCII MSH 4.1 input must be valid UTF-8"))?;
-                Preflight::parse(text, self.dimension, self.limits, &mut decoded_budget)?
+                DecodedMesh::parse_ascii(text, self.dimension, self.limits, &mut decoded_budget)?
             }
             InputEncoding::Binary { size_t_size } => binary::parse(
                 bytes,
@@ -162,154 +160,12 @@ impl GmshSimplexImporter {
                 &mut decoded_budget,
             )?,
         };
-
-        let parsed = catch_unwind(AssertUnwindSafe(|| mshio::parse_msh_bytes(bytes)))
-            .map_err(|_| invalid_import("the isolated MSH parser panicked on malformed input"))?
-            .map_err(|_| invalid_import("the isolated MSH parser rejected the input syntax"))?;
-        if parsed.header.version != 4.1
-            || parsed.header.file_type != encoding.file_type()
-            || parsed.header.size_t_size != encoding.size_t_size()
-            || parsed.header.int_size != 4
-            || parsed.header.float_size != 8
-            || parsed.header.endianness.is_some() != encoding.is_binary()
-        {
-            return Err(invalid_import(
-                "the parsed MSH header differs from the bounded format preflight",
-            ));
-        }
-
-        let nodes = parsed
-            .data
-            .nodes
-            .ok_or_else(|| invalid_import("MSH input has no parsed node section"))?;
-        if nodes.node_blocks.len() != preflight.node_blocks.len()
-            || nodes.num_nodes != preflight.total_nodes as u64
-        {
-            return Err(invalid_import(
-                "parsed node structure differs from the bounded preflight",
-            ));
-        }
-
-        let mut vertices = fallible_vec(preflight.total_nodes, "decoded vertex storage")?;
-        let mut node_tags = fallible_vec(preflight.total_nodes, "decoded node-tag storage")?;
-        for (parsed_block, checked_block) in nodes.node_blocks.iter().zip(&preflight.node_blocks) {
-            if parsed_block.entity_dim != checked_block.entity_dim
-                || parsed_block.entity_tag != checked_block.entity_tag
-                || parsed_block.parametric
-                || parsed_block.nodes.len() != checked_block.tags.len()
-            {
-                return Err(invalid_import(
-                    "parsed node block differs from the bounded preflight",
-                ));
-            }
-            for (node, &tag) in parsed_block.nodes.iter().zip(&checked_block.tags) {
-                let coordinate = match self.dimension {
-                    2 if node.z == 0.0 => {
-                        fallible_vec_from_slice(&[node.x, node.y], "decoded vertex coordinate")?
-                    }
-                    2 => {
-                        return Err(invalid_import(
-                            "two-dimensional import requires every node in the XY plane",
-                        ));
-                    }
-                    3 => fallible_vec_from_slice(
-                        &[node.x, node.y, node.z],
-                        "decoded vertex coordinate",
-                    )?,
-                    _ => unreachable!("constructor validates importer dimension"),
-                };
-                if coordinate.iter().any(|value| !value.is_finite()) {
-                    return Err(invalid_import("MSH node coordinates must be finite"));
-                }
-                node_tags.push(tag);
-                vertices.push(coordinate);
-            }
-        }
-
-        let mut tag_to_vertex = fallible_map(node_tags.len(), "decoded node lookup")?;
-        for (index, &tag) in node_tags.iter().enumerate() {
-            tag_to_vertex.insert(tag, index);
-        }
-        if tag_to_vertex.len() != node_tags.len() {
-            return Err(invalid_import("MSH node tags must be unique"));
-        }
-
-        let elements = parsed
-            .data
-            .elements
-            .ok_or_else(|| invalid_import("MSH input has no parsed element section"))?;
-        if elements.element_blocks.len() != preflight.element_blocks.len()
-            || elements.num_elements != preflight.total_elements as u64
-        {
-            return Err(invalid_import(
-                "parsed element structure differs from the bounded preflight",
-            ));
-        }
-
-        let expected_type = match self.dimension {
-            2 => ElementType::Tri3,
-            3 => ElementType::Tet4,
-            _ => unreachable!("constructor validates importer dimension"),
-        };
-        let mut cells = fallible_vec(preflight.top_dimensional_elements, "decoded cell storage")?;
-        for (parsed_block, checked_block) in elements
-            .element_blocks
-            .iter()
-            .zip(&preflight.element_blocks)
-        {
-            if parsed_block.entity_dim != checked_block.entity_dim
-                || parsed_block.entity_tag != checked_block.entity_tag
-                || parsed_block.element_type as u32 != checked_block.element_type
-                || parsed_block.elements.len() != checked_block.element_tags.len()
-            {
-                return Err(invalid_import(
-                    "parsed element block differs from the bounded preflight",
-                ));
-            }
-            for (element, &checked_tag) in parsed_block
-                .elements
-                .iter()
-                .zip(&checked_block.element_tags)
-            {
-                if element.element_tag != checked_tag {
-                    return Err(invalid_import(
-                        "parsed element tags differ from the bounded preflight",
-                    ));
-                }
-            }
-            if parsed_block.entity_dim < self.dimension as i32 {
-                continue;
-            }
-            if parsed_block.entity_dim != self.dimension as i32
-                || parsed_block.element_type != expected_type
-            {
-                return Err(invalid_import(
-                    "MSH top-dimensional cells must be linear simplices of the requested dimension",
-                ));
-            }
-            for element in &parsed_block.elements {
-                let mut cell =
-                    fallible_vec(element.nodes.len(), "decoded simplex-connectivity storage")?;
-                for tag in &element.nodes {
-                    cell.push(tag_to_vertex.get(tag).copied().ok_or_else(|| {
-                        invalid_import("MSH element references an unknown node tag")
-                    })?);
-                }
-                cells.push(cell);
-            }
-        }
-        if cells.is_empty() {
-            return Err(invalid_import(
-                "MSH input contains no admitted top-dimensional simplex cells",
-            ));
-        }
-        if cells.len() != preflight.top_dimensional_elements {
-            return Err(invalid_import(
-                "parsed top-dimensional cell count differs from the bounded preflight",
-            ));
-        }
-
-        SimplicialMesh::new(self.dimension, vertices, cells, self.quality_gate)
+        SimplicialMesh::new(
+            self.dimension,
+            decoded.vertices,
+            decoded.cells,
+            self.quality_gate,
+        )
     }
 }
 
@@ -317,26 +173,6 @@ impl GmshSimplexImporter {
 enum InputEncoding {
     Ascii,
     Binary { size_t_size: usize },
-}
-
-impl InputEncoding {
-    const fn file_type(self) -> i32 {
-        match self {
-            Self::Ascii => 0,
-            Self::Binary { .. } => 1,
-        }
-    }
-
-    const fn size_t_size(self) -> usize {
-        match self {
-            Self::Ascii => 8,
-            Self::Binary { size_t_size } => size_t_size,
-        }
-    }
-
-    const fn is_binary(self) -> bool {
-        matches!(self, Self::Binary { .. })
-    }
 }
 
 fn declared_encoding(bytes: &[u8]) -> Result<InputEncoding, Diagnostic> {
@@ -382,31 +218,19 @@ fn strip_carriage_return(line: &[u8]) -> &[u8] {
 }
 
 #[derive(Debug)]
-struct Preflight {
-    node_blocks: Vec<NodeBlock>,
-    element_blocks: Vec<ElementBlock>,
-    total_nodes: usize,
-    total_elements: usize,
-    top_dimensional_elements: usize,
+struct DecodedMesh {
+    vertices: Vec<Vec<f64>>,
+    cells: Vec<Vec<usize>>,
 }
 
 #[derive(Debug)]
-struct NodeBlock {
-    entity_dim: i32,
-    entity_tag: i32,
-    tags: Vec<u64>,
+struct DecodedNodes {
+    vertices: Vec<Vec<f64>>,
+    vertex_by_tag: HashMap<u64, usize>,
 }
 
-#[derive(Debug)]
-struct ElementBlock {
-    entity_dim: i32,
-    entity_tag: i32,
-    element_type: u32,
-    element_tags: Vec<u64>,
-}
-
-impl Preflight {
-    fn parse(
+impl DecodedMesh {
+    fn parse_ascii(
         text: &str,
         dimension: usize,
         limits: GmshImportLimits,
@@ -418,16 +242,17 @@ impl Preflight {
         if let Some(entities) = sections.optional("Entities")? {
             parse_entities(entities, dimension, limits, budget)?;
         }
-        let (node_blocks, total_nodes) =
-            parse_nodes(sections.required("Nodes")?, dimension, limits, budget)?;
-        let (element_blocks, total_elements, top_dimensional_elements) =
-            parse_elements(sections.required("Elements")?, dimension, limits, budget)?;
+        let nodes = parse_nodes(sections.required("Nodes")?, dimension, limits, budget)?;
+        let cells = parse_elements(
+            sections.required("Elements")?,
+            dimension,
+            limits,
+            &nodes.vertex_by_tag,
+            budget,
+        )?;
         Ok(Self {
-            node_blocks,
-            element_blocks,
-            total_nodes,
-            total_elements,
-            top_dimensional_elements,
+            vertices: nodes.vertices,
+            cells,
         })
     }
 }
@@ -637,7 +462,7 @@ fn parse_nodes(
     dimension: usize,
     limits: GmshImportLimits,
     budget: &mut DecodedBudget,
-) -> Result<(Vec<NodeBlock>, usize), Diagnostic> {
+) -> Result<DecodedNodes, Diagnostic> {
     let header = exact_fields::<4>(lines.first().copied(), "$Nodes header")?;
     let block_count = parse_usize(header[0], "$Nodes block count")?;
     let total_nodes = parse_usize(header[1], "$Nodes total count")?;
@@ -657,8 +482,8 @@ fn parse_nodes(
     budget.charge_nodes(block_count, total_nodes, dimension)?;
 
     let mut line_index = 1;
-    let mut blocks = fallible_vec(block_count, "$Nodes block storage")?;
-    let mut all_tags = fallible_set(total_nodes, "$Nodes unique-tag storage")?;
+    let mut vertices = fallible_vec(total_nodes, "decoded vertex storage")?;
+    let mut vertex_by_tag = fallible_map(total_nodes, "$Nodes tag-to-vertex storage")?;
     let mut observed_min = u64::MAX;
     let mut observed_max = 0_u64;
     let mut checked_total = 0usize;
@@ -688,34 +513,33 @@ fn parse_nodes(
                 "$Nodes block counts exceed the declared bounded total",
             ));
         }
-        let mut tags = fallible_vec(count, "$Nodes block-tag storage")?;
-        for _ in 0..count {
+        let block_start = vertices.len();
+        for offset in 0..count {
             let line = take_declared_line(lines, &mut line_index, "$Nodes node tag")?;
             let [value] = exact_fields::<1>(Some(line), "$Nodes node tag")?;
             let tag = parse_u64(value, "$Nodes node tag")?;
-            if tag == 0 || !all_tags.insert(tag) {
+            let vertex_index = block_start
+                .checked_add(offset)
+                .ok_or_else(|| invalid_import("$Nodes vertex index overflows usize"))?;
+            if tag == 0 || vertex_by_tag.insert(tag, vertex_index).is_some() {
                 return Err(invalid_import("node tags must be positive and unique"));
             }
             observed_min = observed_min.min(tag);
             observed_max = observed_max.max(tag);
-            tags.push(tag);
         }
         for _ in 0..count {
             let line = take_declared_line(lines, &mut line_index, "$Nodes coordinate")?;
             let coordinate = exact_fields::<3>(Some(line), "$Nodes coordinate")?;
-            for value in coordinate {
-                parse_finite(value, "$Nodes coordinate")?;
-            }
+            let x = parse_finite(coordinate[0], "$Nodes x coordinate")?;
+            let y = parse_finite(coordinate[1], "$Nodes y coordinate")?;
+            let z = parse_finite(coordinate[2], "$Nodes z coordinate")?;
+            vertices.push(decoded_coordinate(dimension, x, y, z)?);
         }
-        blocks.push(NodeBlock {
-            entity_dim,
-            entity_tag,
-            tags,
-        });
     }
     if line_index != lines.len()
         || checked_total != total_nodes
-        || all_tags.len() != total_nodes
+        || vertices.len() != total_nodes
+        || vertex_by_tag.len() != total_nodes
         || observed_min != declared_min
         || observed_max != declared_max
     {
@@ -723,15 +547,19 @@ fn parse_nodes(
             "$Nodes records disagree with declared totals or tag bounds",
         ));
     }
-    Ok((blocks, total_nodes))
+    Ok(DecodedNodes {
+        vertices,
+        vertex_by_tag,
+    })
 }
 
 fn parse_elements(
     lines: &[&str],
     dimension: usize,
     limits: GmshImportLimits,
+    vertex_by_tag: &HashMap<u64, usize>,
     budget: &mut DecodedBudget,
-) -> Result<(Vec<ElementBlock>, usize, usize), Diagnostic> {
+) -> Result<Vec<Vec<usize>>, Diagnostic> {
     let header = exact_fields::<4>(lines.first().copied(), "$Elements header")?;
     let block_count = parse_usize(header[0], "$Elements block count")?;
     let total_elements = parse_usize(header[1], "$Elements total count")?;
@@ -751,7 +579,7 @@ fn parse_elements(
     budget.charge_element_blocks(block_count)?;
 
     let mut line_index = 1;
-    let mut blocks = fallible_vec(block_count, "$Elements block storage")?;
+    let mut cells = Vec::new();
     let mut all_tags = fallible_set(total_elements, "$Elements unique-tag storage")?;
     let mut observed_min = u64::MAX;
     let mut observed_max = 0_u64;
@@ -796,8 +624,8 @@ fn parse_elements(
             top_dimensional_elements = top_dimensional_elements
                 .checked_add(count)
                 .ok_or_else(|| invalid_import("top-dimensional element count overflows usize"))?;
+            fallible_reserve(&mut cells, count, "decoded top-dimensional cell storage")?;
         }
-        let mut element_tags = fallible_vec(count, "$Elements block-tag storage")?;
         for _ in 0..count {
             let line = take_declared_line(lines, &mut line_index, "$Elements record")?;
             let mut tokens = TokenCursor::new(line);
@@ -810,32 +638,50 @@ fn parse_elements(
             }
             observed_min = observed_min.min(tag);
             observed_max = observed_max.max(tag);
+            let mut cell = if entity_dimension == dimension {
+                Some(fallible_vec(
+                    entity_dimension + 1,
+                    "decoded simplex-connectivity storage",
+                )?)
+            } else {
+                None
+            };
             for _ in 0..=entity_dimension {
-                if parse_u64(tokens.next("$Elements node tag")?, "$Elements node tag")? == 0 {
+                let node_tag = parse_u64(tokens.next("$Elements node tag")?, "$Elements node tag")?;
+                if node_tag == 0 {
                     return Err(invalid_import("element node tags must be positive"));
+                }
+                let vertex = vertex_by_tag
+                    .get(&node_tag)
+                    .copied()
+                    .ok_or_else(|| invalid_import("MSH element references an unknown node tag"))?;
+                if let Some(cell) = &mut cell {
+                    cell.push(vertex);
                 }
             }
             tokens.finish("$Elements record")?;
-            element_tags.push(tag);
+            if let Some(cell) = cell {
+                fallible_push(&mut cells, cell, "decoded top-dimensional cell storage")?;
+            }
         }
-        blocks.push(ElementBlock {
-            entity_dim,
-            entity_tag,
-            element_type,
-            element_tags,
-        });
     }
     if line_index != lines.len()
         || checked_total != total_elements
         || all_tags.len() != total_elements
         || observed_min != declared_min
         || observed_max != declared_max
+        || cells.len() != top_dimensional_elements
     {
         return Err(invalid_import(
             "$Elements records disagree with declared totals or tag bounds",
         ));
     }
-    Ok((blocks, total_elements, top_dimensional_elements))
+    if cells.is_empty() {
+        return Err(invalid_import(
+            "MSH input contains no admitted top-dimensional simplex cells",
+        ));
+    }
+    Ok(cells)
 }
 
 const fn linear_simplex_type(dimension: usize) -> u32 {
@@ -918,6 +764,19 @@ fn parse_finite(value: &str, context: &str) -> Result<f64, Diagnostic> {
     Ok(value)
 }
 
+fn decoded_coordinate(dimension: usize, x: f64, y: f64, z: f64) -> Result<Vec<f64>, Diagnostic> {
+    match dimension {
+        2 if z == 0.0 => fallible_vec_from_slice(&[x, y], "decoded vertex coordinate"),
+        2 => Err(invalid_import(
+            "two-dimensional import requires every node in the XY plane",
+        )),
+        3 => fallible_vec_from_slice(&[x, y, z], "decoded vertex coordinate"),
+        _ => Err(invalid_import(
+            "Gmsh simplex import supports spatial dimension two or three",
+        )),
+    }
+}
+
 fn checked_sum(values: &[usize], context: &str) -> Result<usize, Diagnostic> {
     values.iter().try_fold(0usize, |sum, &value| {
         sum.checked_add(value)
@@ -950,6 +809,16 @@ fn fallible_vec<T>(capacity: usize, context: &str) -> Result<Vec<T>, Diagnostic>
         .try_reserve_exact(capacity)
         .map_err(|_| invalid_import(format!("{context} exceeds available decoded memory")))?;
     Ok(values)
+}
+
+fn fallible_reserve<T>(
+    values: &mut Vec<T>,
+    additional: usize,
+    context: &str,
+) -> Result<(), Diagnostic> {
+    values
+        .try_reserve_exact(additional)
+        .map_err(|_| invalid_import(format!("{context} exceeds available decoded memory")))
 }
 
 fn fallible_push<T>(values: &mut Vec<T>, value: T, context: &str) -> Result<(), Diagnostic> {
@@ -1043,6 +912,22 @@ $Elements\n1 1 1 1\n3 1 4 1\n1 1 2 3 4\n$EndElements\n";
         element_type: i32,
         ignored_points: usize,
     ) -> Vec<u8> {
+        binary_tetrahedron_with_ignored_points_referencing(
+            endian,
+            size_t_size,
+            element_type,
+            ignored_points,
+            1,
+        )
+    }
+
+    fn binary_tetrahedron_with_ignored_points_referencing(
+        endian: TestEndian,
+        size_t_size: usize,
+        element_type: i32,
+        ignored_points: usize,
+        ignored_node_tag: u64,
+    ) -> Vec<u8> {
         let mut bytes = format!("$MeshFormat\n4.1 1 {size_t_size}\n").into_bytes();
         write_i32(&mut bytes, 1, endian);
         bytes.extend_from_slice(b"\n$EndMeshFormat\n$Nodes\n");
@@ -1073,7 +958,7 @@ $Elements\n1 1 1 1\n3 1 4 1\n1 1 2 3 4\n$EndElements\n";
             write_size_t(&mut bytes, ignored_points, size_t_size, endian);
             for tag in 1..=ignored_points {
                 write_size_t(&mut bytes, tag, size_t_size, endian);
-                write_size_t(&mut bytes, 1, size_t_size, endian);
+                write_size_t(&mut bytes, ignored_node_tag, size_t_size, endian);
             }
         }
         for value in [3, 1, element_type] {
@@ -1154,6 +1039,7 @@ $Elements\n1 1 1 1\n3 1 4 1\n1 1 2 3 4\n$EndElements\n";
         let mesh = importer().import_bytes(TRIANGLES.as_bytes()).unwrap();
         assert_eq!(mesh.topological_dimension(), 2);
         assert_eq!(mesh.vertices().len(), 5);
+        assert_eq!(mesh.vertices()[4], [0.5, 0.5]);
         assert_eq!(mesh.cells().len(), 4);
         assert_eq!(mesh.cells()[3], [3, 0, 4]);
         assert!(mesh.quality_report().minimum_mean_ratio() >= 0.5);
@@ -1297,6 +1183,28 @@ $Elements\n1 1 1 1\n3 1 4 1\n1 1 2 3 4\n$EndElements\n";
         )
         .unwrap();
         assert_eq!(explicit.import_bytes(&admitted).unwrap().cells().len(), 1);
+    }
+
+    #[test]
+    fn lower_dimensional_elements_cannot_reference_unknown_nodes() {
+        let ascii = TRIANGLES.replacen("101 10 20", "101 10 99", 1);
+        assert_eq!(
+            importer()
+                .import_bytes(ascii.as_bytes())
+                .unwrap_err()
+                .code(),
+            codes::INVALID_MESH_IMPORT,
+        );
+
+        let binary =
+            binary_tetrahedron_with_ignored_points_referencing(TestEndian::Little, 8, 4, 1, 99);
+        assert_eq!(
+            tetrahedron_importer()
+                .import_bytes(&binary)
+                .unwrap_err()
+                .code(),
+            codes::INVALID_MESH_IMPORT,
+        );
     }
 
     #[test]

@@ -9,9 +9,9 @@
 Eqiora admits a narrow external-mesh boundary: ASCII or binary Gmsh MSH 4.1
 containing full-dimensional linear triangles in the XY plane or linear
 tetrahedra in XYZ. A dedicated L3 adapter applies explicit byte and count
-limits, rejects unsupported semantics, parses syntax through a pinned `mshio`
-adapter, and reconstructs the result through the existing L2 `SimplicialMesh`
-contract.
+limits, rejects unsupported semantics, decodes the admitted grammar through an
+Eqiora-owned bounded parser, and reconstructs the result through the existing
+L2 `SimplicialMesh` contract.
 The resulting mesh, not the input path or importer state, is the authority
 serialized by `eqiora.simplicial-mesh-envelope/v1`.
 
@@ -25,9 +25,9 @@ mesh reader supports all of those would make successful parsing
 indistinguishable from semantic acceptance.
 
 The boundary must also be safe for desktop Studio, Python, and service use.
-Resource checks therefore precede third-party parsing, and malformed input or
-a parser panic becomes one stable Eqiora diagnostic rather than crossing the
-public API.
+Resource checks therefore precede declaration-controlled work and allocation,
+and malformed input becomes one stable Eqiora diagnostic rather than crossing
+the public API.
 
 `GmshImportLimits` defines independent semantic budgets for source bytes,
 entities, entity references, blocks, nodes, elements, and ignored
@@ -41,18 +41,17 @@ consumed by allocation-free iterators: format headers, fixed-arity records,
 variable entity boundaries, and element connectivity never materialize a
 token scratch vector.
 
-The decoded-byte account conservatively includes adapter preflight vectors and
-tag sets, worst-case sparse maps and records retained by the pinned parser,
-canonical vertex/cell vectors and lookup maps, and the maximum unique simplex
-closure that `SimplicialMesh` can construct. The topology charge uses the exact
-admitted closure upper bounds: three edges plus one cell for a triangle, and
-six edges plus four faces plus one cell for a tetrahedron; shared entities can
-only reduce materialization. Hash entries and topology-tree entries receive
-explicit word-sized overhead charges. The decoded-work account covers both
-decode passes, tag lookup, canonical reconstruction, and topology closure.
-These are deterministic conservative logical budgets, not measurements or
-guarantees of an allocator's exact RSS. Source storage remains independently
-bounded by `max_bytes`.
+The decoded-byte account conservatively includes adapter structural indexes,
+tag sets and lookup maps, owned canonical vertex/cell vectors, and the maximum
+unique simplex closure that `SimplicialMesh` can construct. The topology charge
+uses the exact admitted closure upper bounds: three edges plus one cell for a
+triangle, and six edges plus four faces plus one cell for a tetrahedron; shared
+entities can only reduce materialization. Hash entries and topology-tree
+entries receive explicit word-sized overhead charges. The decoded-work account
+covers bounded decoding, tag lookup, canonical reconstruction, and topology
+closure. These are deterministic conservative logical budgets, not
+measurements or guarantees of an allocator's exact RSS. Source storage remains
+independently bounded by `max_bytes`.
 
 Defaults admit at most 16 MiB of source, 256 MiB of conservatively accounted
 decoded state, 32 million work units, and 16,384 ignored lower-dimensional
@@ -66,9 +65,8 @@ as `EQ0808`.
 
 ```text
 MSH bytes
-  -> bounded structural preflight
-  -> isolated mshio syntax adapter
-  -> tag/coordinate/connectivity reconstruction
+  -> owned bounded MSH 4.1 decoder
+  -> owned tag/coordinate/connectivity materialization
   -> SimplicialMesh::new
   -> SimplicialMeshEnvelopeV1
   -> content-addressed Realization
@@ -81,7 +79,7 @@ belong to callers such as Studio. This also makes the same import operation
 usable from Rust, Python, browser uploads, and tests without adding competing
 meaning.
 
-Preflight admits exactly:
+The owned decoder admits exactly:
 
 - MSH version 4.1, either ASCII with its 64-bit declaration or binary with a
   four- or eight-byte `size_t` declaration and a valid little- or big-endian
@@ -105,18 +103,19 @@ retained: the importer never silently repairs inverted orientation.
 `SimplicialMesh::new` remains the single authority for duplicate, isolated,
 non-manifold, orientation, and mean-ratio acceptance.
 
-The adapter uses `mshio` only behind this boundary. In particular, it retains
-node tags from preflight because the dependency may omit a dense tag map, and
-it catches dependency panics. No `mshio` type appears in public signatures.
+The adapter owns only this deliberately narrow grammar, not the complete MSH
+format. ASCII and binary decoding materialize the same private coordinate and
+connectivity representation, and no parser-specific type appears in public
+signatures.
 
 ## Alternatives considered
 
 ### Implement the complete MSH grammar in Eqiora
 
 Rejected. It would duplicate a broad evolving format while adding no strength
-to Eqiora's mesh semantics. The strict preflight is intentionally small and
-exists to bound resources and the admitted subset, not to become a second
-general-purpose reader.
+to Eqiora's mesh semantics. The owned decoder is intentionally small and
+exists to bound resources and materialize the admitted subset, not to become a
+second general-purpose reader.
 
 ### Bind the Gmsh SDK
 
@@ -130,10 +129,12 @@ Rejected. Paths are host-local and mutable; importer versions describe a
 transformation, not accepted mesh identity. Optional source provenance may be
 a separate artifact later.
 
-### Trust every structure accepted by `mshio`
+### Delegate admission to a general-purpose MSH parser
 
-Rejected. Parsing is not capability admission, and dependency allocation must
-not happen before Eqiora's resource policy is checked.
+Rejected. Parsing is not capability admission. The owned decoder is smaller
+than a second broad grammar, applies Eqiora's resource policy before every
+declaration-controlled allocation, and prevents an upstream parser from
+silently widening the accepted format.
 
 ## Compatibility and migration
 
@@ -159,7 +160,7 @@ append-only meaning.
 - Reject `usize::MAX` ASCII entity-reference, entity, node, and element
   declarations without a panic even when every public limit is raised to
   `usize::MAX`.
-- Reject aggregate decoded-byte/work exhaustion before dependency parsing, and
+- Reject aggregate decoded-byte/work exhaustion before materialization, and
   reject a compact valid tetrahedral mesh padded with one more ignored point
   element than the default independent ignored-element budget.
 - Exercise sparse tags, multiple blocks, and ignored boundary elements.
