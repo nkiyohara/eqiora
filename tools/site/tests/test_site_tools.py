@@ -25,7 +25,7 @@ site_check = load_module("check_site", TOOLS / "check_site.py")
 
 def index(entries):
     return {
-        "schema": "eqiora.capability-evidence-index/v2",
+        "schema": "eqiora.capability-evidence-index/v3",
         "selected_capability": None,
         "success": True,
         "entries": entries,
@@ -81,6 +81,16 @@ class EvidenceCatalogTests(unittest.TestCase):
         escaping["manifest"] = "../case.toml"
         with self.assertRaises(catalog.CatalogError):
             catalog.render_catalog(index([escaping]))
+
+    def test_physical_environment_is_visible_and_closed(self):
+        physical = entry()
+        physical["evidence"]["environment"] = "physical-mpi-cuda"
+        rendered = catalog.render_catalog(index([physical]))
+        self.assertIn("environment: physical-mpi-cuda", rendered)
+
+        physical["evidence"]["environment"] = "unreviewed-runner"
+        with self.assertRaises(catalog.CatalogError):
+            catalog.render_catalog(index([physical]))
 
 
 class SiteCheckTests(unittest.TestCase):

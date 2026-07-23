@@ -13,8 +13,8 @@ use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 
-const REPORT_SCHEMA: &str = "eqiora.verification-report/v2";
-const CAPABILITY_INDEX_SCHEMA: &str = "eqiora.capability-evidence-index/v2";
+const REPORT_SCHEMA: &str = "eqiora.verification-report/v3";
+const CAPABILITY_INDEX_SCHEMA: &str = "eqiora.capability-evidence-index/v3";
 
 /// Deterministic capability-to-evidence projection derived from validated cases.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -110,6 +110,7 @@ pub struct Request {
     command: CommandKind,
     case: Option<String>,
     policy: ExecutionPolicy,
+    environment: Option<EvidenceEnvironment>,
 }
 
 impl Request {
@@ -120,7 +121,15 @@ impl Request {
             command,
             case,
             policy,
+            environment: None,
         }
+    }
+
+    /// Restrict execution to evidence declared for one exact environment.
+    #[must_use]
+    pub fn for_environment(mut self, environment: EvidenceEnvironment) -> Self {
+        self.environment = Some(environment);
+        self
     }
 }
 
@@ -135,6 +144,8 @@ pub struct VerificationReport {
     pub policy: ExecutionPolicy,
     /// Exact case filter, when present.
     pub selected_case: Option<String>,
+    /// Exact evidence environment filter, when present.
+    pub selected_environment: Option<EvidenceEnvironment>,
     /// Overall validation and execution result.
     pub success: bool,
     /// Deterministically ordered case results.
@@ -255,6 +266,8 @@ pub enum Outcome {
     NotRunnable,
     /// Runnable but omitted after a fail-fast failure.
     Skipped,
+    /// Runnable but outside the explicitly selected evidence environment.
+    NotSelected,
 }
 
 impl Outcome {
@@ -266,6 +279,31 @@ impl Outcome {
             Self::Failed => "failed",
             Self::NotRunnable => "not-runnable",
             Self::Skipped => "skipped",
+            Self::NotSelected => "not-selected",
+        }
+    }
+}
+
+/// Environment in which an evidence target is allowed to make its claim.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EvidenceEnvironment {
+    /// Host execution requiring no selected physical accelerator topology.
+    #[default]
+    HostCpu,
+    /// One-host MPI execution over an explicitly selected physical CUDA topology.
+    PhysicalMpiCuda,
+}
+
+impl EvidenceEnvironment {
+    fn is_host_cpu(&self) -> bool {
+        *self == Self::HostCpu
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::HostCpu => "host-cpu",
+            Self::PhysicalMpiCuda => "physical-mpi-cuda",
         }
     }
 }
@@ -282,11 +320,24 @@ pub enum EvidenceTarget {
 
 impl EvidenceTarget {
     fn human_label(&self) -> String {
-        match self {
+        let label = match self {
             Self::Cargo(target) => format!("{}/{}", target.package, target.test),
             Self::PythonInstalledWheel(target) => {
                 format!("{}/{}", target.runner.as_str(), target.script)
             }
+        };
+        let environment = self.environment();
+        if environment.is_host_cpu() {
+            label
+        } else {
+            format!("{label}@{}", environment.as_str())
+        }
+    }
+
+    fn environment(&self) -> EvidenceEnvironment {
+        match self {
+            Self::Cargo(target) => target.environment,
+            Self::PythonInstalledWheel(target) => target.environment,
         }
     }
 }
@@ -305,6 +356,9 @@ pub struct CargoEvidenceTarget {
     /// Optional case-relative evidence artifact checked before execution.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub table: Option<String>,
+    /// Exact environment required to execute this evidence target.
+    #[serde(default, skip_serializing_if = "EvidenceEnvironment::is_host_cpu")]
+    pub environment: EvidenceEnvironment,
 }
 
 /// The closed runner identity for an installed-wheel Python evidence target.
@@ -331,6 +385,9 @@ pub struct PythonInstalledWheelEvidenceTarget {
     pub runner: PythonEvidenceRunner,
     /// Normalized repository-relative path to one regular `.py` file.
     pub script: String,
+    /// Exact environment required to execute this evidence target.
+    #[serde(default, skip_serializing_if = "EvidenceEnvironment::is_host_cpu")]
+    pub environment: EvidenceEnvironment,
 }
 
 /// Captured outcome of one exact evidence target.
@@ -430,6 +487,7 @@ pub fn execute(root: &Path, request: &Request, runner: &dyn EvidenceRunner) -> V
         command: request.command,
         policy: request.policy,
         selected_case: request.case.clone(),
+        selected_environment: request.environment,
         success: false,
         cases: Vec::new(),
         errors: Vec::new(),
@@ -549,6 +607,25 @@ fn execute_selected(
             CommandKind::Run if !contract.status.is_executable() => {
                 case.outcome = Outcome::NotRunnable;
                 case.message = Some("case status does not declare executable evidence".to_owned());
+            }
+            CommandKind::Run
+                if request.environment.is_some_and(|selected| {
+                    contract
+                        .evidence
+                        .as_ref()
+                        .is_some_and(|target| target.environment() != selected)
+                }) =>
+            {
+                let required = contract
+                    .evidence
+                    .as_ref()
+                    .expect("executable contracts were validated with evidence")
+                    .environment();
+                case.outcome = Outcome::NotSelected;
+                case.message = Some(format!(
+                    "evidence requires `{}` execution",
+                    required.as_str()
+                ));
             }
             CommandKind::Run if prior_failure && request.policy == ExecutionPolicy::FailFast => {
                 case.outcome = Outcome::Skipped;
@@ -1102,6 +1179,13 @@ script = "tools/ci/python_evidence.py"
             ))
             .is_err()
         );
+        assert!(
+            toml::from_str::<CaseManifest>(&valid_manifest().replace(
+                "features = [\"evidence-runtime\"]",
+                "features = [\"evidence-runtime\"]\nenvironment = \"unknown\"",
+            ))
+            .is_err()
+        );
     }
 
     #[test]
@@ -1115,6 +1199,7 @@ script = "tools/ci/python_evidence.py"
                 PythonInstalledWheelEvidenceTarget {
                     runner: PythonEvidenceRunner::PythonInstalledWheel,
                     ref script,
+                    ..
                 }
             )) if script == "tools/ci/python_evidence.py"
         ));
@@ -1165,22 +1250,40 @@ script = "tools/ci/python_evidence.py"
 
     #[test]
     fn target_serialization_preserves_the_existing_cargo_json_shape() {
-        assert_eq!(REPORT_SCHEMA, "eqiora.verification-report/v2");
+        assert_eq!(REPORT_SCHEMA, "eqiora.verification-report/v3");
         assert_eq!(
             CAPABILITY_INDEX_SCHEMA,
-            "eqiora.capability-evidence-index/v2"
+            "eqiora.capability-evidence-index/v3"
         );
         let target = EvidenceTarget::Cargo(CargoEvidenceTarget {
             package: "eqiora".to_owned(),
             test: "evidence_test".to_owned(),
             features: Vec::new(),
             table: None,
+            environment: EvidenceEnvironment::HostCpu,
         });
         assert_eq!(
             serde_json::to_value(target).unwrap(),
             serde_json::json!({
                 "package": "eqiora",
                 "test": "evidence_test"
+            })
+        );
+
+        let physical = EvidenceTarget::Cargo(CargoEvidenceTarget {
+            package: "eqiora".to_owned(),
+            test: "physical_test".to_owned(),
+            features: vec!["mpi-cuda".to_owned()],
+            table: None,
+            environment: EvidenceEnvironment::PhysicalMpiCuda,
+        });
+        assert_eq!(
+            serde_json::to_value(physical).unwrap(),
+            serde_json::json!({
+                "package": "eqiora",
+                "test": "physical_test",
+                "features": ["mpi-cuda"],
+                "environment": "physical-mpi-cuda"
             })
         );
     }
@@ -1197,6 +1300,7 @@ script = "tools/ci/python_evidence.py"
             test: "registered_case".to_owned(),
             features: vec!["one".to_owned(), "two".to_owned()],
             table: None,
+            environment: EvidenceEnvironment::HostCpu,
         });
         let cargo = runner.command(root, &cargo_target);
         assert_eq!(cargo.get_program(), "cargo-evidence");
@@ -1222,6 +1326,7 @@ script = "tools/ci/python_evidence.py"
             EvidenceTarget::PythonInstalledWheel(PythonInstalledWheelEvidenceTarget {
                 runner: PythonEvidenceRunner::PythonInstalledWheel,
                 script: "tools/ci/python_evidence.py".to_owned(),
+                environment: EvidenceEnvironment::HostCpu,
             });
         let python = runner.command(root, &python_target);
         assert_eq!(python.get_program(), "python-evidence");
@@ -1284,8 +1389,56 @@ script = "tools/ci/python_evidence.py"
                 test: "evidence_test".to_owned(),
                 features: vec!["evidence-runtime".to_owned()],
                 table: None,
+                environment: EvidenceEnvironment::HostCpu,
             })),
         }
+    }
+
+    #[test]
+    fn environment_selection_is_explicit_and_does_not_weaken_full_execution() {
+        let mut physical = contract("physical");
+        let Some(EvidenceTarget::Cargo(target)) = physical.evidence.as_mut() else {
+            panic!("fixture has Cargo evidence");
+        };
+        target.environment = EvidenceEnvironment::PhysicalMpiCuda;
+
+        let selected = execute_selected(
+            Path::new("."),
+            vec![physical.clone(), contract("portable")],
+            &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast)
+                .for_environment(EvidenceEnvironment::HostCpu),
+            &FakeRunner {
+                outputs: RefCell::new(VecDeque::from([EvidenceOutput {
+                    exit_code: Some(0),
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    start_error: None,
+                }])),
+            },
+        );
+        assert_eq!(
+            selected.iter().map(|case| case.outcome).collect::<Vec<_>>(),
+            [Outcome::NotSelected, Outcome::Passed]
+        );
+        assert_eq!(
+            selected[0].message.as_deref(),
+            Some("evidence requires `physical-mpi-cuda` execution")
+        );
+
+        let full = execute_selected(
+            Path::new("."),
+            vec![physical],
+            &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast),
+            &FakeRunner {
+                outputs: RefCell::new(VecDeque::from([EvidenceOutput {
+                    exit_code: Some(29),
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    start_error: None,
+                }])),
+            },
+        );
+        assert_eq!(full[0].outcome, Outcome::Failed);
     }
 
     #[test]

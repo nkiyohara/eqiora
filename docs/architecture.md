@@ -1505,7 +1505,7 @@ typed separately from resolved adapter/library/topology/reduction provenance.
 Constructors and post-decode linkage checks reject model, revision, target,
 layout, worker, device, or reduction drift. Neither format includes host paths
 or wall-clock data. Run manifests are distinct from
-`eqiora.verification-report/v2`: the latter records a repository runner's
+`eqiora.verification-report/v3`: the latter records a repository runner's
 ordered case outcomes and captured child streams. Verification manifests can
 select only a closed typed target: a validated Cargo package/test pair or a
 repository-owned installed-wheel Python gate. Neither form admits a shell
