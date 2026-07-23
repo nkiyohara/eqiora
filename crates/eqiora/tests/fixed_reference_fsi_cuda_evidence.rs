@@ -43,6 +43,8 @@ use support::fixed_reference_fsi::{execution_context, prestrained_state, spatial
 
 mod support;
 
+const REGISTERED_SOURCE_COMMIT: &str = "5696f62ed84eba5457e2ff99f40fd2080c808d69";
+
 #[test]
 fn observation_decoder_is_closed_and_bounded() {
     let valid = synthetic_observation();
@@ -69,7 +71,6 @@ fn observation_decoder_is_closed_and_bounded() {
 }
 
 #[test]
-#[ignore = "recollect from the first clean public commit before registering physical evidence"]
 fn committed_fixed_reference_fsi_cuda_observation_replays_on_the_host() {
     replay_committed_observation().expect("the bounded CUDA FSI observation replays");
 }
@@ -82,6 +83,9 @@ fn replay_committed_observation() -> Result<(), String> {
     )?;
     let observed: Observation = decode_closed(&observation_bytes)?;
     observed.validate()?;
+    if observed.source_commit != REGISTERED_SOURCE_COMMIT {
+        return Err("source commit differs from the registered public source".to_owned());
+    }
 
     let model_bytes = read_bounded(&root.join("artifacts/model.json"), MAX_ARTIFACT_BYTES)?;
     let model = ModelEnvelopeV4::from_json(&model_bytes, DecoderLimits::default())

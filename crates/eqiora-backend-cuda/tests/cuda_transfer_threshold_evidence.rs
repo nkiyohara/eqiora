@@ -1,14 +1,16 @@
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use serde_json::Value;
+use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 const REFINEMENTS: [usize; 7] = [64, 128, 256, 512, 1024, 2048, 4096];
 const REPETITIONS: usize = 9;
-// Set this to the exact public source commit when the observation is collected,
-// then remove the test's ignore marker in the same evidence-registration change.
-const REGISTERED_SOURCE_COMMIT: Option<&str> = None;
+const REGISTERED_SOURCE_COMMIT: &str = "5696f62ed84eba5457e2ff99f40fd2080c808d69";
+const MAX_CSV_BYTES: usize = 256 * 1024;
+const MAX_JSON_BYTES: usize = 64 * 1024;
 const CSV_HEADER: &str = "refinement,rows,nonzeros,repetition,order,cpu_ns,cuda_setup_ns,cuda_h2d_ns,cuda_action_ns,cuda_d2h_ns,cuda_phase_sum_ns,cuda_execution_wall_ns,cuda_verification_ns,cuda_verified_wall_ns,maximum_absolute_error,maximum_scaled_error,host_to_device_bytes,device_to_host_bytes,workspace_bytes";
 
 #[derive(Debug, Clone)]
@@ -34,8 +36,102 @@ struct Sample {
     workspace_bytes: usize,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Summary {
+    schema: String,
+    comparison: String,
+    outcome: String,
+    durable_crossing_refinement: Option<usize>,
+    summaries: Vec<RefinementSummary>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RefinementSummary {
+    refinement: usize,
+    rows: usize,
+    nonzeros: usize,
+    cpu_median_ns: u128,
+    cuda_median_ns: u128,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Environment {
+    absolute_tolerance: f64,
+    binding_toolkit: String,
+    cpu_affinity_count: usize,
+    cpu_frequency_policy: CpuFrequencyPolicy,
+    cpu_model: String,
+    cuda_comparison: String,
+    cuda_driver: i32,
+    cudarc: String,
+    cusparse: i32,
+    device_residency: String,
+    eqiora_device_ordinal: u16,
+    gpu_compute_process_count_after: usize,
+    gpu_compute_process_count_before: usize,
+    gpu_memory_bytes: u64,
+    gpu_name: String,
+    gpu_operating_after: GpuOperatingPoint,
+    gpu_operating_before: GpuOperatingPoint,
+    host_memory: String,
+    index: String,
+    kernel: String,
+    matrix: String,
+    os_release: String,
+    policy: String,
+    profile: String,
+    reference: String,
+    refinements: Vec<usize>,
+    relative_tolerance: f64,
+    repetitions: usize,
+    rustc: String,
+    rustflags_present: bool,
+    scalar: String,
+    schema: String,
+    source_clean: bool,
+    source_commit: String,
+    system_load_after: SystemLoad,
+    system_load_before: SystemLoad,
+    warmups: usize,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CpuFrequencyPolicy {
+    governor: String,
+    maximum_khz: u64,
+    minimum_khz: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SystemLoad {
+    fifteen_minutes: f64,
+    five_minutes: f64,
+    one_minute: f64,
+    runnable_processes: usize,
+    total_processes: usize,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GpuOperatingPoint {
+    maximum_memory_clock_mhz: u64,
+    maximum_sm_clock_mhz: u64,
+    memory_clock_mhz: u64,
+    memory_used_mib: u64,
+    performance_state: String,
+    power_draw_watts: f64,
+    power_limit_watts: f64,
+    sm_clock_mhz: u64,
+    temperature_celsius: f64,
+    utilization_percent: f64,
+}
+
 #[test]
-#[ignore = "physical evidence is recollected from the first public commit before registration"]
 fn committed_cuda_transfer_threshold_evidence_replays() {
     let root = case_root();
     let samples = read_samples(&root.join("observations/repetitions.csv"));
@@ -135,13 +231,40 @@ fn committed_cuda_transfer_threshold_evidence_replays() {
     replay_environment(&root.join("observations/environment.json"));
 }
 
+#[test]
+fn committed_json_schemas_are_closed_and_inputs_are_bounded() {
+    let root = case_root();
+    let environment_bytes =
+        read_bounded(&root.join("observations/environment.json"), MAX_JSON_BYTES);
+    let mut environment: serde_json::Value =
+        serde_json::from_slice(&environment_bytes).expect("environment JSON");
+    environment["host_label"] = serde_json::json!("must-not-be-admitted");
+    assert!(
+        decode_closed::<Environment>(&serde_json::to_vec(&environment).unwrap()).is_err(),
+        "an unknown top-level environment field must fail closed"
+    );
+
+    let summary_bytes = read_bounded(&root.join("expected/summary.json"), MAX_JSON_BYTES);
+    let mut summary: serde_json::Value =
+        serde_json::from_slice(&summary_bytes).expect("summary JSON");
+    summary["summaries"][0]["collector_note"] = serde_json::json!("must-not-be-admitted");
+    assert!(
+        decode_closed::<Summary>(&serde_json::to_vec(&summary).unwrap()).is_err(),
+        "an unknown nested summary field must fail closed"
+    );
+
+    assert!(read_bounded_bytes(&[], MAX_JSON_BYTES).is_err());
+    assert!(read_bounded_bytes(&vec![b' '; MAX_JSON_BYTES + 1], MAX_JSON_BYTES).is_err());
+}
+
 fn case_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../verify/performance/cuda-csr-transfer-threshold")
 }
 
 fn read_samples(path: &Path) -> Vec<Sample> {
-    let source = fs::read_to_string(path).unwrap();
+    let bytes = read_bounded(path, MAX_CSV_BYTES);
+    let source = std::str::from_utf8(&bytes).expect("evidence CSV must be UTF-8");
     let mut lines = source.lines();
     assert_eq!(lines.next(), Some(CSV_HEADER));
     lines
@@ -199,17 +322,18 @@ fn replay_summary(
     replayed: &[(usize, usize, usize, u128, u128)],
     durable_crossing: Option<usize>,
 ) {
-    let summary: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+    let summary: Summary =
+        decode_closed(&read_bounded(path, MAX_JSON_BYTES)).expect("closed summary JSON");
     assert_eq!(
-        summary["schema"],
+        summary.schema,
         "eqiora.cuda-csr-transfer-threshold.summary.v2"
     );
     assert_eq!(
-        summary["comparison"],
+        summary.comparison,
         "median-cold-cuda-execution-wall-vs-serial-host-action"
     );
     assert_eq!(
-        summary["outcome"],
+        summary.outcome,
         if durable_crossing.is_some() {
             "durable-crossing-observed"
         } else {
@@ -217,30 +341,27 @@ fn replay_summary(
         }
     );
     match durable_crossing {
-        Some(index) => assert_eq!(
-            summary["durable_crossing_refinement"].as_u64(),
-            Some(u64::try_from(replayed[index].0).unwrap())
-        ),
-        None => assert!(summary["durable_crossing_refinement"].is_null()),
+        Some(index) => assert_eq!(summary.durable_crossing_refinement, Some(replayed[index].0)),
+        None => assert_eq!(summary.durable_crossing_refinement, None),
     }
-    let committed = summary["summaries"].as_array().unwrap();
-    assert_eq!(committed.len(), replayed.len());
-    for (value, replayed) in committed.iter().zip(replayed) {
-        assert_eq!(value["refinement"].as_u64(), Some(replayed.0 as u64));
-        assert_eq!(value["rows"].as_u64(), Some(replayed.1 as u64));
-        assert_eq!(value["nonzeros"].as_u64(), Some(replayed.2 as u64));
-        assert_eq!(value["cpu_median_ns"].as_u64(), Some(replayed.3 as u64));
-        assert_eq!(value["cuda_median_ns"].as_u64(), Some(replayed.4 as u64));
+    assert_eq!(summary.summaries.len(), replayed.len());
+    for (value, replayed) in summary.summaries.iter().zip(replayed) {
+        assert_eq!(value.refinement, replayed.0);
+        assert_eq!(value.rows, replayed.1);
+        assert_eq!(value.nonzeros, replayed.2);
+        assert_eq!(value.cpu_median_ns, replayed.3);
+        assert_eq!(value.cuda_median_ns, replayed.4);
     }
 }
 
 fn replay_environment(path: &Path) {
-    let environment: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+    let environment: Environment =
+        decode_closed(&read_bounded(path, MAX_JSON_BYTES)).expect("closed environment JSON");
     assert_eq!(
-        environment["schema"],
+        environment.schema,
         "eqiora.cuda-csr-transfer-threshold.environment.v3"
     );
-    let source_commit = environment["source_commit"].as_str().unwrap();
+    let source_commit = environment.source_commit.as_str();
     assert_eq!(source_commit.len(), 40);
     assert!(
         source_commit
@@ -248,112 +369,123 @@ fn replay_environment(path: &Path) {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
     );
     assert_eq!(
-        Some(source_commit),
-        REGISTERED_SOURCE_COMMIT,
+        source_commit, REGISTERED_SOURCE_COMMIT,
         "register the exact public source commit with the observation"
     );
-    assert_eq!(environment["source_clean"], true);
-    assert_eq!(environment["profile"], "release");
-    assert_eq!(environment["scalar"], "f64");
-    assert_eq!(environment["index"], "i64");
-    assert_eq!(environment["policy"], "backend-native");
-    assert_eq!(environment["host_memory"], "pageable");
-    assert_eq!(environment["device_residency"], "fresh-per-sample");
+    assert!(environment.source_clean);
+    assert_eq!(environment.profile, "release");
+    assert_eq!(environment.scalar, "f64");
+    assert_eq!(environment.index, "i64");
+    assert_eq!(environment.policy, "backend-native");
+    assert_eq!(environment.host_memory, "pageable");
+    assert_eq!(environment.device_residency, "fresh-per-sample");
     assert_eq!(
-        environment["cuda_comparison"],
+        environment.cuda_comparison,
         "outer-verified-call-minus-recorded-reference-comparison"
     );
     assert_eq!(
-        environment["reference"],
+        environment.reference,
         "precomputed-serial-host-action; both timed actions independently accepted"
     );
     assert_eq!(
-        environment["matrix"],
+        environment.matrix,
         "2d-dirichlet-five-point-row-major-sorted-csr"
     );
-    assert_eq!(environment["eqiora_device_ordinal"], 0);
-    assert_eq!(environment["warmups"], 2);
-    assert_eq!(environment["repetitions"], REPETITIONS);
-    assert_eq!(
-        environment["refinements"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|value| value.as_u64().unwrap() as usize)
-            .collect::<Vec<_>>(),
-        REFINEMENTS
-    );
+    assert_eq!(environment.eqiora_device_ordinal, 0);
+    assert_eq!(environment.warmups, 2);
+    assert_eq!(environment.repetitions, REPETITIONS);
+    assert_eq!(environment.refinements, REFINEMENTS);
     for field in [
-        "rustc",
-        "kernel",
-        "os_release",
-        "cpu_model",
-        "gpu_name",
-        "cudarc",
-        "binding_toolkit",
+        environment.rustc.as_str(),
+        environment.kernel.as_str(),
+        environment.os_release.as_str(),
+        environment.cpu_model.as_str(),
+        environment.gpu_name.as_str(),
+        environment.cudarc.as_str(),
+        environment.binding_toolkit.as_str(),
     ] {
-        assert!(!environment[field].as_str().unwrap().trim().is_empty());
+        assert!(!field.trim().is_empty());
     }
-    assert!(environment["rustflags_present"].is_boolean());
-    assert_eq!(environment["cpu_affinity_count"], 1);
-    assert!(
-        !environment["cpu_frequency_policy"]["governor"]
-            .as_str()
-            .unwrap()
-            .trim()
-            .is_empty()
+    let _rustflags_present = environment.rustflags_present;
+    assert_eq!(environment.cpu_affinity_count, 1);
+    assert!(!environment.cpu_frequency_policy.governor.trim().is_empty());
+    assert!(environment.cpu_frequency_policy.minimum_khz > 0);
+    assert!(environment.cpu_frequency_policy.maximum_khz > 0);
+    validate_system_load(&environment.system_load_before);
+    validate_system_load(&environment.system_load_after);
+    validate_gpu_operating_point(&environment.gpu_operating_before);
+    validate_gpu_operating_point(&environment.gpu_operating_after);
+    let _gpu_compute_process_counts = (
+        environment.gpu_compute_process_count_before,
+        environment.gpu_compute_process_count_after,
     );
-    for field in ["minimum_khz", "maximum_khz"] {
-        assert!(environment["cpu_frequency_policy"][field].as_u64().unwrap() > 0);
-    }
-    for moment in ["before", "after"] {
-        let system_load_key = format!("system_load_{moment}");
-        let system_load = &environment[system_load_key.as_str()];
-        for field in ["one_minute", "five_minutes", "fifteen_minutes"] {
-            assert!(system_load[field].as_f64().unwrap() >= 0.0);
-        }
-        for field in ["runnable_processes", "total_processes"] {
-            assert!(system_load[field].as_u64().unwrap() > 0);
-        }
+    assert!(environment.gpu_memory_bytes > 0);
+    assert!(environment.cuda_driver > 0);
+    assert!(environment.cusparse > 0);
+    assert_eq!(environment.absolute_tolerance, 1.0e-11);
+    assert_eq!(environment.relative_tolerance, 1.0e-11);
+}
 
-        let gpu_key = format!("gpu_operating_{moment}");
-        let gpu = &environment[gpu_key.as_str()];
-        assert!(!gpu["performance_state"].as_str().unwrap().is_empty());
-        for field in [
-            "temperature_celsius",
-            "utilization_percent",
-            "power_draw_watts",
-            "power_limit_watts",
-        ] {
-            assert!(gpu[field].as_f64().unwrap() >= 0.0);
-        }
-        assert!(gpu["memory_used_mib"].as_u64().is_some());
-        for field in [
-            "sm_clock_mhz",
-            "memory_clock_mhz",
-            "maximum_sm_clock_mhz",
-            "maximum_memory_clock_mhz",
-        ] {
-            assert!(gpu[field].as_u64().unwrap() > 0);
-        }
-        let process_count_key = format!("gpu_compute_process_count_{moment}");
-        assert!(environment[process_count_key.as_str()].as_u64().is_some());
-    }
-    assert!(environment["gpu_memory_bytes"].as_u64().unwrap() > 0);
-    assert!(environment["cuda_driver"].as_i64().unwrap() > 0);
-    assert!(environment["cusparse"].as_i64().unwrap() > 0);
-    assert_eq!(environment["absolute_tolerance"].as_f64(), Some(1.0e-11));
-    assert_eq!(environment["relative_tolerance"].as_f64(), Some(1.0e-11));
-    for forbidden in [
-        "hostname",
-        "visible_device",
-        "gpu_snapshot_before",
-        "gpu_snapshot_after",
-        "gpu_compute_processes_before",
-        "gpu_compute_processes_after",
-        "load_average_before",
-        "load_average_after",
+fn validate_system_load(system_load: &SystemLoad) {
+    for value in [
+        system_load.one_minute,
+        system_load.five_minutes,
+        system_load.fifteen_minutes,
     ] {
-        assert!(environment.get(forbidden).is_none());
+        assert!(value >= 0.0);
     }
+    assert!(system_load.runnable_processes > 0);
+    assert!(system_load.total_processes > 0);
+}
+
+fn validate_gpu_operating_point(gpu: &GpuOperatingPoint) {
+    assert!(!gpu.performance_state.trim().is_empty());
+    for value in [
+        gpu.temperature_celsius,
+        gpu.utilization_percent,
+        gpu.power_draw_watts,
+        gpu.power_limit_watts,
+    ] {
+        assert!(value >= 0.0);
+    }
+    let _memory_used_mib = gpu.memory_used_mib;
+    for value in [
+        gpu.sm_clock_mhz,
+        gpu.memory_clock_mhz,
+        gpu.maximum_sm_clock_mhz,
+        gpu.maximum_memory_clock_mhz,
+    ] {
+        assert!(value > 0);
+    }
+}
+
+fn read_bounded(path: &Path, maximum: usize) -> Vec<u8> {
+    let mut file = fs::File::open(path)
+        .unwrap_or_else(|error| panic!("cannot open bounded evidence {}: {error}", path.display()));
+    let read_limit = u64::try_from(maximum).unwrap_or(u64::MAX).saturating_add(1);
+    let mut bytes = Vec::new();
+    file.by_ref()
+        .take(read_limit)
+        .read_to_end(&mut bytes)
+        .unwrap_or_else(|error| panic!("cannot read bounded evidence {}: {error}", path.display()));
+    read_bounded_bytes(&bytes, maximum)
+        .unwrap_or_else(|error| panic!("invalid bounded evidence {}: {error}", path.display()));
+    bytes
+}
+
+fn read_bounded_bytes(bytes: &[u8], maximum: usize) -> Result<(), String> {
+    if bytes.is_empty() || bytes.len() > maximum {
+        return Err(format!(
+            "evidence bytes require 1..={maximum} bytes, found {}",
+            bytes.len()
+        ));
+    }
+    Ok(())
+}
+
+fn decode_closed<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, serde_json::Error> {
+    let mut deserializer = serde_json::Deserializer::from_slice(bytes);
+    let decoded = T::deserialize(&mut deserializer)?;
+    deserializer.end()?;
+    Ok(decoded)
 }

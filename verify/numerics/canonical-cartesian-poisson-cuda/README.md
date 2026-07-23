@@ -27,12 +27,12 @@ The implementation covers:
 - method-native L2 error and global balance; and
 - comparison with the same model and method on the reproducible reference CPU.
 
-The public-alpha source snapshot intentionally carries no physical observation
-for this case. Its earlier observation was collected outside the public source
-line and therefore cannot provide publicly resolvable source provenance. The
-implementation remains available as `implemented`; it returns to `verified`
-only after a clean physical collection from the first public source commit is
-committed with its exact public `source_commit`.
+The public-alpha tree carries a privacy-bounded physical observation collected
+from clean public source commit
+`5696f62ed84eba5457e2ff99f40fd2080c808d69`. Portable host replay pins that
+exact commit, reconstructs both method paths, and accepts the recorded
+selected-device execution. The case is therefore `verified` for this bounded
+observation, without turning one device run into a general CUDA support claim.
 
 The collector writes a new directory atomically. Its environment schema records
 only the clean source commit, release profile, non-identifying runtime context,
@@ -56,15 +56,14 @@ stages canonical Model, Realization, and Run bytes with bounded
 solution/environment observations, then publishes the complete directory by
 one rename.
 
-Before promoting the new directory into this case:
+For any future replacement of the registered observation:
 
 1. confirm that `observations/environment.json` names the exact clean public
    commit used to build the collector;
 2. review the directory with the public-release hygiene checker;
-3. restore the replay test by removing its temporary `#[ignore]`;
-4. register that replay in `case.toml`, change the status to `verified`, and
-   restore only the capabilities proved by the new observation; and
-5. run the portable replay and the full local verification boundary.
+3. update the replay's registered-source constant to that exact commit;
+4. retain only the capabilities proved by the replacement observation; and
+5. run the portable replay and the full verification boundary.
 
 The physical collector obtains each fence record only from a successful wait
 on a real CUDA event. Ordinary host replay cannot repeat that physical fact: it

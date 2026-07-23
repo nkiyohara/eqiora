@@ -1,7 +1,7 @@
 id = "numerics.canonical-cartesian-poisson-cuda"
-status = "implemented"
+status = "verified"
 scope = "canonical-2d-cartesian-poisson-finalized-cuda-handoff"
-reference_kind = "public-source-physical-recollection-required"
+reference_kind = "public-source-selected-device-observation-with-independent-host-replay"
 
 capabilities = [
   "public-optional-cuda-facade",
@@ -37,7 +37,7 @@ maximum_relative_balance = 2e-11
 
 [claim_boundary]
 physical_execution_in_ordinary_ci = false
-portable_committed_device_evidence = false
+portable_committed_device_evidence = true
 hardware_attestation = false
 general_cuda_capability = false
 durable_solution_artifact = false

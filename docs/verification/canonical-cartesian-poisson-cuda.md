@@ -63,13 +63,11 @@ The implementation test checks public feature shape and fail-closed admission
 without device allocation; live execution remains ignored unless selected by
 the operator.
 
-The initial public tree intentionally marks this case `implemented`, not
-`verified`. A physical observation collected during private development cannot
-provide publicly resolvable source provenance, so it is not republished under
-a different identity. The privacy-safe collector must run from the first clean
-public commit; only after its exact source-linked output passes host replay may
-the case return to `verified`. The observation remains evidence of one bounded
-run, not hardware attestation or a portable support claim.
+The case is `verified` by a privacy-safe physical observation collected from
+clean public source commit
+`5696f62ed84eba5457e2ff99f40fd2080c808d69`. Replay pins that exact source
+identity and rejects a substituted commit. The observation remains evidence of
+one bounded run, not hardware attestation or a portable support claim.
 
 Because compiler v0 intentionally mints fresh graph IDs, replay does not
 pretend that two raw compiler outputs are byte-stable. A separate bounded
@@ -86,7 +84,7 @@ re-finalizes each method and validates the exact `QueueSlot` and materialized
 generation, operator/output fingerprints, and fixed nine-step receipt DAG.
 The synthetic fences are structural witnesses, never re-attestation.
 
-After public recollection, replay reconstructs the recorded candidate through
+Replay reconstructs the recorded candidate through
 the solver-native serial verifier, requires a second independent serial-host
 residual replay in the receipt, finishes the method-native field, and repeats
 analytic L2, balance, and same-model/method reference-CPU comparisons.
