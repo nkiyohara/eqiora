@@ -38,3 +38,8 @@ runtime/library is a verification failure, never a skip or host fallback. The
 bounded claim excludes GPU-aware MPI, device-resident Krylov or reductions,
 GPU assembly, multiple devices per rank, multiple physical nodes, performance,
 transient FSI, ALE, remeshing, and a durable composite Run artifact.
+
+The public hosted gate selects the separate `host-cpu` evidence environment.
+It validates this complete manifest and reports the physical target as
+`not-selected`; it does not claim to repeat the run. Unfiltered verification
+and an exact `physical-mpi-cuda` run retain the failure behavior above.

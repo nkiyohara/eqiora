@@ -25,7 +25,7 @@ site_check = load_module("check_site", TOOLS / "check_site.py")
 
 def index(entries):
     return {
-        "schema": "eqiora.capability-evidence-index/v2",
+        "schema": "eqiora.capability-evidence-index/v3",
         "selected_capability": None,
         "success": True,
         "entries": entries,

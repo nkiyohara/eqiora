@@ -111,8 +111,8 @@ jobs:
       - name: Full feature tests
         if: needs.changes.outputs.full == 'true'
         run: cargo +stable test --workspace --all-targets --all-features --locked
-      - name: Verification evidence
-        run: cargo +stable run --locked -p eqiora-verify -- verify
+      - name: Host-CPU verification evidence
+        run: cargo +stable run --locked -p eqiora-verify -- run --environment host-cpu
       - name: Dependency layers
         run: cargo +stable xtask check-layers
       - name: Public facade

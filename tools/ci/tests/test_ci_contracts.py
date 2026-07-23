@@ -76,6 +76,11 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertIn('python-version: "3.12"', quality)
         self.assertIn('["tested-numpy-floor"]', quality)
         self.assertIn("python -m pip install --only-binary=:all:", quality)
+        self.assertIn("name: Host-CPU verification evidence", quality)
+        self.assertIn(
+            "eqiora-verify -- run --environment host-cpu",
+            quality,
+        )
 
     def test_studio_checks_its_independent_manifest_at_the_same_msrv(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(

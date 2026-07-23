@@ -11,7 +11,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote
 
-SCHEMA = "eqiora.capability-evidence-index/v2"
+SCHEMA = "eqiora.capability-evidence-index/v3"
 REPOSITORY_BLOB = "https://github.com/nkiyohara/eqiora/blob/main/"
 ROOT_KEYS = {
     "schema",
