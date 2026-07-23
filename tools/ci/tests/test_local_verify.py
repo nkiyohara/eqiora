@@ -145,7 +145,8 @@ class PlanTests(unittest.TestCase):
         labels = {item.label for item in plan.commands}
         self.assertEqual(plan.packages, tuple(sorted(workspace())))
         self.assertIn("CI contract tests", labels)
-        self.assertIn("Dependency policy", labels)
+        self.assertIn("Root dependency policy", labels)
+        self.assertIn("Studio dependency policy", labels)
         self.assertIn("Python isolated wheel and tests", labels)
         self.assertIn("Studio unit tests", labels)
         studio_e2e = next(
@@ -165,6 +166,33 @@ class PlanTests(unittest.TestCase):
         )
         self.assertFalse(
             any("maturin develop" in item.render() for item in python_commands)
+        )
+
+    def test_studio_lock_change_runs_both_dependency_policies(self) -> None:
+        plan = build_plan(
+            "affected",
+            ["studio/src-tauri/Cargo.lock"],
+            [],
+            workspace(),
+        )
+        dependency_commands = {
+            item.label: item.render()
+            for item in plan.commands
+            if item.label.endswith("dependency policy")
+        }
+        self.assertEqual(
+            set(dependency_commands),
+            {"Root dependency policy", "Studio dependency policy"},
+        )
+        self.assertEqual(
+            dependency_commands["Root dependency policy"],
+            "cargo deny --locked check",
+        )
+        self.assertIn(
+            "cargo deny --all-features --locked --manifest-path "
+            "studio/src-tauri/Cargo.toml --config "
+            "studio/src-tauri/deny.toml check",
+            dependency_commands["Studio dependency policy"],
         )
 
     def test_adapter_dependency_identity_inputs_schedule_ci_contracts(self) -> None:

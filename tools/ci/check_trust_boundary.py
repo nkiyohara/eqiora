@@ -27,7 +27,14 @@ PROTECTED_PREFIXES = (
     "tools/release/",
     "tools/xtask/",
 )
-PROTECTED_PATHS = frozenset({"CODEOWNERS", ".github/CODEOWNERS", "deny.toml"})
+PROTECTED_PATHS = frozenset(
+    {
+        "CODEOWNERS",
+        ".github/CODEOWNERS",
+        "deny.toml",
+        "studio/src-tauri/deny.toml",
+    }
+)
 MAX_VISIBLE_FILES = 3_000
 PAGE_SIZE = 100
 MAX_PAGES = MAX_VISIBLE_FILES // PAGE_SIZE + 1

@@ -36,6 +36,7 @@ class ProtectedPathTests(unittest.TestCase):
             ".github/workflows/ci.yml",
             "crates/eqiora-verify/src/lib.rs",
             "deny.toml",
+            "studio/src-tauri/deny.toml",
             "tools/ci/check_gate.py",
             "tools/release/python_candidate.py",
             "tools/xtask/src/main.rs",

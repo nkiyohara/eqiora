@@ -221,7 +221,29 @@ def _case_commands(cases: Iterable[str]) -> list[PlannedCommand]:
 def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
     commands: list[PlannedCommand] = []
     if surfaces["dependency_policy"]:
-        commands.append(command("Dependency policy", "cargo", "deny", "check"))
+        commands.extend(
+            [
+                command(
+                    "Root dependency policy",
+                    "cargo",
+                    "deny",
+                    "--locked",
+                    "check",
+                ),
+                command(
+                    "Studio dependency policy",
+                    "cargo",
+                    "deny",
+                    "--all-features",
+                    "--locked",
+                    "--manifest-path",
+                    "studio/src-tauri/Cargo.toml",
+                    "--config",
+                    "studio/src-tauri/deny.toml",
+                    "check",
+                ),
+            ]
+        )
     if surfaces["python"]:
         commands.append(
             command(

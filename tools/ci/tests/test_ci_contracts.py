@@ -68,6 +68,31 @@ class HostedTriggerTests(unittest.TestCase):
             studio,
         )
 
+    def test_dependency_policy_checks_both_independent_cargo_workspaces(self) -> None:
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
+            encoding="utf-8"
+        )
+        dependency = workflow.split(
+            "  dependency_policy:\n", maxsplit=1
+        )[1].split("\n  cubecl_experiment:", maxsplit=1)[0]
+        action = (
+            "EmbarkStudios/cargo-deny-action@"
+            "3c6349835b2b7b196a839186cb8b78e02f7b5f25"
+        )
+        self.assertEqual(dependency.count(action), 2)
+        self.assertIn("name: Check root dependency policy", dependency)
+        self.assertIn("name: Check Studio dependency policy", dependency)
+        self.assertIn("arguments: --all-features --locked", dependency)
+        self.assertIn(
+            "manifest-path: studio/src-tauri/Cargo.toml",
+            dependency,
+        )
+        self.assertIn(
+            "arguments: --all-features --locked --config "
+            "studio/src-tauri/deny.toml",
+            dependency,
+        )
+
 
 class DependencyIdentityTests(unittest.TestCase):
     def assert_exact_adapter_dependency(
@@ -227,6 +252,19 @@ class ChangeClassificationTests(unittest.TestCase):
         studio = classify(["studio/src/state.ts"])
         self.assertTrue(studio["studio"])
         self.assertFalse(studio["rust"])
+        self.assertFalse(studio["dependency_policy"])
+
+    def test_studio_dependency_inputs_select_both_owned_gates(self) -> None:
+        for path in (
+            "studio/src-tauri/Cargo.toml",
+            "studio/src-tauri/Cargo.lock",
+            "studio/src-tauri/deny.toml",
+        ):
+            with self.subTest(path=path):
+                selected = classify([path])
+                self.assertTrue(selected["studio"])
+                self.assertTrue(selected["dependency_policy"])
+                self.assertFalse(selected["rust"])
 
     def test_dependency_and_experiment_inputs_are_independent(self) -> None:
         dependency = classify(["crates/eqiora-core/Cargo.toml"])
