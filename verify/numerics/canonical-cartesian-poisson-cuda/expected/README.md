@@ -1,7 +1,7 @@
 # Expected evidence
 
-This directory currently specifies the evidence that a new public-source
-physical collection must provide; it does not claim a committed physical run.
+This directory specifies and accompanies the committed public-source physical
+observation. Portable replay pins its exact clean source commit.
 
 The collector must emit canonical Model, Q1/TPFA Realization, and Q1/TPFA Run
 bytes under `artifacts/`, plus bounded environment, source identity, accepted

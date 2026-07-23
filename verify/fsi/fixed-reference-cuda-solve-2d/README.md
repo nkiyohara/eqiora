@@ -33,15 +33,15 @@ device/runtime/library provenance. FSI meaning and physical acceptance remain
 owned by
 [`fsi.fixed-reference-monolithic-step-2d`](../fixed-reference-monolithic-step-2d/README.md).
 
-The execution path and privacy-safe observation schema are implemented, but
-this case is not registered as physical evidence in the initial public tree.
-The previous private-development observation is deliberately excluded. After
-the first clean public commit exists, the collector must run from that exact
-clean commit, and the resulting source-linked observation must pass the
-portable host replay before this case returns to `verified`. Until then there
-is no public selected-device observation or hardware-compatibility claim.
+The public-alpha tree registers a privacy-safe selected-device observation
+collected from clean public source commit
+`5696f62ed84eba5457e2ff99f40fd2080c808d69`. The portable replay pins that
+exact source, reaccepts the recorded algebra on the host, and repeats the
+unchanged FSI finish and CPU comparison. This makes the bounded case
+`verified`; it remains neither hardware attestation nor a portable
+hardware-compatibility claim.
 
-After public recollection, the portable evidence command will be:
+The portable evidence command is:
 
 ```text
 cargo run -p eqiora-verify -- run --case fsi.fixed-reference-cuda-solve-2d

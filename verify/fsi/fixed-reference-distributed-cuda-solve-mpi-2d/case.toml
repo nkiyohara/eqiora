@@ -73,3 +73,4 @@ durable_composite_run = false
 package = "eqiora"
 test = "fixed_reference_fsi_distributed_cuda_solve_mpi_2d"
 features = ["mpi-cuda"]
+environment = "physical-mpi-cuda"

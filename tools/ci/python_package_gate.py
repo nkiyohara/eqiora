@@ -10,6 +10,7 @@ import sys
 import tempfile
 import tomllib
 from pathlib import Path
+from typing import Mapping
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -30,15 +31,43 @@ def venv_python(environment: Path) -> Path:
     return environment / "bin/python"
 
 
-def run(argv: list[str], *, cwd: Path = ROOT) -> None:
-    environment = os.environ.copy()
-    environment.update(
+def venv_environment(
+    environment: Path,
+    *,
+    base: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Activate a virtual environment for child tools without a shell."""
+    child_environment = dict(os.environ if base is None else base)
+    scripts = venv_python(environment).parent
+    inherited_path = child_environment.get("PATH")
+    child_environment["PATH"] = (
+        str(scripts)
+        if not inherited_path
+        else os.pathsep.join((str(scripts), inherited_path))
+    )
+    child_environment["VIRTUAL_ENV"] = str(environment)
+    return child_environment
+
+
+def run(
+    argv: list[str],
+    *,
+    cwd: Path = ROOT,
+    virtual_environment: Path | None = None,
+) -> None:
+    child_environment = os.environ.copy()
+    child_environment.update(
         {
             "PIP_DISABLE_PIP_VERSION_CHECK": "1",
             "PYTHONNOUSERSITE": "1",
         }
     )
-    subprocess.run(argv, cwd=cwd, env=environment, check=True)
+    if virtual_environment is not None:
+        child_environment = venv_environment(
+            virtual_environment,
+            base=child_environment,
+        )
+    subprocess.run(argv, cwd=cwd, env=child_environment, check=True)
 
 
 def uv_gate_command(uv: str, python: str) -> list[str]:
@@ -73,12 +102,20 @@ def main() -> int:
             environment = Path(directory)
             run([sys.executable, "-m", "venv", str(environment)])
             python = str(venv_python(environment))
-            run([python, "-m", "pip", "install", *BUILD_TOOLS])
+            run(
+                [python, "-m", "pip", "install", *BUILD_TOOLS],
+                virtual_environment=environment,
+            )
             run(
                 [python, "-m", "pip", "install", "--no-build-isolation", "."],
                 cwd=PACKAGE,
+                virtual_environment=environment,
             )
-            run([python, "-m", "pytest", "-q", str(TESTS)], cwd=PACKAGE)
+            run(
+                [python, "-m", "pytest", "-q", str(TESTS)],
+                cwd=PACKAGE,
+                virtual_environment=environment,
+            )
     except (OSError, subprocess.CalledProcessError) as error:
         print(f"Python package gate failed: {error}", file=sys.stderr)
         return 2

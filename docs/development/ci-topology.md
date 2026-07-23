@@ -87,8 +87,12 @@ after TestPyPI acceptance.
 - Fork pull requests receive no release environment or package credential.
 - Dependency caches are added only after measured benefit and key-isolation
   review.
+- The hosted quality job validates the complete evidence registry and executes
+  the exact `host-cpu` environment. A physical target remains visible as
+  `not-selected`; it is never relabeled as a hosted success.
 - Physical GPU/MPI evidence remains an explicit maintainer-run verification
-  boundary, not an untrusted hosted job.
+  boundary. Running the unfiltered or exact physical case without its declared
+  environment still fails closed.
 
 ## References
 

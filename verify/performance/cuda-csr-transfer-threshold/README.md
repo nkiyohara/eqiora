@@ -24,11 +24,12 @@ The protocol is fixed before collecting observations:
 - a durable crossing is the first size at which the CUDA median is lower and
   remains lower for every larger measured size, with at least one larger size.
 
-The collector and independent replay are implemented. The case remains
-`implemented`, rather than `verified`, until it is collected from a clean
-public source commit and the resulting observation is registered. This avoids
-presenting an observation whose source provenance cannot be resolved in the
-public repository.
+The registered observation was collected from clean public source commit
+`5696f62ed84eba5457e2ff99f40fd2080c808d69`. Independent host replay pins that
+source, recomputes every median from the raw repetitions, and confirms that no
+durable crossing occurred in the measured range. The case is `verified` only
+as that environment-specific observation; it does not establish a portable
+backend-selection threshold.
 
 ## Running the collector
 
@@ -53,10 +54,10 @@ numeric GPU operating counters, and compute-process count. It deliberately
 does not persist a hostname, device selector, PCI address, GPU UUID, process
 identifier, process name, or raw command output.
 
-After public collection, the replay test must accept the raw repetitions and
-environment before the case can return to `verified`. Any resulting threshold
-is local to that CPU, GPU, interconnect, driver, library, affinity, and
-power/thermal state. The case does not measure resident or amortized execution,
-pinned memory, memory pools, preprocessing, multiple GPUs, solver convergence,
-energy, or reproducibility across devices. It never selects a production
-`Realization` backend and does not establish a universal threshold.
+The registered replay accepts the raw repetitions and environment before this
+case can be `verified`. Any resulting threshold is local to that CPU, GPU,
+interconnect, driver, library, affinity, and power/thermal state. The case does
+not measure resident or amortized execution, pinned memory, memory pools,
+preprocessing, multiple GPUs, solver convergence, energy, or reproducibility
+across devices. It never selects a production `Realization` backend and does
+not establish a universal threshold.

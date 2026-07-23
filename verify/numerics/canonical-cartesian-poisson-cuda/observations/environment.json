@@ -1,0 +1,19 @@
+{
+  "schema": "eqiora.canonical-cartesian-poisson-cuda-environment/v2",
+  "source_commit": "5696f62ed84eba5457e2ff99f40fd2080c808d69",
+  "source_clean": true,
+  "profile": "release",
+  "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.97.1\nLLVM version: 22.1.6",
+  "target_arch": "x86_64",
+  "logical_cpu_count": 64,
+  "selected_device_count": 1,
+  "eqiora_device_ordinal": 0,
+  "adapter_version": "0.1.0-alpha.1",
+  "system_load_before": {"one_minute":31.42,"five_minutes":24.76,"fifteen_minutes":21.02},
+  "system_load_after": {"one_minute":30.18,"five_minutes":24.62,"fifteen_minutes":20.99},
+  "other_compute_process_count_before": 0,
+  "other_compute_process_count_after": 0,
+  "device": {"runtime":"eqiora.cuda.cudarc","ordinal":0,"name":"NVIDIA RTX 6000 Ada Generation","total_memory_bytes":50875793408,"capabilities":["float32","float64","csr-matrix-vector-product","dense-vector-level-1","asynchronous-queue"],"compute_capability_major":8,"compute_capability_minor":9},
+  "libraries": {"driver":12080,"cusparse":12001,"cublas":120002,"cudarc":"0.18.2","binding_toolkit":"12.0"},
+  "observation_kind": "selected-device-run; not hardware-attestation"
+}

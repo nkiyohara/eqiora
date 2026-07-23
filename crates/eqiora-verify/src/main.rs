@@ -5,7 +5,8 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use eqiora_verify::{
-    CommandKind, ExecutionPolicy, Request, SystemEvidenceRunner, capability_evidence_index, execute,
+    CommandKind, EvidenceEnvironment, ExecutionPolicy, Request, SystemEvidenceRunner,
+    capability_evidence_index, execute,
 };
 
 #[derive(Debug, Parser)]
@@ -23,6 +24,21 @@ struct Cli {
 enum OutputFormat {
     Human,
     Json,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum Environment {
+    HostCpu,
+    PhysicalMpiCuda,
+}
+
+impl From<Environment> for EvidenceEnvironment {
+    fn from(value: Environment) -> Self {
+        match value {
+            Environment::HostCpu => Self::HostCpu,
+            Environment::PhysicalMpiCuda => Self::PhysicalMpiCuda,
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -58,6 +74,9 @@ enum Command {
         /// Stop after the first evidence failure (the default).
         #[arg(long, conflicts_with = "keep_going")]
         fail_fast: bool,
+        /// Run only evidence declared for this exact environment.
+        #[arg(long, value_enum)]
+        environment: Option<Environment>,
     },
 }
 
@@ -95,15 +114,23 @@ fn main() -> ExitCode {
             case,
             keep_going,
             fail_fast: _,
-        } => Request::new(
-            CommandKind::Run,
-            case,
-            if keep_going {
-                ExecutionPolicy::KeepGoing
+            environment,
+        } => {
+            let request = Request::new(
+                CommandKind::Run,
+                case,
+                if keep_going {
+                    ExecutionPolicy::KeepGoing
+                } else {
+                    ExecutionPolicy::FailFast
+                },
+            );
+            if let Some(environment) = environment {
+                request.for_environment(environment.into())
             } else {
-                ExecutionPolicy::FailFast
-            },
-        ),
+                request
+            }
+        }
     };
     let report = execute(root, &request, &SystemEvidenceRunner::from_environment());
 
