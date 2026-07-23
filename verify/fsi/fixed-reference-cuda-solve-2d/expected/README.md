@@ -1,9 +1,7 @@
-# Expected evidence after public recollection
+# Expected evidence
 
-No physical observation is registered in the initial public tree. The first
-clean public commit is the only valid source for recollection. The resulting
-selected-device observation is accepted only when all of these close
-together:
+The registered selected-device observation comes from the first clean public
+source commit. It is accepted only when all of these close together:
 
 - CPU and CUDA Realizations finalize an exact common CSR/RHS fingerprint;
 - the CUDA plan remains `f64`, symmetric-indefinite, identity-preconditioned

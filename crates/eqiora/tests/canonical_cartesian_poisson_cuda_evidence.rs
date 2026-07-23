@@ -45,6 +45,7 @@ const CUDA_RUNTIME: &str = "eqiora.cuda.cudarc";
 const CUDA_SOLVER_BACKEND: &str = "eqiora.cuda.krylov";
 const CUDA_LINEAR_EXECUTION: &str = "eqiora.cuda.single-device";
 const SERIAL_EXECUTION: &str = "eqiora.host.serial";
+const REGISTERED_SOURCE_COMMIT: &str = "5696f62ed84eba5457e2ff99f40fd2080c808d69";
 const RECORDED_CUDA_ADAPTER_VERSION: &str = "0.1.0-alpha.1";
 const RECORDED_CUDA_BINDING_TOOLKIT: &str = "12.0";
 const RECORDED_CUDARC_VERSION: &str = "0.18.2";
@@ -336,7 +337,6 @@ fn fresh_compiler_ids_alpha_normalize_to_exact_model_bytes() {
 }
 
 #[test]
-#[ignore = "recollect from the first public commit before registering this evidence"]
 fn committed_canonical_cuda_observation_replays_on_the_host() {
     let root = case_root();
     let environment_bytes = read_bounded(
@@ -566,6 +566,9 @@ fn validate_environment(environment: &EnvironmentObservation) -> Result<(), Stri
     }
     if !is_full_lower_hex(&environment.source_commit) {
         return Err("source commit is not full lowercase 40-hex".to_owned());
+    }
+    if environment.source_commit != REGISTERED_SOURCE_COMMIT {
+        return Err("source commit differs from the registered public source".to_owned());
     }
     for (label, value, allow_empty) in [
         ("rustc", environment.rustc.as_str(), false),

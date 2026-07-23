@@ -20,9 +20,7 @@ using CPU wall-clock timing:
 - [CUDA C++ Best Practices Guide](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/)
 - [cuSPARSE Generic API](https://docs.nvidia.com/cuda/cusparse/)
 
-`cuda_transfer_threshold_evidence` is deliberately host-only. After public
-collection it parses the raw CSV independently of the collector, reconstructs
-matrix and transfer sizes, requires all nine alternating repetitions, checks
-every oracle field, recomputes medians, and rejects a forged durable-crossing
-summary. Until then, the test is explicitly ignored and the case is not
-registered as verified evidence.
+`cuda_transfer_threshold_evidence` is deliberately host-only. It parses the
+registered raw CSV independently of the collector, reconstructs matrix and
+transfer sizes, requires all nine alternating repetitions, checks every oracle
+field, recomputes medians, and rejects a forged durable-crossing summary.

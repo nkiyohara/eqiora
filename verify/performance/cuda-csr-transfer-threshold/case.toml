@@ -1,5 +1,5 @@
 id = "performance.cuda-csr-transfer-threshold"
-status = "implemented"
+status = "verified"
 scope = "cold-one-shot-cuda-csr-transfer-inclusive-threshold"
 reference_kind = "serial-host-action-and-independent-raw-median-replay"
 

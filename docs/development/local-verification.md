@@ -1,8 +1,12 @@
 # Local verification
 
-Local verification is Eqiora's operative merge gate. Hosted automation may
-reproduce the same evidence, but a hosted service is not required to accept and
-merge a locally closed slice.
+Repository-owned local verification is Eqiora's technical acceptance
+authority: a hosted service does not replace or broaden the evidence of a
+locally closed slice. Public pull requests additionally require the two
+provider-bound identity and trust contexts described in
+[the public verification topology](ci-topology.md) before merge. Those hosted
+contexts protect the submitted commit and gate definitions; they do not become
+a second scientific acceptance authority.
 
 The repository-owned planner reuses the same path classification as CI and
 includes committed merge-base changes, staged changes, unstaged changes, and

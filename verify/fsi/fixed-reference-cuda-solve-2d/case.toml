@@ -1,5 +1,5 @@
 id = "fsi.fixed-reference-cuda-solve-2d"
-status = "implemented"
+status = "verified"
 scope = "fixed-reference-fsi-finalized-single-device-cuda-minres-solve-2d"
 reference_kind = "privacy-safe-selected-device-collector-with-independent-cpu-and-host-reacceptance"
 
@@ -48,8 +48,7 @@ single_cuda_device = true
 replicated_algebra = true
 cuda_minres = true
 fast_device_reduction = true
-portable_selected_device_observation = false
-public_commit_recollection_pending = true
+portable_selected_device_observation = true
 hardware_attestation = false
 reproducible_device_reduction = false
 gpu_assembly = false

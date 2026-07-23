@@ -1,0 +1,15 @@
+{
+  "schema": "eqiora.cuda-csr-transfer-threshold.summary.v2",
+  "comparison": "median-cold-cuda-execution-wall-vs-serial-host-action",
+  "outcome": "no-crossing-in-measured-range",
+  "durable_crossing_refinement": null,
+  "summaries": [
+    {"refinement":64,"rows":4096,"nonzeros":20224,"cpu_median_ns":42660,"cuda_median_ns":259574103},
+    {"refinement":128,"rows":16384,"nonzeros":81408,"cpu_median_ns":147288,"cuda_median_ns":238640784},
+    {"refinement":256,"rows":65536,"nonzeros":326656,"cpu_median_ns":531419,"cuda_median_ns":240634782},
+    {"refinement":512,"rows":262144,"nonzeros":1308672,"cpu_median_ns":2060526,"cuda_median_ns":236209756},
+    {"refinement":1024,"rows":1048576,"nonzeros":5238784,"cpu_median_ns":8701722,"cuda_median_ns":283198212},
+    {"refinement":2048,"rows":4194304,"nonzeros":20963328,"cpu_median_ns":45232067,"cuda_median_ns":536998832},
+    {"refinement":4096,"rows":16777216,"nonzeros":83869696,"cpu_median_ns":152589534,"cuda_median_ns":1293517391}
+  ]
+}
