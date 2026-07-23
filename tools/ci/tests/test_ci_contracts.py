@@ -60,11 +60,14 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertIn("--workspace --all-targets --all-features --locked", msrv)
         self.assertIn("libopenmpi-dev", msrv)
 
-    def test_quality_installs_declared_python_evidence_prerequisites(self) -> None:
+    def test_host_evidence_has_an_independent_declared_environment(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
             encoding="utf-8"
         )
         quality = workflow.split("  quality:\n", maxsplit=1)[1].split(
+            "\n  host_evidence:", maxsplit=1
+        )[0]
+        evidence = workflow.split("  host_evidence:\n", maxsplit=1)[1].split(
             "\n  msrv:", maxsplit=1
         )[0]
         action = (
@@ -72,16 +75,19 @@ class HostedTriggerTests(unittest.TestCase):
             "5fda3b95a4ea91299a34e894583c3862153e4b97"
         )
 
-        self.assertIn(action, quality)
-        self.assertIn('python-version: "3.12"', quality)
-        self.assertIn('["tested-numpy-floor"]', quality)
-        self.assertIn('["uv"]', quality)
-        self.assertIn("python -m pip install --only-binary=:all:", quality)
-        self.assertIn("uv --version", quality)
-        self.assertIn("name: Host-CPU verification evidence", quality)
+        self.assertNotIn(action, quality)
+        self.assertNotIn("eqiora-verify -- run --environment host-cpu", quality)
+        self.assertIn("name: Host-CPU verification evidence", evidence)
+        self.assertIn("runs-on: ubuntu-latest", evidence)
+        self.assertIn(action, evidence)
+        self.assertIn('python-version: "3.12"', evidence)
+        self.assertIn('["tested-numpy-floor"]', evidence)
+        self.assertIn('["uv"]', evidence)
+        self.assertIn("python -m pip install --only-binary=:all:", evidence)
+        self.assertIn("uv --version", evidence)
         self.assertIn(
             "eqiora-verify -- run --environment host-cpu",
-            quality,
+            evidence,
         )
 
     def test_studio_checks_its_independent_manifest_at_the_same_msrv(self) -> None:
@@ -369,6 +375,7 @@ class AggregateGateTests(unittest.TestCase):
             "changes": "success",
             "documentation": "success",
             "quality": "skipped",
+            "host_evidence": "skipped",
             "msrv": "skipped",
             "dependency_policy": "skipped",
             "cubecl_experiment": "skipped",
@@ -389,6 +396,13 @@ class AggregateGateTests(unittest.TestCase):
     def test_relevant_success_is_accepted(self) -> None:
         self.relevance["python"] = True
         self.results["python_wheel"] = "success"
+        self.assertEqual(evaluate(self.relevance, self.results), [])
+
+    def test_rust_surface_requires_quality_and_registered_evidence(self) -> None:
+        self.relevance["rust"] = True
+        self.results["quality"] = "success"
+        self.assertTrue(evaluate(self.relevance, self.results))
+        self.results["host_evidence"] = "success"
         self.assertEqual(evaluate(self.relevance, self.results), [])
 
     def test_relevance_contract_rejects_missing_and_malformed_values(self) -> None:

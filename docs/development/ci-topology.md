@@ -87,9 +87,14 @@ after TestPyPI acceptance.
 - Fork pull requests receive no release environment or package credential.
 - Dependency caches are added only after measured benefit and key-isolation
   review.
-- The hosted quality job validates the complete evidence registry and executes
-  the exact `host-cpu` environment. A physical target remains visible as
-  `not-selected`; it is never relabeled as a hosted success.
+- The hosted quality job owns formatting, linting, workspace tests, dependency
+  layers, the public facade, and rustdoc. Registered evidence executes in a
+  separate fresh-runner job so full-feature build artifacts cannot consume the
+  disk reserved for distribution and numerical evidence. Both jobs are
+  required for the Rust surface.
+- The evidence job validates the complete registry and executes the exact
+  `host-cpu` environment. A physical target remains visible as `not-selected`;
+  it is never relabeled as a hosted success.
 - Physical GPU/MPI evidence remains an explicit maintainer-run verification
   boundary. Running the unfiltered or exact physical case without its declared
   environment still fails closed.
