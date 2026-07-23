@@ -60,6 +60,23 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertIn("--workspace --all-targets --all-features --locked", msrv)
         self.assertIn("libopenmpi-dev", msrv)
 
+    def test_quality_installs_the_declared_numpy_floor_for_embedded_python(self) -> None:
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
+            encoding="utf-8"
+        )
+        quality = workflow.split("  quality:\n", maxsplit=1)[1].split(
+            "\n  msrv:", maxsplit=1
+        )[0]
+        action = (
+            "actions/setup-python@"
+            "5fda3b95a4ea91299a34e894583c3862153e4b97"
+        )
+
+        self.assertIn(action, quality)
+        self.assertIn('python-version: "3.12"', quality)
+        self.assertIn('["tested-numpy-floor"]', quality)
+        self.assertIn("python -m pip install --only-binary=:all:", quality)
+
     def test_studio_checks_its_independent_manifest_at_the_same_msrv(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
             encoding="utf-8"
