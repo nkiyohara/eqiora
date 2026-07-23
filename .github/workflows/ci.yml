@@ -100,13 +100,6 @@ jobs:
             python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["tool"]["eqiora-distribution"]["tested-numpy-floor"])'
           )"
           python -m pip install --only-binary=:all: "$requirement"
-      - name: Install the declared Python candidate builder
-        run: |
-          requirement="$(
-            python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["tool"]["eqiora-distribution"]["uv"])'
-          )"
-          python -m pip install --only-binary=:all: "$requirement"
-          uv --version
       - name: Install stable Rust
         run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
       - name: Formatting
@@ -118,8 +111,6 @@ jobs:
       - name: Full feature tests
         if: needs.changes.outputs.full == 'true'
         run: cargo +stable test --workspace --all-targets --all-features --locked
-      - name: Host-CPU verification evidence
-        run: cargo +stable run --locked -p eqiora-verify -- run --environment host-cpu
       - name: Dependency layers
         run: cargo +stable xtask check-layers
       - name: Public facade
@@ -128,6 +119,43 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
         run: cargo +stable doc --workspace --no-deps --locked
+
+  host_evidence:
+    name: Host-CPU verification evidence
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.changes.outputs.target_sha }}
+          persist-credentials: false
+      - name: Install evidence build and runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes libopenmpi-dev openmpi-bin libclang-dev libffi-dev
+          mpirun --version
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install the declared NumPy test floor
+        run: |
+          requirement="$(
+            python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["tool"]["eqiora-distribution"]["tested-numpy-floor"])'
+          )"
+          python -m pip install --only-binary=:all: "$requirement"
+      - name: Install the declared Python candidate builder
+        run: |
+          requirement="$(
+            python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["tool"]["eqiora-distribution"]["uv"])'
+          )"
+          python -m pip install --only-binary=:all: "$requirement"
+          uv --version
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Run registered host evidence
+        run: cargo +stable run --locked -p eqiora-verify -- run --environment host-cpu
 
   msrv:
     name: MSRV 1.89
@@ -270,6 +298,7 @@ jobs:
       - changes
       - documentation
       - quality
+      - host_evidence
       - msrv
       - dependency_policy
       - cubecl_experiment
@@ -295,6 +324,7 @@ jobs:
             {"changes":"${{ needs.changes.result }}",
              "documentation":"${{ needs.documentation.result }}",
              "quality":"${{ needs.quality.result }}",
+             "host_evidence":"${{ needs.host_evidence.result }}",
              "msrv":"${{ needs.msrv.result }}",
              "dependency_policy":"${{ needs.dependency_policy.result }}",
              "cubecl_experiment":"${{ needs.cubecl_experiment.result }}",

@@ -11,6 +11,7 @@ from typing import Mapping
 
 JOB_SURFACES = {
     "quality": "rust",
+    "host_evidence": "rust",
     "msrv": "msrv",
     "dependency_policy": "dependency_policy",
     "cubecl_experiment": "cubecl_experiment",
