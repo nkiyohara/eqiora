@@ -15,17 +15,6 @@ use eqiora::meshing::{
     MeshEntity, MeshGeometry, MeshQualityGate, MeshTopology, SimplicialMesh, simplex_centroid_rule,
     triangle_duffy_gauss_legendre,
 };
-use eqiora::numerics::{
-    DiscreteSpace, IncompressibleFlowScaleProfile2d, MiniNavierStokesStepPlan2d, NonZeroStepCount,
-    ResolvedTransientNavierStokesState2d, ResolvedTransientNavierStokesTrajectory2d,
-    SimplexP1BubbleSpace, SimplicialMiniNavierStokesState2d,
-    SimplicialMiniNavierStokesTrajectory2d, SimplicialMiniStokesBoundary2d,
-    SimplicialMiniStokesBoundaryCondition2d, SimplicialMiniStokesBoundaryFacet2d,
-    SimplicialMiniVelocityField2d, SteadyStokesPressureReference2d,
-    advance_simplicial_mini_navier_stokes_2d,
-    advance_simplicial_mini_navier_stokes_2d_with_assembly,
-    lower_transient_incompressible_navier_stokes_cartesian_2d, solve_simplicial_mini_stokes_2d,
-};
 use eqiora::realization::{
     NonlinearSolvePlan, PlacementRequirementNode, RealizationRevision, SolveRoot, Target,
     TransformationNode,
@@ -34,6 +23,18 @@ use eqiora::solver::{
     LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity};
+use eqiora_numerics::{
+    common::DiscreteSpace, common::NonZeroStepCount, common::SimplexP1BubbleSpace,
+    fluid::IncompressibleFlowScaleProfile2d, fluid::MiniNavierStokesStepPlan2d,
+    fluid::ResolvedTransientNavierStokesState2d, fluid::ResolvedTransientNavierStokesTrajectory2d,
+    fluid::SimplicialMiniNavierStokesState2d, fluid::SimplicialMiniNavierStokesTrajectory2d,
+    fluid::SimplicialMiniStokesBoundary2d, fluid::SimplicialMiniStokesBoundaryCondition2d,
+    fluid::SimplicialMiniStokesBoundaryFacet2d, fluid::SimplicialMiniVelocityField2d,
+    fluid::SteadyStokesPressureReference2d, fluid::advance_simplicial_mini_navier_stokes_2d,
+    fluid::advance_simplicial_mini_navier_stokes_2d_with_assembly,
+    fluid::lower_transient_incompressible_navier_stokes_cartesian_2d,
+    fluid::solve_simplicial_mini_stokes_2d,
+};
 
 const SOURCE: &str =
     include_str!("../../../verify/fluid/fixed-domain-transient-navier-stokes-2d/models/direct.eqi");
@@ -585,10 +586,10 @@ fn physical_pressure_reference(
     initial: &SimplicialMiniNavierStokesState2d,
 ) -> SteadyStokesPressureReference2d {
     match initial.pressure_reference() {
-        eqiora::numerics::SimplicialMiniStokesPressureReference2d::ZeroIntegral { multiplier } => {
-            SteadyStokesPressureReference2d::ZeroIntegral { multiplier }
-        }
-        eqiora::numerics::SimplicialMiniStokesPressureReference2d::BoundaryTraction => {
+        eqiora_numerics::fluid::SimplicialMiniStokesPressureReference2d::ZeroIntegral {
+            multiplier,
+        } => SteadyStokesPressureReference2d::ZeroIntegral { multiplier },
+        eqiora_numerics::fluid::SimplicialMiniStokesPressureReference2d::BoundaryTraction => {
             SteadyStokesPressureReference2d::BoundaryTraction
         }
     }
@@ -738,14 +739,18 @@ fn zero_state(mesh: &SimplicialMesh) -> SimplicialMiniNavierStokesState2d {
         vec![[0.0; 2]; mesh.entity_count(2).unwrap()],
     )
     .unwrap();
-    let pressure =
-        eqiora::numerics::SimplicialP1Field::new(mesh.clone(), vec![0.0; mesh.vertices().len()])
-            .unwrap();
+    let pressure = eqiora_numerics::common::SimplicialP1Field::new(
+        mesh.clone(),
+        vec![0.0; mesh.vertices().len()],
+    )
+    .unwrap();
     SimplicialMiniNavierStokesState2d::new(
         0.0,
         velocity,
         pressure,
-        eqiora::numerics::SimplicialMiniStokesPressureReference2d::ZeroIntegral { multiplier: 0.0 },
+        eqiora_numerics::fluid::SimplicialMiniStokesPressureReference2d::ZeroIntegral {
+            multiplier: 0.0,
+        },
     )
     .unwrap()
 }
@@ -793,7 +798,7 @@ fn inconsistent_interior_velocity_state(
 fn inconsistent_pressure_mean_state(
     source: &SimplicialMiniNavierStokesState2d,
 ) -> SimplicialMiniNavierStokesState2d {
-    let pressure = eqiora::numerics::SimplicialP1Field::new(
+    let pressure = eqiora_numerics::common::SimplicialP1Field::new(
         source.pressure().mesh().clone(),
         source
             .pressure()
@@ -819,7 +824,9 @@ fn inconsistent_gauge_state(
         source.time(),
         source.velocity().clone(),
         source.pressure().clone(),
-        eqiora::numerics::SimplicialMiniStokesPressureReference2d::ZeroIntegral { multiplier: 1.0 },
+        eqiora_numerics::fluid::SimplicialMiniStokesPressureReference2d::ZeroIntegral {
+            multiplier: 1.0,
+        },
     )
     .unwrap()
 }

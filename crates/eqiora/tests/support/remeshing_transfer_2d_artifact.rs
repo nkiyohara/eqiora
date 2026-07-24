@@ -16,12 +16,12 @@ use eqiora::artifact::{
 };
 use eqiora::geometry::BodyAssociationCandidate;
 use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape};
-use eqiora::numerics::{
-    AcceptedAleFsiRemeshProjection2d, AleFsiCartesianModel2d, AleFsiState2d,
-    FixedReferenceFsiPartition2d,
-};
 use eqiora::realization::{AleFsiRemeshTransferPlan2d, ResolvedFixedTopologyAleCoupledRealization};
 use eqiora::{Id, kinds};
+use eqiora_numerics::{
+    ale::AcceptedAleFsiRemeshProjection2d, ale::AleFsiCartesianModel2d, ale::AleFsiState2d,
+    fsi::FixedReferenceFsiPartition2d,
+};
 
 use super::case::{
     COMPONENTS, Case, fluid_domain, fluid_pressure, fluid_velocity, maximum_coordinate_defect,
@@ -32,8 +32,8 @@ pub(super) fn assert_artifact_vertical_slice(
     case: &Case,
     source_resolved: &ResolvedFixedTopologyAleCoupledRealization,
     target_resolved: &ResolvedFixedTopologyAleCoupledRealization,
-    source_trajectory: &eqiora::numerics::AleFsiTrajectory2d,
-    target_trajectory: &eqiora::numerics::AleFsiTrajectory2d,
+    source_trajectory: &eqiora_numerics::ale::AleFsiTrajectory2d,
+    target_trajectory: &eqiora_numerics::ale::AleFsiTrajectory2d,
     projection: &AcceptedAleFsiRemeshProjection2d,
     transfer_plan: AleFsiRemeshTransferPlan2d,
 ) {

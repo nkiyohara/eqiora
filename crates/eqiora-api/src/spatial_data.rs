@@ -11,7 +11,7 @@ use eqiora_core::Diagnostic;
 use eqiora_meshing::{
     DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape, MeshEntity, MeshTopology,
 };
-use eqiora_numerics::ResolvedFixedReferenceFsiSolution2d;
+use eqiora_numerics::fsi::ResolvedFixedReferenceFsiSolution2d;
 
 /// Durable logical snapshots and their exact normalized numeric leaves.
 ///

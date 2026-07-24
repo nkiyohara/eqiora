@@ -8,12 +8,6 @@ use eqiora::artifact::{
 };
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{CellId, FacetId, MeshQualityGate, SimplicialMesh};
-use eqiora::numerics::{
-    FixedReferenceFsiCartesianModel2d, FixedReferenceFsiPartition2d,
-    FixedReferenceFsiScaleProfile2d, FixedReferenceFsiState2d, ResolvedFixedReferenceFsiSolution2d,
-    finalize_resolved_fixed_reference_fsi_step_2d, fixed_reference_fsi_plan_2d,
-    fixed_reference_fsi_requirements_2d,
-};
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
     ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
@@ -30,6 +24,12 @@ use eqiora::solver::{
     REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity};
+use eqiora_numerics::{
+    fsi::FixedReferenceFsiCartesianModel2d, fsi::FixedReferenceFsiPartition2d,
+    fsi::FixedReferenceFsiScaleProfile2d, fsi::FixedReferenceFsiState2d,
+    fsi::ResolvedFixedReferenceFsiSolution2d, fsi::finalize_resolved_fixed_reference_fsi_step_2d,
+    fsi::fixed_reference_fsi_plan_2d, fsi::fixed_reference_fsi_requirements_2d,
+};
 
 #[path = "embedded_package.rs"]
 mod embedded_package;

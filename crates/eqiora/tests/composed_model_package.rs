@@ -9,9 +9,6 @@ use eqiora::compatibility::ExactModelCodec;
 use eqiora::entity::kinds;
 use eqiora::graph::EdgeKind;
 use eqiora::kernel::KernelNode;
-use eqiora::numerics::{
-    lower_scalar_physical_affine, solve_scalar_physical_affine_with_initial_guess,
-};
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageDirectory, AuthorPackageSourcesV1, BundleRoleV1,
     DeclarationKindV1, DependencyRequirementV1, DirectoryPackageInstaller, DirectoryPackageStore,
@@ -24,6 +21,9 @@ use eqiora::solver::{
     LinearSolveRequest, LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan,
 };
 use eqiora_backend_faer::FaerLinearSolver;
+use eqiora_numerics::{
+    scalar::lower_scalar_physical_affine, scalar::solve_scalar_physical_affine_with_initial_guess,
+};
 
 const PERMUTED_CIRCUITS_SOURCE: &str =
     include_str!("../../../verify/packages/composed-model-package/models/circuits-permuted.eqi");

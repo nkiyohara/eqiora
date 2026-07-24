@@ -6,12 +6,6 @@ use eqiora::artifact::{
 };
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{MeshQualityGate, SimplicialMesh, triangle_duffy_gauss_legendre};
-use eqiora::numerics::{
-    FinalizedSteadyStokesMini2dProblem, SteadyStokesMiniSolution2d, SteadyStokesScaleProfile2d,
-    finalize_resolved_steady_stokes_mini_2d, finalize_simplicial_mini_stokes_2d,
-    lower_steady_incompressible_stokes_cartesian_2d, steady_stokes_fieldwise_requirements_2d,
-    steady_stokes_mini_plan_2d,
-};
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
     ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
@@ -29,6 +23,13 @@ use eqiora::solver::{
     SolverPlan,
 };
 use eqiora::{Diagnostic, DimExponents, DynQuantity, Id, kinds};
+use eqiora_numerics::{
+    fluid::FinalizedSteadyStokesMini2dProblem, fluid::SteadyStokesMiniSolution2d,
+    fluid::SteadyStokesScaleProfile2d, fluid::finalize_resolved_steady_stokes_mini_2d,
+    fluid::finalize_simplicial_mini_stokes_2d,
+    fluid::lower_steady_incompressible_stokes_cartesian_2d,
+    fluid::steady_stokes_fieldwise_requirements_2d, fluid::steady_stokes_mini_plan_2d,
+};
 
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
@@ -514,7 +515,7 @@ fn assert_congruence(
 
 fn assert_physical_solution(
     solution: &SteadyStokesMiniSolution2d,
-    lowered: &eqiora::numerics::SteadyIncompressibleStokesCartesianModel2d,
+    lowered: &eqiora_numerics::fluid::SteadyIncompressibleStokesCartesianModel2d,
 ) {
     assert_eq!(solution.velocity_field().ulid(), lowered.velocity().ulid());
     assert_eq!(solution.pressure_field().ulid(), lowered.pressure().ulid());
@@ -604,7 +605,7 @@ fn resolve_exact(
     scales: SteadyStokesScaleProfile2d,
     realization_revision: u64,
 ) -> (
-    eqiora::numerics::SteadyIncompressibleStokesCartesianModel2d,
+    eqiora_numerics::fluid::SteadyIncompressibleStokesCartesianModel2d,
     ResolvedFieldwiseRealization,
 ) {
     let lowered = lower_steady_incompressible_stokes_cartesian_2d(program)

@@ -10,7 +10,7 @@ use super::{
     COMPONENTS, DIMENSION, P1_BASIS_COUNT, REQUIRED_ERROR_QUADRATURE_EXACTNESS,
     REQUIRED_QUADRATURE_EXACTNESS, invalid,
 };
-use crate::{DiscreteSpace, SimplexP1Space};
+use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
 
 pub(super) fn require_compatible_boundary_flux(
     mesh: &SimplicialMesh,

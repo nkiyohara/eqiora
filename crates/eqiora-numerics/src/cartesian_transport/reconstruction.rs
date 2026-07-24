@@ -6,7 +6,10 @@ use eqiora_realization::CellCenteredConvectionScheme;
 use eqiora_schema::kernel::BoundarySide;
 
 use super::api::ScalarTransportBoundaryRole;
-use crate::{CartesianMesh, ScalarTransportCartesianBoundary, ScalarTransportCartesianModel2d};
+use crate::canonical_transport::{
+    ScalarTransportCartesianBoundary, ScalarTransportCartesianModel2d,
+};
+use crate::cartesian_mesh::CartesianMesh;
 
 const DIMENSION: usize = 2;
 

@@ -16,7 +16,8 @@ use super::{COMPONENTS, DIMENSION, solve_failed};
 use crate::jacobian_audit::{
     CenteredJacobianAuditEvidence, StructuralJacobianPattern, audit_centered_jacobian,
 };
-use crate::{NonZeroStepCount, SimplicialMiniStokesBoundary2d};
+use crate::simplicial_stokes::SimplicialMiniStokesBoundary2d;
+use crate::step_count::NonZeroStepCount;
 
 /// Advance a fixed mesh through one or more accepted implicit steps with the
 /// deterministic reference assembler.

@@ -12,10 +12,11 @@ use eqiora_solver::{
     REFERENCE_LINEAR_SOLVER, SolveReport, SolverPlan,
 };
 
-use crate::{
-    LocalOperator, ScalarBoundaryCondition1d, ScalarBoundaryPair1d, ScalarEllipticSolution1d,
+use crate::elliptic::{
+    ScalarBoundaryCondition1d, ScalarBoundaryPair1d, ScalarEllipticSolution1d,
     solve_scalar_elliptic_linear_fem,
 };
+use crate::operator::LocalOperator;
 
 /// Finite Dirichlet values at the two endpoints of a line mesh.
 #[derive(Debug, Clone, Copy, PartialEq)]

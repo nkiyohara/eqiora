@@ -22,15 +22,14 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, ScalarType};
 
 use crate::canonical_boundary::BoundaryRelationBinding;
+use crate::canonical_boundary::{CartesianBoundaryInventory2d, PhysicalBoundaryDisposition};
+use crate::cartesian_elasticity::CartesianLinearElasticity2dSolution;
 use crate::cartesian_elasticity::{
     CartesianEssentialSides2d, finalize_cartesian_q1_linear_elasticity_2d,
 };
+use crate::cartesian_mesh::CartesianMesh;
 use crate::finalized_spatial::FinalizedIsotropicElasticityCartesian2dProblem;
 use crate::spatial_expression::{self, ScalarSpatialExpression};
-use crate::{
-    CartesianBoundaryInventory2d, CartesianLinearElasticity2dSolution, CartesianMesh,
-    PhysicalBoundaryDisposition,
-};
 
 mod block;
 mod boundary;

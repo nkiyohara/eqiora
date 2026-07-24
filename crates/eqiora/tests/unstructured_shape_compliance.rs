@@ -8,16 +8,18 @@ use eqiora::differentiation::{
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::kernel::BoundarySide;
 use eqiora::meshing::{MeshQualityGate, QuadratureRule, SimplicialMesh, simplex_centroid_rule};
-use eqiora::numerics::{
-    ScalarEllipticSimplicialFemSolution, SimplicialMeshVelocity, SpatialDesignCoordinate,
-    linearize_scalar_elliptic_simplicial_compliance, linearize_scalar_elliptic_simplicial_fem,
-    lower_scalar_elliptic_cartesian, solve_scalar_elliptic_simplicial_fem,
-};
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     LinearOperatorProperties, LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan,
 };
 use eqiora::{Id, entity::kinds};
+use eqiora_numerics::{
+    ale::SimplicialMeshVelocity, common::SpatialDesignCoordinate,
+    scalar::ScalarEllipticSimplicialFemSolution,
+    scalar::linearize_scalar_elliptic_simplicial_compliance,
+    scalar::linearize_scalar_elliptic_simplicial_fem, scalar::lower_scalar_elliptic_cartesian,
+    scalar::solve_scalar_elliptic_simplicial_fem,
+};
 
 const SOURCE: &str = include_str!(
     "../../../verify/differentiation/unstructured-shape-compliance/models/poisson.eqi"
@@ -137,7 +139,7 @@ fn solved_revision(bounds: [f64; 2], cells: usize) -> (SimplicialMesh, Vec<f64>,
 }
 
 fn solve(
-    model: &eqiora::numerics::ScalarEllipticCartesianModel,
+    model: &eqiora_numerics::scalar::ScalarEllipticCartesianModel,
     mesh: &SimplicialMesh,
     quadrature: &QuadratureRule,
 ) -> ScalarEllipticSimplicialFemSolution {

@@ -7,16 +7,6 @@ use eqiora::artifact::SimplicialMeshEnvelopeV1;
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{MeshQualityGate, MeshTopology, SimplicialMesh};
-use eqiora::numerics::{
-    CartesianMesh, CellCenteredNavierStokesInitialState2d, CellCenteredPressureField2d,
-    CellCenteredVelocityField2d, IncompressibleFlowScaleProfile2d, NonZeroStepCount,
-    ResolvedCellCenteredNavierStokesTrajectory2d, ResolvedTransientNavierStokesTrajectory2d,
-    SimplicialMiniVelocityField2d, SimplicialP1Field, SteadyStokesPressureReference2d,
-    TransientNavierStokesRun2d, advance_resolved_transient_navier_stokes_cell_centered_2d,
-    lower_transient_incompressible_navier_stokes_cartesian_2d,
-    transient_navier_stokes_cell_centered_plan_2d,
-    transient_navier_stokes_cell_centered_requirements_2d,
-};
 use eqiora::realization::{
     DiscretizationMethod, MeshKind, NonlinearSolvePlan, RealizationCapabilities,
     RealizationRevision, SemanticRevision, SpatialDimensionSupport, TargetCapabilities,
@@ -30,6 +20,18 @@ use eqiora::solver::{
     ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity};
+use eqiora_numerics::{
+    common::CartesianMesh, common::NonZeroStepCount, common::SimplicialP1Field,
+    fluid::CellCenteredNavierStokesInitialState2d, fluid::CellCenteredPressureField2d,
+    fluid::CellCenteredVelocityField2d, fluid::IncompressibleFlowScaleProfile2d,
+    fluid::ResolvedCellCenteredNavierStokesTrajectory2d,
+    fluid::ResolvedTransientNavierStokesTrajectory2d, fluid::SimplicialMiniVelocityField2d,
+    fluid::SteadyStokesPressureReference2d, fluid::TransientNavierStokesRun2d,
+    fluid::advance_resolved_transient_navier_stokes_cell_centered_2d,
+    fluid::lower_transient_incompressible_navier_stokes_cartesian_2d,
+    fluid::transient_navier_stokes_cell_centered_plan_2d,
+    fluid::transient_navier_stokes_cell_centered_requirements_2d,
+};
 
 const SOURCE: &str = include_str!(
     "../../../verify/fluid/same-program-fem-fvm-navier-stokes-2d/models/hydrostatic.eqi"

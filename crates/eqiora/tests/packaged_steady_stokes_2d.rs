@@ -6,10 +6,6 @@ use eqiora::compatibility::ExactModelCodec;
 use eqiora::diagnostic::codes;
 use eqiora::kernel::BoundarySide;
 use eqiora::language::{ComponentItem, DomainSyntax, Item};
-use eqiora::numerics::{
-    ScalarSpatialExpression, SteadyIncompressibleStokesCartesianModel2d,
-    lower_steady_incompressible_stokes_cartesian_2d,
-};
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
     ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageCompilationRecordV1,
@@ -17,6 +13,10 @@ use eqiora::package::{
     prepare_package_release_v1,
 };
 use eqiora::sem::KernelProgram;
+use eqiora_numerics::{
+    common::ScalarSpatialExpression, fluid::SteadyIncompressibleStokesCartesianModel2d,
+    fluid::lower_steady_incompressible_stokes_cartesian_2d,
+};
 
 #[path = "support/embedded_package.rs"]
 mod embedded_package;
@@ -593,7 +593,7 @@ fn exact_package_identity_and_lowered_meaning_are_name_and_order_independent() {
                 .boundary(axis, side)
                 .expect("complete Stokes boundary inventory")
                 .disposition(),
-            eqiora::numerics::PhysicalBoundaryDisposition::TraceZero
+            eqiora_numerics::common::PhysicalBoundaryDisposition::TraceZero
         ));
     }
     let force = direct_lowered.force_potential_expression();

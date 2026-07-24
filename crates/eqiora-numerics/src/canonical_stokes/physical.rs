@@ -9,9 +9,11 @@ use eqiora_solver::{
 };
 
 use super::SteadyStokesScaleProfile2d;
-use crate::{
-    FinalizedSimplicialMiniStokes2dProblem, SimplicialMiniStokesPressureReference2d,
-    SimplicialMiniStokesSolution2d, SimplicialMiniVelocityField2d, SimplicialP1Field,
+use crate::finalized_spatial::FinalizedSimplicialMiniStokes2dProblem;
+use crate::simplicial_elliptic::SimplicialP1Field;
+use crate::simplicial_stokes::{
+    SimplicialMiniStokesPressureReference2d, SimplicialMiniStokesSolution2d,
+    SimplicialMiniVelocityField2d,
 };
 
 /// Finalized dimensionless MINI algebra plus opaque coherent-SI reconstruction.

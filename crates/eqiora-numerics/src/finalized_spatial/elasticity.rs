@@ -7,14 +7,14 @@ use eqiora_solver::{
 
 use super::FinalizedLinearCore;
 use crate::cartesian_elasticity::{
+    CartesianLinearElasticity2dSolution, ConformingCartesianLinearElasticityPair2dSolution,
+};
+use crate::cartesian_elasticity::{
     FinalizedCartesianElasticity2dAssembly, FinalizedCartesianElasticity2dState,
     FinalizedConformingCartesianElasticityPair2dAssembly,
     FinalizedConformingCartesianElasticityPair2dState,
 };
 use crate::discrete_block::DiscreteBlockSystem;
-use crate::{
-    CartesianLinearElasticity2dSolution, ConformingCartesianLinearElasticityPair2dSolution,
-};
 
 /// Finalized algebraic handoff for one resolved Cartesian Q1 elasticity
 /// realization.

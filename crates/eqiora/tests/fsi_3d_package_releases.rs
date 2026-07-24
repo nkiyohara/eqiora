@@ -6,7 +6,7 @@ use eqiora::package::{
     PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
-use eqiora_numerics::{AleFsiCartesianModel3d, lower_ale_fsi_cartesian_3d};
+use eqiora_numerics::{ale::AleFsiCartesianModel3d, ale::lower_ale_fsi_cartesian_3d};
 
 #[path = "support/embedded_package.rs"]
 mod embedded_package;

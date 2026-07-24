@@ -35,12 +35,16 @@ use crate::discrete_block::{
     ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, FieldBlock,
     FieldBlockRole, RelationBlock, RelationDisposition, ResidualBlock, ResidualOrigin,
 };
-use crate::{
-    NonZeroStepCount, SimplicialMiniNavierStokesState2d, SimplicialMiniNavierStokesStepEvidence2d,
-    SimplicialMiniStokesBoundary2d, SimplicialMiniStokesPressureReference2d,
-    SimplicialMiniVelocityField2d, SimplicialP1Field,
+use crate::simplicial_elliptic::SimplicialP1Field;
+use crate::simplicial_navier_stokes::{
+    SimplicialMiniNavierStokesState2d, SimplicialMiniNavierStokesStepEvidence2d,
     advance_simplicial_mini_navier_stokes_2d_with_assembly,
 };
+use crate::simplicial_stokes::{
+    SimplicialMiniStokesBoundary2d, SimplicialMiniStokesPressureReference2d,
+    SimplicialMiniVelocityField2d,
+};
+use crate::step_count::NonZeroStepCount;
 
 const DIMENSION: usize = 2;
 const DUFFY_POINTS_PER_AXIS: usize = 5;
@@ -631,9 +635,9 @@ pub(super) fn require_complete_zero_trace(
 ) -> Result<(), Diagnostic> {
     let entries = model.boundary_inventory().entries().collect::<Vec<_>>();
     if entries.len() != 2 * DIMENSION
-        || entries
-            .iter()
-            .any(|(_, entry)| entry.disposition() != crate::PhysicalBoundaryDisposition::TraceZero)
+        || entries.iter().any(|(_, entry)| {
+            entry.disposition() != crate::canonical_boundary::PhysicalBoundaryDisposition::TraceZero
+        })
     {
         return Err(invalid_realization(
             "bounded transient Navier--Stokes realization requires complete homogeneous velocity trace",
@@ -650,7 +654,7 @@ fn require_exact_transient_plan(
 ) -> Result<
     (
         IncompressibleFlowScaleProfile2d,
-        crate::MiniNavierStokesStepPlan2d,
+        crate::simplicial_navier_stokes::MiniNavierStokesStepPlan2d,
     ),
     Diagnostic,
 > {
@@ -828,7 +832,7 @@ fn require_exact_transient_plan(
         / (scales.pressure_value() * scales.length_value());
     let time_step = resolved.plan().time_step().duration().value() * scales.velocity_value()
         / scales.length_value();
-    let numerical = crate::MiniNavierStokesStepPlan2d::new(
+    let numerical = crate::simplicial_navier_stokes::MiniNavierStokesStepPlan2d::new(
         density,
         viscosity,
         time_step,

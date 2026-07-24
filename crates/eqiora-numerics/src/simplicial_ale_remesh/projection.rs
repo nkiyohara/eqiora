@@ -8,9 +8,10 @@ use eqiora_meshing::{
 };
 use eqiora_solver::{LinearOperatorProperties, LinearSolveRequest, SolveReport};
 
-use crate::{
-    AleFsiState2d, FixedReferenceFsiBoundary2d, FixedReferenceFsiMaterial2d,
-    FixedReferenceFsiPartition2d, FixedReferenceFsiScale2d, P1HarmonicMeshMotionAction2d,
+use crate::simplicial_ale_fsi::{AleFsiState2d, P1HarmonicMeshMotionAction2d};
+use crate::simplicial_fsi::{
+    FixedReferenceFsiBoundary2d, FixedReferenceFsiMaterial2d, FixedReferenceFsiPartition2d,
+    FixedReferenceFsiScale2d,
 };
 
 use super::contract::{AcceptedAleFsiRemeshProjection2d, AleFsiRemeshProjectionEvidence2d};

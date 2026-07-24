@@ -9,11 +9,6 @@ use eqiora::compatibility::ExactModelCodec;
 use eqiora::diagnostic::codes;
 use eqiora::kernel::BoundarySide;
 use eqiora::meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule};
-use eqiora::numerics::{
-    CartesianQ1VectorField2d, DiscreteSpace, HypercubeQ1Space, PhysicalBoundaryDisposition,
-    finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly,
-    lower_conforming_isotropic_elasticity_cartesian_pair_2d,
-};
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
     ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
@@ -29,6 +24,12 @@ use eqiora::realization::{
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan,
+};
+use eqiora_numerics::{
+    common::DiscreteSpace, common::HypercubeQ1Space, common::PhysicalBoundaryDisposition,
+    solid::CartesianQ1VectorField2d,
+    solid::finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly,
+    solid::lower_conforming_isotropic_elasticity_cartesian_pair_2d,
 };
 
 #[path = "support/embedded_package.rs"]

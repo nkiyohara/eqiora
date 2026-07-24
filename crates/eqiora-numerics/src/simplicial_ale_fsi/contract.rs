@@ -15,7 +15,7 @@ use eqiora_realization::{NonlinearSolvePlan, Target};
 use eqiora_solver::{LinearOperatorProperties, LinearSolver, SolverPlan};
 
 use super::{P1HarmonicMeshMotionAction, invalid};
-use crate::{
+use crate::simplicial_fsi::{
     FixedReferenceFsiBoundary, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,
     FixedReferenceFsiPartition, FixedReferenceFsiScale, FixedReferenceFsiState,
     FixedReferenceFsiStepConfig,

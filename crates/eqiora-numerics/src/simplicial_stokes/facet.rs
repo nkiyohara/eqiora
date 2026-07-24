@@ -4,7 +4,8 @@ use eqiora_meshing::{AffineGeometryMap, QuadratureRule};
 
 use super::acceptance::require_facet_geometry;
 use super::{COMPONENTS, FACET_BASIS_COUNT, FACET_LOCAL_DOF_COUNT};
-use crate::{DiscreteSpace, LocalOperator, SimplexP1Space};
+use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
+use crate::operator::LocalOperator;
 
 /// One constant prescribed-traction action on a P1 boundary trace.
 pub(crate) struct MiniConstantTractionFacet {

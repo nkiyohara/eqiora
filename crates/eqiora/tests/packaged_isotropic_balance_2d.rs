@@ -10,9 +10,6 @@ use eqiora::artifact::{
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::language::{ComponentItem, DomainSyntax, Item};
 use eqiora::meshing::QuadratureRule;
-use eqiora::numerics::{
-    lower_isotropic_elasticity_cartesian_2d, solve_resolved_isotropic_elasticity_cartesian_2d,
-};
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
     ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageCompilationRecordV1,
@@ -27,6 +24,10 @@ use eqiora::realization::{
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolverPlan,
+};
+use eqiora_numerics::{
+    solid::lower_isotropic_elasticity_cartesian_2d,
+    solid::solve_resolved_isotropic_elasticity_cartesian_2d,
 };
 
 #[path = "support/embedded_package.rs"]

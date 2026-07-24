@@ -5,9 +5,9 @@ use eqiora_core::Id;
 use eqiora_core::entity::kinds;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_numerics::{
-    SpatialDesignCoordinate, finalize_lowered_scalar_elliptic_cartesian,
-    finalize_resolved_scalar_elliptic_cartesian, finalize_scalar_elliptic_parameter_point,
-    lower_scalar_elliptic_cartesian,
+    common::SpatialDesignCoordinate, scalar::finalize_lowered_scalar_elliptic_cartesian,
+    scalar::finalize_resolved_scalar_elliptic_cartesian,
+    scalar::finalize_scalar_elliptic_parameter_point, scalar::lower_scalar_elliptic_cartesian,
 };
 use eqiora_realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,

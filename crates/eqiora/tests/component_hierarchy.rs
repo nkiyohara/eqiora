@@ -6,16 +6,16 @@ use eqiora::compiler::{ModelSymbols, compile};
 use eqiora::entity::kinds;
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore};
 use eqiora::kernel::KernelNode;
-use eqiora::numerics::{
-    ScalarPhysicalAffineSolution, lower_scalar_physical_affine,
-    solve_scalar_physical_affine_with_initial_guess,
-};
 use eqiora::sem::{KernelProgram, PhysicalUnknown};
 use eqiora::solver::{
     LinearSolveRequest, LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan,
 };
 use eqiora::{Id, RawId};
 use eqiora_backend_faer::FaerLinearSolver;
+use eqiora_numerics::{
+    scalar::ScalarPhysicalAffineSolution, scalar::lower_scalar_physical_affine,
+    scalar::solve_scalar_physical_affine_with_initial_guess,
+};
 
 const SOURCE: &str = include_str!(
     "../../../verify/language/component-elaboration/models/hierarchical-parallel-dc.eqi"

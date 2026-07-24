@@ -2,7 +2,8 @@ use eqiora_core::Diagnostic;
 use eqiora_meshing::{FixedTopologyGeometryState2d, SimplicialRevisionOverlap2d};
 use eqiora_solver::SolveReport;
 
-use crate::{AleFsiInitialPhysicalState2d, FixedReferenceFsiMaterial2d, FixedReferenceFsiScale2d};
+use crate::canonical_fsi::AleFsiInitialPhysicalState2d;
+use crate::simplicial_fsi::{FixedReferenceFsiMaterial2d, FixedReferenceFsiScale2d};
 
 const COMPONENTS: usize = 2;
 

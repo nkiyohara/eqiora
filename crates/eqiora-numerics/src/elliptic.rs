@@ -8,7 +8,8 @@ use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{CellId, LineMesh, QuadratureRule, ReferenceCell, SegmentGeometry1d};
 use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolveRequest, SolveReport};
 
-use crate::{LocalOperator, PiecewiseLinearField1d};
+use crate::operator::LocalOperator;
+use crate::poisson::PiecewiseLinearField1d;
 
 /// One endpoint condition for `-d/dx(k du/dx) = f`.
 #[derive(Debug, Clone, Copy, PartialEq)]

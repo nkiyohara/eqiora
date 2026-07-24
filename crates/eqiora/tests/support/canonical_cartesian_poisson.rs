@@ -5,9 +5,6 @@ use eqiora::compiler::compile;
 use eqiora::entity::EntityKind;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::meshing::QuadratureRule;
-use eqiora::numerics::{
-    ResolvedScalarEllipticCartesianSolution, solve_resolved_scalar_elliptic_cartesian,
-};
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshKind, MeshPolicy,
     QuadraturePolicy, RealizationCapabilities, RealizationPlan, RealizationRequest,
@@ -18,6 +15,10 @@ use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     LinearOperatorProperties, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
     ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
+};
+use eqiora_numerics::{
+    scalar::ResolvedScalarEllipticCartesianSolution,
+    scalar::solve_resolved_scalar_elliptic_cartesian,
 };
 
 pub const SOURCE: &str =

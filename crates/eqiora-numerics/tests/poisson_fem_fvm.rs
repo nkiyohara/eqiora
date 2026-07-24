@@ -4,8 +4,8 @@ use std::num::NonZeroUsize;
 use eqiora_compiler::compile;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_numerics::{
-    ResolvedScalarEllipticSolution1d, compare_canonical_scalar_elliptic_1d,
-    solve_resolved_scalar_elliptic_1d,
+    scalar::ResolvedScalarEllipticSolution1d, scalar::compare_canonical_scalar_elliptic_1d,
+    scalar::solve_resolved_scalar_elliptic_1d,
 };
 use eqiora_realization::{
     DefaultPolicyVersion, Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy,

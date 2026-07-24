@@ -15,7 +15,6 @@ use eqiora::device::{
     DeviceElement, DeviceId, Fence, HostBufferDescriptor, MemoryRegion, QueueId, QueueSlot,
     QueueTimeline, RuntimeId, TransferDirection, TransferEvidence, TransferPlan, WaitedCompletion,
 };
-use eqiora::numerics::finalize_resolved_scalar_elliptic_cartesian;
 use eqiora::realization::{TargetCapabilities, resolve};
 use eqiora::solver::{
     BackendId, ConvergenceReason, ExecutionId, ExecutionProvider, ExecutionReport,
@@ -26,6 +25,7 @@ use eqiora_execution::{
     AdmittedExecution, CsrDeviceTransferEvidence, CudaExecutorDescriptor, CudaLinearExecutionTrace,
     DeploymentBinding, DeviceValueGeneration, ExecutionReceipt, ExecutionStepKind,
 };
+use eqiora_numerics::scalar::finalize_resolved_scalar_elliptic_cartesian;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
@@ -1032,7 +1032,7 @@ fn validate_solutions(solutions: &SolutionObservations) -> Result<(), String> {
 }
 
 fn replay_observed_execution(
-    finalized: &eqiora::numerics::FinalizedScalarEllipticCartesianProblem,
+    finalized: &eqiora_numerics::scalar::FinalizedScalarEllipticCartesianProblem,
     environment: &EnvironmentObservation,
     observation: &MethodObservation,
     native_accepted: eqiora::solver::LinearSolution,

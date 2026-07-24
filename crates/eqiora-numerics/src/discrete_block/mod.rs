@@ -26,7 +26,9 @@ use eqiora_solver::{
 use sha2::{Digest, Sha256};
 
 use crate::canonical_boundary::BoundaryRelationBinding2d;
-use crate::{CartesianBoundaryInventory2d, PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
+use crate::canonical_boundary::{
+    CartesianBoundaryInventory2d, PhysicalBoundaryDisposition, PhysicalBoundaryQuantity,
+};
 
 const BLOCK_SYSTEM_IDENTITY_DOMAIN: &[u8] = b"eqiora.discrete-block-system/v1\0";
 

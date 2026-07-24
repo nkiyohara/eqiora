@@ -3,13 +3,14 @@ use eqiora_core::Diagnostic;
 use eqiora_meshing::{AffineGeometryMap, MeshGeometry, MeshTopology, QuadratureRule};
 
 use super::{REQUIRED_CONVECTIVE_QUADRATURE_EXACTNESS, invalid};
+use crate::operator::LocalOperator;
 use crate::simplicial_mini_transient::{MiniTransientCell, MiniTransport};
+use crate::simplicial_stokes::SimplicialMiniVelocityField2d;
 use crate::simplicial_stokes::element::{MiniSpaces, physical_gradients};
 use crate::simplicial_stokes::{
     CELL_LOCAL_DOF_COUNT, COMPONENTS, DIMENSION, LOCAL_PRESSURE_OFFSET, P1_BASIS_COUNT,
     VELOCITY_BASIS_COUNT,
 };
-use crate::{LocalOperator, SimplicialMiniVelocityField2d};
 
 pub(crate) struct MiniNavierStokesCell<'a, F> {
     pub(crate) cell: usize,

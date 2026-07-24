@@ -20,7 +20,6 @@ use eqiora::backends::mpi::{
 };
 use eqiora::distributed::{DistributedLinearSystem, Partition, PartitionId};
 use eqiora::meshing::MeshEntity;
-use eqiora::numerics::lower_fixed_reference_fsi_cartesian_2d;
 use eqiora::realization::{
     AlgebraicBlock, CoupledFieldwiseRealizationRequest, DiscretizationMethod, MeshKind,
     RealizationCapabilities, SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind,
@@ -35,10 +34,11 @@ use eqiora_execution::{
     AdmittedExecution, DeploymentBinding, DistributedExecutorDescriptor, ExecutionReceipt,
     ExecutionStepKind, ProcessGroupSlot,
 };
+use eqiora_numerics::fsi::lower_fixed_reference_fsi_cartesian_2d;
 use eqiora_numerics::{
-    ResolvedFixedReferenceFsiSolution2d,
-    finalize_resolved_fixed_reference_fsi_step_2d_with_assembly,
-    fixed_reference_fsi_requirements_2d_for_layout,
+    fsi::ResolvedFixedReferenceFsiSolution2d,
+    fsi::finalize_resolved_fixed_reference_fsi_step_2d_with_assembly,
+    fsi::fixed_reference_fsi_requirements_2d_for_layout,
 };
 use eqiora_spatial_distribution::{
     CellOwnershipClaim, DistributedAssemblyEvidence, DistributedMeshLayout, MeshRevisionIdentityV1,
@@ -298,7 +298,7 @@ fn distributed_binding(
 fn assert_forged_owner_map_fails_collectively(
     world: &impl CommunicatorCollectives,
     group: &mut MpiExecutionGroup,
-    prepared: &eqiora_numerics::PreparedDistributedFixedReferenceFsiStep2d,
+    prepared: &eqiora_numerics::fsi::PreparedDistributedFixedReferenceFsiStep2d,
 ) {
     let exact = prepared.distributed_system().partition();
     let partition = if group.partition().index() == group.partitions().get() - 1 {

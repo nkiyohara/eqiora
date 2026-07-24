@@ -14,7 +14,7 @@ use eqiora_meshing::{
 };
 
 use crate::affine_fem::physical_gradient;
-use crate::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
+use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
 
 /// Transport identity carried by the transient fluid relation.
 ///

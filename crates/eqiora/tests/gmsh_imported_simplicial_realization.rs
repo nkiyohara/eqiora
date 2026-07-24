@@ -9,7 +9,6 @@ use eqiora::compiler::compile;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::io::gmsh::{GmshImportLimits, GmshSimplexImporter};
 use eqiora::meshing::MeshQualityGate;
-use eqiora::numerics::solve_resolved_scalar_elliptic_simplicial;
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
     RealizationCapabilities, RealizationPlan, RealizationRequest, RealizationRequirements,
@@ -17,6 +16,7 @@ use eqiora::realization::{
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan};
+use eqiora_numerics::scalar::solve_resolved_scalar_elliptic_simplicial;
 
 const SOURCE: &str = include_str!(
     "../../../verify/artifacts/gmsh-imported-simplicial-realization/models/poisson.eqi"

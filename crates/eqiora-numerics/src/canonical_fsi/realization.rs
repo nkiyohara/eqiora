@@ -18,7 +18,7 @@ use eqiora_solver::{LinearOperatorProperties, ReductionPolicy, ScalarType, Solve
 
 use super::FixedReferenceFsiCartesianModel2d;
 use crate::simplicial_fsi::finalize_fixed_reference_fsi_step_2d_with_packet_set;
-use crate::{
+use crate::simplicial_fsi::{
     FixedReferenceFsiBoundary2d, FixedReferenceFsiLoad2d, FixedReferenceFsiMaterial2d,
     FixedReferenceFsiPartition2d, FixedReferenceFsiScale2d, FixedReferenceFsiState2d,
     FixedReferenceFsiStepConfig2d,

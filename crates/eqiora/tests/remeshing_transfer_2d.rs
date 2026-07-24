@@ -2,10 +2,11 @@
 
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::meshing::{OverlapCoordinateChart2d, SimplicialRevisionOverlap2d};
-use eqiora::numerics::{
-    finalize_resolved_fixed_topology_ale_fsi_2d, remesh_resolved_fixed_topology_ale_fsi_2d,
-};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
+use eqiora_numerics::{
+    ale::finalize_resolved_fixed_topology_ale_fsi_2d,
+    ale::remesh_resolved_fixed_topology_ale_fsi_2d,
+};
 
 #[path = "support/remeshing_transfer_2d_artifact.rs"]
 mod artifact;

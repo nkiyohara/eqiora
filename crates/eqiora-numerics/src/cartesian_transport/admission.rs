@@ -14,7 +14,8 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearOperatorProperties, ScalarType, SolverPlan};
 
 use super::api::ScalarTransportCellState2d;
-use crate::{CartesianMesh, ScalarTransportCartesianModel2d};
+use crate::canonical_transport::ScalarTransportCartesianModel2d;
+use crate::cartesian_mesh::CartesianMesh;
 
 const DIMENSION: usize = 2;
 

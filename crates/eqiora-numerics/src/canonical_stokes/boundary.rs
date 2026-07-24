@@ -8,12 +8,12 @@ use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
-use crate::ScalarSpatialExpression;
 use crate::canonical_boundary::{
     BoundaryRelationBinding, CartesianBoundaryEntry, CartesianBoundaryInventory,
     PhysicalBoundaryDisposition, PhysicalBoundaryQuantity, PrescribedBoundaryLaw,
     exact_cartesian_boundaries, normalize_field_physical_interface,
 };
+use crate::spatial_expression::ScalarSpatialExpression;
 
 use super::expression::lower_newtonian_stress_viscosity;
 use super::support::{

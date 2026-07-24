@@ -16,15 +16,14 @@ use super::validate::{
     trace_quotient,
 };
 use crate::canonical_boundary::BoundaryRelationBinding2d;
+use crate::canonical_boundary::{CartesianBoundaryInventory2d, PhysicalBoundaryDisposition};
 use crate::discrete_block::{
     AlgebraicClosure, BlockRealizationIdentity, BlockSupport, BlockTransformation,
     ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, FieldBlock,
     FieldBlockRole, RelationBlock, RelationDisposition, ResidualBlock, ResidualOrigin,
     boundary_treatment, conforming_interface_relations,
 };
-use crate::{
-    CartesianBoundaryInventory2d, FixedReferenceFsiPartition2d, PhysicalBoundaryDisposition,
-};
+use crate::simplicial_fsi::FixedReferenceFsiPartition2d;
 
 const LENGTH: DimExponents = DimExponents {
     length: 1,
@@ -393,7 +392,7 @@ fn boundary_relation_blocks(
 }
 
 fn essential_relations(
-    inventory: &crate::CartesianBoundaryInventory2d,
+    inventory: &crate::canonical_boundary::CartesianBoundaryInventory2d,
     bindings: &[BoundaryRelationBinding2d],
 ) -> Result<Vec<Id<kinds::Relation>>, Diagnostic> {
     bindings

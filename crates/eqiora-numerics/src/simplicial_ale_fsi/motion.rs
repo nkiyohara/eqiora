@@ -16,7 +16,7 @@ use eqiora_solver::{
     LinearSolveRequest, LinearSolver, ScalarType, SolveReport,
 };
 
-use crate::FixedReferenceFsiPartition;
+use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
 const RESIDUAL_ULPS: f64 = 16_384.0;
 const MAX_DENSE_MOTION_COEFFICIENTS: usize = 8_000_000;

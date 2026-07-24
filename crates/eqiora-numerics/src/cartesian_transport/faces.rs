@@ -9,8 +9,11 @@ use eqiora_schema::kernel::BoundarySide;
 use super::api::{ScalarTransportBoundaryRole, TransportFace2d};
 use super::periodic::periodic_seam_faces;
 use super::reconstruction::{AffineFaceTrace, FaceReconstructor, ReconstructionSummary};
+use crate::canonical_transport::{
+    ScalarTransportCartesianBoundary, ScalarTransportCartesianModel2d,
+};
 use crate::cartesian_fvm_geometry::{CartesianFacetAdjacency2d, cartesian_fvm_geometry_2d};
-use crate::{CartesianMesh, ScalarTransportCartesianBoundary, ScalarTransportCartesianModel2d};
+use crate::cartesian_mesh::CartesianMesh;
 
 const DIMENSION: usize = 2;
 pub(super) type BoundaryRoles2d = BTreeMap<(usize, BoundarySide), ScalarTransportBoundaryRole>;

@@ -6,12 +6,12 @@ use eqiora::assembly::{
     REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
 };
 use eqiora::meshing::{MeshEntity, MeshTopology, QuadratureRule};
-use eqiora::numerics::{CartesianMesh, lower_cartesian_q1_diffusion_local_action};
 use eqiora::solver::{
     DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem,
     LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, SolverPlan,
     TransposeLinearOperator,
 };
+use eqiora_numerics::{common::CartesianMesh, scalar::lower_cartesian_q1_diffusion_local_action};
 
 fn maximum_difference(left: &[f64], right: &[f64]) -> f64 {
     left.iter()

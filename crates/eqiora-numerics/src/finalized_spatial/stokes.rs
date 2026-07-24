@@ -6,8 +6,8 @@ use eqiora_solver::{
 };
 
 use super::FinalizedLinearCore;
-use crate::SimplicialMiniStokesSolution2d;
 use crate::discrete_block::DiscreteBlockSystem;
+use crate::simplicial_stokes::SimplicialMiniStokesSolution2d;
 use crate::simplicial_stokes::{FinalizedMiniStokesAssembly, FinalizedMiniStokesState};
 
 /// Finalized algebraic handoff for one resolved simplicial MINI Stokes problem.

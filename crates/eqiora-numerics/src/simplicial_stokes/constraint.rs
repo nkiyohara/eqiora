@@ -4,7 +4,8 @@ use eqiora_meshing::{AffineGeometryMap, QuadratureRule};
 
 use super::acceptance::require_local_geometry;
 use super::{CONSTRAINT_LOCAL_DOF_COUNT, CONSTRAINT_LOCAL_GAUGE, DIMENSION, P1_BASIS_COUNT};
-use crate::{DiscreteSpace, LocalOperator, SimplexP1Space};
+use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
+use crate::operator::LocalOperator;
 
 /// Cell-local occurrence of one global zero-integral pressure constraint.
 pub(crate) struct MiniPressureMeanConstraintCell;
@@ -75,7 +76,7 @@ mod tests {
     use eqiora_meshing::triangle_duffy_gauss_legendre;
 
     use super::*;
-    use crate::LocalOperator;
+    use crate::operator::LocalOperator;
 
     #[test]
     fn pressure_constraint_is_one_independent_symmetric_local_relation() {

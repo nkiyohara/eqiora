@@ -9,8 +9,8 @@ use eqiora::artifact::{
     ValidatedFixedSpatialContextV1,
 };
 use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldPayload};
-use eqiora::numerics::{
-    ResolvedFixedReferenceFsiSolution2d, lower_fixed_reference_fsi_cartesian_2d,
+use eqiora_numerics::{
+    fsi::ResolvedFixedReferenceFsiSolution2d, fsi::lower_fixed_reference_fsi_cartesian_2d,
 };
 use support::fixed_reference_fsi::{
     ExecutionContext, SpatialContext, direct_document, execution_context, packaged_document,

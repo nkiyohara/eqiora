@@ -17,7 +17,8 @@ use super::assembly::{StepAssembly, assemble_step_linearization};
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
 use super::element::{AleMiniFluidCell, AleMiniFluidDirection};
 use super::{P1HarmonicMeshMotionAction, invalid};
-use crate::{DiscreteSpace, FixedReferenceFsiPartition, SimplexP1BubbleSpace};
+use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace};
+use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
 pub(super) struct NewtonEvidence {
     pub(super) iterations: usize,

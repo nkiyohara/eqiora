@@ -2,7 +2,7 @@ use std::f64::consts::PI;
 
 use eqiora_compiler::compile;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
-use eqiora_numerics::compare_canonical_scalar_elliptic_1d;
+use eqiora_numerics::scalar::compare_canonical_scalar_elliptic_1d;
 use eqiora_sem::KernelProgram;
 
 const SOURCE: &str = include_str!("../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi");

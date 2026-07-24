@@ -13,6 +13,7 @@ use eqiora_schema::Model;
 use eqiora_schema::kernel::{BoundarySide, DomainKind, ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
+use crate::canonical_boundary::{CartesianBoundaryInventory, PhysicalBoundaryDisposition};
 use crate::canonical_elasticity::{
     IsotropicElastodynamicsCartesianModel2d, LoweredIsotropicElastodynamicsSubdomain,
     LoweredIsotropicElastodynamicsSubdomain2d, lower_isotropic_elastodynamics_subdomain_2d,
@@ -22,7 +23,6 @@ use crate::canonical_stokes::{
     LoweredInertialIncompressibleNewtonianSubdomain2d, LoweredStokesBoundary,
     lower_inertial_incompressible_newtonian_subdomain_2d,
 };
-use crate::{CartesianBoundaryInventory, PhysicalBoundaryDisposition};
 
 pub use ale::{
     AleFsiCartesianModel, AleFsiCartesianModel2d, AleFsiCartesianModel3d,

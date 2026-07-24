@@ -9,13 +9,6 @@ use eqiora::compatibility::ExactModelCodec;
 use eqiora::diagnostic::codes;
 use eqiora::kernel::{BoundarySide, DomainKind, KernelNode};
 use eqiora::meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule};
-use eqiora::numerics::{
-    CartesianLinearElasticity2dSolution, DiscreteSpace, HypercubeQ1Space,
-    IsotropicElasticityCartesianModel2d, PhysicalBoundaryDisposition, ScalarSpatialExpression,
-    finalize_resolved_isotropic_elasticity_cartesian_2d,
-    finalize_resolved_isotropic_elasticity_cartesian_2d_with_assembly,
-    lower_isotropic_elasticity_cartesian_2d,
-};
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
     ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
@@ -31,6 +24,14 @@ use eqiora::realization::{
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan,
+};
+use eqiora_numerics::{
+    common::DiscreteSpace, common::HypercubeQ1Space, common::PhysicalBoundaryDisposition,
+    common::ScalarSpatialExpression, solid::CartesianLinearElasticity2dSolution,
+    solid::IsotropicElasticityCartesianModel2d,
+    solid::finalize_resolved_isotropic_elasticity_cartesian_2d,
+    solid::finalize_resolved_isotropic_elasticity_cartesian_2d_with_assembly,
+    solid::lower_isotropic_elasticity_cartesian_2d,
 };
 
 #[path = "support/embedded_package.rs"]
@@ -246,7 +247,7 @@ fn assert_inventory(program: &KernelProgram, model: &IsotropicElasticityCartesia
 }
 
 fn solve_finalized(
-    problem: eqiora::numerics::FinalizedIsotropicElasticityCartesian2dProblem,
+    problem: eqiora_numerics::solid::FinalizedIsotropicElasticityCartesian2dProblem,
 ) -> CartesianLinearElasticity2dSolution {
     let solution = REFERENCE_LINEAR_SOLVER
         .solve(

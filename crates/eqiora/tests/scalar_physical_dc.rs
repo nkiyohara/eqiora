@@ -12,10 +12,6 @@ use eqiora::language::{
     DraftConservingConnection, DraftConservingPort, DraftExpression, DraftParameter,
     DraftPhysicalDomain, DraftRelation, ModelDraft,
 };
-use eqiora::numerics::{
-    ScalarPhysicalAffineProblem, lower_scalar_physical_affine, solve_scalar_physical_affine,
-    solve_scalar_physical_affine_with_initial_guess,
-};
 use eqiora::ontology::{Model, OntologyId};
 use eqiora::sem::{KernelProgram, PhysicalUnknown};
 use eqiora::solver::{
@@ -24,6 +20,10 @@ use eqiora::solver::{
 };
 use eqiora::{DimExponents, DynQuantity, Id, RawId};
 use eqiora_backend_faer::FaerLinearSolver;
+use eqiora_numerics::{
+    scalar::ScalarPhysicalAffineProblem, scalar::lower_scalar_physical_affine,
+    scalar::solve_scalar_physical_affine, scalar::solve_scalar_physical_affine_with_initial_guess,
+};
 
 const SOURCE: &str =
     include_str!("../../../verify/electrical/parallel-dc-network/models/parallel-dc.eqi");
@@ -325,7 +325,7 @@ fn assert_close(actual: f64, expected: f64) {
 }
 
 fn value(
-    solution: &eqiora::numerics::ScalarPhysicalAffineSolution,
+    solution: &eqiora_numerics::scalar::ScalarPhysicalAffineSolution,
     unknown: PhysicalUnknown,
 ) -> f64 {
     solution.value(unknown).expect("canonical solution slot")
@@ -397,7 +397,7 @@ fn analytic_initial_guess(
 fn accept_analytic_document(
     document: &ModelDocument,
     problem: &ScalarPhysicalAffineProblem,
-) -> eqiora::numerics::ScalarPhysicalAffineSolution {
+) -> eqiora_numerics::scalar::ScalarPhysicalAffineSolution {
     let initial_guess = analytic_initial_guess(problem, |name| {
         document.aliases()[name]
             .downcast::<kinds::Port>()
@@ -419,7 +419,7 @@ fn accept_analytic_document(
 
 fn named_physical_values(
     document: &ModelDocument,
-    solution: &eqiora::numerics::ScalarPhysicalAffineSolution,
+    solution: &eqiora_numerics::scalar::ScalarPhysicalAffineSolution,
 ) -> Vec<(String, f64, f64)> {
     PHYSICAL_PORTS
         .into_iter()

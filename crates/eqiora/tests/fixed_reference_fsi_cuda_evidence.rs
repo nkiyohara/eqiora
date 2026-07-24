@@ -15,10 +15,6 @@ use eqiora::backends::cuda::{
     CUDA_RUNTIME_ID, CudaLinearSolver,
 };
 use eqiora::device::{DeviceDescriptor, DeviceId, QueueSlot};
-use eqiora::numerics::{
-    ResolvedFixedReferenceFsiSolution2d, finalize_resolved_fixed_reference_fsi_step_2d,
-    lower_fixed_reference_fsi_cartesian_2d,
-};
 use eqiora::realization::{
     AlgebraicBlock, CoupledFieldwiseRealizationRequest, DiscretizationMethod, MeshKind,
     RealizationCapabilities, SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind,
@@ -32,6 +28,10 @@ use eqiora::solver::{
 };
 use eqiora_execution::{
     CUDA_LINEAR_DEVICE_CAPABILITIES, CudaExecutorDescriptor, DeploymentBinding,
+};
+use eqiora_numerics::{
+    fsi::ResolvedFixedReferenceFsiSolution2d, fsi::finalize_resolved_fixed_reference_fsi_step_2d,
+    fsi::lower_fixed_reference_fsi_cartesian_2d,
 };
 use observation::{
     Conformance, MAX_ARTIFACT_BYTES, MAX_OBSERVATION_BYTES, Observation, Physics, error_pair,

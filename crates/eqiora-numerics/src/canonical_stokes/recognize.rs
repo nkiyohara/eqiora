@@ -375,15 +375,17 @@ fn resolve_normal_pressures(
         .collect::<BTreeSet<_>>();
     let mut coefficient_fields = BTreeSet::new();
     let mut definitions = BTreeSet::new();
-    let mut lowered_fields: BTreeMap<RawId, (RawId, crate::ScalarSpatialExpression)> =
-        BTreeMap::new();
+    let mut lowered_fields: BTreeMap<
+        RawId,
+        (RawId, crate::spatial_expression::ScalarSpatialExpression),
+    > = BTreeMap::new();
     let mut by_side = BTreeMap::new();
 
     for (&side, source) in &boundary.normal_pressure_sources {
         let pressure_law = match *source {
-            NormalPressureSource2d::Zero => {
-                SteadyStokesNormalPressure2d::zero(crate::ScalarSpatialExpression::constant(2, 0.0))
-            }
+            NormalPressureSource2d::Zero => SteadyStokesNormalPressure2d::zero(
+                crate::spatial_expression::ScalarSpatialExpression::constant(2, 0.0),
+            ),
             NormalPressureSource2d::Field {
                 field,
                 law_relation,

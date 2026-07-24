@@ -11,7 +11,7 @@ use eqiora_solver::{
     TransposeLinearOperator,
 };
 
-use crate::SpatialDesignCoordinate;
+use crate::spatial_design::SpatialDesignCoordinate;
 
 /// One accepted-point relation `A w - b = 0` with dense design actions.
 ///

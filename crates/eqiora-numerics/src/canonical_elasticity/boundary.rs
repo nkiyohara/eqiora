@@ -6,11 +6,11 @@ use eqiora_core::{Diagnostic, RawId};
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
-use crate::ScalarSpatialExpression;
 use crate::canonical_boundary::{
     BoundaryRelationBinding, CartesianBoundaryEntry, CartesianBoundaryInventory,
     PhysicalBoundaryDisposition, exact_cartesian_boundaries, normalize_field_physical_interface,
 };
+use crate::spatial_expression::ScalarSpatialExpression;
 
 use super::{
     lower_isotropic_stress_coefficients, lowering_error, relation_expression, relations_on,

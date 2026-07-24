@@ -12,12 +12,12 @@ use eqiora::backends::cuda::{
     CudaRuntime,
 };
 use eqiora::device::QueueSlot;
-use eqiora::numerics::finalize_resolved_scalar_elliptic_cartesian;
 use eqiora::realization::{DiscretizationMethod, TargetCapabilities, resolve};
 use eqiora::solver::ReductionPolicy;
 use eqiora::solver::ScalarType;
 use eqiora_backend_cuda::CudaAdmittedExecutionAdapter;
 use eqiora_execution::{AdmittedExecution, CudaExecutorDescriptor, DeploymentBinding};
+use eqiora_numerics::scalar::finalize_resolved_scalar_elliptic_cartesian;
 
 #[test]
 fn cuda_facade_is_optional_and_admission_fails_closed_without_runtime_work() {

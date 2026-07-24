@@ -25,12 +25,12 @@ use super::{
     IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
     TransientNavierStokesRun2d,
 };
-use crate::CartesianMesh;
 use crate::cartesian_fvm_geometry::{CartesianFacetAdjacency2d, cartesian_fvm_geometry_2d};
 use crate::cartesian_incompressible::{
     CartesianIncompressibleOperator2d, CellCenteredPressureField2d, CellCenteredVelocityField2d,
     CollocatedNewtonEvidence2d, CollocatedPoint2d, solve_collocated_step_2d,
 };
+use crate::cartesian_mesh::CartesianMesh;
 
 const DIMENSION: usize = 2;
 const TIME: DimExponents = DimExponents {

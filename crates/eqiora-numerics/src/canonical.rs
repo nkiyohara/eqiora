@@ -25,22 +25,30 @@ use eqiora_solver::{
     SolverPlan,
 };
 
+use crate::assembled_linearization::AssembledLinearizedRelation;
+use crate::cartesian_elliptic::{
+    ScalarEllipticCartesianFemSolution, ScalarEllipticCartesianFvmSolution,
+    linearize_scalar_elliptic_cartesian_fem, linearize_scalar_elliptic_cartesian_fem_output,
+    linearize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fvm_output,
+};
 use crate::cartesian_elliptic::{
     finalize_scalar_elliptic_cartesian_fem, finalize_scalar_elliptic_cartesian_fvm,
 };
-use crate::poisson::{compare_scalar_elliptic_dirichlet_1d, solve_scalar_elliptic_cell_fvm};
-use crate::spatial_expression::{self, ScalarSpatialExpression};
-use crate::{
-    AssembledLinearizedRelation, CartesianMesh, CartesianScalarFieldLinearization,
-    DirichletBoundary1d, FinalizedScalarEllipticCartesianProblem, ScalarBoundaryCondition1d,
-    ScalarBoundaryPair1d, ScalarEllipticCartesianFemSolution, ScalarEllipticCartesianFvmSolution,
-    ScalarEllipticComparisonRow1d, ScalarEllipticFvmSolution1d,
-    ScalarEllipticSimplicialFemSolution, ScalarEllipticSolution1d,
-    linearize_scalar_elliptic_cartesian_fem, linearize_scalar_elliptic_cartesian_fem_output,
-    linearize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fvm_output,
+use crate::cartesian_mesh::CartesianMesh;
+use crate::elliptic::{
+    ScalarBoundaryCondition1d, ScalarBoundaryPair1d, ScalarEllipticSolution1d,
     solve_scalar_elliptic_linear_fem, solve_scalar_elliptic_linear_fem_with_assembly,
-    solve_scalar_elliptic_simplicial_fem_with_assembly,
 };
+use crate::finalized_spatial::FinalizedScalarEllipticCartesianProblem;
+use crate::linearized_output::CartesianScalarFieldLinearization;
+use crate::poisson::{
+    DirichletBoundary1d, ScalarEllipticComparisonRow1d, ScalarEllipticFvmSolution1d,
+};
+use crate::poisson::{compare_scalar_elliptic_dirichlet_1d, solve_scalar_elliptic_cell_fvm};
+use crate::simplicial_elliptic::{
+    ScalarEllipticSimplicialFemSolution, solve_scalar_elliptic_simplicial_fem_with_assembly,
+};
+use crate::spatial_expression::{self, ScalarSpatialExpression};
 
 /// Boundary meaning of a canonical scalar elliptic Cartesian model.
 #[derive(Debug, Clone, PartialEq)]
@@ -167,7 +175,7 @@ impl AcceptedScalarEllipticParameterPoint {
     /// diagnostics.
     pub fn linearize(
         &self,
-        selected_coordinates: &[crate::SpatialDesignCoordinate],
+        selected_coordinates: &[crate::spatial_design::SpatialDesignCoordinate],
     ) -> Result<
         (
             AssembledLinearizedRelation,
@@ -1527,7 +1535,7 @@ pub fn solve_and_linearize_resolved_scalar_elliptic_cartesian(
     program: &KernelProgram,
     resolved: &ResolvedRealization,
     backend: &dyn LinearSolverBackend,
-    selected_coordinates: &[crate::SpatialDesignCoordinate],
+    selected_coordinates: &[crate::spatial_design::SpatialDesignCoordinate],
 ) -> Result<
     (
         ScalarEllipticCartesianModel,
@@ -1560,7 +1568,7 @@ pub fn solve_and_linearize_resolved_scalar_elliptic_cartesian_with_assembly(
     resolved: &ResolvedRealization,
     assembly: &dyn AssemblyBackend,
     backend: &dyn LinearSolverBackend,
-    selected_coordinates: &[crate::SpatialDesignCoordinate],
+    selected_coordinates: &[crate::spatial_design::SpatialDesignCoordinate],
 ) -> Result<
     (
         ScalarEllipticCartesianModel,
@@ -1587,7 +1595,7 @@ fn linearize_owned_scalar_elliptic_parameter_point(
     model: &ScalarEllipticCartesianModel,
     resolved: &ResolvedRealization,
     solution: &ResolvedScalarEllipticCartesianSolution,
-    selected_coordinates: &[crate::SpatialDesignCoordinate],
+    selected_coordinates: &[crate::spatial_design::SpatialDesignCoordinate],
 ) -> Result<
     (
         AssembledLinearizedRelation,
@@ -1625,7 +1633,7 @@ fn linearize_accepted_scalar_elliptic_cartesian(
     model: &ScalarEllipticCartesianModel,
     resolved: &ResolvedRealization,
     solution: &ResolvedScalarEllipticCartesianSolution,
-    selected_coordinates: &[crate::SpatialDesignCoordinate],
+    selected_coordinates: &[crate::spatial_design::SpatialDesignCoordinate],
     products: LinearizationProducts,
 ) -> Result<
     (

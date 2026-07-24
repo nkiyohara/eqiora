@@ -23,15 +23,16 @@ use eqiora::device::{
     Completion, DeviceCapability, DeviceElement, DeviceElementType, MemoryRegion, QueueId,
     QueueSlot, TransferDirection, TransferEvidence,
 };
-use eqiora::numerics::{
-    ResolvedScalarEllipticCartesianSolution, finalize_resolved_scalar_elliptic_cartesian,
-};
 use eqiora::realization::{TargetCapabilities, resolve};
 use eqiora::solver::ConvergenceReason;
 use eqiora_backend_cuda::CudaAdmittedExecutionAdapter;
 use eqiora_execution::{
     AdmittedExecution, CudaExecutorDescriptor, DeploymentBinding, ExecutionReceipt,
     ExecutionStepKind,
+};
+use eqiora_numerics::{
+    scalar::ResolvedScalarEllipticCartesianSolution,
+    scalar::finalize_resolved_scalar_elliptic_cartesian,
 };
 
 const SCHEMA: &str = "eqiora.canonical-cartesian-poisson-cuda-observation/v2";

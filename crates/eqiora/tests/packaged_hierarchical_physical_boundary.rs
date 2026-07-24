@@ -13,10 +13,6 @@ use eqiora::compiler::identity::{
 use eqiora::diagnostic::codes;
 use eqiora::entity::kinds;
 use eqiora::kernel::KernelNode;
-use eqiora::numerics::{
-    ScalarPhysicalAffineProblem, ScalarPhysicalAffineSolution, lower_scalar_physical_affine,
-    solve_scalar_physical_affine_with_initial_guess,
-};
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
     ExactVersion, InMemoryPackageStore, ModelPackageIdentityV1, NormalizedRelativePath,
@@ -28,6 +24,10 @@ use eqiora::solver::{
     LinearSolveRequest, LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan,
 };
 use eqiora_backend_faer::FaerLinearSolver;
+use eqiora_numerics::{
+    scalar::ScalarPhysicalAffineProblem, scalar::ScalarPhysicalAffineSolution,
+    scalar::lower_scalar_physical_affine, scalar::solve_scalar_physical_affine_with_initial_guess,
+};
 
 mod support;
 
