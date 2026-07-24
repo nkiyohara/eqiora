@@ -7,21 +7,21 @@
 //! never be disguised as mass-matrix problems to satisfy an adapter.
 
 mod diagnostic;
-mod event;
+mod event_linearization;
 mod lowering;
 mod plan;
 mod problem;
 mod reference_implicit;
+mod root_registration;
 mod solution;
 mod system;
 
 #[cfg(test)]
 mod tests;
 
-pub use event::{
+pub use event_linearization::{
     EventFlowLinearization, EventForwardSensitivity, EventGuardLinearization,
-    EventResetLinearization, RegisteredRootProblem, RootActivationGroup, RootProposal,
-    RootRegistrationId, RootRegistrationProof, TransversalEventLinearization,
+    EventResetLinearization, TransversalEventLinearization,
 };
 pub use lowering::{
     ConstantDerivativeMatrixProof, DaeVariableKind, GeneralImplicitLoweringProof,
@@ -34,6 +34,10 @@ pub use problem::{
     InitialConditionPolicy, TimeProblem,
 };
 pub use reference_implicit::{REFERENCE_IMPLICIT_TIME_BACKEND, ReferenceImplicitTimeBackend};
+pub use root_registration::{
+    RegisteredRootProblem, RootActivationGroup, RootProposal, RootRegistrationId,
+    RootRegistrationProof,
+};
 pub use solution::{
     ForwardSensitivitySolution, TimeBackendId, TimeBackendIdentity, TimeBackendVersion,
     TimeExecutionReport, TimeSolution,
