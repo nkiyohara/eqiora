@@ -54,10 +54,6 @@ impl StepAssembly {
             .sqrt()
     }
 
-    pub(super) fn residual(&self) -> &[f64] {
-        &self.residual
-    }
-
     pub(super) fn algebraic_values(&self) -> &[f64] {
         self.relation.accepted_unknowns()
     }

@@ -32,6 +32,7 @@ impl StructuralJacobianPattern {
         self.row_supports.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn is_singleton(&self, column: usize) -> bool {
         self.colors.iter().any(|color| color.as_slice() == [column])
     }
