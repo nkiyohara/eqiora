@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { BRIDGE_PROTOCOL, type SpatialRunPlan } from "./protocol";
+import { BRIDGE_PROTOCOL } from "./protocol";
+import type { SpatialRunPlan } from "./spatial-protocol";
 import {
   initialSpatialWorkflowState,
   spatialPlanIsCurrent,

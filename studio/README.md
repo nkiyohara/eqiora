@@ -64,12 +64,12 @@ ordinary authoring selects the shared current Model wire v6, while the closed
 control decoder continues to admit explicit v1--v6 requests and responses.
 Extending the Model wire alone does not advance the bridge protocol.
 
-`src/protocol.ts` validates every value crossing the WebView boundary at
-runtime. Rust applies the same byte, time-step, cache, and protocol limits
-before canonical operations. Unknown future kernel nodes or semantic edges
-fail closed as `ST0003`; transport, resource, and plan-replay faults use the
-Studio-local `ST0001`--`ST0007` range and are never confused with stable kernel
-diagnostic codes.
+The protocol modules under `src/` validate every value crossing the WebView
+boundary at runtime. Rust applies the same byte, time-step, cache, and protocol
+limits before canonical operations. Unknown future kernel nodes or semantic
+edges fail closed as `ST0003`; transport, resource, and plan-replay faults use
+the Studio-local `ST0001`--`ST0007` range and are never confused with stable
+kernel diagnostic codes.
 
 The native runtime, not React, resolves a `ReferenceRunPlan`. The frontend may
 present its adapter, placement, methods, tolerances, and bounds only after a

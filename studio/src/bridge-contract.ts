@@ -1,12 +1,7 @@
 import type { ZodType } from "zod";
-import {
-  BRIDGE_PROTOCOL,
-  type BridgeEnvelope,
-  type RunOutcome,
-  type RunRequest,
-  type SpatialRealizationRunRequest,
-  type SpatialRunResult,
-} from "./protocol";
+import { BRIDGE_PROTOCOL, type BridgeEnvelope } from "./protocol";
+import type { RunOutcome, RunRequest } from "./reference-run-protocol";
+import type { SpatialRealizationRunRequest, SpatialRunResult } from "./spatial-protocol";
 
 export function protocolFailure(message: string): BridgeEnvelope<never> {
   return {

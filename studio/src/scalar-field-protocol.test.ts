@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { BRIDGE_PROTOCOL } from "./protocol";
 import {
-  BRIDGE_PROTOCOL,
   MAX_SPATIAL_ENTITY_COUNT,
   type SpatialRunResult,
   spatialRunResultSchema,
-} from "./protocol";
+} from "./spatial-protocol";
 import {
   descriptorMatchesAcceptedResult,
   SCALAR_FIELD_MAX_CHUNK_COUNT,

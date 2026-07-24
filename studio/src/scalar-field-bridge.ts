@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { type SpatialRunResult, spatialRunResultSchema } from "./protocol";
 import {
   descriptorMatchesAcceptedResult,
   SCALAR_FIELD_VALUES_PER_CHUNK,
@@ -14,6 +13,7 @@ import {
   scalarFieldOpenRequest,
   scalarFieldOpenRequestSchema,
 } from "./scalar-field-protocol";
+import { type SpatialRunResult, spatialRunResultSchema } from "./spatial-protocol";
 
 export type ScalarFieldBridgeFailureCode =
   | "invalid-result"

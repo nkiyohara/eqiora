@@ -1,16 +1,13 @@
+import type { DocumentProjection, StudioDiagnostic } from "./protocol";
 import type {
-  DocumentProjection,
   RunCancellation,
   RunOutcome,
   RunPlan,
   RunProgress,
   RunResult,
-  StudioDiagnostic,
-  ValueEditEvidence,
-  ValueEditPlan,
-  ValueEditResult,
-} from "./protocol";
+} from "./reference-run-protocol";
 import type { RunConfiguration, ValidatedRunConfiguration } from "./run-configuration";
+import type { ValueEditEvidence, ValueEditPlan, ValueEditResult } from "./value-edit-protocol";
 
 export type Point = Readonly<{ x: number; y: number }>;
 export type NodeLayout = Readonly<Record<string, Point>>;

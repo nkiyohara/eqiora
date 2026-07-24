@@ -23,14 +23,16 @@ import {
   BRIDGE_PROTOCOL,
   type BridgeEnvelope,
   bridgeEnvelopeSchema,
+  type DocumentProjection,
+  diagnosticSchema,
+  documentProjectionSchema,
+  type StudioDiagnostic,
+} from "./protocol";
+import {
   type CancelRunRequest,
   type CancelRunResult,
   cancelRunRequestSchema,
   cancelRunResultSchema,
-  type DocumentProjection,
-  diagnosticSchema,
-  documentProjectionSchema,
-  MAX_SPATIAL_ENTITY_COUNT,
   type RunOutcome,
   type RunPlan,
   type RunPreviewRequest,
@@ -41,15 +43,19 @@ import {
   runPreviewRequestSchema,
   runProgressSchema,
   runRequestSchema,
+} from "./reference-run-protocol";
+import {
+  MAX_SPATIAL_ENTITY_COUNT,
   type SpatialRealizationPreviewRequest,
   type SpatialRealizationRunRequest,
   type SpatialRunPlan,
   type SpatialRunResult,
-  type StudioDiagnostic,
   spatialRealizationPreviewRequestSchema,
   spatialRealizationRunRequestSchema,
   spatialRunPlanSchema,
   spatialRunResultSchema,
+} from "./spatial-protocol";
+import {
   type ValueEditCommitRequest,
   type ValueEditPlan,
   type ValueEditPreviewRequest,
@@ -58,7 +64,7 @@ import {
   valueEditPlanSchema,
   valueEditPreviewRequestSchema,
   valueEditResultSchema,
-} from "./protocol";
+} from "./value-edit-protocol";
 
 export type BridgeMode = "native" | "preview";
 export type StudioExample = "decay" | "spatial" | "cad";

@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
-import {
-  BRIDGE_PROTOCOL,
-  type DocumentProjection,
-  type RunPlan,
-  type RunProgress,
-  type RunResult,
-  type ValueEditPlan,
-  type ValueEditResult,
-} from "./protocol";
+import { BRIDGE_PROTOCOL, type DocumentProjection } from "./protocol";
+import type { RunPlan, RunProgress, RunResult } from "./reference-run-protocol";
+import type { ValueEditPlan, ValueEditResult } from "./value-edit-protocol";
 import { currentLayout, initialStudioState, studioReducer } from "./state";
 
 const document: DocumentProjection = {

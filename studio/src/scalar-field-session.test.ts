@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { BRIDGE_PROTOCOL } from "./protocol";
 import {
-  BRIDGE_PROTOCOL,
   MAX_SPATIAL_ENTITY_COUNT,
   type SpatialRunResult,
   spatialRunResultSchema,
-} from "./protocol";
+} from "./spatial-protocol";
 import type { ScalarFieldBridgeResult, ScalarFieldDataBridge } from "./scalar-field-bridge";
 import {
   SCALAR_FIELD_VALUES_PER_CHUNK,

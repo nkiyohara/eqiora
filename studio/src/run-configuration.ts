@@ -1,4 +1,4 @@
-import { MAX_REQUESTED_STEPS } from "./protocol";
+import { MAX_REQUESTED_STEPS } from "./reference-run-protocol";
 
 export interface RunConfiguration {
   readonly endTime: string;

@@ -13,12 +13,9 @@ import {
   CAD_V1_VERTEX_COUNT,
 } from "./cad-protocol";
 import { ENGLISH_MESSAGES, formatMessage } from "./messages";
-import {
-  MAX_PROJECTION_EDGE_COUNT,
-  MAX_PROJECTION_NODE_COUNT,
-  MAX_SPATIAL_ENTITY_COUNT,
-} from "./protocol";
+import { MAX_PROJECTION_EDGE_COUNT, MAX_PROJECTION_NODE_COUNT } from "./protocol";
 import { SCALAR_FIELD_VALUES_PER_CHUNK } from "./scalar-field-protocol";
+import { MAX_SPATIAL_ENTITY_COUNT } from "./spatial-protocol";
 
 const DIGEST = "a".repeat(64);
 
