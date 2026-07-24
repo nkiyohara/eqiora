@@ -8,8 +8,9 @@ use eqiora::artifact::{
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::realization::{
     DefaultPolicyVersion, RealizationCapabilities, RealizationRequest, RealizationRequirements,
-    ReductionPolicy, ScalarType, SemanticRevision, VectorLayoutKind, resolve,
+    SemanticRevision, VectorLayoutKind, resolve,
 };
+use eqiora::solver::{ReductionPolicy, ScalarType};
 use eqiora::{
     DimExponents,
     language::{DraftExpression, DraftField, DraftParameter, DraftRelation, ModelDraft},

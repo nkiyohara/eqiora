@@ -12,11 +12,13 @@ use eqiora_numerics::{
 use eqiora_realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
     RealizationCapabilities, RealizationPlan, RealizationRequest, RealizationRequirements,
-    RealizationRevision, ResolvedRealization, ScalarType, SemanticRevision, Space, Target,
-    VectorLayoutKind, resolve,
+    RealizationRevision, ResolvedRealization, SemanticRevision, Space, Target, VectorLayoutKind,
+    resolve,
 };
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, SolverPlan};
+use eqiora_solver::{
+    LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan,
+};
 
 const SOURCE: &str =
     include_str!("../../../verify/differentiation/spatial-poisson-fem-fvm/models/poisson.eqi");

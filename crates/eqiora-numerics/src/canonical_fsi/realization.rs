@@ -11,10 +11,10 @@ use eqiora_realization::{
     CoupledFieldwiseSpatialDiscretization, Discretization, DiscretizationMethod,
     DomainFieldDiscretization, DomainFieldInventory, ExecutionSchedule, FieldSpaceBinding,
     MeshArtifactReference, MeshPolicy, PlacementRequirementNode, PositivePhysicalScale,
-    QuadraturePolicy, RealizationRequirements, ResolvedCoupledFieldwiseRealization, ScalarType,
-    Space, SymmetricCongruenceScaling, Target, VectorLayoutKind,
+    QuadraturePolicy, RealizationRequirements, ResolvedCoupledFieldwiseRealization, Space,
+    SymmetricCongruenceScaling, Target, VectorLayoutKind,
 };
-use eqiora_solver::{LinearOperatorProperties, ReductionPolicy, SolverPlan};
+use eqiora_solver::{LinearOperatorProperties, ReductionPolicy, ScalarType, SolverPlan};
 
 use super::FixedReferenceFsiCartesianModel2d;
 use crate::simplicial_fsi::finalize_fixed_reference_fsi_step_2d_with_packet_set;

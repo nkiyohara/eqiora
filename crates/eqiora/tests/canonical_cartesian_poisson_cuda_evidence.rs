@@ -17,11 +17,11 @@ use eqiora::device::{
     QueueTimeline, RuntimeId, TransferDirection, TransferEvidence, TransferPlan, WaitedCompletion,
 };
 use eqiora::numerics::finalize_resolved_scalar_elliptic_cartesian;
-use eqiora::realization::{ReductionPolicy, TargetCapabilities, resolve};
+use eqiora::realization::{TargetCapabilities, resolve};
 use eqiora::solver::{
     BackendId, ConvergenceReason, ExecutionId, ExecutionProvider, ExecutionReport,
     LinearOperatorOrientation, LinearSolver, PreconditionerPolicy, ProviderLibrary,
-    SERIAL_LINEAR_EXECUTION, SolverProvider, accept_linear_solution_with_verifier,
+    ReductionPolicy, SERIAL_LINEAR_EXECUTION, SolverProvider, accept_linear_solution_with_verifier,
 };
 use eqiora_execution::{
     AdmittedExecution, CsrDeviceTransferEvidence, CudaExecutorDescriptor, CudaLinearExecutionTrace,

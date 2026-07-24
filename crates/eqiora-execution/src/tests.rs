@@ -11,7 +11,7 @@ use eqiora_device::{
 use eqiora_distributed::{DistributedLinearSystem, GlobalVectorSpace, Partition, PartitionId};
 use eqiora_realization::{
     DefaultPolicyVersion, DiscretizationMethod, MeshKind, RealizationCapabilities, RealizationPlan,
-    RealizationRequest, RealizationRequirements, RealizationRevision, ScalarType, SemanticRevision,
+    RealizationRequest, RealizationRequirements, RealizationRevision, SemanticRevision,
     SingleFieldOperatorClaim, SpatialDimensionSupport, Target, TargetCapabilities,
     VectorLayoutKind, default_plan_v0, resolve,
 };
@@ -20,8 +20,8 @@ use eqiora_solver::{
     ExecutionProvider, ExecutionReport, FixedOrderInnerProduct, LinearOperator,
     LinearOperatorProperties, LinearSolver, LinearSolverBackend, PreconditionerPolicy,
     ProviderLibrary, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ReplicatedLinearExecution,
-    SERIAL_LINEAR_EXECUTION, SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
-    accept_linear_solution_with_verifier,
+    SERIAL_LINEAR_EXECUTION, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
+    SolverProvider, accept_linear_solution_with_verifier,
 };
 
 use super::binding::{DistributedExecutorDescriptor, ProcessGroupSlot};

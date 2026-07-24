@@ -26,11 +26,13 @@ use eqiora::package::{
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
     RealizationCapabilities, RealizationPlan, RealizationRequest, RealizationRequirements,
-    RealizationRevision, ResolvedRealization, ScalarType, SemanticRevision, Space, Target,
-    VectorLayoutKind, resolve,
+    RealizationRevision, ResolvedRealization, SemanticRevision, Space, Target, VectorLayoutKind,
+    resolve,
 };
 use eqiora::sem::KernelProgram;
-use eqiora::solver::{LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, SolverPlan};
+use eqiora::solver::{
+    LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan,
+};
 
 const DIRECT_SOURCE: &str =
     include_str!("../../../verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi");

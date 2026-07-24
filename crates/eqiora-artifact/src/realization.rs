@@ -3,13 +3,13 @@ use std::str::FromStr;
 
 use eqiora_core::{Diagnostic, OntologyId};
 use eqiora_realization::{
-    DefaultPolicyVersion, Discretization, DiscretizationMethod, ExecutionSchedule, LinearSolver,
-    MeshArtifactReference, MeshPolicy, PreconditionerPolicy, QuadraturePolicy, RealizationPlan,
-    RealizationRequirements, RealizationRevision, ReductionPolicy, ResolutionSource,
-    ResolvedRealization, ScalarType, SemanticRevision, Space, SpaceFamily, Target,
-    VectorLayoutKind,
+    DefaultPolicyVersion, Discretization, DiscretizationMethod, ExecutionSchedule,
+    MeshArtifactReference, MeshPolicy, QuadraturePolicy, RealizationPlan, RealizationRequirements,
+    RealizationRevision, ResolutionSource, ResolvedRealization, SemanticRevision, Space,
+    SpaceFamily, Target, VectorLayoutKind,
 };
 use eqiora_schema::Model;
+use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType, SolverPlan};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
@@ -607,7 +607,7 @@ struct WireSolverPlan {
 }
 
 impl WireSolverPlan {
-    fn encode(value: eqiora_realization::SolverPlan) -> Result<Self, Diagnostic> {
+    fn encode(value: SolverPlan) -> Result<Self, Diagnostic> {
         Ok(Self {
             algorithm: WireLinearSolver::encode(value.algorithm())?,
             preconditioner: WirePreconditioner::encode(value.preconditioner()),
@@ -621,8 +621,8 @@ impl WireSolverPlan {
         })
     }
 
-    fn decode(self) -> Result<eqiora_realization::SolverPlan, Diagnostic> {
-        eqiora_realization::SolverPlan::new(
+    fn decode(self) -> Result<SolverPlan, Diagnostic> {
+        SolverPlan::new(
             self.algorithm.decode(),
             self.relative_tolerance,
             self.absolute_tolerance,

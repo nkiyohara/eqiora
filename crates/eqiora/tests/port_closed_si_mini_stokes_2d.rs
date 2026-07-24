@@ -19,11 +19,12 @@ use eqiora::package::{
 };
 use eqiora::realization::{
     FieldwiseRealizationRequest, MeshArtifactReference, RealizationCapabilities,
-    RealizationRevision, ReductionPolicy, SemanticRevision, resolve_fieldwise,
+    RealizationRevision, SemanticRevision, resolve_fieldwise,
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
-    CanonicalCsrSystemView, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, SolverPlan,
+    CanonicalCsrSystemView, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
+    SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity};
 
@@ -686,7 +687,7 @@ fn solver() -> SolverPlan {
         NonZeroUsize::new(10_000).unwrap(),
     )
     .unwrap()
-    .with_preconditioner(eqiora::realization::PreconditionerPolicy::Identity)
+    .with_preconditioner(eqiora::solver::PreconditionerPolicy::Identity)
     .with_reduction(ReductionPolicy::Reproducible)
 }
 

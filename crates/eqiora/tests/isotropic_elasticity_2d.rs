@@ -18,14 +18,14 @@ use eqiora::numerics::{
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
     RealizationCapabilities, RealizationCapability, RealizationCapabilityContext, RealizationPlan,
-    RealizationRequest, RealizationRequirements, RealizationRevision, ScalarType,
-    ScheduleCapability, SemanticRevision, Space, SpatialCapability, SpatialDimensionSupport,
-    Target, TargetCapability, VectorLayoutKind, resolve,
+    RealizationRequest, RealizationRequirements, RealizationRevision, ScheduleCapability,
+    SemanticRevision, Space, SpatialCapability, SpatialDimensionSupport, Target, TargetCapability,
+    VectorLayoutKind, resolve,
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     LinearOperatorProperties, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-    ReductionPolicy, SolverCapability, SolverPlan,
+    ReductionPolicy, ScalarType, SolverCapability, SolverPlan,
 };
 
 const MANUFACTURED: &str =

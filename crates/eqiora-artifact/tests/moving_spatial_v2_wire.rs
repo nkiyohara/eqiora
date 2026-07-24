@@ -20,13 +20,13 @@ use eqiora_realization::{
     FixedTopologyAleCoupledRealizationRequest, FixedTopologyAleCoupledRealizationRequirements,
     GclCompatibleAlePullback, MeshArtifactReference, MeshKind, MeshPolicy, NonlinearSolvePlan,
     P1HarmonicMeshMotion, RealizationCapabilities, RealizationRequirements, RealizationRevision,
-    ResolvedFixedTopologyAleCoupledRealization, ScalarType, SolverCapabilities, Space,
-    SpatialDimensionSupport, SymmetricCongruenceScaling, Target, TargetCapabilities,
-    TraceFieldEndpoint, VectorLayoutKind, resolve_fixed_topology_ale_coupled,
+    ResolvedFixedTopologyAleCoupledRealization, Space, SpatialDimensionSupport,
+    SymmetricCongruenceScaling, Target, TargetCapabilities, TraceFieldEndpoint, VectorLayoutKind,
+    resolve_fixed_topology_ale_coupled,
 };
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy,
-    SolverCapability, SolverPlan,
+    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType,
+    SolverCapabilities, SolverCapability, SolverPlan,
 };
 use ulid::Ulid;
 

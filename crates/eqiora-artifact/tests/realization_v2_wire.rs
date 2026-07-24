@@ -12,15 +12,15 @@ use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
 use eqiora_realization::{
     AlgebraicBlock, AlgebraicBlockScale, AlgebraicConstraint, Discretization, DiscretizationMethod,
     ExecutionSchedule, FieldSpaceBinding, FieldwiseRealizationPlan, FieldwiseRealizationRequest,
-    FieldwiseRealizationRequirements, FieldwiseSpatialDiscretization, LinearSolver,
-    MeshArtifactReference, MeshPolicy, PositivePhysicalScale, PreconditionerPolicy,
-    QuadraturePolicy, RealizationCapabilities, RealizationRequirements, RealizationRevision,
-    ReductionPolicy, ScalarType, SemanticRevision, SolverPlan, Space, SymmetricCongruenceScaling,
-    Target, VectorLayoutKind, resolve_fieldwise,
+    FieldwiseRealizationRequirements, FieldwiseSpatialDiscretization, MeshArtifactReference,
+    MeshPolicy, PositivePhysicalScale, QuadraturePolicy, RealizationCapabilities,
+    RealizationRequirements, RealizationRevision, SemanticRevision, Space,
+    SymmetricCongruenceScaling, Target, VectorLayoutKind, resolve_fieldwise,
 };
 use eqiora_schema::kernel::{DomainKind, KernelNode, ValueFrame};
 use eqiora_sem::KernelProgram;
 use eqiora_solver::LinearOperatorProperties;
+use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType, SolverPlan};
 
 const STOKES: &str =
     include_str!("../../../verify/fluid/packaged-steady-stokes-2d/models/direct.eqi");

@@ -9,10 +9,10 @@ use eqiora_numerics::{
 use eqiora_realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
     RealizationCapabilities, RealizationPlan, RealizationRequest, RealizationRequirements,
-    RealizationRevision, ScalarType, SemanticRevision, Space, Target, VectorLayoutKind, resolve,
+    RealizationRevision, SemanticRevision, Space, Target, VectorLayoutKind, resolve,
 };
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
+use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan};
 
 pub struct ManufacturedCase<'a> {
     pub file: &'a str,

@@ -14,14 +14,14 @@ use eqiora::numerics::{
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshArtifactReference, MeshKind,
     MeshPolicy, QuadraturePolicy, RealizationCapabilities, RealizationPlan, RealizationRequest,
-    RealizationRequirements, RealizationRevision, ScalarType, SemanticRevision, Space,
-    SpatialDimensionSupport, Target, TargetCapabilities, VectorLayoutKind, resolve,
+    RealizationRequirements, RealizationRevision, SemanticRevision, Space, SpatialDimensionSupport,
+    Target, TargetCapabilities, VectorLayoutKind, resolve,
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     ExecutionReport, LinearOperatorProperties, LinearSolver, PreconditionerPolicy,
-    REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolveReport, SolverCapabilities, SolverCapability,
-    SolverPlan,
+    REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolveReport, SolverCapabilities,
+    SolverCapability, SolverPlan,
 };
 use eqiora_fabric::{CpuThreadPool, RAYON_EXECUTION};
 

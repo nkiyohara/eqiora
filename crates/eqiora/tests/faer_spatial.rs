@@ -10,7 +10,7 @@ use eqiora::numerics::{
 };
 use eqiora::realization::{
     DefaultPolicyVersion, DiscretizationMethod, ExecutionSchedule, RealizationCapabilities,
-    RealizationPlan, RealizationRequest, RealizationRequirements, ScalarType, SemanticRevision,
+    RealizationPlan, RealizationRequest, RealizationRequirements, SemanticRevision,
     SpatialDimensionSupport, Target, TargetCapabilities, VectorLayoutKind, default_plan_v0,
     resolve,
 };
@@ -18,7 +18,7 @@ use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem, LinearSolver,
     LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    SERIAL_EXECUTION_PROVIDER, SolverCapabilities, SolverCapability, SolverPlan,
+    SERIAL_EXECUTION_PROVIDER, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora_backend_faer::{
     FAER_ADAPTER_VERSION, FAER_SOLVER_PROVIDER, FAER_VERSION, FaerLinearSolver,

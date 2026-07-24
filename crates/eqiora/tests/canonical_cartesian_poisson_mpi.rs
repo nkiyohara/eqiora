@@ -27,13 +27,13 @@ use eqiora::distributed::{GlobalVectorSpace, Partition, PartitionId};
 use eqiora::numerics::finalize_resolved_scalar_elliptic_cartesian;
 use eqiora::realization::{
     DiscretizationMethod, MeshKind, RealizationCapabilities, RealizationRequest,
-    RealizationRequirements, ResolutionSource, ScalarType, SpatialDimensionSupport,
-    TargetCapabilities, VectorLayoutKind, resolve,
+    RealizationRequirements, ResolutionSource, SpatialDimensionSupport, TargetCapabilities,
+    VectorLayoutKind, resolve,
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     ExecutionReport, LinearOperatorOrientation, LinearOperatorProperties, LinearSolver,
-    PreconditionerPolicy, ReductionPolicy, SolverCapabilities, SolverCapability,
+    PreconditionerPolicy, ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability,
 };
 use eqiora_execution::{
     AdmittedExecution, DeploymentBinding, DistributedExecutorDescriptor, ExecutionReceipt,

@@ -10,11 +10,12 @@ use eqiora_numerics::{
 use eqiora_realization::{
     DefaultPolicyVersion, Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy,
     QuadraturePolicy, RealizationCapabilities, RealizationPlan, RealizationRequest,
-    RealizationRequirements, RealizationRevision, ScalarType, SemanticRevision, Space, Target,
+    RealizationRequirements, RealizationRevision, SemanticRevision, Space, Target,
     VectorLayoutKind, default_plan_v0, resolve,
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::REFERENCE_LINEAR_SOLVER;
+use eqiora_solver::ScalarType;
 
 const EXPECTED: &str =
     include_str!("../../../verify/numerics/poisson-fem-fvm/expected/convergence.csv");

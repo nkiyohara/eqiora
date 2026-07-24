@@ -31,12 +31,12 @@ use eqiora::numerics::{
 use eqiora::realization::{
     AlgebraicBlock, CoupledFieldwiseRealizationPlan, CoupledFieldwiseRealizationRequest,
     DiscretizationMethod, MeshKind, RealizationCapabilities, RealizationRevision,
-    ResolvedCoupledFieldwiseRealization, ScalarType, SemanticRevision, SpatialDimensionSupport,
+    ResolvedCoupledFieldwiseRealization, SemanticRevision, SpatialDimensionSupport,
     TargetCapabilities, VectorLayoutKind, resolve_coupled_fieldwise,
 };
 use eqiora::solver::{
     ConvergenceReason, LinearOperatorProperties, LinearSolverBackend, REFERENCE_LINEAR_SOLVER,
-    ReductionPolicy, SolverCapabilities, SolverCapability, SolverPlan,
+    ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora_backend_cuda::CudaAdmittedExecutionAdapter;
 use eqiora_execution::{CudaExecutorDescriptor, DeploymentBinding};

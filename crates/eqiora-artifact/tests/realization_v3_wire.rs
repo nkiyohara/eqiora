@@ -15,13 +15,14 @@ use eqiora_realization::{
     CoupledFieldwiseRealizationPlan, CoupledFieldwiseRealizationRequest,
     CoupledFieldwiseRealizationRequirements, CoupledFieldwiseSpatialDiscretization, Discretization,
     DiscretizationMethod, DomainFieldDiscretization, DomainFieldInventory, ExecutionSchedule,
-    FieldSpaceBinding, LinearSolver, MeshArtifactReference, MeshPolicy, PositivePhysicalScale,
-    QuadraturePolicy, RealizationCapabilities, RealizationRequirements, RealizationRevision,
-    ReductionPolicy, ScalarType, SemanticRevision, SolverPlan, Space, SymmetricCongruenceScaling,
-    Target, TraceFieldEndpoint, VectorLayoutKind, resolve_coupled_fieldwise,
+    FieldSpaceBinding, MeshArtifactReference, MeshPolicy, PositivePhysicalScale, QuadraturePolicy,
+    RealizationCapabilities, RealizationRequirements, RealizationRevision, SemanticRevision, Space,
+    SymmetricCongruenceScaling, Target, TraceFieldEndpoint, VectorLayoutKind,
+    resolve_coupled_fieldwise,
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::LinearOperatorProperties;
+use eqiora_solver::{LinearSolver, ReductionPolicy, ScalarType, SolverPlan};
 
 const MODEL: &str =
     include_str!("../../../verify/fluid/packaged-steady-stokes-2d/models/direct.eqi");

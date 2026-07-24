@@ -11,13 +11,13 @@ use eqiora::numerics::{
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshKind, MeshPolicy,
     QuadraturePolicy, RealizationCapabilities, RealizationPlan, RealizationRequest,
-    RealizationRequirements, RealizationRevision, ScalarType, SemanticRevision, Space,
-    SpatialDimensionSupport, Target, TargetCapabilities, VectorLayoutKind,
+    RealizationRequirements, RealizationRevision, SemanticRevision, Space, SpatialDimensionSupport,
+    Target, TargetCapabilities, VectorLayoutKind,
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     LinearOperatorProperties, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-    ReductionPolicy, SolverCapabilities, SolverCapability, SolverPlan,
+    ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
 };
 
 pub const SOURCE: &str =

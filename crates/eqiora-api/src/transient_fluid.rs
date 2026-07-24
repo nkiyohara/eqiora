@@ -16,13 +16,13 @@ use eqiora_numerics::{
 use eqiora_realization::{
     DiscretizationMethod, MeshKind, NonlinearSolvePlan, PortableRealizationGraph,
     RealizationCapabilities, RealizationRevision, ResolvedTransientFieldwiseRealization,
-    ScalarType, SemanticRevision, SpatialDimensionSupport, TargetCapabilities,
+    SemanticRevision, SpatialDimensionSupport, TargetCapabilities,
     TransientFieldwiseRealizationRequest, VectorLayoutKind, resolve_transient_fieldwise,
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
-    BackendId, LinearOperatorProperties, LinearSolverBackend, SolverCapabilities, SolverCapability,
-    SolverPlan,
+    BackendId, LinearOperatorProperties, LinearSolverBackend, ScalarType, SolverCapabilities,
+    SolverCapability, SolverPlan,
 };
 
 /// Prepared fixed-domain 2D transient-flow application service.

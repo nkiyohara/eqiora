@@ -34,7 +34,7 @@ use eqiora_realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshKind, MeshPolicy,
     PortableRealizationGraph, QuadraturePolicy, RealizationCapabilities, RealizationPlan,
     RealizationRequest, RealizationRequirements, RealizationRevision, ResolvedRealization,
-    ScalarType, SemanticRevision, SingleFieldOperatorClaim, Space, SpatialDimensionSupport, Target,
+    SemanticRevision, SingleFieldOperatorClaim, Space, SpatialDimensionSupport, Target,
     TargetCapabilities, VectorLayoutKind, resolve,
 };
 use eqiora_schema::kernel::KernelNode;
@@ -46,8 +46,8 @@ use eqiora_solver::{
     CanonicalCsrSystemView, ExecutionProvider, ExecutionTopology as SolverExecutionTopology,
     LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolver, LinearSolverBackend,
     PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, ReductionPolicy,
-    SERIAL_EXECUTION_PROVIDER, SolveReport, SolverCapabilities, SolverCapability, SolverPlan,
-    SolverProvider,
+    SERIAL_EXECUTION_PROVIDER, ScalarType, SolveReport, SolverCapabilities, SolverCapability,
+    SolverPlan, SolverProvider,
 };
 
 use crate::ModelDocument;

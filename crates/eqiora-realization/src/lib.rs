@@ -97,10 +97,6 @@ pub use transient_fieldwise::{
     resolve_transient_fieldwise,
 };
 
-pub use eqiora_solver::{
-    LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType, SolverCapabilities, SolverPlan,
-};
-
 use diagnostic::invalid_realization;
 use identity::Selection;
 

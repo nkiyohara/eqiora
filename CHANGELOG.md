@@ -6,7 +6,11 @@ are recorded here.
 
 ## [Unreleased]
 
-No changes yet.
+### Changed
+
+- Assembly, meshing, geometry, and solver contracts now use their owning crate
+  and `eqiora` namespace paths; aliases formerly exposed from numerics,
+  artifact, and realization have been removed.
 
 ## [0.1.0a1] - 2026-07-23
 

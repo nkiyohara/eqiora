@@ -4,6 +4,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Id, OntologyId};
 use eqiora_schema::Model;
+use eqiora_solver::{LinearSolver, ScalarType, SolverPlan};
 
 use super::*;
 

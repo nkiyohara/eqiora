@@ -6,12 +6,12 @@ use eqiora_meshing::MeshTopology;
 use eqiora_realization::{
     AlgebraicBlock, CellCenteredConvectionScheme, CoordinateTreatment, DiscretizationMethod,
     DomainConfiguration, ExecutionSchedule, MeshPolicy, PlacementRequirementNode, QuadraturePolicy,
-    ResolutionSource, ResolvedTransientCellCenteredTransportRealization, ScalarType, SolveRoot,
-    SpaceFamily, SystemBlock, Target, TransformationNode, VectorLayoutKind,
+    ResolutionSource, ResolvedTransientCellCenteredTransportRealization, SolveRoot, SpaceFamily,
+    SystemBlock, Target, TransformationNode, VectorLayoutKind,
 };
 use eqiora_schema::kernel::KernelNode;
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{LinearOperatorProperties, SolverPlan};
+use eqiora_solver::{LinearOperatorProperties, ScalarType, SolverPlan};
 
 use super::api::ScalarTransportCellState2d;
 use crate::{CartesianMesh, ScalarTransportCartesianModel2d};

@@ -12,8 +12,8 @@ use eqiora_meshing::{
 };
 use eqiora_realization::{
     Discretization, DiscretizationMethod, MeshArtifactReference, MeshPolicy,
-    PlacementRequirementNode, QuadraturePolicy, ResolvedRealization, ScalarType,
-    SingleFieldOperatorClaim, SolveRoot, Space, SpaceFamily, Target, VectorLayoutKind,
+    PlacementRequirementNode, QuadraturePolicy, ResolvedRealization, SingleFieldOperatorClaim,
+    SolveRoot, Space, SpaceFamily, Target, VectorLayoutKind,
 };
 use eqiora_schema::kernel::{
     BoundarySide, DomainKind, ExprDag, ExprId, ExprNode, KernelNode, RepresentationKind, SymbolRef,
@@ -21,7 +21,8 @@ use eqiora_schema::kernel::{
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearProblem, LinearSolution,
-    LinearSolveRequest, LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, SolverPlan,
+    LinearSolveRequest, LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ScalarType,
+    SolverPlan,
 };
 
 use crate::cartesian_elliptic::{

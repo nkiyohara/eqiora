@@ -3,8 +3,9 @@
 use eqiora_core::Diagnostic;
 use eqiora_realization::{
     FixedTopologyAleCoupledRealizationPlan, FixedTopologyAleCoupledRealizationRequirements,
-    ReductionPolicy, SemanticRevision, Target, VectorLayoutKind,
+    SemanticRevision, Target, VectorLayoutKind,
 };
+use eqiora_solver::ReductionPolicy;
 
 use crate::{
     ArtifactDigest, CanonicalModelArtifact, LayoutArtifacts, RealizationEnvelopeV1,

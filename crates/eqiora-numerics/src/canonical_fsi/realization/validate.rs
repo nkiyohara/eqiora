@@ -8,11 +8,11 @@ use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
 use eqiora_meshing::{CellId, MeshEntity, MeshTopology, SimplicialMesh};
 use eqiora_realization::{
     AlgebraicBlock, BackwardEulerStatePair, ConformingTraceQuotient, MeshArtifactReference,
-    PortableRealizationGraph, PreconditionerPolicy, ResolvedCoupledFieldwiseRealization, SolveRoot,
-    Target, TraceFieldEndpoint, TransformationNode, VectorLayoutKind,
+    PortableRealizationGraph, ResolvedCoupledFieldwiseRealization, SolveRoot, Target,
+    TraceFieldEndpoint, TransformationNode, VectorLayoutKind,
 };
 use eqiora_schema::kernel::BoundarySide;
-use eqiora_solver::{LinearSolver, SolverPlan};
+use eqiora_solver::{LinearSolver, PreconditionerPolicy, SolverPlan};
 
 use super::super::{FixedReferenceFsiCartesianModel2d, FixedReferenceFsiInterfaceSide2d};
 use super::result::FixedReferenceFsiFieldIdentities2d;
