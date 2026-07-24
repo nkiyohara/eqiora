@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
 use eqiora_artifact::{
-    GeometryAssociationArtifactError, GeometryIdentityEnvelopeV1,
+    GeometryAssociationArtifactError, GeometryDecoderLimits, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryRevisionAssociationEnvelopeV1, ModelEnvelopeV1,
     ModelEnvelopeV2, ModelEnvelopeV3, ModelEnvelopeV4, ModelEnvelopeV5,
-    ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1, SpatialDecoderLimits,
+    ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1,
 };
 use eqiora_compiler::compile;
 use eqiora_core::Id;
@@ -365,7 +365,7 @@ fn geometry_identity_fsi_2d() {
     assert!(
         GeometryIdentityEnvelopeV1::from_json(
             &geometry_bytes,
-            SpatialDecoderLimits {
+            GeometryDecoderLimits {
                 max_geometry_entities: 1,
                 ..Default::default()
             }

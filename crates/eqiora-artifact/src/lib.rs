@@ -5,7 +5,6 @@
 //! transaction; deserialization never bypasses an existing invariant.
 
 mod cad;
-mod data_exchange_limits;
 mod discrete_field;
 mod distributed;
 mod external_import;
@@ -47,7 +46,6 @@ mod root_registration;
 mod run_v2;
 mod semantic_fingerprint;
 mod spatial_data;
-mod spatial_limits;
 mod spatial_state_v2;
 mod spatial_state_v3;
 mod spatial_trajectory_v2;
@@ -64,20 +62,19 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub use cad::{CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1};
-pub use data_exchange_limits::DataExchangeDecoderLimits;
-pub use discrete_field::DiscreteFieldEnvelopeV1;
+pub use discrete_field::{DiscreteFieldEnvelopeV1, FieldDecoderLimits};
 pub use distributed::{
     DistributedDecoderLimits, DistributedLayoutEnvelopeV1, LinearSystemEnvelopeV1,
     PartitionEnvelopeV1, validate_distributed_content_dag,
 };
 pub use external_import::{
-    ExternalAdapterIdentityV1, ExternalImportManifestV1, ExternalImportObservationV1,
-    ExternalImportSelectionV1, ExternalImportSourceV1, ExternalRuntimeComponentV1,
-    ExternalRuntimeRoleV1, RawSourceSha256, ResolvedImportArrayV1, SelectedSourceEntityV1,
-    StructuralSelectorV1,
+    ExternalAdapterIdentityV1, ExternalImportDecoderLimits, ExternalImportManifestV1,
+    ExternalImportObservationV1, ExternalImportSelectionV1, ExternalImportSourceV1,
+    ExternalRuntimeComponentV1, ExternalRuntimeRoleV1, RawSourceSha256, ResolvedImportArrayV1,
+    SelectedSourceEntityV1, StructuralSelectorV1,
 };
 pub use geometry_identity::{
-    CartesianGeometryBodyV1, CartesianGeometryBoundaryV1, GeometryEntityV1,
+    CartesianGeometryBodyV1, CartesianGeometryBoundaryV1, GeometryDecoderLimits, GeometryEntityV1,
     GeometryIdentityEnvelopeV1,
 };
 pub use geometry_mesh_correspondence::{
@@ -99,7 +96,7 @@ pub use implicit_time::{
 pub use implicit_time_lineage::{ImplicitTimeCheckpointEnvelopeV1, ImplicitTimeRestartManifestV1};
 pub use json_preflight::JsonDecoderLimits;
 pub(crate) use json_preflight::check_json_limits;
-pub use mesh::SimplicialMeshEnvelopeV1;
+pub use mesh::{MeshDecoderLimits, SimplicialMeshEnvelopeV1};
 pub use mesh_revision_overlap::MeshRevisionOverlapEnvelopeV1;
 pub use model::{ModelDecoderLimits, ModelEnvelopeV1};
 pub use model_reference::{
@@ -118,11 +115,13 @@ pub use model_v4::ModelEnvelopeV4;
 pub use model_v5::ModelEnvelopeV5;
 pub use model_v6::ModelEnvelopeV6;
 pub use physical_exposure::{
-    PhysicalExposureCatalogEnvelopeV1, PhysicalExposureContractV1,
+    PhysicalExposureCatalogEnvelopeV1, PhysicalExposureContractV1, PhysicalExposureDecoderLimits,
     PhysicalExposureObservationBindingV1, PhysicalExposureProjectionV1, PhysicalExposureQuantityV1,
     PhysicalExposureSourceOriginV1, PhysicalExposureSourceSpanV1,
 };
-pub use realization::{LayoutArtifacts, LayoutArtifactsV1, RealizationEnvelopeV1};
+pub use realization::{
+    LayoutArtifacts, LayoutArtifactsV1, RealizationDecoderLimits, RealizationEnvelopeV1,
+};
 #[allow(deprecated)]
 pub use realization_reference::{
     CanonicalRealizationArtifact, RealizationArtifactReference, RealizationArtifactReferenceV1,
@@ -133,12 +132,14 @@ pub use realization_v3::RealizationEnvelopeV3;
 pub use realization_v4::RealizationEnvelopeV4;
 pub use realization_v5::RealizationEnvelopeV5;
 pub use remesh_transfer::{
-    BoundedRemeshDefectV1, FieldTransferReceiptV1, RemeshFieldRoleV1, RemeshIntegrationChartV1,
-    RemeshNormalizationWitnessV1, RemeshProjectionActionV1, RemeshProjectionEvidenceEnvelopeV1,
-    RemeshProjectionExecutionModeV1, RemeshTransferEvidenceV1, RemeshTransferLawV1,
-    RemeshTransferReceiptEnvelopeV1,
+    BoundedRemeshDefectV1, FieldTransferReceiptV1, RemeshDecoderLimits, RemeshFieldRoleV1,
+    RemeshIntegrationChartV1, RemeshNormalizationWitnessV1, RemeshProjectionActionV1,
+    RemeshProjectionEvidenceEnvelopeV1, RemeshProjectionExecutionModeV1, RemeshTransferEvidenceV1,
+    RemeshTransferLawV1, RemeshTransferReceiptEnvelopeV1,
 };
-pub use resolved_array::{ResolvedArrayScalarV1, ResolvedArrayV1};
+pub use resolved_array::{
+    ResolvedArrayDecoderLimits, ResolvedArrayLimits, ResolvedArrayScalarV1, ResolvedArrayV1,
+};
 pub use root_registration::RootRegistrationEnvelopeV1;
 pub use run_v2::{
     DistributedTransportV1, ExecutionProvenanceFingerprintV1, ExecutionProvenanceV1,
@@ -153,9 +154,8 @@ pub use spatial_data::{
     MlDatasetEnvelopeV1, MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1,
     MlDatasetSampleSplitV1, MlDatasetSampleV1, MlDatasetStateKindV1, MlDatasetStateReferenceV1,
     SpatialStateEnvelopeV1, SpatialTrajectoryEnvelopeV1, SpatialTrajectorySegmentEnvelopeV1,
-    StorageChunkSha256V1, StorageChunkV1, ValidatedFixedSpatialContextV1,
+    StorageChunkSha256V1, StorageChunkV1, TrajectoryDecoderLimits, ValidatedFixedSpatialContextV1,
 };
-pub use spatial_limits::SpatialDecoderLimits;
 pub use spatial_state_v2::{SpatialStateEnvelopeV2, ValidatedMovingSpatialContextV2};
 pub use spatial_state_v3::{SpatialStateEnvelopeV3, SpatialStateOriginKindV3};
 pub use spatial_trajectory_v2::{SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2};
@@ -165,8 +165,9 @@ pub use spatial_trajectory_v3::{
 };
 pub use time::{TimeDecoderLimits, TimeLoweringEnvelopeV1, TimeRunManifestV1};
 pub use xdmf_hdf5_trajectory_storage::{
-    TemporalStorageBlockPresentationV1, TemporalStorageStateKindV1, XdmfHdf5TrajectoryBlockV1,
-    XdmfHdf5TrajectoryFieldV1, XdmfHdf5TrajectoryFrameV1, XdmfHdf5TrajectoryStorageEnvelopeV1,
+    TemporalStorageBlockPresentationV1, TemporalStorageStateKindV1, TrajectoryStorageDecoderLimits,
+    XdmfHdf5TrajectoryBlockV1, XdmfHdf5TrajectoryFieldV1, XdmfHdf5TrajectoryFrameV1,
+    XdmfHdf5TrajectoryStorageEnvelopeV1,
 };
 
 const RUN_SCHEMA: &str = "eqiora.run-manifest/v1";

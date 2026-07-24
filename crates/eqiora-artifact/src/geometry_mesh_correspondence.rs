@@ -17,8 +17,8 @@ use ulid::Ulid;
 
 use crate::geometry_identity::WireGeometryEntity;
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, GeometryEntityV1, GeometryIdentityEnvelopeV1,
-    ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1, SpatialDecoderLimits,
+    ArtifactDigest, CANONICAL_ENCODING, GeometryDecoderLimits, GeometryEntityV1,
+    GeometryIdentityEnvelopeV1, ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1,
     check_json_limits, invalid_artifact,
 };
 
@@ -349,7 +349,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
                 boundaries: wire_boundaries,
             },
         };
-        envelope.validate_local(SpatialDecoderLimits::default())?;
+        envelope.validate_local(GeometryDecoderLimits::default())?;
         Ok(envelope)
     }
 
@@ -358,7 +358,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, or noncanonical data.
-    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: GeometryDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!(
@@ -672,7 +672,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
             .map_err(|error| invalid_artifact(error.to_string()))
     }
 
-    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: GeometryDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != CORRESPONDENCE_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported geometry-mesh correspondence schema or encoding",

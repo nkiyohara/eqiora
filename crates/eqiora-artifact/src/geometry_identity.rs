@@ -16,11 +16,35 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, ReplayableCanonicalModelArtifact, SpatialDecoderLimits,
-    check_json_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, ReplayableCanonicalModelArtifact, check_json_limits,
+    invalid_artifact,
 };
 
 const GEOMETRY_IDENTITY_SCHEMA: &str = "eqiora.geometry-identity-envelope/v1";
+
+/// Semantic work budgets shared by Geometry Identity and correspondence artifacts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GeometryDecoderLimits {
+    /// Common JSON syntax admission.
+    pub json: crate::JsonDecoderLimits,
+    /// Maximum body and boundary entities in one Geometry Identity.
+    pub max_geometry_entities: usize,
+    /// Maximum cell and facet memberships in one geometry correspondence.
+    pub max_geometry_mesh_memberships: usize,
+    /// Maximum decisions in one cross-revision geometry association.
+    pub max_geometry_revision_associations: usize,
+}
+
+impl Default for GeometryDecoderLimits {
+    fn default() -> Self {
+        Self {
+            json: crate::JsonDecoderLimits::default(),
+            max_geometry_entities: 1_000_000,
+            max_geometry_mesh_memberships: 16_000_000,
+            max_geometry_revision_associations: 1_000_000,
+        }
+    }
+}
 
 /// Artifact-local entity in one exact geometry revision.
 ///
@@ -275,7 +299,7 @@ impl GeometryIdentityEnvelopeV1 {
                 bodies: wire_bodies,
             },
         };
-        envelope.validate_local(SpatialDecoderLimits::default())?;
+        envelope.validate_local(GeometryDecoderLimits::default())?;
         Ok(envelope)
     }
 
@@ -283,7 +307,7 @@ impl GeometryIdentityEnvelopeV1 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, noncanonical, or oversized data.
-    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: GeometryDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid geometry identity JSON: {error}"))
@@ -404,7 +428,7 @@ impl GeometryIdentityEnvelopeV1 {
             .collect()
     }
 
-    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: GeometryDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != GEOMETRY_IDENTITY_SCHEMA
             || self.wire.encoding != CANONICAL_ENCODING
             || self.wire.producer != WireGeometryProducer::SemanticCartesianV1

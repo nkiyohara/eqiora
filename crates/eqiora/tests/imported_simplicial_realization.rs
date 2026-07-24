@@ -1,8 +1,8 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::artifact::{
-    LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1, SimplicialMeshEnvelopeV1,
-    SpatialDecoderLimits,
+    LayoutArtifacts, MeshDecoderLimits, ModelEnvelopeV1, RealizationEnvelopeV1,
+    SimplicialMeshEnvelopeV1,
 };
 use eqiora::compiler::compile;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
@@ -279,7 +279,7 @@ fn imported_mesh_wire_rejects_resource_excess_unknown_fields_and_forged_evidence
     assert!(
         SimplicialMeshEnvelopeV1::from_json(
             &bytes,
-            SpatialDecoderLimits {
+            MeshDecoderLimits {
                 max_mesh_cells: 3,
                 ..Default::default()
             },

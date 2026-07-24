@@ -5,11 +5,36 @@ use eqiora_meshing::{MeshQualityGate, MeshTopology, SimplicialMesh};
 use eqiora_realization::MeshArtifactReference;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, SpatialDecoderLimits, check_json_limits, invalid_artifact,
-};
+use crate::{ArtifactDigest, CANONICAL_ENCODING, check_json_limits, invalid_artifact};
 
 const SIMPLICIAL_MESH_SCHEMA: &str = "eqiora.simplicial-mesh-envelope/v1";
+
+/// Semantic work budgets for the simplicial Mesh artifact family.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MeshDecoderLimits {
+    /// Common JSON syntax admission.
+    pub json: crate::JsonDecoderLimits,
+    /// Maximum vertices in one Mesh artifact.
+    pub max_mesh_vertices: usize,
+    /// Maximum top-dimensional cells in one Mesh artifact.
+    pub max_mesh_cells: usize,
+    /// Maximum coordinate scalars summed across one Mesh artifact.
+    pub max_mesh_coordinate_values: usize,
+    /// Maximum connectivity indices summed across one Mesh artifact.
+    pub max_mesh_connectivity_indices: usize,
+}
+
+impl Default for MeshDecoderLimits {
+    fn default() -> Self {
+        Self {
+            json: crate::JsonDecoderLimits::default(),
+            max_mesh_vertices: 1_000_000,
+            max_mesh_cells: 2_000_000,
+            max_mesh_coordinate_values: 4_000_000,
+            max_mesh_connectivity_indices: 8_000_000,
+        }
+    }
+}
 
 /// Versioned coordinates, connectivity, acceptance policy, and recomputed
 /// quality evidence for one fixed-topology affine-simplex mesh revision.
@@ -79,7 +104,7 @@ impl SimplicialMeshEnvelopeV1 {
     /// Returns `EQ0901` for malformed/unknown wire data, resource excess,
     /// invalid mesh topology or geometry, or quality evidence that does not
     /// exactly match a fresh reconstruction.
-    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: MeshDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire: WireSimplicialMeshEnvelopeV1 = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid simplex mesh JSON: {error}")))?;
@@ -132,7 +157,7 @@ impl SimplicialMeshEnvelopeV1 {
 
 fn reconstruct(
     wire: &WireSimplicialMeshEnvelopeV1,
-    limits: SpatialDecoderLimits,
+    limits: MeshDecoderLimits,
 ) -> Result<SimplicialMesh, Diagnostic> {
     if wire.schema != SIMPLICIAL_MESH_SCHEMA || wire.encoding != CANONICAL_ENCODING {
         return Err(invalid_artifact(
@@ -298,7 +323,7 @@ mod tests {
         let envelope = SimplicialMeshEnvelopeV1::from_mesh(&fixture()).unwrap();
         let bytes = envelope.canonical_json().unwrap();
         let decoded =
-            SimplicialMeshEnvelopeV1::from_json(&bytes, SpatialDecoderLimits::default()).unwrap();
+            SimplicialMeshEnvelopeV1::from_json(&bytes, MeshDecoderLimits::default()).unwrap();
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         assert_eq!(decoded.mesh(), envelope.mesh());
         assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
@@ -312,9 +337,9 @@ mod tests {
     fn resource_excess_unknown_fields_and_forged_evidence_fail_closed() {
         let envelope = SimplicialMeshEnvelopeV1::from_mesh(&fixture()).unwrap();
         let bytes = envelope.canonical_json().unwrap();
-        let limits = SpatialDecoderLimits {
+        let limits = MeshDecoderLimits {
             max_mesh_vertices: 3,
-            ..SpatialDecoderLimits::default()
+            ..MeshDecoderLimits::default()
         };
         assert_eq!(
             SimplicialMeshEnvelopeV1::from_json(&bytes, limits)
@@ -328,7 +353,7 @@ mod tests {
         assert_eq!(
             SimplicialMeshEnvelopeV1::from_json(
                 &serde_json::to_vec(&unknown).unwrap(),
-                SpatialDecoderLimits::default(),
+                MeshDecoderLimits::default(),
             )
             .unwrap_err()
             .code(),
@@ -340,7 +365,7 @@ mod tests {
         assert_eq!(
             SimplicialMeshEnvelopeV1::from_json(
                 &serde_json::to_vec(&forged).unwrap(),
-                SpatialDecoderLimits::default(),
+                MeshDecoderLimits::default(),
             )
             .unwrap_err()
             .code(),

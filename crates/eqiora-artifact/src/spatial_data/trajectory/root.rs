@@ -3,7 +3,7 @@ use eqiora_core::{Diagnostic, Id};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DataExchangeDecoderLimits, ValidatedFixedSpatialContextV1,
+    ArtifactDigest, CANONICAL_ENCODING, TrajectoryDecoderLimits, ValidatedFixedSpatialContextV1,
     check_json_limits, invalid_artifact,
 };
 
@@ -51,7 +51,7 @@ impl SpatialTrajectoryEnvelopeV1 {
                 segments: vec![WireSegmentReference::from_segment(segment)?],
             },
         };
-        value.validate_local(DataExchangeDecoderLimits::default())?;
+        value.validate_local(TrajectoryDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -110,7 +110,7 @@ impl SpatialTrajectoryEnvelopeV1 {
                 segments,
             },
         };
-        value.validate_local(DataExchangeDecoderLimits::default())?;
+        value.validate_local(TrajectoryDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -118,7 +118,7 @@ impl SpatialTrajectoryEnvelopeV1 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical data.
-    pub fn from_json(bytes: &[u8], limits: DataExchangeDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: TrajectoryDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid spatial trajectory JSON: {error}"))
@@ -324,7 +324,7 @@ impl SpatialTrajectoryEnvelopeV1 {
         Ok(())
     }
 
-    fn validate_local(&self, limits: DataExchangeDecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: TrajectoryDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != TRAJECTORY_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported spatial-trajectory schema or canonical encoding",

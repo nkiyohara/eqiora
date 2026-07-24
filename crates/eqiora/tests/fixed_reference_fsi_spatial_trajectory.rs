@@ -3,9 +3,9 @@ use std::num::NonZeroUsize;
 
 use eqiora::api::{FixedReferenceFsiSnapshotSetV1, snapshot_fixed_reference_fsi_solution_v1};
 use eqiora::artifact::{
-    ArtifactDigest, DataExchangeDecoderLimits, DatasetViewEnvelopeV1, DiscreteFieldEnvelopeV1,
-    DiscreteFieldStorageEnvelopeV1, FieldSnapshotEnvelopeV1, SpatialStateEnvelopeV1,
-    SpatialTrajectoryEnvelopeV1, SpatialTrajectorySegmentEnvelopeV1, StorageChunkV1,
+    ArtifactDigest, DatasetViewEnvelopeV1, DiscreteFieldEnvelopeV1, DiscreteFieldStorageEnvelopeV1,
+    FieldSnapshotEnvelopeV1, SpatialStateEnvelopeV1, SpatialTrajectoryEnvelopeV1,
+    SpatialTrajectorySegmentEnvelopeV1, StorageChunkV1, TrajectoryDecoderLimits,
     ValidatedFixedSpatialContextV1,
 };
 use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldPayload};
@@ -639,7 +639,7 @@ fn stale_incomplete_nonmonotone_and_missing_content_fail_closed() {
     for segment in forged_count["segments"].as_array_mut().unwrap() {
         segment["state_count"] = 2.into();
     }
-    let aggregate_limits = DataExchangeDecoderLimits {
+    let aggregate_limits = TrajectoryDecoderLimits {
         max_trajectory_segment_states: 2,
         max_trajectory_states: 3,
         ..Default::default()

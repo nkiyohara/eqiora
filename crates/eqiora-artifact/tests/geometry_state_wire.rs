@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use eqiora_artifact::{
     CanonicalModelArtifact, FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1, LayoutArtifacts,
-    ModelEnvelopeV4, RealizationEnvelopeV1, SimplicialMeshEnvelopeV1, SpatialDecoderLimits,
+    MeshDecoderLimits, ModelEnvelopeV4, RealizationEnvelopeV1, SimplicialMeshEnvelopeV1,
 };
 use eqiora_compiler::compile;
 use eqiora_core::entity::kinds;
@@ -207,7 +207,7 @@ fn wire_rejects_topology_and_replay_rejects_derived_evidence_drift() {
     assert!(
         GeometryStateEnvelopeV1::from_json(
             &bytes,
-            SpatialDecoderLimits {
+            MeshDecoderLimits {
                 max_mesh_vertices: 1,
                 ..Default::default()
             },
@@ -217,7 +217,7 @@ fn wire_rejects_topology_and_replay_rejects_derived_evidence_drift() {
     assert!(
         GeometryStateEnvelopeV1::from_json(
             &bytes,
-            SpatialDecoderLimits {
+            MeshDecoderLimits {
                 max_mesh_coordinate_values: 35,
                 ..Default::default()
             },

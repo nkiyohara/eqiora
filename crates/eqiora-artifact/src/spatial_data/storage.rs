@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, SpatialDecoderLimits,
+    ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldDecoderLimits,
     check_json_limits, invalid_artifact,
 };
 
@@ -152,7 +152,7 @@ impl DiscreteFieldStorageEnvelopeV1 {
                 chunks: references,
             },
         };
-        value.validate_local(SpatialDecoderLimits::default())?;
+        value.validate_local(FieldDecoderLimits::default())?;
         Ok((value, chunks))
     }
 
@@ -160,7 +160,7 @@ impl DiscreteFieldStorageEnvelopeV1 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical data.
-    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: FieldDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid discrete Field storage JSON: {error}"))
@@ -205,7 +205,7 @@ impl DiscreteFieldStorageEnvelopeV1 {
     pub fn restore(
         &self,
         chunks: &[StorageChunkV1],
-        limits: SpatialDecoderLimits,
+        limits: FieldDecoderLimits,
     ) -> Result<DiscreteFieldEnvelopeV1, Diagnostic> {
         if chunks.len() != self.wire.chunks.len() {
             return Err(invalid_artifact(
@@ -251,7 +251,7 @@ impl DiscreteFieldStorageEnvelopeV1 {
         Ok(field)
     }
 
-    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: FieldDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != STORAGE_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported Field-snapshot-storage schema or canonical encoding",

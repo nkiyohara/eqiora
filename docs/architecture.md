@@ -1481,9 +1481,12 @@ SHA-256 digests are deterministic; source revision is retained as provenance
 but excluded from semantic content identity. Every JSON decoder first applies
 one syntax-only byte/depth preflight. Model and transaction generations then
 apply their shared family-owned node, edge, expression, view, and operation
-budgets before graph mutation. Time, spatial, distributed, data-exchange, and
-ML Dataset families own their corresponding reconstruction budgets; changing
-one family cannot alter another family's admission policy.
+budgets before graph mutation. Semantic limits do not live in one universal
+bag: mesh, geometry, field, Realization, remesh, physical-exposure,
+distributed, resolved-array/import, trajectory/storage, time, and ML Dataset
+decoders each receive only their owning family's budgets. An artifact that
+embeds another family composes that family's named semantic budget explicitly;
+changing one family cannot alter another family's admission policy.
 
 The sealed `CanonicalModelArtifact` boundary projects any of those validated
 envelopes to one `ModelArtifactReference`: exact wire-domain digest, typed

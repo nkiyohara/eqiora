@@ -12,8 +12,8 @@ use crate::{
     ArtifactDigest, CANONICAL_ENCODING, CanonicalRealizationArtifact, FieldSnapshotEnvelopeV1,
     GeometryAssociationArtifactError, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryRevisionAssociationEnvelopeV1,
-    GeometryStateEnvelopeV1, ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1,
-    SpatialDecoderLimits, SpatialStateEnvelopeV2, ValidatedMovingSpatialContextV2,
+    GeometryStateEnvelopeV1, MeshDecoderLimits, ReplayableCanonicalModelArtifact,
+    SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2, ValidatedMovingSpatialContextV2,
     check_json_limits, invalid_artifact,
 };
 
@@ -262,7 +262,7 @@ impl GeometryStateEnvelopeV2 {
                 },
             },
         };
-        value.validate_local(SpatialDecoderLimits::default())?;
+        value.validate_local(MeshDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -271,7 +271,7 @@ impl GeometryStateEnvelopeV2 {
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical
     /// data, including any origin outside the closed grammar.
-    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: MeshDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid geometry-state/v2 JSON: {error}"))
@@ -501,7 +501,7 @@ impl GeometryStateEnvelopeV2 {
         require_equal(self, &expected)
     }
 
-    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: MeshDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != GEOMETRY_STATE_SCHEMA
             || self.wire.encoding != CANONICAL_ENCODING
             || self.wire.coordinates.scalar != WireScalarV2::F64
@@ -860,14 +860,12 @@ mod tests {
     #[test]
     fn remesh_origin_roundtrip_has_no_fictitious_velocity_and_frozen_digest() {
         let value = remesh_state();
-        value
-            .validate_local(SpatialDecoderLimits::default())
-            .unwrap();
+        value.validate_local(MeshDecoderLimits::default()).unwrap();
         assert_eq!(value.origin(), GeometryStateOriginKindV2::Remesh);
         assert!(value.mesh_velocity_m_per_s().is_none());
         let bytes = value.canonical_json().unwrap();
         assert_eq!(
-            GeometryStateEnvelopeV2::from_json(&bytes, SpatialDecoderLimits::default()).unwrap(),
+            GeometryStateEnvelopeV2::from_json(&bytes, MeshDecoderLimits::default()).unwrap(),
             value
         );
         assert_eq!(
@@ -885,14 +883,14 @@ mod tests {
         assert!(
             GeometryStateEnvelopeV2::from_json(
                 &serde_json::to_vec(&json).unwrap(),
-                SpatialDecoderLimits::default(),
+                MeshDecoderLimits::default(),
             )
             .is_err()
         );
 
-        let limits = SpatialDecoderLimits {
+        let limits = MeshDecoderLimits {
             max_mesh_coordinate_values: 5,
-            ..SpatialDecoderLimits::default()
+            ..MeshDecoderLimits::default()
         };
         assert!(
             GeometryStateEnvelopeV2::from_json(&value.canonical_json().unwrap(), limits,).is_err()

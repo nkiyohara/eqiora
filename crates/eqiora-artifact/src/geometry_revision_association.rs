@@ -12,9 +12,9 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, GeometryIdentityEnvelopeV1,
+    ArtifactDigest, CANONICAL_ENCODING, GeometryDecoderLimits, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, ReplayableCanonicalModelArtifact,
-    SimplicialMeshEnvelopeV1, SpatialDecoderLimits, check_json_limits, invalid_artifact,
+    SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
 };
 
 const ASSOCIATION_SCHEMA: &str = "eqiora.geometry-revision-association-envelope/v1";
@@ -112,7 +112,7 @@ impl GeometryRevisionAssociationEnvelopeV1 {
         };
         let envelope = Self { wire };
         envelope
-            .validate_local(SpatialDecoderLimits::default())
+            .validate_local(GeometryDecoderLimits::default())
             .map_err(GeometryAssociationArtifactError::Artifact)?;
         Ok(envelope)
     }
@@ -122,7 +122,7 @@ impl GeometryRevisionAssociationEnvelopeV1 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, or noncanonical data.
-    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: GeometryDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!(
@@ -226,7 +226,7 @@ impl GeometryRevisionAssociationEnvelopeV1 {
             .and_then(|pair| decode_domain(&pair.target_domain_ulid).ok())
     }
 
-    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: GeometryDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != ASSOCIATION_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported geometry revision association schema or encoding",

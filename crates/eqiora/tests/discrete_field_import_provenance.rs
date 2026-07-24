@@ -1,10 +1,10 @@
 use std::num::NonZeroU32;
 
 use eqiora::artifact::{
-    DataExchangeDecoderLimits, DiscreteFieldEnvelopeV1, ExternalAdapterIdentityV1,
+    DiscreteFieldEnvelopeV1, ExternalAdapterIdentityV1, ExternalImportDecoderLimits,
     ExternalImportManifestV1, ExternalImportObservationV1, ExternalImportSelectionV1,
-    ExternalImportSourceV1, ResolvedArrayV1, ResolvedImportArrayV1, SelectedSourceEntityV1,
-    SimplicialMeshEnvelopeV1, SpatialDecoderLimits, StructuralSelectorV1,
+    ExternalImportSourceV1, FieldDecoderLimits, ResolvedArrayV1, ResolvedImportArrayV1,
+    SelectedSourceEntityV1, SimplicialMeshEnvelopeV1, StructuralSelectorV1,
 };
 use eqiora::meshing::{
     DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape, MeshQualityGate,
@@ -271,7 +271,7 @@ fn public_field_and_decoder_boundaries_reject_invalid_data() {
     assert!(
         DiscreteFieldEnvelopeV1::from_json(
             &field_bytes,
-            SpatialDecoderLimits {
+            FieldDecoderLimits {
                 max_discrete_field_values: 3,
                 ..Default::default()
             },
@@ -282,7 +282,7 @@ fn public_field_and_decoder_boundaries_reject_invalid_data() {
     assert!(
         ExternalImportManifestV1::from_json(
             &manifest_bytes,
-            DataExchangeDecoderLimits {
+            ExternalImportDecoderLimits {
                 max_import_sources: 4,
                 ..Default::default()
             },

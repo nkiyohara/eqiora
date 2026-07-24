@@ -12,7 +12,7 @@ use ulid::Ulid;
 use crate::realization_v2::wire::{WireLayoutArtifacts, WireQuadrature, WireQuadratureCodec};
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, CanonicalModelArtifact, LayoutArtifacts,
-    SimplicialMeshEnvelopeV1, SpatialDecoderLimits, check_json_limits, invalid_artifact,
+    RealizationDecoderLimits, SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
 };
 
 pub(crate) mod wire;
@@ -63,7 +63,7 @@ impl RealizationEnvelopeV4 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version,
     /// noncanonical, resource-excess, or graph-inconsistent data.
-    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: RealizationDecoderLimits) -> Result<Self, Diagnostic> {
         Ok(Self {
             wire: WireRealizationEnvelopeV4::from_json(REALIZATION_SCHEMA, bytes, limits)?,
         })
@@ -357,7 +357,7 @@ where
     pub(crate) fn from_json(
         schema: &str,
         bytes: &[u8],
-        limits: SpatialDecoderLimits,
+        limits: RealizationDecoderLimits,
     ) -> Result<Self, Diagnostic>
     where
         Q: for<'de> Deserialize<'de>,

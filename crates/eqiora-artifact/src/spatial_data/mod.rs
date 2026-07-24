@@ -23,4 +23,6 @@ pub use ml_dataset::{
 };
 pub use state::SpatialStateEnvelopeV1;
 pub use storage::{DiscreteFieldStorageEnvelopeV1, StorageChunkSha256V1, StorageChunkV1};
-pub use trajectory::{SpatialTrajectoryEnvelopeV1, SpatialTrajectorySegmentEnvelopeV1};
+pub use trajectory::{
+    SpatialTrajectoryEnvelopeV1, SpatialTrajectorySegmentEnvelopeV1, TrajectoryDecoderLimits,
+};

@@ -15,11 +15,11 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference, RealizationEnvelopeV4,
-    ReplayableCanonicalModelArtifact, ReplayableFixedTopologyAleRealizationArtifact,
-    ReplayableFixedTopologyGeometryStateArtifact, ReplayedCanonicalModel, SimplicialMeshEnvelopeV1,
-    SpatialDecoderLimits, check_json_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, FieldDecoderLimits, FieldSnapshotEnvelopeV1,
+    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference,
+    RealizationEnvelopeV4, ReplayableCanonicalModelArtifact,
+    ReplayableFixedTopologyAleRealizationArtifact, ReplayableFixedTopologyGeometryStateArtifact,
+    ReplayedCanonicalModel, SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
 };
 
 const SPATIAL_STATE_SCHEMA: &str = "eqiora.spatial-state-envelope/v2";
@@ -410,7 +410,7 @@ impl SpatialStateEnvelopeV2 {
                     .collect::<Result<Vec<_>, Diagnostic>>()?,
             },
         };
-        value.validate_local(SpatialDecoderLimits::default())?;
+        value.validate_local(FieldDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -418,7 +418,7 @@ impl SpatialStateEnvelopeV2 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical data.
-    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: FieldDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid spatial-state/v2 JSON: {error}")))?;
@@ -580,7 +580,7 @@ impl SpatialStateEnvelopeV2 {
         Ok(())
     }
 
-    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: FieldDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != SPATIAL_STATE_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported spatial-state/v2 schema or canonical encoding",

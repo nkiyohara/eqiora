@@ -16,9 +16,7 @@ use eqiora_sem::KernelProgram;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, SpatialDecoderLimits, check_json_limits, invalid_artifact,
-};
+use crate::{ArtifactDigest, CANONICAL_ENCODING, check_json_limits, invalid_artifact};
 
 mod observation;
 
@@ -27,6 +25,33 @@ pub use observation::{PhysicalExposureObservationBindingV1, PhysicalExposureQuan
 const CATALOG_SCHEMA: &str = "eqiora.physical-exposure-catalog/v1";
 const PROJECTION_SCHEMA: &str = "eqiora.physical-exposure-projection/v1";
 const SOURCE_PATH_LIMIT: usize = 4_096;
+
+/// Semantic work budgets for physical-exposure projection artifacts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PhysicalExposureDecoderLimits {
+    /// Common JSON syntax admission.
+    pub json: crate::JsonDecoderLimits,
+    /// Maximum eliminated physical exposures in one projection catalog.
+    pub max_physical_exposure_projections: usize,
+    /// Maximum retained Port identities summed across exposure cuts.
+    pub max_physical_exposure_cut_members: usize,
+    /// Maximum complete source origins in one exposure catalog.
+    pub max_physical_exposure_origins: usize,
+    /// Maximum source-path bytes summed across one exposure catalog.
+    pub max_physical_exposure_source_path_bytes: usize,
+}
+
+impl Default for PhysicalExposureDecoderLimits {
+    fn default() -> Self {
+        Self {
+            json: crate::JsonDecoderLimits::default(),
+            max_physical_exposure_projections: 100_000,
+            max_physical_exposure_cut_members: 1_000_000,
+            max_physical_exposure_origins: 1_000_000,
+            max_physical_exposure_source_path_bytes: 64 * 1_024 * 1_024,
+        }
+    }
+}
 
 /// One workspace-relative source span preserved as artifact provenance.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
@@ -508,7 +533,7 @@ impl PhysicalExposureCatalogEnvelopeV1 {
                 projections,
             },
         };
-        envelope.validate_local(SpatialDecoderLimits::default())?;
+        envelope.validate_local(PhysicalExposureDecoderLimits::default())?;
         envelope.validate_against(model_artifact, program, package_compilation)?;
         Ok(envelope)
     }
@@ -521,7 +546,10 @@ impl PhysicalExposureCatalogEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, noncanonical, inconsistent, or
     /// oversized artifact data.
-    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(
+        bytes: &[u8],
+        limits: PhysicalExposureDecoderLimits,
+    ) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid physical exposure catalog JSON: {error}"))
@@ -605,7 +633,7 @@ impl PhysicalExposureCatalogEnvelopeV1 {
         program: &KernelProgram,
         package_compilation: ArtifactDigest,
     ) -> Result<(), Diagnostic> {
-        self.validate_local(SpatialDecoderLimits::default())?;
+        self.validate_local(PhysicalExposureDecoderLimits::default())?;
         if self.model_artifact() != model_artifact
             || self.wire.model_ulid != program.model().ulid().to_string()
             || self.semantic_revision() != program.revision().0
@@ -621,7 +649,7 @@ impl PhysicalExposureCatalogEnvelopeV1 {
         Ok(())
     }
 
-    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: PhysicalExposureDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != CATALOG_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported physical-exposure-catalog schema or canonical encoding",

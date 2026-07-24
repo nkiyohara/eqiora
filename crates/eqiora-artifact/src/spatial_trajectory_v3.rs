@@ -6,10 +6,10 @@ use eqiora_core::Diagnostic;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DataExchangeDecoderLimits,
-    ReplayableCanonicalModelArtifact, SpatialStateEnvelopeV2, SpatialStateEnvelopeV3,
-    SpatialStateOriginKindV3, SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
-    ValidatedMovingSpatialContextV2, check_json_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, ReplayableCanonicalModelArtifact, SpatialStateEnvelopeV2,
+    SpatialStateEnvelopeV3, SpatialStateOriginKindV3, SpatialTrajectoryEnvelopeV2,
+    SpatialTrajectorySegmentEnvelopeV2, TrajectoryDecoderLimits, ValidatedMovingSpatialContextV2,
+    check_json_limits, invalid_artifact,
 };
 
 const SEGMENT_SCHEMA: &str = "eqiora.spatial-trajectory-segment/v3";
@@ -140,7 +140,7 @@ impl SpatialTrajectorySegmentEnvelopeV3 {
                     .collect::<Result<_, _>>()?,
             },
         };
-        value.validate_local(DataExchangeDecoderLimits::default())?;
+        value.validate_local(TrajectoryDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -148,7 +148,7 @@ impl SpatialTrajectorySegmentEnvelopeV3 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical data.
-    pub fn from_json(bytes: &[u8], limits: DataExchangeDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: TrajectoryDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!(
@@ -274,7 +274,7 @@ impl SpatialTrajectorySegmentEnvelopeV3 {
         Ok(())
     }
 
-    fn validate_local(&self, limits: DataExchangeDecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: TrajectoryDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != SEGMENT_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported spatial-trajectory-segment/v3 schema or encoding",
@@ -437,7 +437,7 @@ impl SpatialTrajectoryEnvelopeV3 {
                 segments,
             },
         };
-        value.validate_local(DataExchangeDecoderLimits::default())?;
+        value.validate_local(TrajectoryDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -445,7 +445,7 @@ impl SpatialTrajectoryEnvelopeV3 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical data.
-    pub fn from_json(bytes: &[u8], limits: DataExchangeDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: TrajectoryDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid spatial-trajectory/v3 JSON: {error}"))
@@ -546,7 +546,7 @@ impl SpatialTrajectoryEnvelopeV3 {
         }
     }
 
-    fn validate_local(&self, limits: DataExchangeDecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: TrajectoryDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != TRAJECTORY_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported spatial-trajectory/v3 schema or encoding",
@@ -1009,13 +1009,13 @@ mod tests {
     fn trajectory_v3_wires_roundtrip_and_digests_are_frozen() {
         let segment = segment();
         segment
-            .validate_local(DataExchangeDecoderLimits::default())
+            .validate_local(TrajectoryDecoderLimits::default())
             .unwrap();
         let segment_bytes = segment.canonical_json().unwrap();
         assert_eq!(
             SpatialTrajectorySegmentEnvelopeV3::from_json(
                 &segment_bytes,
-                DataExchangeDecoderLimits::default(),
+                TrajectoryDecoderLimits::default(),
             )
             .unwrap(),
             segment
@@ -1026,15 +1026,12 @@ mod tests {
         );
 
         let root = root(&segment);
-        root.validate_local(DataExchangeDecoderLimits::default())
+        root.validate_local(TrajectoryDecoderLimits::default())
             .unwrap();
         let root_bytes = root.canonical_json().unwrap();
         assert_eq!(
-            SpatialTrajectoryEnvelopeV3::from_json(
-                &root_bytes,
-                DataExchangeDecoderLimits::default()
-            )
-            .unwrap(),
+            SpatialTrajectoryEnvelopeV3::from_json(&root_bytes, TrajectoryDecoderLimits::default())
+                .unwrap(),
             root
         );
         assert_eq!(
@@ -1050,13 +1047,13 @@ mod tests {
         broken.wire.states[1].predecessor_sha256 = Some("dd".repeat(32));
         assert!(
             broken
-                .validate_local(DataExchangeDecoderLimits::default())
+                .validate_local(TrajectoryDecoderLimits::default())
                 .is_err()
         );
 
-        let limits = DataExchangeDecoderLimits {
+        let limits = TrajectoryDecoderLimits {
             max_remesh_trajectory_states: 1,
-            ..DataExchangeDecoderLimits::default()
+            ..TrajectoryDecoderLimits::default()
         };
         assert!(SpatialTrajectorySegmentEnvelopeV3::from_json(
             &value.canonical_json().unwrap(),
@@ -1066,15 +1063,15 @@ mod tests {
 
         let root = root(&value);
         let root_bytes = root.canonical_json().unwrap();
-        let segment_limits = DataExchangeDecoderLimits {
+        let segment_limits = TrajectoryDecoderLimits {
             max_remesh_trajectory_segments: 0,
-            ..DataExchangeDecoderLimits::default()
+            ..TrajectoryDecoderLimits::default()
         };
         assert!(SpatialTrajectoryEnvelopeV3::from_json(&root_bytes, segment_limits).is_err());
 
-        let aggregate_state_limits = DataExchangeDecoderLimits {
+        let aggregate_state_limits = TrajectoryDecoderLimits {
             max_remesh_trajectory_states: 1,
-            ..DataExchangeDecoderLimits::default()
+            ..TrajectoryDecoderLimits::default()
         };
         assert!(
             SpatialTrajectoryEnvelopeV3::from_json(&root_bytes, aggregate_state_limits).is_err()

@@ -14,7 +14,7 @@ use crate::realization_v2::wire::{
     WireExecutionRequirements, WireFieldSpaceBinding, WireOperatorProperties, WirePhysicalScale,
     WireQuadrature, WireQuadratureCodec, WireSchedule, WireSolverPlan, WireSpace, WireTarget,
 };
-use crate::{SpatialDecoderLimits, invalid_artifact};
+use crate::{RealizationDecoderLimits, invalid_artifact};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -54,7 +54,10 @@ impl WireCoupledRequirements {
         .map_err(realization_error)
     }
 
-    pub(crate) fn validate_limits(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
+    pub(crate) fn validate_limits(
+        &self,
+        limits: RealizationDecoderLimits,
+    ) -> Result<(), Diagnostic> {
         let fields = self
             .domains
             .iter()
@@ -144,7 +147,10 @@ impl<Q: WireQuadratureCodec> WireCoupledPlanWith<Q> {
         .map_err(realization_error)
     }
 
-    pub(crate) fn validate_limits(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
+    pub(crate) fn validate_limits(
+        &self,
+        limits: RealizationDecoderLimits,
+    ) -> Result<(), Diagnostic> {
         let (fields, constraints) = self.spatial.domains.iter().try_fold(
             (0_usize, 0_usize),
             |(fields, constraints), domain| {

@@ -444,7 +444,7 @@ negative zero, and non-finite values fail closed rather than being repaired.
 
 Every `from_json` first applies the common syntax-only byte and nesting
 preflight, then the semantic work budget owned by its artifact family. Spatial
-Field/state and data-exchange/trajectory limits are separate contracts;
+Field/state, trajectory, and trajectory-storage limits are separate contracts;
 changing one cannot affect admission of the other. Existing value-shape,
 discrete-Field, snapshot, storage, trajectory, and derived-view bounds remain
 authoritative in their owning family. All portable integer conversions,

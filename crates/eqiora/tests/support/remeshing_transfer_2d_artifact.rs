@@ -2,16 +2,16 @@ use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
 use eqiora::artifact::{
-    DataExchangeDecoderLimits, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1,
-    FieldTransferReceiptV1, GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
+    DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, FieldTransferReceiptV1,
+    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
     GeometryRevisionAssociationEnvelopeV1, GeometryStateEnvelopeV1, GeometryStateEnvelopeV2,
     LayoutArtifacts, MeshRevisionOverlapEnvelopeV1, MlDatasetDecoderLimits, ModelEnvelopeV5,
-    RealizationEnvelopeV4, RemeshFieldRoleV1, RemeshIntegrationChartV1,
+    RealizationEnvelopeV4, RemeshDecoderLimits, RemeshFieldRoleV1, RemeshIntegrationChartV1,
     RemeshNormalizationWitnessV1, RemeshProjectionActionV1, RemeshProjectionEvidenceEnvelopeV1,
     RemeshTransferEvidenceV1, RemeshTransferLawV1, RemeshTransferReceiptEnvelopeV1,
-    SimplicialMeshEnvelopeV1, SpatialDecoderLimits, SpatialStateEnvelopeV2, SpatialStateEnvelopeV3,
+    SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2, SpatialStateEnvelopeV3,
     SpatialTrajectoryEnvelopeV2, SpatialTrajectoryEnvelopeV3, SpatialTrajectorySegmentEnvelopeV2,
-    SpatialTrajectorySegmentEnvelopeV3, ValidatedMovingSpatialContextV2,
+    SpatialTrajectorySegmentEnvelopeV3, TrajectoryDecoderLimits, ValidatedMovingSpatialContextV2,
     ValidatedRemeshGeometrySourceV2,
 };
 use eqiora::geometry::BodyAssociationCandidate;
@@ -326,7 +326,7 @@ pub(super) fn assert_artifact_vertical_slice(
             &target_initial_snapshots.snapshots,
         )
         .unwrap();
-    let receipt_limits = SpatialDecoderLimits {
+    let receipt_limits = RemeshDecoderLimits {
         max_remesh_transfer_fields: 3,
         ..Default::default()
     };
@@ -560,7 +560,7 @@ pub(super) fn assert_artifact_vertical_slice(
             &[decoded_remesh_segment, decoded_continuation_segment],
         )
         .unwrap();
-    let root_limits = DataExchangeDecoderLimits {
+    let root_limits = TrajectoryDecoderLimits {
         max_remesh_trajectory_segments: 1,
         ..Default::default()
     };

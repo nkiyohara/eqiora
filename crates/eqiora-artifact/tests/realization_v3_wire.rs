@@ -2,7 +2,7 @@ use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
     ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV4,
-    RealizationEnvelopeV3, RunManifestV2, SimplicialMeshEnvelopeV1, SpatialDecoderLimits,
+    RealizationDecoderLimits, RealizationEnvelopeV3, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora_compiler::compile;
 use eqiora_core::entity::kinds;
@@ -192,15 +192,15 @@ fn coupled_v3_applies_decoder_limits_to_aggregate_inventories() {
     let fixture = Fixture::new();
     let bytes = fixture.realization.canonical_json().unwrap();
     for limits in [
-        SpatialDecoderLimits {
+        RealizationDecoderLimits {
             max_realization_fields: 1,
             ..Default::default()
         },
-        SpatialDecoderLimits {
+        RealizationDecoderLimits {
             max_realization_constraints: 0,
             ..Default::default()
         },
-        SpatialDecoderLimits {
+        RealizationDecoderLimits {
             max_realization_blocks: 1,
             ..Default::default()
         },

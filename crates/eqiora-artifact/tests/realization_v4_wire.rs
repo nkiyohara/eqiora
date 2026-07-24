@@ -2,7 +2,8 @@ use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
     CanonicalModelArtifact, CanonicalRealizationArtifact, LayoutArtifacts, ModelEnvelopeV4,
-    RealizationEnvelopeV4, RealizationEnvelopeV5, SimplicialMeshEnvelopeV1, SpatialDecoderLimits,
+    RealizationDecoderLimits, RealizationEnvelopeV4, RealizationEnvelopeV5,
+    SimplicialMeshEnvelopeV1,
 };
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id};
@@ -319,15 +320,15 @@ fn realization_v4_rejects_unknown_fields_layout_drift_and_resource_excess() {
     );
 
     for limits in [
-        SpatialDecoderLimits {
+        RealizationDecoderLimits {
             max_realization_fields: 1,
             ..Default::default()
         },
-        SpatialDecoderLimits {
+        RealizationDecoderLimits {
             max_realization_constraints: 3,
             ..Default::default()
         },
-        SpatialDecoderLimits {
+        RealizationDecoderLimits {
             max_realization_blocks: 1,
             ..Default::default()
         },

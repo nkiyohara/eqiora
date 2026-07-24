@@ -1,12 +1,11 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
-    CanonicalModelArtifact, DataExchangeDecoderLimits, FieldSnapshotEnvelopeV1,
+    CanonicalModelArtifact, FieldDecoderLimits, FieldSnapshotEnvelopeV1,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1,
     LayoutArtifacts, ModelEnvelopeV4, RealizationEnvelopeV4, RealizationEnvelopeV5,
-    SimplicialMeshEnvelopeV1, SpatialDecoderLimits, SpatialStateEnvelopeV2,
-    SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
-    ValidatedMovingSpatialContextV2,
+    SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2,
+    SpatialTrajectorySegmentEnvelopeV2, TrajectoryDecoderLimits, ValidatedMovingSpatialContextV2,
 };
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id};
@@ -159,7 +158,7 @@ fn moving_wires_reject_unknown_bounds_cross_wires_and_broken_geometry_chains() {
     assert!(
         SpatialStateEnvelopeV2::from_json(
             &state_bytes,
-            SpatialDecoderLimits {
+            FieldDecoderLimits {
                 max_spatial_state_fields: 3,
                 ..Default::default()
             },
@@ -233,7 +232,7 @@ fn moving_wires_reject_unknown_bounds_cross_wires_and_broken_geometry_chains() {
     assert!(
         SpatialTrajectoryEnvelopeV2::from_json(
             &root_bytes,
-            DataExchangeDecoderLimits {
+            TrajectoryDecoderLimits {
                 max_trajectory_segments: 1,
                 ..Default::default()
             },

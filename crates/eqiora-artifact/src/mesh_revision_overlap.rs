@@ -14,7 +14,7 @@ use ulid::Ulid;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV1, GeometryStateEnvelopeV2,
-    ReplayableCanonicalModelArtifact, SpatialDecoderLimits, ValidatedMovingSpatialContextV2,
+    RemeshDecoderLimits, ReplayableCanonicalModelArtifact, ValidatedMovingSpatialContextV2,
     ValidatedRemeshGeometrySourceV2, check_json_limits, invalid_artifact,
 };
 
@@ -149,7 +149,7 @@ impl MeshRevisionOverlapEnvelopeV1 {
                 bodies,
             },
         };
-        value.validate_local(SpatialDecoderLimits::default())?;
+        value.validate_local(RemeshDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -157,7 +157,7 @@ impl MeshRevisionOverlapEnvelopeV1 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical data.
-    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: RemeshDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid remesh overlap JSON: {error}")))?;
@@ -248,7 +248,7 @@ impl MeshRevisionOverlapEnvelopeV1 {
         }
     }
 
-    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: RemeshDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != OVERLAP_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported remesh overlap schema or encoding",
@@ -802,11 +802,11 @@ mod tests {
     fn overlap_wire_roundtrip_and_digest_are_frozen() {
         let value = overlap();
         value
-            .validate_local(SpatialDecoderLimits::default())
+            .validate_local(RemeshDecoderLimits::default())
             .unwrap();
         let bytes = value.canonical_json().unwrap();
         assert_eq!(
-            MeshRevisionOverlapEnvelopeV1::from_json(&bytes, SpatialDecoderLimits::default())
+            MeshRevisionOverlapEnvelopeV1::from_json(&bytes, RemeshDecoderLimits::default())
                 .unwrap(),
             value
         );
@@ -823,13 +823,13 @@ mod tests {
         substituted.wire.target.mesh_sha256 = substituted.wire.source.mesh_sha256.clone();
         assert!(
             substituted
-                .validate_local(SpatialDecoderLimits::default())
+                .validate_local(RemeshDecoderLimits::default())
                 .is_err()
         );
 
-        let limits = SpatialDecoderLimits {
+        let limits = RemeshDecoderLimits {
             max_mesh_overlap_cell_fragments: 1,
-            ..SpatialDecoderLimits::default()
+            ..RemeshDecoderLimits::default()
         };
         assert!(
             MeshRevisionOverlapEnvelopeV1::from_json(&value.canonical_json().unwrap(), limits,)

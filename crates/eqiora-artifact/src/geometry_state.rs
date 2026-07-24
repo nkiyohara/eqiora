@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, CanonicalRealizationArtifact, FieldSnapshotEnvelopeV1,
-    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
-    ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1, SpatialDecoderLimits,
-    check_json_limits, invalid_artifact,
+    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, MeshDecoderLimits,
+    ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1, check_json_limits,
+    invalid_artifact,
 };
 
 const GEOMETRY_STATE_SCHEMA: &str = "eqiora.geometry-state-envelope/v1";
@@ -190,7 +190,7 @@ impl GeometryStateEnvelopeV1 {
                 },
             },
         };
-        value.validate_local(SpatialDecoderLimits::default())?;
+        value.validate_local(MeshDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -202,7 +202,7 @@ impl GeometryStateEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, non-finite, or
     /// noncanonical wire data, including any topology-bearing unknown field.
-    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: MeshDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid geometry-state JSON: {error}")))?;
@@ -389,7 +389,7 @@ impl GeometryStateEnvelopeV1 {
         Ok(())
     }
 
-    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: MeshDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != GEOMETRY_STATE_SCHEMA
             || self.wire.encoding != CANONICAL_ENCODING
             || self.wire.coordinates.scalar != WireScalarV1::F64
@@ -552,7 +552,7 @@ pub(crate) fn normalize_geometry_coordinates(values: &mut [Vec<f64>]) -> Result<
 pub(crate) fn validate_geometry_coordinate_array(
     label: &str,
     values: &[Vec<f64>],
-    limits: SpatialDecoderLimits,
+    limits: MeshDecoderLimits,
 ) -> Result<usize, Diagnostic> {
     if values.is_empty() || values.len() > limits.max_mesh_vertices {
         return Err(invalid_artifact(format!(

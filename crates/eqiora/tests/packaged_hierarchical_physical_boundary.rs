@@ -3,8 +3,8 @@ use std::num::NonZeroUsize;
 use eqiora::Id;
 use eqiora::artifact::{
     ArtifactDigest, PhysicalExposureCatalogEnvelopeV1, PhysicalExposureContractV1,
-    PhysicalExposureObservationBindingV1, PhysicalExposureProjectionV1, PhysicalExposureQuantityV1,
-    RunManifestV1, SpatialDecoderLimits,
+    PhysicalExposureDecoderLimits, PhysicalExposureObservationBindingV1,
+    PhysicalExposureProjectionV1, PhysicalExposureQuantityV1, RunManifestV1,
 };
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::compiler::identity::{
@@ -525,7 +525,7 @@ fn physical_exposure_catalog_and_observation_replay_are_exact() {
     assert!(
         PhysicalExposureCatalogEnvelopeV1::from_json(
             &bytes,
-            SpatialDecoderLimits {
+            PhysicalExposureDecoderLimits {
                 max_physical_exposure_projections: 1,
                 ..Default::default()
             },

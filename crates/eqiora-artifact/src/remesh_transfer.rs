@@ -18,14 +18,43 @@ use ulid::Ulid;
 use crate::realization_v2::wire::WireSolverPlan;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV1, GeometryStateEnvelopeV2,
-    MeshRevisionOverlapEnvelopeV1, SpatialDecoderLimits, SpatialStateEnvelopeV2,
-    ValidatedMovingSpatialContextV2, ValidatedRemeshGeometrySourceV2, check_json_limits,
-    invalid_artifact,
+    MeshRevisionOverlapEnvelopeV1, SpatialStateEnvelopeV2, ValidatedMovingSpatialContextV2,
+    ValidatedRemeshGeometrySourceV2, check_json_limits, invalid_artifact,
 };
 
 const TRANSFER_SCHEMA: &str = "eqiora.remesh-transfer-receipt/v1";
 const PROJECTION_SCHEMA: &str = "eqiora.remesh-projection-evidence/v1";
 const TRANSFER_ACTION_VERSION: &str = "eqiora.ale-fsi-remesh-transfer/1";
+
+/// Semantic work budgets shared by remesh overlap and transfer artifacts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RemeshDecoderLimits {
+    /// Common JSON syntax admission.
+    pub json: crate::JsonDecoderLimits,
+    /// Maximum revision associations consumed by one overlap artifact.
+    pub max_geometry_revision_associations: usize,
+    /// Maximum positive-area cell fragments in one overlap artifact.
+    pub max_mesh_overlap_cell_fragments: usize,
+    /// Maximum positive-length retained-facet fragments in one overlap artifact.
+    pub max_mesh_overlap_facet_fragments: usize,
+    /// Maximum Field-aware entries in one transfer receipt.
+    pub max_remesh_transfer_fields: usize,
+    /// Maximum component solves in one typed projection evidence artifact.
+    pub max_remesh_projection_solves: usize,
+}
+
+impl Default for RemeshDecoderLimits {
+    fn default() -> Self {
+        Self {
+            json: crate::JsonDecoderLimits::default(),
+            max_geometry_revision_associations: 1_000_000,
+            max_mesh_overlap_cell_fragments: 16_000_000,
+            max_mesh_overlap_facet_fragments: 16_000_000,
+            max_remesh_transfer_fields: 100_000,
+            max_remesh_projection_solves: 2,
+        }
+    }
+}
 
 /// Closed numerical action performed by one remesh projection solve.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -162,7 +191,7 @@ impl RemeshProjectionEvidenceEnvelopeV1 {
                 algebraic_replay: WireBoundedDefectV1::encode(algebraic_replay),
             },
         };
-        value.validate_local(SpatialDecoderLimits::default())?;
+        value.validate_local(RemeshDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -170,7 +199,7 @@ impl RemeshProjectionEvidenceEnvelopeV1 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, unknown, or noncanonical data.
-    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: RemeshDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid remesh projection evidence JSON: {error}"))
@@ -242,7 +271,7 @@ impl RemeshProjectionEvidenceEnvelopeV1 {
         &self,
         overlap: &MeshRevisionOverlapEnvelopeV1,
     ) -> Result<(), Diagnostic> {
-        self.validate_local(SpatialDecoderLimits::default())?;
+        self.validate_local(RemeshDecoderLimits::default())?;
         if self.overlap_artifact() == overlap.digest()? {
             Ok(())
         } else {
@@ -252,7 +281,7 @@ impl RemeshProjectionEvidenceEnvelopeV1 {
         }
     }
 
-    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: RemeshDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != PROJECTION_SCHEMA
             || self.wire.encoding != CANONICAL_ENCODING
             || self.wire.action_version != TRANSFER_ACTION_VERSION
@@ -936,7 +965,7 @@ impl RemeshTransferReceiptEnvelopeV1 {
                 },
             },
         };
-        value.validate_local(SpatialDecoderLimits::default())?;
+        value.validate_local(RemeshDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -944,7 +973,7 @@ impl RemeshTransferReceiptEnvelopeV1 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical data.
-    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: RemeshDecoderLimits) -> Result<Self, Diagnostic> {
         check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid remesh transfer receipt JSON: {error}"))
@@ -1021,12 +1050,12 @@ impl RemeshTransferReceiptEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` if any embedded evidence is invalid.
     pub fn projections(&self) -> Result<Vec<RemeshProjectionEvidenceEnvelopeV1>, Diagnostic> {
-        self.projections_with_limits(SpatialDecoderLimits::default())
+        self.projections_with_limits(RemeshDecoderLimits::default())
     }
 
     fn projections_with_limits(
         &self,
-        limits: SpatialDecoderLimits,
+        limits: RemeshDecoderLimits,
     ) -> Result<Vec<RemeshProjectionEvidenceEnvelopeV1>, Diagnostic> {
         self.wire
             .projections
@@ -1076,7 +1105,7 @@ impl RemeshTransferReceiptEnvelopeV1 {
         }
     }
 
-    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: RemeshDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != TRANSFER_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported remesh transfer receipt schema or encoding",
@@ -2408,11 +2437,11 @@ mod tests {
             solves: Box::new([solve(0, plan()), solve(1, plan())]),
         });
         value
-            .validate_local(SpatialDecoderLimits::default())
+            .validate_local(RemeshDecoderLimits::default())
             .unwrap();
         let bytes = value.canonical_json().unwrap();
         let decoded =
-            RemeshProjectionEvidenceEnvelopeV1::from_json(&bytes, SpatialDecoderLimits::default())
+            RemeshProjectionEvidenceEnvelopeV1::from_json(&bytes, RemeshDecoderLimits::default())
                 .unwrap();
         assert_eq!(decoded, value);
         assert_eq!(decoded.dimensionless_algebraic_replay().observed(), 0.0);
@@ -2430,14 +2459,14 @@ mod tests {
         assert!(
             RemeshProjectionEvidenceEnvelopeV1::from_json(
                 substituted.as_bytes(),
-                SpatialDecoderLimits::default(),
+                RemeshDecoderLimits::default(),
             )
             .is_err()
         );
 
-        let limits = SpatialDecoderLimits {
+        let limits = RemeshDecoderLimits {
             max_remesh_projection_solves: 1,
-            ..SpatialDecoderLimits::default()
+            ..RemeshDecoderLimits::default()
         };
         assert!(RemeshProjectionEvidenceEnvelopeV1::from_json(&bytes, limits).is_err());
     }
@@ -2446,13 +2475,13 @@ mod tests {
     fn displacement_execution_is_closed_to_zero_or_two_solves() {
         let prescribed = projection(WireProjectionExecutionV1::PrescribedExactly);
         prescribed
-            .validate_local(SpatialDecoderLimits::default())
+            .validate_local(RemeshDecoderLimits::default())
             .unwrap();
 
         let one = projection(WireProjectionExecutionV1::SolvedScalar {
             solve: Box::new(solve(0, plan())),
         });
-        assert!(one.validate_local(SpatialDecoderLimits::default()).is_err());
+        assert!(one.validate_local(RemeshDecoderLimits::default()).is_err());
 
         let mut nonzero_prescribed = prescribed;
         nonzero_prescribed.wire.algebraic_replay = WireBoundedDefectV1 {
@@ -2461,7 +2490,7 @@ mod tests {
         };
         assert!(
             nonzero_prescribed
-                .validate_local(SpatialDecoderLimits::default())
+                .validate_local(RemeshDecoderLimits::default())
                 .is_err()
         );
     }
@@ -2547,18 +2576,18 @@ mod tests {
     fn receipt_wire_roundtrips_and_obeys_field_budget() {
         let value = receipt_with(evidence(), projections(plan()));
         value
-            .validate_local(SpatialDecoderLimits::default())
+            .validate_local(RemeshDecoderLimits::default())
             .unwrap();
         let bytes = value.canonical_json().unwrap();
         let decoded =
-            RemeshTransferReceiptEnvelopeV1::from_json(&bytes, SpatialDecoderLimits::default())
+            RemeshTransferReceiptEnvelopeV1::from_json(&bytes, RemeshDecoderLimits::default())
                 .unwrap();
         assert_eq!(decoded, value);
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
 
-        let limits = SpatialDecoderLimits {
+        let limits = RemeshDecoderLimits {
             max_remesh_transfer_fields: 3,
-            ..SpatialDecoderLimits::default()
+            ..RemeshDecoderLimits::default()
         };
         assert!(RemeshTransferReceiptEnvelopeV1::from_json(&bytes, limits).is_err());
     }
