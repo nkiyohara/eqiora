@@ -404,7 +404,7 @@ impl CadBoxPlanV1 {
 
     fn validate_with(
         &self,
-        model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
+        model: &impl ReplayableCanonicalModelArtifact,
         adapter: &impl CadKernelAdapter,
         step_bytes: &[u8],
     ) -> Result<(), Diagnostic> {
@@ -574,7 +574,7 @@ impl ModelDocument {
 
 fn preview_with_model(
     document: &ModelDocument,
-    model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
+    model: &impl ReplayableCanonicalModelArtifact,
     intent: CadBoxIntentV1,
     adapter: &impl CadKernelAdapter,
     step_bytes: &[u8],

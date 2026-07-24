@@ -125,7 +125,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
     /// complete semantic boundaries, and every referenced artifact matches.
     pub fn new(
         geometry: &GeometryIdentityEnvelopeV1,
-        model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
+        model: &impl ReplayableCanonicalModelArtifact,
         mesh: &SimplicialMeshEnvelopeV1,
     ) -> Result<Self, Diagnostic> {
         geometry.validate_against(model)?;
@@ -378,7 +378,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
     pub fn validate_against(
         &self,
         geometry: &GeometryIdentityEnvelopeV1,
-        model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
+        model: &impl ReplayableCanonicalModelArtifact,
         mesh: &SimplicialMeshEnvelopeV1,
     ) -> Result<(), Diagnostic> {
         let expected = Self::new(geometry, model, mesh)?;
@@ -473,7 +473,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
     pub fn derive_conserving_interface(
         &self,
         geometry: &GeometryIdentityEnvelopeV1,
-        model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
+        model: &impl ReplayableCanonicalModelArtifact,
         mesh: &SimplicialMeshEnvelopeV1,
         connection: Id<kinds::Connection>,
     ) -> Result<ConservingGeometryInterfaceV1, Diagnostic> {

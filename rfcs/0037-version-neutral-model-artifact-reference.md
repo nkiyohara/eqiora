@@ -178,8 +178,9 @@ case must:
    Model through explicit wire v2, and one field-boundary Model through
    explicit wire v3;
 2. derive the sealed typed reference for each selected artifact;
-3. construct an unchanged Realization v1 and linked Run v2 for every
-   generation, then replay the explicitly selected Model bytes;
+3. construct an unchanged Realization v1 and linked Run v2 for each of those
+   three selected generations, then replay the explicitly selected Model
+   bytes;
 4. preserve exact Model digest, ontology identity, and semantic revision
    through that lineage; and
 5. encode and decode one semantic graph through every artifact-owner-registered

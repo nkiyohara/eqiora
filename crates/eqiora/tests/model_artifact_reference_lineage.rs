@@ -140,7 +140,7 @@ fn resolved_realization(
 }
 
 #[test]
-fn realization_and_run_lineage_accept_every_explicit_model_wire_generation() {
+fn realization_and_run_lineage_accept_the_three_selected_model_generations() {
     let v1 = ExactModelCodec::V1
         .compile("poisson.eqi", POISSON)
         .expect("v1 spatial Model");

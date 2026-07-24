@@ -40,11 +40,11 @@ impl GeometryRevisionAssociationEnvelopeV1 {
     /// boundary-incompatible candidates.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        source_model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
+        source_model: &impl ReplayableCanonicalModelArtifact,
         source_geometry: &GeometryIdentityEnvelopeV1,
         source_correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
         source_mesh: &SimplicialMeshEnvelopeV1,
-        target_model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
+        target_model: &impl ReplayableCanonicalModelArtifact,
         target_geometry: &GeometryIdentityEnvelopeV1,
         target_correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
         target_mesh: &SimplicialMeshEnvelopeV1,
@@ -141,11 +141,11 @@ impl GeometryRevisionAssociationEnvelopeV1 {
     #[allow(clippy::too_many_arguments)]
     pub fn validate_against(
         &self,
-        source_model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
+        source_model: &impl ReplayableCanonicalModelArtifact,
         source_geometry: &GeometryIdentityEnvelopeV1,
         source_correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
         source_mesh: &SimplicialMeshEnvelopeV1,
-        target_model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
+        target_model: &impl ReplayableCanonicalModelArtifact,
         target_geometry: &GeometryIdentityEnvelopeV1,
         target_correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
         target_mesh: &SimplicialMeshEnvelopeV1,
