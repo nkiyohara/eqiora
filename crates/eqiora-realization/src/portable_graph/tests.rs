@@ -13,9 +13,10 @@ use crate::{
     AlgebraicBlockScale, BackwardEulerRelationStep, DiscretizationMethod, FieldSpaceBinding,
     FieldwiseRealizationPlan, FieldwiseRealizationRequirements, FieldwiseSpatialDiscretization,
     MeshArtifactReference, MeshKind, MeshPolicy, QuadraturePolicy, RealizationCapabilities,
-    RealizationRequirements, RealizationRevision, SemanticRevision, SpatialDimensionSupport,
-    TargetCapabilities, TransientFieldwiseRealizationPlan, TransientFieldwiseRealizationRequest,
-    TransientFieldwiseRealizationRequirements, resolve_transient_fieldwise,
+    RealizationRequirements, RealizationRevision, ResolutionSource, SemanticRevision,
+    SpatialDimensionSupport, TargetCapabilities, TransientFieldwiseRealizationPlan,
+    TransientFieldwiseRealizationRequest, TransientFieldwiseRealizationRequirements,
+    resolve_transient_fieldwise,
 };
 
 const LENGTH: DimExponents = DimExponents {
