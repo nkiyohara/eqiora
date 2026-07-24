@@ -954,6 +954,7 @@ name = "eqiora-api"
 version = "0.1.0-alpha.1"
 dependencies = [
  "eqiora-artifact",
+ "eqiora-assembly",
  "eqiora-compiler",
  "eqiora-core",
  "eqiora-diff",
