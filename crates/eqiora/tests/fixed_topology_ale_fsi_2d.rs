@@ -19,9 +19,9 @@ use eqiora::meshing::{
 };
 use eqiora::numerics::{
     AleFsiBoundary2d, AleFsiCartesianModel2d, AleFsiInitialPhysicalState2d, AleFsiState2d,
-    AleFsiTrajectory2d, FixedReferenceFsiPartition2d, NonZeroStepCount, P1HarmonicMeshMotion2d,
-    finalize_resolved_fixed_topology_ale_fsi_2d, fixed_topology_ale_fsi_requirements_2d,
-    lower_ale_fsi_cartesian_2d,
+    AleFsiTrajectory2d, FixedReferenceFsiPartition2d, NonZeroStepCount,
+    P1HarmonicMeshMotionAction2d, finalize_resolved_fixed_topology_ale_fsi_2d,
+    fixed_topology_ale_fsi_requirements_2d, lower_ale_fsi_cartesian_2d,
 };
 use eqiora::realization::{
     AleGeometryQualityGate, AlgebraicBlock, AlgebraicBlockScale, BackwardEulerRelationStep,
@@ -30,7 +30,7 @@ use eqiora::realization::{
     DiscretizationMethod, DomainFieldDiscretization, ExecutionSchedule, FieldSpaceBinding,
     FixedTopologyAleCoupledRealizationPlan, FixedTopologyAleCoupledRealizationRequest,
     GclCompatibleAlePullback, MeshArtifactReference, MeshKind, MeshPolicy, NonlinearSolvePlan,
-    P1HarmonicMeshMotion, PositivePhysicalScale, QuadraturePolicy, RealizationCapabilities,
+    P1HarmonicMeshMotionPolicy, PositivePhysicalScale, QuadraturePolicy, RealizationCapabilities,
     RealizationRevision, ResolvedFixedTopologyAleCoupledRealization, SemanticRevision, SolveRoot,
     Space, SpatialDimensionSupport, SymmetricCongruenceScaling, Target, TargetCapabilities,
     TraceFieldEndpoint, VectorLayoutKind, resolve_fixed_topology_ale_coupled,
@@ -283,7 +283,7 @@ impl Fixture {
 }
 
 struct ExecutedTrajectory {
-    motion: P1HarmonicMeshMotion2d,
+    motion: P1HarmonicMeshMotionAction2d,
     trajectory: AleFsiTrajectory2d,
 }
 
@@ -569,7 +569,7 @@ fn flatten_vectors(values: &[[f64; COMPONENTS]]) -> Vec<f64> {
 
 fn assert_harmonic_geometry_replays(
     fixture: &Fixture,
-    motion: &P1HarmonicMeshMotion2d,
+    motion: &P1HarmonicMeshMotionAction2d,
     trajectory: &AleFsiTrajectory2d,
 ) {
     for state in trajectory.states() {
@@ -680,7 +680,7 @@ fn assert_consecutive_geometry_and_evidence(
     );
 }
 
-fn assert_static_geometry_falsifier(fixture: &Fixture, motion: &P1HarmonicMeshMotion2d) {
+fn assert_static_geometry_falsifier(fixture: &Fixture, motion: &P1HarmonicMeshMotionAction2d) {
     let zero = vec![[0.0; COMPONENTS]; fixture.mesh.vertices().len()];
     assert_eq!(motion.apply(&zero).unwrap(), zero);
     let state = AleFsiState2d::new(
@@ -844,7 +844,7 @@ fn realization_plan(
         BackwardEulerRelationStep::new(fluid_relation(model), fluid_velocity(model), duration)
             .unwrap(),
         solid_kinematic_relation(model),
-        P1HarmonicMeshMotion::new(
+        P1HarmonicMeshMotionPolicy::new(
             fluid_domain(model),
             solid_domain(model),
             solid_displacement(model),

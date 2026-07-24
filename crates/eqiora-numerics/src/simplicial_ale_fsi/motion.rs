@@ -29,7 +29,7 @@ const MAX_DENSE_MOTION_COEFFICIENTS: usize = 8_000_000;
 /// material membership. No current coordinates or independently supplied mesh
 /// velocity are part of the contract.
 #[derive(Debug, Clone, PartialEq)]
-pub struct P1HarmonicMeshMotion<const D: usize> {
+pub struct P1HarmonicMeshMotionAction<const D: usize> {
     partition: FixedReferenceFsiPartition<D>,
     relation: P1HarmonicCoordinateRelation<D>,
     influence: Vec<f64>,
@@ -37,12 +37,12 @@ pub struct P1HarmonicMeshMotion<const D: usize> {
 }
 
 /// Established two-dimensional harmonic mesh-motion action.
-pub type P1HarmonicMeshMotion2d = P1HarmonicMeshMotion<2>;
+pub type P1HarmonicMeshMotionAction2d = P1HarmonicMeshMotionAction<2>;
 
 /// Three-dimensional harmonic mesh-motion action over affine tetrahedra.
-pub type P1HarmonicMeshMotion3d = P1HarmonicMeshMotion<3>;
+pub type P1HarmonicMeshMotionAction3d = P1HarmonicMeshMotionAction<3>;
 
-impl<const D: usize> P1HarmonicMeshMotion<D> {
+impl<const D: usize> P1HarmonicMeshMotionAction<D> {
     /// Seal the unique P1 harmonic extension on one reference partition.
     ///
     /// Solid vertices are driven by their absolute displacement. Fluid-only
@@ -696,7 +696,8 @@ mod tests {
     fn harmonic_motion_preserves_trace_exterior_and_independent_residual() {
         let (mesh, partition) = refined_partition();
         let solver = reference_solver();
-        let motion = P1HarmonicMeshMotion2d::new(&mesh, &partition, solver).expect("motion seals");
+        let motion =
+            P1HarmonicMeshMotionAction2d::new(&mesh, &partition, solver).expect("motion seals");
         assert_eq!(motion.reference_mesh(), &mesh);
         assert_eq!(motion.partition(), &partition);
         assert_eq!(motion.fluid_interior_vertices().len(), 1);
@@ -740,7 +741,7 @@ mod tests {
     #[test]
     fn influence_is_linear_and_jvp_is_the_same_exact_action() {
         let (mesh, partition) = refined_partition();
-        let motion = P1HarmonicMeshMotion2d::new(&mesh, &partition, reference_solver())
+        let motion = P1HarmonicMeshMotionAction2d::new(&mesh, &partition, reference_solver())
             .expect("motion seals");
         let left = solid_field(&mesh, &partition, [0.02, -0.01, 0.03], [0.01, 0.04, -0.02]);
         let right = solid_field(&mesh, &partition, [-0.03, 0.05, 0.01], [0.02, -0.02, 0.06]);
@@ -773,7 +774,7 @@ mod tests {
     #[test]
     fn tetrahedral_motion_has_one_shared_interface_driver_and_exact_jvp_action() {
         let (mesh, partition) = refined_partition_3d();
-        let motion = P1HarmonicMeshMotion3d::new(&mesh, &partition, reference_solver())
+        let motion = P1HarmonicMeshMotionAction3d::new(&mesh, &partition, reference_solver())
             .expect("tetrahedral motion seals");
         assert_eq!(motion.reference_mesh(), &mesh);
         assert_eq!(motion.partition(), &partition);
@@ -866,7 +867,7 @@ mod tests {
             reference_partition.interface_facets().to_vec(),
         )
         .expect("the affine image preserves the exact material partition");
-        let motion = P1HarmonicMeshMotion3d::new(&mesh, &partition, reference_solver())
+        let motion = P1HarmonicMeshMotionAction3d::new(&mesh, &partition, reference_solver())
             .expect("skew tetrahedral motion seals");
         let displacement = motion
             .apply(&solid_field_3d(&mesh, &partition))
@@ -920,7 +921,7 @@ mod tests {
     #[test]
     fn action_rejects_invalid_shape_support_and_finiteness() {
         let (mesh, partition) = refined_partition();
-        let motion = P1HarmonicMeshMotion2d::new(&mesh, &partition, reference_solver())
+        let motion = P1HarmonicMeshMotionAction2d::new(&mesh, &partition, reference_solver())
             .expect("motion seals");
         assert!(motion.apply(&[]).is_err());
 
@@ -942,19 +943,19 @@ mod tests {
     #[test]
     fn first_slice_rejects_a_partition_without_a_solved_fluid_interior() {
         let (mesh, partition) = coarse_partition();
-        assert!(P1HarmonicMeshMotion2d::new(&mesh, &partition, reference_solver()).is_err());
+        assert!(P1HarmonicMeshMotionAction2d::new(&mesh, &partition, reference_solver()).is_err());
     }
 
     #[test]
     fn tetrahedral_motion_rejects_incomplete_or_unsolved_dirichlet_closure() {
         let (mesh, partition) = coarse_partition_3d();
-        assert!(P1HarmonicMeshMotion3d::new(&mesh, &partition, reference_solver()).is_err());
+        assert!(P1HarmonicMeshMotionAction3d::new(&mesh, &partition, reference_solver()).is_err());
     }
 
     #[test]
     fn sealed_action_rejects_another_reference_geometry() {
         let (mesh, partition) = refined_partition();
-        let motion = P1HarmonicMeshMotion2d::new(&mesh, &partition, reference_solver())
+        let motion = P1HarmonicMeshMotionAction2d::new(&mesh, &partition, reference_solver())
             .expect("motion seals");
         motion
             .validate_reference(&mesh, &partition)
@@ -997,7 +998,7 @@ mod tests {
         )
         .expect("valid general solver plan");
         let general = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
-        assert!(P1HarmonicMeshMotion2d::new(&mesh, &partition, general).is_err());
+        assert!(P1HarmonicMeshMotionAction2d::new(&mesh, &partition, general).is_err());
     }
 
     fn independently_assemble_fluid_residual(

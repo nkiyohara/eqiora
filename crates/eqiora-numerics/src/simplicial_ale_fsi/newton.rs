@@ -17,7 +17,9 @@ use super::contract::{
     AleFsiBoundary, AleFsiBoundary2d, AleFsiBoundary3d, AleFsiState, AleFsiState2d, AleFsiState3d,
     AleFsiStepPlan, AleFsiStepPlan2d, AleFsiStepPlan3d,
 };
-use super::{P1HarmonicMeshMotion, P1HarmonicMeshMotion2d, P1HarmonicMeshMotion3d};
+use super::{
+    P1HarmonicMeshMotionAction, P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
+};
 use crate::jacobian_audit::{
     CenteredJacobianAuditEvidence, StructuralJacobianPattern, audit_centered_jacobian,
 };
@@ -38,7 +40,7 @@ pub fn advance_simplicial_ale_fsi_2d(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition2d,
     boundary: &AleFsiBoundary2d,
-    motion: &P1HarmonicMeshMotion2d,
+    motion: &P1HarmonicMeshMotionAction2d,
     initial: AleFsiState2d,
     step_count: NonZeroStepCount,
     plan: AleFsiStepPlan2d,
@@ -69,7 +71,7 @@ pub fn advance_simplicial_ale_fsi_2d_with_assembly(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition2d,
     boundary: &AleFsiBoundary2d,
-    motion: &P1HarmonicMeshMotion2d,
+    motion: &P1HarmonicMeshMotionAction2d,
     initial: AleFsiState2d,
     step_count: NonZeroStepCount,
     plan: AleFsiStepPlan2d,
@@ -94,7 +96,7 @@ pub fn advance_simplicial_ale_fsi_3d(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition3d,
     boundary: &AleFsiBoundary3d,
-    motion: &P1HarmonicMeshMotion3d,
+    motion: &P1HarmonicMeshMotionAction3d,
     initial: AleFsiState3d,
     step_count: NonZeroStepCount,
     plan: AleFsiStepPlan3d,
@@ -126,7 +128,7 @@ pub fn advance_simplicial_ale_fsi_3d_with_assembly(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition3d,
     boundary: &AleFsiBoundary3d,
-    motion: &P1HarmonicMeshMotion3d,
+    motion: &P1HarmonicMeshMotionAction3d,
     initial: AleFsiState3d,
     step_count: NonZeroStepCount,
     plan: AleFsiStepPlan3d,
@@ -145,7 +147,7 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     boundary: &AleFsiBoundary<D>,
-    motion: &P1HarmonicMeshMotion<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
     initial: AleFsiState<D>,
     step_count: NonZeroStepCount,
     plan: AleFsiStepPlan<D>,
@@ -188,7 +190,7 @@ fn solve_one_step<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     boundary: &AleFsiBoundary<D>,
-    motion: &P1HarmonicMeshMotion<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
@@ -342,7 +344,7 @@ fn verify_analytic_jacobian<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     boundary: &AleFsiBoundary<D>,
-    motion: &P1HarmonicMeshMotion<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     accepted: &StepAssembly<D>,
     plan: AleFsiStepPlan<D>,
@@ -576,7 +578,7 @@ mod tests {
         mesh: SimplicialMesh,
         partition: FixedReferenceFsiPartition2d,
         boundary: AleFsiBoundary2d,
-        motion: P1HarmonicMeshMotion2d,
+        motion: P1HarmonicMeshMotionAction2d,
         initial: AleFsiState2d,
     }
 
@@ -584,7 +586,7 @@ mod tests {
         mesh: SimplicialMesh,
         partition: FixedReferenceFsiPartition3d,
         boundary: AleFsiBoundary3d,
-        motion: P1HarmonicMeshMotion3d,
+        motion: P1HarmonicMeshMotionAction3d,
         initial: AleFsiState3d,
     }
 
@@ -600,7 +602,7 @@ mod tests {
             NonZeroUsize::new(500).unwrap(),
         )
         .unwrap();
-        let motion = P1HarmonicMeshMotion2d::new(
+        let motion = P1HarmonicMeshMotionAction2d::new(
             &mesh,
             &partition,
             eqiora_solver::LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, motion_plan),
@@ -645,7 +647,7 @@ mod tests {
             NonZeroUsize::new(500).unwrap(),
         )
         .unwrap();
-        let motion = P1HarmonicMeshMotion3d::new(
+        let motion = P1HarmonicMeshMotionAction3d::new(
             &mesh,
             &partition,
             eqiora_solver::LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, motion_plan),

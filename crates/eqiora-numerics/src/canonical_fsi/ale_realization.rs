@@ -37,9 +37,9 @@ use super::{AleFsiCartesianModel, FsiInterfaceSide};
 use crate::{
     AcceptedAleFsiRemeshProjection2d, AleFsiBoundary, AleFsiState, AleFsiStepPlan,
     AleFsiTrajectory, FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
-    FixedReferenceFsiScale, NonZeroStepCount, P1HarmonicMeshMotion, PhysicalBoundaryDisposition,
-    advance_simplicial_ale_fsi_2d_with_assembly, advance_simplicial_ale_fsi_3d_with_assembly,
-    project_simplicial_ale_fsi_remesh_2d,
+    FixedReferenceFsiScale, NonZeroStepCount, P1HarmonicMeshMotionAction,
+    PhysicalBoundaryDisposition, advance_simplicial_ale_fsi_2d_with_assembly,
+    advance_simplicial_ale_fsi_3d_with_assembly, project_simplicial_ale_fsi_remesh_2d,
 };
 
 const LEGACY_TRIANGLE_DUFFY_POINTS_PER_AXIS: usize = 5;
@@ -123,7 +123,7 @@ impl<const D: usize> AleFsiInitialPhysicalState<D> {
         self,
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
-        motion: &P1HarmonicMeshMotion<D>,
+        motion: &P1HarmonicMeshMotionAction<D>,
     ) -> Result<AleFsiState<D>, Diagnostic> {
         AleFsiState::<D>::new(
             self.time,
@@ -197,7 +197,7 @@ pub struct FinalizedResolvedFixedTopologyAleFsi<const D: usize> {
     reference: SimplicialMesh,
     partition: FixedReferenceFsiPartition<D>,
     boundary: AleFsiBoundary<D>,
-    motion: P1HarmonicMeshMotion<D>,
+    motion: P1HarmonicMeshMotionAction<D>,
     initial: AleFsiState<D>,
     step_plan: AleFsiStepPlan<D>,
     quadrature: QuadratureRule,
@@ -227,7 +227,7 @@ struct ReplayedResolvedFixedTopologyAleFsi<const D: usize> {
     reference: SimplicialMesh,
     partition: FixedReferenceFsiPartition<D>,
     boundary: AleFsiBoundary<D>,
-    motion: P1HarmonicMeshMotion<D>,
+    motion: P1HarmonicMeshMotionAction<D>,
     step_plan: AleFsiStepPlan<D>,
     quadrature: QuadratureRule,
 }
@@ -306,7 +306,7 @@ impl<const D: usize> FinalizedResolvedFixedTopologyAleFsi<D> {
 
     /// Sole sealed harmonic motion action, including its solve evidence.
     #[must_use]
-    pub const fn motion(&self) -> &P1HarmonicMeshMotion<D> {
+    pub const fn motion(&self) -> &P1HarmonicMeshMotionAction<D> {
         &self.motion
     }
 
@@ -327,7 +327,7 @@ type AdvanceAleFsiWithAssembly<const D: usize> = fn(
     &SimplicialMesh,
     &FixedReferenceFsiPartition<D>,
     &AleFsiBoundary<D>,
-    &P1HarmonicMeshMotion<D>,
+    &P1HarmonicMeshMotionAction<D>,
     AleFsiState<D>,
     NonZeroStepCount,
     AleFsiStepPlan<D>,
@@ -667,7 +667,7 @@ fn replay_resolved_fixed_topology_ale_fsi<const D: usize>(
     let (fields, scale, quadrature) = require_exact_plan(model, resolved, mesh_artifact, mesh)?;
     let plan = resolved.plan();
     let motion_policy = plan.mesh_motion();
-    let motion = P1HarmonicMeshMotion::<D>::new(
+    let motion = P1HarmonicMeshMotionAction::<D>::new(
         mesh,
         partition,
         LinearSolveRequest::new(harmonic_backend, motion_policy.solver()),
@@ -1496,9 +1496,10 @@ mod tests {
         CoupledFieldwiseSpatialDiscretization, Discretization, DomainFieldDiscretization,
         FieldSpaceBinding, FixedTopologyAleCoupledRealizationPlan,
         FixedTopologyAleCoupledRealizationRequest, GclCompatibleAlePullback, MeshKind,
-        NonlinearSolvePlan, P1HarmonicMeshMotion, PositivePhysicalScale, RealizationCapabilities,
-        RealizationRevision, SemanticRevision, Space, SpatialDimensionSupport,
-        SymmetricCongruenceScaling, TargetCapabilities, resolve_fixed_topology_ale_coupled,
+        NonlinearSolvePlan, P1HarmonicMeshMotionPolicy, PositivePhysicalScale,
+        RealizationCapabilities, RealizationRevision, SemanticRevision, Space,
+        SpatialDimensionSupport, SymmetricCongruenceScaling, TargetCapabilities,
+        resolve_fixed_topology_ale_coupled,
     };
     use eqiora_sem::KernelProgram;
     use eqiora_solver::{
@@ -1952,7 +1953,7 @@ mod tests {
             BackwardEulerRelationStep::new(fluid_relation(model), fluid_velocity(model), duration)
                 .unwrap(),
             solid_kinematic_relation(model),
-            P1HarmonicMeshMotion::new(
+            P1HarmonicMeshMotionPolicy::new(
                 fluid_domain(model),
                 solid_domain(model),
                 solid_displacement(model),

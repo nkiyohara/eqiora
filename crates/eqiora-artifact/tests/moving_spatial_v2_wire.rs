@@ -19,10 +19,10 @@ use eqiora_realization::{
     FieldSpaceBinding, FixedTopologyAleCoupledRealizationPlan,
     FixedTopologyAleCoupledRealizationRequest, FixedTopologyAleCoupledRealizationRequirements,
     GclCompatibleAlePullback, MeshArtifactReference, MeshKind, MeshPolicy, NonlinearSolvePlan,
-    P1HarmonicMeshMotion, RealizationCapabilities, RealizationRequirements, RealizationRevision,
-    ResolvedFixedTopologyAleCoupledRealization, Space, SpatialDimensionSupport,
-    SymmetricCongruenceScaling, Target, TargetCapabilities, TraceFieldEndpoint, VectorLayoutKind,
-    resolve_fixed_topology_ale_coupled,
+    P1HarmonicMeshMotionPolicy, RealizationCapabilities, RealizationRequirements,
+    RealizationRevision, ResolvedFixedTopologyAleCoupledRealization, Space,
+    SpatialDimensionSupport, SymmetricCongruenceScaling, Target, TargetCapabilities,
+    TraceFieldEndpoint, VectorLayoutKind, resolve_fixed_topology_ale_coupled,
 };
 use eqiora_solver::{
     LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType,
@@ -638,7 +638,7 @@ impl Ids {
             BackwardEulerRelationStep::new(self.fluid_relation, self.fluid_velocity, duration)
                 .unwrap(),
             self.solid_relation,
-            P1HarmonicMeshMotion::new(
+            P1HarmonicMeshMotionPolicy::new(
                 self.fluid_domain,
                 self.solid_domain,
                 self.displacement,

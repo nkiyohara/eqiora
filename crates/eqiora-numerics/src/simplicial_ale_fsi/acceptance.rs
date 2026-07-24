@@ -16,7 +16,7 @@ use super::api::{AleFsiInterfaceAction, AleFsiStepEvidence, AleFsiStepEvidenceIn
 use super::assembly::{StepAssembly, assemble_step_linearization};
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
 use super::element::{AleMiniFluidCell, AleMiniFluidDirection};
-use super::{P1HarmonicMeshMotion, invalid};
+use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::{DiscreteSpace, FixedReferenceFsiPartition, SimplexP1BubbleSpace};
 
 pub(super) struct NewtonEvidence {
@@ -32,7 +32,7 @@ pub(super) fn accept_step<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     boundary: &AleFsiBoundary<D>,
-    motion: &P1HarmonicMeshMotion<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
@@ -415,7 +415,7 @@ mod tests {
     use crate::{
         AleFsiBoundary3d, AleFsiState3d, AleFsiStepPlan3d, FixedReferenceFsiLoad3d,
         FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition3d, FixedReferenceFsiScale3d,
-        P1HarmonicMeshMotion3d,
+        P1HarmonicMeshMotionAction3d,
     };
 
     const INTERFACE_INTERIOR: VertexId = VertexId::new(5);
@@ -424,7 +424,7 @@ mod tests {
         mesh: SimplicialMesh,
         partition: FixedReferenceFsiPartition3d,
         boundary: AleFsiBoundary3d,
-        motion: P1HarmonicMeshMotion3d,
+        motion: P1HarmonicMeshMotionAction3d,
         previous: AleFsiState3d,
         plan: AleFsiStepPlan3d,
     }
@@ -654,7 +654,8 @@ mod tests {
         let (mesh, fluid, solid, interface) = tetrahedral_problem();
         let partition = FixedReferenceFsiPartition3d::new(&mesh, fluid, solid, interface).unwrap();
         let boundary = AleFsiBoundary3d::homogeneous_exterior(&mesh).unwrap();
-        let motion = P1HarmonicMeshMotion3d::new(&mesh, &partition, harmonic_solver()).unwrap();
+        let motion =
+            P1HarmonicMeshMotionAction3d::new(&mesh, &partition, harmonic_solver()).unwrap();
         let previous = AleFsiState3d::new(
             0.0,
             &mesh,

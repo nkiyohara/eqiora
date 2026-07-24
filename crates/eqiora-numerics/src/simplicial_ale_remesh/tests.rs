@@ -9,7 +9,7 @@ use eqiora_solver::{LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, S
 
 use crate::{
     AleFsiState2d, FixedReferenceFsiMaterial2d, FixedReferenceFsiPartition2d,
-    FixedReferenceFsiScale2d, P1HarmonicMeshMotion2d,
+    FixedReferenceFsiScale2d, P1HarmonicMeshMotionAction2d,
 };
 
 use super::integration::{cell_basis, dense_zeroed, integrate_physical_triangle};
@@ -110,9 +110,11 @@ fn topology_distinct_remesh_reproduces_affine_absolute_fields() {
     let source_partition = partition(&source_mesh);
     let target_partition = partition(&target_mesh);
     let source_motion =
-        P1HarmonicMeshMotion2d::new(&source_mesh, &source_partition, harmonic_solver()).unwrap();
+        P1HarmonicMeshMotionAction2d::new(&source_mesh, &source_partition, harmonic_solver())
+            .unwrap();
     let target_motion =
-        P1HarmonicMeshMotion2d::new(&target_mesh, &target_partition, harmonic_solver()).unwrap();
+        P1HarmonicMeshMotionAction2d::new(&target_mesh, &target_partition, harmonic_solver())
+            .unwrap();
 
     let mut displacement = vec![[0.0; COMPONENTS]; source_mesh.vertices().len()];
     for vertex in source_partition.solid_vertices() {
@@ -409,9 +411,9 @@ fn scaled_projection_case(
     let source_partition = partition(&source_mesh);
     let target_partition = partition(&target_mesh);
     let source_motion =
-        P1HarmonicMeshMotion2d::new(&source_mesh, &source_partition, harmonic_solver())?;
+        P1HarmonicMeshMotionAction2d::new(&source_mesh, &source_partition, harmonic_solver())?;
     let target_motion =
-        P1HarmonicMeshMotion2d::new(&target_mesh, &target_partition, harmonic_solver())?;
+        P1HarmonicMeshMotionAction2d::new(&target_mesh, &target_partition, harmonic_solver())?;
     let length_scale = 2.0 * coordinate_factor;
 
     let mut displacement = vec![[0.0; COMPONENTS]; source_mesh.vertices().len()];

@@ -55,8 +55,8 @@ pub use fieldwise_resolution::{
 pub use fixed_topology_ale::{
     AleGeometryQualityGate, FixedTopologyAleCoupledRealizationPlan,
     FixedTopologyAleCoupledRealizationRequest, FixedTopologyAleCoupledRealizationRequirements,
-    GclCompatibleAlePullback, P1HarmonicMeshMotion, ResolvedFixedTopologyAleCoupledRealization,
-    resolve_fixed_topology_ale_coupled,
+    GclCompatibleAlePullback, P1HarmonicMeshMotionPolicy,
+    ResolvedFixedTopologyAleCoupledRealization, resolve_fixed_topology_ale_coupled,
 };
 pub use identity::{
     DefaultPolicyVersion, RealizationRequest, RealizationRevision, SemanticRevision,
