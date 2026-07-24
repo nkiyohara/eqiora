@@ -1,8 +1,9 @@
-use eqiora::numerics::{MeshEntity, MeshTopology, compare_sine_poisson_1d};
+use eqiora::meshing::{LineMesh, MeshEntity, MeshTopology};
+use eqiora::numerics::compare_sine_poisson_1d;
 
 #[test]
 fn public_facade_exposes_spatial_contracts_and_poisson_evidence() {
-    let mesh = eqiora::numerics::LineMesh::uniform(0.0, 1.0, 8).unwrap();
+    let mesh = LineMesh::uniform(0.0, 1.0, 8).unwrap();
     let closure = mesh.incidence(MeshEntity::new(1, 0), 0).unwrap();
     assert_eq!(closure.len(), 2);
 

@@ -2,9 +2,9 @@ use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_compiler::compile;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
+use eqiora_meshing::QuadratureRule;
 use eqiora_numerics::{
-    QuadratureRule, ResolvedScalarEllipticCartesianSolution,
-    solve_resolved_scalar_elliptic_cartesian,
+    ResolvedScalarEllipticCartesianSolution, solve_resolved_scalar_elliptic_cartesian,
 };
 use eqiora_realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,

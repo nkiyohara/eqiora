@@ -4,13 +4,15 @@ use eqiora::api::ModelDocument;
 use eqiora::artifact::SimplicialMeshEnvelopeV1;
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::compatibility::ExactModelCodec;
-use eqiora::meshing::{CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh};
+use eqiora::meshing::{
+    CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh,
+    triangle_duffy_gauss_legendre,
+};
 use eqiora::numerics::{
     AcceptedAleFsiRemeshProjection2d, AleFsiBoundary2d, AleFsiCartesianModel2d, AleFsiState2d,
     FinalizedResolvedFixedTopologyAleFsi2d, FixedReferenceFsiPartition2d, FixedReferenceFsiScale2d,
     NonZeroStepCount, fixed_topology_ale_fsi_requirements_2d, lower_ale_fsi_cartesian_2d,
     project_simplicial_ale_fsi_remesh_2d, remesh_resolved_fixed_topology_ale_fsi_2d,
-    triangle_duffy_gauss_legendre,
 };
 use eqiora::realization::{
     AleFsiRemeshScaleProfile2d, AleFsiRemeshTransferPlan2d, AleGeometryQualityGate, AlgebraicBlock,

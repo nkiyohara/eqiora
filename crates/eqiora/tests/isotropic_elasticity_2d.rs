@@ -10,11 +10,10 @@ use eqiora::compatibility::ExactModelCodec;
 use eqiora::compiler::compile;
 use eqiora::diagnostic::codes;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
-use eqiora::meshing::{MeshEntity, MeshTopology};
+use eqiora::meshing::{MeshEntity, MeshTopology, QuadratureRule};
 use eqiora::numerics::{
-    CartesianMesh, CartesianQ1VectorField2d, QuadratureRule,
-    lower_cartesian_q1_linear_elasticity_local_action_2d, lower_isotropic_elasticity_cartesian_2d,
-    solve_resolved_isotropic_elasticity_cartesian_2d,
+    CartesianMesh, CartesianQ1VectorField2d, lower_cartesian_q1_linear_elasticity_local_action_2d,
+    lower_isotropic_elasticity_cartesian_2d, solve_resolved_isotropic_elasticity_cartesian_2d,
 };
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,

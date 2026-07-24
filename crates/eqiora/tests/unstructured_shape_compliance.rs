@@ -7,11 +7,11 @@ use eqiora::differentiation::{
 };
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::kernel::BoundarySide;
+use eqiora::meshing::{MeshQualityGate, QuadratureRule, SimplicialMesh, simplex_centroid_rule};
 use eqiora::numerics::{
-    MeshQualityGate, QuadratureRule, ScalarEllipticSimplicialFemSolution, SimplicialMesh,
-    SimplicialMeshVelocity, SpatialDesignCoordinate,
+    ScalarEllipticSimplicialFemSolution, SimplicialMeshVelocity, SpatialDesignCoordinate,
     linearize_scalar_elliptic_simplicial_compliance, linearize_scalar_elliptic_simplicial_fem,
-    lower_scalar_elliptic_cartesian, simplex_centroid_rule, solve_scalar_elliptic_simplicial_fem,
+    lower_scalar_elliptic_cartesian, solve_scalar_elliptic_simplicial_fem,
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{

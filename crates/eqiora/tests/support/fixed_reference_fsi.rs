@@ -8,9 +8,9 @@ use eqiora::artifact::{
     RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora::compatibility::ExactModelCodec;
-use eqiora::meshing::{MeshQualityGate, SimplicialMesh};
+use eqiora::meshing::{CellId, FacetId, MeshQualityGate, SimplicialMesh};
 use eqiora::numerics::{
-    CellId, FacetId, FixedReferenceFsiCartesianModel2d, FixedReferenceFsiPartition2d,
+    FixedReferenceFsiCartesianModel2d, FixedReferenceFsiPartition2d,
     FixedReferenceFsiScaleProfile2d, FixedReferenceFsiState2d, ResolvedFixedReferenceFsiSolution2d,
     finalize_resolved_fixed_reference_fsi_step_2d, fixed_reference_fsi_plan_2d,
     fixed_reference_fsi_requirements_2d,

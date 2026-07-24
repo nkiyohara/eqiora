@@ -10,9 +10,9 @@ use eqiora::artifact::{
 };
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::language::{ComponentItem, DomainSyntax, Item};
+use eqiora::meshing::QuadratureRule;
 use eqiora::numerics::{
-    QuadratureRule, lower_isotropic_elasticity_cartesian_2d,
-    solve_resolved_isotropic_elasticity_cartesian_2d,
+    lower_isotropic_elasticity_cartesian_2d, solve_resolved_isotropic_elasticity_cartesian_2d,
 };
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageDirectory, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1,
