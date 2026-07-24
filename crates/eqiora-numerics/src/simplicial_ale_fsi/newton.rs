@@ -10,14 +10,17 @@ use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolverBackend
 use super::acceptance::{NewtonEvidence, accept_step};
 use super::api::{AleFsiStepEvidence, AleFsiTrajectory, AleFsiTrajectory2d, AleFsiTrajectory3d};
 use super::assembly::{
-    StepAssembly, assemble_step_linearization, assemble_step_residual, initial_point,
+    StepAssembly, assemble_step_linearization, assemble_step_residual, build_step_jacobian_pattern,
+    initial_point,
 };
 use super::contract::{
     AleFsiBoundary, AleFsiBoundary2d, AleFsiBoundary3d, AleFsiState, AleFsiState2d, AleFsiState3d,
     AleFsiStepPlan, AleFsiStepPlan2d, AleFsiStepPlan3d,
 };
 use super::{P1HarmonicMeshMotion, P1HarmonicMeshMotion2d, P1HarmonicMeshMotion3d};
-use crate::assembled_linearization::centered_state_jvp_error;
+use crate::jacobian_audit::{
+    CenteredJacobianAuditEvidence, StructuralJacobianPattern, audit_centered_jacobian,
+};
 use crate::{
     FixedReferenceFsiPartition, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
     NonZeroStepCount,
@@ -156,6 +159,7 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
         LinearOperatorProperties::General,
     )?;
     initial.validate_against(reference, partition, motion)?;
+    let jacobian_pattern = build_step_jacobian_pattern(reference, partition, boundary, motion)?;
     let mut trajectory = AleFsiTrajectory::<D>::new(initial);
     for _ in 0..step_count.get() {
         let previous = trajectory
@@ -163,7 +167,16 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
             .last()
             .expect("ALE FSI trajectory owns its initial state");
         let (next, evidence) = solve_one_step::<D>(
-            reference, partition, boundary, motion, previous, plan, quadrature, assembly, solver,
+            reference,
+            partition,
+            boundary,
+            motion,
+            previous,
+            plan,
+            quadrature,
+            &jacobian_pattern,
+            assembly,
+            solver,
         )?;
         trajectory.push(next, evidence)?;
     }
@@ -179,6 +192,7 @@ fn solve_one_step<const D: usize>(
     previous: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
+    jacobian_pattern: &StructuralJacobianPattern,
     assembly_backend: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
@@ -199,8 +213,16 @@ fn solve_one_step<const D: usize>(
     let initial_residual_norm = current.residual_norm()?;
     let residual_target = nonlinear_target::<D>(plan, initial_residual_norm)?;
     if initial_residual_norm <= residual_target {
-        let maximum_analytic_jvp_verification_error = verify_analytic_jacobian::<D>(
-            reference, partition, boundary, motion, previous, &current, plan, quadrature,
+        let jacobian_audit = verify_analytic_jacobian::<D>(
+            reference,
+            partition,
+            boundary,
+            motion,
+            previous,
+            &current,
+            plan,
+            quadrature,
+            jacobian_pattern,
         )?;
         return accept_step::<D>(
             reference,
@@ -215,7 +237,7 @@ fn solve_one_step<const D: usize>(
             NewtonEvidence {
                 iterations: 0,
                 initial_residual_norm,
-                maximum_analytic_jvp_verification_error,
+                jacobian_audit,
                 linear_solves: Vec::new(),
             },
         );
@@ -280,8 +302,16 @@ fn solve_one_step<const D: usize>(
         point = candidate;
         current = assembled;
         if norm <= residual_target {
-            let maximum_analytic_jvp_verification_error = verify_analytic_jacobian::<D>(
-                reference, partition, boundary, motion, previous, &current, plan, quadrature,
+            let jacobian_audit = verify_analytic_jacobian::<D>(
+                reference,
+                partition,
+                boundary,
+                motion,
+                previous,
+                &current,
+                plan,
+                quadrature,
+                jacobian_pattern,
             )?;
             return accept_step::<D>(
                 reference,
@@ -296,7 +326,7 @@ fn solve_one_step<const D: usize>(
                 NewtonEvidence {
                     iterations: iteration,
                     initial_residual_norm,
-                    maximum_analytic_jvp_verification_error,
+                    jacobian_audit,
                     linear_solves: reports,
                 },
             );
@@ -317,36 +347,27 @@ fn verify_analytic_jacobian<const D: usize>(
     accepted: &StepAssembly<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-) -> Result<f64, Diagnostic> {
+    jacobian_pattern: &StructuralJacobianPattern,
+) -> Result<CenteredJacobianAuditEvidence, Diagnostic> {
     let point = accepted.algebraic_values();
-    let mut maximum_error = 0.0_f64;
-    for column in 0..point.len() {
-        let mut direction = vec![0.0; point.len()];
-        direction[column] = 1.0;
-        let mut analytic = vec![0.0; accepted.relation.residual_dimension()];
-        accepted
-            .relation
-            .jvp(RelationTangent::Unknown(&direction), &mut analytic)?;
-        let epsilon = f64::EPSILON.cbrt() * (1.0 + point[column].abs());
-        let error = centered_state_jvp_error(point, &direction, epsilon, &analytic, |candidate| {
+    audit_centered_jacobian(
+        point,
+        jacobian_pattern,
+        2.0e-5,
+        "ALE FSI",
+        |candidate| {
             assemble_step_residual::<D>(
                 reference, partition, boundary, motion, previous, candidate, plan, quadrature,
             )
-        })?;
-        let analytic_norm = analytic
-            .iter()
-            .map(|value| value * value)
-            .sum::<f64>()
-            .sqrt();
-        let tolerance = 2.0e-5 * (1.0 + analytic_norm);
-        if error > tolerance {
-            return Err(solve_failed(format!(
-                "analytic ALE FSI Jacobian column {column} error {error:e} exceeds centered-difference tolerance {tolerance:e}"
-            )));
-        }
-        maximum_error = maximum_error.max(error);
-    }
-    Ok(maximum_error)
+        },
+        |column, analytic| {
+            let mut direction = vec![0.0; point.len()];
+            direction[column] = 1.0;
+            accepted
+                .relation
+                .jvp(RelationTangent::Unknown(&direction), analytic)
+        },
+    )
 }
 
 fn nonlinear_target<const D: usize>(

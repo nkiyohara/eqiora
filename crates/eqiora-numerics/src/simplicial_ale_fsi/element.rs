@@ -69,6 +69,21 @@ impl AleMiniFluidEvaluation {
 }
 
 impl<const D: usize> AleMiniFluidCell<'_, D> {
+    /// Evaluate the ALE primal residual without constructing a tangent action.
+    pub(super) fn residual(&self, quadrature: &QuadratureRule) -> Result<Vec<f64>, Diagnostic> {
+        MiniTransientCell::<D> {
+            geometry: self.geometry.current_map(),
+            transport: MiniTransport::SkewRelativeGcl(self.geometry),
+            density: self.density,
+            viscosity: self.viscosity,
+            time_step: self.time_step,
+            previous_velocity: self.previous_velocity,
+            current_velocity: self.current_velocity,
+            current_pressure: self.current_pressure,
+        }
+        .residual(quadrature)
+    }
+
     /// Evaluate the differential ALE residual and its exact directional action.
     pub(super) fn evaluate(
         &self,
@@ -190,6 +205,54 @@ mod tests {
         .residual
         .try_into()
         .expect("2D ALE MINI residual owns eleven entries")
+    }
+
+    #[test]
+    fn primal_only_residual_matches_directional_projection_bits() {
+        let reference = reference();
+        let previous = FixedTopologyGeometryState2d::reference(&reference).unwrap();
+        let current = FixedTopologyGeometryState2d::new(&reference, current_coordinates()).unwrap();
+        let action =
+            FixedTopologyGeometryAction2d::new(&reference, &previous, &current, STEP).unwrap();
+        let geometry_direction = geometry_linearization(&action, &coordinate_direction());
+        let previous_velocity = [[0.15, -0.05], [0.10, 0.02], [0.12, -0.03], [0.01, 0.02]];
+        let current_velocity = [[0.18, -0.01], [0.11, 0.04], [0.09, -0.02], [0.03, 0.01]];
+        let velocity_direction = [[0.02, -0.01], [-0.03, 0.02], [0.01, 0.04], [-0.02, 0.03]];
+        let pressure = [0.12, -0.08, 0.03];
+        let pressure_direction = [-0.02, 0.04, 0.01];
+        let cell = AleMiniFluidCell2d {
+            geometry: action.cell(0).unwrap(),
+            density: 1.3,
+            viscosity: 0.08,
+            time_step: STEP,
+            previous_velocity: &previous_velocity,
+            current_velocity: &current_velocity,
+            current_pressure: &pressure,
+        };
+        let projected = cell
+            .evaluate(
+                AleMiniFluidDirection2d {
+                    current_velocity: &velocity_direction,
+                    current_pressure: &pressure_direction,
+                    current_geometry: &geometry_direction,
+                },
+                &triangle_duffy_gauss_legendre(5).unwrap(),
+            )
+            .unwrap();
+        let primal = cell
+            .residual(&triangle_duffy_gauss_legendre(5).unwrap())
+            .unwrap();
+        assert_eq!(
+            primal
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>(),
+            projected
+                .residual()
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>()
+        );
     }
 
     #[test]

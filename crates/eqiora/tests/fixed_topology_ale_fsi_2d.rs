@@ -619,6 +619,16 @@ fn assert_consecutive_geometry_and_evidence(
         assert!(evidence.minimum_current_signed_jacobian() > 0.0);
         assert!(evidence.minimum_path_signed_jacobian() > 0.0);
         assert!(evidence.maximum_analytic_jvp_verification_error() < 1.0e-3);
+        assert!(evidence.jacobian_audited_column_count() > evidence.jacobian_color_count());
+        assert_eq!(
+            evidence.jacobian_residual_assembly_count(),
+            2 * evidence.jacobian_color_count()
+        );
+        assert_eq!(evidence.jacobian_global_singleton_count(), 2);
+        assert!(
+            evidence.jacobian_residual_assembly_count()
+                < 2 * evidence.jacobian_audited_column_count()
+        );
         assert!(evidence.probed_moving_fluid_cell_count() > 0);
         assert!(evidence.gcl_active_moving_fluid_cell_count() > 0);
         assert!(evidence.compatible_constant_free_stream_residual_norm() < 1.0e-12);
@@ -662,6 +672,12 @@ fn assert_consecutive_geometry_and_evidence(
             assert!(cell.minimum_path_signed_measure_scale() > 0.0);
         }
     }
+    assert!(
+        trajectory
+            .steps()
+            .windows(2)
+            .all(|steps| { steps[0].jacobian_color_count() == steps[1].jacobian_color_count() })
+    );
 }
 
 fn assert_static_geometry_falsifier(fixture: &Fixture, motion: &P1HarmonicMeshMotion2d) {

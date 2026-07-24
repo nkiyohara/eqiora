@@ -27,60 +27,6 @@ pub struct AssembledLinearizedRelation {
     design_jacobian: Vec<f64>,
 }
 
-/// Compare one analytic state JVP with an independently reassembled centered action.
-///
-/// This is verification infrastructure, not a production differentiation
-/// backend. The production relation continues to expose its analytic action;
-/// the closure is invoked only by bounded acceptance paths after convergence.
-pub(crate) fn centered_state_jvp_error<F>(
-    point: &[f64],
-    direction: &[f64],
-    epsilon: f64,
-    analytic: &[f64],
-    mut residual: F,
-) -> Result<f64, Diagnostic>
-where
-    F: FnMut(&[f64]) -> Result<Vec<f64>, Diagnostic>,
-{
-    if point.len() != direction.len()
-        || analytic.is_empty()
-        || !epsilon.is_finite()
-        || epsilon <= 0.0
-    {
-        return Err(invalid(
-            "centered state-JVP verification has invalid shape or step",
-        ));
-    }
-    let shifted = |sign: f64| {
-        point
-            .iter()
-            .zip(direction)
-            .map(|(point, direction)| point + sign * epsilon * direction)
-            .collect::<Vec<_>>()
-    };
-    let plus = residual(&shifted(1.0))?;
-    let minus = residual(&shifted(-1.0))?;
-    if plus.len() != analytic.len() || minus.len() != analytic.len() {
-        return Err(invalid(
-            "centered state-JVP verification residual shape changed",
-        ));
-    }
-    let error = plus
-        .iter()
-        .zip(minus)
-        .zip(analytic)
-        .map(|((plus, minus), analytic)| ((plus - minus) / (2.0 * epsilon) - analytic).powi(2))
-        .sum::<f64>()
-        .sqrt();
-    if error.is_finite() {
-        Ok(error)
-    } else {
-        Err(invalid(
-            "centered state-JVP verification produced a non-finite error",
-        ))
-    }
-}
-
 impl AssembledLinearizedRelation {
     /// Construct one finite, shape-consistent assembled linearization.
     ///

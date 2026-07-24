@@ -12,15 +12,13 @@ use eqiora_assembly::{
 };
 use eqiora_core::Diagnostic;
 use eqiora_meshing::FixedTopologyGeometryAction;
-use eqiora_meshing::{
-    AffineGeometryLinearization, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule,
-    SimplicialMesh,
-};
+use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh};
 use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
 use super::element::{AleMiniFluidCell, AleMiniFluidDirection};
 use super::{P1HarmonicMeshMotion, invalid};
+use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
 use crate::simplicial_fsi::{
     element::solid_local, layout::FsiLayout, partition::CellMaterial, validate_problem,
 };
@@ -584,26 +582,14 @@ fn evaluate_fluid_residual<const D: usize>(
         current,
         geometry_action,
     )?;
-    let stationary =
-        AffineGeometryLinearization::stationary(prepared.geometry.current_map().clone())?;
-    let zero_velocity = vec![[0.0; D]; D + 2];
-    let zero_pressure = vec![0.0; D + 1];
-    let primal = prepared.operator(plan).evaluate(
-        AleMiniFluidDirection::<D> {
-            current_velocity: &zero_velocity,
-            current_pressure: &zero_pressure,
-            current_geometry: &stationary,
-        },
-        quadrature,
-    )?;
+    let primal = prepared.operator(plan).residual(quadrature)?;
     let row_scales = fluid_row_scales(plan);
-    if primal.residual().len() != row_scales.len() {
+    if primal.len() != row_scales.len() {
         return Err(invalid(format!(
             "{D}D ALE FSI fluid residual differs from its typed row-scale inventory"
         )));
     }
     let residual = primal
-        .residual()
         .iter()
         .zip(row_scales.iter().copied())
         .map(|(value, scale)| value * scale)
@@ -881,6 +867,70 @@ fn build_directions<const D: usize>(
     Ok(directions)
 }
 
+pub(super) fn build_step_jacobian_pattern<const D: usize>(
+    reference: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<D>,
+    boundary: &AleFsiBoundary<D>,
+    motion: &P1HarmonicMeshMotion<D>,
+) -> Result<StructuralJacobianPattern, Diagnostic> {
+    let layout = FsiLayout::new(reference, partition, boundary)?;
+    build_structural_jacobian_pattern(reference, partition, motion, &layout)
+}
+
+fn build_structural_jacobian_pattern<const D: usize>(
+    reference: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<D>,
+    motion: &P1HarmonicMeshMotion<D>,
+    layout: &FsiLayout<D>,
+) -> Result<StructuralJacobianPattern, Diagnostic> {
+    let cell_count = partition.cell_count();
+    let mut pattern = StructuralJacobianPatternBuilder::new(
+        layout.reduced_size(),
+        layout.reduced_size(),
+        cell_count,
+    )?;
+    for cell_index in 0..cell_count {
+        let vertices = reference
+            .entity_vertices(MeshEntity::new(D, cell_index))
+            .ok_or_else(|| {
+                invalid(format!(
+                    "ALE FSI structural dependency cell {cell_index} has no vertex closure"
+                ))
+            })?;
+        let (local_size, map) = match partition.material(cell_index) {
+            CellMaterial::Fluid => {
+                let fluid_position = partition.fluid_position(cell_index).ok_or_else(|| {
+                    invalid("ALE FSI structural dependency fluid cell has no bubble position")
+                })?;
+                (
+                    fluid_local_size::<D>(),
+                    layout.fluid_map(fluid_position, &vertices, true)?,
+                )
+            }
+            CellMaterial::Solid => (solid_local_size::<D>(), layout.solid_map(&vertices, true)?),
+            CellMaterial::Unassigned => {
+                return Err(invalid(format!(
+                    "ALE FSI structural dependency cell {cell_index} has no material assignment"
+                )));
+            }
+        };
+        pattern.include_dense_local(cell_index, local_size, &map)?;
+    }
+
+    // The sealed harmonic inverse can carry any interface-driver component
+    // across the complete fluid region. Its numeric influence entries are not
+    // inspected: every represented driver column conservatively becomes a
+    // global singleton.
+    for driver in motion.driver_vertices() {
+        for component in 0..D {
+            if let Some(dof) = layout.reduced_vertex_velocity(driver.index(), component) {
+                pattern.mark_globally_coupled(dof.index())?;
+            }
+        }
+    }
+    pattern.finish()
+}
+
 fn validate_inputs<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
@@ -984,6 +1034,10 @@ const fn fluid_pressure_offset<const D: usize>() -> usize {
 
 const fn fluid_local_size<const D: usize>() -> usize {
     fluid_pressure_offset::<D>() + D + 1
+}
+
+const fn solid_local_size<const D: usize>() -> usize {
+    (D + 1) * D
 }
 
 fn local_point(map: &AssemblyMap, candidate: &[f64]) -> Result<Vec<f64>, Diagnostic> {
@@ -1271,6 +1325,64 @@ mod tests {
     }
 
     #[test]
+    fn sealed_harmonic_driver_columns_are_singletons_in_real_ale_patterns() {
+        let fixture = fixture();
+        let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
+        let point = initial_point(
+            &fixture.mesh,
+            &fixture.partition,
+            &fixture.boundary,
+            &fixture.motion,
+            &fixture.previous,
+            fixture.plan,
+            &quadrature,
+        )
+        .unwrap();
+        let assembled = assemble(&fixture, &point, &quadrature);
+        let pattern = build_structural_jacobian_pattern(
+            &fixture.mesh,
+            &fixture.partition,
+            &fixture.motion,
+            &assembled.layout,
+        )
+        .unwrap();
+        assert_harmonic_driver_singletons(&fixture.motion, &assembled.layout, &pattern);
+
+        let fixture = fixture_3d();
+        let quadrature = simplex_duffy_gauss_legendre(3, 7).unwrap();
+        let point = initial_point(
+            &fixture.mesh,
+            &fixture.partition,
+            &fixture.boundary,
+            &fixture.motion,
+            &fixture.previous,
+            fixture.plan,
+            &quadrature,
+        )
+        .unwrap();
+        let assembled = assemble_step_linearization(
+            &fixture.mesh,
+            &fixture.partition,
+            &fixture.boundary,
+            &fixture.motion,
+            &fixture.previous,
+            &point,
+            fixture.plan,
+            &quadrature,
+            &REFERENCE_ASSEMBLY_BACKEND,
+        )
+        .unwrap();
+        let pattern = build_structural_jacobian_pattern(
+            &fixture.mesh,
+            &fixture.partition,
+            &fixture.motion,
+            &assembled.layout,
+        )
+        .unwrap();
+        assert_harmonic_driver_singletons(&fixture.motion, &assembled.layout, &pattern);
+    }
+
+    #[test]
     fn zero_solid_update_produces_an_exact_static_geometry_action() {
         let fixture = fixture();
         let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
@@ -1531,6 +1643,28 @@ mod tests {
             quadrature,
         )
         .unwrap()
+    }
+
+    fn assert_harmonic_driver_singletons<const D: usize>(
+        motion: &P1HarmonicMeshMotion<D>,
+        layout: &FsiLayout<D>,
+        pattern: &StructuralJacobianPattern,
+    ) {
+        let mut represented_driver_columns = 0;
+        for driver in motion.driver_vertices() {
+            for component in 0..D {
+                if let Some(dof) = layout.reduced_vertex_velocity(driver.index(), component) {
+                    represented_driver_columns += 1;
+                    assert!(
+                        pattern.is_singleton(dof.index()),
+                        "harmonic driver vertex {} component {component} column {} is not singleton",
+                        driver.index(),
+                        dof.index()
+                    );
+                }
+            }
+        }
+        assert!(represented_driver_columns > 0);
     }
 
     fn fixture() -> Fixture {

@@ -14,8 +14,10 @@ iteration, solver, target, and schedule remain Realization concerns.
 
 The numerical oracles are independent of accepted solver iterates:
 
-- every analytic Jacobian column is compared with centered complete-residual
-  reassembly, including geometry dependence;
+- every analytic Jacobian column is reconstructed and compared with centered
+  complete-residual reassembly, including geometry dependence; only columns
+  with disjoint structurally proven row support share a perturbation, and
+  sealed harmonic mesh-motion drivers conservatively remain singleton colors;
 - current coordinates and consecutive-state mesh velocity replay from the
   immutable reference topology and accepted displacement;
 - `dJ/dt - J div(w)` and the complete cubic determinant path are recomputed per

@@ -7,8 +7,9 @@ Model and enters only through the Realization selected by RFC 0064.
 
 The numerical oracles are independent of accepted solver iterates:
 
-- every analytic Jacobian column is compared with a centered reassembly of
-  the complete nonlinear residual, including harmonic geometry motion;
+- every analytic Jacobian column is reconstructed from deterministic,
+  conservatively colored centered reassemblies of the complete nonlinear
+  residual, including harmonic geometry motion;
 - current coordinates are independently regenerated from the immutable
   reference coordinates and the sealed harmonic action;
 - `dJ/dt - J div(w)` is recomputed per affine cell;

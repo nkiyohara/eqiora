@@ -11,25 +11,28 @@ pub(crate) struct MiniConstantTractionFacet {
     pub(crate) traction: [f64; COMPONENTS],
 }
 
+impl MiniConstantTractionFacet {
+    pub(crate) fn residual(
+        &self,
+        geometry: &AffineGeometryMap,
+        quadrature: &QuadratureRule,
+    ) -> Result<Vec<f64>, Diagnostic> {
+        Ok(
+            integrated_traction_action(self.traction, geometry, quadrature)?
+                .into_iter()
+                .map(|value| -value)
+                .collect(),
+        )
+    }
+}
+
 impl LocalOperator<AffineGeometryMap> for MiniConstantTractionFacet {
     fn evaluate(
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
     ) -> Result<LocalContribution, Diagnostic> {
-        require_facet_geometry(geometry, quadrature)?;
-        let space = SimplexP1Space::new(1)?;
-        let mut rhs = vec![0.0; FACET_LOCAL_DOF_COUNT];
-        for point in quadrature.points() {
-            let basis = space.tabulate(&point.coordinates)?;
-            let scale = point.weight * geometry.measure_scale();
-            for local_basis in 0..FACET_BASIS_COUNT {
-                for component in 0..COMPONENTS {
-                    rhs[facet_velocity(local_basis, component)] +=
-                        scale * basis.values()[local_basis] * self.traction[component];
-                }
-            }
-        }
+        let rhs = integrated_traction_action(self.traction, geometry, quadrature)?;
         LocalContribution::new(
             FACET_LOCAL_DOF_COUNT,
             FACET_LOCAL_DOF_COUNT,
@@ -37,6 +40,27 @@ impl LocalOperator<AffineGeometryMap> for MiniConstantTractionFacet {
             rhs,
         )
     }
+}
+
+fn integrated_traction_action(
+    traction: [f64; COMPONENTS],
+    geometry: &AffineGeometryMap,
+    quadrature: &QuadratureRule,
+) -> Result<Vec<f64>, Diagnostic> {
+    require_facet_geometry(geometry, quadrature)?;
+    let space = SimplexP1Space::new(1)?;
+    let mut action = vec![0.0; FACET_LOCAL_DOF_COUNT];
+    for point in quadrature.points() {
+        let basis = space.tabulate(&point.coordinates)?;
+        let scale = point.weight * geometry.measure_scale();
+        for local_basis in 0..FACET_BASIS_COUNT {
+            for component in 0..COMPONENTS {
+                action[facet_velocity(local_basis, component)] +=
+                    scale * basis.values()[local_basis] * traction[component];
+            }
+        }
+    }
+    Ok(action)
 }
 
 const fn facet_velocity(basis: usize, component: usize) -> usize {
@@ -65,5 +89,13 @@ mod tests {
         assert_eq!(local.rows(), FACET_LOCAL_DOF_COUNT);
         assert!(local.matrix().iter().all(|value| *value == 0.0));
         assert_eq!(local.rhs(), &[-4.5, 0.0, -4.5, 0.0]);
+        assert_eq!(
+            MiniConstantTractionFacet {
+                traction: [-4.5, 0.0]
+            }
+            .residual(&geometry, &quadrature)
+            .unwrap(),
+            [4.5, 0.0, 4.5, 0.0]
+        );
     }
 }
