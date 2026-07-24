@@ -110,8 +110,9 @@ contract cell
    follows the slice, not the agent. Sibling branches do not merge one another.
 5. The integrator reviews the contract, diff, independent verification, and
    abstraction budget; rebases the slice on the current integration head; runs
-   the affected gate and explicit semantic cases; and merges and removes the
-   branch promptly. Agent-reported completion is not acceptance evidence.
+   the affected gate and explicit semantic cases; marks the pull request ready;
+   and merges and removes the branch promptly after required hosted checks
+   pass. Agent-reported completion is not acceptance evidence.
 
 Read-only design, prior-art, oracle, and adversarial audits may scale beyond
 writable lanes. More writers are added only for paths that consume a frozen
@@ -259,6 +260,28 @@ integrator records the exact local commands and limitations, merges only a
 passing affected closure, and deletes the merged branch. Required hosted checks
 validate the exact proposed merge on protected public branches; they complement
 rather than replace the repository-owned local acceptance decision.
+
+A pull request is the exact integration envelope for a closed slice, not a
+queue for routine human approval. Draft status is used only while the slice or
+its own verification is incomplete. Before marking it ready, the integrator
+self-reviews:
+
+- the complete diff against the current base and the absence of unrelated
+  changes;
+- the bounded claim, non-claims, invariant owner, and central surfaces touched;
+- the independent oracle, plausible mutant, falsifier, and affected evidence;
+- every facade, dependency, registry, artifact-version, and capability claim
+  applied at an integration-owned registration point;
+- the wave-closure duplication audit when sibling lanes reunite; and
+- the exact local commands, results, and environment limitations recorded in
+  the pull request.
+
+Once this review is closed, mark the pull request ready and merge it as soon as
+the protected branch's required hosted checks pass. External review is welcome
+but is not a default waiting condition during bootstrap. Stop instead when a
+protection rule requires another action, an anomaly below is unresolved, or a
+scientific, compatibility, security, data-integrity, or release-trust decision
+cannot be justified from the available contract and evidence.
 
 There is no calendar review or activity ledger. Revisit the development model
 only when an operational anomaly appears:
