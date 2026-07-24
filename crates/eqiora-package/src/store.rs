@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+#[cfg(feature = "filesystem")]
 use std::path::PathBuf;
 
 use crate::{ContractError, PackageReleaseV1, SourceBundleDigest};
@@ -18,6 +19,7 @@ pub trait PackageStore {
 #[non_exhaustive]
 pub enum StoreError {
     /// Opening or inspecting the supplied store root capability failed.
+    #[cfg(feature = "filesystem")]
     RootIo {
         /// Ambient root path, when the adapter opened it for the caller.
         path: Option<PathBuf>,
@@ -25,6 +27,7 @@ pub enum StoreError {
         source: std::io::Error,
     },
     /// A handle-relative read of one exact content-addressed entry failed.
+    #[cfg(feature = "filesystem")]
     EntryIo {
         /// Expected source-bundle digest naming the entry.
         digest: SourceBundleDigest,
@@ -36,11 +39,13 @@ pub enum StoreError {
     /// Distinct release bytes claimed one source-bundle digest.
     DigestCollision(SourceBundleDigest),
     /// The caller-supplied root handle does not identify a directory.
+    #[cfg(feature = "filesystem")]
     RootNotDirectory {
         /// Ambient root path, when the adapter opened it for the caller.
         path: Option<PathBuf>,
     },
     /// An exact content-addressed entry is not a regular file.
+    #[cfg(feature = "filesystem")]
     NonRegularEntry(SourceBundleDigest),
     /// An exact entry exceeded the active read budget.
     ReleaseTooLarge {
@@ -63,6 +68,7 @@ pub enum StoreError {
 impl std::fmt::Display for StoreError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            #[cfg(feature = "filesystem")]
             Self::RootIo { path, source } => match path {
                 Some(path) => write!(
                     formatter,
@@ -71,6 +77,7 @@ impl std::fmt::Display for StoreError {
                 ),
                 None => write!(formatter, "cannot inspect package store root: {source}"),
             },
+            #[cfg(feature = "filesystem")]
             Self::EntryIo { digest, source } => {
                 write!(
                     formatter,
@@ -82,6 +89,7 @@ impl std::fmt::Display for StoreError {
                 formatter,
                 "distinct package release bytes share source-bundle digest `{digest}`"
             ),
+            #[cfg(feature = "filesystem")]
             Self::RootNotDirectory { path } => match path {
                 Some(path) => write!(
                     formatter,
@@ -90,6 +98,7 @@ impl std::fmt::Display for StoreError {
                 ),
                 None => formatter.write_str("package store root must be a directory"),
             },
+            #[cfg(feature = "filesystem")]
             Self::NonRegularEntry(digest) => write!(
                 formatter,
                 "package store entry `{digest}` must be a regular file"
@@ -113,13 +122,13 @@ impl std::fmt::Display for StoreError {
 impl std::error::Error for StoreError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            #[cfg(feature = "filesystem")]
             Self::RootIo { source, .. } | Self::EntryIo { source, .. } => Some(source),
             Self::Contract(error) => Some(error),
             Self::Allocation { source, .. } => Some(source),
-            Self::DigestCollision(_)
-            | Self::RootNotDirectory { .. }
-            | Self::NonRegularEntry(_)
-            | Self::ReleaseTooLarge { .. } => None,
+            Self::DigestCollision(_) | Self::ReleaseTooLarge { .. } => None,
+            #[cfg(feature = "filesystem")]
+            Self::RootNotDirectory { .. } | Self::NonRegularEntry(_) => None,
         }
     }
 }
