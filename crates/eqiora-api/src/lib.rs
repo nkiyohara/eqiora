@@ -42,6 +42,7 @@ use eqiora_artifact::{
     ModelEnvelopeV2, ModelEnvelopeV3, ModelEnvelopeV4, ModelEnvelopeV5, ModelEnvelopeV6,
     ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3,
     ModelTransactionEnvelopeV4, ModelTransactionEnvelopeV5, ModelTransactionEnvelopeV6,
+    ReplayableCanonicalModelArtifact,
 };
 use eqiora_compiler::{CompiledModel, ModelSymbols};
 use eqiora_core::diagnostic::codes;
