@@ -197,6 +197,7 @@ where
                 plan,
                 cell_quadrature,
                 facet_quadrature,
+                assembly_backend,
             )?;
             let norm = assembled.residual_norm()?;
             if norm <= residual_target || norm < previous_norm {
@@ -223,7 +224,6 @@ where
                 plan,
                 cell_quadrature,
                 facet_quadrature,
-                assembly_backend,
             )?;
             return accept_step(
                 mesh,
