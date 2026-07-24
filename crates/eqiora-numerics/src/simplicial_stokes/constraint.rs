@@ -63,8 +63,8 @@ fn integrated_pressure_basis(
     for point in quadrature.points() {
         let basis = pressure_space.tabulate(&point.coordinates)?;
         let scale = point.weight * geometry.measure_scale();
-        for pressure in 0..P1_BASIS_COUNT {
-            integrated[pressure] += scale * basis.values()[pressure];
+        for (value, basis_value) in integrated.iter_mut().zip(basis.values()) {
+            *value += scale * basis_value;
         }
     }
     Ok(integrated)
