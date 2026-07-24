@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 
@@ -14,8 +14,10 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "tools/release"))
 
 from candidate_manifest import (  # noqa: E402
     ManifestError,
+    PROFILE_CHECKS,
     file_sha256,
     load_candidate,
+    require_candidate_profile,
     verify_artifacts,
 )
 from testpypi_replay import release_files  # noqa: E402
@@ -186,6 +188,41 @@ class CandidateManifestTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ManifestError, "NumPy floor profile drifted"):
                 load_candidate(manifest)
+
+    def test_every_required_profile_fails_when_its_manifest_check_is_absent(
+        self,
+    ) -> None:
+        for profile, required in PROFILE_CHECKS.items():
+            with (
+                self.subTest(profile=profile),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                manifest, _, document = candidate_document(Path(temporary))
+                omitted = min(required)
+                document["checks"].remove(omitted)
+                manifest.write_text(json.dumps(document), encoding="utf-8")
+
+                with self.assertRaisesRegex(
+                    ManifestError,
+                    rf"candidate {profile} profile omits required check {omitted!r}",
+                ):
+                    load_candidate(manifest)
+
+    def test_profile_projection_rejects_an_unsuccessful_accepted_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest, _, _ = candidate_document(Path(temporary))
+            candidate = load_candidate(manifest)
+            failed = min(PROFILE_CHECKS["torch"])
+            unsuccessful = replace(
+                candidate,
+                checks=candidate.checks - {failed},
+            )
+
+            with self.assertRaisesRegex(
+                ManifestError,
+                rf"candidate torch profile omits required check {failed!r}",
+            ):
+                require_candidate_profile(unsuccessful, "torch")
 
     def test_testpypi_metadata_hash_and_host_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -37,6 +37,12 @@ JAX/JAXLIB 0.11.0 pair. It exercises:
 - exact native ABI layout agreement with the installed JAXLIB header; and
 - a base `eqiora` import with no JAX or JAXLIB import.
 
+Registered host evidence obtains this profile from the same complete candidate
+and manifest used by the base, typing, and PyTorch cases. Its JAX checks must be
+present in that accepted manifest; the focused
+`tools/ci/python_jax_gate.py` script remains available for standalone
+development but is not a second registered artifact build.
+
 This is an exact in-process first-order host-CPU slice. Direct or explicitly
 compiled input sharding, `pmap`, `vmap`, and higher-order transformations are
 rejected. Explicit output sharding, GPU, TPU, export, serialization,

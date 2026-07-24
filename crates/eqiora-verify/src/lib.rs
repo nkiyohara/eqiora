@@ -98,7 +98,7 @@ pub enum CommandKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ExecutionPolicy {
-    /// Stop and mark subsequent runnable cases skipped.
+    /// Stop starting unseen targets after the first evidence failure.
     FailFast,
     /// Run every selected executable case.
     KeepGoing,
@@ -601,6 +601,7 @@ fn execute_selected(
     runner: &dyn EvidenceRunner,
 ) -> Vec<CaseReport> {
     let mut cases = Vec::with_capacity(selected.len());
+    let mut completed_targets = Vec::<(EvidenceTarget, EvidenceOutput)>::new();
     let mut prior_failure = false;
     for contract in selected {
         let mut case = CaseReport::from_contract(&contract);
@@ -630,44 +631,55 @@ fn execute_selected(
                     required.as_str()
                 ));
             }
-            CommandKind::Run if prior_failure && request.policy == ExecutionPolicy::FailFast => {
-                case.outcome = Outcome::Skipped;
-                case.message = Some("not run after fail-fast evidence failure".to_owned());
-            }
             CommandKind::Run => {
                 let target = contract
                     .evidence
                     .as_ref()
                     .expect("executable contracts were validated with evidence");
-                let output = runner.run(root, target);
-                let succeeded = output.succeeded();
-                let EvidenceOutput {
-                    exit_code,
-                    stdout,
-                    stderr,
-                    start_error,
-                } = output;
-                case.exit_code = exit_code;
-                case.stdout = Some(stdout);
-                case.stderr = Some(stderr);
-                if succeeded {
-                    case.outcome = Outcome::Passed;
+                let completed = completed_targets
+                    .iter()
+                    .position(|(completed, _)| completed == target);
+                if completed.is_none()
+                    && prior_failure
+                    && request.policy == ExecutionPolicy::FailFast
+                {
+                    case.outcome = Outcome::Skipped;
+                    case.message = Some("not run after fail-fast evidence failure".to_owned());
                 } else {
-                    case.outcome = Outcome::Failed;
-                    case.message = start_error.or_else(|| {
-                        Some(format!(
-                            "evidence target exited with {}",
-                            exit_code
-                                .map_or_else(|| "no exit code".to_owned(), |code| code.to_string())
-                        ))
+                    let completed = completed.unwrap_or_else(|| {
+                        completed_targets.push((target.clone(), runner.run(root, target)));
+                        completed_targets.len() - 1
                     });
-                    prior_failure = true;
+                    if !project_evidence_output(&mut case, &completed_targets[completed].1) {
+                        prior_failure = true;
+                    }
                 }
             }
         }
         cases.push(case);
     }
     cases
+}
+
+fn project_evidence_output(case: &mut CaseReport, output: &EvidenceOutput) -> bool {
+    case.exit_code = output.exit_code;
+    case.stdout = Some(output.stdout.clone());
+    case.stderr = Some(output.stderr.clone());
+    if output.succeeded() {
+        case.outcome = Outcome::Passed;
+        true
+    } else {
+        case.outcome = Outcome::Failed;
+        case.message = output.start_error.clone().or_else(|| {
+            Some(format!(
+                "evidence target exited with {}",
+                output
+                    .exit_code
+                    .map_or_else(|| "no exit code".to_owned(), |code| code.to_string())
+            ))
+        });
+        false
+    }
 }
 
 impl CaseReport {
@@ -1400,15 +1412,49 @@ script = "tools/ci/python_evidence.py"
 
     struct FakeRunner {
         outputs: RefCell<VecDeque<EvidenceOutput>>,
+        targets: RefCell<Vec<EvidenceTarget>>,
+    }
+
+    impl FakeRunner {
+        fn new(outputs: impl IntoIterator<Item = EvidenceOutput>) -> Self {
+            Self {
+                outputs: RefCell::new(outputs.into_iter().collect()),
+                targets: RefCell::new(Vec::new()),
+            }
+        }
+
+        fn targets(&self) -> Vec<EvidenceTarget> {
+            self.targets.borrow().clone()
+        }
     }
 
     impl EvidenceRunner for FakeRunner {
-        fn run(&self, _root: &Path, _target: &EvidenceTarget) -> EvidenceOutput {
+        fn run(&self, _root: &Path, target: &EvidenceTarget) -> EvidenceOutput {
+            self.targets.borrow_mut().push(target.clone());
             self.outputs.borrow_mut().pop_front().unwrap()
         }
     }
 
-    fn contract(id: &str) -> CaseContract {
+    fn successful_output() -> EvidenceOutput {
+        EvidenceOutput {
+            exit_code: Some(0),
+            stdout: String::new(),
+            stderr: String::new(),
+            start_error: None,
+        }
+    }
+
+    fn cargo_target() -> EvidenceTarget {
+        EvidenceTarget::Cargo(CargoEvidenceTarget {
+            package: "eqiora-numerics".to_owned(),
+            test: "evidence_test".to_owned(),
+            features: vec!["evidence-runtime".to_owned()],
+            table: None,
+            environment: EvidenceEnvironment::HostCpu,
+        })
+    }
+
+    fn contract_with_target(id: &str, evidence: EvidenceTarget) -> CaseContract {
         CaseContract {
             id: id.to_owned(),
             manifest: format!("verify/area/{id}/case.toml"),
@@ -1416,14 +1462,12 @@ script = "tools/ci/python_evidence.py"
             reference_kind: "analytic".to_owned(),
             capabilities: vec!["convergence".to_owned()],
             conformance_kits: vec!["scalar-convergence-v1".to_owned()],
-            evidence: Some(EvidenceTarget::Cargo(CargoEvidenceTarget {
-                package: "eqiora-numerics".to_owned(),
-                test: "evidence_test".to_owned(),
-                features: vec!["evidence-runtime".to_owned()],
-                table: None,
-                environment: EvidenceEnvironment::HostCpu,
-            })),
+            evidence: Some(evidence),
         }
+    }
+
+    fn contract(id: &str) -> CaseContract {
+        contract_with_target(id, cargo_target())
     }
 
     #[test]
@@ -1439,14 +1483,7 @@ script = "tools/ci/python_evidence.py"
             vec![physical.clone(), contract("portable")],
             &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast)
                 .for_environment(EvidenceEnvironment::HostCpu),
-            &FakeRunner {
-                outputs: RefCell::new(VecDeque::from([EvidenceOutput {
-                    exit_code: Some(0),
-                    stdout: String::new(),
-                    stderr: String::new(),
-                    start_error: None,
-                }])),
-            },
+            &FakeRunner::new([successful_output()]),
         );
         assert_eq!(
             selected.iter().map(|case| case.outcome).collect::<Vec<_>>(),
@@ -1461,14 +1498,12 @@ script = "tools/ci/python_evidence.py"
             Path::new("."),
             vec![physical],
             &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast),
-            &FakeRunner {
-                outputs: RefCell::new(VecDeque::from([EvidenceOutput {
-                    exit_code: Some(29),
-                    stdout: String::new(),
-                    stderr: String::new(),
-                    start_error: None,
-                }])),
-            },
+            &FakeRunner::new([EvidenceOutput {
+                exit_code: Some(29),
+                stdout: String::new(),
+                stderr: String::new(),
+                start_error: None,
+            }]),
         );
         assert_eq!(full[0].outcome, Outcome::Failed);
     }
@@ -1516,45 +1551,216 @@ script = "tools/ci/python_evidence.py"
     }
 
     #[test]
-    fn fail_fast_skips_while_keep_going_executes_remaining_cases() {
+    fn identical_targets_execute_once_and_preserve_distinct_case_reports() {
+        let runner = FakeRunner::new([EvidenceOutput {
+            exit_code: Some(0),
+            stdout: "shared-out".to_owned(),
+            stderr: "shared-err".to_owned(),
+            start_error: None,
+        }]);
+        let reports = execute_selected(
+            Path::new("."),
+            vec![contract("a"), contract("b")],
+            &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing),
+            &runner,
+        );
+
+        assert_eq!(runner.targets(), [cargo_target()]);
+        assert_eq!(
+            reports
+                .iter()
+                .map(|case| (case.id.as_str(), case.outcome))
+                .collect::<Vec<_>>(),
+            [("a", Outcome::Passed), ("b", Outcome::Passed)]
+        );
+        assert_eq!(reports[0].stdout.as_deref(), Some("shared-out"));
+        assert_eq!(reports[1].stdout.as_deref(), Some("shared-out"));
+        assert_eq!(reports[0].stderr.as_deref(), Some("shared-err"));
+        assert_eq!(reports[1].stderr.as_deref(), Some("shared-err"));
+    }
+
+    #[test]
+    fn every_target_field_participates_in_exact_identity() {
+        let cargo_base = CargoEvidenceTarget {
+            package: "package-a".to_owned(),
+            test: "test-a".to_owned(),
+            features: vec!["feature-a".to_owned(), "feature-b".to_owned()],
+            table: None,
+            environment: EvidenceEnvironment::HostCpu,
+        };
+        let mut targets = vec![EvidenceTarget::Cargo(cargo_base.clone())];
+        for target in [
+            CargoEvidenceTarget {
+                package: "package-b".to_owned(),
+                ..cargo_base.clone()
+            },
+            CargoEvidenceTarget {
+                test: "test-b".to_owned(),
+                ..cargo_base.clone()
+            },
+            CargoEvidenceTarget {
+                features: vec!["feature-b".to_owned(), "feature-a".to_owned()],
+                ..cargo_base.clone()
+            },
+            CargoEvidenceTarget {
+                table: Some("expected/evidence.csv".to_owned()),
+                ..cargo_base.clone()
+            },
+            CargoEvidenceTarget {
+                environment: EvidenceEnvironment::PhysicalMpiCuda,
+                ..cargo_base
+            },
+        ] {
+            targets.push(EvidenceTarget::Cargo(target));
+        }
+
+        let python_base = PythonInstalledWheelEvidenceTarget {
+            runner: PythonEvidenceRunner::PythonInstalledWheel,
+            script: "tools/ci/python_a.py".to_owned(),
+            environment: EvidenceEnvironment::HostCpu,
+        };
+        targets.extend([
+            EvidenceTarget::PythonInstalledWheel(python_base.clone()),
+            EvidenceTarget::PythonInstalledWheel(PythonInstalledWheelEvidenceTarget {
+                script: "tools/ci/python_b.py".to_owned(),
+                ..python_base.clone()
+            }),
+            EvidenceTarget::PythonInstalledWheel(PythonInstalledWheelEvidenceTarget {
+                environment: EvidenceEnvironment::PhysicalMpiCuda,
+                ..python_base
+            }),
+        ]);
+
+        let contracts = targets
+            .iter()
+            .enumerate()
+            .map(|(index, target)| contract_with_target(&format!("case-{index}"), target.clone()))
+            .collect();
+        let runner = FakeRunner::new((0..targets.len()).map(|_| successful_output()));
+        let reports = execute_selected(
+            Path::new("."),
+            contracts,
+            &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing),
+            &runner,
+        );
+
+        assert!(reports.iter().all(|case| case.outcome == Outcome::Passed));
+        assert_eq!(runner.targets(), targets);
+    }
+
+    #[test]
+    fn shared_failure_forms_are_projected_without_hiding_affected_cases() {
+        for output in [
+            EvidenceOutput {
+                exit_code: Some(17),
+                stdout: "exit-out".to_owned(),
+                stderr: "exit-err".to_owned(),
+                start_error: None,
+            },
+            EvidenceOutput {
+                exit_code: None,
+                stdout: "signal-out".to_owned(),
+                stderr: "signal-err".to_owned(),
+                start_error: None,
+            },
+            EvidenceOutput {
+                exit_code: None,
+                stdout: String::new(),
+                stderr: String::new(),
+                start_error: Some("cannot start evidence target: unavailable".to_owned()),
+            },
+        ] {
+            let runner = FakeRunner::new([output.clone()]);
+            let reports = execute_selected(
+                Path::new("."),
+                vec![contract("a"), contract("b")],
+                &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing),
+                &runner,
+            );
+
+            assert_eq!(runner.targets(), [cargo_target()]);
+            assert!(reports.iter().all(|case| case.outcome == Outcome::Failed));
+            for report in reports {
+                assert_eq!(report.exit_code, output.exit_code);
+                assert_eq!(report.stdout.as_deref(), Some(output.stdout.as_str()));
+                assert_eq!(report.stderr.as_deref(), Some(output.stderr.as_str()));
+                assert_eq!(
+                    report.message,
+                    output.start_error.clone().or_else(|| Some(format!(
+                        "evidence target exited with {}",
+                        output
+                            .exit_code
+                            .map_or_else(|| "no exit code".to_owned(), |code| code.to_string())
+                    )))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn fail_fast_projects_completed_targets_and_skips_only_unseen_targets() {
         let failure = EvidenceOutput {
             exit_code: Some(17),
             stdout: "child-out".to_owned(),
             stderr: "child-err".to_owned(),
             start_error: None,
         };
-        let success = EvidenceOutput {
-            exit_code: Some(0),
-            stdout: String::new(),
-            stderr: String::new(),
-            start_error: None,
+        let mut distinct = cargo_target();
+        let EvidenceTarget::Cargo(target) = &mut distinct else {
+            panic!("fixture has Cargo evidence");
         };
-        let cases = vec![contract("a"), contract("b")];
+        target.test = "distinct_test".to_owned();
+        let cases = vec![
+            contract("a"),
+            contract("b"),
+            contract_with_target("c", distinct.clone()),
+            contract("d"),
+        ];
 
+        let fail_fast_runner = FakeRunner::new([failure.clone()]);
         let fail_fast = execute_selected(
             Path::new("."),
             cases.clone(),
             &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast),
-            &FakeRunner {
-                outputs: RefCell::new(VecDeque::from([failure.clone()])),
-            },
-        )
-        .into_iter()
-        .map(|case| case.outcome)
-        .collect::<Vec<_>>();
-        assert_eq!(fail_fast, [Outcome::Failed, Outcome::Skipped]);
+            &fail_fast_runner,
+        );
+        assert_eq!(fail_fast_runner.targets(), [cargo_target()]);
+        assert_eq!(
+            fail_fast
+                .iter()
+                .map(|case| case.outcome)
+                .collect::<Vec<_>>(),
+            [
+                Outcome::Failed,
+                Outcome::Failed,
+                Outcome::Skipped,
+                Outcome::Failed
+            ]
+        );
+        assert_eq!(
+            fail_fast[2].message.as_deref(),
+            Some("not run after fail-fast evidence failure")
+        );
 
+        let keep_going_runner = FakeRunner::new([failure, successful_output()]);
         let keep_going = execute_selected(
             Path::new("."),
             cases,
             &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing),
-            &FakeRunner {
-                outputs: RefCell::new(VecDeque::from([failure, success])),
-            },
-        )
-        .into_iter()
-        .map(|case| case.outcome)
-        .collect::<Vec<_>>();
-        assert_eq!(keep_going, [Outcome::Failed, Outcome::Passed]);
+            &keep_going_runner,
+        );
+        assert_eq!(keep_going_runner.targets(), [cargo_target(), distinct]);
+        assert_eq!(
+            keep_going
+                .iter()
+                .map(|case| case.outcome)
+                .collect::<Vec<_>>(),
+            [
+                Outcome::Failed,
+                Outcome::Failed,
+                Outcome::Passed,
+                Outcome::Failed
+            ]
+        );
     }
 }

@@ -46,4 +46,4 @@ multiprocessing = false
 
 [evidence]
 runner = "python-installed-wheel"
-script = "tools/ci/python_torch_gate.py"
+script = "tools/ci/python_distribution_gate.py"

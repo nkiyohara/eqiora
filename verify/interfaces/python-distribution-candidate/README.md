@@ -25,6 +25,12 @@ tool versions, artifact filenames and SHA-256 values, wheel tags, and passing
 profiles. It is release provenance, not a claim that independent builds are
 byte-identical.
 
+This case, the JAX case, and the PyTorch case select the same registered host
+target. One aggregate execution builds the candidate once, then separately
+requires the base, typing, JAX, and PyTorch check groups from its manifest.
+Each case remains independently attributable through the verification report;
+none may substitute an ambient wheel or an independently rebuilt candidate.
+
 ## Falsifiers
 
 The gate rejects:
@@ -37,6 +43,7 @@ The gate rejects:
 - an import resolved from the checkout;
 - a strict consumer, runtime/stub parity, framework, ownership, async, or
   cancellation failure;
+- a missing required base, typing, PyTorch, or JAX manifest check;
 - a public quick-start failure before upload or drift from the exact NumPy
   2.1.0 lower-bound profile.
 

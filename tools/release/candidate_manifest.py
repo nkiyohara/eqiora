@@ -21,6 +21,42 @@ from typing import Any
 MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v1"
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
+REQUIRED_PROFILES = ("base", "jax", "torch", "typing")
+
+
+def _base_checks() -> frozenset[str]:
+    checks = {
+        "generated-public-api",
+        "sdist-to-wheel-rebuild",
+        "twine-strict",
+        "cp312:numpy-2.1.0-floor",
+    }
+    for python in ("311", "312", "313", "314"):
+        checks.update(
+            {
+                f"cp{python}:installed-wheel",
+                f"cp{python}:base-and-numpy",
+                f"cp{python}:async-and-cancellation",
+                f"cp{python}:public-smoke-base",
+            }
+        )
+    return frozenset(checks)
+
+
+PROFILE_CHECKS = {
+    "base": _base_checks(),
+    "jax": frozenset({"cp313:jax", "cp313:public-smoke-jax"}),
+    "torch": frozenset({"cp313:torch", "cp313:public-smoke-torch"}),
+    "typing": frozenset(
+        {
+            "cp311:strict-base-typing",
+            "cp312:strict-base-typing",
+            "cp313:strict-base-typing",
+            "cp314:strict-base-typing",
+            "cp313:complete-public-typing",
+        }
+    ),
+}
 
 
 class ManifestError(RuntimeError):
@@ -42,6 +78,21 @@ class Candidate:
     commit: str
     expected_tag: str
     artifacts: tuple[Artifact, ...]
+    checks: frozenset[str]
+
+
+def require_candidate_profile(candidate: Candidate, profile: str) -> None:
+    """Require one closed profile from an already parsed candidate manifest."""
+
+    try:
+        required = PROFILE_CHECKS[profile]
+    except KeyError as error:
+        raise ManifestError(f"unknown candidate profile {profile!r}") from error
+    missing = sorted(required - candidate.checks)
+    if missing:
+        raise ManifestError(
+            f"candidate {profile} profile omits required check {missing[0]!r}"
+        )
 
 
 def file_sha256(path: Path) -> str:
@@ -184,37 +235,24 @@ def load_candidate(path: Path) -> Candidate:
     ]:
         raise ManifestError("candidate must contain one wheel per supported CPython")
 
-    checks = document.get("checks")
-    if not isinstance(checks, list) or not all(
-        isinstance(check, str) and check for check in checks
+    raw_checks = document.get("checks")
+    if not isinstance(raw_checks, list) or not all(
+        isinstance(check, str) and check for check in raw_checks
     ):
         raise ManifestError("checks must be a nonempty string array")
-    required_checks = {
-        "generated-public-api",
-        "sdist-to-wheel-rebuild",
-        "twine-strict",
-        "cp313:torch",
-        "cp313:jax",
-        "cp313:complete-public-typing",
-        "cp313:public-smoke-torch",
-        "cp313:public-smoke-jax",
-        "cp312:numpy-2.1.0-floor",
-    }
-    for python in ("311", "312", "313", "314"):
-        required_checks.update(
-            {
-                f"cp{python}:installed-wheel",
-                f"cp{python}:base-and-numpy",
-                f"cp{python}:async-and-cancellation",
-                f"cp{python}:strict-base-typing",
-                f"cp{python}:public-smoke-base",
-            }
-        )
-    for required in sorted(required_checks):
-        if required not in checks:
-            raise ManifestError(f"candidate omits required check {required!r}")
+    if len(raw_checks) != len(set(raw_checks)):
+        raise ManifestError("checks must not contain duplicates")
+    candidate = Candidate(
+        version,
+        commit,
+        expected_tag,
+        tuple(artifacts),
+        frozenset(raw_checks),
+    )
+    for profile in REQUIRED_PROFILES:
+        require_candidate_profile(candidate, profile)
 
-    return Candidate(version, commit, expected_tag, tuple(artifacts))
+    return candidate
 
 
 def verify_artifacts(candidate: Candidate, directory: Path) -> None:

@@ -43,6 +43,12 @@ exact tested release 2.13.0. It exercises:
 - dtype, rank, shape, layout, finiteness, token, and metadata falsifiers;
 - a fresh non-aliasing output and a base `eqiora` import with no PyTorch import.
 
+Registered host evidence obtains this profile from the same complete candidate
+and manifest used by the base, typing, and JAX cases. Its PyTorch checks must be
+present in that accepted manifest; the focused
+`tools/ci/python_torch_gate.py` script remains available for standalone
+development but is not a second registered artifact build.
+
 The exact claim is in-process first-order CPU `float64` differentiation.
 Double backward, Hessians, `vmap`, AMP/autocast, sparse or arbitrary Tensor
 subclasses, CUDA, distributed autograd, `torch.export`, graph serialization,

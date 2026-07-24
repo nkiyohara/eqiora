@@ -42,6 +42,14 @@ A candidate is accepted only from a clean source commit. The release gate:
 8. records source identity, artifact hashes, build-tool versions, the observed
    NumPy floor, and passing profiles in the candidate manifest.
 
+Registered host evidence builds this complete candidate once for one source
+commit and platform. The distribution, typing, PyTorch, and JAX validations
+then require their own closed check groups from that same manifest and wheel
+family. The distinct evidence cases share one exact aggregate target, so the
+verification runner may execute the target once while retaining a report for
+each case. The focused PyTorch and JAX scripts remain developer diagnostics;
+they are not a second candidate identity and may rebuild during standalone use.
+
 The manifest is provenance for one artifact set. It is not a reproducible-build
 claim, a signature, or evidence that another machine will produce identical
 bytes.

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Build and verify the complete declared Python distribution candidate."""
+"""Build one Python candidate and verify every registered host profile."""
 
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 import tempfile
@@ -13,7 +12,33 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/release"))
 
-from python_candidate import MANIFEST_FORMAT, build_candidate  # noqa: E402
+from candidate_manifest import (  # noqa: E402
+    Candidate,
+    REQUIRED_PROFILES,
+    load_candidate,
+    require_candidate_profile,
+    verify_artifacts,
+)
+from python_candidate import build_candidate  # noqa: E402
+
+
+def build_and_verify_candidate(root: Path) -> Candidate:
+    """Build once, then project every required profile from one manifest."""
+
+    artifacts = root / "artifacts"
+    manifest_path = build_candidate(
+        artifacts,
+        require_tag=False,
+        skip_extras=False,
+    )
+    candidate = load_candidate(manifest_path)
+    retained_manifest = root / "manifest" / manifest_path.name
+    retained_manifest.parent.mkdir()
+    manifest_path.replace(retained_manifest)
+    verify_artifacts(candidate, artifacts)
+    for profile in REQUIRED_PROFILES:
+        require_candidate_profile(candidate, profile)
+    return candidate
 
 
 def main() -> int:
@@ -23,19 +48,8 @@ def main() -> int:
         with tempfile.TemporaryDirectory(
             prefix="eqiora-python-distribution-gate-"
         ) as temporary:
-            manifest_path = build_candidate(
-                Path(temporary) / "candidate",
-                require_tag=False,
-                skip_extras=False,
-            )
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            assert manifest["format"] == MANIFEST_FORMAT
-            assert manifest["acceptance"] == "complete"
-            assert manifest["source"]["tree"] == "clean"
-            assert manifest["build"]["sdist_rebuilt"] is True
-            assert len(manifest["artifacts"]) == 5
+            build_and_verify_candidate(Path(temporary))
     except (
-        AssertionError,
         OSError,
         RuntimeError,
         ValueError,
