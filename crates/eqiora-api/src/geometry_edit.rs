@@ -433,7 +433,9 @@ mod tests {
                 .is_err()
         );
 
-        let sibling = ModelDocument::compile("sibling.eqi", BASE).unwrap();
+        let sibling_source = BASE.replacen("model Main", "model Sibling", 1);
+        assert_ne!(sibling_source, BASE);
+        let sibling = ModelDocument::compile("sibling.eqi", &sibling_source).unwrap();
         assert!(sibling.structurally_equivalent(&base).unwrap());
         assert_ne!(sibling.digest().unwrap(), base_digest);
         assert!(
