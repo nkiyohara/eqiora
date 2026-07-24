@@ -173,11 +173,12 @@ pub mod meshing {
     pub use eqiora_meshing::*;
 }
 
-/// Exact geometry revision identity and geometry-to-mesh correspondence.
+/// Geometry identity, geometry-to-mesh correspondence, and kernel-neutral CAD
+/// contracts.
 pub mod geometry {
     pub use eqiora_geometry::*;
 
-    /// Bounded Truck STEP/cuboid adapter.
+    /// Concrete bounded Truck STEP/B-rep implementation of the CAD contracts.
     #[cfg(feature = "cad-truck")]
     pub mod truck {
         pub use eqiora_cad_truck::*;

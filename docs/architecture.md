@@ -1127,7 +1127,7 @@ reconstruction, and the final field stay replicated; bridge-level physical
 multi-node evidence, distributed assembly, sharded result fields, scaling,
 and hybrid rank/thread execution remain unclaimed.
 
-## Geometry identity boundary
+## Geometry identity, geometry-to-mesh correspondence, and kernel-neutral CAD boundary
 
 The Semantic Kernel still owns only exact `Domain`, `BoundaryOf`, `Port`, and
 `Connection` meaning. RFC 0049 adds no geometry node. `eqiora-geometry` closes
@@ -1135,6 +1135,14 @@ the pure revision-local chain from a semantic Domain to an entity in one exact
 geometry revision and then to entities in one exact mesh revision. L3 artifacts
 bind that chain to exact Model, geometry, and mesh digests and replay Cartesian
 embedding against the accepted affine-simplex coordinates.
+
+The same L2 crate owns the bounded, kernel-neutral CAD design, observation, and
+adapter contracts consumed by geometry producers. These contracts describe
+source identity and units, fully constrained design intent, explicit
+uncertainty and modeling tolerance, accepted observations, and adapter
+identity without admitting a CAD-kernel object or entity-enumeration index.
+Concrete Truck objects, STEP parsing, and B-rep/modeling execution remain in
+`eqiora-cad-truck`; no concrete CAD kernel is part of the L2 boundary.
 
 Geometry consumes RFC 0037's sealed replayable Model contract rather than a
 concrete latest wire. Explicit Model v1--v6 codecs produce exact artifact
@@ -1159,8 +1167,10 @@ and future import uncertainty remain separate policies.
 Cross-revision retention is a separate explicit total body bijection. Domain
 ULIDs are revision-local; paired boundaries are derived from the retained
 parent pair and `(axis, side)`. Missing, split, merged, ambiguous, partial, or
-stale relations produce no retained association. CAD objects, adapter tags,
-transfer, ALE, remeshing, and FSI equations remain outside this identity seam.
+stale relations produce no retained association. Concrete CAD-kernel objects,
+STEP parsing, B-rep/modeling execution, concrete adapter identity values,
+transfer, ALE, remeshing, and FSI equations remain outside this L2 contract
+boundary.
 
 ## Fixed-reference fluid--structure lowering
 
