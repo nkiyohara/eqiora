@@ -38,11 +38,10 @@ use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
 use eqiora_artifact::{
-    CanonicalModelArtifact, DecoderLimits, ModelArtifactReference, ModelEnvelopeV1,
-    ModelEnvelopeV2, ModelEnvelopeV3, ModelEnvelopeV4, ModelEnvelopeV5, ModelEnvelopeV6,
-    ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3,
-    ModelTransactionEnvelopeV4, ModelTransactionEnvelopeV5, ModelTransactionEnvelopeV6,
-    ReplayableCanonicalModelArtifact,
+    AcceptedModelArtifact, CanonicalModelArtifact, DecoderLimits, ModelArtifactGeneration,
+    ModelArtifactReference, ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2,
+    ModelTransactionEnvelopeV3, ModelTransactionEnvelopeV4, ModelTransactionEnvelopeV5,
+    ModelTransactionEnvelopeV6, ReplayableCanonicalModelArtifact,
 };
 use eqiora_compiler::{CompiledModel, ModelSymbols};
 use eqiora_core::diagnostic::codes;
@@ -449,13 +448,17 @@ impl ExactModelCodec {
     /// Immutable artifact schema owned by this codec.
     #[must_use]
     pub const fn model_schema(self) -> &'static str {
+        self.artifact_generation().schema()
+    }
+
+    const fn artifact_generation(self) -> ModelArtifactGeneration {
         match self {
-            Self::V1 => "eqiora.model-envelope/v1",
-            Self::V2 => "eqiora.model-envelope/v2",
-            Self::V3 => "eqiora.model-envelope/v3",
-            Self::V4 => "eqiora.model-envelope/v4",
-            Self::V5 => "eqiora.model-envelope/v5",
-            Self::V6 => "eqiora.model-envelope/v6",
+            Self::V1 => ModelArtifactGeneration::V1,
+            Self::V2 => ModelArtifactGeneration::V2,
+            Self::V3 => ModelArtifactGeneration::V3,
+            Self::V4 => ModelArtifactGeneration::V4,
+            Self::V5 => ModelArtifactGeneration::V5,
+            Self::V6 => ModelArtifactGeneration::V6,
         }
     }
 
@@ -564,43 +567,17 @@ impl ExactModelCodec {
         }
     }
 
-    fn encode_program(self, program: &KernelProgram) -> Result<VersionedModelEnvelope, Diagnostic> {
-        match self {
-            Self::V1 => ModelEnvelopeV1::from_program(program).map(VersionedModelEnvelope::V1),
-            Self::V2 => ModelEnvelopeV2::from_program(program).map(VersionedModelEnvelope::V2),
-            Self::V3 => ModelEnvelopeV3::from_program(program).map(VersionedModelEnvelope::V3),
-            Self::V4 => ModelEnvelopeV4::from_program(program).map(VersionedModelEnvelope::V4),
-            Self::V5 => ModelEnvelopeV5::from_program(program).map(VersionedModelEnvelope::V5),
-            Self::V6 => ModelEnvelopeV6::from_program(program).map(VersionedModelEnvelope::V6),
-        }
+    fn encode_program(self, program: &KernelProgram) -> Result<AcceptedModelArtifact, Diagnostic> {
+        AcceptedModelArtifact::from_program(self.artifact_generation(), program)
     }
 
-    fn decode_model(self, bytes: &[u8]) -> Result<VersionedModelEnvelope, Diagnostic> {
-        match self {
-            Self::V1 => ModelEnvelopeV1::from_json(bytes, DecoderLimits::default())
-                .map(VersionedModelEnvelope::V1),
-            Self::V2 => ModelEnvelopeV2::from_json(bytes, DecoderLimits::default())
-                .map(VersionedModelEnvelope::V2),
-            Self::V3 => ModelEnvelopeV3::from_json(bytes, DecoderLimits::default())
-                .map(VersionedModelEnvelope::V3),
-            Self::V4 => ModelEnvelopeV4::from_json(bytes, DecoderLimits::default())
-                .map(VersionedModelEnvelope::V4),
-            Self::V5 => ModelEnvelopeV5::from_json(bytes, DecoderLimits::default())
-                .map(VersionedModelEnvelope::V5),
-            Self::V6 => ModelEnvelopeV6::from_json(bytes, DecoderLimits::default())
-                .map(VersionedModelEnvelope::V6),
-        }
+    fn decode_model(self, bytes: &[u8]) -> Result<AcceptedModelArtifact, Diagnostic> {
+        AcceptedModelArtifact::from_json(
+            self.artifact_generation(),
+            bytes,
+            DecoderLimits::default(),
+        )
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum VersionedModelEnvelope {
-    V1(ModelEnvelopeV1),
-    V2(ModelEnvelopeV2),
-    V3(ModelEnvelopeV3),
-    V4(ModelEnvelopeV4),
-    V5(ModelEnvelopeV5),
-    V6(ModelEnvelopeV6),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -660,70 +637,13 @@ impl VersionedModelTransactionEnvelope {
     }
 }
 
-impl VersionedModelEnvelope {
-    fn as_replayable(&self) -> &dyn ReplayableCanonicalModelArtifact {
-        match self {
-            Self::V1(envelope) => envelope,
-            Self::V2(envelope) => envelope,
-            Self::V3(envelope) => envelope,
-            Self::V4(envelope) => envelope,
-            Self::V5(envelope) => envelope,
-            Self::V6(envelope) => envelope,
-        }
-    }
-
-    fn canonical_json(&self) -> Result<Vec<u8>, Diagnostic> {
-        match self {
-            Self::V1(envelope) => envelope.canonical_json(),
-            Self::V2(envelope) => envelope.canonical_json(),
-            Self::V3(envelope) => envelope.canonical_json(),
-            Self::V4(envelope) => envelope.canonical_json(),
-            Self::V5(envelope) => envelope.canonical_json(),
-            Self::V6(envelope) => envelope.canonical_json(),
-        }
-    }
-
-    fn digest(&self) -> Result<String, Diagnostic> {
-        match self {
-            Self::V1(envelope) => envelope.digest(),
-            Self::V2(envelope) => envelope.digest(),
-            Self::V3(envelope) => envelope.digest(),
-            Self::V4(envelope) => envelope.digest(),
-            Self::V5(envelope) => envelope.digest(),
-            Self::V6(envelope) => envelope.digest(),
-        }
-        .map(|digest| digest.to_string())
-    }
-
-    const fn exact_codec(&self) -> ExactModelCodec {
-        match self {
-            Self::V1(_) => ExactModelCodec::V1,
-            Self::V2(_) => ExactModelCodec::V2,
-            Self::V3(_) => ExactModelCodec::V3,
-            Self::V4(_) => ExactModelCodec::V4,
-            Self::V5(_) => ExactModelCodec::V5,
-            Self::V6(_) => ExactModelCodec::V6,
-        }
-    }
-
-    fn to_program(&self) -> Result<KernelProgram, Vec<Diagnostic>> {
-        match self {
-            Self::V1(envelope) => envelope.to_program(),
-            Self::V2(envelope) => envelope.to_program(),
-            Self::V3(envelope) => envelope.to_program(),
-            Self::V4(envelope) => envelope.to_program(),
-            Self::V5(envelope) => envelope.to_program(),
-            Self::V6(envelope) => envelope.to_program(),
-        }
-    }
-}
-
 /// One immutable, validated canonical model revision plus non-semantic source
 /// aliases used by client presentation layers.
 #[derive(Debug, Clone)]
 pub struct ModelDocument {
     program: KernelProgram,
-    envelope: VersionedModelEnvelope,
+    artifact: AcceptedModelArtifact,
+    exact_codec: ExactModelCodec,
     aliases: BTreeMap<String, RawId>,
     store: InMemoryGraphStore,
 }
@@ -731,7 +651,8 @@ pub struct ModelDocument {
 impl PartialEq for ModelDocument {
     fn eq(&self, other: &Self) -> bool {
         self.program == other.program
-            && self.envelope == other.envelope
+            && self.artifact == other.artifact
+            && self.exact_codec == other.exact_codec
             && self.aliases == other.aliases
     }
 }
@@ -808,38 +729,17 @@ impl ModelDocument {
     }
 
     fn replay_codec(data: &[u8], exact_codec: ExactModelCodec) -> Result<Self, Vec<Diagnostic>> {
-        let envelope = exact_codec.decode_model(data).map_err(single_diagnostic)?;
-        let (transaction, model, source_revision) = match &envelope {
-            VersionedModelEnvelope::V1(envelope) => {
-                let (transaction, model) = envelope.to_transaction()?;
-                (transaction, model, envelope.source_revision())
-            }
-            VersionedModelEnvelope::V2(envelope) => {
-                let (transaction, model) = envelope.to_transaction()?;
-                (transaction, model, envelope.source_revision())
-            }
-            VersionedModelEnvelope::V3(envelope) => {
-                let (transaction, model) = envelope.to_transaction()?;
-                (transaction, model, envelope.source_revision())
-            }
-            VersionedModelEnvelope::V4(envelope) => {
-                let (transaction, model) = envelope.to_transaction()?;
-                (transaction, model, envelope.source_revision())
-            }
-            VersionedModelEnvelope::V5(envelope) => {
-                let (transaction, model) = envelope.to_transaction()?;
-                (transaction, model, envelope.source_revision())
-            }
-            VersionedModelEnvelope::V6(envelope) => {
-                let (transaction, model) = envelope.to_transaction()?;
-                (transaction, model, envelope.source_revision())
-            }
-        };
-        let store = InMemoryGraphStore::restore_snapshot(transaction, Revision(source_revision))?;
+        let artifact = exact_codec.decode_model(data).map_err(single_diagnostic)?;
+        let (transaction, model) = artifact.to_transaction()?;
+        let store = InMemoryGraphStore::restore_snapshot(
+            transaction,
+            Revision(artifact.source_revision()),
+        )?;
         let program = KernelProgram::from_snapshot(&store.snapshot(), model)?;
         Ok(Self {
             program,
-            envelope,
+            artifact,
+            exact_codec,
             aliases: BTreeMap::new(),
             store,
         })
@@ -852,19 +752,20 @@ impl ModelDocument {
         exact_codec: ExactModelCodec,
     ) -> Result<Self, Vec<Diagnostic>> {
         let program = KernelProgram::from_snapshot(&store.snapshot(), program.model())?;
-        let envelope = exact_codec
+        let artifact = exact_codec
             .encode_program(&program)
             .map_err(single_diagnostic)?;
         // Reconstruct once more from the public artifact so client behavior
         // cannot accidentally depend on an in-memory compiler-only state.
-        let bytes = envelope.canonical_json().map_err(single_diagnostic)?;
-        let envelope = exact_codec
+        let bytes = artifact.canonical_json().map_err(single_diagnostic)?;
+        let artifact = exact_codec
             .decode_model(&bytes)
             .map_err(single_diagnostic)?;
-        envelope.to_program()?;
+        artifact.replay_model().map_err(single_diagnostic)?;
         Ok(Self {
             program,
-            envelope,
+            artifact,
+            exact_codec,
             aliases,
             store,
         })
@@ -879,7 +780,7 @@ impl ModelDocument {
     /// Exact artifact codec retained by this immutable document.
     #[must_use]
     pub const fn exact_codec(&self) -> ExactModelCodec {
-        self.envelope.exact_codec()
+        self.exact_codec
     }
 
     /// Version-neutral typed identity of the explicitly selected Model
@@ -892,14 +793,7 @@ impl ModelDocument {
     /// Returns an artifact diagnostic only if validated envelope state cannot
     /// be decoded.
     pub fn artifact_reference(&self) -> Result<ModelArtifactReference, Diagnostic> {
-        match &self.envelope {
-            VersionedModelEnvelope::V1(envelope) => envelope.artifact_reference(),
-            VersionedModelEnvelope::V2(envelope) => envelope.artifact_reference(),
-            VersionedModelEnvelope::V3(envelope) => envelope.artifact_reference(),
-            VersionedModelEnvelope::V4(envelope) => envelope.artifact_reference(),
-            VersionedModelEnvelope::V5(envelope) => envelope.artifact_reference(),
-            VersionedModelEnvelope::V6(envelope) => envelope.artifact_reference(),
-        }
+        self.artifact.artifact_reference()
     }
 
     /// Non-semantic source aliases in deterministic lexical order.
@@ -913,7 +807,7 @@ impl ModelDocument {
     /// # Errors
     /// Returns an artifact diagnostic if invariant replay fails.
     pub fn canonical_json(&self) -> Result<Vec<u8>, Diagnostic> {
-        self.envelope.canonical_json()
+        self.artifact.canonical_json()
     }
 
     /// Domain-separated semantic content digest.
@@ -921,7 +815,7 @@ impl ModelDocument {
     /// # Errors
     /// Returns an artifact diagnostic if invariant replay fails.
     pub fn digest(&self) -> Result<String, Diagnostic> {
-        self.envelope.digest()
+        self.artifact.digest().map(|digest| digest.to_string())
     }
 
     /// Alpha-normalized structural comparison evidence for this Model.
@@ -1324,7 +1218,6 @@ mod tests {
         ExactModelCodec, ModelDocument, ReferenceAcceptance, ReferenceExecutionPlacement,
         ReferenceIntegrationMethod, ReferenceNonlinearMethod, ReferenceRunDirective,
         ReferenceRunObserver, ReferenceRunOutcome, ReferenceRunPlan, ReferenceRunProgress,
-        VersionedModelEnvelope,
     };
     use eqiora_artifact::ReplayableCanonicalModelArtifact;
     use eqiora_core::DimExponents;
@@ -1582,14 +1475,7 @@ model pure_relation {
                 2.0
             );
 
-            let public_artifact_replay = match &result.document().envelope {
-                VersionedModelEnvelope::V1(envelope) => envelope.replay_model().unwrap(),
-                VersionedModelEnvelope::V2(envelope) => envelope.replay_model().unwrap(),
-                VersionedModelEnvelope::V3(envelope) => envelope.replay_model().unwrap(),
-                VersionedModelEnvelope::V4(envelope) => envelope.replay_model().unwrap(),
-                VersionedModelEnvelope::V5(envelope) => envelope.replay_model().unwrap(),
-                VersionedModelEnvelope::V6(envelope) => envelope.replay_model().unwrap(),
-            };
+            let public_artifact_replay = result.document().artifact.replay_model().unwrap();
             assert_eq!(public_artifact_replay.program().revision().0, 2);
             assert_eq!(
                 public_artifact_replay

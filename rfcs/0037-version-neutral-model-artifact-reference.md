@@ -9,12 +9,13 @@
 ## Summary
 
 Two sealed, generation-neutral boundaries let an explicitly selected Model
-v1, v2, v3, or v4 artifact expose either exact identity alone or exact
-identity together with validated Semantic Kernel content. The identity-only
-surface feeds unchanged downstream lineage. The replayable surface lets
-semantic consumers inspect meaning without coupling to one concrete Model
-envelope while retaining the selected artifact's exact wire-domain digest,
-ontology identity, and semantic revision.
+v1--v6 artifact expose either exact identity alone or exact identity together
+with validated Semantic Kernel content. The artifact owner accepts the
+selected historical envelope into one opaque value. The identity-only surface
+feeds unchanged downstream lineage. The replayable surface lets semantic
+consumers inspect meaning without coupling to one concrete Model envelope
+while retaining the selected artifact's exact wire-domain digest, ontology
+identity, and semantic revision.
 
 ## Motivation
 
@@ -28,7 +29,7 @@ would couple two independently versioned artifact families.
 The missing boundary is a typed identity projection:
 
 ```text
-explicit Model wire v1 | v2 | v3 | v4
+explicit Model wire v1 | v2 | v3 | v4 | v5 | v6
               -> exact typed Model artifact reference
               -> unchanged Realization envelope v1
               -> unchanged Run manifest v2
@@ -47,11 +48,12 @@ or turn identity linkage into an execution claim.
 - its typed Semantic Model ontology identity; and
 - its semantic revision.
 
-`CanonicalModelArtifact` is a sealed trait implemented by
-`ModelEnvelopeV1` through `ModelEnvelopeV6`, and the reference itself. Each
-envelope derives the reference from its own
-validated state. Callers cannot implement a permissive metadata adapter or
-construct a reference from three unrelated values.
+`CanonicalModelArtifact` is a sealed trait implemented by the artifact owner's
+opaque `AcceptedModelArtifact`, its registered `ModelEnvelopeV1` through
+`ModelEnvelopeV6` implementations, and the reference itself. Each envelope
+derives the reference from its own validated state. Callers cannot implement a
+permissive metadata adapter or construct a reference from three unrelated
+values.
 
 The reference is an in-memory typed contract, not a new serialized artifact.
 It has no schema-sniffing, payload-decoding, conversion, or migration role.
@@ -63,10 +65,10 @@ the first such consumer: it must inspect exact Domains and boundary-parent
 relations, but must not depend on `ModelEnvelopeV4` merely because v4 is the
 newest codec.
 
-`ReplayableCanonicalModelArtifact` is a sealed extension implemented only by
-the explicit Model v1--v6 envelopes. `replay_model` invokes that envelope's
-ordinary codec-specific `to_program` path and returns one
-`ReplayedCanonicalModel` containing both:
+`ReplayableCanonicalModelArtifact` is a sealed extension implemented by the
+opaque accepted artifact and its registered explicit Model v1--v6 envelopes.
+`replay_model` invokes the selected envelope's ordinary codec-specific
+`to_program` path and returns one `ReplayedCanonicalModel` containing both:
 
 - the exact `ModelArtifactReference`; and
 - the fully validated immutable `KernelProgram` reconstructed from those
@@ -111,8 +113,10 @@ No path tries one codec after another or upgrades old bytes.
 
 - Model envelope implementations, the sealed reference, and the sealed replay
   boundary live in `eqiora-artifact`;
-- `eqiora-api` projects its explicitly selected `ModelDocument` to that
-  contract;
+- the accepted v1--v6 envelope set and all encode/decode/identity/replay
+  dispatch are generated from one registry in `eqiora-artifact`;
+- `eqiora-api` retains the caller's exact codec policy and one opaque accepted
+  artifact in `ModelDocument`;
 - Realization consumes only the typed reference surface and retains its
   existing wire; and
 - Run v2 continues to consume the resulting Realization, not the Model
@@ -149,12 +153,12 @@ This change widens only the typed Rust construction boundary before 1.0.
 Existing Model, Realization, and Run canonical bytes and digest preimages are
 unchanged. Existing Model v1 callers continue through the same contract.
 
-A future Model wire requires an explicit artifact implementation and its own
-decoder decision before it can produce identity or replay. Adding that one
-implementation is sufficient for generation-neutral consumers; their APIs do
-not change. The contract does not authorize wire auto-detection, implicit
-upgrade, cross-generation digest equivalence, or permissive replay of unknown
-required semantics.
+A future Model wire requires one explicit registration in the artifact-owned
+registry and its own exact decoder before it can produce identity or replay.
+Generation-neutral API, CAD, Geometry, Realization, and Run consumers do not
+change. The contract does not authorize wire auto-detection, fallback,
+implicit upgrade, cross-generation digest equivalence, or permissive replay
+of unknown required semantics.
 
 ## Verification
 
@@ -170,7 +174,9 @@ case must:
    generation, then replay the explicitly selected Model bytes;
 4. preserve exact Model digest, ontology identity, and semantic revision
    through that lineage; and
-5. prove that the same semantic graph encoded in different Model digest
+5. encode and decode one semantic graph through every artifact-owner-registered
+   v1--v6 generation, rejecting every wrong-generation decoder choice; and
+6. prove that the same semantic graph encoded in different Model digest
    domains cannot substitute for the artifact selected by a Realization.
 
 The case proves artifact identity composition only. It does not execute,

@@ -12,13 +12,17 @@ explicit Model v1 | v2 | v3
 ```
 
 Every selected Model is decoded again through its explicit wire version before
-the Realization link is replayed. A second test encodes the same semantic graph
-in multiple Model wire domains and proves that matching Model identity and
-revision cannot replace the exact domain-separated artifact digest.
+the Realization link is replayed. A second test uses the artifact owner's
+single opaque accepted-artifact registry to encode and decode the same semantic
+graph through every v1-v6 generation. Every wrong-generation decode fails, and
+matching Model identity and revision cannot replace the exact
+domain-separated artifact digest.
 
 This is identity-lineage evidence. The scalar-physical and field-boundary
 Models are not lowered or executed, and no numerical or physical result is
-accepted. The contract performs no wire detection or schema upgrade.
+accepted. API and CAD consumers do not retain historical Model envelopes or
+dispatch on their generations. The contract performs no wire detection,
+fallback, or schema upgrade.
 
 Run:
 

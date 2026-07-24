@@ -1,13 +1,14 @@
 //! Version-neutral identity of one explicitly selected Model artifact.
 
 use eqiora_core::{Diagnostic, OntologyId};
+use eqiora_graph::Transaction;
 use eqiora_realization::SemanticRevision;
 use eqiora_schema::Model;
 use eqiora_sem::KernelProgram;
 
 use crate::{
-    ArtifactDigest, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3, ModelEnvelopeV4,
-    ModelEnvelopeV5, ModelEnvelopeV6, invalid_artifact,
+    ArtifactDigest, DecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3,
+    ModelEnvelopeV4, ModelEnvelopeV5, ModelEnvelopeV6, invalid_artifact,
 };
 
 mod sealed {
@@ -144,50 +145,215 @@ impl CanonicalModelArtifact for ModelArtifactReference {
     }
 }
 
-macro_rules! impl_model_artifact {
-    ($envelope:ty) => {
-        impl sealed::Sealed for $envelope {}
+macro_rules! define_model_artifact_registry {
+    ($(($variant:ident, $envelope:ty, $schema:literal)),+ $(,)?) => {
+        /// Explicit Model artifact generation selected by an owning caller policy.
+        ///
+        /// This is not a wire discriminator and is never inferred from bytes.
+        /// It selects one exact decoder from the closed artifact-owner registry.
+        #[non_exhaustive]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub enum ModelArtifactGeneration {
+            $(
+                #[doc = concat!("Exact `", $schema, "` artifact generation.")]
+                $variant,
+            )+
+        }
 
-        impl CanonicalModelArtifact for $envelope {
-            fn artifact_reference(&self) -> Result<ModelArtifactReference, Diagnostic> {
-                Ok(ModelArtifactReference::new(
-                    self.digest()?,
-                    self.model()?,
-                    self.source_revision(),
-                ))
+        impl ModelArtifactGeneration {
+            /// Every generation registered by the Model artifact owner.
+            ///
+            /// Adding a generation extends the registry invocation below; the
+            /// owned envelope and all encode/decode/replay/reference dispatch
+            /// are generated from that one declaration.
+            pub const ALL: &'static [Self] = &[$(Self::$variant),+];
+
+            /// Exact schema selected by this generation.
+            #[must_use]
+            pub const fn schema(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $schema,)+
+                }
             }
         }
 
-        impl ReplayableCanonicalModelArtifact for $envelope {
-            fn replay_model(&self) -> Result<ReplayedCanonicalModel, Diagnostic> {
-                let reference = self.artifact_reference()?;
-                let program = self.to_program().map_err(|diagnostics| {
-                    invalid_artifact(format!(
-                        "cannot replay canonical Model artifact: {}",
-                        diagnostics
-                            .iter()
-                            .map(Diagnostic::message)
-                            .collect::<Vec<_>>()
-                            .join("; ")
-                    ))
-                })?;
-                if program.model() != reference.model()
-                    || SemanticRevision::new(program.revision().0)
-                        != reference.semantic_revision()
-                {
-                    return Err(invalid_artifact(
-                        "replayed Model identity or semantic revision differs from its exact artifact reference",
-                    ));
+        #[derive(Debug, Clone, PartialEq)]
+        enum AcceptedModelEnvelope {
+            $($variant($envelope),)+
+        }
+
+        /// One owned, explicitly selected canonical Model artifact.
+        ///
+        /// Historical envelope types remain private implementation details of
+        /// this value. Consumers retain exact bytes, the schema-domain digest,
+        /// and validated replay without matching Model generations.
+        #[derive(Debug, Clone, PartialEq)]
+        pub struct AcceptedModelArtifact {
+            envelope: AcceptedModelEnvelope,
+        }
+
+        impl AcceptedModelArtifact {
+            /// Encode one validated Kernel Program through exactly one selected
+            /// Model generation.
+            ///
+            /// # Errors
+            /// Returns `EQ0901` when that generation cannot represent the
+            /// program or its bounded canonical artifact.
+            pub fn from_program(
+                generation: ModelArtifactGeneration,
+                program: &KernelProgram,
+            ) -> Result<Self, Diagnostic> {
+                let envelope = match generation {
+                    $(
+                        ModelArtifactGeneration::$variant => {
+                            <$envelope>::from_program(program).map(AcceptedModelEnvelope::$variant)
+                        }
+                    )+
+                }?;
+                Ok(Self { envelope })
+            }
+
+            /// Decode bytes through exactly one caller-selected Model
+            /// generation.
+            ///
+            /// No schema sniffing, retry, migration, or compatibility fallback
+            /// occurs.
+            ///
+            /// # Errors
+            /// Returns `EQ0901` for malformed, oversized, noncanonical,
+            /// unsupported, or wrong-generation data.
+            pub fn from_json(
+                generation: ModelArtifactGeneration,
+                bytes: &[u8],
+                limits: DecoderLimits,
+            ) -> Result<Self, Diagnostic> {
+                let envelope = match generation {
+                    $(
+                        ModelArtifactGeneration::$variant => {
+                            <$envelope>::from_json(bytes, limits)
+                                .map(AcceptedModelEnvelope::$variant)
+                        }
+                    )+
+                }?;
+                Ok(Self { envelope })
+            }
+
+            /// Exact generation selected for this artifact.
+            #[must_use]
+            pub const fn generation(&self) -> ModelArtifactGeneration {
+                match &self.envelope {
+                    $(AcceptedModelEnvelope::$variant(_) => ModelArtifactGeneration::$variant,)+
                 }
-                Ok(ReplayedCanonicalModel { reference, program })
+            }
+
+            /// Deterministic compact canonical JSON.
+            ///
+            /// # Errors
+            /// Returns `EQ0901` if serialization unexpectedly fails.
+            pub fn canonical_json(&self) -> Result<Vec<u8>, Diagnostic> {
+                match &self.envelope {
+                    $(AcceptedModelEnvelope::$variant(envelope) => envelope.canonical_json(),)+
+                }
+            }
+
+            /// Domain-separated identity in the selected Model schema.
+            ///
+            /// # Errors
+            /// Returns `EQ0901` if canonical serialization fails.
+            pub fn digest(&self) -> Result<ArtifactDigest, Diagnostic> {
+                match &self.envelope {
+                    $(AcceptedModelEnvelope::$variant(envelope) => envelope.digest(),)+
+                }
+            }
+
+            /// Reconstruct the exact transaction and typed Model identity
+            /// without committing them.
+            ///
+            /// # Errors
+            /// Returns structured reconstruction diagnostics.
+            pub fn to_transaction(
+                &self,
+            ) -> Result<(Transaction, OntologyId<Model>), Vec<Diagnostic>> {
+                match &self.envelope {
+                    $(AcceptedModelEnvelope::$variant(envelope) => envelope.to_transaction(),)+
+                }
+            }
+
+            /// Source graph revision retained by the selected artifact.
+            #[must_use]
+            pub const fn source_revision(&self) -> u64 {
+                match &self.envelope {
+                    $(AcceptedModelEnvelope::$variant(envelope) => envelope.source_revision(),)+
+                }
+            }
+        }
+
+        $(
+            impl sealed::Sealed for $envelope {}
+
+            impl CanonicalModelArtifact for $envelope {
+                fn artifact_reference(&self) -> Result<ModelArtifactReference, Diagnostic> {
+                    Ok(ModelArtifactReference::new(
+                        self.digest()?,
+                        self.model()?,
+                        self.source_revision(),
+                    ))
+                }
+            }
+
+            impl ReplayableCanonicalModelArtifact for $envelope {
+                fn replay_model(&self) -> Result<ReplayedCanonicalModel, Diagnostic> {
+                    let reference = self.artifact_reference()?;
+                    let program = self.to_program().map_err(|diagnostics| {
+                        invalid_artifact(format!(
+                            "cannot replay canonical Model artifact: {}",
+                            diagnostics
+                                .iter()
+                                .map(Diagnostic::message)
+                                .collect::<Vec<_>>()
+                                .join("; ")
+                        ))
+                    })?;
+                    if program.model() != reference.model()
+                        || SemanticRevision::new(program.revision().0)
+                            != reference.semantic_revision()
+                    {
+                        return Err(invalid_artifact(
+                            "replayed Model identity or semantic revision differs from its exact artifact reference",
+                        ));
+                    }
+                    Ok(ReplayedCanonicalModel { reference, program })
+                }
+            }
+        )+
+
+        impl sealed::Sealed for AcceptedModelArtifact {}
+
+        impl CanonicalModelArtifact for AcceptedModelArtifact {
+            fn artifact_reference(&self) -> Result<ModelArtifactReference, Diagnostic> {
+                match &self.envelope {
+                    $(AcceptedModelEnvelope::$variant(envelope) => envelope.artifact_reference(),)+
+                }
+            }
+        }
+
+        impl ReplayableCanonicalModelArtifact for AcceptedModelArtifact {
+            fn replay_model(&self) -> Result<ReplayedCanonicalModel, Diagnostic> {
+                match &self.envelope {
+                    $(AcceptedModelEnvelope::$variant(envelope) => envelope.replay_model(),)+
+                }
             }
         }
     };
 }
 
-impl_model_artifact!(ModelEnvelopeV1);
-impl_model_artifact!(ModelEnvelopeV2);
-impl_model_artifact!(ModelEnvelopeV3);
-impl_model_artifact!(ModelEnvelopeV4);
-impl_model_artifact!(ModelEnvelopeV5);
-impl_model_artifact!(ModelEnvelopeV6);
+// This is the only registration point for accepted Model artifact
+// generations. All owned dispatch above is generated from this list.
+define_model_artifact_registry!(
+    (V1, ModelEnvelopeV1, "eqiora.model-envelope/v1"),
+    (V2, ModelEnvelopeV2, "eqiora.model-envelope/v2"),
+    (V3, ModelEnvelopeV3, "eqiora.model-envelope/v3"),
+    (V4, ModelEnvelopeV4, "eqiora.model-envelope/v4"),
+    (V5, ModelEnvelopeV5, "eqiora.model-envelope/v5"),
+    (V6, ModelEnvelopeV6, "eqiora.model-envelope/v6"),
+);

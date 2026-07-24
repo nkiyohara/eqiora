@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use eqiora_artifact::{
-    ArtifactDigest, CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1,
+    AcceptedModelArtifact, ArtifactDigest, CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1,
     GeometryAssociationArtifactError, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryRevisionAssociationEnvelopeV1,
     ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1,
@@ -20,7 +20,7 @@ use eqiora_meshing::{MeshEntity, MeshQualityGate, SimplicialMesh};
 use eqiora_schema::kernel::{BoundarySide, KernelNode, PortPayload};
 use sha2::{Digest, Sha256};
 
-use crate::{ModelDocument, VersionedModelEnvelope};
+use crate::ModelDocument;
 
 /// Complete caller intent for the bounded STEP-stock/intersection workflow.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -264,7 +264,7 @@ impl CadSemanticSelectionV1 {
 /// and semantic selection over one exact Model.
 #[derive(Clone, Debug)]
 pub struct CadBoxPlanV1 {
-    model: VersionedModelEnvelope,
+    model: AcceptedModelArtifact,
     model_digest: String,
     key: String,
     design: CadDesignEnvelopeV1,
@@ -378,7 +378,7 @@ impl CadBoxPlanV1 {
         adapter: &impl CadKernelAdapter,
         step_bytes: &[u8],
     ) -> Result<(), Diagnostic> {
-        self.validate_with(self.model.as_replayable(), adapter, step_bytes)
+        self.validate_with(&self.model, adapter, step_bytes)
     }
 
     /// Validate a decoded build-evidence candidate against every exact
@@ -394,7 +394,7 @@ impl CadBoxPlanV1 {
         step_bytes: &[u8],
     ) -> Result<(), Diagnostic> {
         evidence.validate_replay(
-            self.model.as_replayable(),
+            &self.model,
             &self.design,
             &self.geometry,
             adapter,
@@ -568,13 +568,7 @@ impl ModelDocument {
         adapter: &impl CadKernelAdapter,
         step_bytes: &[u8],
     ) -> Result<CadBoxPlanV1, Diagnostic> {
-        preview_with_model(
-            self,
-            self.envelope.as_replayable(),
-            intent,
-            adapter,
-            step_bytes,
-        )
+        preview_with_model(self, &self.artifact, intent, adapter, step_bytes)
     }
 }
 
@@ -618,7 +612,7 @@ fn preview_with_model(
     let render = render_projection(&geometry, &mesh, &correspondence)?;
     let key = plan_key(&design_artifact, &build, &geometry, &mesh, &correspondence)?;
     let plan = CadBoxPlanV1 {
-        model: document.envelope.clone(),
+        model: document.artifact.clone(),
         model_digest: document.digest()?,
         key,
         design: design_artifact,
@@ -841,11 +835,11 @@ fn associate_model_pair(
     target_body: Id<kinds::Domain>,
 ) -> Result<GeometryRevisionAssociationEnvelopeV1, Diagnostic> {
     GeometryRevisionAssociationEnvelopeV1::new(
-        source.model.as_replayable(),
+        &source.model,
         &source.geometry,
         &source.correspondence,
         &source.mesh,
-        target.model.as_replayable(),
+        &target.model,
         &target.geometry,
         &target.correspondence,
         &target.mesh,

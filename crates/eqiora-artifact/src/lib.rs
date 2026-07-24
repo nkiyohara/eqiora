@@ -100,8 +100,8 @@ pub use mesh_revision_overlap::MeshRevisionOverlapEnvelopeV1;
 pub use model::ModelEnvelopeV1;
 #[allow(deprecated)]
 pub use model_reference::{
-    CanonicalModelArtifact, ModelArtifactReference, ModelArtifactReferenceV1,
-    ReplayableCanonicalModelArtifact, ReplayedCanonicalModel,
+    AcceptedModelArtifact, CanonicalModelArtifact, ModelArtifactGeneration, ModelArtifactReference,
+    ModelArtifactReferenceV1, ReplayableCanonicalModelArtifact, ReplayedCanonicalModel,
 };
 pub use model_transaction::ModelTransactionEnvelopeV1;
 pub use model_transaction_v2::ModelTransactionEnvelopeV2;
