@@ -22,7 +22,7 @@ use eqiora_realization::{
     FieldSpaceBinding, FieldwiseRealizationPlan, FieldwiseRealizationRequirements,
     FieldwiseSpatialDiscretization, MeshPolicy, OrthogonalTwoPointDiffusion, PositivePhysicalScale,
     QuadraturePolicy, RealizationCapabilities, RealizationRequirements, RealizationRevision,
-    ScalarType, SemanticRevision, Space, SymmetricCongruenceScaling, Target,
+    SemanticRevision, Space, SymmetricCongruenceScaling, Target,
     TransientCellCenteredTransportCapabilities, TransientCellCenteredTransportRealizationPlan,
     TransientCellCenteredTransportRealizationRequest,
     TransientCellCenteredTransportRealizationRequirements, VectorLayoutKind,
@@ -34,7 +34,7 @@ use eqiora_solver::{
     DiagonalAvailability, ExecutionId, ExecutionProvider, ExecutionReport, FixedOrderInnerProduct,
     LinearOperator, LinearOperatorOrientation, LinearOperatorProperties, LinearProblem,
     LinearSolver, LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-    ReductionPolicy, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolverPlan,
+    ReductionPolicy, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, ScalarType, SolverPlan,
 };
 
 const SOURCE: &str =

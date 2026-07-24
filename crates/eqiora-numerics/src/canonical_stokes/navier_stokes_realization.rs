@@ -17,13 +17,13 @@ use eqiora_realization::{
     FieldwiseRealizationRequirements, FieldwiseSpatialDiscretization, MeshArtifactReference,
     MeshPolicy, NonlinearSolvePlan, PlacementRequirementNode, PortableRealizationGraph,
     PositivePhysicalScale, QuadraturePolicy, RealizationRequirements,
-    ResolvedTransientFieldwiseRealization, ScalarType, SolveRoot, Space,
-    SymmetricCongruenceScaling, SystemBlock, Target, TransformationNode,
-    TransientFieldwiseRealizationPlan, TransientFieldwiseRealizationRequirements, VectorLayoutKind,
+    ResolvedTransientFieldwiseRealization, SolveRoot, Space, SymmetricCongruenceScaling,
+    SystemBlock, Target, TransformationNode, TransientFieldwiseRealizationPlan,
+    TransientFieldwiseRealizationRequirements, VectorLayoutKind,
 };
 use eqiora_schema::kernel::ValueFrame;
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, SolverPlan};
+use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, ScalarType, SolverPlan};
 
 use super::realization::normalize_cartesian_mesh;
 use super::{

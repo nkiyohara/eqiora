@@ -12,8 +12,9 @@ use eqiora::package::{
     PackageExecutionBindingV1, PackageReleaseV1, PackagedModelDocument, ResolutionNodeV1,
     ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
 };
-use eqiora::realization::{RealizationRevision, ReductionPolicy};
+use eqiora::realization::RealizationRevision;
 use eqiora::solver::ExecutionTopology;
+use eqiora::solver::ReductionPolicy;
 
 const MANIFEST: &[u8] = include_bytes!("../../../packages/org.example.poisson/package.json");
 const SOURCE: &str = include_str!("../../../packages/org.example.poisson/src/main.eqi");

@@ -23,12 +23,12 @@ use eqiora::meshing::MeshEntity;
 use eqiora::numerics::lower_fixed_reference_fsi_cartesian_2d;
 use eqiora::realization::{
     AlgebraicBlock, CoupledFieldwiseRealizationRequest, DiscretizationMethod, MeshKind,
-    RealizationCapabilities, ScalarType, SpatialDimensionSupport, TargetCapabilities,
-    VectorLayoutKind, resolve_coupled_fieldwise,
+    RealizationCapabilities, SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind,
+    resolve_coupled_fieldwise,
 };
 use eqiora::solver::{
     ExecutionReport, LinearOperatorOrientation, LinearOperatorProperties, LinearSolver,
-    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverCapabilities,
+    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolverCapabilities,
     SolverCapability,
 };
 use eqiora_execution::{

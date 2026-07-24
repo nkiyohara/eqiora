@@ -22,13 +22,13 @@ use eqiora::numerics::{
 };
 use eqiora::realization::{
     AlgebraicBlock, CoupledFieldwiseRealizationRequest, DiscretizationMethod, MeshKind,
-    RealizationCapabilities, ScalarType, SpatialDimensionSupport, TargetCapabilities,
-    VectorLayoutKind, resolve_coupled_fieldwise,
+    RealizationCapabilities, SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind,
+    resolve_coupled_fieldwise,
 };
 use eqiora::solver::{
     ConvergenceReason, ExecutionReport, LinearOperatorProperties, LinearSolver,
     LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    SERIAL_LINEAR_EXECUTION, SolverCapabilities, SolverCapability, SolverPlan,
+    SERIAL_LINEAR_EXECUTION, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
     accept_linear_solution_with_verifier,
 };
 use eqiora_execution::{

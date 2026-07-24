@@ -12,16 +12,16 @@ use eqiora::numerics::{
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshKind, MeshPolicy,
     QuadraturePolicy, RealizationCapabilities, RealizationPlan, RealizationRequest,
-    RealizationRequirements, RealizationRevision, ScalarType, SemanticRevision, Space,
-    SpatialDimensionSupport, Target, TargetCapabilities, VectorLayoutKind, resolve,
+    RealizationRequirements, RealizationRevision, SemanticRevision, Space, SpatialDimensionSupport,
+    Target, TargetCapabilities, VectorLayoutKind, resolve,
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     BackendId, ConvergenceReason, ExecutionId, ExecutionProvider, ExecutionReport,
     ExecutionTopology, FixedOrderInnerProduct, LinearOperator, LinearOperatorProperties,
     LinearSolution, LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolverCapabilities, SolverCapability,
-    SolverPlan, SolverProvider, accept_linear_solution_with_verifier,
+    ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, ScalarType, SolverCapabilities,
+    SolverCapability, SolverPlan, SolverProvider, accept_linear_solution_with_verifier,
 };
 
 const SOURCE: &str =

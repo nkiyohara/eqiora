@@ -11,7 +11,7 @@ use eqiora_ir::{OperatorApplicationProof, StandardPureOperator};
 use eqiora_meshing::QuadratureRule;
 use eqiora_realization::{
     DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy, ResolvedRealization,
-    ScalarType, SpaceFamily, Target, VectorLayoutKind,
+    SpaceFamily, Target, VectorLayoutKind,
 };
 use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{
@@ -19,7 +19,7 @@ use eqiora_schema::kernel::{
     RepresentationKind, SymbolRef, ValueFrame,
 };
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend};
+use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, ScalarType};
 
 use crate::canonical_boundary::BoundaryRelationBinding;
 use crate::cartesian_elasticity::{

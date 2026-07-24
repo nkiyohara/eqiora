@@ -10,15 +10,15 @@ use eqiora_realization::{
     ImplicitCenteredMomentumConvection, MeshPolicy, MomentumWeightedLinearExactCoupling,
     NonlinearSolvePlan, PortableRealizationGraph, PositiveMomentumDiagonal, PositivePhysicalScale,
     QuadraturePolicy, RealizationRequirements,
-    ResolvedTransientCellCenteredIncompressibleFlowRealization, ScalarType, Space,
-    SymmetricCongruenceScaling, SystemBlock, Target, TransformationNode,
+    ResolvedTransientCellCenteredIncompressibleFlowRealization, Space, SymmetricCongruenceScaling,
+    SystemBlock, Target, TransformationNode,
     TransientCellCenteredIncompressibleFlowRealizationPlan,
     TransientCellCenteredIncompressibleFlowRealizationRequirements, TransientFaceFluxHistory,
     VectorLayoutKind,
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
-    BackendId, LinearOperatorProperties, LinearSolverBackend, SolveReport, SolverPlan,
+    BackendId, LinearOperatorProperties, LinearSolverBackend, ScalarType, SolveReport, SolverPlan,
 };
 
 use super::{

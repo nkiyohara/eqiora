@@ -12,13 +12,15 @@ use eqiora_realization::{
     ExecutionSchedule, FieldSpaceBinding, FieldwiseRealizationPlan,
     FieldwiseRealizationRequirements, FieldwiseSpatialDiscretization, MeshArtifactReference,
     MeshPolicy, PlacementRequirementNode, PortableRealizationGraph, PositivePhysicalScale,
-    PreconditionerPolicy, QuadraturePolicy, RealizationRequirements, ReductionPolicy,
-    ResolvedFieldwiseRealization, ScalarType, SolveRoot, Space, SymmetricCongruenceScaling, Target,
-    VectorLayoutKind,
+    QuadraturePolicy, RealizationRequirements, ResolvedFieldwiseRealization, SolveRoot, Space,
+    SymmetricCongruenceScaling, Target, VectorLayoutKind,
 };
 use eqiora_schema::kernel::BoundarySide;
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{LinearOperatorProperties, LinearSolver, LinearSolverBackend, SolverPlan};
+use eqiora_solver::{
+    LinearOperatorProperties, LinearSolver, LinearSolverBackend, PreconditionerPolicy,
+    ReductionPolicy, ScalarType, SolverPlan,
+};
 
 use super::{
     FinalizedSteadyStokesMini2dProblem, SteadyIncompressibleStokesCartesianModel2d,

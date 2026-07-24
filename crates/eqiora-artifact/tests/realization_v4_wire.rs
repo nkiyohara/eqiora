@@ -17,13 +17,13 @@ use eqiora_realization::{
     FixedTopologyAleCoupledRealizationRequest, FixedTopologyAleCoupledRealizationRequirements,
     GclCompatibleAlePullback, MeshArtifactReference, MeshKind, MeshPolicy, NonlinearSolvePlan,
     P1HarmonicMeshMotion, QuadraturePolicy, RealizationCapabilities, RealizationRequirements,
-    RealizationRevision, ResolvedFixedTopologyAleCoupledRealization, ScalarType,
-    SolverCapabilities, Space, SpatialDimensionSupport, SymmetricCongruenceScaling, Target,
-    TargetCapabilities, TraceFieldEndpoint, VectorLayoutKind, resolve_fixed_topology_ale_coupled,
+    RealizationRevision, ResolvedFixedTopologyAleCoupledRealization, Space,
+    SpatialDimensionSupport, SymmetricCongruenceScaling, Target, TargetCapabilities,
+    TraceFieldEndpoint, VectorLayoutKind, resolve_fixed_topology_ale_coupled,
 };
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy,
-    SolverCapability, SolverPlan,
+    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType,
+    SolverCapabilities, SolverCapability, SolverPlan,
 };
 use sha2::{Digest, Sha256};
 use ulid::Ulid;

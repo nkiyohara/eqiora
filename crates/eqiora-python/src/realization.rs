@@ -10,9 +10,10 @@ use eqiora::api::{
 };
 use eqiora::artifact::{DecoderLimits, ExecutionTopologyV1, RunManifestV2};
 use eqiora::diagnostic::codes;
-use eqiora::realization::{RealizationRevision, ReductionPolicy};
+use eqiora::realization::RealizationRevision;
 use eqiora::solver::{
-    ConvergenceReason, LinearOperatorOrientation, LinearSolver, PreconditionerPolicy, SolveReport,
+    ConvergenceReason, LinearOperatorOrientation, LinearSolver, PreconditionerPolicy,
+    ReductionPolicy, SolveReport,
 };
 use eqiora::{Diagnostic, GraphPath};
 use pyo3::prelude::*;

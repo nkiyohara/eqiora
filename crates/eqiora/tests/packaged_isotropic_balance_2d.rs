@@ -23,10 +23,12 @@ use eqiora::package::{
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
     RealizationCapabilities, RealizationPlan, RealizationRequest, RealizationRequirements,
-    RealizationRevision, ScalarType, SemanticRevision, Space, Target, VectorLayoutKind, resolve,
+    RealizationRevision, SemanticRevision, Space, Target, VectorLayoutKind, resolve,
 };
 use eqiora::sem::KernelProgram;
-use eqiora::solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan};
+use eqiora::solver::{
+    LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolverPlan,
+};
 
 const VERIFIED_COMPONENT_V0_1: &str = include_str!(
     "../../../verify/solid/packaged-isotropic-balance-2d/package-v0.1.0/src/linear_elasticity.eqi"

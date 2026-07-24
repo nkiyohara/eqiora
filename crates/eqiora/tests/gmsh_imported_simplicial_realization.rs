@@ -14,10 +14,10 @@ use eqiora::numerics::solve_resolved_scalar_elliptic_simplicial;
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
     RealizationCapabilities, RealizationPlan, RealizationRequest, RealizationRequirements,
-    RealizationRevision, ScalarType, SemanticRevision, Space, Target, VectorLayoutKind, resolve,
+    RealizationRevision, SemanticRevision, Space, Target, VectorLayoutKind, resolve,
 };
 use eqiora::sem::KernelProgram;
-use eqiora::solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
+use eqiora::solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan};
 
 const SOURCE: &str = include_str!(
     "../../../verify/artifacts/gmsh-imported-simplicial-realization/models/poisson.eqi"

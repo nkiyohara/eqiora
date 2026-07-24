@@ -23,12 +23,12 @@ use eqiora::package::{
 };
 use eqiora::realization::{
     CoupledFieldwiseRealizationRequest, MeshArtifactReference, RealizationCapabilities,
-    RealizationRevision, ReductionPolicy, ResolvedCoupledFieldwiseRealization, SemanticRevision,
+    RealizationRevision, ResolvedCoupledFieldwiseRealization, SemanticRevision,
     resolve_coupled_fieldwise,
 };
 use eqiora::solver::{
     CanonicalCsrAgreementFingerprintV1, LinearSolver, PreconditionerPolicy,
-    REFERENCE_LINEAR_SOLVER, SolverPlan,
+    REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity};
 

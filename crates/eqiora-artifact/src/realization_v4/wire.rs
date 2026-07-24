@@ -5,10 +5,10 @@ use eqiora_core::{Diagnostic, DynQuantity, Id};
 use eqiora_realization::{
     AleGeometryQualityGate, AlgebraicBlock, BackwardEulerRelationStep,
     FixedTopologyAleCoupledRealizationPlan, FixedTopologyAleCoupledRealizationRequirements,
-    GclCompatibleAlePullback, NonlinearSolvePlan, P1HarmonicMeshMotion, ScalarType,
-    VectorLayoutKind,
+    GclCompatibleAlePullback, NonlinearSolvePlan, P1HarmonicMeshMotion, VectorLayoutKind,
 };
 use eqiora_solver::LinearOperatorProperties;
+use eqiora_solver::ScalarType;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 

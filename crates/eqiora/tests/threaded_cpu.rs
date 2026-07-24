@@ -21,7 +21,7 @@ use eqiora::realization::{
     FieldwiseRealizationRequest, FieldwiseRealizationRequirements, FieldwiseSpatialDiscretization,
     MeshArtifactReference, MeshKind, MeshPolicy, PlacementRequirementNode, PositivePhysicalScale,
     QuadraturePolicy, RealizationCapabilities, RealizationCapability, RealizationCapabilityContext,
-    RealizationPlan, RealizationRequest, RealizationRequirements, RealizationRevision, ScalarType,
+    RealizationPlan, RealizationRequest, RealizationRequirements, RealizationRevision,
     ScheduleCapability, SemanticRevision, SingleFieldOperatorClaim, SolveRoot, Space,
     SpatialCapability, SpatialDimensionSupport, SymmetricCongruenceScaling, Target,
     TargetCapability, VectorLayoutKind, default_plan_v0, resolve, resolve_fieldwise,
@@ -35,8 +35,8 @@ use eqiora::solver::{
 };
 use eqiora::solver::{
     ExecutionReport, LinearOperatorProperties, LinearSolver, PreconditionerPolicy,
-    REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolveReport, SolverCapabilities, SolverCapability,
-    SolverPlan,
+    REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolveReport, SolverCapabilities,
+    SolverCapability, SolverPlan,
 };
 #[cfg(feature = "threaded")]
 use eqiora_execution::{AdmittedExecution, DeploymentBinding, HostExecutorDescriptor};

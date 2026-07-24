@@ -9,16 +9,16 @@ use eqiora_core::OntologyId;
 use eqiora_core::diagnostic::codes;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_realization::{
-    DefaultPolicyVersion, DiscretizationMethod, LinearSolver, RealizationCapabilities,
-    RealizationPlan, RealizationRequest, RealizationRequirements, RealizationRevision,
-    ReductionPolicy, ScalarType, SemanticRevision, SolverCapabilities, SolverPlan,
+    DefaultPolicyVersion, DiscretizationMethod, RealizationCapabilities, RealizationPlan,
+    RealizationRequest, RealizationRequirements, RealizationRevision, SemanticRevision,
     SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind, default_plan_v0, resolve,
 };
 use eqiora_schema::Model;
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
-    BackendId, ExecutionId, ExecutionProvider, LinearOperatorProperties, PreconditionerPolicy,
-    ProviderLibrary, SolverCapability, SolverProvider,
+    BackendId, ExecutionId, ExecutionProvider, LinearOperatorProperties, LinearSolver,
+    PreconditionerPolicy, ProviderLibrary, ReductionPolicy, ScalarType, SolverCapabilities,
+    SolverCapability, SolverPlan, SolverProvider,
 };
 
 const POISSON: &str = include_str!("../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi");

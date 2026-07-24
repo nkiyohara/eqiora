@@ -9,15 +9,14 @@ use eqiora_compiler::compile;
 use eqiora_distributed::{GlobalVectorSpace, Partition, PartitionId};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_realization::{
-    DiscretizationMethod, LinearSolver, RealizationCapabilities, RealizationRequest,
-    RealizationRequirements, RealizationRevision, ReductionPolicy, ScalarType, SemanticRevision,
-    SolverCapabilities, SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind,
-    default_plan_v0, resolve,
+    DiscretizationMethod, RealizationCapabilities, RealizationRequest, RealizationRequirements,
+    RealizationRevision, SemanticRevision, SpatialDimensionSupport, TargetCapabilities,
+    VectorLayoutKind, default_plan_v0, resolve,
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
-    CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties, PreconditionerPolicy,
-    SolverCapability,
+    CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties, LinearSolver,
+    PreconditionerPolicy, ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability,
 };
 use serde_json::Value;
 

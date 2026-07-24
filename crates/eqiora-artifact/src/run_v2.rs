@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
 use eqiora_core::Diagnostic;
-use eqiora_realization::{ReductionPolicy, Target, VectorLayoutKind};
-use eqiora_solver::{ExecutionProvider, SolverProvider};
+use eqiora_realization::{Target, VectorLayoutKind};
+use eqiora_solver::{ExecutionProvider, ReductionPolicy, SolverProvider};
 use serde::{Deserialize, Serialize};
 
 use crate::{
