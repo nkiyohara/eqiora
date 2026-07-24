@@ -1,15 +1,15 @@
 use std::collections::BTreeSet;
 
 use eqiora_artifact::{
-    BodyAssociationCandidate, DecoderLimits, GeometryAssociationArtifactError,
-    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
-    GeometryRevisionAssociationEnvelopeV1, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3,
-    ModelEnvelopeV4, ModelEnvelopeV5, ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1,
+    DecoderLimits, GeometryAssociationArtifactError, GeometryIdentityEnvelopeV1,
+    GeometryMeshCorrespondenceEnvelopeV1, GeometryRevisionAssociationEnvelopeV1, ModelEnvelopeV1,
+    ModelEnvelopeV2, ModelEnvelopeV3, ModelEnvelopeV4, ModelEnvelopeV5,
+    ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1,
 };
 use eqiora_compiler::compile;
 use eqiora_core::Id;
 use eqiora_core::entity::kinds;
-use eqiora_geometry::RetentionRejection;
+use eqiora_geometry::{BodyAssociationCandidate, RetentionRejection};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore};
 use eqiora_meshing::{MeshQualityGate, MeshTopology, SimplicialMesh};
 use eqiora_schema::kernel::{BoundarySide, DomainKind, KernelNode};

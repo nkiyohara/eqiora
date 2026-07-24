@@ -5,19 +5,17 @@
 //! interface, geometry, and provenance evidence. No fixed-domain energy
 //! identity is asserted for the moving control volume.
 
+use eqiora_assembly::AssemblyBackend;
 use eqiora_core::Diagnostic;
 use eqiora_meshing::FixedTopologyGeometryAction;
-
-use crate::{
-    AffineGeometryLinearization, AssemblyBackend, DiscreteSpace, FixedReferenceFsiPartition,
-    QuadratureRule, SimplexP1BubbleSpace, SimplicialMesh,
-};
+use eqiora_meshing::{AffineGeometryLinearization, QuadratureRule, SimplicialMesh};
 
 use super::api::{AleFsiInterfaceAction, AleFsiStepEvidence, AleFsiStepEvidenceInput};
 use super::assembly::{StepAssembly, assemble_step_linearization};
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
 use super::element::{AleMiniFluidCell, AleMiniFluidDirection};
 use super::{P1HarmonicMeshMotion, invalid};
+use crate::{DiscreteSpace, FixedReferenceFsiPartition, SimplexP1BubbleSpace};
 
 pub(super) struct NewtonEvidence {
     pub(super) iterations: usize,
@@ -399,21 +397,24 @@ fn finite_norm(values: &[f64], name: &'static str) -> Result<f64, Diagnostic> {
 mod tests {
     use std::num::NonZeroUsize;
 
+    use eqiora_assembly::{LocalUnknown, REFERENCE_ASSEMBLY_BACKEND};
+    use eqiora_meshing::{
+        CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology, VertexId,
+        simplex_duffy_gauss_legendre,
+    };
     use eqiora_realization::{NonlinearSolvePlan, Target};
     use eqiora_solver::{
         LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
         ReductionPolicy, SolverPlan,
     };
 
-    use crate::{
-        AleFsiBoundary3d, AleFsiState3d, AleFsiStepPlan3d, CellId, FacetId,
-        FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition3d,
-        FixedReferenceFsiScale3d, LocalUnknown, MeshEntity, MeshQualityGate, MeshTopology,
-        P1HarmonicMeshMotion3d, REFERENCE_ASSEMBLY_BACKEND, VertexId, simplex_duffy_gauss_legendre,
-    };
-
     use super::*;
     use crate::simplicial_ale_fsi::assembly::initial_point;
+    use crate::{
+        AleFsiBoundary3d, AleFsiState3d, AleFsiStepPlan3d, FixedReferenceFsiLoad3d,
+        FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition3d, FixedReferenceFsiScale3d,
+        P1HarmonicMeshMotion3d,
+    };
 
     const INTERFACE_INTERIOR: VertexId = VertexId::new(5);
 

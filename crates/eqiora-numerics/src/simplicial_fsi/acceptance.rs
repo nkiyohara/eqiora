@@ -1,13 +1,9 @@
 //! Independent residual, interface-action, pressure, and energy acceptance.
 
+use eqiora_assembly::{CsrMatrix, LinearSystem, LocalContribution};
 use eqiora_core::Diagnostic;
+use eqiora_meshing::{MeshEntity, MeshGeometry, QuadratureRule, SimplicialMesh};
 use eqiora_solver::CanonicalCsrSystemView;
-
-use crate::affine_fem::physical_gradient;
-use crate::{
-    CsrMatrix, DiscreteSpace, LinearSystem, LocalContribution, MeshEntity, MeshGeometry,
-    QuadratureRule, SimplexP1BubbleSpace, SimplexP1Space, SimplicialMesh,
-};
 
 use super::api::FixedReferenceFsiEnergyBalance;
 use super::contract::{
@@ -17,6 +13,8 @@ use super::element::{dot, fluid_local, local_velocity_dimension, solid_local};
 use super::layout::FsiLayout;
 use super::partition::{CellMaterial, FixedReferenceFsiPartition};
 use super::{fluid_local_size, invalid, mini_count, p1_count};
+use crate::affine_fem::physical_gradient;
+use crate::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
 
 pub(super) struct EnergyEvaluation<'a, const D: usize = 2> {
     pub(super) mesh: &'a SimplicialMesh,

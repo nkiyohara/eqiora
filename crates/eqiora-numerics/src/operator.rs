@@ -1,7 +1,6 @@
 use eqiora_assembly::LocalContribution;
 use eqiora_core::Diagnostic;
-
-use crate::QuadratureRule;
+use eqiora_meshing::QuadratureRule;
 
 /// Pure entity-local operator contract.
 ///

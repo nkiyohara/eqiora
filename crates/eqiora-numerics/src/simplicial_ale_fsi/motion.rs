@@ -10,12 +10,13 @@
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_meshing::P1HarmonicCoordinateRelation;
+use eqiora_meshing::{SimplicialMesh, VertexId};
 use eqiora_solver::{
     DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem,
     LinearSolveRequest, LinearSolver, ScalarType, SolveReport,
 };
 
-use crate::{FixedReferenceFsiPartition, SimplicialMesh, VertexId};
+use crate::FixedReferenceFsiPartition;
 
 const RESIDUAL_ULPS: f64 = 16_384.0;
 const MAX_DENSE_MOTION_COEFFICIENTS: usize = 8_000_000;
@@ -436,15 +437,14 @@ fn solve_failed(message: impl Into<String>) -> Diagnostic {
 mod tests {
     use std::num::NonZeroUsize;
 
-    use super::*;
-    use crate::{
-        CellId, FacetId, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d, MeshEntity,
-        MeshQualityGate, MeshTopology,
-    };
+    use eqiora_meshing::{CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology};
     use eqiora_solver::{
         LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
         SolverPlan,
     };
+
+    use super::*;
+    use crate::{FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d};
 
     const DIMENSION: usize = 2;
     const COMPONENTS: usize = DIMENSION;

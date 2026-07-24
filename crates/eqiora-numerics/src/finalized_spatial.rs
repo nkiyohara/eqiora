@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use eqiora_assembly::AssemblyReport;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_realization::{
@@ -22,8 +23,8 @@ use crate::cartesian_elliptic::{
 };
 use crate::discrete_block::{BlockMaterialization, DiscreteBlockSystem};
 use crate::{
-    AssemblyReport, CartesianLinearElasticity2dSolution,
-    ConformingCartesianLinearElasticityPair2dSolution, ResolvedScalarEllipticCartesianSolution,
+    CartesianLinearElasticity2dSolution, ConformingCartesianLinearElasticityPair2dSolution,
+    ResolvedScalarEllipticCartesianSolution,
 };
 
 mod stokes;

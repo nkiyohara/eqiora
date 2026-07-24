@@ -2,8 +2,9 @@
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_meshing::{MeshTopology, SimplicialMesh};
 
-use crate::{MeshTopology, SimplicialMesh, SpatialDesignCoordinate};
+use crate::SpatialDesignCoordinate;
 
 /// One selected design direction represented as vertex velocities.
 ///

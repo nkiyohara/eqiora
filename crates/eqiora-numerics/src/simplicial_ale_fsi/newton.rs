@@ -1,16 +1,11 @@
 //! Damped Newton execution for the bounded fixed-topology ALE FSI slice.
 
+use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_ir::{LinearizedRelation, RelationTangent};
+use eqiora_meshing::{QuadratureRule, SimplicialMesh};
 use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolverBackend, ScalarType};
-
-use crate::assembled_linearization::centered_state_jvp_error;
-use crate::{
-    AssemblyBackend, FixedReferenceFsiPartition, FixedReferenceFsiPartition2d,
-    FixedReferenceFsiPartition3d, NonZeroStepCount, QuadratureRule, REFERENCE_ASSEMBLY_BACKEND,
-    SimplicialMesh,
-};
 
 use super::acceptance::{NewtonEvidence, accept_step};
 use super::api::{AleFsiStepEvidence, AleFsiTrajectory, AleFsiTrajectory2d, AleFsiTrajectory3d};
@@ -22,6 +17,11 @@ use super::contract::{
     AleFsiStepPlan, AleFsiStepPlan2d, AleFsiStepPlan3d,
 };
 use super::{P1HarmonicMeshMotion, P1HarmonicMeshMotion2d, P1HarmonicMeshMotion3d};
+use crate::assembled_linearization::centered_state_jvp_error;
+use crate::{
+    FixedReferenceFsiPartition, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
+    NonZeroStepCount,
+};
 
 /// Advance one fixed-topology reference through accepted monolithic ALE steps.
 ///
@@ -377,6 +377,10 @@ fn solve_failed(message: impl Into<String>) -> Diagnostic {
 mod tests {
     use std::num::NonZeroUsize;
 
+    use eqiora_meshing::{
+        CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology, VertexId,
+        simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
+    };
     use eqiora_realization::{NonlinearSolvePlan, Target};
     use eqiora_solver::{
         BackendId, ConvergenceReason, ExecutionReport, LinearOperator, LinearProblem,
@@ -385,14 +389,11 @@ mod tests {
         SolverCapability, SolverPlan, SolverProvider, accept_linear_solution_with_execution,
     };
 
-    use crate::{
-        CellId, FacetId, FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d,
-        FixedReferenceFsiMaterial2d, FixedReferenceFsiMaterial3d, FixedReferenceFsiScale2d,
-        FixedReferenceFsiScale3d, MeshEntity, MeshQualityGate, MeshTopology, VertexId,
-        simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
-    };
-
     use super::*;
+    use crate::{
+        FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial2d,
+        FixedReferenceFsiMaterial3d, FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,
+    };
 
     const INTERFACE_INTERIOR_3D: VertexId = VertexId::new(5);
 

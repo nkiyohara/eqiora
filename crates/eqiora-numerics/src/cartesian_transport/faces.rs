@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use eqiora_assembly::{AssemblyMap, DofId, LocalContribution, LocalUnknown};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
 use eqiora_realization::CellCenteredConvectionScheme;
@@ -9,10 +10,7 @@ use super::api::{ScalarTransportBoundaryRole, TransportFace2d};
 use super::periodic::periodic_seam_faces;
 use super::reconstruction::{AffineFaceTrace, FaceReconstructor, ReconstructionSummary};
 use crate::cartesian_fvm_geometry::{CartesianFacetAdjacency2d, cartesian_fvm_geometry_2d};
-use crate::{
-    AssemblyMap, CartesianMesh, DofId, LocalContribution, LocalUnknown,
-    ScalarTransportCartesianBoundary, ScalarTransportCartesianModel2d,
-};
+use crate::{CartesianMesh, ScalarTransportCartesianBoundary, ScalarTransportCartesianModel2d};
 
 const DIMENSION: usize = 2;
 pub(super) type BoundaryRoles2d = BTreeMap<(usize, BoundarySide), ScalarTransportBoundaryRole>;

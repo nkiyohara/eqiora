@@ -1,13 +1,17 @@
 use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork, IndexedAssemblyWork,
+    REFERENCE_ASSEMBLY_BACKEND,
+};
 use eqiora_compiler::compile;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
+use eqiora_meshing::{MeshEntity, MeshTopology};
 use eqiora_numerics::{
-    AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork, IndexedAssemblyWork, MeshEntity,
-    MeshTopology, REFERENCE_ASSEMBLY_BACKEND, ScalarTransportCartesianBoundary,
-    ScalarTransportCellState2d, finalize_resolved_scalar_transport_fvm_step_2d,
+    ScalarTransportCartesianBoundary, ScalarTransportCellState2d,
+    finalize_resolved_scalar_transport_fvm_step_2d,
     finalize_resolved_scalar_transport_fvm_step_2d_with_assembly,
     initialize_resolved_scalar_transport_fvm_2d, lower_scalar_transport_cartesian_2d,
     solve_resolved_scalar_transport_fvm_step_2d,

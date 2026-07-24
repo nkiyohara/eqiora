@@ -1,7 +1,6 @@
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-
-use crate::{
+use eqiora_meshing::{
     AffineGeometryLinearization, AffineGeometryMap, EntityIncidence, MeshEntity, MeshGeometry,
     MeshTopology, OrientationCode, ReferenceCell, ReferenceTopology,
 };
@@ -589,8 +588,9 @@ fn invalid_mesh(message: impl Into<String>) -> Diagnostic {
 
 #[cfg(test)]
 mod tests {
+    use eqiora_meshing::{GeometryMap, MeshGeometry};
+
     use super::*;
-    use crate::{GeometryMap, MeshGeometry};
 
     #[test]
     fn generates_all_two_dimensional_strata_and_oriented_incidence() {

@@ -3,8 +3,9 @@
 use std::collections::{BTreeSet, VecDeque};
 
 use eqiora_core::Diagnostic;
-
-use crate::{CellId, FacetId, MeshEntity, MeshTopology, OrientationCode, SimplicialMesh, VertexId};
+use eqiora_meshing::{
+    CellId, FacetId, MeshEntity, MeshTopology, OrientationCode, SimplicialMesh, VertexId,
+};
 
 use super::contract::require_mesh_dimension;
 use super::invalid;

@@ -1,14 +1,14 @@
 use std::num::NonZeroU16;
 
+use eqiora_assembly::{
+    AssemblyMap, AssemblyTarget, DofId, IndexedAssemblyWork, LocalContribution, LocalUnknown,
+    REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+};
 use eqiora_core::entity::kinds;
 use eqiora_core::{Id, OntologyId};
 use eqiora_realization::{RealizationRevision, SemanticRevision, TraceFieldEndpoint};
 
 use super::*;
-use crate::{
-    AssemblyMap, AssemblyTarget, DofId, IndexedAssemblyWork, LocalContribution, LocalUnknown,
-    REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
-};
 
 const LENGTH: DimExponents = DimExponents {
     length: 1,

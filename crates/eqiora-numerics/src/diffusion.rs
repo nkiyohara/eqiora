@@ -1,7 +1,6 @@
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-
-use crate::{LineMesh, VertexId};
+use eqiora_meshing::{LineMesh, VertexId};
 
 const MIN_PIVOT_SCALE: f64 = 64.0 * f64::EPSILON;
 

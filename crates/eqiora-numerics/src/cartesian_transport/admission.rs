@@ -2,6 +2,7 @@ use std::num::NonZeroUsize;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents, GraphPath};
+use eqiora_meshing::MeshTopology;
 use eqiora_realization::{
     AlgebraicBlock, CellCenteredConvectionScheme, CoordinateTreatment, DiscretizationMethod,
     DomainConfiguration, ExecutionSchedule, MeshPolicy, PlacementRequirementNode, QuadraturePolicy,
@@ -13,7 +14,7 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearOperatorProperties, SolverPlan};
 
 use super::api::ScalarTransportCellState2d;
-use crate::{CartesianMesh, MeshTopology, ScalarTransportCartesianModel2d};
+use crate::{CartesianMesh, ScalarTransportCartesianModel2d};
 
 const DIMENSION: usize = 2;
 

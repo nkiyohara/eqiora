@@ -1,17 +1,20 @@
 use std::f64::consts::PI;
 use std::num::NonZeroUsize;
 
+use eqiora_assembly::{AssemblyMap, CooAssembler, DofId, LocalContribution, LocalUnknown};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_meshing::{
+    CellId, LineMesh, QuadratureRule, ReferenceCell, SegmentGeometry1d, VertexId,
+};
 use eqiora_solver::{
     LinearOperatorProperties, LinearProblem, LinearSolveRequest, LinearSolver,
     REFERENCE_LINEAR_SOLVER, SolveReport, SolverPlan,
 };
 
 use crate::{
-    AssemblyMap, CellId, CooAssembler, DofId, LineMesh, LocalContribution, LocalOperator,
-    LocalUnknown, QuadratureRule, ReferenceCell, ScalarBoundaryCondition1d, ScalarBoundaryPair1d,
-    ScalarEllipticSolution1d, SegmentGeometry1d, VertexId, solve_scalar_elliptic_linear_fem,
+    LocalOperator, ScalarBoundaryCondition1d, ScalarBoundaryPair1d, ScalarEllipticSolution1d,
+    solve_scalar_elliptic_linear_fem,
 };
 
 /// Finite Dirichlet values at the two endpoints of a line mesh.

@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use eqiora_artifact::{
-    ArtifactDigest, BodyAssociationCandidate, CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1,
+    ArtifactDigest, CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1,
     GeometryAssociationArtifactError, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryRevisionAssociationEnvelopeV1,
     ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1,
@@ -12,8 +12,8 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id, RawId};
 use eqiora_geometry::{
-    AxisAlignedBox3, CadBoxDesignV1, CadKernelAdapter, ConstrainedRectangleV1, GeometryEntity,
-    StepLengthUnitV1, StepSourceDigest,
+    AxisAlignedBox3, BodyAssociationCandidate, CadBoxDesignV1, CadKernelAdapter,
+    ConstrainedRectangleV1, GeometryEntity, StepLengthUnitV1, StepSourceDigest,
 };
 use eqiora_graph::EdgeKind;
 use eqiora_meshing::{MeshEntity, MeshQualityGate, SimplicialMesh};

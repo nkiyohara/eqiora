@@ -2,7 +2,9 @@
 
 use std::num::{NonZeroU16, NonZeroUsize};
 
+use eqiora_assembly::{AssemblyBackend, AssemblyPacketSetIdentityV1, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
+use eqiora_meshing::{SimplicialMesh, triangle_duffy_gauss_legendre};
 use eqiora_realization::{
     AlgebraicBlock, AlgebraicBlockScale, BackwardEulerStateBinding, BackwardEulerStep,
     CoupledFieldwiseRealizationPlan, CoupledFieldwiseRealizationRequirements,
@@ -14,15 +16,13 @@ use eqiora_realization::{
 };
 use eqiora_solver::{LinearOperatorProperties, ReductionPolicy, SolverPlan};
 
+use super::FixedReferenceFsiCartesianModel2d;
 use crate::simplicial_fsi::finalize_fixed_reference_fsi_step_2d_with_packet_set;
 use crate::{
-    AssemblyBackend, AssemblyPacketSetIdentityV1, FixedReferenceFsiBoundary2d,
-    FixedReferenceFsiLoad2d, FixedReferenceFsiMaterial2d, FixedReferenceFsiPartition2d,
-    FixedReferenceFsiScale2d, FixedReferenceFsiState2d, FixedReferenceFsiStepConfig2d,
-    REFERENCE_ASSEMBLY_BACKEND, SimplicialMesh, triangle_duffy_gauss_legendre,
+    FixedReferenceFsiBoundary2d, FixedReferenceFsiLoad2d, FixedReferenceFsiMaterial2d,
+    FixedReferenceFsiPartition2d, FixedReferenceFsiScale2d, FixedReferenceFsiState2d,
+    FixedReferenceFsiStepConfig2d,
 };
-
-use super::FixedReferenceFsiCartesianModel2d;
 
 mod block;
 mod result;

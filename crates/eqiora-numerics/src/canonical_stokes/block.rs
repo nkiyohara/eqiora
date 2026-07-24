@@ -2,10 +2,12 @@
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ValueShape};
+use eqiora_meshing::{MeshTopology, SimplicialMesh};
 use eqiora_realization::{AlgebraicBlock, MeshArtifactReference, ResolvedFieldwiseRealization};
 use eqiora_schema::kernel::ValueFrame;
 use eqiora_solver::LinearOperatorProperties;
 
+use super::{SteadyIncompressibleStokesCartesianModel2d, SteadyStokesScaleProfile2d};
 use crate::canonical_boundary::BoundaryRelationBinding2d;
 use crate::discrete_block::{
     AlgebraicClosure, AuxiliaryBlock, BlockRealizationIdentity, BlockSupport, BlockTransformation,
@@ -14,11 +16,9 @@ use crate::discrete_block::{
     boundary_treatment,
 };
 use crate::{
-    CartesianBoundaryInventory2d, MeshTopology, PhysicalBoundaryDisposition, SimplicialMesh,
-    SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
+    CartesianBoundaryInventory2d, PhysicalBoundaryDisposition, SimplicialMiniStokesBoundary2d,
+    SimplicialMiniStokesBoundaryCondition2d,
 };
-
-use super::{SteadyIncompressibleStokesCartesianModel2d, SteadyStokesScaleProfile2d};
 
 const VELOCITY: DimExponents = DimExponents {
     length: 1,

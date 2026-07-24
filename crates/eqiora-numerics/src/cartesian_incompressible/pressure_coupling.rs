@@ -2,9 +2,10 @@
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
+use eqiora_meshing::MeshEntity;
 
+use crate::CartesianMesh;
 use crate::cartesian_fvm_geometry::{CartesianFacetAdjacency2d, cartesian_fvm_geometry_2d};
-use crate::{CartesianMesh, MeshEntity};
 
 const DIMENSION: usize = 2;
 

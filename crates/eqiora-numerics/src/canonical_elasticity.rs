@@ -2,11 +2,13 @@
 
 use std::collections::BTreeSet;
 
+use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, GraphPath, RawId, ValueShape};
 use eqiora_graph::EdgeKind;
 use eqiora_ir::{OperatorApplicationProof, StandardPureOperator};
+use eqiora_meshing::QuadratureRule;
 use eqiora_realization::{
     DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy, ResolvedRealization,
     ScalarType, SpaceFamily, Target, VectorLayoutKind,
@@ -26,8 +28,8 @@ use crate::cartesian_elasticity::{
 use crate::finalized_spatial::FinalizedIsotropicElasticityCartesian2dProblem;
 use crate::spatial_expression::{self, ScalarSpatialExpression};
 use crate::{
-    AssemblyBackend, CartesianBoundaryInventory2d, CartesianLinearElasticity2dSolution,
-    CartesianMesh, PhysicalBoundaryDisposition, QuadratureRule, REFERENCE_ASSEMBLY_BACKEND,
+    CartesianBoundaryInventory2d, CartesianLinearElasticity2dSolution, CartesianMesh,
+    PhysicalBoundaryDisposition,
 };
 
 mod block;

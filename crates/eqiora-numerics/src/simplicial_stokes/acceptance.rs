@@ -1,8 +1,8 @@
+use eqiora_assembly::LinearSystem;
 use eqiora_core::Diagnostic;
-
-use crate::{
-    AffineGeometryMap, DiscreteSpace, GeometryMap, LinearSystem, MeshEntity, MeshGeometry,
-    MeshTopology, QuadratureRule, SimplexP1Space, SimplicialMesh,
+use eqiora_meshing::{
+    AffineGeometryMap, GeometryMap, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule,
+    SimplicialMesh,
 };
 
 use super::layout::MixedLayout;
@@ -10,6 +10,7 @@ use super::{
     COMPONENTS, DIMENSION, P1_BASIS_COUNT, REQUIRED_ERROR_QUADRATURE_EXACTNESS,
     REQUIRED_QUADRATURE_EXACTNESS, invalid,
 };
+use crate::{DiscreteSpace, SimplexP1Space};
 
 pub(super) fn require_compatible_boundary_flux(
     mesh: &SimplicialMesh,

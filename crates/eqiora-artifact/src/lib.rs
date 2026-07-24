@@ -68,7 +68,6 @@ pub use distributed::{
     DistributedLayoutEnvelopeV1, LinearSystemEnvelopeV1, PartitionEnvelopeV1,
     validate_distributed_content_dag,
 };
-pub use eqiora_geometry::BodyAssociationCandidate;
 pub use external_import::{
     ExternalAdapterIdentityV1, ExternalImportManifestV1, ExternalImportObservationV1,
     ExternalImportSelectionV1, ExternalImportSourceV1, ExternalRuntimeComponentV1,

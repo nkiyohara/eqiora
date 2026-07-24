@@ -2,8 +2,10 @@
 
 use std::collections::BTreeSet;
 
+use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_graph::EdgeKind;
+use eqiora_meshing::QuadratureRule;
 use eqiora_realization::ResolvedRealization;
 use eqiora_schema::kernel::{BoundarySide, DomainKind, KernelNode};
 use eqiora_sem::KernelProgram;
@@ -19,8 +21,7 @@ use crate::cartesian_elasticity::{
 };
 use crate::finalized_spatial::FinalizedConformingIsotropicElasticityCartesianPair2dProblem;
 use crate::{
-    AssemblyBackend, CartesianMesh, ConformingCartesianLinearElasticityPair2dSolution,
-    PhysicalBoundaryDisposition, QuadratureRule, REFERENCE_ASSEMBLY_BACKEND,
+    CartesianMesh, ConformingCartesianLinearElasticityPair2dSolution, PhysicalBoundaryDisposition,
 };
 
 type CartesianBounds2d = [[f64; 2]; 2];

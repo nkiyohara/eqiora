@@ -4,9 +4,9 @@ use std::num::{NonZeroU16, NonZeroUsize};
 use eqiora::compiler::compile;
 use eqiora::entity::EntityKind;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
+use eqiora::meshing::QuadratureRule;
 use eqiora::numerics::{
-    QuadratureRule, ResolvedScalarEllipticCartesianSolution,
-    solve_resolved_scalar_elliptic_cartesian,
+    ResolvedScalarEllipticCartesianSolution, solve_resolved_scalar_elliptic_cartesian,
 };
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshKind, MeshPolicy,

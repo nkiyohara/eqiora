@@ -1,6 +1,6 @@
+use eqiora_assembly::{AssemblyMap, DofId, LocalUnknown};
 use eqiora_core::Diagnostic;
-
-use crate::{AssemblyMap, DofId, LocalUnknown, MeshEntity, MeshTopology, SimplicialMesh};
+use eqiora_meshing::{MeshEntity, MeshTopology, SimplicialMesh};
 
 use super::{
     CELL_LOCAL_DOF_COUNT, COMPONENTS, CONSTRAINT_LOCAL_DOF_COUNT, FACET_LOCAL_DOF_COUNT,

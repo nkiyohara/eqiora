@@ -8,9 +8,18 @@
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
+    DofId, IndexedAssemblyWork, LocalContribution, LocalUnknown, REFERENCE_ASSEMBLY_BACKEND,
+    TargetAssemblyMap,
+};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_ir::LocalLinearActionIr;
+use eqiora_meshing::{
+    AffineGeometryMap, GeometryMap, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule,
+    ReferenceCell,
+};
 use eqiora_meshing::{DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape};
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearSolution, LinearSolveRequest,
@@ -19,11 +28,7 @@ use eqiora_solver::{
 
 use crate::affine_fem::physical_gradient;
 use crate::{
-    AffineGeometryMap, AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport,
-    AssemblyTarget, CartesianMesh, DiscreteSpace, DofId, GeometryMap, HypercubeQ1Space,
-    IndexedAssemblyWork, LocalContribution, LocalOperator, LocalUnknown, MeshEntity, MeshGeometry,
-    MeshTopology, QuadratureRule, REFERENCE_ASSEMBLY_BACKEND, ReferenceCell,
-    ScalarSpatialExpression, TargetAssemblyMap,
+    CartesianMesh, DiscreteSpace, HypercubeQ1Space, LocalOperator, ScalarSpatialExpression,
 };
 
 const DIMENSION: usize = 2;
@@ -421,8 +426,8 @@ pub fn solve_cartesian_q1_linear_elasticity_2d_with_assembly(
 pub(crate) struct FinalizedCartesianElasticity2dAssembly {
     mesh: CartesianMesh,
     free_indices: Vec<Option<DofId>>,
-    linear_system: crate::LinearSystem,
-    full_system: crate::LinearSystem,
+    linear_system: eqiora_assembly::LinearSystem,
+    full_system: eqiora_assembly::LinearSystem,
     integrated_body_force: [f64; COMPONENTS],
     assembly_report: AssemblyReport,
 }
@@ -466,7 +471,7 @@ impl FinalizedCartesianElasticity2dAssembly {
 pub(crate) struct FinalizedCartesianElasticity2dState {
     mesh: CartesianMesh,
     free_indices: Vec<Option<DofId>>,
-    full_system: crate::LinearSystem,
+    full_system: eqiora_assembly::LinearSystem,
     integrated_body_force: [f64; COMPONENTS],
     assembly_report: AssemblyReport,
 }
@@ -859,13 +864,14 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 mod tests {
     use std::num::NonZeroUsize;
 
+    use eqiora_assembly::CooAssembler;
     use eqiora_compiler::compile;
     use eqiora_graph::{GraphStore, InMemoryGraphStore};
     use eqiora_sem::KernelProgram;
     use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 
     use super::*;
-    use crate::{CooAssembler, lower_scalar_elliptic_cartesian};
+    use crate::lower_scalar_elliptic_cartesian;
 
     fn unit_cell_action(mu: f64, lambda: f64) -> (CartesianMesh, LocalLinearActionIr) {
         let mesh = CartesianMesh::uniform(&[[0.0, 1.0], [0.0, 1.0]], &[1, 1]).unwrap();

@@ -3,9 +3,13 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::SimplicialMeshEnvelopeV1;
+use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, RawId, ValueShape};
+use eqiora_meshing::{
+    MeshTopology, SimplicialMesh, simplex_centroid_rule, triangle_duffy_gauss_legendre,
+};
 use eqiora_realization::{
     AlgebraicBlock, AlgebraicBlockScale, AlgebraicConstraint, BackwardEulerRelationStep,
     CoordinateTreatment, Discretization, DiscretizationMethod, EnergySkewConvection,
@@ -21,24 +25,21 @@ use eqiora_schema::kernel::ValueFrame;
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, SolverPlan};
 
+use super::realization::normalize_cartesian_mesh;
+use super::{
+    IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
+    lower_transient_incompressible_navier_stokes_cartesian_2d,
+};
 use crate::discrete_block::{
     AlgebraicClosure, AuxiliaryBlock, BlockRealizationIdentity, BlockSupport, BlockTransformation,
     ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, FieldBlock,
     FieldBlockRole, RelationBlock, RelationDisposition, ResidualBlock, ResidualOrigin,
 };
 use crate::{
-    AssemblyBackend, MeshTopology, NonZeroStepCount, REFERENCE_ASSEMBLY_BACKEND, SimplicialMesh,
-    SimplicialMiniNavierStokesState2d, SimplicialMiniNavierStokesStepEvidence2d,
+    NonZeroStepCount, SimplicialMiniNavierStokesState2d, SimplicialMiniNavierStokesStepEvidence2d,
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesPressureReference2d,
     SimplicialMiniVelocityField2d, SimplicialP1Field,
-    advance_simplicial_mini_navier_stokes_2d_with_assembly, simplex_centroid_rule,
-    triangle_duffy_gauss_legendre,
-};
-
-use super::realization::normalize_cartesian_mesh;
-use super::{
-    IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
-    lower_transient_incompressible_navier_stokes_cartesian_2d,
+    advance_simplicial_mini_navier_stokes_2d_with_assembly,
 };
 
 const DIMENSION: usize = 2;

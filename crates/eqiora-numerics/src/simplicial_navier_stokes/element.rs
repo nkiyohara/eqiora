@@ -1,22 +1,19 @@
+use eqiora_assembly::LocalContribution;
 use eqiora_core::Diagnostic;
+use eqiora_meshing::{AffineGeometryMap, MeshGeometry, MeshTopology, QuadratureRule};
 
+use super::{REQUIRED_CONVECTIVE_QUADRATURE_EXACTNESS, invalid};
+use crate::simplicial_mini_transient::{MiniTransientCell, MiniTransport};
 use crate::simplicial_stokes::element::{MiniSpaces, physical_gradients};
 use crate::simplicial_stokes::{
     CELL_LOCAL_DOF_COUNT, COMPONENTS, DIMENSION, LOCAL_PRESSURE_OFFSET, P1_BASIS_COUNT,
     VELOCITY_BASIS_COUNT,
 };
-use crate::{
-    AffineGeometryMap, LocalContribution, LocalOperator, MeshGeometry, MeshTopology,
-    QuadratureRule, SimplicialMiniVelocityField2d,
-};
-
-use crate::simplicial_mini_transient::{MiniTransientCell, MiniTransport};
-
-use super::{REQUIRED_CONVECTIVE_QUADRATURE_EXACTNESS, invalid};
+use crate::{LocalOperator, SimplicialMiniVelocityField2d};
 
 pub(crate) struct MiniNavierStokesCell<'a, F> {
     pub(crate) cell: usize,
-    pub(crate) vertices: &'a [crate::MeshEntity],
+    pub(crate) vertices: &'a [eqiora_meshing::MeshEntity],
     pub(crate) density: f64,
     pub(crate) viscosity: f64,
     pub(crate) time_step: f64,
@@ -124,7 +121,7 @@ pub(super) struct ConvectiveRealizationEvidence {
 }
 
 pub(super) fn integrate_convective_evidence(
-    mesh: &crate::SimplicialMesh,
+    mesh: &eqiora_meshing::SimplicialMesh,
     velocity: &SimplicialMiniVelocityField2d,
     density: f64,
     quadrature: &QuadratureRule,
@@ -144,7 +141,7 @@ pub(super) fn integrate_convective_evidence(
     let mut conservative_global = vec![0.0; width];
     let mut expected_defect_global = vec![0.0; width];
     for cell in 0..cell_count {
-        let entity = crate::MeshEntity::new(DIMENSION, cell);
+        let entity = eqiora_meshing::MeshEntity::new(DIMENSION, cell);
         let geometry = mesh
             .geometry_map(entity)
             .expect("accepted simplex cell owns geometry");
@@ -241,7 +238,7 @@ pub(super) fn integrate_convective_evidence(
 pub(super) fn local_velocity_coefficients(
     velocity: &SimplicialMiniVelocityField2d,
     cell: usize,
-    vertices: &[crate::MeshEntity],
+    vertices: &[eqiora_meshing::MeshEntity],
 ) -> [[f64; COMPONENTS]; VELOCITY_BASIS_COUNT] {
     std::array::from_fn(|basis| {
         if basis < P1_BASIS_COUNT {
@@ -300,10 +297,10 @@ const fn local_velocity(basis: usize, component: usize) -> usize {
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    use eqiora_meshing::{MeshQualityGate, SimplicialMesh, triangle_duffy_gauss_legendre};
     use sha2::{Digest, Sha256};
 
     use super::*;
-    use crate::{MeshQualityGate, SimplicialMesh, triangle_duffy_gauss_legendre};
 
     #[test]
     fn fixed_geometry_local_projection_has_stable_bits() {
@@ -332,7 +329,7 @@ mod tests {
             calls.fetch_add(1, Ordering::Relaxed);
             Ok([1.7 * x - 0.3 * y + 0.2, -0.4 * x + 0.9 * y * y - 0.1])
         };
-        let cell = crate::MeshEntity::new(DIMENSION, 0);
+        let cell = eqiora_meshing::MeshEntity::new(DIMENSION, 0);
         let vertices = mesh.entity_vertices(cell).unwrap();
         let geometry = mesh.geometry_map(cell).unwrap();
         let quadrature = triangle_duffy_gauss_legendre(5).unwrap();

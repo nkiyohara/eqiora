@@ -1,8 +1,8 @@
 //! Deterministic quotient layout and reduced/full assembly maps.
 
+use eqiora_assembly::{AssemblyMap, DofId, LocalUnknown};
 use eqiora_core::Diagnostic;
-
-use crate::{AssemblyMap, DofId, LocalUnknown, MeshEntity, MeshTopology, SimplicialMesh, VertexId};
+use eqiora_meshing::{MeshEntity, MeshTopology, SimplicialMesh, VertexId};
 
 use super::contract::FixedReferenceFsiBoundary;
 use super::invalid;

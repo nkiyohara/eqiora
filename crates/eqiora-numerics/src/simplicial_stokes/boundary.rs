@@ -1,8 +1,7 @@
 use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
-
-use crate::{MeshEntity, MeshGeometry, MeshTopology, SimplicialMesh};
+use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, SimplicialMesh};
 
 use super::{COMPONENTS, DIMENSION, invalid};
 

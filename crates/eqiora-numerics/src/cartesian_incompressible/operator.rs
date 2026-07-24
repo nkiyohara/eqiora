@@ -1,14 +1,14 @@
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
+use eqiora_meshing::MeshEntity;
 
 use super::pressure_coupling::MomentumWeightedPressureCoupling2d;
+use super::replay::{CollocatedResidualReplay2d, replay_residual};
+use crate::CartesianMesh;
 use crate::cartesian_fvm_geometry::{
     CartesianCellMetrics2d, CartesianFacetAdjacency2d, CartesianFacetMetrics2d,
     cartesian_fvm_geometry_2d,
 };
-use crate::{CartesianMesh, MeshEntity};
-
-use super::replay::{CollocatedResidualReplay2d, replay_residual};
 
 const DIMENSION: usize = 2;
 

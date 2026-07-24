@@ -1,13 +1,8 @@
+use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::Diagnostic;
 use eqiora_ir::{LinearizedRelation, RelationTangent};
+use eqiora_meshing::{QuadratureRule, SimplicialMesh};
 use eqiora_solver::{LinearProblem, LinearSolverBackend};
-
-use crate::{
-    AssemblyBackend, NonZeroStepCount, QuadratureRule, REFERENCE_ASSEMBLY_BACKEND, SimplicialMesh,
-    SimplicialMiniStokesBoundary2d,
-};
-
-use crate::assembled_linearization::centered_state_jvp_error;
 
 use super::acceptance::{NewtonEvidence, accept_step, require_consistent_initial_state};
 use super::api::{
@@ -16,6 +11,8 @@ use super::api::{
 };
 use super::assembly::assemble_step_linearization;
 use super::{COMPONENTS, DIMENSION, solve_failed};
+use crate::assembled_linearization::centered_state_jvp_error;
+use crate::{NonZeroStepCount, SimplicialMiniStokesBoundary2d};
 
 /// Advance a fixed mesh through one or more accepted implicit steps with the
 /// deterministic reference assembler.

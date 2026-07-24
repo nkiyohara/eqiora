@@ -21,16 +21,15 @@ use eqiora_solver::{
     BackendId, LinearOperatorProperties, LinearSolverBackend, SolveReport, SolverPlan,
 };
 
+use super::{
+    IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
+    TransientNavierStokesRun2d,
+};
 use crate::CartesianMesh;
 use crate::cartesian_fvm_geometry::{CartesianFacetAdjacency2d, cartesian_fvm_geometry_2d};
 use crate::cartesian_incompressible::{
     CartesianIncompressibleOperator2d, CellCenteredPressureField2d, CellCenteredVelocityField2d,
     CollocatedNewtonEvidence2d, CollocatedPoint2d, solve_collocated_step_2d,
-};
-
-use super::{
-    IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
-    TransientNavierStokesRun2d,
 };
 
 const DIMENSION: usize = 2;
@@ -765,7 +764,7 @@ fn accept_collocated_step(
         let pressure = (0..operator.cell_count())
             .map(|cell| {
                 let indices = mesh
-                    .cell_multi_index(crate::MeshEntity::new(DIMENSION, cell))
+                    .cell_multi_index(eqiora_meshing::MeshEntity::new(DIMENSION, cell))
                     .expect("accepted Cartesian cell owns its multi-index");
                 let parity = usize::from(axes[0]) * indices[0] + usize::from(axes[1]) * indices[1];
                 if parity & 1 == 0 { 1.0 } else { -1.0 }

@@ -1,11 +1,15 @@
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
+use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::Id;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, GraphPath, RawId};
 use eqiora_graph::EdgeKind;
+use eqiora_meshing::{
+    LineMesh, MeshTopology, QuadratureRule, SimplicialMesh, simplex_centroid_rule,
+};
 use eqiora_realization::{
     Discretization, DiscretizationMethod, MeshArtifactReference, MeshPolicy,
     PlacementRequirementNode, QuadraturePolicy, ResolvedRealization, ScalarType,
@@ -26,16 +30,14 @@ use crate::cartesian_elliptic::{
 use crate::poisson::{compare_scalar_elliptic_dirichlet_1d, solve_scalar_elliptic_cell_fvm};
 use crate::spatial_expression::{self, ScalarSpatialExpression};
 use crate::{
-    AssembledLinearizedRelation, AssemblyBackend, CartesianMesh, CartesianScalarFieldLinearization,
-    DirichletBoundary1d, FinalizedScalarEllipticCartesianProblem, LineMesh, MeshTopology,
-    QuadratureRule, REFERENCE_ASSEMBLY_BACKEND, ScalarBoundaryCondition1d, ScalarBoundaryPair1d,
-    ScalarEllipticCartesianFemSolution, ScalarEllipticCartesianFvmSolution,
+    AssembledLinearizedRelation, CartesianMesh, CartesianScalarFieldLinearization,
+    DirichletBoundary1d, FinalizedScalarEllipticCartesianProblem, ScalarBoundaryCondition1d,
+    ScalarBoundaryPair1d, ScalarEllipticCartesianFemSolution, ScalarEllipticCartesianFvmSolution,
     ScalarEllipticComparisonRow1d, ScalarEllipticFvmSolution1d,
-    ScalarEllipticSimplicialFemSolution, ScalarEllipticSolution1d, SimplicialMesh,
+    ScalarEllipticSimplicialFemSolution, ScalarEllipticSolution1d,
     linearize_scalar_elliptic_cartesian_fem, linearize_scalar_elliptic_cartesian_fem_output,
     linearize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fvm_output,
-    simplex_centroid_rule, solve_scalar_elliptic_linear_fem,
-    solve_scalar_elliptic_linear_fem_with_assembly,
+    solve_scalar_elliptic_linear_fem, solve_scalar_elliptic_linear_fem_with_assembly,
     solve_scalar_elliptic_simplicial_fem_with_assembly,
 };
 

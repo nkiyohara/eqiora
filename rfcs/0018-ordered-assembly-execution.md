@@ -52,9 +52,9 @@ backends (direct reference and run-owned Rayon), two consumers
 `eqiora-numerics` continues to own discrete spaces, geometry/coefficient
 contexts, spatial local operators, canonical realization, reconstruction, and
 physics evidence. Its `LocalOperator` returns the L2 `LocalContribution`.
-Existing assembly types remain re-exported from `eqiora-numerics` during the
-0.x migration, while the public facade also exposes the direct assembly
-contract.
+Assembly types are imported from their owning `eqiora-assembly` crate; the
+public facade exposes that contract through `eqiora::assembly`, not through
+`eqiora::numerics`.
 
 `eqiora-fabric` depends only on the new L2 contract and the existing solver/
 realization vocabulary. Neither L3 crate depends on the other. MPI and CUDA
@@ -212,10 +212,10 @@ host, distributed, and device adapters.
 
 ## Compatibility and migration
 
-No Semantic Kernel or wire schema changes. Rust types move to a lower-level
-crate but remain re-exported by `eqiora-numerics`; direct imports from that
-crate continue to compile during 0.x. `eqiora-numerics::LocalOperator` remains
-the spatial operator trait.
+No Semantic Kernel or wire schema changes. Rust assembly types are owned and
+exported only by `eqiora-assembly`; facade users import them through
+`eqiora::assembly`. `eqiora-numerics::LocalOperator` remains the spatial
+operator trait.
 
 Reference assembly order and CSR bytes remain unchanged. The ordinary solve
 entry points select the reference backend, so existing solutions and golden

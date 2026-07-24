@@ -915,8 +915,8 @@ fn cartesian_plan(
 }
 
 fn assert_assembly_evidence(
-    serial: &eqiora::numerics::AssemblyReport,
-    threaded: &eqiora::numerics::AssemblyReport,
+    serial: &eqiora::assembly::AssemblyReport,
+    threaded: &eqiora::assembly::AssemblyReport,
     workers: NonZeroUsize,
     packet_count: usize,
     target_count: usize,

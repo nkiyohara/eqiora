@@ -2,16 +2,15 @@
 
 use std::sync::Arc;
 
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport,
+    AssemblyResult, AssemblyTarget, AssemblyTargetId, AssemblyWork, LinearSystem,
+    REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+};
 use eqiora_core::Diagnostic;
+use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh};
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearSolution, LinearSolveRequest,
-};
-
-use crate::{
-    AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport,
-    AssemblyResult, AssemblyTarget, AssemblyTargetId, AssemblyWork, LinearSystem, MeshEntity,
-    MeshGeometry, MeshTopology, QuadratureRule, REFERENCE_ASSEMBLY_BACKEND, SimplicialMesh,
-    TargetAssemblyMap,
 };
 
 use super::acceptance::{

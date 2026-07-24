@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
+use eqiora_assembly::{AssemblyReport, LinearSystem};
 use eqiora_core::Diagnostic;
-use eqiora_solver::{CanonicalCsrSystemView, SolveReport};
-
-use crate::{
-    AssemblyReport, GeometryMap, LinearSystem, MeshEntity, MeshGeometry, MeshTopology,
-    QuadratureRule, SimplicialMesh, SimplicialP1Field,
+use eqiora_meshing::{
+    GeometryMap, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh,
 };
+use eqiora_solver::{CanonicalCsrSystemView, SolveReport};
 
 use super::acceptance::require_error_quadrature;
 use super::element::{MiniSpaces, evaluate_fields, physical_gradients};
 use super::{COMPONENTS, DIMENSION, invalid};
+use crate::SimplicialP1Field;
 
 /// Continuous P1-plus-cell-bubble velocity on an affine triangular mesh.
 #[derive(Debug, Clone, PartialEq)]

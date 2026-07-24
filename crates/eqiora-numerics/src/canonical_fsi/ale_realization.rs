@@ -10,9 +10,14 @@
 use std::collections::BTreeSet;
 use std::num::{NonZeroU16, NonZeroUsize};
 
+use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, OntologyId};
+use eqiora_meshing::{
+    CellId, MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh, simplex_duffy_gauss_legendre,
+    triangle_duffy_gauss_legendre,
+};
 use eqiora_realization::{
     AleFsiRemeshTransferPlan2d, AlgebraicBlock, BackwardEulerStatePair, ConformingTraceQuotient,
     CoupledFieldwiseRealizationRequirements, DiscretizationMethod, DomainFieldInventory,
@@ -28,17 +33,14 @@ use eqiora_solver::{
     LinearOperatorProperties, LinearSolveRequest, LinearSolverBackend, ScalarType,
 };
 
+use super::{AleFsiCartesianModel, FsiInterfaceSide};
 use crate::{
     AcceptedAleFsiRemeshProjection2d, AleFsiBoundary, AleFsiState, AleFsiStepPlan,
-    AleFsiTrajectory, AssemblyBackend, CellId, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,
-    FixedReferenceFsiPartition, FixedReferenceFsiScale, MeshEntity, MeshTopology, NonZeroStepCount,
-    P1HarmonicMeshMotion, PhysicalBoundaryDisposition, QuadratureRule, REFERENCE_ASSEMBLY_BACKEND,
-    SimplicialMesh, advance_simplicial_ale_fsi_2d_with_assembly,
-    advance_simplicial_ale_fsi_3d_with_assembly, project_simplicial_ale_fsi_remesh_2d,
-    simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
+    AleFsiTrajectory, FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
+    FixedReferenceFsiScale, NonZeroStepCount, P1HarmonicMeshMotion, PhysicalBoundaryDisposition,
+    advance_simplicial_ale_fsi_2d_with_assembly, advance_simplicial_ale_fsi_3d_with_assembly,
+    project_simplicial_ale_fsi_remesh_2d,
 };
-
-use super::{AleFsiCartesianModel, FsiInterfaceSide};
 
 const LEGACY_TRIANGLE_DUFFY_POINTS_PER_AXIS: usize = 5;
 const TETRAHEDRON_DUFFY_POINTS_PER_AXIS: usize = 7;
@@ -1487,6 +1489,7 @@ mod tests {
     use eqiora_compiler::compile;
     use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
     use eqiora_graph::{GraphStore, InMemoryGraphStore};
+    use eqiora_meshing::{FacetId, MeshQualityGate};
     use eqiora_realization::{
         AleGeometryQualityGate, AlgebraicBlockScale, BackwardEulerRelationStep,
         BackwardEulerStateBinding, BackwardEulerStep, CoupledFieldwiseRealizationPlan,
@@ -1504,12 +1507,8 @@ mod tests {
         SolverCapability, SolverPlan, SolverProvider,
     };
 
-    use crate::{
-        AleFsiBoundary2d, AleFsiCartesianModel2d, FacetId, FixedReferenceFsiPartition2d,
-        MeshQualityGate,
-    };
-
     use super::*;
+    use crate::{AleFsiBoundary2d, AleFsiCartesianModel2d, FixedReferenceFsiPartition2d};
 
     const BASE_SOURCE: &str =
         include_str!("../../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi");

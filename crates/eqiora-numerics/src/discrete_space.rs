@@ -1,7 +1,6 @@
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-
-use crate::{ReferenceCell, VertexPermutation};
+use eqiora_meshing::{ReferenceCell, VertexPermutation};
 
 const MAX_LOCAL_DOFS: usize = 1_000_000;
 const MAX_BASIS_ENTRIES: usize = 8_000_000;
@@ -452,12 +451,12 @@ fn validate_reference_point(cell: ReferenceCell, reference: &[f64]) -> Result<()
 
 fn reference_vertex_count(cell: ReferenceCell) -> Result<usize, Diagnostic> {
     match cell.family() {
-        crate::ReferenceCellFamily::Point => Ok(1),
-        crate::ReferenceCellFamily::Simplex => cell
+        eqiora_meshing::ReferenceCellFamily::Point => Ok(1),
+        eqiora_meshing::ReferenceCellFamily::Simplex => cell
             .dimension()
             .checked_add(1)
             .ok_or_else(|| invalid_space("simplex reference-vertex count overflows usize")),
-        crate::ReferenceCellFamily::Hypercube => {
+        eqiora_meshing::ReferenceCellFamily::Hypercube => {
             let exponent = u32::try_from(cell.dimension()).map_err(|_| {
                 invalid_space("hypercube reference-vertex dimension exceeds u32 capacity")
             })?;
@@ -512,9 +511,9 @@ mod tests {
         ] {
             let space = CellConstantSpace::new(cell);
             let point = match cell.family() {
-                crate::ReferenceCellFamily::Point => Vec::new(),
-                crate::ReferenceCellFamily::Simplex => vec![0.0; cell.dimension()],
-                crate::ReferenceCellFamily::Hypercube => vec![0.0; cell.dimension()],
+                eqiora_meshing::ReferenceCellFamily::Point => Vec::new(),
+                eqiora_meshing::ReferenceCellFamily::Simplex => vec![0.0; cell.dimension()],
+                eqiora_meshing::ReferenceCellFamily::Hypercube => vec![0.0; cell.dimension()],
             };
             assert_partition_and_gradient_sum(&space, &point);
             assert_eq!(space.local_dofs()[0].entity_dimension(), cell.dimension());

@@ -7,6 +7,10 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport,
+    AssemblyResult, AssemblyWork,
+};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, OntologyId, ValueShape};
@@ -22,11 +26,7 @@ use eqiora_solver::{
 use sha2::{Digest, Sha256};
 
 use crate::canonical_boundary::BoundaryRelationBinding2d;
-use crate::{
-    AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport,
-    AssemblyResult, AssemblyWork, CartesianBoundaryInventory2d, PhysicalBoundaryDisposition,
-    PhysicalBoundaryQuantity,
-};
+use crate::{CartesianBoundaryInventory2d, PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
 
 const BLOCK_SYSTEM_IDENTITY_DOMAIN: &[u8] = b"eqiora.discrete-block-system/v1\0";
 

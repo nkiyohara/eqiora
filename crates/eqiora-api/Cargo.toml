@@ -15,6 +15,7 @@ hdf5 = ["xdmf", "dep:eqiora-io-hdf5"]
 vtu = ["dep:eqiora-io-vtu"]
 
 [dependencies]
+eqiora-assembly = { workspace = true }
 eqiora-artifact = { workspace = true }
 eqiora-compiler = { workspace = true }
 eqiora-core = { workspace = true }
