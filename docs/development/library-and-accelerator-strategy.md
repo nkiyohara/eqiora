@@ -371,12 +371,20 @@ performance remain separate capabilities.
 
 `eqiora-distributed` owns:
 
-- global size and unique ownership;
-- deterministic owned/ghost ordering;
-- global-to-local maps;
-- halo plans and typed collective steps;
-- reduction policy and fault agreement;
-- rank-independent result identity.
+- the nonempty global algebraic space and unique ownership;
+- deterministic owned/ghost ordering and global-to-local maps;
+- owned-row CSR shards and sparsity-derived halo plans;
+- partition, layout, and distributed-admission identities;
+- transport-neutral rank-local problem and solution contracts; and
+- the one-process loopback protocol oracle.
+
+`eqiora-solver` owns the shared scalar, solver-plan, reduction-policy, and
+solve-report vocabulary consumed here. `eqiora-execution` owns
+transport-normalized collective phases, bounded execution traces,
+process-group binding, and accepted execution receipts.
+`eqiora-backend-mpi` owns MPI wire steps, status and failure records, live
+collective fault agreement, and communicator execution. These boundaries do
+not claim a durable rank-independent checkpoint or result identity.
 
 MPI implements transport only. Initialization is application-owned; adapters
 duplicate or borrow communicators under explicit lifetime rules and never
