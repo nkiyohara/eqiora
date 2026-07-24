@@ -75,6 +75,8 @@
         { "name": "CadSemanticEntityKindV1", "from": "eqiora_api::CadSemanticEntityKindV1" },
         { "name": "CadSemanticEntityV1", "from": "eqiora_api::CadSemanticEntityV1" },
         { "name": "CadSemanticSelectionV1", "from": "eqiora_api::CadSemanticSelectionV1" },
+        { "name": "CartesianDomainEditPlan", "from": "eqiora_api::CartesianDomainEditPlan" },
+        { "name": "CartesianDomainEditResult", "from": "eqiora_api::CartesianDomainEditResult" },
         { "name": "CartesianFieldOrder", "from": "eqiora_api::CartesianFieldOrder" },
         { "name": "CartesianScalarFieldProjection", "from": "eqiora_api::CartesianScalarFieldProjection" },
         { "name": "DerivativeContract", "from": "eqiora_api::DerivativeContract" },
