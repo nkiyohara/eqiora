@@ -9,7 +9,7 @@ rust-version.workspace = true
 
 [features]
 default = []
-threaded = ["dep:eqiora-fabric"]
+rayon = ["dep:eqiora-backend-rayon"]
 xdmf = ["dep:eqiora-io-xdmf"]
 hdf5 = ["xdmf", "dep:eqiora-io-hdf5"]
 vtu = ["dep:eqiora-io-vtu"]
@@ -21,7 +21,7 @@ eqiora-compiler = { workspace = true }
 eqiora-core = { workspace = true }
 eqiora-diff = { workspace = true }
 eqiora-execution = { workspace = true }
-eqiora-fabric = { workspace = true, optional = true }
+eqiora-backend-rayon = { workspace = true, optional = true }
 eqiora-graph = { workspace = true }
 eqiora-io-xdmf = { workspace = true, optional = true }
 eqiora-io-hdf5 = { workspace = true, optional = true }

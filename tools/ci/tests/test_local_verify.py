@@ -201,8 +201,8 @@ class PlanTests(unittest.TestCase):
             "Cargo.lock",
             "crates/eqiora-backend-faer/Cargo.toml",
             "crates/eqiora-backend-faer/src/lib.rs",
-            "crates/eqiora-fabric/Cargo.toml",
-            "crates/eqiora-fabric/src/lib.rs",
+            "crates/eqiora-backend-rayon/Cargo.toml",
+            "crates/eqiora-backend-rayon/src/lib.rs",
         ]
         for path in inputs:
             with self.subTest(path=path):

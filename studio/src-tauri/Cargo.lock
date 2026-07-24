@@ -885,7 +885,7 @@ dependencies = [
  "eqiora-device",
  "eqiora-diff",
  "eqiora-distributed",
- "eqiora-fabric",
+ "eqiora-backend-rayon",
  "eqiora-geometry",
  "eqiora-graph",
  "eqiora-ir",
@@ -911,7 +911,7 @@ dependencies = [
  "eqiora-core",
  "eqiora-diff",
  "eqiora-execution",
- "eqiora-fabric",
+ "eqiora-backend-rayon",
  "eqiora-geometry",
  "eqiora-graph",
  "eqiora-ir",
@@ -1025,7 +1025,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "eqiora-fabric"
+name = "eqiora-backend-rayon"
 version = "0.1.0-alpha.1"
 dependencies = [
  "eqiora-assembly",

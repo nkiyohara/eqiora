@@ -1,6 +1,6 @@
 [package]
-name = "eqiora-fabric"
-description = "Eqiora L3: isolated threaded and distributed execution adapters"
+name = "eqiora-backend-rayon"
+description = "Eqiora L3: isolated Rayon host execution adapter"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

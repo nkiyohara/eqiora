@@ -14,7 +14,7 @@ use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora::solver::{
     LinearSolveRequest, LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan,
 };
-use eqiora_fabric::CpuThreadPool;
+use eqiora_backend_rayon::CpuThreadPool;
 
 const VISCOSITY: f64 = 1.0;
 

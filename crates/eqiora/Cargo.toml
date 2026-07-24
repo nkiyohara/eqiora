@@ -14,7 +14,7 @@ mpi = ["dep:eqiora-backend-mpi", "dep:mpi"]
 diffsol = ["dep:eqiora-backend-diffsol"]
 cuda = ["dep:eqiora-backend-cuda", "eqiora-backend-cuda/cuda-runtime"]
 mpi-cuda = ["mpi", "cuda", "dep:eqiora-backend-mpi-cuda", "eqiora-backend-mpi-cuda/runtime"]
-threaded = ["dep:eqiora-fabric", "eqiora-api/threaded"]
+rayon = ["dep:eqiora-backend-rayon", "eqiora-api/rayon"]
 gmsh = ["dep:eqiora-io-gmsh"]
 xdmf = ["dep:eqiora-io-xdmf", "eqiora-api/xdmf"]
 hdf5 = ["xdmf", "dep:eqiora-io-hdf5", "eqiora-api/hdf5"]
@@ -37,7 +37,7 @@ eqiora-core = { workspace = true }
 eqiora-diff = { workspace = true }
 eqiora-device = { workspace = true }
 eqiora-distributed = { workspace = true }
-eqiora-fabric = { workspace = true, optional = true }
+eqiora-backend-rayon = { workspace = true, optional = true }
 eqiora-schema = { workspace = true }
 eqiora-graph = { workspace = true }
 eqiora-geometry = { workspace = true }
@@ -61,7 +61,7 @@ eqiora-time = { workspace = true }
 [dev-dependencies]
 eqiora-backend-faer = { workspace = true }
 eqiora-execution = { workspace = true }
-eqiora-fabric = { workspace = true }
+eqiora-backend-rayon = { workspace = true }
 eqiora-spatial-distribution = { workspace = true }
 rustix = { workspace = true }
 quick-xml = { workspace = true }

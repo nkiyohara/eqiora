@@ -267,10 +267,10 @@ pub mod backends {
         pub use eqiora_backend_mpi_cuda::*;
     }
 
-    /// Run-owned threaded CPU adapter.
-    #[cfg(feature = "threaded")]
-    pub mod threaded {
-        pub use eqiora_fabric::*;
+    /// Run-owned Rayon CPU adapter.
+    #[cfg(feature = "rayon")]
+    pub mod rayon {
+        pub use eqiora_backend_rayon::*;
     }
 }
 

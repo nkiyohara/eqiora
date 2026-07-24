@@ -35,4 +35,4 @@ workers = "one and four"
 [evidence]
 package = "eqiora"
 test = "threaded_cpu"
-features = ["threaded"]
+features = ["rayon"]

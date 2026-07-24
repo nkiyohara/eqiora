@@ -212,7 +212,7 @@ const LAYER_DECLARATIONS: &[(&str, u8)] = &[
     ("eqiora-io-xdmf", 3),
     ("eqiora-cad-truck", 3),
     ("eqiora-runtime", 3),
-    ("eqiora-fabric", 3),
+    ("eqiora-backend-rayon", 3),
     ("eqiora-artifact", 3),
     ("eqiora-verify", 4),
     ("eqiora-api", 4),

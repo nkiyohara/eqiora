@@ -881,7 +881,7 @@ local contributions, constraint-aware assembly maps, and CSR as an assembly
 artifact; its CSR implements the solver action but introduces no second solver
 configuration. Numerical realizations and execution adapters both consume
 this L2 contract, so neither depends on the other. Production faer,
-fabric/MPI, and device integrations live in dedicated adapter crates. Every
+Rayon/MPI, and device integrations live in dedicated adapter crates. Every
 accepted report includes a residual recomputed through the Eqiora operator
 rather than trusting only a recursive library estimate.
 
@@ -929,7 +929,7 @@ durable wire.
 
 Thread placement is orthogonal to solver identity. An operator may optionally
 expose allocation-free actions over disjoint contiguous output rows; assembled
-CSR does so. `eqiora-fabric` evaluates those rows in a run-owned bounded Rayon
+CSR does so. `eqiora-backend-rayon` evaluates those rows in a run-owned bounded Rayon
 pool without touching the global pool, while the decorated solver retains its
 own plan and backend identity. P1/Q1 FEM, affine-simplex P1 FEM, and Cartesian
 TPFA assembly use a distinct indexed packet contract: bounded batches may
@@ -1762,7 +1762,7 @@ phase progress, so its existing summary-only claim is unchanged.
 
 ```text
 L4  agent / verify / API
-L3  numerics / runtime / differentiation / fabric / backend adapters / coupling / hybrid / ML / artifacts
+L3  numerics / runtime / differentiation / backend adapters / coupling / hybrid / ML / artifacts
 L2  semantics / IR / compiler / codegen / geometry / meshing / assembly / spatial distribution / solver / time / realization / distributed algebra / device execution
 L1  graph / language / type checking / LSP
 L0  core / schemas

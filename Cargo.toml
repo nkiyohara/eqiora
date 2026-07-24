@@ -106,7 +106,7 @@ eqiora-diff = { version = "0.1.0-alpha.1", path = "crates/eqiora-diff" }
 eqiora-device = { version = "0.1.0-alpha.1", path = "crates/eqiora-device" }
 eqiora-distributed = { version = "0.1.0-alpha.1", path = "crates/eqiora-distributed" }
 eqiora-execution = { version = "0.1.0-alpha.1", path = "crates/eqiora-execution" }
-eqiora-fabric = { version = "0.1.0-alpha.1", path = "crates/eqiora-fabric" }
+eqiora-backend-rayon = { version = "0.1.0-alpha.1", path = "crates/eqiora-backend-rayon" }
 eqiora-realization = { version = "0.1.0-alpha.1", path = "crates/eqiora-realization" }
 eqiora-solver = { version = "0.1.0-alpha.1", path = "crates/eqiora-solver" }
 eqiora-spatial-distribution = { version = "0.1.0-alpha.1", path = "crates/eqiora-spatial-distribution" }
@@ -114,7 +114,7 @@ eqiora-time = { version = "0.1.0-alpha.1", path = "crates/eqiora-time" }
 
 [workspace.lints.rust]
 # Unsafe code is confined to dedicated modules with `// SAFETY:` comments.
-# Crates that need it (runtime, fabric, ml) locally `#![allow(unsafe_code)]`
+# Crates that need it (runtime, backend adapters, ml) locally `#![allow(unsafe_code)]`
 # in those modules only.
 unsafe_code = "deny"
 rust_2018_idioms = { level = "deny", priority = -1 }
