@@ -32,7 +32,12 @@ Do not report a feature complete until its bounded claim travels through the
 typed contract, ordinary lowering/realization path, meaningful falsifier, and
 registered evidence. Keep central semantic and identity changes narrow; fan
 out independent adapter, package, Python, Studio, and fixture work only after
-the owning contract is stable.
+the owning contract is stable. Parallel work follows a contract wave: one
+writer owns an invariant-bearing central seam until its reference slice is
+accepted, then disjoint consumers start from that exact accepted revision.
+Writable branches belong to mergeable slices rather than agents and use
+separate worktrees; an independent agent should derive the falsifier, while one
+integrator retains the final semantic and merge decision.
 
 Use `cargo run -p eqiora-verify -- index` instead of maintaining another
 capability-to-evidence list. Apply the abstraction/public-API budget before

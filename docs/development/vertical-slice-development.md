@@ -83,25 +83,59 @@ outward lanes with disjoint primary paths. Each lane closes one registered
 vertical slice without weakening a central contract. Cross-lane integration
 happens only after each lane's affected gate passes.
 
-### Single-agent integration loop
+### Contract-wave integration loop
 
-The current bootstrap loop has one primary AI integrator. Subagents increase
-inspection and implementation throughput; they do not create independent
-merge authorities or a standing team process.
+The bootstrap loop has one primary AI integrator, but it need not have only one
+active implementation. Parallelism expands after an invariant has one accepted
+owner:
 
-1. The primary agent chooses one small vertical slice and retains ownership of
-   its integration decision.
-2. Subagents receive bounded read-only audits or disjoint outward paths. Only
-   one writer edits a given central-contract surface at a time.
-3. The primary agent reads every returned diff, reconciles it with the current
-   worktree, and rejects unnecessary abstractions. A subagent reporting
-   completion is not acceptance evidence.
-4. The primary agent runs the fast or affected local gate, commits and pushes
-   the closed slice, merges it promptly, and removes the merged branch.
+```text
+contract cell
+  -> reference path, oracle, and falsifier
+  -> accepted contract revision
+  -> disjoint adapter, backend, package, Python, Studio, and evidence lanes
+  -> one integration queue
+```
 
-Prefer one shared short-lived integration branch over branch-per-subagent
-ceremony when agents share a worktree. Parallelize independent thought and
-disjoint outward implementation, not final semantic authority.
+1. The integrator chooses a bounded claim, names its invariant owner, and
+   identifies every central surface it may change.
+2. One writer owns each affected central seam. An independent verifier derives
+   a plausible wrong implementation and the falsifier that must reject it,
+   preferably before reading the implementation explanation.
+3. A central change closes one reference vertical slice and is accepted before
+   dependent implementation fans out. A types-only foundation branch is not a
+   contract freeze point.
+4. Disjoint consumer branches start from the exact accepted contract revision.
+   Writable work uses a separate worktree per mergeable slice; branch identity
+   follows the slice, not the agent. Sibling branches do not merge one another.
+5. The integrator reviews the contract, diff, independent verification, and
+   abstraction budget; rebases the slice on the current integration head; runs
+   the affected gate and explicit semantic cases; and merges and removes the
+   branch promptly. Agent-reported completion is not acceptance evidence.
+
+Read-only design, prior-art, oracle, and adversarial audits may scale beyond
+writable lanes. More writers are added only for paths that consume a frozen
+seam without redefining it. Semantic merge authority remains singular.
+
+### Slice assignment
+
+An Issue records a closable product claim, not an agent roster or permanent
+project plan. Before writable work starts, its body or implementation prompt
+should identify:
+
+- the predecessor and exact starting revision;
+- the bounded claim, important non-claims, and invariant owner;
+- the primary writable paths and central paths that must not change;
+- the ordinary execution path and existing contract being consumed;
+- an independent positive oracle and plausible wrong implementation;
+- the required falsifier, registered case, and capability-matrix row;
+- any environment-specific limitation; and
+- the condition that stops the slice when another public abstraction, wire, or
+  central seam becomes necessary.
+
+Do not copy this information into another machine-readable planning registry.
+The roadmap owns durable dependency order, Issues own transient closable work,
+and registered evidence owns executable claims.
 
 ## Conformance kits
 
@@ -170,11 +204,13 @@ This audit is a transition check, not a calendar ceremony or activity metric.
 ## Branch and integration discipline
 
 Branches are short-lived and scoped to one slice or one independent outward
-lane. Rebase or merge the current integration head before final local
-verification. The integrator records the exact local commands and limitations,
-merges only a passing affected closure, and deletes the merged branch. Hosted
-CI can reproduce evidence, but it is not a substitute for the local acceptance
-decision when the hosted service is unavailable.
+lane. A high-fan-out predecessor merges before its consumer branches begin;
+composition evidence begins only after all of its parent slices are accepted.
+Rebase the current integration head once before final local verification. The
+integrator records the exact local commands and limitations, merges only a
+passing affected closure, and deletes the merged branch. Required hosted checks
+validate the exact proposed merge on protected public branches; they complement
+rather than replace the repository-owned local acceptance decision.
 
 There is no calendar review or activity ledger. Revisit the development model
 only when an operational anomaly appears:
@@ -182,8 +218,13 @@ only when an operational anomaly appears:
 - the same verification failure occurs twice in succession;
 - central-contract rework repeatedly invalidates downstream work;
 - parallel lanes produce increasing merge conflicts;
+- the same revision receives redundant broad hosted verification;
+- a ready slice waits behind integration for longer than one broad gate;
+- a plausible mutant survives the registered falsifier;
+- one slice expands into more than one independently owned central seam;
 - public APIs or crates grow faster than completed vertical slices; or
 - evidence registration itself becomes the implementation bottleneck.
 
 The review ends when the concrete recurring cause is removed. It must not add
-standing reports, meetings, or metrics to otherwise healthy flow.
+standing reports, meetings, dashboards, or activity metrics to otherwise
+healthy flow.
