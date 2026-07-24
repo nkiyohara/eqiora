@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { BRIDGE_PROTOCOL, type DocumentProjection } from "./protocol";
 import type { RunPlan, RunProgress, RunResult } from "./reference-run-protocol";
-import type { ValueEditPlan, ValueEditResult } from "./value-edit-protocol";
 import { currentLayout, initialStudioState, studioReducer } from "./state";
+import type { ValueEditPlan, ValueEditResult } from "./value-edit-protocol";
 
 const document: DocumentProjection = {
   protocol: BRIDGE_PROTOCOL,
