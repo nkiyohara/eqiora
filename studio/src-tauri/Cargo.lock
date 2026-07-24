@@ -879,13 +879,13 @@ dependencies = [
  "eqiora-api",
  "eqiora-artifact",
  "eqiora-assembly",
+ "eqiora-backend-rayon",
  "eqiora-cad-truck",
  "eqiora-compiler",
  "eqiora-core",
  "eqiora-device",
- "eqiora-diff",
+ "eqiora-differentiation",
  "eqiora-distributed",
- "eqiora-backend-rayon",
  "eqiora-geometry",
  "eqiora-graph",
  "eqiora-ir",
@@ -907,11 +907,11 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "eqiora-artifact",
  "eqiora-assembly",
+ "eqiora-backend-rayon",
  "eqiora-compiler",
  "eqiora-core",
- "eqiora-diff",
+ "eqiora-differentiation",
  "eqiora-execution",
- "eqiora-backend-rayon",
  "eqiora-geometry",
  "eqiora-graph",
  "eqiora-ir",
@@ -958,6 +958,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "eqiora-backend-rayon"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "eqiora-assembly",
+ "eqiora-core",
+ "eqiora-execution",
+ "eqiora-realization",
+ "eqiora-solver",
+ "rayon",
+]
+
+[[package]]
 name = "eqiora-cad-truck"
 version = "0.1.0-alpha.1"
 dependencies = [
@@ -995,7 +1007,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "eqiora-diff"
+name = "eqiora-differentiation"
 version = "0.1.0-alpha.1"
 dependencies = [
  "eqiora-core",
@@ -1022,18 +1034,6 @@ dependencies = [
  "eqiora-realization",
  "eqiora-solver",
  "sha2 0.11.0",
-]
-
-[[package]]
-name = "eqiora-backend-rayon"
-version = "0.1.0-alpha.1"
-dependencies = [
- "eqiora-assembly",
- "eqiora-core",
- "eqiora-execution",
- "eqiora-realization",
- "eqiora-solver",
- "rayon",
 ]
 
 [[package]]

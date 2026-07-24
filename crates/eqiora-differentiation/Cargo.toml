@@ -1,5 +1,5 @@
 [package]
-name = "eqiora-diff"
+name = "eqiora-differentiation"
 description = "Eqiora L3: implicit forward and adjoint analysis over linearized relations"
 version.workspace = true
 edition.workspace = true

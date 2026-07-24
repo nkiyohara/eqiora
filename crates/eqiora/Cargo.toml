@@ -34,7 +34,7 @@ eqiora-backend-diffsol = { workspace = true, optional = true, features = ["diffs
 eqiora-backend-cuda = { workspace = true, optional = true }
 eqiora-compiler = { workspace = true }
 eqiora-core = { workspace = true }
-eqiora-diff = { workspace = true }
+eqiora-differentiation = { workspace = true }
 eqiora-device = { workspace = true }
 eqiora-distributed = { workspace = true }
 eqiora-backend-rayon = { workspace = true, optional = true }

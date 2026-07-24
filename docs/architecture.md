@@ -640,7 +640,7 @@ Diffsol's automatic reset is not used. See
 Smooth implicit differentiation keeps the canonical Relation unchanged. At a
 finite accepted point, scalar SSA binds each input explicitly as unknown,
 selected parameter, or frozen and exposes one scalar-parametric
-`LinearizedRelation` contract with primal, JVP, and VJP actions. `eqiora-diff`
+`LinearizedRelation` contract with primal, JVP, and VJP actions. `eqiora-differentiation`
 projects those actions into matrix-free state/parameter Jacobians and composes
 them with the sole solver plan for forward and adjoint analysis. Transpose is a
 separate operator capability; an Eqiora-owned oriented view sends an actual

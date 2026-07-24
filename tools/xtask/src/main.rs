@@ -200,7 +200,7 @@ const LAYER_DECLARATIONS: &[(&str, u8)] = &[
     ("eqiora-spatial-distribution", 2),
     ("eqiora-numerics", 3),
     ("eqiora-package", 3),
-    ("eqiora-diff", 3),
+    ("eqiora-differentiation", 3),
     ("eqiora-backend-faer", 3),
     ("eqiora-backend-mpi", 3),
     ("eqiora-backend-mpi-cuda", 3),

@@ -4,7 +4,7 @@ use eqiora_artifact::ModelArtifactReference;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, EntityKind, Id, RawId};
-use eqiora_diff::{
+use eqiora_differentiation::{
     AcceptedOutputLinearization, adjoint_output_gradient, forward_output_sensitivity,
 };
 use eqiora_execution::ExecutionReceipt;

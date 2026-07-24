@@ -150,7 +150,7 @@ pub mod ir {
 
 /// Implicit forward and adjoint differentiation over lowered relations.
 pub mod differentiation {
-    pub use eqiora_diff::*;
+    pub use eqiora_differentiation::*;
 }
 
 /// Backend-neutral local contributions, assembly maps, and sparse algebra.

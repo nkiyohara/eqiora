@@ -102,7 +102,7 @@ eqiora-backend-mpi = { version = "0.1.0-alpha.1", path = "crates/eqiora-backend-
 eqiora-backend-mpi-cuda = { version = "0.1.0-alpha.1", path = "crates/eqiora-backend-mpi-cuda" }
 eqiora-backend-diffsol = { version = "0.1.0-alpha.1", path = "crates/eqiora-backend-diffsol" }
 eqiora-backend-cuda = { version = "0.1.0-alpha.1", path = "crates/eqiora-backend-cuda" }
-eqiora-diff = { version = "0.1.0-alpha.1", path = "crates/eqiora-diff" }
+eqiora-differentiation = { version = "0.1.0-alpha.1", path = "crates/eqiora-differentiation" }
 eqiora-device = { version = "0.1.0-alpha.1", path = "crates/eqiora-device" }
 eqiora-distributed = { version = "0.1.0-alpha.1", path = "crates/eqiora-distributed" }
 eqiora-execution = { version = "0.1.0-alpha.1", path = "crates/eqiora-execution" }
