@@ -51,4 +51,4 @@ performance = false
 
 [evidence]
 runner = "python-installed-wheel"
-script = "tools/ci/python_jax_gate.py"
+script = "tools/ci/python_distribution_gate.py"
