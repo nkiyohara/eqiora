@@ -139,8 +139,8 @@ oracle and prove:
   Model membership;
 - changed Model and Geometry Identity digests;
 - explicit one-to-one geometry revision association and retained selections;
-- byte identity of plans, transactions, children, and digests under caller
-  permutation;
+- exact plan and plan-key equality, plus byte identity of transactions and
+  children and equality of their digests, under caller permutation;
 - continued admission of a cardinality-one plan through the same contract;
 - rejection of empty, duplicate-axis, out-of-axis, no-op-member, non-finite,
   reversed, stale, foreign, and wrong-target requests without mutation;
