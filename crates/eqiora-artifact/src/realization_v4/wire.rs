@@ -5,7 +5,7 @@ use eqiora_core::{Diagnostic, DynQuantity, Id};
 use eqiora_realization::{
     AleGeometryQualityGate, AlgebraicBlock, BackwardEulerRelationStep,
     FixedTopologyAleCoupledRealizationPlan, FixedTopologyAleCoupledRealizationRequirements,
-    GclCompatibleAlePullback, NonlinearSolvePlan, P1HarmonicMeshMotion, VectorLayoutKind,
+    GclCompatibleAlePullback, NonlinearSolvePlan, P1HarmonicMeshMotionPolicy, VectorLayoutKind,
 };
 use eqiora_solver::LinearOperatorProperties;
 use eqiora_solver::ScalarType;
@@ -277,7 +277,7 @@ enum WireGeometryAction {
 }
 
 impl WireGeometryAction {
-    fn decode(self) -> Result<(P1HarmonicMeshMotion, DynQuantity), Diagnostic> {
+    fn decode(self) -> Result<(P1HarmonicMeshMotionPolicy, DynQuantity), Diagnostic> {
         match self {
             Self::P1HarmonicExtension {
                 fluid_domain_ulid,
@@ -289,7 +289,7 @@ impl WireGeometryAction {
                 solver,
             } => {
                 let duration = duration.decode();
-                let motion = P1HarmonicMeshMotion::new(
+                let motion = P1HarmonicMeshMotionPolicy::new(
                     parse_id::<kinds::Domain>(&fluid_domain_ulid, "ALE fluid Domain")?,
                     parse_id::<kinds::Domain>(&solid_domain_ulid, "ALE solid Domain")?,
                     parse_id::<kinds::Field>(&driver_field_ulid, "ALE displacement driver")?,

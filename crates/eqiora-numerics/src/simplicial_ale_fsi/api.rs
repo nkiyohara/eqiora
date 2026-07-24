@@ -515,7 +515,7 @@ impl<const D: usize> AleFsiStepEvidence<D> {
     /// Common-contract Krylov reports in nonlinear-update order.
     ///
     /// Harmonic influence-column reports remain on
-    /// `P1HarmonicMeshMotion<D>`; they are not duplicated here.
+    /// `P1HarmonicMeshMotionAction<D>`; they are not duplicated here.
     #[must_use]
     pub fn nonlinear_linear_solves(&self) -> &[SolveReport] {
         &self.nonlinear_linear_solves
@@ -663,8 +663,8 @@ mod tests {
     };
 
     use super::super::{
-        AleFsiState2d, AleFsiState3d, AleFsiStepPlan2d, AleFsiStepPlan3d, P1HarmonicMeshMotion2d,
-        P1HarmonicMeshMotion3d,
+        AleFsiState2d, AleFsiState3d, AleFsiStepPlan2d, AleFsiStepPlan3d,
+        P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
     };
     use super::*;
     use crate::{
@@ -934,20 +934,21 @@ mod tests {
     struct Fixture {
         mesh: SimplicialMesh,
         partition: FixedReferenceFsiPartition2d,
-        motion: P1HarmonicMeshMotion2d,
+        motion: P1HarmonicMeshMotionAction2d,
     }
 
     struct Fixture3d {
         mesh: SimplicialMesh,
         partition: FixedReferenceFsiPartition3d,
-        motion: P1HarmonicMeshMotion3d,
+        motion: P1HarmonicMeshMotionAction3d,
     }
 
     fn fixture() -> Fixture {
         let mesh = two_domain_mesh();
         let (fluid, solid, interface) = inventories(&mesh);
         let partition = FixedReferenceFsiPartition2d::new(&mesh, fluid, solid, interface).unwrap();
-        let motion = P1HarmonicMeshMotion2d::new(&mesh, &partition, harmonic_solver()).unwrap();
+        let motion =
+            P1HarmonicMeshMotionAction2d::new(&mesh, &partition, harmonic_solver()).unwrap();
         Fixture {
             mesh,
             partition,
@@ -958,7 +959,8 @@ mod tests {
     fn fixture_3d() -> Fixture3d {
         let (mesh, partition) =
             partitioned_block_3d(&[0.0, 0.5, 1.0, 2.0], &[0.0, 0.5, 1.0], &[0.0, 0.5, 1.0]);
-        let motion = P1HarmonicMeshMotion3d::new(&mesh, &partition, harmonic_solver()).unwrap();
+        let motion =
+            P1HarmonicMeshMotionAction3d::new(&mesh, &partition, harmonic_solver()).unwrap();
         Fixture3d {
             mesh,
             partition,

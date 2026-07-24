@@ -14,7 +14,7 @@ use eqiora_meshing::{MeshTopology, SimplicialMesh};
 use eqiora_realization::{NonlinearSolvePlan, Target};
 use eqiora_solver::{LinearOperatorProperties, LinearSolver, SolverPlan};
 
-use super::{P1HarmonicMeshMotion, invalid};
+use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::{
     FixedReferenceFsiBoundary, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,
     FixedReferenceFsiPartition, FixedReferenceFsiScale, FixedReferenceFsiState,
@@ -24,7 +24,7 @@ use crate::{
 /// Homogeneous physical-velocity boundary used by the bounded ALE slice.
 ///
 /// Mesh-motion boundary ownership remains sealed in
-/// [`P1HarmonicMeshMotion`]; this alias describes only the physical velocity
+/// [`P1HarmonicMeshMotionAction`]; this alias describes only the physical velocity
 /// closure and therefore reuses the fixed-reference FSI contract exactly.
 pub type AleFsiBoundary<const D: usize> = FixedReferenceFsiBoundary<D>;
 
@@ -75,7 +75,7 @@ impl<const D: usize> AleFsiState<D> {
         time: f64,
         reference_mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
-        motion: &P1HarmonicMeshMotion<D>,
+        motion: &P1HarmonicMeshMotionAction<D>,
         vertex_velocity: Vec<[f64; D]>,
         fluid_cell_bubble_velocity: Vec<[f64; D]>,
         fluid_pressure: Vec<f64>,
@@ -163,7 +163,7 @@ impl<const D: usize> AleFsiState<D> {
         &self,
         reference_mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
-        motion: &P1HarmonicMeshMotion<D>,
+        motion: &P1HarmonicMeshMotionAction<D>,
     ) -> Result<(), Diagnostic> {
         if !self.time.is_finite() || self.time < 0.0 {
             return Err(invalid(
@@ -339,7 +339,7 @@ impl<const D: usize> AleFsiStepPlan<D> {
         self,
         reference_mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
-        motion: &P1HarmonicMeshMotion<D>,
+        motion: &P1HarmonicMeshMotionAction<D>,
         previous: &AleFsiState<D>,
         current: &AleFsiState<D>,
     ) -> Result<FixedTopologyGeometryAction<D>, Diagnostic> {
@@ -447,7 +447,7 @@ mod tests {
     use crate::{
         FixedReferenceFsiBoundary2d, FixedReferenceFsiLoad2d, FixedReferenceFsiMaterial2d,
         FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d, FixedReferenceFsiScale2d,
-        P1HarmonicMeshMotion2d, P1HarmonicMeshMotion3d,
+        P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
     };
 
     const COMPONENTS: usize = 2;
@@ -815,20 +815,21 @@ mod tests {
     struct Fixture {
         mesh: SimplicialMesh,
         partition: FixedReferenceFsiPartition2d,
-        motion: P1HarmonicMeshMotion2d,
+        motion: P1HarmonicMeshMotionAction2d,
     }
 
     struct Fixture3d {
         mesh: SimplicialMesh,
         partition: FixedReferenceFsiPartition3d,
-        motion: P1HarmonicMeshMotion3d,
+        motion: P1HarmonicMeshMotionAction3d,
     }
 
     fn fixture() -> Fixture {
         let mesh = two_domain_mesh_with_fluid_interior();
         let (fluid, solid, interface) = inventories(&mesh);
         let partition = FixedReferenceFsiPartition2d::new(&mesh, fluid, solid, interface).unwrap();
-        let motion = P1HarmonicMeshMotion2d::new(&mesh, &partition, harmonic_solver()).unwrap();
+        let motion =
+            P1HarmonicMeshMotionAction2d::new(&mesh, &partition, harmonic_solver()).unwrap();
         Fixture {
             mesh,
             partition,
@@ -841,7 +842,7 @@ mod tests {
         let (fluid, solid, interface) = inventories_3d(&mesh);
         let partition = FixedReferenceFsiPartition3d::new(&mesh, fluid, solid, interface)
             .expect("exact tetrahedral material partition");
-        let motion = P1HarmonicMeshMotion3d::new(&mesh, &partition, harmonic_solver())
+        let motion = P1HarmonicMeshMotionAction3d::new(&mesh, &partition, harmonic_solver())
             .expect("tetrahedral harmonic motion seals");
         Fixture3d {
             mesh,

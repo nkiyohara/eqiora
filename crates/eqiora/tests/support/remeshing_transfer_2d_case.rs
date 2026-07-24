@@ -22,7 +22,7 @@ use eqiora::realization::{
     DiscretizationMethod, DomainFieldDiscretization, ExecutionSchedule, FieldSpaceBinding,
     FixedTopologyAleCoupledRealizationPlan, FixedTopologyAleCoupledRealizationRequest,
     GclCompatibleAlePullback, MeshArtifactReference, MeshKind, MeshPolicy, NonlinearSolvePlan,
-    P1HarmonicMeshMotion, PositivePhysicalScale, QuadraturePolicy, RealizationCapabilities,
+    P1HarmonicMeshMotionPolicy, PositivePhysicalScale, QuadraturePolicy, RealizationCapabilities,
     RealizationRevision, ResolvedFixedTopologyAleCoupledRealization, SemanticRevision, Space,
     SpatialDimensionSupport, SymmetricCongruenceScaling, Target, TargetCapabilities,
     TraceFieldEndpoint, VectorLayoutKind, resolve_fixed_topology_ale_coupled,
@@ -828,7 +828,7 @@ fn realization_plan_with_scales(
         BackwardEulerRelationStep::new(fluid_relation(model), fluid_velocity(model), duration)
             .unwrap(),
         solid_kinematic_relation(model),
-        P1HarmonicMeshMotion::new(
+        P1HarmonicMeshMotionPolicy::new(
             fluid_domain(model),
             solid_domain(model),
             solid_displacement(model),

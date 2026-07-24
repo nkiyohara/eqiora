@@ -17,7 +17,7 @@ use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
 use super::element::{AleMiniFluidCell, AleMiniFluidDirection};
-use super::{P1HarmonicMeshMotion, invalid};
+use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
 use crate::simplicial_fsi::{
     element::solid_local, layout::FsiLayout, partition::CellMaterial, validate_problem,
@@ -75,7 +75,7 @@ pub(super) fn initial_point<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     boundary: &AleFsiBoundary<D>,
-    motion: &P1HarmonicMeshMotion<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
@@ -115,7 +115,7 @@ pub(super) fn assemble_step_linearization<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     boundary: &AleFsiBoundary<D>,
-    motion: &P1HarmonicMeshMotion<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     candidate: &[f64],
     plan: AleFsiStepPlan<D>,
@@ -206,7 +206,7 @@ pub(super) fn assemble_step_residual<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     boundary: &AleFsiBoundary<D>,
-    motion: &P1HarmonicMeshMotion<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     candidate: &[f64],
     plan: AleFsiStepPlan<D>,
@@ -234,7 +234,7 @@ fn prepare_step<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     boundary: &AleFsiBoundary<D>,
-    motion: &P1HarmonicMeshMotion<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
@@ -782,7 +782,7 @@ fn embed_solid_jacobian(
 fn reconstruct_current_state<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
-    motion: &P1HarmonicMeshMotion<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     candidate: &[f64],
     plan: AleFsiStepPlan<D>,
@@ -825,7 +825,7 @@ fn reconstruct_current_state<const D: usize>(
 
 fn build_directions<const D: usize>(
     partition: &FixedReferenceFsiPartition<D>,
-    motion: &P1HarmonicMeshMotion<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
     plan: AleFsiStepPlan<D>,
     layout: &FsiLayout<D>,
 ) -> Result<Vec<AlgebraicDirection<D>>, Diagnostic> {
@@ -871,7 +871,7 @@ pub(super) fn build_step_jacobian_pattern<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     boundary: &AleFsiBoundary<D>,
-    motion: &P1HarmonicMeshMotion<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
 ) -> Result<StructuralJacobianPattern, Diagnostic> {
     let layout = FsiLayout::new(reference, partition, boundary)?;
     build_structural_jacobian_pattern(reference, partition, motion, &layout)
@@ -880,7 +880,7 @@ pub(super) fn build_step_jacobian_pattern<const D: usize>(
 fn build_structural_jacobian_pattern<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
-    motion: &P1HarmonicMeshMotion<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
     layout: &FsiLayout<D>,
 ) -> Result<StructuralJacobianPattern, Diagnostic> {
     let cell_count = partition.cell_count();
@@ -935,7 +935,7 @@ fn validate_inputs<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     boundary: &AleFsiBoundary<D>,
-    motion: &P1HarmonicMeshMotion<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
@@ -1219,7 +1219,7 @@ mod tests {
         AleFsiStepPlan3d, FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d,
         FixedReferenceFsiMaterial2d, FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition2d,
         FixedReferenceFsiPartition3d, FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,
-        P1HarmonicMeshMotion2d, P1HarmonicMeshMotion3d,
+        P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
     };
 
     const COMPONENTS: usize = 2;
@@ -1228,7 +1228,7 @@ mod tests {
         mesh: SimplicialMesh,
         partition: FixedReferenceFsiPartition2d,
         boundary: AleFsiBoundary2d,
-        motion: P1HarmonicMeshMotion2d,
+        motion: P1HarmonicMeshMotionAction2d,
         previous: AleFsiState2d,
         plan: AleFsiStepPlan2d,
     }
@@ -1237,7 +1237,7 @@ mod tests {
         mesh: SimplicialMesh,
         partition: FixedReferenceFsiPartition3d,
         boundary: AleFsiBoundary3d,
-        motion: P1HarmonicMeshMotion3d,
+        motion: P1HarmonicMeshMotionAction3d,
         previous: AleFsiState3d,
         plan: AleFsiStepPlan3d,
     }
@@ -1646,7 +1646,7 @@ mod tests {
     }
 
     fn assert_harmonic_driver_singletons<const D: usize>(
-        motion: &P1HarmonicMeshMotion<D>,
+        motion: &P1HarmonicMeshMotionAction<D>,
         layout: &FsiLayout<D>,
         pattern: &StructuralJacobianPattern,
     ) {
@@ -1672,7 +1672,8 @@ mod tests {
         let (fluid, solid, interface) = inventories(&mesh);
         let partition = FixedReferenceFsiPartition2d::new(&mesh, fluid, solid, interface).unwrap();
         let boundary = AleFsiBoundary2d::homogeneous_exterior(&mesh).unwrap();
-        let motion = P1HarmonicMeshMotion2d::new(&mesh, &partition, harmonic_solver()).unwrap();
+        let motion =
+            P1HarmonicMeshMotionAction2d::new(&mesh, &partition, harmonic_solver()).unwrap();
         let previous = AleFsiState2d::new(
             0.0,
             &mesh,
@@ -1698,7 +1699,8 @@ mod tests {
         let (mesh, fluid, solid, interface) = tetrahedral_problem();
         let partition = FixedReferenceFsiPartition3d::new(&mesh, fluid, solid, interface).unwrap();
         let boundary = AleFsiBoundary3d::homogeneous_exterior(&mesh).unwrap();
-        let motion = P1HarmonicMeshMotion3d::new(&mesh, &partition, harmonic_solver()).unwrap();
+        let motion =
+            P1HarmonicMeshMotionAction3d::new(&mesh, &partition, harmonic_solver()).unwrap();
         let previous = AleFsiState3d::new(
             0.0,
             &mesh,

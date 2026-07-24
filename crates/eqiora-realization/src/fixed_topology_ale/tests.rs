@@ -241,7 +241,7 @@ fn ale_quality_and_harmonic_operator_are_closed() {
     }
     let domain = Id::new();
     assert_eq!(
-        P1HarmonicMeshMotion::new(
+        P1HarmonicMeshMotionPolicy::new(
             domain,
             domain,
             Id::new(),
@@ -308,8 +308,8 @@ impl Fixture {
         &self,
         displacement: Id<kinds::Field>,
         connection: Id<kinds::Connection>,
-    ) -> P1HarmonicMeshMotion {
-        P1HarmonicMeshMotion::new(
+    ) -> P1HarmonicMeshMotionPolicy {
+        P1HarmonicMeshMotionPolicy::new(
             self.fluid_domain,
             self.solid_domain,
             displacement,

@@ -17,7 +17,9 @@ pub use contract::{
     AleFsiBoundary, AleFsiBoundary2d, AleFsiBoundary3d, AleFsiState, AleFsiState2d, AleFsiState3d,
     AleFsiStepPlan, AleFsiStepPlan2d, AleFsiStepPlan3d,
 };
-pub use motion::{P1HarmonicMeshMotion, P1HarmonicMeshMotion2d, P1HarmonicMeshMotion3d};
+pub use motion::{
+    P1HarmonicMeshMotionAction, P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
+};
 pub use newton::{
     advance_simplicial_ale_fsi_2d, advance_simplicial_ale_fsi_2d_with_assembly,
     advance_simplicial_ale_fsi_3d, advance_simplicial_ale_fsi_3d_with_assembly,

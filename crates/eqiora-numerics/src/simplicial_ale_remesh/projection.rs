@@ -10,7 +10,7 @@ use eqiora_solver::{LinearOperatorProperties, LinearSolveRequest, SolveReport};
 
 use crate::{
     AleFsiState2d, FixedReferenceFsiBoundary2d, FixedReferenceFsiMaterial2d,
-    FixedReferenceFsiPartition2d, FixedReferenceFsiScale2d, P1HarmonicMeshMotion2d,
+    FixedReferenceFsiPartition2d, FixedReferenceFsiScale2d, P1HarmonicMeshMotionAction2d,
 };
 
 use super::contract::{AcceptedAleFsiRemeshProjection2d, AleFsiRemeshProjectionEvidence2d};
@@ -130,11 +130,11 @@ struct PressureProjection {
 pub fn project_simplicial_ale_fsi_remesh_2d(
     source_reference: &SimplicialMesh,
     source_partition: &FixedReferenceFsiPartition2d,
-    source_motion: &P1HarmonicMeshMotion2d,
+    source_motion: &P1HarmonicMeshMotionAction2d,
     source_state: &AleFsiState2d,
     target_reference: &SimplicialMesh,
     target_partition: &FixedReferenceFsiPartition2d,
-    target_motion: &P1HarmonicMeshMotion2d,
+    target_motion: &P1HarmonicMeshMotionAction2d,
     material: FixedReferenceFsiMaterial2d,
     scale: FixedReferenceFsiScale2d,
     quadrature: &QuadratureRule,
@@ -363,7 +363,7 @@ fn material_boundary_sides(
 fn derive_target_geometry(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition2d,
-    motion: &P1HarmonicMeshMotion2d,
+    motion: &P1HarmonicMeshMotionAction2d,
     solid_displacement: &[[f64; COMPONENTS]],
 ) -> Result<FixedTopologyGeometryState2d, Diagnostic> {
     motion.validate_reference(reference, partition)?;

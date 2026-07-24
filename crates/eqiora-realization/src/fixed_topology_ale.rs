@@ -56,7 +56,7 @@ impl AleGeometryQualityGate {
 /// obtained by a component-wise P1 harmonic solve on the reference topology.
 /// No coordinates or mesh velocity are inputs to this policy.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct P1HarmonicMeshMotion {
+pub struct P1HarmonicMeshMotionPolicy {
     fluid_domain: Id<kinds::Domain>,
     solid_domain: Id<kinds::Domain>,
     solid_displacement: Id<kinds::Field>,
@@ -65,7 +65,7 @@ pub struct P1HarmonicMeshMotion {
     solver: SolverPlan,
 }
 
-impl P1HarmonicMeshMotion {
+impl P1HarmonicMeshMotionPolicy {
     /// Select the exact geometry driver, interface, quality, and harmonic solver.
     ///
     /// # Errors
@@ -176,7 +176,7 @@ pub struct FixedTopologyAleCoupledRealizationPlan {
     coupled: CoupledFieldwiseRealizationPlan,
     fluid_time_step: BackwardEulerRelationStep,
     solid_kinematic_relation: Id<kinds::Relation>,
-    mesh_motion: P1HarmonicMeshMotion,
+    mesh_motion: P1HarmonicMeshMotionPolicy,
     pullback: GclCompatibleAlePullback,
     nonlinear: NonlinearSolvePlan,
 }
@@ -192,7 +192,7 @@ impl FixedTopologyAleCoupledRealizationPlan {
         coupled: CoupledFieldwiseRealizationPlan,
         fluid_time_step: BackwardEulerRelationStep,
         solid_kinematic_relation: Id<kinds::Relation>,
-        mesh_motion: P1HarmonicMeshMotion,
+        mesh_motion: P1HarmonicMeshMotionPolicy,
         pullback: GclCompatibleAlePullback,
         nonlinear: NonlinearSolvePlan,
     ) -> Result<Self, Diagnostic> {
@@ -228,7 +228,7 @@ impl FixedTopologyAleCoupledRealizationPlan {
 
     /// Sole admitted mesh-motion policy and its exact semantic roles.
     #[must_use]
-    pub const fn mesh_motion(&self) -> P1HarmonicMeshMotion {
+    pub const fn mesh_motion(&self) -> P1HarmonicMeshMotionPolicy {
         self.mesh_motion
     }
 
