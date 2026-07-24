@@ -23,8 +23,11 @@ Identity rejects the incomplete Cartesian exterior.
 
 Fail-closed cases cover a structurally equivalent same-revision sibling with a
 different exact digest, a stale child revision, no-op and out-of-axis edits, a
-boundary passed as the body target, and non-finite or reversed typed bounds.
-The immutable base bytes and digest remain unchanged.
+boundary passed as the body target, non-finite or reversed typed bounds, an
+older Model codec, a two-dimensional body, and multiple Cartesian bodies. Two
+equal previews have identical plan, transaction, and child identities; a
+different interval changes all three. The immutable base bytes and digest
+remain unchanged.
 
 Run:
 

@@ -29,6 +29,7 @@ Geometry identity and mesh correspondence                         closed
   -> version-neutral Model identity and replay                    closed
   -> durable FieldSnapshot / SpatialState / SpatialTrajectory     closed
   -> bounded CAD semantic selection                               closed
+  -> exact identity-preserving Cartesian Domain edit              closed
   -> physics-neutral discrete block system                        closed
   -> curated facade and compile/check control plane               closed
   -> identity-preserving Component Parameter terms                closed
@@ -60,7 +61,9 @@ parametric 3D extension in
 finite-volume extensions in
 [RFC 0069](../rfcs/0069-conservative-cell-centered-transport.md),
 [RFC 0071](../rfcs/0071-spatial-periodic-boundary-connection.md), and
-[RFC 0072](../rfcs/0072-collocated-incompressible-finite-volume.md).
+[RFC 0072](../rfcs/0072-collocated-incompressible-finite-volume.md), plus the
+bounded immutable geometry edit in
+[RFC 0075](../rfcs/0075-exact-cartesian-domain-edit.md).
 
 The CUDA path consumes the CPU-finalized operator; it does not own a second FSI
 lowering. The MPI path consumes accepted owner-row assembly payloads; it does
@@ -81,6 +84,9 @@ those two parent paths, not another physical semantics.
   enters the unchanged target ALE finalizer.
 - One accepted remeshing-aware trajectory projects to a complete XDMF 3
   temporal collection and HDF5 file image, and to a separate derived Dataset.
+- One current-v6 Model with one three-dimensional Cartesian body can replace
+  one axis interval through the ordinary immutable transaction path while
+  retaining body, boundary, membership, and incidence identities.
 
 ### What it does not prove
 
@@ -90,6 +96,7 @@ those two parent paths, not another physical semantics.
   GPU-aware MPI, distributed ALE/remeshing, recovery, or fault semantics;
 - arbitrary CAD, persistent naming across topology change, healing, curved or
   high-order geometry, or a general Boolean/history kernel;
+- parameter-driven or multi-axis geometry regeneration;
 - ALE, remeshing, FSI, or CAD shape sensitivities and adjoints;
 - temporal XDMF import, arbitrary trajectory export, parallel HDF5, or a
   production Dataset loader.
@@ -228,11 +235,12 @@ The next product wavefront is dependency-ordered rather than calendar-ordered:
 
 ```text
 Geometry and CAD
-  exact parameter edit and regeneration
-    -> curved and multi-body Geometry Identity
-      -> sketch, feature, import, and meshing adapters
-        -> Python and Studio projections
-          -> CAD and ALE shape sensitivity
+  exact Cartesian Domain edit and identity-preserving regeneration  closed
+    -> parameter-driven and multi-axis geometry regeneration
+      -> curved and multi-body Geometry Identity
+        -> sketch, feature, import, and meshing adapters
+          -> Python and Studio projections
+            -> CAD and ALE shape sensitivity
 
 Physics libraries and credibility
   elasticity patch + thermal slab + Couette--Poiseuille

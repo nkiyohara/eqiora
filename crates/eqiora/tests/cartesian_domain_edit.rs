@@ -17,6 +17,23 @@ const BASE: &str =
 const TARGET: &str =
     include_str!("../../../verify/geometry/cartesian-domain-edit-3d/models/target.eqi");
 const TOLERANCE_M: f64 = 1.0e-12;
+const TWO_DIMENSIONAL: &str = r"
+model Plane {
+  domain body = box(-0.5, 0.5, -0.5, 0.5);
+  representation scalar_space = continuum;
+  field witness on body as scalar_space: 1 = 0;
+  relation retain_body continuous on body { witness = 0; }
+}
+";
+const MULTI_BODY: &str = r"
+model Pair {
+  domain body = box(-0.5, 0.5, -0.5, 0.5, -0.5, 0.5);
+  domain peer = box(1.0, 2.0, -0.5, 0.5, -0.5, 0.5);
+  representation scalar_space = continuum;
+  field witness on body as scalar_space: 1 = 0;
+  relation retain_body continuous on body { witness = 0; }
+}
+";
 
 #[test]
 fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associations() {
@@ -34,6 +51,12 @@ fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associ
     let plan = base
         .preview_cartesian_domain_edit(body, 0, axis_bounds(-0.6, 0.6))
         .unwrap();
+    let repeated = base
+        .preview_cartesian_domain_edit(body, 0, axis_bounds(-0.6, 0.6))
+        .unwrap();
+    let distinct = base
+        .preview_cartesian_domain_edit(body, 0, axis_bounds(-0.7, 0.7))
+        .unwrap();
     assert_eq!(
         base.exact_codec(),
         eqiora::compatibility::ExactModelCodec::V6
@@ -44,6 +67,19 @@ fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associ
     assert_eq!(plan.before(), axis_bounds(-0.5, 0.5));
     assert_eq!(plan.after(), axis_bounds(-0.6, 0.6));
     assert_ne!(plan.expected_child_digest(), base_digest);
+    assert_eq!(plan, repeated);
+    assert_eq!(plan.key(), repeated.key());
+    assert_eq!(plan.transaction_digest(), repeated.transaction_digest());
+    assert_eq!(
+        plan.transaction_json().unwrap(),
+        repeated.transaction_json().unwrap()
+    );
+    assert_ne!(plan.key(), distinct.key());
+    assert_ne!(plan.transaction_digest(), distinct.transaction_digest());
+    assert_ne!(
+        plan.expected_child_digest(),
+        distinct.expected_child_digest()
+    );
     let committed = base.commit_cartesian_domain_edit(plan).unwrap();
     let child = committed.document();
 
@@ -181,6 +217,33 @@ fn invalid_stale_and_foreign_edits_fail_before_mutation() {
 
     assert_eq!(base.canonical_json().unwrap(), base_bytes);
     assert_eq!(base.digest().unwrap(), base_digest);
+}
+
+#[test]
+fn unsupported_profile_dimension_and_body_multiplicity_fail_closed() {
+    let v5 = eqiora::compatibility::ExactModelCodec::V5
+        .compile("v5.eqi", BASE)
+        .unwrap();
+    let v5_body = domain(&v5, "body");
+    assert!(
+        v5.preview_cartesian_domain_edit(v5_body, 0, axis_bounds(-0.6, 0.6))
+            .is_err()
+    );
+
+    let plane = ModelDocument::compile("plane.eqi", TWO_DIMENSIONAL).unwrap();
+    let plane_body = domain(&plane, "body");
+    assert!(
+        plane
+            .preview_cartesian_domain_edit(plane_body, 0, axis_bounds(-0.6, 0.6))
+            .is_err()
+    );
+
+    let pair = ModelDocument::compile("pair.eqi", MULTI_BODY).unwrap();
+    let pair_body = domain(&pair, "body");
+    assert!(
+        pair.preview_cartesian_domain_edit(pair_body, 0, axis_bounds(-0.6, 0.6))
+            .is_err()
+    );
 }
 
 #[test]

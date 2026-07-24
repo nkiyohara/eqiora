@@ -21,11 +21,15 @@ changed_identity = "exact Model digest and Geometry Identity digest"
 selection_retention = "explicit total one-to-one geometry-revision association"
 
 [falsifiers]
+repeated_preview = "same base and interval reproduce exact plan key, transaction bytes/digest, and child digest; another interval changes them"
 same_revision_foreign_model_digest = "reject before mutation"
 stale_child_revision = "reject before mutation"
 no_op_interval = "reject"
 out_of_axis = "reject"
 boundary_as_body_target = "reject"
+older_model_codec = "reject"
+two_dimensional_body = "reject"
+multiple_cartesian_bodies = "reject"
 non_finite_or_reversed_axis_bounds = "reject at typed AxisBounds construction"
 missing_boundary_of_edge = "edge-only replay fails; a replayable missing-role mutant is rejected by Geometry Identity"
 
