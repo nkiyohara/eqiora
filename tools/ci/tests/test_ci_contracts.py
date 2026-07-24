@@ -95,6 +95,45 @@ class HostedTriggerTests(unittest.TestCase):
             evidence,
         )
 
+    def test_hosted_test_profile_is_compact_and_test_scoped(self) -> None:
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
+            encoding="utf-8"
+        )
+        quality = workflow.split("  quality:\n", maxsplit=1)[1].split(
+            "\n  host_evidence:", maxsplit=1
+        )[0]
+        evidence = workflow.split("  host_evidence:\n", maxsplit=1)[1].split(
+            "\n  msrv:", maxsplit=1
+        )[0]
+        studio = workflow.split("  studio:\n", maxsplit=1)[1].split(
+            "\n  gate:", maxsplit=1
+        )[0]
+        tests = quality.split("- name: Tests\n", maxsplit=1)[1].split(
+            "- name: Full feature tests\n", maxsplit=1
+        )[0]
+        full_feature_tests = quality.split(
+            "- name: Full feature tests\n", maxsplit=1
+        )[1].split("- name: Dependency layers\n", maxsplit=1)[0]
+        host_evidence = evidence.split(
+            "- name: Run registered host evidence\n", maxsplit=1
+        )[1]
+        profile = (
+            'CARGO_PROFILE_TEST_DEBUG: "0"',
+            'CARGO_PROFILE_TEST_DEBUG_ASSERTIONS: "true"',
+            'CARGO_PROFILE_TEST_INCREMENTAL: "false"',
+            'CARGO_PROFILE_TEST_OPT_LEVEL: "1"',
+            'CARGO_PROFILE_TEST_OVERFLOW_CHECKS: "true"',
+        )
+
+        for step in (tests, full_feature_tests, host_evidence):
+            for setting in profile:
+                self.assertIn(setting, step)
+            self.assertNotIn("RUSTFLAGS", step)
+        for setting in profile:
+            self.assertEqual(workflow.count(setting), 3)
+        self.assertNotIn("CARGO_PROFILE_TEST_", studio)
+        self.assertNotIn("fast-math", workflow.lower())
+
     def test_studio_checks_its_independent_manifest_at_the_same_msrv(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
             encoding="utf-8"
