@@ -98,10 +98,9 @@ pub use implicit_time_lineage::{ImplicitTimeCheckpointEnvelopeV1, ImplicitTimeRe
 pub use mesh::SimplicialMeshEnvelopeV1;
 pub use mesh_revision_overlap::MeshRevisionOverlapEnvelopeV1;
 pub use model::ModelEnvelopeV1;
-#[allow(deprecated)]
 pub use model_reference::{
     AcceptedModelArtifact, CanonicalModelArtifact, ModelArtifactGeneration, ModelArtifactReference,
-    ModelArtifactReferenceV1, ReplayableCanonicalModelArtifact, ReplayedCanonicalModel,
+    ReplayableCanonicalModelArtifact, ReplayedCanonicalModel,
 };
 pub use model_transaction::ModelTransactionEnvelopeV1;
 pub use model_transaction_v2::ModelTransactionEnvelopeV2;

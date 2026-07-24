@@ -87,10 +87,6 @@ pub struct ModelArtifactReference {
     semantic_revision: SemanticRevision,
 }
 
-/// Compatibility alias for the former source-level name.
-#[deprecated(note = "use ModelArtifactReference")]
-pub type ModelArtifactReferenceV1 = ModelArtifactReference;
-
 impl ModelArtifactReference {
     fn new(artifact: ArtifactDigest, model: OntologyId<Model>, source_revision: u64) -> Self {
         Self {

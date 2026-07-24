@@ -115,12 +115,18 @@ No path tries one codec after another or upgrades old bytes.
   boundary live in `eqiora-artifact`;
 - the accepted v1--v6 envelope set and all encode/decode/identity/replay
   dispatch are generated from one registry in `eqiora-artifact`;
-- `eqiora-api` retains the caller's exact codec policy and one opaque accepted
+- `eqiora-api` retains the public caller policy `ExactModelCodec`, maps its
+  selected generation into that registry, and keeps one opaque accepted
   artifact in `ModelDocument`;
 - Realization consumes only the typed reference surface and retains its
   existing wire; and
 - Run v2 continues to consume the resulting Realization, not the Model
   payload.
+
+The artifact registry owns historical-envelope mechanics, not public
+generation selection. Adding a generation therefore updates both the single
+artifact-owned dispatch registration and `ExactModelCodec`. Generation-neutral
+CAD and Geometry consumers remain outside either historical match.
 
 The Semantic Kernel, Model v1/v2/v3/v4/v5/v6 bytes, Geometry Identity v1 bytes,
 Realization v1 bytes, and Run v2 bytes do not change.
@@ -153,12 +159,14 @@ This change widens only the typed Rust construction boundary before 1.0.
 Existing Model, Realization, and Run canonical bytes and digest preimages are
 unchanged. Existing Model v1 callers continue through the same contract.
 
-A future Model wire requires one explicit registration in the artifact-owned
-registry and its own exact decoder before it can produce identity or replay.
-Generation-neutral API, CAD, Geometry, Realization, and Run consumers do not
-change. The contract does not authorize wire auto-detection, fallback,
-implicit upgrade, cross-generation digest equivalence, or permissive replay
-of unknown required semantics.
+A future Model wire requires its exact envelope and decoder, one entry at the
+artifact owner's historical-envelope dispatch registration point, and an
+explicit update to the public caller policy `ExactModelCodec` before callers
+can select it for identity or replay. Generation-neutral CAD and Geometry
+consumers remain unchanged; Realization and Run continue to consume only the
+typed identity boundary. The contract does not authorize wire auto-detection,
+fallback, implicit upgrade, cross-generation digest equivalence, or permissive
+replay of unknown required semantics.
 
 ## Verification
 
