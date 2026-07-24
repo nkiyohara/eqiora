@@ -463,6 +463,12 @@ impl<const D: usize> AleFsiStepEvidence<D> {
         self.jacobian_audit.color_count()
     }
 
+    /// Globally coupled columns retained as conservative singleton colors.
+    #[must_use]
+    pub const fn jacobian_global_singleton_count(&self) -> usize {
+        self.jacobian_audit.globally_coupled_singleton_count()
+    }
+
     /// Complete residual assemblies used by the centered audit.
     #[must_use]
     pub const fn jacobian_residual_assembly_count(&self) -> usize {
@@ -1004,7 +1010,7 @@ mod tests {
             interface_actions: vec![
                 AleFsiInterfaceAction2d::new(interface_vertex, [1.0, -2.0], [-1.0, 2.0]).unwrap(),
             ],
-            jacobian_audit: CenteredJacobianAuditEvidence::new(vec![vec![0]], 1.0e-12).unwrap(),
+            jacobian_audit: CenteredJacobianAuditEvidence::new(vec![vec![0]], 0, 1.0e-12).unwrap(),
             probed_moving_fluid_cell_count: 0,
             gcl_active_moving_fluid_cell_count: 0,
             compatible_constant_free_stream_residual_norm: 0.0,
@@ -1029,7 +1035,7 @@ mod tests {
                 AleFsiInterfaceAction3d::new(interface_vertex, [1.0, -2.0, 3.0], [-1.0, 2.0, -3.0])
                     .unwrap(),
             ],
-            jacobian_audit: CenteredJacobianAuditEvidence::new(vec![vec![0]], 1.0e-12).unwrap(),
+            jacobian_audit: CenteredJacobianAuditEvidence::new(vec![vec![0]], 0, 1.0e-12).unwrap(),
             probed_moving_fluid_cell_count: 0,
             gcl_active_moving_fluid_cell_count: 0,
             compatible_constant_free_stream_residual_norm: 0.0,

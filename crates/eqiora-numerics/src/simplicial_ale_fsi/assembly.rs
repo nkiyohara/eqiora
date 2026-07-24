@@ -12,10 +12,7 @@ use eqiora_assembly::{
 };
 use eqiora_core::Diagnostic;
 use eqiora_meshing::FixedTopologyGeometryAction;
-use eqiora_meshing::{
-    AffineGeometryLinearization, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule,
-    SimplicialMesh,
-};
+use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh};
 use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
@@ -37,7 +34,6 @@ pub(super) struct StepAssembly<const D: usize> {
     pub(super) full_solid_residual: Vec<f64>,
     pub(super) layout: FsiLayout<D>,
     pub(super) assembly_report: AssemblyReport,
-    pub(super) jacobian_pattern: StructuralJacobianPattern,
 }
 
 impl<const D: usize> StepAssembly<D> {
@@ -71,10 +67,6 @@ impl<const D: usize> StepAssembly<D> {
 
     pub(super) const fn assembly_report(&self) -> &AssemblyReport {
         &self.assembly_report
-    }
-
-    pub(super) const fn jacobian_pattern(&self) -> &StructuralJacobianPattern {
-        &self.jacobian_pattern
     }
 }
 
@@ -134,13 +126,6 @@ pub(super) fn assemble_step_linearization<const D: usize>(
         reference, partition, boundary, motion, previous, plan, quadrature, candidate,
     )?;
     let directions = build_directions(partition, motion, plan, &prepared.layout)?;
-    let jacobian_pattern = build_structural_jacobian_pattern(
-        reference,
-        partition,
-        motion,
-        &prepared.layout,
-        prepared.cell_count,
-    )?;
     let assembly_plan =
         AssemblyPlan::new(vec![AssemblyTarget::new(prepared.layout.reduced_size())?])?;
     let reduced_target = assembly_plan
@@ -206,7 +191,6 @@ pub(super) fn assemble_step_linearization<const D: usize>(
         full_solid_residual: direct.full_solid,
         layout: prepared.layout,
         assembly_report,
-        jacobian_pattern,
     })
 }
 
@@ -598,26 +582,14 @@ fn evaluate_fluid_residual<const D: usize>(
         current,
         geometry_action,
     )?;
-    let stationary =
-        AffineGeometryLinearization::stationary(prepared.geometry.current_map().clone())?;
-    let zero_velocity = vec![[0.0; D]; D + 2];
-    let zero_pressure = vec![0.0; D + 1];
-    let primal = prepared.operator(plan).evaluate(
-        AleMiniFluidDirection::<D> {
-            current_velocity: &zero_velocity,
-            current_pressure: &zero_pressure,
-            current_geometry: &stationary,
-        },
-        quadrature,
-    )?;
+    let primal = prepared.operator(plan).residual(quadrature)?;
     let row_scales = fluid_row_scales(plan);
-    if primal.residual().len() != row_scales.len() {
+    if primal.len() != row_scales.len() {
         return Err(invalid(format!(
             "{D}D ALE FSI fluid residual differs from its typed row-scale inventory"
         )));
     }
     let residual = primal
-        .residual()
         .iter()
         .zip(row_scales.iter().copied())
         .map(|(value, scale)| value * scale)
@@ -895,13 +867,23 @@ fn build_directions<const D: usize>(
     Ok(directions)
 }
 
+pub(super) fn build_step_jacobian_pattern<const D: usize>(
+    reference: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<D>,
+    boundary: &AleFsiBoundary<D>,
+    motion: &P1HarmonicMeshMotion<D>,
+) -> Result<StructuralJacobianPattern, Diagnostic> {
+    let layout = FsiLayout::new(reference, partition, boundary)?;
+    build_structural_jacobian_pattern(reference, partition, motion, &layout)
+}
+
 fn build_structural_jacobian_pattern<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     motion: &P1HarmonicMeshMotion<D>,
     layout: &FsiLayout<D>,
-    cell_count: usize,
 ) -> Result<StructuralJacobianPattern, Diagnostic> {
+    let cell_count = partition.cell_count();
     let mut pattern = StructuralJacobianPatternBuilder::new(
         layout.reduced_size(),
         layout.reduced_size(),
@@ -1357,11 +1339,14 @@ mod tests {
         )
         .unwrap();
         let assembled = assemble(&fixture, &point, &quadrature);
-        assert_harmonic_driver_singletons(
+        let pattern = build_structural_jacobian_pattern(
+            &fixture.mesh,
+            &fixture.partition,
             &fixture.motion,
             &assembled.layout,
-            assembled.jacobian_pattern(),
-        );
+        )
+        .unwrap();
+        assert_harmonic_driver_singletons(&fixture.motion, &assembled.layout, &pattern);
 
         let fixture = fixture_3d();
         let quadrature = simplex_duffy_gauss_legendre(3, 7).unwrap();
@@ -1387,11 +1372,14 @@ mod tests {
             &REFERENCE_ASSEMBLY_BACKEND,
         )
         .unwrap();
-        assert_harmonic_driver_singletons(
+        let pattern = build_structural_jacobian_pattern(
+            &fixture.mesh,
+            &fixture.partition,
             &fixture.motion,
             &assembled.layout,
-            assembled.jacobian_pattern(),
-        );
+        )
+        .unwrap();
+        assert_harmonic_driver_singletons(&fixture.motion, &assembled.layout, &pattern);
     }
 
     #[test]

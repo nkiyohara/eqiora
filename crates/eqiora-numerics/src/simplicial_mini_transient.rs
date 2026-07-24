@@ -38,6 +38,32 @@ impl<const D: usize> MiniTransport<'_, D> {
             Self::SkewStationary | Self::SkewRelativeGcl(_) => 3 * D + 2,
         }
     }
+
+    fn at_primal_point<'a>(
+        self,
+        reference: &[f64],
+        velocity: &'a [f64; D],
+        velocity_gradient: &'a [[f64; D]; D],
+    ) -> Result<PrimalConvectionPoint<'a, D>, Diagnostic> {
+        match self {
+            Self::Disabled => Ok(PrimalConvectionPoint::Disabled),
+            Self::SkewStationary => Ok(PrimalConvectionPoint::Stationary {
+                velocity,
+                velocity_gradient,
+            }),
+            Self::SkewRelativeGcl(action) => {
+                let mesh_velocity = action.mesh_velocity(reference)?;
+                Ok(PrimalConvectionPoint::Ale {
+                    relative_velocity: std::array::from_fn(|axis| {
+                        velocity[axis] - mesh_velocity[axis]
+                    }),
+                    velocity,
+                    velocity_gradient,
+                    mesh_divergence: action.current_velocity_divergence(),
+                })
+            }
+        }
+    }
 }
 
 /// Geometry direction at the current affine endpoint.
@@ -309,6 +335,74 @@ impl<const D: usize> MiniTransientCell<'_, D> {
         F: Fn([f64; D]) -> Result<[f64; D], Diagnostic> + Sync,
     {
         self.project_fixed_geometry_state(body_force, quadrature, None)
+    }
+
+    /// Evaluate only the primal transient relation for stationary or ALE transport.
+    pub(crate) fn residual(&self, quadrature: &QuadratureRule) -> Result<Vec<f64>, Diagnostic> {
+        self.validate_primal(quadrature)?;
+
+        let p1_basis_count = D + 1;
+        let velocity_basis_count = D + 2;
+        let pressure_offset = velocity_basis_count * D;
+        let local_dof_count = pressure_offset + p1_basis_count;
+        let inverse = self.geometry.inverse_jacobian()?;
+        let velocity_space = SimplexP1BubbleSpace::new(D)?;
+        let pressure_space = SimplexP1Space::new(D)?;
+        let mut residual = vec![0.0; local_dof_count];
+
+        for point in quadrature.points() {
+            let velocity_basis = velocity_space.tabulate(&point.coordinates)?;
+            let pressure_basis = pressure_space.tabulate(&point.coordinates)?;
+            let gradients = (0..velocity_basis_count)
+                .map(|basis| {
+                    physical_gradient(
+                        velocity_basis
+                            .gradient(basis)
+                            .expect("accepted MINI basis index"),
+                        &inverse,
+                        D,
+                    )
+                })
+                .collect::<Vec<_>>();
+            let (velocity, velocity_gradient) =
+                evaluate_velocity(self.current_velocity, velocity_basis.values(), &gradients);
+            let (previous_velocity, _) =
+                evaluate_velocity(self.previous_velocity, velocity_basis.values(), &gradients);
+            let pressure = dot(self.current_pressure, pressure_basis.values());
+            let divergence = trace(&velocity_gradient);
+            let measure = point.weight * self.geometry.measure_scale();
+
+            for pressure_test in 0..p1_basis_count {
+                let row = pressure_offset + pressure_test;
+                residual[row] += measure * (-pressure_basis.values()[pressure_test] * divergence);
+            }
+
+            let convection = self.transport.at_primal_point(
+                &point.coordinates,
+                &velocity,
+                &velocity_gradient,
+            )?;
+            for (row_basis, test_gradient) in gradients.iter().enumerate() {
+                let test = velocity_basis.values()[row_basis];
+                for row_component in 0..D {
+                    let row = local_velocity::<D>(row_basis, row_component);
+                    let time = self.density / self.time_step
+                        * test
+                        * (velocity[row_component] - previous_velocity[row_component]);
+                    let viscous = self.viscosity
+                        * symmetric_gradient_test(&velocity_gradient, test_gradient, row_component);
+                    let pressure_action = -pressure * test_gradient[row_component];
+                    let convective =
+                        convection.action(self.density, test, test_gradient, row_component);
+                    residual[row] += measure * (time + viscous + pressure_action + convective);
+                }
+            }
+        }
+
+        if residual.iter().any(|value| !value.is_finite()) {
+            return Err(invalid("MINI transient fluid residual is non-finite"));
+        }
+        Ok(residual)
     }
 
     /// Project fixed-domain skew transport to its dense state Jacobian.
@@ -777,6 +871,85 @@ impl GeometryTangent {
     }
 }
 
+enum PrimalConvectionPoint<'a, const D: usize> {
+    Disabled,
+    Stationary {
+        velocity: &'a [f64; D],
+        velocity_gradient: &'a [[f64; D]; D],
+    },
+    Ale {
+        relative_velocity: [f64; D],
+        velocity: &'a [f64; D],
+        velocity_gradient: &'a [[f64; D]; D],
+        mesh_divergence: f64,
+    },
+}
+
+impl<const D: usize> PrimalConvectionPoint<'_, D> {
+    fn action(&self, density: f64, test: f64, test_gradient: &[f64], component: usize) -> f64 {
+        match self {
+            Self::Disabled => 0.0,
+            Self::Stationary {
+                velocity,
+                velocity_gradient,
+            } => stationary_convection_action(
+                density,
+                velocity,
+                velocity_gradient,
+                test,
+                test_gradient,
+                component,
+            ),
+            Self::Ale {
+                relative_velocity,
+                velocity,
+                velocity_gradient,
+                mesh_divergence,
+            } => ale_convection_action(
+                density,
+                relative_velocity,
+                velocity,
+                velocity_gradient,
+                *mesh_divergence,
+                test,
+                test_gradient,
+                component,
+            ),
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn stationary_convection_action<const D: usize>(
+    density: f64,
+    velocity: &[f64; D],
+    velocity_gradient: &[[f64; D]; D],
+    test: f64,
+    test_gradient: &[f64],
+    component: usize,
+) -> f64 {
+    0.5 * density
+        * (dot(velocity, &velocity_gradient[component]) * test
+            - dot(velocity, test_gradient) * velocity[component])
+}
+
+#[allow(clippy::too_many_arguments)]
+fn ale_convection_action<const D: usize>(
+    density: f64,
+    relative_velocity: &[f64; D],
+    velocity: &[f64; D],
+    velocity_gradient: &[[f64; D]; D],
+    mesh_divergence: f64,
+    test: f64,
+    test_gradient: &[f64],
+    component: usize,
+) -> f64 {
+    0.5 * density
+        * (dot(relative_velocity, &velocity_gradient[component]) * test
+            - dot(relative_velocity, test_gradient) * velocity[component]
+            + mesh_divergence * velocity[component] * test)
+}
+
 enum TransportTangent<'a, const D: usize> {
     Disabled,
     SkewStationary,
@@ -905,14 +1078,18 @@ impl<const D: usize> ConvectionPoint<'_, D> {
                 let velocity_dot_test_gradient = dot(*velocity, test_gradient);
                 let velocity_dot_test_gradient_tangent =
                     dot(*velocity_tangent, test_gradient) + dot(*velocity, test_gradient_tangent);
-                let velocity_dot_velocity_gradient = dot(*velocity, &velocity_gradient[component]);
                 let velocity_dot_velocity_gradient_tangent =
                     dot(*velocity_tangent, &velocity_gradient[component])
                         + dot(*velocity, &velocity_gradient_tangent[component]);
                 (
-                    0.5 * density
-                        * (velocity_dot_velocity_gradient * test
-                            - velocity_dot_test_gradient * velocity[component]),
+                    stationary_convection_action(
+                        density,
+                        velocity,
+                        velocity_gradient,
+                        test,
+                        test_gradient,
+                        component,
+                    ),
                     0.5 * density
                         * (velocity_dot_velocity_gradient_tangent * test
                             - velocity_dot_test_gradient_tangent * velocity[component]
@@ -933,16 +1110,20 @@ impl<const D: usize> ConvectionPoint<'_, D> {
                 let relative_dot_test_gradient_tangent =
                     dot(relative_velocity_tangent, test_gradient)
                         + dot(relative_velocity, test_gradient_tangent);
-                let relative_dot_velocity_gradient =
-                    dot(relative_velocity, &velocity_gradient[component]);
                 let relative_dot_velocity_gradient_tangent =
                     dot(relative_velocity_tangent, &velocity_gradient[component])
                         + dot(relative_velocity, &velocity_gradient_tangent[component]);
                 (
-                    0.5 * density
-                        * (relative_dot_velocity_gradient * test
-                            - relative_dot_test_gradient * velocity[component]
-                            + mesh_divergence * velocity[component] * test),
+                    ale_convection_action(
+                        density,
+                        relative_velocity,
+                        velocity,
+                        velocity_gradient,
+                        *mesh_divergence,
+                        test,
+                        test_gradient,
+                        component,
+                    ),
                     0.5 * density
                         * (relative_dot_velocity_gradient_tangent * test
                             - relative_dot_test_gradient_tangent * velocity[component]

@@ -10,14 +10,17 @@ use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolverBackend
 use super::acceptance::{NewtonEvidence, accept_step};
 use super::api::{AleFsiStepEvidence, AleFsiTrajectory, AleFsiTrajectory2d, AleFsiTrajectory3d};
 use super::assembly::{
-    StepAssembly, assemble_step_linearization, assemble_step_residual, initial_point,
+    StepAssembly, assemble_step_linearization, assemble_step_residual, build_step_jacobian_pattern,
+    initial_point,
 };
 use super::contract::{
     AleFsiBoundary, AleFsiBoundary2d, AleFsiBoundary3d, AleFsiState, AleFsiState2d, AleFsiState3d,
     AleFsiStepPlan, AleFsiStepPlan2d, AleFsiStepPlan3d,
 };
 use super::{P1HarmonicMeshMotion, P1HarmonicMeshMotion2d, P1HarmonicMeshMotion3d};
-use crate::jacobian_audit::{CenteredJacobianAuditEvidence, audit_centered_jacobian};
+use crate::jacobian_audit::{
+    CenteredJacobianAuditEvidence, StructuralJacobianPattern, audit_centered_jacobian,
+};
 use crate::{
     FixedReferenceFsiPartition, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
     NonZeroStepCount,
@@ -156,6 +159,7 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
         LinearOperatorProperties::General,
     )?;
     initial.validate_against(reference, partition, motion)?;
+    let jacobian_pattern = build_step_jacobian_pattern(reference, partition, boundary, motion)?;
     let mut trajectory = AleFsiTrajectory::<D>::new(initial);
     for _ in 0..step_count.get() {
         let previous = trajectory
@@ -163,7 +167,16 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
             .last()
             .expect("ALE FSI trajectory owns its initial state");
         let (next, evidence) = solve_one_step::<D>(
-            reference, partition, boundary, motion, previous, plan, quadrature, assembly, solver,
+            reference,
+            partition,
+            boundary,
+            motion,
+            previous,
+            plan,
+            quadrature,
+            &jacobian_pattern,
+            assembly,
+            solver,
         )?;
         trajectory.push(next, evidence)?;
     }
@@ -179,6 +192,7 @@ fn solve_one_step<const D: usize>(
     previous: &AleFsiState<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
+    jacobian_pattern: &StructuralJacobianPattern,
     assembly_backend: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
@@ -200,7 +214,15 @@ fn solve_one_step<const D: usize>(
     let residual_target = nonlinear_target::<D>(plan, initial_residual_norm)?;
     if initial_residual_norm <= residual_target {
         let jacobian_audit = verify_analytic_jacobian::<D>(
-            reference, partition, boundary, motion, previous, &current, plan, quadrature,
+            reference,
+            partition,
+            boundary,
+            motion,
+            previous,
+            &current,
+            plan,
+            quadrature,
+            jacobian_pattern,
         )?;
         return accept_step::<D>(
             reference,
@@ -281,7 +303,15 @@ fn solve_one_step<const D: usize>(
         current = assembled;
         if norm <= residual_target {
             let jacobian_audit = verify_analytic_jacobian::<D>(
-                reference, partition, boundary, motion, previous, &current, plan, quadrature,
+                reference,
+                partition,
+                boundary,
+                motion,
+                previous,
+                &current,
+                plan,
+                quadrature,
+                jacobian_pattern,
             )?;
             return accept_step::<D>(
                 reference,
@@ -317,11 +347,12 @@ fn verify_analytic_jacobian<const D: usize>(
     accepted: &StepAssembly<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
+    jacobian_pattern: &StructuralJacobianPattern,
 ) -> Result<CenteredJacobianAuditEvidence, Diagnostic> {
     let point = accepted.algebraic_values();
     audit_centered_jacobian(
         point,
-        accepted.jacobian_pattern(),
+        jacobian_pattern,
         2.0e-5,
         "ALE FSI",
         |candidate| {

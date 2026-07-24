@@ -9,9 +9,13 @@ use super::api::{
     MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d,
     SimplicialMiniNavierStokesTrajectory2d,
 };
-use super::assembly::{assemble_step_linearization, assemble_step_residual};
+use super::assembly::{
+    assemble_step_linearization, assemble_step_residual, build_step_jacobian_pattern,
+};
 use super::{COMPONENTS, DIMENSION, solve_failed};
-use crate::jacobian_audit::{CenteredJacobianAuditEvidence, audit_centered_jacobian};
+use crate::jacobian_audit::{
+    CenteredJacobianAuditEvidence, StructuralJacobianPattern, audit_centered_jacobian,
+};
 use crate::{NonZeroStepCount, SimplicialMiniStokesBoundary2d};
 
 /// Advance a fixed mesh through one or more accepted implicit steps with the
@@ -77,6 +81,7 @@ where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
+    let jacobian_pattern = build_step_jacobian_pattern(mesh, boundary, essential_velocity)?;
     let mut trajectory = SimplicialMiniNavierStokesTrajectory2d::new(initial);
     for _ in 0..step_count.get() {
         let previous = trajectory
@@ -92,6 +97,7 @@ where
             plan,
             cell_quadrature,
             facet_quadrature,
+            &jacobian_pattern,
             assembly,
             solver,
         )?;
@@ -110,6 +116,7 @@ fn solve_one_step<F, B>(
     plan: MiniNavierStokesStepPlan2d,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
+    jacobian_pattern: &StructuralJacobianPattern,
     assembly_backend: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
 ) -> Result<
@@ -150,6 +157,7 @@ where
             plan,
             cell_quadrature,
             facet_quadrature,
+            jacobian_pattern,
         )?;
         return accept_step(
             mesh,
@@ -224,6 +232,7 @@ where
                 plan,
                 cell_quadrature,
                 facet_quadrature,
+                jacobian_pattern,
             )?;
             return accept_step(
                 mesh,
@@ -258,6 +267,7 @@ fn verify_analytic_jacobian<F, B>(
     plan: MiniNavierStokesStepPlan2d,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
+    jacobian_pattern: &StructuralJacobianPattern,
 ) -> Result<CenteredJacobianAuditEvidence, Diagnostic>
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
@@ -266,7 +276,7 @@ where
     let point = accepted.algebraic_values();
     audit_centered_jacobian(
         point,
-        accepted.jacobian_pattern(),
+        jacobian_pattern,
         8.0e-6,
         "transient MINI",
         |candidate| {

@@ -11,12 +11,13 @@ use eqiora_assembly::{AssemblyMap, LocalUnknown};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
-/// Exact structural row support and deterministic coloring for one square audit.
+/// Conservative structural row support and deterministic coloring for one square audit.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct StructuralJacobianPattern {
     row_count: usize,
     row_supports: Vec<Vec<usize>>,
     colors: Vec<Vec<usize>>,
+    globally_coupled_singleton_count: usize,
 }
 
 impl StructuralJacobianPattern {
@@ -30,6 +31,10 @@ impl StructuralJacobianPattern {
 
     fn column_count(&self) -> usize {
         self.row_supports.len()
+    }
+
+    fn globally_coupled_singleton_count(&self) -> usize {
+        self.globally_coupled_singleton_count
     }
 
     #[cfg(test)]
@@ -148,6 +153,11 @@ impl StructuralJacobianPatternBuilder {
             row_count: self.row_count,
             row_supports,
             colors,
+            globally_coupled_singleton_count: self
+                .globally_coupled
+                .into_iter()
+                .filter(|coupled| *coupled)
+                .count(),
         })
     }
 }
@@ -155,13 +165,19 @@ impl StructuralJacobianPatternBuilder {
 /// Accepted measurements from one complete colored audit.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CenteredJacobianAuditEvidence {
-    colors: Vec<Vec<usize>>,
+    column_count: usize,
+    color_count: usize,
+    globally_coupled_singleton_count: usize,
     residual_assembly_count: usize,
     maximum_error: f64,
 }
 
 impl CenteredJacobianAuditEvidence {
-    pub(crate) fn new(colors: Vec<Vec<usize>>, maximum_error: f64) -> Result<Self, Diagnostic> {
+    pub(crate) fn new(
+        colors: Vec<Vec<usize>>,
+        globally_coupled_singleton_count: usize,
+        maximum_error: f64,
+    ) -> Result<Self, Diagnostic> {
         let residual_assembly_count = colors
             .len()
             .checked_mul(2)
@@ -204,19 +220,30 @@ impl CenteredJacobianAuditEvidence {
                 "centered Jacobian evidence omits one or more audited columns",
             ));
         }
+        if globally_coupled_singleton_count > colors.len() {
+            return Err(invalid(
+                "centered Jacobian evidence contains more global singleton columns than colors",
+            ));
+        }
         Ok(Self {
-            colors,
+            column_count,
+            color_count: colors.len(),
+            globally_coupled_singleton_count,
             residual_assembly_count,
             maximum_error,
         })
     }
 
-    pub(crate) fn column_count(&self) -> usize {
-        self.colors.iter().map(Vec::len).sum()
+    pub(crate) const fn column_count(&self) -> usize {
+        self.column_count
     }
 
     pub(crate) const fn color_count(&self) -> usize {
-        self.colors.len()
+        self.color_count
+    }
+
+    pub(crate) const fn globally_coupled_singleton_count(&self) -> usize {
+        self.globally_coupled_singleton_count
     }
 
     pub(crate) const fn residual_assembly_count(&self) -> usize {
@@ -344,7 +371,11 @@ where
             maximum_error = maximum_error.max(error);
         }
     }
-    CenteredJacobianAuditEvidence::new(pattern.colors.clone(), maximum_error)
+    CenteredJacobianAuditEvidence::new(
+        pattern.colors.clone(),
+        pattern.globally_coupled_singleton_count(),
+        maximum_error,
+    )
 }
 
 fn deterministic_colors(row_supports: &[Vec<usize>], globally_coupled: &[bool]) -> Vec<Vec<usize>> {
@@ -572,8 +603,9 @@ mod tests {
 
     #[test]
     fn audit_evidence_rejects_invalid_counts_and_errors() {
-        assert!(CenteredJacobianAuditEvidence::new(Vec::new(), 0.0).is_err());
-        assert!(CenteredJacobianAuditEvidence::new(vec![vec![0]], -1.0).is_err());
-        assert!(CenteredJacobianAuditEvidence::new(vec![Vec::new()], 0.0).is_err());
+        assert!(CenteredJacobianAuditEvidence::new(Vec::new(), 0, 0.0).is_err());
+        assert!(CenteredJacobianAuditEvidence::new(vec![vec![0]], 0, -1.0).is_err());
+        assert!(CenteredJacobianAuditEvidence::new(vec![Vec::new()], 0, 0.0).is_err());
+        assert!(CenteredJacobianAuditEvidence::new(vec![vec![0]], 2, 0.0).is_err());
     }
 }

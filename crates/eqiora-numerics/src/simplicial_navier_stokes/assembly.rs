@@ -33,7 +33,6 @@ pub(super) struct StepAssembly {
     pub(super) pressure_reference: SimplicialMiniStokesPressureReference2d,
     pub(super) gauge_multiplier: Option<f64>,
     pub(super) assembly_report: AssemblyReport,
-    pub(super) jacobian_pattern: StructuralJacobianPattern,
 }
 
 impl StepAssembly {
@@ -56,10 +55,6 @@ impl StepAssembly {
 
     pub(super) fn algebraic_values(&self) -> &[f64] {
         self.relation.accepted_unknowns()
-    }
-
-    pub(super) const fn jacobian_pattern(&self) -> &StructuralJacobianPattern {
-        &self.jacobian_pattern
     }
 }
 
@@ -103,18 +98,6 @@ impl PreparedStepPoint {
             Err(invalid(
                 "transient MINI packet is outside the prepared contribution inventory",
             ))
-        }
-    }
-
-    const fn local_size(&self, packet: usize) -> Option<usize> {
-        if packet < self.cell_count {
-            Some(CELL_LOCAL_DOF_COUNT)
-        } else if packet < self.constraint_end {
-            Some(CONSTRAINT_LOCAL_DOF_COUNT)
-        } else if packet < self.packet_count {
-            Some(FACET_LOCAL_DOF_COUNT)
-        } else {
-            None
         }
     }
 
@@ -190,6 +173,64 @@ where
         constraint_end,
         packet_count,
     })
+}
+
+pub(super) fn build_step_jacobian_pattern<B>(
+    mesh: &SimplicialMesh,
+    boundary: &SimplicialMiniStokesBoundary2d,
+    essential_velocity: &B,
+) -> Result<StructuralJacobianPattern, Diagnostic>
+where
+    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
+{
+    let boundary = boundary.prepare(mesh, essential_velocity)?;
+    let with_gauge = boundary.pressure_reference == PressureReferenceKind2d::ZeroIntegral;
+    let layout = MixedLayout::new(mesh, &boundary.fixed_velocity, with_gauge)?;
+    let cell_count = mesh
+        .entity_count(DIMENSION)
+        .expect("2D simplex mesh owns cells");
+    let constraint_count = if with_gauge { cell_count } else { 0 };
+    let constraint_end = cell_count
+        .checked_add(constraint_count)
+        .ok_or_else(|| invalid("transient MINI constraint packet count overflows usize"))?;
+    let packet_count = constraint_end
+        .checked_add(boundary.traction_facets.len())
+        .ok_or_else(|| invalid("transient MINI packet count overflows usize"))?;
+    let mut pattern = StructuralJacobianPatternBuilder::new(
+        layout.reduced_size,
+        layout.reduced_size,
+        packet_count,
+    )?;
+    for packet in 0..packet_count {
+        let (local_size, map) = if packet < cell_count {
+            let vertices = mesh
+                .entity_vertices(MeshEntity::new(DIMENSION, packet))
+                .expect("accepted simplex cell owns vertices");
+            (
+                CELL_LOCAL_DOF_COUNT,
+                layout.reduced_cell_map(packet, &vertices, &boundary.fixed_velocity)?,
+            )
+        } else if packet < constraint_end {
+            let vertices = mesh
+                .entity_vertices(MeshEntity::new(DIMENSION, packet - cell_count))
+                .expect("accepted simplex cell owns vertices");
+            (
+                CONSTRAINT_LOCAL_DOF_COUNT,
+                layout.reduced_constraint_map(&vertices)?,
+            )
+        } else {
+            let facet = boundary.traction_facets[packet - constraint_end];
+            let vertices = mesh
+                .entity_vertices(facet.facet)
+                .expect("accepted boundary facet owns vertices");
+            (
+                FACET_LOCAL_DOF_COUNT,
+                layout.reduced_facet_map(&vertices, &boundary.fixed_velocity)?,
+            )
+        };
+        pattern.include_dense_local(packet, local_size, &map)?;
+    }
+    pattern.finish()
 }
 
 /// Reassemble the complete reduced residual without constructing a Jacobian.
@@ -292,22 +333,6 @@ where
     let full_target = assembly_plan
         .target_id(1)
         .expect("two-target plan owns full target");
-    let mut jacobian_pattern = StructuralJacobianPatternBuilder::new(
-        step.layout.reduced_size,
-        step.layout.reduced_size,
-        step.packet_count,
-    )?;
-    for packet in 0..step.packet_count {
-        let local_size = step
-            .local_size(packet)
-            .expect("prepared packet owns one typed local size");
-        jacobian_pattern.include_dense_local(
-            packet,
-            local_size,
-            &step.reduced_map(mesh, packet)?,
-        )?;
-    }
-    let jacobian_pattern = jacobian_pattern.finish()?;
     let evaluate_packet = |packet| {
         if packet < step.cell_count {
             let cell = MeshEntity::new(DIMENSION, packet);
@@ -458,7 +483,6 @@ where
         pressure_reference,
         gauge_multiplier: step.gauge_multiplier,
         assembly_report,
-        jacobian_pattern,
     })
 }
 
