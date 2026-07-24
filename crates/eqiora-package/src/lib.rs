@@ -6,11 +6,16 @@
 
 mod canonical;
 mod digest;
+#[cfg(feature = "filesystem")]
 mod directory_authoring;
+#[cfg(feature = "filesystem")]
 mod directory_installation;
+#[cfg(feature = "filesystem")]
 mod directory_io;
 mod execution_binding;
 mod external_digest;
+#[cfg(feature = "filesystem")]
+mod filesystem;
 mod identity;
 mod manifest;
 mod path;
@@ -25,9 +30,11 @@ pub use digest::{
     PackageCompilationDigest, PackageExecutionBindingDigest, PackageRunBindingDigest,
     PackageSemanticDigest, ResolutionDigest, SourceBundleDigest,
 };
+#[cfg(feature = "filesystem")]
 pub use directory_authoring::{
     AuthorPackageDirectory, AuthorPackageDirectoryError, AuthorPackageDirectoryResource,
 };
+#[cfg(feature = "filesystem")]
 pub use directory_installation::{
     DirectoryPackageInstaller, PackageInstallDisposition, PackageInstallError,
     PackageInstallIoPhase, PackageInstallReceipt, PackageStageCleanup,
@@ -36,6 +43,8 @@ pub use execution_binding::{
     BoundExecutionRunSchemaV1, BoundRealizationSchemaV1, PackageExecutionBindingV1,
 };
 pub use external_digest::{CanonicalModelDigest, CanonicalRealizationDigest, CanonicalRunDigest};
+#[cfg(feature = "filesystem")]
+pub use filesystem::DirectoryPackageStore;
 pub use identity::{ExactVersion, ModelPackageIdentityV1, QualifiedName};
 pub use manifest::{AuthorManifestV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1};
 pub use path::NormalizedRelativePath;
@@ -51,7 +60,7 @@ pub use semantic::{
     CanonicalDeclaration, DeclarationKindV1, SemanticContentV1, SemanticDeclarationV1, VisibilityV1,
 };
 pub use source::{AuthorPackageSourcesV1, SourceBundleIdentityV1, SourceBundleV1, SourceFileV1};
-pub use store::{DirectoryPackageStore, InMemoryPackageStore, PackageStore, StoreError};
+pub use store::{InMemoryPackageStore, PackageStore, StoreError};
 
 /// Errors produced while constructing or decoding closed package contracts.
 #[derive(Clone, Debug, Eq, PartialEq)]

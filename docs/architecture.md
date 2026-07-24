@@ -113,6 +113,9 @@ covers the owned bytes actually read. Release preparation derives the lock
 from exact release identities and closed manifests, then uses the ordinary
 resolver and compiler path to reject missing, duplicate, unreachable, cyclic,
 or semantically dishonest inputs before returning the root release.
+The in-memory identity and resolution contract is the default build;
+directory authoring, replay, and installation are available only through the
+explicit `package-filesystem` facade feature.
 
 The read-only restart adapter in
 [RFC 0028](../rfcs/0028-retained-local-package-store-replay.md) consumes that

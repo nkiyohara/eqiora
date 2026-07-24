@@ -1,14 +1,15 @@
-use std::path::{Path, PathBuf};
-
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::kernel::BoundarySide;
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageDirectory, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1,
-    DependencyRequirementV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackagePreparationError, PackageReleaseV1, PackagedModelDocument, QualifiedName,
-    ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
+    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
+    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackagePreparationError,
+    PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    prepare_package_release_v1,
 };
 use eqiora_numerics::{AleFsiCartesianModel3d, lower_ale_fsi_cartesian_3d};
+
+#[path = "support/embedded_package.rs"]
+mod embedded_package;
 
 const PACKAGED_ROOT: &str =
     include_str!("../../../verify/fsi/fixed-topology-ale-monolithic-3d/models/packaged.eqi");
@@ -27,26 +28,19 @@ const SOLID_SEMANTIC_DIGEST: &str =
 const SOLID_SOURCE_DIGEST: &str =
     "4ba59f5d0bac61a683b8552f16685b0adeba2686afb3498741dcdfb252a7a63d";
 
-fn release_root(package: &str, version: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../packages/releases")
-        .join(package)
-        .join(version)
-}
-
-fn current_release_root(package: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../packages")
-        .join(package)
-}
-
-fn prepare_release(root: &Path, dependencies: &[PackageReleaseV1]) -> PackageReleaseV1 {
-    let sources = AuthorPackageDirectory::open_ambient(root)
-        .unwrap_or_else(|error| panic!("open package release {}: {error}", root.display()))
-        .read_sources()
-        .unwrap_or_else(|error| panic!("read package release {}: {error}", root.display()));
+fn prepare_release(
+    package: &str,
+    version: &str,
+    dependencies: &[PackageReleaseV1],
+) -> PackageReleaseV1 {
+    let sources = embedded_package::release_sources(package, version);
     prepare_package_release_v1(sources, dependencies)
-        .unwrap_or_else(|error| panic!("prepare package release {}: {error:?}", root.display()))
+        .unwrap_or_else(|error| panic!("prepare package release {package} {version}: {error:?}"))
+}
+
+fn prepare_public_release(package: &str, dependencies: &[PackageReleaseV1]) -> PackageReleaseV1 {
+    prepare_package_release_v1(embedded_package::public_sources(package), dependencies)
+        .unwrap_or_else(|error| panic!("prepare public package {package}: {error:?}"))
 }
 
 fn assert_release_identity(
@@ -66,7 +60,7 @@ fn assert_release_identity(
 
 #[test]
 fn prepares_immutable_three_dimensional_mechanics_release() {
-    let release = prepare_release(&release_root("Eqiora.Mechanics.Interfaces", "0.2.0"), &[]);
+    let release = prepare_release("Eqiora.Mechanics.Interfaces", "0.2.0", &[]);
     let identity = release.package_identity().expect("mechanics identity");
     assert_eq!(identity.semantic_digest.to_hex(), MECHANICS_SEMANTIC_DIGEST);
     assert_eq!(identity.name.as_str(), "Eqiora.Mechanics.Interfaces");
@@ -79,7 +73,7 @@ fn prepares_immutable_three_dimensional_mechanics_release() {
 
 #[test]
 fn prepares_method_neutral_three_dimensional_fluid_and_solid_releases() {
-    let mechanics = prepare_release(&release_root("Eqiora.Mechanics.Interfaces", "0.2.0"), &[]);
+    let mechanics = prepare_release("Eqiora.Mechanics.Interfaces", "0.2.0", &[]);
     for (package, version, semantic_digest, source_digest) in [
         (
             "Eqiora.Fluid.Incompressible",
@@ -94,10 +88,7 @@ fn prepares_method_neutral_three_dimensional_fluid_and_solid_releases() {
             SOLID_SOURCE_DIGEST,
         ),
     ] {
-        let release = prepare_release(
-            &release_root(package, version),
-            std::slice::from_ref(&mechanics),
-        );
+        let release = prepare_release(package, version, std::slice::from_ref(&mechanics));
         let identity = release.package_identity().expect("package identity");
         assert_eq!(identity.name.as_str(), package);
         assert_eq!(identity.version.as_str(), version);
@@ -111,15 +102,15 @@ fn prepares_method_neutral_three_dimensional_fluid_and_solid_releases() {
 
 #[test]
 fn published_two_dimensional_release_identities_remain_unchanged() {
-    let mechanics = prepare_release(&current_release_root("Eqiora.Mechanics.Interfaces"), &[]);
+    let mechanics = prepare_public_release("Eqiora.Mechanics.Interfaces", &[]);
     assert_release_identity(
         &mechanics,
         "0.1.0",
         "f8c5b9000415d3288a68377d507d16b3524bf17a3aa0a54aee9b003d187534f4",
         "407744105ebeb9577944169cae56a44eec30565050588dc2407461d7cf43725d",
     );
-    let fluid = prepare_release(
-        &current_release_root("Eqiora.Fluid.Incompressible"),
+    let fluid = prepare_public_release(
+        "Eqiora.Fluid.Incompressible",
         std::slice::from_ref(&mechanics),
     );
     assert_release_identity(
@@ -128,8 +119,8 @@ fn published_two_dimensional_release_identities_remain_unchanged() {
         "39a8eadba1f1c0028d23b42f506b6899320f46e4ef7ba7b45dec3e0524d2c01b",
         "69ac5967d961c2ae4aa558ee020020093329f0050397d54893e465a3ff22eaba",
     );
-    let solid = prepare_release(
-        &current_release_root("Eqiora.Solid.LinearElasticity"),
+    let solid = prepare_public_release(
+        "Eqiora.Solid.LinearElasticity",
         std::slice::from_ref(&mechanics),
     );
     assert_release_identity(
@@ -142,13 +133,15 @@ fn published_two_dimensional_release_identities_remain_unchanged() {
 
 #[test]
 fn exact_package_graph_lowers_to_three_dimensional_ale_fsi_roles() {
-    let mechanics = prepare_release(&release_root("Eqiora.Mechanics.Interfaces", "0.2.0"), &[]);
+    let mechanics = prepare_release("Eqiora.Mechanics.Interfaces", "0.2.0", &[]);
     let fluid = prepare_release(
-        &release_root("Eqiora.Fluid.Incompressible", "0.3.0"),
+        "Eqiora.Fluid.Incompressible",
+        "0.3.0",
         std::slice::from_ref(&mechanics),
     );
     let solid = prepare_release(
-        &release_root("Eqiora.Solid.LinearElasticity", "0.5.0"),
+        "Eqiora.Solid.LinearElasticity",
+        "0.5.0",
         std::slice::from_ref(&mechanics),
     );
     let root = prepare_root(&mechanics, &fluid, &solid);
@@ -258,13 +251,10 @@ fn assert_same_canonical_roles(direct: &AleFsiCartesianModel3d, packaged: &AleFs
 
 #[test]
 fn new_releases_reject_the_old_mechanics_identity_before_elaboration() {
-    let old_mechanics = prepare_release(
-        &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../packages/Eqiora.Mechanics.Interfaces"),
-        &[],
-    );
+    let old_mechanics = prepare_public_release("Eqiora.Mechanics.Interfaces", &[]);
     let error = prepare_release_result(
-        &release_root("Eqiora.Fluid.Incompressible", "0.3.0"),
+        "Eqiora.Fluid.Incompressible",
+        "0.3.0",
         std::slice::from_ref(&old_mechanics),
     )
     .expect_err("exact dependency digest mismatch must fail closed");
@@ -326,12 +316,12 @@ fn prepare_root(
 }
 
 fn prepare_release_result(
-    root: &Path,
+    package: &str,
+    version: &str,
     dependencies: &[PackageReleaseV1],
 ) -> Result<PackageReleaseV1, eqiora::package::PackagePreparationError> {
-    let sources = AuthorPackageDirectory::open_ambient(root)
-        .unwrap_or_else(|error| panic!("open package release {}: {error}", root.display()))
-        .read_sources()
-        .unwrap_or_else(|error| panic!("read package release {}: {error}", root.display()));
-    prepare_package_release_v1(sources, dependencies)
+    prepare_package_release_v1(
+        embedded_package::release_sources(package, version),
+        dependencies,
+    )
 }

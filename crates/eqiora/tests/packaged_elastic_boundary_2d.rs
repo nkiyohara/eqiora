@@ -1,5 +1,4 @@
 use std::collections::BTreeSet;
-use std::path::PathBuf;
 
 use eqiora::api::ModelDocument;
 use eqiora::compatibility::ExactModelCodec;
@@ -9,12 +8,15 @@ use eqiora::kernel::{
     ActivationKind, ConnectionSemantics, ExprDag, ExprId, ExprNode, KernelNode, SymbolRef,
 };
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageDirectory, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1,
-    DependencyRequirementV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
+    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
 use eqiora::{DimExponents, DynQuantity, Entity};
+
+#[path = "support/embedded_package.rs"]
+mod embedded_package;
 
 const ROOT_SOURCE: &str =
     include_str!("../../../verify/solid/packaged-elastic-boundary-2d/models/coupled.eqi");
@@ -25,6 +27,11 @@ const LIVE_PACKAGE_SOURCE: &str =
 const VERIFIED_PACKAGE_SOURCE_V0_2: &str = include_str!(
     "../../../verify/solid/packaged-elastic-boundary-2d/package-v0.2.0/src/linear_elasticity.eqi"
 );
+const VERIFIED_PACKAGE_MANIFEST_V0_2: &[u8] = include_bytes!(
+    "../../../verify/solid/packaged-elastic-boundary-2d/package-v0.2.0/package.json"
+);
+const VERIFIED_PACKAGE_README_V0_2: &[u8] =
+    include_bytes!("../../../verify/solid/packaged-elastic-boundary-2d/package-v0.2.0/README.md");
 const VERIFIED_COMPONENT_V0_1: &str = include_str!(
     "../../../verify/solid/packaged-isotropic-balance-2d/package-v0.1.0/src/linear_elasticity.eqi"
 );
@@ -42,11 +49,6 @@ const SIDES: [(&str, &str); 4] = [
     ("axis=1,side=lower", "y_lower"),
     ("axis=1,side=upper", "y_upper"),
 ];
-
-fn verified_package_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../verify/solid/packaged-elastic-boundary-2d/package-v0.2.0")
-}
 
 fn package_release() -> PackageReleaseV1 {
     let live_document = eqiora::language::parse("linear_elasticity.eqi", LIVE_PACKAGE_SOURCE)
@@ -85,10 +87,21 @@ fn package_release() -> PackageReleaseV1 {
         "ElastodynamicMechanicalInterface2d"
     );
 
-    let sources = AuthorPackageDirectory::open_ambient(verified_package_root())
-        .expect("open immutable elasticity v0.2.0 package")
-        .read_sources()
-        .expect("read its closed author inventory");
+    let sources = embedded_package::sources(
+        VERIFIED_PACKAGE_MANIFEST_V0_2,
+        &[
+            (
+                "README.md",
+                BundleRoleV1::Documentation,
+                VERIFIED_PACKAGE_README_V0_2,
+            ),
+            (
+                "src/linear_elasticity.eqi",
+                BundleRoleV1::ModelSource,
+                VERIFIED_PACKAGE_SOURCE_V0_2.as_bytes(),
+            ),
+        ],
+    );
     let release = prepare_package_release_v1(sources, &[])
         .expect("prepare the exact compiler-derived package release");
     let identity = release.package_identity().expect("exact package identity");

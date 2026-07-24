@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{DecoderLimits, ModelEnvelopeV4};
@@ -12,16 +11,21 @@ use eqiora::numerics::{
     lower_steady_incompressible_stokes_cartesian_2d,
 };
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageDirectory, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1,
-    DependencyRequirementV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackageCompilationRecordV1, PackageReleaseV1, PackagedModelDocument, QualifiedName,
-    ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
+    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
+    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageCompilationRecordV1,
+    PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    prepare_package_release_v1,
 };
 use eqiora::sem::KernelProgram;
+
+#[path = "support/embedded_package.rs"]
+mod embedded_package;
 
 const COMPONENT: &str = include_str!(
     "../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi"
 );
+const COMPONENT_MANIFEST: &[u8] =
+    include_bytes!("../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/package.json");
 const COMPONENT_README: &[u8] =
     include_bytes!("../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/README.md");
 const COMPONENT_PERMUTED: &str =
@@ -59,16 +63,18 @@ const PACKAGED_TO_DIRECT: [(&str, &str); 19] = [
     ("y_upper_value", "y_upper_value"),
 ];
 
-fn verified_package_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0")
-}
-
 fn component_release() -> PackageReleaseV1 {
-    let sources = AuthorPackageDirectory::open_ambient(verified_package_root())
-        .expect("open checked-in incompressible-fluid package")
-        .read_sources()
-        .expect("read its closed author inventory");
+    let sources = embedded_package::sources(
+        COMPONENT_MANIFEST,
+        &[
+            ("README.md", BundleRoleV1::Documentation, COMPONENT_README),
+            (
+                "src/incompressible.eqi",
+                BundleRoleV1::ModelSource,
+                COMPONENT.as_bytes(),
+            ),
+        ],
+    );
     prepare_package_release_v1(sources, &[]).expect("prepare exact fluid package release")
 }
 

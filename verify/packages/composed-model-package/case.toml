@@ -68,3 +68,4 @@ static_affine = true
 [evidence]
 package = "eqiora"
 test = "composed_model_package"
+features = ["package-filesystem"]

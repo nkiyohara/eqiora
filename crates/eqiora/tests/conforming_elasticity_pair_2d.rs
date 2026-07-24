@@ -1,5 +1,4 @@
 use std::num::{NonZeroU16, NonZeroUsize};
-use std::path::PathBuf;
 use std::sync::Mutex;
 
 use eqiora::assembly::{
@@ -16,9 +15,9 @@ use eqiora::numerics::{
     lower_conforming_isotropic_elasticity_cartesian_pair_2d,
 };
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageDirectory, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1,
-    DependencyRequirementV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
+    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
 use eqiora::realization::{
@@ -32,18 +31,34 @@ use eqiora::solver::{
     LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan,
 };
 
+#[path = "support/embedded_package.rs"]
+mod embedded_package;
+
 const DIRECT_SOURCE: &str =
     include_str!("../../../verify/solid/conforming-elasticity-pair-2d/models/direct.eqi");
 const PACKAGED_SOURCE: &str =
     include_str!("../../../verify/solid/conforming-elasticity-pair-2d/models/packaged.eqi");
+const ELASTICITY_MANIFEST: &[u8] = include_bytes!(
+    "../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/package.json"
+);
+const ELASTICITY_README: &[u8] =
+    include_bytes!("../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/README.md");
+const ELASTICITY_SOURCE: &[u8] = include_bytes!(
+    "../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/src/linear_elasticity.eqi"
+);
 
 fn elasticity_package() -> PackageReleaseV1 {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0");
-    let sources = AuthorPackageDirectory::open_ambient(root)
-        .expect("open frozen elasticity v0.3.0")
-        .read_sources()
-        .expect("read exact package inventory");
+    let sources = embedded_package::sources(
+        ELASTICITY_MANIFEST,
+        &[
+            ("README.md", BundleRoleV1::Documentation, ELASTICITY_README),
+            (
+                "src/linear_elasticity.eqi",
+                BundleRoleV1::ModelSource,
+                ELASTICITY_SOURCE,
+            ),
+        ],
+    );
     prepare_package_release_v1(sources, &[]).expect("prepare exact elasticity dependency")
 }
 
