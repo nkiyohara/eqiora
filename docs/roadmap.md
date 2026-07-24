@@ -271,6 +271,22 @@ physics evidence fan out from that revision. They reunite first as a
 single-physics user path and then as a coupled FSI path; client projections do
 not acquire their own geometry or physical semantics.
 
+Structural preparation is pressure-gated rather than scheduled as a cleanup
+phase:
+
+- split Studio's application shell, state, protocol, and projections before
+  expanding CAD editing;
+- decompose decoder limits by artifact family before adding artifact families;
+- curate the numerics public surface by physical/numerical responsibility
+  before broad physics-library expansion; and
+- split distributed internals by ownership, exchange, reduction, and operator
+  action before scale and accelerator expansion.
+
+Each preparation is behavior-preserving, stays private until two independent
+consumers justify a public boundary, and runs the existing affected evidence.
+Do not create a general refactoring phase or broaden a slice merely because
+adjacent cleanup is attractive.
+
 Release work remains a separate trust path. Additional platforms and release
 formats do not reorder product dependencies, and every scale claim requires
 environment-specific evidence.

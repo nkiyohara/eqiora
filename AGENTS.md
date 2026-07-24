@@ -39,6 +39,15 @@ Writable branches belong to mergeable slices rather than agents and use
 separate worktrees; an independent agent should derive the falsifier, while one
 integrator retains the final semantic and merge decision.
 
+A fan-out lane consumes its accepted central contract; it does not extend that
+contract for local convenience. If the contract cannot express a discovered
+requirement, stop the lane without adding a workaround and return the
+requirement to the contract owner. During parallel waves, the integrator alone
+applies cross-lane registration changes to crate roots, public facades,
+workspace manifests and lockfiles, the capability matrix and roadmap, shared
+workflow registries, and artifact version registrars. Feature agents return the
+proposed registration delta with their implementation.
+
 Use `cargo run -p eqiora-verify -- index` instead of maintaining another
 capability-to-evidence list. Apply the abstraction/public-API budget before
 adding a crate, public type, enum variant, trait, wire field, or registry.

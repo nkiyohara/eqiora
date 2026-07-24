@@ -117,6 +117,28 @@ Read-only design, prior-art, oracle, and adversarial audits may scale beyond
 writable lanes. More writers are added only for paths that consume a frozen
 seam without redefining it. Semantic merge authority remains singular.
 
+Fan-out means contract consumption, not delegated contract design. A consumer
+that cannot express its bounded claim through the accepted seam stops and
+returns the requirement to the contract owner. It must not add a parallel DTO,
+configuration translation, validation path, adapter-shaped central type, or
+client-owned interpretation as a temporary bypass.
+
+### Integration-owned registration points
+
+Parallel feature writers do not independently edit cross-lane registration
+points. The integrator applies their proposed deltas to:
+
+- crate-root `lib.rs` files and public facade inventories;
+- workspace manifests, dependency policy, and lockfiles;
+- the capability matrix, roadmap, and shared workflow registries; and
+- artifact-family version registrars.
+
+This is an ownership rule for parallel integration, not permission to defer the
+registration. A capability-changing slice still includes its facade, evidence,
+and matrix changes in the same pull request. The feature writer supplies the
+exact proposed export, dependency, workflow, artifact-version, and claim
+changes so that the integrator can reconcile them once.
+
 ### Slice assignment
 
 An Issue records a closable product claim, not an agent roster or permanent
@@ -169,6 +191,32 @@ answer these questions in review:
 A small crate is not automatically a good boundary. An abstraction that only
 renames data, duplicates configuration, or moves branching to every consumer
 does not meet this budget.
+
+An anticipated consumer is not a real consumer. Keep the first internal use
+private; extract a shared trait, configuration, wire, crate, or registry only
+when a second independent use exists. A public end-user surface may itself be
+the bounded product claim, but it does not justify a generic implementation
+abstraction ahead of two implementations.
+
+## Fan-out wave closure
+
+When sibling lanes reunite, the integrator performs one duplication audit
+before accepting their composition. This is a merge-boundary check, not a
+calendar review. Check that:
+
+- equivalent configuration conversions or helper types were not copied across
+  lanes;
+- clients did not reimplement central validation or structured diagnostics;
+- adapter-specific types did not escape into semantic or realization layers;
+- exhaustive branching did not spread from one owner into every consumer;
+- root re-exports, universal contexts, or option bags did not grow merely to
+  simplify registration; and
+- semantic identity, execution provenance, and presentation state remain
+  separate.
+
+If duplication reveals one missing invariant owner, return only that invariant
+to a narrow contract cell. Do not solve wave-level duplication with a universal
+utility crate, DTO, context, or plugin interface.
 
 ## Issue queue discipline
 
