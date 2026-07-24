@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
 use eqiora_artifact::{
-    DecoderLimits, GeometryAssociationArtifactError, GeometryIdentityEnvelopeV1,
+    GeometryAssociationArtifactError, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryRevisionAssociationEnvelopeV1, ModelEnvelopeV1,
     ModelEnvelopeV2, ModelEnvelopeV3, ModelEnvelopeV4, ModelEnvelopeV5,
-    ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1,
+    ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1, SpatialDecoderLimits,
 };
 use eqiora_compiler::compile;
 use eqiora_core::Id;
@@ -51,16 +51,11 @@ fn geometry_replays_every_explicit_model_wire_without_erasing_identity() {
     let v4 = ModelEnvelopeV4::from_program(&program).unwrap();
     let v5 = ModelEnvelopeV5::from_program(&program).unwrap();
 
-    let v1 = ModelEnvelopeV1::from_json(&v1.canonical_json().unwrap(), DecoderLimits::default())
-        .unwrap();
-    let v2 = ModelEnvelopeV2::from_json(&v2.canonical_json().unwrap(), DecoderLimits::default())
-        .unwrap();
-    let v3 = ModelEnvelopeV3::from_json(&v3.canonical_json().unwrap(), DecoderLimits::default())
-        .unwrap();
-    let v4 = ModelEnvelopeV4::from_json(&v4.canonical_json().unwrap(), DecoderLimits::default())
-        .unwrap();
-    let v5 = ModelEnvelopeV5::from_json(&v5.canonical_json().unwrap(), DecoderLimits::default())
-        .unwrap();
+    let v1 = ModelEnvelopeV1::from_json(&v1.canonical_json().unwrap(), Default::default()).unwrap();
+    let v2 = ModelEnvelopeV2::from_json(&v2.canonical_json().unwrap(), Default::default()).unwrap();
+    let v3 = ModelEnvelopeV3::from_json(&v3.canonical_json().unwrap(), Default::default()).unwrap();
+    let v4 = ModelEnvelopeV4::from_json(&v4.canonical_json().unwrap(), Default::default()).unwrap();
+    let v5 = ModelEnvelopeV5::from_json(&v5.canonical_json().unwrap(), Default::default()).unwrap();
 
     let first = replay_geometry(&v1, bodies, &mesh);
     let second = replay_geometry(&v2, bodies, &mesh);
@@ -244,18 +239,16 @@ fn geometry_identity_fsi_2d() {
 
     let geometry_bytes = geometry.canonical_json().unwrap();
     let decoded_geometry =
-        GeometryIdentityEnvelopeV1::from_json(&geometry_bytes, DecoderLimits::default()).unwrap();
+        GeometryIdentityEnvelopeV1::from_json(&geometry_bytes, Default::default()).unwrap();
     decoded_geometry.validate_against(&source.model).unwrap();
     assert_eq!(
         decoded_geometry.digest().unwrap(),
         geometry.digest().unwrap()
     );
     let correspondence_bytes = correspondence.canonical_json().unwrap();
-    let decoded_correspondence = GeometryMeshCorrespondenceEnvelopeV1::from_json(
-        &correspondence_bytes,
-        DecoderLimits::default(),
-    )
-    .unwrap();
+    let decoded_correspondence =
+        GeometryMeshCorrespondenceEnvelopeV1::from_json(&correspondence_bytes, Default::default())
+            .unwrap();
     decoded_correspondence
         .validate_against(&geometry, &source.model, &source.mesh)
         .unwrap();
@@ -365,16 +358,16 @@ fn geometry_identity_fsi_2d() {
     assert!(
         GeometryMeshCorrespondenceEnvelopeV1::from_json(
             &serde_json::to_vec(&forged).unwrap(),
-            DecoderLimits::default()
+            Default::default()
         )
         .is_err()
     );
     assert!(
         GeometryIdentityEnvelopeV1::from_json(
             &geometry_bytes,
-            DecoderLimits {
+            SpatialDecoderLimits {
                 max_geometry_entities: 1,
-                ..DecoderLimits::default()
+                ..Default::default()
             }
         )
         .is_err()
@@ -401,7 +394,7 @@ fn geometry_identity_falsifiers_fail_closed() {
         serde_json::Value::String(correspondence.digest().unwrap().to_string());
     let stale_model_geometry = GeometryIdentityEnvelopeV1::from_json(
         &serde_json::to_vec(&stale_model_geometry).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     assert!(
@@ -520,8 +513,7 @@ fn assert_correspondence_mutation_rejected(
     let mut wire = serde_json::from_slice(bytes).unwrap();
     mutate(&mut wire);
     let bytes = serde_json::to_vec(&wire).unwrap();
-    if let Ok(decoded) =
-        GeometryMeshCorrespondenceEnvelopeV1::from_json(&bytes, DecoderLimits::default())
+    if let Ok(decoded) = GeometryMeshCorrespondenceEnvelopeV1::from_json(&bytes, Default::default())
     {
         assert!(
             decoded

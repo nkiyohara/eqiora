@@ -12,13 +12,52 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, FieldSnapshotEnvelopeV1,
-    SpatialStateEnvelopeV2, SpatialStateEnvelopeV3, SpatialTrajectoryEnvelopeV3, check_wire_limits,
+    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV1, JsonDecoderLimits,
+    SpatialStateEnvelopeV2, SpatialStateEnvelopeV3, SpatialTrajectoryEnvelopeV3, check_json_limits,
     invalid_artifact,
 };
 
 const SCHEMA: &str = "eqiora.ml-dataset-envelope/v1";
 const SEAM_POLICY: &str = "target-replaces-source-at-remesh";
+
+/// Semantic work budgets for the ML Dataset artifact family.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MlDatasetDecoderLimits {
+    /// Common JSON syntax admission.
+    pub json: JsonDecoderLimits,
+    /// Maximum rank of one Dataset Field descriptor shape.
+    pub max_value_shape_rank: usize,
+    /// Maximum scalar components in one Dataset Field descriptor shape.
+    pub max_value_shape_components: usize,
+    /// Maximum typed Field descriptors in one derived ML Dataset.
+    pub max_ml_dataset_descriptors: usize,
+    /// Maximum samples in one derived ML Dataset.
+    pub max_ml_dataset_samples: usize,
+    /// Maximum state references summed across all Dataset windows.
+    pub max_ml_dataset_window_states: usize,
+    /// Maximum selected snapshot references summed across all samples.
+    pub max_ml_dataset_observations: usize,
+    /// Maximum coefficient-block references summed across one Dataset.
+    pub max_ml_dataset_blocks: usize,
+    /// Maximum population-normalization channels in one Dataset.
+    pub max_ml_dataset_normalization_channels: usize,
+}
+
+impl Default for MlDatasetDecoderLimits {
+    fn default() -> Self {
+        Self {
+            json: JsonDecoderLimits::default(),
+            max_value_shape_rank: 8,
+            max_value_shape_components: 4_096,
+            max_ml_dataset_descriptors: 100_000,
+            max_ml_dataset_samples: 1_000_000,
+            max_ml_dataset_window_states: 16_000_000,
+            max_ml_dataset_observations: 16_000_000,
+            max_ml_dataset_blocks: 32_000_000,
+            max_ml_dataset_normalization_channels: 6_400_000,
+        }
+    }
+}
 
 /// Semantic use of one exact Field selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -612,7 +651,7 @@ impl MlDatasetEnvelopeV1 {
                 },
             },
         };
-        value.validate_local(DecoderLimits::default())?;
+        value.validate_local(MlDatasetDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -621,8 +660,8 @@ impl MlDatasetEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, unknown, noncanonical, or over-budget
     /// wire data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: MlDatasetDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid ML Dataset JSON: {error}")))?;
         let value = Self { wire };
@@ -720,12 +759,12 @@ impl MlDatasetEnvelopeV1 {
         Ok(())
     }
 
-    fn validate_local(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: MlDatasetDecoderLimits) -> Result<(), Diagnostic> {
         validate_wire(&self.wire, limits)
     }
 }
 
-fn validate_wire(wire: &WireEnvelope, limits: DecoderLimits) -> Result<(), Diagnostic> {
+fn validate_wire(wire: &WireEnvelope, limits: MlDatasetDecoderLimits) -> Result<(), Diagnostic> {
     if wire.schema != SCHEMA
         || wire.encoding != CANONICAL_ENCODING
         || wire.remesh_seam_policy != SEAM_POLICY
@@ -919,7 +958,7 @@ fn validate_wire(wire: &WireEnvelope, limits: DecoderLimits) -> Result<(), Diagn
 fn validate_descriptor(
     descriptor: &WireDescriptor,
     window_length: u32,
-    limits: DecoderLimits,
+    limits: MlDatasetDecoderLimits,
 ) -> Result<(), Diagnostic> {
     if descriptor.window_offset >= window_length {
         return Err(invalid_artifact(
@@ -1040,7 +1079,7 @@ fn validate_all_statistics(
     channels: &[WireChannelStatistics],
     descriptors: &[MlDatasetFieldDescriptorV1],
     associations: &[Option<Vec<WireAssociation>>],
-    limits: DecoderLimits,
+    limits: MlDatasetDecoderLimits,
 ) -> Result<(), Diagnostic> {
     if channels.is_empty() || channels.len() > limits.max_ml_dataset_normalization_channels {
         return Err(invalid_artifact(
@@ -1528,9 +1567,10 @@ mod tests {
     #[test]
     fn closed_wire_roundtrips_without_values_or_storage_layout() {
         let wire = fixture();
-        validate_wire(&wire, DecoderLimits::default()).unwrap();
+        validate_wire(&wire, MlDatasetDecoderLimits::default()).unwrap();
         let bytes = serde_json::to_vec(&wire).unwrap();
-        let decoded = MlDatasetEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+        let decoded =
+            MlDatasetEnvelopeV1::from_json(&bytes, MlDatasetDecoderLimits::default()).unwrap();
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         let json = String::from_utf8(bytes).unwrap();
         assert!(!json.contains("values"));
@@ -1544,40 +1584,40 @@ mod tests {
         let mut overlap = fixture();
         overlap.samples[1].states[0].spatial_state_sha256 =
             overlap.samples[0].states[0].spatial_state_sha256.clone();
-        assert!(validate_wire(&overlap, DecoderLimits::default()).is_err());
+        assert!(validate_wire(&overlap, MlDatasetDecoderLimits::default()).is_err());
 
         let mut leaked_scale = fixture();
         leaked_scale.normalization.channels[0].scale = 0.0;
-        assert!(validate_wire(&leaked_scale, DecoderLimits::default()).is_err());
+        assert!(validate_wire(&leaked_scale, MlDatasetDecoderLimits::default()).is_err());
 
         let mut reordered = fixture();
         reordered.descriptors.swap(0, 1);
-        assert!(validate_wire(&reordered, DecoderLimits::default()).is_err());
+        assert!(validate_wire(&reordered, MlDatasetDecoderLimits::default()).is_err());
 
         for limits in [
-            DecoderLimits {
+            MlDatasetDecoderLimits {
                 max_ml_dataset_descriptors: 1,
-                ..DecoderLimits::default()
+                ..MlDatasetDecoderLimits::default()
             },
-            DecoderLimits {
+            MlDatasetDecoderLimits {
                 max_ml_dataset_samples: 2,
-                ..DecoderLimits::default()
+                ..MlDatasetDecoderLimits::default()
             },
-            DecoderLimits {
+            MlDatasetDecoderLimits {
                 max_ml_dataset_window_states: 2,
-                ..DecoderLimits::default()
+                ..MlDatasetDecoderLimits::default()
             },
-            DecoderLimits {
+            MlDatasetDecoderLimits {
                 max_ml_dataset_observations: 5,
-                ..DecoderLimits::default()
+                ..MlDatasetDecoderLimits::default()
             },
-            DecoderLimits {
+            MlDatasetDecoderLimits {
                 max_ml_dataset_blocks: 5,
-                ..DecoderLimits::default()
+                ..MlDatasetDecoderLimits::default()
             },
-            DecoderLimits {
+            MlDatasetDecoderLimits {
                 max_ml_dataset_normalization_channels: 1,
-                ..DecoderLimits::default()
+                ..MlDatasetDecoderLimits::default()
             },
         ] {
             assert!(validate_wire(&fixture(), limits).is_err());
@@ -1619,7 +1659,7 @@ mod tests {
         let mut seam = fixture();
         seam.samples[2].states[0].state_kind = MlDatasetStateKindV1::MovingV2;
         let bytes = serde_json::to_vec(&seam).unwrap();
-        assert!(MlDatasetEnvelopeV1::from_json(&bytes, DecoderLimits::default()).is_err());
+        assert!(MlDatasetEnvelopeV1::from_json(&bytes, MlDatasetDecoderLimits::default()).is_err());
 
         let bytes = serde_json::to_vec(&fixture()).unwrap();
         let mut json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
@@ -1629,7 +1669,7 @@ mod tests {
         assert!(
             MlDatasetEnvelopeV1::from_json(
                 &serde_json::to_vec(&json).unwrap(),
-                DecoderLimits::default(),
+                MlDatasetDecoderLimits::default(),
             )
             .is_err()
         );

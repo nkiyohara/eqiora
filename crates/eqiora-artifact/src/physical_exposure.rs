@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, check_wire_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, SpatialDecoderLimits, check_json_limits, invalid_artifact,
 };
 
 mod observation;
@@ -508,7 +508,7 @@ impl PhysicalExposureCatalogEnvelopeV1 {
                 projections,
             },
         };
-        envelope.validate_local(DecoderLimits::default())?;
+        envelope.validate_local(SpatialDecoderLimits::default())?;
         envelope.validate_against(model_artifact, program, package_compilation)?;
         Ok(envelope)
     }
@@ -521,8 +521,8 @@ impl PhysicalExposureCatalogEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, noncanonical, inconsistent, or
     /// oversized artifact data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid physical exposure catalog JSON: {error}"))
         })?;
@@ -605,7 +605,7 @@ impl PhysicalExposureCatalogEnvelopeV1 {
         program: &KernelProgram,
         package_compilation: ArtifactDigest,
     ) -> Result<(), Diagnostic> {
-        self.validate_local(DecoderLimits::default())?;
+        self.validate_local(SpatialDecoderLimits::default())?;
         if self.model_artifact() != model_artifact
             || self.wire.model_ulid != program.model().ulid().to_string()
             || self.semantic_revision() != program.revision().0
@@ -621,7 +621,7 @@ impl PhysicalExposureCatalogEnvelopeV1 {
         Ok(())
     }
 
-    fn validate_local(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != CATALOG_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported physical-exposure-catalog schema or canonical encoding",

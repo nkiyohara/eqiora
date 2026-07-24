@@ -3,8 +3,7 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::artifact::{
-    DecoderLimits, LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1,
-    SimplicialMeshEnvelopeV1,
+    LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1, SimplicialMeshEnvelopeV1,
 };
 use eqiora::compiler::compile;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
@@ -62,7 +61,7 @@ fn gmsh_fixture_closes_import_artifact_realization_and_solution_evidence() {
     );
     let canonical_bytes = mesh_artifact.canonical_json().unwrap();
     let mesh_artifact =
-        SimplicialMeshEnvelopeV1::from_json(&canonical_bytes, DecoderLimits::default()).unwrap();
+        SimplicialMeshEnvelopeV1::from_json(&canonical_bytes, Default::default()).unwrap();
 
     let program = compile_program();
     let model_artifact = ModelEnvelopeV1::from_program(&program).unwrap();

@@ -1,4 +1,4 @@
-use eqiora_artifact::{DecoderLimits, ModelEnvelopeV1, ModelTransactionEnvelopeV1};
+use eqiora_artifact::{ModelDecoderLimits, ModelEnvelopeV1, ModelTransactionEnvelopeV1};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, Entity, Id, OntologyId};
@@ -89,8 +89,7 @@ fn old_main_legacy_marker_bytes_and_meaning_are_a_complete_golden() {
     );
 
     let decoded_transaction =
-        ModelTransactionEnvelopeV1::from_json(LEGACY_TRANSACTION_JSON, DecoderLimits::default())
-            .unwrap();
+        ModelTransactionEnvelopeV1::from_json(LEGACY_TRANSACTION_JSON, Default::default()).unwrap();
     assert_eq!(
         decoded_transaction.canonical_json().unwrap(),
         LEGACY_TRANSACTION_JSON
@@ -112,8 +111,7 @@ fn old_main_legacy_marker_bytes_and_meaning_are_a_complete_golden() {
         LEGACY_MODEL_DIGEST
     );
 
-    let decoded_model =
-        ModelEnvelopeV1::from_json(LEGACY_MODEL_JSON, DecoderLimits::default()).unwrap();
+    let decoded_model = ModelEnvelopeV1::from_json(LEGACY_MODEL_JSON, Default::default()).unwrap();
     assert_eq!(decoded_model.canonical_json().unwrap(), LEGACY_MODEL_JSON);
     assert_eq!(
         decoded_model.digest().unwrap().as_str(),
@@ -142,13 +140,13 @@ fn old_main_legacy_marker_bytes_and_meaning_are_a_complete_golden() {
 #[test]
 fn v1_model_and_transaction_enforce_independent_root_member_and_boundary_budgets() {
     for limits in [
-        DecoderLimits {
+        ModelDecoderLimits {
             max_expression_roots: 0,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
-        DecoderLimits {
+        ModelDecoderLimits {
             max_model_view_members: 4,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
     ] {
         assert_eq!(
@@ -177,9 +175,9 @@ fn v1_model_and_transaction_enforce_independent_root_member_and_boundary_budgets
     assert_eq!(
         ModelEnvelopeV1::from_json(
             &serde_json::to_vec(&model).unwrap(),
-            DecoderLimits {
+            ModelDecoderLimits {
                 max_model_boundary: 0,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .unwrap_err()
@@ -208,9 +206,9 @@ fn v1_model_and_transaction_enforce_independent_root_member_and_boundary_budgets
     assert_eq!(
         ModelTransactionEnvelopeV1::from_json(
             &serde_json::to_vec(&transaction).unwrap(),
-            DecoderLimits {
+            ModelDecoderLimits {
                 max_model_boundary: 0,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .unwrap_err()

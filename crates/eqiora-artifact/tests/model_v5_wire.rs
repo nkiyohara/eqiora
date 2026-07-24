@@ -1,5 +1,5 @@
 use eqiora_artifact::{
-    CanonicalModelArtifact, DecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3,
+    CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3,
     ModelEnvelopeV4, ModelEnvelopeV5, ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2,
     ModelTransactionEnvelopeV3, ModelTransactionEnvelopeV4, ModelTransactionEnvelopeV5,
     ReplayableCanonicalModelArtifact,
@@ -183,13 +183,10 @@ fn encoded_model_value() -> Value {
 }
 
 fn reject_model(value: &Value) -> String {
-    ModelEnvelopeV5::from_json(
-        &serde_json::to_vec(value).unwrap(),
-        DecoderLimits::default(),
-    )
-    .unwrap_err()
-    .message()
-    .to_owned()
+    ModelEnvelopeV5::from_json(&serde_json::to_vec(value).unwrap(), Default::default())
+        .unwrap_err()
+        .message()
+        .to_owned()
 }
 
 #[test]
@@ -219,7 +216,7 @@ fn model_v5_round_trips_a_closed_generic_application_and_typed_reference() {
         )
     );
 
-    let decoded = ModelEnvelopeV5::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = ModelEnvelopeV5::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
     assert_eq!(decoded.to_program().unwrap(), fixture.program);
@@ -228,15 +225,12 @@ fn model_v5_round_trips_a_closed_generic_application_and_typed_reference() {
     reference.validate_artifact(&decoded).unwrap();
     assert_eq!(decoded.replay_model().unwrap().program(), &fixture.program);
 
-    assert!(ModelEnvelopeV4::from_json(&bytes, DecoderLimits::default()).is_err());
+    assert!(ModelEnvelopeV4::from_json(&bytes, Default::default()).is_err());
     let mut forged_v4: Value = serde_json::from_slice(&bytes).unwrap();
     forged_v4["schema"] = Value::String("eqiora.model-envelope/v4".to_owned());
     assert!(
-        ModelEnvelopeV4::from_json(
-            &serde_json::to_vec(&forged_v4).unwrap(),
-            DecoderLimits::default(),
-        )
-        .is_err()
+        ModelEnvelopeV4::from_json(&serde_json::to_vec(&forged_v4).unwrap(), Default::default(),)
+            .is_err()
     );
 }
 
@@ -250,7 +244,7 @@ fn transaction_v5_round_trips_without_graph_mutation_or_version_fallback() {
 
     let envelope = ModelTransactionEnvelopeV5::from_transaction(&fixture.transaction).unwrap();
     let bytes = envelope.canonical_json().unwrap();
-    let decoded = ModelTransactionEnvelopeV5::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = ModelTransactionEnvelopeV5::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
     let replay = decoded.to_transaction().unwrap();
@@ -263,7 +257,7 @@ fn transaction_v5_round_trips_without_graph_mutation_or_version_fallback() {
     assert!(
         ModelTransactionEnvelopeV4::from_json(
             &serde_json::to_vec(&forged_v4).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
@@ -383,9 +377,9 @@ fn v5_decode_order_applies_aggregate_limits_before_features_and_definitions_befo
         Value::String("eqiora.unknown-component-calculus/v9".to_owned());
     let diagnostic = ModelEnvelopeV5::from_json(
         &serde_json::to_vec(&unknown_feature).unwrap(),
-        DecoderLimits {
+        ModelDecoderLimits {
             max_pure_operator_definitions: 0,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
     )
     .unwrap_err();
@@ -410,24 +404,24 @@ fn v5_resource_limits_aggregate_relations_and_activation_guards() {
         .unwrap()
         .canonical_json()
         .unwrap();
-    ModelTransactionEnvelopeV5::from_json(&bytes, DecoderLimits::default()).unwrap();
+    ModelTransactionEnvelopeV5::from_json(&bytes, Default::default()).unwrap();
 
     for limits in [
-        DecoderLimits {
+        ModelDecoderLimits {
             max_pure_operator_definitions: 1,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
-        DecoderLimits {
+        ModelDecoderLimits {
             max_pure_operator_formals: 3,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
-        DecoderLimits {
+        ModelDecoderLimits {
             max_pure_operator_calculus_nodes: 5,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
-        DecoderLimits {
+        ModelDecoderLimits {
             max_pure_operator_application_arguments: 3,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
     ] {
         let diagnostic = ModelTransactionEnvelopeV5::from_json(&bytes, limits).unwrap_err();

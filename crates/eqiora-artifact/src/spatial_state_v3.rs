@@ -9,11 +9,10 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, FieldSnapshotEnvelopeV1,
-    GeometryStateEnvelopeV2, GeometryStateOriginKindV2, MeshRevisionOverlapEnvelopeV1,
-    RemeshTransferReceiptEnvelopeV1, ReplayableCanonicalModelArtifact,
-    ValidatedMovingSpatialContextV2, ValidatedRemeshGeometrySourceV2, check_wire_limits,
-    invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV1, GeometryStateEnvelopeV2,
+    GeometryStateOriginKindV2, MeshRevisionOverlapEnvelopeV1, RemeshTransferReceiptEnvelopeV1,
+    ReplayableCanonicalModelArtifact, SpatialDecoderLimits, ValidatedMovingSpatialContextV2,
+    ValidatedRemeshGeometrySourceV2, check_json_limits, invalid_artifact,
 };
 
 const SPATIAL_STATE_SCHEMA: &str = "eqiora.spatial-state-envelope/v3";
@@ -165,7 +164,7 @@ impl SpatialStateEnvelopeV3 {
                 fields,
             },
         };
-        value.validate_local(DecoderLimits::default())?;
+        value.validate_local(SpatialDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -173,8 +172,8 @@ impl SpatialStateEnvelopeV3 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid spatial-state/v3 JSON: {error}")))?;
         let value = Self { wire };
@@ -418,7 +417,7 @@ impl SpatialStateEnvelopeV3 {
         Ok(())
     }
 
-    fn validate_local(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != SPATIAL_STATE_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported spatial-state/v3 schema or encoding",
@@ -711,10 +710,12 @@ mod tests {
     #[test]
     fn state_v3_roundtrip_and_digest_are_frozen() {
         let value = state();
-        value.validate_local(DecoderLimits::default()).unwrap();
+        value
+            .validate_local(SpatialDecoderLimits::default())
+            .unwrap();
         let bytes = value.canonical_json().unwrap();
         assert_eq!(
-            SpatialStateEnvelopeV3::from_json(&bytes, DecoderLimits::default()).unwrap(),
+            SpatialStateEnvelopeV3::from_json(&bytes, SpatialDecoderLimits::default()).unwrap(),
             value
         );
         assert_eq!(
@@ -728,11 +729,15 @@ mod tests {
         let value = state();
         let mut duplicate = value.clone();
         duplicate.wire.fields[1].field_ulid = duplicate.wire.fields[0].field_ulid.clone();
-        assert!(duplicate.validate_local(DecoderLimits::default()).is_err());
+        assert!(
+            duplicate
+                .validate_local(SpatialDecoderLimits::default())
+                .is_err()
+        );
 
-        let limits = DecoderLimits {
+        let limits = SpatialDecoderLimits {
             max_spatial_state_fields: 1,
-            ..DecoderLimits::default()
+            ..SpatialDecoderLimits::default()
         };
         assert!(
             SpatialStateEnvelopeV3::from_json(&value.canonical_json().unwrap(), limits,).is_err()

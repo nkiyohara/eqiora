@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::time::{canonical_time_operator, parse_ulid, validate_model_program};
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, ModelEnvelopeV1, check_wire_limits,
+    ArtifactDigest, CANONICAL_ENCODING, ModelEnvelopeV1, TimeDecoderLimits, check_json_limits,
     invalid_artifact, validate_text,
 };
 
@@ -77,8 +77,8 @@ impl GeneralImplicitTimeLoweringEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version, invalid-ID,
     /// or internally contradictory witness data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: TimeDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!(
                 "invalid general implicit time lowering envelope JSON: {error}"
@@ -309,8 +309,8 @@ impl ImplicitTimeInitialDataEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version,
     /// shape-mismatched, or non-finite data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: TimeDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid implicit time initial data JSON: {error}"))
         })?;
@@ -510,8 +510,8 @@ impl ImplicitTimeRunManifestV1 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version, duplicate,
     /// non-finite, or internally contradictory data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: TimeDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid implicit time run manifest JSON: {error}"))
         })?;

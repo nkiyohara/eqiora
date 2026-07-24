@@ -1,4 +1,4 @@
-use eqiora_artifact::{DecoderLimits, ModelEnvelopeV2};
+use eqiora_artifact::ModelEnvelopeV2;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, Entity, Id, OntologyId};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
@@ -106,7 +106,7 @@ fn old_main_v2_bytes_digest_and_meaning_remain_fixed() {
     assert_eq!(bytes.len(), LEGACY_MODEL_BYTES);
     assert_eq!(envelope.digest().unwrap().as_str(), LEGACY_MODEL_DIGEST);
 
-    let decoded = ModelEnvelopeV2::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = ModelEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap().as_str(), LEGACY_MODEL_DIGEST);
     let replay = decoded.to_program().unwrap();

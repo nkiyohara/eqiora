@@ -4,7 +4,7 @@ use std::num::{NonZeroU16, NonZeroU32, NonZeroUsize};
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
-    DecoderLimits, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1,
+    DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1, LayoutArtifacts,
     ModelEnvelopeV5, RealizationEnvelopeV4, SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2,
     SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
@@ -448,7 +448,7 @@ fn assert_moving_artifact_dag_replays(
     );
 
     let bytes = final_root.canonical_json().unwrap();
-    let decoded = SpatialTrajectoryEnvelopeV2::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = SpatialTrajectoryEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), final_root.digest().unwrap());
     decoded

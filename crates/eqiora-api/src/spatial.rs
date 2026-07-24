@@ -9,7 +9,7 @@ use std::num::{NonZeroU16, NonZeroUsize};
 use std::time::{Duration, Instant};
 
 use eqiora_artifact::{
-    DecoderLimits, ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts,
+    ExecutionProvenanceV1, ExecutionTopologyV1, JsonDecoderLimits, LayoutArtifacts,
     RealizationEnvelopeV1, RunManifestV2,
 };
 use eqiora_assembly::AssemblyReport;
@@ -299,7 +299,7 @@ impl ScalarEllipticRunPlan {
     pub fn replay_run_manifest(
         &self,
         bytes: &[u8],
-        limits: DecoderLimits,
+        limits: JsonDecoderLimits,
     ) -> Result<RunManifestV2, Diagnostic> {
         let manifest = RunManifestV2::from_json(bytes, limits)?;
         self.validate_run_manifest(&manifest)?;
@@ -1771,15 +1771,14 @@ mod tests {
         );
 
         let bytes = manifest.canonical_json().unwrap();
-        let replay =
-            RunManifestV2::from_json(&bytes, eqiora_artifact::DecoderLimits::default()).unwrap();
+        let replay = RunManifestV2::from_json(&bytes, JsonDecoderLimits::default()).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), manifest.digest().unwrap());
         replay.validate_against(result.plan().artifact()).unwrap();
         assert_eq!(
             result
                 .plan()
-                .replay_run_manifest(&bytes, DecoderLimits::default())
+                .replay_run_manifest(&bytes, JsonDecoderLimits::default())
                 .unwrap(),
             replay
         );

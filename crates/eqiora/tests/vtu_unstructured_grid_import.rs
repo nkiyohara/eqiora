@@ -4,8 +4,7 @@ use std::num::NonZeroU32;
 
 use eqiora::api::{import_vtu_v1, verify_vtu_import_v1};
 use eqiora::artifact::{
-    DecoderLimits, DiscreteFieldEnvelopeV1, ExternalImportManifestV1, RawSourceSha256,
-    SimplicialMeshEnvelopeV1,
+    DiscreteFieldEnvelopeV1, ExternalImportManifestV1, RawSourceSha256, SimplicialMeshEnvelopeV1,
 };
 use eqiora::diagnostic::codes;
 use eqiora::io::vtu::{
@@ -47,23 +46,20 @@ fn official_ascii_vtu_replays_exact_shared_mesh_fields_and_lineage() {
     let derived = import_vtu_v1(&plan, quality_gate()).unwrap();
     let persisted_manifest = ExternalImportManifestV1::from_json(
         &derived.manifest().canonical_json().unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     let persisted_mesh = SimplicialMeshEnvelopeV1::from_json(
         &derived.mesh().canonical_json().unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     let persisted_fields = derived
         .fields()
         .iter()
         .map(|field| {
-            DiscreteFieldEnvelopeV1::from_json(
-                &field.canonical_json().unwrap(),
-                DecoderLimits::default(),
-            )
-            .unwrap()
+            DiscreteFieldEnvelopeV1::from_json(&field.canonical_json().unwrap(), Default::default())
+                .unwrap()
         })
         .collect::<Vec<_>>();
     let verified = verify_vtu_import_v1(

@@ -2,8 +2,8 @@ use std::f64::consts::PI;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::artifact::{
-    DecoderLimits, ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts,
-    RealizationEnvelopeV1, RunManifestV2,
+    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, RealizationEnvelopeV1,
+    RunManifestV2,
 };
 use eqiora::assembly::{AssemblyMap, CooAssembler, DofId, LocalContribution, LocalUnknown};
 use eqiora::compatibility::ExactModelCodec;
@@ -388,7 +388,7 @@ fn model_v4_realization_v1_and_run_v2_replay_exact_lineage() {
 
     let realization_bytes = fine.canonical_json().unwrap();
     let realization_replay =
-        RealizationEnvelopeV1::from_json(&realization_bytes, DecoderLimits::default()).unwrap();
+        RealizationEnvelopeV1::from_json(&realization_bytes, Default::default()).unwrap();
     assert_eq!(
         realization_replay.canonical_json().unwrap(),
         realization_bytes
@@ -402,7 +402,7 @@ fn model_v4_realization_v1_and_run_v2_replay_exact_lineage() {
         serde_json::Value::from(document.program().revision().0 + 1);
     let revision_drift = RealizationEnvelopeV1::from_json(
         &serde_json::to_vec(&revision_drift).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     assert!(
@@ -425,7 +425,7 @@ fn model_v4_realization_v1_and_run_v2_replay_exact_lineage() {
     let run = RunManifestV2::new(&fine, execution).unwrap();
     run.validate_against(&fine).unwrap();
     let run_bytes = run.canonical_json().unwrap();
-    let run_replay = RunManifestV2::from_json(&run_bytes, DecoderLimits::default()).unwrap();
+    let run_replay = RunManifestV2::from_json(&run_bytes, Default::default()).unwrap();
     assert_eq!(run_replay.canonical_json().unwrap(), run_bytes);
     assert_eq!(run_replay.digest().unwrap(), run.digest().unwrap());
     run_replay.validate_against(&realization_replay).unwrap();
@@ -434,7 +434,7 @@ fn model_v4_realization_v1_and_run_v2_replay_exact_lineage() {
     realization_digest_drift["realization_sha256"] = serde_json::Value::String("00".repeat(32));
     let realization_digest_drift = RunManifestV2::from_json(
         &serde_json::to_vec(&realization_digest_drift).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     assert!(realization_digest_drift.validate_against(&fine).is_err());

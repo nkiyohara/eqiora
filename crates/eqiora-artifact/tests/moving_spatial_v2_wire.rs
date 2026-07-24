@@ -1,10 +1,11 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
-    CanonicalModelArtifact, DecoderLimits, FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1, LayoutArtifacts,
-    ModelEnvelopeV4, RealizationEnvelopeV4, RealizationEnvelopeV5, SimplicialMeshEnvelopeV1,
-    SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
+    CanonicalModelArtifact, DataExchangeDecoderLimits, FieldSnapshotEnvelopeV1,
+    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1,
+    LayoutArtifacts, ModelEnvelopeV4, RealizationEnvelopeV4, RealizationEnvelopeV5,
+    SimplicialMeshEnvelopeV1, SpatialDecoderLimits, SpatialStateEnvelopeV2,
+    SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
     ValidatedMovingSpatialContextV2,
 };
 use eqiora_core::entity::kinds;
@@ -56,7 +57,7 @@ fn moving_state_segment_and_prefix_root_round_trip_with_frozen_identities() {
 
     let state_bytes = state_1.canonical_json().unwrap();
     let decoded_state =
-        SpatialStateEnvelopeV2::from_json(&state_bytes, DecoderLimits::default()).unwrap();
+        SpatialStateEnvelopeV2::from_json(&state_bytes, Default::default()).unwrap();
     assert_eq!(decoded_state.canonical_json().unwrap(), state_bytes);
     assert_eq!(decoded_state.digest().unwrap(), state_1.digest().unwrap());
     decoded_state
@@ -76,8 +77,7 @@ fn moving_state_segment_and_prefix_root_round_trip_with_frozen_identities() {
 
     let segment_bytes = segment_1.canonical_json().unwrap();
     let decoded_segment =
-        SpatialTrajectorySegmentEnvelopeV2::from_json(&segment_bytes, DecoderLimits::default())
-            .unwrap();
+        SpatialTrajectorySegmentEnvelopeV2::from_json(&segment_bytes, Default::default()).unwrap();
     assert_eq!(decoded_segment.canonical_json().unwrap(), segment_bytes);
     decoded_segment
         .validate_against(&context, &[state_1.clone(), state_2])
@@ -85,7 +85,7 @@ fn moving_state_segment_and_prefix_root_round_trip_with_frozen_identities() {
 
     let root_bytes = root_1.canonical_json().unwrap();
     let decoded_root =
-        SpatialTrajectoryEnvelopeV2::from_json(&root_bytes, DecoderLimits::default()).unwrap();
+        SpatialTrajectoryEnvelopeV2::from_json(&root_bytes, Default::default()).unwrap();
     assert_eq!(decoded_root.canonical_json().unwrap(), root_bytes);
     assert_eq!(decoded_root.previous_root(), Some(root_0.digest().unwrap()));
     assert_eq!(
@@ -141,7 +141,7 @@ fn moving_wires_reject_unknown_bounds_cross_wires_and_broken_geometry_chains() {
     assert!(
         SpatialStateEnvelopeV2::from_json(
             &serde_json::to_vec(&unknown).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
@@ -151,7 +151,7 @@ fn moving_wires_reject_unknown_bounds_cross_wires_and_broken_geometry_chains() {
     assert!(
         SpatialStateEnvelopeV2::from_json(
             &serde_json::to_vec(&reordered).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "wire Field order is canonical and cannot be silently normalized",
@@ -159,9 +159,9 @@ fn moving_wires_reject_unknown_bounds_cross_wires_and_broken_geometry_chains() {
     assert!(
         SpatialStateEnvelopeV2::from_json(
             &state_bytes,
-            DecoderLimits {
+            SpatialDecoderLimits {
                 max_spatial_state_fields: 3,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .is_err()
@@ -171,7 +171,7 @@ fn moving_wires_reject_unknown_bounds_cross_wires_and_broken_geometry_chains() {
     cross_wired["reference"]["realization_sha256"] = serde_json::json!("11".repeat(32));
     let cross_wired = SpatialStateEnvelopeV2::from_json(
         &serde_json::to_vec(&cross_wired).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     assert!(
@@ -225,7 +225,7 @@ fn moving_wires_reject_unknown_bounds_cross_wires_and_broken_geometry_chains() {
     assert!(
         SpatialTrajectoryEnvelopeV2::from_json(
             &serde_json::to_vec(&run_cycle).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "the moving trajectory wire cannot form a Run cycle",
@@ -233,9 +233,9 @@ fn moving_wires_reject_unknown_bounds_cross_wires_and_broken_geometry_chains() {
     assert!(
         SpatialTrajectoryEnvelopeV2::from_json(
             &root_bytes,
-            DecoderLimits {
+            DataExchangeDecoderLimits {
                 max_trajectory_segments: 1,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .is_err()
@@ -247,7 +247,7 @@ fn moving_wires_reject_unknown_bounds_cross_wires_and_broken_geometry_chains() {
     assert!(
         SpatialTrajectorySegmentEnvelopeV2::from_json(
             &serde_json::to_vec(&broken).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "step monotonicity cannot conceal a broken GeometryState chain",
@@ -302,7 +302,7 @@ struct Resources {
 
 impl Resources {
     fn new() -> Self {
-        let model = ModelEnvelopeV4::from_json(MODEL, DecoderLimits::default()).unwrap();
+        let model = ModelEnvelopeV4::from_json(MODEL, Default::default()).unwrap();
         let mesh = SimplicialMeshEnvelopeV1::from_mesh(&reference_mesh()).unwrap();
         let ids = Ids::new();
         let geometry =
@@ -474,11 +474,8 @@ impl Resources {
                 "blocks": blocks,
             },
         });
-        FieldSnapshotEnvelopeV1::from_json(
-            &serde_json::to_vec(&json).unwrap(),
-            DecoderLimits::default(),
-        )
-        .unwrap()
+        FieldSnapshotEnvelopeV1::from_json(&serde_json::to_vec(&json).unwrap(), Default::default())
+            .unwrap()
     }
 
     fn geometry_state(

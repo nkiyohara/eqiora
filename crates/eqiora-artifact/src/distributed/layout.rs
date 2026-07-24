@@ -7,7 +7,8 @@ use super::{
     portable_u64, portable_usize, preflight, require_limit, strictly_ascending, try_collect,
 };
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, check_wire_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, DistributedDecoderLimits, check_json_limits,
+    invalid_artifact,
 };
 
 /// Durable exact projection of sparsity-derived local layouts and halo plan.
@@ -91,7 +92,7 @@ impl DistributedLayoutEnvelopeV1 {
                 halo_exchanges,
             },
         };
-        envelope.validate_shape(DecoderLimits::default())?;
+        envelope.validate_shape(DistributedDecoderLimits::default())?;
         envelope.validate_against(system, partition)?;
         Ok(envelope)
     }
@@ -104,8 +105,8 @@ impl DistributedLayoutEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, unknown, noncanonical, nonportable, or
     /// oversized wire data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: DistributedDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         preflight::distributed_layout(bytes, limits)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid distributed-layout envelope JSON: {error}"))
@@ -203,7 +204,7 @@ impl DistributedLayoutEnvelopeV1 {
         ArtifactDigest::from_hex(self.wire.partition_sha256.clone())
     }
 
-    fn validate_shape(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_shape(&self, limits: DistributedDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != DISTRIBUTED_LAYOUT_SCHEMA || self.wire.encoding != CANONICAL_ENCODING
         {
             return Err(invalid_artifact(

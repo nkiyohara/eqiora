@@ -4,7 +4,8 @@ use eqiora_core::Diagnostic;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, check_wire_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, DataExchangeDecoderLimits, check_json_limits,
+    invalid_artifact,
 };
 
 const RESOLVED_ARRAY_SCHEMA: &str = "eqiora.resolved-array/v1";
@@ -79,8 +80,8 @@ impl ResolvedArrayV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed/unknown data, scalar-tag mismatch,
     /// invalid shape/count, resource excess, non-finite `f64`, or negative zero.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: DataExchangeDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid resolved array JSON: {error}")))?;
         validate_wire(&wire, Some(limits))?;
@@ -146,7 +147,7 @@ impl ResolvedArrayV1 {
 
 fn validate_wire(
     wire: &WireResolvedArrayV1,
-    limits: Option<DecoderLimits>,
+    limits: Option<DataExchangeDecoderLimits>,
 ) -> Result<(), Diagnostic> {
     let (schema, encoding, shape, value_count) = match wire {
         WireResolvedArrayV1::U64(wire) => (
@@ -318,7 +319,7 @@ mod tests {
         let mut negative = bytes;
         negative.splice(index..index + 3, b"-0.0".iter().copied());
         assert!(
-            ResolvedArrayV1::from_json(&negative, DecoderLimits::default())
+            ResolvedArrayV1::from_json(&negative, DataExchangeDecoderLimits::default())
                 .unwrap_err()
                 .message()
                 .contains("positive zero")
@@ -332,13 +333,13 @@ mod tests {
             br#"{"schema":"eqiora.resolved-array/v1","encoding":"eqiora.canonical-json/v1","scalar":"u64","shape":[1],"values":[1.5]}"#.as_slice(),
             br#"{"schema":"eqiora.resolved-array/v1","encoding":"eqiora.canonical-json/v1","scalar":"f64","shape":[1],"values":[1.0],"unit":"m"}"#.as_slice(),
         ] {
-            assert!(ResolvedArrayV1::from_json(invalid, DecoderLimits::default()).is_err());
+            assert!(ResolvedArrayV1::from_json(invalid, DataExchangeDecoderLimits::default()).is_err());
         }
 
         let array = ResolvedArrayV1::from_u64(vec![2, 2], vec![0, 1, 2, 3]).unwrap();
-        let limits = DecoderLimits {
+        let limits = DataExchangeDecoderLimits {
             max_resolved_array_values: 3,
-            ..DecoderLimits::default()
+            ..DataExchangeDecoderLimits::default()
         };
         assert!(ResolvedArrayV1::from_json(&array.canonical_json().unwrap(), limits).is_err());
     }

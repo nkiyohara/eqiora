@@ -1,9 +1,9 @@
 use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
-    CanonicalModelArtifact, DecoderLimits, FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1,
+    CanonicalModelArtifact, FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1, LayoutArtifacts,
-    ModelEnvelopeV4, RealizationEnvelopeV1, SimplicialMeshEnvelopeV1,
+    ModelEnvelopeV4, RealizationEnvelopeV1, SimplicialMeshEnvelopeV1, SpatialDecoderLimits,
 };
 use eqiora_compiler::compile;
 use eqiora_core::entity::kinds;
@@ -85,7 +85,7 @@ fn state_round_trips_and_derives_velocity_from_exact_predecessor() {
     assert!(next.minimum_path_signed_measure_scale() > 0.0);
 
     let bytes = next.canonical_json().unwrap();
-    let decoded = GeometryStateEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = GeometryStateEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), next.digest().unwrap());
     decoded
@@ -132,7 +132,7 @@ fn wire_rejects_topology_and_replay_rejects_derived_evidence_drift() {
     assert!(
         GeometryStateEnvelopeV1::from_json(
             &serde_json::to_vec(&topology).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "a GeometryState cannot carry connectivity"
@@ -142,7 +142,7 @@ fn wire_rejects_topology_and_replay_rejects_derived_evidence_drift() {
     velocity["action_evidence"]["mesh_velocity_m_per_s"][0][0] = serde_json::json!(1.0);
     let velocity = GeometryStateEnvelopeV1::from_json(
         &serde_json::to_vec(&velocity).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     assert!(
@@ -164,7 +164,7 @@ fn wire_rejects_topology_and_replay_rejects_derived_evidence_drift() {
     quality["quality_evidence"]["minimum_mean_ratio"] = serde_json::json!(0.9);
     let quality = GeometryStateEnvelopeV1::from_json(
         &serde_json::to_vec(&quality).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     assert!(
@@ -186,7 +186,7 @@ fn wire_rejects_topology_and_replay_rejects_derived_evidence_drift() {
     stale_mesh["reference"]["mesh_sha256"] = serde_json::json!("22".repeat(32));
     let stale_mesh = GeometryStateEnvelopeV1::from_json(
         &serde_json::to_vec(&stale_mesh).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     assert!(
@@ -207,9 +207,9 @@ fn wire_rejects_topology_and_replay_rejects_derived_evidence_drift() {
     assert!(
         GeometryStateEnvelopeV1::from_json(
             &bytes,
-            DecoderLimits {
+            SpatialDecoderLimits {
                 max_mesh_vertices: 1,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .is_err()
@@ -217,9 +217,9 @@ fn wire_rejects_topology_and_replay_rejects_derived_evidence_drift() {
     assert!(
         GeometryStateEnvelopeV1::from_json(
             &bytes,
-            DecoderLimits {
+            SpatialDecoderLimits {
                 max_mesh_coordinate_values: 35,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .is_err(),
@@ -493,9 +493,6 @@ fn driver_snapshot(
             }]
         }
     });
-    FieldSnapshotEnvelopeV1::from_json(
-        &serde_json::to_vec(&json).unwrap(),
-        DecoderLimits::default(),
-    )
-    .unwrap()
+    FieldSnapshotEnvelopeV1::from_json(&serde_json::to_vec(&json).unwrap(), Default::default())
+        .unwrap()
 }

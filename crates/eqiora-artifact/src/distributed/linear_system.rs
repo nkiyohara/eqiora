@@ -7,7 +7,8 @@ use super::{
     require_limit, try_collect, try_copy_slice, validate_canonical_f64,
 };
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, check_wire_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, DistributedDecoderLimits, check_json_limits,
+    invalid_artifact,
 };
 
 /// Durable complete square `f64` CSR system projected from one canonical view.
@@ -52,7 +53,7 @@ impl LinearSystemEnvelopeV1 {
             properties: WireOperatorProperties::try_from(complete.properties())?,
         };
         let envelope = Self { wire };
-        envelope.validate(DecoderLimits::default())?;
+        envelope.validate(DistributedDecoderLimits::default())?;
         Ok(envelope)
     }
 
@@ -62,8 +63,8 @@ impl LinearSystemEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, unknown, noncanonical, oversized, or
     /// numerically invalid wire data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: DistributedDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         preflight::linear_system(bytes, limits)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid linear-system envelope JSON: {error}"))
@@ -100,12 +101,12 @@ impl LinearSystemEnvelopeV1 {
     /// Returns `EQ0901` if portable conversion or canonical CSR validation
     /// fails.
     pub fn to_complete(&self) -> Result<CanonicalCsrSystemView, Diagnostic> {
-        self.to_complete_with_limits(DecoderLimits::default())
+        self.to_complete_with_limits(DistributedDecoderLimits::default())
     }
 
     pub(super) fn to_complete_with_limits(
         &self,
-        limits: DecoderLimits,
+        limits: DistributedDecoderLimits,
     ) -> Result<CanonicalCsrSystemView, Diagnostic> {
         self.validate_shape(limits)?;
         let row_offsets = try_collect(
@@ -139,11 +140,11 @@ impl LinearSystemEnvelopeV1 {
         })
     }
 
-    fn validate(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn validate(&self, limits: DistributedDecoderLimits) -> Result<(), Diagnostic> {
         self.to_complete_with_limits(limits).map(|_| ())
     }
 
-    fn validate_shape(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_shape(&self, limits: DistributedDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != LINEAR_SYSTEM_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported linear-system schema or canonical encoding",

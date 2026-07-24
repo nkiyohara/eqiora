@@ -12,10 +12,10 @@ use crate::geometry_state::{
     validate_geometry_coordinate_array,
 };
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, DiscreteFieldEnvelopeV1,
-    FieldSnapshotEnvelopeV1, ReplayableCanonicalModelArtifact,
-    ReplayableFixedTopologyAleRealizationArtifact, SimplicialMeshEnvelopeV1,
-    ValidatedMovingSpatialContextV2, check_wire_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1,
+    ReplayableCanonicalModelArtifact, ReplayableFixedTopologyAleRealizationArtifact,
+    SimplicialMeshEnvelopeV1, SpatialDecoderLimits, ValidatedMovingSpatialContextV2,
+    check_json_limits, invalid_artifact,
 };
 
 const GEOMETRY_STATE_SCHEMA: &str = "eqiora.geometry-state-envelope/v3";
@@ -199,7 +199,7 @@ impl GeometryStateEnvelopeV3 {
                 },
             },
         };
-        value.validate_local(DecoderLimits::default())?;
+        value.validate_local(SpatialDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -209,8 +209,8 @@ impl GeometryStateEnvelopeV3 {
     /// Returns `EQ0901` for malformed, oversized, unknown, noncanonical, or
     /// non-three-dimensional wire data. Exact replay remains pending until
     /// [`Self::validate_against`] succeeds.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid geometry-state/v3 JSON: {error}"))
         })?;
@@ -418,7 +418,7 @@ impl GeometryStateEnvelopeV3 {
         Ok(())
     }
 
-    fn validate_local(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != GEOMETRY_STATE_SCHEMA
             || self.wire.encoding != CANONICAL_ENCODING
             || self.wire.spatial_dimension != SPATIAL_DIMENSION as u64

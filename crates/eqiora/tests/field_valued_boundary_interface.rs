@@ -1,7 +1,7 @@
 use eqiora::artifact::{
-    ArtifactDigest, DecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3,
-    ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3,
-    PhysicalExposureCatalogEnvelopeV1, PhysicalExposureContractV1, PhysicalExposureProjectionV1,
+    ArtifactDigest, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3, ModelTransactionEnvelopeV1,
+    ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3, PhysicalExposureCatalogEnvelopeV1,
+    PhysicalExposureContractV1, PhysicalExposureProjectionV1,
 };
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::entity::kinds;
@@ -340,7 +340,7 @@ fn packaged_field_valued_boundary_interface() {
 
     let v3 = ModelEnvelopeV3::from_program(program).expect("complete Model v3 envelope");
     let v3_bytes = v3.canonical_json().expect("canonical Model v3 bytes");
-    let decoded = ModelEnvelopeV3::from_json(&v3_bytes, DecoderLimits::default())
+    let decoded = ModelEnvelopeV3::from_json(&v3_bytes, Default::default())
         .expect("decode complete Model v3 envelope");
     let replayed_program = decoded.to_program().expect("replay complete Model v3");
     let replayed =
@@ -364,7 +364,7 @@ fn packaged_field_valued_boundary_interface() {
         ModelTransactionEnvelopeV3::from_transaction(&transaction).expect("transaction v3");
     let transaction_bytes = transaction_v3.canonical_json().unwrap();
     assert_eq!(
-        ModelTransactionEnvelopeV3::from_json(&transaction_bytes, DecoderLimits::default())
+        ModelTransactionEnvelopeV3::from_json(&transaction_bytes, Default::default())
             .unwrap()
             .to_transaction()
             .unwrap()
@@ -427,7 +427,7 @@ fn eliminated_field_exposures_replay_exact_support_contracts() {
         ));
     }
     let bytes = catalog.canonical_json().expect("field catalog JSON");
-    let decoded = PhysicalExposureCatalogEnvelopeV1::from_json(&bytes, DecoderLimits::default())
+    let decoded = PhysicalExposureCatalogEnvelopeV1::from_json(&bytes, Default::default())
         .expect("decode field catalog");
     packaged
         .validate_physical_exposure_catalog(&decoded, &resolution)

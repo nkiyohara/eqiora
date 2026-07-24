@@ -10,10 +10,10 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, DiscreteFieldEnvelopeV1,
+    ArtifactDigest, CANONICAL_ENCODING, DataExchangeDecoderLimits, DiscreteFieldEnvelopeV1,
     ExternalAdapterIdentityV1, ExternalRuntimeComponentV1, ExternalRuntimeRoleV1,
     FieldSnapshotEnvelopeV1, SpatialStateEnvelopeV2, SpatialStateEnvelopeV3,
-    SpatialTrajectoryEnvelopeV3, StorageChunkSha256V1, check_wire_limits, invalid_artifact,
+    SpatialTrajectoryEnvelopeV3, StorageChunkSha256V1, check_json_limits, invalid_artifact,
 };
 
 const SCHEMA: &str = "eqiora.xdmf-hdf5-trajectory-storage/v1";
@@ -352,7 +352,7 @@ impl XdmfHdf5TrajectoryStorageEnvelopeV1 {
             xdmf_bytes,
             hdf5_bytes,
             frames,
-            DecoderLimits::default(),
+            DataExchangeDecoderLimits::default(),
         )
     }
 
@@ -364,7 +364,7 @@ impl XdmfHdf5TrajectoryStorageEnvelopeV1 {
         xdmf_bytes: &[u8],
         hdf5_bytes: &[u8],
         mut frames: Vec<XdmfHdf5TrajectoryFrameV1>,
-        limits: DecoderLimits,
+        limits: DataExchangeDecoderLimits,
     ) -> Result<Self, Diagnostic> {
         frames.sort_by_key(XdmfHdf5TrajectoryFrameV1::ordinal);
         let wire = WireEnvelope {
@@ -391,8 +391,8 @@ impl XdmfHdf5TrajectoryStorageEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for unknown, malformed, noncanonical, or over-budget
     /// data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: DataExchangeDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire: WireEnvelope = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!(
                 "invalid XDMF/HDF5 trajectory storage JSON: {error}"
@@ -501,7 +501,7 @@ impl XdmfHdf5TrajectoryStorageEnvelopeV1 {
             xdmf_bytes,
             hdf5_bytes,
             self.frames(),
-            DecoderLimits::default(),
+            DataExchangeDecoderLimits::default(),
         )?;
         if expected == *self {
             Ok(())
@@ -515,7 +515,7 @@ impl XdmfHdf5TrajectoryStorageEnvelopeV1 {
 
 fn validate_wire(
     wire: &WireEnvelope,
-    limits: DecoderLimits,
+    limits: DataExchangeDecoderLimits,
 ) -> Result<(ExternalAdapterIdentityV1, Vec<ExternalRuntimeComponentV1>), Diagnostic> {
     if wire.schema != SCHEMA
         || wire.encoding != CANONICAL_ENCODING
@@ -1012,13 +1012,15 @@ mod tests {
                 frame(0, TemporalStorageStateKindV1::MovingV2, 10),
                 frame(1, TemporalStorageStateKindV1::RemeshedV3, 20),
             ],
-            DecoderLimits::default(),
+            DataExchangeDecoderLimits::default(),
         )
         .unwrap();
         let bytes = value.canonical_json().unwrap();
-        let decoded =
-            XdmfHdf5TrajectoryStorageEnvelopeV1::from_json(&bytes, DecoderLimits::default())
-                .unwrap();
+        let decoded = XdmfHdf5TrajectoryStorageEnvelopeV1::from_json(
+            &bytes,
+            DataExchangeDecoderLimits::default(),
+        )
+        .unwrap();
         assert_eq!(decoded, value);
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         assert_eq!(
@@ -1062,13 +1064,13 @@ mod tests {
                 b"x",
                 b"h",
                 reversed,
-                DecoderLimits::default(),
+                DataExchangeDecoderLimits::default(),
             )
             .is_err()
         );
-        let limits = DecoderLimits {
+        let limits = DataExchangeDecoderLimits {
             max_trajectory_storage_frames: 1,
-            ..DecoderLimits::default()
+            ..DataExchangeDecoderLimits::default()
         };
         assert!(
             XdmfHdf5TrajectoryStorageEnvelopeV1::finish(

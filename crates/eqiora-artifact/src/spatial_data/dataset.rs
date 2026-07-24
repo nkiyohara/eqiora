@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, SpatialTrajectoryEnvelopeV1,
-    ValidatedFixedSpatialContextV1, check_wire_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, DataExchangeDecoderLimits, SpatialTrajectoryEnvelopeV1,
+    ValidatedFixedSpatialContextV1, check_json_limits, invalid_artifact,
 };
 
 const DATASET_VIEW_SCHEMA: &str = "eqiora.dataset-view-envelope/v1";
@@ -105,7 +105,7 @@ impl DatasetViewEnvelopeV1 {
                 split: WireSplit::Unpartitioned,
             },
         };
-        value.validate_local(DecoderLimits::default())?;
+        value.validate_local(DataExchangeDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -113,8 +113,8 @@ impl DatasetViewEnvelopeV1 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: DataExchangeDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid Dataset view JSON: {error}")))?;
         let value = Self { wire };
@@ -210,7 +210,7 @@ impl DatasetViewEnvelopeV1 {
         Ok(())
     }
 
-    fn validate_local(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: DataExchangeDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != DATASET_VIEW_SCHEMA
             || self.wire.encoding != CANONICAL_ENCODING
             || self.wire.transformation != WireTransformation::Identity

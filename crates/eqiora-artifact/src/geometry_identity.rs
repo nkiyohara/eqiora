@@ -16,8 +16,8 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, ReplayableCanonicalModelArtifact,
-    check_wire_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, ReplayableCanonicalModelArtifact, SpatialDecoderLimits,
+    check_json_limits, invalid_artifact,
 };
 
 const GEOMETRY_IDENTITY_SCHEMA: &str = "eqiora.geometry-identity-envelope/v1";
@@ -275,7 +275,7 @@ impl GeometryIdentityEnvelopeV1 {
                 bodies: wire_bodies,
             },
         };
-        envelope.validate_local(DecoderLimits::default())?;
+        envelope.validate_local(SpatialDecoderLimits::default())?;
         Ok(envelope)
     }
 
@@ -283,8 +283,8 @@ impl GeometryIdentityEnvelopeV1 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, noncanonical, or oversized data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid geometry identity JSON: {error}"))
         })?;
@@ -404,7 +404,7 @@ impl GeometryIdentityEnvelopeV1 {
             .collect()
     }
 
-    fn validate_local(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != GEOMETRY_IDENTITY_SCHEMA
             || self.wire.encoding != CANONICAL_ENCODING
             || self.wire.producer != WireGeometryProducer::SemanticCartesianV1

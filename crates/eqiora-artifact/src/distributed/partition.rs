@@ -10,7 +10,8 @@ use super::{
     require_limit, try_collect,
 };
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, check_wire_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, DistributedDecoderLimits, check_json_limits,
+    invalid_artifact,
 };
 
 /// Durable unique-owner partition over one nonempty global `f64` vector.
@@ -48,7 +49,7 @@ impl PartitionEnvelopeV1 {
             )?,
         };
         let envelope = Self { wire };
-        envelope.validate(DecoderLimits::default())?;
+        envelope.validate(DistributedDecoderLimits::default())?;
         Ok(envelope)
     }
 
@@ -57,8 +58,8 @@ impl PartitionEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, unknown, oversized, nonportable, or
     /// invalid partition data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: DistributedDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         preflight::partition(bytes, limits)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid partition envelope JSON: {error}"))
@@ -95,12 +96,12 @@ impl PartitionEnvelopeV1 {
     /// Returns `EQ0901` for portable-conversion, allocation, or partition
     /// invariant failure.
     pub fn to_partition(&self) -> Result<Partition, Diagnostic> {
-        self.to_partition_with_limits(DecoderLimits::default())
+        self.to_partition_with_limits(DistributedDecoderLimits::default())
     }
 
     pub(super) fn to_partition_with_limits(
         &self,
-        limits: DecoderLimits,
+        limits: DistributedDecoderLimits,
     ) -> Result<Partition, Diagnostic> {
         self.validate_shape(limits)?;
         let dimension =
@@ -132,11 +133,11 @@ impl PartitionEnvelopeV1 {
         })
     }
 
-    fn validate(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn validate(&self, limits: DistributedDecoderLimits) -> Result<(), Diagnostic> {
         self.to_partition_with_limits(limits).map(|_| ())
     }
 
-    fn validate_shape(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_shape(&self, limits: DistributedDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != PARTITION_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported partition schema or canonical encoding",

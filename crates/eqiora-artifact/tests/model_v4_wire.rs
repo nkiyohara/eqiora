@@ -1,7 +1,6 @@
 use eqiora_artifact::{
-    DecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3, ModelEnvelopeV4,
-    ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3,
-    ModelTransactionEnvelopeV4,
+    ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3, ModelEnvelopeV4, ModelTransactionEnvelopeV1,
+    ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3, ModelTransactionEnvelopeV4,
 };
 use eqiora_compiler::compile;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
@@ -55,20 +54,17 @@ fn tensor_operators_require_explicit_model_wire_v4() {
     assert!(text.contains("symmetric-part"));
     assert!(text.contains("isotropic-lift"));
 
-    let decoded = ModelEnvelopeV4::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = ModelEnvelopeV4::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), v4.digest().unwrap());
     assert_eq!(decoded.to_program().unwrap(), program);
 
-    assert!(ModelEnvelopeV3::from_json(&bytes, DecoderLimits::default()).is_err());
+    assert!(ModelEnvelopeV3::from_json(&bytes, Default::default()).is_err());
     let mut forged_v3: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     forged_v3["schema"] = serde_json::Value::String("eqiora.model-envelope/v3".to_owned());
     assert!(
-        ModelEnvelopeV3::from_json(
-            &serde_json::to_vec(&forged_v3).unwrap(),
-            DecoderLimits::default(),
-        )
-        .is_err()
+        ModelEnvelopeV3::from_json(&serde_json::to_vec(&forged_v3).unwrap(), Default::default(),)
+            .is_err()
     );
 }
 
@@ -86,7 +82,7 @@ fn tensor_operators_require_explicit_transaction_wire_v4() {
     assert!(text.contains("symmetric-part"));
     assert!(text.contains("isotropic-lift"));
 
-    let decoded = ModelTransactionEnvelopeV4::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = ModelTransactionEnvelopeV4::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), v4.digest().unwrap());
     let replay = decoded.to_transaction().unwrap();
@@ -94,14 +90,14 @@ fn tensor_operators_require_explicit_transaction_wire_v4() {
     assert_eq!(replay.ops(), transaction.ops());
     assert_eq!(replay.preconditions(), transaction.preconditions());
 
-    assert!(ModelTransactionEnvelopeV3::from_json(&bytes, DecoderLimits::default()).is_err());
+    assert!(ModelTransactionEnvelopeV3::from_json(&bytes, Default::default()).is_err());
     let mut forged_v3: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     forged_v3["schema"] =
         serde_json::Value::String("eqiora.model-transaction-envelope/v3".to_owned());
     assert!(
         ModelTransactionEnvelopeV3::from_json(
             &serde_json::to_vec(&forged_v3).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
@@ -110,7 +106,7 @@ fn tensor_operators_require_explicit_transaction_wire_v4() {
     malformed["ops"] = serde_json::Value::Array(Vec::new());
     let diagnostic = ModelTransactionEnvelopeV4::from_json(
         &serde_json::to_vec(&malformed).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap_err();
     assert!(diagnostic.message().contains("model transaction v4"));

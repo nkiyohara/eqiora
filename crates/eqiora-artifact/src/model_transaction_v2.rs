@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::model::{checked_count_sum, require_decoder_count};
 use crate::model_transaction::{WireModelOp, WireModelPrecondition};
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, check_wire_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, ModelDecoderLimits, check_json_limits, invalid_artifact,
     validate_text,
 };
 
@@ -124,7 +124,7 @@ impl ModelTransactionEnvelopeV2 {
                 preconditions,
             },
         };
-        envelope.canonicalize_and_validate(DecoderLimits::default(), version)?;
+        envelope.canonicalize_and_validate(ModelDecoderLimits::default(), version)?;
         Ok(envelope)
     }
 
@@ -133,32 +133,44 @@ impl ModelTransactionEnvelopeV2 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, or wrong-version data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: ModelDecoderLimits) -> Result<Self, Diagnostic> {
         Self::from_json_version(bytes, limits, TransactionSchemaVersion::V2)
     }
 
-    pub(crate) fn from_json_v3(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
+    pub(crate) fn from_json_v3(
+        bytes: &[u8],
+        limits: ModelDecoderLimits,
+    ) -> Result<Self, Diagnostic> {
         Self::from_json_version(bytes, limits, TransactionSchemaVersion::V3)
     }
 
-    pub(crate) fn from_json_v4(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
+    pub(crate) fn from_json_v4(
+        bytes: &[u8],
+        limits: ModelDecoderLimits,
+    ) -> Result<Self, Diagnostic> {
         Self::from_json_version(bytes, limits, TransactionSchemaVersion::V4)
     }
 
-    pub(crate) fn from_json_v5(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
+    pub(crate) fn from_json_v5(
+        bytes: &[u8],
+        limits: ModelDecoderLimits,
+    ) -> Result<Self, Diagnostic> {
         Self::from_json_version(bytes, limits, TransactionSchemaVersion::V5)
     }
 
-    pub(crate) fn from_json_v6(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
+    pub(crate) fn from_json_v6(
+        bytes: &[u8],
+        limits: ModelDecoderLimits,
+    ) -> Result<Self, Diagnostic> {
         Self::from_json_version(bytes, limits, TransactionSchemaVersion::V6)
     }
 
     fn from_json_version(
         bytes: &[u8],
-        limits: DecoderLimits,
+        limits: ModelDecoderLimits,
         version: TransactionSchemaVersion,
     ) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid {} JSON: {error}", version.schema()))
         })?;
@@ -245,7 +257,7 @@ impl ModelTransactionEnvelopeV2 {
 
     fn canonicalize_and_validate(
         &mut self,
-        limits: DecoderLimits,
+        limits: ModelDecoderLimits,
         version: TransactionSchemaVersion,
     ) -> Result<(), Diagnostic> {
         let label = version.label();

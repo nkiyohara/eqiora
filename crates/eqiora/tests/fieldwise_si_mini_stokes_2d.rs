@@ -1,8 +1,8 @@
 use std::num::NonZeroUsize;
 
 use eqiora::artifact::{
-    ArtifactDigest, DecoderLimits, ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts,
-    ModelEnvelopeV4, RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
+    ArtifactDigest, ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV4,
+    RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{MeshQualityGate, SimplicialMesh, triangle_duffy_gauss_legendre};
@@ -80,7 +80,7 @@ fn direct_and_packaged_models_share_one_fieldwise_si_mini_realization() {
     let mesh =
         SimplicialMeshEnvelopeV1::from_mesh(&physical_mesh()).expect("physical mesh artifact");
     let mesh_bytes = mesh.canonical_json().expect("mesh bytes");
-    let mesh = SimplicialMeshEnvelopeV1::from_json(&mesh_bytes, DecoderLimits::default())
+    let mesh = SimplicialMeshEnvelopeV1::from_json(&mesh_bytes, Default::default())
         .expect("mesh artifact replay");
     assert_eq!(mesh.canonical_json().unwrap(), mesh_bytes);
 
@@ -373,8 +373,8 @@ fn observe(
 
     let model = ModelEnvelopeV4::from_program(program).expect("canonical Model v4");
     let model_bytes = model.canonical_json().expect("Model bytes");
-    let model_replay = ModelEnvelopeV4::from_json(&model_bytes, DecoderLimits::default())
-        .expect("Model v4 replay");
+    let model_replay =
+        ModelEnvelopeV4::from_json(&model_bytes, Default::default()).expect("Model v4 replay");
     assert_eq!(model_replay.canonical_json().unwrap(), model_bytes);
     assert_eq!(model_replay.digest().unwrap(), model.digest().unwrap());
     let realization =
@@ -396,7 +396,7 @@ fn observe(
         })
     );
     let realization_replay =
-        RealizationEnvelopeV2::from_json(&realization_bytes, DecoderLimits::default())
+        RealizationEnvelopeV2::from_json(&realization_bytes, Default::default())
             .expect("Realization v2 replay");
     assert_eq!(
         realization_replay.canonical_json().unwrap(),
@@ -430,7 +430,7 @@ fn observe(
     .expect("run manifest matches the typed Realization");
     let run_bytes = run.canonical_json().expect("Run bytes");
     let run_replay =
-        RunManifestV2::from_json(&run_bytes, DecoderLimits::default()).expect("Run v2 replay");
+        RunManifestV2::from_json(&run_bytes, Default::default()).expect("Run v2 replay");
     assert_eq!(run_replay.canonical_json().unwrap(), run_bytes);
     assert_eq!(run_replay.digest().unwrap(), run.digest().unwrap());
     run.validate_against(&realization)
@@ -634,10 +634,8 @@ fn resolved_from_wire(value: &serde_json::Value) -> ResolvedFieldwiseRealization
 fn decode_and_resolve(
     value: &serde_json::Value,
 ) -> Result<ResolvedFieldwiseRealization, Diagnostic> {
-    let envelope = RealizationEnvelopeV2::from_json(
-        &serde_json::to_vec(value).unwrap(),
-        DecoderLimits::default(),
-    )?;
+    let envelope =
+        RealizationEnvelopeV2::from_json(&serde_json::to_vec(value).unwrap(), Default::default())?;
     resolve_fieldwise(
         &FieldwiseRealizationRequest::explicit(
             envelope.model()?,

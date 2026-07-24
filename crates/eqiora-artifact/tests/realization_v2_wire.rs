@@ -1,8 +1,8 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
-    DecoderLimits, ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV4,
-    RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
+    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV4,
+    RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1, SpatialDecoderLimits,
 };
 use eqiora_compiler::compile;
 use eqiora_core::entity::kinds;
@@ -29,7 +29,7 @@ const STOKES: &str =
 fn fieldwise_v2_round_trips_minres_and_exact_mixed_identity() {
     let fixture = fixture(ReductionPolicy::Reproducible);
     let bytes = fixture.realization.canonical_json().unwrap();
-    let decoded = RealizationEnvelopeV2::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = RealizationEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
 
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(
@@ -67,7 +67,7 @@ fn realization_v2_golden_bytes_are_frozen() {
         "../../../verify/artifacts/realization-run-wire/expected/realization-v2.json"
     );
     let fixture = fixture.strip_suffix(b"\n").unwrap_or(fixture);
-    let decoded = RealizationEnvelopeV2::from_json(fixture, DecoderLimits::default()).unwrap();
+    let decoded = RealizationEnvelopeV2::from_json(fixture, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), fixture);
 }
 
@@ -82,7 +82,7 @@ fn fieldwise_v2_scale_changes_are_identity_and_invalid_scales_fail_closed() {
         serde_json::json!(2.0);
     let changed = RealizationEnvelopeV2::from_json(
         &serde_json::to_vec(&changed).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     assert_ne!(changed.digest().unwrap(), original_digest);
@@ -93,7 +93,7 @@ fn fieldwise_v2_scale_changes_are_identity_and_invalid_scales_fail_closed() {
         assert!(
             RealizationEnvelopeV2::from_json(
                 &serde_json::to_vec(&invalid).unwrap(),
-                DecoderLimits::default(),
+                Default::default(),
             )
             .is_err()
         );
@@ -105,7 +105,7 @@ fn fieldwise_v2_scale_changes_are_identity_and_invalid_scales_fail_closed() {
     assert!(
         RealizationEnvelopeV2::from_json(
             &serde_json::to_vec(&wrong_coordinate_dimension).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
@@ -125,7 +125,7 @@ fn fieldwise_v2_rejects_field_constraint_and_block_ambiguity() {
     assert!(
         RealizationEnvelopeV2::from_json(
             &serde_json::to_vec(&duplicate_field).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
@@ -138,7 +138,7 @@ fn fieldwise_v2_rejects_field_constraint_and_block_ambiguity() {
     assert!(
         RealizationEnvelopeV2::from_json(
             &serde_json::to_vec(&missing_scale).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
@@ -149,7 +149,7 @@ fn fieldwise_v2_rejects_field_constraint_and_block_ambiguity() {
     assert!(
         RealizationEnvelopeV2::from_json(
             &serde_json::to_vec(&field_drift).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
@@ -159,7 +159,7 @@ fn fieldwise_v2_rejects_field_constraint_and_block_ambiguity() {
     assert!(
         RealizationEnvelopeV2::from_json(
             &serde_json::to_vec(&unknown).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
@@ -172,7 +172,7 @@ fn fieldwise_v2_rejects_field_constraint_and_block_ambiguity() {
     assert!(
         RealizationEnvelopeV2::from_json(
             &serde_json::to_vec(&permuted).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
@@ -184,17 +184,17 @@ fn fieldwise_v2_decoder_limits_each_identity_inventory() {
     let bytes = fixture.realization.canonical_json().unwrap();
 
     for limits in [
-        DecoderLimits {
+        SpatialDecoderLimits {
             max_realization_fields: 1,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
-        DecoderLimits {
+        SpatialDecoderLimits {
             max_realization_constraints: 0,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
-        DecoderLimits {
+        SpatialDecoderLimits {
             max_realization_blocks: 2,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
     ] {
         assert!(RealizationEnvelopeV2::from_json(&bytes, limits).is_err());

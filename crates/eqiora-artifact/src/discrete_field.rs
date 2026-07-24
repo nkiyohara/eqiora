@@ -9,8 +9,8 @@ use eqiora_meshing::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, SimplicialMeshEnvelopeV1, check_wire_limits,
-    invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, SimplicialMeshEnvelopeV1, SpatialDecoderLimits,
+    check_json_limits, invalid_artifact,
 };
 
 const DISCRETE_FIELD_SCHEMA: &str = "eqiora.discrete-field-envelope/v1";
@@ -69,8 +69,8 @@ impl DiscreteFieldEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed/unknown wire data, resource excess,
     /// invalid digest/count/shape/value data, or a non-canonical negative zero.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: SpatialDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid discrete field JSON: {error}")))?;
         Self::from_wire(wire, limits)
@@ -168,7 +168,7 @@ impl DiscreteFieldEnvelopeV1 {
 
     fn from_wire(
         wire: WireDiscreteFieldEnvelopeV1,
-        limits: DecoderLimits,
+        limits: SpatialDecoderLimits,
     ) -> Result<Self, Diagnostic> {
         if wire.schema != DISCRETE_FIELD_SCHEMA || wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
@@ -405,7 +405,8 @@ mod tests {
         .unwrap();
         let envelope = DiscreteFieldEnvelopeV1::from_payload(&mesh, &payload).unwrap();
         let bytes = envelope.canonical_json().unwrap();
-        let decoded = DiscreteFieldEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+        let decoded =
+            DiscreteFieldEnvelopeV1::from_json(&bytes, SpatialDecoderLimits::default()).unwrap();
 
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
@@ -440,8 +441,8 @@ mod tests {
                 bytes
             })
             .unwrap();
-        let error =
-            DiscreteFieldEnvelopeV1::from_json(&negative, DecoderLimits::default()).unwrap_err();
+        let error = DiscreteFieldEnvelopeV1::from_json(&negative, SpatialDecoderLimits::default())
+            .unwrap_err();
         assert_eq!(error.code(), codes::INVALID_ARTIFACT);
         assert!(error.message().contains("positive zero"));
     }
@@ -473,7 +474,7 @@ mod tests {
         assert_eq!(
             DiscreteFieldEnvelopeV1::from_json(
                 &serde_json::to_vec(&forged).unwrap(),
-                DecoderLimits::default(),
+                SpatialDecoderLimits::default(),
             )
             .unwrap_err()
             .code(),
@@ -521,9 +522,9 @@ mod tests {
         .unwrap();
         let envelope = DiscreteFieldEnvelopeV1::from_payload(&mesh, &payload).unwrap();
         let bytes = envelope.canonical_json().unwrap();
-        let limits = DecoderLimits {
+        let limits = SpatialDecoderLimits {
             max_discrete_field_values: 3,
-            ..DecoderLimits::default()
+            ..SpatialDecoderLimits::default()
         };
         assert_eq!(
             DiscreteFieldEnvelopeV1::from_json(&bytes, limits)
@@ -537,7 +538,7 @@ mod tests {
         assert_eq!(
             DiscreteFieldEnvelopeV1::from_json(
                 &serde_json::to_vec(&unknown).unwrap(),
-                DecoderLimits::default(),
+                SpatialDecoderLimits::default(),
             )
             .unwrap_err()
             .code(),
@@ -554,7 +555,7 @@ mod tests {
             })
             .unwrap();
         assert_eq!(
-            DiscreteFieldEnvelopeV1::from_json(&nonfinite, DecoderLimits::default())
+            DiscreteFieldEnvelopeV1::from_json(&nonfinite, SpatialDecoderLimits::default())
                 .unwrap_err()
                 .code(),
             codes::INVALID_ARTIFACT,

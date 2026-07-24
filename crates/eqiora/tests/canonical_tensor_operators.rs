@@ -1,7 +1,6 @@
 use eqiora::artifact::{
-    DecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3, ModelEnvelopeV4,
-    ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3,
-    ModelTransactionEnvelopeV4,
+    ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3, ModelEnvelopeV4, ModelTransactionEnvelopeV1,
+    ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3, ModelTransactionEnvelopeV4,
 };
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::compiler::{CompiledModel, ModelSymbols, compile};
@@ -55,7 +54,7 @@ fn source_meaning_crosses_only_the_explicit_closed_v4_wire() {
         ModelTransactionEnvelopeV4::from_transaction(transaction).expect("explicit v4 transaction");
     let transaction_bytes = transaction_v4.canonical_json().unwrap();
     let replayed_transaction =
-        ModelTransactionEnvelopeV4::from_json(&transaction_bytes, DecoderLimits::default())
+        ModelTransactionEnvelopeV4::from_json(&transaction_bytes, Default::default())
             .expect("bounded v4 transaction decode")
             .to_transaction()
             .expect("typed v4 transaction reconstruction");
@@ -101,21 +100,18 @@ fn source_meaning_crosses_only_the_explicit_closed_v4_wire() {
     assert!(model_text.contains("eqiora.model-envelope/v4"));
     assert!(model_text.contains("symmetric-part"));
     assert!(model_text.contains("isotropic-lift"));
-    let replayed_model = ModelEnvelopeV4::from_json(&model_bytes, DecoderLimits::default())
+    let replayed_model = ModelEnvelopeV4::from_json(&model_bytes, Default::default())
         .expect("bounded v4 Model decode");
     assert_eq!(replayed_model.canonical_json().unwrap(), model_bytes);
     assert_eq!(replayed_model.digest().unwrap(), model_v4.digest().unwrap());
     assert_eq!(replayed_model.to_program().unwrap(), program);
-    assert!(ModelEnvelopeV3::from_json(&model_bytes, DecoderLimits::default()).is_err());
+    assert!(ModelEnvelopeV3::from_json(&model_bytes, Default::default()).is_err());
 
     let mut forged_v3: serde_json::Value = serde_json::from_slice(&model_bytes).unwrap();
     forged_v3["schema"] = serde_json::Value::String("eqiora.model-envelope/v3".to_owned());
     assert!(
-        ModelEnvelopeV3::from_json(
-            &serde_json::to_vec(&forged_v3).unwrap(),
-            DecoderLimits::default(),
-        )
-        .is_err()
+        ModelEnvelopeV3::from_json(&serde_json::to_vec(&forged_v3).unwrap(), Default::default(),)
+            .is_err()
     );
 
     let document = ExactModelCodec::V4

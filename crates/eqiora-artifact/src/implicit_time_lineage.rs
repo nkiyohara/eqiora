@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 use crate::implicit_time::validate_general_proof;
 use crate::time::canonical_time_operator;
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, GeneralImplicitTimeLoweringEnvelopeV1,
-    ImplicitTimeInitialDataEnvelopeV1, ImplicitTimeRunManifestV1, check_wire_limits,
-    invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, GeneralImplicitTimeLoweringEnvelopeV1,
+    ImplicitTimeInitialDataEnvelopeV1, ImplicitTimeRunManifestV1, TimeDecoderLimits,
+    check_json_limits, invalid_artifact,
 };
 
 const IMPLICIT_CHECKPOINT_SCHEMA: &str = "eqiora.implicit-time-checkpoint-envelope/v1";
@@ -84,8 +84,8 @@ impl ImplicitTimeCheckpointEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version,
     /// shape-mismatched, non-finite, or non-canonical data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: TimeDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid implicit time checkpoint JSON: {error}"))
         })?;
@@ -300,8 +300,8 @@ impl ImplicitTimeRestartManifestV1 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version, or invalid
     /// digest data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: TimeDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!(
                 "invalid implicit time restart manifest JSON: {error}"

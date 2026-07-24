@@ -2,15 +2,15 @@ use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
 use eqiora::artifact::{
-    DecoderLimits, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, FieldTransferReceiptV1,
-    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
+    DataExchangeDecoderLimits, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1,
+    FieldTransferReceiptV1, GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
     GeometryRevisionAssociationEnvelopeV1, GeometryStateEnvelopeV1, GeometryStateEnvelopeV2,
-    LayoutArtifacts, MeshRevisionOverlapEnvelopeV1, ModelEnvelopeV5, RealizationEnvelopeV4,
-    RemeshFieldRoleV1, RemeshIntegrationChartV1, RemeshNormalizationWitnessV1,
-    RemeshProjectionActionV1, RemeshProjectionEvidenceEnvelopeV1, RemeshTransferEvidenceV1,
-    RemeshTransferLawV1, RemeshTransferReceiptEnvelopeV1, SimplicialMeshEnvelopeV1,
-    SpatialStateEnvelopeV2, SpatialStateEnvelopeV3, SpatialTrajectoryEnvelopeV2,
-    SpatialTrajectoryEnvelopeV3, SpatialTrajectorySegmentEnvelopeV2,
+    LayoutArtifacts, MeshRevisionOverlapEnvelopeV1, MlDatasetDecoderLimits, ModelEnvelopeV5,
+    RealizationEnvelopeV4, RemeshFieldRoleV1, RemeshIntegrationChartV1,
+    RemeshNormalizationWitnessV1, RemeshProjectionActionV1, RemeshProjectionEvidenceEnvelopeV1,
+    RemeshTransferEvidenceV1, RemeshTransferLawV1, RemeshTransferReceiptEnvelopeV1,
+    SimplicialMeshEnvelopeV1, SpatialDecoderLimits, SpatialStateEnvelopeV2, SpatialStateEnvelopeV3,
+    SpatialTrajectoryEnvelopeV2, SpatialTrajectoryEnvelopeV3, SpatialTrajectorySegmentEnvelopeV2,
     SpatialTrajectorySegmentEnvelopeV3, ValidatedMovingSpatialContextV2,
     ValidatedRemeshGeometrySourceV2,
 };
@@ -196,7 +196,7 @@ pub(super) fn assert_artifact_vertical_slice(
     .unwrap();
     let geometry_bytes = target_geometry_remesh.canonical_json().unwrap();
     let decoded_geometry =
-        GeometryStateEnvelopeV2::from_json(&geometry_bytes, DecoderLimits::default()).unwrap();
+        GeometryStateEnvelopeV2::from_json(&geometry_bytes, Default::default()).unwrap();
     assert_eq!(decoded_geometry.canonical_json().unwrap(), geometry_bytes);
     assert_eq!(
         decoded_geometry.digest().unwrap(),
@@ -224,7 +224,7 @@ pub(super) fn assert_artifact_vertical_slice(
     assert_eq!(overlap.accepted_time_s(), source_tip.time_s());
     let overlap_bytes = overlap.canonical_json().unwrap();
     let decoded_overlap =
-        MeshRevisionOverlapEnvelopeV1::from_json(&overlap_bytes, DecoderLimits::default()).unwrap();
+        MeshRevisionOverlapEnvelopeV1::from_json(&overlap_bytes, Default::default()).unwrap();
     assert_eq!(decoded_overlap.canonical_json().unwrap(), overlap_bytes);
     assert_eq!(decoded_overlap.digest().unwrap(), overlap.digest().unwrap());
     decoded_overlap
@@ -242,8 +242,7 @@ pub(super) fn assert_artifact_vertical_slice(
     for projection in &projections {
         let bytes = projection.canonical_json().unwrap();
         let decoded =
-            RemeshProjectionEvidenceEnvelopeV1::from_json(&bytes, DecoderLimits::default())
-                .unwrap();
+            RemeshProjectionEvidenceEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         assert_eq!(decoded.digest().unwrap(), projection.digest().unwrap());
         decoded.validate_against_overlap(&overlap).unwrap();
@@ -314,8 +313,7 @@ pub(super) fn assert_artifact_vertical_slice(
     .unwrap();
     let receipt_bytes = receipt.canonical_json().unwrap();
     let decoded_receipt =
-        RemeshTransferReceiptEnvelopeV1::from_json(&receipt_bytes, DecoderLimits::default())
-            .unwrap();
+        RemeshTransferReceiptEnvelopeV1::from_json(&receipt_bytes, Default::default()).unwrap();
     assert_eq!(decoded_receipt.canonical_json().unwrap(), receipt_bytes);
     assert_eq!(decoded_receipt.digest().unwrap(), receipt.digest().unwrap());
     decoded_receipt
@@ -328,9 +326,9 @@ pub(super) fn assert_artifact_vertical_slice(
             &target_initial_snapshots.snapshots,
         )
         .unwrap();
-    let receipt_limits = DecoderLimits {
+    let receipt_limits = SpatialDecoderLimits {
         max_remesh_transfer_fields: 3,
-        ..DecoderLimits::default()
+        ..Default::default()
     };
     assert!(
         RemeshTransferReceiptEnvelopeV1::from_json(&receipt_bytes, receipt_limits).is_err(),
@@ -373,7 +371,7 @@ pub(super) fn assert_artifact_vertical_slice(
     .unwrap();
     let remesh_state_bytes = target_spatial_remesh.canonical_json().unwrap();
     let decoded_remesh_state =
-        SpatialStateEnvelopeV3::from_json(&remesh_state_bytes, DecoderLimits::default()).unwrap();
+        SpatialStateEnvelopeV3::from_json(&remesh_state_bytes, Default::default()).unwrap();
     assert_eq!(
         decoded_remesh_state.canonical_json().unwrap(),
         remesh_state_bytes
@@ -411,8 +409,7 @@ pub(super) fn assert_artifact_vertical_slice(
     .unwrap();
     let continuous_geometry_bytes = target_geometry_continuous.canonical_json().unwrap();
     let decoded_continuous_geometry =
-        GeometryStateEnvelopeV2::from_json(&continuous_geometry_bytes, DecoderLimits::default())
-            .unwrap();
+        GeometryStateEnvelopeV2::from_json(&continuous_geometry_bytes, Default::default()).unwrap();
     assert_eq!(
         decoded_continuous_geometry.canonical_json().unwrap(),
         continuous_geometry_bytes
@@ -443,8 +440,7 @@ pub(super) fn assert_artifact_vertical_slice(
     .unwrap();
     let continuous_state_bytes = target_spatial_continuous.canonical_json().unwrap();
     let decoded_continuous_state =
-        SpatialStateEnvelopeV3::from_json(&continuous_state_bytes, DecoderLimits::default())
-            .unwrap();
+        SpatialStateEnvelopeV3::from_json(&continuous_state_bytes, Default::default()).unwrap();
     assert_eq!(
         decoded_continuous_state.canonical_json().unwrap(),
         continuous_state_bytes
@@ -500,11 +496,9 @@ pub(super) fn assert_artifact_vertical_slice(
     )
     .unwrap();
     let remesh_segment_bytes = remesh_segment.canonical_json().unwrap();
-    let decoded_remesh_segment = SpatialTrajectorySegmentEnvelopeV3::from_json(
-        &remesh_segment_bytes,
-        DecoderLimits::default(),
-    )
-    .unwrap();
+    let decoded_remesh_segment =
+        SpatialTrajectorySegmentEnvelopeV3::from_json(&remesh_segment_bytes, Default::default())
+            .unwrap();
     assert_eq!(
         decoded_remesh_segment.canonical_json().unwrap(),
         remesh_segment_bytes
@@ -522,7 +516,7 @@ pub(super) fn assert_artifact_vertical_slice(
     let continuation_segment_bytes = continuation_segment.canonical_json().unwrap();
     let decoded_continuation_segment = SpatialTrajectorySegmentEnvelopeV3::from_json(
         &continuation_segment_bytes,
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     assert_eq!(
@@ -557,7 +551,7 @@ pub(super) fn assert_artifact_vertical_slice(
     assert_eq!(final_root.source_state(), source_tip.digest().unwrap());
 
     let bytes = final_root.canonical_json().unwrap();
-    let decoded = SpatialTrajectoryEnvelopeV3::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = SpatialTrajectoryEnvelopeV3::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), final_root.digest().unwrap());
     decoded
@@ -566,9 +560,9 @@ pub(super) fn assert_artifact_vertical_slice(
             &[decoded_remesh_segment, decoded_continuation_segment],
         )
         .unwrap();
-    let root_limits = DecoderLimits {
+    let root_limits = DataExchangeDecoderLimits {
         max_remesh_trajectory_segments: 1,
-        ..DecoderLimits::default()
+        ..Default::default()
     };
     assert!(
         SpatialTrajectoryEnvelopeV3::from_json(&bytes, root_limits).is_err(),
@@ -703,7 +697,7 @@ pub(super) fn assert_artifact_vertical_slice(
         let envelope_bytes = first.envelope().canonical_json().unwrap();
         let decoded = eqiora::artifact::XdmfHdf5TrajectoryStorageEnvelopeV1::from_json(
             &envelope_bytes,
-            DecoderLimits::default(),
+            Default::default(),
         )
         .unwrap();
         assert_eq!(decoded, *first.envelope());
@@ -797,15 +791,15 @@ fn assert_ml_dataset_vertical_slice(
 
     let bytes = envelope.canonical_json().unwrap();
     let decoded =
-        eqiora::artifact::MlDatasetEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+        eqiora::artifact::MlDatasetEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded, *envelope);
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert!(
         eqiora::artifact::MlDatasetEnvelopeV1::from_json(
             &bytes,
-            DecoderLimits {
+            MlDatasetDecoderLimits {
                 max_ml_dataset_samples: 2,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .is_err(),

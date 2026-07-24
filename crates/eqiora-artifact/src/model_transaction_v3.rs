@@ -4,7 +4,7 @@ use eqiora_core::Diagnostic;
 use eqiora_graph::Transaction;
 
 use crate::model_transaction_v2::ModelTransactionEnvelopeV2;
-use crate::{ArtifactDigest, DecoderLimits};
+use crate::{ArtifactDigest, ModelDecoderLimits};
 
 /// Explicit v3 serialization of one ordered Semantic Model transaction.
 ///
@@ -30,7 +30,7 @@ impl ModelTransactionEnvelopeV3 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, or wrong-version data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: ModelDecoderLimits) -> Result<Self, Diagnostic> {
         ModelTransactionEnvelopeV2::from_json_v3(bytes, limits).map(|inner| Self { inner })
     }
 

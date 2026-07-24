@@ -16,7 +16,7 @@ use eqiora_solver::{
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-use crate::{ArtifactDigest, DecoderLimits, LayoutArtifacts, invalid_artifact};
+use crate::{ArtifactDigest, LayoutArtifacts, SpatialDecoderLimits, invalid_artifact};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -50,7 +50,7 @@ impl WireFieldwiseRequirements {
             .map_err(realization_error)
     }
 
-    pub(super) fn validate_limits(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    pub(super) fn validate_limits(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
         if self.unknown_field_ulids.len() > limits.max_realization_fields {
             return Err(invalid_artifact(
                 "field-wise realization unknown-Field count exceeds the decoder limit",
@@ -121,7 +121,7 @@ impl WireFieldwisePlan {
         .map_err(realization_error)
     }
 
-    pub(super) fn validate_limits(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    pub(super) fn validate_limits(&self, limits: SpatialDecoderLimits) -> Result<(), Diagnostic> {
         if self.spatial.field_spaces.len() > limits.max_realization_fields {
             return Err(invalid_artifact(
                 "field-wise realization Field-space count exceeds the decoder limit",

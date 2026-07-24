@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use eqiora_artifact::{DecoderLimits, ModelEnvelopeV2, ModelTransactionEnvelopeV2};
+use eqiora_artifact::{ModelEnvelopeV2, ModelTransactionEnvelopeV2};
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId, RawId};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
@@ -218,11 +218,9 @@ fn bridge_closure_is_canonical_and_parameter_sharing_does_not_join_subsystems() 
     let ids = ids();
     let forward_transaction = closure_transaction(ids, true, false);
     let wire = ModelTransactionEnvelopeV2::from_transaction(&forward_transaction).unwrap();
-    let decoded = ModelTransactionEnvelopeV2::from_json(
-        &wire.canonical_json().unwrap(),
-        DecoderLimits::default(),
-    )
-    .unwrap();
+    let decoded =
+        ModelTransactionEnvelopeV2::from_json(&wire.canonical_json().unwrap(), Default::default())
+            .unwrap();
     let forward = program_from_transaction(decoded.to_transaction().unwrap(), ids.model);
     let reversed = program_from_transaction(closure_transaction(ids, true, true), ids.model);
     let without_unrelated =

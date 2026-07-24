@@ -9,7 +9,9 @@ use crate::model::{
     WireEdgeKind, WireId, WireNode, WireQuantity, checked_count_sum, parse_ulid,
     require_decoder_count,
 };
-use crate::{ArtifactDigest, DecoderLimits, check_wire_limits, invalid_artifact, validate_text};
+use crate::{
+    ArtifactDigest, ModelDecoderLimits, check_json_limits, invalid_artifact, validate_text,
+};
 
 const TRANSACTION_SCHEMA: &str = "eqiora.model-transaction-envelope/v1";
 const CANONICAL_ENCODING: &str = "eqiora.canonical-json/v1";
@@ -57,7 +59,7 @@ impl ModelTransactionEnvelopeV1 {
                 preconditions,
             },
         };
-        envelope.canonicalize_and_validate(DecoderLimits::default())?;
+        envelope.canonicalize_and_validate(ModelDecoderLimits::default())?;
         Ok(envelope)
     }
 
@@ -67,8 +69,8 @@ impl ModelTransactionEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown-version, or
     /// out-of-scope transaction data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: ModelDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid model transaction envelope JSON: {error}"))
         })?;
@@ -120,7 +122,7 @@ impl ModelTransactionEnvelopeV1 {
         Ok(transaction)
     }
 
-    fn canonicalize_and_validate(&mut self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn canonicalize_and_validate(&mut self, limits: ModelDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != TRANSACTION_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported model-transaction schema or canonical encoding",
@@ -450,7 +452,7 @@ impl WireModelOp {
 
     pub(crate) fn ensure_value_shape_limits(
         &self,
-        limits: DecoderLimits,
+        limits: ModelDecoderLimits,
     ) -> Result<(), Diagnostic> {
         match self {
             Self::DefineKernelNode { node } => node.ensure_value_shape_limits(limits),
@@ -638,7 +640,7 @@ mod tests {
         let bytes = envelope.canonical_json().unwrap();
         let digest = envelope.digest().unwrap();
         let decoded =
-            ModelTransactionEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+            ModelTransactionEnvelopeV1::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         assert_eq!(decoded.digest().unwrap(), digest);
 
@@ -671,7 +673,7 @@ mod tests {
         view["view"]["members"].as_array_mut().unwrap().reverse();
         let reordered = serde_json::to_vec(&reordered).unwrap();
         assert_eq!(
-            ModelTransactionEnvelopeV1::from_json(&reordered, DecoderLimits::default())
+            ModelTransactionEnvelopeV1::from_json(&reordered, ModelDecoderLimits::default())
                 .unwrap()
                 .canonical_json()
                 .unwrap(),
@@ -690,7 +692,7 @@ mod tests {
         assert_eq!(
             ModelTransactionEnvelopeV1::from_json(
                 &serde_json::to_vec(&duplicate).unwrap(),
-                DecoderLimits::default(),
+                ModelDecoderLimits::default(),
             )
             .unwrap_err()
             .code(),
@@ -759,17 +761,20 @@ mod tests {
             .unwrap();
 
         for limits in [
-            DecoderLimits {
+            ModelDecoderLimits {
                 max_transaction_ops: 1,
-                ..DecoderLimits::default()
+                ..ModelDecoderLimits::default()
             },
-            DecoderLimits {
+            ModelDecoderLimits {
                 max_expression_nodes: 1,
-                ..DecoderLimits::default()
+                ..ModelDecoderLimits::default()
             },
-            DecoderLimits {
-                max_bytes: bytes.len() - 1,
-                ..DecoderLimits::default()
+            ModelDecoderLimits {
+                json: crate::JsonDecoderLimits {
+                    max_bytes: bytes.len() - 1,
+                    ..Default::default()
+                },
+                ..ModelDecoderLimits::default()
             },
         ] {
             assert_eq!(

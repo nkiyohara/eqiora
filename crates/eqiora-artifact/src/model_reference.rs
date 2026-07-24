@@ -7,7 +7,7 @@ use eqiora_schema::Model;
 use eqiora_sem::KernelProgram;
 
 use crate::{
-    ArtifactDigest, DecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3,
+    ArtifactDigest, ModelDecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3,
     ModelEnvelopeV4, ModelEnvelopeV5, ModelEnvelopeV6, invalid_artifact,
 };
 
@@ -221,7 +221,7 @@ macro_rules! define_model_artifact_registry {
             pub fn from_json(
                 generation: ModelArtifactGeneration,
                 bytes: &[u8],
-                limits: DecoderLimits,
+                limits: ModelDecoderLimits,
             ) -> Result<Self, Diagnostic> {
                 let envelope = match generation {
                     $(

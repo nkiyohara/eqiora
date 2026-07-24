@@ -442,23 +442,14 @@ negative zero, and non-finite values fail closed rather than being repaired.
 
 ## Bounded decoding and retrieval
 
-Every `from_json` first applies the existing byte and nesting limits and then
-applies independent family limits. `DecoderLimits` gains at least:
-
-```text
-max_field_snapshot_blocks
-max_field_storage_chunks
-max_spatial_state_fields
-max_trajectory_segment_states
-max_trajectory_segments
-max_trajectory_states
-max_dataset_view_fields
-```
-
-Existing value-shape rank/component limits and discrete-Field entity,
-component, and scalar-value limits remain authoritative. All portable integer
-conversions, products, byte offsets, aggregate Field counts, segment summaries,
-and traversal totals use checked arithmetic.
+Every `from_json` first applies the common syntax-only byte and nesting
+preflight, then the semantic work budget owned by its artifact family. Spatial
+Field/state and data-exchange/trajectory limits are separate contracts;
+changing one cannot affect admission of the other. Existing value-shape,
+discrete-Field, snapshot, storage, trajectory, and derived-view bounds remain
+authoritative in their owning family. All portable integer conversions,
+products, byte offsets, aggregate Field counts, segment summaries, and
+traversal totals use checked arithmetic.
 
 Decoding performs no filesystem, network, object-store, or transitive artifact
 lookup. It validates only the closed local DTO. Explicit `validate_against`

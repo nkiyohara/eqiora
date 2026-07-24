@@ -4,8 +4,8 @@ use eqiora_core::Diagnostic;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, RunManifestV1, RunManifestV2,
-    check_wire_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, JsonDecoderLimits, RunManifestV1, RunManifestV2,
+    check_json_limits, invalid_artifact,
 };
 
 use super::PhysicalExposureCatalogEnvelopeV1;
@@ -116,8 +116,8 @@ impl PhysicalExposureObservationBindingV1 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed or unknown-version data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: JsonDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!(
                 "invalid physical observation binding JSON: {error}"

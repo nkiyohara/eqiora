@@ -1,7 +1,8 @@
 use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
-    DecoderLimits, DistributedLayoutEnvelopeV1, LinearSystemEnvelopeV1, PartitionEnvelopeV1,
+    DistributedDecoderLimits, DistributedLayoutEnvelopeV1, JsonDecoderLimits,
+    LinearSystemEnvelopeV1, PartitionEnvelopeV1,
 };
 use eqiora_core::diagnostic::codes;
 use eqiora_distributed::{GlobalVectorSpace, Partition, PartitionId};
@@ -126,7 +127,7 @@ fn fixed_canonical_bytes_and_digests_are_frozen() {
 #[test]
 fn all_three_round_trip_and_fresh_derivation_is_exact() {
     let (system, partition, layout) = artifacts();
-    let limits = DecoderLimits::default();
+    let limits = Default::default();
     let decoded_system =
         LinearSystemEnvelopeV1::from_json(&system.canonical_json().unwrap(), limits).unwrap();
     let decoded_partition =
@@ -176,13 +177,11 @@ fn unusual_finite_bits_action_and_fingerprint_survive_the_artifact_boundary() {
     };
     let source = CanonicalCsrSystemView::new(&storage, LinearOperatorProperties::General).unwrap();
     let envelope = LinearSystemEnvelopeV1::from_complete(&source).unwrap();
-    let decoded = LinearSystemEnvelopeV1::from_json(
-        &envelope.canonical_json().unwrap(),
-        DecoderLimits::default(),
-    )
-    .unwrap()
-    .to_complete()
-    .unwrap();
+    let decoded =
+        LinearSystemEnvelopeV1::from_json(&envelope.canonical_json().unwrap(), Default::default())
+            .unwrap()
+            .to_complete()
+            .unwrap();
 
     assert_eq!(exact_bits(source.values()), exact_bits(decoded.values()));
     assert_eq!(
@@ -226,13 +225,11 @@ fn source_capture_owns_zero_normalization_and_artifact_projection_is_exact() {
     );
 
     let envelope = LinearSystemEnvelopeV1::from_complete(&source).unwrap();
-    let decoded = LinearSystemEnvelopeV1::from_json(
-        &envelope.canonical_json().unwrap(),
-        DecoderLimits::default(),
-    )
-    .unwrap()
-    .to_complete()
-    .unwrap();
+    let decoded =
+        LinearSystemEnvelopeV1::from_json(&envelope.canonical_json().unwrap(), Default::default())
+            .unwrap()
+            .to_complete()
+            .unwrap();
     assert_eq!(exact_bits(source.values()), exact_bits(decoded.values()));
     assert_eq!(
         exact_bits(source.right_hand_side()),
@@ -254,7 +251,7 @@ fn source_capture_owns_zero_normalization_and_artifact_projection_is_exact() {
 #[test]
 fn unknown_fields_negative_zero_and_invalid_csr_fail_closed() {
     let (system, partition, layout) = artifacts();
-    let limits = DecoderLimits::default();
+    let limits = Default::default();
     for bytes in [
         with_unknown_field(system.canonical_json().unwrap()),
         with_unknown_field(partition.canonical_json().unwrap()),
@@ -292,9 +289,9 @@ fn every_distributed_decoder_budget_is_independent() {
     assert_preflight(
         LinearSystemEnvelopeV1::from_json(
             &system_bytes,
-            DecoderLimits {
+            DistributedDecoderLimits {
                 max_distributed_dimension: 2,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         ),
         "dimension",
@@ -302,9 +299,9 @@ fn every_distributed_decoder_budget_is_independent() {
     assert_preflight(
         LinearSystemEnvelopeV1::from_json(
             &system_bytes,
-            DecoderLimits {
+            DistributedDecoderLimits {
                 max_distributed_nonzeros: 6,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         ),
         "nonzero",
@@ -312,9 +309,9 @@ fn every_distributed_decoder_budget_is_independent() {
     assert_preflight(
         PartitionEnvelopeV1::from_json(
             &partition_bytes,
-            DecoderLimits {
+            DistributedDecoderLimits {
                 max_distributed_partitions: 1,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         ),
         "partition count",
@@ -322,9 +319,9 @@ fn every_distributed_decoder_budget_is_independent() {
     assert_preflight(
         PartitionEnvelopeV1::from_json(
             &partition_bytes,
-            DecoderLimits {
+            DistributedDecoderLimits {
                 max_distributed_owner_entries: 2,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         ),
         "owner-map",
@@ -332,9 +329,9 @@ fn every_distributed_decoder_budget_is_independent() {
     assert_preflight(
         DistributedLayoutEnvelopeV1::from_json(
             &layout_bytes,
-            DecoderLimits {
+            DistributedDecoderLimits {
                 max_distributed_local_indices: 5,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         ),
         "local index",
@@ -342,9 +339,9 @@ fn every_distributed_decoder_budget_is_independent() {
     assert_preflight(
         DistributedLayoutEnvelopeV1::from_json(
             &layout_bytes,
-            DecoderLimits {
+            DistributedDecoderLimits {
                 max_distributed_halo_records: 1,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         ),
         "halo record",
@@ -352,9 +349,9 @@ fn every_distributed_decoder_budget_is_independent() {
     assert_preflight(
         DistributedLayoutEnvelopeV1::from_json(
             &layout_bytes,
-            DecoderLimits {
+            DistributedDecoderLimits {
                 max_distributed_halo_indices: 2,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         ),
         "halo index",
@@ -362,9 +359,9 @@ fn every_distributed_decoder_budget_is_independent() {
     assert_preflight(
         LinearSystemEnvelopeV1::from_json(
             &system_bytes,
-            DecoderLimits {
+            DistributedDecoderLimits {
                 max_distributed_aggregate_work: 23,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         ),
         "aggregate work",
@@ -372,9 +369,12 @@ fn every_distributed_decoder_budget_is_independent() {
     assert!(
         LinearSystemEnvelopeV1::from_json(
             &system_bytes,
-            DecoderLimits {
-                max_bytes: system_bytes.len() - 1,
-                ..DecoderLimits::default()
+            DistributedDecoderLimits {
+                json: JsonDecoderLimits {
+                    max_bytes: system_bytes.len() - 1,
+                    ..Default::default()
+                },
+                ..Default::default()
             },
         )
         .is_err()
@@ -382,9 +382,12 @@ fn every_distributed_decoder_budget_is_independent() {
     assert!(
         LinearSystemEnvelopeV1::from_json(
             &system_bytes,
-            DecoderLimits {
-                max_nesting_depth: 1,
-                ..DecoderLimits::default()
+            DistributedDecoderLimits {
+                json: JsonDecoderLimits {
+                    max_nesting_depth: 1,
+                    ..Default::default()
+                },
+                ..Default::default()
             },
         )
         .is_err()
@@ -400,9 +403,9 @@ fn preflight_stops_at_limit_plus_one_without_deserializing_the_tail() {
     assert_preflight(
         LinearSystemEnvelopeV1::from_json(
             system.as_bytes(),
-            DecoderLimits {
+            DistributedDecoderLimits {
                 max_distributed_nonzeros: 2,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         ),
         "nonzero",
@@ -414,9 +417,9 @@ fn preflight_stops_at_limit_plus_one_without_deserializing_the_tail() {
     assert_preflight(
         PartitionEnvelopeV1::from_json(
             partition.as_bytes(),
-            DecoderLimits {
+            DistributedDecoderLimits {
                 max_distributed_owner_entries: 1,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         ),
         "owner-map",
@@ -430,9 +433,9 @@ fn preflight_stops_at_limit_plus_one_without_deserializing_the_tail() {
     assert_preflight(
         DistributedLayoutEnvelopeV1::from_json(
             layout.as_bytes(),
-            DecoderLimits {
+            DistributedDecoderLimits {
                 max_distributed_local_indices: 1,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         ),
         "local index",
@@ -442,7 +445,7 @@ fn preflight_stops_at_limit_plus_one_without_deserializing_the_tail() {
 #[test]
 fn allocation_free_preflight_is_field_order_independent() {
     let (system, partition, layout) = artifacts();
-    let limits = DecoderLimits::default();
+    let limits = Default::default();
     let arrays_first_system = br#"{"row_offsets":[0,2,5,7],"column_indices":[0,1,0,1,2,1,2],"values":[2.0,-1.0,-1.0,2.0,-1.0,-1.0,2.0],"right_hand_side":[1.0,0.0,1.0],"properties":"symmetric-positive-definite","dimension":3,"scalar":"f64","encoding":"eqiora.canonical-json/v1","schema":"eqiora.linear-system-envelope/v1"}"#;
     let arrays_first_partition = br#"{"owners":[0,1,0],"partition_count":2,"dimension":3,"scalar":"f64","encoding":"eqiora.canonical-json/v1","schema":"eqiora.partition-envelope/v1"}"#;
     let arrays_first_layout = format!(
@@ -471,7 +474,7 @@ fn allocation_free_preflight_is_field_order_independent() {
 
 #[test]
 fn arrays_before_invalid_last_fields_never_reach_dto_materialization() {
-    let limits = DecoderLimits::default();
+    let limits = Default::default();
     let huge_unknown_value = format!(r#"{{"nested":[{}]}}"#, "0,".repeat(4_096) + "0");
     let unknown_last = format!(
         r#"{{"row_offsets":[0,1],"column_indices":[0],"values":[1.0],"right_hand_side":[1.0],"schema":"eqiora.linear-system-envelope/v1","encoding":"eqiora.canonical-json/v1","scalar":"f64","dimension":1,"properties":"general","unknown":{huge_unknown_value}}}"#
@@ -510,7 +513,7 @@ fn arrays_before_invalid_last_fields_never_reach_dto_materialization() {
 
 #[test]
 fn missing_required_scalar_and_nested_fields_fail_in_preflight() {
-    let limits = DecoderLimits::default();
+    let limits = Default::default();
     let missing_dimension = br#"{"row_offsets":[0,1],"column_indices":[0],"values":[1.0],"right_hand_side":[1.0],"schema":"eqiora.linear-system-envelope/v1","encoding":"eqiora.canonical-json/v1","scalar":"f64","properties":"general"}"#;
     assert_preflight_message(
         LinearSystemEnvelopeV1::from_json(missing_dimension, limits),
@@ -567,7 +570,7 @@ fn cross_wires_and_forged_derived_records_fail() {
     let mut forged = parse(layout.canonical_json().unwrap());
     forged["local_layouts"][0]["ghosts"] = json!([]);
     let forged =
-        DistributedLayoutEnvelopeV1::from_json(&encode(&forged), DecoderLimits::default()).unwrap();
+        DistributedLayoutEnvelopeV1::from_json(&encode(&forged), Default::default()).unwrap();
     assert!(
         forged
             .validate_against(&system, &partition)
@@ -580,7 +583,7 @@ fn cross_wires_and_forged_derived_records_fail() {
 #[test]
 fn structural_mutations_fail_at_the_narrowest_boundary() {
     let (system, partition, layout) = artifacts();
-    let limits = DecoderLimits::default();
+    let limits = Default::default();
 
     for mutation in [
         ("row_offsets", json!([])),
@@ -645,7 +648,7 @@ fn with_unknown_field(bytes: Vec<u8>) -> Vec<u8> {
     encode(&value)
 }
 
-fn decode_by_schema(bytes: &[u8], limits: DecoderLimits) -> Result<(), String> {
+fn decode_by_schema(bytes: &[u8], limits: DistributedDecoderLimits) -> Result<(), String> {
     let value: Value = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
     match value["schema"].as_str() {
         Some("eqiora.linear-system-envelope/v1") => {
