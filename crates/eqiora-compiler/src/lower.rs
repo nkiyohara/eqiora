@@ -1,11 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 
-use eqiora_core::diagnostic::{Code, codes};
+use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{
-    Diagnostic, DimExponents, DynQuantity, GraphPath, Id, OntologyId, RawId, Span, ValueShape,
-};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, OntologyId, RawId, ValueShape};
 use eqiora_graph::{EdgeKind, Op, Transaction};
 use eqiora_lang::{
     ActivationSyntax, BinaryOp, BoundarySideSyntax, ConnectionSyntax, DomainSyntax, Expr, ExprKind,
@@ -25,6 +23,11 @@ use eqiora_schema::kernel::{
 use eqiora_schema::{Model, ModelView};
 
 use crate::connection_sets::{ConnectionFragment, ConnectionSetLimits, normalize_connection_sets};
+use crate::diagnostics::{native_diagnostic, source_error};
+use crate::dimensions::{
+    checked_dimensions, checked_scale_dimension, dimension_overflow, length_dimension,
+    lower_dimension, time_dimension,
+};
 use crate::projection::PhysicalExposureProjectionMap;
 use crate::provenance::ProvenanceMap;
 
@@ -169,26 +172,6 @@ pub fn lower_draft(draft: &ModelDraft) -> Result<CompiledModel, Vec<Diagnostic>>
             .map(|diagnostic| native_diagnostic(draft, &native, diagnostic))
             .collect()
     })
-}
-
-fn native_diagnostic(
-    draft: &ModelDraft,
-    native: &eqiora_lang::NativeModelAst,
-    diagnostic: Diagnostic,
-) -> Diagnostic {
-    let path = diagnostic
-        .source_span()
-        .and_then(|span| native.graph_path(TextRange::new(span.start, span.end)))
-        .cloned()
-        .or_else(|| diagnostic.graph_path().cloned())
-        .unwrap_or_else(|| GraphPath::new([draft.name().to_owned()]));
-    let suggestion = diagnostic.suggestion().cloned();
-    let mut native =
-        Diagnostic::error(diagnostic.code(), diagnostic.message()).with_graph_path(path);
-    if let Some(suggestion) = suggestion {
-        native = native.with_suggestion(suggestion);
-    }
-    native
 }
 
 /// Resolve and lower one parsed model declaration.
@@ -2085,69 +2068,6 @@ fn lower_domain(
     }
 }
 
-pub(crate) fn lower_dimension(file: &str, expression: &Expr) -> Result<DimExponents, Diagnostic> {
-    match expression.kind() {
-        ExprKind::Number(value) if *value == 1.0 => Ok(DimExponents::DIMENSIONLESS),
-        ExprKind::Name(name) => base_dimension(name).ok_or_else(|| {
-            source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                expression.range(),
-                format!("unknown SI base-dimension symbol `{name}`"),
-            )
-        }),
-        ExprKind::Binary { op, left, right } if matches!(op, BinaryOp::Mul | BinaryOp::Div) => {
-            let left = lower_dimension(file, left)?;
-            let right = lower_dimension(file, right)?;
-            let operation = if *op == BinaryOp::Mul {
-                i8::checked_add
-            } else {
-                i8::checked_sub
-            };
-            checked_dimensions(left, right, operation)
-                .ok_or_else(|| dimension_overflow(file, expression.range()))
-        }
-        ExprKind::Binary {
-            op: BinaryOp::Pow,
-            left,
-            right,
-        } => {
-            let dimension = lower_dimension(file, left)?;
-            let exponent = integer_literal(right).ok_or_else(|| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    right.range(),
-                    "dimension power must be an i32 integer literal",
-                )
-            })?;
-            checked_scale_dimension(dimension, exponent)
-                .ok_or_else(|| dimension_overflow(file, expression.range()))
-        }
-        _ => Err(source_error(
-            codes::LANGUAGE_TYPE_ERROR,
-            file,
-            expression.range(),
-            "dimension must use `1`, SI base symbols, `*`, `/`, and integer powers",
-        )),
-    }
-}
-
-fn base_dimension(name: &str) -> Option<DimExponents> {
-    let mut dimension = DimExponents::DIMENSIONLESS;
-    match name {
-        "kg" => dimension.mass = 1,
-        "m" => dimension.length = 1,
-        "s" => dimension.time = 1,
-        "A" => dimension.current = 1,
-        "K" => dimension.temperature = 1,
-        "mol" => dimension.amount = 1,
-        "cd" => dimension.luminous_intensity = 1,
-        _ => return None,
-    }
-    Some(dimension)
-}
-
 fn lower_port(
     file: &str,
     range: TextRange,
@@ -2467,57 +2387,8 @@ fn lowering_integer_literal(expression: &LoweringExpression) -> Option<i32> {
         .then_some(value as i32)
 }
 
-fn integer_literal(expression: &Expr) -> Option<i32> {
-    let value = match expression.kind() {
-        ExprKind::Number(value) => *value,
-        ExprKind::Unary {
-            op: UnaryOp::Neg,
-            value,
-        } => match value.kind() {
-            ExprKind::Number(value) => -*value,
-            _ => return None,
-        },
-        _ => return None,
-    };
-    (value.fract() == 0.0 && value >= f64::from(i32::MIN) && value <= f64::from(i32::MAX))
-        .then_some(value as i32)
-}
-
 fn normalize_zero(value: f64) -> f64 {
     if value == 0.0 { 0.0 } else { value }
-}
-
-pub(crate) fn checked_dimensions(
-    left: DimExponents,
-    right: DimExponents,
-    operation: fn(i8, i8) -> Option<i8>,
-) -> Option<DimExponents> {
-    Some(DimExponents {
-        mass: operation(left.mass, right.mass)?,
-        length: operation(left.length, right.length)?,
-        time: operation(left.time, right.time)?,
-        current: operation(left.current, right.current)?,
-        temperature: operation(left.temperature, right.temperature)?,
-        amount: operation(left.amount, right.amount)?,
-        luminous_intensity: operation(left.luminous_intensity, right.luminous_intensity)?,
-    })
-}
-
-fn checked_scale_dimension(dimension: DimExponents, exponent: i32) -> Option<DimExponents> {
-    fn scale(value: i8, exponent: i32) -> Option<i8> {
-        i32::from(value)
-            .checked_mul(exponent)
-            .and_then(|value| i8::try_from(value).ok())
-    }
-    Some(DimExponents {
-        mass: scale(dimension.mass, exponent)?,
-        length: scale(dimension.length, exponent)?,
-        time: scale(dimension.time, exponent)?,
-        current: scale(dimension.current, exponent)?,
-        temperature: scale(dimension.temperature, exponent)?,
-        amount: scale(dimension.amount, exponent)?,
-        luminous_intensity: scale(dimension.luminous_intensity, exponent)?,
-    })
 }
 
 fn instantiate_pure_dimension(
@@ -2539,29 +2410,6 @@ fn instantiate_pure_dimension(
         )
 }
 
-const fn time_dimension() -> DimExponents {
-    DimExponents {
-        time: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
-}
-
-const fn length_dimension() -> DimExponents {
-    DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
-}
-
-fn dimension_overflow(file: &str, range: TextRange) -> Diagnostic {
-    source_error(
-        codes::LANGUAGE_TYPE_ERROR,
-        file,
-        range,
-        "physical-dimension exponent arithmetic overflows i8",
-    )
-}
-
 fn unresolved(file: &str, range: TextRange, name: &str, expected: &str) -> Diagnostic {
     source_error(
         codes::LANGUAGE_TYPE_ERROR,
@@ -2569,19 +2417,6 @@ fn unresolved(file: &str, range: TextRange, name: &str, expected: &str) -> Diagn
         range,
         format!("unresolved {expected} `{name}`"),
     )
-}
-
-pub(crate) fn source_error(
-    code: Code,
-    file: &str,
-    range: TextRange,
-    message: impl Into<String>,
-) -> Diagnostic {
-    Diagnostic::error(code, message).with_span(Span {
-        file: file.to_owned(),
-        start: range.start(),
-        end: range.end(),
-    })
 }
 
 #[cfg(test)]

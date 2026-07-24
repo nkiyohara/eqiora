@@ -11,8 +11,8 @@ use eqiora_core::diagnostic::codes;
 use eqiora_lang::{ComponentItem, ConnectorSyntax, DomainSyntax, Expr, ExprKind, Item};
 use eqiora_schema::kernel::BoundarySide;
 
-use crate::diagnostics::BoundedDiagnostics;
-use crate::lower::{lower_dimension, source_error};
+use crate::diagnostics::{BoundedDiagnostics, source_error};
+use crate::dimensions::lower_dimension;
 
 use super::complete_exterior::CartesianDomain;
 use super::definition_graph::CheckedDefinitionGraph;

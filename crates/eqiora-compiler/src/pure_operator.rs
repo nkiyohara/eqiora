@@ -18,7 +18,7 @@ use eqiora_schema::kernel::pure_operator::{
     PureOperatorError, PureValueClass, ResultAxis,
 };
 
-use crate::lower::source_error;
+use crate::diagnostics::source_error;
 
 /// Whether a call path denotes the closed source builtin vocabulary rather
 /// than a package-resolved pure definition.

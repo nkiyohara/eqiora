@@ -8,8 +8,8 @@ use eqiora_lang::{
 };
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 
+use crate::diagnostics::source_error;
 use crate::identity::IdentityNamespace;
-use crate::lower::source_error;
 use crate::pure_operator::compile_definition;
 use crate::resolved::{AnalyzedResolvedHierarchy, CompilationNamespaceId};
 use crate::source_identity::LocalSourceIdentity;

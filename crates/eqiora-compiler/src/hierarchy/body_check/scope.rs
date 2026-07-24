@@ -18,7 +18,8 @@ use eqiora_schema::kernel::{
 };
 
 use crate::connection_sets::{ConnectionFragment, ConnectionSetError, ConnectionSetLimits};
-use crate::lower::{lower_dimension, source_error};
+use crate::diagnostics::source_error;
+use crate::dimensions::lower_dimension;
 
 use super::super::preflight::{
     ComponentDefinition, DefinitionKey, DefinitionNamespace, Elaborator,

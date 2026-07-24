@@ -9,8 +9,9 @@ use eqiora_lang::{
     FieldDecl, NamePath, PortSyntax, RelationDecl, TextRange,
 };
 
+use crate::diagnostics::source_error;
 use crate::identity::FullElaborationIdentity;
-use crate::lower::{LoweringExpression, source_error};
+use crate::lower::LoweringExpression;
 use crate::pure_operator::is_builtin_operator;
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};

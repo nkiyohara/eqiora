@@ -7,9 +7,10 @@ use eqiora_lang::{
     TextRange, UnaryOp, VisibilitySyntax,
 };
 
-use crate::diagnostics::stable_sort;
+use crate::diagnostics::{source_error, stable_sort};
+use crate::dimensions::{checked_dimensions, lower_dimension};
 use crate::identity::FullElaborationIdentity;
-use crate::lower::{LoweringExpression, checked_dimensions, lower_dimension, source_error};
+use crate::lower::LoweringExpression;
 
 use super::hierarchy_error;
 

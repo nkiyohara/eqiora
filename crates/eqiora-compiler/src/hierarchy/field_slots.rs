@@ -11,7 +11,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_lang::{ComponentDecl, ComponentItem, FieldSlotDecl, InstanceDecl, Item, ModelDecl};
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
-use crate::lower::source_error;
+use crate::diagnostics::source_error;
 
 use super::body_check::{field_expression_type, field_value_type};
 use super::supports::SupportInterface;

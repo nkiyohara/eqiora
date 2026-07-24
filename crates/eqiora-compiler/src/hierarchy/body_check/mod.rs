@@ -13,7 +13,7 @@ use eqiora_lang::{Expr, ExprKind, NamePath, TextRange};
 
 use crate::connection_sets::ConnectionFragment;
 use crate::connection_sets::ConnectionSetLimits;
-use crate::lower::source_error;
+use crate::diagnostics::source_error;
 
 use super::field_slots::FieldInterface;
 use super::parameters::SymbolicParameterMap;

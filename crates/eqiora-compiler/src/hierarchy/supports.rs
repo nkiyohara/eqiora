@@ -15,7 +15,7 @@ use eqiora_lang::{
 };
 use eqiora_schema::kernel::{BoundarySide, typing::SpatialSupport};
 
-use crate::lower::source_error;
+use crate::diagnostics::source_error;
 
 use super::CompleteExteriorLimits;
 use super::complete_exterior::{
