@@ -11,8 +11,9 @@ use eqiora_core::diagnostic::codes;
 use eqiora_lang::{Document, TextRange};
 
 use crate::connection_sets::ConnectionSetLimits;
+use crate::diagnostics::source_error;
 use crate::identity::ElaborationIdentityLimits;
-use crate::lower::{CompiledModel, source_error};
+use crate::lower::CompiledModel;
 use crate::provenance::ProvenanceLimits;
 use crate::source_identity::LocalSourceIdentity;
 

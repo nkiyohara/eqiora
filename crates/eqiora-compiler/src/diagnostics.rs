@@ -2,8 +2,47 @@
 
 use std::collections::BTreeMap;
 
-use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, Severity};
+use eqiora_core::diagnostic::{Code, codes};
+use eqiora_core::{Diagnostic, GraphPath, Severity, Span};
+use eqiora_lang::{ModelDraft, NativeModelAst, TextRange};
+
+/// Construct one source-spanned compiler diagnostic.
+///
+/// Source coordinates remain diagnostic provenance; lowering and hierarchy
+/// phases consume this owner without acquiring a dependency on each other.
+pub(crate) fn source_error(
+    code: Code,
+    file: &str,
+    range: TextRange,
+    message: impl Into<String>,
+) -> Diagnostic {
+    Diagnostic::error(code, message).with_span(Span {
+        file: file.to_owned(),
+        start: range.start(),
+        end: range.end(),
+    })
+}
+
+/// Replace synthetic native-AST coordinates with one stable declaration path.
+pub(crate) fn native_diagnostic(
+    draft: &ModelDraft,
+    native: &NativeModelAst,
+    diagnostic: Diagnostic,
+) -> Diagnostic {
+    let path = diagnostic
+        .source_span()
+        .and_then(|span| native.graph_path(TextRange::new(span.start, span.end)))
+        .cloned()
+        .or_else(|| diagnostic.graph_path().cloned())
+        .unwrap_or_else(|| GraphPath::new([draft.name().to_owned()]));
+    let suggestion = diagnostic.suggestion().cloned();
+    let mut native =
+        Diagnostic::error(diagnostic.code(), diagnostic.message()).with_graph_path(path);
+    if let Some(suggestion) = suggestion {
+        native = native.with_suggestion(suggestion);
+    }
+    native
+}
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct DiagnosticKey {

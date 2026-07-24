@@ -5,7 +5,8 @@ use eqiora_lang::{
 };
 use eqiora_schema::kernel::typing::{self, ExpressionType, SpatialSupport, TypeViolation};
 
-use crate::lower::source_error;
+use crate::diagnostics::source_error;
+use crate::dimensions::{integer_literal, time_dimension};
 use crate::pure_operator::is_builtin_operator;
 
 use super::PhysicalEndpointSelections;
@@ -535,27 +536,4 @@ fn type_error(file: &str, expression: &Expr, error: TypeViolation<String>) -> Di
         expression.range(),
         message,
     )
-}
-
-fn integer_literal(expression: &Expr) -> Option<i32> {
-    let value = match expression.kind() {
-        ExprKind::Number(value) => *value,
-        ExprKind::Unary {
-            op: UnaryOp::Neg,
-            value,
-        } => match value.kind() {
-            ExprKind::Number(value) => -*value,
-            _ => return None,
-        },
-        _ => return None,
-    };
-    (value.fract() == 0.0 && value >= f64::from(i32::MIN) && value <= f64::from(i32::MAX))
-        .then_some(value as i32)
-}
-
-const fn time_dimension() -> DimExponents {
-    DimExponents {
-        time: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
 }

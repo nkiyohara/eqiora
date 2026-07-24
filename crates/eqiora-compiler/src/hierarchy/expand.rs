@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity, EntityKind, GraphPath, ValueShape};
+use eqiora_core::{Diagnostic, DynQuantity, EntityKind, GraphPath, ValueShape};
 use eqiora_lang::{
     BoundaryConnectionDecl, BoundaryPairingSyntax, ComponentItem, ComponentPortDecl,
     ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorSyntax, DomainSyntax,
@@ -14,13 +14,13 @@ use eqiora_schema::kernel::{
 };
 
 use crate::connection_sets::ConnectionFragment;
+use crate::diagnostics::source_error;
+use crate::dimensions::{length_dimension, lower_dimension};
 use crate::identity::{
     DeclarationPath, ElaborationIdentityLimits, ElaborationKey, FullElaborationIdentity,
     GeneratedRole, IdentityNamespace, InstancePath, ModelViewKey,
 };
-use crate::lower::{
-    LoweringDomainContract, LoweringExpression, LoweringPortContract, lower_dimension, source_error,
-};
+use crate::lower::{LoweringDomainContract, LoweringExpression, LoweringPortContract};
 
 use super::body_check::field_expression_type;
 use super::complete_exterior::CartesianDomain;
@@ -157,13 +157,6 @@ fn normalize_binding_locations(bindings: &mut Vec<SourceLocation>) {
 
 fn one_diagnostic(error: Diagnostic) -> Vec<Diagnostic> {
     vec![error]
-}
-
-const fn length_dimension() -> DimExponents {
-    DimExponents {
-        length: 1,
-        ..DimExponents::DIMENSIONLESS
-    }
 }
 
 fn contextualize_diagnostic(error: Diagnostic, instance_path: &InstancePath) -> Diagnostic {

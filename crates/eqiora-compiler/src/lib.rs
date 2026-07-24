@@ -8,6 +8,7 @@
 #[doc(hidden)]
 pub mod connection_sets;
 mod diagnostics;
+mod dimensions;
 mod hierarchy;
 #[doc(hidden)]
 pub mod identity;

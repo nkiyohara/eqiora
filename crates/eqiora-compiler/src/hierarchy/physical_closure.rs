@@ -17,8 +17,7 @@ use eqiora_schema::kernel::physical_closure::{
 };
 
 use crate::connection_sets::{ConnectionFragment, ConnectionSetError, normalize_connection_sets};
-use crate::diagnostics::BoundedDiagnostics;
-use crate::lower::source_error;
+use crate::diagnostics::{BoundedDiagnostics, source_error};
 
 use super::body_check::{
     ChildInstanceProof, DefinitionBodyProof, DefinitionBodyProofs, ResolvedPhysicalEndpoint,

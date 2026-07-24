@@ -12,7 +12,7 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_lang::{ComponentItem, Item, PortSyntax, TextRange};
 
-use crate::lower::source_error;
+use crate::diagnostics::source_error;
 
 use super::HierarchyLimits;
 use super::preflight::{ComponentDefinition, DefinitionKey, Elaborator, ModelDefinition};

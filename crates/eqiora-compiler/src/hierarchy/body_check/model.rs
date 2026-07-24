@@ -5,7 +5,8 @@ use eqiora_core::diagnostic::codes;
 use eqiora_lang::{BoundaryDecl, DomainSyntax, Item, RepresentationSyntax};
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
-use crate::lower::{lower_dimension, source_error};
+use crate::diagnostics::source_error;
+use crate::dimensions::lower_dimension;
 
 use super::expression::validate_relation_expression;
 use super::scope::{

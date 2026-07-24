@@ -19,6 +19,58 @@ pub enum ResolutionSource {
     Explicit(RealizationRevision),
 }
 
+/// Semantic and independently revisioned Realization lineage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RealizationLineage {
+    model: OntologyId<Model>,
+    semantic_revision: SemanticRevision,
+    source: ResolutionSource,
+}
+
+impl RealizationLineage {
+    pub(crate) const fn new(
+        model: OntologyId<Model>,
+        semantic_revision: SemanticRevision,
+        source: ResolutionSource,
+    ) -> Self {
+        Self {
+            model,
+            semantic_revision,
+            source,
+        }
+    }
+
+    pub(crate) const fn explicit(
+        model: OntologyId<Model>,
+        semantic_revision: SemanticRevision,
+        realization_revision: RealizationRevision,
+    ) -> Self {
+        Self::new(
+            model,
+            semantic_revision,
+            ResolutionSource::Explicit(realization_revision),
+        )
+    }
+
+    /// Exact Semantic Model identity.
+    #[must_use]
+    pub const fn model(self) -> OntologyId<Model> {
+        self.model
+    }
+
+    /// Exact Semantic Model revision.
+    #[must_use]
+    pub const fn semantic_revision(self) -> SemanticRevision {
+        self.semantic_revision
+    }
+
+    /// Named-default or independent explicit Realization revision.
+    #[must_use]
+    pub const fn source(self) -> ResolutionSource {
+        self.source
+    }
+}
+
 /// Validated plan plus the two-layer revision provenance used to obtain it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedRealization {

@@ -9,14 +9,13 @@ use std::collections::BTreeSet;
 use std::num::NonZeroUsize;
 
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DynQuantity, Id, OntologyId};
-use eqiora_schema::Model;
+use eqiora_core::{Diagnostic, DynQuantity, Id};
 use eqiora_solver::{LinearOperatorProperties, ScalarType, SolverPlan};
 
 use crate::{
     AleGeometryQualityGate, AlgebraicBlock, AlgebraicConstraint, CellCenteredConvectionScheme,
     Discretization, ExecutionSchedule, NonlinearSolvePlan, PositiveMomentumDiagonal,
-    PositivePhysicalScale, ResolutionSource, ResolvedCoupledFieldwiseRealization,
+    PositivePhysicalScale, RealizationLineage, ResolvedCoupledFieldwiseRealization,
     ResolvedFieldwiseRealization, ResolvedFixedTopologyAleCoupledRealization, ResolvedRealization,
     ResolvedTransientCellCenteredIncompressibleFlowRealization,
     ResolvedTransientCellCenteredTransportRealization, ResolvedTransientFieldwiseRealization,
@@ -76,34 +75,6 @@ graph_id!(
     /// Typed reference to one portable placement requirement.
     PlacementRequirementId
 );
-
-/// Semantic and independently revisioned Realization lineage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RealizationLineage {
-    model: OntologyId<Model>,
-    semantic_revision: crate::SemanticRevision,
-    source: ResolutionSource,
-}
-
-impl RealizationLineage {
-    /// Exact Semantic Model identity.
-    #[must_use]
-    pub const fn model(self) -> OntologyId<Model> {
-        self.model
-    }
-
-    /// Exact Semantic Model revision.
-    #[must_use]
-    pub const fn semantic_revision(self) -> crate::SemanticRevision {
-        self.semantic_revision
-    }
-
-    /// Named-default or independent explicit Realization revision.
-    #[must_use]
-    pub const fn source(self) -> ResolutionSource {
-        self.source
-    }
-}
 
 /// How coordinates enter one portable spatial discretization.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -783,11 +754,7 @@ impl ResolvedRealization {
         let plan = self.plan();
         let requirements = self.requirements();
         let graph = PortableRealizationGraph {
-            lineage: RealizationLineage {
-                model: self.model(),
-                semantic_revision: self.semantic_revision(),
-                source: self.source(),
-            },
+            lineage: RealizationLineage::new(self.model(), self.semantic_revision(), self.source()),
             domains: vec![DomainDiscretizationNode {
                 domain: claim.domain(),
                 coordinates: CoordinateTreatment::Physical,
@@ -845,11 +812,11 @@ impl ResolvedFieldwiseRealization {
         let blocks = blocks_from_scaling(&fields, plan.scaling())?;
         let execution = self.requirements().execution();
         let graph = PortableRealizationGraph {
-            lineage: RealizationLineage {
-                model: self.model(),
-                semantic_revision: self.semantic_revision(),
-                source: ResolutionSource::Explicit(self.realization_revision()),
-            },
+            lineage: RealizationLineage::explicit(
+                self.model(),
+                self.semantic_revision(),
+                self.realization_revision(),
+            ),
             domains: vec![DomainDiscretizationNode {
                 domain: spatial.domain(),
                 coordinates: CoordinateTreatment::Scaled(spatial.coordinate_length_scale()),
@@ -964,11 +931,11 @@ impl ResolvedCoupledFieldwiseRealization {
         let blocks = blocks_from_scaling(&fields, plan.scaling())?;
         let execution = self.requirements().execution();
         let graph = PortableRealizationGraph {
-            lineage: RealizationLineage {
-                model: self.model(),
-                semantic_revision: self.semantic_revision(),
-                source: ResolutionSource::Explicit(self.realization_revision()),
-            },
+            lineage: RealizationLineage::explicit(
+                self.model(),
+                self.semantic_revision(),
+                self.realization_revision(),
+            ),
             domains,
             fields,
             geometry_actions: Vec::new(),
@@ -1054,11 +1021,11 @@ impl ResolvedTransientFieldwiseRealization {
         let execution = self.requirements().fieldwise().execution();
         let placement = portable_placement(fieldwise.target());
         let graph = PortableRealizationGraph {
-            lineage: RealizationLineage {
-                model: self.model(),
-                semantic_revision: self.semantic_revision(),
-                source: ResolutionSource::Explicit(self.realization_revision()),
-            },
+            lineage: RealizationLineage::explicit(
+                self.model(),
+                self.semantic_revision(),
+                self.realization_revision(),
+            ),
             domains,
             fields,
             geometry_actions: Vec::new(),
@@ -1134,11 +1101,11 @@ impl ResolvedTransientCellCenteredTransportRealization {
         let blocks = blocks_from_scaling(&fields, fieldwise.scaling())?;
         let execution = self.requirements().fieldwise().execution();
         let graph = PortableRealizationGraph {
-            lineage: RealizationLineage {
-                model: self.model(),
-                semantic_revision: self.semantic_revision(),
-                source: ResolutionSource::Explicit(self.realization_revision()),
-            },
+            lineage: RealizationLineage::explicit(
+                self.model(),
+                self.semantic_revision(),
+                self.realization_revision(),
+            ),
             domains: vec![DomainDiscretizationNode {
                 domain: spatial.domain(),
                 coordinates: CoordinateTreatment::Scaled(spatial.coordinate_length_scale()),
@@ -1227,11 +1194,11 @@ impl ResolvedTransientCellCenteredIncompressibleFlowRealization {
         let blocks = blocks_from_scaling(&fields, fieldwise.scaling())?;
         let execution = self.requirements().fieldwise().execution();
         let graph = PortableRealizationGraph {
-            lineage: RealizationLineage {
-                model: self.model(),
-                semantic_revision: self.semantic_revision(),
-                source: ResolutionSource::Explicit(self.realization_revision()),
-            },
+            lineage: RealizationLineage::explicit(
+                self.model(),
+                self.semantic_revision(),
+                self.realization_revision(),
+            ),
             domains: vec![DomainDiscretizationNode {
                 domain: spatial.domain(),
                 coordinates: CoordinateTreatment::Scaled(spatial.coordinate_length_scale()),
@@ -1378,11 +1345,11 @@ impl ResolvedFixedTopologyAleCoupledRealization {
         let blocks = blocks_from_scaling(&fields, coupled.scaling())?;
         let execution = self.requirements().coupled().execution();
         let graph = PortableRealizationGraph {
-            lineage: RealizationLineage {
-                model: self.model(),
-                semantic_revision: self.semantic_revision(),
-                source: ResolutionSource::Explicit(self.realization_revision()),
-            },
+            lineage: RealizationLineage::explicit(
+                self.model(),
+                self.semantic_revision(),
+                self.realization_revision(),
+            ),
             domains,
             fields,
             geometry_actions,
