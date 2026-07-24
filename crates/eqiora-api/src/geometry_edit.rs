@@ -334,9 +334,18 @@ fn plan_key(base_digest: &str, transaction_digest: &str, child_digest: &str) -> 
         hasher.update(value.as_bytes());
     }
     format!(
-        "eqiora.cartesian-domain-edit-plan/v1:{:x}",
-        hasher.finalize()
+        "eqiora.cartesian-domain-edit-plan/v1:{}",
+        hex_digest(hasher.finalize().into())
     )
+}
+
+fn hex_digest(bytes: [u8; 32]) -> String {
+    use std::fmt::Write as _;
+    let mut output = String::with_capacity(64);
+    for byte in bytes {
+        write!(&mut output, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    output
 }
 
 fn invalid_edit(message: impl Into<String>) -> Diagnostic {
