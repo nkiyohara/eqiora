@@ -11,14 +11,21 @@ explicit Model v1 | v2 | v3
           -> Run v2
 ```
 
-Every selected Model is decoded again through its explicit wire version before
-the Realization link is replayed. A second test encodes the same semantic graph
-in multiple Model wire domains and proves that matching Model identity and
-revision cannot replace the exact domain-separated artifact digest.
+Every selected Model is decoded again through its public, explicit
+`ExactModelCodec` selection before the Realization link is replayed. A second
+test exercises the artifact owner's single historical-envelope dispatch
+registration point by encoding and decoding the same semantic graph through
+every v1-v6 generation. Every wrong-generation decode fails, and matching
+Model identity and revision cannot replace the exact domain-separated artifact
+digest.
 
 This is identity-lineage evidence. The scalar-physical and field-boundary
 Models are not lowered or executed, and no numerical or physical result is
-accepted. The contract performs no wire detection or schema upgrade.
+accepted. Generation-neutral CAD and Geometry consumers do not retain
+historical Model envelopes or dispatch on their generations. The artifact
+registry does not own the public caller policy: adding a generation also
+requires an explicit `ExactModelCodec` update. The contract performs no wire
+detection, fallback, or schema upgrade.
 
 Run:
 

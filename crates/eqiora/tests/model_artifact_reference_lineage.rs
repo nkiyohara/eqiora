@@ -1,9 +1,10 @@
-use std::num::NonZeroUsize;
+use std::{collections::BTreeSet, num::NonZeroUsize};
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
-    CanonicalModelArtifact, ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts,
-    ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3, RealizationEnvelopeV1, RunManifestV2,
+    AcceptedModelArtifact, CanonicalModelArtifact, DecoderLimits, ExecutionProvenanceV1,
+    ExecutionTopologyV1, LayoutArtifacts, ModelArtifactGeneration, RealizationEnvelopeV1,
+    ReplayableCanonicalModelArtifact, RunManifestV2,
 };
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::realization::{
@@ -139,7 +140,7 @@ fn resolved_realization(
 }
 
 #[test]
-fn realization_and_run_lineage_accept_every_explicit_model_wire_generation() {
+fn realization_and_run_lineage_accept_the_three_selected_model_generations() {
     let v1 = ExactModelCodec::V1
         .compile("poisson.eqi", POISSON)
         .expect("v1 spatial Model");
@@ -172,7 +173,7 @@ fn realization_and_run_lineage_accept_every_explicit_model_wire_generation() {
 }
 
 #[test]
-fn identical_model_meaning_in_another_wire_domain_is_not_the_same_artifact() {
+fn artifact_owner_dispatches_every_exact_generation_and_rejects_cross_generation_bytes() {
     let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
     let rate = DraftParameter::new(
         "rate",
@@ -188,23 +189,58 @@ fn identical_model_meaning_in_another_wire_domain_is_not_the_same_artifact() {
     );
     let draft = ModelDraft::new("decay", [state.into(), rate.into(), flow.into()]).unwrap();
     let model = ExactModelCodec::V1.define(&draft).expect("v1 Model");
-    let v1 = ModelEnvelopeV1::from_program(model.program()).expect("v1 envelope");
-    let v2 = ModelEnvelopeV2::from_program(model.program()).expect("v2 envelope");
-    let v3 = ModelEnvelopeV3::from_program(model.program()).expect("v3 envelope");
     let (realization, _) = resolved_realization(&model, 1);
-    let v1_reference = v1.artifact_reference().unwrap();
-    let v2_reference = v2.artifact_reference().unwrap();
-    let v3_reference = v3.artifact_reference().unwrap();
+    let mut artifacts = Vec::new();
+    let mut digests = BTreeSet::new();
 
-    assert_eq!(v1_reference.model(), v2_reference.model());
-    assert_eq!(v1_reference.model(), v3_reference.model());
-    assert_eq!(
-        v1_reference.semantic_revision(),
-        v2_reference.semantic_revision()
-    );
-    assert_ne!(v1_reference.artifact(), v2_reference.artifact());
-    assert_ne!(v1_reference.artifact(), v3_reference.artifact());
-    assert!(realization.validate_model_artifact(&v2_reference).is_err());
-    assert!(realization.validate_model_artifact(&v3_reference).is_err());
-    assert!(v1_reference.validate_artifact(&v2_reference).is_err());
+    for &generation in ModelArtifactGeneration::ALL {
+        let artifact = AcceptedModelArtifact::from_program(generation, model.program())
+            .expect("owner-registered generation encodes the Model");
+        assert_eq!(artifact.generation(), generation);
+        let bytes = artifact.canonical_json().expect("canonical Model bytes");
+        let decoded =
+            AcceptedModelArtifact::from_json(generation, &bytes, DecoderLimits::default())
+                .expect("explicit owner-selected generation decodes its bytes");
+        assert_eq!(decoded, artifact);
+        assert_eq!(
+            decoded.replay_model().unwrap().program(),
+            model.program(),
+            "every registered generation replays the same semantic program"
+        );
+
+        for &foreign_generation in ModelArtifactGeneration::ALL {
+            if foreign_generation != generation {
+                assert!(
+                    AcceptedModelArtifact::from_json(
+                        foreign_generation,
+                        &bytes,
+                        DecoderLimits::default(),
+                    )
+                    .is_err(),
+                    "wrong-generation bytes must fail closed"
+                );
+            }
+        }
+
+        let reference = decoded.artifact_reference().unwrap();
+        assert!(digests.insert(reference.artifact().clone()));
+        artifacts.push((generation, reference));
+    }
+
+    assert_eq!(artifacts.len(), ModelArtifactGeneration::ALL.len());
+    assert_eq!(digests.len(), ModelArtifactGeneration::ALL.len());
+    let (_, v1_reference) = &artifacts[0];
+    realization
+        .validate_model_artifact(v1_reference)
+        .expect("the realization retains the exact v1 artifact");
+    for (_, reference) in &artifacts[1..] {
+        assert_eq!(v1_reference.model(), reference.model());
+        assert_eq!(
+            v1_reference.semantic_revision(),
+            reference.semantic_revision()
+        );
+        assert_ne!(v1_reference.artifact(), reference.artifact());
+        assert!(realization.validate_model_artifact(reference).is_err());
+        assert!(v1_reference.validate_artifact(reference).is_err());
+    }
 }

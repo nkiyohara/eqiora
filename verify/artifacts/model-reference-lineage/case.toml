@@ -5,7 +5,11 @@ reference_kind = "explicit-wire-round-trip-and-cross-domain-rejection"
 
 capabilities = [
   "sealed-model-artifact-reference",
+  "single-artifact-owned-historical-envelope-dispatch",
+  "opaque-accepted-model-artifact",
+  "public-exact-model-codec-caller-policy",
   "model-wire-v1-v2-v3-realization-linkage",
+  "model-wire-v1-through-v6-exact-dispatch",
   "unchanged-realization-v1-wire",
   "run-v2-content-lineage",
   "wire-domain-digest-preservation",
@@ -13,9 +17,10 @@ capabilities = [
 ]
 
 [problem]
-models = "explicit Model v1 spatial, v2 scalar-physical, and v3 field-boundary artifacts"
+models = "explicit Model v1 spatial, v2 scalar-physical, and v3 field-boundary artifacts plus one semantic program encoded through every v1-v6 historical-envelope dispatch entry"
 lineage = "selected Model artifact -> Realization v1 -> Run v2"
 encoding = "eqiora.canonical-json/v1"
+generation_selection = "public ExactModelCodec caller policy -> artifact-owned historical-envelope dispatch"
 
 [claim_boundary]
 wire_autodetection = false
