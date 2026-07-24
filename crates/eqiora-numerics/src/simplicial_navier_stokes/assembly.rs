@@ -10,7 +10,7 @@ use super::api::{MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d};
 use super::element::MiniNavierStokesCell;
 use super::{COMPONENTS, DIMENSION, invalid};
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
-use crate::simplicial_stokes::boundary::PressureReferenceKind2d;
+use crate::simplicial_stokes::boundary::{PreparedBoundary2d, PressureReferenceKind2d};
 use crate::simplicial_stokes::constraint::MiniPressureMeanConstraintCell;
 use crate::simplicial_stokes::facet::MiniConstantTractionFacet;
 use crate::simplicial_stokes::layout::MixedLayout;
@@ -72,6 +72,61 @@ struct EvaluatedStepPacket {
     residual: Vec<f64>,
 }
 
+struct PreparedStepPoint {
+    boundary: PreparedBoundary2d,
+    layout: MixedLayout,
+    velocity: SimplicialMiniVelocityField2d,
+    pressure: SimplicialP1Field,
+    gauge_multiplier: Option<f64>,
+    cell_count: usize,
+    constraint_end: usize,
+    packet_count: usize,
+}
+
+impl PreparedStepPoint {
+    fn reduced_map(&self, mesh: &SimplicialMesh, packet: usize) -> Result<AssemblyMap, Diagnostic> {
+        if packet < self.cell_count {
+            let vertices = mesh
+                .entity_vertices(MeshEntity::new(DIMENSION, packet))
+                .expect("accepted simplex cell owns vertices");
+            self.layout
+                .reduced_cell_map(packet, &vertices, &self.boundary.fixed_velocity)
+        } else if packet < self.constraint_end {
+            let vertices = mesh
+                .entity_vertices(MeshEntity::new(DIMENSION, packet - self.cell_count))
+                .expect("accepted simplex cell owns vertices");
+            self.layout.reduced_constraint_map(&vertices)
+        } else if packet < self.packet_count {
+            let facet = self.boundary.traction_facets[packet - self.constraint_end];
+            let vertices = mesh
+                .entity_vertices(facet.facet)
+                .expect("accepted boundary facet owns vertices");
+            self.layout
+                .reduced_facet_map(&vertices, &self.boundary.fixed_velocity)
+        } else {
+            Err(invalid(
+                "transient MINI packet is outside the prepared contribution inventory",
+            ))
+        }
+    }
+
+    const fn local_size(&self, packet: usize) -> Option<usize> {
+        if packet < self.cell_count {
+            Some(CELL_LOCAL_DOF_COUNT)
+        } else if packet < self.constraint_end {
+            Some(CONSTRAINT_LOCAL_DOF_COUNT)
+        } else if packet < self.packet_count {
+            Some(FACET_LOCAL_DOF_COUNT)
+        } else {
+            None
+        }
+    }
+
+    fn with_gauge(&self) -> bool {
+        self.boundary.pressure_reference == PressureReferenceKind2d::ZeroIntegral
+    }
+}
+
 pub(super) fn initial_point<B>(
     mesh: &SimplicialMesh,
     boundary: &SimplicialMiniStokesBoundary2d,
@@ -95,6 +150,124 @@ where
     )
 }
 
+fn prepare_step_point<B>(
+    mesh: &SimplicialMesh,
+    boundary: &SimplicialMiniStokesBoundary2d,
+    essential_velocity: &B,
+    previous: &SimplicialMiniNavierStokesState2d,
+    candidate: &[f64],
+) -> Result<PreparedStepPoint, Diagnostic>
+where
+    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
+{
+    require_same_mesh(mesh, previous)?;
+    let boundary = boundary.prepare(mesh, essential_velocity)?;
+    let with_gauge = boundary.pressure_reference == PressureReferenceKind2d::ZeroIntegral;
+    require_pressure_policy(previous, with_gauge)?;
+    let layout = MixedLayout::new(mesh, &boundary.fixed_velocity, with_gauge)?;
+    if candidate.len() != layout.reduced_size || candidate.iter().any(|value| !value.is_finite()) {
+        return Err(invalid(
+            "MINI Navier--Stokes candidate must be finite and match the exact mixed layout",
+        ));
+    }
+    let (vertex_values, bubble_values, pressure_values, gauge_multiplier) =
+        layout.reconstruct(candidate, &boundary.fixed_velocity)?;
+    let velocity = SimplicialMiniVelocityField2d::new(mesh.clone(), vertex_values, bubble_values)?;
+    let pressure = SimplicialP1Field::new(mesh.clone(), pressure_values)?;
+    let cell_count = mesh
+        .entity_count(DIMENSION)
+        .expect("2D simplex mesh owns cells");
+    let constraint_count = if with_gauge { cell_count } else { 0 };
+    let constraint_end = cell_count
+        .checked_add(constraint_count)
+        .ok_or_else(|| invalid("transient MINI constraint packet count overflows usize"))?;
+    let packet_count = constraint_end
+        .checked_add(boundary.traction_facets.len())
+        .ok_or_else(|| invalid("transient MINI packet count overflows usize"))?;
+    Ok(PreparedStepPoint {
+        boundary,
+        layout,
+        velocity,
+        pressure,
+        gauge_multiplier,
+        cell_count,
+        constraint_end,
+        packet_count,
+    })
+}
+
+/// Reassemble the complete reduced residual without constructing a Jacobian.
+///
+/// This is the independent primal oracle for the accepted analytic
+/// linearization. It shares only validation, field reconstruction, typed
+/// assembly maps, and local weak-form kernels with the ordinary step path.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn assemble_step_residual<F, B>(
+    mesh: &SimplicialMesh,
+    boundary: &SimplicialMiniStokesBoundary2d,
+    essential_velocity: &B,
+    body_force: &F,
+    previous: &SimplicialMiniNavierStokesState2d,
+    candidate: &[f64],
+    plan: MiniNavierStokesStepPlan2d,
+    cell_quadrature: &QuadratureRule,
+    facet_quadrature: &QuadratureRule,
+) -> Result<Vec<f64>, Diagnostic>
+where
+    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
+    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
+{
+    let step = prepare_step_point(mesh, boundary, essential_velocity, previous, candidate)?;
+    let mut residual = vec![0.0; step.layout.reduced_size];
+    for packet in 0..step.packet_count {
+        let map = step.reduced_map(mesh, packet)?;
+        let local_residual = if packet < step.cell_count {
+            let cell = MeshEntity::new(DIMENSION, packet);
+            let geometry = mesh
+                .geometry_map(cell)
+                .expect("accepted simplex cell owns geometry");
+            let vertices = mesh
+                .entity_vertices(cell)
+                .expect("accepted simplex cell owns vertices");
+            MiniNavierStokesCell {
+                cell: packet,
+                vertices: &vertices,
+                density: plan.density(),
+                viscosity: plan.viscosity(),
+                time_step: plan.time_step(),
+                previous_velocity: previous.velocity(),
+                candidate_velocity: &step.velocity,
+                candidate_pressure: step.pressure.vertex_values(),
+                body_force,
+            }
+            .residual(&geometry, cell_quadrature)?
+        } else if packet < step.constraint_end {
+            let cell = MeshEntity::new(DIMENSION, packet - step.cell_count);
+            let geometry = mesh
+                .geometry_map(cell)
+                .expect("accepted simplex cell owns geometry");
+            let local_point = mapped_local_point(&map, candidate)?;
+            MiniPressureMeanConstraintCell.residual(&geometry, cell_quadrature, &local_point)?
+        } else {
+            let facet = step.boundary.traction_facets[packet - step.constraint_end];
+            let geometry = mesh
+                .geometry_map(facet.facet)
+                .expect("validated traction facet owns geometry");
+            MiniConstantTractionFacet {
+                traction: facet.value,
+            }
+            .residual(&geometry, facet_quadrature)?
+        };
+        scatter_residual(&mut residual, &map, &local_residual)?;
+    }
+    if residual.iter().any(|value| !value.is_finite()) {
+        return Err(invalid(
+            "direct transient residual-only assembly produced a non-finite value",
+        ));
+    }
+    Ok(residual)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn assemble_step_linearization<F, B>(
     mesh: &SimplicialMesh,
@@ -112,34 +285,10 @@ where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
-    require_same_mesh(mesh, previous)?;
-    let prepared = boundary.prepare(mesh, essential_velocity)?;
-    let with_gauge = prepared.pressure_reference == PressureReferenceKind2d::ZeroIntegral;
-    require_pressure_policy(previous, with_gauge)?;
-    let layout = MixedLayout::new(mesh, &prepared.fixed_velocity, with_gauge)?;
-    if candidate.len() != layout.reduced_size || candidate.iter().any(|value| !value.is_finite()) {
-        return Err(invalid(
-            "MINI Navier--Stokes candidate must be finite and match the exact mixed layout",
-        ));
-    }
-    let (vertex_values, bubble_values, pressure_values, gauge_multiplier) =
-        layout.reconstruct(candidate, &prepared.fixed_velocity)?;
-    let velocity = SimplicialMiniVelocityField2d::new(mesh.clone(), vertex_values, bubble_values)?;
-    let pressure = SimplicialP1Field::new(mesh.clone(), pressure_values)?;
-
-    let cell_count = mesh
-        .entity_count(DIMENSION)
-        .expect("2D simplex mesh owns cells");
-    let constraint_count = if with_gauge { cell_count } else { 0 };
-    let constraint_end = cell_count
-        .checked_add(constraint_count)
-        .ok_or_else(|| invalid("transient MINI constraint packet count overflows usize"))?;
-    let packet_count = constraint_end
-        .checked_add(prepared.traction_facets.len())
-        .ok_or_else(|| invalid("transient MINI packet count overflows usize"))?;
+    let step = prepare_step_point(mesh, boundary, essential_velocity, previous, candidate)?;
     let assembly_plan = AssemblyPlan::new(vec![
-        AssemblyTarget::new(layout.reduced_size)?,
-        AssemblyTarget::new(layout.full_size)?,
+        AssemblyTarget::new(step.layout.reduced_size)?,
+        AssemblyTarget::new(step.layout.full_size)?,
     ])?;
     let reduced_target = assembly_plan
         .target_id(0)
@@ -147,43 +296,24 @@ where
     let full_target = assembly_plan
         .target_id(1)
         .expect("two-target plan owns full target");
-    let reduced_map = |packet| {
-        if packet < cell_count {
-            let vertices = mesh
-                .entity_vertices(MeshEntity::new(DIMENSION, packet))
-                .expect("accepted simplex cell owns vertices");
-            layout.reduced_cell_map(packet, &vertices, &prepared.fixed_velocity)
-        } else if packet < constraint_end {
-            let vertices = mesh
-                .entity_vertices(MeshEntity::new(DIMENSION, packet - cell_count))
-                .expect("accepted simplex cell owns vertices");
-            layout.reduced_constraint_map(&vertices)
-        } else {
-            let facet = prepared.traction_facets[packet - constraint_end];
-            let vertices = mesh
-                .entity_vertices(facet.facet)
-                .expect("accepted boundary facet owns vertices");
-            layout.reduced_facet_map(&vertices, &prepared.fixed_velocity)
-        }
-    };
     let mut jacobian_pattern = StructuralJacobianPatternBuilder::new(
-        layout.reduced_size,
-        layout.reduced_size,
-        packet_count,
+        step.layout.reduced_size,
+        step.layout.reduced_size,
+        step.packet_count,
     )?;
-    for packet in 0..packet_count {
-        let local_size = if packet < cell_count {
-            CELL_LOCAL_DOF_COUNT
-        } else if packet < constraint_end {
-            CONSTRAINT_LOCAL_DOF_COUNT
-        } else {
-            FACET_LOCAL_DOF_COUNT
-        };
-        jacobian_pattern.include_dense_local(packet, local_size, &reduced_map(packet)?)?;
+    for packet in 0..step.packet_count {
+        let local_size = step
+            .local_size(packet)
+            .expect("prepared packet owns one typed local size");
+        jacobian_pattern.include_dense_local(
+            packet,
+            local_size,
+            &step.reduced_map(mesh, packet)?,
+        )?;
     }
     let jacobian_pattern = jacobian_pattern.finish()?;
     let evaluate_packet = |packet| {
-        if packet < cell_count {
+        if packet < step.cell_count {
             let cell = MeshEntity::new(DIMENSION, packet);
             let geometry = mesh
                 .geometry_map(cell)
@@ -198,15 +328,15 @@ where
                 viscosity: plan.viscosity(),
                 time_step: plan.time_step(),
                 previous_velocity: previous.velocity(),
-                candidate_velocity: &velocity,
-                candidate_pressure: pressure.vertex_values(),
+                candidate_velocity: &step.velocity,
+                candidate_pressure: step.pressure.vertex_values(),
                 body_force,
             }
             .linearize(&geometry, cell_quadrature)?;
             let residual = linearization.residual().to_vec();
             let local = linearization.into_linear_contribution()?;
-            let reduced = reduced_map(packet)?;
-            let full = layout.full_cell_map(packet, &vertices)?;
+            let reduced = step.reduced_map(mesh, packet)?;
+            let full = step.layout.full_cell_map(packet, &vertices)?;
             Ok(EvaluatedStepPacket {
                 assembly: AssemblyPacket::new(
                     local,
@@ -217,8 +347,8 @@ where
                 )?,
                 residual,
             })
-        } else if packet < constraint_end {
-            let cell_index = packet - cell_count;
+        } else if packet < step.constraint_end {
+            let cell_index = packet - step.cell_count;
             let cell = MeshEntity::new(DIMENSION, cell_index);
             let geometry = mesh
                 .geometry_map(cell)
@@ -227,9 +357,9 @@ where
                 .entity_vertices(cell)
                 .expect("accepted simplex cell owns vertices");
             let local = MiniPressureMeanConstraintCell.evaluate(&geometry, cell_quadrature)?;
-            let reduced = reduced_map(packet)?;
+            let reduced = step.reduced_map(mesh, packet)?;
             let residual = evaluate_linear_residual(&local, &reduced, candidate)?;
-            let full = layout.full_constraint_map(&vertices)?;
+            let full = step.layout.full_constraint_map(&vertices)?;
             Ok(EvaluatedStepPacket {
                 assembly: AssemblyPacket::new(
                     local,
@@ -241,7 +371,7 @@ where
                 residual,
             })
         } else {
-            let facet = prepared.traction_facets[packet - constraint_end];
+            let facet = step.boundary.traction_facets[packet - step.constraint_end];
             let geometry = mesh
                 .geometry_map(facet.facet)
                 .expect("validated traction facet owns geometry");
@@ -252,9 +382,9 @@ where
                 traction: facet.value,
             }
             .evaluate(&geometry, facet_quadrature)?;
-            let reduced = reduced_map(packet)?;
+            let reduced = step.reduced_map(mesh, packet)?;
             let residual = evaluate_linear_residual(&local, &reduced, candidate)?;
-            let full = layout.full_facet_map(&vertices)?;
+            let full = step.layout.full_facet_map(&vertices)?;
             Ok(EvaluatedStepPacket {
                 assembly: AssemblyPacket::new(
                     local,
@@ -267,13 +397,13 @@ where
             })
         }
     };
-    let work = IndexedAssemblyWork::new(packet_count, |packet| {
+    let work = IndexedAssemblyWork::new(step.packet_count, |packet| {
         evaluate_packet(packet).map(|evaluated: EvaluatedStepPacket| evaluated.assembly)
     });
     let (systems, assembly_report) = assembly.assemble(&assembly_plan, &work)?.into_parts();
-    let mut residual = vec![0.0; layout.reduced_size];
-    let mut full_residual = vec![0.0; layout.full_size];
-    for packet in 0..packet_count {
+    let mut residual = vec![0.0; step.layout.reduced_size];
+    let mut full_residual = vec![0.0; step.layout.full_size];
+    for packet in 0..step.packet_count {
         let evaluated = evaluate_packet(packet)?;
         for mapping in evaluated.assembly.mappings() {
             let output = match mapping.target().index() {
@@ -312,9 +442,11 @@ where
         Vec::new(),
         Vec::new(),
     )?;
-    let pressure_reference = if with_gauge {
+    let pressure_reference = if step.with_gauge() {
         SimplicialMiniStokesPressureReference2d::ZeroIntegral {
-            multiplier: gauge_multiplier.expect("gauged layout reconstructs a multiplier"),
+            multiplier: step
+                .gauge_multiplier
+                .expect("gauged layout reconstructs a multiplier"),
         }
     } else {
         SimplicialMiniStokesPressureReference2d::BoundaryTraction
@@ -324,11 +456,11 @@ where
         full_system,
         residual,
         full_residual,
-        layout,
-        velocity,
-        pressure,
+        layout: step.layout,
+        velocity: step.velocity,
+        pressure: step.pressure,
         pressure_reference,
-        gauge_multiplier,
+        gauge_multiplier: step.gauge_multiplier,
         assembly_report,
         jacobian_pattern,
     })
@@ -339,16 +471,7 @@ fn evaluate_linear_residual(
     map: &AssemblyMap,
     global_point: &[f64],
 ) -> Result<Vec<f64>, Diagnostic> {
-    let local_point = map
-        .unknowns()
-        .iter()
-        .map(|unknown| match unknown {
-            LocalUnknown::Free(dof) => global_point.get(dof.index()).copied().ok_or_else(|| {
-                invalid("local residual map references an unknown outside the candidate point")
-            }),
-            LocalUnknown::Fixed(value) => Ok(*value),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let local_point = mapped_local_point(map, global_point)?;
     Ok(local
         .matrix()
         .chunks_exact(local.columns())
@@ -361,6 +484,18 @@ fn evaluate_linear_residual(
                 - rhs
         })
         .collect())
+}
+
+fn mapped_local_point(map: &AssemblyMap, global_point: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+    map.unknowns()
+        .iter()
+        .map(|unknown| match unknown {
+            LocalUnknown::Free(dof) => global_point.get(dof.index()).copied().ok_or_else(|| {
+                invalid("local residual map references an unknown outside the candidate point")
+            }),
+            LocalUnknown::Fixed(value) => Ok(*value),
+        })
+        .collect()
 }
 
 fn scatter_residual(

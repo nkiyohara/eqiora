@@ -120,9 +120,11 @@ fn faer_closes_tetrahedral_trajectory_and_first_order_refinement() {
             assert!(step.interface_action_imbalance_norm() < 1.0e-9);
             assert!(step.interface_power_imbalance().abs() < 1.0e-9);
         }
-        assert!(trajectory.steps().windows(2).all(|steps| {
-            steps[0].jacobian_column_colors() == steps[1].jacobian_column_colors()
-        }));
+        assert!(
+            trajectory.steps().windows(2).all(|steps| {
+                steps[0].jacobian_color_count() == steps[1].jacobian_color_count()
+            })
+        );
     }
 
     let coarse_medium = solid_displacement_mass_distance(

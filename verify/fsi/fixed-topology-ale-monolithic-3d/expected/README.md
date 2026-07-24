@@ -11,10 +11,10 @@ exact shared-interface velocity identity, interface action and power
 acceptance, affine metric-identity defect below `1e-11`, positive current and
 complete-path signed Jacobians, and the declared mean-ratio quality gate.
 Every analytic Jacobian column is compared with centered complete-residual
-reassembly under the evidence-owned scaled tolerance. Ordered coloring,
-audited-column count, complete residual-assembly count, and maximum error are
-retained in each accepted step; the color pattern never depends on analytic
-matrix values.
+reassembly under the evidence-owned scaled tolerance. Audited-column count,
+color count, complete residual-assembly count, and maximum error are retained
+in each accepted step; the private deterministic color pattern never depends
+on analytic matrix values.
 
 The constant-stream probe observes zero-trace MINI bubble rows and continuity
 rows on moving fluid cells. Its accepted residual uses the evidence-owned

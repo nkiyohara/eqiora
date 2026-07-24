@@ -31,6 +31,10 @@ impl StructuralJacobianPattern {
     fn column_count(&self) -> usize {
         self.row_supports.len()
     }
+
+    pub(crate) fn is_singleton(&self, column: usize) -> bool {
+        self.colors.iter().any(|color| color.as_slice() == [column])
+    }
 }
 
 /// Ordered builder over the exact typed contribution inventory.
@@ -204,10 +208,6 @@ impl CenteredJacobianAuditEvidence {
             residual_assembly_count,
             maximum_error,
         })
-    }
-
-    pub(crate) fn colors(&self) -> &[Vec<usize>] {
-        &self.colors
     }
 
     pub(crate) fn column_count(&self) -> usize {
@@ -538,6 +538,35 @@ mod tests {
         builder.include_dense_local(1, 1, &map(&[1], &[1])).unwrap();
         builder.mark_globally_coupled(0).unwrap();
         assert_eq!(builder.finish().unwrap().colors(), &[vec![0], vec![1]]);
+    }
+
+    #[test]
+    fn omitted_global_mark_is_rejected_by_the_independent_residual() {
+        let mut builder = StructuralJacobianPatternBuilder::new(3, 3, 3).unwrap();
+        builder.include_dense_local(0, 1, &map(&[0], &[0])).unwrap();
+        builder.include_dense_local(1, 1, &map(&[1], &[1])).unwrap();
+        builder.include_dense_local(2, 1, &map(&[2], &[2])).unwrap();
+        let pattern = builder.finish().unwrap();
+        assert_eq!(pattern.colors(), &[vec![0, 1, 2]]);
+
+        let error = audit_centered_jacobian(
+            &[0.25, -0.5, 0.75],
+            &pattern,
+            1.0e-8,
+            "omitted-global-mark mutant",
+            |point| Ok(vec![point[0], point[0] + point[1], point[0] + point[2]]),
+            |column, output| {
+                output.copy_from_slice(match column {
+                    0 => &[1.0, 1.0, 1.0],
+                    1 => &[0.0, 1.0, 0.0],
+                    2 => &[0.0, 0.0, 1.0],
+                    _ => unreachable!(),
+                });
+                Ok(())
+            },
+        )
+        .unwrap_err();
+        assert!(error.message().contains("Jacobian column"));
     }
 
     #[test]

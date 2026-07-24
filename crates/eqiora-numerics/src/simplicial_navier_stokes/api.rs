@@ -395,12 +395,6 @@ impl SimplicialMiniNavierStokesStepEvidence2d {
         self.conservative_advection_defect_norm
     }
 
-    /// Deterministic structural colors in canonical column order.
-    #[must_use]
-    pub fn jacobian_column_colors(&self) -> &[Vec<usize>] {
-        self.jacobian_audit.colors()
-    }
-
     /// Number of analytic columns independently reconstructed by the audit.
     #[must_use]
     pub fn jacobian_audited_column_count(&self) -> usize {

@@ -298,6 +298,19 @@ impl<const D: usize> MiniScaledAffineCell<'_, D> {
 }
 
 impl<const D: usize> MiniTransientCell<'_, D> {
+    /// Evaluate the fixed-domain skew-transport residual without constructing
+    /// or traversing state-Jacobian entries.
+    pub(crate) fn residual_fixed_geometry_state<F>(
+        &self,
+        body_force: &F,
+        quadrature: &QuadratureRule,
+    ) -> Result<Vec<f64>, Diagnostic>
+    where
+        F: Fn([f64; D]) -> Result<[f64; D], Diagnostic> + Sync,
+    {
+        self.project_fixed_geometry_state(body_force, quadrature, None)
+    }
+
     /// Project fixed-domain skew transport to its dense state Jacobian.
     ///
     /// Geometry and the spatial body-force field are parameters of this
@@ -313,9 +326,25 @@ impl<const D: usize> MiniTransientCell<'_, D> {
     where
         F: Fn([f64; D]) -> Result<[f64; D], Diagnostic> + Sync,
     {
+        let local_dof_count = (D + 2) * D + D + 1;
+        let mut jacobian = vec![0.0; local_dof_count * local_dof_count];
+        let residual =
+            self.project_fixed_geometry_state(body_force, quadrature, Some(&mut jacobian))?;
+        Ok(MiniFixedGeometryStateLinearization { jacobian, residual })
+    }
+
+    fn project_fixed_geometry_state<F>(
+        &self,
+        body_force: &F,
+        quadrature: &QuadratureRule,
+        mut jacobian: Option<&mut [f64]>,
+    ) -> Result<Vec<f64>, Diagnostic>
+    where
+        F: Fn([f64; D]) -> Result<[f64; D], Diagnostic> + Sync,
+    {
         if !matches!(self.transport, MiniTransport::SkewStationary) {
             return Err(invalid(
-                "fixed-geometry MINI state linearization requires stationary skew transport",
+                "fixed-geometry MINI state projection requires stationary skew transport",
             ));
         }
         self.validate_primal(quadrature)?;
@@ -327,7 +356,14 @@ impl<const D: usize> MiniTransientCell<'_, D> {
         let inverse = self.geometry.inverse_jacobian()?;
         let velocity_space = SimplexP1BubbleSpace::new(D)?;
         let pressure_space = SimplexP1Space::new(D)?;
-        let mut jacobian = vec![0.0; local_dof_count * local_dof_count];
+        if jacobian
+            .as_ref()
+            .is_some_and(|entries| entries.len() != local_dof_count * local_dof_count)
+        {
+            return Err(invalid(
+                "fixed-geometry MINI state Jacobian sink has the wrong shape",
+            ));
+        }
         let mut residual = vec![0.0; local_dof_count];
 
         for point in quadrature.points() {
@@ -397,52 +433,63 @@ impl<const D: usize> MiniTransientCell<'_, D> {
                             + convective_residual
                             - force[row_component] * test);
 
-                    for column_basis in 0..velocity_basis_count {
-                        for column_component in 0..D {
-                            let column = local_velocity::<D>(column_basis, column_component);
-                            let trial = velocity_basis.values()[column_basis];
-                            let mass = if row_component == column_component {
-                                self.density / self.time_step * test * trial
-                            } else {
-                                0.0
-                            };
-                            let viscous = self.viscosity
-                                * projected_symmetric_gradient_pair(
-                                    &gradients[row_basis],
+                    if let Some(jacobian) = jacobian.as_deref_mut() {
+                        for column_basis in 0..velocity_basis_count {
+                            for column_component in 0..D {
+                                let column = local_velocity::<D>(column_basis, column_component);
+                                let trial = velocity_basis.values()[column_basis];
+                                let mass = if row_component == column_component {
+                                    self.density / self.time_step * test * trial
+                                } else {
+                                    0.0
+                                };
+                                let viscous = self.viscosity
+                                    * projected_symmetric_gradient_pair(
+                                        &gradients[row_basis],
+                                        row_component,
+                                        &gradients[column_basis],
+                                        column_component,
+                                    );
+                                let convective = ProjectedConvectiveLinearization {
+                                    density: self.density,
+                                    velocity: &velocity,
+                                    velocity_gradient: &velocity_gradient,
+                                    basis: velocity_basis.values(),
+                                    gradients: &gradients,
+                                }
+                                .entry(
+                                    row_basis,
                                     row_component,
-                                    &gradients[column_basis],
+                                    column_basis,
                                     column_component,
                                 );
-                            let convective = ProjectedConvectiveLinearization {
-                                density: self.density,
-                                velocity: &velocity,
-                                velocity_gradient: &velocity_gradient,
-                                basis: velocity_basis.values(),
-                                gradients: &gradients,
+                                jacobian[row * local_dof_count + column] +=
+                                    scale * (mass + viscous + convective);
                             }
-                            .entry(
-                                row_basis,
-                                row_component,
-                                column_basis,
-                                column_component,
-                            );
-                            jacobian[row * local_dof_count + column] +=
-                                scale * (mass + viscous + convective);
                         }
-                    }
-                    for pressure_basis_index in 0..p1_basis_count {
-                        let column = pressure_offset + pressure_basis_index;
-                        let coupling = -scale
-                            * pressure_basis.values()[pressure_basis_index]
-                            * gradients[row_basis][row_component];
-                        jacobian[row * local_dof_count + column] += coupling;
-                        jacobian[column * local_dof_count + row] += coupling;
+                        for pressure_basis_index in 0..p1_basis_count {
+                            let column = pressure_offset + pressure_basis_index;
+                            let coupling = -scale
+                                * pressure_basis.values()[pressure_basis_index]
+                                * gradients[row_basis][row_component];
+                            jacobian[row * local_dof_count + column] += coupling;
+                            jacobian[column * local_dof_count + row] += coupling;
+                        }
                     }
                 }
             }
         }
 
-        Ok(MiniFixedGeometryStateLinearization { jacobian, residual })
+        if residual.iter().any(|value| !value.is_finite())
+            || jacobian
+                .as_deref()
+                .is_some_and(|entries| entries.iter().any(|value| !value.is_finite()))
+        {
+            return Err(invalid(
+                "fixed-geometry MINI state projection produced a non-finite value",
+            ));
+        }
+        Ok(residual)
     }
 
     /// Evaluate the local weak residual and exact directional action.

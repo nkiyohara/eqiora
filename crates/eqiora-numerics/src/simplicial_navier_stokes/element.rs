@@ -66,18 +66,31 @@ impl<F> MiniNavierStokesCell<'_, F>
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
+    pub(crate) fn residual(
+        &self,
+        geometry: &AffineGeometryMap,
+        quadrature: &QuadratureRule,
+    ) -> Result<Vec<f64>, Diagnostic> {
+        let (candidate, previous, pressure) = self.local_state();
+        MiniTransientCell::<DIMENSION> {
+            geometry,
+            transport: MiniTransport::SkewStationary,
+            density: self.density,
+            viscosity: self.viscosity,
+            time_step: self.time_step,
+            previous_velocity: &previous,
+            current_velocity: &candidate,
+            current_pressure: &pressure,
+        }
+        .residual_fixed_geometry_state(self.body_force, quadrature)
+    }
+
     pub(crate) fn linearize(
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
     ) -> Result<MiniNavierStokesLocalLinearization, Diagnostic> {
-        let candidate =
-            local_velocity_coefficients(self.candidate_velocity, self.cell, self.vertices);
-        let previous =
-            local_velocity_coefficients(self.previous_velocity, self.cell, self.vertices);
-        let pressure = std::array::from_fn::<_, P1_BASIS_COUNT, _>(|local| {
-            self.candidate_pressure[self.vertices[local].index()]
-        });
+        let (candidate, previous, pressure) = self.local_state();
         let (jacobian, residual) = MiniTransientCell::<DIMENSION> {
             geometry,
             transport: MiniTransport::SkewStationary,
@@ -96,6 +109,20 @@ where
             residual,
             point: local_point(&candidate, &pressure),
         })
+    }
+
+    fn local_state(
+        &self,
+    ) -> (
+        [[f64; COMPONENTS]; VELOCITY_BASIS_COUNT],
+        [[f64; COMPONENTS]; VELOCITY_BASIS_COUNT],
+        [f64; P1_BASIS_COUNT],
+    ) {
+        (
+            local_velocity_coefficients(self.candidate_velocity, self.cell, self.vertices),
+            local_velocity_coefficients(self.previous_velocity, self.cell, self.vertices),
+            std::array::from_fn(|local| self.candidate_pressure[self.vertices[local].index()]),
+        )
     }
 }
 
@@ -333,7 +360,7 @@ mod tests {
         let vertices = mesh.entity_vertices(cell).unwrap();
         let geometry = mesh.geometry_map(cell).unwrap();
         let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
-        let linearization = MiniNavierStokesCell {
+        let operator = MiniNavierStokesCell {
             cell: 0,
             vertices: &vertices,
             density: 1.35,
@@ -343,10 +370,14 @@ mod tests {
             candidate_velocity: &candidate,
             candidate_pressure: &pressure,
             body_force: &body_force,
-        }
-        .linearize(&geometry, &quadrature)
-        .unwrap();
+        };
+        let residual_only = operator.residual(&geometry, &quadrature).unwrap();
+        let linearization = operator.linearize(&geometry, &quadrature).unwrap();
 
+        assert_eq!(
+            bit_digest(&residual_only),
+            bit_digest(&linearization.residual)
+        );
         let residual = bit_digest(&linearization.residual);
         let jacobian = bit_digest(&linearization.jacobian);
         let point = bit_digest(&linearization.point);
@@ -382,7 +413,7 @@ mod tests {
             ]
         );
         assert_eq!(jacobian, matrix);
-        assert_eq!(calls.load(Ordering::Relaxed), quadrature.points().len());
+        assert_eq!(calls.load(Ordering::Relaxed), 2 * quadrature.points().len());
     }
 
     fn bit_digest(values: &[f64]) -> [u8; 32] {

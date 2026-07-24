@@ -451,12 +451,6 @@ impl<const D: usize> AleFsiStepEvidence<D> {
         self.jacobian_audit.maximum_error()
     }
 
-    /// Deterministic structural colors in canonical column order.
-    #[must_use]
-    pub fn jacobian_column_colors(&self) -> &[Vec<usize>] {
-        self.jacobian_audit.colors()
-    }
-
     /// Number of analytic columns independently reconstructed by the audit.
     #[must_use]
     pub fn jacobian_audited_column_count(&self) -> usize {
@@ -823,7 +817,6 @@ mod tests {
         assert!(evidence.minimum_current_signed_jacobian() > 0.0);
         assert!(evidence.minimum_path_signed_jacobian() > 0.0);
         assert_eq!(evidence.maximum_analytic_jvp_verification_error(), 1.0e-12);
-        assert_eq!(evidence.jacobian_column_colors(), &[vec![0]]);
         assert_eq!(evidence.jacobian_audited_column_count(), 1);
         assert_eq!(evidence.jacobian_color_count(), 1);
         assert_eq!(evidence.jacobian_residual_assembly_count(), 2);

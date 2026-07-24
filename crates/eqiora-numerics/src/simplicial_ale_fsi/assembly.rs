@@ -1343,6 +1343,58 @@ mod tests {
     }
 
     #[test]
+    fn sealed_harmonic_driver_columns_are_singletons_in_real_ale_patterns() {
+        let fixture = fixture();
+        let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
+        let point = initial_point(
+            &fixture.mesh,
+            &fixture.partition,
+            &fixture.boundary,
+            &fixture.motion,
+            &fixture.previous,
+            fixture.plan,
+            &quadrature,
+        )
+        .unwrap();
+        let assembled = assemble(&fixture, &point, &quadrature);
+        assert_harmonic_driver_singletons(
+            &fixture.motion,
+            &assembled.layout,
+            assembled.jacobian_pattern(),
+        );
+
+        let fixture = fixture_3d();
+        let quadrature = simplex_duffy_gauss_legendre(3, 7).unwrap();
+        let point = initial_point(
+            &fixture.mesh,
+            &fixture.partition,
+            &fixture.boundary,
+            &fixture.motion,
+            &fixture.previous,
+            fixture.plan,
+            &quadrature,
+        )
+        .unwrap();
+        let assembled = assemble_step_linearization(
+            &fixture.mesh,
+            &fixture.partition,
+            &fixture.boundary,
+            &fixture.motion,
+            &fixture.previous,
+            &point,
+            fixture.plan,
+            &quadrature,
+            &REFERENCE_ASSEMBLY_BACKEND,
+        )
+        .unwrap();
+        assert_harmonic_driver_singletons(
+            &fixture.motion,
+            &assembled.layout,
+            assembled.jacobian_pattern(),
+        );
+    }
+
+    #[test]
     fn zero_solid_update_produces_an_exact_static_geometry_action() {
         let fixture = fixture();
         let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
@@ -1603,6 +1655,28 @@ mod tests {
             quadrature,
         )
         .unwrap()
+    }
+
+    fn assert_harmonic_driver_singletons<const D: usize>(
+        motion: &P1HarmonicMeshMotion<D>,
+        layout: &FsiLayout<D>,
+        pattern: &StructuralJacobianPattern,
+    ) {
+        let mut represented_driver_columns = 0;
+        for driver in motion.driver_vertices() {
+            for component in 0..D {
+                if let Some(dof) = layout.reduced_vertex_velocity(driver.index(), component) {
+                    represented_driver_columns += 1;
+                    assert!(
+                        pattern.is_singleton(dof.index()),
+                        "harmonic driver vertex {} component {component} column {} is not singleton",
+                        driver.index(),
+                        dof.index()
+                    );
+                }
+            }
+        }
+        assert!(represented_driver_columns > 0);
     }
 
     fn fixture() -> Fixture {

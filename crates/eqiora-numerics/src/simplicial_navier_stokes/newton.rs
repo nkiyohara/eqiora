@@ -9,7 +9,7 @@ use super::api::{
     MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d,
     SimplicialMiniNavierStokesTrajectory2d,
 };
-use super::assembly::assemble_step_linearization;
+use super::assembly::{assemble_step_linearization, assemble_step_residual};
 use super::{COMPONENTS, DIMENSION, solve_failed};
 use crate::jacobian_audit::{CenteredJacobianAuditEvidence, audit_centered_jacobian};
 use crate::{NonZeroStepCount, SimplicialMiniStokesBoundary2d};
@@ -150,7 +150,6 @@ where
             plan,
             cell_quadrature,
             facet_quadrature,
-            assembly_backend,
         )?;
         return accept_step(
             mesh,
@@ -198,7 +197,6 @@ where
                 plan,
                 cell_quadrature,
                 facet_quadrature,
-                assembly_backend,
             )?;
             let norm = assembled.residual_norm()?;
             if norm <= residual_target || norm < previous_norm {
@@ -260,7 +258,6 @@ fn verify_analytic_jacobian<F, B>(
     plan: MiniNavierStokesStepPlan2d,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
-    assembly_backend: &dyn AssemblyBackend,
 ) -> Result<CenteredJacobianAuditEvidence, Diagnostic>
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
@@ -273,7 +270,7 @@ where
         8.0e-6,
         "transient MINI",
         |candidate| {
-            let assembly = assemble_step_linearization(
+            assemble_step_residual(
                 mesh,
                 boundary,
                 essential_velocity,
@@ -283,9 +280,7 @@ where
                 plan,
                 cell_quadrature,
                 facet_quadrature,
-                assembly_backend,
-            )?;
-            Ok(assembly.residual().to_vec())
+            )
         },
         |column, analytic| {
             let mut direction = vec![0.0; point.len()];

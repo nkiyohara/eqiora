@@ -151,9 +151,10 @@ fn fixed_domain_skew_mini_advances_two_nonlinear_steps() {
         assert!(step.maximum_analytic_jvp_verification_error() < 1.0e-3);
     }
     assert!(
-        trajectory.steps().windows(2).all(|steps| {
-            steps[0].jacobian_column_colors() == steps[1].jacobian_column_colors()
-        })
+        trajectory
+            .steps()
+            .windows(2)
+            .all(|steps| { steps[0].jacobian_color_count() == steps[1].jacobian_color_count() })
     );
 }
 

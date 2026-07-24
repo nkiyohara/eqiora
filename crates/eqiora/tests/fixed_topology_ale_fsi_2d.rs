@@ -672,9 +672,10 @@ fn assert_consecutive_geometry_and_evidence(
         }
     }
     assert!(
-        trajectory.steps().windows(2).all(|steps| {
-            steps[0].jacobian_column_colors() == steps[1].jacobian_column_colors()
-        })
+        trajectory
+            .steps()
+            .windows(2)
+            .all(|steps| { steps[0].jacobian_color_count() == steps[1].jacobian_color_count() })
     );
 }
 
