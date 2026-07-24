@@ -97,10 +97,10 @@ impl RootRegistrationEnvelopeV1 {
         let activation_count = wire.groups.iter().try_fold(0_usize, |count, group| {
             count.checked_add(group.activation_ulids.len())
         });
-        if activation_count.is_none_or(|count| count > limits.max_nodes) {
+        if activation_count.is_none_or(|count| count > limits.max_root_activation_references) {
             return Err(invalid_artifact(format!(
                 "root Activation references exceed decoder limit {}",
-                limits.max_nodes
+                limits.max_root_activation_references
             )));
         }
         let envelope = Self { wire };

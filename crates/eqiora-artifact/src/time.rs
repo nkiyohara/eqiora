@@ -34,6 +34,8 @@ pub struct TimeDecoderLimits {
     pub max_time_state_dimension: usize,
     /// Maximum scalar root callbacks in one root registration envelope.
     pub max_root_functions: usize,
+    /// Maximum Activation references summed across one root registration.
+    pub max_root_activation_references: usize,
 }
 
 impl Default for TimeDecoderLimits {
@@ -43,6 +45,7 @@ impl Default for TimeDecoderLimits {
             max_exact_rank_dimension: 128,
             max_time_state_dimension: 128,
             max_root_functions: 4_096,
+            max_root_activation_references: 100_000,
         }
     }
 }

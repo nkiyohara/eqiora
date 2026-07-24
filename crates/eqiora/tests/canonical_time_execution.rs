@@ -1,8 +1,8 @@
 #![cfg(feature = "diffsol")]
 
 use eqiora::artifact::{
-    ArtifactDigest, ModelDecoderLimits, ModelEnvelopeV1, RootRegistrationEnvelopeV1,
-    TimeDecoderLimits, TimeLoweringEnvelopeV1, TimeRunManifestV1,
+    ArtifactDigest, ModelEnvelopeV1, RootRegistrationEnvelopeV1, TimeDecoderLimits,
+    TimeLoweringEnvelopeV1, TimeRunManifestV1,
 };
 use eqiora::backends::diffsol::DiffsolTimeBackend;
 use eqiora::entity::kinds;
@@ -296,8 +296,8 @@ fn canonical_event_registration_drives_proposal_reset_saltation_and_restart() {
     assert_eq!(
         RootRegistrationEnvelopeV1::from_json(
             &bytes,
-            ModelDecoderLimits {
-                max_nodes: 1,
+            TimeDecoderLimits {
+                max_root_activation_references: 1,
                 ..Default::default()
             },
         )
