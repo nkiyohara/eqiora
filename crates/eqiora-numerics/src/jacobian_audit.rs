@@ -7,10 +7,9 @@
 
 use std::collections::BTreeSet;
 
+use eqiora_assembly::{AssemblyMap, LocalUnknown};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-
-use crate::{AssemblyMap, LocalUnknown};
 
 /// Exact structural row support and deterministic coloring for one square audit.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -450,7 +449,7 @@ fn solve_failed(message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AssemblyMap, DofId, LocalUnknown};
+    use eqiora_assembly::{AssemblyMap, DofId, LocalUnknown};
 
     fn map(rows: &[usize], columns: &[usize]) -> AssemblyMap {
         let width = rows.len().max(columns.len());
