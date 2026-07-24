@@ -147,15 +147,15 @@ The current ownership split is intentionally specific:
   execution contracts;
 - each external mechanism lives in a dedicated L3 adapter crate.
 
-`eqiora-numerics` remains one publication boundary while its physics-neutral
-discrete-block, boundary-normalization, MINI transient, and finalized-linear
-contracts are deliberately private. Its internal dependency direction is
-common numerical machinery → solid/fluid → FSI/ALE. Splitting those families
-into crates merely to improve compilation parallelism would force private
-lowered contracts into the public compatibility surface or duplicate them.
-Reconsider a family split only when an independent scientific requirement
-makes the shared lowered contracts stable public API; build speed alone is not
-such a requirement.
+`eqiora-numerics` remains one publication boundary. Its shared discrete-block,
+boundary-normalization, and finalized-linear contracts are deliberately
+private, as are method-specific contracts such as the MINI transient form. Its
+internal dependency direction is common numerical machinery → solid/fluid →
+FSI/ALE. Splitting those families into crates merely to improve compilation
+parallelism would force private lowered contracts into the public compatibility
+surface or duplicate them. Reconsider a family split only when an independent
+scientific requirement makes the shared lowered contracts stable public API;
+build speed alone is not such a requirement.
 
 Native and hardware adapters remain opt-in. The default build neither compiles
 nor loads a system MPI or CUDA runtime. Optional production features still
