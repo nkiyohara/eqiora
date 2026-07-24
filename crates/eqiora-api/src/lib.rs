@@ -660,6 +660,17 @@ impl VersionedModelTransactionEnvelope {
 }
 
 impl VersionedModelEnvelope {
+    fn as_replayable(&self) -> &dyn ReplayableCanonicalModelArtifact {
+        match self {
+            Self::V1(envelope) => envelope,
+            Self::V2(envelope) => envelope,
+            Self::V3(envelope) => envelope,
+            Self::V4(envelope) => envelope,
+            Self::V5(envelope) => envelope,
+            Self::V6(envelope) => envelope,
+        }
+    }
+
     fn canonical_json(&self) -> Result<Vec<u8>, Diagnostic> {
         match self {
             Self::V1(envelope) => envelope.canonical_json(),

@@ -124,7 +124,7 @@ impl ModelArtifactReference {
     /// Returns `EQ0901` for digest, Model identity, or revision drift.
     pub fn validate_artifact(
         &self,
-        artifact: &impl CanonicalModelArtifact,
+        artifact: &(impl CanonicalModelArtifact + ?Sized),
     ) -> Result<(), Diagnostic> {
         let candidate = artifact.artifact_reference()?;
         if self != &candidate {

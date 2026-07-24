@@ -146,6 +146,37 @@ fn cad_selection_is_semantic_content_bound_and_retained_only_by_explicit_associa
 }
 
 #[test]
+fn cad_replay_and_association_are_version_erased_without_losing_exact_identity() {
+    let adapter = TruckCadAdapterV1;
+    let source = ExactModelCodec::V4.compile("base-v4.eqi", BASE).unwrap();
+    let target = ExactModelCodec::V6
+        .compile("regenerated-v6.eqi", REGENERATED)
+        .unwrap();
+    assert_eq!(source.exact_codec(), ExactModelCodec::V4);
+    assert_eq!(target.exact_codec(), ExactModelCodec::V6);
+    let source_plan = source
+        .preview_cad_box(
+            intent(&source, [(-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5)]),
+            &adapter,
+            OUTER_BOX_MM,
+        )
+        .unwrap();
+    let target_plan = target
+        .preview_cad_box(
+            intent(&target, [(-0.6, 0.6), (-0.4, 0.4), (-0.5, 0.5)]),
+            &adapter,
+            OUTER_BOX_MM,
+        )
+        .unwrap();
+
+    assert_ne!(source_plan.model_digest(), target_plan.model_digest());
+    let regeneration = source_plan.associate_regeneration(target_plan).unwrap();
+    regeneration
+        .validate_replay(&adapter, OUTER_BOX_MM, &adapter, OUTER_BOX_MM)
+        .unwrap();
+}
+
+#[test]
 fn cad_adapter_and_policy_falsifiers_fail_closed() {
     let adapter = TruckCadAdapterV1;
     let source = document("base.eqi", BASE);

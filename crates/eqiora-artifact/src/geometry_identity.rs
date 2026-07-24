@@ -126,7 +126,7 @@ impl GeometryIdentityEnvelopeV1 {
     /// Returns `EQ0901` for an invalid Model replay, empty/duplicate/non-box
     /// selection, incomplete exterior, mixed dimension, or invalid tolerance.
     pub fn new(
-        model: &impl ReplayableCanonicalModelArtifact,
+        model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
         bodies: impl IntoIterator<Item = Id<kinds::Domain>>,
         tolerance_m: f64,
     ) -> Result<Self, Diagnostic> {
@@ -299,7 +299,7 @@ impl GeometryIdentityEnvelopeV1 {
     /// Returns `EQ0901` for any Model or semantic geometry drift.
     pub fn validate_against(
         &self,
-        model: &impl ReplayableCanonicalModelArtifact,
+        model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
     ) -> Result<(), Diagnostic> {
         let body_ids = self
             .wire

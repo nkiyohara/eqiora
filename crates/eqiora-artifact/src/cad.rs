@@ -40,7 +40,7 @@ impl CadDesignEnvelopeV1 {
     /// Returns `EQ0901` unless the target names a retained three-dimensional
     /// Cartesian body with bounds exactly equal to the design result.
     pub fn new(
-        model: &impl ReplayableCanonicalModelArtifact,
+        model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
         design: &CadBoxDesignV1,
     ) -> Result<Self, Diagnostic> {
         validate_model_target(model, design)?;
@@ -89,7 +89,7 @@ impl CadDesignEnvelopeV1 {
     /// Returns `EQ0901` for Model or design drift.
     pub fn validate_against(
         &self,
-        model: &impl ReplayableCanonicalModelArtifact,
+        model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
     ) -> Result<(), Diagnostic> {
         let design = self.design()?;
         let expected = Self::new(model, &design)?;
@@ -202,7 +202,7 @@ impl CadBuildEvidenceEnvelopeV1 {
     /// Returns `EQ0901` for stale resources, invalid identity text, observation
     /// drift, repair, or a result that differs from the exact Semantic body.
     pub fn new(
-        model: &impl ReplayableCanonicalModelArtifact,
+        model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
         design: &CadDesignEnvelopeV1,
         geometry: &GeometryIdentityEnvelopeV1,
         adapter: CadAdapterIdentityV1,
@@ -274,7 +274,7 @@ impl CadBuildEvidenceEnvelopeV1 {
     /// normalized-output drift.
     pub fn validate_replay(
         &self,
-        model: &impl ReplayableCanonicalModelArtifact,
+        model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
         design: &CadDesignEnvelopeV1,
         geometry: &GeometryIdentityEnvelopeV1,
         adapter: &impl CadKernelAdapter,
@@ -368,7 +368,7 @@ impl CadBuildEvidenceEnvelopeV1 {
 }
 
 fn validate_model_target(
-    model: &impl ReplayableCanonicalModelArtifact,
+    model: &(impl ReplayableCanonicalModelArtifact + ?Sized),
     design: &CadBoxDesignV1,
 ) -> Result<(), Diagnostic> {
     let replay = model.replay_model()?;
