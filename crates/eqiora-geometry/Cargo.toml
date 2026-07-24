@@ -1,6 +1,6 @@
 [package]
 name = "eqiora-geometry"
-description = "Eqiora L2: exact geometry revision identity and geometry-to-mesh correspondence"
+description = "Eqiora L2: geometry identity, geometry-to-mesh correspondence, and kernel-neutral CAD contracts"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

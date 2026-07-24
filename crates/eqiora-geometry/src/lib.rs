@@ -1,14 +1,19 @@
-//! **eqiora-geometry** — exact geometry identity at the L2 boundary.
+//! **eqiora-geometry** — geometry identity, geometry-to-mesh correspondence,
+//! and kernel-neutral CAD contracts at the L2 boundary.
 //!
 //! The Semantic Kernel says *which* Domains exist. A geometry revision says
 //! which exact geometric entities realize those Domains, and a mesh revision
-//! supplies numerical entities. This crate closes only the pure, typed
-//! correspondence between those three identities.
+//! supplies numerical entities. This crate owns geometry revision identity,
+//! the pure typed correspondence between those identities, and bounded CAD
+//! design, observation, and adapter contracts that contain no kernel objects
+//! or entity-enumeration indices.
 //!
-//! It deliberately does not own a CAD kernel, source-file import, artifact
-//! encoding, physics, transfer operators, or topology naming. In particular,
-//! [`ParentOutward`] is geometric meaning derived relative to a parent body;
-//! it is not a normal sign and is unrelated to
+//! It deliberately does not own a CAD kernel, STEP parsing, concrete B-rep or
+//! modeling operations, artifact encoding, physics, transfer operators, or
+//! topology naming. Those concrete CAD responsibilities remain isolated in
+//! adapters such as `eqiora-cad-truck`. In particular, [`ParentOutward`] is
+//! geometric meaning derived relative to a parent body; it is not a normal
+//! sign and is unrelated to
 //! [`eqiora_meshing::OrientationCode`], which encodes a local permutation.
 
 mod association;
