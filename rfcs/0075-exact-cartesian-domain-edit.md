@@ -1,6 +1,7 @@
 # RFC 0075: Exact topology-preserving Cartesian Domain edit
 
-- Status: Accepted; implementation and bounded evidence in progress
+- Status: Accepted; bounded implementation verified in
+  [`geometry.cartesian-domain-edit-3d`](../verify/geometry/cartesian-domain-edit-3d/README.md)
 - Authors: Eqiora contributors
 - Created: 2026-07-24
 - Depends on: [RFC 0008](0008-canonical-artifact-wire-v1.md),

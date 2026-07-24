@@ -2,10 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
-    BodyAssociationCandidate, DecoderLimits, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, GeometryRevisionAssociationEnvelopeV1, ModelEnvelopeV6,
-    SimplicialMeshEnvelopeV1,
+    DecoderLimits, GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
+    GeometryRevisionAssociationEnvelopeV1, ModelEnvelopeV6, SimplicialMeshEnvelopeV1,
 };
+use eqiora::geometry::BodyAssociationCandidate;
 use eqiora::graph::EdgeKind;
 use eqiora::kernel::{AxisBounds, BoundarySide, DomainKind, KernelNode};
 use eqiora::meshing::{MeshQualityGate, SimplicialMesh};
