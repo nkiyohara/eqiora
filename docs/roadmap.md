@@ -189,9 +189,9 @@ candidate:
 - a self-contained source distribution that rebuilds the declared CPython
   wheel family and verifies installed artifacts outside the checkout.
 
-The alpha release gate adds public package metadata, exact release artifacts,
-TestPyPI installation, and production publication only after those same
-artifacts pass the release checklist.
+The `v0.1.0a1` alpha release closed public package metadata, exact release
+artifacts, TestPyPI installation, and production publication through the same
+release checklist.
 
 GPU DLPack, framework GPU execution, broader transformations, free-threaded
 Python, other operating systems and architectures, general graph/PDE authoring,
@@ -220,25 +220,76 @@ workflow plugins, and whole-product localization remain open.
 
 ## Next dependency-safe slices
 
-Release work and product work remain separate.
+The public alpha is closed. Public feedback enters the same Issue queue as
+other work and preempts an accepted slice only for an owning prerequisite or a
+credible security, correctness, or data-loss fault.
 
-1. **Public alpha release.** Close repository hygiene, public documentation,
-   release trust, exact candidate artifacts, and TestPyPI installation before
-   promoting the same approved artifacts.
-2. **Public feedback and falsifiers.** Treat alpha use as input to narrow
-   vertical slices; do not widen claims merely because an API is visible.
-3. **Geometry and CAD depth.** Extend import, sketch/constraint, feature, and
-   topology-tracking capability only through the existing Geometry Identity
-   seam.
-4. **Transient and moving-domain depth.** Add temporal import, broader
-   transient CFD, ALE/remeshing policies, and sensitivities in that dependency
-   order.
-5. **Scale and portability.** Add production preconditioners, NUMA,
-   distributed assembly maturity, multiple accelerators, checkpoint/restart,
-   and additional release platforms only with environment-specific evidence.
-6. **Libraries and authoring.** Grow reusable physics packages, language/LSP
-   support, Python authoring breadth, and Studio visualization without moving
-   numerical method or deployment policy into semantic packages.
+The next product wavefront is dependency-ordered rather than calendar-ordered:
+
+```text
+Geometry and CAD
+  exact parameter edit and regeneration
+    -> curved and multi-body Geometry Identity
+      -> sketch, feature, import, and meshing adapters
+        -> Python and Studio projections
+          -> CAD and ALE shape sensitivity
+
+Physics libraries and credibility
+  elasticity patch + thermal slab + Couette--Poiseuille
+    -> thermoelasticity and conjugate heat
+      -> broader structural and fluid libraries
+
+Time and hybrid systems
+  general implicit DAE
+    -> simultaneous event ordering and modes
+      -> multi-rate algebraic-loop conformance
+        -> fault statechart conformance
+          -> deterministic scheduling and code generation
+
+Scale and execution
+  production preconditioners and factorization reuse
+    -> NUMA, distributed results, and checkpoint/restart
+      -> GPU-resident assembly and solve
+        -> multiple GPUs and GPU-aware MPI
+
+Differentiation and optimization
+  trajectory adjoint and checkpointing
+    -> ALE and remeshing sensitivity
+      -> CAD shape sensitivity
+        -> PDE-constrained optimization
+```
+
+Geometry, physics credibility, time/hybrid systems, and scale may advance in
+parallel when they neither redefine the same central seam nor share primary
+writable paths. Differentiation may establish a small trajectory reference
+slice early, but its ALE, remeshing, and CAD branches wait for the corresponding
+primal contracts.
+
+After the exact Geometry Identity edit-and-regeneration seam is accepted, CAD
+adapters, mesh regeneration, Python authoring, Studio editing, and independent
+physics evidence fan out from that revision. They reunite first as a
+single-physics user path and then as a coupled FSI path; client projections do
+not acquire their own geometry or physical semantics.
+
+Structural preparation is pressure-gated rather than scheduled as a cleanup
+phase:
+
+- split Studio's application shell, state, protocol, and projections before
+  expanding CAD editing;
+- decompose decoder limits by artifact family before adding artifact families;
+- curate the numerics public surface by physical/numerical responsibility
+  before broad physics-library expansion; and
+- split distributed internals by ownership, exchange, reduction, and operator
+  action before scale and accelerator expansion.
+
+Each preparation is behavior-preserving, stays private until two independent
+consumers justify a public boundary, and runs the existing affected evidence.
+Do not create a general refactoring phase or broaden a slice merely because
+adjacent cleanup is attractive.
+
+Release work remains a separate trust path. Additional platforms and release
+formats do not reorder product dependencies, and every scale claim requires
+environment-specific evidence.
 
 ## Canonical conformance set
 

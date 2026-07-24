@@ -32,7 +32,29 @@ Do not report a feature complete until its bounded claim travels through the
 typed contract, ordinary lowering/realization path, meaningful falsifier, and
 registered evidence. Keep central semantic and identity changes narrow; fan
 out independent adapter, package, Python, Studio, and fixture work only after
-the owning contract is stable.
+the owning contract is stable. Parallel work follows a contract wave: one
+writer owns an invariant-bearing central seam until its reference slice is
+accepted, then disjoint consumers start from that exact accepted revision.
+Writable branches belong to mergeable slices rather than agents and use
+separate worktrees; an independent agent should derive the falsifier, while one
+integrator retains the final semantic and merge decision.
+
+A fan-out lane consumes its accepted central contract; it does not extend that
+contract for local convenience. If the contract cannot express a discovered
+requirement, stop the lane without adding a workaround and return the
+requirement to the contract owner. During parallel waves, the integrator alone
+applies cross-lane registration changes to crate roots, public facades,
+workspace manifests and lockfiles, the capability matrix and roadmap, shared
+workflow registries, and artifact version registrars. Feature agents return the
+proposed registration delta with their implementation.
+
+Treat a pull request as a short-lived exact-merge envelope, not a waiting room.
+After reviewing the complete diff, claim boundary, falsifier, registration
+delta, and local affected closure, the integrator marks the pull request ready
+and merges it as soon as required hosted checks pass. Do not wait for a
+calendar review or routine external approval; pause only for a repository
+protection rule, an unresolved anomaly, or a durable-risk question the
+integrator cannot close from the available evidence. Delete the merged branch.
 
 Use `cargo run -p eqiora-verify -- index` instead of maintaining another
 capability-to-evidence list. Apply the abstraction/public-API budget before
