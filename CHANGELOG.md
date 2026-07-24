@@ -16,6 +16,12 @@ are recorded here.
   directory package authoring, replay, and installation now require the
   `package-filesystem` facade feature.
 
+- Split harmonic ALE naming into the Realization-level
+  `P1HarmonicMeshMotionPolicy` and the executable numerical
+  `P1HarmonicMeshMotionAction`; the ambiguous pre-release Rust names have no
+  compatibility aliases. Artifact wire names and canonical bytes are
+  unchanged.
+
 ## [0.1.0a1] - 2026-07-23
 
 The first public alpha establishes one coherent, evidence-gated project
