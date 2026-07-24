@@ -1,5 +1,9 @@
-import type { SpatialRunPlan, SpatialRunResult, StudioDiagnostic } from "./protocol";
-import { MAX_SPATIAL_ENTITY_COUNT } from "./protocol";
+import type { StudioDiagnostic } from "./protocol";
+import {
+  MAX_SPATIAL_ENTITY_COUNT,
+  type SpatialRunPlan,
+  type SpatialRunResult,
+} from "./spatial-protocol";
 
 export type SpatialMethod = "finite-element" | "finite-volume";
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { diagnosticSchema, MAX_SPATIAL_ENTITY_COUNT, type SpatialRunResult } from "./protocol";
+import { diagnosticSchema } from "./protocol";
+import { MAX_SPATIAL_ENTITY_COUNT, type SpatialRunResult } from "./spatial-protocol";
 
 /** Closed data-plane protocol for the first bounded two-dimensional scalar-field view. */
 export const SCALAR_FIELD_VIEW_PROTOCOL = "eqiora.studio.field-view/v1" as const;

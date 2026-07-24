@@ -8,9 +8,9 @@ import {
   type DocumentProjection,
   MAX_PROJECTION_EDGE_COUNT,
   MAX_PROJECTION_NODE_COUNT,
-  MAX_SPATIAL_ENTITY_COUNT,
 } from "./protocol";
 import { SCALAR_FIELD_VALUES_PER_CHUNK } from "./scalar-field-protocol";
+import { MAX_SPATIAL_ENTITY_COUNT } from "./spatial-protocol";
 
 export type WorkflowId = "relations" | "scalar-elliptic" | "cad-box";
 export type WorkspaceId = "relations" | "field" | "geometry";

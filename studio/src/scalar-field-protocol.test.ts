@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  BRIDGE_PROTOCOL,
-  MAX_SPATIAL_ENTITY_COUNT,
-  type SpatialRunResult,
-  spatialRunResultSchema,
-} from "./protocol";
+import { BRIDGE_PROTOCOL } from "./protocol";
 import {
   descriptorMatchesAcceptedResult,
   SCALAR_FIELD_MAX_CHUNK_COUNT,
@@ -17,6 +12,11 @@ import {
   scalarFieldOpenEnvelopeSchema,
   scalarFieldOpenRequestSchema,
 } from "./scalar-field-protocol";
+import {
+  MAX_SPATIAL_ENTITY_COUNT,
+  type SpatialRunResult,
+  spatialRunResultSchema,
+} from "./spatial-protocol";
 
 const RUN_ID = "00000000-0000-4000-8000-000000000001";
 const MODEL_DIGEST = "sha256:0123456789abcdef";

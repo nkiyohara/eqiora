@@ -4,19 +4,21 @@ import {
   outcomeMatchesRunRequest,
   spatialResultMatchesRequest,
 } from "./bridge-contract";
+import { BRIDGE_PROTOCOL } from "./protocol";
 import {
-  BRIDGE_PROTOCOL,
   type RunPlan,
   type RunRequest,
   runCancellationSchema,
   runPlanSchema,
   runRequestSchema,
+} from "./reference-run-protocol";
+import {
   type SpatialRealizationRunRequest,
   type SpatialRunPlan,
   spatialRunPlanSchema,
   spatialRunResultSchema,
-  valueEditPlanSchema,
-} from "./protocol";
+} from "./spatial-protocol";
+import { valueEditPlanSchema } from "./value-edit-protocol";
 
 const RUN_ID = "00000000-0000-4000-8000-000000000001";
 const OTHER_RUN_ID = "00000000-0000-4000-8000-000000000002";

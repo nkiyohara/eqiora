@@ -1,10 +1,10 @@
-import type { SpatialRunResult } from "./protocol";
 import type { ScalarFieldBridgeFailure, ScalarFieldDataBridge } from "./scalar-field-bridge";
 import {
   descriptorMatchesAcceptedResult,
   type ScalarFieldDescriptor,
   scalarFieldChunkValueCount,
 } from "./scalar-field-protocol";
+import type { SpatialRunResult } from "./spatial-protocol";
 
 export type ScalarFieldSessionFailureCode =
   | "open-rejected"

@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
-import {
-  BRIDGE_PROTOCOL,
-  MAX_SPATIAL_ENTITY_COUNT,
-  type SpatialRunResult,
-  spatialRunResultSchema,
-} from "./protocol";
+import { BRIDGE_PROTOCOL } from "./protocol";
 import {
   createPreviewScalarFieldDataBridge,
   decodeScalarFieldChunk,
   encodeScalarFieldChunk,
 } from "./scalar-field-bridge";
 import { SCALAR_FIELD_VALUES_PER_CHUNK } from "./scalar-field-protocol";
+import {
+  MAX_SPATIAL_ENTITY_COUNT,
+  type SpatialRunResult,
+  spatialRunResultSchema,
+} from "./spatial-protocol";
 
 function acceptedResult(
   method: "finite-element" | "finite-volume" = "finite-element",

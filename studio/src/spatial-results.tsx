@@ -1,4 +1,4 @@
-import type { SpatialRunResult } from "./protocol";
+import type { SpatialRunResult } from "./spatial-protocol";
 
 const MESH_CELLS = [
   "r1c1",

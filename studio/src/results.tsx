@@ -1,4 +1,4 @@
-import type { RunEvidence, RunResult } from "./protocol";
+import type { RunEvidence, RunResult } from "./reference-run-protocol";
 
 const MAX_CHART_POINTS = 1_200;
 const MAX_TABLE_ROWS = 120;
