@@ -1,5 +1,4 @@
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
 
 use eqiora::artifact::SimplicialMeshEnvelopeV1;
 use eqiora::compatibility::ExactModelCodec;
@@ -12,9 +11,9 @@ use eqiora::numerics::{
     steady_stokes_mini_plan_2d,
 };
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageDirectory, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1,
-    DependencyRequirementV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
+    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
 use eqiora::realization::{
@@ -27,6 +26,9 @@ use eqiora::solver::{
     SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity};
+
+#[path = "support/embedded_package.rs"]
+mod embedded_package;
 
 const DIRECT: &str =
     include_str!("../../../verify/fluid/port-closed-si-mini-stokes-2d/models/direct.eqi");
@@ -500,14 +502,7 @@ fn assert_release_digests(release: &PackageReleaseV1, semantic_digest: &str, sou
 }
 
 fn public_release(package: &str, dependencies: &[PackageReleaseV1]) -> PackageReleaseV1 {
-    let sources = AuthorPackageDirectory::open_ambient(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../packages")
-            .join(package),
-    )
-    .unwrap_or_else(|error| panic!("open public package {package}: {error}"))
-    .read_sources()
-    .unwrap_or_else(|error| panic!("read public package {package}: {error}"));
+    let sources = embedded_package::public_sources(package);
     prepare_package_release_v1(sources, dependencies)
         .unwrap_or_else(|error| panic!("prepare public package {package}: {error:?}"))
 }

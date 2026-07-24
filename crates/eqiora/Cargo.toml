@@ -20,8 +20,10 @@ xdmf = ["dep:eqiora-io-xdmf", "eqiora-api/xdmf"]
 hdf5 = ["xdmf", "dep:eqiora-io-hdf5", "eqiora-api/hdf5"]
 vtu = ["dep:eqiora-io-vtu", "eqiora-api/vtu"]
 cad-truck = ["dep:eqiora-cad-truck"]
+package-filesystem = ["dep:cap-std", "eqiora-package/filesystem"]
 
 [dependencies]
+cap-std = { workspace = true, optional = true }
 eqiora-api = { workspace = true }
 eqiora-assembly = { workspace = true }
 eqiora-artifact = { workspace = true }
@@ -57,7 +59,6 @@ eqiora-solver = { workspace = true }
 eqiora-time = { workspace = true }
 
 [dev-dependencies]
-cap-std = { workspace = true }
 eqiora-backend-faer = { workspace = true }
 eqiora-execution = { workspace = true }
 eqiora-fabric = { workspace = true }
@@ -90,3 +91,11 @@ required-features = ["hdf5"]
 [[test]]
 name = "vtu_unstructured_grid_import"
 required-features = ["vtu"]
+
+[[test]]
+name = "composed_model_package"
+required-features = ["package-filesystem"]
+
+[[test]]
+name = "offline_model_package"
+required-features = ["package-filesystem"]

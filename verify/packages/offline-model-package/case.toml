@@ -97,3 +97,4 @@ transient_hybrid_mpi_or_gpu = false
 [evidence]
 package = "eqiora"
 test = "offline_model_package"
+features = ["package-filesystem"]

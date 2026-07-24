@@ -12,6 +12,10 @@ are recorded here.
   and `eqiora` namespace paths; aliases formerly exposed from numerics,
   artifact, and realization have been removed.
 
+- Package identity and exact in-memory resolution remain available by default;
+  directory package authoring, replay, and installation now require the
+  `package-filesystem` facade feature.
+
 ## [0.1.0a1] - 2026-07-23
 
 The first public alpha establishes one coherent, evidence-gated project

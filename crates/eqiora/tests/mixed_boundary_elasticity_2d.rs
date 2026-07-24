@@ -1,5 +1,4 @@
 use std::num::{NonZeroU16, NonZeroUsize};
-use std::path::PathBuf;
 use std::sync::Mutex;
 
 use eqiora::assembly::{
@@ -18,9 +17,9 @@ use eqiora::numerics::{
     lower_isotropic_elasticity_cartesian_2d,
 };
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageDirectory, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1,
-    DependencyRequirementV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
+    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
 use eqiora::realization::{
@@ -34,6 +33,9 @@ use eqiora::solver::{
     LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan,
 };
 
+#[path = "support/embedded_package.rs"]
+mod embedded_package;
+
 const DIRECT_SOURCE: &str =
     include_str!("../../../verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi");
 const PACKAGED_SOURCE: &str =
@@ -43,6 +45,11 @@ const LIVE_PACKAGE_SOURCE: &str =
 const FROZEN_PACKAGE_SOURCE: &str = include_str!(
     "../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/src/linear_elasticity.eqi"
 );
+const FROZEN_PACKAGE_MANIFEST: &[u8] = include_bytes!(
+    "../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/package.json"
+);
+const FROZEN_PACKAGE_README: &[u8] =
+    include_bytes!("../../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0/README.md");
 const FROZEN_PACKAGE_SOURCE_V0_2: &str = include_str!(
     "../../../verify/solid/packaged-elastic-boundary-2d/package-v0.2.0/src/linear_elasticity.eqi"
 );
@@ -55,9 +62,22 @@ const PACKAGE_SOURCE_DIGEST: &str =
 const ROOT_NAME: &str = "org.eqiora.verify.mixed_boundary_elasticity_2d";
 const ROOT_VERSION: &str = "0.1.0";
 
-fn frozen_package_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../verify/solid/mixed-boundary-elasticity-2d/package-v0.3.0")
+fn frozen_package_sources() -> AuthorPackageSourcesV1 {
+    embedded_package::sources(
+        FROZEN_PACKAGE_MANIFEST,
+        &[
+            (
+                "README.md",
+                BundleRoleV1::Documentation,
+                FROZEN_PACKAGE_README,
+            ),
+            (
+                "src/linear_elasticity.eqi",
+                BundleRoleV1::ModelSource,
+                FROZEN_PACKAGE_SOURCE.as_bytes(),
+            ),
+        ],
+    )
 }
 
 fn elasticity_package() -> PackageReleaseV1 {
@@ -80,10 +100,7 @@ fn elasticity_package() -> PackageReleaseV1 {
     assert_eq!(&live.components()[..4], current.components());
     assert_eq!(live.components().len(), 6);
 
-    let sources = AuthorPackageDirectory::open_ambient(frozen_package_root())
-        .expect("open immutable elasticity v0.3.0 package")
-        .read_sources()
-        .expect("read its closed author inventory");
+    let sources = frozen_package_sources();
     let release = prepare_package_release_v1(sources, &[])
         .expect("prepare the exact compiler-derived package release");
     let identity = release.package_identity().expect("exact package identity");
@@ -98,10 +115,7 @@ fn elasticity_package() -> PackageReleaseV1 {
 }
 
 fn elasticity_package_with_source(source: &str) -> PackageReleaseV1 {
-    let sources = AuthorPackageDirectory::open_ambient(frozen_package_root())
-        .expect("open immutable elasticity v0.3.0 package")
-        .read_sources()
-        .expect("read its closed author inventory");
+    let sources = frozen_package_sources();
     let (manifest, files) = sources.into_parts();
     let files = files
         .into_iter()

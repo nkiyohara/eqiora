@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::f64::consts::PI;
 use std::num::{NonZeroU16, NonZeroUsize};
-use std::path::PathBuf;
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
@@ -15,10 +14,10 @@ use eqiora::numerics::{
     lower_isotropic_elasticity_cartesian_2d, solve_resolved_isotropic_elasticity_cartesian_2d,
 };
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageDirectory, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1,
-    DependencyRequirementV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackageCompilationRecordV1, PackageExecutionBindingV1, PackageReleaseV1, PackagedModelDocument,
-    QualifiedName, ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
+    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
+    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageCompilationRecordV1,
+    PackageExecutionBindingV1, PackageReleaseV1, PackagedModelDocument, QualifiedName,
+    ResolutionRecordV1, SourceFileV1, prepare_package_release_v1,
 };
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
@@ -30,8 +29,14 @@ use eqiora::solver::{
     LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolverPlan,
 };
 
+#[path = "support/embedded_package.rs"]
+mod embedded_package;
+
 const VERIFIED_COMPONENT_V0_1: &str = include_str!(
     "../../../verify/solid/packaged-isotropic-balance-2d/package-v0.1.0/src/linear_elasticity.eqi"
+);
+const VERIFIED_MANIFEST_V0_1: &[u8] = include_bytes!(
+    "../../../verify/solid/packaged-isotropic-balance-2d/package-v0.1.0/package.json"
 );
 const VERIFIED_README_V0_1: &[u8] =
     include_bytes!("../../../verify/solid/packaged-isotropic-balance-2d/package-v0.1.0/README.md");
@@ -77,16 +82,22 @@ const PACKAGED_TO_EXPLICIT: [(&str, &str); 18] = [
     ("y_upper_value", "y_upper_value"),
 ];
 
-fn verified_package_v0_1_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../verify/solid/packaged-isotropic-balance-2d/package-v0.1.0")
-}
-
 fn verified_component_v0_1_sources() -> AuthorPackageSourcesV1 {
-    AuthorPackageDirectory::open_ambient(verified_package_v0_1_root())
-        .expect("open checked-in linear-elasticity package")
-        .read_sources()
-        .expect("read its closed author inventory")
+    embedded_package::sources(
+        VERIFIED_MANIFEST_V0_1,
+        &[
+            (
+                "README.md",
+                BundleRoleV1::Documentation,
+                VERIFIED_README_V0_1,
+            ),
+            (
+                "src/linear_elasticity.eqi",
+                BundleRoleV1::ModelSource,
+                VERIFIED_COMPONENT_V0_1.as_bytes(),
+            ),
+        ],
+    )
 }
 
 fn verified_component_v0_1_release() -> PackageReleaseV1 {

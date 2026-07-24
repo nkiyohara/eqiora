@@ -1,5 +1,4 @@
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
 
 use eqiora::artifact::{
     ArtifactDigest, DecoderLimits, ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts,
@@ -14,9 +13,9 @@ use eqiora::numerics::{
     steady_stokes_mini_plan_2d,
 };
 use eqiora::package::{
-    AuthorManifestV1, AuthorPackageDirectory, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1,
-    DependencyRequirementV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
-    PackageReleaseV1, PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
+    AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
+    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
+    PackagedModelDocument, QualifiedName, ResolutionRecordV1, SourceFileV1,
     prepare_package_release_v1,
 };
 use eqiora::realization::{
@@ -31,10 +30,20 @@ use eqiora::solver::{
 };
 use eqiora::{Diagnostic, DimExponents, DynQuantity, Id, kinds};
 
+#[path = "support/embedded_package.rs"]
+mod embedded_package;
+
 const DIRECT: &str =
     include_str!("../../../verify/fluid/fieldwise-si-mini-stokes-2d/models/direct.eqi");
 const PACKAGED: &str =
     include_str!("../../../verify/fluid/fieldwise-si-mini-stokes-2d/models/packaged.eqi");
+const COMPONENT_MANIFEST: &[u8] =
+    include_bytes!("../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/package.json");
+const COMPONENT_README: &[u8] =
+    include_bytes!("../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/README.md");
+const COMPONENT_SOURCE: &[u8] = include_bytes!(
+    "../../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi"
+);
 const ROOT_PACKAGE: &str = "org.eqiora.verify.fieldwise_si_mini_stokes_2d";
 const VERSION: &str = "0.1.0";
 
@@ -789,13 +798,17 @@ fn packaged_document() -> PackagedModelDocument {
 }
 
 fn component_release() -> PackageReleaseV1 {
-    let sources = AuthorPackageDirectory::open_ambient(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../verify/fluid/packaged-steady-stokes-2d/package-v0.1.0"),
-    )
-    .expect("open checked-in fluid package")
-    .read_sources()
-    .expect("read exact fluid package sources");
+    let sources = embedded_package::sources(
+        COMPONENT_MANIFEST,
+        &[
+            ("README.md", BundleRoleV1::Documentation, COMPONENT_README),
+            (
+                "src/incompressible.eqi",
+                BundleRoleV1::ModelSource,
+                COMPONENT_SOURCE,
+            ),
+        ],
+    );
     prepare_package_release_v1(sources, &[]).expect("prepare exact fluid release")
 }
 

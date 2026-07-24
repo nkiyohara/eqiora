@@ -26,6 +26,7 @@ multi-file snapshot, or a publishing workflow.
 The Rust seam is deliberately small:
 
 ```rust
+# // Cargo.toml: eqiora = { features = ["package-filesystem"] }
 use eqiora::package::{AuthorPackageDirectory, prepare_package_release_v1};
 
 let sources = AuthorPackageDirectory::open_ambient(package_root)?.read_sources()?;
@@ -34,7 +35,9 @@ let release = prepare_package_release_v1(sources, &exact_dependency_releases)?;
 
 Callers that already hold a sandboxed `cap_std::fs::Dir` use
 `AuthorPackageDirectory::try_from_dir` and do not grant ambient authority to
-the adapter.
+the adapter. All three directory adapters in this document require the
+opt-in `package-filesystem` facade feature; package identity, in-memory release
+preparation, and exact resolution remain available without it.
 
 Exact offline replay is a separate read-only boundary. The caller supplies the
 already selected lock bytes and one explicit local-store capability; the
