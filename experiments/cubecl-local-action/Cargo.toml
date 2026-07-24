@@ -18,6 +18,7 @@ cubecl = { version = "=0.10.0", default-features = false, features = ["std"] }
 eqiora-ir = { path = "../../crates/eqiora-ir" }
 
 [dev-dependencies]
+eqiora-meshing = { path = "../../crates/eqiora-meshing" }
 eqiora-numerics = { path = "../../crates/eqiora-numerics" }
 
 [lints.rust]

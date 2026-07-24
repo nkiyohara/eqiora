@@ -12,6 +12,7 @@ use eqiora_artifact::{
     DecoderLimits, ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts,
     RealizationEnvelopeV1, RunManifestV2,
 };
+use eqiora_assembly::AssemblyReport;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id};
@@ -20,14 +21,14 @@ use eqiora_execution::{
 };
 #[cfg(feature = "threaded")]
 use eqiora_fabric::{CpuThreadPool, RAYON_EXECUTION_PROVIDER};
+use eqiora_meshing::MeshTopology;
 #[cfg(feature = "threaded")]
 use eqiora_numerics::finalize_resolved_scalar_elliptic_cartesian_with_assembly;
 use eqiora_numerics::{
-    AcceptedScalarEllipticParameterPoint, AssemblyReport, CartesianMesh,
-    FinalizedScalarEllipticCartesianProblem, FinalizedScalarEllipticParameterPoint, MeshTopology,
-    ResolvedScalarEllipticCartesianSolution, ScalarEllipticCartesianModel,
-    finalize_resolved_scalar_elliptic_cartesian, finalize_scalar_elliptic_parameter_point,
-    lower_scalar_elliptic_cartesian,
+    AcceptedScalarEllipticParameterPoint, CartesianMesh, FinalizedScalarEllipticCartesianProblem,
+    FinalizedScalarEllipticParameterPoint, ResolvedScalarEllipticCartesianSolution,
+    ScalarEllipticCartesianModel, finalize_resolved_scalar_elliptic_cartesian,
+    finalize_scalar_elliptic_parameter_point, lower_scalar_elliptic_cartesian,
 };
 use eqiora_realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshKind, MeshPolicy,

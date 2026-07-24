@@ -867,6 +867,7 @@ version = "0.0.0"
 dependencies = [
  "cubecl",
  "eqiora-ir",
+ "eqiora-meshing",
  "eqiora-numerics",
 ]
 

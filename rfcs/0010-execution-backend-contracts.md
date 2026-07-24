@@ -61,7 +61,9 @@ eqiora-solver          SolverPlan, operator/backend traits, capability,
                        report, and the deliberately small reference oracle
 eqiora-realization     semantic revision + discretization + solver + target
 eqiora-distributed     global/local layout, halo, collective, loopback oracle
-eqiora-numerics        mesh, assembly, local spatial operators, and lowering
+eqiora-meshing         mesh topology, geometry maps, quadrature, and quality
+eqiora-assembly        local contributions, maps, packets, and sparse algebra
+eqiora-numerics        local spatial operators, realization, and lowering
 eqiora-backend-faer    production host linear-algebra adapter
 eqiora-fabric          run-owned threaded host placement
 eqiora-backend-mpi     MPI transport adapter
