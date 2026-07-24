@@ -92,6 +92,16 @@ after TestPyPI acceptance.
   separate fresh-runner job so full-feature build artifacts cannot consume the
   disk reserved for distribution and numerical evidence. Both jobs are
   required for the Rust surface.
+- Hosted test and registered-evidence steps use Cargo's ordinary `test`
+  profile with debug information disabled, incremental compilation disabled,
+  and optimization level 1 because their target trees are disposable. Debug
+  assertions and overflow checks remain enabled, and no relaxed floating-point
+  mode is used. To reproduce that exact hosted build profile, prefix the
+  corresponding `cargo test` or `eqiora-verify` command with
+  `CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_DEBUG_ASSERTIONS=true
+  CARGO_PROFILE_TEST_INCREMENTAL=false CARGO_PROFILE_TEST_OPT_LEVEL=1
+  CARGO_PROFILE_TEST_OVERFLOW_CHECKS=true`; ordinary local verification keeps
+  Cargo's incremental development defaults.
 - The evidence job validates the complete registry and executes the exact
   `host-cpu` environment. A physical target remains visible as `not-selected`;
   it is never relabeled as a hosted success.
