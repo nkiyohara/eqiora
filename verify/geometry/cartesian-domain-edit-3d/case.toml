@@ -1,6 +1,6 @@
 id = "geometry.cartesian-domain-edit-3d"
 status = "verified"
-scope = "current-v6-one-body-one-axis-topology-preserving-cartesian-edit"
+scope = "current-v6-one-body-two-axis-topology-preserving-cartesian-edit"
 reference_kind = "independently-compiled-target-and-geometry-identity-replay"
 
 capabilities = [
@@ -11,8 +11,8 @@ capabilities = [
 
 [problem]
 base = "one current-v6 Model with one 3D Cartesian body and six oriented boundaries"
-edit = "replace exactly the x-axis interval [-0.5, 0.5] with [-0.6, 0.6]"
-oracle = "separately compiled target fixture and independently evaluated box volume"
+edit = "atomically replace x [-0.5, 0.5] with [-0.6, 0.6] and z [-0.5, 0.5] with [-0.75, 0.75]"
+oracle = "separately compiled target fixture, unchanged y interval, and independently evaluated 1.8 m^3 volume"
 
 [canonical_contract]
 mutation = "ordinary versioned Model transaction over one immutable base revision"
@@ -21,7 +21,12 @@ changed_identity = "exact Model digest and Geometry Identity digest"
 selection_retention = "explicit total one-to-one geometry-revision association"
 
 [falsifiers]
-repeated_preview = "same base and interval reproduce exact plan key, transaction bytes/digest, and child digest; another interval changes them"
+caller_permutation = "axis permutations reproduce equal plans, byte-identical transactions and children, and equal digests"
+partial_application = "x-only child differs from the target fingerprint, z interval, digest, and 1.8 m^3 volume oracle"
+cardinality_one = "one-axis request remains an ordinary one-member instance of the same plan"
+empty_edit_set = "reject before operation construction"
+duplicate_axis = "reject the complete set before operation construction"
+mixed_valid_and_no_op = "reject the complete set without a partial child revision"
 same_revision_foreign_model_digest = "reject before mutation"
 stale_child_revision = "reject before mutation"
 no_op_interval = "reject"
@@ -37,7 +42,8 @@ missing_boundary_of_edge = "edge-only replay fails; a replayable missing-role mu
 current_model_wire_v6 = true
 one_cartesian_body = true
 three_dimensions = true
-one_axis_per_edit = true
+non_empty_axis_keyed_edit_set = true
+two_axes_in_fixture = true
 topology_change = false
 multiple_bodies = false
 source_rewriting = false

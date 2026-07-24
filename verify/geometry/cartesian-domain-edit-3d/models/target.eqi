@@ -1,5 +1,5 @@
 model Main {
-  domain body = box(-0.6, 0.6, -0.5, 0.5, -0.5, 0.5);
+  domain body = box(-0.6, 0.6, -0.5, 0.5, -0.75, 0.75);
   domain x_lower = boundary(body, axis = 0, side = lower);
   domain x_upper = boundary(body, axis = 0, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
