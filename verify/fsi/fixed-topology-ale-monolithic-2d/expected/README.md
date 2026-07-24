@@ -9,8 +9,8 @@ Every accepted step must satisfy:
 
 - independently reassembled nonlinear residual at or below its frozen target;
 - centered verification of every analytic Jacobian column below `1e-3`, with
-  color, globally coupled singleton, and complete residual-assembly counts
-  retained as evidence;
+  color, exactly two globally coupled singleton columns, and complete
+  residual-assembly counts retained as evidence;
 - weak continuity within the residual-scaled acceptance bound;
 - solid kinematic defect below `1e-12`;
 - exact shared interface velocity and fluid-plus-solid action and power

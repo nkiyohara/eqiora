@@ -369,12 +369,21 @@ impl<const D: usize> MiniTransientCell<'_, D> {
             let (previous_velocity, _) =
                 evaluate_velocity(self.previous_velocity, velocity_basis.values(), &gradients);
             let pressure = dot(self.current_pressure, pressure_basis.values());
-            let divergence = trace(&velocity_gradient);
             let measure = point.weight * self.geometry.measure_scale();
+            let primal = MiniPrimalPoint {
+                density: self.density,
+                viscosity: self.viscosity,
+                time_step: self.time_step,
+                velocity: &velocity,
+                previous_velocity: &previous_velocity,
+                velocity_gradient: &velocity_gradient,
+                pressure,
+            };
 
             for pressure_test in 0..p1_basis_count {
                 let row = pressure_offset + pressure_test;
-                residual[row] += measure * (-pressure_basis.values()[pressure_test] * divergence);
+                residual[row] +=
+                    measure * primal.continuity_action(pressure_basis.values()[pressure_test]);
             }
 
             let convection = self.transport.at_primal_point(
@@ -386,15 +395,10 @@ impl<const D: usize> MiniTransientCell<'_, D> {
                 let test = velocity_basis.values()[row_basis];
                 for row_component in 0..D {
                     let row = local_velocity::<D>(row_basis, row_component);
-                    let time = self.density / self.time_step
-                        * test
-                        * (velocity[row_component] - previous_velocity[row_component]);
-                    let viscous = self.viscosity
-                        * symmetric_gradient_test(&velocity_gradient, test_gradient, row_component);
-                    let pressure_action = -pressure * test_gradient[row_component];
                     let convective =
                         convection.action(self.density, test, test_gradient, row_component);
-                    residual[row] += measure * (time + viscous + pressure_action + convective);
+                    residual[row] += measure
+                        * primal.momentum_action(test, test_gradient, row_component, convective);
                 }
             }
         }
@@ -645,14 +649,22 @@ impl<const D: usize> MiniTransientCell<'_, D> {
                 evaluate_velocity(self.previous_velocity, velocity_basis.values(), &gradients);
             let pressure = dot(self.current_pressure, pressure_basis.values());
             let pressure_tangent = dot(direction.current_pressure, pressure_basis.values());
-            let divergence = trace(&velocity_gradient);
             let divergence_tangent = trace(&velocity_gradient_tangent);
             let measure = point.weight * self.geometry.measure_scale();
             let measure_tangent = point.weight * geometry_tangent.measure_scale;
+            let primal = MiniPrimalPoint {
+                density: self.density,
+                viscosity: self.viscosity,
+                time_step: self.time_step,
+                velocity: &velocity,
+                previous_velocity: &previous_velocity,
+                velocity_gradient: &velocity_gradient,
+                pressure,
+            };
 
             for pressure_test in 0..p1_basis_count {
                 let row = pressure_offset + pressure_test;
-                let integrand = -pressure_basis.values()[pressure_test] * divergence;
+                let integrand = primal.continuity_action(pressure_basis.values()[pressure_test]);
                 let integrand_tangent =
                     -pressure_basis.values()[pressure_test] * divergence_tangent;
                 accumulate(
@@ -684,13 +696,8 @@ impl<const D: usize> MiniTransientCell<'_, D> {
 
                 for row_component in 0..D {
                     let row = local_velocity::<D>(row_basis, row_component);
-                    let time = self.density / self.time_step
-                        * test
-                        * (velocity[row_component] - previous_velocity[row_component]);
                     let time_tangent =
                         self.density / self.time_step * test * velocity_tangent[row_component];
-                    let viscous = self.viscosity
-                        * symmetric_gradient_test(&velocity_gradient, test_gradient, row_component);
                     let viscous_tangent = self.viscosity
                         * symmetric_gradient_test_tangent(
                             &velocity_gradient,
@@ -699,7 +706,6 @@ impl<const D: usize> MiniTransientCell<'_, D> {
                             test_gradient_tangent,
                             row_component,
                         );
-                    let pressure_action = -pressure * test_gradient[row_component];
                     let pressure_action_tangent = -pressure_tangent * test_gradient[row_component]
                         - pressure * test_gradient_tangent[row_component];
                     let (convective, convective_tangent) = convection.action(
@@ -714,7 +720,7 @@ impl<const D: usize> MiniTransientCell<'_, D> {
                         &mut jvp[row],
                         measure,
                         measure_tangent,
-                        time + viscous + pressure_action + convective,
+                        primal.momentum_action(test, test_gradient, row_component, convective),
                         time_tangent
                             + viscous_tangent
                             + pressure_action_tangent
@@ -827,6 +833,38 @@ impl<const D: usize> MiniTransientCell<'_, D> {
             )));
         }
         Ok(())
+    }
+}
+
+struct MiniPrimalPoint<'a, const D: usize> {
+    density: f64,
+    viscosity: f64,
+    time_step: f64,
+    velocity: &'a [f64; D],
+    previous_velocity: &'a [f64; D],
+    velocity_gradient: &'a [[f64; D]; D],
+    pressure: f64,
+}
+
+impl<const D: usize> MiniPrimalPoint<'_, D> {
+    fn continuity_action(&self, pressure_test: f64) -> f64 {
+        -pressure_test * trace(self.velocity_gradient)
+    }
+
+    fn momentum_action(
+        &self,
+        test: f64,
+        test_gradient: &[f64],
+        component: usize,
+        convection: f64,
+    ) -> f64 {
+        let time = self.density / self.time_step
+            * test
+            * (self.velocity[component] - self.previous_velocity[component]);
+        let viscous = self.viscosity
+            * symmetric_gradient_test(self.velocity_gradient, test_gradient, component);
+        let pressure = -self.pressure * test_gradient[component];
+        time + viscous + pressure + convection
     }
 }
 

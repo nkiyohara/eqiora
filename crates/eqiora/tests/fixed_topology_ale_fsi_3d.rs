@@ -110,7 +110,7 @@ fn faer_closes_tetrahedral_trajectory_and_first_order_refinement() {
                 step.jacobian_residual_assembly_count(),
                 2 * step.jacobian_color_count()
             );
-            assert!(step.jacobian_global_singleton_count() > 0);
+            assert_eq!(step.jacobian_global_singleton_count(), 3);
             assert!(
                 step.jacobian_residual_assembly_count() < 2 * step.jacobian_audited_column_count()
             );

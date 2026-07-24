@@ -624,7 +624,7 @@ fn assert_consecutive_geometry_and_evidence(
             evidence.jacobian_residual_assembly_count(),
             2 * evidence.jacobian_color_count()
         );
-        assert!(evidence.jacobian_global_singleton_count() > 0);
+        assert_eq!(evidence.jacobian_global_singleton_count(), 2);
         assert!(
             evidence.jacobian_residual_assembly_count()
                 < 2 * evidence.jacobian_audited_column_count()
