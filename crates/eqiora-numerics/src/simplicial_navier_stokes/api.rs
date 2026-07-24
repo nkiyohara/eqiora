@@ -1,15 +1,15 @@
 use std::num::NonZeroUsize;
 
+use eqiora_assembly::AssemblyReport;
 use eqiora_core::Diagnostic;
 use eqiora_realization::Target;
 use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolveReport, SolverPlan};
 
+use super::{invalid, solve_failed};
 use crate::{
-    AssemblyReport, SimplicialMiniStokesPressureReference2d, SimplicialMiniStokesSolution2d,
+    SimplicialMiniStokesPressureReference2d, SimplicialMiniStokesSolution2d,
     SimplicialMiniVelocityField2d, SimplicialP1Field,
 };
-
-use super::{invalid, solve_failed};
 
 /// Complete bounded realization controls for one fixed-domain MINI step.
 ///

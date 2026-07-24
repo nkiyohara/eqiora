@@ -1,8 +1,17 @@
 use std::sync::Arc;
 
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
+    DofId, IndexedAssemblyWork, LinearSystem, LocalContribution, LocalUnknown,
+    REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_ir::LocalLinearActionIr;
+use eqiora_meshing::{
+    AffineGeometryLinearization, AffineGeometryMap, GeometryMap, MeshEntity, MeshGeometry,
+    MeshTopology, QuadratureRule, ReferenceCell,
+};
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearSolution, LinearSolveRequest,
     SolveReport,
@@ -10,12 +19,8 @@ use eqiora_solver::{
 
 use crate::affine_fem::{dot, physical_gradient, weighted_gradient, weighted_gradient_tangent};
 use crate::{
-    AffineGeometryLinearization, AffineGeometryMap, AssembledLinearizedRelation, AssemblyBackend,
-    AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget, CartesianMesh,
-    CartesianScalarFieldLinearization, DiscreteSpace, DofId, GeometryMap, HypercubeQ1Space,
-    IndexedAssemblyWork, LinearSystem, LocalContribution, LocalOperator, LocalUnknown, MeshEntity,
-    MeshGeometry, MeshTopology, QuadratureRule, REFERENCE_ASSEMBLY_BACKEND, ReferenceCell,
-    ScalarEllipticCartesianModel, SpatialDesignCoordinate, TargetAssemblyMap,
+    AssembledLinearizedRelation, CartesianMesh, CartesianScalarFieldLinearization, DiscreteSpace,
+    HypercubeQ1Space, LocalOperator, ScalarEllipticCartesianModel, SpatialDesignCoordinate,
 };
 
 /// Continuous scalar Q1 field on a Cartesian mesh.

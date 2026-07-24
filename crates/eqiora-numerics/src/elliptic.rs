@@ -1,13 +1,14 @@
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan,
+    AssemblyReport, AssemblyTarget, AssemblyTargetId, AssemblyWork, DofId, LocalContribution,
+    LocalUnknown, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_meshing::{CellId, LineMesh, QuadratureRule, ReferenceCell, SegmentGeometry1d};
 use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolveRequest, SolveReport};
 
-use crate::{
-    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan,
-    AssemblyReport, AssemblyTarget, AssemblyTargetId, AssemblyWork, CellId, DofId, LineMesh,
-    LocalContribution, LocalOperator, LocalUnknown, PiecewiseLinearField1d, QuadratureRule,
-    REFERENCE_ASSEMBLY_BACKEND, ReferenceCell, SegmentGeometry1d, TargetAssemblyMap,
-};
+use crate::{LocalOperator, PiecewiseLinearField1d};
 
 /// One endpoint condition for `-d/dx(k du/dx) = f`.
 #[derive(Debug, Clone, Copy, PartialEq)]

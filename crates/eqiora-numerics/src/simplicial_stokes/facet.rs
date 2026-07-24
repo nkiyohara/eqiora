@@ -1,12 +1,10 @@
+use eqiora_assembly::LocalContribution;
 use eqiora_core::Diagnostic;
-
-use crate::{
-    AffineGeometryMap, DiscreteSpace, LocalContribution, LocalOperator, QuadratureRule,
-    SimplexP1Space,
-};
+use eqiora_meshing::{AffineGeometryMap, QuadratureRule};
 
 use super::acceptance::require_facet_geometry;
 use super::{COMPONENTS, FACET_BASIS_COUNT, FACET_LOCAL_DOF_COUNT};
+use crate::{DiscreteSpace, LocalOperator, SimplexP1Space};
 
 /// One constant prescribed-traction action on a P1 boundary trace.
 pub(crate) struct MiniConstantTractionFacet {
@@ -58,7 +56,7 @@ mod tests {
             vec![0.0, 2.0],
         )
         .unwrap();
-        let quadrature = crate::simplex_centroid_rule(1).unwrap();
+        let quadrature = eqiora_meshing::simplex_centroid_rule(1).unwrap();
         let local = MiniConstantTractionFacet {
             traction: [-4.5, 0.0],
         }

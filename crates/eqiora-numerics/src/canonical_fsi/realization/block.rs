@@ -2,12 +2,19 @@
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ValueShape};
+use eqiora_meshing::{MeshTopology, SimplicialMesh};
 use eqiora_realization::{
     AlgebraicBlock, MeshArtifactReference, ResolvedCoupledFieldwiseRealization,
 };
 use eqiora_schema::kernel::ValueFrame;
 use eqiora_solver::LinearOperatorProperties;
 
+use super::super::FixedReferenceFsiCartesianModel2d;
+use super::FixedReferenceFsiScaleProfile2d;
+use super::validate::{
+    fluid_domain, fluid_pressure, fluid_velocity, solid_displacement, solid_domain, solid_velocity,
+    trace_quotient,
+};
 use crate::canonical_boundary::BoundaryRelationBinding2d;
 use crate::discrete_block::{
     AlgebraicClosure, BlockRealizationIdentity, BlockSupport, BlockTransformation,
@@ -16,15 +23,7 @@ use crate::discrete_block::{
     boundary_treatment, conforming_interface_relations,
 };
 use crate::{
-    CartesianBoundaryInventory2d, FixedReferenceFsiPartition2d, MeshTopology,
-    PhysicalBoundaryDisposition, SimplicialMesh,
-};
-
-use super::super::FixedReferenceFsiCartesianModel2d;
-use super::FixedReferenceFsiScaleProfile2d;
-use super::validate::{
-    fluid_domain, fluid_pressure, fluid_velocity, solid_displacement, solid_domain, solid_velocity,
-    trace_quotient,
+    CartesianBoundaryInventory2d, FixedReferenceFsiPartition2d, PhysicalBoundaryDisposition,
 };
 
 const LENGTH: DimExponents = DimExponents {

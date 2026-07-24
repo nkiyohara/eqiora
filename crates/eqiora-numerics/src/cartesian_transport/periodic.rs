@@ -2,11 +2,12 @@ use std::collections::BTreeMap;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
+use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology};
 use eqiora_realization::CellCenteredConvectionScheme;
 
 use super::api::TransportFace2d;
 use super::reconstruction::AffineFaceTrace;
-use crate::{CartesianMesh, MeshEntity, MeshGeometry, MeshTopology};
+use crate::CartesianMesh;
 
 const DIMENSION: usize = 2;
 
@@ -373,7 +374,7 @@ mod tests {
             };
             assert_eq!(
                 advective_trace.terms(),
-                &[(crate::DofId::new(expected_donor), 1.0)]
+                &[(eqiora_assembly::DofId::new(expected_donor), 1.0)]
             );
             assert_eq!(advective_trace.offset(), 0.0);
         }

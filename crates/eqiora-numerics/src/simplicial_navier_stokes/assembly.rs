@@ -1,25 +1,26 @@
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
+    IndexedAssemblyWork, LocalContribution, LocalUnknown, TargetAssemblyMap,
+};
 use eqiora_core::Diagnostic;
+use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh};
 use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 
+use super::api::{MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d};
+use super::element::MiniNavierStokesCell;
+use super::{COMPONENTS, DIMENSION, invalid};
 use crate::simplicial_stokes::boundary::PressureReferenceKind2d;
 use crate::simplicial_stokes::constraint::MiniPressureMeanConstraintCell;
 use crate::simplicial_stokes::facet::MiniConstantTractionFacet;
 use crate::simplicial_stokes::layout::MixedLayout;
 use crate::{
-    AssembledLinearizedRelation, AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan,
-    AssemblyReport, AssemblyTarget, IndexedAssemblyWork, LocalContribution, LocalOperator,
-    LocalUnknown, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh,
-    SimplicialMiniStokesBoundary2d, SimplicialMiniStokesPressureReference2d,
-    SimplicialMiniVelocityField2d, SimplicialP1Field, TargetAssemblyMap,
+    AssembledLinearizedRelation, LocalOperator, SimplicialMiniStokesBoundary2d,
+    SimplicialMiniStokesPressureReference2d, SimplicialMiniVelocityField2d, SimplicialP1Field,
 };
-
-use super::api::{MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d};
-use super::element::MiniNavierStokesCell;
-use super::{COMPONENTS, DIMENSION, invalid};
 
 pub(super) struct StepAssembly {
     pub(super) relation: AssembledLinearizedRelation,
-    pub(super) full_system: crate::LinearSystem,
+    pub(super) full_system: eqiora_assembly::LinearSystem,
     pub(super) residual: Vec<f64>,
     pub(super) full_residual: Vec<f64>,
     pub(super) layout: MixedLayout,
@@ -252,7 +253,7 @@ where
             "direct transient residual assembly produced a non-finite value",
         ));
     }
-    let [linear_system, full_system]: [crate::LinearSystem; 2] =
+    let [linear_system, full_system]: [eqiora_assembly::LinearSystem; 2] =
         systems.try_into().map_err(|systems: Vec<_>| {
             invalid(format!(
                 "two-target transient MINI assembly returned {} systems",

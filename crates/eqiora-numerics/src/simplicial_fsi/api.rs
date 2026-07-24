@@ -2,9 +2,9 @@
 
 use std::sync::Arc;
 
+use eqiora_assembly::AssemblyReport;
+use eqiora_meshing::VertexId;
 use eqiora_solver::{CanonicalCsrSystemView, SolveReport};
-
-use crate::{AssemblyReport, VertexId};
 
 /// Independently recovered fluid and solid actions on one free interface vertex.
 #[derive(Debug, Clone, Copy, PartialEq)]

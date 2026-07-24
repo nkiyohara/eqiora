@@ -1,13 +1,12 @@
+use eqiora_assembly::DofId;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
+use eqiora_meshing::MeshEntity;
 use eqiora_realization::CellCenteredConvectionScheme;
 use eqiora_schema::kernel::BoundarySide;
 
 use super::api::ScalarTransportBoundaryRole;
-use crate::{
-    CartesianMesh, DofId, MeshEntity, ScalarTransportCartesianBoundary,
-    ScalarTransportCartesianModel2d,
-};
+use crate::{CartesianMesh, ScalarTransportCartesianBoundary, ScalarTransportCartesianModel2d};
 
 const DIMENSION: usize = 2;
 

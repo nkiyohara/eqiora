@@ -10,16 +10,16 @@
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{FixedTopologyGeometryAction, FixedTopologyGeometryState};
+use eqiora_meshing::{MeshTopology, SimplicialMesh};
 use eqiora_realization::{NonlinearSolvePlan, Target};
 use eqiora_solver::{LinearOperatorProperties, LinearSolver, SolverPlan};
 
+use super::{P1HarmonicMeshMotion, invalid};
 use crate::{
     FixedReferenceFsiBoundary, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,
     FixedReferenceFsiPartition, FixedReferenceFsiScale, FixedReferenceFsiState,
-    FixedReferenceFsiStepConfig, MeshTopology, SimplicialMesh,
+    FixedReferenceFsiStepConfig,
 };
-
-use super::{P1HarmonicMeshMotion, invalid};
 
 /// Homogeneous physical-velocity boundary used by the bounded ALE slice.
 ///
@@ -436,18 +436,19 @@ fn invalid_realization(message: impl Into<String>) -> Diagnostic {
 mod tests {
     use std::num::NonZeroUsize;
 
+    use eqiora_meshing::{
+        CellId, FacetId, FixedTopologyGeometryState2d, MeshEntity, MeshQualityGate, MeshTopology,
+    };
     use eqiora_solver::{
         LinearSolveRequest, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
     };
 
-    use crate::{
-        CellId, FacetId, FixedReferenceFsiBoundary2d, FixedReferenceFsiLoad2d,
-        FixedReferenceFsiMaterial2d, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
-        FixedReferenceFsiScale2d, FixedTopologyGeometryState2d, MeshEntity, MeshQualityGate,
-        MeshTopology, P1HarmonicMeshMotion2d, P1HarmonicMeshMotion3d,
-    };
-
     use super::*;
+    use crate::{
+        FixedReferenceFsiBoundary2d, FixedReferenceFsiLoad2d, FixedReferenceFsiMaterial2d,
+        FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d, FixedReferenceFsiScale2d,
+        P1HarmonicMeshMotion2d, P1HarmonicMeshMotion3d,
+    };
 
     const COMPONENTS: usize = 2;
 

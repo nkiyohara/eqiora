@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use eqiora_assembly::CsrMatrix;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_ir::{LinearizedRelation, RelationCotangent, RelationTangent};
@@ -10,7 +11,7 @@ use eqiora_solver::{
     TransposeLinearOperator,
 };
 
-use crate::{CsrMatrix, SpatialDesignCoordinate};
+use crate::SpatialDesignCoordinate;
 
 /// One accepted-point relation `A w - b = 0` with dense design actions.
 ///

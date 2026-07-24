@@ -5,11 +5,11 @@
 //! energy-equality claim: moving-volume energetics require a separate theorem
 //! and acceptance contract.
 
+use eqiora_assembly::AssemblyReport;
 use eqiora_core::Diagnostic;
 use eqiora_meshing::FixedTopologyGeometryAction;
+use eqiora_meshing::VertexId;
 use eqiora_solver::{ExecutionTopology, SolveReport};
-
-use crate::{AssemblyReport, VertexId};
 
 use super::{AleFsiState, AleFsiStepPlan, invalid};
 
@@ -626,6 +626,10 @@ fn serial_host(topology: ExecutionTopology) -> bool {
 mod tests {
     use std::num::NonZeroUsize;
 
+    use eqiora_assembly::{AssemblyPlan, AssemblyResult, AssemblyTarget, CsrMatrix, LinearSystem};
+    use eqiora_meshing::{
+        CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh,
+    };
     use eqiora_realization::{NonlinearSolvePlan, Target};
     use eqiora_solver::{
         BackendId, ConvergenceReason, ExecutionReport, LinearOperatorOrientation,
@@ -633,19 +637,16 @@ mod tests {
         ReductionPolicy, SERIAL_EXECUTION_PROVIDER, SolverPlan, SolverProvider,
     };
 
-    use crate::{
-        AssemblyPlan, AssemblyResult, AssemblyTarget, CellId, CsrMatrix, FacetId,
-        FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial2d,
-        FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
-        FixedReferenceFsiScale2d, FixedReferenceFsiScale3d, LinearSystem, MeshEntity,
-        MeshQualityGate, MeshTopology, SimplicialMesh,
-    };
-
     use super::super::{
         AleFsiState2d, AleFsiState3d, AleFsiStepPlan2d, AleFsiStepPlan3d, P1HarmonicMeshMotion2d,
         P1HarmonicMeshMotion3d,
     };
     use super::*;
+    use crate::{
+        FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial2d,
+        FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
+        FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,
+    };
 
     const COMPONENTS: usize = 2;
     const COMPONENTS_3D: usize = 3;

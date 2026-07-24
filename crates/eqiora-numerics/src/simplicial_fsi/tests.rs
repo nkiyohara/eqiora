@@ -2,17 +2,19 @@
 
 use std::num::NonZeroUsize;
 
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyResult, AssemblyTarget,
+    DofId, IndexedAssemblyWork, LocalContribution, LocalUnknown, REFERENCE_ASSEMBLY_BACKEND,
+    TargetAssemblyMap,
+};
 use eqiora_core::{Diagnostic, diagnostic::codes};
+use eqiora_meshing::{
+    CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology, QuadratureRule, SimplicialMesh,
+    VertexId, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
+};
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
     PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan,
-};
-
-use crate::{
-    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyResult, AssemblyTarget,
-    CellId, DofId, FacetId, IndexedAssemblyWork, LocalContribution, LocalUnknown, MeshEntity,
-    MeshQualityGate, MeshTopology, QuadratureRule, REFERENCE_ASSEMBLY_BACKEND, SimplicialMesh,
-    TargetAssemblyMap, VertexId, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
 };
 
 use super::*;
@@ -394,7 +396,7 @@ impl AssemblyBackend for WrongShapeAssemblyBackend {
     fn assemble(
         &self,
         _plan: &AssemblyPlan,
-        original_work: &dyn crate::AssemblyWork,
+        original_work: &dyn eqiora_assembly::AssemblyWork,
     ) -> Result<AssemblyResult, Diagnostic> {
         let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1)?, AssemblyTarget::new(1)?])?;
         let reduced = plan

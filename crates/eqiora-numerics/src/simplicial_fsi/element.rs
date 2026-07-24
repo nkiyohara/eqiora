@@ -1,18 +1,17 @@
 //! Dimensionless MINI-fluid and P1-solid local operators.
 
+use eqiora_assembly::LocalContribution;
 use eqiora_core::Diagnostic;
-
-use crate::affine_fem::physical_gradient;
-use crate::simplicial_mini_transient::{MiniAffineScales, MiniScaledAffineCell};
-use crate::{
-    AffineGeometryMap, DiscreteSpace, LocalContribution, MeshEntity, QuadratureRule, SimplexP1Space,
-};
+use eqiora_meshing::{AffineGeometryMap, MeshEntity, QuadratureRule};
 
 use super::contract::{
     FixedReferenceFsiMaterial, FixedReferenceFsiState, FixedReferenceFsiStepConfig,
     require_local_geometry_dimension,
 };
 use super::{fluid_local_size, p1_count, solid_local_size};
+use crate::affine_fem::physical_gradient;
+use crate::simplicial_mini_transient::{MiniAffineScales, MiniScaledAffineCell};
+use crate::{DiscreteSpace, SimplexP1Space};
 
 pub(crate) fn fluid_local<const D: usize>(
     geometry: &AffineGeometryMap,
@@ -171,7 +170,7 @@ fn require_geometry<const D: usize>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
+    use eqiora_meshing::{
         CellId, FacetId, MeshEntity, MeshGeometry, MeshQualityGate, MeshTopology, SimplicialMesh,
         simplex_duffy_gauss_legendre,
     };
@@ -314,7 +313,7 @@ mod tests {
         boundary: FixedReferenceFsiBoundary3d,
         previous: FixedReferenceFsiState3d,
         config: FixedReferenceFsiStepConfig3d,
-        quadrature: crate::QuadratureRule,
+        quadrature: eqiora_meshing::QuadratureRule,
     }
 
     fn fixture() -> Fixture {
@@ -380,7 +379,7 @@ mod tests {
     fn local_geometry(
         mesh: &SimplicialMesh,
         cell: usize,
-    ) -> (crate::AffineGeometryMap, Vec<MeshEntity>) {
+    ) -> (eqiora_meshing::AffineGeometryMap, Vec<MeshEntity>) {
         let entity = MeshEntity::new(3, cell);
         (
             mesh.geometry_map(entity).unwrap(),

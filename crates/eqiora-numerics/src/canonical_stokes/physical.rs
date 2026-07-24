@@ -1,18 +1,18 @@
+use eqiora_assembly::AssemblyReport;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
+use eqiora_meshing::SimplicialMesh;
 use eqiora_realization::VectorLayoutKind;
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearProblem, LinearSolution, SolverPlan,
 };
 
-use crate::{
-    AssemblyReport, FinalizedSimplicialMiniStokes2dProblem, SimplicialMesh,
-    SimplicialMiniStokesPressureReference2d, SimplicialMiniStokesSolution2d,
-    SimplicialMiniVelocityField2d, SimplicialP1Field,
-};
-
 use super::SteadyStokesScaleProfile2d;
+use crate::{
+    FinalizedSimplicialMiniStokes2dProblem, SimplicialMiniStokesPressureReference2d,
+    SimplicialMiniStokesSolution2d, SimplicialMiniVelocityField2d, SimplicialP1Field,
+};
 
 /// Finalized dimensionless MINI algebra plus opaque coherent-SI reconstruction.
 ///

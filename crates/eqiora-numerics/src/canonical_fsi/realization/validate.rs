@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
+use eqiora_meshing::{CellId, MeshEntity, MeshTopology, SimplicialMesh};
 use eqiora_realization::{
     AlgebraicBlock, BackwardEulerStatePair, ConformingTraceQuotient, MeshArtifactReference,
     PortableRealizationGraph, PreconditionerPolicy, ResolvedCoupledFieldwiseRealization, SolveRoot,
@@ -13,17 +14,13 @@ use eqiora_realization::{
 use eqiora_schema::kernel::BoundarySide;
 use eqiora_solver::{LinearSolver, SolverPlan};
 
-use crate::{
-    CellId, FixedReferenceFsiPartition2d, MeshEntity, MeshTopology, PhysicalBoundaryDisposition,
-    SimplicialMesh,
-};
-
 use super::super::{FixedReferenceFsiCartesianModel2d, FixedReferenceFsiInterfaceSide2d};
 use super::result::FixedReferenceFsiFieldIdentities2d;
 use super::{
     DIMENSION, FixedReferenceFsiExecutionProfile, FixedReferenceFsiScaleProfile2d,
     fixed_reference_fsi_plan_2d_for_profile, fixed_reference_fsi_requirements_2d_for_layout,
 };
+use crate::{FixedReferenceFsiPartition2d, PhysicalBoundaryDisposition};
 
 pub(super) fn require_exact_plan(
     model: &FixedReferenceFsiCartesianModel2d,

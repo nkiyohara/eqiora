@@ -1,15 +1,15 @@
+use eqiora_assembly::LocalContribution;
 use eqiora_core::Diagnostic;
-
-use crate::affine_fem::{dot, physical_gradient};
-use crate::{
-    AffineGeometryMap, DiscreteSpace, GeometryMap, LocalContribution, LocalOperator,
-    QuadratureRule, SimplexP1BubbleSpace, SimplexP1Space, SimplicialP1Field,
-};
+use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 
 use super::acceptance::require_local_geometry;
 use super::{
     CELL_LOCAL_DOF_COUNT, COMPONENTS, DIMENSION, LOCAL_PRESSURE_OFFSET, P1_BASIS_COUNT,
     SimplicialMiniVelocityField2d, VELOCITY_BASIS_COUNT, invalid,
+};
+use crate::affine_fem::{dot, physical_gradient};
+use crate::{
+    DiscreteSpace, LocalOperator, SimplexP1BubbleSpace, SimplexP1Space, SimplicialP1Field,
 };
 
 pub(super) struct MiniStokesCell<'a, F> {
@@ -136,7 +136,7 @@ pub(super) fn evaluate_fields(
     velocity: &SimplicialMiniVelocityField2d,
     pressure: &SimplicialP1Field,
     cell: usize,
-    vertices: &[crate::MeshEntity],
+    vertices: &[eqiora_meshing::MeshEntity],
     basis: &[f64; VELOCITY_BASIS_COUNT],
     pressure_basis: &[f64; P1_BASIS_COUNT],
     gradients: &[[f64; DIMENSION]; VELOCITY_BASIS_COUNT],
@@ -205,7 +205,7 @@ mod tests {
             vec![1.0, 0.0, 0.0, 1.0],
         )
         .unwrap();
-        let quadrature = crate::triangle_duffy_gauss_legendre(3).unwrap();
+        let quadrature = eqiora_meshing::triangle_duffy_gauss_legendre(3).unwrap();
         let zero_force = |_| Ok([0.0, 0.0]);
         let local = MiniStokesCell {
             viscosity: 2.0,

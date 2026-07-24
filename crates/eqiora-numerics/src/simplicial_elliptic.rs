@@ -1,18 +1,23 @@
 //! P1 scalar elliptic realization on fixed-connectivity affine simplex meshes.
 
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
+    DofId, IndexedAssemblyWork, LinearSystem, LocalContribution, LocalUnknown,
+    REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_ir::ScalarObjectiveLinearization;
+use eqiora_meshing::{
+    AffineGeometryLinearization, AffineGeometryMap, GeometryMap, MeshEntity, MeshGeometry,
+    MeshTopology, QuadratureRule, SimplicialMesh,
+};
 use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolveRequest, SolveReport};
 
 use crate::affine_fem::{dot, physical_gradient, weighted_gradient, weighted_gradient_tangent};
 use crate::{
-    AffineGeometryLinearization, AffineGeometryMap, AssembledLinearizedRelation, AssemblyBackend,
-    AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget, DiscreteSpace,
-    DofId, GeometryMap, IndexedAssemblyWork, LinearSystem, LocalContribution, LocalOperator,
-    LocalUnknown, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule,
-    REFERENCE_ASSEMBLY_BACKEND, ScalarEllipticCartesianModel, SimplexP1Space, SimplicialMesh,
-    SimplicialMeshVelocity, SpatialDesignCoordinate, TargetAssemblyMap,
+    AssembledLinearizedRelation, DiscreteSpace, LocalOperator, ScalarEllipticCartesianModel,
+    SimplexP1Space, SimplicialMeshVelocity, SpatialDesignCoordinate,
 };
 
 /// Continuous scalar P1 field on an affine simplex mesh.
@@ -713,7 +718,7 @@ fn validate_problem(
             "simplicial FEM requires matching full dimension and a positive coefficient",
         ));
     }
-    let expected = crate::ReferenceCell::simplex(mesh.topological_dimension())?;
+    let expected = eqiora_meshing::ReferenceCell::simplex(mesh.topological_dimension())?;
     if quadrature.reference_cell() != expected {
         return Err(invalid(
             "simplicial FEM quadrature does not match the cell reference simplex",

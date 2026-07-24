@@ -9,7 +9,12 @@
 
 use std::sync::Arc;
 
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
+    DofId, IndexedAssemblyWork, LocalUnknown, TargetAssemblyMap,
+};
 use eqiora_core::Diagnostic;
+use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule};
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearSolution, SolveReport,
 };
@@ -18,11 +23,7 @@ use super::{
     COMPONENTS, CartesianElasticityCell, CartesianEssentialSides2d, CartesianQ1VectorField2d,
     DIMENSION, global_dof, invalid, validate_problem,
 };
-use crate::{
-    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
-    CartesianMesh, DofId, IndexedAssemblyWork, LocalOperator, LocalUnknown, MeshEntity,
-    MeshGeometry, MeshTopology, QuadratureRule, ScalarSpatialExpression, TargetAssemblyMap,
-};
+use crate::{CartesianMesh, LocalOperator, ScalarSpatialExpression};
 
 /// Exact topological quotient between two conforming Cartesian interface meshes.
 ///
@@ -213,9 +214,9 @@ pub(crate) struct FinalizedConformingCartesianElasticityPair2dAssembly {
     meshes: [CartesianMesh; 2],
     interface_map: ConformingCartesianInterfaceMap2d,
     free_indices: Vec<Option<DofId>>,
-    linear_system: crate::LinearSystem,
-    full_system: crate::LinearSystem,
-    subdomain_systems: [crate::LinearSystem; 2],
+    linear_system: eqiora_assembly::LinearSystem,
+    full_system: eqiora_assembly::LinearSystem,
+    subdomain_systems: [eqiora_assembly::LinearSystem; 2],
     integrated_body_force: [[f64; COMPONENTS]; 2],
     assembly_report: AssemblyReport,
 }
@@ -264,8 +265,8 @@ pub(crate) struct FinalizedConformingCartesianElasticityPair2dState {
     meshes: [CartesianMesh; 2],
     interface_map: ConformingCartesianInterfaceMap2d,
     free_indices: Vec<Option<DofId>>,
-    full_system: crate::LinearSystem,
-    subdomain_systems: [crate::LinearSystem; 2],
+    full_system: eqiora_assembly::LinearSystem,
+    subdomain_systems: [eqiora_assembly::LinearSystem; 2],
     integrated_body_force: [[f64; COMPONENTS]; 2],
     assembly_report: AssemblyReport,
 }
@@ -525,7 +526,7 @@ pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
         )
     });
     let (systems, assembly_report) = assembly.assemble(&plan, &work)?.into_parts();
-    let [linear_system, full_system, negative_system, positive_system]: [crate::LinearSystem; 4] =
+    let [linear_system, full_system, negative_system, positive_system]: [eqiora_assembly::LinearSystem; 4] =
         systems.try_into().map_err(|systems: Vec<_>| {
             invalid(format!(
                 "conforming elasticity assembly returned {} targets instead of four",

@@ -1,3 +1,4 @@
+use eqiora_assembly::AssemblyReport;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, OntologyId};
 use eqiora_realization::{
@@ -7,10 +8,9 @@ use eqiora_realization::{
 use eqiora_schema::Model;
 use eqiora_solver::{LinearProblem, LinearSolution, SolveReport, SolverPlan};
 
-use crate::finalized_spatial::FinalizedLinearCore;
-use crate::{AssemblyReport, CartesianMesh};
-
 use super::reconstruction::AffineFaceTrace;
+use crate::CartesianMesh;
+use crate::finalized_spatial::FinalizedLinearCore;
 
 /// Physical role derived from canonical boundary meaning and outward velocity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

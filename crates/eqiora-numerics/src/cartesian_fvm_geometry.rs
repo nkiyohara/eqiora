@@ -1,8 +1,9 @@
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
+use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology};
 use eqiora_schema::kernel::BoundarySide;
 
-use crate::{CartesianMesh, MeshEntity, MeshGeometry, MeshTopology};
+use crate::CartesianMesh;
 
 const DIMENSION: usize = 2;
 

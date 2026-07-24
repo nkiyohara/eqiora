@@ -1,14 +1,14 @@
+use eqiora_assembly::AssemblyReport;
 use eqiora_core::Diagnostic;
 use eqiora_realization::{Target, VectorLayoutKind};
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearProblem, LinearSolution, SolverPlan,
 };
 
+use super::FinalizedLinearCore;
+use crate::SimplicialMiniStokesSolution2d;
 use crate::discrete_block::DiscreteBlockSystem;
 use crate::simplicial_stokes::{FinalizedMiniStokesAssembly, FinalizedMiniStokesState};
-use crate::{AssemblyReport, SimplicialMiniStokesSolution2d};
-
-use super::FinalizedLinearCore;
 
 /// Finalized algebraic handoff for one resolved simplicial MINI Stokes problem.
 ///

@@ -3,8 +3,7 @@
 use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
-
-use crate::{
+use eqiora_meshing::{
     AffineGeometryMap, GeometryMap, MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh,
     VertexId,
 };
@@ -418,7 +417,7 @@ pub(crate) fn validate_problem<const D: usize>(
         ));
     }
     let required_exactness = required_quadrature_exactness::<D>();
-    if quadrature.reference_cell() != crate::ReferenceCell::simplex(D)?
+    if quadrature.reference_cell() != eqiora_meshing::ReferenceCell::simplex(D)?
         || quadrature.polynomial_exactness().unwrap_or(0) < required_exactness
     {
         return Err(invalid(format!(

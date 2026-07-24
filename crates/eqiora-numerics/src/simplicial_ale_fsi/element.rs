@@ -7,11 +7,11 @@
 
 use eqiora_core::Diagnostic;
 use eqiora_meshing::FixedTopologyCellGeometryAction;
+use eqiora_meshing::{AffineGeometryLinearization, QuadratureRule};
 
 use crate::simplicial_mini_transient::{
     MiniGeometryDirection, MiniTransientCell, MiniTransientDirection, MiniTransport,
 };
-use crate::{AffineGeometryLinearization, QuadratureRule};
 
 #[cfg(test)]
 const DIMENSION: usize = 2;
@@ -105,13 +105,14 @@ pub(super) const fn local_velocity(basis: usize, component: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        DiscreteSpace, FixedTopologyGeometryAction2d, FixedTopologyGeometryState2d,
-        MeshQualityGate, SimplexP1BubbleSpace, SimplicialMesh, SimplicialMiniVelocityField2d,
-        simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
+    use eqiora_meshing::{
+        FixedTopologyGeometryAction2d, FixedTopologyGeometryState2d, MeshQualityGate,
+        SimplicialMesh, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
     };
     use eqiora_meshing::{FixedTopologyGeometryAction3d, FixedTopologyGeometryState3d};
+
+    use super::*;
+    use crate::{DiscreteSpace, SimplexP1BubbleSpace, SimplicialMiniVelocityField2d};
 
     const STEP: f64 = 0.2;
 
@@ -360,7 +361,7 @@ mod tests {
         .unwrap();
         let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
         let vertices = mesh
-            .entity_vertices(crate::MeshEntity::new(DIMENSION, 0))
+            .entity_vertices(eqiora_meshing::MeshEntity::new(DIMENSION, 0))
             .unwrap();
         let fixed = crate::simplicial_navier_stokes::element::MiniNavierStokesCell {
             cell: 0,

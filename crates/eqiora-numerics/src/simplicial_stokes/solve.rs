@@ -1,12 +1,13 @@
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyPacket, AssemblyPlan, AssemblyTarget, IndexedAssemblyWork,
+    LinearSystem, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+};
 use eqiora_core::Diagnostic;
+use eqiora_meshing::{
+    MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh, simplex_centroid_rule,
+};
 use eqiora_realization::{Target, VectorLayoutKind};
 use eqiora_solver::{LinearSolveRequest, SolverPlan};
-
-use crate::{
-    AssemblyBackend, AssemblyPacket, AssemblyPlan, AssemblyTarget, IndexedAssemblyWork,
-    LinearSystem, LocalOperator, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule,
-    REFERENCE_ASSEMBLY_BACKEND, SimplicialMesh, TargetAssemblyMap, simplex_centroid_rule,
-};
 
 use super::acceptance::{integrate_body_force, require_compatible_boundary_flux, validate_problem};
 use super::api::SimplicialMiniStokesSolution2d;
@@ -18,6 +19,7 @@ use super::finalized::FinalizedMiniStokesAssembly;
 use super::layout::MixedLayout;
 use super::{COMPONENTS, DIMENSION, invalid};
 use crate::FinalizedSimplicialMiniStokes2dProblem;
+use crate::LocalOperator;
 
 /// Finalize one complete-essential numerical MINI Stokes problem.
 ///
@@ -442,6 +444,7 @@ where
 mod tests {
     use std::num::NonZeroUsize;
 
+    use eqiora_meshing::{MeshQualityGate, triangle_duffy_gauss_legendre};
     use eqiora_solver::{
         LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
         ReductionPolicy, SolverPlan,
@@ -452,7 +455,6 @@ mod tests {
         SimplicialMiniStokesPressureReference2d,
     };
     use super::*;
-    use crate::{MeshQualityGate, triangle_duffy_gauss_legendre};
 
     #[test]
     fn mixed_static_pressure_has_no_gauge_and_retains_three_action_targets() {

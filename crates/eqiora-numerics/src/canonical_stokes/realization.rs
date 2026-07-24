@@ -1,8 +1,12 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
+use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
+use eqiora_meshing::{
+    MeshEntity, MeshTopology, SimplicialMesh, simplex_centroid_rule, triangle_duffy_gauss_legendre,
+};
 use eqiora_realization::{
     AlgebraicBlock, AlgebraicBlockScale, AlgebraicConstraint, Discretization, DiscretizationMethod,
     ExecutionSchedule, FieldSpaceBinding, FieldwiseRealizationPlan,
@@ -16,17 +20,14 @@ use eqiora_schema::kernel::BoundarySide;
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearOperatorProperties, LinearSolver, LinearSolverBackend, SolverPlan};
 
-use crate::{
-    AssemblyBackend, MeshEntity, MeshTopology, PhysicalBoundaryDisposition,
-    REFERENCE_ASSEMBLY_BACKEND, SimplicialMesh, SimplicialMiniStokesBoundary2d,
-    SimplicialMiniStokesBoundaryCondition2d, SimplicialMiniStokesBoundaryFacet2d,
-    finalize_simplicial_mini_stokes_2d_with_boundary_and_assembly, simplex_centroid_rule,
-    triangle_duffy_gauss_legendre,
-};
-
 use super::{
     FinalizedSteadyStokesMini2dProblem, SteadyIncompressibleStokesCartesianModel2d,
     SteadyStokesMiniSolution2d, lower_steady_incompressible_stokes_cartesian_2d,
+};
+use crate::{
+    PhysicalBoundaryDisposition, SimplicialMiniStokesBoundary2d,
+    SimplicialMiniStokesBoundaryCondition2d, SimplicialMiniStokesBoundaryFacet2d,
+    finalize_simplicial_mini_stokes_2d_with_boundary_and_assembly,
 };
 
 const DIMENSION: usize = 2;

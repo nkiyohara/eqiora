@@ -1,9 +1,5 @@
-use crate::simplicial_stokes::acceptance::{
-    integrate_pressure, require_weak_incompressibility, require_zero_gauge_multiplier,
-};
-use crate::simplicial_stokes::element::{MiniSpaces, physical_gradients};
-use crate::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh};
 use eqiora_core::Diagnostic;
+use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh};
 
 use super::api::{
     MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d,
@@ -14,6 +10,10 @@ use super::element::{
     evaluate_velocity, integrate_convective_evidence, local_velocity_coefficients,
 };
 use super::{invalid, solve_failed};
+use crate::simplicial_stokes::acceptance::{
+    integrate_pressure, require_weak_incompressibility, require_zero_gauge_multiplier,
+};
+use crate::simplicial_stokes::element::{MiniSpaces, physical_gradients};
 
 pub(super) struct NewtonEvidence {
     pub(super) iterations: usize,

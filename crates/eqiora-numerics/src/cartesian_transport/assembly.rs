@@ -1,8 +1,14 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyTarget, DofId,
+    IndexedAssemblyWork, LocalContribution, LocalUnknown, REFERENCE_ASSEMBLY_BACKEND,
+    TargetAssemblyMap,
+};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DynQuantity, GraphPath};
+use eqiora_meshing::MeshTopology;
 use eqiora_realization::{
     CellCenteredConvectionScheme, ResolvedTransientCellCenteredTransportRealization,
 };
@@ -23,12 +29,7 @@ use super::replay::{
     replay_interior_cancellation, replay_physical_residual, require_complete_operator,
 };
 use crate::finalized_spatial::FinalizedLinearCore;
-use crate::{
-    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyTarget, CartesianMesh,
-    DofId, IndexedAssemblyWork, LocalContribution, LocalUnknown, MeshTopology,
-    REFERENCE_ASSEMBLY_BACKEND, ScalarTransportCartesianModel2d, TargetAssemblyMap,
-    lower_scalar_transport_cartesian_2d,
-};
+use crate::{CartesianMesh, ScalarTransportCartesianModel2d, lower_scalar_transport_cartesian_2d};
 
 const DIMENSION: usize = 2;
 

@@ -7,6 +7,7 @@ use eqiora_execution::{
     AcceptedLinearExecution, AdmittedExecution, DeploymentBinding, ExecutionReceipt,
 };
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
+use eqiora_meshing::{CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology};
 use eqiora_realization::{
     CoupledFieldwiseRealizationPlan, CoupledFieldwiseRealizationRequest,
     CoupledFieldwiseSpatialDiscretization, Discretization, DiscretizationMethod,
@@ -26,7 +27,6 @@ use eqiora_spatial_distribution::{
 };
 
 use super::*;
-use crate::{CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology};
 
 const SOURCE: &str =
     include_str!("../../../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi");

@@ -6,24 +6,25 @@
 //! the sealed harmonic action derives the latter.  Every Jacobian column
 //! follows that same composition analytically.
 
+use eqiora_assembly::{
+    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
+    DofId, IndexedAssemblyWork, LocalContribution, LocalUnknown, TargetAssemblyMap,
+};
 use eqiora_core::Diagnostic;
 use eqiora_meshing::FixedTopologyGeometryAction;
+use eqiora_meshing::{
+    AffineGeometryLinearization, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule,
+    SimplicialMesh,
+};
 use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
-
-use crate::simplicial_fsi::{
-    element::solid_local, layout::FsiLayout, partition::CellMaterial, validate_problem,
-};
-use crate::{
-    AffineGeometryLinearization, AssembledLinearizedRelation, AssemblyBackend, AssemblyMap,
-    AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget, DofId,
-    FixedReferenceFsiPartition, FixedReferenceFsiState, IndexedAssemblyWork, LocalContribution,
-    LocalUnknown, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh,
-    TargetAssemblyMap,
-};
 
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
 use super::element::{AleMiniFluidCell, AleMiniFluidDirection};
 use super::{P1HarmonicMeshMotion, invalid};
+use crate::simplicial_fsi::{
+    element::solid_local, layout::FsiLayout, partition::CellMaterial, validate_problem,
+};
+use crate::{AssembledLinearizedRelation, FixedReferenceFsiPartition, FixedReferenceFsiState};
 
 /// One assembled Newton point and the independently evaluated physical split.
 pub(super) struct StepAssembly<const D: usize> {
@@ -164,7 +165,7 @@ pub(super) fn assemble_step_linearization<const D: usize>(
         reference, partition, previous, candidate, plan, quadrature, &prepared,
     )?;
 
-    let [linear_system]: [crate::LinearSystem; 1] =
+    let [linear_system]: [eqiora_assembly::LinearSystem; 1] =
         systems.try_into().map_err(|systems: Vec<_>| {
             invalid(format!(
                 "one-target ALE FSI assembly returned {} systems",
@@ -380,7 +381,7 @@ fn evaluate_cell<const D: usize>(
     candidate: &[f64],
     directions: &[AlgebraicDirection<D>],
     layout: &FsiLayout<D>,
-    reduced_target: crate::AssemblyTargetId,
+    reduced_target: eqiora_assembly::AssemblyTargetId,
 ) -> Result<EvaluatedCell, Diagnostic> {
     let evaluated = evaluate_cell_residual(
         cell_index,
@@ -1146,23 +1147,26 @@ fn zeroed(length: usize, name: &'static str) -> Result<Vec<f64>, Diagnostic> {
 mod tests {
     use std::num::NonZeroUsize;
 
+    use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
     use eqiora_ir::{LinearizedRelation, RelationTangent};
+    use eqiora_meshing::{
+        CellId, FacetId, MeshQualityGate, simplex_duffy_gauss_legendre,
+        triangle_duffy_gauss_legendre,
+    };
     use eqiora_realization::{NonlinearSolvePlan, Target};
     use eqiora_solver::{
         LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
         ReductionPolicy, SolverPlan,
     };
 
+    use super::*;
     use crate::{
         AleFsiBoundary2d, AleFsiBoundary3d, AleFsiState2d, AleFsiState3d, AleFsiStepPlan2d,
-        AleFsiStepPlan3d, CellId, FacetId, FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d,
+        AleFsiStepPlan3d, FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d,
         FixedReferenceFsiMaterial2d, FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition2d,
         FixedReferenceFsiPartition3d, FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,
-        MeshQualityGate, P1HarmonicMeshMotion2d, P1HarmonicMeshMotion3d,
-        REFERENCE_ASSEMBLY_BACKEND, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
+        P1HarmonicMeshMotion2d, P1HarmonicMeshMotion3d,
     };
-
-    use super::*;
 
     const COMPONENTS: usize = 2;
 

@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use eqiora_assembly::{AssemblyReport, LinearSystem};
 use eqiora_core::Diagnostic;
+use eqiora_meshing::{QuadratureRule, SimplicialMesh};
 use eqiora_solver::{CanonicalCsrSystemView, LinearSolution};
-
-use crate::{AssemblyReport, LinearSystem, QuadratureRule, SimplicialMesh, SimplicialP1Field};
 
 use super::acceptance::{
     integrate_pressure, require_weak_incompressibility, require_zero_gauge_multiplier,
@@ -14,6 +14,7 @@ use super::api::{
 };
 use super::layout::MixedLayout;
 use super::{COMPONENTS, invalid};
+use crate::SimplicialP1Field;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FinalizedMiniStokesAssembly {

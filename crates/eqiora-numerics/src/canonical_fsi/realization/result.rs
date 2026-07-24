@@ -1,11 +1,13 @@
 //! Typed in-memory reconstruction over the sole finalized FSI operator.
 
+use eqiora_assembly::AssemblyReport;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id, OntologyId};
 use eqiora_distributed::DistributedLinearSystem;
 use eqiora_execution::{
     AcceptedLinearExecution, AdmittedExecution, DeploymentBinding, ExecutionReceipt,
 };
+use eqiora_meshing::{CellId, FacetId, VertexId};
 use eqiora_realization::{
     CoupledFieldwiseRealizationPlan, MeshArtifactReference, PortableRealizationGraph,
     RealizationRevision, SemanticRevision, SolveRoot, Target, VectorLayoutKind,
@@ -21,8 +23,7 @@ use crate::discrete_block::DiscreteBlockSystem;
 use crate::finalized_spatial::FinalizedLinearCore;
 use crate::simplicial_fsi::FixedReferenceFsiAssemblyTargetRoles2d;
 use crate::{
-    AssemblyReport, CellId, FacetId, FinalizedFixedReferenceFsiStep2d,
-    FixedReferenceFsiPartition2d, FixedReferenceFsiSolution2d, VertexId,
+    FinalizedFixedReferenceFsiStep2d, FixedReferenceFsiPartition2d, FixedReferenceFsiSolution2d,
 };
 
 /// Exact semantic Field roles retained across numerical execution.
