@@ -11,7 +11,7 @@ use super::api::{
 };
 use super::assembly::assemble_step_linearization;
 use super::{COMPONENTS, DIMENSION, solve_failed};
-use crate::assembled_linearization::centered_state_jvp_error;
+use crate::jacobian_audit::{CenteredJacobianAuditEvidence, audit_centered_jacobian};
 use crate::{NonZeroStepCount, SimplicialMiniStokesBoundary2d};
 
 /// Advance a fixed mesh through one or more accepted implicit steps with the
@@ -140,7 +140,7 @@ where
     let initial_residual_norm = current.residual_norm()?;
     let residual_target = plan.nonlinear_target(initial_residual_norm)?;
     if initial_residual_norm <= residual_target {
-        verify_analytic_jacobian(
+        let jacobian_audit = verify_analytic_jacobian(
             mesh,
             boundary,
             essential_velocity,
@@ -162,6 +162,7 @@ where
                 iterations: 0,
                 initial_residual_norm,
                 residual_target,
+                jacobian_audit,
                 linear_solves: Vec::new(),
             },
         );
@@ -214,7 +215,7 @@ where
         point = candidate;
         current = assembled;
         if norm <= residual_target {
-            verify_analytic_jacobian(
+            let jacobian_audit = verify_analytic_jacobian(
                 mesh,
                 boundary,
                 essential_velocity,
@@ -236,6 +237,7 @@ where
                     iterations: iteration,
                     initial_residual_norm,
                     residual_target,
+                    jacobian_audit,
                     linear_solves: reports,
                 },
             );
@@ -259,21 +261,18 @@ fn verify_analytic_jacobian<F, B>(
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
     assembly_backend: &dyn AssemblyBackend,
-) -> Result<(), Diagnostic>
+) -> Result<CenteredJacobianAuditEvidence, Diagnostic>
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
     let point = accepted.algebraic_values();
-    for column in 0..point.len() {
-        let mut direction = vec![0.0; point.len()];
-        direction[column] = 1.0;
-        let mut analytic = vec![0.0; accepted.relation.residual_dimension()];
-        accepted
-            .relation
-            .jvp(RelationTangent::Unknown(&direction), &mut analytic)?;
-        let epsilon = f64::EPSILON.cbrt() * (1.0 + point[column].abs());
-        let error = centered_state_jvp_error(point, &direction, epsilon, &analytic, |candidate| {
+    audit_centered_jacobian(
+        point,
+        accepted.jacobian_pattern(),
+        8.0e-6,
+        "transient MINI",
+        |candidate| {
             let assembly = assemble_step_linearization(
                 mesh,
                 boundary,
@@ -287,18 +286,13 @@ where
                 assembly_backend,
             )?;
             Ok(assembly.residual().to_vec())
-        })?;
-        let analytic_norm = analytic
-            .iter()
-            .map(|value| value * value)
-            .sum::<f64>()
-            .sqrt();
-        let tolerance = 8.0e-6 * (1.0 + analytic_norm);
-        if error > tolerance {
-            return Err(solve_failed(format!(
-                "analytic transient MINI Jacobian column {column} error {error:e} exceeds centered-difference tolerance {tolerance:e}"
-            )));
-        }
-    }
-    Ok(())
+        },
+        |column, analytic| {
+            let mut direction = vec![0.0; point.len()];
+            direction[column] = 1.0;
+            accepted
+                .relation
+                .jvp(RelationTangent::Unknown(&direction), analytic)
+        },
+    )
 }

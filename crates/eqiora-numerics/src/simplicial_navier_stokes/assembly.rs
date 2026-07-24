@@ -9,10 +9,14 @@ use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 use super::api::{MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d};
 use super::element::MiniNavierStokesCell;
 use super::{COMPONENTS, DIMENSION, invalid};
+use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
 use crate::simplicial_stokes::boundary::PressureReferenceKind2d;
 use crate::simplicial_stokes::constraint::MiniPressureMeanConstraintCell;
 use crate::simplicial_stokes::facet::MiniConstantTractionFacet;
 use crate::simplicial_stokes::layout::MixedLayout;
+use crate::simplicial_stokes::{
+    CELL_LOCAL_DOF_COUNT, CONSTRAINT_LOCAL_DOF_COUNT, FACET_LOCAL_DOF_COUNT,
+};
 use crate::{
     AssembledLinearizedRelation, LocalOperator, SimplicialMiniStokesBoundary2d,
     SimplicialMiniStokesPressureReference2d, SimplicialMiniVelocityField2d, SimplicialP1Field,
@@ -29,6 +33,7 @@ pub(super) struct StepAssembly {
     pub(super) pressure_reference: SimplicialMiniStokesPressureReference2d,
     pub(super) gauge_multiplier: Option<f64>,
     pub(super) assembly_report: AssemblyReport,
+    pub(super) jacobian_pattern: StructuralJacobianPattern,
 }
 
 impl StepAssembly {
@@ -55,6 +60,10 @@ impl StepAssembly {
 
     pub(super) fn algebraic_values(&self) -> &[f64] {
         self.relation.accepted_unknowns()
+    }
+
+    pub(super) const fn jacobian_pattern(&self) -> &StructuralJacobianPattern {
+        &self.jacobian_pattern
     }
 }
 
@@ -138,6 +147,41 @@ where
     let full_target = assembly_plan
         .target_id(1)
         .expect("two-target plan owns full target");
+    let reduced_map = |packet| {
+        if packet < cell_count {
+            let vertices = mesh
+                .entity_vertices(MeshEntity::new(DIMENSION, packet))
+                .expect("accepted simplex cell owns vertices");
+            layout.reduced_cell_map(packet, &vertices, &prepared.fixed_velocity)
+        } else if packet < constraint_end {
+            let vertices = mesh
+                .entity_vertices(MeshEntity::new(DIMENSION, packet - cell_count))
+                .expect("accepted simplex cell owns vertices");
+            layout.reduced_constraint_map(&vertices)
+        } else {
+            let facet = prepared.traction_facets[packet - constraint_end];
+            let vertices = mesh
+                .entity_vertices(facet.facet)
+                .expect("accepted boundary facet owns vertices");
+            layout.reduced_facet_map(&vertices, &prepared.fixed_velocity)
+        }
+    };
+    let mut jacobian_pattern = StructuralJacobianPatternBuilder::new(
+        layout.reduced_size,
+        layout.reduced_size,
+        packet_count,
+    )?;
+    for packet in 0..packet_count {
+        let local_size = if packet < cell_count {
+            CELL_LOCAL_DOF_COUNT
+        } else if packet < constraint_end {
+            CONSTRAINT_LOCAL_DOF_COUNT
+        } else {
+            FACET_LOCAL_DOF_COUNT
+        };
+        jacobian_pattern.include_dense_local(packet, local_size, &reduced_map(packet)?)?;
+    }
+    let jacobian_pattern = jacobian_pattern.finish()?;
     let evaluate_packet = |packet| {
         if packet < cell_count {
             let cell = MeshEntity::new(DIMENSION, packet);
@@ -161,7 +205,7 @@ where
             .linearize(&geometry, cell_quadrature)?;
             let residual = linearization.residual().to_vec();
             let local = linearization.into_linear_contribution()?;
-            let reduced = layout.reduced_cell_map(packet, &vertices, &prepared.fixed_velocity)?;
+            let reduced = reduced_map(packet)?;
             let full = layout.full_cell_map(packet, &vertices)?;
             Ok(EvaluatedStepPacket {
                 assembly: AssemblyPacket::new(
@@ -183,7 +227,7 @@ where
                 .entity_vertices(cell)
                 .expect("accepted simplex cell owns vertices");
             let local = MiniPressureMeanConstraintCell.evaluate(&geometry, cell_quadrature)?;
-            let reduced = layout.reduced_constraint_map(&vertices)?;
+            let reduced = reduced_map(packet)?;
             let residual = evaluate_linear_residual(&local, &reduced, candidate)?;
             let full = layout.full_constraint_map(&vertices)?;
             Ok(EvaluatedStepPacket {
@@ -208,7 +252,7 @@ where
                 traction: facet.value,
             }
             .evaluate(&geometry, facet_quadrature)?;
-            let reduced = layout.reduced_facet_map(&vertices, &prepared.fixed_velocity)?;
+            let reduced = reduced_map(packet)?;
             let residual = evaluate_linear_residual(&local, &reduced, candidate)?;
             let full = layout.full_facet_map(&vertices)?;
             Ok(EvaluatedStepPacket {
@@ -286,6 +330,7 @@ where
         pressure_reference,
         gauge_multiplier,
         assembly_report,
+        jacobian_pattern,
     })
 }
 

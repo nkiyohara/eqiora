@@ -78,6 +78,8 @@ two_nontrivial_steps = true
 direct_nonlinear_residual_reassembly = true
 tighter_nonlinear_trajectory_is_negligible_for_refinement = true
 all_analytic_jacobian_columns_match_centered_differences = true
+deterministic_conservative_jacobian_column_coloring = true
+colored_audit_records_columns_colors_residual_assemblies_and_maximum_error = true
 weak_incompressibility = true
 zero_pressure_integral = true
 nonzero_convective_action = true
@@ -102,6 +104,8 @@ solver_backend_drift = "unrepresentable-after-preparation"
 quadrature_below_degree_eight = "reject-local-operator"
 relative_tolerance_at_or_above_one = "reject-plan-construction"
 wrong_analytic_jacobian = "reject-before-step-acceptance"
+missing_or_underestimated_jacobian_dependency = "reject-before-step-acceptance"
+colliding_jacobian_color = "reject-before-step-acceptance"
 nonlinear_nonconvergence = "reject-without-state-mutation"
 unrepresentable_or_nonmonotone_time = "reject-before-step-acceptance"
 

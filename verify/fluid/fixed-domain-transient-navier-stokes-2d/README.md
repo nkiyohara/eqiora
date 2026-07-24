@@ -56,6 +56,12 @@ device ordinal belong to later Deployment binding, not portable identity.
 The nonlinear residual is integrated and globally assembled directly from the
 weak form; it is not recovered as `Jw-b`. Every column of the analytic
 Jacobian is compared with centered differences of that independent residual.
+The audit derives a conservative column-intersection graph from the exact
+topology, mixed quotient, local operator closures, essential constraints, and
+pressure constraint. Deterministic colors perturb only columns with disjoint
+proven residual-row support, while acceptance still reconstructs and checks
+each column separately. Step evidence exposes the exact ordered colors,
+audited-column count, complete residual-assembly count, and maximum error.
 Acceptance records the complete and momentum-block residual norms, weak mass
 balance, pressure closure, nonzero convective action, zero skew self-work, and
 the conservative-form defect.

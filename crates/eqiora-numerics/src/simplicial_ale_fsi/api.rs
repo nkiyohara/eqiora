@@ -12,6 +12,7 @@ use eqiora_meshing::VertexId;
 use eqiora_solver::{ExecutionTopology, SolveReport};
 
 use super::{AleFsiState, AleFsiStepPlan, invalid};
+use crate::jacobian_audit::CenteredJacobianAuditEvidence;
 
 /// Independently recovered fluid and solid actions on one interface vertex.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -133,7 +134,7 @@ pub(super) struct AleFsiStepEvidenceInput<const D: usize> {
     pub(super) kinematic_residual_norm: f64,
     pub(super) interface_velocity_jump_norm: f64,
     pub(super) interface_actions: Vec<AleFsiInterfaceAction<D>>,
-    pub(super) maximum_analytic_jvp_verification_error: f64,
+    pub(super) jacobian_audit: CenteredJacobianAuditEvidence,
     pub(super) probed_moving_fluid_cell_count: usize,
     pub(super) gcl_active_moving_fluid_cell_count: usize,
     pub(super) compatible_constant_free_stream_residual_norm: f64,
@@ -163,7 +164,7 @@ pub struct AleFsiStepEvidence<const D: usize> {
     minimum_current_mean_ratio: f64,
     minimum_current_signed_jacobian: f64,
     minimum_path_signed_jacobian: f64,
-    maximum_analytic_jvp_verification_error: f64,
+    jacobian_audit: CenteredJacobianAuditEvidence,
     probed_moving_fluid_cell_count: usize,
     gcl_active_moving_fluid_cell_count: usize,
     compatible_constant_free_stream_residual_norm: f64,
@@ -204,7 +205,7 @@ impl<const D: usize> AleFsiStepEvidence<D> {
             input.continuity_residual_norm,
             input.kinematic_residual_norm,
             input.interface_velocity_jump_norm,
-            input.maximum_analytic_jvp_verification_error,
+            input.jacobian_audit.maximum_error(),
             input.compatible_constant_free_stream_residual_norm,
             input.omitted_gcl_witness_norm,
         ];
@@ -343,7 +344,7 @@ impl<const D: usize> AleFsiStepEvidence<D> {
             minimum_current_mean_ratio,
             minimum_current_signed_jacobian,
             minimum_path_signed_jacobian,
-            maximum_analytic_jvp_verification_error: input.maximum_analytic_jvp_verification_error,
+            jacobian_audit: input.jacobian_audit,
             probed_moving_fluid_cell_count: input.probed_moving_fluid_cell_count,
             gcl_active_moving_fluid_cell_count: input.gcl_active_moving_fluid_cell_count,
             compatible_constant_free_stream_residual_norm: input
@@ -447,7 +448,31 @@ impl<const D: usize> AleFsiStepEvidence<D> {
     /// Maximum independent analytic-JVP versus centered-difference error.
     #[must_use]
     pub const fn maximum_analytic_jvp_verification_error(&self) -> f64 {
-        self.maximum_analytic_jvp_verification_error
+        self.jacobian_audit.maximum_error()
+    }
+
+    /// Deterministic structural colors in canonical column order.
+    #[must_use]
+    pub fn jacobian_column_colors(&self) -> &[Vec<usize>] {
+        self.jacobian_audit.colors()
+    }
+
+    /// Number of analytic columns independently reconstructed by the audit.
+    #[must_use]
+    pub fn jacobian_audited_column_count(&self) -> usize {
+        self.jacobian_audit.column_count()
+    }
+
+    /// Number of conservative structural colors.
+    #[must_use]
+    pub const fn jacobian_color_count(&self) -> usize {
+        self.jacobian_audit.color_count()
+    }
+
+    /// Complete residual assemblies used by the centered audit.
+    #[must_use]
+    pub const fn jacobian_residual_assembly_count(&self) -> usize {
+        self.jacobian_audit.residual_assembly_count()
     }
 
     /// Moving fluid cells tested with the compatible constant-stream probe.
@@ -798,6 +823,10 @@ mod tests {
         assert!(evidence.minimum_current_signed_jacobian() > 0.0);
         assert!(evidence.minimum_path_signed_jacobian() > 0.0);
         assert_eq!(evidence.maximum_analytic_jvp_verification_error(), 1.0e-12);
+        assert_eq!(evidence.jacobian_column_colors(), &[vec![0]]);
+        assert_eq!(evidence.jacobian_audited_column_count(), 1);
+        assert_eq!(evidence.jacobian_color_count(), 1);
+        assert_eq!(evidence.jacobian_residual_assembly_count(), 2);
         assert_eq!(evidence.probed_moving_fluid_cell_count(), 0);
         assert_eq!(evidence.gcl_active_moving_fluid_cell_count(), 0);
         assert_eq!(
@@ -810,7 +839,7 @@ mod tests {
     }
 
     #[test]
-    fn evidence_rejects_iteration_mismatch_negative_error_and_stale_geometry() {
+    fn evidence_rejects_iteration_mismatch_and_stale_geometry() {
         let fixture = fixture();
         let plan = step_plan();
         let previous = state(0.0, &fixture);
@@ -829,10 +858,6 @@ mod tests {
         let mut mismatched = accepted_input(plan, interface_vertex);
         mismatched.nonlinear_linear_solves.clear();
         assert!(AleFsiStepEvidence2d::new(plan, &geometry, &current, mismatched).is_err());
-
-        let mut negative = accepted_input(plan, interface_vertex);
-        negative.maximum_analytic_jvp_verification_error = -1.0;
-        assert!(AleFsiStepEvidence2d::new(plan, &geometry, &current, negative).is_err());
 
         let mut missing_gcl_witness = accepted_input(plan, interface_vertex);
         missing_gcl_witness.probed_moving_fluid_cell_count = 1;
@@ -986,7 +1011,7 @@ mod tests {
             interface_actions: vec![
                 AleFsiInterfaceAction2d::new(interface_vertex, [1.0, -2.0], [-1.0, 2.0]).unwrap(),
             ],
-            maximum_analytic_jvp_verification_error: 1.0e-12,
+            jacobian_audit: CenteredJacobianAuditEvidence::new(vec![vec![0]], 1.0e-12).unwrap(),
             probed_moving_fluid_cell_count: 0,
             gcl_active_moving_fluid_cell_count: 0,
             compatible_constant_free_stream_residual_norm: 0.0,
@@ -1011,7 +1036,7 @@ mod tests {
                 AleFsiInterfaceAction3d::new(interface_vertex, [1.0, -2.0, 3.0], [-1.0, 2.0, -3.0])
                     .unwrap(),
             ],
-            maximum_analytic_jvp_verification_error: 1.0e-12,
+            jacobian_audit: CenteredJacobianAuditEvidence::new(vec![vec![0]], 1.0e-12).unwrap(),
             probed_moving_fluid_cell_count: 0,
             gcl_active_moving_fluid_cell_count: 0,
             compatible_constant_free_stream_residual_norm: 0.0,

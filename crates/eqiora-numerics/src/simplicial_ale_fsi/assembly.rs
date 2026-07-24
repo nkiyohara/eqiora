@@ -21,6 +21,7 @@ use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
 use super::element::{AleMiniFluidCell, AleMiniFluidDirection};
 use super::{P1HarmonicMeshMotion, invalid};
+use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
 use crate::simplicial_fsi::{
     element::solid_local, layout::FsiLayout, partition::CellMaterial, validate_problem,
 };
@@ -36,6 +37,7 @@ pub(super) struct StepAssembly<const D: usize> {
     pub(super) full_solid_residual: Vec<f64>,
     pub(super) layout: FsiLayout<D>,
     pub(super) assembly_report: AssemblyReport,
+    pub(super) jacobian_pattern: StructuralJacobianPattern,
 }
 
 impl<const D: usize> StepAssembly<D> {
@@ -69,6 +71,10 @@ impl<const D: usize> StepAssembly<D> {
 
     pub(super) const fn assembly_report(&self) -> &AssemblyReport {
         &self.assembly_report
+    }
+
+    pub(super) const fn jacobian_pattern(&self) -> &StructuralJacobianPattern {
+        &self.jacobian_pattern
     }
 }
 
@@ -128,6 +134,13 @@ pub(super) fn assemble_step_linearization<const D: usize>(
         reference, partition, boundary, motion, previous, plan, quadrature, candidate,
     )?;
     let directions = build_directions(partition, motion, plan, &prepared.layout)?;
+    let jacobian_pattern = build_structural_jacobian_pattern(
+        reference,
+        partition,
+        motion,
+        &prepared.layout,
+        prepared.cell_count,
+    )?;
     let assembly_plan =
         AssemblyPlan::new(vec![AssemblyTarget::new(prepared.layout.reduced_size())?])?;
     let reduced_target = assembly_plan
@@ -193,6 +206,7 @@ pub(super) fn assemble_step_linearization<const D: usize>(
         full_solid_residual: direct.full_solid,
         layout: prepared.layout,
         assembly_report,
+        jacobian_pattern,
     })
 }
 
@@ -881,6 +895,60 @@ fn build_directions<const D: usize>(
     Ok(directions)
 }
 
+fn build_structural_jacobian_pattern<const D: usize>(
+    reference: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<D>,
+    motion: &P1HarmonicMeshMotion<D>,
+    layout: &FsiLayout<D>,
+    cell_count: usize,
+) -> Result<StructuralJacobianPattern, Diagnostic> {
+    let mut pattern = StructuralJacobianPatternBuilder::new(
+        layout.reduced_size(),
+        layout.reduced_size(),
+        cell_count,
+    )?;
+    for cell_index in 0..cell_count {
+        let vertices = reference
+            .entity_vertices(MeshEntity::new(D, cell_index))
+            .ok_or_else(|| {
+                invalid(format!(
+                    "ALE FSI structural dependency cell {cell_index} has no vertex closure"
+                ))
+            })?;
+        let (local_size, map) = match partition.material(cell_index) {
+            CellMaterial::Fluid => {
+                let fluid_position = partition.fluid_position(cell_index).ok_or_else(|| {
+                    invalid("ALE FSI structural dependency fluid cell has no bubble position")
+                })?;
+                (
+                    fluid_local_size::<D>(),
+                    layout.fluid_map(fluid_position, &vertices, true)?,
+                )
+            }
+            CellMaterial::Solid => (solid_local_size::<D>(), layout.solid_map(&vertices, true)?),
+            CellMaterial::Unassigned => {
+                return Err(invalid(format!(
+                    "ALE FSI structural dependency cell {cell_index} has no material assignment"
+                )));
+            }
+        };
+        pattern.include_dense_local(cell_index, local_size, &map)?;
+    }
+
+    // The sealed harmonic inverse can carry any interface-driver component
+    // across the complete fluid region. Its numeric influence entries are not
+    // inspected: every represented driver column conservatively becomes a
+    // global singleton.
+    for driver in motion.driver_vertices() {
+        for component in 0..D {
+            if let Some(dof) = layout.reduced_vertex_velocity(driver.index(), component) {
+                pattern.mark_globally_coupled(dof.index())?;
+            }
+        }
+    }
+    pattern.finish()
+}
+
 fn validate_inputs<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
@@ -984,6 +1052,10 @@ const fn fluid_pressure_offset<const D: usize>() -> usize {
 
 const fn fluid_local_size<const D: usize>() -> usize {
     fluid_pressure_offset::<D>() + D + 1
+}
+
+const fn solid_local_size<const D: usize>() -> usize {
+    (D + 1) * D
 }
 
 fn local_point(map: &AssemblyMap, candidate: &[f64]) -> Result<Vec<f64>, Diagnostic> {

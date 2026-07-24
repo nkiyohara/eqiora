@@ -142,7 +142,19 @@ fn fixed_domain_skew_mini_advances_two_nonlinear_steps() {
         assert!(step.convective_power().abs() < 1.0e-10);
         assert!(!step.linear_solves().is_empty());
         assert!(step.assembly_report().packet_count() > 0);
+        assert!(step.jacobian_audited_column_count() > step.jacobian_color_count());
+        assert_eq!(
+            step.jacobian_residual_assembly_count(),
+            2 * step.jacobian_color_count()
+        );
+        assert!(step.jacobian_residual_assembly_count() < 2 * step.jacobian_audited_column_count());
+        assert!(step.maximum_analytic_jvp_verification_error() < 1.0e-3);
     }
+    assert!(
+        trajectory.steps().windows(2).all(|steps| {
+            steps[0].jacobian_column_colors() == steps[1].jacobian_column_colors()
+        })
+    );
 }
 
 #[test]

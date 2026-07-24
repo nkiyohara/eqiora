@@ -27,7 +27,10 @@ The integration target establishes all of the following:
   orientation and quality gates, and an active compatible constant-stream GCL
   probe with an omitted-correction witness;
 - complete nonlinear residual reassembly and centered differences check every
-  analytic Jacobian column at each accepted step;
+  analytic Jacobian column at each accepted step; a deterministic conservative
+  pattern comes from typed cell closures, the conforming quotient, topology,
+  constraints, and sealed mesh-motion influence, with harmonic driver columns
+  forced to singleton colors rather than inferred from influence values;
 - weak incompressibility, solid kinematics, the shared interface velocity
   quotient, and independently recovered interface action and power balance
   close at every accepted step;

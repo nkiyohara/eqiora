@@ -8,7 +8,8 @@ the prestrained coupled state monolithically for at least two accepted steps.
 Every accepted step must satisfy:
 
 - independently reassembled nonlinear residual at or below its frozen target;
-- centered verification of every analytic Jacobian column below `1e-3`;
+- centered verification of every analytic Jacobian column below `1e-3`, with
+  ordered colors and complete residual-assembly count retained as evidence;
 - weak continuity within the residual-scaled acceptance bound;
 - solid kinematic defect below `1e-12`;
 - exact shared interface velocity and fluid-plus-solid action and power

@@ -47,6 +47,9 @@ compatible_zero_trace_constant_stream_probe_is_preserved = true
 harmonic_motion_is_independently_reapplied = true
 mesh_velocity_is_the_consecutive_coordinate_quotient = true
 analytic_jacobian_matches_centered_reassembly = true
+deterministic_conservative_jacobian_column_coloring = true
+harmonic_mesh_motion_driver_columns_are_singleton_colors = true
+colored_audit_records_columns_colors_residual_assemblies_and_maximum_error = true
 weak_incompressibility_and_solid_kinematics_close = true
 interface_trace_action_and_power_balance_close = true
 positive_orientation_and_declared_path_quality_hold = true
@@ -63,6 +66,8 @@ discontinuous_interface_motion_or_velocity = "reject"
 inverted_degenerate_low_quality_or_path_inverting_geometry = "reject before physics assembly or state publication"
 incomplete_harmonic_solve_or_changed_fixed_boundary = "reject"
 wrong_analytic_jacobian_or_nonlinear_nonconvergence = "reject without state mutation"
+missing_or_underestimated_jacobian_dependency = "reject before state acceptance"
+colliding_color_or_non_singleton_global_coupling = "reject before state acceptance"
 broken_geometry_state_or_spatial_trajectory_chain = "reject"
 
 [claim_boundary]

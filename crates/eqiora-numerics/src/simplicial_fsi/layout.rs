@@ -182,6 +182,14 @@ impl<const D: usize> FsiLayout<D> {
         self.reduced_size
     }
 
+    pub(crate) fn reduced_vertex_velocity(&self, vertex: usize, component: usize) -> Option<DofId> {
+        self.reduced_vertex_velocity
+            .get(vertex)
+            .and_then(|components| components.get(component))
+            .copied()
+            .flatten()
+    }
+
     pub(crate) const fn full_size(&self) -> usize {
         self.full_size
     }

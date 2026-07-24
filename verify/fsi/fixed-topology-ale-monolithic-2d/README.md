@@ -37,7 +37,9 @@ all of the following in one reproducible case:
   and checks interface coordinates and consecutive-state mesh velocity before
   artifact publication;
 - direct residual reassembly and centered differences check the accepted
-  residual and every analytic Jacobian column;
+  residual and every analytic Jacobian column; deterministic conservative
+  coloring comes from typed cell closures, the quotient, topology, and sealed
+  harmonic influence, whose driver columns remain singleton;
 - weak incompressibility, solid kinematics, shared interface velocity, and
   interface action and power balance close at every accepted step;
 - current and whole-path orientation and quality gates hold;

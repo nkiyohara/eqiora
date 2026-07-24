@@ -105,6 +105,14 @@ fn faer_closes_tetrahedral_trajectory_and_first_order_refinement() {
             assert!(step.minimum_current_signed_jacobian() > 0.0);
             assert!(step.minimum_path_signed_jacobian() > 0.0);
             assert!(step.maximum_analytic_jvp_verification_error() < 1.0e-3);
+            assert!(step.jacobian_audited_column_count() > step.jacobian_color_count());
+            assert_eq!(
+                step.jacobian_residual_assembly_count(),
+                2 * step.jacobian_color_count()
+            );
+            assert!(
+                step.jacobian_residual_assembly_count() < 2 * step.jacobian_audited_column_count()
+            );
             assert!(step.probed_moving_fluid_cell_count() > 0);
             assert!(step.gcl_active_moving_fluid_cell_count() > 0);
             assert!(step.compatible_constant_free_stream_residual_norm() < 1.0e-12);
@@ -112,6 +120,9 @@ fn faer_closes_tetrahedral_trajectory_and_first_order_refinement() {
             assert!(step.interface_action_imbalance_norm() < 1.0e-9);
             assert!(step.interface_power_imbalance().abs() < 1.0e-9);
         }
+        assert!(trajectory.steps().windows(2).all(|steps| {
+            steps[0].jacobian_column_colors() == steps[1].jacobian_column_colors()
+        }));
     }
 
     let coarse_medium = solid_displacement_mass_distance(

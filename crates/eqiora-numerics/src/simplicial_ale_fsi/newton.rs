@@ -17,7 +17,7 @@ use super::contract::{
     AleFsiStepPlan, AleFsiStepPlan2d, AleFsiStepPlan3d,
 };
 use super::{P1HarmonicMeshMotion, P1HarmonicMeshMotion2d, P1HarmonicMeshMotion3d};
-use crate::assembled_linearization::centered_state_jvp_error;
+use crate::jacobian_audit::{CenteredJacobianAuditEvidence, audit_centered_jacobian};
 use crate::{
     FixedReferenceFsiPartition, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
     NonZeroStepCount,
@@ -199,7 +199,7 @@ fn solve_one_step<const D: usize>(
     let initial_residual_norm = current.residual_norm()?;
     let residual_target = nonlinear_target::<D>(plan, initial_residual_norm)?;
     if initial_residual_norm <= residual_target {
-        let maximum_analytic_jvp_verification_error = verify_analytic_jacobian::<D>(
+        let jacobian_audit = verify_analytic_jacobian::<D>(
             reference, partition, boundary, motion, previous, &current, plan, quadrature,
         )?;
         return accept_step::<D>(
@@ -215,7 +215,7 @@ fn solve_one_step<const D: usize>(
             NewtonEvidence {
                 iterations: 0,
                 initial_residual_norm,
-                maximum_analytic_jvp_verification_error,
+                jacobian_audit,
                 linear_solves: Vec::new(),
             },
         );
@@ -280,7 +280,7 @@ fn solve_one_step<const D: usize>(
         point = candidate;
         current = assembled;
         if norm <= residual_target {
-            let maximum_analytic_jvp_verification_error = verify_analytic_jacobian::<D>(
+            let jacobian_audit = verify_analytic_jacobian::<D>(
                 reference, partition, boundary, motion, previous, &current, plan, quadrature,
             )?;
             return accept_step::<D>(
@@ -296,7 +296,7 @@ fn solve_one_step<const D: usize>(
                 NewtonEvidence {
                     iterations: iteration,
                     initial_residual_norm,
-                    maximum_analytic_jvp_verification_error,
+                    jacobian_audit,
                     linear_solves: reports,
                 },
             );
@@ -317,36 +317,26 @@ fn verify_analytic_jacobian<const D: usize>(
     accepted: &StepAssembly<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-) -> Result<f64, Diagnostic> {
+) -> Result<CenteredJacobianAuditEvidence, Diagnostic> {
     let point = accepted.algebraic_values();
-    let mut maximum_error = 0.0_f64;
-    for column in 0..point.len() {
-        let mut direction = vec![0.0; point.len()];
-        direction[column] = 1.0;
-        let mut analytic = vec![0.0; accepted.relation.residual_dimension()];
-        accepted
-            .relation
-            .jvp(RelationTangent::Unknown(&direction), &mut analytic)?;
-        let epsilon = f64::EPSILON.cbrt() * (1.0 + point[column].abs());
-        let error = centered_state_jvp_error(point, &direction, epsilon, &analytic, |candidate| {
+    audit_centered_jacobian(
+        point,
+        accepted.jacobian_pattern(),
+        2.0e-5,
+        "ALE FSI",
+        |candidate| {
             assemble_step_residual::<D>(
                 reference, partition, boundary, motion, previous, candidate, plan, quadrature,
             )
-        })?;
-        let analytic_norm = analytic
-            .iter()
-            .map(|value| value * value)
-            .sum::<f64>()
-            .sqrt();
-        let tolerance = 2.0e-5 * (1.0 + analytic_norm);
-        if error > tolerance {
-            return Err(solve_failed(format!(
-                "analytic ALE FSI Jacobian column {column} error {error:e} exceeds centered-difference tolerance {tolerance:e}"
-            )));
-        }
-        maximum_error = maximum_error.max(error);
-    }
-    Ok(maximum_error)
+        },
+        |column, analytic| {
+            let mut direction = vec![0.0; point.len()];
+            direction[column] = 1.0;
+            accepted
+                .relation
+                .jvp(RelationTangent::Unknown(&direction), analytic)
+        },
+    )
 }
 
 fn nonlinear_target<const D: usize>(
