@@ -173,6 +173,26 @@ An RFC's verification section maps its acceptance invariants to registered
 cases and kit IDs. Adding an enum variant or adapter name without such a path
 does not extend conformance.
 
+### Compiler-class proof and instance witness
+
+Where one contract derives many instances from a single translation rule, the
+kit divides in two.
+
+- **Compiler-class conformance** is owned by the deriving contract: the
+  derivation rules, a reference interpreter, the mutant corpus, and
+  primal/JVP/VJP consistency. It is proved once for the class.
+- **Instance witness** is supplied per instance and contains only data: a
+  manufactured or reference solution, boundary data, norm, expected convergence
+  order, conserved quantity, tolerances, and nonclaims.
+
+An instance may not add its own kernel, Jacobian, or conformance harness when
+the class can already express it. If the class cannot express a discovered
+requirement, the instance stops and returns that requirement to the contract
+owner instead of adding a local workaround.
+
+This division applies to derived instances. Adapter and provider conformance
+kits keep their existing form and are not forced into the witness model.
+
 ## Abstraction and public-API budget
 
 Every new crate, public type, enum variant, trait, wire field, or registry must
@@ -195,9 +215,29 @@ does not meet this budget.
 
 An anticipated consumer is not a real consumer. Keep the first internal use
 private; extract a shared trait, configuration, wire, crate, or registry only
-when a second independent use exists. A public end-user surface may itself be
-the bounded product claim, but it does not justify a generic implementation
-abstraction ahead of two implementations.
+when a second independent use exists, or when the private abstraction
+demonstrates audit compression as defined below. A public end-user surface may
+itself be the bounded product claim, but it does not justify a generic
+implementation abstraction ahead of two implementations.
+
+### Audit compression
+
+The two-consumer rule exists because speculative generality is expensive to
+undo. Under agent authorship the dominant cost is audit rather than
+refactoring, so a **private** abstraction may be introduced with one consumer
+when it demonstrably compresses what has to be audited. All of the following
+must hold:
+
+- an independent agent owns a class-level mutant and falsifier suite;
+- the count of invariant-bearing hand-written formula sites does not increase;
+- at least two hand-written implementations, or one primal/JVP/VJP triple, are
+  deleted;
+- a new instance requires only witness data, not executable formulas; and
+- no public type, wire, or registry is added.
+
+**Public or durable API keeps the stricter rule**: two external consumers, or
+the public surface is itself the product claim. Compatibility audit is the
+dominant cost there, and agent authorship does not reduce it.
 
 ## Fan-out wave closure
 

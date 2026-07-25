@@ -668,6 +668,22 @@ now:
 Each gate starts only when its consumer and falsifier are concrete. Empty
 provider names, target enums, and method configs do not count as progress.
 
+Investigation may also start on a second, disjunctive condition: the current
+method demonstrably breaks a **pre-declared resource, convergence, or
+robustness envelope** on an existing model or a synthetic operator. The
+envelope is declared before the run, and the breach is the falsifier. This
+exists because some capabilities are preconditions for their own consumers;
+"the absence of the capability prevents consumers from existing" is rejected as
+too subjective to gate on, while a declared envelope breach is checkable.
+
+The falsifier and the construction/provenance policy are built first. A
+candidate enters the stable vocabulary only after passing them, never on the
+strength of the investigation alone. AMG, restarted GMRES, and field split are
+three distinct contracts — a multilevel construction and provenance problem, a
+Krylov algorithm with restart and orthogonalization policy, and a solver graph
+over semantic or algebraic blocks — and each needs its own envelope rather than
+one shared gate.
+
 ## Rejected or superseded approaches
 
 - **Backend types in model or artifact schemas.** Rejected because execution
