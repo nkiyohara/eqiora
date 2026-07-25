@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde::de::{self, DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
 
 use super::{DISTRIBUTED_LAYOUT_SCHEMA, LINEAR_SYSTEM_SCHEMA, PARTITION_SCHEMA};
-use crate::{CANONICAL_ENCODING, DecoderLimits, invalid_artifact};
+use crate::{CANONICAL_ENCODING, DistributedDecoderLimits, invalid_artifact};
 
 const LINEAR_SYSTEM_FIELDS: [&str; 9] = [
     "schema",
@@ -40,15 +40,21 @@ const HALO_RECORD_FIELDS: [&str; 3] = ["owner", "receiver", "indices"];
 
 /// Validate every distributed wire field and bound every large sequence
 /// before Serde is allowed to materialize an owned DTO.
-pub(super) fn linear_system(bytes: &[u8], limits: DecoderLimits) -> Result<(), Diagnostic> {
+pub(super) fn linear_system(
+    bytes: &[u8],
+    limits: DistributedDecoderLimits,
+) -> Result<(), Diagnostic> {
     run(bytes, LinearSystemSeed { limits }, "linear-system")
 }
 
-pub(super) fn partition(bytes: &[u8], limits: DecoderLimits) -> Result<(), Diagnostic> {
+pub(super) fn partition(bytes: &[u8], limits: DistributedDecoderLimits) -> Result<(), Diagnostic> {
     run(bytes, PartitionSeed { limits }, "partition")
 }
 
-pub(super) fn distributed_layout(bytes: &[u8], limits: DecoderLimits) -> Result<(), Diagnostic> {
+pub(super) fn distributed_layout(
+    bytes: &[u8],
+    limits: DistributedDecoderLimits,
+) -> Result<(), Diagnostic> {
     run(
         bytes,
         DistributedLayoutSeed { limits },
@@ -300,7 +306,7 @@ fn portable_bounded<E: de::Error>(value: u64, limit: usize, label: &str) -> Resu
 }
 
 struct LinearSystemSeed {
-    limits: DecoderLimits,
+    limits: DistributedDecoderLimits,
 }
 
 impl<'de> DeserializeSeed<'de> for LinearSystemSeed {
@@ -317,7 +323,7 @@ impl<'de> DeserializeSeed<'de> for LinearSystemSeed {
 }
 
 struct LinearSystemVisitor {
-    limits: DecoderLimits,
+    limits: DistributedDecoderLimits,
 }
 
 impl<'de> Visitor<'de> for LinearSystemVisitor {
@@ -436,7 +442,7 @@ impl<'de> Visitor<'de> for LinearSystemVisitor {
 }
 
 struct PartitionSeed {
-    limits: DecoderLimits,
+    limits: DistributedDecoderLimits,
 }
 
 impl<'de> DeserializeSeed<'de> for PartitionSeed {
@@ -453,7 +459,7 @@ impl<'de> DeserializeSeed<'de> for PartitionSeed {
 }
 
 struct PartitionVisitor {
-    limits: DecoderLimits,
+    limits: DistributedDecoderLimits,
 }
 
 impl<'de> Visitor<'de> for PartitionVisitor {
@@ -539,7 +545,7 @@ impl<'de> Visitor<'de> for PartitionVisitor {
 }
 
 struct DistributedLayoutSeed {
-    limits: DecoderLimits,
+    limits: DistributedDecoderLimits,
 }
 
 impl<'de> DeserializeSeed<'de> for DistributedLayoutSeed {
@@ -556,7 +562,7 @@ impl<'de> DeserializeSeed<'de> for DistributedLayoutSeed {
 }
 
 struct DistributedLayoutVisitor {
-    limits: DecoderLimits,
+    limits: DistributedDecoderLimits,
 }
 
 impl<'de> Visitor<'de> for DistributedLayoutVisitor {
@@ -635,7 +641,7 @@ struct LocalRecordsSeed<'a> {
     records: &'a mut usize,
     local_indices: &'a mut usize,
     aggregate: &'a mut AggregateBudget,
-    limits: DecoderLimits,
+    limits: DistributedDecoderLimits,
 }
 
 impl<'de> DeserializeSeed<'de> for LocalRecordsSeed<'_> {
@@ -770,7 +776,7 @@ struct HaloRecordsSeed<'a> {
     records: &'a mut usize,
     halo_indices: &'a mut usize,
     aggregate: &'a mut AggregateBudget,
-    limits: DecoderLimits,
+    limits: DistributedDecoderLimits,
 }
 
 impl<'de> DeserializeSeed<'de> for HaloRecordsSeed<'_> {

@@ -14,7 +14,7 @@ use crate::realization_v4::{
     WireAleEnvelope, WireAleSource, parse_ulid, validate_ale_mesh_quality_gate,
 };
 use crate::{
-    ArtifactDigest, CanonicalModelArtifact, DecoderLimits, LayoutArtifacts,
+    ArtifactDigest, CanonicalModelArtifact, LayoutArtifacts, RealizationDecoderLimits,
     SimplicialMeshEnvelopeV1, invalid_artifact,
 };
 
@@ -63,7 +63,7 @@ impl RealizationEnvelopeV5 {
     /// Returns `EQ0901` for oversized, malformed, unknown-version,
     /// noncanonical, resource-excess, graph-inconsistent, or
     /// dimension-inconsistent data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: RealizationDecoderLimits) -> Result<Self, Diagnostic> {
         let wire = WireRealizationEnvelopeV5::from_json(REALIZATION_SCHEMA, bytes, limits)?;
         let envelope = Self { wire };
         envelope.validate_v5_policy()?;

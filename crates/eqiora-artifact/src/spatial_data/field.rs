@@ -12,11 +12,11 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, DiscreteFieldEnvelopeV1,
+    ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldDecoderLimits,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference,
     RealizationEnvelopeV3, ReplayableCanonicalModelArtifact,
     ReplayableFixedTopologyAleRealizationArtifact, SimplicialMeshEnvelopeV1,
-    ValidatedFixedSpatialContextV1, ValidatedMovingSpatialContextV2, check_wire_limits,
+    ValidatedFixedSpatialContextV1, ValidatedMovingSpatialContextV2, check_json_limits,
     invalid_artifact,
 };
 
@@ -212,7 +212,7 @@ impl FieldSnapshotEnvelopeV1 {
                 },
             },
         };
-        value.validate_local(DecoderLimits::default())?;
+        value.validate_local(FieldDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -221,8 +221,8 @@ impl FieldSnapshotEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, noncanonical, or unsupported
     /// wire data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: FieldDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid Field snapshot JSON: {error}")))?;
         let value = Self { wire };
@@ -464,7 +464,7 @@ impl FieldSnapshotEnvelopeV1 {
         }
     }
 
-    fn validate_local(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: FieldDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != FIELD_SNAPSHOT_SCHEMA
             || self.wire.encoding != CANONICAL_ENCODING
             || self.wire.physical.unit_system != WireUnitSystem::CoherentSi

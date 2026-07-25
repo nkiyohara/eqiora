@@ -1,6 +1,6 @@
 use eqiora::artifact::{
-    ArtifactDigest, DecoderLimits, GeneralImplicitTimeLoweringEnvelopeV1,
-    ImplicitTimeInitialDataEnvelopeV1, ImplicitTimeRunManifestV1, ModelEnvelopeV1,
+    ArtifactDigest, GeneralImplicitTimeLoweringEnvelopeV1, ImplicitTimeInitialDataEnvelopeV1,
+    ImplicitTimeRunManifestV1, ModelEnvelopeV1, TimeDecoderLimits,
 };
 use eqiora::diagnostic::codes;
 use eqiora::entity::kinds;
@@ -41,7 +41,7 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
             .unwrap();
     let lowering_bytes = lowering.canonical_json().unwrap();
     let decoded_lowering =
-        GeneralImplicitTimeLoweringEnvelopeV1::from_json(&lowering_bytes, DecoderLimits::default())
+        GeneralImplicitTimeLoweringEnvelopeV1::from_json(&lowering_bytes, Default::default())
             .unwrap();
     assert_eq!(
         decoded_lowering.digest().unwrap(),
@@ -52,9 +52,9 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
     assert_eq!(
         GeneralImplicitTimeLoweringEnvelopeV1::from_json(
             &lowering_bytes,
-            DecoderLimits {
+            TimeDecoderLimits {
                 max_time_state_dimension: 1,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .unwrap_err()
@@ -65,7 +65,7 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
     forged_partition["variable_kinds"] = serde_json::json!(["differential", "differential"]);
     let forged_partition = GeneralImplicitTimeLoweringEnvelopeV1::from_json(
         &serde_json::to_vec(&forged_partition).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     assert_eq!(
@@ -115,8 +115,7 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
         ImplicitTimeInitialDataEnvelopeV1::from_problem(&lowering, &problem).unwrap();
     let input_bytes = input_initial.canonical_json().unwrap();
     let decoded_input =
-        ImplicitTimeInitialDataEnvelopeV1::from_json(&input_bytes, DecoderLimits::default())
-            .unwrap();
+        ImplicitTimeInitialDataEnvelopeV1::from_json(&input_bytes, Default::default()).unwrap();
     assert_eq!(
         decoded_input.digest().unwrap(),
         input_initial.digest().unwrap()
@@ -131,9 +130,9 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
     assert_eq!(
         ImplicitTimeInitialDataEnvelopeV1::from_json(
             &input_bytes,
-            DecoderLimits {
+            TimeDecoderLimits {
                 max_time_state_dimension: 1,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .unwrap_err()
@@ -183,8 +182,7 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
     .unwrap()
     .with_output(output.clone());
     let run_bytes = run.canonical_json().unwrap();
-    let decoded_run =
-        ImplicitTimeRunManifestV1::from_json(&run_bytes, DecoderLimits::default()).unwrap();
+    let decoded_run = ImplicitTimeRunManifestV1::from_json(&run_bytes, Default::default()).unwrap();
     assert_eq!(decoded_run.digest().unwrap(), run.digest().unwrap());
     assert_eq!(decoded_run.plan().unwrap(), initial_plan);
     assert_eq!(
@@ -204,7 +202,7 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
     forged_run["accepted_initial_data_sha256"] = "03".repeat(32).into();
     let forged_run = ImplicitTimeRunManifestV1::from_json(
         &serde_json::to_vec(&forged_run).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     assert_eq!(

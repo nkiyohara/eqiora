@@ -2,9 +2,9 @@ use std::num::NonZeroUsize;
 
 use eqiora::Id;
 use eqiora::artifact::{
-    ArtifactDigest, DecoderLimits, PhysicalExposureCatalogEnvelopeV1, PhysicalExposureContractV1,
-    PhysicalExposureObservationBindingV1, PhysicalExposureProjectionV1, PhysicalExposureQuantityV1,
-    RunManifestV1,
+    ArtifactDigest, PhysicalExposureCatalogEnvelopeV1, PhysicalExposureContractV1,
+    PhysicalExposureDecoderLimits, PhysicalExposureObservationBindingV1,
+    PhysicalExposureProjectionV1, PhysicalExposureQuantityV1, RunManifestV1,
 };
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::compiler::identity::{
@@ -516,7 +516,7 @@ fn physical_exposure_catalog_and_observation_replay_are_exact() {
     );
 
     let bytes = nary_catalog.canonical_json().expect("catalog JSON");
-    let decoded = PhysicalExposureCatalogEnvelopeV1::from_json(&bytes, DecoderLimits::default())
+    let decoded = PhysicalExposureCatalogEnvelopeV1::from_json(&bytes, Default::default())
         .expect("decode catalog");
     assert_eq!(decoded.canonical_json().expect("re-encoded catalog"), bytes);
     assert_eq!(decoded.digest(), nary_catalog.digest());
@@ -525,9 +525,9 @@ fn physical_exposure_catalog_and_observation_replay_are_exact() {
     assert!(
         PhysicalExposureCatalogEnvelopeV1::from_json(
             &bytes,
-            DecoderLimits {
+            PhysicalExposureDecoderLimits {
                 max_physical_exposure_projections: 1,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .is_err(),
@@ -539,7 +539,7 @@ fn physical_exposure_catalog_and_observation_replay_are_exact() {
         serde_json::Value::String("moved/source/model.eqi".to_owned());
     let drifted_provenance = PhysicalExposureCatalogEnvelopeV1::from_json(
         &serde_json::to_vec(&drifted_provenance).expect("drifted catalog JSON"),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .expect("locally valid moved provenance");
     assert!(
@@ -597,7 +597,7 @@ fn physical_exposure_catalog_and_observation_replay_are_exact() {
     assert!(
         PhysicalExposureCatalogEnvelopeV1::from_json(
             &serde_json::to_vec(&unknown_field).expect("unknown-field JSON"),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "the identity catalog cannot grow an untyped numerical payload"
@@ -638,7 +638,7 @@ fn physical_exposure_catalog_and_observation_replay_are_exact() {
         .expect("observation replay");
     let common_bytes = common.canonical_json().expect("observation JSON");
     let decoded_common =
-        PhysicalExposureObservationBindingV1::from_json(&common_bytes, DecoderLimits::default())
+        PhysicalExposureObservationBindingV1::from_json(&common_bytes, Default::default())
             .expect("decode observation");
     assert_eq!(decoded_common.canonical_json().unwrap(), common_bytes);
     nary.validate_physical_observation_v1(&decoded_common, &run, &nary_resolution)

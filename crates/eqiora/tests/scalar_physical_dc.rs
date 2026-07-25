@@ -1,9 +1,7 @@
 use std::num::NonZeroUsize;
 
 use eqiora::api::ModelDocument;
-use eqiora::artifact::{
-    DecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelTransactionEnvelopeV2,
-};
+use eqiora::artifact::{ModelEnvelopeV1, ModelEnvelopeV2, ModelTransactionEnvelopeV2};
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::compiler::{ModelSymbols, compile};
 use eqiora::diagnostic::codes;
@@ -189,7 +187,7 @@ fn admit_transaction(
     let envelope =
         ModelTransactionEnvelopeV2::from_transaction(&transaction).expect("v2 edit identity");
     let bytes = envelope.canonical_json().expect("canonical v2 edit bytes");
-    let decoded = ModelTransactionEnvelopeV2::from_json(&bytes, DecoderLimits::default())
+    let decoded = ModelTransactionEnvelopeV2::from_json(&bytes, Default::default())
         .expect("v2 edit round trip");
     let mut store = InMemoryGraphStore::new();
     store
@@ -445,8 +443,8 @@ fn source_parallel_dc_roundtrips_and_reaccepts_analytic_solution() {
     assert!(ModelEnvelopeV1::from_program(&fixture.program).is_err());
     let model_bytes = model.canonical_json().expect("canonical model bytes");
     let model_digest = model.digest().expect("canonical model digest");
-    let decoded = ModelEnvelopeV2::from_json(&model_bytes, DecoderLimits::default())
-        .expect("v2 model decode");
+    let decoded =
+        ModelEnvelopeV2::from_json(&model_bytes, Default::default()).expect("v2 model decode");
     let decoded_program = decoded.to_program().expect("v2 model reconstruction");
     let reconstructed = ModelEnvelopeV2::from_program(&decoded_program).expect("re-encoded v2");
     assert_eq!(reconstructed.canonical_json().unwrap(), model_bytes);

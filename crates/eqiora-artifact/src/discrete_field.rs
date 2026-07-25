@@ -9,11 +9,44 @@ use eqiora_meshing::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, SimplicialMeshEnvelopeV1, check_wire_limits,
+    ArtifactDigest, CANONICAL_ENCODING, SimplicialMeshEnvelopeV1, check_json_limits,
     invalid_artifact,
 };
 
 const DISCRETE_FIELD_SCHEMA: &str = "eqiora.discrete-field-envelope/v1";
+
+/// Semantic work budgets shared by discrete Field, snapshot, storage, and state artifacts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FieldDecoderLimits {
+    /// Common JSON syntax admission.
+    pub json: crate::JsonDecoderLimits,
+    /// Maximum associated entities in one discrete Field.
+    pub max_discrete_field_entities: usize,
+    /// Maximum components per entity in one discrete Field.
+    pub max_discrete_field_components: usize,
+    /// Maximum scalar values in one discrete Field.
+    pub max_discrete_field_values: usize,
+    /// Maximum coefficient blocks in one logical Field snapshot.
+    pub max_field_snapshot_blocks: usize,
+    /// Maximum raw canonical-byte chunks in one Field storage manifest.
+    pub max_field_storage_chunks: usize,
+    /// Maximum exact Field references in one accepted spatial state.
+    pub max_spatial_state_fields: usize,
+}
+
+impl Default for FieldDecoderLimits {
+    fn default() -> Self {
+        Self {
+            json: crate::JsonDecoderLimits::default(),
+            max_discrete_field_entities: 2_000_000,
+            max_discrete_field_components: 64,
+            max_discrete_field_values: 16_000_000,
+            max_field_snapshot_blocks: 8,
+            max_field_storage_chunks: 1_000_000,
+            max_spatial_state_fields: 100_000,
+        }
+    }
+}
 
 /// Versioned, affine-simplex-mesh-bound discrete field content.
 ///
@@ -69,8 +102,8 @@ impl DiscreteFieldEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed/unknown wire data, resource excess,
     /// invalid digest/count/shape/value data, or a non-canonical negative zero.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: FieldDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid discrete field JSON: {error}")))?;
         Self::from_wire(wire, limits)
@@ -168,7 +201,7 @@ impl DiscreteFieldEnvelopeV1 {
 
     fn from_wire(
         wire: WireDiscreteFieldEnvelopeV1,
-        limits: DecoderLimits,
+        limits: FieldDecoderLimits,
     ) -> Result<Self, Diagnostic> {
         if wire.schema != DISCRETE_FIELD_SCHEMA || wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
@@ -405,7 +438,8 @@ mod tests {
         .unwrap();
         let envelope = DiscreteFieldEnvelopeV1::from_payload(&mesh, &payload).unwrap();
         let bytes = envelope.canonical_json().unwrap();
-        let decoded = DiscreteFieldEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+        let decoded =
+            DiscreteFieldEnvelopeV1::from_json(&bytes, FieldDecoderLimits::default()).unwrap();
 
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
@@ -440,8 +474,8 @@ mod tests {
                 bytes
             })
             .unwrap();
-        let error =
-            DiscreteFieldEnvelopeV1::from_json(&negative, DecoderLimits::default()).unwrap_err();
+        let error = DiscreteFieldEnvelopeV1::from_json(&negative, FieldDecoderLimits::default())
+            .unwrap_err();
         assert_eq!(error.code(), codes::INVALID_ARTIFACT);
         assert!(error.message().contains("positive zero"));
     }
@@ -473,7 +507,7 @@ mod tests {
         assert_eq!(
             DiscreteFieldEnvelopeV1::from_json(
                 &serde_json::to_vec(&forged).unwrap(),
-                DecoderLimits::default(),
+                FieldDecoderLimits::default(),
             )
             .unwrap_err()
             .code(),
@@ -521,9 +555,9 @@ mod tests {
         .unwrap();
         let envelope = DiscreteFieldEnvelopeV1::from_payload(&mesh, &payload).unwrap();
         let bytes = envelope.canonical_json().unwrap();
-        let limits = DecoderLimits {
+        let limits = FieldDecoderLimits {
             max_discrete_field_values: 3,
-            ..DecoderLimits::default()
+            ..FieldDecoderLimits::default()
         };
         assert_eq!(
             DiscreteFieldEnvelopeV1::from_json(&bytes, limits)
@@ -537,7 +571,7 @@ mod tests {
         assert_eq!(
             DiscreteFieldEnvelopeV1::from_json(
                 &serde_json::to_vec(&unknown).unwrap(),
-                DecoderLimits::default(),
+                FieldDecoderLimits::default(),
             )
             .unwrap_err()
             .code(),
@@ -554,7 +588,7 @@ mod tests {
             })
             .unwrap();
         assert_eq!(
-            DiscreteFieldEnvelopeV1::from_json(&nonfinite, DecoderLimits::default())
+            DiscreteFieldEnvelopeV1::from_json(&nonfinite, FieldDecoderLimits::default())
                 .unwrap_err()
                 .code(),
             codes::INVALID_ARTIFACT,

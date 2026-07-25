@@ -8,8 +8,7 @@ use std::num::{NonZeroU64, NonZeroUsize};
 use std::path::{Path, PathBuf};
 
 use eqiora::artifact::{
-    DecoderLimits, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV4, RealizationEnvelopeV3,
-    RunManifestV2,
+    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV4, RealizationEnvelopeV3, RunManifestV2,
 };
 use eqiora::backends::cuda::{
     CUDA_LINEAR_EXECUTION, CUDA_LINEAR_EXECUTION_PROVIDER, CUDA_LINEAR_SOLVER_PROVIDER,
@@ -88,7 +87,7 @@ fn replay_committed_observation() -> Result<(), String> {
     }
 
     let model_bytes = read_bounded(&root.join("artifacts/model.json"), MAX_ARTIFACT_BYTES)?;
-    let model = ModelEnvelopeV4::from_json(&model_bytes, DecoderLimits::default())
+    let model = ModelEnvelopeV4::from_json(&model_bytes, Default::default())
         .map_err(|diagnostic| diagnostic.to_string())?;
     require_equal_bytes(
         "decoded Model canonical bytes",
@@ -111,7 +110,7 @@ fn replay_committed_observation() -> Result<(), String> {
         MAX_ARTIFACT_BYTES,
     )?;
     let recorded_realization =
-        RealizationEnvelopeV3::from_json(&realization_bytes, DecoderLimits::default())
+        RealizationEnvelopeV3::from_json(&realization_bytes, Default::default())
             .map_err(|diagnostic| diagnostic.to_string())?;
     recorded_realization
         .validate_model_artifact(&model)
@@ -132,7 +131,7 @@ fn replay_committed_observation() -> Result<(), String> {
     )?;
 
     let run_bytes = read_bounded(&root.join("artifacts/cuda-run.json"), MAX_ARTIFACT_BYTES)?;
-    let recorded_run = RunManifestV2::from_json(&run_bytes, DecoderLimits::default())
+    let recorded_run = RunManifestV2::from_json(&run_bytes, Default::default())
         .map_err(|diagnostic| diagnostic.to_string())?;
     recorded_run
         .validate_against(&fresh_realization)

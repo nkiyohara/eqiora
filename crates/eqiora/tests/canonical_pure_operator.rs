@@ -1,5 +1,5 @@
 use eqiora::artifact::{
-    DecoderLimits, ModelEnvelopeV4, ModelEnvelopeV5, ModelTransactionEnvelopeV4,
+    ModelDecoderLimits, ModelEnvelopeV4, ModelEnvelopeV5, ModelTransactionEnvelopeV4,
     ModelTransactionEnvelopeV5,
 };
 use eqiora::compatibility::ExactModelCodec;
@@ -229,8 +229,7 @@ fn v5_model_and_transaction_replay_exactly_while_v4_remains_closed() {
     let transaction = ModelTransactionEnvelopeV5::from_transaction(compiled.transaction()).unwrap();
     let transaction_bytes = transaction.canonical_json().unwrap();
     let replayed =
-        ModelTransactionEnvelopeV5::from_json(&transaction_bytes, DecoderLimits::default())
-            .unwrap();
+        ModelTransactionEnvelopeV5::from_json(&transaction_bytes, Default::default()).unwrap();
     assert_eq!(replayed.canonical_json().unwrap(), transaction_bytes);
     assert_eq!(
         replayed.to_transaction().unwrap().ops(),
@@ -244,7 +243,7 @@ fn v5_model_and_transaction_replay_exactly_while_v4_remains_closed() {
     assert!(ExactModelCodec::V4.compile("direct.eqi", DIRECT).is_err());
     let model = ModelEnvelopeV5::from_program(document.program()).unwrap();
     let model_bytes = model.canonical_json().unwrap();
-    let replayed = ModelEnvelopeV5::from_json(&model_bytes, DecoderLimits::default()).unwrap();
+    let replayed = ModelEnvelopeV5::from_json(&model_bytes, Default::default()).unwrap();
     assert_eq!(replayed.canonical_json().unwrap(), model_bytes);
     assert_eq!(replayed.to_program().unwrap(), *document.program());
     assert_eq!(
@@ -255,7 +254,7 @@ fn v5_model_and_transaction_replay_exactly_while_v4_remains_closed() {
             .unwrap(),
         model_bytes
     );
-    assert!(ModelEnvelopeV4::from_json(&model_bytes, DecoderLimits::default()).is_err());
+    assert!(ModelEnvelopeV4::from_json(&model_bytes, Default::default()).is_err());
 }
 
 #[test]
@@ -327,7 +326,7 @@ fn v5_unknown_feature_digest_and_resource_limit_fail_closed() {
         Value::String("eqiora.unknown-pure-calculus/v9".to_owned());
     let diagnostic = ModelEnvelopeV5::from_json(
         &serde_json::to_vec(&unknown_feature).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap_err();
     assert!(diagnostic.message().contains("unknown feature"));
@@ -342,16 +341,16 @@ fn v5_unknown_feature_digest_and_resource_limit_fail_closed() {
         Value::String(format!("{replacement}{}", &digest[1..]));
     let diagnostic = ModelEnvelopeV5::from_json(
         &serde_json::to_vec(&mismatched_digest).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap_err();
     assert!(diagnostic.message().contains("digest mismatch"));
 
     let diagnostic = ModelEnvelopeV5::from_json(
         &bytes,
-        DecoderLimits {
+        ModelDecoderLimits {
             max_pure_operator_definitions: 0,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
     )
     .unwrap_err();

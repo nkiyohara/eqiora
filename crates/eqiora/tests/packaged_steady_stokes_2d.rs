@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora::api::ModelDocument;
-use eqiora::artifact::{DecoderLimits, ModelEnvelopeV4};
+use eqiora::artifact::ModelEnvelopeV4;
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::diagnostic::codes;
 use eqiora::kernel::BoundarySide;
@@ -359,7 +359,7 @@ fn identity_normalized_program(packaged: &ModelDocument, direct: &ModelDocument)
     rewrite_model_ulids(&mut packaged_value, &identities);
     let rewritten = ModelEnvelopeV4::from_json(
         &serde_json::to_vec(&packaged_value).expect("normalized Model JSON"),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .expect("normalized Model v4");
     rewritten

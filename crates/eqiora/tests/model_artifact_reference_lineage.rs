@@ -2,8 +2,8 @@ use std::{collections::BTreeSet, num::NonZeroUsize};
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
-    AcceptedModelArtifact, CanonicalModelArtifact, DecoderLimits, ExecutionProvenanceV1,
-    ExecutionTopologyV1, LayoutArtifacts, ModelArtifactGeneration, RealizationEnvelopeV1,
+    AcceptedModelArtifact, CanonicalModelArtifact, ExecutionProvenanceV1, ExecutionTopologyV1,
+    LayoutArtifacts, ModelArtifactGeneration, RealizationEnvelopeV1,
     ReplayableCanonicalModelArtifact, RunManifestV2,
 };
 use eqiora::compatibility::ExactModelCodec;
@@ -198,9 +198,8 @@ fn artifact_owner_dispatches_every_exact_generation_and_rejects_cross_generation
             .expect("owner-registered generation encodes the Model");
         assert_eq!(artifact.generation(), generation);
         let bytes = artifact.canonical_json().expect("canonical Model bytes");
-        let decoded =
-            AcceptedModelArtifact::from_json(generation, &bytes, DecoderLimits::default())
-                .expect("explicit owner-selected generation decodes its bytes");
+        let decoded = AcceptedModelArtifact::from_json(generation, &bytes, Default::default())
+            .expect("explicit owner-selected generation decodes its bytes");
         assert_eq!(decoded, artifact);
         assert_eq!(
             decoded.replay_model().unwrap().program(),
@@ -214,7 +213,7 @@ fn artifact_owner_dispatches_every_exact_generation_and_rejects_cross_generation
                     AcceptedModelArtifact::from_json(
                         foreign_generation,
                         &bytes,
-                        DecoderLimits::default(),
+                        Default::default(),
                     )
                     .is_err(),
                     "wrong-generation bytes must fail closed"

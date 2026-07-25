@@ -1,6 +1,6 @@
 use eqiora::api::{import_xdmf_hdf5_v1, import_xdmf_v1, verify_xdmf_hdf5_import_v1};
 use eqiora::artifact::{
-    DecoderLimits, DiscreteFieldEnvelopeV1, ExternalImportManifestV1, ExternalRuntimeRoleV1,
+    DiscreteFieldEnvelopeV1, ExternalImportManifestV1, ExternalRuntimeRoleV1,
     SimplicialMeshEnvelopeV1,
 };
 use eqiora::diagnostic::codes;
@@ -130,23 +130,20 @@ fn native_file_image_resolution_replays_exact_persisted_artifacts() {
     .unwrap();
     let persisted_manifest = ExternalImportManifestV1::from_json(
         &derived.manifest().canonical_json().unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     let persisted_mesh = SimplicialMeshEnvelopeV1::from_json(
         &derived.mesh().canonical_json().unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     let persisted_fields = derived
         .fields()
         .iter()
         .map(|field| {
-            DiscreteFieldEnvelopeV1::from_json(
-                &field.canonical_json().unwrap(),
-                DecoderLimits::default(),
-            )
-            .unwrap()
+            DiscreteFieldEnvelopeV1::from_json(&field.canonical_json().unwrap(), Default::default())
+                .unwrap()
         })
         .collect::<Vec<_>>();
     let verified = verify_xdmf_hdf5_import_v1(

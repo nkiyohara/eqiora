@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroUsize;
 
-use eqiora::artifact::{DecoderLimits, ModelEnvelopeV2};
+use eqiora::artifact::ModelEnvelopeV2;
 use eqiora::compiler::{ModelSymbols, compile};
 use eqiora::entity::kinds;
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore};
@@ -239,7 +239,7 @@ fn assert_identical_semantics_after_identity_normalization(
     rewrite_model_ulids(&mut hierarchy_value, &identities);
     let normalized = ModelEnvelopeV2::from_json(
         &serde_json::to_vec(&hierarchy_value).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     assert_eq!(
@@ -456,7 +456,7 @@ fn nested_components_lower_to_one_flat_kernel_and_solve_the_analytic_dc_case() {
     let envelope = ModelEnvelopeV2::from_program(&program).unwrap();
     let bytes = envelope.canonical_json().unwrap();
     let digest = envelope.digest().unwrap();
-    let decoded = ModelEnvelopeV2::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = ModelEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
     let reconstructed = ModelEnvelopeV2::from_program(&decoded.to_program().unwrap()).unwrap();
     assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
     assert_eq!(reconstructed.digest().unwrap(), digest);

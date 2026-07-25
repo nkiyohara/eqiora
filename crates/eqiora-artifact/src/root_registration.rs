@@ -14,7 +14,7 @@ use ulid::Ulid;
 
 use crate::time::TimeLoweringEnvelopeV1;
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, ModelEnvelopeV1, check_wire_limits,
+    ArtifactDigest, CANONICAL_ENCODING, ModelEnvelopeV1, TimeDecoderLimits, check_json_limits,
     invalid_artifact,
 };
 
@@ -82,8 +82,8 @@ impl RootRegistrationEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version,
     /// non-canonical, duplicate, overlapping, or invalid-ID data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: TimeDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire: WireRootRegistrationEnvelopeV1 =
             serde_json::from_slice(bytes).map_err(|error| {
                 invalid_artifact(format!("invalid root registration envelope JSON: {error}"))
@@ -97,10 +97,10 @@ impl RootRegistrationEnvelopeV1 {
         let activation_count = wire.groups.iter().try_fold(0_usize, |count, group| {
             count.checked_add(group.activation_ulids.len())
         });
-        if activation_count.is_none_or(|count| count > limits.max_nodes) {
+        if activation_count.is_none_or(|count| count > limits.max_root_activation_references) {
             return Err(invalid_artifact(format!(
                 "root Activation references exceed decoder limit {}",
-                limits.max_nodes
+                limits.max_root_activation_references
             )));
         }
         let envelope = Self { wire };

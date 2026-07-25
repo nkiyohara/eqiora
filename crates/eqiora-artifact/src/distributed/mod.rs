@@ -7,12 +7,51 @@ mod preflight;
 use eqiora_core::Diagnostic;
 use serde::{Deserialize, Serialize};
 
-use crate::invalid_artifact;
+use crate::{JsonDecoderLimits, invalid_artifact};
 
 pub use content_dag::validate_distributed_content_dag;
 pub use layout::DistributedLayoutEnvelopeV1;
 pub use linear_system::LinearSystemEnvelopeV1;
 pub use partition::PartitionEnvelopeV1;
+
+/// Semantic work budgets shared by distributed algebra artifact generations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DistributedDecoderLimits {
+    /// Common JSON syntax admission.
+    pub json: JsonDecoderLimits,
+    /// Maximum dimension of one decoded distributed algebra artifact.
+    pub max_distributed_dimension: usize,
+    /// Maximum partitions in one decoded unique-owner map.
+    pub max_distributed_partitions: usize,
+    /// Maximum nonzeros in one decoded complete CSR system.
+    pub max_distributed_nonzeros: usize,
+    /// Maximum owner-map entries in one decoded partition artifact.
+    pub max_distributed_owner_entries: usize,
+    /// Maximum owned and ghost indices summed across one layout artifact.
+    pub max_distributed_local_indices: usize,
+    /// Maximum halo records in one decoded layout artifact.
+    pub max_distributed_halo_records: usize,
+    /// Maximum halo indices summed across one decoded layout artifact.
+    pub max_distributed_halo_indices: usize,
+    /// Maximum aggregate scalar work admitted before reconstruction.
+    pub max_distributed_aggregate_work: usize,
+}
+
+impl Default for DistributedDecoderLimits {
+    fn default() -> Self {
+        Self {
+            json: JsonDecoderLimits::default(),
+            max_distributed_dimension: 4_000_000,
+            max_distributed_partitions: 65_536,
+            max_distributed_nonzeros: 32_000_000,
+            max_distributed_owner_entries: 4_000_000,
+            max_distributed_local_indices: 16_000_000,
+            max_distributed_halo_records: 4_000_000,
+            max_distributed_halo_indices: 16_000_000,
+            max_distributed_aggregate_work: 96_000_000,
+        }
+    }
+}
 
 pub(super) const LINEAR_SYSTEM_SCHEMA: &str = "eqiora.linear-system-envelope/v1";
 pub(super) const PARTITION_SCHEMA: &str = "eqiora.partition-envelope/v1";

@@ -39,8 +39,8 @@ pub use transient_fluid::*;
 use std::collections::BTreeMap;
 
 use eqiora_artifact::{
-    AcceptedModelArtifact, CanonicalModelArtifact, DecoderLimits, ModelArtifactGeneration,
-    ModelArtifactReference, ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2,
+    AcceptedModelArtifact, CanonicalModelArtifact, ModelArtifactGeneration, ModelArtifactReference,
+    ModelDecoderLimits, ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2,
     ModelTransactionEnvelopeV3, ModelTransactionEnvelopeV4, ModelTransactionEnvelopeV5,
     ModelTransactionEnvelopeV6, ReplayableCanonicalModelArtifact,
 };
@@ -325,17 +325,17 @@ impl ExactModelCodec {
         bytes: &[u8],
     ) -> Result<VersionedModelTransactionEnvelope, Diagnostic> {
         match self {
-            Self::V1 => ModelTransactionEnvelopeV1::from_json(bytes, DecoderLimits::default())
+            Self::V1 => ModelTransactionEnvelopeV1::from_json(bytes, ModelDecoderLimits::default())
                 .map(VersionedModelTransactionEnvelope::V1),
-            Self::V2 => ModelTransactionEnvelopeV2::from_json(bytes, DecoderLimits::default())
+            Self::V2 => ModelTransactionEnvelopeV2::from_json(bytes, ModelDecoderLimits::default())
                 .map(VersionedModelTransactionEnvelope::V2),
-            Self::V3 => ModelTransactionEnvelopeV3::from_json(bytes, DecoderLimits::default())
+            Self::V3 => ModelTransactionEnvelopeV3::from_json(bytes, ModelDecoderLimits::default())
                 .map(VersionedModelTransactionEnvelope::V3),
-            Self::V4 => ModelTransactionEnvelopeV4::from_json(bytes, DecoderLimits::default())
+            Self::V4 => ModelTransactionEnvelopeV4::from_json(bytes, ModelDecoderLimits::default())
                 .map(VersionedModelTransactionEnvelope::V4),
-            Self::V5 => ModelTransactionEnvelopeV5::from_json(bytes, DecoderLimits::default())
+            Self::V5 => ModelTransactionEnvelopeV5::from_json(bytes, ModelDecoderLimits::default())
                 .map(VersionedModelTransactionEnvelope::V5),
-            Self::V6 => ModelTransactionEnvelopeV6::from_json(bytes, DecoderLimits::default())
+            Self::V6 => ModelTransactionEnvelopeV6::from_json(bytes, ModelDecoderLimits::default())
                 .map(VersionedModelTransactionEnvelope::V6),
         }
     }
@@ -348,7 +348,7 @@ impl ExactModelCodec {
         AcceptedModelArtifact::from_json(
             self.artifact_generation(),
             bytes,
-            DecoderLimits::default(),
+            ModelDecoderLimits::default(),
         )
     }
 }

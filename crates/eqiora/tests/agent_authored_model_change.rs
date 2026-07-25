@@ -4,7 +4,7 @@ use eqiora::api::{
     ModelDocument, ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod,
     ScalarEllipticRunResult,
 };
-use eqiora::artifact::{ArtifactDigest, DecoderLimits, ExecutionProvenanceV1, RunManifestV2};
+use eqiora::artifact::{ArtifactDigest, ExecutionProvenanceV1, RunManifestV2};
 use eqiora::control::{CompileOutcomeV1, CompileRequestV1, execute_compile_v1};
 use eqiora::diagnostic::codes;
 use eqiora::realization::RealizationRevision;
@@ -210,7 +210,7 @@ fn offline_agent_proposal_uses_the_ordinary_exact_edit_and_execution_path() {
     let run_bytes = accepted.run_manifest().canonical_json().unwrap();
     let replayed_run = accepted
         .plan()
-        .replay_run_manifest(&run_bytes, DecoderLimits::default())
+        .replay_run_manifest(&run_bytes, Default::default())
         .unwrap();
     assert_eq!(replayed_run.canonical_json().unwrap(), run_bytes);
     assert_eq!(

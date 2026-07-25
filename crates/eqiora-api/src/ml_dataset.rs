@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use eqiora_artifact::{
-    ArtifactDigest, DecoderLimits, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1,
-    MlDatasetChannelStatisticsV1, MlDatasetEnvelopeV1, MlDatasetFieldDescriptorV1,
+    ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, MlDatasetChannelStatisticsV1,
+    MlDatasetDecoderLimits, MlDatasetEnvelopeV1, MlDatasetFieldDescriptorV1,
     MlDatasetObservationReferenceV1, MlDatasetSampleV1, MlDatasetStateReferenceV1,
     ReplayableCanonicalModelArtifact,
 };
@@ -113,7 +113,7 @@ impl MlDatasetDerivationPlanV1 {
         if window_length == 0 {
             return Err(dataset_error("ML Dataset window length must be positive"));
         }
-        let decoder_limits = DecoderLimits::default();
+        let decoder_limits = MlDatasetDecoderLimits::default();
         let mut normalized_fields = Vec::new();
         for field in fields {
             if normalized_fields.len() == decoder_limits.max_ml_dataset_descriptors {

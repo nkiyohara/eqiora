@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 
 use eqiora::artifact::{
-    DecoderLimits, GeneralImplicitTimeLoweringEnvelopeV1, ImplicitTimeCheckpointEnvelopeV1,
+    GeneralImplicitTimeLoweringEnvelopeV1, ImplicitTimeCheckpointEnvelopeV1,
     ImplicitTimeInitialDataEnvelopeV1, ImplicitTimeRestartManifestV1, ImplicitTimeRunManifestV1,
     ModelEnvelopeV1,
 };
@@ -70,7 +70,7 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
     .unwrap();
     let checkpoint = ImplicitTimeCheckpointEnvelopeV1::from_json(
         &checkpoint.canonical_json().unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     checkpoint

@@ -16,12 +16,39 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, ModelEnvelopeV1, check_wire_limits,
+    ArtifactDigest, CANONICAL_ENCODING, JsonDecoderLimits, ModelEnvelopeV1, check_json_limits,
     invalid_artifact, validate_text,
 };
 
 const TIME_LOWERING_SCHEMA: &str = "eqiora.time-lowering-envelope/v1";
 const TIME_RUN_SCHEMA: &str = "eqiora.time-run-manifest/v1";
+
+/// Semantic work budgets shared by residual-native time artifact generations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TimeDecoderLimits {
+    /// Common JSON syntax admission.
+    pub json: JsonDecoderLimits,
+    /// Maximum state dimension for exact rational rank replay.
+    pub max_exact_rank_dimension: usize,
+    /// Maximum state dimension in a residual-native time artifact.
+    pub max_time_state_dimension: usize,
+    /// Maximum scalar root callbacks in one root registration envelope.
+    pub max_root_functions: usize,
+    /// Maximum Activation references summed across one root registration.
+    pub max_root_activation_references: usize,
+}
+
+impl Default for TimeDecoderLimits {
+    fn default() -> Self {
+        Self {
+            json: JsonDecoderLimits::default(),
+            max_exact_rank_dimension: 128,
+            max_time_state_dimension: 128,
+            max_root_functions: 4_096,
+            max_root_activation_references: 100_000,
+        }
+    }
+}
 
 /// Content-addressed witness linking one canonical Relation to its admitted
 /// first-order equation class.
@@ -81,8 +108,8 @@ impl TimeLoweringEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version, invalid-ID,
     /// or internally contradictory witness data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: TimeDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid time lowering envelope JSON: {error}"))
         })?;
@@ -271,8 +298,8 @@ impl TimeRunManifestV1 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version, duplicate,
     /// non-finite, or internally contradictory data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: TimeDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid time run JSON: {error}")))?;
         let manifest = Self { wire };

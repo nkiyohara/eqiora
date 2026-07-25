@@ -1,8 +1,8 @@
 use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
-    ArtifactDigest, DecoderLimits, DistributedTransportV1, ExecutionProvenanceV1,
-    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1, RunManifestV2,
+    ArtifactDigest, DistributedTransportV1, ExecutionProvenanceV1, ExecutionTopologyV1,
+    JsonDecoderLimits, LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1, RunManifestV2,
 };
 use eqiora_compiler::compile;
 use eqiora_core::OntologyId;
@@ -49,7 +49,7 @@ fn realization_and_run_v2_round_trip_with_typed_linkage() {
     .unwrap();
     let realization_bytes = realization.canonical_json().unwrap();
     let decoded_realization =
-        RealizationEnvelopeV1::from_json(&realization_bytes, DecoderLimits::default()).unwrap();
+        RealizationEnvelopeV1::from_json(&realization_bytes, Default::default()).unwrap();
 
     assert_eq!(
         decoded_realization.canonical_json().unwrap(),
@@ -80,7 +80,7 @@ fn realization_and_run_v2_round_trip_with_typed_linkage() {
         .unwrap()
         .with_output(digest(2));
     let run_bytes = run.canonical_json().unwrap();
-    let decoded_run = RunManifestV2::from_json(&run_bytes, DecoderLimits::default()).unwrap();
+    let decoded_run = RunManifestV2::from_json(&run_bytes, Default::default()).unwrap();
 
     decoded_run.validate_against(&decoded_realization).unwrap();
     assert_eq!(decoded_run.canonical_json().unwrap(), run_bytes);
@@ -194,7 +194,7 @@ fn realization_v1_golden_bytes_are_frozen() {
         "../../../verify/artifacts/realization-run-wire/expected/realization-v1.json"
     );
     let fixture = fixture.strip_suffix(b"\n").unwrap_or(fixture);
-    let decoded = RealizationEnvelopeV1::from_json(fixture, DecoderLimits::default()).unwrap();
+    let decoded = RealizationEnvelopeV1::from_json(fixture, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), fixture);
 }
 
@@ -442,28 +442,22 @@ fn run_v2_rejects_untrusted_wire_ambiguity_and_resource_excess() {
         .unwrap()
         .push(output);
     assert!(
-        RunManifestV2::from_json(
-            &serde_json::to_vec(&duplicate).unwrap(),
-            DecoderLimits::default(),
-        )
-        .is_err()
+        RunManifestV2::from_json(&serde_json::to_vec(&duplicate).unwrap(), Default::default(),)
+            .is_err()
     );
 
     let mut unknown: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     unknown["unexpected"] = serde_json::Value::Bool(true);
     assert!(
-        RunManifestV2::from_json(
-            &serde_json::to_vec(&unknown).unwrap(),
-            DecoderLimits::default(),
-        )
-        .is_err()
+        RunManifestV2::from_json(&serde_json::to_vec(&unknown).unwrap(), Default::default(),)
+            .is_err()
     );
     assert!(
         RunManifestV2::from_json(
             &bytes,
-            DecoderLimits {
+            JsonDecoderLimits {
                 max_bytes: bytes.len() - 1,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .is_err()

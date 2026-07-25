@@ -1,6 +1,6 @@
 use eqiora_artifact::{
-    DecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3, ModelTransactionEnvelopeV1,
-    ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3,
+    ModelDecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3,
+    ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3,
 };
 use eqiora_compiler::compile;
 use eqiora_core::entity::kinds;
@@ -83,18 +83,18 @@ fn v3_uses_one_shaped_field_representation_and_explicit_schema() {
     assert!(!String::from_utf8_lossy(&v2_bytes).contains("shaped-field"));
     assert!(String::from_utf8_lossy(&v3_bytes).contains("shaped-field"));
     assert!(String::from_utf8_lossy(&v3_bytes).contains("\"shape\":[]"));
-    assert!(ModelEnvelopeV1::from_json(&v3_bytes, DecoderLimits::default()).is_err());
-    assert!(ModelEnvelopeV2::from_json(&v3_bytes, DecoderLimits::default()).is_err());
+    assert!(ModelEnvelopeV1::from_json(&v3_bytes, Default::default()).is_err());
+    assert!(ModelEnvelopeV2::from_json(&v3_bytes, Default::default()).is_err());
 
-    let decoded = ModelEnvelopeV3::from_json(&v3_bytes, DecoderLimits::default()).unwrap();
+    let decoded = ModelEnvelopeV3::from_json(&v3_bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), v3_bytes);
     assert_eq!(decoded.digest().unwrap(), v3.digest().unwrap());
     assert!(
         ModelEnvelopeV3::from_json(
             &v3_bytes,
-            DecoderLimits {
+            ModelDecoderLimits {
                 max_value_shape_components: 0,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .is_err()
@@ -117,15 +117,15 @@ fn boundary_physical_transaction_is_v3_only_and_round_trips_exact_contracts() {
     assert!(text.contains("\"shape\":[2]"));
     assert!(text.contains("spatial-cartesian"));
 
-    let decoded = ModelTransactionEnvelopeV3::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = ModelTransactionEnvelopeV3::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.to_transaction().unwrap().ops(), transaction.ops());
     assert!(
         ModelTransactionEnvelopeV3::from_json(
             &bytes,
-            DecoderLimits {
+            ModelDecoderLimits {
                 max_value_shape_rank: 0,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .is_err()
@@ -137,7 +137,7 @@ fn boundary_physical_transaction_is_v3_only_and_round_trips_exact_contracts() {
     assert!(
         ModelTransactionEnvelopeV2::from_json(
             &serde_json::to_vec(&forged_v2).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
@@ -150,11 +150,8 @@ fn v3_rejects_legacy_field_spelling_even_when_schema_is_forged() {
         serde_json::from_slice(&v2.canonical_json().unwrap()).unwrap();
     forged["schema"] = serde_json::Value::String("eqiora.model-envelope/v3".to_owned());
     assert!(
-        ModelEnvelopeV3::from_json(
-            &serde_json::to_vec(&forged).unwrap(),
-            DecoderLimits::default(),
-        )
-        .is_err()
+        ModelEnvelopeV3::from_json(&serde_json::to_vec(&forged).unwrap(), Default::default(),)
+            .is_err()
     );
 }
 
@@ -164,11 +161,9 @@ fn v3_diagnostics_name_the_selected_wire_version() {
     let mut malformed: serde_json::Value =
         serde_json::from_slice(&v3.canonical_json().unwrap()).unwrap();
     malformed["nodes"] = serde_json::Value::Array(Vec::new());
-    let diagnostic = ModelEnvelopeV3::from_json(
-        &serde_json::to_vec(&malformed).unwrap(),
-        DecoderLimits::default(),
-    )
-    .unwrap_err();
+    let diagnostic =
+        ModelEnvelopeV3::from_json(&serde_json::to_vec(&malformed).unwrap(), Default::default())
+            .unwrap_err();
     assert!(diagnostic.message().contains("model v3 envelope"));
     assert!(!diagnostic.message().contains("model v2 envelope"));
 }

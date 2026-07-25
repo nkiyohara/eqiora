@@ -1,7 +1,7 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::artifact::{
-    DecoderLimits, LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1,
+    LayoutArtifacts, MeshDecoderLimits, ModelEnvelopeV1, RealizationEnvelopeV1,
     SimplicialMeshEnvelopeV1,
 };
 use eqiora::compiler::compile;
@@ -35,7 +35,7 @@ fn imported_mesh_identity_round_trips_from_realization_to_assembly_evidence() {
     let mesh_artifact = SimplicialMeshEnvelopeV1::from_mesh(&cross_mesh()).unwrap();
     let mesh_bytes = mesh_artifact.canonical_json().unwrap();
     let mesh_artifact =
-        SimplicialMeshEnvelopeV1::from_json(&mesh_bytes, DecoderLimits::default()).unwrap();
+        SimplicialMeshEnvelopeV1::from_json(&mesh_bytes, Default::default()).unwrap();
     let resolved = resolve_imported(&program, mesh_artifact.artifact_reference().unwrap(), 2);
     let realization = RealizationEnvelopeV1::from_resolved(
         &model_artifact,
@@ -51,7 +51,7 @@ fn imported_mesh_identity_round_trips_from_realization_to_assembly_evidence() {
 
     let realization_bytes = realization.canonical_json().unwrap();
     let realization =
-        RealizationEnvelopeV1::from_json(&realization_bytes, DecoderLimits::default()).unwrap();
+        RealizationEnvelopeV1::from_json(&realization_bytes, Default::default()).unwrap();
     realization.validate_mesh_artifact(&mesh_artifact).unwrap();
     let (_, solution) = solve_resolved_scalar_elliptic_simplicial(
         &program,
@@ -279,9 +279,9 @@ fn imported_mesh_wire_rejects_resource_excess_unknown_fields_and_forged_evidence
     assert!(
         SimplicialMeshEnvelopeV1::from_json(
             &bytes,
-            DecoderLimits {
+            MeshDecoderLimits {
                 max_mesh_cells: 3,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .is_err()
@@ -292,7 +292,7 @@ fn imported_mesh_wire_rejects_resource_excess_unknown_fields_and_forged_evidence
     assert!(
         SimplicialMeshEnvelopeV1::from_json(
             &serde_json::to_vec(&unknown).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
@@ -302,7 +302,7 @@ fn imported_mesh_wire_rejects_resource_excess_unknown_fields_and_forged_evidence
     assert!(
         SimplicialMeshEnvelopeV1::from_json(
             &serde_json::to_vec(&forged).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );

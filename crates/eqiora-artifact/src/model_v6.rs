@@ -6,7 +6,7 @@ use eqiora_schema::Model;
 use eqiora_sem::KernelProgram;
 
 use crate::model_v2::ModelEnvelopeV2;
-use crate::{ArtifactDigest, DecoderLimits};
+use crate::{ArtifactDigest, ModelDecoderLimits};
 
 /// Explicit v6 serialization of one validated canonical Semantic Model.
 ///
@@ -32,7 +32,7 @@ impl ModelEnvelopeV6 {
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unsupported, dangling, or
     /// wrong-version data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
+    pub fn from_json(bytes: &[u8], limits: ModelDecoderLimits) -> Result<Self, Diagnostic> {
         ModelEnvelopeV2::from_json_v6(bytes, limits).map(|inner| Self { inner })
     }
 

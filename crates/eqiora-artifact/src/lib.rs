@@ -5,7 +5,6 @@
 //! transaction; deserialization never bypasses an existing invariant.
 
 mod cad;
-mod decoder_limits;
 mod discrete_field;
 mod distributed;
 mod external_import;
@@ -18,6 +17,7 @@ mod geometry_state_v2;
 mod geometry_state_v3;
 mod implicit_time;
 mod implicit_time_lineage;
+mod json_preflight;
 mod mesh;
 mod mesh_revision_overlap;
 mod model;
@@ -62,20 +62,19 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub use cad::{CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1};
-pub use decoder_limits::DecoderLimits;
-pub use discrete_field::DiscreteFieldEnvelopeV1;
+pub use discrete_field::{DiscreteFieldEnvelopeV1, FieldDecoderLimits};
 pub use distributed::{
-    DistributedLayoutEnvelopeV1, LinearSystemEnvelopeV1, PartitionEnvelopeV1,
-    validate_distributed_content_dag,
+    DistributedDecoderLimits, DistributedLayoutEnvelopeV1, LinearSystemEnvelopeV1,
+    PartitionEnvelopeV1, validate_distributed_content_dag,
 };
 pub use external_import::{
-    ExternalAdapterIdentityV1, ExternalImportManifestV1, ExternalImportObservationV1,
-    ExternalImportSelectionV1, ExternalImportSourceV1, ExternalRuntimeComponentV1,
-    ExternalRuntimeRoleV1, RawSourceSha256, ResolvedImportArrayV1, SelectedSourceEntityV1,
-    StructuralSelectorV1,
+    ExternalAdapterIdentityV1, ExternalImportDecoderLimits, ExternalImportManifestV1,
+    ExternalImportObservationV1, ExternalImportSelectionV1, ExternalImportSourceV1,
+    ExternalRuntimeComponentV1, ExternalRuntimeRoleV1, RawSourceSha256, ResolvedImportArrayV1,
+    SelectedSourceEntityV1, StructuralSelectorV1,
 };
 pub use geometry_identity::{
-    CartesianGeometryBodyV1, CartesianGeometryBoundaryV1, GeometryEntityV1,
+    CartesianGeometryBodyV1, CartesianGeometryBoundaryV1, GeometryDecoderLimits, GeometryEntityV1,
     GeometryIdentityEnvelopeV1,
 };
 pub use geometry_mesh_correspondence::{
@@ -95,9 +94,11 @@ pub use implicit_time::{
     ImplicitTimeRunManifestV1,
 };
 pub use implicit_time_lineage::{ImplicitTimeCheckpointEnvelopeV1, ImplicitTimeRestartManifestV1};
-pub use mesh::SimplicialMeshEnvelopeV1;
+pub use json_preflight::JsonDecoderLimits;
+pub(crate) use json_preflight::check_json_limits;
+pub use mesh::{MeshDecoderLimits, SimplicialMeshEnvelopeV1};
 pub use mesh_revision_overlap::MeshRevisionOverlapEnvelopeV1;
-pub use model::ModelEnvelopeV1;
+pub use model::{ModelDecoderLimits, ModelEnvelopeV1};
 pub use model_reference::{
     AcceptedModelArtifact, CanonicalModelArtifact, ModelArtifactGeneration, ModelArtifactReference,
     ReplayableCanonicalModelArtifact, ReplayedCanonicalModel,
@@ -114,11 +115,13 @@ pub use model_v4::ModelEnvelopeV4;
 pub use model_v5::ModelEnvelopeV5;
 pub use model_v6::ModelEnvelopeV6;
 pub use physical_exposure::{
-    PhysicalExposureCatalogEnvelopeV1, PhysicalExposureContractV1,
+    PhysicalExposureCatalogEnvelopeV1, PhysicalExposureContractV1, PhysicalExposureDecoderLimits,
     PhysicalExposureObservationBindingV1, PhysicalExposureProjectionV1, PhysicalExposureQuantityV1,
     PhysicalExposureSourceOriginV1, PhysicalExposureSourceSpanV1,
 };
-pub use realization::{LayoutArtifacts, LayoutArtifactsV1, RealizationEnvelopeV1};
+pub use realization::{
+    LayoutArtifacts, LayoutArtifactsV1, RealizationDecoderLimits, RealizationEnvelopeV1,
+};
 #[allow(deprecated)]
 pub use realization_reference::{
     CanonicalRealizationArtifact, RealizationArtifactReference, RealizationArtifactReferenceV1,
@@ -129,12 +132,14 @@ pub use realization_v3::RealizationEnvelopeV3;
 pub use realization_v4::RealizationEnvelopeV4;
 pub use realization_v5::RealizationEnvelopeV5;
 pub use remesh_transfer::{
-    BoundedRemeshDefectV1, FieldTransferReceiptV1, RemeshFieldRoleV1, RemeshIntegrationChartV1,
-    RemeshNormalizationWitnessV1, RemeshProjectionActionV1, RemeshProjectionEvidenceEnvelopeV1,
-    RemeshProjectionExecutionModeV1, RemeshTransferEvidenceV1, RemeshTransferLawV1,
-    RemeshTransferReceiptEnvelopeV1,
+    BoundedRemeshDefectV1, FieldTransferReceiptV1, RemeshDecoderLimits, RemeshFieldRoleV1,
+    RemeshIntegrationChartV1, RemeshNormalizationWitnessV1, RemeshProjectionActionV1,
+    RemeshProjectionEvidenceEnvelopeV1, RemeshProjectionExecutionModeV1, RemeshTransferEvidenceV1,
+    RemeshTransferLawV1, RemeshTransferReceiptEnvelopeV1,
 };
-pub use resolved_array::{ResolvedArrayScalarV1, ResolvedArrayV1};
+pub use resolved_array::{
+    ResolvedArrayDecoderLimits, ResolvedArrayLimits, ResolvedArrayScalarV1, ResolvedArrayV1,
+};
 pub use root_registration::RootRegistrationEnvelopeV1;
 pub use run_v2::{
     DistributedTransportV1, ExecutionProvenanceFingerprintV1, ExecutionProvenanceV1,
@@ -145,11 +150,11 @@ pub use semantic_fingerprint::{
 };
 pub use spatial_data::{
     DatasetViewEnvelopeV1, DiscreteFieldStorageEnvelopeV1, FieldSnapshotEnvelopeV1,
-    MlDatasetChannelStatisticsV1, MlDatasetDescriptorRoleV1, MlDatasetEnvelopeV1,
-    MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1, MlDatasetSampleSplitV1,
-    MlDatasetSampleV1, MlDatasetStateKindV1, MlDatasetStateReferenceV1, SpatialStateEnvelopeV1,
-    SpatialTrajectoryEnvelopeV1, SpatialTrajectorySegmentEnvelopeV1, StorageChunkSha256V1,
-    StorageChunkV1, ValidatedFixedSpatialContextV1,
+    MlDatasetChannelStatisticsV1, MlDatasetDecoderLimits, MlDatasetDescriptorRoleV1,
+    MlDatasetEnvelopeV1, MlDatasetFieldDescriptorV1, MlDatasetObservationReferenceV1,
+    MlDatasetSampleSplitV1, MlDatasetSampleV1, MlDatasetStateKindV1, MlDatasetStateReferenceV1,
+    SpatialStateEnvelopeV1, SpatialTrajectoryEnvelopeV1, SpatialTrajectorySegmentEnvelopeV1,
+    StorageChunkSha256V1, StorageChunkV1, TrajectoryDecoderLimits, ValidatedFixedSpatialContextV1,
 };
 pub use spatial_state_v2::{SpatialStateEnvelopeV2, ValidatedMovingSpatialContextV2};
 pub use spatial_state_v3::{SpatialStateEnvelopeV3, SpatialStateOriginKindV3};
@@ -158,10 +163,11 @@ pub use spatial_trajectory_v3::{
     SpatialTrajectoryEnvelopeV3, SpatialTrajectorySegmentEnvelopeV3,
     SpatialTrajectorySegmentOriginKindV3,
 };
-pub use time::{TimeLoweringEnvelopeV1, TimeRunManifestV1};
+pub use time::{TimeDecoderLimits, TimeLoweringEnvelopeV1, TimeRunManifestV1};
 pub use xdmf_hdf5_trajectory_storage::{
-    TemporalStorageBlockPresentationV1, TemporalStorageStateKindV1, XdmfHdf5TrajectoryBlockV1,
-    XdmfHdf5TrajectoryFieldV1, XdmfHdf5TrajectoryFrameV1, XdmfHdf5TrajectoryStorageEnvelopeV1,
+    TemporalStorageBlockPresentationV1, TemporalStorageStateKindV1, TrajectoryStorageDecoderLimits,
+    XdmfHdf5TrajectoryBlockV1, XdmfHdf5TrajectoryFieldV1, XdmfHdf5TrajectoryFrameV1,
+    XdmfHdf5TrajectoryStorageEnvelopeV1,
 };
 
 const RUN_SCHEMA: &str = "eqiora.run-manifest/v1";
@@ -328,8 +334,8 @@ impl RunManifestV1 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version, duplicate,
     /// or non-canonical field data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: JsonDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits)?;
         let mut wire: WireRunManifestV1 = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid run manifest JSON: {error}")))?;
         if wire.schema != RUN_SCHEMA || wire.encoding != CANONICAL_ENCODING {
@@ -419,49 +425,6 @@ struct WireRunManifestV1 {
     output_sha256: Vec<String>,
 }
 
-pub(crate) fn check_wire_limits(bytes: &[u8], limits: DecoderLimits) -> Result<(), Diagnostic> {
-    if bytes.len() > limits.max_bytes {
-        return Err(invalid_artifact(format!(
-            "artifact has {} bytes, exceeding the {} byte decoder limit",
-            bytes.len(),
-            limits.max_bytes
-        )));
-    }
-
-    let mut depth = 0_usize;
-    let mut in_string = false;
-    let mut escaped = false;
-    for &byte in bytes {
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if byte == b'\\' {
-                escaped = true;
-            } else if byte == b'"' {
-                in_string = false;
-            }
-            continue;
-        }
-        match byte {
-            b'"' => in_string = true,
-            b'{' | b'[' => {
-                depth = depth.checked_add(1).ok_or_else(|| {
-                    invalid_artifact("artifact JSON nesting depth overflowed usize")
-                })?;
-                if depth > limits.max_nesting_depth {
-                    return Err(invalid_artifact(format!(
-                        "artifact JSON nesting exceeds the {} level decoder limit",
-                        limits.max_nesting_depth
-                    )));
-                }
-            }
-            b'}' | b']' => depth = depth.saturating_sub(1),
-            _ => {}
-        }
-    }
-    Ok(())
-}
-
 pub(crate) fn validate_setting_key(key: &str) -> Result<(), Diagnostic> {
     if key.is_empty()
         || !key.bytes().all(|byte| {
@@ -503,7 +466,7 @@ mod tests {
             .with_output(output.clone())
             .with_output(output);
         let bytes = manifest.canonical_json().unwrap();
-        let decoded = RunManifestV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+        let decoded = RunManifestV1::from_json(&bytes, JsonDecoderLimits::default()).unwrap();
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         assert_eq!(decoded.model(), model);
         assert_eq!(decoded.digest().unwrap(), manifest.digest().unwrap());
@@ -529,21 +492,6 @@ mod tests {
         assert_eq!(
             manifest
                 .with_numerical_setting("step", "two")
-                .unwrap_err()
-                .code(),
-            codes::INVALID_ARTIFACT
-        );
-    }
-
-    #[test]
-    fn explicit_json_depth_limit_ignores_delimiters_inside_strings() {
-        let limits = DecoderLimits {
-            max_nesting_depth: 2,
-            ..DecoderLimits::default()
-        };
-        check_wire_limits(br#"{"text":"[[{{"}"#, limits).unwrap();
-        assert_eq!(
-            check_wire_limits(br#"{"nested":{"too":{"deep":true}}}"#, limits)
                 .unwrap_err()
                 .code(),
             codes::INVALID_ARTIFACT

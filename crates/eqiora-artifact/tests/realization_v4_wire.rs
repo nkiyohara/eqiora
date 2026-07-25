@@ -1,8 +1,9 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
-    CanonicalModelArtifact, CanonicalRealizationArtifact, DecoderLimits, LayoutArtifacts,
-    ModelEnvelopeV4, RealizationEnvelopeV4, RealizationEnvelopeV5, SimplicialMeshEnvelopeV1,
+    CanonicalModelArtifact, CanonicalRealizationArtifact, LayoutArtifacts, ModelEnvelopeV4,
+    RealizationDecoderLimits, RealizationEnvelopeV4, RealizationEnvelopeV5,
+    SimplicialMeshEnvelopeV1,
 };
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id};
@@ -37,7 +38,7 @@ fn realization_v4_round_trips_the_complete_ale_graph_and_typed_identity() {
     let fixture = Fixture::new();
     let envelope = fixture.envelope();
     let bytes = envelope.canonical_json().unwrap();
-    let decoded = RealizationEnvelopeV4::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = RealizationEnvelopeV4::from_json(&bytes, Default::default()).unwrap();
 
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
@@ -88,7 +89,7 @@ fn realization_v4_golden_digest_and_roundtrip_are_frozen() {
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     assert_eq!(sha256, EXPECTED_SHA256);
-    let decoded = RealizationEnvelopeV4::from_json(&actual, DecoderLimits::default()).unwrap();
+    let decoded = RealizationEnvelopeV4::from_json(&actual, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), actual);
 }
 
@@ -98,7 +99,7 @@ fn realization_v5_is_domain_separated_and_makes_legacy_triangle_dimension_explic
     let v4 = fixture.envelope().canonical_json().unwrap();
     let envelope = fixture.envelope_v5();
     let v5 = envelope.canonical_json().unwrap();
-    let decoded = RealizationEnvelopeV5::from_json(&v5, DecoderLimits::default()).unwrap();
+    let decoded = RealizationEnvelopeV5::from_json(&v5, Default::default()).unwrap();
 
     assert_eq!(decoded.canonical_json().unwrap(), v5);
     assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
@@ -110,8 +111,8 @@ fn realization_v5_is_domain_separated_and_makes_legacy_triangle_dimension_explic
         fixture.envelope().digest().unwrap(),
         envelope.digest().unwrap()
     );
-    assert!(RealizationEnvelopeV4::from_json(&v5, DecoderLimits::default()).is_err());
-    assert!(RealizationEnvelopeV5::from_json(&v4, DecoderLimits::default()).is_err());
+    assert!(RealizationEnvelopeV4::from_json(&v5, Default::default()).is_err());
+    assert!(RealizationEnvelopeV5::from_json(&v4, Default::default()).is_err());
 
     let value: serde_json::Value = serde_json::from_slice(&v5).unwrap();
     let quadrature = &value["plan"]["coupled"]["spatial"]["discretization"]["quadrature"];
@@ -130,7 +131,7 @@ fn realization_v5_round_trips_dimension_explicit_tetrahedral_quadrature() {
     let fixture = Fixture::tetrahedral();
     let envelope = fixture.envelope_v5();
     let bytes = envelope.canonical_json().unwrap();
-    let decoded = RealizationEnvelopeV5::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = RealizationEnvelopeV5::from_json(&bytes, Default::default()).unwrap();
 
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.plan().unwrap(), *fixture.resolved.plan());
@@ -169,11 +170,9 @@ fn ale_realization_rejects_one_bit_of_reference_mesh_quality_gate_drift() {
     let mut v4: serde_json::Value =
         serde_json::from_slice(&fixture.envelope().canonical_json().unwrap()).unwrap();
     v4["plan"]["geometry_action"]["minimum_mean_ratio"] = serde_json::Value::from(drifted_gate);
-    let v4 = RealizationEnvelopeV4::from_json(
-        &serde_json::to_vec(&v4).unwrap(),
-        DecoderLimits::default(),
-    )
-    .unwrap();
+    let v4 =
+        RealizationEnvelopeV4::from_json(&serde_json::to_vec(&v4).unwrap(), Default::default())
+            .unwrap();
     assert!(
         v4.validate_mesh_artifact(&fixture.mesh).is_err(),
         "V4 mesh validation must compare the complete binary64 quality gate",
@@ -182,11 +181,9 @@ fn ale_realization_rejects_one_bit_of_reference_mesh_quality_gate_drift() {
     let mut v5: serde_json::Value =
         serde_json::from_slice(&fixture.envelope_v5().canonical_json().unwrap()).unwrap();
     v5["plan"]["geometry_action"]["minimum_mean_ratio"] = serde_json::Value::from(drifted_gate);
-    let v5 = RealizationEnvelopeV5::from_json(
-        &serde_json::to_vec(&v5).unwrap(),
-        DecoderLimits::default(),
-    )
-    .unwrap();
+    let v5 =
+        RealizationEnvelopeV5::from_json(&serde_json::to_vec(&v5).unwrap(), Default::default())
+            .unwrap();
     assert!(
         v5.validate_mesh_artifact(&fixture.mesh).is_err(),
         "V5 mesh validation must compare the complete binary64 quality gate",
@@ -204,11 +201,8 @@ fn realization_v5_rejects_quadrature_dimension_drift_and_unknown_fields() {
     drift["plan"]["coupled"]["spatial"]["discretization"]["quadrature"]["spatial_dimension"] =
         serde_json::json!(2);
     assert!(
-        RealizationEnvelopeV5::from_json(
-            &serde_json::to_vec(&drift).unwrap(),
-            DecoderLimits::default(),
-        )
-        .is_err(),
+        RealizationEnvelopeV5::from_json(&serde_json::to_vec(&drift).unwrap(), Default::default(),)
+            .is_err(),
         "quadrature policy dimension cannot drift from requirements",
     );
 
@@ -218,7 +212,7 @@ fn realization_v5_rejects_quadrature_dimension_drift_and_unknown_fields() {
     assert!(
         RealizationEnvelopeV5::from_json(
             &serde_json::to_vec(&unknown).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "quadrature wire variants must deny unknown fields",
@@ -287,7 +281,7 @@ fn realization_v4_rejects_ale_role_transformation_and_system_drift() {
         assert!(
             RealizationEnvelopeV4::from_json(
                 &serde_json::to_vec(&value).unwrap(),
-                DecoderLimits::default(),
+                Default::default(),
             )
             .is_err(),
             "{label} drift must fail closed",
@@ -305,7 +299,7 @@ fn realization_v4_rejects_unknown_fields_layout_drift_and_resource_excess() {
     assert!(
         RealizationEnvelopeV4::from_json(
             &serde_json::to_vec(&unknown).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "the geometry action cannot accept an independent mesh velocity",
@@ -320,23 +314,23 @@ fn realization_v4_rejects_unknown_fields_layout_drift_and_resource_excess() {
     assert!(
         RealizationEnvelopeV4::from_json(
             &serde_json::to_vec(&layout).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
 
     for limits in [
-        DecoderLimits {
+        RealizationDecoderLimits {
             max_realization_fields: 1,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
-        DecoderLimits {
+        RealizationDecoderLimits {
             max_realization_constraints: 3,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
-        DecoderLimits {
+        RealizationDecoderLimits {
             max_realization_blocks: 1,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
     ] {
         assert!(RealizationEnvelopeV4::from_json(&bytes, limits).is_err());
@@ -359,7 +353,7 @@ impl Fixture {
     }
 
     fn with_dimension(dimension: usize) -> Self {
-        let model = ModelEnvelopeV4::from_json(MODEL, DecoderLimits::default()).unwrap();
+        let model = ModelEnvelopeV4::from_json(MODEL, Default::default()).unwrap();
         let (points, cells, quadrature) = match dimension {
             2 => (
                 vec![vec![0.0, 0.0], vec![1.0, 0.0], vec![0.0, 1.0]],

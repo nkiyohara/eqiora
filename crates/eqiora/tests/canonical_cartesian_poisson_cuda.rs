@@ -4,8 +4,7 @@
 mod canonical;
 
 use eqiora::artifact::{
-    DecoderLimits, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1,
-    RunManifestV2,
+    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1, RunManifestV2,
 };
 use eqiora::backends::cuda::{
     CUDA_ADAPTER_VERSION, CUDA_BINDING_TOOLKIT, CUDA_LINEAR_EXECUTION_PROVIDER,
@@ -168,9 +167,9 @@ fn canonical_plane_poisson_runs_through_q1_and_tpfa_on_cuda() {
 
         let realization_bytes = realization.canonical_json().unwrap();
         let decoded_realization =
-            RealizationEnvelopeV1::from_json(&realization_bytes, DecoderLimits::default()).unwrap();
+            RealizationEnvelopeV1::from_json(&realization_bytes, Default::default()).unwrap();
         let run_bytes = run.canonical_json().unwrap();
-        let decoded_run = RunManifestV2::from_json(&run_bytes, DecoderLimits::default()).unwrap();
+        let decoded_run = RunManifestV2::from_json(&run_bytes, Default::default()).unwrap();
         decoded_run.validate_against(&decoded_realization).unwrap();
         assert_eq!(decoded_run.canonical_json().unwrap(), run_bytes);
         assert_eq!(decoded_run.model(), model_artifact.digest().unwrap());

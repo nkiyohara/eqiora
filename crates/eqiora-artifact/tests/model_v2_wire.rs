@@ -1,5 +1,5 @@
 use eqiora_artifact::{
-    DecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelTransactionEnvelopeV1,
+    ModelDecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelTransactionEnvelopeV1,
     ModelTransactionEnvelopeV2,
 };
 use eqiora_compiler::compile;
@@ -153,8 +153,7 @@ fn physical_model_and_transaction_round_trip_only_through_explicit_v2() {
     let transaction_v2 = ModelTransactionEnvelopeV2::from_transaction(&transaction).unwrap();
     let transaction_bytes = transaction_v2.canonical_json().unwrap();
     let decoded_transaction =
-        ModelTransactionEnvelopeV2::from_json(&transaction_bytes, DecoderLimits::default())
-            .unwrap();
+        ModelTransactionEnvelopeV2::from_json(&transaction_bytes, Default::default()).unwrap();
     assert_eq!(
         decoded_transaction.canonical_json().unwrap(),
         transaction_bytes
@@ -169,7 +168,7 @@ fn physical_model_and_transaction_round_trip_only_through_explicit_v2() {
     let model_v2 = ModelEnvelopeV2::from_program(&program).unwrap();
     let bytes = model_v2.canonical_json().unwrap();
     let digest = model_v2.digest().unwrap();
-    let decoded = ModelEnvelopeV2::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = ModelEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
     let round_trip_program = decoded.to_program().unwrap();
     let round_trip = ModelEnvelopeV2::from_program(&round_trip_program).unwrap();
     assert_eq!(round_trip.canonical_json().unwrap(), bytes);
@@ -183,18 +182,15 @@ fn physical_model_and_transaction_round_trip_only_through_explicit_v2() {
             .unwrap()
     );
 
-    assert!(ModelEnvelopeV1::from_json(&bytes, DecoderLimits::default()).is_err());
-    assert!(
-        ModelTransactionEnvelopeV1::from_json(&transaction_bytes, DecoderLimits::default())
-            .is_err()
-    );
+    assert!(ModelEnvelopeV1::from_json(&bytes, Default::default()).is_err());
+    assert!(ModelTransactionEnvelopeV1::from_json(&transaction_bytes, Default::default()).is_err());
 
     let mut forged_model_v1: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     forged_model_v1["schema"] = serde_json::Value::String("eqiora.model-envelope/v1".to_owned());
     assert!(
         ModelEnvelopeV1::from_json(
             &serde_json::to_vec(&forged_model_v1).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
@@ -205,7 +201,7 @@ fn physical_model_and_transaction_round_trip_only_through_explicit_v2() {
     assert!(
         ModelTransactionEnvelopeV1::from_json(
             &serde_json::to_vec(&forged_transaction_v1).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
@@ -255,7 +251,7 @@ fn model_v2_rejects_wrong_kind_and_dangling_physical_domain_ids_before_commit() 
     assert!(
         ModelEnvelopeV2::from_json(
             &serde_json::to_vec(&wrong_kind).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
@@ -271,11 +267,8 @@ fn model_v2_rejects_wrong_kind_and_dangling_physical_domain_ids_before_commit() 
     physical_port["definition"]["domain"]["ulid"] =
         serde_json::Value::String(Id::<kinds::Domain>::new().ulid().to_string());
     assert!(
-        ModelEnvelopeV2::from_json(
-            &serde_json::to_vec(&dangling).unwrap(),
-            DecoderLimits::default(),
-        )
-        .is_err()
+        ModelEnvelopeV2::from_json(&serde_json::to_vec(&dangling).unwrap(), Default::default(),)
+            .is_err()
     );
 }
 
@@ -300,7 +293,7 @@ fn transaction_v2_admits_local_edits_but_complete_model_admission_rejects_dangli
 
     let decoded = ModelTransactionEnvelopeV2::from_json(
         &serde_json::to_vec(&wire).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     let mut store = InMemoryGraphStore::new();
@@ -324,13 +317,13 @@ fn v2_model_and_transaction_enforce_independent_root_member_and_boundary_budgets
     let model_bytes = model.canonical_json().unwrap();
 
     for limits in [
-        DecoderLimits {
+        ModelDecoderLimits {
             max_expression_roots: 0,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
-        DecoderLimits {
+        ModelDecoderLimits {
             max_model_view_members: 0,
-            ..DecoderLimits::default()
+            ..Default::default()
         },
     ] {
         assert!(ModelEnvelopeV2::from_json(&model_bytes, limits).is_err());
@@ -349,9 +342,9 @@ fn v2_model_and_transaction_enforce_independent_root_member_and_boundary_budgets
     assert!(
         ModelEnvelopeV2::from_json(
             &serde_json::to_vec(&model_wire).unwrap(),
-            DecoderLimits {
+            ModelDecoderLimits {
                 max_model_boundary: 0,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .is_err()
@@ -378,9 +371,9 @@ fn v2_model_and_transaction_enforce_independent_root_member_and_boundary_budgets
     assert!(
         ModelTransactionEnvelopeV2::from_json(
             &serde_json::to_vec(&transaction_wire).unwrap(),
-            DecoderLimits {
+            ModelDecoderLimits {
                 max_model_boundary: 0,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .is_err()
@@ -408,10 +401,7 @@ fn v2_explicitly_reenvelops_v1_values_under_a_distinct_identity() {
     let model_v2 = ModelEnvelopeV2::from_program(&program).unwrap();
     assert_ne!(model_v1.digest().unwrap(), model_v2.digest().unwrap());
     assert!(
-        ModelEnvelopeV2::from_json(
-            &model_v1.canonical_json().unwrap(),
-            DecoderLimits::default()
-        )
-        .is_err()
+        ModelEnvelopeV2::from_json(&model_v1.canonical_json().unwrap(), Default::default())
+            .is_err()
     );
 }

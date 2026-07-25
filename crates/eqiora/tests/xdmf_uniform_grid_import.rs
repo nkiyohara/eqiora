@@ -1,6 +1,6 @@
 use eqiora::api::{import_xdmf_v1, verify_xdmf_import_v1};
 use eqiora::artifact::{
-    DecoderLimits, DiscreteFieldEnvelopeV1, ExternalImportManifestV1, ExternalImportObservationV1,
+    DiscreteFieldEnvelopeV1, ExternalImportManifestV1, ExternalImportObservationV1,
     ExternalImportSourceV1, RawSourceSha256, ResolvedArrayV1, ResolvedImportArrayV1,
     SimplicialMeshEnvelopeV1, StructuralSelectorV1,
 };
@@ -103,23 +103,20 @@ fn uniform_grid_replay_derives_exact_mesh_fields_and_lineage() {
     let derived = import_xdmf_v1(&plan, &responses, quality).unwrap();
     let persisted_manifest = ExternalImportManifestV1::from_json(
         &derived.manifest().canonical_json().unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     let persisted_mesh = SimplicialMeshEnvelopeV1::from_json(
         &derived.mesh().canonical_json().unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     let persisted_fields = derived
         .fields()
         .iter()
         .map(|field| {
-            DiscreteFieldEnvelopeV1::from_json(
-                &field.canonical_json().unwrap(),
-                DecoderLimits::default(),
-            )
-            .unwrap()
+            DiscreteFieldEnvelopeV1::from_json(&field.canonical_json().unwrap(), Default::default())
+                .unwrap()
         })
         .collect::<Vec<_>>();
     let first = verify_xdmf_import_v1(
@@ -214,8 +211,7 @@ fn uniform_grid_replay_derives_exact_mesh_fields_and_lineage() {
     assert_eq!(&manifest.digest().unwrap(), first.manifest_digest());
 
     let canonical = manifest.canonical_json().unwrap();
-    let decoded =
-        ExternalImportManifestV1::from_json(&canonical, DecoderLimits::default()).unwrap();
+    let decoded = ExternalImportManifestV1::from_json(&canonical, Default::default()).unwrap();
     assert_eq!(&decoded, manifest);
     decoded
         .validate_references(&observation(&responses), first.mesh(), first.fields())

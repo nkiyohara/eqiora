@@ -13,8 +13,8 @@ use super::{
     StructuralSelectorV1,
 };
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, DiscreteFieldEnvelopeV1,
-    ResolvedArrayScalarV1, SimplicialMeshEnvelopeV1, check_wire_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, ExternalImportDecoderLimits,
+    ResolvedArrayScalarV1, SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
     validate_text,
 };
 
@@ -151,8 +151,11 @@ impl ExternalImportManifestV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed or unknown data, non-canonical ordering,
     /// invalid cross-references, or any resource-limit excess.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(
+        bytes: &[u8],
+        limits: ExternalImportDecoderLimits,
+    ) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire: WireExternalImportManifestV1 =
             serde_json::from_slice(bytes).map_err(|error| {
                 invalid_artifact(format!("invalid external import manifest JSON: {error}"))
@@ -262,7 +265,7 @@ impl ExternalImportManifestV1 {
 
 fn validate_wire(
     wire: &WireExternalImportManifestV1,
-    limits: DecoderLimits,
+    limits: ExternalImportDecoderLimits,
 ) -> Result<
     (
         ExternalAdapterIdentityV1,
@@ -405,7 +408,7 @@ fn validate_resolved_arrays(
     arrays: &[WireResolvedArray],
     sources: &[WireSource],
     selection: &ExternalImportSelectionV1,
-    limits: DecoderLimits,
+    limits: ExternalImportDecoderLimits,
 ) -> Result<(), Diagnostic> {
     if arrays.len() != selection.attributes().len().saturating_add(2) {
         return Err(invalid_artifact(
@@ -509,7 +512,7 @@ fn validate_accepted_artifacts(
     Ok(())
 }
 
-fn validate_shape(shape: &[u64], limits: DecoderLimits) -> Result<(), Diagnostic> {
+fn validate_shape(shape: &[u64], limits: ExternalImportDecoderLimits) -> Result<(), Diagnostic> {
     if shape.is_empty() || shape.contains(&0) {
         return Err(invalid_artifact(
             "resolved import array shapes require positive dimensions",
@@ -518,7 +521,7 @@ fn validate_shape(shape: &[u64], limits: DecoderLimits) -> Result<(), Diagnostic
     require_count(
         "resolved import array rank",
         shape.len(),
-        limits.max_resolved_array_rank,
+        limits.resolved_array.max_rank,
     )?;
     let product = shape.iter().try_fold(1_usize, |product, &dimension| {
         let dimension = usize::try_from(dimension)
@@ -530,7 +533,7 @@ fn validate_shape(shape: &[u64], limits: DecoderLimits) -> Result<(), Diagnostic
     require_count(
         "resolved import array scalar values",
         product,
-        limits.max_resolved_array_values,
+        limits.resolved_array.max_values,
     )
 }
 
@@ -974,7 +977,8 @@ mod tests {
         assert_eq!(bytes, MANIFEST_GOLDEN_JSON);
         assert_eq!(manifest.digest().unwrap().as_str(), MANIFEST_GOLDEN_DIGEST);
         let decoded =
-            ExternalImportManifestV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+            ExternalImportManifestV1::from_json(&bytes, ExternalImportDecoderLimits::default())
+                .unwrap();
         assert_eq!(decoded, manifest);
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         decoded
@@ -1200,7 +1204,7 @@ mod tests {
         assert!(
             ExternalImportManifestV1::from_json(
                 &encode_wire(&noncontiguous),
-                DecoderLimits::default()
+                ExternalImportDecoderLimits::default()
             )
             .is_err()
         );
@@ -1208,8 +1212,11 @@ mod tests {
         let mut dangling = manifest.wire.clone();
         dangling.resolved_arrays[0].source_ordinal = 99;
         assert!(
-            ExternalImportManifestV1::from_json(&encode_wire(&dangling), DecoderLimits::default())
-                .is_err()
+            ExternalImportManifestV1::from_json(
+                &encode_wire(&dangling),
+                ExternalImportDecoderLimits::default()
+            )
+            .is_err()
         );
 
         let mut mismatched_origin = manifest.wire.clone();
@@ -1217,7 +1224,7 @@ mod tests {
         assert!(
             ExternalImportManifestV1::from_json(
                 &encode_wire(&mismatched_origin),
-                DecoderLimits::default()
+                ExternalImportDecoderLimits::default()
             )
             .is_err()
         );
@@ -1231,7 +1238,7 @@ mod tests {
         assert!(
             ExternalImportManifestV1::from_json(
                 &serde_json::to_vec(&unknown).unwrap(),
-                DecoderLimits::default()
+                ExternalImportDecoderLimits::default()
             )
             .is_err()
         );
@@ -1242,37 +1249,43 @@ mod tests {
         let manifest = fixture("alpha").manifest();
         let bytes = manifest.canonical_json().unwrap();
         for limits in [
-            DecoderLimits {
+            ExternalImportDecoderLimits {
                 max_import_manifest_text_bytes: 1,
-                ..DecoderLimits::default()
+                ..ExternalImportDecoderLimits::default()
             },
-            DecoderLimits {
+            ExternalImportDecoderLimits {
                 max_import_runtime_entries: 0,
-                ..DecoderLimits::default()
+                ..ExternalImportDecoderLimits::default()
             },
-            DecoderLimits {
+            ExternalImportDecoderLimits {
                 max_import_selection_attributes: 0,
-                ..DecoderLimits::default()
+                ..ExternalImportDecoderLimits::default()
             },
-            DecoderLimits {
+            ExternalImportDecoderLimits {
                 max_import_sources: 3,
-                ..DecoderLimits::default()
+                ..ExternalImportDecoderLimits::default()
             },
-            DecoderLimits {
+            ExternalImportDecoderLimits {
                 max_import_resolved_arrays: 2,
-                ..DecoderLimits::default()
+                ..ExternalImportDecoderLimits::default()
             },
-            DecoderLimits {
+            ExternalImportDecoderLimits {
                 max_import_accepted_artifacts: 1,
-                ..DecoderLimits::default()
+                ..ExternalImportDecoderLimits::default()
             },
-            DecoderLimits {
-                max_resolved_array_rank: 1,
-                ..DecoderLimits::default()
+            ExternalImportDecoderLimits {
+                resolved_array: crate::ResolvedArrayLimits {
+                    max_rank: 1,
+                    ..crate::ResolvedArrayLimits::default()
+                },
+                ..ExternalImportDecoderLimits::default()
             },
-            DecoderLimits {
-                max_resolved_array_values: 7,
-                ..DecoderLimits::default()
+            ExternalImportDecoderLimits {
+                resolved_array: crate::ResolvedArrayLimits {
+                    max_values: 7,
+                    ..crate::ResolvedArrayLimits::default()
+                },
+                ..ExternalImportDecoderLimits::default()
             },
         ] {
             assert!(ExternalImportManifestV1::from_json(&bytes, limits).is_err());

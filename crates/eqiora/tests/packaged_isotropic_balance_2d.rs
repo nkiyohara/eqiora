@@ -4,7 +4,7 @@ use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
-    DecoderLimits, ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV4,
+    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV4,
     RealizationEnvelopeV1, RunManifestV2,
 };
 use eqiora::compatibility::ExactModelCodec;
@@ -523,7 +523,7 @@ fn assert_identity_normalized_flat_structure(packaged: &ModelDocument, explicit:
     rewrite_model_ulids(&mut packaged_value, &identities);
     let normalized = ModelEnvelopeV4::from_json(
         &serde_json::to_vec(&packaged_value).expect("normalized Model JSON"),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .expect("normalized Model v4");
     let mut packaged_value: serde_json::Value = serde_json::from_slice(
@@ -932,9 +932,8 @@ fn package_compilation_realization_and_run_v2_form_one_exact_lineage() {
     assert_eq!(model.canonical_json().expect("replayed Model"), model_bytes);
 
     let realization_bytes = realization.canonical_json().expect("Realization v1 JSON");
-    let realization =
-        RealizationEnvelopeV1::from_json(&realization_bytes, DecoderLimits::default())
-            .expect("replayed Realization v1");
+    let realization = RealizationEnvelopeV1::from_json(&realization_bytes, Default::default())
+        .expect("replayed Realization v1");
     realization
         .validate_model_artifact(
             &model
@@ -944,8 +943,7 @@ fn package_compilation_realization_and_run_v2_form_one_exact_lineage() {
         .expect("Realization points to the replayed Model");
 
     let run_bytes = run.canonical_json().expect("Run v2 JSON");
-    let run =
-        RunManifestV2::from_json(&run_bytes, DecoderLimits::default()).expect("replayed Run v2");
+    let run = RunManifestV2::from_json(&run_bytes, Default::default()).expect("replayed Run v2");
     run.validate_against(&realization)
         .expect("Run points to the replayed Realization");
 

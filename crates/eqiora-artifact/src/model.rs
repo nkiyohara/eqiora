@@ -22,10 +22,67 @@ use eqiora_sem::KernelProgram;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-use crate::{ArtifactDigest, DecoderLimits, check_wire_limits, invalid_artifact};
+use crate::{ArtifactDigest, JsonDecoderLimits, check_json_limits, invalid_artifact};
 
 const MODEL_SCHEMA: &str = "eqiora.model-envelope/v1";
 const CANONICAL_ENCODING: &str = "eqiora.canonical-json/v1";
+
+/// Semantic work budgets shared by Model and Model-transaction generations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ModelDecoderLimits {
+    /// Common JSON syntax admission.
+    pub json: JsonDecoderLimits,
+    /// Maximum Semantic Kernel nodes in one Model envelope.
+    pub max_nodes: usize,
+    /// Maximum graph edges in one Model envelope.
+    pub max_edges: usize,
+    /// Maximum expression nodes summed across one Model or transaction.
+    pub max_expression_nodes: usize,
+    /// Maximum expression roots summed across one Model or transaction.
+    pub max_expression_roots: usize,
+    /// Maximum pure-operator definitions summed across expressions.
+    pub max_pure_operator_definitions: usize,
+    /// Maximum pure-operator formals summed across definitions.
+    pub max_pure_operator_formals: usize,
+    /// Maximum exact component-calculus nodes summed across definitions.
+    pub max_pure_operator_calculus_nodes: usize,
+    /// Maximum ordered arguments summed across pure-operator applications.
+    pub max_pure_operator_application_arguments: usize,
+    /// Maximum Semantic Model members.
+    pub max_model_view_members: usize,
+    /// Maximum model-root boundary Ports.
+    pub max_model_boundary: usize,
+    /// Maximum rank of one exact Semantic Model value shape.
+    pub max_value_shape_rank: usize,
+    /// Maximum checked scalar components in one Semantic Model value shape.
+    pub max_value_shape_components: usize,
+    /// Maximum ordered operations in one Model transaction.
+    pub max_transaction_ops: usize,
+    /// Maximum atomic preconditions in one Model transaction.
+    pub max_transaction_preconditions: usize,
+}
+
+impl Default for ModelDecoderLimits {
+    fn default() -> Self {
+        Self {
+            json: JsonDecoderLimits::default(),
+            max_nodes: 100_000,
+            max_edges: 1_000_000,
+            max_expression_nodes: 1_000_000,
+            max_expression_roots: 1_000_000,
+            max_pure_operator_definitions: 100_000,
+            max_pure_operator_formals: 1_000_000,
+            max_pure_operator_calculus_nodes: 4_000_000,
+            max_pure_operator_application_arguments: 4_000_000,
+            max_model_view_members: 100_000,
+            max_model_boundary: 100_000,
+            max_value_shape_rank: 8,
+            max_value_shape_components: 4_096,
+            max_transaction_ops: 1_000_000,
+            max_transaction_preconditions: 100_000,
+        }
+    }
+}
 
 /// Versioned serialization of one validated canonical Semantic Model.
 ///
@@ -86,7 +143,7 @@ impl ModelEnvelopeV1 {
                 boundary,
             },
         };
-        envelope.canonicalize_and_validate(DecoderLimits::default())?;
+        envelope.canonicalize_and_validate(ModelDecoderLimits::default())?;
         Ok(envelope)
     }
 
@@ -95,8 +152,8 @@ impl ModelEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version, duplicate,
     /// dangling, or locally invalid model data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: ModelDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid model envelope JSON: {error}")))?;
         let mut envelope = Self { wire };
@@ -218,7 +275,7 @@ impl ModelEnvelopeV1 {
         parse_ulid(&self.wire.model_ulid).map(OntologyId::from_ulid)
     }
 
-    fn canonicalize_and_validate(&mut self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn canonicalize_and_validate(&mut self, limits: ModelDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != MODEL_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported model-envelope schema or canonical encoding",
@@ -768,7 +825,7 @@ impl WireNode {
 
     pub(crate) fn ensure_value_shape_limits(
         &self,
-        limits: DecoderLimits,
+        limits: ModelDecoderLimits,
     ) -> Result<(), Diagnostic> {
         match &self.definition {
             WireNodeDefinition::ShapedField { shape, .. }
@@ -984,7 +1041,7 @@ impl WireValueShape {
         })
     }
 
-    fn ensure_limits(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn ensure_limits(&self, limits: ModelDecoderLimits) -> Result<(), Diagnostic> {
         require_decoder_count(
             "value-shape rank",
             self.0.len(),
@@ -1895,7 +1952,7 @@ impl PureOperatorWireCounts {
 
     pub(crate) fn ensure_limits(
         self,
-        limits: DecoderLimits,
+        limits: ModelDecoderLimits,
         label: &str,
     ) -> Result<(), Diagnostic> {
         require_decoder_count(
@@ -2488,7 +2545,8 @@ model sampled {
         value["nodes"].as_array_mut().unwrap().reverse();
         value["edges"].as_array_mut().unwrap().reverse();
         let reordered = serde_json::to_vec(&value).unwrap();
-        let decoded = ModelEnvelopeV1::from_json(&reordered, DecoderLimits::default()).unwrap();
+        let decoded =
+            ModelEnvelopeV1::from_json(&reordered, ModelDecoderLimits::default()).unwrap();
         assert_eq!(decoded.canonical_json().unwrap(), canonical);
 
         let mut duplicate: serde_json::Value = serde_json::from_slice(&canonical).unwrap();
@@ -2500,7 +2558,7 @@ model sampled {
         assert_eq!(
             ModelEnvelopeV1::from_json(
                 &serde_json::to_vec(&duplicate).unwrap(),
-                DecoderLimits::default(),
+                ModelDecoderLimits::default(),
             )
             .unwrap_err()
             .code(),
@@ -2518,9 +2576,12 @@ model sampled {
         assert_eq!(
             ModelEnvelopeV1::from_json(
                 &bytes,
-                DecoderLimits {
-                    max_bytes: bytes.len() - 1,
-                    ..DecoderLimits::default()
+                ModelDecoderLimits {
+                    json: JsonDecoderLimits {
+                        max_bytes: bytes.len() - 1,
+                        ..Default::default()
+                    },
+                    ..ModelDecoderLimits::default()
                 },
             )
             .unwrap_err()
@@ -2530,9 +2591,9 @@ model sampled {
         assert_eq!(
             ModelEnvelopeV1::from_json(
                 &bytes,
-                DecoderLimits {
+                ModelDecoderLimits {
                     max_expression_nodes: 1,
-                    ..DecoderLimits::default()
+                    ..ModelDecoderLimits::default()
                 },
             )
             .unwrap_err()
@@ -2553,7 +2614,7 @@ model sampled {
         let envelope = ModelEnvelopeV1::from_program(program).unwrap();
         let bytes = envelope.canonical_json().unwrap();
         let digest = envelope.digest().unwrap();
-        let decoded = ModelEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+        let decoded = ModelEnvelopeV1::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
         let round_trip_program = decoded.to_program().unwrap();
         let round_trip = ModelEnvelopeV1::from_program(&round_trip_program).unwrap();
         assert_eq!(round_trip.canonical_json().unwrap(), bytes);

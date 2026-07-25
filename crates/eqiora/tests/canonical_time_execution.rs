@@ -1,7 +1,7 @@
 #![cfg(feature = "diffsol")]
 
 use eqiora::artifact::{
-    ArtifactDigest, DecoderLimits, ModelEnvelopeV1, RootRegistrationEnvelopeV1,
+    ArtifactDigest, ModelEnvelopeV1, RootRegistrationEnvelopeV1, TimeDecoderLimits,
     TimeLoweringEnvelopeV1, TimeRunManifestV1,
 };
 use eqiora::backends::diffsol::DiffsolTimeBackend;
@@ -273,7 +273,7 @@ fn canonical_event_registration_drives_proposal_reset_saltation_and_restart() {
             .unwrap();
     let registration = RootRegistrationEnvelopeV1::new(&model, &fixture.kernel, &lowering).unwrap();
     let bytes = registration.canonical_json().unwrap();
-    let decoded = RootRegistrationEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = RootRegistrationEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
 
     assert_eq!(decoded.digest().unwrap(), registration.digest().unwrap());
     assert_eq!(decoded.proof().unwrap().root_count(), 1);
@@ -284,9 +284,9 @@ fn canonical_event_registration_drives_proposal_reset_saltation_and_restart() {
     assert_eq!(
         RootRegistrationEnvelopeV1::from_json(
             &bytes,
-            DecoderLimits {
+            TimeDecoderLimits {
                 max_root_functions: 0,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .unwrap_err()
@@ -296,9 +296,9 @@ fn canonical_event_registration_drives_proposal_reset_saltation_and_restart() {
     assert_eq!(
         RootRegistrationEnvelopeV1::from_json(
             &bytes,
-            DecoderLimits {
-                max_nodes: 1,
-                ..DecoderLimits::default()
+            TimeDecoderLimits {
+                max_root_activation_references: 1,
+                ..Default::default()
             },
         )
         .unwrap_err()
@@ -314,7 +314,7 @@ fn canonical_event_registration_drives_proposal_reset_saltation_and_restart() {
     assert_eq!(
         RootRegistrationEnvelopeV1::from_json(
             &serde_json::to_vec(&noncanonical).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .unwrap_err()
         .code(),
@@ -328,7 +328,7 @@ fn canonical_event_registration_drives_proposal_reset_saltation_and_restart() {
         .pop();
     let incomplete = RootRegistrationEnvelopeV1::from_json(
         &serde_json::to_vec(&incomplete).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     assert_eq!(
@@ -944,7 +944,7 @@ fn assert_lowering_artifact_round_trip(
     let envelope =
         TimeLoweringEnvelopeV1::from_proof(&model, program, system.lowering_proof()).unwrap();
     let bytes = envelope.canonical_json().unwrap();
-    let decoded = TimeLoweringEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = TimeLoweringEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
 
     assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
     assert_eq!(decoded.proof().unwrap(), *system.lowering_proof());
@@ -952,9 +952,9 @@ fn assert_lowering_artifact_round_trip(
     assert_eq!(
         TimeLoweringEnvelopeV1::from_json(
             &bytes,
-            DecoderLimits {
+            TimeDecoderLimits {
                 max_exact_rank_dimension: system.state_fields().len() - 1,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .unwrap_err()
@@ -970,7 +970,7 @@ fn assert_lowering_artifact_round_trip(
     assert_eq!(
         TimeLoweringEnvelopeV1::from_json(
             &serde_json::to_vec(&forged_wire).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .unwrap_err()
         .code(),
@@ -1015,7 +1015,7 @@ fn assert_time_run_artifact_round_trip(
         .unwrap()
         .with_output(output.clone());
     let bytes = manifest.canonical_json().unwrap();
-    let decoded = TimeRunManifestV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = TimeRunManifestV1::from_json(&bytes, Default::default()).unwrap();
 
     assert_eq!(decoded.digest().unwrap(), manifest.digest().unwrap());
     assert_eq!(decoded.plan().unwrap(), *plan);

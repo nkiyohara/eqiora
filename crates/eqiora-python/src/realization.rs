@@ -8,7 +8,7 @@ use eqiora::api::{
     ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod,
     ScalarEllipticRunPlan, ScalarEllipticRunResult, ScalarFieldLocation,
 };
-use eqiora::artifact::{DecoderLimits, ExecutionTopologyV1, RunManifestV2};
+use eqiora::artifact::{ExecutionTopologyV1, JsonDecoderLimits, RunManifestV2};
 use eqiora::diagnostic::codes;
 use eqiora::realization::RealizationRevision;
 use eqiora::solver::{
@@ -555,7 +555,7 @@ impl PyRunManifest {
         panic_boundary(py, || {
             let value = realization
                 .plan
-                .replay_run_manifest(data, DecoderLimits::default())
+                .replay_run_manifest(data, JsonDecoderLimits::default())
                 .map_err(|diagnostic| compatibility_error(py, &[diagnostic]))?;
             Self::from_value(py, value)
         })

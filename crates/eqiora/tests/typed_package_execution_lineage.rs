@@ -2,8 +2,8 @@ use std::num::NonZeroUsize;
 
 use eqiora::api::{ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod};
 use eqiora::artifact::{
-    ArtifactDigest, DecoderLimits, ExecutionProvenanceV1, ExecutionTopologyV1,
-    RealizationEnvelopeV1, RunManifestV2,
+    ArtifactDigest, ExecutionProvenanceV1, ExecutionTopologyV1, RealizationEnvelopeV1,
+    RunManifestV2,
 };
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::package::{
@@ -159,10 +159,10 @@ fn exact_package_compilation_composes_with_typed_realization_and_run_v2() {
     let replayed_binding =
         PackageExecutionBindingV1::from_json(&binding_bytes).expect("decoded binding");
     let replayed_realization =
-        RealizationEnvelopeV1::from_json(&realization_bytes, DecoderLimits::default())
+        RealizationEnvelopeV1::from_json(&realization_bytes, Default::default())
             .expect("decoded Realization");
     let replayed_run =
-        RunManifestV2::from_json(&run_bytes, DecoderLimits::default()).expect("decoded Run");
+        RunManifestV2::from_json(&run_bytes, Default::default()).expect("decoded Run");
     replayed_run
         .validate_against(&replayed_realization)
         .expect("typed Run replay");
@@ -249,7 +249,7 @@ fn exact_package_compilation_composes_with_typed_realization_and_run_v2() {
         changed[field] = value;
         RealizationEnvelopeV1::from_json(
             &serde_json::to_vec(&changed).expect("changed Realization JSON"),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .expect("locally valid changed Realization")
     };

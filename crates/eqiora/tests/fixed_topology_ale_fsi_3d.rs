@@ -9,10 +9,10 @@ use std::num::{NonZeroU16, NonZeroU32, NonZeroUsize};
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
-    DecoderLimits, DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1,
-    FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
-    GeometryStateEnvelopeV3, LayoutArtifacts, ModelEnvelopeV5, RealizationEnvelopeV5,
-    RunManifestV2, SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2,
+    DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1, FieldSnapshotEnvelopeV1,
+    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV3,
+    LayoutArtifacts, ModelEnvelopeV5, RealizationEnvelopeV5, RunManifestV2,
+    SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2,
     SpatialTrajectorySegmentEnvelopeV2, ValidatedMovingSpatialContextV2,
 };
 use eqiora::backends::faer::FaerLinearSolver;
@@ -312,7 +312,7 @@ fn publish_moving_artifact_dag(fixture: &Fixture, trajectory: &AleFsiTrajectory3
         )
         .unwrap();
         let bytes = geometry_state.canonical_json().unwrap();
-        let decoded = GeometryStateEnvelopeV3::from_json(&bytes, DecoderLimits::default()).unwrap();
+        let decoded = GeometryStateEnvelopeV3::from_json(&bytes, Default::default()).unwrap();
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         decoded
             .validate_against(&context, predecessor, driver, driver_blocks)
@@ -424,7 +424,7 @@ fn publish_moving_artifact_dag(fixture: &Fixture, trajectory: &AleFsiTrajectory3
     );
 
     let bytes = final_root.canonical_json().unwrap();
-    let decoded = SpatialTrajectoryEnvelopeV2::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = SpatialTrajectoryEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), final_root.digest().unwrap());
     decoded
@@ -483,7 +483,7 @@ fn assert_geometry_state_v3_replay_falsifiers(
     assert!(
         GeometryStateEnvelopeV3::from_json(
             &serde_json::to_vec(&wrong_dimension).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "geometry-state/v3 must reject a substituted spatial dimension",
@@ -494,7 +494,7 @@ fn assert_geometry_state_v3_replay_falsifiers(
     assert!(
         GeometryStateEnvelopeV3::from_json(
             &serde_json::to_vec(&authored_topology).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "geometry-state/v3 must reject caller-authored topology",
@@ -510,7 +510,7 @@ fn assert_geometry_state_v3_replay_falsifiers(
         *drifted.pointer_mut(pointer).unwrap() = serde_json::json!(0.123);
         let drifted = GeometryStateEnvelopeV3::from_json(
             &serde_json::to_vec(&drifted).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .unwrap();
         assert!(
@@ -533,7 +533,7 @@ fn assert_geometry_state_v3_replay_falsifiers(
         *stale.pointer_mut(pointer).unwrap() = serde_json::json!("22".repeat(32));
         let stale = GeometryStateEnvelopeV3::from_json(
             &serde_json::to_vec(&stale).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .unwrap();
         assert!(

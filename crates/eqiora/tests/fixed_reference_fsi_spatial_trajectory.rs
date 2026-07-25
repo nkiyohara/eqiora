@@ -3,9 +3,9 @@ use std::num::NonZeroUsize;
 
 use eqiora::api::{FixedReferenceFsiSnapshotSetV1, snapshot_fixed_reference_fsi_solution_v1};
 use eqiora::artifact::{
-    ArtifactDigest, DatasetViewEnvelopeV1, DecoderLimits, DiscreteFieldEnvelopeV1,
-    DiscreteFieldStorageEnvelopeV1, FieldSnapshotEnvelopeV1, SpatialStateEnvelopeV1,
-    SpatialTrajectoryEnvelopeV1, SpatialTrajectorySegmentEnvelopeV1, StorageChunkV1,
+    ArtifactDigest, DatasetViewEnvelopeV1, DiscreteFieldEnvelopeV1, DiscreteFieldStorageEnvelopeV1,
+    FieldSnapshotEnvelopeV1, SpatialStateEnvelopeV1, SpatialTrajectoryEnvelopeV1,
+    SpatialTrajectorySegmentEnvelopeV1, StorageChunkV1, TrajectoryDecoderLimits,
     ValidatedFixedSpatialContextV1,
 };
 use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldPayload};
@@ -284,22 +284,19 @@ fn storage_layout_and_partial_traversal_never_change_logical_identity() {
     );
     assert_eq!(
         small_storage
-            .restore(&small_chunks, DecoderLimits::default())
+            .restore(&small_chunks, Default::default())
             .unwrap(),
         pressure_field
     );
     assert_eq!(
         large_storage
-            .restore(&large_chunks, DecoderLimits::default())
+            .restore(&large_chunks, Default::default())
             .unwrap(),
         pressure_field
     );
     assert!(
         small_storage
-            .restore(
-                &small_chunks[..small_chunks.len() - 1],
-                DecoderLimits::default(),
-            )
+            .restore(&small_chunks[..small_chunks.len() - 1], Default::default(),)
             .is_err(),
         "a missing chunk must not produce a logical Field"
     );
@@ -309,7 +306,7 @@ fn storage_layout_and_partial_traversal_never_change_logical_identity() {
     substituted_chunks[0] = StorageChunkV1::from_bytes(substituted_bytes);
     assert!(
         small_storage
-            .restore(&substituted_chunks, DecoderLimits::default())
+            .restore(&substituted_chunks, Default::default())
             .is_err(),
         "content-valid replacement storage identity cannot satisfy the original reference"
     );
@@ -317,7 +314,7 @@ fn storage_layout_and_partial_traversal_never_change_logical_identity() {
     reversed_chunks.reverse();
     assert!(
         small_storage
-            .restore(&reversed_chunks, DecoderLimits::default())
+            .restore(&reversed_chunks, Default::default())
             .is_err(),
         "storage chunk order is identity and cannot be repaired"
     );
@@ -327,7 +324,7 @@ fn storage_layout_and_partial_traversal_never_change_logical_identity() {
     );
     assert!(
         small_storage
-            .restore(&truncated_chunks, DecoderLimits::default())
+            .restore(&truncated_chunks, Default::default())
             .is_err(),
         "a truncated chunk cannot reproduce the logical Field"
     );
@@ -337,7 +334,7 @@ fn storage_layout_and_partial_traversal_never_change_logical_identity() {
     assert!(
         DiscreteFieldStorageEnvelopeV1::from_json(
             &serde_json::to_vec(&overlapping_manifest).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "overlapping storage extents must fail during bounded decode"
@@ -368,7 +365,7 @@ fn storage_layout_and_partial_traversal_never_change_logical_identity() {
     let loaded_root = load_exact(
         &store,
         &accepted.final_root.digest().unwrap(),
-        |bytes| SpatialTrajectoryEnvelopeV1::from_json(bytes, DecoderLimits::default()),
+        |bytes| SpatialTrajectoryEnvelopeV1::from_json(bytes, Default::default()),
         SpatialTrajectoryEnvelopeV1::digest,
     )
     .expect("load only the accepted root");
@@ -379,14 +376,14 @@ fn storage_layout_and_partial_traversal_never_change_logical_identity() {
     let loaded_segment = load_exact(
         &store,
         &loaded_root.segment_artifacts()[1],
-        |bytes| SpatialTrajectorySegmentEnvelopeV1::from_json(bytes, DecoderLimits::default()),
+        |bytes| SpatialTrajectorySegmentEnvelopeV1::from_json(bytes, Default::default()),
         SpatialTrajectorySegmentEnvelopeV1::digest,
     )
     .expect("load only the selected segment");
     let loaded_state = load_exact(
         &store,
         &loaded_segment.state_artifacts()[0],
-        |bytes| SpatialStateEnvelopeV1::from_json(bytes, DecoderLimits::default()),
+        |bytes| SpatialStateEnvelopeV1::from_json(bytes, Default::default()),
         SpatialStateEnvelopeV1::digest,
     )
     .expect("load only the selected state");
@@ -395,14 +392,14 @@ fn storage_layout_and_partial_traversal_never_change_logical_identity() {
         &loaded_state
             .field_snapshot(pressure)
             .expect("state indexes exact pressure snapshot"),
-        |bytes| FieldSnapshotEnvelopeV1::from_json(bytes, DecoderLimits::default()),
+        |bytes| FieldSnapshotEnvelopeV1::from_json(bytes, Default::default()),
         FieldSnapshotEnvelopeV1::digest,
     )
     .expect("load only pressure meaning");
     let loaded_field = load_exact(
         &store,
         &loaded_snapshot.block_artifacts()[0].1,
-        |bytes| DiscreteFieldEnvelopeV1::from_json(bytes, DecoderLimits::default()),
+        |bytes| DiscreteFieldEnvelopeV1::from_json(bytes, Default::default()),
         DiscreteFieldEnvelopeV1::digest,
     )
     .expect("load only the pressure values");
@@ -422,7 +419,7 @@ fn storage_layout_and_partial_traversal_never_change_logical_identity() {
         load_exact(
             &store,
             &pressure_snapshot.digest().unwrap(),
-            |bytes| FieldSnapshotEnvelopeV1::from_json(bytes, DecoderLimits::default()),
+            |bytes| FieldSnapshotEnvelopeV1::from_json(bytes, Default::default()),
             FieldSnapshotEnvelopeV1::digest,
         )
         .is_err(),
@@ -455,7 +452,7 @@ fn stale_incomplete_nonmonotone_and_missing_content_fail_closed() {
     stale_json["mesh_sha256"] = accepted.spatial.model.digest().unwrap().to_string().into();
     let stale_snapshot = FieldSnapshotEnvelopeV1::from_json(
         &serde_json::to_vec(&stale_json).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .expect("a locally well-formed reference remains untrusted until linked replay");
     let mut stale_inventory = accepted.second_snapshots.snapshots().to_vec();
@@ -472,7 +469,7 @@ fn stale_incomplete_nonmonotone_and_missing_content_fail_closed() {
     wrong_frame_json["physical"]["frame"] = "invariant".into();
     let wrong_frame = FieldSnapshotEnvelopeV1::from_json(
         &serde_json::to_vec(&wrong_frame_json).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .expect("invariant is a locally valid frame variant");
     assert!(
@@ -493,7 +490,7 @@ fn stale_incomplete_nonmonotone_and_missing_content_fail_closed() {
     early_json["accepted"]["time_s"] = 0.04.into();
     let early_state = SpatialStateEnvelopeV1::from_json(
         &serde_json::to_vec(&early_json).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .expect("one isolated state cannot establish trajectory monotonicity");
     assert!(
@@ -510,7 +507,7 @@ fn stale_incomplete_nonmonotone_and_missing_content_fail_closed() {
     off_grid_json["accepted"]["time_s"] = 0.09.into();
     let off_grid_state = SpatialStateEnvelopeV1::from_json(
         &serde_json::to_vec(&off_grid_json).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .expect("an isolated monotone coordinate remains untrusted until context replay");
     assert!(
@@ -527,7 +524,7 @@ fn stale_incomplete_nonmonotone_and_missing_content_fail_closed() {
     duplicate_json["accepted"]["step"] = 1.into();
     let duplicate_state = SpatialStateEnvelopeV1::from_json(
         &serde_json::to_vec(&duplicate_json).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .expect("one isolated state cannot establish step uniqueness");
     assert!(
@@ -550,7 +547,7 @@ fn stale_incomplete_nonmonotone_and_missing_content_fail_closed() {
     assert!(
         SpatialTrajectorySegmentEnvelopeV1::from_json(
             &serde_json::to_vec(&reversed_wire).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "wire order is canonical and cannot be silently repaired"
@@ -586,7 +583,7 @@ fn stale_incomplete_nonmonotone_and_missing_content_fail_closed() {
         accepted.spatial.model.digest().unwrap().to_string().into();
     let substituted_root = SpatialTrajectoryEnvelopeV1::from_json(
         &serde_json::to_vec(&substituted_segment).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .expect("a local digest reference remains untrusted until dependency replay");
     assert!(
@@ -606,7 +603,7 @@ fn stale_incomplete_nonmonotone_and_missing_content_fail_closed() {
     assert!(
         SpatialTrajectoryEnvelopeV1::from_json(
             &serde_json::to_vec(&overlapping_ranges).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "overlapping segment summaries must fail local decode"
@@ -616,7 +613,7 @@ fn stale_incomplete_nonmonotone_and_missing_content_fail_closed() {
     assert!(
         SpatialTrajectoryEnvelopeV1::from_json(
             &serde_json::to_vec(&malformed_ulid).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "malformed trajectory Field identity must fail during bounded decode"
@@ -632,7 +629,7 @@ fn stale_incomplete_nonmonotone_and_missing_content_fail_closed() {
     assert!(
         SpatialTrajectoryEnvelopeV1::from_json(
             &serde_json::to_vec(&noncanonical_ulid).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "a parseable but noncanonical trajectory ULID spelling must fail"
@@ -642,10 +639,10 @@ fn stale_incomplete_nonmonotone_and_missing_content_fail_closed() {
     for segment in forged_count["segments"].as_array_mut().unwrap() {
         segment["state_count"] = 2.into();
     }
-    let aggregate_limits = DecoderLimits {
+    let aggregate_limits = TrajectoryDecoderLimits {
         max_trajectory_segment_states: 2,
         max_trajectory_states: 3,
-        ..DecoderLimits::default()
+        ..Default::default()
     };
     assert!(
         SpatialTrajectoryEnvelopeV1::from_json(
@@ -697,7 +694,7 @@ fn stale_incomplete_nonmonotone_and_missing_content_fail_closed() {
     stale_view["trajectory_sha256"] = accepted.first_root.digest().unwrap().to_string().into();
     let stale_view = DatasetViewEnvelopeV1::from_json(
         &serde_json::to_vec(&stale_view).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .expect("a local Dataset source reference remains untrusted until replay");
     assert!(
@@ -711,7 +708,7 @@ fn stale_incomplete_nonmonotone_and_missing_content_fail_closed() {
     assert!(
         DatasetViewEnvelopeV1::from_json(
             &serde_json::to_vec(&unknown_transform).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err(),
         "Dataset transformation semantics cannot enter an identity-only view"

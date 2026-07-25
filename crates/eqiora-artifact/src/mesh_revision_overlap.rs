@@ -13,9 +13,9 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, DecoderLimits, FieldSnapshotEnvelopeV1,
-    GeometryStateEnvelopeV2, ReplayableCanonicalModelArtifact, ValidatedMovingSpatialContextV2,
-    ValidatedRemeshGeometrySourceV2, check_wire_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, FieldSnapshotEnvelopeV1, GeometryStateEnvelopeV2,
+    RemeshDecoderLimits, ReplayableCanonicalModelArtifact, ValidatedMovingSpatialContextV2,
+    ValidatedRemeshGeometrySourceV2, check_json_limits, invalid_artifact,
 };
 
 const OVERLAP_SCHEMA: &str = "eqiora.mesh-revision-overlap-envelope/v1";
@@ -149,7 +149,7 @@ impl MeshRevisionOverlapEnvelopeV1 {
                 bodies,
             },
         };
-        value.validate_local(DecoderLimits::default())?;
+        value.validate_local(RemeshDecoderLimits::default())?;
         Ok(value)
     }
 
@@ -157,8 +157,8 @@ impl MeshRevisionOverlapEnvelopeV1 {
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, unknown, or noncanonical data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: RemeshDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid remesh overlap JSON: {error}")))?;
         let value = Self { wire };
@@ -248,7 +248,7 @@ impl MeshRevisionOverlapEnvelopeV1 {
         }
     }
 
-    fn validate_local(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    fn validate_local(&self, limits: RemeshDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != OVERLAP_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(
                 "unsupported remesh overlap schema or encoding",
@@ -801,10 +801,13 @@ mod tests {
     #[test]
     fn overlap_wire_roundtrip_and_digest_are_frozen() {
         let value = overlap();
-        value.validate_local(DecoderLimits::default()).unwrap();
+        value
+            .validate_local(RemeshDecoderLimits::default())
+            .unwrap();
         let bytes = value.canonical_json().unwrap();
         assert_eq!(
-            MeshRevisionOverlapEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap(),
+            MeshRevisionOverlapEnvelopeV1::from_json(&bytes, RemeshDecoderLimits::default())
+                .unwrap(),
             value
         );
         assert_eq!(
@@ -820,13 +823,13 @@ mod tests {
         substituted.wire.target.mesh_sha256 = substituted.wire.source.mesh_sha256.clone();
         assert!(
             substituted
-                .validate_local(DecoderLimits::default())
+                .validate_local(RemeshDecoderLimits::default())
                 .is_err()
         );
 
-        let limits = DecoderLimits {
+        let limits = RemeshDecoderLimits {
             max_mesh_overlap_cell_fragments: 1,
-            ..DecoderLimits::default()
+            ..RemeshDecoderLimits::default()
         };
         assert!(
             MeshRevisionOverlapEnvelopeV1::from_json(&value.canonical_json().unwrap(), limits,)

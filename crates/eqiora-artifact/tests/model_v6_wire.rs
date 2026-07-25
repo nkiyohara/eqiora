@@ -1,8 +1,8 @@
 use eqiora_artifact::{
-    CanonicalModelArtifact, DecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3,
-    ModelEnvelopeV4, ModelEnvelopeV5, ModelEnvelopeV6, ModelTransactionEnvelopeV1,
-    ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3, ModelTransactionEnvelopeV4,
-    ModelTransactionEnvelopeV5, ModelTransactionEnvelopeV6, ReplayableCanonicalModelArtifact,
+    CanonicalModelArtifact, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3, ModelEnvelopeV4,
+    ModelEnvelopeV5, ModelEnvelopeV6, ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2,
+    ModelTransactionEnvelopeV3, ModelTransactionEnvelopeV4, ModelTransactionEnvelopeV5,
+    ModelTransactionEnvelopeV6, ReplayableCanonicalModelArtifact,
 };
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Entity, Id, OntologyId, ValueShape};
@@ -228,7 +228,7 @@ fn v6_round_trips_one_valid_spatial_periodic_model() {
     assert!(text.contains("eqiora.model-envelope/v6"));
     assert!(text.contains("spatial-periodic"));
 
-    let decoded = ModelEnvelopeV6::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = ModelEnvelopeV6::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
     assert_eq!(decoded.to_program().unwrap(), fixture.program);
@@ -237,21 +237,19 @@ fn v6_round_trips_one_valid_spatial_periodic_model() {
     assert_eq!(decoded.replay_model().unwrap().program(), &fixture.program);
 
     for rejected in [
-        ModelEnvelopeV1::from_json(&bytes, DecoderLimits::default()).is_err(),
-        ModelEnvelopeV2::from_json(&bytes, DecoderLimits::default()).is_err(),
-        ModelEnvelopeV3::from_json(&bytes, DecoderLimits::default()).is_err(),
-        ModelEnvelopeV4::from_json(&bytes, DecoderLimits::default()).is_err(),
-        ModelEnvelopeV5::from_json(&bytes, DecoderLimits::default()).is_err(),
+        ModelEnvelopeV1::from_json(&bytes, Default::default()).is_err(),
+        ModelEnvelopeV2::from_json(&bytes, Default::default()).is_err(),
+        ModelEnvelopeV3::from_json(&bytes, Default::default()).is_err(),
+        ModelEnvelopeV4::from_json(&bytes, Default::default()).is_err(),
+        ModelEnvelopeV5::from_json(&bytes, Default::default()).is_err(),
     ] {
         assert!(rejected);
     }
     let mut forged_v5: Value = serde_json::from_slice(&bytes).unwrap();
     forged_v5["schema"] = Value::String("eqiora.model-envelope/v5".to_owned());
-    let error = ModelEnvelopeV5::from_json(
-        &serde_json::to_vec(&forged_v5).unwrap(),
-        DecoderLimits::default(),
-    )
-    .unwrap_err();
+    let error =
+        ModelEnvelopeV5::from_json(&serde_json::to_vec(&forged_v5).unwrap(), Default::default())
+            .unwrap_err();
     assert!(error.message().contains("require model wire v6"));
 }
 
@@ -264,11 +262,9 @@ fn v6_model_canonicalizes_set_order_before_computing_identity() {
     permuted["nodes"].as_array_mut().unwrap().reverse();
     permuted["edges"].as_array_mut().unwrap().reverse();
 
-    let decoded = ModelEnvelopeV6::from_json(
-        &serde_json::to_vec(&permuted).unwrap(),
-        DecoderLimits::default(),
-    )
-    .unwrap();
+    let decoded =
+        ModelEnvelopeV6::from_json(&serde_json::to_vec(&permuted).unwrap(), Default::default())
+            .unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), canonical);
     assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
 }
@@ -300,7 +296,7 @@ fn transaction_v6_preserves_order_and_rejects_version_fallback() {
     let bytes = envelope.canonical_json().unwrap();
     assert_eq!(bytes.len(), TRANSACTION_V6_BYTES);
     assert_eq!(envelope.digest().unwrap().as_str(), TRANSACTION_V6_DIGEST);
-    let decoded = ModelTransactionEnvelopeV6::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = ModelTransactionEnvelopeV6::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
     assert_eq!(
@@ -309,11 +305,11 @@ fn transaction_v6_preserves_order_and_rejects_version_fallback() {
     );
 
     for rejected in [
-        ModelTransactionEnvelopeV1::from_json(&bytes, DecoderLimits::default()).is_err(),
-        ModelTransactionEnvelopeV2::from_json(&bytes, DecoderLimits::default()).is_err(),
-        ModelTransactionEnvelopeV3::from_json(&bytes, DecoderLimits::default()).is_err(),
-        ModelTransactionEnvelopeV4::from_json(&bytes, DecoderLimits::default()).is_err(),
-        ModelTransactionEnvelopeV5::from_json(&bytes, DecoderLimits::default()).is_err(),
+        ModelTransactionEnvelopeV1::from_json(&bytes, Default::default()).is_err(),
+        ModelTransactionEnvelopeV2::from_json(&bytes, Default::default()).is_err(),
+        ModelTransactionEnvelopeV3::from_json(&bytes, Default::default()).is_err(),
+        ModelTransactionEnvelopeV4::from_json(&bytes, Default::default()).is_err(),
+        ModelTransactionEnvelopeV5::from_json(&bytes, Default::default()).is_err(),
     ] {
         assert!(rejected);
     }
@@ -321,7 +317,7 @@ fn transaction_v6_preserves_order_and_rejects_version_fallback() {
     forged_v5["schema"] = Value::String("eqiora.model-transaction-envelope/v5".to_owned());
     let error = ModelTransactionEnvelopeV5::from_json(
         &serde_json::to_vec(&forged_v5).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap_err();
     assert!(error.message().contains("require model wire v6"));
@@ -362,20 +358,14 @@ fn v5_and_v6_identities_are_domain_separated_for_the_same_nonperiodic_meaning() 
     let model_v6 = ModelEnvelopeV6::from_program(&fixture.program).unwrap();
     assert_ne!(model_v5.digest().unwrap(), model_v6.digest().unwrap());
     assert_eq!(
-        ModelEnvelopeV5::from_json(
-            &model_v5.canonical_json().unwrap(),
-            DecoderLimits::default()
-        )
-        .unwrap()
-        .to_program()
-        .unwrap(),
-        ModelEnvelopeV6::from_json(
-            &model_v6.canonical_json().unwrap(),
-            DecoderLimits::default()
-        )
-        .unwrap()
-        .to_program()
-        .unwrap()
+        ModelEnvelopeV5::from_json(&model_v5.canonical_json().unwrap(), Default::default())
+            .unwrap()
+            .to_program()
+            .unwrap(),
+        ModelEnvelopeV6::from_json(&model_v6.canonical_json().unwrap(), Default::default())
+            .unwrap()
+            .to_program()
+            .unwrap()
     );
 
     let transaction_v5 =

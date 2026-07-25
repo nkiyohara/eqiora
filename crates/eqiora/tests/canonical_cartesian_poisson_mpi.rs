@@ -14,10 +14,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use eqiora::artifact::{
-    DecoderLimits, DistributedLayoutEnvelopeV1, DistributedTransportV1, ExecutionProvenanceV1,
-    ExecutionTopologyV1, LayoutArtifacts, LinearSystemEnvelopeV1, ModelEnvelopeV1,
-    MpiThreadSupportV1, PartitionEnvelopeV1, RealizationEnvelopeV1, RunManifestV2,
-    validate_distributed_content_dag,
+    DistributedLayoutEnvelopeV1, DistributedTransportV1, ExecutionProvenanceV1,
+    ExecutionTopologyV1, JsonDecoderLimits, LayoutArtifacts, LinearSystemEnvelopeV1,
+    ModelDecoderLimits, ModelEnvelopeV1, MpiThreadSupportV1, PartitionEnvelopeV1,
+    RealizationEnvelopeV1, RunManifestV2, validate_distributed_content_dag,
 };
 use eqiora::backends::mpi::{
     MPI_DISTRIBUTED_KRYLOV_BACKEND, MPI_DISTRIBUTED_KRYLOV_SOLVER_PROVIDER, MPI_EXECUTION,
@@ -63,8 +63,8 @@ fn canonical_cartesian_poisson_mpi_runs_on_one_two_and_four_ranks() {
             .unwrap();
     let model = ModelEnvelopeV1::from_program(&program).unwrap();
     let model_bytes = model.canonical_json().unwrap();
-    let limits = DecoderLimits::default();
-    assert!(model_bytes.len() <= limits.max_bytes);
+    let limits = ModelDecoderLimits::default();
+    assert!(model_bytes.len() <= limits.json.max_bytes);
     let decoded = ModelEnvelopeV1::from_json(&model_bytes, limits).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), model_bytes);
     let shared_model = SharedModelFile::create(&model_bytes);
@@ -82,8 +82,11 @@ fn canonical_cartesian_poisson_mpi_child() {
     }
 
     let model_path = env::var_os(MODEL_PATH_ENV).expect("the parent supplies a Model artifact");
-    let model_bytes = read_bounded(Path::new(&model_path), DecoderLimits::default().max_bytes);
-    let model = ModelEnvelopeV1::from_json(&model_bytes, DecoderLimits::default()).unwrap();
+    let model_bytes = read_bounded(
+        Path::new(&model_path),
+        JsonDecoderLimits::default().max_bytes,
+    );
+    let model = ModelEnvelopeV1::from_json(&model_bytes, Default::default()).unwrap();
     assert_eq!(model.canonical_json().unwrap(), model_bytes);
     let program = model
         .to_program()
@@ -451,11 +454,9 @@ fn assert_content_linkage_does_not_claim_semantic_derivation(
         .as_f64()
         .expect("the closed system DTO has finite f64 RHS values");
     right_hand_side[0] = serde_json::Value::from(first + 0.25);
-    let changed = LinearSystemEnvelopeV1::from_json(
-        &serde_json::to_vec(&wire).unwrap(),
-        DecoderLimits::default(),
-    )
-    .unwrap();
+    let changed =
+        LinearSystemEnvelopeV1::from_json(&serde_json::to_vec(&wire).unwrap(), Default::default())
+            .unwrap();
     assert_ne!(changed.digest().unwrap(), original.digest().unwrap());
 
     let changed_layout = DistributedLayoutEnvelopeV1::derive(&changed, partition).unwrap();
@@ -569,7 +570,7 @@ const fn artifact_thread_support(value: MpiThreadSupport) -> MpiThreadSupportV1 
 
 fn round_trip_model(value: &ModelEnvelopeV1) -> ModelEnvelopeV1 {
     let bytes = value.canonical_json().unwrap();
-    let decoded = ModelEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = ModelEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), value.digest().unwrap());
     decoded
@@ -577,7 +578,7 @@ fn round_trip_model(value: &ModelEnvelopeV1) -> ModelEnvelopeV1 {
 
 fn round_trip_system(value: &LinearSystemEnvelopeV1) -> LinearSystemEnvelopeV1 {
     let bytes = value.canonical_json().unwrap();
-    let decoded = LinearSystemEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = LinearSystemEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), value.digest().unwrap());
     decoded
@@ -585,7 +586,7 @@ fn round_trip_system(value: &LinearSystemEnvelopeV1) -> LinearSystemEnvelopeV1 {
 
 fn round_trip_partition(value: &PartitionEnvelopeV1) -> PartitionEnvelopeV1 {
     let bytes = value.canonical_json().unwrap();
-    let decoded = PartitionEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = PartitionEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), value.digest().unwrap());
     decoded
@@ -593,7 +594,7 @@ fn round_trip_partition(value: &PartitionEnvelopeV1) -> PartitionEnvelopeV1 {
 
 fn round_trip_layout(value: &DistributedLayoutEnvelopeV1) -> DistributedLayoutEnvelopeV1 {
     let bytes = value.canonical_json().unwrap();
-    let decoded = DistributedLayoutEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = DistributedLayoutEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), value.digest().unwrap());
     decoded
@@ -601,7 +602,7 @@ fn round_trip_layout(value: &DistributedLayoutEnvelopeV1) -> DistributedLayoutEn
 
 fn round_trip_realization(value: &RealizationEnvelopeV1) -> RealizationEnvelopeV1 {
     let bytes = value.canonical_json().unwrap();
-    let decoded = RealizationEnvelopeV1::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = RealizationEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), value.digest().unwrap());
     decoded
@@ -609,7 +610,7 @@ fn round_trip_realization(value: &RealizationEnvelopeV1) -> RealizationEnvelopeV
 
 fn round_trip_run(value: &RunManifestV2) -> RunManifestV2 {
     let bytes = value.canonical_json().unwrap();
-    let decoded = RunManifestV2::from_json(&bytes, DecoderLimits::default()).unwrap();
+    let decoded = RunManifestV2::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), value.digest().unwrap());
     decoded
@@ -621,7 +622,7 @@ struct SharedModelFile {
 
 impl SharedModelFile {
     fn create(bytes: &[u8]) -> Self {
-        let digest = ModelEnvelopeV1::from_json(bytes, DecoderLimits::default())
+        let digest = ModelEnvelopeV1::from_json(bytes, Default::default())
             .unwrap()
             .digest()
             .unwrap();

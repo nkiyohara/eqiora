@@ -276,7 +276,8 @@ phase:
 
 - split Studio's application shell, state, protocol, and projections before
   expanding CAD editing;
-- decompose decoder limits by artifact family before adding artifact families;
+- keep semantic decoder budgets with their owning artifact family as new
+  artifact families are added;
 - curate the numerics public surface by physical/numerical responsibility
   before broad physics-library expansion; and
 - split distributed internals by ownership, exchange, reduction, and operator

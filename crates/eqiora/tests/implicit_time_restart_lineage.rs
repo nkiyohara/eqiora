@@ -1,7 +1,7 @@
 use eqiora::artifact::{
-    DecoderLimits, GeneralImplicitTimeLoweringEnvelopeV1, ImplicitTimeCheckpointEnvelopeV1,
+    GeneralImplicitTimeLoweringEnvelopeV1, ImplicitTimeCheckpointEnvelopeV1,
     ImplicitTimeInitialDataEnvelopeV1, ImplicitTimeRestartManifestV1, ImplicitTimeRunManifestV1,
-    ModelEnvelopeV1,
+    ModelEnvelopeV1, TimeDecoderLimits,
 };
 use eqiora::diagnostic::codes;
 use eqiora::runtime::{CpuProgram, GeneralImplicitProgram};
@@ -64,8 +64,7 @@ fn accepted_checkpoint_links_parent_and_restarted_implicit_runs_without_a_digest
 
     let checkpoint_bytes = checkpoint.canonical_json().unwrap();
     let decoded_checkpoint =
-        ImplicitTimeCheckpointEnvelopeV1::from_json(&checkpoint_bytes, DecoderLimits::default())
-            .unwrap();
+        ImplicitTimeCheckpointEnvelopeV1::from_json(&checkpoint_bytes, Default::default()).unwrap();
     assert_eq!(
         decoded_checkpoint.canonical_json().unwrap(),
         checkpoint_bytes
@@ -80,9 +79,9 @@ fn accepted_checkpoint_links_parent_and_restarted_implicit_runs_without_a_digest
     assert_eq!(
         ImplicitTimeCheckpointEnvelopeV1::from_json(
             &checkpoint_bytes,
-            DecoderLimits {
+            TimeDecoderLimits {
                 max_time_state_dimension: 1,
-                ..DecoderLimits::default()
+                ..Default::default()
             },
         )
         .unwrap_err()
@@ -94,7 +93,7 @@ fn accepted_checkpoint_links_parent_and_restarted_implicit_runs_without_a_digest
     forged_checkpoint["state"][0] = (checkpoint.state()[0] + 0.01).into();
     let forged_checkpoint = ImplicitTimeCheckpointEnvelopeV1::from_json(
         &serde_json::to_vec(&forged_checkpoint).unwrap(),
-        DecoderLimits::default(),
+        Default::default(),
     )
     .unwrap();
     assert_eq!(
@@ -169,7 +168,7 @@ fn accepted_checkpoint_links_parent_and_restarted_implicit_runs_without_a_digest
 
     let restart_bytes = restart.canonical_json().unwrap();
     let decoded_restart =
-        ImplicitTimeRestartManifestV1::from_json(&restart_bytes, DecoderLimits::default()).unwrap();
+        ImplicitTimeRestartManifestV1::from_json(&restart_bytes, Default::default()).unwrap();
     assert_eq!(decoded_restart.digest().unwrap(), restart.digest().unwrap());
     decoded_restart
         .validate_against(
@@ -186,7 +185,7 @@ fn accepted_checkpoint_links_parent_and_restarted_implicit_runs_without_a_digest
     assert_eq!(
         ImplicitTimeRestartManifestV1::from_json(
             &serde_json::to_vec(&cyclic_restart).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .unwrap_err()
         .code(),

@@ -14,11 +14,35 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, CanonicalModelArtifact, DecoderLimits,
-    SimplicialMeshEnvelopeV1, check_wire_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, CanonicalModelArtifact, SimplicialMeshEnvelopeV1,
+    check_json_limits, invalid_artifact,
 };
 
 const REALIZATION_SCHEMA: &str = "eqiora.realization-envelope/v1";
+
+/// Semantic work budgets shared by Realization artifact generations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RealizationDecoderLimits {
+    /// Common JSON syntax admission.
+    pub json: crate::JsonDecoderLimits,
+    /// Maximum exact Semantic Fields and Field-space bindings.
+    pub max_realization_fields: usize,
+    /// Maximum algebraic constraints.
+    pub max_realization_constraints: usize,
+    /// Maximum scaled algebraic blocks.
+    pub max_realization_blocks: usize,
+}
+
+impl Default for RealizationDecoderLimits {
+    fn default() -> Self {
+        Self {
+            json: crate::JsonDecoderLimits::default(),
+            max_realization_fields: 100_000,
+            max_realization_constraints: 100_000,
+            max_realization_blocks: 200_000,
+        }
+    }
+}
 
 /// Content-addressed layout inputs required by a realization.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,8 +121,8 @@ impl RealizationEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version, or locally
     /// inconsistent data. Typed constructors revalidate the complete plan.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: RealizationDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!("invalid realization envelope JSON: {error}"))
         })?;

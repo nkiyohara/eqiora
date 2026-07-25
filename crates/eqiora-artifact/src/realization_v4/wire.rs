@@ -17,7 +17,7 @@ use crate::realization_v2::wire::{
     WireSchedule, WireSolverPlan, WireTarget,
 };
 use crate::realization_v3::wire::{WireCoupledPlanWith, WireCoupledRequirements};
-use crate::{DecoderLimits, invalid_artifact};
+use crate::{RealizationDecoderLimits, invalid_artifact};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -67,7 +67,10 @@ impl WireAleRequirements {
         .map_err(realization_error)
     }
 
-    pub(crate) fn validate_limits(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    pub(crate) fn validate_limits(
+        &self,
+        limits: RealizationDecoderLimits,
+    ) -> Result<(), Diagnostic> {
         self.coupled.validate_limits(limits)
     }
 }
@@ -234,7 +237,10 @@ impl<Q: WireQuadratureCodec + Clone> WireAlePlanWith<Q> {
         Ok(value)
     }
 
-    pub(crate) fn validate_limits(&self, limits: DecoderLimits) -> Result<(), Diagnostic> {
+    pub(crate) fn validate_limits(
+        &self,
+        limits: RealizationDecoderLimits,
+    ) -> Result<(), Diagnostic> {
         self.coupled.validate_limits(limits)?;
         if self.domain_configurations.len() > limits.max_realization_fields
             || self.system.blocks.len() > limits.max_realization_blocks

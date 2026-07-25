@@ -8,8 +8,7 @@ use std::num::{NonZeroU64, NonZeroUsize};
 use std::path::{Path, PathBuf};
 
 use eqiora::artifact::{
-    DecoderLimits, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1,
-    RunManifestV2,
+    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1, RunManifestV2,
 };
 use eqiora::device::{
     BufferId, Completion, DeviceBufferDescriptor, DeviceCapability, DeviceDescriptor,
@@ -365,8 +364,7 @@ fn committed_canonical_cuda_observation_replays_on_the_host() {
     let (raw_program, fresh_identity) = canonical::compile_program_with_identity().unwrap();
     let fresh_raw_model = ModelEnvelopeV1::from_program(&raw_program).unwrap();
     let model_bytes = read_bounded(&root.join("artifacts/model.json"), MAX_ARTIFACT_BYTES).unwrap();
-    let recorded_model =
-        ModelEnvelopeV1::from_json(&model_bytes, DecoderLimits::default()).unwrap();
+    let recorded_model = ModelEnvelopeV1::from_json(&model_bytes, Default::default()).unwrap();
     assert_eq!(recorded_model.canonical_json().unwrap(), model_bytes);
     let normalized_model = normalize_compiled_model(
         &fresh_raw_model,
@@ -438,7 +436,7 @@ fn replay_method(
         MAX_ARTIFACT_BYTES,
     )?;
     let recorded_realization =
-        RealizationEnvelopeV1::from_json(&realization_bytes, DecoderLimits::default())
+        RealizationEnvelopeV1::from_json(&realization_bytes, Default::default())
             .map_err(|diagnostic| diagnostic.to_string())?;
     require_equal_bytes(
         "fresh and recorded Realization canonical bytes",
@@ -468,7 +466,7 @@ fn replay_method(
         &root.join(format!("artifacts/{tag}-run.json")),
         MAX_ARTIFACT_BYTES,
     )?;
-    let recorded_run = RunManifestV2::from_json(&run_bytes, DecoderLimits::default())
+    let recorded_run = RunManifestV2::from_json(&run_bytes, Default::default())
         .map_err(|diagnostic| diagnostic.to_string())?;
     recorded_run
         .validate_against(&fresh_realization)
@@ -764,7 +762,7 @@ fn normalize_compiled_model(
     }
     rewrite_model_ulids(&mut fresh_value, &mapping)?;
     let normalized_bytes = serde_json::to_vec(&fresh_value).map_err(|error| error.to_string())?;
-    ModelEnvelopeV1::from_json(&normalized_bytes, DecoderLimits::default())
+    ModelEnvelopeV1::from_json(&normalized_bytes, Default::default())
         .map_err(|diagnostic| diagnostic.to_string())
 }
 
@@ -1542,14 +1540,14 @@ fn falsify_artifact_linkage(root: &Path) {
     let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     value["realization_sha256"] = serde_json::Value::String("00".repeat(32));
     let forged = serde_json::to_vec(&value).unwrap();
-    let run = RunManifestV2::from_json(&forged, DecoderLimits::default()).unwrap();
+    let run = RunManifestV2::from_json(&forged, Default::default()).unwrap();
     let realization_bytes = read_bounded(
         &root.join("artifacts/q1-fem-realization.json"),
         MAX_ARTIFACT_BYTES,
     )
     .unwrap();
     let realization =
-        RealizationEnvelopeV1::from_json(&realization_bytes, DecoderLimits::default()).unwrap();
+        RealizationEnvelopeV1::from_json(&realization_bytes, Default::default()).unwrap();
     assert!(run.validate_against(&realization).is_err());
 }
 

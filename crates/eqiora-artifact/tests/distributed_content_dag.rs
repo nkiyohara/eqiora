@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
-    DecoderLimits, DistributedLayoutEnvelopeV1, DistributedTransportV1, ExecutionProvenanceV1,
+    DistributedLayoutEnvelopeV1, DistributedTransportV1, ExecutionProvenanceV1,
     ExecutionTopologyV1, LayoutArtifacts, LinearSystemEnvelopeV1, ModelEnvelopeV1,
     PartitionEnvelopeV1, RealizationEnvelopeV1, RunManifestV2, validate_distributed_content_dag,
 };
@@ -271,19 +271,12 @@ fn mutate_realization(
 ) -> RealizationEnvelopeV1 {
     let mut wire: Value = serde_json::from_slice(&realization.canonical_json().unwrap()).unwrap();
     mutate(&mut wire);
-    RealizationEnvelopeV1::from_json(
-        &serde_json::to_vec(&wire).unwrap(),
-        DecoderLimits::default(),
-    )
-    .unwrap()
+    RealizationEnvelopeV1::from_json(&serde_json::to_vec(&wire).unwrap(), Default::default())
+        .unwrap()
 }
 
 fn mutate_model(model: &ModelEnvelopeV1, mutate: impl FnOnce(&mut Value)) -> ModelEnvelopeV1 {
     let mut wire: Value = serde_json::from_slice(&model.canonical_json().unwrap()).unwrap();
     mutate(&mut wire);
-    ModelEnvelopeV1::from_json(
-        &serde_json::to_vec(&wire).unwrap(),
-        DecoderLimits::default(),
-    )
-    .unwrap()
+    ModelEnvelopeV1::from_json(&serde_json::to_vec(&wire).unwrap(), Default::default()).unwrap()
 }

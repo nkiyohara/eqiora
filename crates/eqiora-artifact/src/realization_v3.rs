@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, CanonicalModelArtifact, DecoderLimits, LayoutArtifacts,
-    SimplicialMeshEnvelopeV1, check_wire_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, CanonicalModelArtifact, LayoutArtifacts,
+    RealizationDecoderLimits, SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
 };
 
 pub(crate) mod wire;
@@ -77,8 +77,8 @@ impl RealizationEnvelopeV3 {
     /// # Errors
     /// Returns `EQ0901` for oversized, malformed, unknown-version,
     /// noncanonical, or internally inconsistent data.
-    pub fn from_json(bytes: &[u8], limits: DecoderLimits) -> Result<Self, Diagnostic> {
-        check_wire_limits(bytes, limits)?;
+    pub fn from_json(bytes: &[u8], limits: RealizationDecoderLimits) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
         let wire: WireRealizationEnvelopeV3 = serde_json::from_slice(bytes).map_err(|error| {
             invalid_artifact(format!(
                 "invalid coupled realization envelope JSON: {error}"

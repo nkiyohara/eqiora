@@ -2,7 +2,7 @@
 
 use eqiora::Id;
 use eqiora::api::{CadBoxIntentV1, CadSemanticEntityKindV1, ModelDocument};
-use eqiora::artifact::{CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1, DecoderLimits};
+use eqiora::artifact::{CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1, JsonDecoderLimits};
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::entity::kinds;
 use eqiora::geometry::truck::TruckCadAdapterV1;
@@ -67,15 +67,14 @@ fn cad_selection_is_semantic_content_bound_and_retained_only_by_explicit_associa
     // decoding, while a locally valid adapter-identity substitution fails on
     // complete replay.
     let design_bytes = source_plan.design().canonical_json().unwrap();
-    let decoded_design =
-        CadDesignEnvelopeV1::from_json(&design_bytes, DecoderLimits::default()).unwrap();
+    let decoded_design = CadDesignEnvelopeV1::from_json(&design_bytes, Default::default()).unwrap();
     assert_eq!(
         decoded_design.digest().unwrap(),
         source_plan.design().digest().unwrap()
     );
     let build_bytes = source_plan.build().canonical_json().unwrap();
     let decoded_build =
-        CadBuildEvidenceEnvelopeV1::from_json(&build_bytes, DecoderLimits::default()).unwrap();
+        CadBuildEvidenceEnvelopeV1::from_json(&build_bytes, Default::default()).unwrap();
     assert_eq!(
         decoded_build.digest().unwrap(),
         source_plan.build().digest().unwrap()
@@ -84,7 +83,7 @@ fn cad_selection_is_semantic_content_bound_and_retained_only_by_explicit_associa
     substituted["adapter"]["adapter_version"] = Value::String("substituted".to_owned());
     let substituted = serde_json::to_vec(&substituted).unwrap();
     let substituted =
-        CadBuildEvidenceEnvelopeV1::from_json(&substituted, DecoderLimits::default()).unwrap();
+        CadBuildEvidenceEnvelopeV1::from_json(&substituted, Default::default()).unwrap();
     assert!(
         source_plan
             .validate_build_evidence(&substituted, &adapter, OUTER_BOX_MM)
@@ -101,7 +100,7 @@ fn cad_selection_is_semantic_content_bound_and_retained_only_by_explicit_associa
         assert!(
             CadBuildEvidenceEnvelopeV1::from_json(
                 &serde_json::to_vec(&invalid_build).unwrap(),
-                DecoderLimits::default(),
+                Default::default(),
             )
             .is_err()
         );
@@ -111,13 +110,13 @@ fn cad_selection_is_semantic_content_bound_and_retained_only_by_explicit_associa
     assert!(
         CadBuildEvidenceEnvelopeV1::from_json(
             &serde_json::to_vec(&unknown_field).unwrap(),
-            DecoderLimits::default(),
+            Default::default(),
         )
         .is_err()
     );
-    let too_small = DecoderLimits {
+    let too_small = JsonDecoderLimits {
         max_bytes: build_bytes.len() - 1,
-        ..DecoderLimits::default()
+        ..Default::default()
     };
     assert!(CadBuildEvidenceEnvelopeV1::from_json(&build_bytes, too_small).is_err());
 
