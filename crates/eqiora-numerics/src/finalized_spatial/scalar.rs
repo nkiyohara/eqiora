@@ -8,7 +8,7 @@ use eqiora_solver::{
 };
 
 use super::FinalizedLinearCore;
-use crate::ResolvedScalarEllipticCartesianSolution;
+use crate::canonical::ResolvedScalarEllipticCartesianSolution;
 use crate::cartesian_elliptic::{
     FinalizedCartesianFemAssembly, FinalizedCartesianFemState, FinalizedCartesianFvmAssembly,
     FinalizedCartesianFvmState,
