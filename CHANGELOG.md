@@ -22,6 +22,11 @@ are recorded here.
   compatibility aliases. Artifact wire names and canonical bytes are
   unchanged.
 
+- Renamed the Rust `eqiora-fabric` crate to `eqiora-backend-rayon`, its
+  `threaded` facade feature to `rayon`, and the `eqiora-diff` crate to
+  `eqiora-differentiation`. The pre-publication Rust names have no
+  compatibility aliases.
+
 ## [0.1.0a1] - 2026-07-23
 
 The first public alpha establishes one coherent, evidence-gated project

@@ -38,7 +38,7 @@ SolveReport                    backend + execution + numerical evidence
 ```
 
 `eqiora-solver` owns the execution trait and a direct serial implementation.
-`eqiora-fabric` owns the run-scoped Rayon implementation. Rayon types remain
+`eqiora-backend-rayon` owns the run-scoped Rayon implementation. Rayon types remain
 inside that adapter. Distributed vectors retain their separate ownership,
 halo, and collective contracts; this RFC does not relabel them as replicated
 vectors.
@@ -95,7 +95,7 @@ decision; changing task granularity alone must not change results.
 
 ## Alternatives considered
 
-### Duplicate the conjugate-gradient driver in `eqiora-fabric`
+### Duplicate the conjugate-gradient driver in `eqiora-backend-rayon`
 
 This has low initial implementation cost and can be tuned directly, but it
 duplicates convergence, restart, preconditioner, and true-residual logic. The

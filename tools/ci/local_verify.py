@@ -391,8 +391,8 @@ def build_plan(
             "Cargo.lock",
             "crates/eqiora-backend-faer/Cargo.toml",
             "crates/eqiora-backend-faer/src/lib.rs",
-            "crates/eqiora-fabric/Cargo.toml",
-            "crates/eqiora-fabric/src/lib.rs",
+            "crates/eqiora-backend-rayon/Cargo.toml",
+            "crates/eqiora-backend-rayon/src/lib.rs",
         }
         if any(path.startswith("tools/ci/") or path in ci_contract_inputs for path in paths):
             commands.append(command("CI contract tests", sys.executable, "-m", "unittest", "discover", "-s", "tools/ci/tests", "-v"))

@@ -262,8 +262,8 @@ class DependencyIdentityTests(unittest.TestCase):
     def test_rayon_adapter_release_matches_exact_manifest_and_lock(self) -> None:
         self.assert_exact_adapter_dependency(
             "rayon",
-            "crates/eqiora-fabric",
-            "crates/eqiora-fabric/src/lib.rs",
+            "crates/eqiora-backend-rayon",
+            "crates/eqiora-backend-rayon/src/lib.rs",
             "RAYON_VERSION",
         )
 

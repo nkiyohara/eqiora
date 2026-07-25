@@ -23,7 +23,7 @@ use eqiora::solver::{
     REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolveReport, SolverCapabilities,
     SolverCapability, SolverPlan,
 };
-use eqiora_fabric::{CpuThreadPool, RAYON_EXECUTION};
+use eqiora_backend_rayon::{CpuThreadPool, RAYON_EXECUTION};
 
 const SOURCE: &str =
     include_str!("../../../verify/artifacts/imported-simplicial-realization/models/poisson.eqi");

@@ -22,7 +22,7 @@ to avoid.
 
 The existing `CooAssembler` is also inherently serial. Parallelizing each
 spatial loop in place would duplicate error handling and create race-dependent
-floating-point accumulation. Letting `eqiora-fabric` depend on
+floating-point accumulation. Letting `eqiora-backend-rayon` depend on
 `eqiora-numerics` would add an L3-to-L3 dependency explicitly rejected by RFC
 0010. The reusable boundary is the ordered contribution stream between local
 operator evaluation and a finalized algebraic system.
@@ -47,7 +47,7 @@ CsrMatrix             Eqiora-owned finalized host sparse representation
 
 This is not a vocabulary-only crate. In the first implementation it has two
 backends (direct reference and run-owned Rayon), two consumers
-(`eqiora-numerics` and `eqiora-fabric`), and one canonical P1 FEM path.
+(`eqiora-numerics` and `eqiora-backend-rayon`), and one canonical P1 FEM path.
 
 `eqiora-numerics` continues to own discrete spaces, geometry/coefficient
 contexts, spatial local operators, canonical realization, reconstruction, and
@@ -56,7 +56,7 @@ Assembly types are imported from their owning `eqiora-assembly` crate; the
 public facade exposes that contract through `eqiora::assembly`, not through
 `eqiora::numerics`.
 
-`eqiora-fabric` depends only on the new L2 contract and the existing solver/
+`eqiora-backend-rayon` depends only on the new L2 contract and the existing solver/
 realization vocabulary. Neither L3 crate depends on the other. MPI and CUDA
 adapters may later consume the same packet contract without entering spatial
 semantics.
@@ -180,7 +180,7 @@ specific scheduler part of the spatial realization crate and invites MPI/CUDA
 branches beside every cell loop. It has low initial cost and poor architectural
 faithfulness. Rejected.
 
-### Let `eqiora-fabric` depend on `eqiora-numerics`
+### Let `eqiora-backend-rayon` depend on `eqiora-numerics`
 
 This isolates Rayon source but creates an L3-to-L3 edge from adapter to a
 concrete spatial realization. It also prevents non-spatial assemblers from

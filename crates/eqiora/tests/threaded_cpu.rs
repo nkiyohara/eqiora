@@ -1,9 +1,9 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
-#[cfg(feature = "threaded")]
+#[cfg(feature = "rayon")]
 use std::cell::Cell;
 
-#[cfg(feature = "threaded")]
+#[cfg(feature = "rayon")]
 use eqiora::api::{
     ModelDocument, ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod,
 };
@@ -27,7 +27,7 @@ use eqiora::realization::{
     TargetCapability, VectorLayoutKind, default_plan_v0, resolve, resolve_fieldwise,
 };
 use eqiora::sem::KernelProgram;
-#[cfg(feature = "threaded")]
+#[cfg(feature = "rayon")]
 use eqiora::solver::{
     ConvergenceReason, ExecutionProvider, ProviderLibrary, REFERENCE_SOLVER_PROVIDER,
     SERIAL_EXECUTION_PROVIDER, SERIAL_LINEAR_EXECUTION, SolverProvider,
@@ -38,12 +38,12 @@ use eqiora::solver::{
     REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolveReport, SolverCapabilities,
     SolverCapability, SolverPlan,
 };
-#[cfg(feature = "threaded")]
+use eqiora_backend_rayon::{CpuThreadPool, RAYON_EXECUTION};
+#[cfg(feature = "rayon")]
+use eqiora_backend_rayon::{RAYON_ADAPTER_VERSION, RAYON_EXECUTION_PROVIDER, RAYON_VERSION};
+#[cfg(feature = "rayon")]
 use eqiora_execution::{AdmittedExecution, DeploymentBinding, HostExecutorDescriptor};
-use eqiora_fabric::{CpuThreadPool, RAYON_EXECUTION};
-#[cfg(feature = "threaded")]
-use eqiora_fabric::{RAYON_ADAPTER_VERSION, RAYON_EXECUTION_PROVIDER, RAYON_VERSION};
-#[cfg(feature = "threaded")]
+#[cfg(feature = "rayon")]
 use eqiora_solver::{CanonicalCsrSystemView, CompleteCsrStorage, LinearSolverBackend};
 
 const SOURCE: &str = include_str!("../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi");
@@ -279,7 +279,7 @@ fn fieldwise_request(
     )
 }
 
-#[cfg(feature = "threaded")]
+#[cfg(feature = "rayon")]
 #[test]
 fn application_receipts_share_one_host_dag_across_serial_and_rayon() {
     let document = ModelDocument::compile(
@@ -415,7 +415,7 @@ fn application_receipts_share_one_host_dag_across_serial_and_rayon() {
     assert_eq!(threaded_run.libraries().len(), 1);
 }
 
-#[cfg(feature = "threaded")]
+#[cfg(feature = "rayon")]
 #[test]
 fn host_execution_admission_fails_before_pool_effects_and_rejects_substitution() {
     let document = ModelDocument::compile(

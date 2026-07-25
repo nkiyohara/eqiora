@@ -1,4 +1,4 @@
-//! Host-thread and future distributed execution adapters.
+//! Isolated Rayon host execution adapter.
 //!
 //! The adapter owns a bounded Rayon pool and schedules indexed local assembly
 //! packets, operators that expose disjoint output rows, and Eqiora's

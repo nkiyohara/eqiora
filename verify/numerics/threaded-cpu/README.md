@@ -70,7 +70,7 @@ superiority.
 Run:
 
 ```bash
-cargo test -p eqiora-fabric
-cargo test -p eqiora --test threaded_cpu --features threaded
+cargo test -p eqiora-backend-rayon
+cargo test -p eqiora --test threaded_cpu --features rayon
 cargo run -p eqiora-verify -- run --case numerics.threaded-cpu
 ```

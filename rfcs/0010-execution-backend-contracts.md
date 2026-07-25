@@ -65,7 +65,7 @@ eqiora-meshing         mesh topology, geometry maps, quadrature, and quality
 eqiora-assembly        local contributions, maps, packets, and sparse algebra
 eqiora-numerics        local spatial operators, realization, and lowering
 eqiora-backend-faer    production host linear-algebra adapter
-eqiora-fabric          run-owned threaded host placement
+eqiora-backend-rayon   run-owned Rayon host placement
 eqiora-backend-mpi     MPI transport adapter
 eqiora-backend-cuda    device execution adapter
 ```

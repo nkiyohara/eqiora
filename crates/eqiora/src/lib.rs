@@ -150,7 +150,7 @@ pub mod ir {
 
 /// Implicit forward and adjoint differentiation over lowered relations.
 pub mod differentiation {
-    pub use eqiora_diff::*;
+    pub use eqiora_differentiation::*;
 }
 
 /// Backend-neutral local contributions, assembly maps, and sparse algebra.
@@ -267,10 +267,10 @@ pub mod backends {
         pub use eqiora_backend_mpi_cuda::*;
     }
 
-    /// Run-owned threaded CPU adapter.
-    #[cfg(feature = "threaded")]
-    pub mod threaded {
-        pub use eqiora_fabric::*;
+    /// Run-owned Rayon CPU adapter.
+    #[cfg(feature = "rayon")]
+    pub mod rayon {
+        pub use eqiora_backend_rayon::*;
     }
 }
 

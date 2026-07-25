@@ -362,7 +362,7 @@ method and with exact construction/provenance policy.
 
 ### In-process CPU execution
 
-Rayon is placement behind `eqiora-fabric`, not an ambient global semantic
+Rayon is placement behind `eqiora-backend-rayon`, not an ambient global semantic
 choice. A Run owns its pool and worker count. Reproducible mode uses indexed
 packets and a fixed reduction tree; fast mode may use provider-native ordering
 but is a distinct policy and evidence claim.
@@ -564,7 +564,7 @@ before a material upgrade.
 | --- | --- | --- |
 | Reference algebra/time | Keep small Eqiora oracles | Deterministic correctness seed only; never grow into a second production stack |
 | Host algebra | Adopt exact-pinned `faer` 0.24.4 behind `eqiora-backend-faer` | Exact capability tuples, deployment-bound provider-release provenance, and true-residual acceptance; stronger methods/preconditioners need registered falsifiers. The package metadata names the [faer Codeberg repository](https://codeberg.org/sarah-quinones/faer) as upstream |
-| CPU threading | Adopt exact-pinned [Rayon 1.12.0](https://github.com/rayon-rs/rayon) behind a Run-owned pool | Preserve indexed work and fixed reductions for reproducible mode; the accepted Run names the Eqiora fabric build and Rayon version only when that path executed; benchmark fast/NUMA separately |
+| CPU threading | Adopt exact-pinned [Rayon 1.12.0](https://github.com/rayon-rs/rayon) behind a Run-owned pool | Preserve indexed work and fixed reductions for reproducible mode; the accepted Run names the Eqiora Rayon-adapter build and Rayon version only when that path executed; benchmark fast/NUMA separately |
 | MPI transport | Adopt [rsmpi 0.8.2](https://github.com/rsmpi/rsmpi/releases/tag/mpi-0.8.2) over a system MPI | The lock pins the Rust binding only. The application owns initialization/finalization; the adapter duplicates a communicator and records live implementation/version plus provided thread support. One fixed-reference 2D FSI slice verifies owner-routed assembly and accepted-shard MPI MINRES at 1/2/4 ranks on one host through [RFC 0061](../../rfcs/0061-mpi-fixed-mesh-fsi.md). Distributed Field output, symmetric-indefinite distributed Run artifacts, multi-node composition, scale, restart, and failure semantics remain |
 | ODE/mass DAE | Adopt [Diffsol 0.16.1](https://github.com/martinjrobins/diffsol/releases/tag/v0.16.1) behind the time adapter | Exact pin includes the BDF scratch-memory fix; rerun BDF, mass, sensitivity and restart evidence on every numerical upgrade |
 | General implicit DAE primal | Investigate [SUNDIALS IDA 7.8](https://github.com/llnl/sundials/releases/tag/v7.8.0) only when the reference oracle is insufficient | First FFI falsifier covers `IDACalcIC`, primal residual equivalence, callback panic containment, ABI/version, allocation ownership and clean teardown; it does not claim sensitivity or adjoint support |

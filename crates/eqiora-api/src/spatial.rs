@@ -13,16 +13,16 @@ use eqiora_artifact::{
     RealizationEnvelopeV1, RunManifestV2,
 };
 use eqiora_assembly::AssemblyReport;
+#[cfg(feature = "rayon")]
+use eqiora_backend_rayon::{CpuThreadPool, RAYON_EXECUTION_PROVIDER};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id};
 use eqiora_execution::{
     AdmittedExecution, DeploymentBinding, ExecutionReceipt, HostExecutorDescriptor,
 };
-#[cfg(feature = "threaded")]
-use eqiora_fabric::{CpuThreadPool, RAYON_EXECUTION_PROVIDER};
 use eqiora_meshing::MeshTopology;
-#[cfg(feature = "threaded")]
+#[cfg(feature = "rayon")]
 use eqiora_numerics::finalize_resolved_scalar_elliptic_cartesian_with_assembly;
 use eqiora_numerics::{
     AcceptedScalarEllipticParameterPoint, CartesianMesh, FinalizedScalarEllipticCartesianProblem,
@@ -38,7 +38,7 @@ use eqiora_realization::{
     TargetCapabilities, VectorLayoutKind, resolve,
 };
 use eqiora_schema::kernel::KernelNode;
-#[cfg(all(test, feature = "threaded"))]
+#[cfg(all(test, feature = "rayon"))]
 use eqiora_solver::ExecutionReport;
 #[cfg(test)]
 use eqiora_solver::ProviderLibrary;
@@ -163,7 +163,7 @@ impl ScalarEllipticExecutionEnvironment {
     }
 
     /// A run-owned Rayon environment bounded by explicit caller policy.
-    #[cfg(feature = "threaded")]
+    #[cfg(feature = "rayon")]
     #[must_use]
     pub const fn host_threaded(maximum_workers: NonZeroUsize) -> Self {
         Self {
@@ -1199,11 +1199,11 @@ fn host_executor(
     let execution_provider = if workers == NonZeroUsize::MIN {
         SERIAL_EXECUTION_PROVIDER
     } else {
-        #[cfg(feature = "threaded")]
+        #[cfg(feature = "rayon")]
         {
             RAYON_EXECUTION_PROVIDER
         }
-        #[cfg(not(feature = "threaded"))]
+        #[cfg(not(feature = "rayon"))]
         {
             // Preview rejects this branch before deployment binding when the
             // concrete threaded adapter is absent.
@@ -1278,7 +1278,7 @@ fn solve_admitted_linear_controlled(
     Ok(Some((solution, receipt)))
 }
 
-#[cfg(feature = "threaded")]
+#[cfg(feature = "rayon")]
 fn threaded_solve_controlled(
     document: &ModelDocument,
     plan: &ScalarEllipticRunPlan,
@@ -1301,7 +1301,7 @@ fn threaded_solve_controlled(
     solve_finalized_controlled(binding, finalized, &solver, observer)
 }
 
-#[cfg(not(feature = "threaded"))]
+#[cfg(not(feature = "rayon"))]
 fn threaded_solve_controlled(
     _document: &ModelDocument,
     _plan: &ScalarEllipticRunPlan,
@@ -1859,7 +1859,7 @@ mod tests {
         assert!(error.message().contains("contradictory versions"));
     }
 
-    #[cfg(feature = "threaded")]
+    #[cfg(feature = "rayon")]
     #[test]
     fn deployment_capacity_rejection_precedes_pool_factory() {
         use std::cell::Cell;
@@ -1878,7 +1878,7 @@ mod tests {
             plan.portable_realization(),
             HostExecutorDescriptor::new(
                 REFERENCE_SOLVER_PROVIDER,
-                eqiora_fabric::RAYON_EXECUTION_PROVIDER,
+                eqiora_backend_rayon::RAYON_EXECUTION_PROVIDER,
                 NonZeroUsize::MIN,
                 REFERENCE_LINEAR_SOLVER.capabilities(),
             ),
@@ -1894,7 +1894,7 @@ mod tests {
         assert_eq!(pool_allocations.get(), 0);
     }
 
-    #[cfg(feature = "threaded")]
+    #[cfg(feature = "rayon")]
     #[test]
     fn threaded_execution_replays_the_same_typed_plan_and_records_workers() {
         let document = document();
@@ -1938,7 +1938,7 @@ mod tests {
         );
         assert_eq!(
             manifest_execution.adapter_version(),
-            eqiora_fabric::RAYON_ADAPTER_VERSION
+            eqiora_backend_rayon::RAYON_ADAPTER_VERSION
         );
         assert_eq!(
             manifest_execution.solver_backend_version(),
@@ -1949,7 +1949,7 @@ mod tests {
                 .libraries()
                 .get("rayon")
                 .map(String::as_str),
-            Some(eqiora_fabric::RAYON_VERSION)
+            Some(eqiora_backend_rayon::RAYON_VERSION)
         );
         assert_eq!(manifest_execution.libraries().len(), 1);
         assert_eq!(manifest_execution.reduction(), result.solve().reduction());
@@ -1963,7 +1963,7 @@ mod tests {
         assert_eq!(
             result.solve().verification(),
             ExecutionReport::host(
-                eqiora_fabric::RAYON_EXECUTION,
+                eqiora_backend_rayon::RAYON_EXECUTION,
                 NonZeroUsize::new(2).unwrap()
             )
         );

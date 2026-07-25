@@ -1,6 +1,6 @@
 [package]
-name = "eqiora-diff"
-description = "Eqiora L3: implicit forward and adjoint analysis over linearized relations"
+name = "eqiora-backend-rayon"
+description = "Eqiora L3: isolated Rayon host execution adapter"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,9 +8,12 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+eqiora-assembly = { workspace = true }
 eqiora-core = { workspace = true }
-eqiora-ir = { workspace = true }
+eqiora-execution = { workspace = true }
+eqiora-realization = { workspace = true }
 eqiora-solver = { workspace = true }
+rayon = { workspace = true }
 
 [lints]
 workspace = true

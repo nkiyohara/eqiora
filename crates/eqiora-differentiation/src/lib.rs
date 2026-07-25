@@ -1,4 +1,4 @@
-//! **eqiora-diff** — implicit differentiation algorithms.
+//! **eqiora-differentiation** — implicit differentiation algorithms.
 //!
 //! This crate composes a converged lowered relation with Eqiora's oriented
 //! linear-solver contract. It neither changes canonical Relation semantics nor
