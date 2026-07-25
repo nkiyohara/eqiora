@@ -127,7 +127,8 @@ mod tests {
     use eqiora_meshing::{FixedTopologyGeometryAction3d, FixedTopologyGeometryState3d};
 
     use super::*;
-    use crate::{DiscreteSpace, SimplexP1BubbleSpace, SimplicialMiniVelocityField2d};
+    use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace};
+    use crate::simplicial_stokes::SimplicialMiniVelocityField2d;
 
     const STEP: f64 = 0.2;
 

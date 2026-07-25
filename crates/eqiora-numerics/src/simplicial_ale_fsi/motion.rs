@@ -444,7 +444,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::{FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d};
+    use crate::simplicial_fsi::{FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d};
 
     const DIMENSION: usize = 2;
     const COMPONENTS: usize = DIMENSION;

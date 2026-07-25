@@ -413,7 +413,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::{
+    use crate::simplicial_fsi::{
         FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial2d,
         FixedReferenceFsiMaterial3d, FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,
     };

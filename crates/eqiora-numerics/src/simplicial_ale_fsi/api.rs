@@ -667,7 +667,7 @@ mod tests {
         P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
     };
     use super::*;
-    use crate::{
+    use crate::simplicial_fsi::{
         FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial2d,
         FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
         FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,

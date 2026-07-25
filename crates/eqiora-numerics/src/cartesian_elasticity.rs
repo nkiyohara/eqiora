@@ -875,7 +875,7 @@ mod tests {
     use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 
     use super::*;
-    use crate::lower_scalar_elliptic_cartesian;
+    use crate::canonical::lower_scalar_elliptic_cartesian;
 
     fn unit_cell_action(mu: f64, lambda: f64) -> (CartesianMesh, LocalLinearActionIr) {
         let mesh = CartesianMesh::uniform(&[[0.0, 1.0], [0.0, 1.0]], &[1, 1]).unwrap();

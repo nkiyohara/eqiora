@@ -1515,7 +1515,9 @@ mod tests {
     };
 
     use super::*;
-    use crate::{AleFsiBoundary2d, AleFsiCartesianModel2d, FixedReferenceFsiPartition2d};
+    use crate::canonical_fsi::AleFsiCartesianModel2d;
+    use crate::simplicial_ale_fsi::AleFsiBoundary2d;
+    use crate::simplicial_fsi::FixedReferenceFsiPartition2d;
 
     const BASE_SOURCE: &str =
         include_str!("../../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi");

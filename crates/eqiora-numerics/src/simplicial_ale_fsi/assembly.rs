@@ -1215,12 +1215,14 @@ mod tests {
     };
 
     use super::*;
-    use crate::{
+    use crate::simplicial_ale_fsi::{
         AleFsiBoundary2d, AleFsiBoundary3d, AleFsiState2d, AleFsiState3d, AleFsiStepPlan2d,
-        AleFsiStepPlan3d, FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d,
-        FixedReferenceFsiMaterial2d, FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition2d,
-        FixedReferenceFsiPartition3d, FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,
-        P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
+        AleFsiStepPlan3d, P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
+    };
+    use crate::simplicial_fsi::{
+        FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial2d,
+        FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
+        FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,
     };
 
     const COMPONENTS: usize = 2;

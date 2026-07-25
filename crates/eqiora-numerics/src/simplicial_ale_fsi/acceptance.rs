@@ -413,10 +413,12 @@ mod tests {
 
     use super::*;
     use crate::simplicial_ale_fsi::assembly::initial_point;
-    use crate::{
-        AleFsiBoundary3d, AleFsiState3d, AleFsiStepPlan3d, FixedReferenceFsiLoad3d,
-        FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition3d, FixedReferenceFsiScale3d,
-        P1HarmonicMeshMotionAction3d,
+    use crate::simplicial_ale_fsi::{
+        AleFsiBoundary3d, AleFsiState3d, AleFsiStepPlan3d, P1HarmonicMeshMotionAction3d,
+    };
+    use crate::simplicial_fsi::{
+        FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition3d,
+        FixedReferenceFsiScale3d,
     };
 
     const INTERFACE_INTERIOR: VertexId = VertexId::new(5);

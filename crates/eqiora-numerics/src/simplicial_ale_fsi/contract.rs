@@ -444,10 +444,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::{
+    use crate::simplicial_ale_fsi::{P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d};
+    use crate::simplicial_fsi::{
         FixedReferenceFsiBoundary2d, FixedReferenceFsiLoad2d, FixedReferenceFsiMaterial2d,
         FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d, FixedReferenceFsiScale2d,
-        P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
     };
 
     const COMPONENTS: usize = 2;
