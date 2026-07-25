@@ -16,13 +16,13 @@ use super::{
     model_lowering_error, require_closed_elasticity_models,
     require_resolved_cartesian_elasticity_q1_plan_2d,
 };
+use crate::canonical_boundary::PhysicalBoundaryDisposition;
+use crate::cartesian_elasticity::ConformingCartesianLinearElasticityPair2dSolution;
 use crate::cartesian_elasticity::{
     CartesianEssentialSides2d, finalize_conforming_cartesian_q1_linear_elasticity_pair_2d,
 };
+use crate::cartesian_mesh::CartesianMesh;
 use crate::finalized_spatial::FinalizedConformingIsotropicElasticityCartesianPair2dProblem;
-use crate::{
-    CartesianMesh, ConformingCartesianLinearElasticityPair2dSolution, PhysicalBoundaryDisposition,
-};
 
 type CartesianBounds2d = [[f64; 2]; 2];
 

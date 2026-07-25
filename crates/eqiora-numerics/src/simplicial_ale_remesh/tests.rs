@@ -7,9 +7,9 @@ use eqiora_meshing::{
 };
 use eqiora_solver::{LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 
-use crate::{
-    AleFsiState2d, FixedReferenceFsiMaterial2d, FixedReferenceFsiPartition2d,
-    FixedReferenceFsiScale2d, P1HarmonicMeshMotionAction2d,
+use crate::simplicial_ale_fsi::{AleFsiState2d, P1HarmonicMeshMotionAction2d};
+use crate::simplicial_fsi::{
+    FixedReferenceFsiMaterial2d, FixedReferenceFsiPartition2d, FixedReferenceFsiScale2d,
 };
 
 use super::integration::{cell_basis, dense_zeroed, integrate_physical_triangle};
@@ -405,7 +405,7 @@ fn scaled_projection_case(
     velocity_scale: f64,
     pressure_scale: f64,
     violate_exterior: bool,
-) -> Result<crate::AcceptedAleFsiRemeshProjection2d, Diagnostic> {
+) -> Result<crate::simplicial_ale_remesh::AcceptedAleFsiRemeshProjection2d, Diagnostic> {
     let source_mesh = scaled_two_domain_mesh(false, coordinate_factor);
     let target_mesh = scaled_two_domain_mesh(true, coordinate_factor);
     let source_partition = partition(&source_mesh);
@@ -474,7 +474,9 @@ fn scaled_projection_case(
     )
 }
 
-fn dimensionless_obligations(evidence: &crate::AleFsiRemeshProjectionEvidence2d) -> [f64; 6] {
+fn dimensionless_obligations(
+    evidence: &crate::simplicial_ale_remesh::AleFsiRemeshProjectionEvidence2d,
+) -> [f64; 6] {
     [
         evidence.dimensionless_displacement_trace_defect(),
         evidence.dimensionless_shared_velocity_trace_defect(),

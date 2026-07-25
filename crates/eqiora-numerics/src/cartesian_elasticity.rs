@@ -27,9 +27,10 @@ use eqiora_solver::{
 };
 
 use crate::affine_fem::physical_gradient;
-use crate::{
-    CartesianMesh, DiscreteSpace, HypercubeQ1Space, LocalOperator, ScalarSpatialExpression,
-};
+use crate::cartesian_mesh::CartesianMesh;
+use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
+use crate::operator::LocalOperator;
+use crate::spatial_expression::ScalarSpatialExpression;
 
 const DIMENSION: usize = 2;
 const COMPONENTS: usize = 2;
@@ -764,7 +765,10 @@ fn potential_gradient(
     Ok(gradient)
 }
 
-fn physical_gradients(basis: &crate::BasisTabulation, inverse_jacobian: &[f64]) -> Vec<Vec<f64>> {
+fn physical_gradients(
+    basis: &crate::discrete_space::BasisTabulation,
+    inverse_jacobian: &[f64],
+) -> Vec<Vec<f64>> {
     basis
         .reference_gradients()
         .chunks_exact(DIMENSION)
@@ -871,7 +875,7 @@ mod tests {
     use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 
     use super::*;
-    use crate::lower_scalar_elliptic_cartesian;
+    use crate::canonical::lower_scalar_elliptic_cartesian;
 
     fn unit_cell_action(mu: f64, lambda: f64) -> (CartesianMesh, LocalLinearActionIr) {
         let mesh = CartesianMesh::uniform(&[[0.0, 1.0], [0.0, 1.0]], &[1, 1]).unwrap();

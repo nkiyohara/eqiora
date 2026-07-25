@@ -6,12 +6,15 @@ use std::sync::Arc;
 use eqiora_artifact::SimplicialMeshEnvelopeV1;
 use eqiora_core::{Diagnostic, DynQuantity};
 use eqiora_numerics::{
-    IncompressibleFlowScaleProfile2d, ResolvedTransientNavierStokesTrajectory2d,
-    SimplicialMiniVelocityField2d, SimplicialP1Field, SteadyStokesPressureReference2d,
-    TransientIncompressibleNavierStokesCartesianModel2d, TransientNavierStokesInitialState2d,
-    TransientNavierStokesRun2d, advance_resolved_transient_navier_stokes_mini_2d,
-    lower_transient_incompressible_navier_stokes_cartesian_2d,
-    transient_navier_stokes_fieldwise_requirements_2d, transient_navier_stokes_mini_plan_2d,
+    common::SimplicialP1Field, fluid::IncompressibleFlowScaleProfile2d,
+    fluid::ResolvedTransientNavierStokesTrajectory2d, fluid::SimplicialMiniVelocityField2d,
+    fluid::SteadyStokesPressureReference2d,
+    fluid::TransientIncompressibleNavierStokesCartesianModel2d,
+    fluid::TransientNavierStokesInitialState2d, fluid::TransientNavierStokesRun2d,
+    fluid::advance_resolved_transient_navier_stokes_mini_2d,
+    fluid::lower_transient_incompressible_navier_stokes_cartesian_2d,
+    fluid::transient_navier_stokes_fieldwise_requirements_2d,
+    fluid::transient_navier_stokes_mini_plan_2d,
 };
 use eqiora_realization::{
     DiscretizationMethod, MeshKind, NonlinearSolvePlan, PortableRealizationGraph,
@@ -214,7 +217,9 @@ impl TransientNavierStokesReference2d {
             &self.realization,
             &self.mesh,
             initial.state,
-            TransientNavierStokesRun2d::new(eqiora_numerics::NonZeroStepCount::new(step_count)),
+            TransientNavierStokesRun2d::new(eqiora_numerics::common::NonZeroStepCount::new(
+                step_count,
+            )),
             self.solver.as_ref(),
         )
     }

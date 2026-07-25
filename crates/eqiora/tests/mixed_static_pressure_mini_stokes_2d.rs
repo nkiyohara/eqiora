@@ -4,12 +4,6 @@ use eqiora::artifact::SimplicialMeshEnvelopeV1;
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::kernel::BoundarySide;
 use eqiora::meshing::{MeshQualityGate, SimplicialMesh};
-use eqiora::numerics::{
-    PhysicalBoundaryDisposition, PhysicalBoundaryQuantity, SteadyStokesMiniSolution2d,
-    SteadyStokesPressureReference2d, SteadyStokesScaleProfile2d,
-    finalize_resolved_steady_stokes_mini_2d, lower_steady_incompressible_stokes_cartesian_2d,
-    steady_stokes_fieldwise_requirements_2d, steady_stokes_mini_plan_2d,
-};
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
     ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
@@ -26,6 +20,13 @@ use eqiora::solver::{
     SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity};
+use eqiora_numerics::{
+    common::PhysicalBoundaryDisposition, common::PhysicalBoundaryQuantity,
+    fluid::SteadyStokesMiniSolution2d, fluid::SteadyStokesPressureReference2d,
+    fluid::SteadyStokesScaleProfile2d, fluid::finalize_resolved_steady_stokes_mini_2d,
+    fluid::lower_steady_incompressible_stokes_cartesian_2d,
+    fluid::steady_stokes_fieldwise_requirements_2d, fluid::steady_stokes_mini_plan_2d,
+};
 
 #[path = "support/embedded_package.rs"]
 mod embedded_package;

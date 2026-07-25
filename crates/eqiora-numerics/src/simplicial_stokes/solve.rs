@@ -18,8 +18,8 @@ use super::facet::MiniConstantTractionFacet;
 use super::finalized::FinalizedMiniStokesAssembly;
 use super::layout::MixedLayout;
 use super::{COMPONENTS, DIMENSION, invalid};
-use crate::FinalizedSimplicialMiniStokes2dProblem;
-use crate::LocalOperator;
+use crate::finalized_spatial::FinalizedSimplicialMiniStokes2dProblem;
+use crate::operator::LocalOperator;
 
 /// Finalize one complete-essential numerical MINI Stokes problem.
 ///

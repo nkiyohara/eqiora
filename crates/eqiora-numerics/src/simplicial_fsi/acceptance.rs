@@ -14,7 +14,7 @@ use super::layout::FsiLayout;
 use super::partition::{CellMaterial, FixedReferenceFsiPartition};
 use super::{fluid_local_size, invalid, mini_count, p1_count};
 use crate::affine_fem::physical_gradient;
-use crate::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
+use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
 
 pub(super) struct EnergyEvaluation<'a, const D: usize = 2> {
     pub(super) mesh: &'a SimplicialMesh,

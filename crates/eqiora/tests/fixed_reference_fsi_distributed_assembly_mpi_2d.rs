@@ -12,9 +12,9 @@ use eqiora::Diagnostic;
 use eqiora::assembly::{AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork, LinearSystem};
 use eqiora::backends::mpi::{MpiExecutionGroup, MpiSpatialAssemblyBackend, MpiThreadSupport};
 use eqiora::meshing::MeshEntity;
-use eqiora::numerics::lower_fixed_reference_fsi_cartesian_2d;
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
-use eqiora_numerics::finalize_resolved_fixed_reference_fsi_step_2d_with_assembly;
+use eqiora_numerics::fsi::finalize_resolved_fixed_reference_fsi_step_2d_with_assembly;
+use eqiora_numerics::fsi::lower_fixed_reference_fsi_cartesian_2d;
 use eqiora_spatial_distribution::{
     CellOwnershipClaim, DistributedAssemblyEvidence, DistributedMeshLayout, MeshRevisionIdentityV1,
 };

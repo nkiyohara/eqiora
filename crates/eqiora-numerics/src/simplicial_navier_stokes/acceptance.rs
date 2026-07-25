@@ -72,7 +72,7 @@ pub(super) fn require_consistent_initial_state(
 fn initial_weak_continuity_norm(
     mesh: &SimplicialMesh,
     quadrature: &QuadratureRule,
-    velocity: &crate::SimplicialMiniVelocityField2d,
+    velocity: &crate::simplicial_stokes::SimplicialMiniVelocityField2d,
 ) -> Result<f64, Diagnostic> {
     let spaces = MiniSpaces::new()?;
     let mut residual = vec![0.0; mesh.vertices().len()];

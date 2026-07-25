@@ -1,7 +1,8 @@
 use eqiora_compiler::compile;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_numerics::{
-    DefaultScalarElliptic1dConfig, ScalarBoundaryCondition1d, solve_default_scalar_elliptic_1d,
+    scalar::DefaultScalarElliptic1dConfig, scalar::ScalarBoundaryCondition1d,
+    scalar::solve_default_scalar_elliptic_1d,
 };
 use eqiora_sem::KernelProgram;
 

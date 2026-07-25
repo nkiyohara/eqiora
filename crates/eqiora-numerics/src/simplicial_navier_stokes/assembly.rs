@@ -9,7 +9,10 @@ use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 use super::api::{MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d};
 use super::element::MiniNavierStokesCell;
 use super::{COMPONENTS, DIMENSION, invalid};
+use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
+use crate::operator::LocalOperator;
+use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_stokes::boundary::{PreparedBoundary2d, PressureReferenceKind2d};
 use crate::simplicial_stokes::constraint::MiniPressureMeanConstraintCell;
 use crate::simplicial_stokes::facet::MiniConstantTractionFacet;
@@ -17,9 +20,9 @@ use crate::simplicial_stokes::layout::MixedLayout;
 use crate::simplicial_stokes::{
     CELL_LOCAL_DOF_COUNT, CONSTRAINT_LOCAL_DOF_COUNT, FACET_LOCAL_DOF_COUNT,
 };
-use crate::{
-    AssembledLinearizedRelation, LocalOperator, SimplicialMiniStokesBoundary2d,
-    SimplicialMiniStokesPressureReference2d, SimplicialMiniVelocityField2d, SimplicialP1Field,
+use crate::simplicial_stokes::{
+    SimplicialMiniStokesBoundary2d, SimplicialMiniStokesPressureReference2d,
+    SimplicialMiniVelocityField2d,
 };
 
 pub(super) struct StepAssembly {

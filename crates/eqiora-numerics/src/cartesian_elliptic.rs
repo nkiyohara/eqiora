@@ -18,10 +18,13 @@ use eqiora_solver::{
 };
 
 use crate::affine_fem::{dot, physical_gradient, weighted_gradient, weighted_gradient_tangent};
-use crate::{
-    AssembledLinearizedRelation, CartesianMesh, CartesianScalarFieldLinearization, DiscreteSpace,
-    HypercubeQ1Space, LocalOperator, ScalarEllipticCartesianModel, SpatialDesignCoordinate,
-};
+use crate::assembled_linearization::AssembledLinearizedRelation;
+use crate::canonical::ScalarEllipticCartesianModel;
+use crate::cartesian_mesh::CartesianMesh;
+use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
+use crate::linearized_output::CartesianScalarFieldLinearization;
+use crate::operator::LocalOperator;
+use crate::spatial_design::SpatialDesignCoordinate;
 
 /// Continuous scalar Q1 field on a Cartesian mesh.
 ///
@@ -1404,7 +1407,7 @@ fn validate_linearization_inputs(
 }
 
 struct SelectedDesignCoordinates {
-    coordinates: Vec<crate::SpatialDesignCoordinate>,
+    coordinates: Vec<crate::spatial_design::SpatialDesignCoordinate>,
     values: Vec<f64>,
     actions: Vec<SpatialDesignAction>,
 }

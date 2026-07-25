@@ -4,10 +4,6 @@ use std::num::NonZeroUsize;
 use eqiora::Diagnostic;
 use eqiora::compiler::compile;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
-use eqiora::numerics::{
-    ResolvedScalarEllipticCartesianSolution, ResolvedScalarEllipticSolution1d,
-    finalize_resolved_scalar_elliptic_cartesian, solve_resolved_scalar_elliptic_1d,
-};
 use eqiora::realization::{
     DefaultPolicyVersion, DiscretizationMethod, ExecutionSchedule, RealizationCapabilities,
     RealizationPlan, RealizationRequest, RealizationRequirements, SemanticRevision,
@@ -24,6 +20,10 @@ use eqiora_backend_faer::{
     FAER_ADAPTER_VERSION, FAER_SOLVER_PROVIDER, FAER_VERSION, FaerLinearSolver,
 };
 use eqiora_execution::{AdmittedExecution, DeploymentBinding, HostExecutorDescriptor};
+use eqiora_numerics::{
+    scalar::ResolvedScalarEllipticCartesianSolution, scalar::ResolvedScalarEllipticSolution1d,
+    scalar::finalize_resolved_scalar_elliptic_cartesian, scalar::solve_resolved_scalar_elliptic_1d,
+};
 
 const SOURCE: &str = include_str!("../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi");
 

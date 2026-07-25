@@ -31,7 +31,7 @@
       { "name": "kinds", "from": "eqiora_core::entity::kinds" },
       { "name": "quantity", "from": "eqiora_core::quantity" }
     ],
-    "stable_modules": ["api", "compatibility", "control"],
+    "stable_modules": ["api", "compatibility", "control", "numerics"],
     "transitional_modules": [
       "artifact",
       "assembly",
@@ -47,7 +47,6 @@
       "kernel",
       "language",
       "meshing",
-      "numerics",
       "ontology",
       "package",
       "realization",
@@ -197,6 +196,40 @@
         { "name": "generated_compile_v1_schema_json", "from": "eqiora_api::control::generated_compile_v1_schema_json" }
       ],
       "transitional_exports": []
+    },
+    {
+      "path": "eqiora::numerics",
+      "source_module": "numerics",
+      "stable_exports": [],
+      "transitional_exports": [
+        { "name": "AleFsiCartesianModel2d", "from": "eqiora_numerics::ale::AleFsiCartesianModel2d" },
+        { "name": "CartesianLinearElasticity2dSolution", "from": "eqiora_numerics::solid::CartesianLinearElasticity2dSolution" },
+        { "name": "FinalizedIsotropicElasticityCartesian2dProblem", "from": "eqiora_numerics::solid::FinalizedIsotropicElasticityCartesian2dProblem" },
+        { "name": "FinalizedResolvedFixedReferenceFsiStep2d", "from": "eqiora_numerics::fsi::FinalizedResolvedFixedReferenceFsiStep2d" },
+        { "name": "FinalizedResolvedFixedTopologyAleFsi2d", "from": "eqiora_numerics::ale::FinalizedResolvedFixedTopologyAleFsi2d" },
+        { "name": "FinalizedScalarEllipticCartesianProblem", "from": "eqiora_numerics::scalar::FinalizedScalarEllipticCartesianProblem" },
+        { "name": "FinalizedSteadyStokesMini2dProblem", "from": "eqiora_numerics::fluid::FinalizedSteadyStokesMini2dProblem" },
+        { "name": "FixedReferenceFsiCartesianModel2d", "from": "eqiora_numerics::fsi::FixedReferenceFsiCartesianModel2d" },
+        { "name": "IsotropicElasticityCartesianModel2d", "from": "eqiora_numerics::solid::IsotropicElasticityCartesianModel2d" },
+        { "name": "ResolvedFixedReferenceFsiSolution2d", "from": "eqiora_numerics::fsi::ResolvedFixedReferenceFsiSolution2d" },
+        { "name": "ResolvedScalarEllipticCartesianSolution", "from": "eqiora_numerics::scalar::ResolvedScalarEllipticCartesianSolution" },
+        { "name": "ScalarEllipticCartesianModel", "from": "eqiora_numerics::scalar::ScalarEllipticCartesianModel" },
+        { "name": "SteadyIncompressibleStokesCartesianModel2d", "from": "eqiora_numerics::fluid::SteadyIncompressibleStokesCartesianModel2d" },
+        { "name": "SteadyStokesMiniSolution2d", "from": "eqiora_numerics::fluid::SteadyStokesMiniSolution2d" },
+        { "name": "finalize_resolved_fixed_reference_fsi_step_2d", "from": "eqiora_numerics::fsi::finalize_resolved_fixed_reference_fsi_step_2d" },
+        { "name": "finalize_resolved_fixed_topology_ale_fsi_2d", "from": "eqiora_numerics::ale::finalize_resolved_fixed_topology_ale_fsi_2d" },
+        { "name": "finalize_resolved_isotropic_elasticity_cartesian_2d", "from": "eqiora_numerics::solid::finalize_resolved_isotropic_elasticity_cartesian_2d" },
+        { "name": "finalize_resolved_scalar_elliptic_cartesian", "from": "eqiora_numerics::scalar::finalize_resolved_scalar_elliptic_cartesian" },
+        { "name": "finalize_resolved_steady_stokes_mini_2d", "from": "eqiora_numerics::fluid::finalize_resolved_steady_stokes_mini_2d" },
+        { "name": "lower_ale_fsi_cartesian_2d", "from": "eqiora_numerics::ale::lower_ale_fsi_cartesian_2d" },
+        { "name": "lower_fixed_reference_fsi_cartesian_2d", "from": "eqiora_numerics::fsi::lower_fixed_reference_fsi_cartesian_2d" },
+        { "name": "lower_isotropic_elasticity_cartesian_2d", "from": "eqiora_numerics::solid::lower_isotropic_elasticity_cartesian_2d" },
+        { "name": "lower_scalar_elliptic_cartesian", "from": "eqiora_numerics::scalar::lower_scalar_elliptic_cartesian" },
+        { "name": "lower_steady_incompressible_stokes_cartesian_2d", "from": "eqiora_numerics::fluid::lower_steady_incompressible_stokes_cartesian_2d" },
+        { "name": "solve_resolved_isotropic_elasticity_cartesian_2d", "from": "eqiora_numerics::solid::solve_resolved_isotropic_elasticity_cartesian_2d" },
+        { "name": "solve_resolved_scalar_elliptic_cartesian", "from": "eqiora_numerics::scalar::solve_resolved_scalar_elliptic_cartesian" },
+        { "name": "solve_resolved_steady_stokes_mini_2d", "from": "eqiora_numerics::fluid::solve_resolved_steady_stokes_mini_2d" }
+      ]
     }
   ]
 }

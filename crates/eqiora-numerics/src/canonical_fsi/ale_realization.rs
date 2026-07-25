@@ -34,13 +34,19 @@ use eqiora_solver::{
 };
 
 use super::{AleFsiCartesianModel, FsiInterfaceSide};
-use crate::{
-    AcceptedAleFsiRemeshProjection2d, AleFsiBoundary, AleFsiState, AleFsiStepPlan,
-    AleFsiTrajectory, FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
-    FixedReferenceFsiScale, NonZeroStepCount, P1HarmonicMeshMotionAction,
-    PhysicalBoundaryDisposition, advance_simplicial_ale_fsi_2d_with_assembly,
-    advance_simplicial_ale_fsi_3d_with_assembly, project_simplicial_ale_fsi_remesh_2d,
+use crate::canonical_boundary::PhysicalBoundaryDisposition;
+use crate::simplicial_ale_fsi::{
+    AleFsiBoundary, AleFsiState, AleFsiStepPlan, AleFsiTrajectory, P1HarmonicMeshMotionAction,
+    advance_simplicial_ale_fsi_2d_with_assembly, advance_simplicial_ale_fsi_3d_with_assembly,
 };
+use crate::simplicial_ale_remesh::{
+    AcceptedAleFsiRemeshProjection2d, project_simplicial_ale_fsi_remesh_2d,
+};
+use crate::simplicial_fsi::{
+    FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
+    FixedReferenceFsiScale,
+};
+use crate::step_count::NonZeroStepCount;
 
 const LEGACY_TRIANGLE_DUFFY_POINTS_PER_AXIS: usize = 5;
 const TETRAHEDRON_DUFFY_POINTS_PER_AXIS: usize = 7;
@@ -1139,7 +1145,7 @@ fn require_boundary_meaning<const D: usize>(
 }
 
 fn require_physics_boundary<const D: usize>(
-    inventory: &crate::CartesianBoundaryInventory<D>,
+    inventory: &crate::canonical_boundary::CartesianBoundaryInventory<D>,
     interface_axis: usize,
     interface_side: FsiInterfaceSide,
     connection: eqiora_core::RawId,
@@ -1509,7 +1515,9 @@ mod tests {
     };
 
     use super::*;
-    use crate::{AleFsiBoundary2d, AleFsiCartesianModel2d, FixedReferenceFsiPartition2d};
+    use crate::canonical_fsi::AleFsiCartesianModel2d;
+    use crate::simplicial_ale_fsi::AleFsiBoundary2d;
+    use crate::simplicial_fsi::FixedReferenceFsiPartition2d;
 
     const BASE_SOURCE: &str =
         include_str!("../../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi");

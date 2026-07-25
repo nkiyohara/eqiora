@@ -9,12 +9,6 @@ use eqiora::api::{
 };
 use eqiora::compiler::compile;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
-use eqiora::numerics::{
-    ResolvedScalarEllipticCartesianSolution, ResolvedScalarEllipticSolution1d,
-    lower_scalar_elliptic_1d, solve_resolved_scalar_elliptic_1d,
-    solve_resolved_scalar_elliptic_1d_with_assembly, solve_resolved_scalar_elliptic_cartesian,
-    solve_resolved_scalar_elliptic_cartesian_with_assembly,
-};
 use eqiora::realization::{
     AlgebraicBlock, AlgebraicBlockScale, DefaultPolicyVersion, Discretization,
     DiscretizationMethod, ExecutionSchedule, FieldSpaceBinding, FieldwiseRealizationPlan,
@@ -43,6 +37,13 @@ use eqiora_backend_rayon::{CpuThreadPool, RAYON_EXECUTION};
 use eqiora_backend_rayon::{RAYON_ADAPTER_VERSION, RAYON_EXECUTION_PROVIDER, RAYON_VERSION};
 #[cfg(feature = "rayon")]
 use eqiora_execution::{AdmittedExecution, DeploymentBinding, HostExecutorDescriptor};
+use eqiora_numerics::{
+    scalar::ResolvedScalarEllipticCartesianSolution, scalar::ResolvedScalarEllipticSolution1d,
+    scalar::lower_scalar_elliptic_1d, scalar::solve_resolved_scalar_elliptic_1d,
+    scalar::solve_resolved_scalar_elliptic_1d_with_assembly,
+    scalar::solve_resolved_scalar_elliptic_cartesian,
+    scalar::solve_resolved_scalar_elliptic_cartesian_with_assembly,
+};
 #[cfg(feature = "rayon")]
 use eqiora_solver::{CanonicalCsrSystemView, CompleteCsrStorage, LinearSolverBackend};
 

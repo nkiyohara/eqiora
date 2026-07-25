@@ -18,11 +18,12 @@ use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
 use super::element::{AleMiniFluidCell, AleMiniFluidDirection};
 use super::{P1HarmonicMeshMotionAction, invalid};
+use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
+use crate::simplicial_fsi::{FixedReferenceFsiPartition, FixedReferenceFsiState};
 use crate::simplicial_fsi::{
     element::solid_local, layout::FsiLayout, partition::CellMaterial, validate_problem,
 };
-use crate::{AssembledLinearizedRelation, FixedReferenceFsiPartition, FixedReferenceFsiState};
 
 /// One assembled Newton point and the independently evaluated physical split.
 pub(super) struct StepAssembly<const D: usize> {
@@ -1214,12 +1215,14 @@ mod tests {
     };
 
     use super::*;
-    use crate::{
+    use crate::simplicial_ale_fsi::{
         AleFsiBoundary2d, AleFsiBoundary3d, AleFsiState2d, AleFsiState3d, AleFsiStepPlan2d,
-        AleFsiStepPlan3d, FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d,
-        FixedReferenceFsiMaterial2d, FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition2d,
-        FixedReferenceFsiPartition3d, FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,
-        P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
+        AleFsiStepPlan3d, P1HarmonicMeshMotionAction2d, P1HarmonicMeshMotionAction3d,
+    };
+    use crate::simplicial_fsi::{
+        FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial2d,
+        FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
+        FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,
     };
 
     const COMPONENTS: usize = 2;

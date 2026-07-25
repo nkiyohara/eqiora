@@ -23,10 +23,10 @@ use super::{
 use crate::jacobian_audit::{
     CenteredJacobianAuditEvidence, StructuralJacobianPattern, audit_centered_jacobian,
 };
-use crate::{
+use crate::simplicial_fsi::{
     FixedReferenceFsiPartition, FixedReferenceFsiPartition2d, FixedReferenceFsiPartition3d,
-    NonZeroStepCount,
 };
+use crate::step_count::NonZeroStepCount;
 
 /// Advance one fixed-topology reference through accepted monolithic ALE steps.
 ///
@@ -413,7 +413,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::{
+    use crate::simplicial_fsi::{
         FixedReferenceFsiLoad2d, FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial2d,
         FixedReferenceFsiMaterial3d, FixedReferenceFsiScale2d, FixedReferenceFsiScale3d,
     };

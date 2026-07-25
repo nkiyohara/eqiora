@@ -15,9 +15,6 @@ use eqiora::compatibility::ExactModelCodec;
 use eqiora::entity::kinds;
 use eqiora::graph::EdgeKind;
 use eqiora::kernel::KernelNode;
-use eqiora::numerics::{
-    lower_scalar_physical_affine, solve_scalar_physical_affine_with_initial_guess,
-};
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageDirectory, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1,
     DependencyRequirementV1, DirectoryPackageStore, ExactVersion, InMemoryPackageStore,
@@ -30,6 +27,9 @@ use eqiora::solver::{
     LinearSolveRequest, LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan,
 };
 use eqiora_backend_faer::FaerLinearSolver;
+use eqiora_numerics::{
+    scalar::lower_scalar_physical_affine, scalar::solve_scalar_physical_affine_with_initial_guess,
+};
 
 const LIBRARY_SOURCE: &str =
     include_str!("../../../packages/Eqiora.Electrical.Basic/src/basic.eqi");

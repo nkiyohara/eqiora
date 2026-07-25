@@ -1,8 +1,8 @@
-use eqiora::numerics::{
-    FixedReferenceFsiCartesianModel2d, PhysicalBoundaryDisposition,
-    lower_fixed_reference_fsi_cartesian_2d,
-};
 use eqiora::realization::{SolveRoot, TransformationNode};
+use eqiora_numerics::{
+    common::PhysicalBoundaryDisposition, fsi::FixedReferenceFsiCartesianModel2d,
+    fsi::lower_fixed_reference_fsi_cartesian_2d,
+};
 use support::fixed_reference_fsi::{
     direct_document, exact_spatial_witness, execute_initial_step, packaged_document,
 };

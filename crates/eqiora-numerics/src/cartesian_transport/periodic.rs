@@ -7,7 +7,7 @@ use eqiora_realization::CellCenteredConvectionScheme;
 
 use super::api::TransportFace2d;
 use super::reconstruction::AffineFaceTrace;
-use crate::CartesianMesh;
+use crate::cartesian_mesh::CartesianMesh;
 
 const DIMENSION: usize = 2;
 

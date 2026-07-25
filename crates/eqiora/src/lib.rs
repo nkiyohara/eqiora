@@ -165,7 +165,30 @@ pub mod device {
 
 /// Numerical realizations kept separate from canonical model meaning.
 pub mod numerics {
-    pub use eqiora_numerics::facade::*;
+    pub use eqiora_numerics::ale::{
+        AleFsiCartesianModel2d, FinalizedResolvedFixedTopologyAleFsi2d,
+        finalize_resolved_fixed_topology_ale_fsi_2d, lower_ale_fsi_cartesian_2d,
+    };
+    pub use eqiora_numerics::fluid::{
+        FinalizedSteadyStokesMini2dProblem, SteadyIncompressibleStokesCartesianModel2d,
+        SteadyStokesMiniSolution2d, finalize_resolved_steady_stokes_mini_2d,
+        lower_steady_incompressible_stokes_cartesian_2d, solve_resolved_steady_stokes_mini_2d,
+    };
+    pub use eqiora_numerics::fsi::{
+        FinalizedResolvedFixedReferenceFsiStep2d, FixedReferenceFsiCartesianModel2d,
+        ResolvedFixedReferenceFsiSolution2d, finalize_resolved_fixed_reference_fsi_step_2d,
+        lower_fixed_reference_fsi_cartesian_2d,
+    };
+    pub use eqiora_numerics::scalar::{
+        FinalizedScalarEllipticCartesianProblem, ResolvedScalarEllipticCartesianSolution,
+        ScalarEllipticCartesianModel, finalize_resolved_scalar_elliptic_cartesian,
+        lower_scalar_elliptic_cartesian, solve_resolved_scalar_elliptic_cartesian,
+    };
+    pub use eqiora_numerics::solid::{
+        CartesianLinearElasticity2dSolution, FinalizedIsotropicElasticityCartesian2dProblem,
+        IsotropicElasticityCartesianModel2d, finalize_resolved_isotropic_elasticity_cartesian_2d,
+        lower_isotropic_elasticity_cartesian_2d, solve_resolved_isotropic_elasticity_cartesian_2d,
+    };
 }
 
 /// Backend-neutral mesh topology, affine geometry, and quality contracts.

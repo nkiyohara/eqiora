@@ -23,12 +23,13 @@ use eqiora_execution::{
 };
 use eqiora_meshing::MeshTopology;
 #[cfg(feature = "rayon")]
-use eqiora_numerics::finalize_resolved_scalar_elliptic_cartesian_with_assembly;
+use eqiora_numerics::scalar::finalize_resolved_scalar_elliptic_cartesian_with_assembly;
 use eqiora_numerics::{
-    AcceptedScalarEllipticParameterPoint, CartesianMesh, FinalizedScalarEllipticCartesianProblem,
-    FinalizedScalarEllipticParameterPoint, ResolvedScalarEllipticCartesianSolution,
-    ScalarEllipticCartesianModel, finalize_resolved_scalar_elliptic_cartesian,
-    finalize_scalar_elliptic_parameter_point, lower_scalar_elliptic_cartesian,
+    common::CartesianMesh, scalar::AcceptedScalarEllipticParameterPoint,
+    scalar::FinalizedScalarEllipticCartesianProblem, scalar::FinalizedScalarEllipticParameterPoint,
+    scalar::ResolvedScalarEllipticCartesianSolution, scalar::ScalarEllipticCartesianModel,
+    scalar::finalize_resolved_scalar_elliptic_cartesian,
+    scalar::finalize_scalar_elliptic_parameter_point, scalar::lower_scalar_elliptic_cartesian,
 };
 use eqiora_realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshKind, MeshPolicy,

@@ -5,10 +5,6 @@ use eqiora::compiler::compile;
 use eqiora::diagnostic::codes;
 use eqiora::distributed::{DistributedLinearSystem, GlobalVectorSpace, Partition};
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
-use eqiora::numerics::{
-    ResolvedScalarEllipticCartesianSolution, finalize_resolved_scalar_elliptic_cartesian,
-    solve_resolved_scalar_elliptic_cartesian,
-};
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshKind, MeshPolicy,
     QuadraturePolicy, RealizationCapabilities, RealizationPlan, RealizationRequest,
@@ -22,6 +18,11 @@ use eqiora::solver::{
     LinearSolution, LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
     ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, ScalarType, SolverCapabilities,
     SolverCapability, SolverPlan, SolverProvider, accept_linear_solution_with_verifier,
+};
+use eqiora_numerics::{
+    scalar::ResolvedScalarEllipticCartesianSolution,
+    scalar::finalize_resolved_scalar_elliptic_cartesian,
+    scalar::solve_resolved_scalar_elliptic_cartesian,
 };
 
 const SOURCE: &str =
@@ -286,7 +287,7 @@ fn distributed_finalization_rejects_unadmitted_placement_combinations() {
 }
 
 fn distributed_candidate(
-    problem: &eqiora::numerics::FinalizedScalarEllipticCartesianProblem,
+    problem: &eqiora_numerics::scalar::FinalizedScalarEllipticCartesianProblem,
     ranks: usize,
 ) -> LinearSolution {
     let plan = problem.solver_plan();

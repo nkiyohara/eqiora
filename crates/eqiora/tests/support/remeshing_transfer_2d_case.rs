@@ -8,12 +8,6 @@ use eqiora::meshing::{
     CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh,
     triangle_duffy_gauss_legendre,
 };
-use eqiora::numerics::{
-    AcceptedAleFsiRemeshProjection2d, AleFsiBoundary2d, AleFsiCartesianModel2d, AleFsiState2d,
-    FinalizedResolvedFixedTopologyAleFsi2d, FixedReferenceFsiPartition2d, FixedReferenceFsiScale2d,
-    NonZeroStepCount, fixed_topology_ale_fsi_requirements_2d, lower_ale_fsi_cartesian_2d,
-    project_simplicial_ale_fsi_remesh_2d, remesh_resolved_fixed_topology_ale_fsi_2d,
-};
 use eqiora::realization::{
     AleFsiRemeshScaleProfile2d, AleFsiRemeshTransferPlan2d, AleGeometryQualityGate, AlgebraicBlock,
     AlgebraicBlockScale, BackwardEulerRelationStep, BackwardEulerStateBinding,
@@ -33,6 +27,13 @@ use eqiora::solver::{
     SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity, Id, kinds};
+use eqiora_numerics::{
+    ale::AcceptedAleFsiRemeshProjection2d, ale::AleFsiBoundary2d, ale::AleFsiCartesianModel2d,
+    ale::AleFsiState2d, ale::FinalizedResolvedFixedTopologyAleFsi2d,
+    ale::fixed_topology_ale_fsi_requirements_2d, ale::lower_ale_fsi_cartesian_2d,
+    ale::project_simplicial_ale_fsi_remesh_2d, ale::remesh_resolved_fixed_topology_ale_fsi_2d,
+    common::NonZeroStepCount, fsi::FixedReferenceFsiPartition2d, fsi::FixedReferenceFsiScale2d,
+};
 
 pub(super) const COMPONENTS: usize = 2;
 pub(super) const TIME_STEP: f64 = 1.0 / 512.0;
@@ -118,7 +119,7 @@ impl Case {
         }
     }
 
-    pub(super) fn initial_physical(&self) -> eqiora::numerics::AleFsiInitialPhysicalState2d {
+    pub(super) fn initial_physical(&self) -> eqiora_numerics::ale::AleFsiInitialPhysicalState2d {
         let mut displacement = vec![[0.0; COMPONENTS]; self.source_mesh.vertices().len()];
         for vertex in self.source_partition.solid_vertices() {
             let y = self.source_mesh.vertices()[vertex.index()][1];
@@ -126,7 +127,7 @@ impl Case {
                 displacement[vertex.index()] = [0.0, 1.0 / 1024.0];
             }
         }
-        eqiora::numerics::AleFsiInitialPhysicalState2d::new(
+        eqiora_numerics::ale::AleFsiInitialPhysicalState2d::new(
             0.0,
             vec![[0.0; COMPONENTS]; self.source_mesh.vertices().len()],
             vec![[0.0; COMPONENTS]; self.source_partition.fluid_cells().len()],
@@ -448,7 +449,7 @@ pub(super) fn assert_scale_invariant_projection(
     case: &Case,
     source: &FinalizedResolvedFixedTopologyAleFsi2d,
     source_state: &AleFsiState2d,
-    accepted: &eqiora::numerics::AcceptedResolvedAleFsiRemesh2d,
+    accepted: &eqiora_numerics::ale::AcceptedResolvedAleFsiRemesh2d,
     base: &AcceptedAleFsiRemeshProjection2d,
     transfer_plan: AleFsiRemeshTransferPlan2d,
 ) {
@@ -565,7 +566,7 @@ fn scale_profile_observation_bound() -> f64 {
 }
 
 fn assert_independently_accepted_projection(
-    evidence: &eqiora::numerics::AleFsiRemeshProjectionEvidence2d,
+    evidence: &eqiora_numerics::ale::AleFsiRemeshProjectionEvidence2d,
 ) {
     assert!(
         evidence.dimensionless_displacement_projection_residual_norm()

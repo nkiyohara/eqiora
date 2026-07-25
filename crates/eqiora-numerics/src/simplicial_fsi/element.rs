@@ -10,8 +10,8 @@ use super::contract::{
 };
 use super::{fluid_local_size, p1_count, solid_local_size};
 use crate::affine_fem::physical_gradient;
+use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
 use crate::simplicial_mini_transient::{MiniAffineScales, MiniScaledAffineCell};
-use crate::{DiscreteSpace, SimplexP1Space};
 
 pub(crate) fn fluid_local<const D: usize>(
     geometry: &AffineGeometryMap,

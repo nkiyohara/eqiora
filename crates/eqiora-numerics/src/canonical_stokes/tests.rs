@@ -9,7 +9,7 @@ use super::{
     lower_transient_incompressible_navier_stokes_cartesian_2d,
     lower_transient_incompressible_navier_stokes_cartesian_3d,
 };
-use crate::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
+use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
 
 const SOURCE: &str = r#"
 model steady_stokes {

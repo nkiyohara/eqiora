@@ -8,7 +8,7 @@ use eqiora_solver::{
     LinearSolveRequest, LinearSolver, PreconditionerPolicy, ScalarType, SolveReport,
 };
 
-use crate::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
+use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
 
 const DIMENSION: usize = 2;
 const MAX_DENSE_COEFFICIENTS: usize = 16_000_000;

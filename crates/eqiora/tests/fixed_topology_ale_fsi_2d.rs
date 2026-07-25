@@ -17,12 +17,6 @@ use eqiora::meshing::{
     FixedTopologyGeometryAction2d, MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh,
     VertexId,
 };
-use eqiora::numerics::{
-    AleFsiBoundary2d, AleFsiCartesianModel2d, AleFsiInitialPhysicalState2d, AleFsiState2d,
-    AleFsiTrajectory2d, FixedReferenceFsiPartition2d, NonZeroStepCount,
-    P1HarmonicMeshMotionAction2d, finalize_resolved_fixed_topology_ale_fsi_2d,
-    fixed_topology_ale_fsi_requirements_2d, lower_ale_fsi_cartesian_2d,
-};
 use eqiora::realization::{
     AleGeometryQualityGate, AlgebraicBlock, AlgebraicBlockScale, BackwardEulerRelationStep,
     BackwardEulerStateBinding, BackwardEulerStatePair, BackwardEulerStep, ConformingTraceQuotient,
@@ -40,6 +34,12 @@ use eqiora::solver::{
     SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity, Id, kinds};
+use eqiora_numerics::{
+    ale::AleFsiBoundary2d, ale::AleFsiCartesianModel2d, ale::AleFsiInitialPhysicalState2d,
+    ale::AleFsiState2d, ale::AleFsiTrajectory2d, ale::P1HarmonicMeshMotionAction2d,
+    ale::finalize_resolved_fixed_topology_ale_fsi_2d, ale::fixed_topology_ale_fsi_requirements_2d,
+    ale::lower_ale_fsi_cartesian_2d, common::NonZeroStepCount, fsi::FixedReferenceFsiPartition2d,
+};
 
 const COMPONENTS: usize = 2;
 const FINAL_TIME: f64 = 0.02;

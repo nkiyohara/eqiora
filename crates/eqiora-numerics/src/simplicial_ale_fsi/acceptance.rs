@@ -17,7 +17,8 @@ use super::assembly::{StepAssembly, assemble_step_linearization};
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
 use super::element::{AleMiniFluidCell, AleMiniFluidDirection};
 use super::{P1HarmonicMeshMotionAction, invalid};
-use crate::{DiscreteSpace, FixedReferenceFsiPartition, SimplexP1BubbleSpace};
+use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace};
+use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
 pub(super) struct NewtonEvidence {
     pub(super) iterations: usize,
@@ -412,10 +413,12 @@ mod tests {
 
     use super::*;
     use crate::simplicial_ale_fsi::assembly::initial_point;
-    use crate::{
-        AleFsiBoundary3d, AleFsiState3d, AleFsiStepPlan3d, FixedReferenceFsiLoad3d,
-        FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition3d, FixedReferenceFsiScale3d,
-        P1HarmonicMeshMotionAction3d,
+    use crate::simplicial_ale_fsi::{
+        AleFsiBoundary3d, AleFsiState3d, AleFsiStepPlan3d, P1HarmonicMeshMotionAction3d,
+    };
+    use crate::simplicial_fsi::{
+        FixedReferenceFsiLoad3d, FixedReferenceFsiMaterial3d, FixedReferenceFsiPartition3d,
+        FixedReferenceFsiScale3d,
     };
 
     const INTERFACE_INTERIOR: VertexId = VertexId::new(5);

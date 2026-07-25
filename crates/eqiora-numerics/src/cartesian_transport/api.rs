@@ -9,7 +9,7 @@ use eqiora_schema::Model;
 use eqiora_solver::{LinearProblem, LinearSolution, SolveReport, SolverPlan};
 
 use super::reconstruction::AffineFaceTrace;
-use crate::CartesianMesh;
+use crate::cartesian_mesh::CartesianMesh;
 use crate::finalized_spatial::FinalizedLinearCore;
 
 /// Physical role derived from canonical boundary meaning and outward velocity.

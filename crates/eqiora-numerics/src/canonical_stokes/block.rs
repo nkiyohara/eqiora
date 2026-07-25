@@ -9,15 +9,15 @@ use eqiora_solver::LinearOperatorProperties;
 
 use super::{SteadyIncompressibleStokesCartesianModel2d, SteadyStokesScaleProfile2d};
 use crate::canonical_boundary::BoundaryRelationBinding2d;
+use crate::canonical_boundary::{CartesianBoundaryInventory2d, PhysicalBoundaryDisposition};
 use crate::discrete_block::{
     AlgebraicClosure, AuxiliaryBlock, BlockRealizationIdentity, BlockSupport, BlockTransformation,
     ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, FieldBlock,
     FieldBlockRole, RelationBlock, RelationDisposition, ResidualBlock, ResidualOrigin,
     boundary_treatment,
 };
-use crate::{
-    CartesianBoundaryInventory2d, PhysicalBoundaryDisposition, SimplicialMiniStokesBoundary2d,
-    SimplicialMiniStokesBoundaryCondition2d,
+use crate::simplicial_stokes::{
+    SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
 };
 
 const VELOCITY: DimExponents = DimExponents {

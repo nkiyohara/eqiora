@@ -3,15 +3,6 @@ use std::num::NonZeroUsize;
 
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{MeshEntity, MeshTopology};
-use eqiora::numerics::{
-    CartesianMesh, CellCenteredNavierStokesInitialState2d, CellCenteredPressureField2d,
-    CellCenteredVelocityField2d, IncompressibleFlowScaleProfile2d, NonZeroStepCount,
-    ResolvedCellCenteredNavierStokesTrajectory2d, TransientNavierStokesRun2d,
-    advance_resolved_transient_navier_stokes_cell_centered_2d,
-    lower_transient_incompressible_navier_stokes_cartesian_2d,
-    transient_navier_stokes_cell_centered_plan_2d,
-    transient_navier_stokes_cell_centered_requirements_2d,
-};
 use eqiora::realization::{
     DiscretizationMethod, MeshKind, NonlinearSolvePlan, RealizationCapabilities,
     RealizationRevision, SemanticRevision, SpatialDimensionSupport, TargetCapabilities,
@@ -24,6 +15,16 @@ use eqiora::solver::{
     ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity};
+use eqiora_numerics::{
+    common::CartesianMesh, common::NonZeroStepCount, fluid::CellCenteredNavierStokesInitialState2d,
+    fluid::CellCenteredPressureField2d, fluid::CellCenteredVelocityField2d,
+    fluid::IncompressibleFlowScaleProfile2d, fluid::ResolvedCellCenteredNavierStokesTrajectory2d,
+    fluid::TransientNavierStokesRun2d,
+    fluid::advance_resolved_transient_navier_stokes_cell_centered_2d,
+    fluid::lower_transient_incompressible_navier_stokes_cartesian_2d,
+    fluid::transient_navier_stokes_cell_centered_plan_2d,
+    fluid::transient_navier_stokes_cell_centered_requirements_2d,
+};
 
 const SOURCE: &str =
     include_str!("../../../verify/fluid/fixed-domain-transient-navier-stokes-2d/models/direct.eqi");
@@ -252,13 +253,13 @@ fn transformed_velocity(
 
 fn final_state(
     trajectory: &ResolvedCellCenteredNavierStokesTrajectory2d,
-) -> &eqiora::numerics::ResolvedCellCenteredNavierStokesState2d {
+) -> &eqiora_numerics::fluid::ResolvedCellCenteredNavierStokesState2d {
     trajectory.states().last().unwrap()
 }
 
 fn velocity_difference(
-    left: &eqiora::numerics::ResolvedCellCenteredNavierStokesState2d,
-    right: &eqiora::numerics::ResolvedCellCenteredNavierStokesState2d,
+    left: &eqiora_numerics::fluid::ResolvedCellCenteredNavierStokesState2d,
+    right: &eqiora_numerics::fluid::ResolvedCellCenteredNavierStokesState2d,
 ) -> f64 {
     let values = left
         .velocity()
@@ -274,8 +275,8 @@ fn velocity_difference(
 }
 
 fn pressure_difference(
-    left: &eqiora::numerics::ResolvedCellCenteredNavierStokesState2d,
-    right: &eqiora::numerics::ResolvedCellCenteredNavierStokesState2d,
+    left: &eqiora_numerics::fluid::ResolvedCellCenteredNavierStokesState2d,
+    right: &eqiora_numerics::fluid::ResolvedCellCenteredNavierStokesState2d,
 ) -> f64 {
     left.pressure()
         .values()
@@ -286,8 +287,8 @@ fn pressure_difference(
 }
 
 fn assert_reflected_x(
-    original: &eqiora::numerics::ResolvedCellCenteredNavierStokesState2d,
-    reflected: &eqiora::numerics::ResolvedCellCenteredNavierStokesState2d,
+    original: &eqiora_numerics::fluid::ResolvedCellCenteredNavierStokesState2d,
+    reflected: &eqiora_numerics::fluid::ResolvedCellCenteredNavierStokesState2d,
     tolerance: f64,
 ) {
     let mesh = original.velocity().mesh();

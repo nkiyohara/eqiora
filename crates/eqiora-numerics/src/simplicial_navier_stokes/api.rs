@@ -7,9 +7,10 @@ use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolveRe
 
 use super::{invalid, solve_failed};
 use crate::jacobian_audit::CenteredJacobianAuditEvidence;
-use crate::{
+use crate::simplicial_elliptic::SimplicialP1Field;
+use crate::simplicial_stokes::{
     SimplicialMiniStokesPressureReference2d, SimplicialMiniStokesSolution2d,
-    SimplicialMiniVelocityField2d, SimplicialP1Field,
+    SimplicialMiniVelocityField2d,
 };
 
 /// Complete bounded realization controls for one fixed-domain MINI step.

@@ -28,8 +28,11 @@ use super::replay::{
     advective_face_range, boundary_flux, face_counts, integrated_mass,
     replay_interior_cancellation, replay_physical_residual, require_complete_operator,
 };
+use crate::canonical_transport::{
+    ScalarTransportCartesianModel2d, lower_scalar_transport_cartesian_2d,
+};
+use crate::cartesian_mesh::CartesianMesh;
 use crate::finalized_spatial::FinalizedLinearCore;
-use crate::{CartesianMesh, ScalarTransportCartesianModel2d, lower_scalar_transport_cartesian_2d};
 
 const DIMENSION: usize = 2;
 

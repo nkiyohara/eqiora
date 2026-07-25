@@ -6,7 +6,6 @@ use eqiora::compiler::{
 use eqiora::entity::kinds;
 use eqiora::graph::EdgeKind;
 use eqiora::kernel::KernelNode;
-use eqiora::numerics::lower_scalar_physical_affine;
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
     ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
@@ -15,6 +14,7 @@ use eqiora::package::{
 };
 use eqiora::sem::{Interpreter, PhysicalUnknown, ReferenceConfig, Trajectory};
 use eqiora::{Diagnostic, DimExponents, Id};
+use eqiora_numerics::scalar::lower_scalar_physical_affine;
 
 mod support;
 

@@ -13,7 +13,8 @@ use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use crate::canonical_boundary::BoundaryRelationBinding;
-use crate::{CartesianBoundaryInventory, ScalarSpatialExpression, spatial_expression};
+use crate::canonical_boundary::CartesianBoundaryInventory;
+use crate::spatial_expression::{self, ScalarSpatialExpression};
 
 use super::boundary::{self, LoweredStokesBoundary};
 use super::expression::{

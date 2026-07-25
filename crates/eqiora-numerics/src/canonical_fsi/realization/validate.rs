@@ -20,7 +20,8 @@ use super::{
     DIMENSION, FixedReferenceFsiExecutionProfile, FixedReferenceFsiScaleProfile2d,
     fixed_reference_fsi_plan_2d_for_profile, fixed_reference_fsi_requirements_2d_for_layout,
 };
-use crate::{FixedReferenceFsiPartition2d, PhysicalBoundaryDisposition};
+use crate::canonical_boundary::PhysicalBoundaryDisposition;
+use crate::simplicial_fsi::FixedReferenceFsiPartition2d;
 
 pub(super) fn require_exact_plan(
     model: &FixedReferenceFsiCartesianModel2d,
@@ -176,7 +177,7 @@ pub(super) fn require_boundary_meaning(
 }
 
 fn require_physics_boundary(
-    inventory: &crate::CartesianBoundaryInventory2d,
+    inventory: &crate::canonical_boundary::CartesianBoundaryInventory2d,
     interface_axis: usize,
     interface_side: FixedReferenceFsiInterfaceSide2d,
     connection: eqiora_core::RawId,

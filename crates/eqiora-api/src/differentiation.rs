@@ -10,8 +10,9 @@ use eqiora_differentiation::{
 use eqiora_execution::ExecutionReceipt;
 use eqiora_ir::{LinearizedOutput, LinearizedRelation};
 use eqiora_numerics::{
-    AssembledLinearizedRelation, CartesianScalarFieldLinearization, ScalarEllipticCartesianModel,
-    SpatialDesignCoordinate, lower_scalar_elliptic_cartesian,
+    common::AssembledLinearizedRelation, common::SpatialDesignCoordinate,
+    scalar::CartesianScalarFieldLinearization, scalar::ScalarEllipticCartesianModel,
+    scalar::lower_scalar_elliptic_cartesian,
 };
 use eqiora_solver::{
     CanonicalCsrAgreementFingerprintV1, LinearSolveRequest, REFERENCE_LINEAR_SOLVER, SolveReport,

@@ -7,7 +7,7 @@ use eqiora_sem::KernelProgram;
 use super::{
     lower_ale_fsi_cartesian_2d, lower_ale_fsi_cartesian_3d, lower_fixed_reference_fsi_cartesian_2d,
 };
-use crate::PhysicalBoundaryDisposition;
+use crate::canonical_boundary::PhysicalBoundaryDisposition;
 
 const SOURCE: &str = r#"
 public connector VelocityTractionBoundary = field_physical(

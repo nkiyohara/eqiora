@@ -12,7 +12,8 @@ use super::{
     unique_root,
 };
 use crate::canonical_boundary::BoundaryRelationBinding;
-use crate::{CartesianBoundaryInventory, ScalarSpatialExpression, spatial_expression};
+use crate::canonical_boundary::CartesianBoundaryInventory;
+use crate::spatial_expression::{self, ScalarSpatialExpression};
 
 const LENGTH: DimExponents = DimExponents {
     length: 1,
@@ -630,7 +631,7 @@ mod tests {
     use eqiora_sem::KernelProgram;
 
     use super::lower_isotropic_elastodynamics_cartesian_3d;
-    use crate::PhysicalBoundaryDisposition;
+    use crate::canonical_boundary::PhysicalBoundaryDisposition;
 
     const SOURCE_3D: &str = r#"
 model dynamic_solid_3d {

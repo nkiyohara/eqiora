@@ -10,11 +10,12 @@ use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_meshing::{MeshEntity, MeshTopology};
 use eqiora_numerics::{
-    ScalarTransportCartesianBoundary, ScalarTransportCellState2d,
-    finalize_resolved_scalar_transport_fvm_step_2d,
-    finalize_resolved_scalar_transport_fvm_step_2d_with_assembly,
-    initialize_resolved_scalar_transport_fvm_2d, lower_scalar_transport_cartesian_2d,
-    solve_resolved_scalar_transport_fvm_step_2d,
+    scalar::ScalarTransportCartesianBoundary, scalar::ScalarTransportCellState2d,
+    scalar::finalize_resolved_scalar_transport_fvm_step_2d,
+    scalar::finalize_resolved_scalar_transport_fvm_step_2d_with_assembly,
+    scalar::initialize_resolved_scalar_transport_fvm_2d,
+    scalar::lower_scalar_transport_cartesian_2d,
+    scalar::solve_resolved_scalar_transport_fvm_step_2d,
 };
 use eqiora_realization::{
     AlgebraicBlock, AlgebraicBlockScale, BackwardEulerRelationStep, CellCenteredConvection,
@@ -1052,7 +1053,10 @@ fn periodic_seam_basis_action(
     output[output_index]
 }
 
-fn cartesian_cell_index(mesh: &eqiora_numerics::CartesianMesh, multi_index: [usize; 2]) -> usize {
+fn cartesian_cell_index(
+    mesh: &eqiora_numerics::common::CartesianMesh,
+    multi_index: [usize; 2],
+) -> usize {
     (0..mesh.entity_count(2).expect("2D mesh owns cells"))
         .find(|index| {
             mesh.cell_multi_index(MeshEntity::new(2, *index)) == Some(multi_index.as_slice())
@@ -1119,7 +1123,7 @@ fn integrated_cell_mass(state: &ScalarTransportCellState2d) -> f64 {
 
 fn resolve_transport(
     program: &KernelProgram,
-    model: &eqiora_numerics::ScalarTransportCartesianModel2d,
+    model: &eqiora_numerics::scalar::ScalarTransportCartesianModel2d,
     cells: usize,
     duration: f64,
 ) -> eqiora_realization::ResolvedTransientCellCenteredTransportRealization {
@@ -1143,7 +1147,7 @@ impl TransportScales {
 
 fn resolve_transport_with_scales(
     program: &KernelProgram,
-    model: &eqiora_numerics::ScalarTransportCartesianModel2d,
+    model: &eqiora_numerics::scalar::ScalarTransportCartesianModel2d,
     cells: usize,
     duration: f64,
     scales: TransportScales,
@@ -1160,7 +1164,7 @@ fn resolve_transport_with_scales(
 
 fn resolve_transport_with_scales_and_scheme(
     program: &KernelProgram,
-    model: &eqiora_numerics::ScalarTransportCartesianModel2d,
+    model: &eqiora_numerics::scalar::ScalarTransportCartesianModel2d,
     cells: usize,
     duration: f64,
     scales: TransportScales,
@@ -1182,7 +1186,7 @@ fn resolve_transport_with_scales_and_scheme(
 }
 
 fn transport_plan(
-    model: &eqiora_numerics::ScalarTransportCartesianModel2d,
+    model: &eqiora_numerics::scalar::ScalarTransportCartesianModel2d,
     cells: usize,
     duration: f64,
     scales: TransportScales,
@@ -1197,7 +1201,7 @@ fn transport_plan(
 }
 
 fn transport_plan_with_scheme(
-    model: &eqiora_numerics::ScalarTransportCartesianModel2d,
+    model: &eqiora_numerics::scalar::ScalarTransportCartesianModel2d,
     cells: usize,
     duration: f64,
     scales: TransportScales,
@@ -1264,7 +1268,7 @@ fn transport_plan_with_scheme(
 }
 
 fn transport_requirements(
-    model: &eqiora_numerics::ScalarTransportCartesianModel2d,
+    model: &eqiora_numerics::scalar::ScalarTransportCartesianModel2d,
 ) -> TransientCellCenteredTransportRealizationRequirements {
     let execution = RealizationRequirements::new(
         NonZeroUsize::new(2).unwrap(),

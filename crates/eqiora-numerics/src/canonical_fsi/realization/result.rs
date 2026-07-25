@@ -22,7 +22,7 @@ use eqiora_spatial_distribution::{
 use crate::discrete_block::DiscreteBlockSystem;
 use crate::finalized_spatial::FinalizedLinearCore;
 use crate::simplicial_fsi::FixedReferenceFsiAssemblyTargetRoles2d;
-use crate::{
+use crate::simplicial_fsi::{
     FinalizedFixedReferenceFsiStep2d, FixedReferenceFsiPartition2d, FixedReferenceFsiSolution2d,
 };
 

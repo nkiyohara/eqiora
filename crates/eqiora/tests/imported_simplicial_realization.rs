@@ -7,10 +7,6 @@ use eqiora::artifact::{
 use eqiora::compiler::compile;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::meshing::{MeshQualityGate, SimplicialMesh};
-use eqiora::numerics::{
-    solve_resolved_scalar_elliptic_simplicial,
-    solve_resolved_scalar_elliptic_simplicial_with_assembly,
-};
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshArtifactReference, MeshKind,
     MeshPolicy, QuadraturePolicy, RealizationCapabilities, RealizationPlan, RealizationRequest,
@@ -24,6 +20,10 @@ use eqiora::solver::{
     SolverCapability, SolverPlan,
 };
 use eqiora_backend_rayon::{CpuThreadPool, RAYON_EXECUTION};
+use eqiora_numerics::{
+    scalar::solve_resolved_scalar_elliptic_simplicial,
+    scalar::solve_resolved_scalar_elliptic_simplicial_with_assembly,
+};
 
 const SOURCE: &str =
     include_str!("../../../verify/artifacts/imported-simplicial-realization/models/poisson.eqi");

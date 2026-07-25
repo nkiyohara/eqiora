@@ -26,9 +26,10 @@ use super::{
     FinalizedSteadyStokesMini2dProblem, SteadyIncompressibleStokesCartesianModel2d,
     SteadyStokesMiniSolution2d, lower_steady_incompressible_stokes_cartesian_2d,
 };
-use crate::{
-    PhysicalBoundaryDisposition, SimplicialMiniStokesBoundary2d,
-    SimplicialMiniStokesBoundaryCondition2d, SimplicialMiniStokesBoundaryFacet2d,
+use crate::canonical_boundary::PhysicalBoundaryDisposition;
+use crate::simplicial_stokes::{
+    SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
+    SimplicialMiniStokesBoundaryFacet2d,
     finalize_simplicial_mini_stokes_2d_with_boundary_and_assembly,
 };
 

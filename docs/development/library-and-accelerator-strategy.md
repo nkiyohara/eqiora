@@ -157,6 +157,31 @@ surface or duplicate them. Reconsider a family split only when an independent
 scientific requirement makes the shared lowered contracts stable public API;
 build speed alone is not such a requirement.
 
+The crate root exports no numerical item directly. Every public item has one
+scientific owner path:
+
+| Public owner | Responsibility |
+| --- | --- |
+| `eqiora_numerics::common` | genuinely cross-family mesh, discrete-space and Field representation, boundary, local-operator, assembled-linearization, design-coordinate, spatial-expression, and step-count contracts |
+| `eqiora_numerics::scalar` | scalar elliptic, diffusion, transport, and affine-network realizations |
+| `eqiora_numerics::solid` | elasticity and elastodynamics realizations |
+| `eqiora_numerics::fluid` | incompressible Stokes and Navier–Stokes realizations |
+| `eqiora_numerics::fsi` | fixed-reference fluid–structure interaction |
+| `eqiora_numerics::ale` | moving-domain ALE, mesh motion, and remeshing |
+
+The `pub use` declarations in those six modules are the exhaustive ownership
+inventory; do not copy the item list into another registry or prelude. A new
+item enters the narrowest owning family. If two families need it, move the
+underlying contract to `common` only when both are real consumers, not in
+anticipation of reuse. Implementation modules and lowered/finalized staging
+bridges remain private.
+
+`eqiora::numerics` is a separately checked, deliberately small application
+facade. It selects canonical model, finalization, solution, and top-level
+lower/solve entry points from the owners above; it does not mirror the complete
+numerics crate. Low-level composition and evidence code imports the canonical
+owner path directly.
+
 Native and hardware adapters remain opt-in. The default build neither compiles
 nor loads a system MPI or CUDA runtime. Optional production features still
 share the one workspace MSRV and are compiled by the all-feature MSRV gate;

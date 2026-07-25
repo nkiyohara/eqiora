@@ -1,5 +1,5 @@
 use eqiora::meshing::{LineMesh, MeshEntity, MeshTopology};
-use eqiora::numerics::compare_sine_poisson_1d;
+use eqiora_numerics::scalar::compare_sine_poisson_1d;
 
 #[test]
 fn public_facade_exposes_spatial_contracts_and_poisson_evidence() {

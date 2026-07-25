@@ -4,10 +4,6 @@ use eqiora::diagnostic::codes;
 use eqiora::meshing::{
     MeshQualityGate, SimplicialMesh, simplex_centroid_rule, triangle_duffy_gauss_legendre,
 };
-use eqiora::numerics::{
-    SimplicialMiniStokesSolution2d, finalize_simplicial_mini_stokes_2d,
-    solve_simplicial_mini_stokes_2d, solve_simplicial_mini_stokes_2d_with_assembly,
-};
 use eqiora::realization::{Target, VectorLayoutKind};
 use eqiora::solver::LinearOperatorProperties;
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
@@ -15,6 +11,10 @@ use eqiora::solver::{
     LinearSolveRequest, LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan,
 };
 use eqiora_backend_rayon::CpuThreadPool;
+use eqiora_numerics::{
+    fluid::SimplicialMiniStokesSolution2d, fluid::finalize_simplicial_mini_stokes_2d,
+    fluid::solve_simplicial_mini_stokes_2d, fluid::solve_simplicial_mini_stokes_2d_with_assembly,
+};
 
 const VISCOSITY: f64 = 1.0;
 

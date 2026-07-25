@@ -23,11 +23,6 @@ use eqiora::backends::cuda::{
     CUDA_RUNTIME_ID, CudaLinearSolver, CudaRuntime,
 };
 use eqiora::device::QueueSlot;
-use eqiora::numerics::{
-    FixedReferenceFsiCartesianModel2d, FixedReferenceFsiScaleProfile2d,
-    ResolvedFixedReferenceFsiSolution2d, finalize_resolved_fixed_reference_fsi_step_2d,
-    lower_fixed_reference_fsi_cartesian_2d,
-};
 use eqiora::realization::{
     AlgebraicBlock, CoupledFieldwiseRealizationPlan, CoupledFieldwiseRealizationRequest,
     DiscretizationMethod, MeshKind, RealizationCapabilities, RealizationRevision,
@@ -40,7 +35,14 @@ use eqiora::solver::{
 };
 use eqiora_backend_cuda::CudaAdmittedExecutionAdapter;
 use eqiora_execution::{CudaExecutorDescriptor, DeploymentBinding};
-use eqiora_numerics::{fixed_reference_fsi_cuda_plan_2d, fixed_reference_fsi_requirements_2d};
+use eqiora_numerics::{
+    fsi::FixedReferenceFsiCartesianModel2d, fsi::FixedReferenceFsiScaleProfile2d,
+    fsi::ResolvedFixedReferenceFsiSolution2d, fsi::finalize_resolved_fixed_reference_fsi_step_2d,
+    fsi::lower_fixed_reference_fsi_cartesian_2d,
+};
+use eqiora_numerics::{
+    fsi::fixed_reference_fsi_cuda_plan_2d, fsi::fixed_reference_fsi_requirements_2d,
+};
 use fsi::{direct_document, execution_context, prestrained_state, spatial_context};
 use observation::{Conformance, Environment, Observation, Physics, Producer, Receipt, error_pair};
 

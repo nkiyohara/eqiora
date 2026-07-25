@@ -14,7 +14,7 @@ use super::api::{
 };
 use super::layout::MixedLayout;
 use super::{COMPONENTS, invalid};
-use crate::SimplicialP1Field;
+use crate::simplicial_elliptic::SimplicialP1Field;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FinalizedMiniStokesAssembly {

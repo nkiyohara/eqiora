@@ -4,10 +4,6 @@ use eqiora::compatibility::ExactModelCodec;
 use eqiora::diagnostic::codes;
 use eqiora::graph::EdgeKind;
 use eqiora::kernel::BoundarySide;
-use eqiora::numerics::{
-    PhysicalBoundaryDisposition, lower_isotropic_elasticity_cartesian_2d,
-    lower_isotropic_elastodynamics_cartesian_2d,
-};
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
     ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageReleaseV1,
@@ -15,6 +11,10 @@ use eqiora::package::{
     prepare_package_release_v1,
 };
 use eqiora::sem::KernelProgram;
+use eqiora_numerics::{
+    common::PhysicalBoundaryDisposition, solid::lower_isotropic_elasticity_cartesian_2d,
+    solid::lower_isotropic_elastodynamics_cartesian_2d,
+};
 
 #[path = "support/embedded_package.rs"]
 mod embedded_package;

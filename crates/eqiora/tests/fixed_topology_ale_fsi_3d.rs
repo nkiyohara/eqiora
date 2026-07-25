@@ -22,12 +22,6 @@ use eqiora::meshing::{
     FixedTopologyGeometryAction, FixedTopologyGeometryState, MeshEntity, MeshQualityGate,
     MeshTopology, SimplicialMesh,
 };
-use eqiora::numerics::{
-    AleFsiBoundary3d, AleFsiCartesianModel3d, AleFsiInitialPhysicalState3d, AleFsiState3d,
-    AleFsiTrajectory3d, FixedReferenceFsiPartition3d, NonZeroStepCount,
-    finalize_resolved_fixed_topology_ale_fsi_3d, fixed_topology_ale_fsi_requirements_3d,
-    lower_ale_fsi_cartesian_3d,
-};
 use eqiora::realization::{
     AleGeometryQualityGate, AlgebraicBlock, AlgebraicBlockScale, BackwardEulerRelationStep,
     BackwardEulerStateBinding, BackwardEulerStatePair, BackwardEulerStep, ConformingTraceQuotient,
@@ -45,6 +39,12 @@ use eqiora::solver::{
     SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity, Id, kinds};
+use eqiora_numerics::{
+    ale::AleFsiBoundary3d, ale::AleFsiCartesianModel3d, ale::AleFsiInitialPhysicalState3d,
+    ale::AleFsiState3d, ale::AleFsiTrajectory3d, ale::finalize_resolved_fixed_topology_ale_fsi_3d,
+    ale::fixed_topology_ale_fsi_requirements_3d, ale::lower_ale_fsi_cartesian_3d,
+    common::NonZeroStepCount, fsi::FixedReferenceFsiPartition3d,
+};
 
 const D: usize = 3;
 const FINAL_TIME: f64 = 0.02;

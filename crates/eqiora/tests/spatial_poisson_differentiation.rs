@@ -6,11 +6,6 @@ use eqiora::api::{
 };
 use eqiora::differentiation::{AcceptedLinearization, adjoint_gradient, forward_sensitivity};
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
-use eqiora::numerics::{
-    ResolvedScalarEllipticCartesianSolution, SpatialDesignCoordinate,
-    solve_and_linearize_resolved_scalar_elliptic_cartesian,
-    solve_resolved_scalar_elliptic_cartesian,
-};
 use eqiora::realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
     RealizationCapabilities, RealizationPlan, RealizationRequest, RealizationRequirements,
@@ -23,6 +18,11 @@ use eqiora::solver::{
     REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan,
 };
 use eqiora::{Id, compiler::compile, entity::kinds};
+use eqiora_numerics::{
+    common::SpatialDesignCoordinate, scalar::ResolvedScalarEllipticCartesianSolution,
+    scalar::solve_and_linearize_resolved_scalar_elliptic_cartesian,
+    scalar::solve_resolved_scalar_elliptic_cartesian,
+};
 
 const SOURCE: &str =
     include_str!("../../../verify/differentiation/spatial-poisson-fem-fvm/models/poisson.eqi");

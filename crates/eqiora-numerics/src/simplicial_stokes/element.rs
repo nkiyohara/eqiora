@@ -8,9 +8,9 @@ use super::{
     SimplicialMiniVelocityField2d, VELOCITY_BASIS_COUNT, invalid,
 };
 use crate::affine_fem::{dot, physical_gradient};
-use crate::{
-    DiscreteSpace, LocalOperator, SimplexP1BubbleSpace, SimplexP1Space, SimplicialP1Field,
-};
+use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
+use crate::operator::LocalOperator;
+use crate::simplicial_elliptic::SimplicialP1Field;
 
 pub(super) struct MiniStokesCell<'a, F> {
     pub(super) viscosity: f64,

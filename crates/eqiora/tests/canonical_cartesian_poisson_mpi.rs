@@ -24,7 +24,6 @@ use eqiora::backends::mpi::{
     MPI_EXECUTION_PROVIDER, MpiAdmittedExecutionAdapter, MpiExecutionGroup, MpiThreadSupport,
 };
 use eqiora::distributed::{GlobalVectorSpace, Partition, PartitionId};
-use eqiora::numerics::finalize_resolved_scalar_elliptic_cartesian;
 use eqiora::realization::{
     DiscretizationMethod, MeshKind, RealizationCapabilities, RealizationRequest,
     RealizationRequirements, ResolutionSource, SpatialDimensionSupport, TargetCapabilities,
@@ -39,6 +38,7 @@ use eqiora_execution::{
     AdmittedExecution, DeploymentBinding, DistributedExecutorDescriptor, ExecutionReceipt,
     ExecutionStepKind, ProcessGroupSlot,
 };
+use eqiora_numerics::scalar::finalize_resolved_scalar_elliptic_cartesian;
 use mpi::Threading;
 use mpi::traits::CommunicatorCollectives;
 
@@ -415,7 +415,7 @@ fn request_from_artifact(realization: &RealizationEnvelopeV1) -> RealizationRequ
 
 fn require_semantic_replay(
     recorded: &LinearSystemEnvelopeV1,
-    fresh: &eqiora::numerics::FinalizedScalarEllipticCartesianProblem,
+    fresh: &eqiora_numerics::scalar::FinalizedScalarEllipticCartesianProblem,
 ) -> Result<(), String> {
     let fresh = LinearSystemEnvelopeV1::from_complete(fresh.canonical_csr_system_view())
         .map_err(|diagnostic| diagnostic.to_string())?;
@@ -443,7 +443,7 @@ fn assert_content_linkage_does_not_claim_semantic_derivation(
     execution: &ExecutionProvenanceV1,
     original: &LinearSystemEnvelopeV1,
     partition: &PartitionEnvelopeV1,
-    fresh_problem: &eqiora::numerics::FinalizedScalarEllipticCartesianProblem,
+    fresh_problem: &eqiora_numerics::scalar::FinalizedScalarEllipticCartesianProblem,
 ) {
     let mut wire: serde_json::Value =
         serde_json::from_slice(&original.canonical_json().unwrap()).unwrap();

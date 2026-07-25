@@ -4,7 +4,8 @@ use eqiora_core::RawId;
 use eqiora_schema::kernel::BoundarySide;
 
 use crate::canonical_boundary::BoundaryRelationBinding2d;
-use crate::{CartesianBoundaryInventory2d, ScalarSpatialExpression};
+use crate::canonical_boundary::CartesianBoundaryInventory2d;
+use crate::spatial_expression::ScalarSpatialExpression;
 
 /// One exact parent-outward normal-pressure boundary law.
 ///

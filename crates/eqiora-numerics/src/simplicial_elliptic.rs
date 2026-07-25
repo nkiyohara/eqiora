@@ -15,10 +15,12 @@ use eqiora_meshing::{
 use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolveRequest, SolveReport};
 
 use crate::affine_fem::{dot, physical_gradient, weighted_gradient, weighted_gradient_tangent};
-use crate::{
-    AssembledLinearizedRelation, DiscreteSpace, LocalOperator, ScalarEllipticCartesianModel,
-    SimplexP1Space, SimplicialMeshVelocity, SpatialDesignCoordinate,
-};
+use crate::assembled_linearization::AssembledLinearizedRelation;
+use crate::canonical::ScalarEllipticCartesianModel;
+use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
+use crate::operator::LocalOperator;
+use crate::simplicial_motion::SimplicialMeshVelocity;
+use crate::spatial_design::SpatialDesignCoordinate;
 
 /// Continuous scalar P1 field on an affine simplex mesh.
 #[derive(Debug, Clone, PartialEq)]

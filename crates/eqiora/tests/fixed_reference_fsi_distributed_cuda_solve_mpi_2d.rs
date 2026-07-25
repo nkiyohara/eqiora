@@ -24,10 +24,6 @@ use eqiora::backends::mpi_cuda::{
 };
 use eqiora::device::{QueueSlot, SparseActionPolicy, TransferDirection};
 use eqiora::meshing::MeshEntity;
-use eqiora::numerics::{
-    FixedReferenceFsiScaleProfile2d, ResolvedFixedReferenceFsiSolution2d,
-    lower_fixed_reference_fsi_cartesian_2d,
-};
 use eqiora::realization::{
     AlgebraicBlock, CoupledFieldwiseRealizationRequest, DiscretizationMethod, MeshKind,
     RealizationCapabilities, SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind,
@@ -43,8 +39,13 @@ use eqiora_execution::{
     DistributedExecutorDescriptor, ExecutionReceipt, ExecutionStepKind, ProcessGroupSlot,
 };
 use eqiora_numerics::{
-    finalize_resolved_fixed_reference_fsi_step_2d_with_assembly,
-    fixed_reference_fsi_distributed_cuda_plan_2d, fixed_reference_fsi_requirements_2d_for_layout,
+    fsi::FixedReferenceFsiScaleProfile2d, fsi::ResolvedFixedReferenceFsiSolution2d,
+    fsi::lower_fixed_reference_fsi_cartesian_2d,
+};
+use eqiora_numerics::{
+    fsi::finalize_resolved_fixed_reference_fsi_step_2d_with_assembly,
+    fsi::fixed_reference_fsi_distributed_cuda_plan_2d,
+    fsi::fixed_reference_fsi_requirements_2d_for_layout,
 };
 use eqiora_spatial_distribution::{
     CellOwnershipClaim, DistributedAssemblyEvidence, DistributedMeshLayout, MeshRevisionIdentityV1,
@@ -268,7 +269,7 @@ fn fixed_reference_fsi_distributed_cuda_solve_mpi_2d_child() {
 }
 
 fn resolve_distributed_cuda(
-    canonical: &eqiora::numerics::FixedReferenceFsiCartesianModel2d,
+    canonical: &eqiora_numerics::fsi::FixedReferenceFsiCartesianModel2d,
     host: &support::fixed_reference_fsi::ExecutionContext,
     group: &MpiExecutionGroup,
 ) -> eqiora::realization::ResolvedCoupledFieldwiseRealization {
