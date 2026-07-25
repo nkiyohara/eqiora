@@ -280,6 +280,39 @@ Two agents, divided by **invariant ownership and oracle independence** rather
 than by task type. One writer per central seam; an independent verifier; one
 integrator per slice.
 
+### What each agent is actually good at
+
+Assignment follows measured and reported strengths rather than a guess, and the
+first slice confirmed both profiles in practice.
+
+| | Claude (Opus 5) | Codex (GPT-5.6 Sol) |
+| --- | --- | --- |
+| Agentic coding | SWE-bench Pro 79.2%, Frontier-Bench 43.3% | 64.6%, 34.4% |
+| Novel reasoning | ARC-AGI-3 30.2% | 7.8% |
+| Long implementation runs | — | stays oriented, follows more requirements, finishes unglamorous work |
+| Work with a settled shape | — | strongest here; rewards precise prompts, punishes vague ones |
+| Ambiguous judgment, multiple defensible paths | strongest here | reported weakness |
+| Acting beyond what was asked | — | reported tendency; constrain with explicit write-path allowlists |
+
+The first slice matched this exactly: a contract with unstated tolerances and
+rule IDs was correctly refused, and the same contract stated precisely was
+implemented without further questions.
+
+Two consequences:
+
+1. **Contract design, oracle derivation, and any decision with several
+   defensible answers belong to Claude.** Deriving a falsifier from first
+   principles is novel reasoning, which is the widest measured gap.
+2. **Implementation is not Codex-only.** Claude is the stronger agentic coder,
+   so both implement. Oracle independence is preserved by *cross-assignment*
+   rather than by role: **whoever implements a lane, the other agent writes its
+   falsifier and reviews it.** Lanes run in parallel when their writable paths
+   are disjoint.
+
+Codex prompts must carry an explicit allowlist of writable paths and an
+explicit list of integration-owned paths, because acting beyond the request is
+a reported failure mode rather than a hypothetical one.
+
 | Phase | Claude — integrator and oracle | Codex — central implementation |
 | --- | --- | --- |
 | Contract | Freeze the claim, nonclaims, roles, derivation rules, stop condition, and API budget. Refresh the Issue queue; identify registration deltas. | Adversarially review whether the contract travels through existing Kernel, Realization, basis, quadrature, and assembly types. Do not create a competing central type. |
