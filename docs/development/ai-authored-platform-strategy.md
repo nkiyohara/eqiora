@@ -68,6 +68,8 @@ Independently measured at `f5ae8c5` by both reviewing agents; figures agreed.
 | — `api.rs` / `assembly.rs` / `acceptance.rs` / `element.rs` / `newton.rs` | ×7 / ×4 / ×4 / ×4 / ×3 |
 | `src/` files over 1,500 lines | 30 |
 | `src/` files over 1,000 lines | 57 |
+| AST-reachable public items, `eqiora-numerics` / `eqiora-api` | 308 / 124 |
+| Glob re-exports | 37 across 4 files, 26 of them in the `eqiora` facade |
 | Krylov methods | CG, MINRES, BiCGSTAB |
 | Preconditioners | Identity, Jacobi |
 | CUDA backend | cuSPARSE/cuBLAS adapters over a finalized CSR; no custom kernels |
@@ -263,7 +265,7 @@ Counted from the AST, not by regular expression.
 | --- | --- |
 | File size | New production `.rs` ≤ 1,000 physical lines; target ceiling 1,500 for production, 2,000 for tests. Existing excess frozen at its current value. Generated files exempt only with a generator path and hash. |
 | Function complexity | New or changed functions ≤ 120 logical lines, cyclomatic complexity ≤ 20, nesting ≤ 5, parameters ≤ 7. Excess requires a debt entry with reason and deletion condition. |
-| Public surface | New crates ≤ 128 AST-reachable public items. Existing crates may not grow, except a public capability slice may add ≤ 8 net. `eqiora-api` reduction target: 384. |
+| Public surface | New crates ≤ 128 AST-reachable public items. Every existing crate is frozen at its exact current count, so a crate under the budget cannot drift up to it unobserved. A public capability slice may add ≤ 8 net. Above 128, a freeze must carry a reason and a removal condition. |
 | Visibility | Zero `unreachable_pub` violations, zero glob re-exports, zero duplicate canonical public paths. Extend the existing facade check from `eqiora` to every publishable crate. |
 | Dependency graph | Every workspace SCC has size 1 across normal, build, and dev edges. Currently zero cycles; retain the existing layer-direction check. |
 | Cross-physics clone | Zero new clone classes spanning distinct physics owners at ≥ 30 logical lines or ≥ 100 normalized tokens with ≥ 85% AST similarity. Existing clones recorded as digest-keyed debt. |
