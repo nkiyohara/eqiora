@@ -91,6 +91,80 @@ The derived plan represents exactly:
 Any other structure **fails**. No generic callback, no escape hatch, no
 backend identifier becomes mathematical meaning.
 
+Admitted symbol kinds are `Field` (exactly one, the unknown), `Parameter`, and
+`SpatialCoordinate`. Admitted expression kinds are `Constant`, `Symbol`, `Neg`,
+`Add`, `Sub`, `Mul`, `PowI`, `SpatialCoordinate`, `UnaryMath(Sin)`, `Gradient`,
+`Divergence`, and `Trace`. Every other `KernelNode` variant — including `Pre`,
+`Next`, `Derivative`, every `Port` kind, `Time`, `Div`, `SymmetricPart`,
+`IsotropicLift`, `NormalComponent`, and `PureOperatorApplication` — is rejected
+at admission rather than ignored.
+
+### Derivation rules
+
+The certificate is a list of entries, each binding one versioned rule ID to the
+exact source relation identity, the source node identity it consumed, and the
+weak-term slot it produced. The rule set for this slice is closed:
+
+| Rule ID | Effect |
+| --- | --- |
+| `fem.derive.v1.test-pairing` | Multiply the strong residual by a test function drawn from the declared test space. |
+| `fem.derive.v1.divergence-by-parts` | Rewrite `-div(k grad u) * v` as `k grad u . grad v` minus a boundary flux term. |
+| `fem.derive.v1.boundary-discharge.essential-homogeneous` | Discharge that boundary flux term because the test space vanishes on the essential boundary. Requires the essential boundary to cover the complete boundary of the relation scope. |
+| `fem.derive.v1.source-pairing` | Rewrite `f` as `f * v`. |
+
+A derivation that terminates with any strong-form node unconsumed, or that
+applies a rule outside this table, fails admission.
+
+**Slot convention.** The local matrix is indexed `[test][trial]`: row index is
+the test slot, column index is the trial slot. The certificate records the slot
+of every produced term. Because this operator is self-adjoint the convention is
+numerically invisible, so it is checked structurally against the certificate,
+never inferred from matrix symmetry.
+
+### Role inventory
+
+Admission enumerates and consumes exactly once: the single unknown field, every
+parameter, every volume relation, and every boundary relation reachable from
+the relation scope. `Domain`, `Representation`, and `Activation` nodes are
+consumed as scope and space selection rather than as residual terms, and are
+enumerated separately. A node consumed zero times or more than once fails.
+
+### Quadrature policy
+
+The Realization selects the rule; admission checks it and the certificate
+records it. Selection is never inferred from the integrand.
+
+| Term | Integrand degree per axis | Required declared exactness |
+| --- | --- | --- |
+| `k grad u . grad v` on an affine map | 2 | `>= 2` |
+| `f * v` with a non-polynomial source | not polynomial | `>= 3`, recorded as a bounded-error term |
+
+`QuadratureRule::polynomial_exactness` is declarative evidence and is read as a
+declaration, never as proof. A rule whose declared exactness is `None`, or below
+the required value, fails admission. This makes under-integration a fail-closed
+admission error rather than a tolerance question.
+
+### Bounded compilation
+
+| Bound | Limit |
+| --- | --- |
+| Expression DAG nodes per relation | 4096 |
+| Derivative order | 1 |
+| Integral terms per relation | 8 |
+| Quadrature points per cell | 64 |
+| Local DOFs per cell | 32 |
+| Temporaries per local evaluation | 256 |
+
+### Eligibility predicate
+
+The compiled path is taken if and only if all hold: the relation scope is a
+2D Cartesian box; the discretization is `ContinuousGalerkin` over
+`HypercubeQ1Space`; there is exactly one scalar unknown; every boundary of the
+scope carries a homogeneous essential relation; and every admission gate above
+passes. Any other configuration takes the existing path unchanged. The
+predicate is total and fail-closed: an unrecognized configuration never falls
+through to the compiled path.
+
 ### Admission gates
 
 All must pass before assembly; each fails closed.
@@ -180,41 +254,55 @@ implementing agent may not author, tune, or relax it.
 
 ### Reference values
 
-Node ordering is counter-clockwise from the lower-left corner of
-`[x0, x0+hx] x [y0, y0+hy]`. With `alpha = hy/(6 hx)`, `beta = hx/(6 hy)`:
+Node ordering is **production bit ordering**, matching
+`HypercubeQ1Space::tabulate` and `CartesianMesh::entity_vertices`, which both
+index a vertex by its axis bits `(v >> axis) & 1`:
 
 ```
-K = k * ( alpha * [[ 2,-2,-1, 1],     +  beta * [[ 2, 1,-1,-2],
-                   [-2, 2, 1,-1],                [ 1, 2,-2,-1],
-                   [-1, 1, 2,-2],                [-1,-2, 2, 1],
-                   [ 1,-1,-2, 2]]                [-2,-1, 1, 2]] )
+n0 = (x0,      y0     )   bits 00   lower-left
+n1 = (x0 + hx, y0     )   bits 01   lower-right
+n2 = (x0,      y0 + hy)   bits 10   upper-left
+n3 = (x0 + hx, y0 + hy)   bits 11   upper-right
 ```
 
-Unit square, exact rationals, `6*K`:
+Production ordering is retained and the oracle is expressed in it. Introducing a
+permutation at the evidence boundary would add a place for an off-by-one to
+hide. With `alpha = hy/(6 hx)`, `beta = hx/(6 hy)`:
 
 ```
-[ 4 -1 -2 -1 ]
-[-1  4 -1 -2 ]
-[-2 -1  4 -1 ]
-[-1 -2 -1  4 ]
+K = k * ( alpha * [[ 2,-2, 1,-1],     +  beta * [[ 2, 1,-2,-1],
+                   [-2, 2,-1, 1],                [ 1, 2,-1,-2],
+                   [ 1,-1, 2,-2],                [-2,-1, 2, 1],
+                   [-1, 1,-2, 2]]                [-1,-2, 1, 2]] )
 ```
 
-The registered case must use a **non-square, non-unit, off-origin** cell:
+Unit square, exact rationals, `6*K`. The diagonal partners are `(0,3)` and
+`(1,2)`, which is the ordering's signature:
+
+```
+[ 4 -1 -1 -2 ]
+[-1  4 -2 -1 ]
+[-1 -2  4 -1 ]
+[-2 -1 -1  4 ]
+```
+
+Element fixture cell — **non-square, off-origin**:
 `x0=0.25, y0=0.5, hx=0.25, hy=0.5, k=1`. `hx != hy` separates the two derivative
-contributions; `x0,y0 != 0` prevents a source bug from hiding behind symmetry.
+contributions so a swapped `alpha`/`beta` cannot survive; `x0,y0 != 0` prevents
+a source bug from hiding behind symmetry.
 
 ```
-K = [ 0.83333333333333326 -0.58333333333333326 -0.41666666666666663  0.16666666666666666]
-    [-0.58333333333333326  0.83333333333333326  0.16666666666666666 -0.41666666666666663]
-    [-0.41666666666666663  0.16666666666666666  0.83333333333333326 -0.58333333333333326]
-    [ 0.16666666666666666 -0.41666666666666663 -0.58333333333333326  0.83333333333333326]
+K = [ 0.83333333333333326 -0.58333333333333326  0.16666666666666666 -0.41666666666666663]
+    [-0.58333333333333326  0.83333333333333326 -0.41666666666666663  0.16666666666666666]
+    [ 0.16666666666666666 -0.41666666666666663  0.83333333333333326 -0.58333333333333326]
+    [-0.41666666666666663  0.16666666666666666 -0.58333333333333326  0.83333333333333326]
 ```
 
-Exact load for `f = 2 pi^2 sin(pi x) sin(pi y)`, computed by separable analytic
+Exact load for `f = 2 pi^2 sin(pi x) sin(pi y)`, by separable analytic
 integration rather than quadrature:
 
 ```
-F = [0.42549571438121403, 0.47482060177589164, 0.2710258553802215, 0.24287139083576761]
+F = [0.42549571438121403, 0.47482060177589164, 0.24287139083576761, 0.2710258553802215]
 ```
 
 Exact load for constant `f = 1`: `hx*hy/4 = 0.03125` at every node.
@@ -224,6 +312,27 @@ Exact load for constant `f = 1`: `hx*hy/4 = 0.03125` at every node.
 Every row of `K` sums to zero; `K` is symmetric with positive diagonal; the load
 vector sums to the exact cell integral of the source; `alpha` and `beta` depend
 only on the aspect ratio.
+
+### Tolerances, step, and direction
+
+Fixed here so that no tolerance is chosen by the implementer.
+
+| Comparison | Tolerance |
+| --- | --- |
+| `K` against the closed form | `1e-14` relative. The integrand is exactly degree 2 per axis on an affine map, so an admitted rule integrates it exactly and only floating-point error remains. |
+| `F` against the analytic load | `2.5e-2` relative. The source is non-polynomial, so this is a bounded-error term. Measured error is `1.3e-2` for exactness 3 and `6.6e-1` for exactness 1, so the band admits the declared rule and rejects under-integration by a factor of 26. |
+| Constant-source `F` | `1e-14` relative; that integrand is exactly bilinear. |
+| Shadow CSR and RHS against the existing path | `1e-15` relative, entry by entry, with identical sparsity pattern. |
+| JVP against centered differences | `1e-7` relative. |
+| VJP against the scalar directional derivative | `1e-7` relative. |
+
+Centered-difference step: `h = 1e-6`. Truncation is `O(h^2) ~ 1e-12` and
+round-off is `O(eps/h) ~ 2e-10`, so the `1e-7` band clears the noise floor by
+more than two orders of magnitude while still rejecting a corrupted column.
+
+Direction vector: `v_i = sin(i + 1)` over the local or global index, normalized
+to unit L2. Deterministic, dependent on no RNG, and non-degenerate in every
+component so a single zeroed column cannot hide.
 
 ### Mutant set
 
@@ -235,9 +344,9 @@ the gate set is incomplete and is itself a reportable defect.
 | M1 | Flip the integration-by-parts sign | derivation certificate; sign disagreement against `K` |
 | M2 | Drop one essential boundary relation | role assignment — every node consumed exactly once |
 | M3 | Duplicate a boundary relation on one domain | role assignment — ambiguity fails rather than silently resolving |
-| M4 | Swap `alpha` and `beta` | non-square cell comparison; invisible on a square cell |
-| M5 | Swap test/trial gradient indices | structural transpose check; numerically invisible for this symmetric operator |
-| M6 | One-point quadrature for the source term | manufactured-load comparison; declared exactness is not proof |
+| M4 | Swap `alpha` and `beta` | element fixture on the non-square cell; invisible on a square cell |
+| M5 | Swap test/trial gradient indices | certificate slot convention, checked structurally; numerically invisible for this symmetric operator |
+| M6 | One-point quadrature for the source term | quadrature admission — declared exactness below the required value fails before assembly; the load comparison confirms it |
 | M7 | Scale the flux coefficient | element comparison; also breaks the balance residual |
 | M8 | Reclassify `source_scale` as an unknown | role assignment |
 | M9 | Corrupt one Jacobian column | JVP against independently rebuilt centered differences |
@@ -250,17 +359,31 @@ pass. They are why a hand-derived oracle must exist independently.
 
 ### Registered evidence
 
-New: `verify/numerics/compiled-cartesian-poisson-q1-2d/`,
-`crates/eqiora/tests/compiled_package_poisson_form.rs`, and focused element
-tests in `eqiora-numerics`.
+The bounded claim splits into two evidence items because they cannot share a
+mesh. The ordinary generated Realization builds `vec![cells; dimension]` over
+the package's unit square, so every cell it produces is square — a non-square
+cell is unreachable through the package path, and a square cell cannot
+distinguish `alpha` from `beta`.
 
-The case must compile the actual package through the ordinary explicit Q1
-Realization path; compare the non-unit affine cell against the values above;
-shadow-compare every local contribution and the final CSR and RHS; replay the
-four-level continuous-L2 convergence floor of 1.9 and the relative balance limit
-of 2e-11; compare JVP and VJP against independently rebuilt centered
-differences; reject every mutant above; and explicitly run
-`numerics.cartesian-poisson-fem-fvm`,
+**E1 — element fixture** (focused tests in `eqiora-numerics`). Constructs the
+non-square off-origin cell directly, without a package or a Realization, and
+compares `K`, both load vectors, the certificate rule sequence and slots, and
+the JVP/VJP actions against the values above. This item owns M1, M4, M5, M6,
+M7, M9, and M10.
+
+**E2 — package path**
+(`verify/numerics/compiled-cartesian-poisson-q1-2d/` and
+`crates/eqiora/tests/compiled_package_poisson_form.rs`). Compiles the actual
+`org.example.poisson` package through the ordinary explicit Q1 Realization on
+its unit square. Shadow-compares every local contribution and the final CSR and
+RHS against the existing path, replays the four-level continuous-L2 convergence
+floor of 1.9 and the relative balance limit of 2e-11, and runs the eligibility
+predicate. This item owns M2, M3, M8, M11, and M12.
+
+Neither item alone establishes the claim. E1 without E2 proves an element
+nobody reaches; E2 without E1 cannot see a swapped aspect ratio.
+
+Both must explicitly run `numerics.cartesian-poisson-fem-fvm`,
 `differentiation.spatial-poisson-fem-fvm`, and
 `numerics.global-matrix-free-action`.
 
@@ -277,14 +400,28 @@ content is not. The integrator role is per slice and runs the affected closure.
 
 ## Unresolved questions
 
+These are deferred deliberately. None of them blocks implementation: each has a
+defined behaviour for this slice, and the open part concerns a later one.
+
 - Which second physics consumer best falsifies the audit-compression claim —
   the elasticity patch, or the thermal slab? The elasticity patch exercises
   vector fields and is the stronger test, but is a larger step.
 - Should the derivation certificate be persisted in the artifact wire, or
-  remain an in-process proof? Persisting it creates a compatibility promise
-  that this slice does not need.
-- What is the exact quadrature policy record when declared exactness exceeds
-  the integrand degree, and does it belong in the Realization or the
-  certificate?
+  remain an in-process proof? It stays in-process for this slice; persisting it
+  would create a compatibility promise the slice does not need.
 - Whether the shadow path is deleted at the end of this slice or after the
-  second consumer. Deleting it early removes the strongest available oracle.
+  second consumer. It is retained for this slice; deleting it early removes the
+  strongest available oracle.
+
+## Revision history
+
+- **Draft 2** (`2026-07-26`). Re-frozen after the contract review returned eight
+  blocking defects, all genuine. Draft 1 specified no bounded-compilation
+  limits, no certificate rule IDs or slot convention, no role-inventory scope,
+  no tolerances or finite-difference step, and left quadrature policy in
+  Unresolved questions while requiring it as an admission gate — so an
+  implementer would have had to author the M1, M5, and M6 gates itself, which
+  amendment A4 forbids. Draft 1 also stated the oracle in counter-clockwise
+  ordering while production uses bit ordering, and demanded a non-square cell
+  from a package path that can only produce square ones. The oracle values are
+  re-derived in production ordering; the numerical content is unchanged.
