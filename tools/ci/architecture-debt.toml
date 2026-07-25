@@ -10,12 +10,25 @@
 # been individually triaged; `reason` says so rather than inventing a
 # justification. Triage happens in the lane that owns the file.
 #
+# `[[public_surface]]` and `[[glob_reexports]]` were seeded at revision f5ae8c5,
+# measured from the AST rather than by text matching.
+#
+# The two ledgers ratchet differently, deliberately. A file's line count drifts
+# with every ordinary edit, so `[[file_lines]]` only fails when the count rises
+# above a frozen ceiling. A glob count changes only when someone adds or deletes
+# a glob, so `[[glob_reexports]]` requires the exact number: removing one must
+# lower the ceiling in the same change, or the budget stays available for the
+# next glob to claim.
+#
 # See docs/development/ai-authored-platform-strategy.md, amendment A5.
 
 [limits]
 # Physical lines. A file with no entry below must satisfy these.
 production_file_lines = 1000
 test_file_lines = 2000
+# AST-reachable public items. Every crate needs a `[[public_surface]]` entry
+# below; this is the width above which that entry must also justify itself.
+public_items_per_crate = 128
 
 [[file_lines]]
 path = "crates/eqiora-api/src/lib.rs"
@@ -347,3 +360,203 @@ ceiling = 1766
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
+
+# Public surface, in AST-reachable public items per crate. Counted by walking
+# from `src/lib.rs` through `pub mod`, and into any private module a `pub use`
+# re-exports. A glob over another crate cannot be resolved from one crate's AST
+# and counts as one item; `[[glob_reexports]]` below is what contains that
+# undercount, by forbidding any new glob from appearing.
+#
+# Every crate is frozen here, not only the three above the budget: "existing
+# crates may not grow" is stronger than "existing crates stay under a limit". An
+# entry is an exact freeze, so withdrawing a public name must lower the number
+# in the same change, and a crate with no entry at all fails — otherwise
+# deleting a line would be a way to buy headroom.
+#
+# `reason` and `removal` are required only where the frozen number is above
+# `limits.public_items_per_crate`, which is where the entry is a real exception
+# rather than a measurement. A new crate is expected to add an entry inside the
+# budget. Amendment A5 additionally allows a public capability slice to add up
+# to 8 net items; that is a review judgement on a raised number, not something
+# this check can recognize on its own.
+
+[[public_surface]]
+crate = "eqiora"
+ceiling = 275
+reason = "the facade is re-export-only and its width is already pinned by api/eqiora-facade-v1.json; 26 of these items are cross-crate globs this predicate cannot see through"
+removal = "lower with each name the facade withdraws"
+
+[[public_surface]]
+crate = "eqiora-api"
+ceiling = 124
+
+[[public_surface]]
+crate = "eqiora-artifact"
+ceiling = 151
+reason = "predates the predicate; not yet triaged"
+removal = "lower in the lane that next splits the artifact model"
+
+[[public_surface]]
+crate = "eqiora-assembly"
+ceiling = 26
+
+[[public_surface]]
+crate = "eqiora-backend-cuda"
+ceiling = 27
+
+[[public_surface]]
+crate = "eqiora-backend-diffsol"
+ceiling = 2
+
+[[public_surface]]
+crate = "eqiora-backend-faer"
+ceiling = 4
+
+[[public_surface]]
+crate = "eqiora-backend-mpi"
+ceiling = 26
+
+[[public_surface]]
+crate = "eqiora-backend-mpi-cuda"
+ceiling = 6
+
+[[public_surface]]
+crate = "eqiora-backend-rayon"
+ceiling = 8
+
+[[public_surface]]
+crate = "eqiora-cad-truck"
+ceiling = 6
+
+[[public_surface]]
+crate = "eqiora-compiler"
+ceiling = 46
+
+[[public_surface]]
+crate = "eqiora-core"
+ceiling = 106
+
+[[public_surface]]
+crate = "eqiora-device"
+ceiling = 26
+
+[[public_surface]]
+crate = "eqiora-differentiation"
+ceiling = 14
+
+[[public_surface]]
+crate = "eqiora-distributed"
+ceiling = 18
+
+[[public_surface]]
+crate = "eqiora-execution"
+ceiling = 22
+
+[[public_surface]]
+crate = "eqiora-geometry"
+ceiling = 23
+
+[[public_surface]]
+crate = "eqiora-graph"
+ceiling = 12
+
+[[public_surface]]
+crate = "eqiora-io-gmsh"
+ceiling = 2
+
+[[public_surface]]
+crate = "eqiora-io-hdf5"
+ceiling = 16
+
+[[public_surface]]
+crate = "eqiora-io-vtu"
+ceiling = 8
+
+[[public_surface]]
+crate = "eqiora-io-xdmf"
+ceiling = 16
+
+[[public_surface]]
+crate = "eqiora-ir"
+ceiling = 48
+
+[[public_surface]]
+crate = "eqiora-lang"
+ceiling = 81
+
+[[public_surface]]
+crate = "eqiora-meshing"
+ceiling = 51
+
+[[public_surface]]
+crate = "eqiora-numerics"
+ceiling = 308
+reason = "predates the predicate; the largest crate, carrying one public entry point per hand-written physics slice"
+removal = "the FEM form-compiler lane replaces per-physics entry points with instance witness data; lower this with each entry point it deletes"
+
+[[public_surface]]
+crate = "eqiora-package"
+ceiling = 55
+
+[[public_surface]]
+crate = "eqiora-python"
+ceiling = 2
+
+[[public_surface]]
+crate = "eqiora-realization"
+ceiling = 117
+
+[[public_surface]]
+crate = "eqiora-runtime"
+ceiling = 8
+
+[[public_surface]]
+crate = "eqiora-schema"
+ceiling = 88
+
+[[public_surface]]
+crate = "eqiora-sem"
+ceiling = 18
+
+[[public_surface]]
+crate = "eqiora-solver"
+ceiling = 44
+
+[[public_surface]]
+crate = "eqiora-spatial-distribution"
+ceiling = 26
+
+[[public_surface]]
+crate = "eqiora-time"
+ceiling = 39
+
+[[public_surface]]
+crate = "eqiora-verify"
+ceiling = 19
+
+# Glob re-exports. The predicate is zero; these four files predate it. Each
+# entry freezes an exact count, not a ceiling to grow into.
+
+[[glob_reexports]]
+path = "crates/eqiora-api/src/external_data/mod.rs"
+ceiling = 2
+reason = "predates the predicate; the module forwards its two adapter submodules wholesale"
+removal = "name the forwarded items"
+
+[[glob_reexports]]
+path = "crates/eqiora-api/src/lib.rs"
+ceiling = 8
+reason = "predates the predicate; the crate root forwards its own submodules wholesale"
+removal = "name the forwarded items, which also makes this crate's public-surface count real rather than one per glob"
+
+[[glob_reexports]]
+path = "crates/eqiora-backend-mpi-cuda/src/lib.rs"
+ceiling = 1
+reason = "predates the predicate; the crate root forwards its single runtime module wholesale"
+removal = "name the forwarded items"
+
+[[glob_reexports]]
+path = "crates/eqiora/src/lib.rs"
+ceiling = 26
+reason = "predates the predicate; the facade forwards each internal crate wholesale, one glob per module"
+removal = "name the forwarded items per module; check-facade already pins the resulting set"

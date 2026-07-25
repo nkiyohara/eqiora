@@ -7,11 +7,18 @@
 //!
 //! See `docs/development/ai-authored-platform-strategy.md`, amendment A5.
 
+mod dependency_graph;
+mod glob_reexport;
+mod public_surface;
+
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
+
+use glob_reexport::GlobReexport;
+use public_surface::CrateSurface;
 
 const LEDGER: &str = "tools/ci/architecture-debt.toml";
 
@@ -20,16 +27,42 @@ struct Ledger {
     limits: Limits,
     #[serde(default)]
     file_lines: Vec<FileLinesDebt>,
+    #[serde(default)]
+    public_surface: Vec<PublicSurfaceDebt>,
+    #[serde(default)]
+    glob_reexports: Vec<GlobReexportDebt>,
 }
 
 #[derive(Debug, Deserialize)]
 struct Limits {
     production_file_lines: usize,
     test_file_lines: usize,
+    public_items_per_crate: usize,
 }
 
 #[derive(Debug, Deserialize)]
 struct FileLinesDebt {
+    path: String,
+    ceiling: usize,
+    reason: String,
+    removal: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PublicSurfaceDebt {
+    #[serde(rename = "crate")]
+    package: String,
+    ceiling: usize,
+    /// Absent for a crate merely frozen at its measured width; required once
+    /// the frozen number sits above the budget, where it is a real exception.
+    #[serde(default)]
+    reason: Option<String>,
+    #[serde(default)]
+    removal: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GlobReexportDebt {
     path: String,
     ceiling: usize,
     reason: String,
@@ -70,20 +103,103 @@ impl Role {
 pub fn check() -> Result<(), String> {
     let root = repository_root()?;
     let ledger = load_ledger(&root)?;
+
+    let mut sources = Vec::new();
+    collect_rust_sources(&root.join("crates"), &root, &mut sources)?;
+    sources.sort();
+    let mut violations = file_line_violations(&ledger, &root, &sources)?;
+
+    let surfaces = public_surface::measure(&root)?;
+    violations.extend(public_surface_violations(&ledger, &surfaces));
+
+    // A glob re-export is a defect in the repository's own tooling as much as
+    // in a published crate, so this scan is not limited to `crates/`.
+    let mut scanned = sources.clone();
+    collect_rust_sources(&root.join("tools"), &root, &mut scanned)?;
+    scanned.sort();
+    let globs = glob_reexport::scan(&root, &scanned)?;
+    violations.extend(glob_violations(&ledger, &globs));
+
+    // `append` rather than `extend`, so the counts in `cycles` survive for the
+    // summary instead of being partially moved out.
+    let mut cycles = dependency_graph::check(&root)?;
+    violations.append(&mut cycles.violations);
+
+    if violations.is_empty() {
+        report(&ledger, &surfaces, &globs, &sources, &scanned, &cycles);
+        return Ok(());
+    }
+
+    Err(format!(
+        "architecture predicate violations:\n{}",
+        violations
+            .iter()
+            .map(|entry| format!("- {entry}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    ))
+}
+
+/// One line per predicate, so a passing run still says what was measured. A
+/// check that prints only "ok" cannot be distinguished from one that silently
+/// stopped looking at anything.
+fn report(
+    ledger: &Ledger,
+    surfaces: &[CrateSurface],
+    globs: &[GlobReexport],
+    sources: &[String],
+    scanned: &[String],
+    cycles: &dependency_graph::Cycles,
+) {
+    let budget = ledger.limits.public_items_per_crate;
+    let above_budget = ledger
+        .public_surface
+        .iter()
+        .filter(|debt| debt.ceiling > budget)
+        .count();
+
+    // `sources` is `crates/` only, which is the file-size predicate's scope;
+    // `scanned` adds `tools/` for the glob scan. The two counts differ and the
+    // summary should not imply otherwise.
+    println!(
+        "file size: {} files within their ceilings ({} frozen exceptions)",
+        sources.len(),
+        ledger.file_lines.len()
+    );
+    println!(
+        "public surface: {} crates measured, {} frozen at an exact item count ({} of those above \
+         the {budget}-item budget)",
+        surfaces.len(),
+        ledger.public_surface.len(),
+        above_budget
+    );
+    println!(
+        "glob re-exports: {} frozen across {} files, none new in {} scanned files",
+        globs.len(),
+        ledger.glob_reexports.len(),
+        scanned.len()
+    );
+    println!(
+        "dependency graph: {} workspace crates, {} normal/build/dev edges, no cycle",
+        cycles.packages, cycles.edges
+    );
+}
+
+fn file_line_violations(
+    ledger: &Ledger,
+    root: &Path,
+    sources: &[String],
+) -> Result<Vec<String>, String> {
     let debts: BTreeMap<&str, &FileLinesDebt> = ledger
         .file_lines
         .iter()
         .map(|debt| (debt.path.as_str(), debt))
         .collect();
 
-    let mut sources = Vec::new();
-    collect_rust_sources(&root.join("crates"), &root, &mut sources)?;
-    sources.sort();
-
     let mut violations = Vec::new();
     let mut measured = BTreeMap::new();
 
-    for relative in &sources {
+    for relative in sources {
         let lines = count_lines(&root.join(relative))?;
         measured.insert(relative.clone(), lines);
         let limit = Role::of(Path::new(relative)).limit(&ledger.limits);
@@ -105,25 +221,178 @@ pub fn check() -> Result<(), String> {
         }
     }
 
-    violations.extend(stale_entries(&ledger, &measured));
+    violations.extend(stale_entries(ledger, &measured));
+    Ok(violations)
+}
 
-    if violations.is_empty() {
-        println!(
-            "architecture predicates hold across {} files ({} ledger exceptions)",
-            sources.len(),
-            ledger.file_lines.len()
-        );
-        return Ok(());
+/// "Existing crates may not grow" is stronger than "existing crates stay under
+/// a limit", so every crate carries a frozen count rather than only the ones
+/// over budget: without that, a crate measured at 106 could add 22 names and
+/// nothing would say so. An entry is therefore an exact freeze, not a headroom
+/// allowance — widening *and* narrowing a surface both have to move the number,
+/// which is what makes a public API change visible in review.
+///
+/// A crate with no entry at all fails too, including a brand new one. Letting
+/// an unlisted crate fall back to the budget would make deleting a ledger line
+/// a way to buy headroom, and would let a new crate reach the budget without
+/// anyone deciding that was the intended surface. The budget survives as the
+/// threshold above which a freeze has to justify itself.
+fn public_surface_violations(ledger: &Ledger, surfaces: &[CrateSurface]) -> Vec<String> {
+    let limit = ledger.limits.public_items_per_crate;
+    let debts: BTreeMap<&str, &PublicSurfaceDebt> = ledger
+        .public_surface
+        .iter()
+        .map(|debt| (debt.package.as_str(), debt))
+        .collect();
+
+    let mut violations = Vec::new();
+    for surface in surfaces {
+        match debts.get(surface.name.as_str()) {
+            Some(debt) => violations.extend(frozen_surface(limit, debt, surface)),
+            None => violations.push(unfrozen_surface(limit, surface)),
+        }
     }
 
-    Err(format!(
-        "architecture predicate violations:\n{}",
-        violations
+    let measured: BTreeMap<&str, usize> = surfaces
+        .iter()
+        .map(|surface| (surface.name.as_str(), surface.items))
+        .collect();
+    violations.extend(
+        ledger
+            .public_surface
             .iter()
-            .map(|entry| format!("- {entry}"))
-            .collect::<Vec<_>>()
-            .join("\n")
-    ))
+            .filter(|debt| !measured.contains_key(debt.package.as_str()))
+            .map(|debt| {
+                format!(
+                    "{}: ledger entry refers to a crate that no longer exists; delete the entry.",
+                    debt.package
+                )
+            }),
+    );
+
+    violations
+}
+
+/// Checks one frozen crate: the count must match exactly, and a freeze above
+/// the budget is a genuine exception, so it must say why it exists and what
+/// would retire it. A freeze at or below the budget is only a measurement and
+/// needs no prose.
+fn frozen_surface(limit: usize, debt: &PublicSurfaceDebt, surface: &CrateSurface) -> Vec<String> {
+    let mut violations = Vec::new();
+    let name = &surface.name;
+
+    if surface.items > debt.ceiling {
+        violations.push(format!(
+            "{name}: {} AST-reachable public items exceeds its frozen ceiling of {}. The ledger \
+             only ratchets down; withdraw a name, or justify the wider surface as an architecture \
+             change.{}",
+            surface.items,
+            debt.ceiling,
+            justification(debt)
+        ));
+    } else if surface.items < debt.ceiling {
+        violations.push(format!(
+            "{name}: now {} AST-reachable public items against a frozen ceiling of {}; lower the \
+             ceiling to {} so the withdrawn names cannot be silently reclaimed.",
+            surface.items, debt.ceiling, surface.items
+        ));
+    }
+
+    if debt.ceiling > limit && (debt.reason.is_none() || debt.removal.is_none()) {
+        violations.push(format!(
+            "{name}: frozen at {} items, above the {limit}-item budget, so the entry needs both a \
+             reason and a removal condition.",
+            debt.ceiling
+        ));
+    }
+
+    violations
+}
+
+fn unfrozen_surface(limit: usize, surface: &CrateSurface) -> String {
+    let justify = if surface.items > limit {
+        format!(", and a reason and removal condition, since that is above the {limit}-item budget")
+    } else {
+        String::new()
+    };
+    format!(
+        "{}: {} AST-reachable public items with no ledger entry. Freeze the surface with \
+         `[[public_surface]] crate = \"{}\", ceiling = {}`{justify}.",
+        surface.name, surface.items, surface.name, surface.items
+    )
+}
+
+fn justification(debt: &PublicSurfaceDebt) -> String {
+    match (&debt.reason, &debt.removal) {
+        (Some(reason), Some(removal)) => format!("\n  reason: {reason}\n  removal: {removal}"),
+        _ => String::new(),
+    }
+}
+
+/// Unlike file length, a glob count only moves when someone deliberately adds
+/// or deletes one. So this ledger ratchets exactly: removing a glob must lower
+/// the number in the same change, or the budget stays available for the next
+/// one to claim.
+fn glob_violations(ledger: &Ledger, globs: &[GlobReexport]) -> Vec<String> {
+    let debts: BTreeMap<&str, &GlobReexportDebt> = ledger
+        .glob_reexports
+        .iter()
+        .map(|debt| (debt.path.as_str(), debt))
+        .collect();
+
+    let mut found: BTreeMap<&str, Vec<&GlobReexport>> = BTreeMap::new();
+    for glob in globs {
+        found.entry(glob.path.as_str()).or_default().push(glob);
+    }
+
+    let mut violations: Vec<String> = found
+        .iter()
+        .filter_map(|(path, entries)| match debts.get(path) {
+            Some(debt) if entries.len() > debt.ceiling => Some(format!(
+                "{path}: {} glob re-exports exceeds its frozen ceiling of {}. Name the items \
+                 instead:\n{}\n  reason: {}\n  removal: {}",
+                entries.len(),
+                debt.ceiling,
+                describe(entries),
+                debt.reason,
+                debt.removal
+            )),
+            Some(_) => None,
+            None => Some(format!(
+                "{path}: {} glob re-export(s) with no ledger entry. A glob forwards an unknown \
+                 number of names under a second canonical path and is not counted by the public \
+                 surface budget; name the items instead:\n{}",
+                entries.len(),
+                describe(entries)
+            )),
+        })
+        .collect();
+
+    violations.extend(ledger.glob_reexports.iter().filter_map(|debt| {
+        let count = found.get(debt.path.as_str()).map_or(0, Vec::len);
+        match count {
+            0 => Some(format!(
+                "{}: no glob re-export remains (or the file is gone); delete the ledger entry.",
+                debt.path
+            )),
+            count if count < debt.ceiling => Some(format!(
+                "{}: now {count} glob re-exports against a frozen ceiling of {}; lower the ceiling \
+                 to {count} so the removed exception cannot be reclaimed.",
+                debt.path, debt.ceiling
+            )),
+            _ => None,
+        }
+    }));
+
+    violations
+}
+
+fn describe(entries: &[&GlobReexport]) -> String {
+    entries
+        .iter()
+        .map(|entry| format!("    {}", entry.describe()))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Entries that no longer describe reality must be deleted, otherwise the
@@ -210,4 +479,101 @@ fn repository_root() -> Result<PathBuf, String> {
         .and_then(Path::parent)
         .map(Path::to_path_buf)
         .ok_or_else(|| "cannot locate the repository root from the xtask manifest".to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn surface(name: &str, items: usize) -> CrateSurface {
+        CrateSurface {
+            name: name.to_owned(),
+            items,
+        }
+    }
+
+    fn debt(package: &str, ceiling: usize, justified: bool) -> PublicSurfaceDebt {
+        PublicSurfaceDebt {
+            package: package.to_owned(),
+            ceiling,
+            reason: justified.then(|| "frozen for a test".to_owned()),
+            removal: justified.then(|| "delete the test".to_owned()),
+        }
+    }
+
+    #[test]
+    fn a_surface_at_its_frozen_count_is_silent() {
+        assert!(frozen_surface(128, &debt("c", 12, false), &surface("c", 12)).is_empty());
+    }
+
+    #[test]
+    fn a_grown_surface_names_its_frozen_ceiling() {
+        let violations = frozen_surface(
+            128,
+            &debt("eqiora-graph", 11, false),
+            &surface("eqiora-graph", 12),
+        );
+        assert_eq!(
+            violations,
+            [
+                "eqiora-graph: 12 AST-reachable public items exceeds its frozen ceiling of 11. \
+                 The ledger only ratchets down; withdraw a name, or justify the wider surface as \
+                 an architecture change."
+            ]
+        );
+    }
+
+    #[test]
+    fn a_shrunk_surface_must_lower_its_ceiling() {
+        let violations = frozen_surface(128, &debt("c", 20, false), &surface("c", 18));
+        assert_eq!(violations.len(), 1);
+        assert!(
+            violations[0].contains("lower the ceiling to 18"),
+            "{violations:?}"
+        );
+    }
+
+    #[test]
+    fn an_above_budget_freeze_without_prose_is_a_violation() {
+        let violations = frozen_surface(128, &debt("c", 300, false), &surface("c", 300));
+        assert_eq!(
+            violations,
+            [
+                "c: frozen at 300 items, above the 128-item budget, so the entry needs both a \
+                 reason and a removal condition."
+            ]
+        );
+    }
+
+    #[test]
+    fn an_above_budget_breach_repeats_its_justification() {
+        let violations = frozen_surface(128, &debt("c", 300, true), &surface("c", 301));
+        assert_eq!(violations.len(), 1);
+        assert!(
+            violations[0].contains("reason: frozen for a test"),
+            "{violations:?}"
+        );
+        assert!(
+            violations[0].contains("removal: delete the test"),
+            "{violations:?}"
+        );
+    }
+
+    #[test]
+    fn an_unlisted_crate_is_told_what_entry_to_add() {
+        assert_eq!(
+            unfrozen_surface(128, &surface("eqiora-new", 40)),
+            "eqiora-new: 40 AST-reachable public items with no ledger entry. Freeze the surface \
+             with `[[public_surface]] crate = \"eqiora-new\", ceiling = 40`."
+        );
+    }
+
+    #[test]
+    fn an_unlisted_crate_over_budget_is_also_told_to_justify_it() {
+        let message = unfrozen_surface(128, &surface("eqiora-wide", 300));
+        assert!(
+            message.contains("ceiling = 300`, and a reason and removal condition"),
+            "{message}"
+        );
+    }
 }
