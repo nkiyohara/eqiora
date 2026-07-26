@@ -266,7 +266,10 @@ fn descendant_directory(file: &Path) -> PathBuf {
     }
 }
 
-fn path_attribute(attrs: &[Attribute]) -> Option<String> {
+/// Shared with the glob predicate, which resolves a `mod` declaration to the
+/// file it names for the same reason: `#[path]` repoints a module without
+/// changing any path written at the use site.
+pub(super) fn path_attribute(attrs: &[Attribute]) -> Option<String> {
     attrs.iter().find_map(|attr| match &attr.meta {
         Meta::NameValue(pair) if pair.path.is_ident("path") => match &pair.value {
             Expr::Lit(literal) => match &literal.lit {

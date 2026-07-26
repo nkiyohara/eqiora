@@ -7,8 +7,11 @@
 //!
 //! See `docs/development/ai-authored-platform-strategy.md`, amendment A5.
 
+mod cargo_metadata;
+mod cfg_condition;
 mod dependency_graph;
 mod glob_reexport;
+mod package_map;
 mod public_surface;
 
 use std::collections::BTreeMap;
@@ -18,6 +21,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use glob_reexport::GlobReexport;
+use package_map::PackageMap;
 use public_surface::CrateSurface;
 
 const LEDGER: &str = "tools/ci/architecture-debt.toml";
@@ -64,11 +68,14 @@ struct PublicSurfaceDebt {
 #[derive(Debug, Deserialize)]
 struct GlobReexportDebt {
     path: String,
-    /// The exact re-exported prefixes, sorted. A count alone would let an
-    /// existing glob be repointed at a larger crate for free: the number would
-    /// not move, and the public-surface budget scores an unresolvable
-    /// cross-crate glob as a single item regardless of how much it forwards.
-    targets: Vec<String>,
+    /// The exact resolved identity of each glob, sorted. Neither a count nor
+    /// the path text holds a glob still: the public-surface budget scores an
+    /// unresolvable cross-crate glob as a single item however much it forwards,
+    /// so repointing one has to be what fails here. An identity therefore
+    /// carries the condition it sits under, the path as written, and what that
+    /// path's first segment resolves to — see `glob_reexport` for what the
+    /// resolution can and cannot see.
+    identities: Vec<String>,
     reason: String,
     removal: String,
 }
@@ -116,17 +123,23 @@ pub fn check() -> Result<(), String> {
     let surfaces = public_surface::measure(&root)?;
     violations.extend(public_surface_violations(&ledger, &surfaces));
 
+    // Read once and shared: a glob's identity names the package its first
+    // segment resolves to, which only the manifests know, and the cycle check
+    // reads the same member graph.
+    let metadata = cargo_metadata::load(&root)?;
+    let packages = PackageMap::load(&root, &metadata)?;
+
     // A glob re-export is a defect in the repository's own tooling as much as
     // in a published crate, so this scan is not limited to `crates/`.
     let mut scanned = sources.clone();
     collect_rust_sources(&root.join("tools"), &root, &mut scanned)?;
     scanned.sort();
-    let globs = glob_reexport::scan(&root, &scanned)?;
+    let globs = glob_reexport::scan(&root, &scanned, &packages)?;
     violations.extend(glob_violations(&ledger, &globs));
 
     // `append` rather than `extend`, so the counts in `cycles` survive for the
     // summary instead of being partially moved out.
-    let mut cycles = dependency_graph::check(&root)?;
+    let mut cycles = dependency_graph::check(&metadata)?;
     violations.append(&mut cycles.violations);
 
     if violations.is_empty() {
@@ -178,7 +191,8 @@ fn report(
         above_budget
     );
     println!(
-        "glob re-exports: {} frozen across {} files, none new in {} scanned files",
+        "glob re-exports: {} frozen by resolved identity across {} files, none new or repointed in \
+         {} scanned files",
         globs.len(),
         ledger.glob_reexports.len(),
         scanned.len()
@@ -361,16 +375,9 @@ fn glob_violations(ledger: &Ledger, globs: &[GlobReexport]) -> Vec<String> {
     let mut violations: Vec<String> = found
         .iter()
         .filter_map(|(path, entries)| match debts.get(path) {
-            Some(debt) if !targets_match(entries, &debt.targets) => Some(format!(
-                "{path}: glob re-export targets do not match the ledger. Adding, removing, or \
-                 repointing a glob must move the entry in the same change.\n  found:  {}\n  \
-                 frozen: {}\n{}\n  reason: {}\n  removal: {}",
-                sorted_targets(entries).join(", "),
-                debt.targets.join(", "),
-                describe(entries),
-                debt.reason,
-                debt.removal
-            )),
+            Some(debt) if !identities_match(entries, &debt.identities) => {
+                Some(mismatch(path, entries, debt))
+            }
             Some(_) => None,
             None => Some(format!(
                 "{path}: {} glob re-export(s) with no ledger entry. A glob forwards an unknown \
@@ -398,25 +405,94 @@ fn glob_violations(ledger: &Ledger, globs: &[GlobReexport]) -> Vec<String> {
     violations
 }
 
-fn sorted_targets(entries: &[&GlobReexport]) -> Vec<String> {
-    let mut targets = entries
+fn sorted_identities(entries: &[&GlobReexport]) -> Vec<String> {
+    let mut identities = entries
         .iter()
-        .map(|entry| entry.target.clone())
+        .map(|entry| entry.identity.clone())
         .collect::<Vec<_>>();
-    targets.sort();
-    targets
+    identities.sort();
+    identities
 }
 
-/// Compared as a sorted multiset, so a repointed glob fails even though the
-/// count is unchanged.
-fn targets_match(entries: &[&GlobReexport], frozen: &[String]) -> bool {
-    sorted_targets(entries) == frozen
+/// Compared as a sorted multiset, so a repointed or re-conditioned glob fails
+/// even though the count is unchanged.
+fn identities_match(entries: &[&GlobReexport], frozen: &[String]) -> bool {
+    sorted_identities(entries) == frozen
+}
+
+/// Reports the difference rather than both full lists: a file with twenty-six
+/// frozen globs would otherwise answer a one-line edit with fifty-two lines,
+/// and the one that moved would be the reader's problem to find.
+fn mismatch(path: &str, entries: &[&GlobReexport], debt: &GlobReexportDebt) -> String {
+    let found = sorted_identities(entries);
+    let gained = difference(&found, &debt.identities);
+    let lost = difference(&debt.identities, &found);
+    let located: BTreeMap<&str, &GlobReexport> = entries
+        .iter()
+        .map(|entry| (entry.identity.as_str(), *entry))
+        .collect();
+
+    // Nothing gained and nothing lost, yet the lists differ: the entry holds the
+    // right identities in the wrong order. Saying so beats printing two empty
+    // sections, which is what a reader would otherwise have to interpret.
+    if gained.is_empty() && lost.is_empty() {
+        return format!(
+            "{path}: the ledger holds the right glob identities in the wrong order. They are \
+             compared as a sorted list so that a review diff shows one line per change; sort the \
+             `identities` entry."
+        );
+    }
+
+    format!(
+        "{path}: glob re-export identities do not match the ledger. Adding, removing, repointing \
+         or re-conditioning a glob must move the entry in the same change.\n{}{}  reason: {}\n  \
+         removal: {}",
+        listing("no longer frozen (present in the tree)", &gained, &located),
+        listing("frozen but gone (not found in the tree)", &lost, &located),
+        debt.reason,
+        debt.removal
+    )
+}
+
+/// Multiset difference: a duplicated identity that appears twice where the
+/// ledger froze it once is a change, and has to survive the comparison.
+fn difference(left: &[String], right: &[String]) -> Vec<String> {
+    let mut remaining: Vec<&String> = right.iter().collect();
+    let mut only = Vec::new();
+    for identity in left {
+        match remaining.iter().position(|other| *other == identity) {
+            Some(index) => {
+                remaining.swap_remove(index);
+            }
+            None => only.push(identity.clone()),
+        }
+    }
+    only
+}
+
+fn listing(
+    heading: &str,
+    identities: &[String],
+    located: &BTreeMap<&str, &GlobReexport>,
+) -> String {
+    if identities.is_empty() {
+        return String::new();
+    }
+    let lines = identities
+        .iter()
+        .map(|identity| match located.get(identity.as_str()) {
+            Some(entry) => format!("    {identity}\n      at {}", entry.describe()),
+            None => format!("    {identity}"),
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("  {heading}:\n{lines}\n")
 }
 
 fn describe(entries: &[&GlobReexport]) -> String {
     entries
         .iter()
-        .map(|entry| format!("    {}", entry.describe()))
+        .map(|entry| format!("    {}\n      {}", entry.describe(), entry.identity))
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -582,6 +658,63 @@ mod tests {
         assert!(
             violations[0].contains("removal: delete the test"),
             "{violations:?}"
+        );
+    }
+
+    fn glob(identity: &str) -> GlobReexport {
+        GlobReexport {
+            path: "crates/c/src/lib.rs".to_owned(),
+            line: 7,
+            target: "inner".to_owned(),
+            identity: identity.to_owned(),
+        }
+    }
+
+    fn glob_debt(identities: &[&str]) -> GlobReexportDebt {
+        GlobReexportDebt {
+            path: "crates/c/src/lib.rs".to_owned(),
+            identities: identities.iter().map(|entry| (*entry).to_owned()).collect(),
+            reason: "frozen for a test".to_owned(),
+            removal: "delete the test".to_owned(),
+        }
+    }
+
+    #[test]
+    fn a_repointed_glob_reports_only_the_identity_that_moved() {
+        let entries = [glob("frozen one"), glob("repointed two")];
+        let borrowed: Vec<&GlobReexport> = entries.iter().collect();
+        let debt = glob_debt(&["frozen one", "original two"]);
+        assert!(!identities_match(&borrowed, &debt.identities));
+
+        let message = mismatch("crates/c/src/lib.rs", &borrowed, &debt);
+        assert!(message.contains("no longer frozen"), "{message}");
+        assert!(message.contains("repointed two"), "{message}");
+        assert!(message.contains("frozen but gone"), "{message}");
+        assert!(message.contains("original two"), "{message}");
+        // The identity that did not move stays out of the report.
+        assert!(!message.contains("frozen one"), "{message}");
+    }
+
+    #[test]
+    fn a_ledger_entry_in_the_wrong_order_is_named_as_such() {
+        let entries = [glob("a"), glob("b")];
+        let borrowed: Vec<&GlobReexport> = entries.iter().collect();
+        let debt = glob_debt(&["b", "a"]);
+        assert!(!identities_match(&borrowed, &debt.identities));
+        assert!(
+            mismatch("crates/c/src/lib.rs", &borrowed, &debt)
+                .contains("right glob identities in the wrong order"),
+        );
+    }
+
+    #[test]
+    fn a_duplicated_identity_does_not_cancel_against_a_single_frozen_one() {
+        let entries = [glob("same"), glob("same")];
+        let borrowed: Vec<&GlobReexport> = entries.iter().collect();
+        assert!(!identities_match(&borrowed, &["same".to_owned()]));
+        assert_eq!(
+            difference(&sorted_identities(&borrowed), &["same".to_owned()]),
+            ["same"]
         );
     }
 

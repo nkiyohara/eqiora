@@ -11,11 +11,10 @@
 //! together, must be a single crate.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::env;
-use std::path::Path;
-use std::process::Command;
 
 use serde_json::Value;
+
+use super::cargo_metadata;
 
 /// The workspace dependency graph, crate name to the crates it depends on.
 type Graph = BTreeMap<String, BTreeSet<String>>;
@@ -26,8 +25,8 @@ pub(super) struct Cycles {
     pub(super) violations: Vec<String>,
 }
 
-pub(super) fn check(root: &Path) -> Result<Cycles, String> {
-    let graph = workspace_graph(root)?;
+pub(super) fn check(metadata: &Value) -> Result<Cycles, String> {
+    let graph = workspace_graph(metadata)?;
     let edges = graph.values().map(BTreeSet::len).sum();
     let violations = components(&graph)
         .into_iter()
@@ -50,54 +49,24 @@ pub(super) fn check(root: &Path) -> Result<Cycles, String> {
     })
 }
 
-/// `--no-deps` keeps registry packages out: a cycle through a third-party crate
-/// is not something this repository can act on, and Cargo forbids it anyway.
-/// The `dependencies` array of a member still lists its dev and build entries,
-/// which is exactly the wider edge set the predicate wants.
-fn workspace_graph(root: &Path) -> Result<Graph, String> {
-    let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let output = Command::new(cargo)
-        .args(["metadata", "--format-version", "1", "--no-deps"])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to run cargo metadata: {error}"))?;
-    if !output.status.success() {
-        return Err(format!(
-            "cargo metadata failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
-    }
-
-    let metadata: Value = serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("invalid cargo metadata: {error}"))?;
-    let members: BTreeSet<&str> = metadata["workspace_members"]
-        .as_array()
-        .ok_or_else(|| "metadata has no workspace_members".to_owned())?
-        .iter()
-        .filter_map(Value::as_str)
-        .collect();
-    let packages = metadata["packages"]
-        .as_array()
-        .ok_or_else(|| "metadata has no packages".to_owned())?;
+/// The metadata is loaded with `--no-deps`, which keeps registry packages out:
+/// a cycle through a third-party crate is not something this repository can act
+/// on, and Cargo forbids it anyway. The `dependencies` array of a member still
+/// lists its dev and build entries, which is exactly the wider edge set the
+/// predicate wants.
+fn workspace_graph(metadata: &Value) -> Result<Graph, String> {
+    let packages = cargo_metadata::members(metadata)?;
 
     let mut graph: Graph = BTreeMap::new();
     let mut names = BTreeSet::new();
-    for package in packages {
-        if package["id"]
-            .as_str()
-            .is_some_and(|id| members.contains(id))
-            && let Some(name) = package["name"].as_str()
-        {
+    for package in &packages {
+        if let Some(name) = package["name"].as_str() {
             names.insert(name.to_owned());
         }
     }
 
-    for package in packages {
-        let Some(name) = package["name"].as_str().filter(|_| {
-            package["id"]
-                .as_str()
-                .is_some_and(|id| members.contains(id))
-        }) else {
+    for package in &packages {
+        let Some(name) = package["name"].as_str() else {
             continue;
         };
         let dependencies = graph.entry(name.to_owned()).or_default();

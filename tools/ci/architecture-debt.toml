@@ -11,15 +11,58 @@
 # justification. Triage happens in the lane that owns the file.
 #
 # `[[public_surface]]` and `[[glob_reexports]]` were seeded at revision f5ae8c5,
-# measured from the AST rather than by text matching.
+# measured from the AST rather than by text matching. `[[glob_reexports]]` was
+# reseeded when its frozen value stopped being the path text and became a
+# resolved identity.
 #
 # The two ledgers ratchet differently, deliberately. A file's line count drifts
 # with every ordinary edit, so `[[file_lines]]` only fails when the count rises
-# above a frozen ceiling. A glob count changes only when someone adds or deletes
-# a glob, so `[[glob_reexports]]` freezes the exact target list rather than a
-# count. A count alone would let an existing glob be repointed at a larger crate
-# for free, since the number would not move and the public-surface budget scores
-# an unresolvable cross-crate glob as one item however much it forwards.
+# above a frozen ceiling. A glob changes only when someone means it to, so
+# `[[glob_reexports]]` freezes an exact identity per glob rather than a count. A
+# count alone would let an existing glob be repointed at a larger crate for
+# free, since the number would not move and the public-surface budget scores an
+# unresolvable cross-crate glob as one item however much it forwards. The path
+# text alone is no better: the same `pub use foo::*;` forwards a different crate
+# after a Cargo rename is repointed, after a private `use bar as foo;` beside it
+# is edited, or under a different `#[cfg]`.
+#
+# So an identity has three fields,
+# `<condition> | <path as written>::* | <what the first segment resolves to>`:
+#
+#   * the condition is the normalized `#[cfg]` the glob sits under, including
+#     the gates on every enclosing inline module, so flipping a feature moves
+#     the entry. `cfg_attr` is not interpreted but is frozen verbatim;
+#   * the path is the text a reader edits;
+#   * the resolution is the package that first segment names according to
+#     `cargo metadata`, after any Cargo `package = "..."` rename; or the file a
+#     local `mod` declaration resolves to, `#[path]` included; or a private
+#     `use ... as ...;` in the same module, followed to whichever of those it
+#     lands on.
+#
+# The resolution records a package's name and origin, not its version. A version
+# bump is not a repoint, and freezing it would fail this check on every ordinary
+# dependency update and force a reseed of all 37 frozen globs, which is how a
+# ratchet loses its credibility. Moving a dependency between path, registry and
+# git — or between two paths — does move the identity.
+#
+# What the identity does NOT cover, and is not claimed to:
+#
+#   * which names the target actually exports. Resolution stops at the package
+#     boundary, because one crate's AST cannot see another's. The *number* of
+#     names a workspace glob forwards is held by the target crate's own
+#     `[[public_surface]]` entry, which is an exact freeze; *which* names those
+#     are is frozen nowhere.
+#   * a `#[cfg]` on the `mod` declaration in a *parent* file. The scan is
+#     file-local on purpose, so that a glob is caught even in a module no
+#     consumer can name; the price is that a gate written next to `mod foo;` is
+#     not part of the identity of the globs inside `foo.rs`.
+#   * what an untracked `use x::*;` in the same module brings into scope, which
+#     can shadow the first segment. The presence of such an import is recorded
+#     in the identity, so it cannot appear silently, but its contents cannot be
+#     enumerated from here.
+#   * feature resolution and build-script `cargo::rustc-cfg` output. The
+#     resolution reads declared dependencies, so it says which package a name
+#     would resolve to, not whether that dependency is enabled in a given build.
 #
 # See docs/development/ai-authored-platform-strategy.md, amendment A5.
 
@@ -536,69 +579,72 @@ crate = "eqiora-verify"
 ceiling = 19
 
 # Glob re-exports. The predicate is zero; these four files predate it. Each
-# entry freezes an exact count, not a ceiling to grow into.
+# entry freezes the exact identity of every glob in the file, not a count and
+# not a ceiling to grow into: adding, removing, repointing or re-conditioning
+# one must move the list in the same change. The header says what an identity
+# is made of and what it cannot see.
 
 [[glob_reexports]]
 path = "crates/eqiora-api/src/external_data/mod.rs"
-targets = [
-  "vtu",
-  "xdmf",
+identities = [
+  "cfg(feature = \"vtu\") | vtu::* | module file crates/eqiora-api/src/external_data/vtu.rs",
+  "cfg(feature = \"xdmf\") | xdmf::* | module file crates/eqiora-api/src/external_data/xdmf.rs",
 ]
 reason = "predates the predicate; the module forwards its two adapter submodules wholesale"
 removal = "name the forwarded items"
 
 [[glob_reexports]]
 path = "crates/eqiora-api/src/lib.rs"
-targets = [
-  "cad",
-  "differentiation",
-  "external_data",
-  "ml_dataset",
-  "reference_run",
-  "spatial",
-  "spatial_data",
-  "transient_fluid",
+identities = [
+  "cfg(any(feature = \"vtu\", feature = \"xdmf\")) | external_data::* | module file crates/eqiora-api/src/external_data/mod.rs",
+  "unconditional | cad::* | module file crates/eqiora-api/src/cad.rs",
+  "unconditional | differentiation::* | module file crates/eqiora-api/src/differentiation.rs",
+  "unconditional | ml_dataset::* | module file crates/eqiora-api/src/ml_dataset.rs",
+  "unconditional | reference_run::* | module file crates/eqiora-api/src/reference_run.rs",
+  "unconditional | spatial::* | module file crates/eqiora-api/src/spatial.rs",
+  "unconditional | spatial_data::* | module file crates/eqiora-api/src/spatial_data.rs",
+  "unconditional | transient_fluid::* | module file crates/eqiora-api/src/transient_fluid.rs",
 ]
 reason = "predates the predicate; the crate root forwards its own submodules wholesale"
 removal = "name the forwarded items, which also makes this crate's public-surface count real rather than one per glob"
 
 [[glob_reexports]]
 path = "crates/eqiora-backend-mpi-cuda/src/lib.rs"
-targets = [
-  "runtime",
+identities = [
+  "cfg(feature = \"runtime\") | runtime::* | module file crates/eqiora-backend-mpi-cuda/src/runtime.rs",
 ]
 reason = "predates the predicate; the crate root forwards its single runtime module wholesale"
 removal = "name the forwarded items"
 
 [[glob_reexports]]
 path = "crates/eqiora/src/lib.rs"
-targets = [
-  "eqiora_api::package",
-  "eqiora_artifact",
-  "eqiora_assembly",
-  "eqiora_backend_diffsol",
-  "eqiora_backend_faer",
-  "eqiora_backend_mpi",
-  "eqiora_backend_mpi_cuda",
-  "eqiora_backend_rayon",
-  "eqiora_cad_truck",
-  "eqiora_compiler",
-  "eqiora_device",
-  "eqiora_differentiation",
-  "eqiora_distributed",
-  "eqiora_geometry",
-  "eqiora_io_gmsh",
-  "eqiora_io_hdf5",
-  "eqiora_io_vtu",
-  "eqiora_io_xdmf",
-  "eqiora_lang",
-  "eqiora_meshing",
-  "eqiora_package",
-  "eqiora_realization",
-  "eqiora_runtime",
-  "eqiora_schema::kernel",
-  "eqiora_solver",
-  "eqiora_time",
+identities = [
+  "cfg(feature = \"cad-truck\") | eqiora_cad_truck::* | package eqiora-cad-truck (path crates/eqiora-cad-truck)",
+  "cfg(feature = \"diffsol\") | eqiora_backend_diffsol::* | package eqiora-backend-diffsol (path crates/eqiora-backend-diffsol)",
+  "cfg(feature = \"faer\") | eqiora_backend_faer::* | package eqiora-backend-faer (path crates/eqiora-backend-faer)",
+  "cfg(feature = \"gmsh\") | eqiora_io_gmsh::* | package eqiora-io-gmsh (path crates/eqiora-io-gmsh)",
+  "cfg(feature = \"hdf5\") | eqiora_io_hdf5::* | package eqiora-io-hdf5 (path crates/eqiora-io-hdf5)",
+  "cfg(feature = \"mpi\") | eqiora_backend_mpi::* | package eqiora-backend-mpi (path crates/eqiora-backend-mpi)",
+  "cfg(feature = \"mpi-cuda\") | eqiora_backend_mpi_cuda::* | package eqiora-backend-mpi-cuda (path crates/eqiora-backend-mpi-cuda)",
+  "cfg(feature = \"rayon\") | eqiora_backend_rayon::* | package eqiora-backend-rayon (path crates/eqiora-backend-rayon)",
+  "cfg(feature = \"vtu\") | eqiora_io_vtu::* | package eqiora-io-vtu (path crates/eqiora-io-vtu)",
+  "cfg(feature = \"xdmf\") | eqiora_io_xdmf::* | package eqiora-io-xdmf (path crates/eqiora-io-xdmf)",
+  "unconditional | eqiora_api::package::* | package eqiora-api (path crates/eqiora-api)",
+  "unconditional | eqiora_artifact::* | package eqiora-artifact (path crates/eqiora-artifact)",
+  "unconditional | eqiora_assembly::* | package eqiora-assembly (path crates/eqiora-assembly)",
+  "unconditional | eqiora_compiler::* | package eqiora-compiler (path crates/eqiora-compiler)",
+  "unconditional | eqiora_device::* | package eqiora-device (path crates/eqiora-device)",
+  "unconditional | eqiora_differentiation::* | package eqiora-differentiation (path crates/eqiora-differentiation)",
+  "unconditional | eqiora_distributed::* | package eqiora-distributed (path crates/eqiora-distributed)",
+  "unconditional | eqiora_geometry::* | package eqiora-geometry (path crates/eqiora-geometry)",
+  "unconditional | eqiora_lang::* | package eqiora-lang (path crates/eqiora-lang)",
+  "unconditional | eqiora_meshing::* | package eqiora-meshing (path crates/eqiora-meshing)",
+  "unconditional | eqiora_package::* | package eqiora-package (path crates/eqiora-package)",
+  "unconditional | eqiora_realization::* | package eqiora-realization (path crates/eqiora-realization)",
+  "unconditional | eqiora_runtime::* | package eqiora-runtime (path crates/eqiora-runtime)",
+  "unconditional | eqiora_schema::kernel::* | package eqiora-schema (path crates/eqiora-schema)",
+  "unconditional | eqiora_solver::* | package eqiora-solver (path crates/eqiora-solver)",
+  "unconditional | eqiora_time::* | package eqiora-time (path crates/eqiora-time)",
 ]
 reason = "predates the predicate; the facade forwards each internal crate wholesale, one glob per module"
 removal = "name the forwarded items per module; check-facade already pins the resulting set"
