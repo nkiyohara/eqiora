@@ -24,7 +24,15 @@ solver = "conjugate gradients, relative 1e-10, absolute 1e-14, cap 50000"
 preconditioners = ["identity", "jacobi"]
 
 [declared_envelope]
-declared_before_measurement = true
+# Asserted by the author, not independently auditable: the declaration, every
+# observation, and this flag all arrived in one commit, and the two coarsest
+# levels of the Run 2 probe were executed before that probe was finalized. The
+# thresholds are unchanged from Run 1 and B1 is decided on the 16 -> 32 step
+# alone, so the recorded breach does not depend on the levels seen early — but
+# probe selection remains an open degree of freedom here. Later cases must fix
+# the declaration in its own commit, ahead of the measurement.
+declared_before_measurement = "asserted, not independently auditable"
+declaration_and_observation_share_a_commit = true
 theory = "kappa = O(h^-2) gives O(h^-1) CG iterations, so slope 1 and ratio 2; a scalable method holds slope 0 and ratio 1"
 primary_series = "fem-q1 jacobi"
 adequate_maximum_ratio = 1.4

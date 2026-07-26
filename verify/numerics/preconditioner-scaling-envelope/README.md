@@ -170,7 +170,11 @@ the eigenvector alignment.
 
 ## Run 2 — the declared probe
 
-*Declared before measurement.*
+*Thresholds carried over unchanged from Run 1. The probe itself was chosen
+after Run 1 was voided, and its two coarsest levels were executed before it was
+finalized — see the disclosure at the end of this section. This section is
+therefore not a pre-registration in the auditable sense, and the case manifest
+records it as asserted rather than established.*
 
 Run 2 changes exactly one thing: the source. It is replaced by a **constant**
 source in [`models/constant-source-poisson.eqi`](models/constant-source-poisson.eqi):

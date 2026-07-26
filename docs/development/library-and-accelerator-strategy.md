@@ -670,11 +670,20 @@ provider names, target enums, and method configs do not count as progress.
 
 Investigation may also start on a second, disjunctive condition: the current
 method demonstrably breaks a **pre-declared resource, convergence, or
-robustness envelope** on an existing model or a synthetic operator. The
-envelope is declared before the run, and the breach is the falsifier. This
-exists because some capabilities are preconditions for their own consumers;
-"the absence of the capability prevents consumers from existing" is rejected as
-too subjective to gate on, while a declared envelope breach is checkable.
+robustness envelope** on an existing model or a synthetic operator. This exists
+because some capabilities are preconditions for their own consumers; "the
+absence of the capability prevents consumers from existing" is rejected as too
+subjective to gate on, while a declared envelope breach is checkable.
+
+The declaration must be **fixed before the measurement exists, in its own
+commit**, naming the probe, the thresholds, the indeterminate band, and the
+validity conditions under which a run is void. A declaration that arrives in
+the same commit as its observations is an assertion about the author's order of
+work, not an auditable fact, and does not satisfy this condition: choosing the
+threshold and choosing the probe are both post-hoc degrees of freedom, and
+freezing the numbers does not close the second one. Where a probe is replaced
+because the first was void, the replacement is itself declared in a commit
+before the run that uses it, and the void run is retained.
 
 The falsifier and the construction/provenance policy are built first. A
 candidate enters the stable vocabulary only after passing them, never on the

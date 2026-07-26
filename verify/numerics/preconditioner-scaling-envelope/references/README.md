@@ -18,9 +18,23 @@ Conjugate gradients applied to an SPD system converges with the standard bound
 ||e_k||_A / ||e_0||_A <= 2 ((sqrt(kappa) - 1) / (sqrt(kappa) + 1))^k,
 ```
 
-so reaching a fixed relative reduction costs `O(sqrt(kappa)) = O(h^-1)`
-iterations. Halving `h` therefore roughly doubles the iteration count: slope
-`1` in `log2(it)` against `log2(n)`, ratio `2` per halving.
+so reaching a fixed relative reduction costs **at most** `O(sqrt(kappa)) =
+O(h^-1)` iterations.
+
+This is an upper bound driven by the condition number alone, and it must not be
+read as the growth law for any particular right-hand side. It does not imply
+that the count is `Theta(h^-1)`, nor that halving `h` doubles it. Run 1 in
+[the case README](../README.md) is a counterexample from this very operator: a
+right-hand side aligned with one eigenvector terminates in a single iteration at
+every refinement, with `kappa` unchanged.
+
+The declared thresholds — slope `0.85` and terminal ratio `1.8` — are therefore
+a **declared standard of adequacy**, not a prediction the theory fixes. Slope
+`1` and ratio `2` are the bound's worst case and the value a broad-spectrum
+right-hand side is expected to approach; a scalable method would instead hold
+slope near `0` and ratio near `1`, and that separation is what the envelope is
+built to detect. The breach reported by this case is an observation about the
+measured sequence, and it stands on the measurement rather than on this bound.
 
 Diagonal (Jacobi) preconditioning rescales rows and columns. On a uniform
 Cartesian mesh with a constant coefficient it is a single scalar multiple of the

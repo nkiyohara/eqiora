@@ -64,7 +64,11 @@ struct PublicSurfaceDebt {
 #[derive(Debug, Deserialize)]
 struct GlobReexportDebt {
     path: String,
-    ceiling: usize,
+    /// The exact re-exported prefixes, sorted. A count alone would let an
+    /// existing glob be repointed at a larger crate for free: the number would
+    /// not move, and the public-surface budget scores an unresolvable
+    /// cross-crate glob as a single item regardless of how much it forwards.
+    targets: Vec<String>,
     reason: String,
     removal: String,
 }
@@ -211,6 +215,15 @@ fn file_line_violations(
                  architecture change.\n  reason: {}\n  removal: {}",
                 debt.ceiling, debt.reason, debt.removal
             )),
+            // An exact freeze, not a headroom allowance. A ceiling left above
+            // the current size lets a partial repayment be spent again: a file
+            // cut from 2,000 to 1,500 lines would otherwise keep 500 lines of
+            // silent room to regrow into.
+            Some(debt) if lines < debt.ceiling && lines > limit => violations.push(format!(
+                "{relative}: now {lines} lines against a frozen ceiling of {}; lower the ceiling \
+                 to {lines} so the repaid lines cannot be silently reclaimed.",
+                debt.ceiling
+            )),
             Some(_) => {}
             None if lines > limit => violations.push(format!(
                 "{relative}: {lines} lines exceeds the {limit}-line limit and has no ledger entry. \
@@ -348,11 +361,12 @@ fn glob_violations(ledger: &Ledger, globs: &[GlobReexport]) -> Vec<String> {
     let mut violations: Vec<String> = found
         .iter()
         .filter_map(|(path, entries)| match debts.get(path) {
-            Some(debt) if entries.len() > debt.ceiling => Some(format!(
-                "{path}: {} glob re-exports exceeds its frozen ceiling of {}. Name the items \
-                 instead:\n{}\n  reason: {}\n  removal: {}",
-                entries.len(),
-                debt.ceiling,
+            Some(debt) if !targets_match(entries, &debt.targets) => Some(format!(
+                "{path}: glob re-export targets do not match the ledger. Adding, removing, or \
+                 repointing a glob must move the entry in the same change.\n  found:  {}\n  \
+                 frozen: {}\n{}\n  reason: {}\n  removal: {}",
+                sorted_targets(entries).join(", "),
+                debt.targets.join(", "),
                 describe(entries),
                 debt.reason,
                 debt.removal
@@ -368,23 +382,35 @@ fn glob_violations(ledger: &Ledger, globs: &[GlobReexport]) -> Vec<String> {
         })
         .collect();
 
-    violations.extend(ledger.glob_reexports.iter().filter_map(|debt| {
-        let count = found.get(debt.path.as_str()).map_or(0, Vec::len);
-        match count {
-            0 => Some(format!(
-                "{}: no glob re-export remains (or the file is gone); delete the ledger entry.",
-                debt.path
-            )),
-            count if count < debt.ceiling => Some(format!(
-                "{}: now {count} glob re-exports against a frozen ceiling of {}; lower the ceiling \
-                 to {count} so the removed exception cannot be reclaimed.",
-                debt.path, debt.ceiling
-            )),
-            _ => None,
-        }
-    }));
+    violations.extend(
+        ledger
+            .glob_reexports
+            .iter()
+            .filter(|debt| !found.contains_key(debt.path.as_str()))
+            .map(|debt| {
+                format!(
+                    "{}: no glob re-export remains (or the file is gone); delete the ledger entry.",
+                    debt.path
+                )
+            }),
+    );
 
     violations
+}
+
+fn sorted_targets(entries: &[&GlobReexport]) -> Vec<String> {
+    let mut targets = entries
+        .iter()
+        .map(|entry| entry.target.clone())
+        .collect::<Vec<_>>();
+    targets.sort();
+    targets
+}
+
+/// Compared as a sorted multiset, so a repointed glob fails even though the
+/// count is unchanged.
+fn targets_match(entries: &[&GlobReexport], frozen: &[String]) -> bool {
+    sorted_targets(entries) == frozen
 }
 
 fn describe(entries: &[&GlobReexport]) -> String {

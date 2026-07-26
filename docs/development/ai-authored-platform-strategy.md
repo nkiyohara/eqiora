@@ -259,7 +259,20 @@ respectively — and each needs its own envelope, not one shared gate.
 
 ## Architecture predicates
 
-Counted from the AST, not by regular expression.
+Counted from the AST, not by regular expression. **Implemented** predicates run
+in `cargo xtask check-architecture` today; **planned** ones are named here so
+the destination is fixed, and must not be cited as though CI enforced them.
+
+| Predicate | Status |
+| --- | --- |
+| File size | implemented |
+| Public surface | implemented |
+| Glob re-exports | implemented |
+| Dependency graph acyclicity | implemented |
+| Function complexity | planned |
+| `unreachable_pub`, duplicate canonical paths | planned |
+| Cross-physics clone | planned — needs a similarity algorithm and a normalization decision |
+| Role skeleton | planned — depends on the clone scanner |
 
 | Predicate | Threshold |
 | --- | --- |
@@ -310,6 +323,15 @@ Two consequences:
    rather than by role: **whoever implements a lane, the other agent writes its
    falsifier and reviews it.** Lanes run in parallel when their writable paths
    are disjoint.
+
+Cross-assignment is symmetric and has no exemption for the integrator. The
+first slice violated this in one direction: Codex's implementation was reviewed
+by Claude, but the governance amendments, the RFC, the architecture predicates,
+and the scaling envelope were all written by Claude and accepted by Claude. The
+failure mode is structural rather than careless — the agent holding the
+acceptance decision is the one for whom self-acceptance costs nothing, so the
+rule has to bind hardest exactly there. A brief review is enough; skipping it
+is not.
 
 Codex prompts must carry an explicit allowlist of writable paths and an
 explicit list of integration-owned paths, because acting beyond the request is

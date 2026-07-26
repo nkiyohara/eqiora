@@ -44,6 +44,13 @@ permitted, owning the evidence content is not. Where an implementer believes a
 pre-committed oracle is wrong, it stops and returns the proof rather than
 adjusting the implementation to match.
 
+Every change also passes a review by an agent that did not write it, before
+integration. **The integrator's own work is not exempt.** Holding the
+acceptance decision is what makes self-acceptance easy, so an integrator who
+also implemented must obtain that outside review rather than rely on its own
+reading. The review may be brief and is only required to surface defects with
+real consequences, but its absence is itself a defect in the slice.
+
 A fan-out lane consumes its accepted central contract; it does not extend that
 contract for local convenience. If the contract cannot express a discovered
 requirement, stop the lane without adding a workaround and return the
