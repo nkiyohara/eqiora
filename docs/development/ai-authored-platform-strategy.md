@@ -337,6 +337,49 @@ Codex prompts must carry an explicit allowlist of writable paths and an
 explicit list of integration-owned paths, because acting beyond the request is
 a reported failure mode rather than a hypothetical one.
 
+### What the billing models imply
+
+The two agents are metered differently, and that difference — not preference —
+decides the granularity of a request.
+
+| | Claude (Max 20x) | Codex (Pro) |
+| --- | --- | --- |
+| Metering | five-hour rolling window plus weekly caps | credits, roughly one task at 5–45 |
+| Cheap shape | many small exchanges | few large, long-running ones |
+| Expensive shape | long single turns that idle | chatty round trips |
+
+So Claude carries the high-frequency work — exploration, verification,
+integration, oracle derivation, review, coordination — and may fan out many
+parallel subagents. Codex carries a small number of large units: central
+implementation, sustained autonomous runs, adversarial review.
+
+**An implementation request to Codex goes out only against a fully frozen
+contract.** Iterating a vague contract by round trip is the expensive shape,
+and it has already cost one full cycle: a contract missing tolerances and rule
+IDs was correctly refused rather than guessed at. Adversarial review of a
+*contract* is exempt — that is itself a large-grained task and does not need
+the contract settled first.
+
+### Agreed execution order
+
+Ordered by what becomes more expensive the longer it waits, not by visible
+progress.
+
+1. **Does the form compiler pay for itself** — the audit-compression verdict.
+   Everything downstream is built either on a compiler that subsumes
+   hand-written evaluators or on the admission that it does not.
+2. **A public error norm over accepted results, and a reproducible Model
+   digest** — independent slices, run in parallel. Both compound: every demo
+   written before the norm exists hand-rolls one, and a non-deterministic
+   digest on the shortest public path is a **contract violation** for a product
+   claiming content-addressed identity, not a presentation defect.
+3. **Python Model Package compilation** — the shipped packages are currently
+   reachable from Python only by compiling their source text.
+4. **AMG construction and provenance**, whose gate the envelope breach opened,
+   and 3D reach.
+5. **Demos of capabilities that already carry registered evidence.** No new
+   hand-written physics; a demo never justifies a new formula site.
+
 | Phase | Claude — integrator and oracle | Codex — central implementation |
 | --- | --- | --- |
 | Contract | Freeze the claim, nonclaims, roles, derivation rules, stop condition, and API budget. Refresh the Issue queue; identify registration deltas. | Adversarially review whether the contract travels through existing Kernel, Realization, basis, quadrature, and assembly types. Do not create a competing central type. |

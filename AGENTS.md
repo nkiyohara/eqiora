@@ -51,6 +51,16 @@ also implemented must obtain that outside review rather than rely on its own
 reading. The review may be brief and is only required to surface defects with
 real consequences, but its absence is itself a defect in the slice.
 
+Cross-review catches what one agent missed; it does not catch what both
+assumed. A slice whose scientific claim rests on a derivation therefore carries
+a **dual independent oracle gate**: two agents derive the expected values
+separately from the public claim — one analytically, one by a different
+numerical or symbolic route — each without reading the implementation or the
+existing fixtures, and implementation does not begin until the two agree. The
+point is to make the shared premise itself falsifiable rather than to add
+another reviewer. This is reserved for derivation-bearing scientific slices; an
+adapter or application surface does not need it.
+
 A fan-out lane consumes its accepted central contract; it does not extend that
 contract for local convenience. If the contract cannot express a discovered
 requirement, stop the lane without adding a workaround and return the
