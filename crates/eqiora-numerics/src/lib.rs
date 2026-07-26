@@ -23,6 +23,7 @@ mod discrete_block;
 mod discrete_space;
 mod elliptic;
 mod finalized_spatial;
+mod form_compiler;
 mod jacobian_audit;
 mod linearized_output;
 mod operator;

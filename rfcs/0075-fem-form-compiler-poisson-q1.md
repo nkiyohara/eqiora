@@ -1,6 +1,8 @@
 # RFC 0075: FEM form compiler, Cartesian Q1 Poisson slice
 
-- Status: Draft
+- Status: Accepted. The bounded private 2D Cartesian Q1 Poisson slice is
+  implemented and verified; the second consumer and the shadow-path deletion
+  remain deferred.
 - Authors: Claude (contract and oracle), Codex (implementation)
 - Created: 2026-07-25
 - Related RFCs and evidence: RFC 0007 (canonical spatial operators),

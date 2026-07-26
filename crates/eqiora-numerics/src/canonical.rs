@@ -40,6 +40,7 @@ use crate::elliptic::{
     solve_scalar_elliptic_linear_fem, solve_scalar_elliptic_linear_fem_with_assembly,
 };
 use crate::finalized_spatial::FinalizedScalarEllipticCartesianProblem;
+use crate::form_compiler::{DerivedScalarGalerkinForm, derive_candidate};
 use crate::linearized_output::CartesianScalarFieldLinearization;
 use crate::poisson::{
     DirichletBoundary1d, ScalarEllipticComparisonRow1d, ScalarEllipticFvmSolution1d,
@@ -92,6 +93,7 @@ pub struct ScalarEllipticCartesianModel {
     boundaries: BTreeMap<(usize, BoundarySide), ScalarEllipticCartesianBoundary>,
     parameter_fields: Vec<Id<kinds::Parameter>>,
     parameter_values: Vec<f64>,
+    compiled_form: Option<DerivedScalarGalerkinForm>,
 }
 
 /// One lowered Parameter point paired with the exact finalized system it produced.
@@ -363,16 +365,11 @@ impl ScalarEllipticCartesianModel {
             .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
 
         Ok(Self {
-            semantic_model: self.semantic_model,
-            semantic_revision: self.semantic_revision,
-            domain: self.domain,
-            field: self.field,
-            bounds: self.bounds.clone(),
             coefficient,
             source,
             boundaries,
-            parameter_fields: self.parameter_fields.clone(),
             parameter_values,
+            ..self.clone()
         })
     }
 
@@ -675,8 +672,7 @@ pub fn lower_scalar_elliptic_1d(
         coefficient,
         source,
         boundaries,
-        parameter_fields: _,
-        parameter_values: _,
+        ..
     } = model;
     let lower = lower_constant_boundary_1d(
         boundaries
@@ -720,6 +716,7 @@ pub fn lower_scalar_elliptic_cartesian(
     program: &KernelProgram,
 ) -> Result<ScalarEllipticCartesianModel, Diagnostic> {
     let (domain, bounds) = unique_cartesian_box(program)?;
+    let compiled_form = derive_candidate(program, domain)?;
     let dimension = bounds.len();
     let field = unique_continuum_field(program, domain)?;
     let volume_relation = unique_relation_on(program, domain)?;
@@ -781,6 +778,7 @@ pub fn lower_scalar_elliptic_cartesian(
         boundaries,
         parameter_fields,
         parameter_values,
+        compiled_form,
     })
 }
 
@@ -1333,6 +1331,7 @@ pub fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
                     &boundary,
                     &quadrature,
                     assembly,
+                    model.compiled_form.as_ref(),
                 )?,
             )?
         }
