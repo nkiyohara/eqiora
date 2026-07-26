@@ -206,6 +206,26 @@ impl PyRealization {
         PyTuple::new(py, std::iter::repeat_n(extent, self.spatial_dimension()))
     }
 
+    /// Accepted coherent-SI coordinate bounds in canonical Cartesian axis order.
+    ///
+    /// Each entry is one closed `(lower, upper)` extent of the resolved volume
+    /// Domain. Together with `field_logical_shape` and the Field location this
+    /// is exactly the geometry needed to place every published value, so a
+    /// client can compare an accepted Field against a known exact solution
+    /// without restating the Domain that the Model already declares.
+    #[getter]
+    fn field_bounds<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
+        PyTuple::new(
+            py,
+            self.plan
+                .field_projection()
+                .bounds()
+                .iter()
+                .map(|extent| PyTuple::new(py, extent))
+                .collect::<PyResult<Vec<_>>>()?,
+        )
+    }
+
     /// Canonical persisted Realization artifact bytes.
     fn to_json<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         panic_boundary(py, || {
