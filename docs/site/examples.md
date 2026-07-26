@@ -5,11 +5,204 @@ decide whether a capability exists for your exact problem.
 
 ## Orientation
 
+Two small programs run against the public Rust facade from a source checkout:
+
+```bash
+cargo run --locked -p eqiora --example quickstart
+cargo run --locked -p eqiora --example poisson
+```
+
 The
 [quickstart example](https://github.com/nkiyohara/eqiora/blob/main/crates/eqiora/examples/quickstart.rs)
-constructs and commits a small canonical model through the public Rust facade.
-The [example index](https://github.com/nkiyohara/eqiora/blob/main/examples/README.md)
+compiles and runs a scalar decay model — the smallest complete path through the
+facade. The
+[Poisson example](https://github.com/nkiyohara/eqiora/blob/main/crates/eqiora/examples/poisson.rs)
+is the spatial counterpart and is walked through below. The
+[example index](https://github.com/nkiyohara/eqiora/blob/main/examples/README.md)
 keeps orientation paths intentionally small.
+
+## A Poisson problem, end to end
+
+The example solves the model shipped in the
+[`org.example.poisson`](https://github.com/nkiyohara/eqiora/tree/main/packages/org.example.poisson)
+package and measures how wrong the answer is.
+
+### The problem
+
+On the unit square, with the value pinned to zero on all four sides:
+
+```text
+-div(grad(u)) = 2 pi^2 sin(pi x) sin(pi y)
+```
+
+That source was chosen so the exact solution is known:
+`u(x, y) = sin(pi x) sin(pi y)`. Knowing the answer in advance is what turns a
+run into a measurement.
+
+In the Eqiora language the whole problem is a set of declarations:
+
+```text
+model Main {
+  domain square = box(0, 1, 0, 1);
+  domain x_lower = boundary(square, axis = 0, side = lower);
+  // ... three more boundaries ...
+  representation scalar_space = continuum;
+
+  field potential on square as scalar_space: 1 = 0;
+  parameter wave_number: 1 / m = 3.141592653589793;
+  parameter source_scale: 1 / m ^ 2 = 19.739208802178716;
+
+  relation balance continuous on square {
+    -div(grad(potential))
+      - source_scale
+        * sin(wave_number * coordinate(0))
+        * sin(wave_number * coordinate(1)) = 0;
+  }
+  relation x_lower_value continuous on x_lower { trace(potential) = 0; }
+  // ... one boundary relation per side ...
+}
+```
+
+Read that as a statement of *what must be true*. It names a domain, a field, two
+dimensioned parameters, and five relations. It does not name a mesh, an element,
+a quadrature rule, a linear solver, a tolerance, or a machine — because none of
+those are properties of the problem.
+
+### Stage 1 — Model
+
+```rust
+let model = ModelDocument::compile(SOURCE_PATH, SOURCE)?;
+```
+
+Compilation type-checks the declarations, checks that every relation is
+dimensionally consistent, and produces a canonical semantic graph. What comes
+back is meaning, not a program: the same `ModelDocument` can be realized many
+different ways, and nothing about *how* to compute has been decided yet.
+
+### Stage 2 — Realization
+
+A Realization is the other half: every numerical and placement choice, stated
+explicitly and in one place.
+
+```rust
+let environment = ScalarEllipticExecutionEnvironment::host_serial();
+let intent = ScalarEllipticIntent::new(
+    RealizationRevision::new(1),
+    ScalarEllipticMethod::FiniteElement,
+    NonZeroUsize::new(CELLS_PER_AXIS).expect("the fixed cell count is nonzero"),
+    NonZeroUsize::MIN,
+);
+
+let plan = model.preview_scalar_elliptic_run(intent, environment)?;
+```
+
+Four choices are visible in the intent — an independent revision number, a
+discretization family, a mesh resolution, and a worker count — plus the
+environment that says which adapters exist to satisfy them. This verbosity is
+deliberate. Eqiora has no default Realization, because a default would silently
+answer a question the user never asked.
+
+`preview_scalar_elliptic_run` resolves the intent against the environment's
+declared capabilities and returns a content-addressed plan. It allocates no
+mesh, no matrix, no worker pool, and no result buffer. An intent the environment
+cannot satisfy fails here, with a diagnostic, rather than quietly degrading to
+something that works.
+
+### Stage 3 — Run
+
+```rust
+let result = model.run_scalar_elliptic_plan(plan, environment)?;
+```
+
+The run executes that exact accepted plan and nothing else. It assembles the
+system, solves it, and independently re-checks the solution before publishing
+any values.
+
+### Stage 4 — Evidence
+
+```text
+model        87f60f730dae4ed057873e9751271b987e9200a25d1ce3174eca0ee747f910df
+realization  revision 1
+  method     continuous Q1 finite elements
+  mesh       generated Cartesian, 16x16 cells
+  placement  eqiora.host.serial on 1 worker(s)
+solve        1 iteration(s), true residual 2.883e-15 <= 6.129e-11 target
+balance      relative imbalance 2.776e-16
+field        17x17 vertices, values in [0.000000, 1.003219]
+L2 error     1.899742e-3  against sin(pi x) sin(pi y)
+```
+
+Four independent things are being reported, and they answer different questions.
+
+- **True residual** says the linear system was solved. It is recomputed from the
+  assembled operator rather than accumulated by the iteration, so it cannot be
+  fooled by a drifting recurrence. It says nothing about whether the *right*
+  system was assembled.
+- **Relative imbalance** compares the recovered boundary flux against the
+  integrated source. It is a discrete conservation check that does not depend on
+  the linear solve at all, so it catches assembly errors the residual would miss.
+- **The L2 error** is the only line that compares against physics. Every other
+  number can be perfect while this one is large, which is precisely why a
+  manufactured solution is worth the trouble.
+- **The identity line** is the structural fingerprint of the compiled meaning.
+  Two compiles of the same source agree on it. It is not the Model artifact
+  digest, which is discussed under [Identity](#identity) below.
+
+One iteration is not a performance claim. This particular source term is, after
+discretization, an exact eigenvector of the Q1 stiffness matrix on a uniform
+grid, so conjugate gradients lands on the solution in a single step. A different
+right-hand side on the same mesh will not.
+
+### Change one line
+
+Raising `CELLS_PER_AXIS` from 16 to 32 is a different Realization of the same
+Model — the semantic fingerprint does not move, and the L2 error falls from
+`1.899742e-3` to `4.751140e-4`. Halving the cell size divides the error by four,
+which is the second-order convergence Q1 elements are supposed to show. Getting
+that ratio is a much stronger statement than any single error value: a
+plausible-looking wrong answer rarely converges at the right rate.
+
+Switching `ScalarEllipticMethod::FiniteElement` to `FiniteVolume` also keeps the
+Model fixed, but changes what the result *is*: 16×16 cell-centred values instead
+of 17×17 vertex values. The example's error norm reads vertex fields and
+declines the cell-centred layout rather than reinterpreting it. An error norm
+belongs to a Realization, not to a Model.
+
+### Identity
+
+`ModelDocument::digest()` is the Model artifact identity and embeds the entity
+ULIDs minted during that compile, so it differs between processes even for
+identical source. Two identities are reproducible instead:
+
+- `ModelDocument::structural_fingerprint()` — the identity of the meaning,
+  independent of ULIDs. The example prints this one.
+- `PackagedModelDocument::compile_locked()` — compiling through a locked package
+  resolution produces a stable Model artifact digest, and with it stable
+  Realization and Run digests. That is the path to take when digests must be
+  recorded, compared, or published; it costs roughly thirty additional lines of
+  package-store and resolution setup that this orientation example omits.
+
+### What you write yourself
+
+The example is 205 lines. That number is worth breaking down, because it is not
+evenly distributed:
+
+| Part | Code lines |
+| --- | --- |
+| Model, Realization, and Run — the path described above | 14 |
+| Hand-rolled L2 error norm | 65 |
+| Formatted reporting | 43 |
+| Imports, constants, and diagnostic-printing scaffold | 23 |
+
+The stage sequence itself is short: about fourteen lines of Rust on top of a
+twenty-one-line model source. The bulk of the file is the error norm, which
+integrates the bilinear interpolant against the exact solution cell by cell.
+Eqiora computes exactly this quantity internally for its registered cases, but
+the accepted result publishes a flat value array plus its Cartesian layout and
+no error-norm operation, so a user comparing against a known solution
+re-derives the element geometry and quadrature. A comparable FEniCS Poisson
+demo reaches a printed L2 error in roughly a dozen lines, and one public norm
+over accepted results would close most of that gap.
 
 ## Numerical and physical slices
 
@@ -25,6 +218,13 @@ The repository's verified cases include bounded paths for:
 Those bullets are navigation categories, not blanket support claims. Choose a
 case from the [evidence catalog](evidence/index.md), then read its manifest and
 README for its exact claim and nonclaims.
+
+The Poisson example above is orientation, not evidence. It establishes nothing
+about accuracy, performance, or support for any other problem. The registered
+counterparts with claims and falsifiers are
+[`numerics.compiled-cartesian-poisson-q1-2d`](https://github.com/nkiyohara/eqiora/blob/main/verify/numerics/compiled-cartesian-poisson-q1-2d/README.md)
+and
+[`packages.typed-execution-lineage`](https://github.com/nkiyohara/eqiora/blob/main/verify/packages/typed-execution-lineage/README.md).
 
 ## Build a new vertical slice
 

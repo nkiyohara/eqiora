@@ -57,14 +57,21 @@ an impossible zero-copy request into a hidden copy.
 - [Capabilities](capabilities.md) states the exact supported boundary and
   nonclaims.
 
-Rust users can run the small public-facade orientation example from a source
+Rust users can run the small public-facade orientation examples from a source
 checkout:
 
 ```bash
 git clone https://github.com/nkiyohara/eqiora.git
 cd eqiora
 cargo run --locked -p eqiora --example quickstart
+cargo run --locked -p eqiora --example poisson
 ```
+
+`quickstart` compiles and runs the decay model above. `poisson` is the spatial
+counterpart: it compiles a 2D Poisson model, selects a finite-element
+Realization explicitly, runs it on the host CPU, and reports the L2 error
+against the exact solution. The [Examples](examples.md) page walks through it
+stage by stage.
 
 Before relying on any numerical method or backend, trace its row in the
 [capability matrix](capabilities.md) to a registered evidence case.
