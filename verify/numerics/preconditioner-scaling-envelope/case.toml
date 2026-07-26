@@ -1,0 +1,80 @@
+id = "numerics.preconditioner-scaling-envelope"
+status = "verified"
+scope = "host-local-spd-preconditioner-scaling-falsifier"
+reference_kind = "pre-declared-envelope-and-analytic-krylov-asymptotics"
+
+capabilities = [
+  "pre-declared-convergence-envelope",
+  "uniform-refinement-iteration-sequence",
+  "identity-jacobi-growth-order-comparison",
+  "krylov-degenerate-probe-rejection",
+  "reference-cg",
+  "true-residual-acceptance",
+]
+
+[problem]
+equation = "-div(grad(u)) = 1"
+domain = "(0, 1) x (0, 1) x (0, 1)"
+boundary = "u = 0 on the complete boundary"
+method = "continuous Cartesian Q1 Galerkin FEM and orthogonal cell-centered TPFA"
+cells_per_axis = [4, 8, 16, 32]
+scalar = "f64"
+layout = "replicated"
+solver = "conjugate gradients, relative 1e-10, absolute 1e-14, cap 50000"
+preconditioners = ["identity", "jacobi"]
+
+[declared_envelope]
+declared_before_measurement = true
+theory = "kappa = O(h^-2) gives O(h^-1) CG iterations, so slope 1 and ratio 2; a scalable method holds slope 0 and ratio 1"
+primary_series = "fem-q1 jacobi"
+adequate_maximum_ratio = 1.4
+adequate_maximum_slope = 0.5
+breach_terminal_ratio = 1.8
+breach_slope = 0.85
+breach_total_growth = 5.0
+discriminator_slope_gap = 0.1
+indeterminate_band = "neither adequacy nor breach; reported as gate stays shut"
+resource_budget_seconds = 600
+excluded_refinement = "n = 64 is outside the declared debug-profile resource envelope and is not measured"
+
+[declared_envelope.validity]
+relative_dominated_stopping = "residual target must exceed the absolute floor at every level"
+uncensored_counts = "no solve may terminate on the iteration cap"
+non_degenerate_krylov_probe = "identity CG must exceed three iterations at the coarsest level and must not be constant across the sequence"
+
+[observed_breach]
+breached = true
+breach_level = "16 to 32, the finest declared refinement step"
+terminal_ratio = 2.08
+fitted_slope = 1.19
+total_growth = 13.0
+identity_and_jacobi_iterations_identical = true
+discriminator_slope_gap = 0.0
+corroborating_fvm_jacobi_slope = 1.45
+resource_budget_met = true
+
+[observed_breach.void_run]
+probe = "single-mode manufactured source of numerics.cartesian-poisson-3d-fem-fvm"
+observed = "one iteration at every refinement level"
+cause = "the load vector of a single separable sine mode is an eigenvector of the uniform-mesh operator, so CG terminates in one step independently of h"
+verdict = "void under the declared non-degenerate-probe condition; supports no conclusion in either direction"
+
+[gate_support]
+amg_construction_and_provenance = true
+restarted_gmres = false
+field_split = false
+rationale = "an SPD single-field iteration-count breach names only the scalable-multilevel deficiency; restarted GMRES needs a nonsymmetric or indefinite operator breaching an orthogonalization-memory envelope, and field split needs a multi-field or saddle-point operator breaching a block-coupling envelope"
+
+[claim_boundary]
+new_preconditioner_implemented = false
+new_solver_tuple_admitted = false
+amg_would_fix_the_growth = false
+performance_or_timing_claim = false
+extrapolation_beyond_32_cells_per_axis = false
+variable_coefficient_or_graded_mesh = false
+threaded_distributed_or_accelerator_execution = false
+
+[evidence]
+package = "eqiora-numerics"
+test = "preconditioner_scaling_envelope"
+table = "expected/iterations.csv"
