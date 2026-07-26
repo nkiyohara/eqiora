@@ -1,5 +1,6 @@
 import {
   acceptanceSummary,
+  EVIDENCE_LINKAGE_UNAVAILABLE,
   type EvidenceState,
   evidenceState,
   evidenceStateExplanation,
@@ -133,7 +134,14 @@ function EvidenceInspector({
           <span aria-hidden="true">{evidenceStateMark(state)}</span> {evidenceStateLabel(state)}
         </span>
       </div>
-      <p className="evidence-inspector__state">{evidenceStateExplanation(state)}</p>
+      {/* A disclosure rather than a paragraph or a tooltip. `<summary>` is
+          natively keyboard-focusable, so the explanation RFC 0076 requires is
+          reachable without a pointer, and it gives this scrollable panel the
+          focusable content WCAG 2.2 asks of one. */}
+      <details className="evidence-inspector__state">
+        <summary>What supports this result?</summary>
+        <p>{evidenceStateExplanation(state)}</p>
+      </details>
       <dl className="evidence-grid">
         <div>
           <dt>Producer</dt>
@@ -170,6 +178,13 @@ function EvidenceInspector({
               {evidence.fieldCount} field · {evidence.sampleCount.toLocaleString()} samples
             </span>
             <small>{elapsedLabel(evidence.elapsedSeconds)} observed wall time</small>
+          </dd>
+        </div>
+        <div>
+          <dt>Registered evidence</dt>
+          <dd>
+            <span>Unavailable</span>
+            <small>{EVIDENCE_LINKAGE_UNAVAILABLE}</small>
           </dd>
         </div>
         <div>
@@ -254,7 +269,12 @@ export function Results({
                   <strong>{series.name}</strong>
                 </div>
                 <div className="chart-summary__item">
-                  <span>Final value</span>
+                  {/* Inline rather than on its own line, so marking the value
+                      costs no vertical space. */}
+                  <span>
+                    Final value · <span aria-hidden="true">{evidenceStateMark(resultState)}</span>{" "}
+                    {evidenceStateLabel(resultState)}
+                  </span>
                   <strong
                     title={markedQuantity(
                       series.values[finalIndex] ?? 0,
@@ -264,10 +284,6 @@ export function Results({
                   >
                     {(series.values[finalIndex] ?? 0).toPrecision(6)}
                   </strong>
-                  <small>
-                    <span aria-hidden="true">{evidenceStateMark(resultState)}</span>{" "}
-                    {evidenceStateLabel(resultState)}
-                  </small>
                 </div>
                 <div className="chart-summary__item">
                   <span>Dimension</span>
@@ -303,7 +319,10 @@ export function Results({
                       <tr key={sample.index}>
                         <td>{sample.index}</td>
                         <td>{sample.time}</td>
-                        <td>{sample.value}</td>
+                        {/* Marked, not bare: this table is the copy and
+                            screen-reader path, and a value detached from its
+                            state reads as carrying more support than it does. */}
+                        <td>{markedQuantity(sample.value, series.dimension, resultState)}</td>
                       </tr>
                     ))}
                   </tbody>

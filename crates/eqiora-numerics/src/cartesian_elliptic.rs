@@ -22,7 +22,9 @@ use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::canonical::ScalarEllipticCartesianModel;
 use crate::cartesian_mesh::CartesianMesh;
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
-use crate::form_compiler::{AdmittedScalarGalerkinForm, DerivedScalarGalerkinForm};
+use crate::form_compiler::{
+    AdmittedScalarGalerkinForm, DerivedScalarGalerkinForm, compile_cartesian_q1_form,
+};
 use crate::linearized_output::CartesianScalarFieldLinearization;
 use crate::operator::LocalOperator;
 use crate::spatial_design::SpatialDesignCoordinate;
@@ -589,10 +591,11 @@ pub fn lower_cartesian_q1_diffusion_local_action(
             invalid("Cartesian Q1 local-action batch exceeds platform allocation capacity")
         })?;
     let zero_source = |_: &[f64]| 0.0;
+    let compiled = compile_cartesian_q1_form(dimension, quadrature)?;
     let operator = CartesianEllipticCell {
         diffusion,
         source: &zero_source,
-        compiled: None,
+        compiled: &compiled,
     };
     for cell_index in 0..cell_count {
         let cell = MeshEntity::new(dimension, cell_index);
@@ -652,15 +655,16 @@ where
     B: Fn(&[f64]) -> f64 + ?Sized,
 {
     validate_problem(mesh, diffusion, quadrature)?;
-    let compiled = form
-        .map(|form| form.admit_quadrature(quadrature))
-        .transpose()?;
+    let dimension = mesh.topological_dimension();
+    let compiled = match form {
+        Some(form) => form.admit_quadrature(quadrature)?,
+        None => compile_cartesian_q1_form(dimension, quadrature)?,
+    };
     let operator = CartesianEllipticCell {
         diffusion,
         source,
-        compiled: compiled.as_ref(),
+        compiled: &compiled,
     };
-    let dimension = mesh.topological_dimension();
     let vertex_count = mesh.entity_count(0).expect("mesh owns vertices");
     let mut fixed_values = Vec::with_capacity(vertex_count);
     let mut free_indices = vec![None; vertex_count];
@@ -1567,7 +1571,7 @@ fn ensure_finite_design_assembly(values: &[f64]) -> Result<(), Diagnostic> {
 struct CartesianEllipticCell<'a, S: ?Sized> {
     diffusion: f64,
     source: &'a S,
-    compiled: Option<&'a AdmittedScalarGalerkinForm<'a>>,
+    compiled: &'a AdmittedScalarGalerkinForm<'a>,
 }
 
 impl<S> LocalOperator<AffineGeometryMap> for CartesianEllipticCell<'_, S>
@@ -1579,55 +1583,8 @@ where
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
     ) -> Result<LocalContribution, Diagnostic> {
-        if let Some(compiled) = self.compiled {
-            return compiled.evaluate(geometry, quadrature, self.diffusion, self.source);
-        }
-        require_geometry_rule(geometry, quadrature)?;
-        let dimension = geometry.reference_cell().dimension();
-        if geometry.physical_dimension() != dimension {
-            return Err(invalid(
-                "Cartesian elliptic cell requires matching physical and reference dimensions",
-            ));
-        }
-        let inverse = geometry.inverse_jacobian()?;
-        let space = HypercubeQ1Space::new(dimension)?;
-        let dof_count = space.local_dofs().len();
-        let mut matrix = vec![0.0; dof_count * dof_count];
-        let mut rhs = vec![0.0; dof_count];
-        let mut physical = vec![0.0; dimension];
-        for point in quadrature.points() {
-            let basis = space.tabulate(&point.coordinates)?;
-            geometry.map_point(&point.coordinates, &mut physical)?;
-            let source_value = (self.source)(&physical);
-            if !source_value.is_finite() {
-                return Err(invalid("Cartesian source returned a non-finite value"));
-            }
-            let scale = point.weight * geometry.measure_scale();
-            let physical_gradients = (0..dof_count)
-                .map(|dof| {
-                    physical_gradient(
-                        basis
-                            .gradient(dof)
-                            .expect("tabulation owns every basis gradient"),
-                        &inverse,
-                        dimension,
-                    )
-                })
-                .collect::<Vec<_>>();
-            for row in 0..dof_count {
-                rhs[row] += scale * source_value * basis.values()[row];
-                for column in 0..dof_count {
-                    matrix[row * dof_count + column] += scale
-                        * self.diffusion
-                        * physical_gradients[row]
-                            .iter()
-                            .zip(&physical_gradients[column])
-                            .map(|(left, right)| left * right)
-                            .sum::<f64>();
-                }
-            }
-        }
-        LocalContribution::new(dof_count, dof_count, matrix, rhs)
+        self.compiled
+            .evaluate(geometry, quadrature, self.diffusion, self.source)
     }
 }
 

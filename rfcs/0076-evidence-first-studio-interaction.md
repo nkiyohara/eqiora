@@ -76,6 +76,21 @@ degenerate case.
 | **Admissible** | the configuration was admitted and executed, but no registered case covers this class | persistently marked, with the gap named |
 | **Stale** | the Model, Realization, or inputs changed after this result was produced | marked and non-actionable until re-run |
 
+**Only two are reachable today, and the implementation must not fake the third.**
+Nothing a Run carries says whether a registered case covers its capability
+class. The first implementation of this contract mapped *verified* onto
+`acceptance.independentVerifier`, which is a narrower fact — whether a second
+numerical backend re-checked the solve — and which the wire pins to `false`. That
+mapping would have labelled every result in the product "unverified" while
+appearing to have measured something, and its unit test only passed because it
+cast past the schema.
+
+So the distinction implemented today is **accepted** versus **stale**, and the
+evidence segment is displayed as *unavailable, with the reason*. Per
+"Compatibility and migration" below, the missing linkage is a requirement
+returned to the owning contract, not something Studio reconstructs from a
+convenient neighbouring field.
+
 A number must never move from admissible to verified by being displayed in a
 context that looks confident. Concretely: the marking travels with the value
 into tables, plot legends, tooltips, exports, and copy-to-clipboard. A value

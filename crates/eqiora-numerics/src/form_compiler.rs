@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_assembly::LocalContribution;
+use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_graph::EdgeKind;
@@ -79,6 +80,7 @@ struct BoundaryRole {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DerivedScalarGalerkinForm {
+    dimension: usize,
     domain: RawId,
     field: RawId,
     volume_relation: RawId,
@@ -104,11 +106,12 @@ struct BoundaryNodes {
 #[derive(Debug, Clone)]
 struct QuadratureRecord {
     rule: QuadratureRule,
-    declared_exactness: usize,
+    declared_exactness: Option<usize>,
 }
 
 pub(crate) struct AdmittedScalarGalerkinForm<'a> {
-    form: &'a DerivedScalarGalerkinForm,
+    form: Option<&'a DerivedScalarGalerkinForm>,
+    dimension: usize,
     quadrature: QuadratureRecord,
 }
 
@@ -125,7 +128,7 @@ impl DerivedScalarGalerkinForm {
             )
         })?;
         if quadrature.reference_cell().family() != ReferenceCellFamily::Hypercube
-            || quadrature.reference_cell().dimension() != 2
+            || quadrature.reference_cell().dimension() != self.dimension
             || exactness < 3
             || quadrature.points().len() > MAX_QUADRATURE_POINTS
         {
@@ -133,15 +136,17 @@ impl DerivedScalarGalerkinForm {
                 self.volume_relation,
                 "realization compatibility",
                 format!(
-                    "compiled Q1 requires a 2D hypercube rule with declared exactness >= 3 and at most {MAX_QUADRATURE_POINTS} points"
+                    "compiled Q1 requires a {}D hypercube rule with declared exactness >= 3 and at most {MAX_QUADRATURE_POINTS} points",
+                    self.dimension
                 ),
             ));
         }
         Ok(AdmittedScalarGalerkinForm {
-            form: self,
+            form: Some(self),
+            dimension: self.dimension,
             quadrature: QuadratureRecord {
                 rule: quadrature.clone(),
-                declared_exactness: exactness,
+                declared_exactness: Some(exactness),
             },
         })
     }
@@ -213,15 +218,19 @@ impl DerivedScalarGalerkinForm {
     }
 
     fn validate_boundary_certificate(&self) -> Result<(), Diagnostic> {
-        if self.boundary_roles.len() != 4
+        let boundary_count = 2 * self.dimension;
+        if self.boundary_roles.len() != boundary_count
             || self.certificate.entries.len() != self.boundary_roles.len() + 3
         {
             return Err(certificate_error(
                 self.volume_relation,
-                "complete 2D essential-boundary discharge requires four entries",
+                format!(
+                    "complete {}D essential-boundary discharge requires {boundary_count} entries",
+                    self.dimension
+                ),
             ));
         }
-        for (entry, boundary) in self.certificate.entries[2..6]
+        for (entry, boundary) in self.certificate.entries[2..2 + boundary_count]
             .iter()
             .zip(&self.boundary_roles)
         {
@@ -244,6 +253,29 @@ impl DerivedScalarGalerkinForm {
     }
 }
 
+pub(crate) fn compile_cartesian_q1_form(
+    dimension: usize,
+    quadrature: &QuadratureRule,
+) -> Result<AdmittedScalarGalerkinForm<'static>, Diagnostic> {
+    let space = HypercubeQ1Space::new(dimension)?;
+    if quadrature.reference_cell().family() != ReferenceCellFamily::Hypercube
+        || quadrature.reference_cell() != space.reference_cell()
+    {
+        return Err(Diagnostic::error(
+            codes::INVALID_DISCRETIZATION,
+            "compiled Cartesian Q1 form requires a dimension-matched hypercube quadrature rule",
+        ));
+    }
+    Ok(AdmittedScalarGalerkinForm {
+        form: None,
+        dimension,
+        quadrature: QuadratureRecord {
+            rule: quadrature.clone(),
+            declared_exactness: quadrature.polynomial_exactness(),
+        },
+    })
+}
+
 impl AdmittedScalarGalerkinForm<'_> {
     pub(crate) fn evaluate<S>(
         &self,
@@ -257,21 +289,19 @@ impl AdmittedScalarGalerkinForm<'_> {
     {
         self.validate_realization(geometry, quadrature)?;
         let inverse = geometry.inverse_jacobian()?;
-        let space = HypercubeQ1Space::new(2)?;
+        let space = HypercubeQ1Space::new(self.dimension)?;
         let dof_count = space.local_dofs().len();
         let mut matrix = vec![0.0; dof_count * dof_count];
         let mut rhs = vec![0.0; dof_count];
-        let mut physical = vec![0.0; 2];
+        let mut physical = vec![0.0; self.dimension];
         for point in quadrature.points() {
             let basis = space.tabulate(&point.coordinates)?;
             geometry.map_point(&point.coordinates, &mut physical)?;
             let source_value = source(&physical);
             if !source_value.is_finite() {
-                return Err(gate_error(
-                    self.form.volume_relation,
-                    "realization compatibility",
-                    "compiled Q1 source produced a non-finite value",
-                ));
+                return Err(
+                    self.realization_error("compiled Q1 source produced a non-finite value")
+                );
             }
             let scale = point.weight * geometry.measure_scale();
             let gradients = (0..dof_count)
@@ -279,7 +309,7 @@ impl AdmittedScalarGalerkinForm<'_> {
                     physical_gradient(
                         basis.gradient(dof).expect("Q1 tabulates every gradient"),
                         &inverse,
-                        2,
+                        self.dimension,
                     )
                 })
                 .collect::<Vec<_>>();
@@ -304,21 +334,28 @@ impl AdmittedScalarGalerkinForm<'_> {
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
     ) -> Result<(), Diagnostic> {
-        let space = HypercubeQ1Space::new(2)?;
+        let space = HypercubeQ1Space::new(self.dimension)?;
         if space.reference_cell() != self.quadrature.rule.reference_cell()
             || geometry.reference_cell() != self.quadrature.rule.reference_cell()
-            || geometry.physical_dimension() != 2
+            || geometry.physical_dimension() != self.dimension
             || quadrature != &self.quadrature.rule
-            || quadrature.polynomial_exactness() != Some(self.quadrature.declared_exactness)
-            || space.local_dofs().len() > MAX_LOCAL_DOFS
+            || quadrature.polynomial_exactness() != self.quadrature.declared_exactness
+            || self.form.is_some() && space.local_dofs().len() > MAX_LOCAL_DOFS
         {
-            return Err(gate_error(
-                self.form.volume_relation,
-                "realization compatibility",
+            return Err(self.realization_error(
                 "compiled Q1 space, affine geometry, bit DOF order, or quadrature record drifted",
             ));
         }
         Ok(())
+    }
+
+    fn realization_error(&self, message: impl Into<String>) -> Diagnostic {
+        let message = message.into();
+        if let Some(form) = self.form {
+            gate_error(form.volume_relation, "realization compatibility", message)
+        } else {
+            Diagnostic::error(codes::INVALID_DISCRETIZATION, message)
+        }
     }
 }
 
@@ -326,9 +363,9 @@ pub(crate) fn derive_candidate(
     program: &KernelProgram,
     domain: RawId,
 ) -> Result<Option<DerivedScalarGalerkinForm>, Diagnostic> {
-    if !is_two_dimensional_box(program, domain) {
+    let Some(dimension) = cartesian_q1_dimension(program, domain) else {
         return Ok(None);
-    }
+    };
     let fields = continuum_fields_on(program, domain);
     if fields.len() != 1 {
         return Err(role_error(
@@ -351,7 +388,7 @@ pub(crate) fn derive_candidate(
     }
     let field = fields[0];
     let volume_relation = volume_relations[0];
-    let boundaries = boundary_inventory(program, domain, field)?;
+    let boundaries = boundary_inventory(program, domain, field, dimension)?;
     let Some(boundary_roles) = boundaries else {
         return Ok(None);
     };
@@ -359,11 +396,12 @@ pub(crate) fn derive_candidate(
     validate_expression(&typed, volume_relation, field)?;
     let volume = recognize_volume(typed.expression(), volume_relation, field)?;
     validate_source_expression(typed.expression(), volume.source, volume_relation)?;
-    validate_static_bounds(typed.expression(), volume_relation)?;
+    validate_static_bounds(typed.expression(), volume_relation, dimension)?;
     let parameters =
         validate_closed_roles(program, domain, field, volume_relation, &boundary_roles)?;
     let certificate = build_certificate(volume_relation, volume, &boundary_roles, &parameters)?;
     let form = DerivedScalarGalerkinForm {
+        dimension,
         domain,
         field,
         volume_relation,
@@ -400,18 +438,23 @@ pub(crate) fn typed_relation(
         })
 }
 
-fn is_two_dimensional_box(program: &KernelProgram, domain: RawId) -> bool {
-    matches!(
-        program.node(domain),
-        Some(KernelNode::Domain(definition))
-            if matches!(definition.kind(), DomainKind::CartesianBox { bounds } if bounds.len() == 2)
-    )
+fn cartesian_q1_dimension(program: &KernelProgram, domain: RawId) -> Option<usize> {
+    match program.node(domain) {
+        Some(KernelNode::Domain(definition)) => match definition.kind() {
+            DomainKind::CartesianBox { bounds } if (1..=3).contains(&bounds.len()) => {
+                Some(bounds.len())
+            }
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 fn boundary_inventory(
     program: &KernelProgram,
     parent: RawId,
     field: RawId,
+    dimension: usize,
 ) -> Result<Option<Vec<BoundaryRole>>, Diagnostic> {
     let mut by_side = BTreeMap::new();
     for node in program.nodes() {
@@ -454,21 +497,18 @@ fn boundary_inventory(
             ));
         }
     }
-    let expected = [
-        (0, BoundarySide::Lower),
-        (0, BoundarySide::Upper),
-        (1, BoundarySide::Lower),
-        (1, BoundarySide::Upper),
-    ];
+    let expected = (0..dimension)
+        .flat_map(|axis| [(axis, BoundarySide::Lower), (axis, BoundarySide::Upper)])
+        .collect::<Vec<_>>();
     if by_side.len() != expected.len() || expected.iter().any(|side| !by_side.contains_key(side)) {
         return Err(role_error(
             parent,
-            "compiled Q1 requires one homogeneous essential Relation on every 2D box side",
+            format!(
+                "compiled Q1 requires one homogeneous essential Relation on every {dimension}D box side"
+            ),
         ));
     }
-    Ok(Some(
-        expected.into_iter().map(|side| by_side[&side]).collect(),
-    ))
+    Ok(Some(expected.iter().map(|side| by_side[side]).collect()))
 }
 
 fn validate_expression(
@@ -697,7 +737,11 @@ fn is_literal_zero(expression: &ExprDag, value: ExprId) -> bool {
     )
 }
 
-fn validate_static_bounds(expression: &ExprDag, owner: RawId) -> Result<(), Diagnostic> {
+fn validate_static_bounds(
+    expression: &ExprDag,
+    owner: RawId,
+    dimension: usize,
+) -> Result<(), Diagnostic> {
     if DERIVED_DERIVATIVE_ORDER > MAX_DERIVATIVE_ORDER
         || DERIVED_INTEGRAL_TERMS > MAX_INTEGRAL_TERMS
         || Q1_TEMPORARIES > MAX_TEMPORARIES
@@ -708,7 +752,7 @@ fn validate_static_bounds(expression: &ExprDag, owner: RawId) -> Result<(), Diag
             "derived Q1 work exceeds one or more frozen compiler bounds",
         ));
     }
-    let dofs = HypercubeQ1Space::new(2)?.local_dofs().len();
+    let dofs = HypercubeQ1Space::new(dimension)?.local_dofs().len();
     if dofs > MAX_LOCAL_DOFS {
         return Err(bounds_error(
             owner,

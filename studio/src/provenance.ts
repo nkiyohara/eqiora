@@ -3,22 +3,28 @@ import type { RunEvidence } from "./reference-run-protocol";
 /**
  * How much a displayed quantity is actually supported.
  *
- * RFC 0076 requires these three never to collapse into each other. A result
- * that no independent verifier accepted must not render like one that was, and
- * a result whose inputs have moved must not render like a current one.
+ * RFC 0076 defines three states: verified, admissible, and stale. Only two are
+ * reachable today, and this module deliberately does not fake the third.
+ *
+ * "Verified" there means *a registered case supports this exact capability
+ * class*. Nothing a Run carries says that. `acceptance.independentVerifier` is
+ * a narrower fact — whether a second numerical backend re-checked the solve —
+ * and the wire pins it to `false`, so treating it as the verified signal would
+ * have labelled every result in the product "unverified" while looking like it
+ * had measured something. The evidence linkage is a gap in the owning contract,
+ * reported as such rather than reconstructed here.
  */
-export type EvidenceState = "verified" | "admissible" | "stale";
+export type EvidenceState = "accepted" | "stale";
 
 /**
- * Derived from the run record rather than asserted by the view.
+ * What the Run actually establishes.
  *
- * The previous inspector printed a fixed acceptance sentence that no data fed,
- * so it would have kept claiming no independent producer applied even after one
- * did. A view must not assert what it has not read.
+ * Derived from the record rather than asserted by the view: the inspector used
+ * to print a fixed acceptance sentence that no data fed, so it would have kept
+ * claiming no independent producer applied even after one did.
  */
-export function evidenceState(evidence: RunEvidence, stale: boolean): EvidenceState {
-  if (stale) return "stale";
-  return evidence.plan.acceptance.independentVerifier ? "verified" : "admissible";
+export function evidenceState(_evidence: RunEvidence, stale: boolean): EvidenceState {
+  return stale ? "stale" : "accepted";
 }
 
 /**
@@ -27,49 +33,35 @@ export function evidenceState(evidence: RunEvidence, stale: boolean): EvidenceSt
  * costs most. Paired with a text label everywhere it appears.
  */
 export function evidenceStateMark(state: EvidenceState): string {
-  switch (state) {
-    case "verified":
-      return "✓";
-    case "admissible":
-      return "△";
-    case "stale":
-      return "◌";
-  }
+  return state === "accepted" ? "✓" : "◌";
 }
 
 export function evidenceStateLabel(state: EvidenceState): string {
-  switch (state) {
-    case "verified":
-      return "Verified";
-    case "admissible":
-      return "Admissible, unverified";
-    case "stale":
-      return "Stale";
-  }
+  return state === "accepted" ? "Accepted" : "Stale";
+}
+
+export function evidenceStateExplanation(state: EvidenceState): string {
+  return state === "accepted"
+    ? "This run was accepted by its semantic oracle, with an independently recomputed residual. Whether a registered case covers this capability class is not recorded in the run and is not shown."
+    : "The model, run inputs, or revision changed after this result was produced.";
 }
 
 /**
- * What the state means for the number next to it, in the user's terms rather
- * than the pipeline's.
+ * The one segment of RFC 0076's provenance path that a Run cannot answer.
+ *
+ * Shown rather than omitted: an absent segment reads as verified, which is the
+ * failure the contract exists to prevent.
  */
-export function evidenceStateExplanation(state: EvidenceState): string {
-  switch (state) {
-    case "verified":
-      return "An independent verifier accepted this result.";
-    case "admissible":
-      return "The configuration was admitted and executed, but no independent verifier accepted this result. It is not evidence of correctness.";
-    case "stale":
-      return "The model, run inputs, or revision changed after this result was produced.";
-  }
-}
+export const EVIDENCE_LINKAGE_UNAVAILABLE =
+  "Not recorded in the run record; the registered-case link is a gap in the owning contract";
 
 /**
  * The marking travels with the value.
  *
- * A quantity copied out of Studio, dropped into a table, or read from a legend
- * carries its state and its unit in the text itself. Detached from that, a
- * number is indistinguishable from a verified one, which is the failure this
- * whole contract exists to prevent.
+ * A quantity copied out of Studio, read from a table, or dropped into a
+ * document carries its state and its unit in the text itself. Detached from
+ * that, a number is indistinguishable from one that carries more support than
+ * it does.
  */
 export function markedQuantity(
   value: number,
@@ -91,6 +83,8 @@ export function acceptanceSummary(evidence: RunEvidence): {
   const { acceptance } = evidence.plan;
   return {
     kind: acceptance.kind === "semantic-oracle" ? "Semantic oracle" : acceptance.kind,
-    verifier: acceptance.independentVerifier ? "Independently verified" : "No independent verifier",
+    verifier: acceptance.independentVerifier
+      ? "Independently re-verified by a second backend"
+      : "No second-backend re-verification",
   };
 }

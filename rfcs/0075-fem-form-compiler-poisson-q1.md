@@ -233,6 +233,36 @@ The replacement condition, which can actually be evaluated:
 > those holds, the abstraction is on probation and no further physics is built
 > on it.
 
+**Partly met, draft 4 — and an earlier draft of this paragraph overstated it.**
+
+What holds: the derivation is runtime-dimensional over 1D–3D Cartesian Q1, and
+the hand-written production evaluator is gone. `CartesianEllipticCell` delegates
+and its `compiled` field is no longer an `Option`, so a fallback is structurally
+impossible rather than merely unused. Both construction sites must produce either
+an admitted form carrying a semantic certificate or a compiled witness-data form.
+
+What does not hold: amendment A1 requires **all** of its five conditions, and one
+of them is that *at least two hand-written implementations, or one primal/JVP/VJP
+triple, are deleted*. One evaluator was retired. The design-sensitivity site
+below survives. Reading "the formula-site count fell" as satisfying A1 is
+selecting the clause that suits the result, and this RFC previously did exactly
+that.
+
+The accounting: production is **+104 / −103**, a net gain of one line. Total
+volume did not fall. The gain is structural — one site instead of two — and that
+is real but partial. Nobody should read this as evidence that the compiler
+shrinks the codebase, because it has not.
+
+The generic witness-data path does **not** carry a semantic certificate. Only the
+admitted path does. That distinction is part of the claim boundary.
+
+**What was not consolidated.** The claim is about the *primal* evaluator.
+`linearize_scalar_elliptic_cartesian_fem` still tabulates basis gradients and
+forms its load term directly, so the design-sensitivity path remains a
+hand-written invariant-bearing site with its own arithmetic. It was outside this
+slice and is not covered by the certificate. Anyone counting formula sites should
+count it: one was retired, one remains, and it is the obvious next target.
+
 ## Alternatives considered
 
 **A public `eqiora-form-compiler` crate with a general weak-form IR.** Rejected.
@@ -329,11 +359,51 @@ F = [0.42549571438121403, 0.47482060177589164, 0.24287139083576761, 0.2710258553
 
 Exact load for constant `f = 1`: `hx*hy/4 = 0.03125` at every node.
 
+### The n-dimensional generalization, draft 4
+
+The 2D form above is the `d = 2` case of
+
+```
+K_ij = sum_a (1/h_a) * s_a * prod_{b != a} (h_b * m_b)
+  s_a = +1 if i_a == j_a else -1
+  m_b = 1/3 if i_b == j_b else 1/6
+```
+
+over the tensor-product basis, with the vertex index as its axis bit pattern.
+This reproduces the frozen 2D matrix in exact rationals.
+
+3D fixture, `hx=1/4, hy=1/2, hz=1/8, k=1`. All three edge lengths differ so no
+axis permutation survives. **`192 * K` as exact integers** — 192 is the least
+common multiple of the entry denominators, computed rather than guessed:
+
+```
+[  28,   6,  12,   2, -18, -13, -10,  -7]
+[   6,  28,   2,  12, -13, -18,  -7, -10]
+[  12,   2,  28,   6, -10,  -7, -18, -13]
+[   2,  12,   6,  28,  -7, -10, -13, -18]
+[ -18, -13, -10,  -7,  28,   6,  12,   2]
+[ -13, -18,  -7, -10,   6,  28,   2,  12]
+[ -10,  -7, -18, -13,  12,   2,  28,   6]
+[  -7, -10, -13, -18,   2,  12,   6,  28]
+```
+
+Constant-source load: `prod(h)/2^d = 1/512` at every node.
+
+Draft 3 published this table scaled by 144, where the entries are not integers.
+Integer truncation turned `9/2` into `4`, and the published row sum was `1/144`
+rather than zero — a matrix that is not a Q1 stiffness matrix at all. The
+implementing agent refused to build against it and derived the correct values
+independently, which is the only reason it was caught. The formula and the
+underlying rational arithmetic were always right; the presentation was not. This
+is why amendment A4 forbids an implementer from fitting an implementation to an
+oracle, and why the dual-oracle gate now exists.
+
 ### Structural invariants
 
 Every row of `K` sums to zero; `K` is symmetric with positive diagonal; the load
-vector sums to the exact cell integral of the source; `alpha` and `beta` depend
-only on the aspect ratio.
+vector sums to the exact cell integral of the source; in 2D, `alpha` and `beta`
+depend only on the aspect ratio. These hold in 1D, 2D, and 3D and are asserted
+on exact rationals before any scaling is published.
 
 ### Tolerances, step, and direction
 
