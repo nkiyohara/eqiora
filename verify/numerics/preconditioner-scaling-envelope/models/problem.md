@@ -38,10 +38,12 @@ unknown and expands over the sine basis across all odd triples, so it occupies
 no low-dimensional invariant subspace. Declared thresholds were carried over
 unchanged.
 
-**This substitution is not a free choice made after seeing results.** It is
-recorded as a probe replacement under a pre-declared validity condition, and the
-limits of how auditable that ordering is are stated in the case manifest's
-`declared_envelope` block rather than glossed over.
+The substitution **was made after Run 1 had been measured and voided**, under a
+validity condition declared beforehand. The thresholds did not move, and the
+voided run is retained above so the replacement stays distinguishable from a
+moved line — but the choice of replacement probe is a degree of freedom that
+this case does not close, and the manifest records the ordering as asserted
+rather than established.
 
 ## What the harness varies
 

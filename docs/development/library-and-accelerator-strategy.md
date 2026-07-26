@@ -675,15 +675,26 @@ because some capabilities are preconditions for their own consumers; "the
 absence of the capability prevents consumers from existing" is rejected as too
 subjective to gate on, while a declared envelope breach is checkable.
 
-The declaration must be **fixed before the measurement exists, in its own
-commit**, naming the probe, the thresholds, the indeterminate band, and the
-validity conditions under which a run is void. A declaration that arrives in
-the same commit as its observations is an assertion about the author's order of
-work, not an auditable fact, and does not satisfy this condition: choosing the
-threshold and choosing the probe are both post-hoc degrees of freedom, and
-freezing the numbers does not close the second one. Where a probe is replaced
-because the first was void, the replacement is itself declared in a commit
-before the run that uses it, and the void run is retained.
+The declaration must be **merged to the protected default branch on its own**,
+naming the probe, the thresholds, the indeterminate band, and the validity
+conditions under which a run is void. Only measurements produced by hosted CI,
+from a descendant of that merge commit, on a run started after it, are
+admissible as the breach.
+
+A weaker rule does not work. A declaration in the same commit as its
+observations is an assertion about the author's order of work, not a fact:
+choosing the threshold and choosing the probe are both post-hoc degrees of
+freedom, and freezing the numbers closes only the first. Requiring merely a
+separate earlier commit is no better, because local history can be rebuilt so
+that a declaration written after measuring becomes the parent of the
+observation. Commit and author timestamps are self-reported and add nothing.
+Protected-branch merge order is the first thing an author cannot rewrite.
+
+Even this proves only that the *admitted* measurement post-dates the
+declaration. It cannot prove that the same probe was not run privately
+beforehand, so the requirement binds the accepted evidence and never claims
+more. Where a probe is replaced because the first was void, the replacement is
+declared under the same two-stage rule and the void run is retained.
 
 The falsifier and the construction/provenance policy are built first. A
 candidate enters the stable vocabulary only after passing them, never on the

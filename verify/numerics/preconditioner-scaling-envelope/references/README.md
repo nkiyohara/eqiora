@@ -30,11 +30,16 @@ every refinement, with `kappa` unchanged.
 
 The declared thresholds — slope `0.85` and terminal ratio `1.8` — are therefore
 a **declared standard of adequacy**, not a prediction the theory fixes. Slope
-`1` and ratio `2` are the bound's worst case and the value a broad-spectrum
-right-hand side is expected to approach; a scalable method would instead hold
-slope near `0` and ratio near `1`, and that separation is what the envelope is
-built to detect. The breach reported by this case is an observation about the
-measured sequence, and it stands on the measurement rather than on this bound.
+`1` and ratio `2` are the condition-number-only asymptotic ceiling: exponent
+`1`, refinement factor `2`. The theory does not say a finite sequence attains
+them, nor that a right-hand side with broad spectral content approaches them —
+that depends on the eigenvalue distribution and clustering and on the initial
+error coefficient over each eigenvector, neither of which the bound constrains.
+
+A scalable method would instead hold slope near `0` and ratio near `1`, and
+that separation is what the envelope is built to detect. That this particular
+sequence runs close to the ceiling is an **observation**, reported as such, and
+the breach stands on the measurement rather than on this bound.
 
 Diagonal (Jacobi) preconditioning rescales rows and columns. On a uniform
 Cartesian mesh with a constant coefficient it is a single scalar multiple of the

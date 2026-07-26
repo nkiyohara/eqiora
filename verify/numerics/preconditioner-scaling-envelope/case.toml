@@ -31,7 +31,8 @@ preconditioners = ["identity", "jacobi"]
 # alone, so the recorded breach does not depend on the levels seen early — but
 # probe selection remains an open degree of freedom here. Later cases must fix
 # the declaration in its own commit, ahead of the measurement.
-declared_before_measurement = "asserted, not independently auditable"
+declared_before_measurement = false
+declaration_provenance = "asserted-not-auditable"
 declaration_and_observation_share_a_commit = true
 theory = "kappa = O(h^-2) gives O(h^-1) CG iterations, so slope 1 and ratio 2; a scalable method holds slope 0 and ratio 1"
 primary_series = "fem-q1 jacobi"

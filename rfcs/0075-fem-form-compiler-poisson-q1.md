@@ -209,9 +209,29 @@ execution; and any performance property.
 ### Stop condition
 
 If the admitted subset requires a special case at essentially every term, stop
-and report rather than widening toward a general weak-form IR. Proceed to a
-second consumer only if this plan deletes or simplifies a hand-written residual
-or derivative path **without weakening any oracle**.
+and report rather than widening toward a general weak-form IR.
+
+**Correction, draft 3.** The original second sentence — proceed only if this
+slice deletes or simplifies a hand-written path — is unmeetable by
+construction, and was accepted before anyone checked that. The retained
+evaluator serves every configuration the eligibility predicate excludes: other
+dimensions, other spaces, finite volume. Nothing about a 2D Q1 slice can retire
+it. Measured outcome: 1,347 insertions against 50 incidental deletions, with the
+hand-written evaluator still live.
+
+So amendment A1's audit-compression test is **not yet met**. This slice
+increases the number of invariant-bearing hand-written formula sites rather than
+reducing it, and deletes no implementation. What it establishes is that the
+derivation is correct and independently falsifiable — not that it pays for
+itself.
+
+The replacement condition, which can actually be evaluated:
+
+> Audit compression is demonstrated when the compiled path subsumes the whole
+> domain of one hand-written evaluator so that evaluator is **deleted**, or when
+> a second instance is added and shown to need only witness data. Until one of
+> those holds, the abstraction is on probation and no further physics is built
+> on it.
 
 ## Alternatives considered
 
