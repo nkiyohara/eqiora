@@ -1,3 +1,12 @@
+import {
+  acceptanceSummary,
+  type EvidenceState,
+  evidenceState,
+  evidenceStateExplanation,
+  evidenceStateLabel,
+  evidenceStateMark,
+  markedQuantity,
+} from "./provenance";
 import type { RunEvidence, RunResult } from "./reference-run-protocol";
 
 const MAX_CHART_POINTS = 1_200;
@@ -106,6 +115,8 @@ function EvidenceInspector({
   readonly stale: boolean;
 }) {
   const { plan } = evidence;
+  const state = evidenceState(evidence, stale);
+  const acceptance = acceptanceSummary(evidence);
   return (
     <aside
       className="evidence-inspector"
@@ -118,10 +129,11 @@ function EvidenceInspector({
           <span className="eyebrow">Immutable run record</span>
           <h3 id="evidence-heading">Evidence</h3>
         </div>
-        <span className={stale ? "state-pill state-pill--warm" : "state-pill state-pill--ready"}>
-          {stale ? "Retained" : "Accepted"}
+        <span className={`state-pill state-pill--${state}`} title={evidenceStateExplanation(state)}>
+          <span aria-hidden="true">{evidenceStateMark(state)}</span> {evidenceStateLabel(state)}
         </span>
       </div>
+      <p className="evidence-inspector__state">{evidenceStateExplanation(state)}</p>
       <dl className="evidence-grid">
         <div>
           <dt>Producer</dt>
@@ -147,8 +159,8 @@ function EvidenceInspector({
         <div>
           <dt>Acceptance</dt>
           <dd>
-            <span>Semantic oracle</span>
-            <small>No independent optimized producer applies</small>
+            <span>{acceptance.kind}</span>
+            <small>{acceptance.verifier}</small>
           </dd>
         </div>
         <div>
@@ -202,6 +214,11 @@ export function Results({
     .join(" ");
   const tableSamples =
     series === null ? [] : boundedSeriesSamples(series.time, series.values, MAX_TABLE_ROWS);
+  // Derived here as well as in the inspector, because RFC 0076 requires the
+  // marking to travel with the value rather than live only in a side panel a
+  // user has to know to open.
+  const resultState: EvidenceState =
+    result === null ? "stale" : evidenceState(result.evidence, stale);
   return (
     <section className="results" aria-labelledby="results-heading" aria-live="polite">
       <div className="section-line">
@@ -238,7 +255,19 @@ export function Results({
                 </div>
                 <div className="chart-summary__item">
                   <span>Final value</span>
-                  <strong>{(series.values[finalIndex] ?? 0).toPrecision(6)}</strong>
+                  <strong
+                    title={markedQuantity(
+                      series.values[finalIndex] ?? 0,
+                      series.dimension,
+                      resultState,
+                    )}
+                  >
+                    {(series.values[finalIndex] ?? 0).toPrecision(6)}
+                  </strong>
+                  <small>
+                    <span aria-hidden="true">{evidenceStateMark(resultState)}</span>{" "}
+                    {evidenceStateLabel(resultState)}
+                  </small>
                 </div>
                 <div className="chart-summary__item">
                   <span>Dimension</span>
@@ -258,8 +287,9 @@ export function Results({
               <div className="sr-only">
                 <table>
                   <caption>
-                    {series.name} bounded trajectory sample table, {tableSamples.length} of{" "}
-                    {series.time.length} rows
+                    {series.name} bounded trajectory sample table in [{series.dimension}],{" "}
+                    {tableSamples.length} of {series.time.length} rows.{" "}
+                    {evidenceStateLabel(resultState)}. {evidenceStateExplanation(resultState)}
                   </caption>
                   <thead>
                     <tr>

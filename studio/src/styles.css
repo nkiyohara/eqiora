@@ -637,6 +637,34 @@ h2 {
   color: #a8d2f2;
 }
 
+/* RFC 0076. Each state also carries a text label and a non-color mark in the
+   markup, because status conveyed by color alone survives neither a screen
+   reader nor a copied cell. These rules reinforce the distinction; they never
+   carry it alone. */
+.state-pill--verified {
+  border-color: rgba(158, 210, 183, 0.26);
+  background: rgba(158, 210, 183, 0.06);
+  color: var(--mint);
+}
+
+.state-pill--admissible {
+  border-color: rgba(233, 201, 121, 0.32);
+  background: rgba(233, 201, 121, 0.08);
+  color: var(--amber);
+}
+
+.state-pill--stale {
+  border-color: rgba(233, 201, 121, 0.22);
+  color: var(--amber);
+}
+
+.evidence-inspector__state {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 .source-panel {
   display: flex;
   flex-direction: column;
