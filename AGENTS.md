@@ -35,6 +35,46 @@ Two consequences follow, and neither is optional.
    recollection is worth less than an absent claim, because an absent claim
    invites verification and a confident one suppresses it.
 
+## Run every lane that can run
+
+Wall-clock time to a working platform is the scarce resource. Token cost is not,
+and neither is the number of agents in flight. Do not serialize work to be
+careful; serialize it only when it cannot be parallel.
+
+A lane may start when both hold, and must start when both hold:
+
+- its writable paths are disjoint from every lane already in flight, and
+- its contract is frozen — bounded claim, non-claims, pre-committed oracle,
+  writable-path allowlist, and the integrator decisions the implementer must not
+  revisit.
+
+Nothing else is a reason to wait. Waiting for a merge that does not touch your
+paths, or for a measurement that does not change your contract, is lost time.
+
+The two failure modes that actually cost cycles here are not slowness:
+
+1. **Dispatching against an unfrozen contract.** An implementer that has to guess
+   a tolerance or a rule ID either guesses wrong or stops, and either way the
+   round trip is spent. Freeze it first; a contract is cheap and a cycle is not.
+2. **Rework from a wrong premise.** Prefer the check that would falsify the
+   premise over the work that assumes it. Cheap checks first, always.
+
+## Measure the thing you are reasoning about
+
+A number taken in one environment is not evidence about another. Local
+wall-clock does not predict hosted wall-clock, a development profile does not
+predict `opt-level=1`, and an aborted run is not a completed one. State the
+environment beside the number, or do not state the number.
+
+Reproduce the hosted build profile with the prefix documented in
+[local verification](docs/development/local-verification.md) before quoting any
+timing that will inform a hosted decision.
+
+Run the repository's own gate rather than an equivalent you assembled. The tiers
+exist because they select what a hand-written command list omits, and what they
+omit is where the defects that reach CI actually live: packaged-tree behaviour,
+the interpreter matrix, and the CI contracts themselves.
+
 ## Claims are part of the implementation
 
 When a change adds, removes, narrows, or extends an executable or user-visible
