@@ -19,6 +19,29 @@ from classify_changes import classify
 
 ROOT = Path(__file__).resolve().parents[2]
 
+# The Cargo test profile the hosted workflow runs under. A local gate that does
+# not reproduce it is not measuring the thing CI will measure: the registered
+# preconditioner-scaling case takes 1150.8 s at the default `opt-level = 0` and
+# 64.5 s at `opt-level = 1`, so a local run can be eighteen times slower than
+# the hosted one and still be reported as the same evidence.
+#
+# Applied to every planned command rather than only to the ones that run tests.
+# These variables are scoped to the test profile by construction, so they change
+# nothing for a command that builds no test target, and for the ones that do
+# they let Clippy and the test run share a single set of artifacts instead of
+# building the workspace twice.
+#
+# `tools/ci/tests/test_ci_contracts.py` fails if this stops matching what
+# `.github/workflows/ci.yml` sets. The values live in one place because a second
+# copy is how the local gate silently stops predicting the hosted one.
+HOSTED_TEST_PROFILE = {
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG_ASSERTIONS": "true",
+    "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+    "CARGO_PROFILE_TEST_OPT_LEVEL": "1",
+    "CARGO_PROFILE_TEST_OVERFLOW_CHECKS": "true",
+}
+
 
 @dataclass(frozen=True)
 class WorkspacePackage:
@@ -38,7 +61,11 @@ class PlannedCommand:
         prefix = " ".join(f"{key}={shlex.quote(value)}" for key, value in self.env)
         command = shlex.join(self.argv)
         invocation = f"{prefix} {command}" if prefix else command
-        return invocation if self.cwd == "." else f"(cd {shlex.quote(self.cwd)} && {invocation})"
+        return (
+            invocation
+            if self.cwd == "."
+            else f"(cd {shlex.quote(self.cwd)} && {invocation})"
+        )
 
 
 @dataclass(frozen=True)
@@ -89,9 +116,7 @@ def load_workspace(root: Path = ROOT) -> dict[str, WorkspacePackage]:
     metadata = json.loads(output)
     members = set(metadata["workspace_members"])
     workspace_names = {
-        package["name"]
-        for package in metadata["packages"]
-        if package["id"] in members
+        package["name"] for package in metadata["packages"] if package["id"] in members
     }
     packages: dict[str, WorkspacePackage] = {}
     for package in metadata["packages"]:
@@ -124,7 +149,9 @@ def direct_packages(
             if path == package.directory or path.startswith(f"{package.directory}/")
         ]
         if candidates:
-            selected.add(max(candidates, key=lambda package: len(package.directory)).name)
+            selected.add(
+                max(candidates, key=lambda package: len(package.directory)).name
+            )
     return selected
 
 
@@ -136,7 +163,9 @@ def reverse_dependency_closure(
     while changed:
         changed = False
         for package in packages.values():
-            if package.name not in closure and package.dependencies.intersection(closure):
+            if package.name not in closure and package.dependencies.intersection(
+                closure
+            ):
                 closure.add(package.name)
                 changed = True
     return closure
@@ -158,7 +187,9 @@ def all_case_ids(root: Path = ROOT) -> set[str]:
     }
 
 
-def command(label: str, *argv: str, cwd: str = ".", env: Mapping[str, str] | None = None) -> PlannedCommand:
+def command(
+    label: str, *argv: str, cwd: str = ".", env: Mapping[str, str] | None = None
+) -> PlannedCommand:
     return PlannedCommand(
         label=label,
         argv=tuple(argv),
@@ -303,8 +334,26 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
         manifest = "experiments/cubecl-local-action/Cargo.toml"
         commands.extend(
             [
-                command("CubeCL Clippy", "cargo", "clippy", "--manifest-path", manifest, "--locked", "--all-targets", "--", "-D", "warnings"),
-                command("CubeCL tests", "cargo", "test", "--manifest-path", manifest, "--locked"),
+                command(
+                    "CubeCL Clippy",
+                    "cargo",
+                    "clippy",
+                    "--manifest-path",
+                    manifest,
+                    "--locked",
+                    "--all-targets",
+                    "--",
+                    "-D",
+                    "warnings",
+                ),
+                command(
+                    "CubeCL tests",
+                    "cargo",
+                    "test",
+                    "--manifest-path",
+                    manifest,
+                    "--locked",
+                ),
             ]
         )
     return commands
@@ -322,16 +371,72 @@ def build_plan(
         selected_packages = set(packages)
         cases = all_case_ids(root)
         commands = [
-            command("CI contract tests", sys.executable, "-m", "unittest", "discover", "-s", "tools/ci/tests", "-v"),
-            command("Documentation contract", sys.executable, "tools/ci/check_docs.py", "."),
+            command(
+                "CI contract tests",
+                sys.executable,
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                "tools/ci/tests",
+                "-v",
+            ),
+            command(
+                "Documentation contract", sys.executable, "tools/ci/check_docs.py", "."
+            ),
             command("Formatting", "cargo", "fmt", "--all", "--", "--check"),
-            command("Workspace Clippy", "cargo", "clippy", "--workspace", "--all-targets", "--all-features", "--keep-going", "--", "-D", "warnings"),
-            command("Workspace tests", "cargo", "test", "--workspace", "--all-targets", "--all-features", "--locked"),
-            command("All registered evidence", "cargo", "run", "--locked", "-p", "eqiora-verify", "--", "verify"),
+            command(
+                "Workspace Clippy",
+                "cargo",
+                "clippy",
+                "--workspace",
+                "--all-targets",
+                "--all-features",
+                "--keep-going",
+                "--",
+                "-D",
+                "warnings",
+            ),
+            command(
+                "Workspace tests",
+                "cargo",
+                "test",
+                "--workspace",
+                "--all-targets",
+                "--all-features",
+                "--locked",
+            ),
+            command(
+                "All registered evidence",
+                "cargo",
+                "run",
+                "--locked",
+                "-p",
+                "eqiora-verify",
+                "--",
+                "verify",
+            ),
             command("Dependency layers", "cargo", "xtask", "check-layers"),
             command("Public facade", "cargo", "xtask", "check-facade"),
-            command("Workspace Rustdoc", "cargo", "doc", "--workspace", "--no-deps", "--locked", env={"RUSTDOCFLAGS": "-D warnings"}),
-            command("MSRV", "cargo", "+1.89.0", "check", "--workspace", "--all-targets", "--all-features", "--locked"),
+            command(
+                "Workspace Rustdoc",
+                "cargo",
+                "doc",
+                "--workspace",
+                "--no-deps",
+                "--locked",
+                env={"RUSTDOCFLAGS": "-D warnings"},
+            ),
+            command(
+                "MSRV",
+                "cargo",
+                "+1.89.0",
+                "check",
+                "--workspace",
+                "--all-targets",
+                "--all-features",
+                "--locked",
+            ),
         ]
         commands.extend(_surface_commands(surfaces))
         limitations = (
@@ -343,14 +448,18 @@ def build_plan(
         surfaces = classify(paths)
         direct = direct_packages(paths, packages)
         selected_packages = (
-            reverse_dependency_closure(direct, packages) if tier == "affected" else direct
+            reverse_dependency_closure(direct, packages)
+            if tier == "affected"
+            else direct
         )
         if tier == "affected" and surfaces["rust"] and not direct:
             selected_packages = set(packages)
         cases = changed_case_ids(paths).union(explicit_cases)
         commands = []
         if surfaces["rust"] or selected_packages:
-            commands.append(command("Formatting", "cargo", "fmt", "--all", "--", "--check"))
+            commands.append(
+                command("Formatting", "cargo", "fmt", "--all", "--", "--check")
+            )
         commands.extend(_rust_commands(selected_packages, rustdoc=tier == "affected"))
         if tier == "affected":
             commands.append(
@@ -366,14 +475,26 @@ def build_plan(
                 )
             )
         commands.extend(_case_commands(cases))
-        if any(path.endswith(".md") or path in {"AGENTS.md", "CONTRIBUTING.md"} for path in paths):
-            commands.append(command("Documentation contract", sys.executable, "tools/ci/check_docs.py", "."))
+        if any(
+            path.endswith(".md") or path in {"AGENTS.md", "CONTRIBUTING.md"}
+            for path in paths
+        ):
+            commands.append(
+                command(
+                    "Documentation contract",
+                    sys.executable,
+                    "tools/ci/check_docs.py",
+                    ".",
+                )
+            )
         if any(
             PurePosixPath(path).name == "Cargo.toml"
             or path in {"Cargo.lock", "tools/xtask/src/main.rs"}
             for path in paths
         ):
-            commands.append(command("Dependency layers", "cargo", "xtask", "check-layers"))
+            commands.append(
+                command("Dependency layers", "cargo", "xtask", "check-layers")
+            )
         if any(
             path
             in {
@@ -394,8 +515,21 @@ def build_plan(
             "crates/eqiora-backend-rayon/Cargo.toml",
             "crates/eqiora-backend-rayon/src/lib.rs",
         }
-        if any(path.startswith("tools/ci/") or path in ci_contract_inputs for path in paths):
-            commands.append(command("CI contract tests", sys.executable, "-m", "unittest", "discover", "-s", "tools/ci/tests", "-v"))
+        if any(
+            path.startswith("tools/ci/") or path in ci_contract_inputs for path in paths
+        ):
+            commands.append(
+                command(
+                    "CI contract tests",
+                    sys.executable,
+                    "-m",
+                    "unittest",
+                    "discover",
+                    "-s",
+                    "tools/ci/tests",
+                    "-v",
+                )
+            )
         if tier == "affected":
             commands.extend(_surface_commands(surfaces))
         limitations = (
@@ -423,7 +557,10 @@ def render_plan(plan: VerificationPlan) -> str:
         f"cases: {', '.join(plan.cases) if plan.cases else 'none'}",
         "commands:",
     ]
-    lines.extend(f"  {index}. [{item.label}] {item.render()}" for index, item in enumerate(plan.commands, 1))
+    lines.extend(
+        f"  {index}. [{item.label}] {item.render()}"
+        for index, item in enumerate(plan.commands, 1)
+    )
     lines.append("limitations:")
     lines.extend(f"  - {limitation}" for limitation in plan.limitations)
     return "\n".join(lines)
@@ -433,6 +570,7 @@ def run_plan(plan: VerificationPlan, root: Path = ROOT) -> None:
     for item in plan.commands:
         print(f"==> {item.label}: {item.render()}", flush=True)
         environment = os.environ.copy()
+        environment.update(HOSTED_TEST_PROFILE)
         environment.update(dict(item.env))
         subprocess.run(item.argv, cwd=root / item.cwd, env=environment, check=True)
 
@@ -440,14 +578,22 @@ def run_plan(plan: VerificationPlan, root: Path = ROOT) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("tier", choices=("fast", "affected", "periodic"))
-    parser.add_argument("--base", default="origin/main", help="merge-base comparison ref")
-    parser.add_argument("--case", action="append", default=[], help="exact affected case ID")
+    parser.add_argument(
+        "--base", default="origin/main", help="merge-base comparison ref"
+    )
+    parser.add_argument(
+        "--case", action="append", default=[], help="exact affected case ID"
+    )
     parser.add_argument("--plan", action="store_true", help="print without executing")
     arguments = parser.parse_args()
     try:
-        paths = () if arguments.tier == "periodic" else local_changed_paths(arguments.base)
+        paths = (
+            () if arguments.tier == "periodic" else local_changed_paths(arguments.base)
+        )
         if arguments.tier != "periodic" and not paths and not arguments.case:
-            raise ValueError("no local changes or explicit verification cases were selected")
+            raise ValueError(
+                "no local changes or explicit verification cases were selected"
+            )
         plan = build_plan(
             arguments.tier,
             paths,
@@ -457,7 +603,14 @@ def main() -> int:
         print(render_plan(plan))
         if not arguments.plan:
             run_plan(plan)
-    except (OSError, subprocess.CalledProcessError, UnicodeError, ValueError, json.JSONDecodeError, tomllib.TOMLDecodeError) as error:
+    except (
+        OSError,
+        subprocess.CalledProcessError,
+        UnicodeError,
+        ValueError,
+        json.JSONDecodeError,
+        tomllib.TOMLDecodeError,
+    ) as error:
         print(f"local verification failed: {error}", file=sys.stderr)
         return 2
     return 0

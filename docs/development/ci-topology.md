@@ -98,12 +98,14 @@ after TestPyPI acceptance.
   profile with debug information disabled, incremental compilation disabled,
   and optimization level 1 because their target trees are disposable. Debug
   assertions and overflow checks remain enabled, and no relaxed floating-point
-  mode is used. To reproduce that exact hosted build profile, prefix the
-  corresponding `cargo test` or `eqiora-verify` command with
-  `CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_DEBUG_ASSERTIONS=true
-  CARGO_PROFILE_TEST_INCREMENTAL=false CARGO_PROFILE_TEST_OPT_LEVEL=1
-  CARGO_PROFILE_TEST_OVERFLOW_CHECKS=true`; ordinary local verification keeps
-  Cargo's incremental development defaults.
+  mode is used. `tools/ci/local_verify.py` applies that profile to every command
+  it runs, so a local gate reproduces the hosted one without an operator
+  remembering a prefix; `HOSTED_TEST_PROFILE` in that file is the single
+  definition and a contract test fails if it stops matching the workflow. A
+  `cargo test` or `eqiora-verify` command invoked by hand outside the planner
+  still needs the variables set explicitly, and the difference is not cosmetic:
+  the registered preconditioner-scaling case takes 1150.8 s at Cargo's default
+  `opt-level = 0` and 64.5 s at the hosted `opt-level = 1`.
 - Each evidence job validates the complete registry, then intersects the exact
   `host-cpu` environment with either the `cargo` or
   `python-installed-wheel` runner kind. Targets outside either intersection
