@@ -15,6 +15,7 @@ sys.path.insert(0, str(CI_ROOT))
 
 from check_gate import JOB_SURFACES, evaluate, parse_relevance, parse_results  # noqa: E402
 from classify_changes import SURFACES, changed_paths, classify, render_outputs  # noqa: E402
+from local_verify import HOSTED_TEST_PROFILE  # noqa: E402
 from python_jax_gate import uv_gate_command as jax_uv_gate_command  # noqa: E402
 from python_package_gate import (  # noqa: E402
     uv_gate_command,
@@ -549,3 +550,32 @@ class AggregateGateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HostedTestProfileTests(unittest.TestCase):
+    """The local gate must build test targets the way the hosted one does."""
+
+    def _hosted_profile_blocks(self) -> list[dict[str, str]]:
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        blocks: list[dict[str, str]] = []
+        current: dict[str, str] = {}
+        for line in workflow.splitlines():
+            matched = re.match(r'\s+(CARGO_PROFILE_TEST_[A-Z_]+):\s*"(.*)"\s*$', line)
+            if matched:
+                current[matched.group(1)] = matched.group(2)
+                continue
+            if current:
+                blocks.append(current)
+                current = {}
+        if current:
+            blocks.append(current)
+        return blocks
+
+    def test_local_verify_reproduces_every_hosted_cargo_test_profile(self) -> None:
+        blocks = self._hosted_profile_blocks()
+        # A renamed or deleted workflow key must fail here rather than leave the
+        # comparison vacuously true.
+        self.assertGreater(len(blocks), 0, "ci.yml declares no CARGO_PROFILE_TEST_* block")
+        for index, block in enumerate(blocks):
+            with self.subTest(block=index):
+                self.assertEqual(block, HOSTED_TEST_PROFILE)
