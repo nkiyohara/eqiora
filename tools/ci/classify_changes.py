@@ -25,6 +25,7 @@ SURFACES = (
     "dependency_policy",
     "cubecl_experiment",
 )
+PYTHON_HOST_EVIDENCE_SURFACES = ("rust", "python")
 
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 
@@ -175,6 +176,12 @@ def render_outputs(target_sha: str, selected: dict[str, bool], *, full: bool) ->
     lines = [f"target_sha={target_sha}", f"full={'true' if full else 'false'}"]
     lines.extend(
         f"{surface}={'true' if selected[surface] else 'false'}" for surface in SURFACES
+    )
+    python_host_evidence = any(
+        selected[surface] for surface in PYTHON_HOST_EVIDENCE_SURFACES
+    )
+    lines.append(
+        f"python_host_evidence={'true' if python_host_evidence else 'false'}"
     )
     versions = ["3.11", "3.12", "3.13", "3.14"] if full else ["3.11", "3.14"]
     lines.append(f"python_versions={json.dumps(versions, separators=(',', ':'))}")

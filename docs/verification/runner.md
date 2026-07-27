@@ -35,8 +35,10 @@ cargo run -p eqiora-verify -- run --case numerics.cartesian-poisson-3d-fem-fvm
 cargo run -p eqiora-verify -- run --case time.general-implicit-dae
 cargo run -p eqiora-verify -- run --keep-going
 
-# Validate the complete repository, then execute only host-CPU evidence.
-cargo run -p eqiora-verify -- run --environment host-cpu
+# Validate the complete repository, then execute one environment/runner-kind
+# intersection. Either filter may also be supplied alone.
+cargo run -p eqiora-verify -- run --environment host-cpu --runner-kind cargo
+cargo run -p eqiora-verify -- run --environment host-cpu --runner-kind python-installed-wheel
 ```
 
 `case.toml` is also the only source for the capability-to-evidence index.
@@ -50,9 +52,13 @@ capability entry; unknown manifest extensions cannot impersonate this typed
 field.
 
 `--format json` is global and may appear before or after the subcommand. JSON
-stdout contains exactly one `eqiora.verification-report/v4` object for
+stdout contains exactly one `eqiora.verification-report/v5` object for
 `list`, `check`, and `run`, or one
-`eqiora.capability-evidence-index/v3` object for `index`. Version 4 adds
+`eqiora.capability-evidence-index/v3` object for `index`. Version 5 adds the
+optional `selected_runner_kind` report field and the closed `cargo` /
+`python-installed-wheel` selector. It is orthogonal to
+`selected_environment`; when both are present, a target must match both.
+Version 4 added
 `duration_ms` for each evidence target that started, measured with a monotonic
 clock and reused by every case sharing that target. The field is always present
 and carries `null` for a case whose target did not start or did not execute,
@@ -69,11 +75,13 @@ cargo run -q -p eqiora-verify -- index --format json > capability-index.json
 ```
 
 The process exits successfully only when repository validation succeeds, the
-case filter resolves, and every selected evidence target passes. An explicit
-environment selection still validates every manifest and artifact before
-execution; targets for another environment remain visible as `not-selected`.
-Without `--environment`, every executable target remains selected, so an
-absent physical runtime still fails rather than silently skipping. In
+case filter resolves, and every selected evidence target passes. Explicit
+environment and runner-kind selections still validate every manifest, Cargo
+target, and artifact before execution. A target excluded by either filter
+remains visible as `not-selected`, with a message naming its required
+environment or runner kind. An empty intersection succeeds after validation.
+Without either filter, every executable target remains selected, so an absent
+physical runtime still fails rather than silently skipping. In
 fail-fast mode with `--jobs 1`, later selected executable cases remain in the
 report with outcome `skipped`, matching serial execution before `--jobs` was
 introduced. `--jobs` defaults to the host's available parallelism. With more
@@ -124,10 +132,11 @@ script = "tools/ci/python_torch_gate.py"
 ```
 
 For Cargo, the runner first obtains the workspace package and integration-test
-inventory from `cargo metadata --format-version=1 --no-deps`. After validation,
-case selection, and the optional environment filter, selected Cargo targets are
-partitioned by their exact package and sorted declared feature set. Each group
-is compiled once with the fixed form
+inventory from `cargo metadata --format-version=1 --no-deps`. After complete
+validation, case selection, and both optional filters, selected Cargo targets
+are partitioned by their exact package and sorted declared feature set. A
+Python-only runner-kind selection therefore constructs and builds no Cargo
+group. Each group is compiled once with the fixed form
 `cargo test --locked -p <package> --no-run --message-format=json`, one `--test`
 selector per target, and that group's exact `--features` value when non-empty.
 Features from different manifests are never unioned. The runner reads Cargo's

@@ -400,9 +400,9 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-verify/src/lib.rs"
-ceiling = 1527
-reason = "the runner, its report types, and manifest validation still share one root; its tests no longer do"
-removal = "split the remaining root by responsibility: manifest discovery and validation, report projection, and the execution runner"
+ceiling = 1220
+reason = "report projection and the execution runner still share one root; manifest discovery and validation no longer do"
+removal = "split report projection from the execution runner"
 
 
 # Public surface, in AST-reachable public items per crate. Counted by walking
@@ -578,7 +578,9 @@ ceiling = 39
 
 [[public_surface]]
 crate = "eqiora-verify"
-ceiling = 19
+# The runner-kind selector is distinct from the fixed Python target runner:
+# merging them permits semantically impossible public target construction.
+ceiling = 20
 
 # Glob re-exports. The predicate is zero; these four files predate it. Each
 # entry freezes the exact identity of every glob in the file, not a count and

@@ -1525,13 +1525,15 @@ typed separately from resolved adapter/library/topology/reduction provenance.
 Constructors and post-decode linkage checks reject model, revision, target,
 layout, worker, device, or reduction drift. Neither format includes host paths
 or wall-clock data. Run manifests are distinct from
-`eqiora.verification-report/v4`: the latter records a repository runner's
-ordered case outcomes, monotonic target durations in whole milliseconds, and
-captured child streams. A duration is `null` when a target did not start.
-Verification manifests can select only a closed typed target: a validated
-Cargo package/test pair or a repository-owned installed-wheel Python gate.
-Neither form admits a shell command, free-form arguments, a working directory,
-or a host-specific path.
+`eqiora.verification-report/v5`: the latter records a repository runner's
+ordered case outcomes, selected environment and runner-kind filters, monotonic
+target durations in whole milliseconds, and captured child streams. A duration
+is `null` when a target did not start. Verification manifests can select only
+a closed typed target: a validated Cargo package/test pair or a
+repository-owned installed-wheel Python gate. The orthogonal environment and
+runner-kind filters are applied only after complete registry validation.
+Neither target form admits a shell command, free-form arguments, a working
+directory, or a host-specific path.
 
 The original bounded package path composes with `RunManifestV1` through
 `PackageRunBindingV1`, a separate canonical sidecar containing the shared

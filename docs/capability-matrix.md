@@ -1005,7 +1005,7 @@ every result remains immutable evidence tied to an exact model and realization.
 |---|:---:|:---:|:---:|:---:|---|
 | Machine-readable verification cases | ✅ | ✅ | ✅ | 🟨 | Validated `case.toml` contracts; `eqiora-verify index` derives the deterministic capability-to-evidence projection without a second registry |
 | Explicit claim/non-claim boundary | ✅ | ✅ | ✅ | 🟨 | Strong current discipline; must scale across every new physics/library |
-| Deterministic case selection | ✅ | ✅ | ✅ | 🟨 | Verification runner and versioned reports |
+| Deterministic case selection | ✅ | ✅ | ✅ | 🟨 | Verification runner and versioned reports. Selection composes an exact case ID, the closed evidence environment, and the closed runner kind; the three are orthogonal and every combination validates the complete registry before selecting anything, so splitting execution across hosted jobs never splits validation. A case excluded by either evidence filter stays visible as `not-selected` with the reason it requires; an exact `--case` request narrows the reported set instead |
 | Manufactured-solution convergence | ✅ | ✅ | ✅ | ⬜ | Scalar Poisson 1D–3D; broad PDE and element portfolio remains |
 | Conservation/balance evidence | ✅ | ✅ | ✅ | ⬜ | Scalar FEM/FVM balances plus one dimensioned electromechanical `PhysicalSample` power/energy balance with backward-Euler numerical dissipation named separately from physical loss |
 | Analytic oracle comparisons | ✅ | ✅ | ✅ | ⬜ | Bounded numerical, time, differentiation, solid, and sampled linear-drive cases, including an independent matrix-exponential trajectory oracle |

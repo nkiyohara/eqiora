@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tomllib
 import unittest
@@ -12,7 +13,7 @@ CI_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = CI_ROOT.parents[1]
 sys.path.insert(0, str(CI_ROOT))
 
-from check_gate import evaluate, parse_relevance  # noqa: E402
+from check_gate import JOB_SURFACES, evaluate, parse_relevance, parse_results  # noqa: E402
 from classify_changes import SURFACES, changed_paths, classify, render_outputs  # noqa: E402
 from python_jax_gate import uv_gate_command as jax_uv_gate_command  # noqa: E402
 from python_package_gate import (  # noqa: E402
@@ -68,6 +69,11 @@ class HostedTriggerTests(unittest.TestCase):
             "\n  host_evidence:", maxsplit=1
         )[0]
         evidence = workflow.split("  host_evidence:\n", maxsplit=1)[1].split(
+            "\n  python_host_evidence:", maxsplit=1
+        )[0]
+        python_evidence = workflow.split(
+            "  python_host_evidence:\n", maxsplit=1
+        )[1].split(
             "\n  msrv:", maxsplit=1
         )[0]
         action = (
@@ -84,15 +90,29 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertNotIn("eqiora-verify -- run --environment host-cpu", quality)
         self.assertIn("name: Host-CPU verification evidence", evidence)
         self.assertIn("runs-on: ubuntu-latest", evidence)
-        self.assertIn(action, evidence)
-        self.assertIn('python-version: "3.12"', evidence)
-        self.assertIn('["tested-numpy-floor"]', evidence)
-        self.assertIn('["uv"]', evidence)
-        self.assertIn("python -m pip install --only-binary=:all:", evidence)
-        self.assertIn("uv --version", evidence)
+        self.assertIn("libopenmpi-dev", evidence)
+        self.assertNotIn(action, evidence)
+        self.assertNotIn("uv --version", evidence)
         self.assertIn(
-            "eqiora-verify -- run --environment host-cpu",
+            "eqiora-verify -- run --environment host-cpu --runner-kind cargo",
             evidence,
+        )
+        self.assertIn("name: Host-CPU Python installed-wheel evidence", python_evidence)
+        self.assertIn("runs-on: ubuntu-latest", python_evidence)
+        self.assertIn(action, python_evidence)
+        self.assertIn('python-version: "3.12"', python_evidence)
+        self.assertIn('["tested-numpy-floor"]', python_evidence)
+        self.assertIn('["uv"]', python_evidence)
+        self.assertIn(
+            "python -m pip install --only-binary=:all:", python_evidence
+        )
+        self.assertIn("uv --version", python_evidence)
+        self.assertNotIn("apt-get", python_evidence)
+        self.assertNotIn("openmpi", python_evidence)
+        self.assertIn(
+            "eqiora-verify -- run --environment host-cpu "
+            "--runner-kind python-installed-wheel",
+            python_evidence,
         )
 
     def test_hosted_test_profile_is_compact_and_test_scoped(self) -> None:
@@ -103,6 +123,11 @@ class HostedTriggerTests(unittest.TestCase):
             "\n  host_evidence:", maxsplit=1
         )[0]
         evidence = workflow.split("  host_evidence:\n", maxsplit=1)[1].split(
+            "\n  python_host_evidence:", maxsplit=1
+        )[0]
+        python_evidence = workflow.split(
+            "  python_host_evidence:\n", maxsplit=1
+        )[1].split(
             "\n  msrv:", maxsplit=1
         )[0]
         studio = workflow.split("  studio:\n", maxsplit=1)[1].split(
@@ -115,7 +140,11 @@ class HostedTriggerTests(unittest.TestCase):
             "- name: Full feature tests\n", maxsplit=1
         )[1].split("- name: Dependency layers\n", maxsplit=1)[0]
         host_evidence = evidence.split(
-            "- name: Run registered host evidence\n", maxsplit=1
+            "- name: Run registered Cargo host evidence\n", maxsplit=1
+        )[1]
+        python_host_evidence = python_evidence.split(
+            "- name: Run registered Python installed-wheel host evidence\n",
+            maxsplit=1,
         )[1]
         profile = (
             'CARGO_PROFILE_TEST_DEBUG: "0"',
@@ -125,12 +154,17 @@ class HostedTriggerTests(unittest.TestCase):
             'CARGO_PROFILE_TEST_OVERFLOW_CHECKS: "true"',
         )
 
-        for step in (tests, full_feature_tests, host_evidence):
+        for step in (
+            tests,
+            full_feature_tests,
+            host_evidence,
+            python_host_evidence,
+        ):
             for setting in profile:
                 self.assertIn(setting, step)
             self.assertNotIn("RUSTFLAGS", step)
         for setting in profile:
-            self.assertEqual(workflow.count(setting), 3)
+            self.assertEqual(workflow.count(setting), 4)
         self.assertNotIn("CARGO_PROFILE_TEST_", studio)
         self.assertNotIn("fast-math", workflow.lower())
 
@@ -411,6 +445,20 @@ class ChangeClassificationTests(unittest.TestCase):
         rendered = render_outputs("a" * 40, selected, full=True)
         self.assertIn('python_versions=["3.11","3.12","3.13","3.14"]', rendered)
 
+    def test_python_host_evidence_is_selected_by_rust_or_python(self) -> None:
+        for path in (
+            "crates/eqiora-numerics/src/lib.rs",
+            "bindings/python/python/eqiora/__init__.pyi",
+        ):
+            with self.subTest(path=path):
+                selected = classify([path])
+                rendered = render_outputs("a" * 40, selected, full=False)
+                self.assertIn("python_host_evidence=true", rendered)
+
+        selected = classify(["docs/architecture.md"])
+        rendered = render_outputs("a" * 40, selected, full=False)
+        self.assertIn("python_host_evidence=false", rendered)
+
 
 class AggregateGateTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -420,6 +468,7 @@ class AggregateGateTests(unittest.TestCase):
             "documentation": "success",
             "quality": "skipped",
             "host_evidence": "skipped",
+            "python_host_evidence": "skipped",
             "msrv": "skipped",
             "dependency_policy": "skipped",
             "cubecl_experiment": "skipped",
@@ -440,6 +489,7 @@ class AggregateGateTests(unittest.TestCase):
     def test_relevant_success_is_accepted(self) -> None:
         self.relevance["python"] = True
         self.results["python_wheel"] = "success"
+        self.results["python_host_evidence"] = "success"
         self.assertEqual(evaluate(self.relevance, self.results), [])
 
     def test_rust_surface_requires_quality_and_registered_evidence(self) -> None:
@@ -447,6 +497,8 @@ class AggregateGateTests(unittest.TestCase):
         self.results["quality"] = "success"
         self.assertTrue(evaluate(self.relevance, self.results))
         self.results["host_evidence"] = "success"
+        self.assertTrue(evaluate(self.relevance, self.results))
+        self.results["python_host_evidence"] = "success"
         self.assertEqual(evaluate(self.relevance, self.results), [])
 
     def test_relevance_contract_rejects_missing_and_malformed_values(self) -> None:
@@ -462,6 +514,30 @@ class AggregateGateTests(unittest.TestCase):
         del missing["rust"]
         with self.assertRaises(ValueError):
             parse_relevance(missing)
+
+    def test_result_vocabulary_is_complete_and_exact(self) -> None:
+        self.assertEqual(parse_results(self.results), self.results)
+        for malformed in (
+            {key: value for key, value in self.results.items() if key != "host_evidence"},
+            {**self.results, "unregistered_job": "success"},
+        ):
+            with self.assertRaises(ValueError):
+                parse_results(malformed)
+
+    def test_every_workflow_job_is_admitted_by_the_gate(self) -> None:
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
+            encoding="utf-8"
+        )
+        jobs = set(
+            re.findall(r"^  ([a-z][a-z0-9_]*):$", workflow.split("jobs:\n", 1)[1], re.M)
+        )
+        conditional = jobs - {"changes", "documentation", "gate"}
+        self.assertEqual(conditional, set(JOB_SURFACES))
+
+        gate = workflow.split("\n  gate:\n", maxsplit=1)[1]
+        for job in conditional:
+            self.assertIn(f"      - {job}\n", gate)
+            self.assertIn(f'"{job}":"${{{{ needs.{job}.result }}}}"', gate)
 
 
 if __name__ == "__main__":

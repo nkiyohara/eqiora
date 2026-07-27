@@ -5,7 +5,7 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use eqiora_verify::{
-    CommandKind, EvidenceEnvironment, ExecutionPolicy, Request, SystemEvidenceRunner,
+    CommandKind, EvidenceEnvironment, ExecutionPolicy, Request, RunnerKind, SystemEvidenceRunner,
     capability_evidence_index, execute,
 };
 
@@ -37,6 +37,21 @@ impl From<Environment> for EvidenceEnvironment {
         match value {
             Environment::HostCpu => Self::HostCpu,
             Environment::PhysicalMpiCuda => Self::PhysicalMpiCuda,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum RunnerKindArgument {
+    Cargo,
+    PythonInstalledWheel,
+}
+
+impl From<RunnerKindArgument> for RunnerKind {
+    fn from(value: RunnerKindArgument) -> Self {
+        match value {
+            RunnerKindArgument::Cargo => Self::Cargo,
+            RunnerKindArgument::PythonInstalledWheel => Self::PythonInstalledWheel,
         }
     }
 }
@@ -84,6 +99,9 @@ enum Command {
         /// Run only evidence declared for this exact environment.
         #[arg(long, value_enum)]
         environment: Option<Environment>,
+        /// Run only evidence using this exact runner kind.
+        #[arg(long, value_enum)]
+        runner_kind: Option<RunnerKindArgument>,
     },
 }
 
@@ -123,8 +141,9 @@ fn main() -> ExitCode {
             keep_going,
             fail_fast: _,
             environment,
+            runner_kind,
         } => {
-            let request = Request::new(
+            let mut request = Request::new(
                 CommandKind::Run,
                 case,
                 if keep_going {
@@ -135,10 +154,12 @@ fn main() -> ExitCode {
             )
             .with_jobs(jobs);
             if let Some(environment) = environment {
-                request.for_environment(environment.into())
-            } else {
-                request
+                request = request.for_environment(environment.into());
             }
+            if let Some(runner_kind) = runner_kind {
+                request = request.for_runner_kind(runner_kind.into());
+            }
+            request
         }
     };
     let report = execute(root, &request, &SystemEvidenceRunner::from_environment());
