@@ -2,8 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
-    DecoderLimits, GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
-    GeometryRevisionAssociationEnvelopeV1, ModelEnvelopeV6, SimplicialMeshEnvelopeV1,
+    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
+    GeometryRevisionAssociationEnvelopeV1, ModelDecoderLimits, ModelEnvelopeV6,
+    SimplicialMeshEnvelopeV1,
 };
 use eqiora::geometry::BodyAssociationCandidate;
 use eqiora::graph::EdgeKind;
@@ -268,7 +269,7 @@ fn geometry_identity_rejects_a_missing_boundary_of_mutant() {
 
     let edge_only_mutant = ModelEnvelopeV6::from_json(
         &serde_json::to_vec(&edge_only_wire).unwrap(),
-        DecoderLimits::default(),
+        ModelDecoderLimits::default(),
     )
     .unwrap();
     assert!(edge_only_mutant.to_program().is_err());
@@ -292,7 +293,7 @@ fn geometry_identity_rejects_a_missing_boundary_of_mutant() {
         .retain(|node| node["id"]["ulid"] != boundary.ulid().to_string());
     let missing_role_mutant = ModelEnvelopeV6::from_json(
         &serde_json::to_vec(&missing_role_wire).unwrap(),
-        DecoderLimits::default(),
+        ModelDecoderLimits::default(),
     )
     .unwrap();
     assert!(missing_role_mutant.to_program().is_ok());
@@ -310,7 +311,7 @@ fn geometry_identity_rejects_a_missing_boundary_of_mutant() {
 fn model_artifact(document: &ModelDocument) -> ModelEnvelopeV6 {
     ModelEnvelopeV6::from_json(
         &document.canonical_json().unwrap(),
-        DecoderLimits::default(),
+        ModelDecoderLimits::default(),
     )
     .unwrap()
 }
