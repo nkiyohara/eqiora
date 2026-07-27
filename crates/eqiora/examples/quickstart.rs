@@ -19,7 +19,14 @@ fn main() -> ExitCode {
 
 fn run() -> Result<(), Vec<Diagnostic>> {
     let model = ModelDocument::compile("examples/decay.eqi", SOURCE)?;
-    let digest = model.digest().map_err(|diagnostic| vec![diagnostic])?;
+    // `model.digest()` identifies the Model *artifact*, and every compile mints
+    // fresh entity ULIDs, so it differs between processes by design. What a
+    // reader of this line wants is the identity of the *meaning*, which two
+    // compiles of the same source agree on. Printing the artifact digest here
+    // made the shortest public path look non-reproducible.
+    let fingerprint = model
+        .structural_fingerprint()
+        .map_err(|diagnostic| vec![diagnostic])?;
     let result = model.run_reference(1.0, 0.01)?;
     let series = result
         .series()
@@ -32,7 +39,7 @@ fn run() -> Result<(), Vec<Diagnostic>> {
         .zip(series.values().last())
         .ok_or_else(|| Vec::from([missing_result("the `x` series is empty")]))?;
 
-    println!("model {digest}");
+    println!("model {}", fingerprint.digest());
     println!("x({time:.2} s) = {value:.8}");
     Ok(())
 }
