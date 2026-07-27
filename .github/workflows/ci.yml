@@ -37,6 +37,7 @@ jobs:
       studio: ${{ steps.classify.outputs.studio }}
       dependency_policy: ${{ steps.classify.outputs.dependency_policy }}
       cubecl_experiment: ${{ steps.classify.outputs.cubecl_experiment }}
+      python_host_evidence: ${{ steps.classify.outputs.python_host_evidence }}
       python_versions: ${{ steps.classify.outputs.python_versions }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -153,6 +154,41 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
+      # `eqiora-python`'s Cargo tests import NumPy through the embedded pyo3
+      # interpreter, so this belongs to the Cargo evidence job even though its
+      # name reads as Python work. Removing it here is what made
+      # `interfaces.python-array-transport` fail closed on a missing module.
+      - name: Install the declared NumPy test floor
+        run: |
+          requirement="$(
+            python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["tool"]["eqiora-distribution"]["tested-numpy-floor"])'
+          )"
+          python -m pip install --only-binary=:all: "$requirement"
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Run registered Cargo host evidence
+        env:
+          CARGO_PROFILE_TEST_DEBUG: "0"
+          CARGO_PROFILE_TEST_DEBUG_ASSERTIONS: "true"
+          CARGO_PROFILE_TEST_INCREMENTAL: "false"
+          CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+          CARGO_PROFILE_TEST_OVERFLOW_CHECKS: "true"
+        run: cargo +stable run --locked -p eqiora-verify -- run --environment host-cpu --runner-kind cargo
+
+  python_host_evidence:
+    name: Host-CPU Python installed-wheel evidence
+    needs: changes
+    if: needs.changes.outputs.python_host_evidence == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.changes.outputs.target_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
       - name: Install the declared NumPy test floor
         run: |
           requirement="$(
@@ -168,14 +204,14 @@ jobs:
           uv --version
       - name: Install stable Rust
         run: rustup toolchain install stable --profile minimal
-      - name: Run registered host evidence
+      - name: Run registered Python installed-wheel host evidence
         env:
           CARGO_PROFILE_TEST_DEBUG: "0"
           CARGO_PROFILE_TEST_DEBUG_ASSERTIONS: "true"
           CARGO_PROFILE_TEST_INCREMENTAL: "false"
           CARGO_PROFILE_TEST_OPT_LEVEL: "1"
           CARGO_PROFILE_TEST_OVERFLOW_CHECKS: "true"
-        run: cargo +stable run --locked -p eqiora-verify -- run --environment host-cpu
+        run: cargo +stable run --locked -p eqiora-verify -- run --environment host-cpu --runner-kind python-installed-wheel
 
   msrv:
     name: MSRV 1.89
@@ -319,6 +355,7 @@ jobs:
       - documentation
       - quality
       - host_evidence
+      - python_host_evidence
       - msrv
       - dependency_policy
       - cubecl_experiment
@@ -345,6 +382,7 @@ jobs:
              "documentation":"${{ needs.documentation.result }}",
              "quality":"${{ needs.quality.result }}",
              "host_evidence":"${{ needs.host_evidence.result }}",
+             "python_host_evidence":"${{ needs.python_host_evidence.result }}",
              "msrv":"${{ needs.msrv.result }}",
              "dependency_policy":"${{ needs.dependency_policy.result }}",
              "cubecl_experiment":"${{ needs.cubecl_experiment.result }}",

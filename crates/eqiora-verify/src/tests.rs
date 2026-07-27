@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::fs;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::*;
@@ -24,6 +25,24 @@ impl Fixture {
         fs::write(
             root.join("tools/ci/python_evidence.py"),
             "print('evidence')\n",
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("eqiora-numerics/src")).unwrap();
+        fs::create_dir_all(root.join("eqiora-numerics/tests")).unwrap();
+        fs::write(
+            root.join("Cargo.toml"),
+            "[workspace]\nmembers = [\"eqiora-numerics\"]\nresolver = \"2\"\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("eqiora-numerics/Cargo.toml"),
+            "[package]\nname = \"eqiora-numerics\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+        )
+        .unwrap();
+        fs::write(root.join("eqiora-numerics/src/lib.rs"), "").unwrap();
+        fs::write(
+            root.join("eqiora-numerics/tests/evidence_test.rs"),
+            "#[test]\nfn evidence_test() {}\n",
         )
         .unwrap();
         Self { root }
@@ -167,6 +186,14 @@ fn installed_wheel_python_target_is_closed_and_repository_owned() {
     );
     let error = load_repository_with_targets(&fixture.root, &targets()).unwrap_err();
     assert!(error.contains("missing or inaccessible"), "{error}");
+
+    assert!(
+        toml::from_str::<CaseManifest>(
+            &valid_python_manifest()
+                .replace("runner = \"python-installed-wheel\"", "runner = \"cargo\"")
+        )
+        .is_err()
+    );
 }
 
 #[cfg(unix)]
@@ -190,7 +217,7 @@ fn installed_wheel_python_target_rejects_a_script_symlink() {
 
 #[test]
 fn target_serialization_preserves_the_existing_cargo_json_shape() {
-    assert_eq!(REPORT_SCHEMA, "eqiora.verification-report/v4");
+    assert_eq!(REPORT_SCHEMA, "eqiora.verification-report/v5");
     assert_eq!(
         CAPABILITY_INDEX_SCHEMA,
         "eqiora.capability-evidence-index/v3"
@@ -550,6 +577,14 @@ fn cargo_target() -> EvidenceTarget {
     })
 }
 
+fn python_target() -> EvidenceTarget {
+    EvidenceTarget::PythonInstalledWheel(PythonInstalledWheelEvidenceTarget {
+        runner: PythonEvidenceRunner::PythonInstalledWheel,
+        script: "tools/ci/python_evidence.py".to_owned(),
+        environment: EvidenceEnvironment::HostCpu,
+    })
+}
+
 fn contract_with_target(id: &str, evidence: EvidenceTarget) -> CaseContract {
     CaseContract {
         id: id.to_owned(),
@@ -663,6 +698,7 @@ fn report_for(request: &Request, cases: Vec<CaseReport>) -> VerificationReport {
         policy: request.policy,
         selected_case: request.case.clone(),
         selected_environment: request.environment,
+        selected_runner_kind: request.runner_kind,
         success: cases.iter().all(|case| case.outcome != Outcome::Failed),
         cases,
         errors: Vec::new(),
@@ -801,6 +837,7 @@ fn identical_targets_execute_once_and_preserve_distinct_case_reports() {
         policy: ExecutionPolicy::KeepGoing,
         selected_case: None,
         selected_environment: None,
+        selected_runner_kind: None,
         success: true,
         cases: reports,
         errors: Vec::new(),
@@ -1548,4 +1585,241 @@ fn environment_filter_excludes_targets_before_group_building() {
             .iter()
             .all(|target| { target.environment() == EvidenceEnvironment::HostCpu })
     );
+}
+
+#[test]
+fn full_registry_runner_kind_partition_is_exact_visible_and_prebuild() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .unwrap();
+    let contracts = load_repository(root).unwrap();
+    let targets = contracts
+        .iter()
+        .filter(|contract| contract.status.is_executable())
+        .filter_map(|contract| contract.evidence.clone())
+        .fold(Vec::new(), |mut targets, target| {
+            if !targets.contains(&target) {
+                targets.push(target);
+            }
+            targets
+        });
+    let runner_for = || {
+        FakeRunner::for_targets(
+            targets
+                .iter()
+                .cloned()
+                .map(|target| (target, successful_output())),
+        )
+    };
+    let request = Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing);
+    let unfiltered = execute_selected(root, contracts.clone(), &request, &runner_for());
+
+    let cargo_runner = runner_for();
+    let cargo = execute_selected(
+        root,
+        contracts.clone(),
+        &request.clone().for_runner_kind(RunnerKind::Cargo),
+        &cargo_runner,
+    );
+    let python_runner = runner_for();
+    let python = execute_selected(
+        root,
+        contracts.clone(),
+        &request
+            .clone()
+            .for_runner_kind(RunnerKind::PythonInstalledWheel),
+        &python_runner,
+    );
+    let passed = |reports: &[CaseReport]| {
+        reports
+            .iter()
+            .filter(|case| case.outcome == Outcome::Passed)
+            .map(|case| case.id.clone())
+            .collect::<BTreeSet<_>>()
+    };
+    let all = passed(&unfiltered);
+    let cargo_cases = passed(&cargo);
+    let python_cases = passed(&python);
+    assert!(cargo_cases.is_disjoint(&python_cases));
+    assert_eq!(
+        cargo_cases
+            .union(&python_cases)
+            .cloned()
+            .collect::<BTreeSet<_>>(),
+        all
+    );
+
+    for (reports, selected) in [
+        (&cargo, RunnerKind::Cargo),
+        (&python, RunnerKind::PythonInstalledWheel),
+    ] {
+        for case in reports {
+            let contract = contracts
+                .iter()
+                .find(|contract| contract.id == case.id)
+                .unwrap();
+            if !contract.status.is_executable() {
+                continue;
+            }
+            let required = contract.evidence.as_ref().unwrap().runner_kind();
+            if required == selected {
+                assert_eq!(case.outcome, Outcome::Passed, "{}", case.id);
+            } else {
+                assert_eq!(case.outcome, Outcome::NotSelected, "{}", case.id);
+                assert_eq!(
+                    case.message.as_deref(),
+                    Some(format!("evidence requires `{}` runner kind", required.as_str()).as_str()),
+                    "{}",
+                    case.id
+                );
+            }
+        }
+    }
+    assert!(python_runner.groups().is_empty());
+    assert!(
+        cargo_runner
+            .targets()
+            .iter()
+            .all(|target| target.runner_kind() == RunnerKind::Cargo)
+    );
+    assert!(
+        python_runner
+            .targets()
+            .iter()
+            .all(|target| target.runner_kind() == RunnerKind::PythonInstalledWheel)
+    );
+}
+
+#[test]
+fn runner_kind_and_environment_filters_state_distinct_reasons() {
+    let mut physical = cargo_target();
+    let EvidenceTarget::Cargo(target) = &mut physical else {
+        unreachable!();
+    };
+    target.environment = EvidenceEnvironment::PhysicalMpiCuda;
+    let reports = execute_selected(
+        Path::new("."),
+        vec![
+            contract_with_target("physical-cargo", physical),
+            contract_with_target("host-python", python_target()),
+        ],
+        &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing)
+            .for_environment(EvidenceEnvironment::HostCpu)
+            .for_runner_kind(RunnerKind::Cargo),
+        &FakeRunner::new([]),
+    );
+
+    assert_eq!(
+        reports
+            .iter()
+            .map(|case| (case.outcome, case.message.as_deref()))
+            .collect::<Vec<_>>(),
+        [
+            (
+                Outcome::NotSelected,
+                Some("evidence requires `physical-mpi-cuda` execution")
+            ),
+            (
+                Outcome::NotSelected,
+                Some("evidence requires `python-installed-wheel` runner kind")
+            ),
+        ]
+    );
+}
+
+#[test]
+fn empty_runner_kind_selection_succeeds_without_build_or_execution() {
+    let fixture = Fixture::new();
+    fixture.write_manifest(valid_manifest());
+    let runner = FakeRunner::new([]);
+    let request = Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast)
+        .for_runner_kind(RunnerKind::PythonInstalledWheel);
+    let report = execute(&fixture.root, &request, &runner);
+
+    assert!(report.success);
+    assert!(report.errors.is_empty());
+    assert_eq!(report.cases.len(), 1);
+    assert_eq!(report.cases[0].outcome, Outcome::NotSelected);
+    assert_eq!(
+        report.cases[0].message.as_deref(),
+        Some("evidence requires `cargo` runner kind")
+    );
+    assert_eq!(
+        report.selected_runner_kind,
+        Some(RunnerKind::PythonInstalledWheel)
+    );
+    assert_eq!(
+        serde_json::to_value(report).unwrap()["selected_runner_kind"],
+        "python-installed-wheel"
+    );
+    assert!(runner.groups().is_empty());
+    assert!(runner.targets().is_empty());
+}
+
+#[test]
+fn runner_kind_filters_do_not_narrow_repository_validation() {
+    for (source, expected_error) in [
+        (
+            valid_manifest().replace("expected/evidence.csv", "expected/missing.csv"),
+            "evidence artifact `expected/missing.csv` is missing or inaccessible",
+        ),
+        (
+            valid_python_manifest().replace("python_evidence.py", "missing.py"),
+            "Python evidence script `tools/ci/missing.py` is missing or inaccessible",
+        ),
+    ] {
+        let fixture = Fixture::new();
+        fixture.write_manifest(&source);
+
+        let reports = [RunnerKind::Cargo, RunnerKind::PythonInstalledWheel].map(|runner_kind| {
+            execute(
+                &fixture.root,
+                &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast)
+                    .for_runner_kind(runner_kind),
+                &FakeRunner::new([]),
+            )
+        });
+        for report in &reports {
+            assert!(!report.success);
+            assert!(report.cases.is_empty());
+            assert_eq!(report.errors.len(), 1);
+            assert!(report.errors[0].contains(expected_error), "{report:?}");
+        }
+        assert_eq!(reports[0].errors, reports[1].errors);
+    }
+}
+
+#[test]
+fn unfiltered_request_preserves_complete_pre_split_report() {
+    let contracts = vec![
+        contract_with_target("cargo", cargo_target()),
+        contract_with_target("python", python_target()),
+    ];
+    let request = Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing);
+    let outputs = [
+        (cargo_target(), output(0, "cargo")),
+        (python_target(), output(0, "python")),
+    ];
+    let reference = report_for(
+        &request,
+        legacy_execute_selected(
+            Path::new("."),
+            contracts.clone(),
+            &request,
+            &FakeRunner::for_targets(outputs.clone()),
+        ),
+    );
+    let actual = report_for(
+        &request,
+        execute_selected(
+            Path::new("."),
+            contracts,
+            &request,
+            &FakeRunner::for_targets(outputs),
+        ),
+    );
+
+    assert_eq!(actual, reference);
+    assert_eq!(actual.selected_runner_kind, None);
 }
