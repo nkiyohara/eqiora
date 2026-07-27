@@ -426,8 +426,14 @@ removal = "withdraw either type, or fold the edit plan into an existing owner if
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 151
-reason = "predates the predicate; not yet triaged"
+ceiling = 152
+reason = """
+151 predate the predicate and are not yet triaged. One is deliberate: the
+geometry-definition envelope, added as an architecture change under the
+authored-geometry epic. Only the schema, encoding and digest live here; the
+region itself is an eqiora-geometry type, so this crate gained one name rather
+than a vocabulary.
+"""
 removal = "lower in the lane that next splits the artifact model"
 
 [[public_surface]]
@@ -488,7 +494,15 @@ ceiling = 22
 
 [[public_surface]]
 crate = "eqiora-geometry"
-ceiling = 23
+ceiling = 30
+reason = """
+Raised from 23 as an architecture change, not as drift. The seven added names
+are the authored-region vocabulary: a canonical straight-edged planar region,
+its face and named entity set, its loop alias, and the three topological
+dimension constants an entity set is written against. It is what lets a Model
+own a shape that is not a box.
+"""
+removal = "revisit when curved regions arrive; a second region kind should extend this vocabulary rather than duplicate it"
 
 [[public_surface]]
 crate = "eqiora-graph"

@@ -8,6 +8,7 @@ mod cad;
 mod discrete_field;
 mod distributed;
 mod external_import;
+mod geometry_definition;
 mod geometry_identity;
 mod geometry_mesh_correspondence;
 mod geometry_revision_association;
@@ -73,6 +74,7 @@ pub use external_import::{
     ExternalRuntimeComponentV1, ExternalRuntimeRoleV1, RawSourceSha256, ResolvedImportArrayV1,
     SelectedSourceEntityV1, StructuralSelectorV1,
 };
+pub use geometry_definition::GeometryDefinitionV1;
 pub use geometry_identity::{
     CartesianGeometryBodyV1, CartesianGeometryBoundaryV1, GeometryDecoderLimits, GeometryEntityV1,
     GeometryIdentityEnvelopeV1,
