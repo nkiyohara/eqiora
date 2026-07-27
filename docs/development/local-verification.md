@@ -111,26 +111,27 @@ Run and record a matching environment-specific command when a slice changes
 one of those claims. Do not remove the limitation merely because a conditional
 test returned successfully.
 
-## What this machine cannot run, and what it silently mis-runs
+## Local environment gaps and misleading substitutes
 
-Two gate stages cannot complete on an ordinary developer machine, and one tool
-will answer from a stale artifact without saying so. All three have cost real
-time, so they are written down rather than rediscovered.
+The gate reports missing local prerequisites directly. Record the exact failed
+stage instead of treating an incomplete run as a clean gate, and do not replace
+the gate with a hand-assembled command that measures a different artifact.
 
 **Studio's end-to-end suite needs a browser the runner does not have.**
 Playwright expects Google Chrome at `/opt/google/chrome/chrome`, and
-`npx playwright install chrome` needs root. The gate reaches this stage last, so
-everything before it has already passed when it fails. Say so in the change
-rather than reporting a clean gate, and rely on CI for that stage.
+`npx playwright install chrome` needs root. The gate reaches this stage after
+every other Studio browser stage has passed. Say which stage failed in the
+change rather than reporting a clean gate, and rely on CI for that stage.
 
 **Studio's own dependencies are not installed by the gate.** Without
 `npm ci` in `studio/`, verification stops earlier still, at `biome: not found`.
 That failure looks like a lint error and is not one.
 
-**`uv run --with .` caches the built wheel.** A Rust change that must be visible
-to Python is invisible without `--no-cache`, and nothing reports that the wheel
-is stale — the tests simply exercise the previous build and pass. This is the
-one that fails quietly, which makes it the one worth remembering.
+**Run `tools/ci/python_package_gate.py`, not a hand-assembled `uv run`.** A
+hand-written `uv run --with .` can answer from a cached wheel, so tests may miss
+a Rust change that must be visible to Python. The repository gate does not have
+this problem: it passes `--reinstall-package eqiora`, which rebuilds the source
+tree even when its package version is unchanged.
 
 ## Integration loop
 
