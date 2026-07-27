@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use numpy::{IntoPyArray, PyArray1, PyArrayDescrMethods, PyArrayMethods, PyUntypedArrayMethods};
 use pyo3::exceptions::{PyBufferError, PyRuntimeError};
 use pyo3::prelude::*;
+use pyo3::types::IntoPyDict;
 use pyo3::types::{PyAny, PyDict, PyModule};
 
 const DLPACK_CPU_DEVICE_TYPE: i32 = 1;
@@ -217,6 +218,32 @@ impl PyArrayBuffer {
     ///
     /// `False` and `None` return the exact read-only zero-copy array. `True`
     /// creates an independent writable NumPy copy.
+    /// The NumPy array protocol, so `numpy.asarray(array)` needs no method call.
+    ///
+    /// `copy` carries the same meaning as [`Self::numpy`], which is already
+    /// NumPy's: `None` and `False` never copy, `True` always does. A requested
+    /// `dtype` is honoured through `astype` rather than ignored, so a caller
+    /// asking for `float32` is not silently handed `float64`.
+    #[pyo3(signature = (dtype=None, copy=None))]
+    fn __array__(
+        &self,
+        py: Python<'_>,
+        dtype: Option<Bound<'_, PyAny>>,
+        copy: Option<bool>,
+    ) -> PyResult<Py<PyAny>> {
+        let array = self.numpy(py, copy)?.into_bound(py).into_any();
+        match dtype {
+            None => Ok(array.unbind()),
+            Some(dtype) => Ok(array
+                .call_method(
+                    "astype",
+                    (dtype,),
+                    Some(&[("copy", false)].into_py_dict(py)?),
+                )?
+                .unbind()),
+        }
+    }
+
     #[pyo3(signature = (*, copy=None))]
     fn numpy(&self, py: Python<'_>, copy: Option<bool>) -> PyResult<Py<PyArray1<f64>>> {
         if copy == Some(true) {

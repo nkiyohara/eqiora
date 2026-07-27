@@ -19,7 +19,7 @@ use eqiora::compatibility::ExactModelCodec;
 use eqiora::control::{CompileOutcomeV1, CompileRequestV1, execute_compile_v1};
 use pyo3::exceptions::{PyKeyError, PyRuntimeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyModule, PyTuple};
+use pyo3::types::{PyList, PyModule, PyTuple};
 
 use array::PyArrayBuffer;
 pub(crate) use error::diagnostic_error;
@@ -176,6 +176,24 @@ impl PySeries {
 
     fn __len__(&self, py: Python<'_>) -> PyResult<usize> {
         Ok(self.values.borrow(py).len())
+    }
+
+    /// Iterate `(time, value)` samples, which is what a series is.
+    ///
+    /// Both buffers are snapshotted once and the pairs are yielded from that
+    /// snapshot. There is deliberately no `__getitem__`: a single element
+    /// cannot be read without materializing the whole buffer, so indexing would
+    /// make `for sample in series` quadratic while looking ordinary.
+    fn __iter__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let time = self.time.borrow(py).snapshot(py)?;
+        let values = self.values.borrow(py).snapshot(py)?;
+        if time.len() != values.len() {
+            return Err(PyRuntimeError::new_err(
+                "Series time and value buffers report different lengths",
+            ));
+        }
+        let samples = PyList::new(py, time.into_iter().zip(values))?;
+        Ok(samples.as_any().try_iter()?.into_any().unbind())
     }
 
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {

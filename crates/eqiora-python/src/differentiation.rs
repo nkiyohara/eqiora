@@ -136,8 +136,28 @@ impl PyDifferentiationEvidence {
     }
 }
 
+/// The leading twelve characters of a content digest.
+///
+/// A repr exists to be read. A full 64-character digest pushes every other
+/// field off the line and identifies nothing a reader could not get from the
+/// first few bytes, so the prefix is shown and the getter remains authoritative.
+fn short_digest(digest: &str) -> &str {
+    digest.get(..12).unwrap_or(digest)
+}
+
 #[pymethods]
 impl PyDifferentiationEvidence {
+    /// The mode, the implementation, and whether the primal met its tolerance.
+    fn __repr__(&self) -> String {
+        format!(
+            "DifferentiationEvidence(mode={:?}, implementation={:?}, output_id={:?}, primal_residual_norm={:e}, residual_tolerance={:e})",
+            self.mode,
+            self.implementation,
+            self.output_id,
+            self.primal_residual_norm,
+            self.residual_tolerance
+        )
+    }
     #[getter]
     fn model_digest(&self) -> &str {
         &self.model_digest
@@ -213,6 +233,13 @@ pub(crate) struct PyDifferentiablePrimal {
 
 #[pymethods]
 impl PyDifferentiablePrimal {
+    /// The output it accepted and the residual that accepted it.
+    fn __repr__(&self) -> String {
+        format!(
+            "DifferentiablePrimal(output_id={:?}, primal_residual_norm={:e})",
+            self.evidence.output_id, self.evidence.primal_residual_norm
+        )
+    }
     #[getter]
     fn output(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
         self.output.clone_ref(py)
@@ -239,6 +266,13 @@ pub(crate) struct PyDifferentiableJvp {
 
 #[pymethods]
 impl PyDifferentiableJvp {
+    /// The output it accepted, in forward mode.
+    fn __repr__(&self) -> String {
+        format!(
+            "DifferentiableJvp(output_id={:?}, mode={:?}, primal_residual_norm={:e})",
+            self.evidence.output_id, self.evidence.mode, self.evidence.primal_residual_norm
+        )
+    }
     #[getter]
     fn output(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
         self.output.clone_ref(py)
@@ -270,6 +304,13 @@ pub(crate) struct PyDifferentiableVjp {
 
 #[pymethods]
 impl PyDifferentiableVjp {
+    /// The output it accepted, in reverse mode.
+    fn __repr__(&self) -> String {
+        format!(
+            "DifferentiableVjp(output_id={:?}, mode={:?}, primal_residual_norm={:e})",
+            self.evidence.output_id, self.evidence.mode, self.evidence.primal_residual_norm
+        )
+    }
     #[getter]
     fn output(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
         self.output.clone_ref(py)
@@ -300,6 +341,11 @@ pub(crate) struct PyDifferentiableEvaluation {
 
 #[pymethods]
 impl PyDifferentiableEvaluation {
+    /// The Parameter point this evaluation is bound to.
+    fn __repr__(&self, py: Python<'_>) -> String {
+        let point = self.point.bind(py).as_any().len().unwrap_or(0);
+        format!("DifferentiableEvaluation(point={point} values)")
+    }
     /// Complete accepted Parameter point in exact program input order.
     #[getter]
     fn point(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
@@ -361,6 +407,15 @@ pub(crate) struct PyDifferentiableProgram {
 
 #[pymethods]
 impl PyDifferentiableProgram {
+    /// The model and Realization this program was lowered from.
+    fn __repr__(&self) -> String {
+        format!(
+            "DifferentiableProgram(model_digest={:?}, realization_digest={:?}, output_id={:?})",
+            short_digest(&self.model_digest()),
+            short_digest(self.realization_digest()),
+            self.output_id()
+        )
+    }
     #[getter]
     fn model_digest(&self) -> String {
         self.value.identity().model().artifact().to_string()
