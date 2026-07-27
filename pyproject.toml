@@ -46,6 +46,10 @@ Security = "https://github.com/nkiyohara/eqiora/security/policy"
 exclude = [
     ".git/**",
     "**/.git/**",
+    # A symlink onto AGENTS.md, so it is neither a regular file nor a
+    # directory, and `safe_extract_sdist` rejects any other member kind. It is
+    # repository-development instruction anyway and has no place in a wheel.
+    "CLAUDE.md",
     "target/**",
     "**/target/**",
     "**/__pycache__/**",
