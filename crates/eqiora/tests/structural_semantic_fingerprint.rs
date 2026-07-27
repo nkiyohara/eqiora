@@ -50,7 +50,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
     assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V1);
     assert_eq!(fingerprint.digest().len(), 64);
 
-    let replay = ExactModelCodec::V6
+    let replay = ExactModelCodec::CURRENT
         .replay(&source.canonical_json().unwrap())
         .unwrap();
     assert_eq!(

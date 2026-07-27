@@ -466,7 +466,7 @@ fn replay_python_model(locals: &Bound<'_, PyDict>, name: &str) -> eqiora::api::M
         .unwrap()
         .extract()
         .unwrap();
-    let document = ExactModelCodec::V6.replay(&bytes).unwrap();
+    let document = ExactModelCodec::CURRENT.replay(&bytes).unwrap();
     assert_eq!(document.canonical_json().unwrap(), bytes);
     document
 }

@@ -90,6 +90,8 @@ enum PyExactModelCodec {
     V5,
     /// Spatial-periodic boundary Connections.
     V6,
+    /// Domains that name an authored geometry by digest and entity set.
+    V7,
 }
 
 impl From<PyExactModelCodec> for ExactModelCodec {
@@ -101,6 +103,7 @@ impl From<PyExactModelCodec> for ExactModelCodec {
             PyExactModelCodec::V4 => Self::V4,
             PyExactModelCodec::V5 => Self::V5,
             PyExactModelCodec::V6 => Self::V6,
+            PyExactModelCodec::V7 => Self::V7,
         }
     }
 }
@@ -116,6 +119,7 @@ impl TryFrom<ExactModelCodec> for PyExactModelCodec {
             ExactModelCodec::V4 => Ok(Self::V4),
             ExactModelCodec::V5 => Ok(Self::V5),
             ExactModelCodec::V6 => Ok(Self::V6),
+            ExactModelCodec::V7 => Ok(Self::V7),
             _ => Err(eqiora::Diagnostic::error(
                 eqiora::diagnostic::codes::NOT_IMPLEMENTED,
                 "model uses a codec unsupported by this Python SDK",
@@ -491,6 +495,7 @@ model decay {
             (PyExactModelCodec::V4, ExactModelCodec::V4),
             (PyExactModelCodec::V5, ExactModelCodec::V5),
             (PyExactModelCodec::V6, ExactModelCodec::V6),
+            (PyExactModelCodec::V7, ExactModelCodec::V7),
         ] {
             assert_eq!(ExactModelCodec::from(python), rust);
             assert_eq!(PyExactModelCodec::try_from(rust).unwrap(), python);
@@ -498,17 +503,17 @@ model decay {
     }
 
     #[test]
-    fn ordinary_python_authoring_observes_the_current_v6_codec() {
+    fn ordinary_python_authoring_observes_the_current_codec() {
         let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
-        assert_eq!(document.exact_codec(), ExactModelCodec::V6);
+        assert_eq!(document.exact_codec(), ExactModelCodec::CURRENT);
         assert_eq!(
             PyExactModelCodec::try_from(document.exact_codec()).unwrap(),
-            PyExactModelCodec::V6
+            PyExactModelCodec::V7
         );
         assert!(
             String::from_utf8(document.canonical_json().unwrap())
                 .unwrap()
-                .contains("eqiora.model-envelope/v6")
+                .contains("eqiora.model-envelope/v7")
         );
     }
 

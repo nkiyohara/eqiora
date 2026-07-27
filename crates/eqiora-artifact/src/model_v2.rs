@@ -21,6 +21,7 @@ const MODEL_SCHEMA_V3: &str = "eqiora.model-envelope/v3";
 const MODEL_SCHEMA_V4: &str = "eqiora.model-envelope/v4";
 const MODEL_SCHEMA_V5: &str = "eqiora.model-envelope/v5";
 const MODEL_SCHEMA_V6: &str = "eqiora.model-envelope/v6";
+const MODEL_SCHEMA_V7: &str = "eqiora.model-envelope/v7";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ModelSchemaVersion {
@@ -29,6 +30,7 @@ enum ModelSchemaVersion {
     V4,
     V5,
     V6,
+    V7,
 }
 
 impl ModelSchemaVersion {
@@ -39,6 +41,7 @@ impl ModelSchemaVersion {
             Self::V4 => MODEL_SCHEMA_V4,
             Self::V5 => MODEL_SCHEMA_V5,
             Self::V6 => MODEL_SCHEMA_V6,
+            Self::V7 => MODEL_SCHEMA_V7,
         }
     }
 
@@ -49,6 +52,7 @@ impl ModelSchemaVersion {
             Self::V4 => "decode eqiora.model-envelope/v4",
             Self::V5 => "decode eqiora.model-envelope/v5",
             Self::V6 => "decode eqiora.model-envelope/v6",
+            Self::V7 => "decode eqiora.model-envelope/v7",
         }
     }
 
@@ -59,6 +63,7 @@ impl ModelSchemaVersion {
             Self::V4 => "model v4",
             Self::V5 => "model v5",
             Self::V6 => "model v6",
+            Self::V7 => "model v7",
         }
     }
 
@@ -69,6 +74,7 @@ impl ModelSchemaVersion {
             Self::V4 => "model v4 envelope",
             Self::V5 => "model v5 envelope",
             Self::V6 => "model v6 envelope",
+            Self::V7 => "model v7 envelope",
         }
     }
 }
@@ -101,6 +107,10 @@ impl ModelEnvelopeV2 {
         Self::from_program_version(program, ModelSchemaVersion::V5)
     }
 
+    pub(crate) fn from_program_v7(program: &KernelProgram) -> Result<Self, Diagnostic> {
+        Self::from_program_version(program, ModelSchemaVersion::V7)
+    }
+
     pub(crate) fn from_program_v6(program: &KernelProgram) -> Result<Self, Diagnostic> {
         Self::from_program_version(program, ModelSchemaVersion::V6)
     }
@@ -117,6 +127,7 @@ impl ModelEnvelopeV2 {
                 ModelSchemaVersion::V4 => WireNode::encode_v4(node),
                 ModelSchemaVersion::V5 => WireNode::encode_v5(node),
                 ModelSchemaVersion::V6 => WireNode::encode_v6(node),
+                ModelSchemaVersion::V7 => WireNode::encode_v7(node),
             })
             .collect::<Result<Vec<_>, _>>()?;
         let values = program
@@ -191,6 +202,13 @@ impl ModelEnvelopeV2 {
         Self::from_json_version(bytes, limits, ModelSchemaVersion::V5)
     }
 
+    pub(crate) fn from_json_v7(
+        bytes: &[u8],
+        limits: ModelDecoderLimits,
+    ) -> Result<Self, Diagnostic> {
+        Self::from_json_version(bytes, limits, ModelSchemaVersion::V7)
+    }
+
     pub(crate) fn from_json_v6(
         bytes: &[u8],
         limits: ModelDecoderLimits,
@@ -246,6 +264,10 @@ impl ModelEnvelopeV2 {
 
     pub(crate) fn digest_v5(&self) -> Result<ArtifactDigest, Diagnostic> {
         self.digest_version(ModelSchemaVersion::V5)
+    }
+
+    pub(crate) fn digest_v7(&self) -> Result<ArtifactDigest, Diagnostic> {
+        self.digest_version(ModelSchemaVersion::V7)
     }
 
     pub(crate) fn digest_v6(&self) -> Result<ArtifactDigest, Diagnostic> {
@@ -484,6 +506,7 @@ impl ModelEnvelopeV2 {
                 ModelSchemaVersion::V4 => node.ensure_v4()?,
                 ModelSchemaVersion::V5 => node.ensure_v5()?,
                 ModelSchemaVersion::V6 => node.ensure_v6()?,
+                ModelSchemaVersion::V7 => node.ensure_v7()?,
             }
             node.decode()?;
         }

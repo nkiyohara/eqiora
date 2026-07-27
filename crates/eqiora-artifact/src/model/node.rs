@@ -7,7 +7,8 @@ use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use eqiora_schema::kernel::{
     ActivationDef, BoundaryPhysicalConnector, ConnectionDef, DomainDef, DomainKind, FieldDef,
-    KernelNode, ParameterDef, PortDef, PortPayload, RelationDef, RepresentationDef, ValueFrame,
+    GeometryDigest, KernelNode, ParameterDef, PortDef, PortPayload, RelationDef, RepresentationDef,
+    ValueFrame,
 };
 use serde::{Deserialize, Serialize};
 
@@ -35,6 +36,10 @@ impl WireNode {
 
     pub(crate) fn encode_v5(node: &KernelNode) -> Result<Self, Diagnostic> {
         Self::encode(node, WireVersion::V5)
+    }
+
+    pub(crate) fn encode_v7(node: &KernelNode) -> Result<Self, Diagnostic> {
+        Self::encode(node, WireVersion::V7)
     }
 
     pub(crate) fn encode_v6(node: &KernelNode) -> Result<Self, Diagnostic> {
@@ -342,6 +347,12 @@ impl WireNode {
         }
     }
 
+    pub(crate) fn ensure_v7(&self) -> Result<(), Diagnostic> {
+        // V7 inherits the whole v6 grammar and adds only the geometry Domain
+        // kinds, so it admits exactly what v6 admits and more.
+        self.ensure_v6()
+    }
+
     pub(crate) fn ensure_v6(&self) -> Result<(), Diagnostic> {
         match &self.definition {
             WireNodeDefinition::Field { .. } => Err(invalid_artifact(
@@ -386,19 +397,42 @@ pub(crate) enum WireVersion {
     V4,
     V5,
     V6,
+    V7,
 }
 
 impl WireVersion {
     pub(crate) const fn supports_scalar_physical(self) -> bool {
-        matches!(self, Self::V2 | Self::V3 | Self::V4 | Self::V5 | Self::V6)
+        matches!(
+            self,
+            Self::V2 | Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7
+        )
     }
 
     pub(crate) const fn supports_boundary_physical(self) -> bool {
-        matches!(self, Self::V3 | Self::V4 | Self::V5 | Self::V6)
+        matches!(self, Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7)
     }
 
     pub(crate) const fn supports_shaped_fields(self) -> bool {
-        matches!(self, Self::V3 | Self::V4 | Self::V5 | Self::V6)
+        matches!(self, Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7)
+    }
+
+    /// Whether a Domain may name an authored geometry rather than describe a
+    /// box. Only the newest generation may, because an older decoder shown a
+    /// geometry reference would have to guess at a shape it cannot read.
+    pub(crate) const fn supports_geometry_region(self) -> bool {
+        matches!(self, Self::V7)
+    }
+
+    pub(crate) const fn supports_spatial_periodic(self) -> bool {
+        matches!(self, Self::V6 | Self::V7)
+    }
+
+    pub(crate) const fn supports_tensor_operators(self) -> bool {
+        matches!(self, Self::V4 | Self::V5 | Self::V6 | Self::V7)
+    }
+
+    pub(crate) const fn supports_pure_operators(self) -> bool {
+        matches!(self, Self::V5 | Self::V6 | Self::V7)
     }
 }
 
@@ -460,6 +494,13 @@ pub(crate) enum WireDomainKind {
         axis: usize,
         side: WireBoundarySide,
     },
+    GeometryRegion {
+        geometry: String,
+        entity_set: String,
+    },
+    GeometryBoundary {
+        entity_set: String,
+    },
     ScalarPhysical {
         across_dimension: WireDimension,
         through_dimension: WireDimension,
@@ -484,6 +525,18 @@ impl WireDomainKind {
                 axis: *axis,
                 side: WireBoundarySide::encode(*side),
             },
+            DomainKind::GeometryRegion {
+                geometry,
+                entity_set,
+            } if version.supports_geometry_region() => Self::GeometryRegion {
+                geometry: encode_geometry_digest(*geometry),
+                entity_set: entity_set.clone(),
+            },
+            DomainKind::GeometryBoundary { entity_set } if version.supports_geometry_region() => {
+                Self::GeometryBoundary {
+                    entity_set: entity_set.clone(),
+                }
+            }
             DomainKind::ScalarPhysical {
                 across_dimension,
                 through_dimension,
@@ -522,6 +575,13 @@ impl WireDomainKind {
             Self::CartesianBoundary { axis, side } => {
                 Ok(DomainDef::cartesian_boundary(id, *axis, side.decode()))
             }
+            Self::GeometryRegion {
+                geometry,
+                entity_set,
+            } => DomainDef::geometry_region(id, decode_geometry_digest(geometry)?, entity_set)
+                .map_err(|error| invalid_artifact(error.message())),
+            Self::GeometryBoundary { entity_set } => DomainDef::geometry_boundary(id, entity_set)
+                .map_err(|error| invalid_artifact(error.message())),
             Self::ScalarPhysical {
                 across_dimension,
                 through_dimension,
@@ -549,4 +609,27 @@ impl WireDomainKind {
             )),
         }
     }
+}
+
+/// Lowercase hex, matching how every other digest crosses this wire.
+fn encode_geometry_digest(digest: GeometryDigest) -> String {
+    ArtifactDigest::from_sha256(digest.bytes()).to_string()
+}
+
+/// A malformed digest is refused rather than truncated or padded, because a
+/// Domain naming an unreadable geometry names nothing.
+///
+/// The shared digest type validates first, so a geometry reference is held to
+/// the same canonical hex form as every other digest on this wire; the bytes
+/// are then re-read because the Kernel holds bytes rather than text.
+fn decode_geometry_digest(value: &str) -> Result<GeometryDigest, Diagnostic> {
+    let canonical = ArtifactDigest::from_hex(value.to_owned())?.to_string();
+    let mut bytes = [0_u8; 32];
+    for (slot, pair) in bytes.iter_mut().zip(canonical.as_bytes().chunks_exact(2)) {
+        let text = std::str::from_utf8(pair)
+            .map_err(|_| invalid_artifact("geometry digest is not hexadecimal"))?;
+        *slot = u8::from_str_radix(text, 16)
+            .map_err(|_| invalid_artifact("geometry digest is not hexadecimal"))?;
+    }
+    Ok(GeometryDigest::new(bytes))
 }

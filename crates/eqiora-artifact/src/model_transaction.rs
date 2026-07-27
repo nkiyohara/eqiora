@@ -255,6 +255,10 @@ impl WireModelOp {
         Self::encode(op, ModelOperationWireVersion::V5)
     }
 
+    pub(crate) fn encode_v7(op: &Op) -> Result<Self, Diagnostic> {
+        Self::encode(op, ModelOperationWireVersion::V7)
+    }
+
     pub(crate) fn encode_v6(op: &Op) -> Result<Self, Diagnostic> {
         Self::encode(op, ModelOperationWireVersion::V6)
     }
@@ -269,6 +273,7 @@ impl WireModelOp {
                     ModelOperationWireVersion::V4 => WireNode::encode_v4(node)?,
                     ModelOperationWireVersion::V5 => WireNode::encode_v5(node)?,
                     ModelOperationWireVersion::V6 => WireNode::encode_v6(node)?,
+                    ModelOperationWireVersion::V7 => WireNode::encode_v7(node)?,
                 },
             }),
             Op::SetValue { target, value } => {
@@ -443,6 +448,12 @@ impl WireModelOp {
         }
     }
 
+    pub(crate) fn ensure_v7(&self) -> Result<(), Diagnostic> {
+        // V7 inherits the whole v6 operation grammar and adds only the geometry
+        // Domain kinds, so it admits exactly what v6 admits and more.
+        self.ensure_v6()
+    }
+
     pub(crate) fn ensure_v6(&self) -> Result<(), Diagnostic> {
         match self {
             Self::DefineKernelNode { node } => node.ensure_v6(),
@@ -479,6 +490,7 @@ enum ModelOperationWireVersion {
     V4,
     V5,
     V6,
+    V7,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

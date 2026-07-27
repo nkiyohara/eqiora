@@ -375,7 +375,7 @@ impl WireConnectionKind {
         match value {
             ConnectionSemantics::Signal => Ok(Self::Signal),
             ConnectionSemantics::Conserving => Ok(Self::Conserving),
-            ConnectionSemantics::SpatialPeriodic if version == WireVersion::V6 => {
+            ConnectionSemantics::SpatialPeriodic if version.supports_spatial_periodic() => {
                 Ok(Self::SpatialPeriodic)
             }
             ConnectionSemantics::SpatialPeriodic => Err(invalid_artifact(

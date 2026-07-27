@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
-    GeometryRevisionAssociationEnvelopeV1, ModelDecoderLimits, ModelEnvelopeV6,
-    ModelTransactionEnvelopeV6, SimplicialMeshEnvelopeV1,
+    GeometryRevisionAssociationEnvelopeV1, ModelDecoderLimits, ModelEnvelopeV7,
+    ModelTransactionEnvelopeV7, SimplicialMeshEnvelopeV1,
 };
 use eqiora::geometry::BodyAssociationCandidate;
 use eqiora::graph::{EdgeKind, Op, Precondition};
@@ -66,7 +66,7 @@ fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associ
         .unwrap();
     assert_eq!(
         base.exact_codec(),
-        eqiora::compatibility::ExactModelCodec::V6
+        eqiora::compatibility::ExactModelCodec::CURRENT
     );
     assert_eq!(plan.base_digest(), base_digest);
     assert_eq!(plan.target(), body);
@@ -91,7 +91,7 @@ fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associ
         plan.expected_child_digest(),
         distinct.expected_child_digest()
     );
-    let ordinary_transaction = ModelTransactionEnvelopeV6::from_json(
+    let ordinary_transaction = ModelTransactionEnvelopeV7::from_json(
         &plan.transaction_json().unwrap(),
         ModelDecoderLimits::default(),
     )
@@ -408,7 +408,7 @@ fn geometry_identity_rejects_a_missing_boundary_of_mutant() {
     });
     assert_eq!(edges.len() + 1, original_edge_count);
 
-    let edge_only_mutant = ModelEnvelopeV6::from_json(
+    let edge_only_mutant = ModelEnvelopeV7::from_json(
         &serde_json::to_vec(&edge_only_wire).unwrap(),
         ModelDecoderLimits::default(),
     )
@@ -432,7 +432,7 @@ fn geometry_identity_rejects_a_missing_boundary_of_mutant() {
         .as_array_mut()
         .unwrap()
         .retain(|node| node["id"]["ulid"] != boundary.ulid().to_string());
-    let missing_role_mutant = ModelEnvelopeV6::from_json(
+    let missing_role_mutant = ModelEnvelopeV7::from_json(
         &serde_json::to_vec(&missing_role_wire).unwrap(),
         ModelDecoderLimits::default(),
     )
@@ -449,8 +449,8 @@ fn geometry_identity_rejects_a_missing_boundary_of_mutant() {
     );
 }
 
-fn model_artifact(document: &ModelDocument) -> ModelEnvelopeV6 {
-    ModelEnvelopeV6::from_json(
+fn model_artifact(document: &ModelDocument) -> ModelEnvelopeV7 {
+    ModelEnvelopeV7::from_json(
         &document.canonical_json().unwrap(),
         ModelDecoderLimits::default(),
     )

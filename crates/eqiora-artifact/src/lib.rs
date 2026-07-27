@@ -29,11 +29,13 @@ mod model_transaction_v3;
 mod model_transaction_v4;
 mod model_transaction_v5;
 mod model_transaction_v6;
+mod model_transaction_v7;
 mod model_v2;
 mod model_v3;
 mod model_v4;
 mod model_v5;
 mod model_v6;
+mod model_v7;
 mod physical_exposure;
 mod realization;
 mod realization_reference;
@@ -111,11 +113,13 @@ pub use model_transaction_v3::ModelTransactionEnvelopeV3;
 pub use model_transaction_v4::ModelTransactionEnvelopeV4;
 pub use model_transaction_v5::ModelTransactionEnvelopeV5;
 pub use model_transaction_v6::ModelTransactionEnvelopeV6;
+pub use model_transaction_v7::ModelTransactionEnvelopeV7;
 pub use model_v2::ModelEnvelopeV2;
 pub use model_v3::ModelEnvelopeV3;
 pub use model_v4::ModelEnvelopeV4;
 pub use model_v5::ModelEnvelopeV5;
 pub use model_v6::ModelEnvelopeV6;
+pub use model_v7::ModelEnvelopeV7;
 pub use physical_exposure::{
     PhysicalExposureCatalogEnvelopeV1, PhysicalExposureContractV1, PhysicalExposureDecoderLimits,
     PhysicalExposureObservationBindingV1, PhysicalExposureProjectionV1, PhysicalExposureQuantityV1,

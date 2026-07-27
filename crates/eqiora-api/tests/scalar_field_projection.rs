@@ -71,7 +71,7 @@ fn scalar_field_projection_is_fixed_at_preview_and_reaccepted_after_execution() 
 fn presentation_alias_is_optional_but_exact_semantic_identity_is_not() {
     let source_document = ModelDocument::compile("poisson.eqi", SOURCE).unwrap();
     let bytes = source_document.canonical_json().unwrap();
-    let replayed = ExactModelCodec::V6.replay(&bytes).unwrap();
+    let replayed = ExactModelCodec::CURRENT.replay(&bytes).unwrap();
     assert!(replayed.aliases().is_empty());
 
     let plan = preview(&replayed, ScalarEllipticMethod::FiniteElement);

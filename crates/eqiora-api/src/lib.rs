@@ -6,6 +6,7 @@
 //! UI-specific ergonomics around these owned Rust values.
 
 mod cad;
+mod codec;
 pub mod control;
 mod differentiation;
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
@@ -20,6 +21,8 @@ mod spatial_data;
 mod transient_fluid;
 
 pub use cad::*;
+pub use codec::ExactModelCodec;
+pub(crate) use codec::VersionedModelTransactionEnvelope;
 pub use differentiation::*;
 pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
@@ -44,7 +47,7 @@ use eqiora_artifact::{
     AcceptedModelArtifact, CanonicalModelArtifact, ModelArtifactGeneration, ModelArtifactReference,
     ModelDecoderLimits, ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2,
     ModelTransactionEnvelopeV3, ModelTransactionEnvelopeV4, ModelTransactionEnvelopeV5,
-    ModelTransactionEnvelopeV6, ReplayableCanonicalModelArtifact,
+    ModelTransactionEnvelopeV6, ModelTransactionEnvelopeV7, ReplayableCanonicalModelArtifact,
 };
 use eqiora_compiler::{CompiledModel, ModelSymbols};
 use eqiora_core::diagnostic::codes;
@@ -168,247 +171,6 @@ impl ValueEditResult {
     #[must_use]
     pub fn into_document(self) -> ModelDocument {
         self.document
-    }
-}
-
-/// Exact historical Model/Transaction artifact codec.
-///
-/// Ordinary authoring uses [`ModelDocument::compile`] or
-/// [`ModelDocument::define`] and does not choose this value. Artifact replay,
-/// compatibility tests, and conformance tools select one codec explicitly;
-/// Eqiora never guesses from bytes or retries another generation.
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum ExactModelCodec {
-    /// The original scalar model and transaction vocabulary.
-    #[serde(rename = "v1")]
-    V1,
-    /// Scalar physical Domains, Ports, and across/through symbols.
-    #[serde(rename = "v2")]
-    V2,
-    /// Exact shaped Fields and field-valued boundary physical interfaces.
-    #[serde(rename = "v3")]
-    V3,
-    /// Canonical symmetric-part and isotropic-lift tensor operators.
-    #[serde(rename = "v4")]
-    V4,
-    /// Expression-local, content-addressed canonical pure operators.
-    #[serde(rename = "v5")]
-    V5,
-    /// Spatial-periodic boundary Connections.
-    #[serde(rename = "v6")]
-    V6,
-}
-
-impl ExactModelCodec {
-    /// Codec currently used by the ordinary authoring profile.
-    ///
-    /// This mapping is not a stability promise for the current semantic
-    /// vocabulary. Exact artifacts retain the codec selected when authored.
-    pub const CURRENT: Self = Self::V6;
-
-    /// Exact generation spelling used by compatibility protocols.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::V1 => "v1",
-            Self::V2 => "v2",
-            Self::V3 => "v3",
-            Self::V4 => "v4",
-            Self::V5 => "v5",
-            Self::V6 => "v6",
-        }
-    }
-
-    /// Immutable artifact schema owned by this codec.
-    #[must_use]
-    pub const fn model_schema(self) -> &'static str {
-        self.artifact_generation().schema()
-    }
-
-    const fn artifact_generation(self) -> ModelArtifactGeneration {
-        match self {
-            Self::V1 => ModelArtifactGeneration::V1,
-            Self::V2 => ModelArtifactGeneration::V2,
-            Self::V3 => ModelArtifactGeneration::V3,
-            Self::V4 => ModelArtifactGeneration::V4,
-            Self::V5 => ModelArtifactGeneration::V5,
-            Self::V6 => ModelArtifactGeneration::V6,
-        }
-    }
-
-    /// Compile source through exactly this historical Model/Transaction codec.
-    ///
-    /// # Errors
-    /// Returns compiler, semantic, or artifact diagnostics without trying a
-    /// different codec.
-    pub fn compile(self, filename: &str, source: &str) -> Result<ModelDocument, Vec<Diagnostic>> {
-        ModelDocument::compile_for_codec(filename, source, self)
-    }
-
-    /// Define a native draft through exactly this historical codec.
-    ///
-    /// # Errors
-    /// Returns graph-path, semantic, or artifact diagnostics without trying a
-    /// different codec.
-    pub fn define(self, draft: &ModelDraft) -> Result<ModelDocument, Vec<Diagnostic>> {
-        ModelDocument::define_for_codec(draft, self)
-    }
-
-    /// Replay bytes using exactly this historical Model decoder.
-    ///
-    /// # Errors
-    /// Returns artifact or semantic diagnostics when the bytes do not belong
-    /// to this codec. No sniffing or fallback occurs.
-    pub fn replay(self, data: &[u8]) -> Result<ModelDocument, Vec<Diagnostic>> {
-        ModelDocument::replay_codec(data, self)
-    }
-
-    /// Whether this wire admits nominal scalar physical semantics.
-    #[must_use]
-    pub const fn supports_scalar_physical(self) -> bool {
-        matches!(self, Self::V2 | Self::V3 | Self::V4 | Self::V5 | Self::V6)
-    }
-
-    /// Whether this wire admits exact shaped values and field-valued boundary
-    /// physical interfaces.
-    #[must_use]
-    pub const fn supports_boundary_physical(self) -> bool {
-        matches!(self, Self::V3 | Self::V4 | Self::V5 | Self::V6)
-    }
-
-    /// Whether this wire admits the closed canonical tensor-operator
-    /// vocabulary.
-    #[must_use]
-    pub const fn supports_tensor_operators(self) -> bool {
-        matches!(self, Self::V4 | Self::V5 | Self::V6)
-    }
-
-    /// Whether this wire admits expression-local content-addressed pure operators.
-    #[must_use]
-    pub const fn supports_pure_operators(self) -> bool {
-        matches!(self, Self::V5 | Self::V6)
-    }
-
-    /// Whether this wire admits spatial-periodic boundary Connections.
-    #[must_use]
-    pub const fn supports_spatial_periodic(self) -> bool {
-        matches!(self, Self::V6)
-    }
-
-    fn replay_transaction(self, transaction: &Transaction) -> Result<Transaction, Diagnostic> {
-        let envelope = self.encode_transaction(transaction)?;
-        let bytes = envelope.canonical_json()?;
-        self.decode_transaction(&bytes)?.to_transaction()
-    }
-
-    fn encode_transaction(
-        self,
-        transaction: &Transaction,
-    ) -> Result<VersionedModelTransactionEnvelope, Diagnostic> {
-        match self {
-            Self::V1 => ModelTransactionEnvelopeV1::from_transaction(transaction)
-                .map(VersionedModelTransactionEnvelope::V1),
-            Self::V2 => ModelTransactionEnvelopeV2::from_transaction(transaction)
-                .map(VersionedModelTransactionEnvelope::V2),
-            Self::V3 => ModelTransactionEnvelopeV3::from_transaction(transaction)
-                .map(VersionedModelTransactionEnvelope::V3),
-            Self::V4 => ModelTransactionEnvelopeV4::from_transaction(transaction)
-                .map(VersionedModelTransactionEnvelope::V4),
-            Self::V5 => ModelTransactionEnvelopeV5::from_transaction(transaction)
-                .map(VersionedModelTransactionEnvelope::V5),
-            Self::V6 => ModelTransactionEnvelopeV6::from_transaction(transaction)
-                .map(VersionedModelTransactionEnvelope::V6),
-        }
-    }
-
-    fn decode_transaction(
-        self,
-        bytes: &[u8],
-    ) -> Result<VersionedModelTransactionEnvelope, Diagnostic> {
-        match self {
-            Self::V1 => ModelTransactionEnvelopeV1::from_json(bytes, ModelDecoderLimits::default())
-                .map(VersionedModelTransactionEnvelope::V1),
-            Self::V2 => ModelTransactionEnvelopeV2::from_json(bytes, ModelDecoderLimits::default())
-                .map(VersionedModelTransactionEnvelope::V2),
-            Self::V3 => ModelTransactionEnvelopeV3::from_json(bytes, ModelDecoderLimits::default())
-                .map(VersionedModelTransactionEnvelope::V3),
-            Self::V4 => ModelTransactionEnvelopeV4::from_json(bytes, ModelDecoderLimits::default())
-                .map(VersionedModelTransactionEnvelope::V4),
-            Self::V5 => ModelTransactionEnvelopeV5::from_json(bytes, ModelDecoderLimits::default())
-                .map(VersionedModelTransactionEnvelope::V5),
-            Self::V6 => ModelTransactionEnvelopeV6::from_json(bytes, ModelDecoderLimits::default())
-                .map(VersionedModelTransactionEnvelope::V6),
-        }
-    }
-
-    fn encode_program(self, program: &KernelProgram) -> Result<AcceptedModelArtifact, Diagnostic> {
-        AcceptedModelArtifact::from_program(self.artifact_generation(), program)
-    }
-
-    fn decode_model(self, bytes: &[u8]) -> Result<AcceptedModelArtifact, Diagnostic> {
-        AcceptedModelArtifact::from_json(
-            self.artifact_generation(),
-            bytes,
-            ModelDecoderLimits::default(),
-        )
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum VersionedModelTransactionEnvelope {
-    V1(ModelTransactionEnvelopeV1),
-    V2(ModelTransactionEnvelopeV2),
-    V3(ModelTransactionEnvelopeV3),
-    V4(ModelTransactionEnvelopeV4),
-    V5(ModelTransactionEnvelopeV5),
-    V6(ModelTransactionEnvelopeV6),
-}
-
-impl VersionedModelTransactionEnvelope {
-    fn canonical_json(&self) -> Result<Vec<u8>, Diagnostic> {
-        match self {
-            Self::V1(envelope) => envelope.canonical_json(),
-            Self::V2(envelope) => envelope.canonical_json(),
-            Self::V3(envelope) => envelope.canonical_json(),
-            Self::V4(envelope) => envelope.canonical_json(),
-            Self::V5(envelope) => envelope.canonical_json(),
-            Self::V6(envelope) => envelope.canonical_json(),
-        }
-    }
-
-    fn digest(&self) -> Result<String, Diagnostic> {
-        match self {
-            Self::V1(envelope) => envelope.digest(),
-            Self::V2(envelope) => envelope.digest(),
-            Self::V3(envelope) => envelope.digest(),
-            Self::V4(envelope) => envelope.digest(),
-            Self::V5(envelope) => envelope.digest(),
-            Self::V6(envelope) => envelope.digest(),
-        }
-        .map(|digest| digest.to_string())
-    }
-
-    fn to_transaction(&self) -> Result<Transaction, Diagnostic> {
-        match self {
-            Self::V1(envelope) => envelope.to_transaction(),
-            Self::V2(envelope) => envelope.to_transaction(),
-            Self::V3(envelope) => envelope.to_transaction(),
-            Self::V4(envelope) => envelope.to_transaction(),
-            Self::V5(envelope) => envelope.to_transaction(),
-            Self::V6(envelope) => envelope.to_transaction(),
-        }
-    }
-
-    const fn exact_codec(&self) -> ExactModelCodec {
-        match self {
-            Self::V1(_) => ExactModelCodec::V1,
-            Self::V2(_) => ExactModelCodec::V2,
-            Self::V3(_) => ExactModelCodec::V3,
-            Self::V4(_) => ExactModelCodec::V4,
-            Self::V5(_) => ExactModelCodec::V5,
-            Self::V6(_) => ExactModelCodec::V6,
-        }
     }
 }
 
@@ -783,16 +545,16 @@ model decay {
     #[test]
     fn one_application_path_closes_compile_wire_artifact_and_run() {
         let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
-        assert_eq!(document.exact_codec(), ExactModelCodec::V6);
+        assert_eq!(document.exact_codec(), ExactModelCodec::CURRENT);
         let bytes = document.canonical_json().unwrap();
         let digest = document.digest().unwrap();
-        let reconstructed = ExactModelCodec::V6.replay(&bytes).unwrap();
+        let reconstructed = ExactModelCodec::CURRENT.replay(&bytes).unwrap();
         assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
         assert_eq!(reconstructed.digest().unwrap(), digest);
 
         let mut zero_revision: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         zero_revision["source_revision"] = serde_json::Value::from(0);
-        let diagnostics = ExactModelCodec::V6
+        let diagnostics = ExactModelCodec::CURRENT
             .replay(&serde_json::to_vec(&zero_revision).unwrap())
             .unwrap_err();
         assert_eq!(diagnostics[0].code().0, "EQ0901");
@@ -853,7 +615,7 @@ model decay {
         let explicit_v4 = ExactModelCodec::V4.define(&draft).unwrap();
         let explicit_v5 = ExactModelCodec::V5.define(&draft).unwrap();
         let explicit_v6 = ExactModelCodec::V6.define(&draft).unwrap();
-        assert_eq!(native.exact_codec(), ExactModelCodec::V6);
+        assert_eq!(native.exact_codec(), ExactModelCodec::CURRENT);
         assert_eq!(explicit_v1.exact_codec(), ExactModelCodec::V1);
         assert_eq!(explicit_v2.exact_codec(), ExactModelCodec::V2);
         assert_eq!(explicit_v3.exact_codec(), ExactModelCodec::V3);
@@ -888,7 +650,7 @@ model decay {
                 .contains("eqiora.model-envelope/v4")
         );
         let bytes = native.canonical_json().unwrap();
-        let reconstructed = ExactModelCodec::V6.replay(&bytes).unwrap();
+        let reconstructed = ExactModelCodec::CURRENT.replay(&bytes).unwrap();
         assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
         assert_eq!(native.aliases().len(), 3);
 
@@ -906,7 +668,7 @@ model decay {
     }
 
     #[test]
-    fn current_v6_authoring_retains_the_v4_tensor_vocabulary() {
+    fn current_v7_authoring_retains_the_v4_tensor_vocabulary() {
         let source = r#"
 model elastic_relation {
   domain body = box(0, 1, 0, 1);
@@ -927,18 +689,18 @@ model elastic_relation {
         let document = ModelDocument::compile("elastic.eqi", source).unwrap();
         let exact_v4 = ExactModelCodec::V4.compile("elastic.eqi", source).unwrap();
         let bytes = document.canonical_json().unwrap();
-        assert_eq!(document.exact_codec(), ExactModelCodec::V6);
+        assert_eq!(document.exact_codec(), ExactModelCodec::CURRENT);
         assert_eq!(exact_v4.exact_codec(), ExactModelCodec::V4);
         assert!(String::from_utf8_lossy(&bytes).contains("symmetric-part"));
         assert!(String::from_utf8_lossy(&bytes).contains("isotropic-lift"));
         assert!(ExactModelCodec::V4.replay(&bytes).is_err());
-        let replay = ExactModelCodec::V6.replay(&bytes).unwrap();
+        let replay = ExactModelCodec::CURRENT.replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), document.digest().unwrap());
     }
 
     #[test]
-    fn current_v6_closes_generic_pure_operators_while_exact_v4_rejects_them() {
+    fn current_v7_closes_generic_pure_operators_while_exact_v4_rejects_them() {
         let source = r#"
 public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
   = component(left, 0) * component(right, 1);
@@ -953,7 +715,7 @@ model pure_relation {
 }
 "#;
         let current = ModelDocument::compile("pure-relation.eqi", source).unwrap();
-        assert_eq!(current.exact_codec(), ExactModelCodec::V6);
+        assert_eq!(current.exact_codec(), ExactModelCodec::CURRENT);
         assert!(
             ExactModelCodec::V4
                 .compile("pure-relation.eqi", source)
@@ -963,9 +725,9 @@ model pure_relation {
         let bytes = current.canonical_json().unwrap();
         let json = String::from_utf8_lossy(&bytes);
         assert!(json.contains("pure-operator-application"));
-        assert!(json.contains("eqiora.model-envelope/v6"));
+        assert!(json.contains("eqiora.model-envelope/v7"));
         assert!(ExactModelCodec::V4.replay(&bytes).is_err());
-        let replay = ExactModelCodec::V6.replay(&bytes).unwrap();
+        let replay = ExactModelCodec::CURRENT.replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), current.digest().unwrap());
     }

@@ -30,7 +30,7 @@ pub(crate) struct WireExpression {
 impl WireExpression {
     pub(crate) fn encode(expression: &ExprDag, version: WireVersion) -> Result<Self, Diagnostic> {
         Ok(Self {
-            definitions: if matches!(version, WireVersion::V5 | WireVersion::V6) {
+            definitions: if version.supports_pure_operators() {
                 expression
                     .definitions()
                     .values()
@@ -422,23 +422,17 @@ impl WireExpressionNode {
             ExprNode::NormalComponent(value) => Self::NormalComponent {
                 value: value.index(),
             },
-            ExprNode::SymmetricPart(value)
-                if matches!(version, WireVersion::V4 | WireVersion::V5 | WireVersion::V6) =>
-            {
+            ExprNode::SymmetricPart(value) if version.supports_tensor_operators() => {
                 Self::SymmetricPart {
                     value: value.index(),
                 }
             }
-            ExprNode::IsotropicLift(value)
-                if matches!(version, WireVersion::V4 | WireVersion::V5 | WireVersion::V6) =>
-            {
+            ExprNode::IsotropicLift(value) if version.supports_tensor_operators() => {
                 Self::IsotropicLift {
                     value: value.index(),
                 }
             }
-            ExprNode::PureOperatorApplication(application)
-                if matches!(version, WireVersion::V5 | WireVersion::V6) =>
-            {
+            ExprNode::PureOperatorApplication(application) if version.supports_pure_operators() => {
                 Self::PureOperatorApplication {
                     definition: application.definition().to_string(),
                     arguments: application
