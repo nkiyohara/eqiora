@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import tomllib
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -14,6 +15,72 @@ INLINE_LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 REFERENCE_LINK = re.compile(r"^\s*\[[^\]]+\]:\s*(\S+)", re.MULTILINE)
 EXTERNAL_SCHEMES = ("http://", "https://", "mailto:")
 IGNORED_PARTS = {".git", ".venv", "node_modules", "target"}
+
+BENCHMARKS = "docs/benchmarks.md"
+CITATION = re.compile(r"`(case|symbol|key):([A-Za-z0-9_.\-]+)`")
+UNCITED = "none declared"
+CITED_SECTIONS = (
+    "## Reproduced today",
+    "## Reachable without new numerical capability",
+    "## Needs new numerical capability",
+)
+
+
+def benchmark_failures(root: Path) -> list[str]:
+    """Every benchmark row states a resolvable capability or says it declares none.
+
+    A row whose citation stops resolving is a row describing something the
+    repository no longer has. Rows are checked as well as citations, so deleting
+    a citation cannot quietly turn a claim into prose.
+    """
+    document = root / BENCHMARKS
+    if not document.exists():
+        return []
+    source = document.read_text(encoding="utf-8")
+    failures: list[str] = []
+
+    section = ""
+    for line in source.splitlines():
+        if line.startswith("## "):
+            section = line
+        elif (
+            section in CITED_SECTIONS
+            and line.startswith("|")
+            and set(line) - set("|-: ")
+            and not CITATION.search(line)
+            and UNCITED not in line
+            and not line.startswith("| Problem")
+        ):
+            failures.append(f"{BENCHMARKS}: row cites no capability: {line[:60]}")
+
+    statuses = {
+        str(tomllib.loads(path.read_text(encoding="utf-8"))["id"]): str(
+            tomllib.loads(path.read_text(encoding="utf-8")).get("status", "")
+        )
+        for path in sorted((root / "verify").glob("*/*/case.toml"))
+    }
+    manifests = "\n".join(
+        path.read_text(encoding="utf-8") for path in sorted((root / "verify").glob("*/*/case.toml"))
+    )
+    sources = [
+        path.read_text(encoding="utf-8", errors="replace")
+        for path in sorted((root / "crates").rglob("*.rs"))
+        if not IGNORED_PARTS.intersection(path.parts)
+    ]
+
+    for kind, name in CITATION.findall(source):
+        if kind == "case":
+            if name not in statuses:
+                failures.append(f"{BENCHMARKS}: cites unknown case {name}")
+            elif statuses[name] != "verified":
+                failures.append(f"{BENCHMARKS}: cites case {name}, whose status is {statuses[name]!r}")
+        elif kind == "key":
+            if name not in manifests:
+                failures.append(f"{BENCHMARKS}: cites manifest key {name}, declared by no case")
+        elif not any(name in text for text in sources):
+            failures.append(f"{BENCHMARKS}: cites symbol {name}, present in no Rust source")
+    return failures
+
 
 
 def link_targets(source: str) -> list[str]:
@@ -60,6 +127,7 @@ def check(root: Path) -> list[str]:
         source = (root / source_name).read_text(encoding="utf-8")
         if target not in source:
             failures.append(f"{source_name}: must reference {target}")
+    failures.extend(benchmark_failures(root))
     return failures
 
 

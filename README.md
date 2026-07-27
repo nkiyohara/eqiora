@@ -90,6 +90,7 @@ Important nonclaims include:
 - [Website and documentation](https://eqiora.org)
 - [Python package](https://pypi.org/project/eqiora/)
 - [Capabilities](docs/capability-matrix.md)
+- [Published benchmarks](docs/benchmarks.md)
 - [Architecture](docs/architecture.md)
 - [Roadmap](docs/roadmap.md)
 - [Contributing](CONTRIBUTING.md)

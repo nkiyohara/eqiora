@@ -9,7 +9,10 @@ interactive modeling environment.
 It is not a marketing checklist. A feature is only marked as verified when a
 reproducible case supports the exact stated scope. The authoritative claims and
 non-claims remain the case manifests under [`verify/`](../verify/); this matrix
-is their navigable, whole-product index. Planned work is described here so that
+is their navigable, whole-product index. A manifest's non-claims bound that
+case and not the implementation, so the union of the manifests is the lower
+bound on what exists rather than any one of them;
+[published benchmarks](benchmarks.md) reads them that way. Planned work is described here so that
 new implementation fits the final architecture instead of creating parallel
 semantics.
 
