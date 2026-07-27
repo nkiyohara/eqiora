@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_solver::{
@@ -82,7 +80,7 @@ impl AssemblyMap {
     }
 }
 
-/// Deterministic coordinate accumulator for local contributions.
+/// Deterministic row-indexed coordinate accumulator for local contributions.
 ///
 /// This v0 implementation prioritizes a small, inspectable contract. A
 /// distributed or device assembler may consume the same `AssemblyMap` and
@@ -90,7 +88,7 @@ impl AssemblyMap {
 #[derive(Debug, Clone)]
 pub struct CooAssembler {
     size: usize,
-    entries: BTreeMap<(usize, usize), f64>,
+    rows: Vec<Vec<(usize, f64)>>,
     rhs: Vec<f64>,
 }
 
@@ -105,9 +103,11 @@ impl CooAssembler {
                 "assembled system requires at least one free equation",
             ));
         }
+        let mut rows = Vec::with_capacity(size);
+        rows.resize_with(size, Vec::new);
         Ok(Self {
             size,
-            entries: BTreeMap::new(),
+            rows,
             rhs: vec![0.0; size],
         })
     }
@@ -143,17 +143,10 @@ impl CooAssembler {
                 self.size
             )));
         }
-        let finite_entries = delta.rows().iter().all(|row| {
-            row.entries().iter().all(|(column, value)| {
-                (self
-                    .entries
-                    .get(&(row.row().index(), column.index()))
-                    .copied()
-                    .unwrap_or(0.0)
-                    + value)
-                    .is_finite()
-            })
-        });
+        let finite_entries = delta
+            .rows()
+            .iter()
+            .all(|row| row_accumulations_are_finite(&self.rows[row.row().index()], row.entries()));
         let finite_rhs = delta
             .rows()
             .iter()
@@ -164,12 +157,7 @@ impl CooAssembler {
             ));
         }
         for row in delta.rows() {
-            for &(column, value) in row.entries() {
-                *self
-                    .entries
-                    .entry((row.row().index(), column.index()))
-                    .or_insert(0.0) += value;
-            }
+            accumulate_row(&mut self.rows[row.row().index()], row.entries());
             self.rhs[row.row().index()] += row.rhs();
         }
         Ok(())
@@ -180,33 +168,68 @@ impl CooAssembler {
     /// # Errors
     /// Returns `EQ0806` if a global row has no nonzero entry.
     pub fn finish(self) -> Result<LinearSystem, Diagnostic> {
-        let entries = self
-            .entries
-            .into_iter()
-            .filter(|(_, value)| *value != 0.0)
-            .collect::<Vec<_>>();
-        let mut row_offsets = vec![0; self.size + 1];
-        for ((row, _), _) in &entries {
-            row_offsets[row + 1] += 1;
-        }
-        for row in 0..self.size {
-            row_offsets[row + 1] += row_offsets[row];
+        let entry_capacity = self.rows.iter().map(Vec::len).sum();
+        let mut row_offsets = Vec::with_capacity(self.size + 1);
+        let mut column_indices = Vec::with_capacity(entry_capacity);
+        let mut values = Vec::with_capacity(entry_capacity);
+        row_offsets.push(0);
+        for (row, entries) in self.rows.into_iter().enumerate() {
+            for (column, value) in entries {
+                if value != 0.0 {
+                    column_indices.push(column);
+                    values.push(value);
+                }
+            }
+            row_offsets.push(values.len());
             if row_offsets[row + 1] == row_offsets[row] {
                 return Err(assembly_failed(format!(
                     "assembled global row {row} has no nonzero entries"
                 )));
             }
         }
-        let mut column_indices = Vec::with_capacity(entries.len());
-        let mut values = Vec::with_capacity(entries.len());
-        for ((_, column), value) in entries {
-            column_indices.push(column);
-            values.push(value);
-        }
         LinearSystem::new(
             CsrMatrix::from_sorted_csr(self.size, self.size, row_offsets, column_indices, values)?,
             self.rhs,
         )
+    }
+}
+
+fn row_accumulations_are_finite(accumulated: &[(usize, f64)], delta: &[(DofId, f64)]) -> bool {
+    let mut entry = 0;
+    delta.iter().all(|(column, value)| {
+        while entry < accumulated.len() && accumulated[entry].0 < column.index() {
+            entry += 1;
+        }
+        let current = if entry < accumulated.len() && accumulated[entry].0 == column.index() {
+            accumulated[entry].1
+        } else {
+            0.0
+        };
+        (current + value).is_finite()
+    })
+}
+
+fn accumulate_row(accumulated: &mut Vec<(usize, f64)>, delta: &[(DofId, f64)]) {
+    if accumulated.is_empty() {
+        accumulated.extend(
+            delta
+                .iter()
+                .map(|(column, value)| (column.index(), 0.0 + value)),
+        );
+        return;
+    }
+
+    let mut entry = 0;
+    for &(column, value) in delta {
+        while entry < accumulated.len() && accumulated[entry].0 < column.index() {
+            entry += 1;
+        }
+        if entry < accumulated.len() && accumulated[entry].0 == column.index() {
+            accumulated[entry].1 += value;
+        } else {
+            accumulated.insert(entry, (column.index(), 0.0 + value));
+        }
+        entry += 1;
     }
 }
 
@@ -560,6 +583,179 @@ fn solve_failed(message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn scatter_scalar(
+        assembler: &mut CooAssembler,
+        row: usize,
+        column: usize,
+        value: f64,
+        rhs: f64,
+    ) {
+        let local = LocalContribution::new(1, 1, vec![value], vec![rhs]).unwrap();
+        let map = AssemblyMap::new(
+            vec![Some(DofId::new(row))],
+            vec![LocalUnknown::Free(DofId::new(column))],
+        )
+        .unwrap();
+        assembler.scatter(&map, &local).unwrap();
+    }
+
+    #[test]
+    fn assembled_system_matches_recorded_csr_and_float_bits() {
+        let mut assembler = CooAssembler::new(3).unwrap();
+        let first =
+            LocalContribution::new(2, 2, vec![1.5, -2.0, 3.25, 4.5], vec![8.0, -1.0]).unwrap();
+        let first_map = AssemblyMap::new(
+            vec![Some(DofId::new(2)), Some(DofId::new(0))],
+            vec![
+                LocalUnknown::Free(DofId::new(2)),
+                LocalUnknown::Free(DofId::new(0)),
+            ],
+        )
+        .unwrap();
+        assembler.scatter(&first_map, &first).unwrap();
+
+        let second =
+            LocalContribution::new(2, 3, vec![5.0, 0.5, 3.0, -1.25, 2.0, -4.0], vec![7.0, -2.0])
+                .unwrap();
+        let second_map = AssemblyMap::new(
+            vec![Some(DofId::new(0)), Some(DofId::new(1))],
+            vec![
+                LocalUnknown::Free(DofId::new(1)),
+                LocalUnknown::Free(DofId::new(0)),
+                LocalUnknown::Fixed(2.0),
+            ],
+        )
+        .unwrap();
+        assembler.scatter(&second_map, &second).unwrap();
+
+        let system = assembler.finish().unwrap();
+        assert_eq!(system.matrix().row_offsets(), &[0, 3, 5, 7]);
+        assert_eq!(system.matrix().column_indices(), &[0, 1, 2, 0, 1, 0, 2]);
+        assert_eq!(
+            system
+                .matrix()
+                .values()
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>(),
+            vec![
+                0x4014_0000_0000_0000,
+                0x4014_0000_0000_0000,
+                0x400a_0000_0000_0000,
+                0x4000_0000_0000_0000,
+                0xbff4_0000_0000_0000,
+                0xc000_0000_0000_0000,
+                0x3ff8_0000_0000_0000,
+            ]
+        );
+        assert_eq!(
+            system
+                .rhs()
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>(),
+            vec![
+                0x0000_0000_0000_0000,
+                0x4018_0000_0000_0000,
+                0x4020_0000_0000_0000,
+            ]
+        );
+    }
+
+    #[test]
+    fn duplicate_entries_preserve_scatter_summation_order() {
+        let mut assembler = CooAssembler::new(1).unwrap();
+        for value in [2_f64.powi(53), 1.0, -2_f64.powi(53), 4.0] {
+            scatter_scalar(&mut assembler, 0, 0, value, 0.0);
+        }
+
+        let system = assembler.finish().unwrap();
+        assert_eq!(system.matrix().values()[0].to_bits(), 4.0_f64.to_bits());
+    }
+
+    #[test]
+    fn finish_eliminates_exact_zeros_and_reports_a_cancelled_row() {
+        let mut assembler = CooAssembler::new(2).unwrap();
+        let first = LocalContribution::new(2, 2, vec![3.0, 2.0, 0.0, 5.0], vec![0.0, 0.0]).unwrap();
+        let second =
+            LocalContribution::new(2, 2, vec![0.0, -2.0, 0.0, 0.0], vec![0.0, 0.0]).unwrap();
+        let map = AssemblyMap::new(
+            vec![Some(DofId::new(0)), Some(DofId::new(1))],
+            vec![
+                LocalUnknown::Free(DofId::new(0)),
+                LocalUnknown::Free(DofId::new(1)),
+            ],
+        )
+        .unwrap();
+        assembler.scatter(&map, &first).unwrap();
+        assembler.scatter(&map, &second).unwrap();
+
+        let system = assembler.finish().unwrap();
+        assert_eq!(system.matrix().row_offsets(), &[0, 1, 2]);
+        assert_eq!(system.matrix().column_indices(), &[0, 1]);
+        assert_eq!(
+            system
+                .matrix()
+                .values()
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>(),
+            vec![3.0_f64.to_bits(), 5.0_f64.to_bits()]
+        );
+
+        let mut cancelled_row = CooAssembler::new(2).unwrap();
+        scatter_scalar(&mut cancelled_row, 0, 0, 1.0, 0.0);
+        scatter_scalar(&mut cancelled_row, 0, 0, -1.0, 0.0);
+        scatter_scalar(&mut cancelled_row, 1, 1, 2.0, 0.0);
+        let diagnostic = cancelled_row.finish().unwrap_err();
+        assert_eq!(diagnostic.code(), codes::ASSEMBLY_FAILED);
+        assert_eq!(
+            diagnostic.message(),
+            "assembled global row 0 has no nonzero entries"
+        );
+    }
+
+    #[test]
+    fn finish_orders_columns_ascending_within_each_row() {
+        let mut assembler = CooAssembler::new(4).unwrap();
+        for (column, value) in [(3, 4.0), (0, 1.0), (2, 3.0), (1, 2.0)] {
+            scatter_scalar(&mut assembler, 0, column, value, 0.0);
+        }
+        for row in 1..4 {
+            scatter_scalar(&mut assembler, row, row, 1.0, 0.0);
+        }
+
+        let system = assembler.finish().unwrap();
+        for row in 0..4 {
+            let start = system.matrix().row_offsets()[row];
+            let end = system.matrix().row_offsets()[row + 1];
+            assert!(
+                system.matrix().column_indices()[start..end]
+                    .windows(2)
+                    .all(|pair| pair[0] < pair[1])
+            );
+        }
+        assert_eq!(&system.matrix().column_indices()[0..4], &[0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn assembler_rejects_zero_size_and_round_trips_one_equation() {
+        let diagnostic = CooAssembler::new(0).unwrap_err();
+        assert_eq!(diagnostic.code(), codes::ASSEMBLY_FAILED);
+        assert_eq!(
+            diagnostic.message(),
+            "assembled system requires at least one free equation"
+        );
+
+        let mut assembler = CooAssembler::new(1).unwrap();
+        scatter_scalar(&mut assembler, 0, 0, -2.5, 7.25);
+        let system = assembler.finish().unwrap();
+        assert_eq!(system.matrix().row_offsets(), &[0, 1]);
+        assert_eq!(system.matrix().column_indices(), &[0]);
+        assert_eq!(system.matrix().values()[0].to_bits(), (-2.5_f64).to_bits());
+        assert_eq!(system.rhs()[0].to_bits(), 7.25_f64.to_bits());
+    }
 
     #[test]
     fn scatter_eliminates_fixed_columns_and_skips_fixed_rows() {
