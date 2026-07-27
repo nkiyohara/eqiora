@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, SimplicialMesh};
@@ -56,6 +56,13 @@ impl SimplicialMiniStokesBoundaryFacet2d {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SimplicialMiniStokesBoundary2d {
     facets: Vec<SimplicialMiniStokesBoundaryFacet2d>,
+    named_reaction_surfaces: Vec<NamedReactionSurface2d>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NamedReactionSurface2d {
+    name: String,
+    facets: Vec<MeshEntity>,
 }
 
 impl SimplicialMiniStokesBoundary2d {
@@ -118,7 +125,10 @@ impl SimplicialMiniStokesBoundary2d {
                 "MINI Stokes boundary closure must cover every boundary facet exactly once",
             ));
         }
-        Ok(Self { facets })
+        Ok(Self {
+            facets,
+            named_reaction_surfaces: Vec::new(),
+        })
     }
 
     /// Construct the legacy complete-essential boundary closure.
@@ -149,6 +159,132 @@ impl SimplicialMiniStokesBoundary2d {
     #[must_use]
     pub fn facets(&self) -> &[SimplicialMiniStokesBoundaryFacet2d] {
         &self.facets
+    }
+
+    /// Name one facet-defined subset for constrained-vertex reaction reporting.
+    ///
+    /// Facets follow the same mesh-entity vocabulary as the complete boundary
+    /// closure. Their vertices must all carry essential velocity, and named
+    /// surfaces must be vertex-disjoint.
+    ///
+    /// # Errors
+    /// Returns `EQ0801` for an empty or duplicate name, an empty, duplicate, or
+    /// non-boundary facet inventory, an unconstrained vertex, or a vertex
+    /// shared by two named surfaces.
+    pub fn with_named_reaction_surface(
+        mut self,
+        mesh: &SimplicialMesh,
+        name: impl Into<String>,
+        facets: impl IntoIterator<Item = MeshEntity>,
+    ) -> Result<Self, Diagnostic> {
+        let validated = Self::new(mesh, self.facets.iter().copied())?;
+        self.facets = validated.facets;
+        let name = name.into();
+        let mut facets = facets.into_iter().collect::<Vec<_>>();
+        facets.sort_by_key(|facet| (facet.dimension(), facet.index()));
+        self.named_reaction_surfaces
+            .push(NamedReactionSurface2d { name, facets });
+        self.named_reaction_surfaces
+            .sort_by(|left, right| left.name.cmp(&right.name));
+        self.validate_named_reaction_surfaces(mesh)?;
+        Ok(self)
+    }
+
+    pub(crate) fn validated_for(&self, mesh: &SimplicialMesh) -> Result<Self, Diagnostic> {
+        let mut validated = Self::new(mesh, self.facets.iter().copied())?;
+        validated.named_reaction_surfaces = self.named_reaction_surfaces.clone();
+        validated.validate_named_reaction_surfaces(mesh)?;
+        Ok(validated)
+    }
+
+    pub(crate) fn named_reaction_vertices(
+        &self,
+        mesh: &SimplicialMesh,
+    ) -> Vec<(String, Vec<usize>)> {
+        self.named_reaction_surfaces
+            .iter()
+            .map(|surface| {
+                (
+                    surface.name.clone(),
+                    surface_vertices(mesh, &surface.facets)
+                        .into_iter()
+                        .collect(),
+                )
+            })
+            .collect()
+    }
+
+    fn validate_named_reaction_surfaces(&self, mesh: &SimplicialMesh) -> Result<(), Diagnostic> {
+        let facet_count = mesh
+            .entity_count(DIMENSION - 1)
+            .expect("validated 2D mesh owns edge entities");
+        let essential_vertices = self
+            .facets
+            .iter()
+            .filter(|entry| {
+                entry.condition == SimplicialMiniStokesBoundaryCondition2d::EssentialVelocity
+            })
+            .flat_map(|entry| {
+                mesh.entity_vertices(entry.facet)
+                    .expect("validated boundary facet owns vertices")
+            })
+            .map(MeshEntity::index)
+            .collect::<BTreeSet<_>>();
+        let mut names = BTreeSet::new();
+        let mut owners = BTreeMap::new();
+        for surface in &self.named_reaction_surfaces {
+            if surface.name.is_empty() {
+                return Err(invalid(
+                    "MINI Stokes named reaction surface name must not be empty",
+                ));
+            }
+            if !names.insert(surface.name.as_str()) {
+                return Err(invalid(format!(
+                    "MINI Stokes named reaction surface {:?} occurs more than once",
+                    surface.name
+                )));
+            }
+            if surface.facets.is_empty() {
+                return Err(invalid(format!(
+                    "MINI Stokes named reaction surface {:?} is empty",
+                    surface.name
+                )));
+            }
+            if surface.facets.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(invalid(format!(
+                    "MINI Stokes named reaction surface {:?} contains a duplicate facet",
+                    surface.name
+                )));
+            }
+            for facet in &surface.facets {
+                if facet.dimension() != DIMENSION - 1
+                    || facet.index() >= facet_count
+                    || !mesh
+                        .is_boundary_entity(*facet)
+                        .expect("validated facet index belongs to the mesh")
+                {
+                    return Err(invalid(format!(
+                        "MINI Stokes named reaction surface {:?} contains a non-boundary facet",
+                        surface.name
+                    )));
+                }
+            }
+            for vertex in surface_vertices(mesh, &surface.facets) {
+                if !essential_vertices.contains(&vertex) {
+                    return Err(invalid(format!(
+                        "MINI Stokes named reaction surface {:?} names unconstrained vertex {vertex}",
+                        surface.name
+                    )));
+                }
+                if let Some(previous) = owners.insert(vertex, surface.name.as_str()) {
+                    return Err(invalid(format!(
+                        "MINI Stokes constrained vertex {vertex} belongs to both named reaction surfaces {previous:?} and {:?}",
+                        surface.name
+                    )));
+                }
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn prepare<B>(
@@ -207,6 +343,17 @@ impl SimplicialMiniStokesBoundary2d {
             pressure_reference,
         })
     }
+}
+
+fn surface_vertices(mesh: &SimplicialMesh, facets: &[MeshEntity]) -> BTreeSet<usize> {
+    facets
+        .iter()
+        .flat_map(|facet| {
+            mesh.entity_vertices(*facet)
+                .expect("validated named reaction facet owns vertices")
+        })
+        .map(MeshEntity::index)
+        .collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

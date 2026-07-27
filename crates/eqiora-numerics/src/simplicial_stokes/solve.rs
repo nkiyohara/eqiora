@@ -316,7 +316,8 @@ where
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
     validate_problem(mesh, viscosity, cell_quadrature)?;
-    let boundary = SimplicialMiniStokesBoundary2d::new(mesh, boundary.facets().iter().copied())?;
+    let boundary = boundary.validated_for(mesh)?;
+    let named_reaction_vertices = boundary.named_reaction_vertices(mesh);
     let prepared = boundary.prepare(mesh, essential_velocity)?;
     let with_gauge = prepared.pressure_reference == PressureReferenceKind2d::ZeroIntegral;
     if with_gauge {
@@ -430,6 +431,7 @@ where
         mesh: mesh.clone(),
         layout,
         fixed_velocity: prepared.fixed_velocity,
+        named_reaction_vertices,
         linear_system,
         full_system,
         volume_only_system,

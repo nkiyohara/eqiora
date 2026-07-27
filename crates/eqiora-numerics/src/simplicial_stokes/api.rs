@@ -143,6 +143,7 @@ pub struct SimplicialMiniStokesSolution2d {
     pub(super) full_system: LinearSystem,
     pub(super) volume_only_system: LinearSystem,
     pub(super) boundary_reaction: [f64; COMPONENTS],
+    pub(super) named_boundary_reactions: Vec<(String, [f64; COMPONENTS])>,
     pub(super) integrated_body_force: [f64; COMPONENTS],
     pub(super) integrated_boundary_traction: [f64; COMPONENTS],
     pub(super) pressure_integral: f64,
@@ -207,6 +208,16 @@ impl SimplicialMiniStokesSolution2d {
     #[must_use]
     pub const fn boundary_reaction(&self) -> [f64; COMPONENTS] {
         self.boundary_reaction
+    }
+
+    /// Reaction over the constrained vertices attributed to one named surface.
+    ///
+    /// Returns `None` when the accepted boundary did not name that surface.
+    #[must_use]
+    pub fn named_boundary_reaction(&self, name: &str) -> Option<[f64; COMPONENTS]> {
+        self.named_boundary_reactions
+            .iter()
+            .find_map(|(candidate, reaction)| (candidate == name).then_some(*reaction))
     }
 
     /// Independently integrated body-force resultant.
