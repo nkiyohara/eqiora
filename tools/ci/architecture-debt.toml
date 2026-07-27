@@ -99,12 +99,6 @@ reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
-path = "crates/eqiora-artifact/src/model.rs"
-ceiling = 2709
-reason = "predates the predicate; not yet triaged"
-removal = "split by responsibility in the lane that next modifies it"
-
-[[file_lines]]
 path = "crates/eqiora-artifact/src/remesh_transfer.rs"
 ceiling = 2594
 reason = "predates the predicate; not yet triaged"
