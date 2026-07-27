@@ -12,6 +12,29 @@ the document that owns it, and those documents are authoritative:
   parallel work.**
 - [Local verification](docs/development/local-verification.md) — the gate tiers.
 
+## No human reviews this
+
+Two agents advance this repository: Claude Opus 5 and Codex GPT-5.6 Sol. They
+choose the work, freeze the contracts, implement, review each other, and merge —
+including through the owner ruleset bypass that a protected-surface change
+requires. The maintainer sets direction and does not read diffs.
+
+That is a premise, not an aspiration, and it is what makes every rule below
+binding rather than advisory. Elsewhere a missed review is caught downstream by
+a person; here there is no downstream. **Cross-review is not one safeguard among
+several. It is the only one.** The same holds for the capability matrix: nobody
+will notice a row that claims more than its manifest, so an overstated row ships.
+
+Two consequences follow, and neither is optional.
+
+1. An agent that skips the outside review has removed the entire review layer,
+   however small the change looked. "This is obviously fine" is exactly the
+   judgement the gate exists to distrust, and it is unfalsifiable from inside.
+2. Confidence is not evidence. Where an agent is sure and has not checked, it
+   writes that it has not checked. A claim whose support is an agent's
+   recollection is worth less than an absent claim, because an absent claim
+   invites verification and a confident one suppresses it.
+
 ## Claims are part of the implementation
 
 When a change adds, removes, narrows, or extends an executable or user-visible
