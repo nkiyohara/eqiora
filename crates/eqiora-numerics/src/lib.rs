@@ -31,6 +31,7 @@ mod physical_network;
 mod poisson;
 mod simplicial_ale_fsi;
 mod simplicial_ale_remesh;
+mod simplicial_elasticity;
 mod simplicial_elliptic;
 mod simplicial_fsi;
 mod simplicial_mini_transient;
