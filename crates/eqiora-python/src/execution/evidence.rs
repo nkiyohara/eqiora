@@ -3,6 +3,9 @@ use eqiora::api::{
     ModelDocument, ReferenceRunCancellation, ReferenceRunPlan, ReferenceRunProgress,
     ScalarEllipticRunCancellation, ScalarEllipticRunPlan, ScalarEllipticRunProgress,
 };
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
 use pyo3::prelude::*;
 
 /// Monotone public state of one native execution occurrence.
@@ -48,6 +51,25 @@ pub(crate) struct PyRunProgress {
     maximum_steps: usize,
 }
 
+impl Hash for PyRunProgress {
+    /// Consistent with the derived `PartialEq`, which is what makes this type
+    /// usable as a dict key rather than silently unhashable.
+    ///
+    /// Two float subtleties decide the implementation. `0.0 == -0.0` is true
+    /// while their bit patterns differ, so hashing raw bits would give equal
+    /// values different hashes and lose keys; each zero is therefore normalized
+    /// before folding. `NaN` is equal to nothing including itself, so whatever
+    /// its bits hash to is unobservable through equality.
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        for value in [self.model_time, self.end_time] {
+            let normalized = if value == 0.0 { 0.0 } else { value };
+            normalized.to_bits().hash(hasher);
+        }
+        self.accepted_steps.hash(hasher);
+        self.maximum_steps.hash(hasher);
+    }
+}
+
 impl From<ReferenceRunProgress> for PyRunProgress {
     fn from(progress: ReferenceRunProgress) -> Self {
         Self {
@@ -61,6 +83,15 @@ impl From<ReferenceRunProgress> for PyRunProgress {
 
 #[pymethods]
 impl PyRunProgress {
+    /// Consistent with `__eq__`, which pyo3 generates from the derived
+    /// `PartialEq`. Without this, Python sets `__hash__` to `None` and the
+    /// type silently leaves every dict and set.
+    fn __hash__(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+
     #[getter]
     const fn model_time(&self) -> f64 {
         self.model_time
@@ -276,5 +307,38 @@ impl RunIdentity {
 
     pub(crate) fn adapter_version(&self) -> &'static str {
         self.adapter_version
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn progress(model_time: f64) -> PyRunProgress {
+        PyRunProgress {
+            model_time,
+            end_time: 1.0,
+            accepted_steps: 1,
+            maximum_steps: 2,
+        }
+    }
+
+    fn digest(value: PyRunProgress) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        value.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    #[test]
+    fn negative_zero_hashes_with_positive_zero_because_they_compare_equal() {
+        // Hashing raw bits would pass every other test and lose the key.
+        assert_eq!(progress(0.0), progress(-0.0));
+        assert_eq!(digest(progress(0.0)), digest(progress(-0.0)));
+    }
+
+    #[test]
+    fn distinct_progress_values_are_still_distinguished() {
+        assert_ne!(progress(0.0), progress(0.5));
+        assert_ne!(digest(progress(0.0)), digest(progress(0.5)));
     }
 }

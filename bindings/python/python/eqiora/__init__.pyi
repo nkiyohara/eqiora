@@ -1,4 +1,4 @@
-from collections.abc import Generator, Sequence
+from collections.abc import Generator, Iterator, Sequence
 from typing import (
     Any,
     ClassVar,
@@ -249,6 +249,9 @@ class Relation:
 @final
 class Array:
     def numpy(self, *, copy: bool | None = None) -> _Float64Array: ...
+    def __array__(
+        self, dtype: object | None = None, copy: bool | None = None
+    ) -> _Float64Array: ...
     def __dlpack_device__(self) -> tuple[int, int]: ...
     def __dlpack__(
         self,
@@ -669,6 +672,7 @@ class Series:
     @property
     def values(self) -> Array: ...
     def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[tuple[float, float]]: ...
 
 @final
 class Result:

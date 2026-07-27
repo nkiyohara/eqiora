@@ -8,6 +8,9 @@ use eqiora::language::{
     DraftExpression, DraftField, DraftParameter, DraftPhysicalDomain, DraftRelation,
     DraftRepresentation, DraftSpatialDomain, ModelDraft,
 };
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBool, PyModule, PyTuple};
@@ -219,6 +222,17 @@ impl PyDimension {
         other
             .extract::<PyRef<'_, Self>>()
             .is_ok_and(|other| self.value == other.value)
+    }
+
+    /// Consistent with `__eq__`, so equal dimensions collide as dict keys.
+    ///
+    /// Defining `__eq__` without this makes the type unhashable, which is a
+    /// silent loss: `{Dimension.LENGTH: metres}` stops working for a value type
+    /// whose whole purpose is to be compared.
+    fn __hash__(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.value.hash(&mut hasher);
+        hasher.finish()
     }
 
     fn __ne__(&self, other: &Bound<'_, PyAny>) -> bool {

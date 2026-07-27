@@ -305,6 +305,13 @@ pub(crate) struct PyScalarFieldSummary {
 
 #[pymethods]
 impl PyScalarFieldSummary {
+    /// The extent of the accepted field, and where its values live.
+    fn __repr__(&self) -> String {
+        format!(
+            "ScalarFieldSummary(minimum={:e}, maximum={:e}, value_count={}, location={:?})",
+            self.minimum, self.maximum, self.value_count, self.location
+        )
+    }
     #[getter]
     const fn location(&self) -> PyScalarFieldLocation {
         self.location
@@ -352,6 +359,13 @@ pub(crate) struct PyScalarEllipticBalance {
 
 #[pymethods]
 impl PyScalarEllipticBalance {
+    /// The conservation check, in full: it has only three numbers.
+    fn __repr__(&self) -> String {
+        format!(
+            "ScalarEllipticBalance(integrated_source={:e}, boundary_total={:e}, relative_imbalance={:e})",
+            self.integrated_source, self.boundary_total, self.relative_imbalance
+        )
+    }
     #[getter]
     const fn boundary_total(&self) -> f64 {
         self.boundary_total
@@ -462,6 +476,17 @@ impl PyLinearSolveSummary {
 
 #[pymethods]
 impl PyLinearSolveSummary {
+    /// What the solve did, and whether its true residual met the target.
+    fn __repr__(&self) -> String {
+        format!(
+            "LinearSolveSummary(algorithm={:?}, preconditioner={:?}, completed_iterations={}, true_residual_norm={:e}, residual_target={:e})",
+            self.algorithm,
+            self.preconditioner,
+            self.completed_iterations,
+            self.true_residual_norm,
+            self.residual_target
+        )
+    }
     #[getter]
     fn backend(&self) -> &str {
         &self.backend
