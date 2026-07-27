@@ -77,11 +77,13 @@ absent physical runtime still fails rather than silently skipping. In
 fail-fast mode with `--jobs 1`, later selected executable cases remain in the
 report with outcome `skipped`, matching serial execution before `--jobs` was
 introduced. `--jobs` defaults to the host's available parallelism. With more
-than one job, the runner stops launching new targets after the first test
-failure, lets the at most `jobs - 1` already-launched targets finish, and
-reports their results; it never kills a running child. Consequently, raising
-`--jobs` can turn a case that serial fail-fast would report as `skipped` into
-a real `passed` or `failed` result.
+than one job, persistent workers pull targets from a shared queue so a free
+slot starts the next target without waiting for the other running targets.
+The runner stops launching new targets after the first test failure, lets the
+at most `jobs - 1` already-launched targets finish, and reports their results;
+it never kills a running child. Consequently, raising `--jobs` can turn a case
+that serial fail-fast would report as `skipped` into a real `passed` or
+`failed` result.
 `proposed` and `specified` cases are reported as `not-runnable`; `implemented`,
 `verified`, and `validated` cases must declare and pass an evidence target.
 

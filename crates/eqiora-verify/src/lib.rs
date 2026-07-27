@@ -1055,31 +1055,40 @@ fn run_targets(
     }
     let jobs = request.jobs.min(targets.len()).max(1);
     let mut completed = Vec::with_capacity(targets.len());
+    let cursor = Mutex::new((0, false));
     thread::scope(|scope| {
-        for batch in targets.chunks(jobs) {
-            let (sender, receiver) = mpsc::channel();
-            for (index, target) in batch.iter().cloned() {
-                let sender = sender.clone();
-                scope.spawn(move || {
+        let (sender, receiver) = mpsc::channel();
+        for _ in 0..jobs {
+            let sender = sender.clone();
+            let cursor = &cursor;
+            let targets = &targets;
+            scope.spawn(move || {
+                loop {
+                    let next = {
+                        let mut cursor = cursor.lock().unwrap();
+                        if cursor.1 || cursor.0 == targets.len() {
+                            None
+                        } else {
+                            let target = targets[cursor.0].clone();
+                            cursor.0 += 1;
+                            Some(target)
+                        }
+                    };
+                    let Some((index, target)) = next else {
+                        break;
+                    };
                     let output = runner.run(root, &target);
+                    if !output.succeeded() && request.policy == ExecutionPolicy::FailFast {
+                        cursor.lock().unwrap().1 = true;
+                    }
                     sender
                         .send((index, output))
                         .expect("execution receiver remains alive");
-                });
-            }
-            drop(sender);
-            let mut batch_failed = false;
-            for _ in 0..batch.len() {
-                let (index, output) = receiver
-                    .recv()
-                    .expect("every evidence worker reports its output");
-                batch_failed |= !output.succeeded();
-                completed.push((index, output));
-            }
-            if batch_failed && request.policy == ExecutionPolicy::FailFast {
-                break;
-            }
+                }
+            });
         }
+        drop(sender);
+        completed.extend(receiver);
     });
     completed
 }
@@ -1952,6 +1961,7 @@ script = "tools/ci/python_evidence.py"
         groups: Mutex<Vec<Vec<EvidenceTarget>>>,
         build_failures: Mutex<Vec<(CargoBuildGroup, EvidenceOutput)>>,
         delays: Mutex<Vec<(EvidenceTarget, Duration)>>,
+        completions: Mutex<Vec<EvidenceTarget>>,
     }
 
     impl FakeRunner {
@@ -1963,6 +1973,7 @@ script = "tools/ci/python_evidence.py"
                 groups: Mutex::new(Vec::new()),
                 build_failures: Mutex::new(Vec::new()),
                 delays: Mutex::new(Vec::new()),
+                completions: Mutex::new(Vec::new()),
             }
         }
 
@@ -1976,6 +1987,7 @@ script = "tools/ci/python_evidence.py"
                 groups: Mutex::new(Vec::new()),
                 build_failures: Mutex::new(Vec::new()),
                 delays: Mutex::new(Vec::new()),
+                completions: Mutex::new(Vec::new()),
             }
         }
 
@@ -1995,6 +2007,10 @@ script = "tools/ci/python_evidence.py"
 
         fn groups(&self) -> Vec<Vec<EvidenceTarget>> {
             self.groups.lock().unwrap().clone()
+        }
+
+        fn completions(&self) -> Vec<EvidenceTarget> {
+            self.completions.lock().unwrap().clone()
         }
     }
 
@@ -2019,17 +2035,17 @@ script = "tools/ci/python_evidence.py"
 
         fn run(&self, _root: &Path, target: &EvidenceTarget) -> EvidenceOutput {
             self.targets.lock().unwrap().push(target.clone());
-            if let Some(delay) = self
+            let delay = self
                 .delays
                 .lock()
                 .unwrap()
                 .iter()
                 .find(|(delayed, _)| delayed == target)
-                .map(|(_, delay)| *delay)
-            {
+                .map(|(_, delay)| *delay);
+            if let Some(delay) = delay {
                 thread::sleep(delay);
             }
-            if let Some(output) = self
+            let output = if let Some(output) = self
                 .target_outputs
                 .lock()
                 .unwrap()
@@ -2040,7 +2056,9 @@ script = "tools/ci/python_evidence.py"
                 output
             } else {
                 self.outputs.lock().unwrap().pop_front().unwrap()
-            }
+            };
+            self.completions.lock().unwrap().push(target.clone());
+            output
         }
     }
 
@@ -2793,6 +2811,43 @@ script = "tools/ci/python_evidence.py"
     }
 
     #[test]
+    fn completed_worker_starts_next_target_without_waiting_for_slowest_peer() {
+        let long = named_cargo_target("package-a", "long", &[]);
+        let first_short = named_cargo_target("package-a", "first-short", &[]);
+        let queued_short = named_cargo_target("package-a", "queued-short", &[]);
+        let runner = FakeRunner::for_targets([
+            (long.clone(), successful_output()),
+            (first_short.clone(), successful_output()),
+            (queued_short.clone(), successful_output()),
+        ])
+        .with_delay(long.clone(), Duration::from_millis(200))
+        .with_delay(first_short.clone(), Duration::from_millis(10))
+        .with_delay(queued_short.clone(), Duration::from_millis(10));
+        let reports = execute_selected(
+            Path::new("."),
+            vec![
+                contract_with_target("a", long.clone()),
+                contract_with_target("b", first_short),
+                contract_with_target("c", queued_short.clone()),
+            ],
+            &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing).with_jobs(2),
+            &runner,
+        );
+
+        assert!(reports.iter().all(|case| case.outcome == Outcome::Passed));
+        let completions = runner.completions();
+        let queued_short_completion = completions
+            .iter()
+            .position(|target| target == &queued_short)
+            .unwrap();
+        let long_completion = completions
+            .iter()
+            .position(|target| target == &long)
+            .unwrap();
+        assert!(queued_short_completion < long_completion);
+    }
+
+    #[test]
     fn cargo_groups_preserve_each_exact_declared_feature_set() {
         let feature_a = named_cargo_target("package-a", "test-a", &["feature-a"]);
         let feature_b = named_cargo_target("package-a", "test-b", &["feature-b"]);
@@ -2936,9 +2991,10 @@ script = "tools/ci/python_evidence.py"
                     )
                 })
                 .collect::<Vec<_>>(),
-        );
+        )
+        .with_delay(targets[0].clone(), Duration::from_millis(100));
         for target in targets.iter().skip(1) {
-            runner = runner.with_delay(target.clone(), Duration::from_millis(40));
+            runner = runner.with_delay(target.clone(), Duration::from_millis(200));
         }
         let reports = execute_selected(
             Path::new("."),
