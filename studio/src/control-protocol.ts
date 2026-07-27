@@ -3,7 +3,7 @@ import compileV1SchemaDocument from "../../schemas/control/compile-v1.schema.jso
 
 export const CONTROL_PROTOCOL_V1 = "eqiora.control/v1" as const;
 export const COMPILE_COMMAND_V1 = "model.compile-check/v1" as const;
-export const CURRENT_AUTHORING_MODEL_WIRE = "v6" as const;
+export const CURRENT_AUTHORING_MODEL_WIRE = "v7" as const;
 export const STUDIO_REQUIRED_COMPILE_FEATURES = [
   COMPILE_COMMAND_V1,
   `model-wire/${CURRENT_AUTHORING_MODEL_WIRE}`,
@@ -19,7 +19,7 @@ const requestIdSchema = z
   .min(1)
   .max(128)
   .regex(/^[A-Za-z0-9._:-]+$/);
-const modelWireSchema = z.enum(["v1", "v2", "v3", "v4", "v5", "v6"]);
+const modelWireSchema = z.enum(["v1", "v2", "v3", "v4", "v5", "v6", "v7"]);
 const featureSchema = z.enum([
   COMPILE_COMMAND_V1,
   "model-wire/v1",
@@ -28,6 +28,7 @@ const featureSchema = z.enum([
   "model-wire/v4",
   "model-wire/v5",
   "model-wire/v6",
+  "model-wire/v7",
 ]);
 const requiredFeaturesSchema = z.array(featureSchema).max(16);
 const utf8 = new TextEncoder();
@@ -131,6 +132,7 @@ const compileModelDescriptorV1Schema = z
       "eqiora.model-envelope/v4",
       "eqiora.model-envelope/v5",
       "eqiora.model-envelope/v6",
+      "eqiora.model-envelope/v7",
     ]),
     digest: z.string().regex(/^[0-9a-f]{64}$/),
     modelId: z.string().min(1).max(128),

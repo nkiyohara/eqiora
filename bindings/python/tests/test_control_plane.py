@@ -118,7 +118,7 @@ def test_exception_taxonomy_keeps_structured_diagnostics() -> None:
     with pytest.raises(eqiora.CompatibilityError) as compatibility:
         eqiora.compatibility.replay_exact(
             b"{}",
-            codec=eqiora.compatibility.ExactModelCodec.V6,
+            codec=eqiora.compatibility.ExactModelCodec.V7,
         )
     assert compatibility.value.category == "compatibility"
     assert compatibility.value.diagnostics[0].code == "EQ0901"

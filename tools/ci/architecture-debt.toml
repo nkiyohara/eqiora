@@ -75,12 +75,6 @@ test_file_lines = 2000
 public_items_per_crate = 128
 
 [[file_lines]]
-path = "crates/eqiora-api/src/lib.rs"
-ceiling = 1214
-reason = "predates the predicate; the Cartesian Domain edit slice added its module declaration and one named re-export"
-removal = "split by responsibility in the lane that next modifies it"
-
-[[file_lines]]
 path = "crates/eqiora-api/src/ml_dataset.rs"
 ceiling = 1098
 reason = "predates the predicate; not yet triaged"
@@ -414,13 +408,15 @@ removal = "withdraw either type, or fold the edit plan into an existing owner if
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 152
+ceiling = 154
 reason = """
 151 predate the predicate and are not yet triaged. One is deliberate: the
-geometry-definition envelope, added as an architecture change under the
+geometry-definition envelope and the two v7 envelopes, added as architecture
+changes under the
 authored-geometry epic. Only the schema, encoding and digest live here; the
-region itself is an eqiora-geometry type, so this crate gained one name rather
-than a vocabulary.
+region itself is an eqiora-geometry type. A wire generation costs exactly two
+names, its Model envelope and its transaction envelope, and cannot cost fewer:
+selection is explicit, so each generation is a distinct type a caller names.
 """
 removal = "lower in the lane that next splits the artifact model"
 
@@ -548,7 +544,14 @@ ceiling = 8
 
 [[public_surface]]
 crate = "eqiora-schema"
-ceiling = 88
+ceiling = 89
+reason = """
+88 predate the predicate. One is deliberate: GeometryDigest, added as an
+architecture change so a Kernel Domain can name an authored geometry instead of
+describing a box. The Kernel gains a way to name a shape, not a way to describe
+one, which is why it is one type and not a geometry vocabulary.
+"""
+removal = "withdraw if a Domain ever carries geometry structurally rather than by reference"
 
 [[public_surface]]
 crate = "eqiora-sem"

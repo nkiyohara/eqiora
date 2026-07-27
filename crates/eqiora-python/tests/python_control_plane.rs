@@ -84,7 +84,7 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
         let base_model_id = base.getattr("model_id")?.extract::<String>()?;
         let base_revision = revision_number(&base)?;
 
-        let replayed = ExactModelCodec::V6
+        let replayed = ExactModelCodec::CURRENT
             .replay(&base_bytes)
             .expect("Python-produced current-v6 artifact must replay through the Rust facade");
         let replayed_reference = replayed
@@ -129,7 +129,7 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
         assert_eq!(revision_number(&child)?, base_revision + 1);
         assert_ne!(child.getattr("digest")?.extract::<String>()?, base_digest);
         let child_bytes = model_bytes(&child)?;
-        let child_replay = ExactModelCodec::V6.replay(&child_bytes).unwrap();
+        let child_replay = ExactModelCodec::CURRENT.replay(&child_bytes).unwrap();
         assert_eq!(child_replay.canonical_json().unwrap(), child_bytes);
         assert_eq!(
             child_replay.digest().unwrap(),
@@ -137,7 +137,7 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
         );
 
         let replay_kwargs = PyDict::new(py);
-        replay_kwargs.set_item("codec", module.getattr("ExactModelCodec")?.getattr("V6")?)?;
+        replay_kwargs.set_item("codec", module.getattr("ExactModelCodec")?.getattr("V7")?)?;
         let replayed_child = module
             .getattr("replay_exact")?
             .call((PyBytes::new(py, &child_bytes),), Some(&replay_kwargs))?;

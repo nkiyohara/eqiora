@@ -153,9 +153,9 @@ impl ModelDocument {
     where
         I: IntoIterator<Item = (usize, AxisBounds)>,
     {
-        if self.exact_codec() != ExactModelCodec::V6 {
+        if self.exact_codec() != ExactModelCodec::CURRENT {
             return Err(single_diagnostic(invalid_edit(
-                "Cartesian Domain edit v1 requires the current Model wire v6",
+                "Cartesian Domain edit v1 requires the current Model wire",
             )));
         }
 
@@ -423,7 +423,7 @@ model Pair {
         assert_eq!(plan.target(), body);
         assert_eq!(plan.edits(), &[(0, axis_bounds(-0.5, 0.5), replacement)]);
         assert_ne!(plan.base_digest(), plan.expected_child_digest());
-        assert_eq!(plan.exact_codec(), ExactModelCodec::V6);
+        assert_eq!(plan.exact_codec(), ExactModelCodec::CURRENT);
         assert_eq!(plan, repeated);
         assert_eq!(plan.key(), repeated.key());
         assert_eq!(plan.transaction_digest(), repeated.transaction_digest());

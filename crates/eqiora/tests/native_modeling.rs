@@ -25,8 +25,8 @@ fn native_and_source_models_share_structure_artifacts_and_execution() {
 
     let source = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
     let native = ModelDocument::define(&draft).unwrap();
-    assert_eq!(source.exact_codec(), ExactModelCodec::V6);
-    assert_eq!(native.exact_codec(), ExactModelCodec::V6);
+    assert_eq!(source.exact_codec(), ExactModelCodec::CURRENT);
+    assert_eq!(native.exact_codec(), ExactModelCodec::CURRENT);
     assert!(native.structurally_equivalent(&source).unwrap());
     assert_eq!(
         native.structural_fingerprint().unwrap(),
@@ -38,7 +38,7 @@ fn native_and_source_models_share_structure_artifacts_and_execution() {
     );
 
     let bytes = native.canonical_json().unwrap();
-    let reconstructed = ExactModelCodec::V6.replay(&bytes).unwrap();
+    let reconstructed = ExactModelCodec::CURRENT.replay(&bytes).unwrap();
     assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
     assert_eq!(reconstructed.digest().unwrap(), native.digest().unwrap());
 

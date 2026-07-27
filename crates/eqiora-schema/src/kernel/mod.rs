@@ -20,7 +20,7 @@ pub use boundary_physical::{
 pub use definition::{
     ActivationDef, ActivationKind, AxisBounds, BoundarySide, ClockDomainDef, ClockKind,
     ConnectionDef, ConnectionSemantics, DomainDef, DomainKind, EventDirection, FieldDef,
-    KernelNode, ParameterDef, PortDef, PortPayload, RelationDef, RepresentationDef,
+    GeometryDigest, KernelNode, ParameterDef, PortDef, PortPayload, RelationDef, RepresentationDef,
     RepresentationKind, SignalDirection,
 };
 pub use expression::{
