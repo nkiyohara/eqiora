@@ -59,6 +59,37 @@ The two failure modes that actually cost cycles here are not slowness:
 2. **Rework from a wrong premise.** Prefer the check that would falsify the
    premise over the work that assumes it. Cheap checks first, always.
 
+## Structure outranks speed, every time
+
+The section above buys wall-clock by running lanes at once. That is the only
+kind of speed this repository accepts, because parallelism spends agents rather
+than structure. Speed bought by cutting structure is never accepted.
+
+The asymmetry is the whole reason. A slice that takes twice as long costs twice
+as long, once, and the bill is visible. A structure that makes every later slice
+slightly harder costs forever, compounds, and no one is billed — the agent that
+took the shortcut is not the agent that pays. Many parallel lanes make this
+worse, not better: each lane sees only its own cost, and the locally cheapest
+move is almost always to widen something shared.
+
+So when a predicate, a budget, or an oracle stands between a lane and its
+finish, the lane changes, not the gate:
+
+- a file over its ceiling is **split**, and the ceiling then ratchets down to
+  what the split achieved. It is not raised because the slice is nearly done;
+- a glob re-export is **replaced by named items**, not registered as a new glob
+  identity, when what is forwarded is nameable;
+- an oracle that an implementation cannot satisfy is **returned with the
+  argument**, not relaxed. If the oracle is genuinely wrong the contract owner
+  replaces it and says why;
+- a claim is **narrowed to what was shown**, never widened to cover what was
+  built.
+
+Raising a ceiling or adding a debt entry stays permitted, because a rule that
+cannot bend gets routed around. It is an architecture change, reviewed as one,
+carrying a reason and a deletion condition — never a step inside an ordinary
+slice.
+
 ## Measure the thing you are reasoning about
 
 A number taken in one environment is not evidence about another. Local
