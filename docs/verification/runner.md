@@ -53,8 +53,9 @@ stdout contains exactly one `eqiora.verification-report/v4` object for
 `list`, `check`, and `run`, or one
 `eqiora.capability-evidence-index/v3` object for `index`. Version 4 adds
 `duration_ms` for each evidence target that started, measured with a monotonic
-clock and reused by every case sharing that target. The field is absent for
-cases whose target did not start or did not execute. Version 3 added the
+clock and reused by every case sharing that target. The field is always present
+and carries `null` for a case whose target did not start or did not execute,
+matching how every other optional field on the report encodes absence. Version 3 added the
 selected evidence environment and the closed `host-cpu` /
 `physical-mpi-cuda` target distinction; host-CPU target JSON retains its
 previous shape. Human output appends the same whole-millisecond duration to
