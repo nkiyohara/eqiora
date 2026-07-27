@@ -1,0 +1,31 @@
+absolute_bound = 5.684341886080802e-14
+bound_in_machine_epsilons = 256
+interior_vertex = [0.31, 0.63]
+triangle_areas = [0.315, 0.345, 0.185, 0.155]
+
+[[linear_fields]]
+name = "x-extension"
+gradient = [[0.25, 0.0], [0.0, 0.0]]
+interior_displacement = [0.0775, 0.0]
+
+[[linear_fields]]
+name = "y-extension"
+gradient = [[0.0, 0.0], [0.0, 0.25]]
+interior_displacement = [0.0, 0.1575]
+
+[[linear_fields]]
+name = "symmetric-shear"
+gradient = [[0.0, 0.125], [0.125, 0.0]]
+interior_displacement = [0.07875, 0.03875]
+
+[constant_state]
+gradient = [[0.1875, -0.125], [0.0625, 0.25]]
+offset = [0.0625, -0.09375]
+strain = [[0.1875, -0.03125], [-0.03125, 0.25]]
+stress = [[2.0, -0.1875], [-0.1875, 2.375]]
+
+[reaction_equilibrium]
+body_force = [0.75, -0.625]
+interior_displacement = [0.0099461579892280074, -0.0086185594275046667]
+interior_displacement_exact = ["554001/55700000", "-554001/64280000"]
+complete_boundary_reaction = [-0.75, 0.625]

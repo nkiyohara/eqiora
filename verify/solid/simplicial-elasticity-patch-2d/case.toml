@@ -1,0 +1,55 @@
+id = "solid.simplicial-elasticity-patch-2d"
+status = "verified"
+scope = "intrinsic-2d-isotropic-small-strain-p1-elasticity-on-affine-triangles-of-one-box"
+reference_kind = "independent-analytic-and-exact-rational-distorted-patch"
+
+capabilities = [
+  "two-dimensional-affine-triangle-p1-linear-elasticity",
+  "distorted-triangle-linear-displacement-exactness",
+  "rigid-body-zero-strain-energy",
+  "constant-stress-patch",
+  "named-boundary-reaction-equilibrium",
+  "bitwise-repeatable-reference-solve",
+]
+
+[problem]
+equation = "-div(2 mu sym(grad(u)) + lambda I div(u)) = f"
+domain = "(0, 1) x (0, 1)"
+material = "mu = 3; lambda = 2; unit out-of-plane measure"
+boundary = "complete prescribed P1 displacement trace"
+body_force = "zero for patch fields; [3/4, -5/8] for equilibrium"
+
+[fixture]
+path = "fixtures/distorted_patch.rs"
+vertices = 5
+triangles = 4
+interior_vertex = "[0.31, 0.63]"
+triangle_areas = "[0.315, 0.345, 0.185, 0.155]"
+connectivity = "[0,1,4]; [4,1,2]; [3,4,2]; [3,0,4]"
+generated_mesh = false
+
+[oracle]
+scalar_type = "f64"
+absolute_bound = "256 * epsilon = 5.684341886080802e-14"
+bound_reason = "28 times the largest independently observed correct roundoff and over 2e11 below the smallest tested Jacobian/area mutant error"
+linear_fields = "independent x-extension, y-extension, and symmetric shear"
+rigid_fields = "one translation and one infinitesimal rotation"
+constant_stress = "[[2, -3/16], [-3/16, 19/8]] in every triangle"
+reaction = "complete named-boundary reaction [-3/4, 5/8] balances integrated body force [3/4, -5/8]; interior displacement [554001/55700000, -554001/64280000] falsifies constitutive mutants"
+determinism = "ordered full displacement streams compared with f64::to_bits"
+
+[claim_boundary]
+box_domain = true
+authored_affine_triangle_fixture = true
+generated_or_adaptive_mesh = false
+authored_non_box_geometry = false
+cooks_membrane = false
+plane_stress_or_plane_strain = false
+three_dimensional_elasticity = false
+nonlinear_large_deformation_plasticity_or_contact = false
+coupling_fsi_or_transient = false
+mixed_or_high_order_space = false
+
+[evidence]
+package = "eqiora-numerics"
+test = "simplicial_elasticity_patch"
