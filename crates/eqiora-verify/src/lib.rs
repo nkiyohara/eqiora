@@ -214,7 +214,8 @@ pub struct CaseReport {
     /// Structured evidence target, when declared.
     pub evidence: Option<EvidenceTarget>,
     /// Monotonic wall-clock duration of the evidence target, when it started.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Serialized as `null` when absent, like every other optional field on
+    /// this report: one object must not carry two encodings of absence.
     pub duration_ms: Option<u64>,
     /// Child exit code, when a process started and returned one.
     pub exit_code: Option<i32>,
@@ -1696,7 +1697,7 @@ script = "tools/ci/python_evidence.py"
         for case in reports {
             assert_eq!(case.duration_ms, None);
             let json = serde_json::to_value(case).unwrap();
-            assert!(json.get("duration_ms").is_none(), "{json}");
+            assert_eq!(json["duration_ms"], serde_json::Value::Null, "{json}");
         }
     }
 
@@ -1821,7 +1822,7 @@ script = "tools/ci/python_evidence.py"
                 let json = serde_json::to_value(report).unwrap();
                 match output.duration_ms {
                     Some(duration_ms) => assert_eq!(json["duration_ms"], duration_ms),
-                    None => assert!(json.get("duration_ms").is_none(), "{json}"),
+                    None => assert_eq!(json["duration_ms"], serde_json::Value::Null, "{json}"),
                 }
             }
         }
