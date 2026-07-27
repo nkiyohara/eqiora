@@ -13,6 +13,7 @@ mod dependency_graph;
 mod glob_reexport;
 mod package_map;
 mod public_surface;
+mod rfc_numbering;
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -142,8 +143,13 @@ pub fn check() -> Result<(), String> {
     let mut cycles = dependency_graph::check(&metadata)?;
     violations.append(&mut cycles.violations);
 
+    let rfcs = rfc_numbering::check(&root)?;
+    violations.extend(rfcs.violations.iter().cloned());
+
     if violations.is_empty() {
-        report(&ledger, &surfaces, &globs, &sources, &scanned, &cycles);
+        report(
+            &ledger, &surfaces, &globs, &sources, &scanned, &cycles, &rfcs,
+        );
         return Ok(());
     }
 
@@ -167,6 +173,7 @@ fn report(
     sources: &[String],
     scanned: &[String],
     cycles: &dependency_graph::Cycles,
+    rfcs: &rfc_numbering::RfcNumbering,
 ) {
     let budget = ledger.limits.public_items_per_crate;
     let above_budget = ledger
@@ -200,6 +207,10 @@ fn report(
     println!(
         "dependency graph: {} workspace crates, {} normal/build/dev edges, no cycle",
         cycles.packages, cycles.edges
+    );
+    println!(
+        "RFC numbering: {} RFC files and {} indexed numbers, no duplicate number or index drift",
+        rfcs.files, rfcs.indexed
     );
 }
 

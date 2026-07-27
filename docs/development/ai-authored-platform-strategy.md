@@ -269,6 +269,7 @@ the destination is fixed, and must not be cited as though CI enforced them.
 | Public surface | implemented |
 | Glob re-exports | implemented |
 | Dependency graph acyclicity | implemented |
+| RFC numbering and index agreement | implemented |
 | Function complexity | planned |
 | `unreachable_pub`, duplicate canonical paths | planned |
 | Cross-physics clone | planned — needs a similarity algorithm and a normalization decision |
