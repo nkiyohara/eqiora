@@ -25,7 +25,9 @@ from python_torch_gate import uv_gate_command as torch_uv_gate_command  # noqa: 
 
 
 class HostedTriggerTests(unittest.TestCase):
-    def test_public_workflow_runs_for_pull_requests_and_exact_sha_dispatch(self) -> None:
+    def test_public_workflow_runs_for_pull_requests_and_exact_sha_dispatch(
+        self,
+    ) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
             encoding="utf-8"
         )
@@ -71,15 +73,10 @@ class HostedTriggerTests(unittest.TestCase):
         evidence = workflow.split("  host_evidence:\n", maxsplit=1)[1].split(
             "\n  python_host_evidence:", maxsplit=1
         )[0]
-        python_evidence = workflow.split(
-            "  python_host_evidence:\n", maxsplit=1
-        )[1].split(
-            "\n  msrv:", maxsplit=1
-        )[0]
-        action = (
-            "actions/setup-python@"
-            "5fda3b95a4ea91299a34e894583c3862153e4b97"
-        )
+        python_evidence = workflow.split("  python_host_evidence:\n", maxsplit=1)[
+            1
+        ].split("\n  msrv:", maxsplit=1)[0]
+        action = "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97"
 
         self.assertIn(action, quality)
         self.assertIn('python-version: "3.12"', quality)
@@ -91,7 +88,15 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertIn("name: Host-CPU verification evidence", evidence)
         self.assertIn("runs-on: ubuntu-latest", evidence)
         self.assertIn("libopenmpi-dev", evidence)
-        self.assertNotIn(action, evidence)
+        # The Cargo evidence job needs an interpreter and the NumPy floor even
+        # though neither reads as Cargo work: `eqiora-python`'s Cargo tests
+        # import NumPy through the embedded pyo3 interpreter. An earlier split
+        # moved both to the Python job on the strength of their names, and
+        # `interfaces.python-array-transport` failed closed on a missing module.
+        self.assertIn(action, evidence)
+        self.assertIn('["tested-numpy-floor"]', evidence)
+        # It does not need the candidate builder; only wheel construction does.
+        self.assertNotIn('["uv"]', evidence)
         self.assertNotIn("uv --version", evidence)
         self.assertIn(
             "eqiora-verify -- run --environment host-cpu --runner-kind cargo",
@@ -103,9 +108,7 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertIn('python-version: "3.12"', python_evidence)
         self.assertIn('["tested-numpy-floor"]', python_evidence)
         self.assertIn('["uv"]', python_evidence)
-        self.assertIn(
-            "python -m pip install --only-binary=:all:", python_evidence
-        )
+        self.assertIn("python -m pip install --only-binary=:all:", python_evidence)
         self.assertIn("uv --version", python_evidence)
         self.assertNotIn("apt-get", python_evidence)
         self.assertNotIn("openmpi", python_evidence)
@@ -125,20 +128,18 @@ class HostedTriggerTests(unittest.TestCase):
         evidence = workflow.split("  host_evidence:\n", maxsplit=1)[1].split(
             "\n  python_host_evidence:", maxsplit=1
         )[0]
-        python_evidence = workflow.split(
-            "  python_host_evidence:\n", maxsplit=1
-        )[1].split(
-            "\n  msrv:", maxsplit=1
-        )[0]
+        python_evidence = workflow.split("  python_host_evidence:\n", maxsplit=1)[
+            1
+        ].split("\n  msrv:", maxsplit=1)[0]
         studio = workflow.split("  studio:\n", maxsplit=1)[1].split(
             "\n  gate:", maxsplit=1
         )[0]
         tests = quality.split("- name: Tests\n", maxsplit=1)[1].split(
             "- name: Full feature tests\n", maxsplit=1
         )[0]
-        full_feature_tests = quality.split(
-            "- name: Full feature tests\n", maxsplit=1
-        )[1].split("- name: Dependency layers\n", maxsplit=1)[0]
+        full_feature_tests = quality.split("- name: Full feature tests\n", maxsplit=1)[
+            1
+        ].split("- name: Dependency layers\n", maxsplit=1)[0]
         host_evidence = evidence.split(
             "- name: Run registered Cargo host evidence\n", maxsplit=1
         )[1]
@@ -185,12 +186,11 @@ class HostedTriggerTests(unittest.TestCase):
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
             encoding="utf-8"
         )
-        dependency = workflow.split(
-            "  dependency_policy:\n", maxsplit=1
-        )[1].split("\n  cubecl_experiment:", maxsplit=1)[0]
+        dependency = workflow.split("  dependency_policy:\n", maxsplit=1)[1].split(
+            "\n  cubecl_experiment:", maxsplit=1
+        )[0]
         action = (
-            "EmbarkStudios/cargo-deny-action@"
-            "3c6349835b2b7b196a839186cb8b78e02f7b5f25"
+            "EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25"
         )
         self.assertEqual(dependency.count(action), 2)
         self.assertIn("name: Check root dependency policy", dependency)
@@ -201,8 +201,7 @@ class HostedTriggerTests(unittest.TestCase):
             dependency,
         )
         self.assertIn(
-            "arguments: --all-features --locked --config "
-            "studio/src-tauri/deny.toml",
+            "arguments: --all-features --locked --config studio/src-tauri/deny.toml",
             dependency,
         )
 
@@ -420,7 +419,9 @@ class ChangeClassificationTests(unittest.TestCase):
             "new-area/file.bin",
         ):
             with self.subTest(path=path):
-                self.assertEqual(classify([path]), {surface: True for surface in SURFACES})
+                self.assertEqual(
+                    classify([path]), {surface: True for surface in SURFACES}
+                )
 
         python_requirements = classify(["bindings/python/requirements.txt"])
         self.assertTrue(python_requirements["python"])
@@ -429,7 +430,9 @@ class ChangeClassificationTests(unittest.TestCase):
         completed = mock.Mock(
             stdout=b"crates/eqiora/src/old.rs\0docs/architecture/old.md\0"
         )
-        with mock.patch("classify_changes.subprocess.run", return_value=completed) as run:
+        with mock.patch(
+            "classify_changes.subprocess.run", return_value=completed
+        ) as run:
             paths = changed_paths("base", "head")
 
         self.assertEqual(
@@ -518,7 +521,11 @@ class AggregateGateTests(unittest.TestCase):
     def test_result_vocabulary_is_complete_and_exact(self) -> None:
         self.assertEqual(parse_results(self.results), self.results)
         for malformed in (
-            {key: value for key, value in self.results.items() if key != "host_evidence"},
+            {
+                key: value
+                for key, value in self.results.items()
+                if key != "host_evidence"
+            },
             {**self.results, "unregistered_job": "success"},
         ):
             with self.assertRaises(ValueError):
