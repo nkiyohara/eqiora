@@ -12,19 +12,25 @@ the document that owns it, and those documents are authoritative:
   parallel work.**
 - [Local verification](docs/development/local-verification.md) — the gate tiers.
 
-## No human reviews this
+## Two frontier agents, one review layer
 
-Two agents advance this repository — Claude Opus 5 and Codex GPT-5.6 Sol — and
-merge their own work, including through the owner bypass a protected-surface
-change needs. The maintainer sets direction and does not read diffs.
+Claude Opus 5 and Codex GPT-5.6 Sol advance and merge this repository; the
+maintainer sets direction and does not read diffs. Treat both as frontier
+generalists, not as interchangeable copies or a benchmark ranking.
 
-So there is no downstream. **Cross-review is not one safeguard among several; it
-is the only one**, and an overstated capability row ships unnoticed. Skipping the
-outside review deletes the review layer, however small the change looked.
+Assign by independence and observed failure mode, never model rank. Both models
+implement comparable consequential slices; whoever writes, the other model
+derives the falsifier and reviews the complete diff. Read-only exploration,
+derivation and adversarial review run in parallel; one writer owns each seam.
 
-Confidence is not evidence. Where you are sure and have not checked, write that
-you have not checked: an absent claim invites verification, a confident one
-suppresses it.
+Brief Opus with the complete frozen specification plus hard scope and length
+limits; its automatic self-checks never replace outside evidence. Brief Codex
+with goal, context, authority, constraints, done-when and the repository
+verification path. Use a bounded handoff, never shared scratch context.
+
+There is no downstream: cross-model review is the only review layer. Confidence
+is not evidence. State what was not checked; an absent claim invites
+verification, while a confident unsupported claim suppresses it.
 
 ## Run every lane that can run
 
