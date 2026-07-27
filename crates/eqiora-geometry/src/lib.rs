@@ -20,6 +20,7 @@ mod association;
 mod cad;
 mod correspondence;
 mod identity;
+mod region;
 
 pub use association::{
     BodyAssociationCandidate, RetainedBodyPair, RetainedBoundaryPair, RetainedGeometryAssociation,
@@ -36,4 +37,8 @@ pub use correspondence::{
 };
 pub use identity::{
     GeometryEntity, GeometryRevisionReference, GeometryRevisionTopology, ParentOutward,
+};
+pub use region::{
+    EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet, PlanarFace, PlanarLoop, PlanarRegion,
+    VERTEX_DIMENSION,
 };
