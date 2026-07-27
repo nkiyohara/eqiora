@@ -22,6 +22,9 @@ use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::canonical::ScalarEllipticCartesianModel;
 use crate::cartesian_mesh::CartesianMesh;
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
+use crate::form_compiler::{
+    AdmittedScalarGalerkinForm, DerivedScalarGalerkinForm, compile_cartesian_q1_form,
+};
 use crate::linearized_output::CartesianScalarFieldLinearization;
 use crate::operator::LocalOperator;
 use crate::spatial_design::SpatialDesignCoordinate;
@@ -588,9 +591,11 @@ pub fn lower_cartesian_q1_diffusion_local_action(
             invalid("Cartesian Q1 local-action batch exceeds platform allocation capacity")
         })?;
     let zero_source = |_: &[f64]| 0.0;
+    let compiled = compile_cartesian_q1_form(dimension, quadrature)?;
     let operator = CartesianEllipticCell {
         diffusion,
         source: &zero_source,
+        compiled: &compiled,
     };
     for cell_index in 0..cell_count {
         let cell = MeshEntity::new(dimension, cell_index);
@@ -629,7 +634,7 @@ where
     B: Fn(&[f64]) -> f64 + ?Sized,
 {
     let finalized = finalize_scalar_elliptic_cartesian_fem(
-        mesh, diffusion, source, boundary, quadrature, assembly,
+        mesh, diffusion, source, boundary, quadrature, assembly, None,
     )?;
     let (canonical_system, state) = finalized.into_canonical()?;
     let solved = solver.solve(&canonical_system.linear_problem()?)?;
@@ -643,6 +648,7 @@ pub(crate) fn finalize_scalar_elliptic_cartesian_fem<S, B>(
     boundary: &B,
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
+    form: Option<&DerivedScalarGalerkinForm>,
 ) -> Result<FinalizedCartesianFemAssembly, Diagnostic>
 where
     S: Fn(&[f64]) -> f64 + Sync + ?Sized,
@@ -650,6 +656,15 @@ where
 {
     validate_problem(mesh, diffusion, quadrature)?;
     let dimension = mesh.topological_dimension();
+    let compiled = match form {
+        Some(form) => form.admit_quadrature(quadrature)?,
+        None => compile_cartesian_q1_form(dimension, quadrature)?,
+    };
+    let operator = CartesianEllipticCell {
+        diffusion,
+        source,
+        compiled: &compiled,
+    };
     let vertex_count = mesh.entity_count(0).expect("mesh owns vertices");
     let mut fixed_values = Vec::with_capacity(vertex_count);
     let mut free_indices = vec![None; vertex_count];
@@ -679,8 +694,6 @@ where
             "Cartesian Q1 system requires at least one unconstrained interior vertex",
         ));
     }
-
-    let operator = CartesianEllipticCell { diffusion, source };
     let cell_count = mesh.entity_count(dimension).expect("mesh owns cells");
     let assembly_plan = AssemblyPlan::new(vec![
         AssemblyTarget::new(free_count)?,
@@ -1542,28 +1555,23 @@ fn transmissibility_jvp(
 }
 
 fn require_positive_distance(distance: f64) -> Result<(), Diagnostic> {
-    if !distance.is_finite() || distance <= 0.0 {
-        Err(invalid(
-            "Cartesian two-point flux requires a positive finite normal distance",
-        ))
-    } else {
-        Ok(())
-    }
+    (distance.is_finite() && distance > 0.0)
+        .then_some(())
+        .ok_or_else(|| invalid("Cartesian two-point flux distance must be positive and finite"))
 }
 
 fn ensure_finite_design_assembly(values: &[f64]) -> Result<(), Diagnostic> {
-    if values.iter().any(|value| !value.is_finite()) {
-        Err(invalid(
-            "Cartesian design derivative assembly produced a non-finite value",
-        ))
-    } else {
-        Ok(())
-    }
+    values
+        .iter()
+        .all(|value| value.is_finite())
+        .then_some(())
+        .ok_or_else(|| invalid("Cartesian design derivative assembly produced a non-finite value"))
 }
 
 struct CartesianEllipticCell<'a, S: ?Sized> {
     diffusion: f64,
     source: &'a S,
+    compiled: &'a AdmittedScalarGalerkinForm<'a>,
 }
 
 impl<S> LocalOperator<AffineGeometryMap> for CartesianEllipticCell<'_, S>
@@ -1575,52 +1583,8 @@ where
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
     ) -> Result<LocalContribution, Diagnostic> {
-        require_geometry_rule(geometry, quadrature)?;
-        let dimension = geometry.reference_cell().dimension();
-        if geometry.physical_dimension() != dimension {
-            return Err(invalid(
-                "Cartesian elliptic cell requires matching physical and reference dimensions",
-            ));
-        }
-        let inverse = geometry.inverse_jacobian()?;
-        let space = HypercubeQ1Space::new(dimension)?;
-        let dof_count = space.local_dofs().len();
-        let mut matrix = vec![0.0; dof_count * dof_count];
-        let mut rhs = vec![0.0; dof_count];
-        let mut physical = vec![0.0; dimension];
-        for point in quadrature.points() {
-            let basis = space.tabulate(&point.coordinates)?;
-            geometry.map_point(&point.coordinates, &mut physical)?;
-            let source = (self.source)(&physical);
-            if !source.is_finite() {
-                return Err(invalid("Cartesian source returned a non-finite value"));
-            }
-            let scale = point.weight * geometry.measure_scale();
-            let physical_gradients = (0..dof_count)
-                .map(|dof| {
-                    physical_gradient(
-                        basis
-                            .gradient(dof)
-                            .expect("tabulation owns every basis gradient"),
-                        &inverse,
-                        dimension,
-                    )
-                })
-                .collect::<Vec<_>>();
-            for row in 0..dof_count {
-                rhs[row] += scale * source * basis.values()[row];
-                for column in 0..dof_count {
-                    matrix[row * dof_count + column] += scale
-                        * self.diffusion
-                        * physical_gradients[row]
-                            .iter()
-                            .zip(&physical_gradients[column])
-                            .map(|(left, right)| left * right)
-                            .sum::<f64>();
-                }
-            }
-        }
-        LocalContribution::new(dof_count, dof_count, matrix, rhs)
+        self.compiled
+            .evaluate(geometry, quadrature, self.diffusion, self.source)
     }
 }
 
@@ -1869,14 +1833,7 @@ fn validate_problem(
 
 fn require_cell_rule(mesh: &CartesianMesh, quadrature: &QuadratureRule) -> Result<(), Diagnostic> {
     let expected = ReferenceCell::hypercube(mesh.topological_dimension())?;
-    if quadrature.reference_cell() != expected {
-        return Err(invalid(format!(
-            "Cartesian cell requires {:?} quadrature, received {:?}",
-            expected,
-            quadrature.reference_cell()
-        )));
-    }
-    Ok(())
+    require_reference(quadrature, expected)
 }
 
 fn require_facet_rule(dimension: usize, quadrature: &QuadratureRule) -> Result<(), Diagnostic> {
@@ -1885,26 +1842,23 @@ fn require_facet_rule(dimension: usize, quadrature: &QuadratureRule) -> Result<(
     } else {
         ReferenceCell::hypercube(dimension - 1)?
     };
-    if quadrature.reference_cell() != expected {
-        return Err(invalid(format!(
-            "Cartesian facet requires {:?} quadrature, received {:?}",
-            expected,
-            quadrature.reference_cell()
-        )));
-    }
-    Ok(())
+    require_reference(quadrature, expected)
 }
 
 fn require_geometry_rule(
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,
 ) -> Result<(), Diagnostic> {
-    if geometry.reference_cell() != quadrature.reference_cell() {
-        return Err(invalid(
-            "Cartesian local geometry and quadrature reference cells differ",
-        ));
-    }
-    Ok(())
+    require_reference(quadrature, geometry.reference_cell())
+}
+
+fn require_reference(
+    quadrature: &QuadratureRule,
+    expected: ReferenceCell,
+) -> Result<(), Diagnostic> {
+    (quadrature.reference_cell() == expected)
+        .then_some(())
+        .ok_or_else(|| invalid("Cartesian quadrature reference cell does not match its consumer"))
 }
 
 fn invalid(message: impl Into<String>) -> Diagnostic {

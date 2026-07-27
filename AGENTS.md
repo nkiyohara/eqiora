@@ -36,8 +36,30 @@ the owning contract is stable. Parallel work follows a contract wave: one
 writer owns an invariant-bearing central seam until its reference slice is
 accepted, then disjoint consumers start from that exact accepted revision.
 Writable branches belong to mergeable slices rather than agents and use
-separate worktrees; an independent agent should derive the falsifier, while one
-integrator retains the final semantic and merge decision.
+separate worktrees. The integrator is a per-slice role, not a standing one, and
+retains the final semantic and merge decision for that slice. An implementing
+agent must not author, tune, or relax the oracle, expected values, tolerances,
+or falsifiers for its own implementation; wiring a pre-committed fixture is
+permitted, owning the evidence content is not. Where an implementer believes a
+pre-committed oracle is wrong, it stops and returns the proof rather than
+adjusting the implementation to match.
+
+Every change also passes a review by an agent that did not write it, before
+integration. **The integrator's own work is not exempt.** Holding the
+acceptance decision is what makes self-acceptance easy, so an integrator who
+also implemented must obtain that outside review rather than rely on its own
+reading. The review may be brief and is only required to surface defects with
+real consequences, but its absence is itself a defect in the slice.
+
+Cross-review catches what one agent missed; it does not catch what both
+assumed. A slice whose scientific claim rests on a derivation therefore carries
+a **dual independent oracle gate**: two agents derive the expected values
+separately from the public claim — one analytically, one by a different
+numerical or symbolic route — each without reading the implementation or the
+existing fixtures, and implementation does not begin until the two agree. The
+point is to make the shared premise itself falsifiable rather than to add
+another reviewer. This is reserved for derivation-bearing scientific slices; an
+adapter or application surface does not need it.
 
 A fan-out lane consumes its accepted central contract; it does not extend that
 contract for local convenience. If the contract cannot express a discovered
@@ -74,7 +96,12 @@ the earliest dependency-safe gate, reuse an existing tracker where possible,
 and interrupt the active slice only when the new information invalidates an
 owning prerequisite or exposes an urgent security, correctness, or data-loss
 risk. Follow the queue rules in the vertical-slice guide; do not create a
-calendar review or an activity ledger.
+calendar review, and do not create a durable activity ledger inside the
+repository. Non-authoritative coordination state outside the repository is
+permitted for parallel agent work: it may hold only agent, slice, base
+revision, branch or worktree, current lock, and handoff, must stay disposable,
+must never become the authority for a Model, claim, or evidence, must not
+shadow `verify/`, the Issue queue, or the roadmap, and is never committed.
 
 ## Apply rigor in proportion to durable risk
 

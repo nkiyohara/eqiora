@@ -1,0 +1,17 @@
+method,preconditioner,cells_per_axis,unknowns,iterations
+fem-q1,identity,4,27,4
+fem-q1,identity,8,343,14
+fem-q1,identity,16,3375,25
+fem-q1,identity,32,29791,52
+fem-q1,jacobi,4,27,4
+fem-q1,jacobi,8,343,14
+fem-q1,jacobi,16,3375,25
+fem-q1,jacobi,32,29791,52
+fvm-tpfa,identity,4,64,4
+fvm-tpfa,identity,8,512,16
+fvm-tpfa,identity,16,4096,44
+fvm-tpfa,identity,32,32768,90
+fvm-tpfa,jacobi,4,64,4
+fvm-tpfa,jacobi,8,512,19
+fvm-tpfa,jacobi,16,4096,42
+fvm-tpfa,jacobi,32,32768,87

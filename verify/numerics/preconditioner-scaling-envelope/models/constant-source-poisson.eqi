@@ -1,0 +1,23 @@
+model constant_source_poisson_cube {
+  domain cube = box(0, 1, 0, 1, 0, 1);
+  domain x_lower = boundary(cube, axis = 0, side = lower);
+  domain x_upper = boundary(cube, axis = 0, side = upper);
+  domain y_lower = boundary(cube, axis = 1, side = lower);
+  domain y_upper = boundary(cube, axis = 1, side = upper);
+  domain z_lower = boundary(cube, axis = 2, side = lower);
+  domain z_upper = boundary(cube, axis = 2, side = upper);
+  representation scalar_space = continuum;
+
+  field potential on cube as scalar_space: 1 = 0;
+  parameter source_scale: 1 / m ^ 2 = 1.0;
+
+  relation balance continuous on cube {
+    -div(grad(potential)) - source_scale = 0;
+  }
+  relation x_lower_value continuous on x_lower { trace(potential) = 0; }
+  relation x_upper_value continuous on x_upper { trace(potential) = 0; }
+  relation y_lower_value continuous on y_lower { trace(potential) = 0; }
+  relation y_upper_value continuous on y_upper { trace(potential) = 0; }
+  relation z_lower_value continuous on z_lower { trace(potential) = 0; }
+  relation z_upper_value continuous on z_upper { trace(potential) = 0; }
+}

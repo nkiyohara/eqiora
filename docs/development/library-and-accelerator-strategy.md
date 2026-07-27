@@ -668,6 +668,42 @@ now:
 Each gate starts only when its consumer and falsifier are concrete. Empty
 provider names, target enums, and method configs do not count as progress.
 
+Investigation may also start on a second, disjunctive condition: the current
+method demonstrably breaks a **pre-declared resource, convergence, or
+robustness envelope** on an existing model or a synthetic operator. This exists
+because some capabilities are preconditions for their own consumers; "the
+absence of the capability prevents consumers from existing" is rejected as too
+subjective to gate on, while a declared envelope breach is checkable.
+
+The declaration must be **merged to the protected default branch on its own**,
+naming the probe, the thresholds, the indeterminate band, and the validity
+conditions under which a run is void. Only measurements produced by hosted CI,
+from a descendant of that merge commit, on a run started after it, are
+admissible as the breach.
+
+A weaker rule does not work. A declaration in the same commit as its
+observations is an assertion about the author's order of work, not a fact:
+choosing the threshold and choosing the probe are both post-hoc degrees of
+freedom, and freezing the numbers closes only the first. Requiring merely a
+separate earlier commit is no better, because local history can be rebuilt so
+that a declaration written after measuring becomes the parent of the
+observation. Commit and author timestamps are self-reported and add nothing.
+Protected-branch merge order is the first thing an author cannot rewrite.
+
+Even this proves only that the *admitted* measurement post-dates the
+declaration. It cannot prove that the same probe was not run privately
+beforehand, so the requirement binds the accepted evidence and never claims
+more. Where a probe is replaced because the first was void, the replacement is
+declared under the same two-stage rule and the void run is retained.
+
+The falsifier and the construction/provenance policy are built first. A
+candidate enters the stable vocabulary only after passing them, never on the
+strength of the investigation alone. AMG, restarted GMRES, and field split are
+three distinct contracts — a multilevel construction and provenance problem, a
+Krylov algorithm with restart and orthogonalization policy, and a solver graph
+over semantic or algebraic blocks — and each needs its own envelope rather than
+one shared gate.
+
 ## Rejected or superseded approaches
 
 - **Backend types in model or artifact schemas.** Rejected because execution

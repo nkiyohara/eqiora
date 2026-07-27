@@ -127,6 +127,8 @@ jobs:
         run: cargo +stable xtask check-layers
       - name: Public facade
         run: cargo +stable xtask check-facade
+      - name: Architecture predicates
+        run: cargo +stable xtask check-architecture
       - name: Documentation
         env:
           RUSTDOCFLAGS: -D warnings

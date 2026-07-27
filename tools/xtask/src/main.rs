@@ -1,5 +1,6 @@
 //! Repository development tasks.
 
+mod architecture;
 mod facade;
 
 use std::collections::{HashMap, HashSet};
@@ -29,6 +30,13 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
+        Some("check-architecture") => match architecture::check() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(message) => {
+                eprintln!("{message}");
+                ExitCode::FAILURE
+            }
+        },
         Some(command) => {
             eprintln!("unknown xtask command: {command}");
             usage();
@@ -42,7 +50,7 @@ fn main() -> ExitCode {
 }
 
 fn usage() {
-    eprintln!("usage: cargo xtask <check-facade|check-layers>");
+    eprintln!("usage: cargo xtask <check-architecture|check-facade|check-layers>");
 }
 
 fn check_layers() -> Result<(), String> {

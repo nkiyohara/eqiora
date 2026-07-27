@@ -74,6 +74,19 @@ diffsol = { version = "=0.16.1", default-features = false, features = ["nalgebra
 # not an incidental consequence of the workspace MSRV decision.
 cudarc = { version = "=0.18.2", default-features = false, features = ["std", "driver", "cuda-12000", "dynamic-loading"] }
 libloading = "=0.8.9"
+# Rust parser for the `cargo xtask check-architecture` predicates, consumed
+# only by `xtask` (`publish = false`), so it never reaches a published crate.
+# A public API surface cannot be counted soundly by regular expression: `pub`
+# inside a private module, inside a macro body, inside a doc comment, or inside
+# a string literal is indistinguishable from a real item to a matcher that does
+# not know the grammar, and a CI gate built on that is a gate on formatting.
+# Pinned exactly at the revision `Cargo.lock` already carries for the derive
+# macros, so the parser adds no package to the graph and no second `syn` copy;
+# an incidental bump can silently move a counted number, which moves a gate.
+# `proc-macro2/span-locations` is only there to turn a matched AST node back
+# into the `file:line` a violation report has to name.
+syn = { version = "=2.0.119", default-features = false, features = ["full", "parsing"] }
+proc-macro2 = { version = "=1.0.106", default-features = false, features = ["span-locations"] }
 
 # Internal crates (see docs/architecture.md#dependency-layers and `cargo xtask check-layers`)
 eqiora = { version = "0.1.0-alpha.1", path = "crates/eqiora" }

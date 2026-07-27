@@ -1,0 +1,650 @@
+# Architecture debt ledger
+#
+# Every entry is a technical exception to a predicate in
+# `cargo xtask check-architecture`, frozen at the value it had when the
+# predicate was introduced. Ordinary pull requests may only move a number
+# down. Raising a ceiling or adding an entry is an architecture change and is
+# reviewed as one.
+#
+# Seeded at revision 10b0a5d. These files predate the predicate and have not
+# been individually triaged; `reason` says so rather than inventing a
+# justification. Triage happens in the lane that owns the file.
+#
+# `[[public_surface]]` and `[[glob_reexports]]` were seeded at revision f5ae8c5,
+# measured from the AST rather than by text matching. `[[glob_reexports]]` was
+# reseeded when its frozen value stopped being the path text and became a
+# resolved identity.
+#
+# The two ledgers ratchet differently, deliberately. A file's line count drifts
+# with every ordinary edit, so `[[file_lines]]` only fails when the count rises
+# above a frozen ceiling. A glob changes only when someone means it to, so
+# `[[glob_reexports]]` freezes an exact identity per glob rather than a count. A
+# count alone would let an existing glob be repointed at a larger crate for
+# free, since the number would not move and the public-surface budget scores an
+# unresolvable cross-crate glob as one item however much it forwards. The path
+# text alone is no better: the same `pub use foo::*;` forwards a different crate
+# after a Cargo rename is repointed, after a private `use bar as foo;` beside it
+# is edited, or under a different `#[cfg]`.
+#
+# So an identity has three fields,
+# `<condition> | <path as written>::* | <what the first segment resolves to>`:
+#
+#   * the condition is the normalized `#[cfg]` the glob sits under, including
+#     the gates on every enclosing inline module, so flipping a feature moves
+#     the entry. `cfg_attr` is not interpreted but is frozen verbatim;
+#   * the path is the text a reader edits;
+#   * the resolution is the package that first segment names according to
+#     `cargo metadata`, after any Cargo `package = "..."` rename; or the file a
+#     local `mod` declaration resolves to, `#[path]` included; or a private
+#     `use ... as ...;` in the same module, followed to whichever of those it
+#     lands on.
+#
+# The resolution records a package's name and origin, not its version. A version
+# bump is not a repoint, and freezing it would fail this check on every ordinary
+# dependency update and force a reseed of all 37 frozen globs, which is how a
+# ratchet loses its credibility. Moving a dependency between path, registry and
+# git — or between two paths — does move the identity.
+#
+# What the identity does NOT cover, and is not claimed to:
+#
+#   * which names the target actually exports. Resolution stops at the package
+#     boundary, because one crate's AST cannot see another's. The *number* of
+#     names a workspace glob forwards is held by the target crate's own
+#     `[[public_surface]]` entry, which is an exact freeze; *which* names those
+#     are is frozen nowhere.
+#   * a `#[cfg]` on the `mod` declaration in a *parent* file. The scan is
+#     file-local on purpose, so that a glob is caught even in a module no
+#     consumer can name; the price is that a gate written next to `mod foo;` is
+#     not part of the identity of the globs inside `foo.rs`.
+#   * what an untracked `use x::*;` in the same module brings into scope, which
+#     can shadow the first segment. The presence of such an import is recorded
+#     in the identity, so it cannot appear silently, but its contents cannot be
+#     enumerated from here.
+#   * feature resolution and build-script `cargo::rustc-cfg` output. The
+#     resolution reads declared dependencies, so it says which package a name
+#     would resolve to, not whether that dependency is enabled in a given build.
+#
+# See docs/development/ai-authored-platform-strategy.md, amendment A5.
+
+[limits]
+# Physical lines. A file with no entry below must satisfy these.
+production_file_lines = 1000
+test_file_lines = 2000
+# AST-reachable public items. Every crate needs a `[[public_surface]]` entry
+# below; this is the width above which that entry must also justify itself.
+public_items_per_crate = 128
+
+[[file_lines]]
+path = "crates/eqiora-api/src/lib.rs"
+ceiling = 1212
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-api/src/ml_dataset.rs"
+ceiling = 1098
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-api/src/package.rs"
+ceiling = 1654
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-api/src/spatial.rs"
+ceiling = 1999
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-artifact/src/external_import/manifest.rs"
+ceiling = 1337
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-artifact/src/model.rs"
+ceiling = 2709
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-artifact/src/remesh_transfer.rs"
+ceiling = 2594
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-artifact/src/semantic_fingerprint.rs"
+ceiling = 1456
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-artifact/src/spatial_data/ml_dataset.rs"
+ceiling = 1677
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-artifact/src/spatial_trajectory_v2.rs"
+ceiling = 1064
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-artifact/src/spatial_trajectory_v3.rs"
+ceiling = 1080
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-artifact/src/xdmf_hdf5_trajectory_storage.rs"
+ceiling = 1130
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-backend-cuda/src/runtime.rs"
+ceiling = 1734
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-backend-cuda/src/solver.rs"
+ceiling = 1800
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-backend-mpi/src/protocol.rs"
+ceiling = 1467
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-backend-mpi/src/runtime.rs"
+ceiling = 2321
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-compiler/src/hierarchy/body_check/scope.rs"
+ceiling = 1405
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-compiler/src/hierarchy/definition_graph.rs"
+ceiling = 1333
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-compiler/src/hierarchy/expand.rs"
+ceiling = 2944
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-compiler/src/hierarchy/parameters.rs"
+ceiling = 1455
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-compiler/src/hierarchy/scope.rs"
+ceiling = 1043
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-compiler/src/hierarchy/supports.rs"
+ceiling = 1933
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-compiler/src/identity.rs"
+ceiling = 1699
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-compiler/src/lower.rs"
+ceiling = 3374
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-compiler/src/resolved.rs"
+ceiling = 1375
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-compiler/src/source_identity.rs"
+ceiling = 2341
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-io-gmsh/src/msh41.rs"
+ceiling = 1478
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-io-vtu/src/parse.rs"
+ceiling = 1648
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-ir/src/scalar.rs"
+ceiling = 1681
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-lang/src/ast.rs"
+ceiling = 1743
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-lang/src/draft.rs"
+ceiling = 1772
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-lang/src/factory.rs"
+ceiling = 2116
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-lang/src/formatter.rs"
+ceiling = 1051
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-lang/src/parser.rs"
+ceiling = 2775
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-meshing/src/p1_harmonic_geometry.rs"
+ceiling = 1174
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-meshing/src/remesh_overlap.rs"
+ceiling = 1920
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-numerics/src/canonical.rs"
+ceiling = 2221
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-numerics/src/canonical_elasticity.rs"
+ceiling = 1114
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-numerics/src/canonical_fsi/ale_realization.rs"
+ceiling = 2392
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-numerics/src/canonical_stokes/navier_stokes_realization.rs"
+ceiling = 1114
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-numerics/src/cartesian_elasticity.rs"
+ceiling = 1143
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-numerics/src/cartesian_elliptic.rs"
+ceiling = 1946
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-numerics/src/simplicial_ale_fsi/api.rs"
+ceiling = 1269
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-numerics/src/simplicial_ale_fsi/assembly.rs"
+ceiling = 1894
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-numerics/src/simplicial_ale_fsi/contract.rs"
+ceiling = 1109
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-numerics/src/simplicial_ale_fsi/motion.rs"
+ceiling = 1037
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-numerics/src/simplicial_ale_remesh/projection.rs"
+ceiling = 1872
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-numerics/src/simplicial_mini_transient.rs"
+ceiling = 1940
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-python/src/execution.rs"
+ceiling = 1229
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-realization/src/portable_graph.rs"
+ceiling = 1789
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-schema/src/kernel/pure_operator.rs"
+ceiling = 1146
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-schema/src/kernel/typing.rs"
+ceiling = 1290
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-sem/src/interpreter.rs"
+ceiling = 1583
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-sem/src/program.rs"
+ceiling = 1164
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+[[file_lines]]
+path = "crates/eqiora-verify/src/lib.rs"
+ceiling = 1766
+reason = "predates the predicate; not yet triaged"
+removal = "split by responsibility in the lane that next modifies it"
+
+
+# Public surface, in AST-reachable public items per crate. Counted by walking
+# from `src/lib.rs` through `pub mod`, and into any private module a `pub use`
+# re-exports. A glob over another crate cannot be resolved from one crate's AST
+# and counts as one item; `[[glob_reexports]]` below is what contains that
+# undercount, by forbidding any new glob from appearing.
+#
+# Every crate is frozen here, not only the three above the budget: "existing
+# crates may not grow" is stronger than "existing crates stay under a limit". An
+# entry is an exact freeze, so withdrawing a public name must lower the number
+# in the same change, and a crate with no entry at all fails — otherwise
+# deleting a line would be a way to buy headroom.
+#
+# `reason` and `removal` are required only where the frozen number is above
+# `limits.public_items_per_crate`, which is where the entry is a real exception
+# rather than a measurement. A new crate is expected to add an entry inside the
+# budget. Amendment A5 additionally allows a public capability slice to add up
+# to 8 net items; that is a review judgement on a raised number, not something
+# this check can recognize on its own.
+
+[[public_surface]]
+crate = "eqiora"
+ceiling = 275
+reason = "the facade is re-export-only and its width is already pinned by api/eqiora-facade-v1.json; 26 of these items are cross-crate globs this predicate cannot see through"
+removal = "lower with each name the facade withdraws"
+
+[[public_surface]]
+crate = "eqiora-api"
+ceiling = 124
+
+[[public_surface]]
+crate = "eqiora-artifact"
+ceiling = 151
+reason = "predates the predicate; not yet triaged"
+removal = "lower in the lane that next splits the artifact model"
+
+[[public_surface]]
+crate = "eqiora-assembly"
+ceiling = 26
+
+[[public_surface]]
+crate = "eqiora-backend-cuda"
+ceiling = 27
+
+[[public_surface]]
+crate = "eqiora-backend-diffsol"
+ceiling = 2
+
+[[public_surface]]
+crate = "eqiora-backend-faer"
+ceiling = 4
+
+[[public_surface]]
+crate = "eqiora-backend-mpi"
+ceiling = 26
+
+[[public_surface]]
+crate = "eqiora-backend-mpi-cuda"
+ceiling = 6
+
+[[public_surface]]
+crate = "eqiora-backend-rayon"
+ceiling = 8
+
+[[public_surface]]
+crate = "eqiora-cad-truck"
+ceiling = 6
+
+[[public_surface]]
+crate = "eqiora-compiler"
+ceiling = 46
+
+[[public_surface]]
+crate = "eqiora-core"
+ceiling = 106
+
+[[public_surface]]
+crate = "eqiora-device"
+ceiling = 26
+
+[[public_surface]]
+crate = "eqiora-differentiation"
+ceiling = 14
+
+[[public_surface]]
+crate = "eqiora-distributed"
+ceiling = 18
+
+[[public_surface]]
+crate = "eqiora-execution"
+ceiling = 22
+
+[[public_surface]]
+crate = "eqiora-geometry"
+ceiling = 23
+
+[[public_surface]]
+crate = "eqiora-graph"
+ceiling = 12
+
+[[public_surface]]
+crate = "eqiora-io-gmsh"
+ceiling = 2
+
+[[public_surface]]
+crate = "eqiora-io-hdf5"
+ceiling = 16
+
+[[public_surface]]
+crate = "eqiora-io-vtu"
+ceiling = 8
+
+[[public_surface]]
+crate = "eqiora-io-xdmf"
+ceiling = 16
+
+[[public_surface]]
+crate = "eqiora-ir"
+ceiling = 48
+
+[[public_surface]]
+crate = "eqiora-lang"
+ceiling = 81
+
+[[public_surface]]
+crate = "eqiora-meshing"
+ceiling = 51
+
+[[public_surface]]
+crate = "eqiora-numerics"
+ceiling = 308
+reason = "predates the predicate; the largest crate, carrying one public entry point per hand-written physics slice"
+removal = "the FEM form-compiler lane replaces per-physics entry points with instance witness data; lower this with each entry point it deletes"
+
+[[public_surface]]
+crate = "eqiora-package"
+ceiling = 55
+
+[[public_surface]]
+crate = "eqiora-python"
+ceiling = 2
+
+[[public_surface]]
+crate = "eqiora-realization"
+ceiling = 117
+
+[[public_surface]]
+crate = "eqiora-runtime"
+ceiling = 8
+
+[[public_surface]]
+crate = "eqiora-schema"
+ceiling = 88
+
+[[public_surface]]
+crate = "eqiora-sem"
+ceiling = 18
+
+[[public_surface]]
+crate = "eqiora-solver"
+ceiling = 44
+
+[[public_surface]]
+crate = "eqiora-spatial-distribution"
+ceiling = 26
+
+[[public_surface]]
+crate = "eqiora-time"
+ceiling = 39
+
+[[public_surface]]
+crate = "eqiora-verify"
+ceiling = 19
+
+# Glob re-exports. The predicate is zero; these four files predate it. Each
+# entry freezes the exact identity of every glob in the file, not a count and
+# not a ceiling to grow into: adding, removing, repointing or re-conditioning
+# one must move the list in the same change. The header says what an identity
+# is made of and what it cannot see.
+
+[[glob_reexports]]
+path = "crates/eqiora-api/src/external_data/mod.rs"
+identities = [
+  "cfg(feature = \"vtu\") | vtu::* | module file crates/eqiora-api/src/external_data/vtu.rs",
+  "cfg(feature = \"xdmf\") | xdmf::* | module file crates/eqiora-api/src/external_data/xdmf.rs",
+]
+reason = "predates the predicate; the module forwards its two adapter submodules wholesale"
+removal = "name the forwarded items"
+
+[[glob_reexports]]
+path = "crates/eqiora-api/src/lib.rs"
+identities = [
+  "cfg(any(feature = \"vtu\", feature = \"xdmf\")) | external_data::* | module file crates/eqiora-api/src/external_data/mod.rs",
+  "unconditional | cad::* | module file crates/eqiora-api/src/cad.rs",
+  "unconditional | differentiation::* | module file crates/eqiora-api/src/differentiation.rs",
+  "unconditional | ml_dataset::* | module file crates/eqiora-api/src/ml_dataset.rs",
+  "unconditional | reference_run::* | module file crates/eqiora-api/src/reference_run.rs",
+  "unconditional | spatial::* | module file crates/eqiora-api/src/spatial.rs",
+  "unconditional | spatial_data::* | module file crates/eqiora-api/src/spatial_data.rs",
+  "unconditional | transient_fluid::* | module file crates/eqiora-api/src/transient_fluid.rs",
+]
+reason = "predates the predicate; the crate root forwards its own submodules wholesale"
+removal = "name the forwarded items, which also makes this crate's public-surface count real rather than one per glob"
+
+[[glob_reexports]]
+path = "crates/eqiora-backend-mpi-cuda/src/lib.rs"
+identities = [
+  "cfg(feature = \"runtime\") | runtime::* | module file crates/eqiora-backend-mpi-cuda/src/runtime.rs",
+]
+reason = "predates the predicate; the crate root forwards its single runtime module wholesale"
+removal = "name the forwarded items"
+
+[[glob_reexports]]
+path = "crates/eqiora/src/lib.rs"
+identities = [
+  "cfg(feature = \"cad-truck\") | eqiora_cad_truck::* | package eqiora-cad-truck (path crates/eqiora-cad-truck)",
+  "cfg(feature = \"diffsol\") | eqiora_backend_diffsol::* | package eqiora-backend-diffsol (path crates/eqiora-backend-diffsol)",
+  "cfg(feature = \"faer\") | eqiora_backend_faer::* | package eqiora-backend-faer (path crates/eqiora-backend-faer)",
+  "cfg(feature = \"gmsh\") | eqiora_io_gmsh::* | package eqiora-io-gmsh (path crates/eqiora-io-gmsh)",
+  "cfg(feature = \"hdf5\") | eqiora_io_hdf5::* | package eqiora-io-hdf5 (path crates/eqiora-io-hdf5)",
+  "cfg(feature = \"mpi\") | eqiora_backend_mpi::* | package eqiora-backend-mpi (path crates/eqiora-backend-mpi)",
+  "cfg(feature = \"mpi-cuda\") | eqiora_backend_mpi_cuda::* | package eqiora-backend-mpi-cuda (path crates/eqiora-backend-mpi-cuda)",
+  "cfg(feature = \"rayon\") | eqiora_backend_rayon::* | package eqiora-backend-rayon (path crates/eqiora-backend-rayon)",
+  "cfg(feature = \"vtu\") | eqiora_io_vtu::* | package eqiora-io-vtu (path crates/eqiora-io-vtu)",
+  "cfg(feature = \"xdmf\") | eqiora_io_xdmf::* | package eqiora-io-xdmf (path crates/eqiora-io-xdmf)",
+  "unconditional | eqiora_api::package::* | package eqiora-api (path crates/eqiora-api)",
+  "unconditional | eqiora_artifact::* | package eqiora-artifact (path crates/eqiora-artifact)",
+  "unconditional | eqiora_assembly::* | package eqiora-assembly (path crates/eqiora-assembly)",
+  "unconditional | eqiora_compiler::* | package eqiora-compiler (path crates/eqiora-compiler)",
+  "unconditional | eqiora_device::* | package eqiora-device (path crates/eqiora-device)",
+  "unconditional | eqiora_differentiation::* | package eqiora-differentiation (path crates/eqiora-differentiation)",
+  "unconditional | eqiora_distributed::* | package eqiora-distributed (path crates/eqiora-distributed)",
+  "unconditional | eqiora_geometry::* | package eqiora-geometry (path crates/eqiora-geometry)",
+  "unconditional | eqiora_lang::* | package eqiora-lang (path crates/eqiora-lang)",
+  "unconditional | eqiora_meshing::* | package eqiora-meshing (path crates/eqiora-meshing)",
+  "unconditional | eqiora_package::* | package eqiora-package (path crates/eqiora-package)",
+  "unconditional | eqiora_realization::* | package eqiora-realization (path crates/eqiora-realization)",
+  "unconditional | eqiora_runtime::* | package eqiora-runtime (path crates/eqiora-runtime)",
+  "unconditional | eqiora_schema::kernel::* | package eqiora-schema (path crates/eqiora-schema)",
+  "unconditional | eqiora_solver::* | package eqiora-solver (path crates/eqiora-solver)",
+  "unconditional | eqiora_time::* | package eqiora-time (path crates/eqiora-time)",
+]
+reason = "predates the predicate; the facade forwards each internal crate wholesale, one glob per module"
+removal = "name the forwarded items per module; check-facade already pins the resulting set"

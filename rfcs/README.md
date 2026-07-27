@@ -103,3 +103,5 @@ implementation or capability claim.
 - [RFC 0072: Collocated incompressible finite-volume realization](0072-collocated-incompressible-finite-volume.md)
 - [RFC 0073: Structural semantic fingerprint](0073-structural-semantic-fingerprint.md)
 - [RFC 0074: Eqiora public alpha identity](0074-public-alpha-identity.md)
+- [RFC 0075: FEM form compiler, Cartesian Q1 Poisson slice](0075-fem-form-compiler-poisson-q1.md)
+- [RFC 0076: Evidence-first Studio interaction](0076-evidence-first-studio-interaction.md)

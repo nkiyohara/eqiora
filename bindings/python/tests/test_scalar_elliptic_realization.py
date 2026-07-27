@@ -6,11 +6,21 @@ import json
 import sys
 import threading
 from itertools import product
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 import eqiora
+
+
+PACKAGED_POISSON = (
+    Path(__file__).resolve().parents[3]
+    / "packages"
+    / "org.example.poisson"
+    / "src"
+    / "main.eqi"
+)
 
 
 POISSON = """
@@ -36,8 +46,7 @@ def affine_poisson(dimension: int) -> str:
     axes = ("x", "y", "z")[:dimension]
     bounds = ", ".join(["0, 1"] * dimension)
     exact = " + ".join(
-        f"{axis + 1} * inverse_length * coordinate({axis})"
-        for axis in range(dimension)
+        f"{axis + 1} * inverse_length * coordinate({axis})" for axis in range(dimension)
     )
     domains: list[str] = []
     relations: list[str] = []
@@ -385,3 +394,144 @@ def test_an_accepted_realization_cannot_run_against_a_foreign_model() -> None:
     with pytest.raises(eqiora.ValidationError) as caught:
         eqiora.run(foreign, realization=accepted)
     assert caught.value.diagnostics[0].code == "EQ0807"
+
+
+def axis_coordinates(
+    realization: eqiora.Realization,
+) -> list[np.ndarray]:
+    """Place published values using only the accepted Realization geometry."""
+    vertex = realization.method == eqiora.ScalarEllipticMethod.FiniteElement
+    axes = []
+    for (lower, upper), extent in zip(
+        realization.field_bounds, realization.field_logical_shape
+    ):
+        if vertex:
+            axes.append(np.linspace(lower, upper, extent))
+        else:
+            width = (upper - lower) / extent
+            axes.append(lower + (np.arange(extent) + 0.5) * width)
+    return axes
+
+
+@pytest.mark.parametrize(
+    ("method", "cells"),
+    [
+        (eqiora.ScalarEllipticMethod.FiniteElement, 4),
+        (eqiora.ScalarEllipticMethod.FiniteVolume, 4),
+    ],
+)
+def test_field_bounds_report_the_accepted_domain_extent_per_axis(
+    method: eqiora.ScalarEllipticMethod,
+    cells: int,
+) -> None:
+    shifted = POISSON.replace("box(0, 1)", "box(-1, 3)")
+    model = eqiora.compile(shifted, filename="shifted.eqi")
+    accepted = eqiora.preview_realization(
+        model,
+        eqiora.ScalarElliptic(method=method, cells_per_axis=cells),
+    )
+
+    bounds = accepted.field_bounds
+    assert bounds == ((-1.0, 3.0),)
+    assert len(bounds) == accepted.spatial_dimension
+    assert all(lower < upper for lower, upper in bounds)
+
+    # Bounds describe the volume Domain, so they do not move with the Field
+    # location; only the coordinates derived from them do.
+    (coordinates,) = axis_coordinates(accepted)
+    assert coordinates.size == accepted.field_logical_shape[0]
+    assert coordinates.min() >= -1.0
+    assert coordinates.max() <= 3.0
+    if method == eqiora.ScalarEllipticMethod.FiniteElement:
+        assert coordinates[0] == -1.0
+        assert coordinates[-1] == 3.0
+    else:
+        assert coordinates[0] == pytest.approx(-0.5)
+        assert coordinates[-1] == pytest.approx(2.5)
+
+
+ANISOTROPIC_2D = """
+model anisotropic {
+  domain plate = box(0, 1, -2, 3);
+  domain x_lower = boundary(plate, axis = 0, side = lower);
+  domain x_upper = boundary(plate, axis = 0, side = upper);
+  domain y_lower = boundary(plate, axis = 1, side = lower);
+  domain y_upper = boundary(plate, axis = 1, side = upper);
+  representation scalar_space = continuum;
+
+  field potential on plate as scalar_space: 1 = 0;
+  parameter source_scale: 1 / m ^ 2 = 1;
+
+  relation balance continuous on plate {
+    -div(grad(potential)) - source_scale = 0;
+  }
+  relation x_lower_value continuous on x_lower { trace(potential) = 0; }
+  relation x_upper_value continuous on x_upper { trace(potential) = 0; }
+  relation y_lower_value continuous on y_lower { trace(potential) = 0; }
+  relation y_upper_value continuous on y_upper { trace(potential) = 0; }
+}
+"""
+
+
+def test_field_bounds_track_each_axis_of_a_multidimensional_domain() -> None:
+    model = eqiora.compile(ANISOTROPIC_2D, filename="anisotropic.eqi")
+    accepted = eqiora.preview_realization(
+        model,
+        eqiora.ScalarElliptic(
+            method=eqiora.ScalarEllipticMethod.FiniteElement,
+            cells_per_axis=2,
+        ),
+    )
+
+    assert accepted.field_bounds == ((0.0, 1.0), (-2.0, 3.0))
+    assert len(accepted.field_bounds) == accepted.spatial_dimension == 2
+
+    x_axis, y_axis = axis_coordinates(accepted)
+    np.testing.assert_allclose(x_axis, [0.0, 0.5, 1.0])
+    np.testing.assert_allclose(y_axis, [-2.0, 0.5, 3.0])
+
+
+def test_packaged_poisson_converges_to_its_exact_solution_from_python() -> None:
+    """The shipped package model reaches a verified answer through Python.
+
+    `org.example.poisson` states `-div(grad(u)) = 2 pi^2 sin(pi x) sin(pi y)`
+    with `u = 0` on every side, so `u = sin(pi x) sin(pi y)` exactly. Python
+    compiles that source, selects one explicit Realization, runs it, and checks
+    the accepted Field against the exact solution using only the geometry the
+    Realization publishes.
+    """
+    model = eqiora.compile(
+        PACKAGED_POISSON.read_text(encoding="utf-8"),
+        filename="main.eqi",
+    )
+
+    errors = {}
+    for cells in (16, 32):
+        accepted = eqiora.preview_realization(
+            model,
+            eqiora.ScalarElliptic(
+                method=eqiora.ScalarEllipticMethod.FiniteElement,
+                cells_per_axis=cells,
+            ),
+        )
+        result = eqiora.run(model, realization=accepted)
+
+        assert accepted.field_bounds == ((0.0, 1.0), (0.0, 1.0))
+        assert accepted.spatial_dimension == 2
+        assert accepted.field_logical_shape == (cells + 1, cells + 1)
+
+        xx, yy = np.meshgrid(*axis_coordinates(accepted), indexing="ij")
+        exact = np.sin(np.pi * xx) * np.sin(np.pi * yy)
+        values = result.values.numpy(copy=False).reshape(accepted.field_logical_shape)
+        errors[cells] = float(np.abs(values - exact).max())
+
+        # The run stands on its own published evidence, not on the comparison.
+        assert result.solve.true_residual_norm <= result.solve.residual_target
+        assert result.balance.relative_imbalance < 1.0e-12
+        assert result.field.logical_shape == accepted.field_logical_shape
+
+    assert errors[16] < 5.0e-3
+    # Continuous Q1 elements are second order, so halving the cell size must
+    # cut the error by roughly four. A first-order or wrong-geometry answer
+    # cannot produce this ratio.
+    assert 3.5 < errors[16] / errors[32] < 4.5

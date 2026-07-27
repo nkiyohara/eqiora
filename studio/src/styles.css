@@ -637,6 +637,43 @@ h2 {
   color: #a8d2f2;
 }
 
+/* RFC 0076. Each state also carries a text label and a non-color mark in the
+   markup, because status conveyed by color alone survives neither a screen
+   reader nor a copied cell. These rules reinforce the distinction; they never
+   carry it alone. */
+.state-pill--verified {
+  border-color: rgba(158, 210, 183, 0.26);
+  background: rgba(158, 210, 183, 0.06);
+  color: var(--mint);
+}
+
+.state-pill--admissible {
+  border-color: rgba(233, 201, 121, 0.32);
+  background: rgba(233, 201, 121, 0.08);
+  color: var(--amber);
+}
+
+.state-pill--stale {
+  border-color: rgba(233, 201, 121, 0.22);
+  color: var(--amber);
+}
+
+.evidence-inspector__state {
+  margin: 0 0 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.evidence-inspector__state > summary {
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.evidence-inspector__state > p {
+  margin: 4px 0 0;
+}
+
 .source-panel {
   display: flex;
   flex-direction: column;
@@ -1657,9 +1694,24 @@ h2 {
   background: rgba(233, 201, 121, 0.04);
 }
 
-.diagnostics,
-.results {
+.diagnostics {
   overflow: auto;
+}
+
+/* The results section itself does not scroll. A scrollable region needs a tab
+   stop to satisfy WCAG 2.2, and a `<section>` is not an interactive element that
+   should take one — so the scroll moves inward to the workspace, which is a
+   plain container. This was latent: any font size or viewport height that
+   overflowed the section would have failed the same rule before the state
+   marking was added. */
+.results {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.results > .result-workspace {
+  min-height: 0;
 }
 
 .empty-state {

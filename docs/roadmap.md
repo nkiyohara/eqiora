@@ -237,7 +237,12 @@ Geometry and CAD
 Physics libraries and credibility
   elasticity patch + thermal slab + Couette--Poiseuille
     -> thermoelasticity and conjugate heat
-      -> broader structural and fluid libraries
+      -> broader FEM structural and fluid libraries
+
+FEM form derivation
+  proof-carrying Q1 Poisson derivation from the typed residual   [done]
+    -> a second physics consumer that deletes a handwritten derivative path
+      -> broader FEM structural and fluid libraries
 
 Time and hybrid systems
   general implicit DAE
@@ -264,6 +269,16 @@ parallel when they neither redefine the same central seam nor share primary
 writable paths. Differentiation may establish a small trajectory reference
 slice early, but its ALE, remeshing, and CAD branches wait for the corresponding
 primal contracts.
+
+The FEM form-derivation spine gates *broader* FEM libraries, not the named
+credibility slices: the elasticity patch, thermal slab, and Couette--Poiseuille
+cases are the derivation's candidate second consumers and falsifiers, and
+proceed in parallel. Finite-volume libraries are outside this dependency
+entirely — conservative face fluxes are method-foreign to a variational form,
+and routing them through one is rejected on those grounds rather than by
+precedent. See
+[RFC 0075](../rfcs/0075-fem-form-compiler-poisson-q1.md) and the
+[AI-authored platform strategy](development/ai-authored-platform-strategy.md).
 
 After the exact Geometry Identity edit-and-regeneration seam is accepted, CAD
 adapters, mesh regeneration, Python authoring, Studio editing, and independent

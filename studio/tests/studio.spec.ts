@@ -41,7 +41,18 @@ test("projects, inspects, and runs without pointer-only interaction", async ({ p
   await expect(page.getByText("0.0407622", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Evidence" })).toBeVisible();
   await expect(page.getByText("Semantic oracle", { exact: true })).toBeVisible();
-  await expect(page.getByText("No independent optimized producer applies")).toBeVisible();
+  // Read from the run record rather than a fixed sentence. The previous
+  // assertion pinned prose that no data fed, so it would have kept passing after
+  // an independent verifier existed.
+  await expect(page.getByText("No second-backend re-verification", { exact: true })).toBeVisible();
+  // RFC 0076: the state is readable as text, and the one provenance segment a
+  // run record cannot answer is shown as unavailable rather than omitted, since
+  // an absent segment reads as verified.
+  await expect(page.getByText("Registered evidence", { exact: true })).toBeVisible();
+  await expect(page.getByText("gap in the owning contract", { exact: false })).toBeVisible();
+  // The disclosure starts closed, so open it before asserting its content.
+  await page.getByText("What supports this result?", { exact: true }).click();
+  await expect(page.getByText("is not shown", { exact: false }).first()).toBeVisible();
   await page.screenshot({ path: "test-results/studio-evidence-1440x900.png" });
 
   const maxStep = page.getByRole("textbox", { name: /Max step/ });

@@ -1,0 +1,42 @@
+id = "numerics.compiled-cartesian-poisson-q1-2d"
+status = "verified"
+scope = "private-proof-carrying-cartesian-q1-galerkin-form"
+reference_kind = "precommitted-analytic-element-shadow-convergence-and-conservation-oracles"
+
+capabilities = [
+  "typed-residual-fem-form-admission",
+  "versioned-derivation-certificate",
+  "bounded-private-q1-form-compilation",
+  "compiled-q1-local-matrix-and-rhs",
+  "ordinary-package-realization-routing",
+  "compiled-versus-legacy-local-and-csr-shadow",
+  "compiled-form-convergence",
+  "compiled-form-global-conservation",
+]
+
+[problem]
+package = "org.example.poisson"
+equation = "-div(grad(u)) = 2 pi^2 sin(pi x) sin(pi y)"
+domain = "(0, 1) x (0, 1)"
+boundary = "u = 0 on the complete boundary"
+method = "continuous Cartesian HypercubeQ1 Galerkin FEM"
+
+[claim_boundary]
+spatial_dimension = 2
+domain = "axis-aligned Cartesian box"
+unknown = "one scalar continuum field"
+boundary = "complete homogeneous essential"
+cell = "affine hypercube"
+space = "continuous HypercubeQ1 in production bit ordering"
+execution = "host-serial f64 reference path"
+public_form_ir = false
+source_level_weak_forms = false
+natural_robin_or_mixed_boundaries = false
+vector_mixed_or_nonlinear_forms = false
+simplex_high_order_or_adaptive_spaces = false
+cuda_or_mpi = false
+performance_claim = false
+
+[evidence]
+package = "eqiora"
+test = "compiled_package_poisson_form"
