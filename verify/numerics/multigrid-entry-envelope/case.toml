@@ -1,0 +1,89 @@
+id = "numerics.multigrid-entry-envelope"
+status = "specified"
+scope = "declaration-only-multigrid-deferred-gate-entry-envelope"
+reference_kind = "protected-merge-ordered-declaration-ahead-of-any-admitted-measurement"
+
+capabilities = [
+  "merge-ordered-envelope-declaration",
+  "probe-frozen-before-measurement",
+  "phase-resolved-cost-attribution",
+]
+
+# This case declares. It does not measure, and it deliberately carries no
+# `[evidence]` table, so `eqiora-verify run` reports it `not-runnable` and no
+# hosted job executes a numerical probe from this commit. The measurement is a
+# separate case that must descend from the merge of this one.
+
+[problem]
+equation = "-div(grad(u)) = 1"
+domain = "(0, 1) x (0, 1) x (0, 1)"
+boundary = "u = 0 on the complete boundary"
+method = "continuous Cartesian Q1 Galerkin FEM"
+source_model = "verify/numerics/preconditioner-scaling-envelope/models/constant-source-poisson.eqi"
+source_sha256 = "14b40a509f0b9d891b92f6df1418ef66bf142f5634be87a02d1c99ae6106336b"
+cells_per_axis = [4, 8, 16, 32, 48]
+scalar = "f64"
+layout = "replicated"
+target = "host serial"
+schedule = "offline"
+reduction = "reproducible"
+solver = "conjugate gradients, relative 1e-10, absolute 1e-14, cap 50000"
+preconditioners = ["identity", "jacobi"]
+boundary_treatment = "full Dirichlet elimination on all six faces"
+
+[declared_envelope]
+# Declared before any measurement at this refinement sequence, and merged to
+# protected main on its own. Protected-branch merge order is the first thing an
+# author cannot rewrite, which is the whole reason this case exists separately
+# from the one that measures.
+declared_before_measurement = true
+declaration_provenance = "protected-merge-ordered"
+declaration_and_observation_share_a_commit = false
+
+# What this declaration adds over the earlier one, stated exactly so the
+# improvement is auditable rather than asserted. The earlier envelope froze its
+# thresholds but left probe selection open and shared a commit with its
+# observations, and its own manifest records that. The thresholds below are
+# carried forward unchanged from it and were therefore chosen with visibility of
+# a measurement at n <= 32. This declaration does not restore blindness on the
+# thresholds. It fixes the probe, the source digest, the refinement sequence
+# including the new n = 48 level, the phase metrics, and the merge order, and it
+# binds only the measurement admitted after it.
+threshold_provenance = "carried unchanged from an unauditable declaration; not blind"
+new_level_is_blind = "n = 48 has never been measured at any profile"
+
+theory = "kappa = O(h^-2) gives O(h^-1) CG iterations, so slope 1 and ratio 2; a scalable method holds slope 0 and ratio 1"
+primary_series = "fem-q1 jacobi"
+adequate_maximum_ratio = 1.4
+adequate_maximum_slope = 0.5
+breach_terminal_ratio = 1.8
+breach_slope = 0.85
+breach_total_growth = 5.0
+discriminator_slope_gap = 0.1
+indeterminate_band = "neither adequacy nor breach; reported as gate stays shut"
+resource_budget_seconds = 600
+excluded_refinement = "n >= 63 is outside the declared hosted resource envelope at opt-level 1 and is not measured here"
+
+[declared_envelope.validity]
+relative_dominated_stopping = "residual target must exceed the absolute floor at every level"
+uncensored_counts = "no solve may terminate on the iteration cap"
+non_degenerate_krylov_probe = "identity CG must exceed three iterations at the coarsest level and must not be constant across the sequence"
+hosted_execution = "only a hosted-CI run started after this case is merged to protected main, from a descendant of that merge, is admissible"
+complete_sequence = "every declared level must report; a partial sequence voids the run rather than shortening it"
+
+# Cost attribution is declared here because a wall-clock total cannot say where
+# the cost is, and a gate opened on an unattributed total would license the
+# wrong work. These are observations, not thresholds: no adequacy or breach
+# predicate reads them.
+[declared_envelope.phase_observations]
+assembly_seconds = "time to build the algebraic system, excluding model compilation"
+finalization_seconds = "time to finalize the assembled system into its solver representation"
+solve_seconds = "time inside the Krylov iteration"
+peak_resident_bytes = "maximum resident set size of the measuring process"
+
+[claim_boundary]
+declaration_only = true
+measures_nothing = true
+opens_no_gate = "the gate opens on the admitted measurement, not on this declaration"
+covers_only_symmetric_positive_definite = "nothing here licenses a nonsymmetric, saddle-point, or block-structured envelope"
+covers_only_uniform_cartesian_q1 = "no simplicial, mixed, high-order, or adaptive claim"
