@@ -22,6 +22,12 @@ that mistake was made twice while writing it.
 To ask what the platform can express, read the code and the union of the
 manifests. To ask what has been *proven*, read one manifest.
 
+A second way to be wrong, which this document was also wrong about: checking
+that a benchmark's **boundary conditions** are expressible is not checking that
+its **domain** is. The cylinder rows below moved from reachable to blocked for
+exactly that reason. Both halves have to be checked, and the domain is the half
+that is easy to assume.
+
 ## Citations
 
 | Form | Means | Checked by |
@@ -50,10 +56,11 @@ Registered, executed in CI, `status = "verified"`.
 Each needs a mesh, boundary data and a registered case. None needs a new
 discretization, boundary vocabulary or solver.
 
+A domain must be a box, because that is the only region the model language can
+name. The lid-driven cavity qualifies; a channel around a cylinder does not.
+
 | Problem | Why it is reachable | Citation |
 |---|---|---|
-| Schäfer–Turek DFG 2D-2 and 2D-3, cylinder in a channel | The inlet is an essential-velocity facet carrying an arbitrary spatial profile, the outlet a constant-traction facet, and the Navier–Stokes assembly already accumulates traction facets alongside essential ones | `symbol:MiniConstantTractionFacet` |
-| Backward-facing step | Same boundary pair | `symbol:MiniConstantTractionFacet` |
 | Lid-driven cavity, Stokes and Navier–Stokes | A complete essential boundary with a non-zero tangential lid. The lid must be regularized so the trace is continuous at the two upper corners, which is standard for a P1 trace and is a choice of data, not a capability | `case:fluid.simplicial-mini-stokes-2d` |
 
 Reaching these still costs mesh generation, reference quantities such as drag
@@ -64,6 +71,7 @@ no new capability is required, not that the work is small.
 
 | Problem | What is missing | Citation |
 |---|---|---|
+| Schäfer–Turek DFG 2D-2 and 2D-3, backward-facing step, and every other benchmark whose domain is not a box | The boundary vocabulary is genuinely present: the inlet is an essential-velocity facet carrying an arbitrary spatial profile, the outlet a constant-traction facet, and the Navier–Stokes assembly accumulates both. The **domain** is what is missing. A model may name a `box` and the axis-aligned faces of a box, and nothing else; the CAD surface is box-based; an imported mesh discretizes a region the model already describes rather than supplying one; Gmsh physical groups are refused; and no word for a circle, radius, disk or ellipse exists anywhere in the language, schema, CAD or meshing crates | `symbol:CadBoxIntentV1` |
 | Patch test, Cook's membrane | Elasticity exists only on tensor-product Cartesian Q1. A patch test whose mesh cannot be distorted tests nothing, because arbitrary element geometry is the whole point of it | `symbol:cartesian_elasticity` |
 | Turek–Hron FSI2 and FSI3 | The coupled solid is linear. Whether the benchmark's deflection admits a linear solid at all is unsettled here and is stated as unverified rather than assumed | `case:fsi.fixed-topology-ale-monolithic-2d` |
 | Any 3D animation | Three-dimensional trajectory export is an explicit non-claim, so the 3D coupled runs compute but cannot be written out | `key:higher_order_or_three_dimensional_export` |
