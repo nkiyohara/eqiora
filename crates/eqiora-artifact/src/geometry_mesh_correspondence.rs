@@ -1,5 +1,8 @@
 //! Exact geometry-revision to mesh-revision entity correspondence.
 
+#[path = "geometry_mesh_correspondence_sources.rs"]
+mod correspondence_sources;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
 
@@ -21,6 +24,9 @@ use crate::{
     GeometryIdentityEnvelopeV1, ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1,
     check_json_limits, invalid_artifact,
 };
+use correspondence_sources::{
+    cartesian_facet_roles, entity_coordinates, point_inside_cartesian, validate_parent_outward_cell,
+};
 
 const CORRESPONDENCE_SCHEMA: &str = "eqiora.geometry-mesh-correspondence-envelope/v1";
 
@@ -28,7 +34,7 @@ const CORRESPONDENCE_SCHEMA: &str = "eqiora.geometry-mesh-correspondence-envelop
 /// facet sets in one affine-simplex mesh revision.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeometryMeshCorrespondenceEnvelopeV1 {
-    wire: WireGeometryMeshCorrespondenceV1,
+    wire: WireCorrespondenceV1,
 }
 
 /// Exact binary conserving interface derived from accepted Model,
@@ -338,7 +344,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
                 .then_with(|| left.domain_ulid.cmp(&right.domain_ulid))
         });
         let envelope = Self {
-            wire: WireGeometryMeshCorrespondenceV1 {
+            wire: WireCorrespondenceV1::Cartesian(WireGeometryMeshCorrespondenceV1 {
                 schema: CORRESPONDENCE_SCHEMA.to_owned(),
                 encoding: CANONICAL_ENCODING.to_owned(),
                 geometry_sha256: geometry.digest()?.to_string(),
@@ -347,14 +353,15 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
                     .map_err(|_| invalid_artifact("geometry dimension exceeds portable u64"))?,
                 bodies: wire_bodies,
                 boundaries: wire_boundaries,
-            },
+            }),
         };
         envelope.validate_local(GeometryDecoderLimits::default())?;
         Ok(envelope)
     }
 
     /// Decode bounded wire data. Exact referenced resources remain untrusted
-    /// until [`Self::validate_against`] succeeds.
+    /// until [`Self::validate_against`] or [`Self::validate_against_region`]
+    /// succeeds for the encoded source.
     ///
     /// # Errors
     /// Returns `EQ0901` for malformed, oversized, or noncanonical data.
@@ -416,14 +423,14 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
     /// Exact referenced geometry revision.
     #[must_use]
     pub fn geometry_artifact(&self) -> ArtifactDigest {
-        ArtifactDigest::from_hex(self.wire.geometry_sha256.clone())
+        ArtifactDigest::from_hex(self.wire.geometry_sha256().to_owned())
             .expect("validated geometry digest")
     }
 
     /// Exact referenced mesh revision.
     #[must_use]
     pub fn mesh_artifact(&self) -> ArtifactDigest {
-        ArtifactDigest::from_hex(self.wire.mesh_sha256.clone()).expect("validated mesh digest")
+        ArtifactDigest::from_hex(self.wire.mesh_sha256().to_owned()).expect("validated mesh digest")
     }
 
     /// Mesh cell indices owned by one exact semantic body.
@@ -443,6 +450,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
         body: Id<kinds::Domain>,
     ) -> Option<impl ExactSizeIterator<Item = usize> + Clone + '_> {
         self.wire
+            .cartesian()?
             .bodies
             .iter()
             .find(|assignment| assignment.domain_ulid == body.ulid().to_string())
@@ -457,6 +465,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
     #[must_use]
     pub fn boundary_facets(&self, boundary: Id<kinds::Domain>) -> Option<Vec<usize>> {
         self.wire
+            .cartesian()?
             .boundaries
             .iter()
             .find(|assignment| assignment.domain_ulid == boundary.ulid().to_string())
@@ -616,11 +625,13 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
         geometry: &GeometryIdentityEnvelopeV1,
         mesh: &SimplicialMeshEnvelopeV1,
     ) -> Result<GeometryMeshCorrespondence, Diagnostic> {
+        let wire = self.wire.cartesian().ok_or_else(|| {
+            invalid_artifact("authored-region correspondence has no Cartesian semantic domains")
+        })?;
         let dimension = geometry.dimension();
         let mut counts = vec![0; dimension + 1];
-        counts[dimension] = self.wire.bodies.len();
-        counts[dimension - 1] = self
-            .wire
+        counts[dimension] = wire.bodies.len();
+        counts[dimension - 1] = wire
             .boundaries
             .iter()
             .map(|boundary| boundary.geometry_entity)
@@ -631,8 +642,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
             counts,
         )
         .map_err(|error| invalid_artifact(error.to_string()))?;
-        let bodies = self
-            .wire
+        let bodies = wire
             .bodies
             .iter()
             .map(|body| {
@@ -646,8 +656,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
                 ))
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
-        let boundaries = self
-            .wire
+        let boundaries = wire
             .boundaries
             .iter()
             .map(|boundary| {
@@ -673,84 +682,124 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
     }
 
     fn validate_local(&self, limits: GeometryDecoderLimits) -> Result<(), Diagnostic> {
-        if self.wire.schema != CORRESPONDENCE_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
-            return Err(invalid_artifact(
-                "unsupported geometry-mesh correspondence schema or encoding",
-            ));
+        match &self.wire {
+            WireCorrespondenceV1::Cartesian(wire) => validate_cartesian_wire(wire, limits),
+            WireCorrespondenceV1::AuthoredRegion(wire) => wire.validate_local(limits),
         }
-        ArtifactDigest::from_hex(self.wire.geometry_sha256.clone())?;
-        ArtifactDigest::from_hex(self.wire.mesh_sha256.clone())?;
-        let dimension = usize::try_from(self.wire.dimension)
-            .map_err(|_| invalid_artifact("correspondence dimension exceeds local usize"))?;
-        if dimension == 0 || self.wire.bodies.is_empty() || self.wire.boundaries.is_empty() {
-            return Err(invalid_artifact(
-                "geometry-mesh correspondence requires positive dimension, bodies, and boundaries",
-            ));
-        }
-        if self.wire.bodies.len() + self.wire.boundaries.len() > limits.max_geometry_entities {
-            return Err(invalid_artifact(
-                "geometry-mesh assignment count exceeds decoder limits",
-            ));
-        }
-        let mut membership_count = 0_usize;
-        let mut domains = BTreeSet::new();
-        let mut body_entities = BTreeSet::new();
-        for body in &self.wire.bodies {
-            parse_ulid(&body.domain_ulid, "correspondence body")?;
-            let entity = body.geometry_entity.decode()?;
-            let cells = decode_indices(&body.cell_indices)?;
-            if entity.dimension() != dimension
-                || cells.is_empty()
-                || !domains.insert(body.domain_ulid.as_str())
-                || !body_entities.insert(entity)
-                || !strictly_sorted_unique(&cells)
-            {
-                return Err(invalid_artifact(
-                    "body assignments must be unique, full-dimensional, nonempty, and canonical",
-                ));
-            }
-            membership_count = membership_count
-                .checked_add(cells.len())
-                .ok_or_else(|| invalid_artifact("geometry membership count overflows usize"))?;
-        }
-        let mut boundary_entities = BTreeMap::<GeometryEntityV1, (&str, Vec<usize>)>::new();
-        for boundary in &self.wire.boundaries {
-            parse_ulid(&boundary.domain_ulid, "correspondence boundary")?;
-            parse_ulid(&boundary.parent_ulid, "correspondence parent")?;
-            let entity = boundary.geometry_entity.decode()?;
-            let facets = decode_indices(&boundary.facet_indices)?;
-            if entity.dimension() != dimension - 1
-                || facets.is_empty()
-                || !domains.insert(boundary.domain_ulid.as_str())
-                || !strictly_sorted_unique(&facets)
-                || boundary.orientation != WireBoundaryOrientation::ParentOutward
-                || usize::try_from(boundary.axis).map_or(true, |axis| axis >= dimension)
-            {
-                return Err(invalid_artifact(
-                    "boundary assignments must be unique, codimension-one, nonempty, and parent-outward",
-                ));
-            }
-            if let Some((first_parent, first_facets)) = boundary_entities.get(&entity) {
-                if *first_parent == boundary.parent_ulid || *first_facets != facets {
-                    return Err(invalid_artifact(
-                        "a shared geometry boundary requires distinct parents and identical facet membership",
-                    ));
-                }
-            } else {
-                boundary_entities.insert(entity, (&boundary.parent_ulid, facets.clone()));
-            }
-            membership_count = membership_count
-                .checked_add(facets.len())
-                .ok_or_else(|| invalid_artifact("geometry membership count overflows usize"))?;
-        }
-        if membership_count > limits.max_geometry_mesh_memberships
-            || !strictly_sorted_assignments(&self.wire.bodies, &self.wire.boundaries)
+    }
+}
+
+fn validate_cartesian_wire(
+    wire: &WireGeometryMeshCorrespondenceV1,
+    limits: GeometryDecoderLimits,
+) -> Result<(), Diagnostic> {
+    if wire.schema != CORRESPONDENCE_SCHEMA || wire.encoding != CANONICAL_ENCODING {
+        return Err(invalid_artifact(
+            "unsupported geometry-mesh correspondence schema or encoding",
+        ));
+    }
+    ArtifactDigest::from_hex(wire.geometry_sha256.clone())?;
+    ArtifactDigest::from_hex(wire.mesh_sha256.clone())?;
+    let dimension = usize::try_from(wire.dimension)
+        .map_err(|_| invalid_artifact("correspondence dimension exceeds local usize"))?;
+    if dimension == 0 || wire.bodies.is_empty() || wire.boundaries.is_empty() {
+        return Err(invalid_artifact(
+            "geometry-mesh correspondence requires positive dimension, bodies, and boundaries",
+        ));
+    }
+    if wire.bodies.len() + wire.boundaries.len() > limits.max_geometry_entities {
+        return Err(invalid_artifact(
+            "geometry-mesh assignment count exceeds decoder limits",
+        ));
+    }
+    let mut membership_count = 0_usize;
+    let mut domains = BTreeSet::new();
+    let mut body_entities = BTreeSet::new();
+    for body in &wire.bodies {
+        parse_ulid(&body.domain_ulid, "correspondence body")?;
+        let entity = body.geometry_entity.decode()?;
+        let cells = decode_indices(&body.cell_indices)?;
+        if entity.dimension() != dimension
+            || cells.is_empty()
+            || !domains.insert(body.domain_ulid.as_str())
+            || !body_entities.insert(entity)
+            || !strictly_sorted_unique(&cells)
         {
             return Err(invalid_artifact(
-                "geometry-mesh memberships exceed limits or are not canonical",
+                "body assignments must be unique, full-dimensional, nonempty, and canonical",
             ));
         }
-        Ok(())
+        membership_count = membership_count
+            .checked_add(cells.len())
+            .ok_or_else(|| invalid_artifact("geometry membership count overflows usize"))?;
+    }
+    let mut boundary_entities = BTreeMap::<GeometryEntityV1, (&str, Vec<usize>)>::new();
+    for boundary in &wire.boundaries {
+        parse_ulid(&boundary.domain_ulid, "correspondence boundary")?;
+        parse_ulid(&boundary.parent_ulid, "correspondence parent")?;
+        let entity = boundary.geometry_entity.decode()?;
+        let facets = decode_indices(&boundary.facet_indices)?;
+        if entity.dimension() != dimension - 1
+            || facets.is_empty()
+            || !domains.insert(boundary.domain_ulid.as_str())
+            || !strictly_sorted_unique(&facets)
+            || boundary.orientation != WireBoundaryOrientation::ParentOutward
+            || usize::try_from(boundary.axis).map_or(true, |axis| axis >= dimension)
+        {
+            return Err(invalid_artifact(
+                "boundary assignments must be unique, codimension-one, nonempty, and parent-outward",
+            ));
+        }
+        if let Some((first_parent, first_facets)) = boundary_entities.get(&entity) {
+            if *first_parent == boundary.parent_ulid || *first_facets != facets {
+                return Err(invalid_artifact(
+                    "a shared geometry boundary requires distinct parents and identical facet membership",
+                ));
+            }
+        } else {
+            boundary_entities.insert(entity, (&boundary.parent_ulid, facets.clone()));
+        }
+        membership_count = membership_count
+            .checked_add(facets.len())
+            .ok_or_else(|| invalid_artifact("geometry membership count overflows usize"))?;
+    }
+    if membership_count > limits.max_geometry_mesh_memberships
+        || !strictly_sorted_assignments(&wire.bodies, &wire.boundaries)
+    {
+        return Err(invalid_artifact(
+            "geometry-mesh memberships exceed limits or are not canonical",
+        ));
+    }
+    Ok(())
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+enum WireCorrespondenceV1 {
+    Cartesian(WireGeometryMeshCorrespondenceV1),
+    AuthoredRegion(correspondence_sources::WireAuthoredRegionCorrespondenceV1),
+}
+
+impl WireCorrespondenceV1 {
+    fn cartesian(&self) -> Option<&WireGeometryMeshCorrespondenceV1> {
+        match self {
+            Self::Cartesian(wire) => Some(wire),
+            Self::AuthoredRegion(_) => None,
+        }
+    }
+
+    fn geometry_sha256(&self) -> &str {
+        match self {
+            Self::Cartesian(wire) => &wire.geometry_sha256,
+            Self::AuthoredRegion(wire) => &wire.geometry_sha256,
+        }
+    }
+
+    fn mesh_sha256(&self) -> &str {
+        match self {
+            Self::Cartesian(wire) => &wire.mesh_sha256,
+            Self::AuthoredRegion(wire) => &wire.mesh_sha256,
+        }
     }
 }
 
@@ -813,75 +862,6 @@ impl WireBoundarySide {
 #[serde(rename_all = "kebab-case")]
 enum WireBoundaryOrientation {
     ParentOutward,
-}
-
-fn entity_coordinates(
-    mesh: &eqiora_meshing::SimplicialMesh,
-    entity: MeshEntity,
-) -> Result<Vec<Vec<f64>>, Diagnostic> {
-    mesh.entity_vertices(entity)
-        .ok_or_else(|| invalid_artifact("mesh entity has no vertex closure"))?
-        .into_iter()
-        .map(|vertex| {
-            mesh.vertices()
-                .get(vertex.index())
-                .cloned()
-                .ok_or_else(|| invalid_artifact("mesh entity references an unavailable vertex"))
-        })
-        .collect()
-}
-
-fn point_inside_cartesian(point: &[f64], bounds: &[(f64, f64)], tolerance: f64) -> bool {
-    point.len() == bounds.len()
-        && point
-            .iter()
-            .zip(bounds)
-            .all(|(&coordinate, &(lower, upper))| {
-                coordinate >= lower - tolerance && coordinate <= upper + tolerance
-            })
-}
-
-fn cartesian_facet_roles(
-    points: &[Vec<f64>],
-    bounds: &[(f64, f64)],
-    tolerance: f64,
-) -> Vec<(usize, BoundarySide)> {
-    bounds
-        .iter()
-        .enumerate()
-        .flat_map(|(axis, &(lower, upper))| {
-            [(BoundarySide::Lower, lower), (BoundarySide::Upper, upper)]
-                .into_iter()
-                .filter(move |&(_, coordinate)| {
-                    points
-                        .iter()
-                        .all(|point| (point[axis] - coordinate).abs() <= tolerance)
-                })
-                .map(move |(side, _)| (axis, side))
-        })
-        .collect()
-}
-
-fn validate_parent_outward_cell(
-    mesh: &eqiora_meshing::SimplicialMesh,
-    cell: MeshEntity,
-    axis: usize,
-    side: BoundarySide,
-    bounds: &[(f64, f64)],
-) -> Result<(), Diagnostic> {
-    let vertices = entity_coordinates(mesh, cell)?;
-    let centroid = vertices.iter().map(|vertex| vertex[axis]).sum::<f64>() / vertices.len() as f64;
-    let valid = match side {
-        BoundarySide::Lower => centroid > bounds[axis].0,
-        BoundarySide::Upper => centroid < bounds[axis].1,
-    };
-    if valid {
-        Ok(())
-    } else {
-        Err(invalid_artifact(
-            "mesh incidence does not derive the declared parent-outward boundary role",
-        ))
-    }
 }
 
 fn validate_coincident_sides(
