@@ -60,11 +60,12 @@ SHAs, and selects the full compatibility matrix. A hosted run is evidence only
 for the exact commit it reports. No schedule, activity ledger, or missed-run
 monitor exists; add one only if a recurring measured failure requires it.
 
-The separate `Windows compile probe` workflow is a manual, non-gating
-portability measurement. It provisions the Microsoft MPI SDK and runs the
-workspace-wide all-targets, all-features check without changing pull-request
-runner consumption. Dispatch it from protected `main` only when its result will
-choose a concrete portability slice; it has no schedule or standing monitor.
+The separate `Windows compile probe` workflow is a manual portability
+measurement outside the `CI gate` aggregation. It provisions the Microsoft MPI
+SDK and runs the workspace-wide all-targets, all-features check without changing
+pull-request runner consumption. Dispatch it from protected `main` only when its
+result will choose a concrete portability slice; it has no schedule or standing
+monitor.
 
 ## Release separation
 
