@@ -84,9 +84,10 @@ those two parent paths, not another physical semantics.
   enters the unchanged target ALE finalizer.
 - One accepted remeshing-aware trajectory projects to a complete XDMF 3
   temporal collection and HDF5 file image, and to a separate derived Dataset.
-- One current-v6 Model with one three-dimensional Cartesian body can replace
-  one axis interval through the ordinary immutable transaction path while
-  retaining body, boundary, membership, and incidence identities.
+- One current-v6 Model with one three-dimensional Cartesian body can replace a
+  non-empty canonical set of axis intervals through one ordinary immutable
+  transaction while retaining body, boundary, membership, and incidence
+  identities.
 
 ### What it does not prove
 
@@ -96,7 +97,7 @@ those two parent paths, not another physical semantics.
   GPU-aware MPI, distributed ALE/remeshing, recovery, or fault semantics;
 - arbitrary CAD, persistent naming across topology change, healing, curved or
   high-order geometry, or a general Boolean/history kernel;
-- parameter-driven or multi-axis geometry regeneration;
+- parameter-driven geometry regeneration;
 - ALE, remeshing, FSI, or CAD shape sensitivities and adjoints;
 - temporal XDMF import, arbitrary trajectory export, parallel HDF5, or a
   production Dataset loader.
@@ -235,8 +236,8 @@ The next product wavefront is dependency-ordered rather than calendar-ordered:
 
 ```text
 Geometry and CAD
-  exact Cartesian Domain edit and identity-preserving regeneration  closed
-    -> parameter-driven and multi-axis geometry regeneration
+  atomic axis-keyed Cartesian Domain edit and identity-preserving regeneration  closed
+    -> parameter-driven geometry regeneration
       -> curved and multi-body Geometry Identity
         -> sketch, feature, import, and meshing adapters
           -> Python and Studio projections

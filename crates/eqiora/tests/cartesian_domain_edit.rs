@@ -4,10 +4,10 @@ use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
     GeometryRevisionAssociationEnvelopeV1, ModelDecoderLimits, ModelEnvelopeV6,
-    SimplicialMeshEnvelopeV1,
+    ModelTransactionEnvelopeV6, SimplicialMeshEnvelopeV1,
 };
 use eqiora::geometry::BodyAssociationCandidate;
-use eqiora::graph::EdgeKind;
+use eqiora::graph::{EdgeKind, Op, Precondition};
 use eqiora::kernel::{AxisBounds, BoundarySide, DomainKind, KernelNode};
 use eqiora::meshing::{MeshQualityGate, SimplicialMesh};
 use eqiora::{DimExponents, DynQuantity, Id, kinds};
@@ -49,14 +49,20 @@ fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associ
     let base_geometry =
         GeometryIdentityEnvelopeV1::new(&base_geometry_model, [body], TOLERANCE_M).unwrap();
 
-    let plan = base
-        .preview_cartesian_domain_edit(body, 0, axis_bounds(-0.6, 0.6))
-        .unwrap();
-    let repeated = base
-        .preview_cartesian_domain_edit(body, 0, axis_bounds(-0.6, 0.6))
+    let requested = [(2, axis_bounds(-0.75, 0.75)), (0, axis_bounds(-0.6, 0.6))];
+    let canonical_permutation = [(0, axis_bounds(-0.6, 0.6)), (2, axis_bounds(-0.75, 0.75))];
+    let plan = base.preview_cartesian_domain_edit(body, requested).unwrap();
+    let permuted = base
+        .preview_cartesian_domain_edit(body, canonical_permutation)
         .unwrap();
     let distinct = base
-        .preview_cartesian_domain_edit(body, 0, axis_bounds(-0.7, 0.7))
+        .preview_cartesian_domain_edit(
+            body,
+            [(0, axis_bounds(-0.7, 0.7)), (2, axis_bounds(-0.75, 0.75))],
+        )
+        .unwrap();
+    let partial_mutant = base
+        .preview_cartesian_domain_edit(body, [(0, axis_bounds(-0.6, 0.6))])
         .unwrap();
     assert_eq!(
         base.exact_codec(),
@@ -64,16 +70,20 @@ fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associ
     );
     assert_eq!(plan.base_digest(), base_digest);
     assert_eq!(plan.target(), body);
-    assert_eq!(plan.axis(), 0);
-    assert_eq!(plan.before(), axis_bounds(-0.5, 0.5));
-    assert_eq!(plan.after(), axis_bounds(-0.6, 0.6));
+    assert_eq!(
+        plan.edits(),
+        &[
+            (0, axis_bounds(-0.5, 0.5), axis_bounds(-0.6, 0.6)),
+            (2, axis_bounds(-0.5, 0.5), axis_bounds(-0.75, 0.75)),
+        ]
+    );
     assert_ne!(plan.expected_child_digest(), base_digest);
-    assert_eq!(plan, repeated);
-    assert_eq!(plan.key(), repeated.key());
-    assert_eq!(plan.transaction_digest(), repeated.transaction_digest());
+    assert_eq!(plan, permuted);
+    assert_eq!(plan.key(), permuted.key());
+    assert_eq!(plan.transaction_digest(), permuted.transaction_digest());
     assert_eq!(
         plan.transaction_json().unwrap(),
-        repeated.transaction_json().unwrap()
+        permuted.transaction_json().unwrap()
     );
     assert_ne!(plan.key(), distinct.key());
     assert_ne!(plan.transaction_digest(), distinct.transaction_digest());
@@ -81,6 +91,55 @@ fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associ
         plan.expected_child_digest(),
         distinct.expected_child_digest()
     );
+    let ordinary_transaction = ModelTransactionEnvelopeV6::from_json(
+        &plan.transaction_json().unwrap(),
+        ModelDecoderLimits::default(),
+    )
+    .unwrap()
+    .to_transaction()
+    .unwrap();
+    assert_eq!(
+        ordinary_transaction.preconditions(),
+        &[Precondition::RevisionIs(base.program().revision())]
+    );
+    assert_eq!(
+        ordinary_transaction
+            .ops()
+            .iter()
+            .filter(|op| matches!(op, Op::RemoveNode { id } if *id == body.erase()))
+            .count(),
+        1
+    );
+    assert_eq!(
+        ordinary_transaction
+            .ops()
+            .iter()
+            .filter(|op| matches!(
+                op,
+                Op::DefineKernelNode { node } if node.id() == body.erase()
+            ))
+            .count(),
+        1
+    );
+    let reconnects = ordinary_transaction
+        .ops()
+        .iter()
+        .filter_map(|op| match op {
+            Op::Connect { from, to, edge } => Some((*from, *to, *edge)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let mut expected_reconnects = base_incidence
+        .iter()
+        .map(|edge| (edge.from(), edge.to(), edge.kind()))
+        .collect::<Vec<_>>();
+    expected_reconnects.sort_unstable();
+    assert_eq!(reconnects, expected_reconnects);
+    assert_eq!(ordinary_transaction.ops().len(), 2 + base_incidence.len());
+    let permuted_child = base
+        .commit_cartesian_domain_edit(permuted)
+        .unwrap()
+        .into_document();
     let committed = base.commit_cartesian_domain_edit(plan).unwrap();
     let child = committed.document();
 
@@ -89,6 +148,11 @@ fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associ
         base.program().revision().0 + 1
     );
     assert!(child.structurally_equivalent(&independent_target).unwrap());
+    assert_eq!(
+        child.canonical_json().unwrap(),
+        permuted_child.canonical_json().unwrap()
+    );
+    assert_eq!(child.digest().unwrap(), permuted_child.digest().unwrap());
     assert_ne!(child.digest().unwrap(), base_digest);
     assert_eq!(committed.result_digest(), child.digest().unwrap());
     assert_eq!(node_ids(child), base_nodes);
@@ -97,10 +161,26 @@ fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associ
     assert_eq!(base_roles.len(), 6);
     assert_eq!(
         cartesian_bounds(child),
+        vec![(-0.6, 0.6), (-0.5, 0.5), (-0.75, 0.75)]
+    );
+    assert!((box_volume(&independent_target) - 1.8).abs() < TOLERANCE_M);
+    assert!((box_volume(child) - box_volume(&independent_target)).abs() < TOLERANCE_M);
+
+    let partial_child = base
+        .commit_cartesian_domain_edit(partial_mutant)
+        .unwrap()
+        .into_document();
+    assert!(
+        !partial_child
+            .structurally_equivalent(&independent_target)
+            .unwrap()
+    );
+    assert_ne!(partial_child.digest().unwrap(), committed.result_digest());
+    assert_eq!(
+        cartesian_bounds(&partial_child),
         vec![(-0.6, 0.6), (-0.5, 0.5), (-0.5, 0.5)]
     );
-    assert_eq!(box_volume(&independent_target), 1.2);
-    assert_eq!(box_volume(child), box_volume(&independent_target));
+    assert!((box_volume(&partial_child) - 1.2).abs() < TOLERANCE_M);
 
     let child_geometry_model = model_artifact(child);
     let child_geometry =
@@ -111,7 +191,7 @@ fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associ
     );
 
     let source_mesh = mesh_artifact([(-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5)]);
-    let target_mesh = mesh_artifact([(-0.6, 0.6), (-0.5, 0.5), (-0.5, 0.5)]);
+    let target_mesh = mesh_artifact([(-0.6, 0.6), (-0.5, 0.5), (-0.75, 0.75)]);
     let source_correspondence = GeometryMeshCorrespondenceEnvelopeV1::new(
         &base_geometry,
         &base_geometry_model,
@@ -155,9 +235,40 @@ fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associ
             Some(*boundary)
         );
     }
+    let selected_z_upper = base_roles[&(2, BoundarySide::Upper)];
+    assert_eq!(
+        association.retained_boundary_target(selected_z_upper),
+        Some(selected_z_upper)
+    );
 
     assert_eq!(base.digest().unwrap(), base_digest);
     assert_eq!(node_ids(&base), base_nodes);
+}
+
+#[test]
+fn one_axis_edit_remains_a_cardinality_one_plan() {
+    let base = ModelDocument::compile("base.eqi", BASE).unwrap();
+    let body = domain(&base, "body");
+    let plan = base
+        .preview_cartesian_domain_edit(body, [(0, axis_bounds(-0.6, 0.6))])
+        .unwrap();
+
+    assert_eq!(
+        plan.edits(),
+        &[(0, axis_bounds(-0.5, 0.5), axis_bounds(-0.6, 0.6))]
+    );
+    let child = base
+        .commit_cartesian_domain_edit(plan)
+        .unwrap()
+        .into_document();
+    assert_eq!(
+        cartesian_bounds(&child),
+        vec![(-0.6, 0.6), (-0.5, 0.5), (-0.5, 0.5)]
+    );
+    assert_eq!(
+        child.program().revision().0,
+        base.program().revision().0 + 1
+    );
 }
 
 #[test]
@@ -168,19 +279,39 @@ fn invalid_stale_and_foreign_edits_fail_before_mutation() {
     let base_bytes = base.canonical_json().unwrap();
     let base_digest = base.digest().unwrap();
     let accepted = base
-        .preview_cartesian_domain_edit(body, 0, axis_bounds(-0.6, 0.6))
+        .preview_cartesian_domain_edit(
+            body,
+            [(0, axis_bounds(-0.6, 0.6)), (2, axis_bounds(-0.75, 0.75))],
+        )
         .unwrap();
 
     assert!(
-        base.preview_cartesian_domain_edit(body, 0, axis_bounds(-0.5, 0.5))
+        base.preview_cartesian_domain_edit(body, std::iter::empty())
             .is_err()
     );
     assert!(
-        base.preview_cartesian_domain_edit(body, 3, axis_bounds(-0.6, 0.6))
-            .is_err()
+        base.preview_cartesian_domain_edit(
+            body,
+            [(0, axis_bounds(-0.6, 0.6)), (0, axis_bounds(-0.7, 0.7)),],
+        )
+        .is_err()
     );
     assert!(
-        base.preview_cartesian_domain_edit(boundary, 0, axis_bounds(-0.6, 0.6))
+        base.preview_cartesian_domain_edit(
+            body,
+            [(0, axis_bounds(-0.6, 0.6)), (3, axis_bounds(-0.7, 0.7)),],
+        )
+        .is_err()
+    );
+    assert!(
+        base.preview_cartesian_domain_edit(
+            body,
+            [(0, axis_bounds(-0.6, 0.6)), (2, axis_bounds(-0.5, 0.5)),],
+        )
+        .is_err()
+    );
+    assert!(
+        base.preview_cartesian_domain_edit(boundary, [(0, axis_bounds(-0.6, 0.6))])
             .is_err()
     );
 
@@ -227,7 +358,7 @@ fn unsupported_profile_dimension_and_body_multiplicity_fail_closed() {
         .unwrap();
     let v5_body = domain(&v5, "body");
     assert!(
-        v5.preview_cartesian_domain_edit(v5_body, 0, axis_bounds(-0.6, 0.6))
+        v5.preview_cartesian_domain_edit(v5_body, [(0, axis_bounds(-0.6, 0.6))])
             .is_err()
     );
 
@@ -235,14 +366,14 @@ fn unsupported_profile_dimension_and_body_multiplicity_fail_closed() {
     let plane_body = domain(&plane, "body");
     assert!(
         plane
-            .preview_cartesian_domain_edit(plane_body, 0, axis_bounds(-0.6, 0.6))
+            .preview_cartesian_domain_edit(plane_body, [(0, axis_bounds(-0.6, 0.6))])
             .is_err()
     );
 
     let pair = ModelDocument::compile("pair.eqi", MULTI_BODY).unwrap();
     let pair_body = domain(&pair, "body");
     assert!(
-        pair.preview_cartesian_domain_edit(pair_body, 0, axis_bounds(-0.6, 0.6))
+        pair.preview_cartesian_domain_edit(pair_body, [(0, axis_bounds(-0.6, 0.6))])
             .is_err()
     );
 }
@@ -252,12 +383,22 @@ fn geometry_identity_rejects_a_missing_boundary_of_mutant() {
     let base = ModelDocument::compile("base.eqi", BASE).unwrap();
     let body = domain(&base, "body");
     let boundary = domain(&base, "x_lower");
-    let accepted = model_artifact(&base);
+    let child = base
+        .commit_cartesian_domain_edit(
+            base.preview_cartesian_domain_edit(
+                body,
+                [(0, axis_bounds(-0.6, 0.6)), (2, axis_bounds(-0.75, 0.75))],
+            )
+            .unwrap(),
+        )
+        .unwrap()
+        .into_document();
+    let accepted = model_artifact(&child);
     let accepted_geometry =
         GeometryIdentityEnvelopeV1::new(&accepted, [body], TOLERANCE_M).unwrap();
 
-    let base_wire = base.canonical_json().unwrap();
-    let mut edge_only_wire: Value = serde_json::from_slice(&base_wire).unwrap();
+    let child_wire = child.canonical_json().unwrap();
+    let mut edge_only_wire: Value = serde_json::from_slice(&child_wire).unwrap();
     let edges = edge_only_wire["edges"].as_array_mut().unwrap();
     let original_edge_count = edges.len();
     edges.retain(|edge| {
@@ -278,7 +419,7 @@ fn geometry_identity_rejects_a_missing_boundary_of_mutant() {
         "Geometry Identity construction must never admit an invalid Model replay"
     );
 
-    let mut missing_role_wire: Value = serde_json::from_slice(&base_wire).unwrap();
+    let mut missing_role_wire: Value = serde_json::from_slice(&child_wire).unwrap();
     missing_role_wire["edges"]
         .as_array_mut()
         .unwrap()

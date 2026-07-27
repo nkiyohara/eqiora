@@ -5,6 +5,8 @@
 //! meaning. An edit is one ordinary versioned Model transaction whose complete
 //! child Model is replayed during preview and again during commit.
 
+use std::collections::BTreeSet;
+
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
@@ -16,7 +18,7 @@ use crate::{ExactModelCodec, ModelDocument, VersionedModelTransactionEnvelope, s
 
 const CARTESIAN_DOMAIN_EDIT_PLAN: &[u8] = b"eqiora.cartesian-domain-edit-plan/v1";
 
-/// One exact, topology-preserving Cartesian Domain edit.
+/// One exact, topology-preserving Cartesian Domain edit set.
 ///
 /// The plan owns the same versioned transaction wire used by other Model
 /// clients. The expected child digest is computed by a complete atomic replay
@@ -27,9 +29,7 @@ pub struct CartesianDomainEditPlan {
     base_digest: String,
     base_revision: Revision,
     target: Id<kinds::Domain>,
-    axis: usize,
-    before: AxisBounds,
-    after: AxisBounds,
+    edits: Vec<(usize, AxisBounds, AxisBounds)>,
     transaction: VersionedModelTransactionEnvelope,
     transaction_digest: String,
     expected_child_digest: String,
@@ -60,22 +60,10 @@ impl CartesianDomainEditPlan {
         self.target
     }
 
-    /// Zero-based coordinate axis whose interval changes.
+    /// Canonical axis-keyed edits as `(axis, before, after)`, ordered by axis.
     #[must_use]
-    pub const fn axis(&self) -> usize {
-        self.axis
-    }
-
-    /// Exact interval required in the base Model.
-    #[must_use]
-    pub const fn before(&self) -> AxisBounds {
-        self.before
-    }
-
-    /// Exact interval installed in the child Model.
-    #[must_use]
-    pub const fn after(&self) -> AxisBounds {
-        self.after
+    pub fn edits(&self) -> &[(usize, AxisBounds, AxisBounds)] {
+        &self.edits
     }
 
     /// Domain-separated identity of the exact ordered transaction wire.
@@ -145,7 +133,7 @@ impl CartesianDomainEditResult {
 }
 
 impl ModelDocument {
-    /// Resolve one exact interval change on the sole three-dimensional
+    /// Resolve one non-empty axis-keyed interval edit set on the sole three-dimensional
     /// Cartesian body without mutating this Model.
     ///
     /// The preview preserves the body and oriented boundary Domain identities,
@@ -155,14 +143,16 @@ impl ModelDocument {
     /// # Errors
     /// Returns structured diagnostics when the selected Model is not the
     /// current v6 profile, does not contain exactly one 3D Cartesian body, the
-    /// target or axis is wrong, the edit is a no-op, or complete child replay
-    /// violates a graph, semantic, or artifact invariant.
-    pub fn preview_cartesian_domain_edit(
+    /// target or any axis is wrong, any edit is duplicated or a no-op, or
+    /// complete child replay violates a graph, semantic, or artifact invariant.
+    pub fn preview_cartesian_domain_edit<I>(
         &self,
         target: Id<kinds::Domain>,
-        axis: usize,
-        replacement: AxisBounds,
-    ) -> Result<CartesianDomainEditPlan, Vec<Diagnostic>> {
+        edits: I,
+    ) -> Result<CartesianDomainEditPlan, Vec<Diagnostic>>
+    where
+        I: IntoIterator<Item = (usize, AxisBounds)>,
+    {
         if self.exact_codec() != ExactModelCodec::V6 {
             return Err(single_diagnostic(invalid_edit(
                 "Cartesian Domain edit v1 requires the current Model wire v6",
@@ -204,31 +194,62 @@ impl ModelDocument {
                 bounds.len(),
             ))));
         }
-        let Some(&before) = bounds.get(axis) else {
-            return Err(single_diagnostic(invalid_edit(format!(
-                "Cartesian Domain edit axis {axis} is outside three-dimensional geometry",
-            ))));
-        };
-        if before == replacement {
+        let mut requested = edits.into_iter().collect::<Vec<_>>();
+        if requested.is_empty() {
             return Err(single_diagnostic(invalid_edit(
-                "Cartesian Domain edit would not change canonical Model content",
+                "Cartesian Domain edit set must not be empty",
             )));
         }
+        requested.sort_by_key(|(axis, _)| *axis);
 
+        let mut validation_diagnostics = Vec::new();
+        let mut seen_axes = BTreeSet::new();
         let mut replacement_bounds = bounds.clone();
-        replacement_bounds[axis] = replacement;
+        let mut canonical_edits = Vec::with_capacity(requested.len());
+        for (axis, after) in requested {
+            if !seen_axes.insert(axis) {
+                validation_diagnostics.push(invalid_edit(format!(
+                    "Cartesian Domain edit axis {axis} occurs more than once",
+                )));
+                continue;
+            }
+            let Some(&before) = bounds.get(axis) else {
+                validation_diagnostics.push(invalid_edit(format!(
+                    "Cartesian Domain edit axis {axis} is outside three-dimensional geometry",
+                )));
+                continue;
+            };
+            if before == after {
+                validation_diagnostics.push(invalid_edit(format!(
+                    "Cartesian Domain edit axis {axis} would not change canonical Model content",
+                )));
+                continue;
+            }
+            replacement_bounds[axis] = after;
+            canonical_edits.push((axis, before, after));
+        }
+        if !validation_diagnostics.is_empty() {
+            return Err(validation_diagnostics);
+        }
+
         let replacement_domain =
             DomainDef::cartesian_box(target, replacement_bounds).map_err(single_diagnostic)?;
 
-        let incident_edges = self
+        let mut incident_edges = self
             .program
             .edges()
             .iter()
             .filter(|edge| edge.from() == target_raw || edge.to() == target_raw)
             .copied()
             .collect::<Vec<_>>();
+        incident_edges.sort_unstable();
         let base_revision = self.store.revision();
-        let mut transaction = Transaction::new("edit Cartesian Domain interval");
+        let summary = if canonical_edits.len() == 1 {
+            "edit Cartesian Domain interval"
+        } else {
+            "edit Cartesian Domain intervals"
+        };
+        let mut transaction = Transaction::new(summary);
         transaction
             .require(Precondition::RevisionIs(base_revision))
             .push(Op::RemoveNode { id: target_raw })
@@ -258,9 +279,7 @@ impl ModelDocument {
             base_digest,
             base_revision,
             target,
-            axis,
-            before,
-            after: replacement,
+            edits: canonical_edits,
             transaction,
             transaction_digest,
             expected_child_digest,
@@ -393,17 +412,16 @@ model Pair {
         let replacement = axis_bounds(-0.6, 0.6);
 
         let plan = base
-            .preview_cartesian_domain_edit(body, 0, replacement)
+            .preview_cartesian_domain_edit(body, [(0, replacement)])
             .unwrap();
         let repeated = base
-            .preview_cartesian_domain_edit(body, 0, replacement)
+            .preview_cartesian_domain_edit(body, [(0, replacement)])
             .unwrap();
         let distinct = base
-            .preview_cartesian_domain_edit(body, 0, axis_bounds(-0.7, 0.7))
+            .preview_cartesian_domain_edit(body, [(0, axis_bounds(-0.7, 0.7))])
             .unwrap();
         assert_eq!(plan.target(), body);
-        assert_eq!(plan.axis(), 0);
-        assert_eq!(plan.after(), replacement);
+        assert_eq!(plan.edits(), &[(0, axis_bounds(-0.5, 0.5), replacement)]);
         assert_ne!(plan.base_digest(), plan.expected_child_digest());
         assert_eq!(plan.exact_codec(), ExactModelCodec::V6);
         assert_eq!(plan, repeated);
@@ -460,19 +478,30 @@ model Pair {
         let body = domain(&base, "body");
         let boundary = domain(&base, "x_lower");
         let accepted = base
-            .preview_cartesian_domain_edit(body, 0, axis_bounds(-0.6, 0.6))
+            .preview_cartesian_domain_edit(body, [(0, axis_bounds(-0.6, 0.6))])
             .unwrap();
         assert!(
-            base.preview_cartesian_domain_edit(body, 0, axis_bounds(-0.5, 0.5))
+            base.preview_cartesian_domain_edit(body, [(0, axis_bounds(-0.5, 0.5))])
                 .is_err()
         );
         assert!(
-            base.preview_cartesian_domain_edit(body, 3, axis_bounds(-0.6, 0.6))
+            base.preview_cartesian_domain_edit(body, [(3, axis_bounds(-0.6, 0.6))])
                 .is_err()
         );
         assert!(
-            base.preview_cartesian_domain_edit(boundary, 0, axis_bounds(-0.6, 0.6))
+            base.preview_cartesian_domain_edit(boundary, [(0, axis_bounds(-0.6, 0.6))])
                 .is_err()
+        );
+        assert!(
+            base.preview_cartesian_domain_edit(body, std::iter::empty())
+                .is_err()
+        );
+        assert!(
+            base.preview_cartesian_domain_edit(
+                body,
+                [(0, axis_bounds(-0.6, 0.6)), (0, axis_bounds(-0.7, 0.7)),],
+            )
+            .is_err()
         );
 
         let sibling_source = BASE.replacen("model Main", "model Sibling", 1);
@@ -499,7 +528,7 @@ model Pair {
         let v5 = ExactModelCodec::V5.compile("v5.eqi", BASE).unwrap();
         let v5_body = domain(&v5, "body");
         assert!(
-            v5.preview_cartesian_domain_edit(v5_body, 0, axis_bounds(-0.6, 0.6))
+            v5.preview_cartesian_domain_edit(v5_body, [(0, axis_bounds(-0.6, 0.6))])
                 .is_err()
         );
 
@@ -507,14 +536,14 @@ model Pair {
         let plane_body = domain(&plane, "body");
         assert!(
             plane
-                .preview_cartesian_domain_edit(plane_body, 0, axis_bounds(-0.6, 0.6))
+                .preview_cartesian_domain_edit(plane_body, [(0, axis_bounds(-0.6, 0.6))])
                 .is_err()
         );
 
         let pair = ModelDocument::compile("pair.eqi", MULTI_BODY).unwrap();
         let pair_body = domain(&pair, "body");
         assert!(
-            pair.preview_cartesian_domain_edit(pair_body, 0, axis_bounds(-0.6, 0.6))
+            pair.preview_cartesian_domain_edit(pair_body, [(0, axis_bounds(-0.6, 0.6))])
                 .is_err()
         );
     }
