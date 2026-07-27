@@ -49,14 +49,17 @@ capability entry; unknown manifest extensions cannot impersonate this typed
 field.
 
 `--format json` is global and may appear before or after the subcommand. JSON
-stdout contains exactly one `eqiora.verification-report/v3` object for
+stdout contains exactly one `eqiora.verification-report/v4` object for
 `list`, `check`, and `run`, or one
-`eqiora.capability-evidence-index/v3` object for `index`. Version 3 adds the
+`eqiora.capability-evidence-index/v3` object for `index`. Version 4 adds
+`duration_ms` for each evidence target that started, measured with a monotonic
+clock and reused by every case sharing that target. The field is absent for
+cases whose target did not start or did not execute. Version 3 added the
 selected evidence environment and the closed `host-cpu` /
 `physical-mpi-cuda` target distinction; host-CPU target JSON retains its
-previous shape. Captured child stdout
-and stderr are stored in the corresponding case fields and are never
-interleaved with the report:
+previous shape. Human output appends the same whole-millisecond duration to
+each executed case. Captured child stdout and stderr are stored in the
+corresponding case fields and are never interleaved with the report:
 
 ```bash
 cargo run -q -p eqiora-verify -- run --format json > report.json

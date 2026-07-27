@@ -10,10 +10,11 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
+use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 
-const REPORT_SCHEMA: &str = "eqiora.verification-report/v3";
+const REPORT_SCHEMA: &str = "eqiora.verification-report/v4";
 const CAPABILITY_INDEX_SCHEMA: &str = "eqiora.capability-evidence-index/v3";
 
 /// Deterministic capability-to-evidence projection derived from validated cases.
@@ -160,11 +161,15 @@ impl VerificationReport {
     pub fn render_human(&self) -> String {
         let mut rendered = String::new();
         for case in &self.cases {
+            let duration = case
+                .duration_ms
+                .map_or_else(String::new, |duration| format!("; {duration} ms"));
             rendered.push_str(&format!(
-                "{:<11} {} [{}]\n",
+                "{:<11} {} [{}{}]\n",
                 case.outcome.as_human(),
                 case.id,
-                case.status.as_str()
+                case.status.as_str(),
+                duration
             ));
             if let Some(message) = &case.message {
                 rendered.push_str(&format!("  {message}\n"));
@@ -208,6 +213,9 @@ pub struct CaseReport {
     pub outcome: Outcome,
     /// Structured evidence target, when declared.
     pub evidence: Option<EvidenceTarget>,
+    /// Monotonic wall-clock duration of the evidence target, when it started.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
     /// Child exit code, when a process started and returned one.
     pub exit_code: Option<i32>,
     /// Captured child stdout.
@@ -393,6 +401,8 @@ pub struct PythonInstalledWheelEvidenceTarget {
 /// Captured outcome of one exact evidence target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvidenceOutput {
+    /// Monotonic wall-clock duration in whole milliseconds, absent on spawn failure.
+    pub duration_ms: Option<u64>,
     /// Process exit code, absent when the process could not start or was signaled.
     pub exit_code: Option<i32>,
     /// Captured stdout.
@@ -465,14 +475,18 @@ impl SystemEvidenceRunner {
 
 impl EvidenceRunner for SystemEvidenceRunner {
     fn run(&self, root: &Path, target: &EvidenceTarget) -> EvidenceOutput {
-        match self.command(root, target).output() {
+        let mut command = self.command(root, target);
+        let started = Instant::now();
+        match command.output() {
             Ok(output) => EvidenceOutput {
+                duration_ms: Some(u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)),
                 exit_code: output.status.code(),
                 stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
                 stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
                 start_error: None,
             },
             Err(error) => EvidenceOutput {
+                duration_ms: None,
                 exit_code: None,
                 stdout: String::new(),
                 stderr: String::new(),
@@ -662,6 +676,7 @@ fn execute_selected(
 }
 
 fn project_evidence_output(case: &mut CaseReport, output: &EvidenceOutput) -> bool {
+    case.duration_ms = output.duration_ms;
     case.exit_code = output.exit_code;
     case.stdout = Some(output.stdout.clone());
     case.stderr = Some(output.stderr.clone());
@@ -690,6 +705,7 @@ impl CaseReport {
             status: contract.status,
             outcome: Outcome::Checked,
             evidence: contract.evidence.clone(),
+            duration_ms: None,
             exit_code: None,
             stdout: None,
             stderr: None,
@@ -1265,7 +1281,7 @@ script = "tools/ci/python_evidence.py"
 
     #[test]
     fn target_serialization_preserves_the_existing_cargo_json_shape() {
-        assert_eq!(REPORT_SCHEMA, "eqiora.verification-report/v3");
+        assert_eq!(REPORT_SCHEMA, "eqiora.verification-report/v4");
         assert_eq!(
             CAPABILITY_INDEX_SCHEMA,
             "eqiora.capability-evidence-index/v3"
@@ -1437,6 +1453,7 @@ script = "tools/ci/python_evidence.py"
 
     fn successful_output() -> EvidenceOutput {
         EvidenceOutput {
+            duration_ms: Some(7),
             exit_code: Some(0),
             stdout: String::new(),
             stderr: String::new(),
@@ -1499,6 +1516,7 @@ script = "tools/ci/python_evidence.py"
             vec![physical],
             &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast),
             &FakeRunner::new([EvidenceOutput {
+                duration_ms: Some(11),
                 exit_code: Some(29),
                 stdout: String::new(),
                 stderr: String::new(),
@@ -1553,6 +1571,7 @@ script = "tools/ci/python_evidence.py"
     #[test]
     fn identical_targets_execute_once_and_preserve_distinct_case_reports() {
         let runner = FakeRunner::new([EvidenceOutput {
+            duration_ms: Some(37),
             exit_code: Some(0),
             stdout: "shared-out".to_owned(),
             stderr: "shared-err".to_owned(),
@@ -1577,6 +1596,108 @@ script = "tools/ci/python_evidence.py"
         assert_eq!(reports[1].stdout.as_deref(), Some("shared-out"));
         assert_eq!(reports[0].stderr.as_deref(), Some("shared-err"));
         assert_eq!(reports[1].stderr.as_deref(), Some("shared-err"));
+        assert_eq!(reports[0].duration_ms, Some(37));
+        assert_eq!(reports[1].duration_ms, Some(37));
+
+        let report = VerificationReport {
+            schema: REPORT_SCHEMA,
+            command: CommandKind::Run,
+            policy: ExecutionPolicy::KeepGoing,
+            selected_case: None,
+            selected_environment: None,
+            success: true,
+            cases: reports,
+            errors: Vec::new(),
+        };
+        assert!(report.render_human().contains("a [verified; 37 ms]"));
+        let json = serde_json::to_value(report).unwrap();
+        assert_eq!(json["cases"][0]["duration_ms"], 37);
+        assert_eq!(json["cases"][1]["duration_ms"], 37);
+    }
+
+    #[test]
+    fn non_executed_outcomes_omit_duration() {
+        let runner = FakeRunner::new([]);
+        let listed = execute_selected(
+            Path::new("."),
+            vec![contract("listed")],
+            &Request::new(CommandKind::List, None, ExecutionPolicy::FailFast),
+            &runner,
+        );
+        let checked = execute_selected(
+            Path::new("."),
+            vec![contract("checked")],
+            &Request::new(CommandKind::Check, None, ExecutionPolicy::FailFast),
+            &runner,
+        );
+
+        let mut not_runnable_contract = contract("not-runnable");
+        not_runnable_contract.status = Status::Specified;
+        let not_runnable = execute_selected(
+            Path::new("."),
+            vec![not_runnable_contract],
+            &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast),
+            &runner,
+        );
+
+        let mut physical_contract = contract("not-selected");
+        let Some(EvidenceTarget::Cargo(target)) = physical_contract.evidence.as_mut() else {
+            panic!("fixture has Cargo evidence");
+        };
+        target.environment = EvidenceEnvironment::PhysicalMpiCuda;
+        let not_selected = execute_selected(
+            Path::new("."),
+            vec![physical_contract],
+            &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast)
+                .for_environment(EvidenceEnvironment::HostCpu),
+            &runner,
+        );
+        assert!(runner.targets().is_empty());
+
+        let mut distinct = cargo_target();
+        let EvidenceTarget::Cargo(target) = &mut distinct else {
+            panic!("fixture has Cargo evidence");
+        };
+        target.test = "distinct_test".to_owned();
+        let fail_fast_runner = FakeRunner::new([EvidenceOutput {
+            duration_ms: Some(19),
+            exit_code: Some(17),
+            stdout: String::new(),
+            stderr: String::new(),
+            start_error: None,
+        }]);
+        let fail_fast = execute_selected(
+            Path::new("."),
+            vec![
+                contract("failed"),
+                contract_with_target("skipped", distinct),
+            ],
+            &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast),
+            &fail_fast_runner,
+        );
+
+        let reports = [
+            &listed[0],
+            &checked[0],
+            &not_runnable[0],
+            &not_selected[0],
+            &fail_fast[1],
+        ];
+        assert_eq!(
+            reports.map(|case| case.outcome),
+            [
+                Outcome::Listed,
+                Outcome::Checked,
+                Outcome::NotRunnable,
+                Outcome::NotSelected,
+                Outcome::Skipped,
+            ]
+        );
+        for case in reports {
+            assert_eq!(case.duration_ms, None);
+            let json = serde_json::to_value(case).unwrap();
+            assert!(json.get("duration_ms").is_none(), "{json}");
+        }
     }
 
     #[test]
@@ -1652,18 +1773,21 @@ script = "tools/ci/python_evidence.py"
     fn shared_failure_forms_are_projected_without_hiding_affected_cases() {
         for output in [
             EvidenceOutput {
+                duration_ms: Some(23),
                 exit_code: Some(17),
                 stdout: "exit-out".to_owned(),
                 stderr: "exit-err".to_owned(),
                 start_error: None,
             },
             EvidenceOutput {
+                duration_ms: Some(29),
                 exit_code: None,
                 stdout: "signal-out".to_owned(),
                 stderr: "signal-err".to_owned(),
                 start_error: None,
             },
             EvidenceOutput {
+                duration_ms: None,
                 exit_code: None,
                 stdout: String::new(),
                 stderr: String::new(),
@@ -1681,6 +1805,7 @@ script = "tools/ci/python_evidence.py"
             assert_eq!(runner.targets(), [cargo_target()]);
             assert!(reports.iter().all(|case| case.outcome == Outcome::Failed));
             for report in reports {
+                assert_eq!(report.duration_ms, output.duration_ms);
                 assert_eq!(report.exit_code, output.exit_code);
                 assert_eq!(report.stdout.as_deref(), Some(output.stdout.as_str()));
                 assert_eq!(report.stderr.as_deref(), Some(output.stderr.as_str()));
@@ -1693,6 +1818,11 @@ script = "tools/ci/python_evidence.py"
                             .map_or_else(|| "no exit code".to_owned(), |code| code.to_string())
                     )))
                 );
+                let json = serde_json::to_value(report).unwrap();
+                match output.duration_ms {
+                    Some(duration_ms) => assert_eq!(json["duration_ms"], duration_ms),
+                    None => assert!(json.get("duration_ms").is_none(), "{json}"),
+                }
             }
         }
     }
@@ -1700,6 +1830,7 @@ script = "tools/ci/python_evidence.py"
     #[test]
     fn fail_fast_projects_completed_targets_and_skips_only_unseen_targets() {
         let failure = EvidenceOutput {
+            duration_ms: Some(31),
             exit_code: Some(17),
             stdout: "child-out".to_owned(),
             stderr: "child-err".to_owned(),
