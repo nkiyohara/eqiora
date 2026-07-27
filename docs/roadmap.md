@@ -63,7 +63,9 @@ finite-volume extensions in
 [RFC 0071](../rfcs/0071-spatial-periodic-boundary-connection.md), and
 [RFC 0072](../rfcs/0072-collocated-incompressible-finite-volume.md), plus the
 bounded immutable geometry edit in
-[RFC 0077](../rfcs/0077-exact-cartesian-domain-edit.md).
+[RFC 0077](../rfcs/0077-exact-cartesian-domain-edit.md). The next geometry
+definition is fixed, but not yet implemented, by
+[RFC 0078](../rfcs/0078-direct-parameter-driven-cartesian-coordinates.md).
 
 The CUDA path consumes the CPU-finalized operator; it does not own a second FSI
 lowering. The MPI path consumes accepted owner-row assembly payloads; it does
@@ -237,11 +239,13 @@ The next product wavefront is dependency-ordered rather than calendar-ordered:
 ```text
 Geometry and CAD
   atomic axis-keyed Cartesian Domain edit and identity-preserving regeneration  closed
-    -> parameter-driven geometry regeneration
-      -> curved and multi-body Geometry Identity
-        -> sketch, feature, import, and meshing adapters
-          -> Python and Studio projections
-            -> CAD and ALE shape sensitivity
+    -> direct Parameter-driven Cartesian coordinates (RFC 0078 accepted)
+      -> exact Model/Transaction v7 semantic replay
+        -> atomic Parameter-driven geometry regeneration
+          -> curved and multi-body Geometry Identity
+            -> sketch, feature, import, and meshing adapters
+              -> Python and Studio projections
+                -> CAD and ALE shape sensitivity
 
 Physics libraries and credibility
   elasticity patch + thermal slab + Couette--Poiseuille

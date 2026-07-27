@@ -106,3 +106,4 @@ implementation or capability claim.
 - [RFC 0075: FEM form compiler, Cartesian Q1 Poisson slice](0075-fem-form-compiler-poisson-q1.md)
 - [RFC 0076: Evidence-first Studio interaction](0076-evidence-first-studio-interaction.md)
 - [RFC 0077: Exact topology-preserving Cartesian Domain edit](0077-exact-cartesian-domain-edit.md)
+- [RFC 0078: Direct Parameter-driven Cartesian coordinates](0078-direct-parameter-driven-cartesian-coordinates.md)
