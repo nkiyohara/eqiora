@@ -36,8 +36,11 @@ are not. Start a lane when, and only when, both hold:
   writable-path allowlist, and the decisions the implementer must not revisit.
 
 Those two conditions are what keep rework out; a lane started without them costs
-a cycle, not a saving. Beyond them nothing is a reason to wait. Waiting on a
-merge that does not touch your paths is lost time.
+a cycle, not a saving. Beyond them nothing is a reason to wait.
+
+Check at the two moments the answer changes: when a lane finishes, and when a
+dependency merges. Not when your own hands are free — you will be mid-task both
+times, and a lane left idle through your task is wall clock nobody gets back.
 
 Prefer the cheap check that would falsify a premise over the work that assumes
 it.
