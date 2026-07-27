@@ -1,16 +1,16 @@
 //! Bounded Python lifecycle over the shared semantic reference executor.
 
+mod evidence;
+mod worker;
+
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
-use std::time::{Duration, Instant};
 
 use eqiora::api::{
-    ModelDocument, ReferenceRunCancellation, ReferenceRunDirective, ReferenceRunObserver,
-    ReferenceRunOutcome, ReferenceRunPlan, ReferenceRunProgress, ReferenceRunResult,
-    ScalarEllipticExecutionEnvironment, ScalarEllipticRunCancellation, ScalarEllipticRunDirective,
-    ScalarEllipticRunObserver, ScalarEllipticRunOutcome, ScalarEllipticRunPlan,
-    ScalarEllipticRunProgress, ScalarEllipticRunResult,
+    ReferenceRunCancellation, ReferenceRunPlan, ReferenceRunProgress, ReferenceRunResult,
+    ScalarEllipticExecutionEnvironment, ScalarEllipticRunCancellation, ScalarEllipticRunProgress,
+    ScalarEllipticRunResult,
 };
 use eqiora::diagnostic::codes;
 use eqiora::{Diagnostic, GraphPath};
@@ -24,283 +24,15 @@ use crate::error::{
 use crate::realization::{PyRealization, PyScalarEllipticResult};
 use crate::{PyModel, result_into_python};
 
-const PROGRESS_PUBLICATION_INTERVAL: Duration = Duration::from_millis(100);
+pub(crate) use evidence::RunIdentity;
+use evidence::{
+    PyRunCancellation, PyRunProgress, PyRunStatus, PyScalarEllipticRunCancellation,
+    PyScalarEllipticRunProgress,
+};
+use worker::{NativeRunJob, run_worker};
+
 const RESULT_MATERIALIZATION_FAILURE: &str =
     "the completed native Result could not be materialized";
-
-/// Monotone public state of one native execution occurrence.
-#[pyclass(
-    name = "RunStatus",
-    module = "eqiora._eqiora",
-    frozen,
-    eq,
-    hash,
-    from_py_object
-)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum PyRunStatus {
-    Created,
-    Validating,
-    Queued,
-    Running,
-    Cancelling,
-    Cancelled,
-    Completed,
-    Failed,
-}
-
-impl PyRunStatus {
-    const fn is_terminal(self) -> bool {
-        matches!(self, Self::Cancelled | Self::Completed | Self::Failed)
-    }
-}
-
-/// Last coalesced fully accepted semantic-execution boundary.
-#[pyclass(
-    name = "RunProgress",
-    module = "eqiora._eqiora",
-    frozen,
-    eq,
-    skip_from_py_object
-)]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct PyRunProgress {
-    model_time: f64,
-    end_time: f64,
-    accepted_steps: usize,
-    maximum_steps: usize,
-}
-
-impl From<ReferenceRunProgress> for PyRunProgress {
-    fn from(progress: ReferenceRunProgress) -> Self {
-        Self {
-            model_time: progress.model_time(),
-            end_time: progress.end_time(),
-            accepted_steps: progress.accepted_steps(),
-            maximum_steps: progress.maximum_steps(),
-        }
-    }
-}
-
-#[pymethods]
-impl PyRunProgress {
-    #[getter]
-    const fn model_time(&self) -> f64 {
-        self.model_time
-    }
-
-    #[getter]
-    const fn end_time(&self) -> f64 {
-        self.end_time
-    }
-
-    #[getter]
-    const fn accepted_steps(&self) -> usize {
-        self.accepted_steps
-    }
-
-    #[getter]
-    const fn maximum_steps(&self) -> usize {
-        self.maximum_steps
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "RunProgress(model_time={}, end_time={}, accepted_steps={})",
-            self.model_time, self.end_time, self.accepted_steps
-        )
-    }
-}
-
-/// Last fully accepted scalar-elliptic application phase.
-#[pyclass(
-    name = "ScalarEllipticRunProgress",
-    module = "eqiora._eqiora",
-    frozen,
-    eq,
-    hash,
-    from_py_object
-)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum PyScalarEllipticRunProgress {
-    PlanReplayed,
-    SystemFinalized,
-    SolutionAccepted,
-}
-
-impl From<ScalarEllipticRunProgress> for PyScalarEllipticRunProgress {
-    fn from(progress: ScalarEllipticRunProgress) -> Self {
-        match progress {
-            ScalarEllipticRunProgress::PlanReplayed => Self::PlanReplayed,
-            ScalarEllipticRunProgress::SystemFinalized => Self::SystemFinalized,
-            ScalarEllipticRunProgress::SolutionAccepted => Self::SolutionAccepted,
-        }
-    }
-}
-
-/// Exact accepted boundary at which cooperative cancellation terminated.
-#[pyclass(
-    name = "RunCancellation",
-    module = "eqiora._eqiora",
-    frozen,
-    skip_from_py_object
-)]
-#[derive(Debug, Clone)]
-pub(crate) struct PyRunCancellation {
-    progress: PyRunProgress,
-    elapsed_seconds: f64,
-    plan_key: String,
-}
-
-impl From<ReferenceRunCancellation> for PyRunCancellation {
-    fn from(cancellation: ReferenceRunCancellation) -> Self {
-        Self {
-            progress: cancellation.progress().into(),
-            elapsed_seconds: cancellation.elapsed().as_secs_f64(),
-            plan_key: cancellation.plan().key(),
-        }
-    }
-}
-
-#[pymethods]
-impl PyRunCancellation {
-    #[getter]
-    const fn progress(&self) -> PyRunProgress {
-        self.progress
-    }
-
-    #[getter]
-    const fn elapsed_seconds(&self) -> f64 {
-        self.elapsed_seconds
-    }
-
-    #[getter]
-    fn plan_key(&self) -> &str {
-        &self.plan_key
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "RunCancellation(model_time={}, accepted_steps={}, plan_key={:?})",
-            self.progress.model_time, self.progress.accepted_steps, self.plan_key
-        )
-    }
-}
-
-/// Exact scalar-elliptic phase at which cooperative cancellation terminated.
-#[pyclass(
-    name = "ScalarEllipticRunCancellation",
-    module = "eqiora._eqiora",
-    frozen,
-    skip_from_py_object
-)]
-#[derive(Debug, Clone)]
-pub(crate) struct PyScalarEllipticRunCancellation {
-    progress: PyScalarEllipticRunProgress,
-    elapsed_seconds: f64,
-    plan_key: String,
-}
-
-impl From<ScalarEllipticRunCancellation> for PyScalarEllipticRunCancellation {
-    fn from(cancellation: ScalarEllipticRunCancellation) -> Self {
-        Self {
-            progress: cancellation.progress().into(),
-            elapsed_seconds: cancellation.elapsed().as_secs_f64(),
-            plan_key: cancellation.plan().key().to_owned(),
-        }
-    }
-}
-
-#[pymethods]
-impl PyScalarEllipticRunCancellation {
-    #[getter]
-    const fn progress(&self) -> PyScalarEllipticRunProgress {
-        self.progress
-    }
-
-    #[getter]
-    const fn elapsed_seconds(&self) -> f64 {
-        self.elapsed_seconds
-    }
-
-    #[getter]
-    fn plan_key(&self) -> &str {
-        &self.plan_key
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "ScalarEllipticRunCancellation(progress={:?}, plan_key={:?})",
-            self.progress, self.plan_key
-        )
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct RunIdentity {
-    model_id: String,
-    model_digest: String,
-    model_revision: u64,
-    plan_key: String,
-    adapter: &'static str,
-    adapter_version: &'static str,
-}
-
-impl RunIdentity {
-    fn from_reference(
-        document: &ModelDocument,
-        plan: &ReferenceRunPlan,
-    ) -> Result<Self, Diagnostic> {
-        let reference = document.artifact_reference()?;
-        Ok(Self {
-            model_id: reference.model().ulid().to_string(),
-            model_digest: reference.artifact().to_string(),
-            model_revision: reference.semantic_revision().get(),
-            plan_key: plan.key(),
-            adapter: plan.adapter(),
-            adapter_version: plan.adapter_version(),
-        })
-    }
-
-    fn from_scalar_elliptic(
-        document: &ModelDocument,
-        plan: &ScalarEllipticRunPlan,
-    ) -> Result<Self, Diagnostic> {
-        let reference = document.artifact_reference()?;
-        Ok(Self {
-            model_id: reference.model().ulid().to_string(),
-            model_digest: reference.artifact().to_string(),
-            model_revision: reference.semantic_revision().get(),
-            plan_key: plan.key().to_owned(),
-            adapter: plan.adapter(),
-            adapter_version: plan.adapter_version(),
-        })
-    }
-
-    pub(crate) fn model_id(&self) -> &str {
-        &self.model_id
-    }
-
-    pub(crate) fn model_digest(&self) -> &str {
-        &self.model_digest
-    }
-
-    pub(crate) const fn model_revision(&self) -> u64 {
-        self.model_revision
-    }
-
-    pub(crate) fn plan_key(&self) -> &str {
-        &self.plan_key
-    }
-
-    pub(crate) fn adapter(&self) -> &'static str {
-        self.adapter
-    }
-
-    pub(crate) fn adapter_version(&self) -> &'static str {
-        self.adapter_version
-    }
-}
 
 #[derive(Debug, Clone)]
 enum RunFailure {
@@ -717,84 +449,6 @@ impl ResultCache {
     }
 }
 
-struct ReferenceSharedObserver {
-    shared: Arc<RunShared>,
-    last_publication: Option<Instant>,
-}
-
-impl ReferenceSharedObserver {
-    fn new(shared: Arc<RunShared>) -> Self {
-        Self {
-            shared,
-            last_publication: None,
-        }
-    }
-}
-
-impl ReferenceRunObserver for ReferenceSharedObserver {
-    fn observe(&mut self, progress: ReferenceRunProgress) -> ReferenceRunDirective {
-        let cancellation_requested = self.shared.cancellation_requested();
-        let now = Instant::now();
-        let should_publish =
-            progress_publication_due(self.last_publication, now, cancellation_requested);
-        if should_publish {
-            self.shared
-                .publish_progress(NativeRunProgress::Reference(progress));
-            self.last_publication = Some(now);
-        }
-        if cancellation_requested {
-            ReferenceRunDirective::Cancel
-        } else {
-            ReferenceRunDirective::Continue
-        }
-    }
-}
-
-struct ScalarEllipticSharedObserver {
-    shared: Arc<RunShared>,
-}
-
-impl ScalarEllipticSharedObserver {
-    fn new(shared: Arc<RunShared>) -> Self {
-        Self { shared }
-    }
-}
-
-impl ScalarEllipticRunObserver for ScalarEllipticSharedObserver {
-    fn observe(&mut self, progress: ScalarEllipticRunProgress) -> ScalarEllipticRunDirective {
-        self.shared
-            .publish_progress(NativeRunProgress::ScalarElliptic(progress));
-        if self.shared.cancellation_requested() {
-            ScalarEllipticRunDirective::Cancel
-        } else {
-            ScalarEllipticRunDirective::Continue
-        }
-    }
-}
-
-fn progress_publication_due(
-    last_publication: Option<Instant>,
-    now: Instant,
-    cancellation_requested: bool,
-) -> bool {
-    cancellation_requested
-        || last_publication
-            .is_none_or(|last| now.duration_since(last) >= PROGRESS_PUBLICATION_INTERVAL)
-}
-
-#[derive(Debug)]
-enum NativeRunJob {
-    Reference {
-        document: ModelDocument,
-        plan: ReferenceRunPlan,
-    },
-    ScalarElliptic {
-        document: ModelDocument,
-        plan: Box<ScalarEllipticRunPlan>,
-        environment: ScalarEllipticExecutionEnvironment,
-    },
-}
-
 /// One process-local handle for an accepted native execution occurrence.
 #[pyclass(name = "Run", module = "eqiora._eqiora", frozen, skip_from_py_object)]
 pub(crate) struct PyRun {
@@ -1032,66 +686,6 @@ fn materialize_result(
     }
 }
 
-enum NativeWorkerOutcome {
-    Completed(NativeRunOutput),
-    Cancelled(NativeRunCancellation),
-}
-
-fn execute_job(
-    job: NativeRunJob,
-    shared: &Arc<RunShared>,
-) -> Result<NativeWorkerOutcome, Vec<Diagnostic>> {
-    match job {
-        NativeRunJob::Reference { document, plan } => {
-            let mut observer = ReferenceSharedObserver::new(Arc::clone(shared));
-            match document.run_reference_plan_controlled(plan, &mut observer)? {
-                ReferenceRunOutcome::Completed(result) => Ok(NativeWorkerOutcome::Completed(
-                    NativeRunOutput::Reference(result),
-                )),
-                ReferenceRunOutcome::Cancelled(cancellation) => Ok(NativeWorkerOutcome::Cancelled(
-                    NativeRunCancellation::Reference(cancellation),
-                )),
-            }
-        }
-        NativeRunJob::ScalarElliptic {
-            document,
-            plan,
-            environment,
-        } => {
-            let mut observer = ScalarEllipticSharedObserver::new(Arc::clone(shared));
-            match document.run_scalar_elliptic_plan_controlled(*plan, environment, &mut observer)? {
-                ScalarEllipticRunOutcome::Completed(result) => Ok(NativeWorkerOutcome::Completed(
-                    NativeRunOutput::ScalarElliptic(result),
-                )),
-                ScalarEllipticRunOutcome::Cancelled(cancellation) => {
-                    Ok(NativeWorkerOutcome::Cancelled(
-                        NativeRunCancellation::ScalarElliptic(cancellation),
-                    ))
-                }
-            }
-        }
-    }
-}
-
-fn run_worker(job: NativeRunJob, shared: Arc<RunShared>) {
-    shared.mark_running();
-    let outcome = catch_native_panic(|| execute_job(job, &shared));
-    match outcome {
-        Ok(Ok(NativeWorkerOutcome::Completed(result))) => {
-            shared.finish(RunTerminal::Completed(Some(result)));
-        }
-        Ok(Ok(NativeWorkerOutcome::Cancelled(cancellation))) => {
-            shared.finish(RunTerminal::Cancelled(cancellation));
-        }
-        Ok(Err(diagnostics)) => {
-            shared.finish(RunTerminal::Failed(RunFailure::Execution(diagnostics)));
-        }
-        Err(diagnostic) => {
-            shared.finish(RunTerminal::Failed(RunFailure::Internal(vec![diagnostic])));
-        }
-    }
-}
-
 #[pyfunction]
 #[pyo3(signature = (model, *, end_time, max_step))]
 pub(crate) fn submit(
@@ -1136,7 +730,7 @@ mod tests {
 
     use super::{
         CacheClaim, MaterializationClaim, PyRunStatus, ResultCache, RunFailure, RunShared,
-        RunState, RunTerminal, RunTerminalKind, progress_publication_due,
+        RunState, RunTerminal, RunTerminalKind,
     };
 
     #[test]
@@ -1208,22 +802,5 @@ mod tests {
             diagnostics[0].message(),
             "the completed native Result could not be materialized"
         );
-    }
-
-    #[test]
-    fn progress_policy_coalesces_until_the_interval_or_cancellation() {
-        let start = std::time::Instant::now();
-        assert!(progress_publication_due(None, start, false));
-        assert!(!progress_publication_due(
-            Some(start),
-            start + std::time::Duration::from_millis(99),
-            false
-        ));
-        assert!(progress_publication_due(
-            Some(start),
-            start + std::time::Duration::from_millis(100),
-            false
-        ));
-        assert!(progress_publication_due(Some(start), start, true));
     }
 }
