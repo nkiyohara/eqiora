@@ -21,6 +21,7 @@ pub(crate) struct FinalizedMiniStokesAssembly {
     pub(super) mesh: SimplicialMesh,
     pub(super) layout: MixedLayout,
     pub(super) fixed_velocity: Vec<Option<[f64; COMPONENTS]>>,
+    pub(super) named_reaction_vertices: Vec<(String, Vec<usize>)>,
     pub(super) linear_system: LinearSystem,
     pub(super) full_system: LinearSystem,
     pub(super) volume_only_system: LinearSystem,
@@ -38,6 +39,7 @@ impl FinalizedMiniStokesAssembly {
             mesh,
             layout,
             fixed_velocity,
+            named_reaction_vertices,
             linear_system,
             full_system,
             volume_only_system,
@@ -56,6 +58,7 @@ impl FinalizedMiniStokesAssembly {
                 mesh,
                 layout,
                 fixed_velocity,
+                named_reaction_vertices,
                 full_system,
                 volume_only_system,
                 integrated_body_force,
@@ -72,6 +75,7 @@ pub(crate) struct FinalizedMiniStokesState {
     mesh: SimplicialMesh,
     layout: MixedLayout,
     fixed_velocity: Vec<Option<[f64; COMPONENTS]>>,
+    named_reaction_vertices: Vec<(String, Vec<usize>)>,
     full_system: LinearSystem,
     volume_only_system: LinearSystem,
     integrated_body_force: [f64; COMPONENTS],
@@ -121,6 +125,19 @@ impl FinalizedMiniStokesState {
                 }
             }
         }
+        let named_boundary_reactions = self
+            .named_reaction_vertices
+            .iter()
+            .map(|(name, vertices)| {
+                let mut reaction = [0.0; COMPONENTS];
+                for vertex in vertices {
+                    for (component, value) in reaction.iter_mut().enumerate() {
+                        *value += residual[self.layout.full_vertex_velocity(*vertex, component)];
+                    }
+                }
+                (name.clone(), reaction)
+            })
+            .collect::<Vec<_>>();
         let pressure_integral = integrate_pressure(&self.mesh, &self.quadrature, &pressure_values)?;
         let continuity_residual_norm = require_weak_incompressibility(
             &self.full_system,
@@ -143,6 +160,11 @@ impl FinalizedMiniStokesState {
         };
         if boundary_reaction
             .iter()
+            .chain(
+                named_boundary_reactions
+                    .iter()
+                    .flat_map(|(_, reaction)| reaction),
+            )
             .chain(&self.integrated_body_force)
             .chain(&self.integrated_boundary_traction)
             .chain([&pressure_integral, &continuity_residual_norm])
@@ -169,6 +191,7 @@ impl FinalizedMiniStokesState {
             full_system: self.full_system,
             volume_only_system: self.volume_only_system,
             boundary_reaction,
+            named_boundary_reactions,
             integrated_body_force: self.integrated_body_force,
             integrated_boundary_traction: self.integrated_boundary_traction,
             pressure_integral,
