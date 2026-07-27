@@ -501,32 +501,78 @@ impl AssemblyAccumulator {
         })
     }
 
+    /// Plan used to validate packet-local projections before ordered scatter.
+    #[must_use]
+    pub const fn plan(&self) -> &AssemblyPlan {
+        &self.plan
+    }
+
     /// Scatter the next logical packet through the common ordered path.
     ///
     /// # Errors
     /// Returns `EQ0806` for skipped/repeated indices, a target outside the
     /// plan, invalid global DOFs, or non-finite accumulation.
     pub fn scatter_packet(
-        mut self,
+        self,
         packet_index: usize,
         packet: &AssemblyPacket,
     ) -> Result<Self, Diagnostic> {
+        self.require_packet_index(packet_index)?;
+        let projected = packet.project(&self.plan)?;
+        self.scatter_projected(packet_index, &projected)
+    }
+
+    /// Accumulate one plan-validated projection in logical packet order.
+    ///
+    /// This is the single stateful scatter path shared by serial packet
+    /// assembly and backends that project packets independently.
+    ///
+    /// The projection must come from [`Self::plan`]. A delta projected against
+    /// a different plan is rejected when it names a target outside this plan or
+    /// a degree of freedom outside its target, which is what a backend holding
+    /// the wrong plan produces; two structurally interchangeable plans are not
+    /// distinguished, so a caller obtains the plan from the accumulator rather
+    /// than reconstructing one.
+    ///
+    /// # Errors
+    /// Returns `EQ0806` for skipped/repeated indices, empty or foreign-plan
+    /// projections, invalid global DOFs, or non-finite accumulation.
+    pub fn scatter_projected(
+        mut self,
+        packet_index: usize,
+        projected: &[TargetAssemblyDelta],
+    ) -> Result<Self, Diagnostic> {
+        self.require_packet_index(packet_index)?;
+        if projected.is_empty() {
+            return Err(assembly_failed(
+                "projected assembly packet requires at least one target delta",
+            ));
+        }
+        let target_count = self.plan.target_count();
+        for target_delta in projected {
+            let assembler = self
+                .assemblers
+                .get_mut(target_delta.target.0)
+                .ok_or_else(|| {
+                    assembly_failed(format!(
+                        "projected assembly packet references target {} outside plan count {}",
+                        target_delta.target.0, target_count
+                    ))
+                })?;
+            assembler.scatter_delta(&target_delta.delta)?;
+        }
+        self.next_packet += 1;
+        Ok(self)
+    }
+
+    fn require_packet_index(&self, packet_index: usize) -> Result<(), Diagnostic> {
         if packet_index != self.next_packet {
             return Err(assembly_failed(format!(
                 "ordered assembly expected packet {}, received {packet_index}",
                 self.next_packet
             )));
         }
-        let projected = packet.project(&self.plan)?;
-        for target_delta in projected {
-            let assembler = self
-                .assemblers
-                .get_mut(target_delta.target.0)
-                .expect("projected target belongs to accumulator plan");
-            assembler.scatter_delta(&target_delta.delta)?;
-        }
-        self.next_packet += 1;
-        Ok(self)
+        Ok(())
     }
 
     /// Finalize all targets and attach exact execution evidence.
@@ -640,6 +686,112 @@ mod tests {
         assert_eq!(result.system(target).unwrap().rhs(), &[0.0]);
         assert_eq!(result.report().packet_count(), values.len());
         assert_eq!(result.report().target_count(), 1);
+    }
+
+    #[test]
+    fn packet_and_projected_scatter_share_ordered_accumulation() {
+        let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
+        let target = plan.target_id(0).unwrap();
+        let packet = AssemblyPacket::new(
+            LocalContribution::new(1, 1, vec![2.0], vec![3.0]).unwrap(),
+            vec![target_map(target, 0)],
+        )
+        .unwrap();
+        let projected = packet.project(&plan).unwrap();
+
+        let packet_result = AssemblyAccumulator::new(&plan)
+            .unwrap()
+            .scatter_packet(0, &packet)
+            .unwrap()
+            .finish(ExecutionReport::host_serial())
+            .unwrap();
+        let projected_result = AssemblyAccumulator::new(&plan)
+            .unwrap()
+            .scatter_projected(0, &projected)
+            .unwrap()
+            .finish(ExecutionReport::host_serial())
+            .unwrap();
+
+        assert_eq!(packet_result.systems(), projected_result.systems());
+    }
+
+    #[test]
+    fn projected_scatter_still_rejects_out_of_order_packets() {
+        let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
+        let foreign_plan = AssemblyPlan::new(vec![
+            AssemblyTarget::new(1).unwrap(),
+            AssemblyTarget::new(1).unwrap(),
+        ])
+        .unwrap();
+        let foreign_target = foreign_plan.target_id(1).unwrap();
+        let packet = AssemblyPacket::new(
+            LocalContribution::new(1, 1, vec![1.0], vec![0.0]).unwrap(),
+            vec![target_map(foreign_target, 0)],
+        )
+        .unwrap();
+
+        let diagnostic = AssemblyAccumulator::new(&plan)
+            .unwrap()
+            .scatter_packet(1, &packet)
+            .unwrap_err();
+        assert_eq!(diagnostic.code(), codes::ASSEMBLY_FAILED);
+        assert_eq!(
+            diagnostic.message(),
+            "ordered assembly expected packet 0, received 1"
+        );
+
+        let valid_target = plan.target_id(0).unwrap();
+        let valid_packet = AssemblyPacket::new(
+            LocalContribution::new(1, 1, vec![1.0], vec![0.0]).unwrap(),
+            vec![target_map(valid_target, 0)],
+        )
+        .unwrap();
+        let valid_projected = valid_packet.project(&plan).unwrap();
+        let projected_diagnostic = AssemblyAccumulator::new(&plan)
+            .unwrap()
+            .scatter_projected(1, &valid_projected)
+            .unwrap_err();
+        assert_eq!(projected_diagnostic.code(), codes::ASSEMBLY_FAILED);
+        assert_eq!(
+            projected_diagnostic.message(),
+            "ordered assembly expected packet 0, received 1"
+        );
+    }
+
+    #[test]
+    fn projected_scatter_rejects_empty_and_foreign_plan_deltas() {
+        let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
+        let empty_diagnostic = AssemblyAccumulator::new(&plan)
+            .unwrap()
+            .scatter_projected(0, &[])
+            .unwrap_err();
+        assert_eq!(empty_diagnostic.code(), codes::ASSEMBLY_FAILED);
+        assert_eq!(
+            empty_diagnostic.message(),
+            "projected assembly packet requires at least one target delta"
+        );
+
+        let foreign_plan = AssemblyPlan::new(vec![
+            AssemblyTarget::new(1).unwrap(),
+            AssemblyTarget::new(1).unwrap(),
+        ])
+        .unwrap();
+        let foreign_target = foreign_plan.target_id(1).unwrap();
+        let foreign_packet = AssemblyPacket::new(
+            LocalContribution::new(1, 1, vec![1.0], vec![0.0]).unwrap(),
+            vec![target_map(foreign_target, 0)],
+        )
+        .unwrap();
+        let foreign_projected = foreign_packet.project(&foreign_plan).unwrap();
+        let foreign_diagnostic = AssemblyAccumulator::new(&plan)
+            .unwrap()
+            .scatter_projected(0, &foreign_projected)
+            .unwrap_err();
+        assert_eq!(foreign_diagnostic.code(), codes::ASSEMBLY_FAILED);
+        assert_eq!(
+            foreign_diagnostic.message(),
+            "projected assembly packet references target 1 outside plan count 1"
+        );
     }
 
     #[test]

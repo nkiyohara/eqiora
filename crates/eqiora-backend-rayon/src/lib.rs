@@ -202,14 +202,21 @@ impl AssemblyBackend for RayonAssemblyBackend<'_> {
         let mut accumulator = AssemblyAccumulator::new(plan)?;
         for batch_start in (0..packet_count).step_by(ORDERED_ASSEMBLY_BATCH_LENGTH) {
             let batch_end = (batch_start + ORDERED_ASSEMBLY_BATCH_LENGTH).min(packet_count);
-            let packets = self.pool.pool.install(|| {
+            let projected_packets = self.pool.pool.install(|| {
+                let plan = accumulator.plan();
                 (batch_start..batch_end)
                     .into_par_iter()
-                    .map(|packet_index| (packet_index, work.evaluate(packet_index)))
+                    .map(|packet_index| {
+                        (
+                            packet_index,
+                            work.evaluate(packet_index)
+                                .and_then(|packet| packet.project(plan)),
+                        )
+                    })
                     .collect::<Vec<_>>()
             });
-            for (packet_index, packet) in packets {
-                accumulator = accumulator.scatter_packet(packet_index, &packet?)?;
+            for (packet_index, projected) in projected_packets {
+                accumulator = accumulator.scatter_projected(packet_index, &projected?)?;
             }
         }
         accumulator.finish(ExecutionReport::host(RAYON_EXECUTION, self.pool.workers))
@@ -393,8 +400,8 @@ mod tests {
     use std::ops::Range;
 
     use eqiora_assembly::{
-        AssemblyMap, AssemblyPacket, AssemblyTarget, DofId, IndexedAssemblyWork, LocalContribution,
-        LocalUnknown, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+        AssemblyMap, AssemblyPacket, AssemblyTarget, DofId, IndexedAssemblyWork, LinearSystem,
+        LocalContribution, LocalUnknown, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
     };
     use eqiora_solver::{
         DiagonalAvailability, LinearOperatorProperties, LinearSolver, PreconditionerPolicy,
@@ -403,6 +410,16 @@ mod tests {
     };
 
     use super::*;
+
+    fn system_bits(system: &LinearSystem) -> Vec<u8> {
+        system
+            .matrix()
+            .values()
+            .iter()
+            .chain(system.rhs())
+            .flat_map(|value| value.to_bits().to_le_bytes())
+            .collect()
+    }
 
     #[derive(Debug)]
     struct DenseRows {
@@ -625,7 +642,7 @@ mod tests {
     }
 
     #[test]
-    fn ordered_assembly_is_bit_identical_beyond_one_batch() {
+    fn ordered_assembly_is_bit_identical_at_every_worker_count() {
         let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
         let target = plan.target_id(0).unwrap();
         let packet_count = ORDERED_ASSEMBLY_BATCH_LENGTH + 3;
@@ -646,22 +663,28 @@ mod tests {
             )
         });
         let reference = REFERENCE_ASSEMBLY_BACKEND.assemble(&plan, &work).unwrap();
-        let pool = CpuThreadPool::new(NonZeroUsize::new(4).unwrap()).unwrap();
-        let threaded = pool
-            .assembler(Target::HostCpu {
-                threads: NonZeroUsize::new(4).unwrap(),
-            })
-            .unwrap()
-            .assemble(&plan, &work)
-            .unwrap();
+        let reference_bits = system_bits(reference.system(target).unwrap());
 
-        assert_eq!(threaded.systems(), reference.systems());
-        assert_eq!(threaded.report().packet_count(), packet_count);
-        assert_eq!(threaded.report().target_count(), 1);
-        assert_eq!(
-            threaded.report().execution(),
-            ExecutionReport::host(RAYON_EXECUTION, NonZeroUsize::new(4).unwrap())
-        );
+        for worker_count in [1, 4, 16, 64] {
+            let workers = NonZeroUsize::new(worker_count).unwrap();
+            let pool = CpuThreadPool::new(workers).unwrap();
+            let threaded = pool
+                .assembler(Target::HostCpu { threads: workers })
+                .unwrap()
+                .assemble(&plan, &work)
+                .unwrap();
+
+            assert_eq!(
+                system_bits(threaded.system(target).unwrap()),
+                reference_bits
+            );
+            assert_eq!(threaded.report().packet_count(), packet_count);
+            assert_eq!(threaded.report().target_count(), 1);
+            assert_eq!(
+                threaded.report().execution(),
+                ExecutionReport::host(RAYON_EXECUTION, workers)
+            );
+        }
     }
 
     #[test]
@@ -690,6 +713,43 @@ mod tests {
             .assemble(&plan, &work)
             .unwrap_err();
         assert!(diagnostic.message().contains("packet 3 failed"));
+    }
+
+    #[test]
+    fn ordered_assembly_reports_lowest_projection_failure_at_every_worker_count() {
+        let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
+        let valid_target = plan.target_id(0).unwrap();
+        let foreign_plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap(); 8]).unwrap();
+        let work = IndexedAssemblyWork::new(12, |index| {
+            let target = match index {
+                2 | 7 => foreign_plan.target_id(index).unwrap(),
+                _ => valid_target,
+            };
+            let dof = DofId::new(0);
+            AssemblyPacket::new(
+                LocalContribution::new(1, 1, vec![1.0], vec![0.0])?,
+                vec![TargetAssemblyMap::new(
+                    target,
+                    AssemblyMap::new(vec![Some(dof)], vec![LocalUnknown::Free(dof)])?,
+                )],
+            )
+        });
+
+        for worker_count in [1, 4, 16, 64] {
+            let workers = NonZeroUsize::new(worker_count).unwrap();
+            let pool = CpuThreadPool::new(workers).unwrap();
+            let diagnostic = pool
+                .assembler(Target::HostCpu { threads: workers })
+                .unwrap()
+                .assemble(&plan, &work)
+                .unwrap_err();
+            assert_eq!(diagnostic.code(), codes::ASSEMBLY_FAILED);
+            assert!(
+                diagnostic
+                    .message()
+                    .contains("references target 2 outside plan count 1")
+            );
+        }
     }
 
     #[test]
