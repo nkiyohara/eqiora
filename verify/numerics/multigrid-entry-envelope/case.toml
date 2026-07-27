@@ -1,18 +1,20 @@
 id = "numerics.multigrid-entry-envelope"
-status = "specified"
-scope = "declaration-only-multigrid-deferred-gate-entry-envelope"
-reference_kind = "protected-merge-ordered-declaration-ahead-of-any-admitted-measurement"
+status = "verified"
+scope = "multigrid-deferred-gate-entry-envelope-declared-then-measured"
+reference_kind = "measurement-admitted-after-a-protected-merge-ordered-declaration"
 
 capabilities = [
   "merge-ordered-envelope-declaration",
   "probe-frozen-before-measurement",
   "phase-resolved-cost-attribution",
+  "declared-predicate-evaluation-against-an-admitted-run",
 ]
 
-# This case declares. It does not measure, and it deliberately carries no
-# `[evidence]` table, so `eqiora-verify run` reports it `not-runnable` and no
-# hosted job executes a numerical probe from this commit. The measurement is a
-# separate case that must descend from the merge of this one.
+# The declaration below merged to protected main alone, as `b0fc201`, carrying
+# no `[evidence]` table so that no probe could run from that commit. This
+# revision adds the executor, and only the executor. Every threshold, level,
+# validity clause and digest above it is byte-identical to what was merged
+# ahead of the measurement, which is what makes the run admissible at all.
 
 [problem]
 equation = "-div(grad(u)) = 1"
@@ -82,8 +84,11 @@ solve_seconds = "time inside the Krylov iteration"
 peak_resident_bytes = "maximum resident set size of the measuring process"
 
 [claim_boundary]
-declaration_only = true
-measures_nothing = true
-opens_no_gate = "the gate opens on the admitted measurement, not on this declaration"
+opens_no_gate = "the measured sequence landed in the declared indeterminate band, so the multigrid gate stays shut; a band outcome licenses no work"
+reports_no_next_step = "the case reports adequacy, breach or the band as declared, and says nothing about what should be built"
 covers_only_symmetric_positive_definite = "nothing here licenses a nonsymmetric, saddle-point, or block-structured envelope"
 covers_only_uniform_cartesian_q1 = "no simplicial, mixed, high-order, or adaptive claim"
+
+[evidence]
+package = "eqiora-numerics"
+test = "multigrid_entry_envelope"
