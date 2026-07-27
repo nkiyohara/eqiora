@@ -400,9 +400,9 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-verify/src/lib.rs"
-ceiling = 1766
-reason = "predates the predicate; not yet triaged"
-removal = "split by responsibility in the lane that next modifies it"
+ceiling = 1527
+reason = "the runner, its report types, and manifest validation still share one root; its tests no longer do"
+removal = "split the remaining root by responsibility: manifest discovery and validation, report projection, and the execution runner"
 
 
 # Public surface, in AST-reachable public items per crate. Counted by walking
