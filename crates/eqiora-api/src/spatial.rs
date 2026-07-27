@@ -4,7 +4,7 @@
 //! client proposes one independently revisioned Realization, receives a
 //! content-addressed artifact after complete capability validation, and may
 //! execute only that exact accepted artifact.
-
+mod error_metric;
 use std::num::{NonZeroU16, NonZeroUsize};
 use std::time::{Duration, Instant};
 
