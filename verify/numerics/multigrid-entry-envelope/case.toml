@@ -87,3 +87,7 @@ measures_nothing = true
 opens_no_gate = "the gate opens on the admitted measurement, not on this declaration"
 covers_only_symmetric_positive_definite = "nothing here licenses a nonsymmetric, saddle-point, or block-structured envelope"
 covers_only_uniform_cartesian_q1 = "no simplicial, mixed, high-order, or adaptive claim"
+
+[evidence]
+package = "eqiora-numerics"
+test = "multigrid_entry_envelope"
