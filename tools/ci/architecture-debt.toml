@@ -76,8 +76,8 @@ public_items_per_crate = 128
 
 [[file_lines]]
 path = "crates/eqiora-api/src/lib.rs"
-ceiling = 1212
-reason = "predates the predicate; not yet triaged"
+ceiling = 1214
+reason = "predates the predicate; the Cartesian Domain edit slice added its module declaration and one named re-export"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
@@ -426,13 +426,15 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[public_surface]]
 crate = "eqiora"
-ceiling = 275
-reason = "the facade is re-export-only and its width is already pinned by api/eqiora-facade-v1.json; 26 of these items are cross-crate globs this predicate cannot see through"
+ceiling = 277
+reason = "the facade is re-export-only and its width is already pinned by api/eqiora-facade-v1.json; 26 of these items are cross-crate globs this predicate cannot see through. The Cartesian Domain edit slice forwards CartesianDomainEditPlan and CartesianDomainEditResult, a net public capability addition of two against the eight the budget allows"
 removal = "lower with each name the facade withdraws"
 
 [[public_surface]]
 crate = "eqiora-api"
-ceiling = 124
+ceiling = 126
+reason = "the Cartesian Domain edit slice owns CartesianDomainEditPlan and CartesianDomainEditResult; they are named rather than glob-forwarded, so this count is real"
+removal = "withdraw either type, or fold the edit plan into an existing owner if a second geometry edit proves the pair redundant"
 
 [[public_surface]]
 crate = "eqiora-artifact"

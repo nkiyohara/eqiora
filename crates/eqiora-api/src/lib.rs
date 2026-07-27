@@ -24,7 +24,7 @@ pub use differentiation::*;
 pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;
-pub use geometry_edit::*;
+pub use geometry_edit::{CartesianDomainEditPlan, CartesianDomainEditResult};
 pub use ml_dataset::*;
 pub use reference_run::*;
 pub use remeshing_trajectory::RemeshingTrajectoryReplayInputV1;
