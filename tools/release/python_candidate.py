@@ -29,6 +29,9 @@ MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v1"
 PYTHON_TEST_FIXTURES = (
     Path("verify/interfaces/control-plane-compile-check"),
     Path("verify/interfaces/current-authoring-profile"),
+    # The packaged-Poisson consumer test compiles the shipped package source
+    # itself, so reading it is the claim rather than an implementation detail.
+    Path("packages/org.example.poisson"),
 )
 
 
@@ -40,7 +43,9 @@ def python_distribution_version(cargo_version: str) -> str:
     """Map admitted Cargo SemVer release forms to normalized Python versions."""
 
     if "+" in cargo_version:
-        raise CandidateError("Cargo release versions with build metadata are unsupported")
+        raise CandidateError(
+            "Cargo release versions with build metadata are unsupported"
+        )
     release, separator, prerelease = cargo_version.partition("-")
     release_components = release.split(".")
     if len(release_components) != 3 or any(
@@ -52,9 +57,7 @@ def python_distribution_version(cargo_version: str) -> str:
         return release
     prerelease_components = prerelease.split(".")
     if len(prerelease_components) != 2:
-        raise CandidateError(
-            f"unsupported Cargo prerelease identity: {cargo_version}"
-        )
+        raise CandidateError(f"unsupported Cargo prerelease identity: {cargo_version}")
     label, serial = prerelease_components
     markers = {"alpha": "a", "beta": "b", "rc": "rc"}
     if (
@@ -64,9 +67,7 @@ def python_distribution_version(cargo_version: str) -> str:
         or not serial.isdecimal()
         or str(int(serial)) != serial
     ):
-        raise CandidateError(
-            f"unsupported Cargo prerelease identity: {cargo_version}"
-        )
+        raise CandidateError(f"unsupported Cargo prerelease identity: {cargo_version}")
     return f"{release}{markers[label]}{serial}"
 
 
@@ -150,10 +151,7 @@ def load_config() -> DistributionConfig:
         raise CandidateError("extras-python must belong to the wheel matrix")
     if config.numpy_floor_interpreter not in config.interpreters:
         raise CandidateError("numpy-floor-python must belong to the wheel matrix")
-    if (
-        config.numpy_floor_interpreter != "3.12"
-        or config.numpy_floor != "numpy==2.1.0"
-    ):
+    if config.numpy_floor_interpreter != "3.12" or config.numpy_floor != "numpy==2.1.0":
         raise CandidateError(
             "the first candidate must verify the exact NumPy 2.1.0 floor on CPython 3.12"
         )
@@ -313,7 +311,9 @@ def safe_extract_sdist(archive: Path, destination: Path) -> Path:
         extracted / "pyproject.toml",
         extracted / "crates/eqiora-python/Cargo.toml",
     )
-    missing = [str(path.relative_to(extracted)) for path in required if not path.is_file()]
+    missing = [
+        str(path.relative_to(extracted)) for path in required if not path.is_file()
+    ]
     if missing:
         raise CandidateError(f"sdist is incomplete: {', '.join(missing)}")
     return extracted
@@ -453,9 +453,7 @@ def inspect_wheel(
     compact = python_version.replace(".", "")
     expected_prefix = f"eqiora-{config.python_version}-"
     if not wheel.name.startswith(expected_prefix):
-        raise CandidateError(
-            f"wheel has the wrong distribution version: {wheel.name}"
-        )
+        raise CandidateError(f"wheel has the wrong distribution version: {wheel.name}")
     required_tag = f"-cp{compact}-cp{compact}-"
     if required_tag not in wheel.name:
         raise CandidateError(f"wheel has the wrong CPython tag: {wheel.name}")
@@ -493,8 +491,7 @@ def inspect_wheel(
         if archive.read(f"{dist_info}licenses/NOTICE") != notice_bytes:
             raise CandidateError("wheel NOTICE does not match the source notice")
         if not any(
-            name.startswith("eqiora/_eqiora") and name.endswith(".so")
-            for name in names
+            name.startswith("eqiora/_eqiora") and name.endswith(".so") for name in names
         ):
             raise CandidateError("wheel omits the native extension")
         if "eqiora/_eqiora.pyi" in names:
@@ -507,12 +504,9 @@ def inspect_wheel(
     version = metadata["Version"]
     if version != config.python_version:
         raise CandidateError(
-            f"wheel metadata version {version!r} differs from "
-            f"{config.python_version!r}"
+            f"wheel metadata version {version!r} differs from {config.python_version!r}"
         )
-    requires_python = {
-        item.strip() for item in metadata["Requires-Python"].split(",")
-    }
+    requires_python = {item.strip() for item in metadata["Requires-Python"].split(",")}
     if requires_python != {">=3.11", "<3.15"}:
         raise CandidateError("wheel has an unexpected Requires-Python")
     if metadata["License-Expression"] != "Apache-2.0":
@@ -989,7 +983,9 @@ def build_candidate(
     }:
         raise CandidateError("the first Python candidate builder requires Linux x86-64")
     if output == ROOT or output.is_relative_to(ROOT):
-        raise CandidateError("candidate artifacts must be written outside the source tree")
+        raise CandidateError(
+            "candidate artifacts must be written outside the source tree"
+        )
     if output.exists() and any(output.iterdir()):
         raise CandidateError("candidate output directory must be empty")
     output.mkdir(parents=True, exist_ok=True)
