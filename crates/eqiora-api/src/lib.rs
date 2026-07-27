@@ -10,6 +10,7 @@ pub mod control;
 mod differentiation;
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 mod external_data;
+mod geometry_edit;
 mod ml_dataset;
 pub mod package;
 mod reference_run;
@@ -23,6 +24,7 @@ pub use differentiation::*;
 pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;
+pub use geometry_edit::{CartesianDomainEditPlan, CartesianDomainEditResult};
 pub use ml_dataset::*;
 pub use reference_run::*;
 pub use remeshing_trajectory::RemeshingTrajectoryReplayInputV1;
