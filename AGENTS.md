@@ -12,6 +12,79 @@ the document that owns it, and those documents are authoritative:
   parallel work.**
 - [Local verification](docs/development/local-verification.md) — the gate tiers.
 
+## No human reviews this
+
+Two agents advance this repository — Claude Opus 5 and Codex GPT-5.6 Sol — and
+merge their own work, including through the owner bypass a protected-surface
+change needs. The maintainer sets direction and does not read diffs.
+
+So there is no downstream. **Cross-review is not one safeguard among several; it
+is the only one**, and an overstated capability row ships unnoticed. Skipping the
+outside review deletes the review layer, however small the change looked.
+
+Confidence is not evidence. Where you are sure and have not checked, write that
+you have not checked: an absent claim invites verification, a confident one
+suppresses it.
+
+## Run every lane that can run
+
+Wall-clock to a working platform is the scarce resource; tokens and agent count
+are not. Start a lane when, and only when, both hold:
+
+- its writable paths are disjoint from every lane in flight, and
+- its contract is frozen — bounded claim, non-claims, pre-committed oracle,
+  writable-path allowlist, and the decisions the implementer must not revisit.
+
+Those two conditions are what keep rework out; a lane started without them costs
+a cycle, not a saving. Beyond them nothing is a reason to wait. Waiting on a
+merge that does not touch your paths is lost time.
+
+Prefer the cheap check that would falsify a premise over the work that assumes
+it.
+
+## Structure outranks speed, every time
+
+Parallelism is the only accepted speed, because it spends agents rather than
+structure. A slow slice costs twice as long once, visibly. A structure that
+makes every later slice harder compounds forever and bills nobody — the agent
+taking the shortcut is not the one who pays. More lanes sharpen this: each sees
+only its own cost, so the locally cheapest move is to widen something shared.
+
+When a predicate, budget, or oracle blocks a lane, the lane changes, not the gate:
+
+- a file over its ceiling is **split**, then the ceiling ratchets down to match;
+- a nameable glob re-export is **replaced by named items**, not re-registered;
+- an unsatisfiable oracle is **returned with the argument**, not relaxed;
+- a claim is **narrowed to what was shown**, never widened to what was built.
+
+Raising a ceiling stays permitted as a reviewed architecture change with a reason
+and a deletion condition — never a step inside an ordinary slice.
+
+## Measure the thing you are reasoning about
+
+A number from one environment is not evidence about another. Local wall-clock
+does not predict hosted, a development profile does not predict `opt-level=1`,
+and an aborted run is not a completed one. State the environment beside the
+number or omit the number, and reproduce the hosted profile with the prefix in
+[local verification](docs/development/local-verification.md) before quoting a
+timing that informs a hosted decision.
+
+Run the repository's own gate, not an equivalent you assembled. What a
+hand-written command list omits — packaged-tree behaviour, the interpreter
+matrix, the CI contracts — is where the defects that reach CI live.
+
+## Improve these instructions, at constant size
+
+When cross-review, a gate, or CI teaches something an agent could not have
+inferred, write it here in the same change. A lesson left in a pull-request body
+is lost.
+
+This file is loaded into every session and competes with the work for attention,
+so it holds a **hard budget of 200 lines**. Adding requires removing: find the
+line whose deletion would no longer cause a mistake, and delete it. If nothing
+qualifies, the lesson belongs in the document that owns the topic, linked from
+here rather than restated.
+
 ## Claims are part of the implementation
 
 When a change adds, removes, narrows, or extends an executable or user-visible
