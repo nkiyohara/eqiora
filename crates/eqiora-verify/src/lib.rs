@@ -10,6 +10,8 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
+use std::sync::{Arc, Mutex, mpsc};
+use std::thread;
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
@@ -112,6 +114,7 @@ pub struct Request {
     case: Option<String>,
     policy: ExecutionPolicy,
     environment: Option<EvidenceEnvironment>,
+    jobs: usize,
 }
 
 impl Request {
@@ -123,6 +126,7 @@ impl Request {
             case,
             policy,
             environment: None,
+            jobs: 1,
         }
     }
 
@@ -130,6 +134,13 @@ impl Request {
     #[must_use]
     pub fn for_environment(mut self, environment: EvidenceEnvironment) -> Self {
         self.environment = Some(environment);
+        self
+    }
+
+    /// Bound the number of evidence targets executing at once.
+    #[must_use]
+    pub fn with_jobs(mut self, jobs: usize) -> Self {
+        self.jobs = jobs.max(1);
         self
     }
 }
@@ -421,7 +432,20 @@ impl EvidenceOutput {
 }
 
 /// Execution seam used by the system runner and deterministic unit fakes.
-pub trait EvidenceRunner {
+pub trait EvidenceRunner: Sync {
+    /// Compile one exact Cargo `(package, feature-set)` group.
+    ///
+    /// A successful implementation retains the emitted executable paths for
+    /// subsequent [`Self::run`] calls. Returning an output marks the complete
+    /// group as a build failure. Non-Cargo runners may keep the default.
+    fn build_cargo_group(
+        &self,
+        _root: &Path,
+        _targets: &[EvidenceTarget],
+    ) -> Option<EvidenceOutput> {
+        None
+    }
+
     /// Run exactly one already-validated evidence target.
     fn run(&self, root: &Path, target: &EvidenceTarget) -> EvidenceOutput;
 }
@@ -431,6 +455,14 @@ pub trait EvidenceRunner {
 pub struct SystemEvidenceRunner {
     cargo: OsString,
     python: OsString,
+    prepared: Arc<Mutex<Vec<PreparedCargoTarget>>>,
+}
+
+#[derive(Debug, Clone)]
+struct PreparedCargoTarget {
+    target: EvidenceTarget,
+    executable: PathBuf,
+    build_stderr: String,
 }
 
 impl SystemEvidenceRunner {
@@ -440,26 +472,60 @@ impl SystemEvidenceRunner {
         Self {
             cargo: env::var_os("CARGO").unwrap_or_else(|| OsString::from("cargo")),
             python: env::var_os("PYTHON").unwrap_or_else(|| OsString::from("python3")),
+            prepared: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
-    fn command(&self, root: &Path, target: &EvidenceTarget) -> Command {
+    fn cargo_build_command(&self, root: &Path, targets: &[EvidenceTarget]) -> Command {
+        let Some(EvidenceTarget::Cargo(first)) = targets.first() else {
+            panic!("Cargo build group must contain a Cargo evidence target");
+        };
+        let key = CargoBuildGroup::from_target(first);
+        let tests = targets
+            .iter()
+            .map(|target| match target {
+                EvidenceTarget::Cargo(target) => target.test.as_str(),
+                EvidenceTarget::PythonInstalledWheel(_) => {
+                    panic!("Cargo build group must contain only Cargo evidence targets")
+                }
+            })
+            .collect::<BTreeSet<_>>();
+        let mut command = Command::new(&self.cargo);
+        command.args([
+            "test",
+            "--locked",
+            "-p",
+            &key.package,
+            "--no-run",
+            "--message-format=json",
+        ]);
+        for test in tests {
+            command.args(["--test", test]);
+        }
+        if !key.features.is_empty() {
+            command.arg("--features").arg(key.features.join(","));
+        }
+        command.current_dir(root);
+        command
+    }
+
+    fn command(&self, root: &Path, target: &EvidenceTarget) -> Result<Command, String> {
         let mut command = match target {
             EvidenceTarget::Cargo(target) => {
-                let mut command = Command::new(&self.cargo);
-                command.args([
-                    "test",
-                    "--locked",
-                    "-p",
-                    &target.package,
-                    "--test",
-                    &target.test,
-                ]);
-                if !target.features.is_empty() {
-                    command.arg("--features").arg(target.features.join(","));
-                }
+                let prepared = self.prepared.lock().unwrap();
+                let executable = prepared
+                    .iter()
+                    .find(|prepared| prepared.target == EvidenceTarget::Cargo(target.clone()))
+                    .map(|prepared| prepared.executable.clone())
+                    .ok_or_else(|| {
+                        format!(
+                            "Cargo evidence target `{}/{}` has no prepared executable",
+                            target.package, target.test
+                        )
+                    })?;
+                let mut command = Command::new(executable);
                 if target.environment == EvidenceEnvironment::PhysicalMpiCuda {
-                    command.args(["--", "--ignored"]);
+                    command.arg("--ignored");
                 }
                 command
             }
@@ -470,22 +536,206 @@ impl SystemEvidenceRunner {
             }
         };
         command.current_dir(root);
-        command
+        Ok(command)
+    }
+
+    fn record_executables(
+        &self,
+        targets: &[EvidenceTarget],
+        stdout: &[u8],
+        stderr: &[u8],
+    ) -> Result<(), String> {
+        let expected = targets
+            .iter()
+            .map(|target| match target {
+                EvidenceTarget::Cargo(target) => target.test.clone(),
+                EvidenceTarget::PythonInstalledWheel(_) => {
+                    panic!("Cargo build group must contain only Cargo evidence targets")
+                }
+            })
+            .collect::<BTreeSet<_>>();
+        let mut executables = BTreeMap::new();
+        let mut target_diagnostics = BTreeMap::<String, String>::new();
+        let mut shared_diagnostics = String::new();
+        for line in String::from_utf8_lossy(stdout).lines() {
+            let Ok(message) = serde_json::from_str::<serde_json::Value>(line) else {
+                continue;
+            };
+            if message["reason"] == "compiler-message" {
+                let Some(rendered) = message["message"]["rendered"].as_str() else {
+                    continue;
+                };
+                let Some(name) = message["target"]["name"].as_str() else {
+                    append_stderr(&mut shared_diagnostics, rendered);
+                    continue;
+                };
+                if expected.contains(name) {
+                    append_stderr(
+                        target_diagnostics.entry(name.to_owned()).or_default(),
+                        rendered,
+                    );
+                } else {
+                    append_stderr(&mut shared_diagnostics, rendered);
+                }
+                continue;
+            }
+            if message["reason"] != "compiler-artifact" {
+                continue;
+            }
+            let is_test = message["target"]["kind"]
+                .as_array()
+                .is_some_and(|kinds| kinds.iter().any(|kind| kind == "test"));
+            if !is_test {
+                continue;
+            }
+            let Some(name) = message["target"]["name"].as_str() else {
+                continue;
+            };
+            let Some(executable) = message["executable"].as_str() else {
+                continue;
+            };
+            if expected.contains(name) {
+                executables.insert(name.to_owned(), PathBuf::from(executable));
+            }
+        }
+        let missing = expected
+            .iter()
+            .filter(|test| !executables.contains_key(*test))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            return Err(format!(
+                "Cargo did not report an executable for test target(s): {}",
+                missing.join(", ")
+            ));
+        }
+        let cargo_stderr = cargo_stderr_without_progress(&String::from_utf8_lossy(stderr));
+
+        let mut prepared = self.prepared.lock().unwrap();
+        for target in targets {
+            let EvidenceTarget::Cargo(target_details) = target else {
+                unreachable!("Cargo group was checked above");
+            };
+            let executable = executables
+                .get(&target_details.test)
+                .expect("all expected executables were checked")
+                .clone();
+            let mut build_stderr = shared_diagnostics.clone();
+            if let Some(diagnostics) = target_diagnostics.get(&target_details.test) {
+                append_stderr(&mut build_stderr, diagnostics);
+            }
+            append_stderr(&mut build_stderr, &cargo_stderr);
+            if let Some(existing) = prepared
+                .iter_mut()
+                .find(|prepared_target| prepared_target.target == *target)
+            {
+                existing.executable = executable;
+                existing.build_stderr = build_stderr;
+            } else {
+                prepared.push(PreparedCargoTarget {
+                    target: target.clone(),
+                    executable,
+                    build_stderr,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    fn prepared_build_stderr(&self, target: &EvidenceTarget) -> String {
+        self.prepared
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|prepared| prepared.target == *target)
+            .map_or_else(String::new, |prepared| prepared.build_stderr.clone())
+    }
+
+    fn completed_stderr(
+        &self,
+        target: &EvidenceTarget,
+        child_stderr: &[u8],
+        succeeded: bool,
+    ) -> String {
+        let mut stderr = self.prepared_build_stderr(target);
+        append_stderr(&mut stderr, &String::from_utf8_lossy(child_stderr));
+        if !succeeded && let EvidenceTarget::Cargo(target) = target {
+            append_stderr(
+                &mut stderr,
+                &format!(
+                    "error: test failed, to rerun pass `-p {} --test {}`\n",
+                    target.package, target.test
+                ),
+            );
+        }
+        stderr
     }
 }
 
 impl EvidenceRunner for SystemEvidenceRunner {
+    fn build_cargo_group(&self, root: &Path, targets: &[EvidenceTarget]) -> Option<EvidenceOutput> {
+        let output = match self.cargo_build_command(root, targets).output() {
+            Ok(output) => output,
+            Err(error) => {
+                return Some(EvidenceOutput {
+                    duration_ms: None,
+                    exit_code: None,
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    start_error: Some(format!("cannot start Cargo evidence build: {error}")),
+                });
+            }
+        };
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        if !output.status.success() {
+            return Some(EvidenceOutput {
+                duration_ms: None,
+                exit_code: output.status.code(),
+                stdout,
+                stderr,
+                start_error: None,
+            });
+        }
+        if let Err(error) = self.record_executables(targets, &output.stdout, &output.stderr) {
+            return Some(EvidenceOutput {
+                duration_ms: None,
+                exit_code: output.status.code(),
+                stdout,
+                stderr,
+                start_error: Some(error),
+            });
+        }
+        None
+    }
+
     fn run(&self, root: &Path, target: &EvidenceTarget) -> EvidenceOutput {
-        let mut command = self.command(root, target);
+        let mut command = match self.command(root, target) {
+            Ok(command) => command,
+            Err(error) => {
+                return EvidenceOutput {
+                    duration_ms: None,
+                    exit_code: None,
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    start_error: Some(error),
+                };
+            }
+        };
         let started = Instant::now();
         match command.output() {
-            Ok(output) => EvidenceOutput {
-                duration_ms: Some(u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)),
-                exit_code: output.status.code(),
-                stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-                stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-                start_error: None,
-            },
+            Ok(output) => {
+                let stderr = self.completed_stderr(target, &output.stderr, output.status.success());
+                EvidenceOutput {
+                    duration_ms: Some(
+                        u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+                    ),
+                    exit_code: output.status.code(),
+                    stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+                    stderr,
+                    start_error: None,
+                }
+            }
             Err(error) => EvidenceOutput {
                 duration_ms: None,
                 exit_code: None,
@@ -495,6 +745,45 @@ impl EvidenceRunner for SystemEvidenceRunner {
             },
         }
     }
+}
+
+fn append_stderr(stderr: &mut String, addition: &str) {
+    if addition.is_empty() {
+        return;
+    }
+    if !stderr.is_empty() && !stderr.ends_with('\n') {
+        stderr.push('\n');
+    }
+    stderr.push_str(addition);
+}
+
+fn cargo_stderr_without_progress(stderr: &str) -> String {
+    let mut retained = stderr
+        .lines()
+        .filter(|line| {
+            let line = line.trim_start();
+            ![
+                "Blocking waiting for file lock",
+                "Checking ",
+                "Compiling ",
+                "Downloaded ",
+                "Downloading ",
+                "Finished ",
+                "Fresh ",
+                "Locking ",
+                "Running ",
+                "Updating ",
+                "Waiting ",
+            ]
+            .iter()
+            .any(|prefix| line.starts_with(prefix))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    if !retained.is_empty() && stderr.ends_with('\n') {
+        retained.push('\n');
+    }
+    retained
 }
 
 /// Discover, validate, select, and optionally run repository cases.
@@ -616,10 +905,9 @@ fn execute_selected(
     runner: &dyn EvidenceRunner,
 ) -> Vec<CaseReport> {
     let mut cases = Vec::with_capacity(selected.len());
-    let mut completed_targets = Vec::<(EvidenceTarget, EvidenceOutput)>::new();
-    let mut prior_failure = false;
-    for contract in selected {
-        let mut case = CaseReport::from_contract(&contract);
+    let mut targets = Vec::<EvidenceTarget>::new();
+    for contract in &selected {
+        let mut case = CaseReport::from_contract(contract);
         match request.command {
             CommandKind::List => case.outcome = Outcome::Listed,
             CommandKind::Check => case.outcome = Outcome::Checked,
@@ -651,29 +939,169 @@ fn execute_selected(
                     .evidence
                     .as_ref()
                     .expect("executable contracts were validated with evidence");
-                let completed = completed_targets
-                    .iter()
-                    .position(|(completed, _)| completed == target);
-                if completed.is_none()
-                    && prior_failure
-                    && request.policy == ExecutionPolicy::FailFast
-                {
-                    case.outcome = Outcome::Skipped;
-                    case.message = Some("not run after fail-fast evidence failure".to_owned());
-                } else {
-                    let completed = completed.unwrap_or_else(|| {
-                        completed_targets.push((target.clone(), runner.run(root, target)));
-                        completed_targets.len() - 1
-                    });
-                    if !project_evidence_output(&mut case, &completed_targets[completed].1) {
-                        prior_failure = true;
-                    }
+                if !targets.contains(target) {
+                    targets.push(target.clone());
                 }
             }
         }
         cases.push(case);
     }
+    if request.command != CommandKind::Run {
+        return cases;
+    }
+
+    let mut completed = vec![None; targets.len()];
+    let mut groups = BTreeMap::<CargoBuildGroup, Vec<usize>>::new();
+    for (index, target) in targets.iter().enumerate() {
+        if let EvidenceTarget::Cargo(target) = target {
+            groups
+                .entry(CargoBuildGroup::from_target(target))
+                .or_default()
+                .push(index);
+        }
+    }
+    for (group, indices) in groups {
+        let group_targets = indices
+            .iter()
+            .map(|index| targets[*index].clone())
+            .collect::<Vec<_>>();
+        if let Some(output) = runner.build_cargo_group(root, &group_targets) {
+            for index in indices {
+                completed[index] = Some(TargetCompletion::BuildFailed {
+                    group: group.clone(),
+                    output: output.clone(),
+                });
+            }
+        }
+    }
+
+    let runnable = targets
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| completed[*index].is_none())
+        .map(|(index, target)| (index, target.clone()))
+        .collect::<Vec<_>>();
+    for (index, output) in run_targets(root, runnable, request, runner) {
+        completed[index] = Some(TargetCompletion::Executed(output));
+    }
+
+    for case in &mut cases {
+        if case.outcome != Outcome::Checked {
+            continue;
+        }
+        let target = case
+            .evidence
+            .as_ref()
+            .expect("selected executable cases were validated with evidence");
+        let index = targets
+            .iter()
+            .position(|candidate| candidate == target)
+            .expect("selected target was indexed");
+        match &completed[index] {
+            Some(TargetCompletion::Executed(output)) => {
+                project_evidence_output(case, output);
+            }
+            Some(TargetCompletion::BuildFailed { group, output }) => {
+                project_build_failure(case, group, output);
+            }
+            None => {
+                case.outcome = Outcome::Skipped;
+                case.message = Some("not run after fail-fast evidence failure".to_owned());
+            }
+        }
+    }
     cases
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct CargoBuildGroup {
+    package: String,
+    features: Vec<String>,
+}
+
+impl CargoBuildGroup {
+    fn from_target(target: &CargoEvidenceTarget) -> Self {
+        let mut features = target.features.clone();
+        features.sort();
+        features.dedup();
+        Self {
+            package: target.package.clone(),
+            features,
+        }
+    }
+
+    fn label(&self) -> String {
+        format!("{} features=[{}]", self.package, self.features.join(","))
+    }
+}
+
+#[derive(Debug, Clone)]
+enum TargetCompletion {
+    Executed(EvidenceOutput),
+    BuildFailed {
+        group: CargoBuildGroup,
+        output: EvidenceOutput,
+    },
+}
+
+fn run_targets(
+    root: &Path,
+    targets: Vec<(usize, EvidenceTarget)>,
+    request: &Request,
+    runner: &dyn EvidenceRunner,
+) -> Vec<(usize, EvidenceOutput)> {
+    if targets.is_empty() {
+        return Vec::new();
+    }
+    let jobs = request.jobs.min(targets.len()).max(1);
+    let mut completed = Vec::with_capacity(targets.len());
+    thread::scope(|scope| {
+        for batch in targets.chunks(jobs) {
+            let (sender, receiver) = mpsc::channel();
+            for (index, target) in batch.iter().cloned() {
+                let sender = sender.clone();
+                scope.spawn(move || {
+                    let output = runner.run(root, &target);
+                    sender
+                        .send((index, output))
+                        .expect("execution receiver remains alive");
+                });
+            }
+            drop(sender);
+            let mut batch_failed = false;
+            for _ in 0..batch.len() {
+                let (index, output) = receiver
+                    .recv()
+                    .expect("every evidence worker reports its output");
+                batch_failed |= !output.succeeded();
+                completed.push((index, output));
+            }
+            if batch_failed && request.policy == ExecutionPolicy::FailFast {
+                break;
+            }
+        }
+    });
+    completed
+}
+
+fn project_build_failure(case: &mut CaseReport, group: &CargoBuildGroup, output: &EvidenceOutput) {
+    case.duration_ms = None;
+    case.exit_code = output.exit_code;
+    case.stdout = Some(output.stdout.clone());
+    case.stderr = Some(output.stderr.clone());
+    case.outcome = Outcome::Failed;
+    let reason = output.start_error.clone().unwrap_or_else(|| {
+        format!(
+            "Cargo build exited with {}",
+            output
+                .exit_code
+                .map_or_else(|| "no exit code".to_owned(), |code| code.to_string())
+        )
+    });
+    case.message = Some(format!(
+        "Cargo evidence group `{}` failed to compile: {reason}",
+        group.label()
+    ));
 }
 
 fn project_evidence_output(case: &mut CaseReport, output: &EvidenceOutput) -> bool {
@@ -1088,9 +1516,8 @@ struct CaseManifest {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
     use std::collections::VecDeque;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     use super::*;
 
@@ -1325,6 +1752,7 @@ script = "tools/ci/python_evidence.py"
         let runner = SystemEvidenceRunner {
             cargo: OsString::from("cargo-evidence"),
             python: OsString::from("python-evidence"),
+            prepared: Arc::new(Mutex::new(Vec::new())),
         };
         let root = Path::new("/repository");
         let cargo_target = EvidenceTarget::Cargo(CargoEvidenceTarget {
@@ -1334,7 +1762,7 @@ script = "tools/ci/python_evidence.py"
             table: None,
             environment: EvidenceEnvironment::HostCpu,
         });
-        let cargo = runner.command(root, &cargo_target);
+        let cargo = runner.cargo_build_command(root, std::slice::from_ref(&cargo_target));
         assert_eq!(cargo.get_program(), "cargo-evidence");
         assert_eq!(
             cargo
@@ -1346,6 +1774,8 @@ script = "tools/ci/python_evidence.py"
                 "--locked",
                 "-p",
                 "eqiora",
+                "--no-run",
+                "--message-format=json",
                 "--test",
                 "registered_case",
                 "--features",
@@ -1353,6 +1783,26 @@ script = "tools/ci/python_evidence.py"
             ]
         );
         assert_eq!(cargo.get_current_dir(), Some(root));
+        runner.prepared.lock().unwrap().push(PreparedCargoTarget {
+            target: cargo_target.clone(),
+            executable: PathBuf::from("/target/registered_case"),
+            build_stderr: "warning: compile diagnostic\n".to_owned(),
+        });
+        let cargo = runner.command(root, &cargo_target).unwrap();
+        assert_eq!(cargo.get_program(), "/target/registered_case");
+        assert_eq!(cargo.get_args().count(), 0);
+        assert_eq!(
+            runner.completed_stderr(
+                &cargo_target,
+                b"thread panicked\n\
+                  test result: FAILED. 0 passed; 1 failed\n",
+                false
+            ),
+            "warning: compile diagnostic\n\
+             thread panicked\n\
+             test result: FAILED. 0 passed; 1 failed\n\
+             error: test failed, to rerun pass `-p eqiora --test registered_case`\n"
+        );
 
         let physical_target = EvidenceTarget::Cargo(CargoEvidenceTarget {
             package: "eqiora".to_owned(),
@@ -1361,10 +1811,11 @@ script = "tools/ci/python_evidence.py"
             table: None,
             environment: EvidenceEnvironment::PhysicalMpiCuda,
         });
-        let physical = runner.command(root, &physical_target);
-        assert_eq!(physical.get_program(), "cargo-evidence");
+        let physical_build =
+            runner.cargo_build_command(root, std::slice::from_ref(&physical_target));
+        assert_eq!(physical_build.get_program(), "cargo-evidence");
         assert_eq!(
-            physical
+            physical_build
                 .get_args()
                 .map(|argument| argument.to_string_lossy().into_owned())
                 .collect::<Vec<_>>(),
@@ -1373,13 +1824,27 @@ script = "tools/ci/python_evidence.py"
                 "--locked",
                 "-p",
                 "eqiora",
+                "--no-run",
+                "--message-format=json",
                 "--test",
                 "physical_case",
                 "--features",
                 "mpi-cuda",
-                "--",
-                "--ignored",
             ]
+        );
+        runner.prepared.lock().unwrap().push(PreparedCargoTarget {
+            target: physical_target.clone(),
+            executable: PathBuf::from("/target/physical_case"),
+            build_stderr: String::new(),
+        });
+        let physical = runner.command(root, &physical_target).unwrap();
+        assert_eq!(physical.get_program(), "/target/physical_case");
+        assert_eq!(
+            physical
+                .get_args()
+                .map(|argument| argument.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            ["--ignored"]
         );
         assert_eq!(physical.get_current_dir(), Some(root));
 
@@ -1389,7 +1854,7 @@ script = "tools/ci/python_evidence.py"
                 script: "tools/ci/python_evidence.py".to_owned(),
                 environment: EvidenceEnvironment::HostCpu,
             });
-        let python = runner.command(root, &python_target);
+        let python = runner.command(root, &python_target).unwrap();
         assert_eq!(python.get_program(), "python-evidence");
         assert_eq!(
             python
@@ -1399,6 +1864,59 @@ script = "tools/ci/python_evidence.py"
             ["tools/ci/python_evidence.py"]
         );
         assert_eq!(python.get_current_dir(), Some(root));
+    }
+
+    #[test]
+    fn system_runner_retains_non_progress_group_build_diagnostics() {
+        let runner = SystemEvidenceRunner {
+            cargo: OsString::from("cargo-evidence"),
+            python: OsString::from("python-evidence"),
+            prepared: Arc::new(Mutex::new(Vec::new())),
+        };
+        let target = EvidenceTarget::Cargo(CargoEvidenceTarget {
+            package: "eqiora".to_owned(),
+            test: "registered_case".to_owned(),
+            features: Vec::new(),
+            table: None,
+            environment: EvidenceEnvironment::HostCpu,
+        });
+        let stdout = [
+            serde_json::json!({
+                "reason": "compiler-message",
+                "target": {"name": "eqiora"},
+                "message": {"rendered": "warning: shared diagnostic\n"}
+            }),
+            serde_json::json!({
+                "reason": "compiler-message",
+                "target": {"name": "registered_case"},
+                "message": {"rendered": "warning: target diagnostic\n"}
+            }),
+            serde_json::json!({
+                "reason": "compiler-artifact",
+                "target": {"name": "registered_case", "kind": ["test"]},
+                "executable": "/target/registered_case"
+            }),
+        ]
+        .map(|message| message.to_string())
+        .join("\n");
+        runner
+            .record_executables(
+                std::slice::from_ref(&target),
+                stdout.as_bytes(),
+                b"   Compiling eqiora v0.0.0\n\
+                   Finished `test` profile target(s) in 0.01s\n\
+                 warning: cargo summary\n",
+            )
+            .unwrap();
+
+        let prepared = runner.prepared.lock().unwrap();
+        assert_eq!(prepared.len(), 1);
+        assert_eq!(
+            prepared[0].build_stderr,
+            "warning: shared diagnostic\n\
+             warning: target diagnostic\n\
+             warning: cargo summary\n"
+        );
     }
 
     #[test]
@@ -1428,27 +1946,101 @@ script = "tools/ci/python_evidence.py"
     }
 
     struct FakeRunner {
-        outputs: RefCell<VecDeque<EvidenceOutput>>,
-        targets: RefCell<Vec<EvidenceTarget>>,
+        outputs: Mutex<VecDeque<EvidenceOutput>>,
+        target_outputs: Mutex<Vec<(EvidenceTarget, EvidenceOutput)>>,
+        targets: Mutex<Vec<EvidenceTarget>>,
+        groups: Mutex<Vec<Vec<EvidenceTarget>>>,
+        build_failures: Mutex<Vec<(CargoBuildGroup, EvidenceOutput)>>,
+        delays: Mutex<Vec<(EvidenceTarget, Duration)>>,
     }
 
     impl FakeRunner {
         fn new(outputs: impl IntoIterator<Item = EvidenceOutput>) -> Self {
             Self {
-                outputs: RefCell::new(outputs.into_iter().collect()),
-                targets: RefCell::new(Vec::new()),
+                outputs: Mutex::new(outputs.into_iter().collect()),
+                target_outputs: Mutex::new(Vec::new()),
+                targets: Mutex::new(Vec::new()),
+                groups: Mutex::new(Vec::new()),
+                build_failures: Mutex::new(Vec::new()),
+                delays: Mutex::new(Vec::new()),
             }
         }
 
+        fn for_targets(
+            outputs: impl IntoIterator<Item = (EvidenceTarget, EvidenceOutput)>,
+        ) -> Self {
+            Self {
+                outputs: Mutex::new(VecDeque::new()),
+                target_outputs: Mutex::new(outputs.into_iter().collect()),
+                targets: Mutex::new(Vec::new()),
+                groups: Mutex::new(Vec::new()),
+                build_failures: Mutex::new(Vec::new()),
+                delays: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn with_build_failure(mut self, group: CargoBuildGroup, output: EvidenceOutput) -> Self {
+            self.build_failures.get_mut().unwrap().push((group, output));
+            self
+        }
+
+        fn with_delay(mut self, target: EvidenceTarget, delay: Duration) -> Self {
+            self.delays.get_mut().unwrap().push((target, delay));
+            self
+        }
+
         fn targets(&self) -> Vec<EvidenceTarget> {
-            self.targets.borrow().clone()
+            self.targets.lock().unwrap().clone()
+        }
+
+        fn groups(&self) -> Vec<Vec<EvidenceTarget>> {
+            self.groups.lock().unwrap().clone()
         }
     }
 
     impl EvidenceRunner for FakeRunner {
+        fn build_cargo_group(
+            &self,
+            _root: &Path,
+            targets: &[EvidenceTarget],
+        ) -> Option<EvidenceOutput> {
+            self.groups.lock().unwrap().push(targets.to_vec());
+            let Some(EvidenceTarget::Cargo(target)) = targets.first() else {
+                panic!("fake Cargo group is non-empty and Cargo-only");
+            };
+            let group = CargoBuildGroup::from_target(target);
+            self.build_failures
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|(failed, _)| failed == &group)
+                .map(|(_, output)| output.clone())
+        }
+
         fn run(&self, _root: &Path, target: &EvidenceTarget) -> EvidenceOutput {
-            self.targets.borrow_mut().push(target.clone());
-            self.outputs.borrow_mut().pop_front().unwrap()
+            self.targets.lock().unwrap().push(target.clone());
+            if let Some(delay) = self
+                .delays
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|(delayed, _)| delayed == target)
+                .map(|(_, delay)| *delay)
+            {
+                thread::sleep(delay);
+            }
+            if let Some(output) = self
+                .target_outputs
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|(mapped, _)| mapped == target)
+                .map(|(_, output)| output.clone())
+            {
+                output
+            } else {
+                self.outputs.lock().unwrap().pop_front().unwrap()
+            }
         }
     }
 
@@ -1486,6 +2078,124 @@ script = "tools/ci/python_evidence.py"
 
     fn contract(id: &str) -> CaseContract {
         contract_with_target(id, cargo_target())
+    }
+
+    fn named_cargo_target(package: &str, test: &str, features: &[&str]) -> EvidenceTarget {
+        EvidenceTarget::Cargo(CargoEvidenceTarget {
+            package: package.to_owned(),
+            test: test.to_owned(),
+            features: features
+                .iter()
+                .map(|feature| (*feature).to_owned())
+                .collect(),
+            table: None,
+            environment: EvidenceEnvironment::HostCpu,
+        })
+    }
+
+    fn output(exit_code: i32, label: &str) -> EvidenceOutput {
+        EvidenceOutput {
+            duration_ms: Some(u64::try_from(label.len()).unwrap()),
+            exit_code: Some(exit_code),
+            stdout: format!("{label}-out"),
+            stderr: format!("{label}-err"),
+            start_error: None,
+        }
+    }
+
+    fn legacy_execute_selected(
+        root: &Path,
+        selected: Vec<CaseContract>,
+        request: &Request,
+        runner: &dyn EvidenceRunner,
+    ) -> Vec<CaseReport> {
+        let mut cases = Vec::with_capacity(selected.len());
+        let mut completed_targets = Vec::<(EvidenceTarget, EvidenceOutput)>::new();
+        let mut prior_failure = false;
+        for contract in selected {
+            let mut case = CaseReport::from_contract(&contract);
+            match request.command {
+                CommandKind::List => case.outcome = Outcome::Listed,
+                CommandKind::Check => case.outcome = Outcome::Checked,
+                CommandKind::Run if !contract.status.is_executable() => {
+                    case.outcome = Outcome::NotRunnable;
+                    case.message =
+                        Some("case status does not declare executable evidence".to_owned());
+                }
+                CommandKind::Run
+                    if request.environment.is_some_and(|selected| {
+                        contract
+                            .evidence
+                            .as_ref()
+                            .is_some_and(|target| target.environment() != selected)
+                    }) =>
+                {
+                    let required = contract
+                        .evidence
+                        .as_ref()
+                        .expect("executable contracts were validated with evidence")
+                        .environment();
+                    case.outcome = Outcome::NotSelected;
+                    case.message = Some(format!(
+                        "evidence requires `{}` execution",
+                        required.as_str()
+                    ));
+                }
+                CommandKind::Run => {
+                    let target = contract
+                        .evidence
+                        .as_ref()
+                        .expect("executable contracts were validated with evidence");
+                    let completed = completed_targets
+                        .iter()
+                        .position(|(completed, _)| completed == target);
+                    if completed.is_none()
+                        && prior_failure
+                        && request.policy == ExecutionPolicy::FailFast
+                    {
+                        case.outcome = Outcome::Skipped;
+                        case.message = Some("not run after fail-fast evidence failure".to_owned());
+                    } else {
+                        let completed = completed.unwrap_or_else(|| {
+                            completed_targets.push((target.clone(), runner.run(root, target)));
+                            completed_targets.len() - 1
+                        });
+                        if !project_evidence_output(&mut case, &completed_targets[completed].1) {
+                            prior_failure = true;
+                        }
+                    }
+                }
+            }
+            cases.push(case);
+        }
+        cases
+    }
+
+    fn report_for(request: &Request, cases: Vec<CaseReport>) -> VerificationReport {
+        VerificationReport {
+            schema: REPORT_SCHEMA,
+            command: request.command,
+            policy: request.policy,
+            selected_case: request.case.clone(),
+            selected_environment: request.environment,
+            success: cases.iter().all(|case| case.outcome != Outcome::Failed),
+            cases,
+            errors: Vec::new(),
+        }
+    }
+
+    fn stderr_without_cargo_progress(stderr: Option<&str>) -> Option<Vec<&str>> {
+        stderr.map(|stderr| {
+            stderr
+                .lines()
+                .filter(|line| {
+                    let line = line.trim_start();
+                    !["Compiling ", "Finished ", "Running "]
+                        .iter()
+                        .any(|prefix| line.starts_with(prefix))
+                })
+                .collect()
+        })
     }
 
     #[test]
@@ -1893,6 +2603,431 @@ script = "tools/ci/python_evidence.py"
                 Outcome::Passed,
                 Outcome::Failed
             ]
+        );
+    }
+
+    #[test]
+    fn jobs_one_preserves_full_registry_semantics_without_cargo_progress_lines() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(Path::parent)
+            .unwrap();
+        let contracts = load_repository(root).unwrap();
+        let targets = contracts
+            .iter()
+            .filter(|contract| contract.status.is_executable())
+            .filter_map(|contract| contract.evidence.clone())
+            .fold(Vec::<EvidenceTarget>::new(), |mut targets, target| {
+                if !targets.contains(&target) {
+                    targets.push(target);
+                }
+                targets
+            });
+        let failing_target = targets
+            .iter()
+            .rposition(|target| matches!(target, EvidenceTarget::Cargo(_)))
+            .expect("the full registry contains Cargo evidence");
+        let mut legacy_outputs = Vec::with_capacity(targets.len());
+        let mut direct_outputs = Vec::with_capacity(targets.len());
+        for (index, target) in targets.iter().enumerate() {
+            let failed = index == failing_target;
+            let diagnostics = if failed {
+                "thread 'frozen_failure' panicked at 'frozen panic text'\n\
+                 test result: FAILED. 0 passed; 1 failed; 0 ignored\n\
+                 error: test failed, to rerun pass `-p frozen-package --test frozen`"
+                    .to_owned()
+            } else {
+                format!("target-{index}-diagnostic")
+            };
+            let direct = EvidenceOutput {
+                duration_ms: Some(1_000 + u64::try_from(index).unwrap()),
+                exit_code: Some(if failed { 17 } else { 0 }),
+                stdout: format!("target-{index}-stdout"),
+                stderr: diagnostics.clone(),
+                start_error: None,
+            };
+            let mut legacy = direct.clone();
+            legacy.duration_ms = Some(10 + u64::try_from(index).unwrap());
+            if matches!(target, EvidenceTarget::Cargo(_)) {
+                legacy.stderr = format!(
+                    "   Compiling frozen-package v0.0.0\n\
+                     Finished `test` profile [unoptimized] target(s) in 0.01s\n\
+                     Running tests/frozen.rs (target/debug/deps/frozen)\n\
+                     {diagnostics}"
+                );
+            }
+            legacy_outputs.push(legacy);
+            direct_outputs.push(direct);
+        }
+        let request = Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast).with_jobs(1);
+
+        let legacy = report_for(
+            &request,
+            legacy_execute_selected(
+                root,
+                contracts.clone(),
+                &request,
+                &FakeRunner::new(legacy_outputs),
+            ),
+        );
+        let grouped = report_for(
+            &request,
+            execute_selected(root, contracts, &request, &FakeRunner::new(direct_outputs)),
+        );
+
+        assert_eq!(
+            grouped
+                .cases
+                .iter()
+                .map(|case| case.id.as_str())
+                .collect::<Vec<_>>(),
+            legacy
+                .cases
+                .iter()
+                .map(|case| case.id.as_str())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(grouped.success, legacy.success);
+        for (direct, legacy) in grouped.cases.iter().zip(&legacy.cases) {
+            assert_eq!(direct.outcome, legacy.outcome, "{}", direct.id);
+            assert_eq!(direct.exit_code, legacy.exit_code, "{}", direct.id);
+            assert_eq!(direct.message, legacy.message, "{}", direct.id);
+            assert_eq!(
+                direct.duration_ms.is_some(),
+                legacy.duration_ms.is_some(),
+                "{}",
+                direct.id
+            );
+            assert_eq!(direct.stdout, legacy.stdout, "{}", direct.id);
+            assert_eq!(
+                direct
+                    .stderr
+                    .as_deref()
+                    .map(str::lines)
+                    .map(Iterator::collect::<Vec<_>>),
+                stderr_without_cargo_progress(legacy.stderr.as_deref()),
+                "{}",
+                direct.id
+            );
+        }
+        let failures = grouped
+            .cases
+            .iter()
+            .filter(|case| case.outcome == Outcome::Failed)
+            .collect::<Vec<_>>();
+        assert!(!failures.is_empty());
+        for failure in failures {
+            let stderr = failure.stderr.as_deref().unwrap();
+            assert!(stderr.contains("frozen panic text"), "{}", failure.id);
+            assert!(stderr.contains("test result: FAILED"), "{}", failure.id);
+        }
+    }
+
+    #[test]
+    fn keep_going_jobs_preserve_deterministic_case_semantics() {
+        let first = named_cargo_target("package-a", "first", &[]);
+        let second = named_cargo_target("package-a", "second", &[]);
+        let third = named_cargo_target("package-a", "third", &[]);
+        let contracts = vec![
+            contract_with_target("a", first.clone()),
+            contract_with_target("b", second.clone()),
+            contract_with_target("c", third.clone()),
+            contract_with_target("d", first.clone()),
+        ];
+        let mapped = [
+            (first.clone(), output(0, "first")),
+            (second.clone(), output(17, "second")),
+            (third.clone(), output(0, "third")),
+        ];
+        let serial_request =
+            Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing).with_jobs(1);
+        let serial = execute_selected(
+            Path::new("."),
+            contracts.clone(),
+            &serial_request,
+            &FakeRunner::for_targets(mapped.clone()),
+        );
+        for jobs in [1, 2, 3, 8] {
+            let concurrent_request =
+                Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing).with_jobs(jobs);
+            let concurrent_runner = FakeRunner::for_targets(mapped.clone())
+                .with_delay(first.clone(), Duration::from_millis(40))
+                .with_delay(second.clone(), Duration::from_millis(20));
+            let concurrent = execute_selected(
+                Path::new("."),
+                contracts.clone(),
+                &concurrent_request,
+                &concurrent_runner,
+            );
+
+            assert_eq!(
+                concurrent
+                    .iter()
+                    .map(|case| (
+                        case.id.as_str(),
+                        case.outcome,
+                        case.exit_code,
+                        case.stdout.as_deref()
+                    ))
+                    .collect::<Vec<_>>(),
+                serial
+                    .iter()
+                    .map(|case| (
+                        case.id.as_str(),
+                        case.outcome,
+                        case.exit_code,
+                        case.stdout.as_deref()
+                    ))
+                    .collect::<Vec<_>>(),
+                "jobs={jobs}"
+            );
+            assert_eq!(
+                concurrent
+                    .iter()
+                    .map(|case| case.id.as_str())
+                    .collect::<Vec<_>>(),
+                ["a", "b", "c", "d"]
+            );
+            assert!(!report_for(&concurrent_request, concurrent).success);
+        }
+    }
+
+    #[test]
+    fn cargo_groups_preserve_each_exact_declared_feature_set() {
+        let feature_a = named_cargo_target("package-a", "test-a", &["feature-a"]);
+        let feature_b = named_cargo_target("package-a", "test-b", &["feature-b"]);
+        let runner = FakeRunner::for_targets([
+            (feature_a.clone(), output(0, "a")),
+            (feature_b.clone(), output(0, "b")),
+        ]);
+        let reports = execute_selected(
+            Path::new("."),
+            vec![
+                contract_with_target("a", feature_a),
+                contract_with_target("b", feature_b),
+            ],
+            &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing).with_jobs(2),
+            &runner,
+        );
+
+        assert!(reports.iter().all(|case| case.outcome == Outcome::Passed));
+        let keys = runner
+            .groups()
+            .iter()
+            .map(|group| match &group[0] {
+                EvidenceTarget::Cargo(target) => CargoBuildGroup::from_target(target),
+                EvidenceTarget::PythonInstalledWheel(_) => panic!("expected Cargo group"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            keys,
+            [
+                CargoBuildGroup {
+                    package: "package-a".to_owned(),
+                    features: vec!["feature-a".to_owned()],
+                },
+                CargoBuildGroup {
+                    package: "package-a".to_owned(),
+                    features: vec!["feature-b".to_owned()],
+                },
+            ]
+        );
+        assert!(runner.groups().iter().all(|group| group.len() == 1));
+    }
+
+    #[test]
+    fn target_failure_is_attributed_without_poisoning_group_siblings() {
+        let failing = named_cargo_target("package-a", "failing", &["feature-a"]);
+        let passing = named_cargo_target("package-a", "passing", &["feature-a"]);
+        let reports = execute_selected(
+            Path::new("."),
+            vec![
+                contract_with_target("a", failing.clone()),
+                contract_with_target("b", passing.clone()),
+                contract_with_target("c", failing.clone()),
+            ],
+            &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing).with_jobs(2),
+            &FakeRunner::for_targets([
+                (failing, output(9, "failed")),
+                (passing, output(0, "passed")),
+            ]),
+        );
+
+        assert_eq!(
+            reports.iter().map(|case| case.outcome).collect::<Vec<_>>(),
+            [Outcome::Failed, Outcome::Passed, Outcome::Failed]
+        );
+    }
+
+    #[test]
+    fn build_failure_names_its_group_and_does_not_skip_other_groups() {
+        let first = named_cargo_target("package-a", "first", &["feature-a"]);
+        let sibling = named_cargo_target("package-a", "sibling", &["feature-a"]);
+        let other = named_cargo_target("package-b", "other", &["feature-b"]);
+        let failed_group = match &first {
+            EvidenceTarget::Cargo(target) => CargoBuildGroup::from_target(target),
+            EvidenceTarget::PythonInstalledWheel(_) => unreachable!(),
+        };
+        let runner = FakeRunner::for_targets([(other.clone(), output(0, "other"))])
+            .with_build_failure(
+                failed_group,
+                EvidenceOutput {
+                    duration_ms: None,
+                    exit_code: Some(101),
+                    stdout: "build-out".to_owned(),
+                    stderr: "build-err".to_owned(),
+                    start_error: None,
+                },
+            );
+        let reports = execute_selected(
+            Path::new("."),
+            vec![
+                contract_with_target("a", first),
+                contract_with_target("b", sibling),
+                contract_with_target("c", other.clone()),
+            ],
+            &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast).with_jobs(1),
+            &runner,
+        );
+
+        assert_eq!(
+            reports.iter().map(|case| case.outcome).collect::<Vec<_>>(),
+            [Outcome::Failed, Outcome::Failed, Outcome::Passed]
+        );
+        assert!(
+            reports[0]
+                .message
+                .as_deref()
+                .unwrap()
+                .contains("package-a features=[feature-a]")
+        );
+        assert!(
+            reports[1]
+                .message
+                .as_deref()
+                .unwrap()
+                .contains("package-a features=[feature-a]")
+        );
+        assert_eq!(runner.targets(), [other]);
+        assert_eq!(runner.groups().len(), 2);
+    }
+
+    #[test]
+    fn concurrent_fail_fast_reports_only_real_results_and_bounds_speculation() {
+        let jobs = 3;
+        let targets = (0..8)
+            .map(|index| named_cargo_target("package-a", &format!("test-{index}"), &[]))
+            .collect::<Vec<_>>();
+        let mut runner = FakeRunner::for_targets(
+            targets
+                .iter()
+                .enumerate()
+                .map(|(index, target)| {
+                    (
+                        target.clone(),
+                        output(
+                            match index {
+                                0 => 17,
+                                1 => 19,
+                                _ => 0,
+                            },
+                            &format!("target-{index}"),
+                        ),
+                    )
+                })
+                .collect::<Vec<_>>(),
+        );
+        for target in targets.iter().skip(1) {
+            runner = runner.with_delay(target.clone(), Duration::from_millis(40));
+        }
+        let reports = execute_selected(
+            Path::new("."),
+            targets
+                .iter()
+                .enumerate()
+                .map(|(index, target)| {
+                    contract_with_target(&format!("case-{index}"), target.clone())
+                })
+                .collect(),
+            &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast).with_jobs(jobs),
+            &runner,
+        );
+
+        let targets_after_failure = runner.targets().len() - 1;
+        assert!(targets_after_failure <= jobs.saturating_sub(1));
+        let failures = reports
+            .iter()
+            .filter(|case| case.outcome == Outcome::Failed)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            failures
+                .iter()
+                .map(|case| (case.id.as_str(), case.exit_code))
+                .collect::<Vec<_>>(),
+            [("case-0", Some(17)), ("case-1", Some(19))]
+        );
+        assert!(
+            failures
+                .iter()
+                .all(|case| case.exit_code.is_some_and(|code| code != 0))
+        );
+        assert!(
+            reports
+                .iter()
+                .filter(|case| !matches!(case.id.as_str(), "case-0" | "case-1"))
+                .all(|case| case.outcome != Outcome::Failed)
+        );
+        assert_eq!(
+            reports
+                .iter()
+                .filter(|case| case.outcome == Outcome::Passed)
+                .count(),
+            jobs - failures.len()
+        );
+        assert_eq!(
+            reports
+                .iter()
+                .filter(|case| case.outcome == Outcome::Skipped)
+                .count(),
+            targets.len() - jobs
+        );
+        let request =
+            Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast).with_jobs(jobs);
+        assert!(!report_for(&request, reports).success);
+    }
+
+    #[test]
+    fn environment_filter_excludes_targets_before_group_building() {
+        let portable = named_cargo_target("package-a", "portable", &[]);
+        let mut physical = named_cargo_target("package-b", "physical", &["mpi-cuda"]);
+        let EvidenceTarget::Cargo(physical_target) = &mut physical else {
+            unreachable!();
+        };
+        physical_target.environment = EvidenceEnvironment::PhysicalMpiCuda;
+        let runner = FakeRunner::for_targets([(portable.clone(), output(0, "portable"))]);
+        let reports = execute_selected(
+            Path::new("."),
+            vec![
+                contract_with_target("physical", physical),
+                contract_with_target("portable", portable.clone()),
+            ],
+            &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast)
+                .for_environment(EvidenceEnvironment::HostCpu)
+                .with_jobs(2),
+            &runner,
+        );
+
+        assert_eq!(
+            reports.iter().map(|case| case.outcome).collect::<Vec<_>>(),
+            [Outcome::NotSelected, Outcome::Passed]
+        );
+        assert_eq!(runner.targets(), [portable]);
+        let groups = runner.groups();
+        assert_eq!(groups.len(), 1);
+        assert!(
+            groups[0]
+                .iter()
+                .all(|target| { target.environment() == EvidenceEnvironment::HostCpu })
         );
     }
 }

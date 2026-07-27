@@ -28,6 +28,7 @@ cargo run -p eqiora-verify -- check --case solid.axial-bar
 
 # Run all or one case. Fail-fast is the default.
 cargo run -p eqiora-verify -- run
+cargo run -p eqiora-verify -- run --jobs 1
 cargo run -p eqiora-verify -- run --case numerics.poisson-fem-fvm
 cargo run -p eqiora-verify -- run --case numerics.cartesian-poisson-fem-fvm
 cargo run -p eqiora-verify -- run --case numerics.cartesian-poisson-3d-fem-fvm
@@ -73,8 +74,14 @@ environment selection still validates every manifest and artifact before
 execution; targets for another environment remain visible as `not-selected`.
 Without `--environment`, every executable target remains selected, so an
 absent physical runtime still fails rather than silently skipping. In
-fail-fast mode, later selected executable cases remain in the report with
-outcome `skipped`.
+fail-fast mode with `--jobs 1`, later selected executable cases remain in the
+report with outcome `skipped`, matching serial execution before `--jobs` was
+introduced. `--jobs` defaults to the host's available parallelism. With more
+than one job, the runner stops launching new targets after the first test
+failure, lets the at most `jobs - 1` already-launched targets finish, and
+reports their results; it never kills a running child. Consequently, raising
+`--jobs` can turn a case that serial fail-fast would report as `skipped` into
+a real `passed` or `failed` result.
 `proposed` and `specified` cases are reported as `not-runnable`; `implemented`,
 `verified`, and `validated` cases must declare and pass an evidence target.
 
@@ -115,19 +122,32 @@ script = "tools/ci/python_torch_gate.py"
 ```
 
 For Cargo, the runner first obtains the workspace package and integration-test
-inventory from `cargo metadata --format-version=1 --no-deps`. It then invokes
-the fixed argument vector
-`cargo test --locked -p <package> --test <test>` directly. For Python it
-invokes `PYTHON` (or `python3`) with the single declared script. The script must
-be a normalized repository-relative regular `.py` file; no arguments are
-accepted. Both runners use the repository root and never invoke a shell.
+inventory from `cargo metadata --format-version=1 --no-deps`. After validation,
+case selection, and the optional environment filter, selected Cargo targets are
+partitioned by their exact package and sorted declared feature set. Each group
+is compiled once with the fixed form
+`cargo test --locked -p <package> --no-run --message-format=json`, one `--test`
+selector per target, and that group's exact `--features` value when non-empty.
+Features from different manifests are never unioned. The runner reads Cargo's
+compiler-artifact messages and executes each emitted test binary directly.
+For Python it invokes `PYTHON` (or `python3`) with the single declared script.
+The script must be a normalized repository-relative regular `.py` file; no
+arguments are accepted. Both runners use the repository root and never invoke
+a shell.
+
+All Cargo groups are built before test execution. A group build failure is
+reported against every case whose target belongs to that exact group and names
+the group; it is not treated as a test failure for fail-fast scheduling, so
+targets from successfully built groups still run. A test-binary failure is
+attributed only to cases declaring that exact target. Cases sharing a target
+reuse its one captured result as before.
 
 Cargo evidence for `physical-mpi-cuda` is ignored by generic Cargo suites.
-Selecting that typed environment makes the runner append the fixed test-harness
-arguments `-- --ignored`; the test still fails closed when its explicitly
-selected physical topology is unavailable. This keeps ordinary compilation and
-feature coverage separate from a hardware claim without adding free-form
-manifest arguments.
+Selecting that typed environment makes the runner pass the fixed test-harness
+argument `--ignored` directly to the produced binary; the test still fails
+closed when its explicitly selected physical topology is unavailable. This
+keeps ordinary compilation and feature coverage separate from a hardware claim
+without adding free-form manifest arguments.
 
 Optional evidence artifacts must be normalized relative paths that resolve to
 files inside the repository. Unknown runner identities or evidence keys,
@@ -138,7 +158,9 @@ duplicate case IDs, and paths whose ID does not match
 ## Determinism boundary
 
 Cases are ordered by their declared ID, independent of directory enumeration.
-The report does not contain timestamps or elapsed time. Child output is
-evidence data and may vary with toolchains; consumers that compare report
-bytes should normalize or omit those fields explicitly rather than treating
-such variation as model meaning.
+Target completion order never changes case order, result attribution, captured
+streams, or the exit status. The report contains no timestamps; it does contain
+each started target's monotonic elapsed duration. Child output and duration are
+evidence data and may vary with toolchains and host load; consumers that
+compare report bytes should normalize or omit those fields explicitly rather
+than treating such variation as model meaning.

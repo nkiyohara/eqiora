@@ -68,6 +68,13 @@ enum Command {
         /// Limit execution to one exact case ID.
         #[arg(long)]
         case: Option<String>,
+        /// Maximum number of evidence targets executing at once.
+        #[arg(
+            long,
+            value_parser = parse_jobs,
+            default_value_t = default_jobs()
+        )]
+        jobs: usize,
         /// Continue after an evidence failure.
         #[arg(long, conflicts_with = "fail_fast")]
         keep_going: bool,
@@ -112,6 +119,7 @@ fn main() -> ExitCode {
         }
         Command::Run {
             case,
+            jobs,
             keep_going,
             fail_fast: _,
             environment,
@@ -124,7 +132,8 @@ fn main() -> ExitCode {
                 } else {
                     ExecutionPolicy::FailFast
                 },
-            );
+            )
+            .with_jobs(jobs);
             if let Some(environment) = environment {
                 request.for_environment(environment.into())
             } else {
@@ -150,4 +159,15 @@ fn main() -> ExitCode {
     } else {
         ExitCode::FAILURE
     }
+}
+
+fn default_jobs() -> usize {
+    std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get)
+}
+
+fn parse_jobs(value: &str) -> Result<usize, String> {
+    value
+        .parse::<std::num::NonZeroUsize>()
+        .map(std::num::NonZeroUsize::get)
+        .map_err(|_| "jobs must be a positive integer".to_owned())
 }
