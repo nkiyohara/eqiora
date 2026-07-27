@@ -122,6 +122,41 @@ fn canonical_model_advances_through_one_scaled_block_system() {
 }
 
 #[test]
+fn homogeneous_trace_preserves_every_reported_quantity_exactly() {
+    let fixture = fixture(3);
+    let canonical =
+        canonical_advance_with_policy(&fixture, 2, 0.01, reference_scales(), 1.0e-9, 1.0e-11)
+            .unwrap();
+    let direct = advance(&fixture, fixture.initial.clone(), 2, 0.01).unwrap();
+
+    assert_eq!(canonical.steps(), direct.steps());
+    assert_eq!(canonical.states().len(), direct.states().len());
+    for (resolved, numerical) in canonical.states().iter().zip(direct.states()) {
+        assert_eq!(resolved.time().value(), numerical.time());
+        assert_eq!(resolved.velocity(), numerical.velocity());
+        assert_eq!(resolved.pressure(), numerical.pressure());
+        match (
+            resolved.pressure_reference(),
+            numerical.pressure_reference(),
+        ) {
+            (
+                SteadyStokesPressureReference2d::ZeroIntegral {
+                    multiplier: resolved,
+                },
+                eqiora_numerics::fluid::SimplicialMiniStokesPressureReference2d::ZeroIntegral {
+                    multiplier: numerical,
+                },
+            ) => assert_eq!(resolved, numerical),
+            (
+                SteadyStokesPressureReference2d::BoundaryTraction,
+                eqiora_numerics::fluid::SimplicialMiniStokesPressureReference2d::BoundaryTraction,
+            ) => {}
+            pair => panic!("pressure-reference drift: {pair:?}"),
+        }
+    }
+}
+
+#[test]
 fn fixed_domain_skew_mini_advances_two_nonlinear_steps() {
     let fixture = fixture(3);
     let trajectory = advance(&fixture, fixture.initial.clone(), 2, 0.01).unwrap();

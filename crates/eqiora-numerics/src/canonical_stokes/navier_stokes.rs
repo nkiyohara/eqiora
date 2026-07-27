@@ -2,14 +2,16 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use eqiora_core::{Diagnostic, RawId};
+use eqiora_core::{Diagnostic, DimExponents, RawId, ValueShape};
 use eqiora_graph::EdgeKind;
 use eqiora_ir::{
     OperatorApplicationProof, PureOperatorApplicationProof, PureOperatorDefinition,
     StandardPureOperator,
 };
 use eqiora_schema::kernel::typing::TypedResidual;
-use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, KernelNode, SymbolRef};
+use eqiora_schema::kernel::{
+    BoundarySide, ExprDag, ExprId, ExprNode, KernelNode, SymbolRef, ValueFrame,
+};
 use eqiora_sem::KernelProgram;
 
 use crate::canonical_boundary::BoundaryRelationBinding;
@@ -21,10 +23,22 @@ use super::expression::{
     is_divergence_of_field, load_definition_root, lower_newtonian_stress_viscosity,
 };
 use super::inertial::{parameters_referenced_by, require_positive_constant};
-use super::recognize::{exact_fields_for_dimension, unique_box};
+use super::recognize::unique_box;
 use super::support::{
-    lowering_error, model_lowering_error, relation_expression, relations_on,
-    require_continuous_relation, typed_relation, unique_root,
+    continuum_representation, has_edge, lowering_error, model_lowering_error, relation_expression,
+    relations_on, require_continuous_relation, typed_relation, unique_root,
+};
+
+const VELOCITY_DIMENSION: DimExponents = DimExponents {
+    length: 1,
+    time: -1,
+    ..DimExponents::DIMENSIONLESS
+};
+const PRESSURE_DIMENSION: DimExponents = DimExponents {
+    mass: 1,
+    length: -1,
+    time: -2,
+    ..DimExponents::DIMENSIONLESS
 };
 
 /// Exact fixed-domain transient incompressible Navier--Stokes meaning in `D` dimensions.
@@ -59,6 +73,7 @@ pub struct TransientIncompressibleNavierStokesCartesianModel<const D: usize> {
     incompressibility_relation: RawId,
     boundary_inventory: CartesianBoundaryInventory<D>,
     boundary_relations: Vec<BoundaryRelationBinding>,
+    normal_velocity_expressions: BTreeMap<(usize, BoundarySide), ScalarSpatialExpression>,
 }
 
 impl<const D: usize> TransientIncompressibleNavierStokesCartesianModel<D> {
@@ -156,6 +171,24 @@ impl<const D: usize> TransientIncompressibleNavierStokesCartesianModel<D> {
         &self.boundary_relations
     }
 
+    pub(super) fn prescribed_normal_velocity(
+        &self,
+        axis: usize,
+        side: BoundarySide,
+        coordinates: &[f64],
+    ) -> Result<Option<[f64; D]>, Diagnostic> {
+        let Some(expression) = self.normal_velocity_expressions.get(&(axis, side)) else {
+            return Ok(None);
+        };
+        let mut velocity = [0.0; D];
+        let outward_sign = match side {
+            BoundarySide::Lower => -1.0,
+            BoundarySide::Upper => 1.0,
+        };
+        velocity[axis] = outward_sign * expression.evaluate(coordinates)?;
+        Ok(Some(velocity))
+    }
+
     /// Evaluate `grad(force_potential)` from the exact canonical scalar tape.
     ///
     /// # Errors
@@ -226,14 +259,94 @@ fn lower_transient_incompressible_navier_stokes_cartesian<const D: usize>(
     Ok(lowered.model)
 }
 
+fn transient_fields_for_dimension<const D: usize>(
+    program: &KernelProgram,
+    domain: RawId,
+) -> Result<(RawId, Vec<RawId>, BTreeSet<RawId>, RawId), Diagnostic> {
+    if !matches!(D, 2 | 3) {
+        return Err(lowering_error(
+            domain,
+            format!("canonical transient flow supports dimension two or three, received {D}"),
+        ));
+    }
+    let fields = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Field(field)
+                if has_edge(program, field.id().erase(), domain, EdgeKind::DefinedOn)
+                    && continuum_representation(program, field.id().erase()).is_some() =>
+            {
+                Some(field)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let vector_shape =
+        ValueShape::new([u32::try_from(D).expect("supported coordinate dimensions fit u32")])
+            .expect("supported velocity shape is representable");
+    let velocities = fields
+        .iter()
+        .filter(|field| {
+            field.shape() == &vector_shape
+                && field.frame() == ValueFrame::SpatialCartesian
+                && field.dimension() == VELOCITY_DIMENSION
+        })
+        .map(|field| field.id().erase())
+        .collect::<Vec<_>>();
+    let pressure_fields = fields
+        .iter()
+        .filter(|field| {
+            field.shape().is_scalar()
+                && field.frame() == ValueFrame::Invariant
+                && field.dimension() == PRESSURE_DIMENSION
+        })
+        .map(|field| field.id().erase())
+        .collect::<Vec<_>>();
+    let normal_velocity_fields = fields
+        .iter()
+        .filter(|field| {
+            field.shape().is_scalar()
+                && field.frame() == ValueFrame::Invariant
+                && field.dimension() == VELOCITY_DIMENSION
+        })
+        .map(|field| field.id().erase())
+        .collect::<BTreeSet<_>>();
+    if velocities.len() != 1
+        || pressure_fields.len() != 2
+        || fields.len() != 1 + pressure_fields.len() + normal_velocity_fields.len()
+    {
+        return Err(lowering_error(
+            domain,
+            "transient flow Fields must be one spatial velocity, pressure and force-potential scalars, plus only scalar velocity boundary coefficients",
+        ));
+    }
+    let representation = continuum_representation(program, velocities[0])
+        .expect("field filter establishes one continuum Representation");
+    if fields
+        .iter()
+        .any(|field| continuum_representation(program, field.id().erase()) != Some(representation))
+    {
+        return Err(lowering_error(
+            domain,
+            "transient flow Fields must share one continuum Representation",
+        ));
+    }
+    Ok((
+        velocities[0],
+        pressure_fields,
+        normal_velocity_fields,
+        representation,
+    ))
+}
+
 /// Domain-scoped transient-flow recognition for exact multiphysics compositions.
 pub(crate) fn lower_transient_incompressible_navier_stokes_subdomain<const D: usize>(
     program: &KernelProgram,
     domain: RawId,
     bounds: [[f64; 2]; D],
 ) -> Result<LoweredTransientIncompressibleNavierStokesSubdomain<D>, Diagnostic> {
-    let (velocity, scalar_fields, representation) =
-        exact_fields_for_dimension::<D>(program, domain)?;
+    let (velocity, scalar_fields, normal_velocity_fields, representation) =
+        transient_fields_for_dimension::<D>(program, domain)?;
     if scalar_fields.len() != 2 {
         return Err(lowering_error(
             domain,
@@ -244,11 +357,11 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_subdomain<const D: us
         ));
     }
     let volume_relations = relations_on(program, domain);
-    if volume_relations.len() != 3 {
+    if volume_relations.len() < 3 {
         return Err(lowering_error(
             domain,
             format!(
-                "transient incompressible Navier--Stokes requires exactly force, momentum, and incompressibility Relations, found {}",
+                "transient incompressible Navier--Stokes requires force, momentum, incompressibility, and only admitted boundary-coefficient definitions, found {} Relations",
                 volume_relations.len()
             ),
         ));
@@ -392,6 +505,24 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_subdomain<const D: us
 
     let boundary =
         boundary::lower_dimension::<D>(program, domain, velocity, pressure, &dynamic_viscosity)?;
+    if boundary.normal_velocity_fields != normal_velocity_fields {
+        return Err(lowering_error(
+            domain,
+            "every scalar velocity-valued Field must define one prescribed normal-velocity boundary law",
+        ));
+    }
+    let mut expected_volume_relations = BTreeSet::from([
+        force_potential_definition,
+        momentum_relation,
+        incompressibility_relation,
+    ]);
+    expected_volume_relations.extend(boundary.normal_velocity_definitions.iter().copied());
+    if volume_relations.iter().copied().collect::<BTreeSet<_>>() != expected_volume_relations {
+        return Err(lowering_error(
+            domain,
+            "transient flow volume contains a Relation outside force, momentum, incompressibility, and prescribed normal-velocity definitions",
+        ));
+    }
     let model = TransientIncompressibleNavierStokesCartesianModel {
         domain,
         velocity,
@@ -406,15 +537,12 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_subdomain<const D: us
         incompressibility_relation,
         boundary_inventory: boundary.inventory.clone(),
         boundary_relations: boundary.boundary_relations.clone(),
+        normal_velocity_expressions: boundary.normal_velocity_expressions.clone(),
     };
     Ok(LoweredTransientIncompressibleNavierStokesSubdomain {
         model,
         representation,
-        volume_relations: [
-            force_potential_definition,
-            momentum_relation,
-            incompressibility_relation,
-        ],
+        volume_relations,
         boundary,
     })
 }
@@ -423,7 +551,7 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_subdomain<const D: us
 pub(crate) struct LoweredTransientIncompressibleNavierStokesSubdomain<const D: usize> {
     pub(crate) model: TransientIncompressibleNavierStokesCartesianModel<D>,
     pub(crate) representation: RawId,
-    pub(crate) volume_relations: [RawId; 3],
+    pub(crate) volume_relations: Vec<RawId>,
     pub(crate) boundary: LoweredStokesBoundary<D>,
 }
 
@@ -620,6 +748,7 @@ fn require_closed_model<const D: usize>(
             .iter()
             .map(|binding| binding.relation()),
     );
+    relations.extend(boundary.normal_velocity_definitions.iter().copied());
     let activations = program
         .edges()
         .iter()
@@ -627,7 +756,8 @@ fn require_closed_model<const D: usize>(
         .map(|edge| edge.from())
         .collect::<BTreeSet<_>>();
     let parameters = parameters_referenced_by(program, &relations);
-    let fields = BTreeSet::from([model.velocity, model.pressure, model.force_potential]);
+    let mut fields = BTreeSet::from([model.velocity, model.pressure, model.force_potential]);
+    fields.extend(boundary.normal_velocity_fields.iter().copied());
     for node in program.nodes() {
         let admitted = match node {
             KernelNode::Domain(value) => domains.contains(&value.id().erase()),
