@@ -14,6 +14,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPOSITORY_ROOT / "tools/release"))
 
 from python_candidate import (  # noqa: E402
+    PYTHON_TEST_FIXTURES,
     CandidateError,
     DistributionConfig,
     SourceIdentity,
@@ -137,8 +138,7 @@ typed candidate
 """
         with tempfile.TemporaryDirectory() as temporary:
             wheel = (
-                Path(temporary)
-                / "eqiora-0.1.0a1-cp313-cp313-manylinux_2_17_x86_64.whl"
+                Path(temporary) / "eqiora-0.1.0a1-cp313-cp313-manylinux_2_17_x86_64.whl"
             )
             dist_info = "eqiora-0.1.0a1.dist-info/"
             with zipfile.ZipFile(wheel, mode="w") as archive:
@@ -193,8 +193,7 @@ invalid candidate
 """
         with tempfile.TemporaryDirectory() as temporary:
             wheel = (
-                Path(temporary)
-                / "eqiora-0.1.0a1-cp313-cp313-manylinux_2_17_x86_64.whl"
+                Path(temporary) / "eqiora-0.1.0a1-cp313-cp313-manylinux_2_17_x86_64.whl"
             )
             dist_info = "eqiora-0.1.0a1.dist-info/"
             with zipfile.ZipFile(wheel, mode="w") as archive:
@@ -245,12 +244,16 @@ invalid candidate
             extracted = root / "source"
             run_root = root / "consumer"
             run_root.mkdir()
+            # Derived from the constant rather than restated: a copy of the
+            # fixture list here would silently stop covering a fixture added
+            # to `PYTHON_TEST_FIXTURES`, which is the drift this test exists
+            # to catch.
             files = (
                 "bindings/python/tests/test_vertical_slice.py",
                 "bindings/python/typecheck/base.py",
-                "verify/interfaces/control-plane-compile-check/expected/contract.json",
-                "verify/interfaces/current-authoring-profile/expected/profile.json",
+                *(str(fixture / "payload.json") for fixture in PYTHON_TEST_FIXTURES),
             )
+            self.assertGreaterEqual(len(files), 4)
             for relative in files:
                 path = extracted / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
