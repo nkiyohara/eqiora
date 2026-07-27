@@ -26,8 +26,8 @@ use std::process::ExitCode;
 
 use eqiora::Diagnostic;
 use eqiora::api::{
-    CartesianScalarFieldProjection, ModelDocument, ScalarEllipticExecutionEnvironment,
-    ScalarEllipticIntent, ScalarEllipticMethod, ScalarEllipticRunResult, ScalarFieldLocation,
+    ModelDocument, ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod,
+    ScalarEllipticRunResult,
 };
 use eqiora::realization::RealizationRevision;
 
@@ -73,86 +73,10 @@ fn run() -> Result<(), Vec<Diagnostic>> {
     let result = model.run_scalar_elliptic_plan(plan, environment)?;
 
     // 4. Evidence: the answer, and the independent checks that stand behind it.
-    let error = l2_error(&result)?;
+    let error = result
+        .l2_error(|[x, y]| (PI * x).sin() * (PI * y).sin())
+        .map_err(|diagnostic| vec![diagnostic])?;
     report(&model, &result, error)
-}
-
-/// Continuum L2 error of the accepted field against `sin(pi x) sin(pi y)`.
-///
-/// The run publishes vertex values and their Cartesian layout, not an error
-/// norm, so the quadrature is written out here: three-point Gauss-Legendre per
-/// axis over the bilinear interpolant on each mesh cell.
-fn l2_error(result: &ScalarEllipticRunResult) -> Result<f64, Vec<Diagnostic>> {
-    const NODES: [f64; 3] = [0.112_701_665_379_258_3, 0.5, 0.887_298_334_620_741_7];
-    const WEIGHTS: [f64; 3] = [
-        0.277_777_777_777_777_8,
-        0.444_444_444_444_444_4,
-        0.277_777_777_777_777_8,
-    ];
-
-    let layout = CartesianVertexLayout::of(result.plan().field_projection())?;
-    let values = result.field_values();
-    // Values are flattened with the last axis varying fastest.
-    let stride = layout.cells[1] + 1;
-
-    let mut squared = 0.0;
-    for slow in 0..layout.cells[0] {
-        for fast in 0..layout.cells[1] {
-            let corner = slow * stride + fast;
-            let cell = [
-                values[corner],
-                values[corner + 1],
-                values[corner + stride],
-                values[corner + stride + 1],
-            ];
-            for (offset_slow, weight_slow) in NODES.iter().zip(WEIGHTS) {
-                for (offset_fast, weight_fast) in NODES.iter().zip(WEIGHTS) {
-                    let interpolated = (1.0 - offset_slow) * (1.0 - offset_fast) * cell[0]
-                        + (1.0 - offset_slow) * offset_fast * cell[1]
-                        + offset_slow * (1.0 - offset_fast) * cell[2]
-                        + offset_slow * offset_fast * cell[3];
-                    let x = layout.coordinate(0, slow, *offset_slow);
-                    let y = layout.coordinate(1, fast, *offset_fast);
-                    let difference = interpolated - (PI * x).sin() * (PI * y).sin();
-                    squared += weight_slow * weight_fast * difference * difference;
-                }
-            }
-        }
-    }
-    Ok((squared * layout.step[0] * layout.step[1]).sqrt())
-}
-
-/// Cell counts, coordinate origin, and cell sizes of the accepted layout.
-struct CartesianVertexLayout {
-    cells: [usize; 2],
-    origin: [f64; 2],
-    step: [f64; 2],
-}
-
-impl CartesianVertexLayout {
-    fn of(projection: &CartesianScalarFieldProjection) -> Result<Self, Vec<Diagnostic>> {
-        let shape = projection.logical_shape();
-        let bounds = projection.bounds();
-        if projection.location() != ScalarFieldLocation::Vertex || shape.len() != 2 {
-            return Err(vec![Diagnostic::error(
-                eqiora::diagnostic::codes::NUMERICAL_SOLVE_FAILED,
-                "this example reads a two-dimensional vertex field",
-            )]);
-        }
-        let cells = [shape[0] - 1, shape[1] - 1];
-        Ok(Self {
-            cells,
-            origin: [bounds[0][0], bounds[1][0]],
-            step: [
-                (bounds[0][1] - bounds[0][0]) / cells[0] as f64,
-                (bounds[1][1] - bounds[1][0]) / cells[1] as f64,
-            ],
-        })
-    }
-
-    fn coordinate(&self, axis: usize, cell: usize, offset: f64) -> f64 {
-        self.origin[axis] + (cell as f64 + offset) * self.step[axis]
-    }
 }
 
 fn report(
