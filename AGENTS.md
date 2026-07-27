@@ -14,97 +14,76 @@ the document that owns it, and those documents are authoritative:
 
 ## No human reviews this
 
-Two agents advance this repository: Claude Opus 5 and Codex GPT-5.6 Sol. They
-choose the work, freeze the contracts, implement, review each other, and merge —
-including through the owner ruleset bypass that a protected-surface change
-requires. The maintainer sets direction and does not read diffs.
+Two agents advance this repository — Claude Opus 5 and Codex GPT-5.6 Sol — and
+merge their own work, including through the owner bypass a protected-surface
+change needs. The maintainer sets direction and does not read diffs.
 
-That is a premise, not an aspiration, and it is what makes every rule below
-binding rather than advisory. Elsewhere a missed review is caught downstream by
-a person; here there is no downstream. **Cross-review is not one safeguard among
-several. It is the only one.** The same holds for the capability matrix: nobody
-will notice a row that claims more than its manifest, so an overstated row ships.
+So there is no downstream. **Cross-review is not one safeguard among several; it
+is the only one**, and an overstated capability row ships unnoticed. Skipping the
+outside review deletes the review layer, however small the change looked.
 
-Two consequences follow, and neither is optional.
-
-1. An agent that skips the outside review has removed the entire review layer,
-   however small the change looked. "This is obviously fine" is exactly the
-   judgement the gate exists to distrust, and it is unfalsifiable from inside.
-2. Confidence is not evidence. Where an agent is sure and has not checked, it
-   writes that it has not checked. A claim whose support is an agent's
-   recollection is worth less than an absent claim, because an absent claim
-   invites verification and a confident one suppresses it.
+Confidence is not evidence. Where you are sure and have not checked, write that
+you have not checked: an absent claim invites verification, a confident one
+suppresses it.
 
 ## Run every lane that can run
 
-Wall-clock time to a working platform is the scarce resource. Token cost is not,
-and neither is the number of agents in flight. Do not serialize work to be
-careful; serialize it only when it cannot be parallel.
+Wall-clock to a working platform is the scarce resource; tokens and agent count
+are not. Start a lane when, and only when, both hold:
 
-A lane may start when both hold, and must start when both hold:
-
-- its writable paths are disjoint from every lane already in flight, and
+- its writable paths are disjoint from every lane in flight, and
 - its contract is frozen — bounded claim, non-claims, pre-committed oracle,
-  writable-path allowlist, and the integrator decisions the implementer must not
-  revisit.
+  writable-path allowlist, and the decisions the implementer must not revisit.
 
-Nothing else is a reason to wait. Waiting for a merge that does not touch your
-paths, or for a measurement that does not change your contract, is lost time.
+Those two conditions are what keep rework out; a lane started without them costs
+a cycle, not a saving. Beyond them nothing is a reason to wait. Waiting on a
+merge that does not touch your paths is lost time.
 
-The two failure modes that actually cost cycles here are not slowness:
-
-1. **Dispatching against an unfrozen contract.** An implementer that has to guess
-   a tolerance or a rule ID either guesses wrong or stops, and either way the
-   round trip is spent. Freeze it first; a contract is cheap and a cycle is not.
-2. **Rework from a wrong premise.** Prefer the check that would falsify the
-   premise over the work that assumes it. Cheap checks first, always.
+Prefer the cheap check that would falsify a premise over the work that assumes
+it.
 
 ## Structure outranks speed, every time
 
-The section above buys wall-clock by running lanes at once. That is the only
-kind of speed this repository accepts, because parallelism spends agents rather
-than structure. Speed bought by cutting structure is never accepted.
+Parallelism is the only accepted speed, because it spends agents rather than
+structure. A slow slice costs twice as long once, visibly. A structure that
+makes every later slice harder compounds forever and bills nobody — the agent
+taking the shortcut is not the one who pays. More lanes sharpen this: each sees
+only its own cost, so the locally cheapest move is to widen something shared.
 
-The asymmetry is the whole reason. A slice that takes twice as long costs twice
-as long, once, and the bill is visible. A structure that makes every later slice
-slightly harder costs forever, compounds, and no one is billed — the agent that
-took the shortcut is not the agent that pays. Many parallel lanes make this
-worse, not better: each lane sees only its own cost, and the locally cheapest
-move is almost always to widen something shared.
+When a predicate, budget, or oracle blocks a lane, the lane changes, not the gate:
 
-So when a predicate, a budget, or an oracle stands between a lane and its
-finish, the lane changes, not the gate:
+- a file over its ceiling is **split**, then the ceiling ratchets down to match;
+- a nameable glob re-export is **replaced by named items**, not re-registered;
+- an unsatisfiable oracle is **returned with the argument**, not relaxed;
+- a claim is **narrowed to what was shown**, never widened to what was built.
 
-- a file over its ceiling is **split**, and the ceiling then ratchets down to
-  what the split achieved. It is not raised because the slice is nearly done;
-- a glob re-export is **replaced by named items**, not registered as a new glob
-  identity, when what is forwarded is nameable;
-- an oracle that an implementation cannot satisfy is **returned with the
-  argument**, not relaxed. If the oracle is genuinely wrong the contract owner
-  replaces it and says why;
-- a claim is **narrowed to what was shown**, never widened to cover what was
-  built.
-
-Raising a ceiling or adding a debt entry stays permitted, because a rule that
-cannot bend gets routed around. It is an architecture change, reviewed as one,
-carrying a reason and a deletion condition — never a step inside an ordinary
-slice.
+Raising a ceiling stays permitted as a reviewed architecture change with a reason
+and a deletion condition — never a step inside an ordinary slice.
 
 ## Measure the thing you are reasoning about
 
-A number taken in one environment is not evidence about another. Local
-wall-clock does not predict hosted wall-clock, a development profile does not
-predict `opt-level=1`, and an aborted run is not a completed one. State the
-environment beside the number, or do not state the number.
+A number from one environment is not evidence about another. Local wall-clock
+does not predict hosted, a development profile does not predict `opt-level=1`,
+and an aborted run is not a completed one. State the environment beside the
+number or omit the number, and reproduce the hosted profile with the prefix in
+[local verification](docs/development/local-verification.md) before quoting a
+timing that informs a hosted decision.
 
-Reproduce the hosted build profile with the prefix documented in
-[local verification](docs/development/local-verification.md) before quoting any
-timing that will inform a hosted decision.
+Run the repository's own gate, not an equivalent you assembled. What a
+hand-written command list omits — packaged-tree behaviour, the interpreter
+matrix, the CI contracts — is where the defects that reach CI live.
 
-Run the repository's own gate rather than an equivalent you assembled. The tiers
-exist because they select what a hand-written command list omits, and what they
-omit is where the defects that reach CI actually live: packaged-tree behaviour,
-the interpreter matrix, and the CI contracts themselves.
+## Improve these instructions, at constant size
+
+When cross-review, a gate, or CI teaches something an agent could not have
+inferred, write it here in the same change. A lesson left in a pull-request body
+is lost.
+
+This file is loaded into every session and competes with the work for attention,
+so it holds a **hard budget of 200 lines**. Adding requires removing: find the
+line whose deletion would no longer cause a mistake, and delete it. If nothing
+qualifies, the lesson belongs in the document that owns the topic, linked from
+here rather than restated.
 
 ## Claims are part of the implementation
 
