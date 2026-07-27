@@ -1,15 +1,15 @@
 //! Coherent-SI reference realization of the fixed-domain transient flow subset.
 
+mod boundary;
+
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::SimplicialMeshEnvelopeV1;
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, RawId, ValueShape};
-use eqiora_meshing::{
-    MeshTopology, SimplicialMesh, simplex_centroid_rule, triangle_duffy_gauss_legendre,
-};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
+use eqiora_meshing::{SimplicialMesh, simplex_centroid_rule, triangle_duffy_gauss_legendre};
 use eqiora_realization::{
     AlgebraicBlock, AlgebraicBlockScale, AlgebraicConstraint, BackwardEulerRelationStep,
     CoordinateTreatment, Discretization, DiscretizationMethod, EnergySkewConvection,
@@ -21,7 +21,6 @@ use eqiora_realization::{
     SystemBlock, Target, TransformationNode, TransientFieldwiseRealizationPlan,
     TransientFieldwiseRealizationRequirements, VectorLayoutKind,
 };
-use eqiora_schema::kernel::ValueFrame;
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, ScalarType, SolverPlan};
 
@@ -30,35 +29,18 @@ use super::{
     IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
     lower_transient_incompressible_navier_stokes_cartesian_2d,
 };
-use crate::discrete_block::{
-    AlgebraicClosure, AuxiliaryBlock, BlockRealizationIdentity, BlockSupport, BlockTransformation,
-    ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, FieldBlock,
-    FieldBlockRole, RelationBlock, RelationDisposition, ResidualBlock, ResidualOrigin,
-};
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_navier_stokes::{
     SimplicialMiniNavierStokesState2d, SimplicialMiniNavierStokesStepEvidence2d,
     advance_simplicial_mini_navier_stokes_2d_with_assembly,
 };
 use crate::simplicial_stokes::{
-    SimplicialMiniStokesBoundary2d, SimplicialMiniStokesPressureReference2d,
-    SimplicialMiniVelocityField2d,
+    SimplicialMiniStokesPressureReference2d, SimplicialMiniVelocityField2d,
 };
 use crate::step_count::NonZeroStepCount;
 
 const DIMENSION: usize = 2;
 const DUFFY_POINTS_PER_AXIS: usize = 5;
-const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const PRESSURE: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -2,
-    ..DimExponents::DIMENSIONLESS
-};
 
 /// Repeated-step request, deliberately separate from Realization identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -233,6 +215,10 @@ pub fn transient_navier_stokes_mini_plan_2d(
 ) -> Result<TransientFieldwiseRealizationPlan, Diagnostic> {
     let velocity = velocity_id(model);
     let pressure = pressure_id(model);
+    let with_gauge = boundary::pressure_uses_gauge(model)?;
+    let constraints = with_gauge
+        .then_some(AlgebraicConstraint::ZeroIntegral { field: pressure })
+        .into_iter();
     let spatial = FieldwiseSpatialDiscretization::new(
         domain_id(model),
         PositivePhysicalScale::new(scales.length()).map_err(realization_error)?,
@@ -240,7 +226,7 @@ pub fn transient_navier_stokes_mini_plan_2d(
             FieldSpaceBinding::new(velocity, Space::simplex_p1_bubble()),
             FieldSpaceBinding::new(pressure, Space::continuous_lagrange(NonZeroU16::MIN)),
         ],
-        [AlgebraicConstraint::ZeroIntegral { field: pressure }],
+        constraints,
         Discretization::new(
             DiscretizationMethod::ContinuousGalerkin,
             MeshPolicy::ImportedSimplicial { artifact: mesh },
@@ -251,21 +237,24 @@ pub fn transient_navier_stokes_mini_plan_2d(
         ),
     )
     .map_err(realization_error)?;
+    let mut block_scales = vec![
+        AlgebraicBlockScale::new(
+            AlgebraicBlock::Field(velocity),
+            PositivePhysicalScale::new(scales.velocity()).map_err(realization_error)?,
+        ),
+        AlgebraicBlockScale::new(
+            AlgebraicBlock::Field(pressure),
+            PositivePhysicalScale::new(scales.pressure()).map_err(realization_error)?,
+        ),
+    ];
+    if with_gauge {
+        block_scales.push(AlgebraicBlockScale::new(
+            AlgebraicBlock::ConstraintMultiplier { field: pressure },
+            PositivePhysicalScale::new(scales.gauge()).map_err(realization_error)?,
+        ));
+    }
     let scaling = SymmetricCongruenceScaling::new(
-        [
-            AlgebraicBlockScale::new(
-                AlgebraicBlock::Field(velocity),
-                PositivePhysicalScale::new(scales.velocity()).map_err(realization_error)?,
-            ),
-            AlgebraicBlockScale::new(
-                AlgebraicBlock::Field(pressure),
-                PositivePhysicalScale::new(scales.pressure()).map_err(realization_error)?,
-            ),
-            AlgebraicBlockScale::new(
-                AlgebraicBlock::ConstraintMultiplier { field: pressure },
-                PositivePhysicalScale::new(scales.gauge()).map_err(realization_error)?,
-            ),
-        ],
+        block_scales,
         PositivePhysicalScale::new(scales.weak_functional()).map_err(realization_error)?,
     )
     .map_err(realization_error)?;
@@ -414,7 +403,7 @@ pub fn advance_resolved_transient_navier_stokes_mini_2d_with_assembly(
         ));
     }
     let model = lower_transient_incompressible_navier_stokes_cartesian_2d(program)?;
-    require_complete_zero_trace(&model)?;
+    let with_gauge = boundary::pressure_uses_gauge(&model)?;
     let realization_graph = resolved.portable_graph()?;
     let (scales, numerical_plan) =
         require_exact_transient_plan(&model, resolved, &realization_graph, mesh_artifact)?;
@@ -437,10 +426,12 @@ pub fn advance_resolved_transient_navier_stokes_mini_2d_with_assembly(
         scales.length_value(),
         "Navier--Stokes",
     )?;
-    let numerical_initial = normalize_state(&initial, &normalized.mesh, scales)?;
-    let boundary = SimplicialMiniStokesBoundary2d::all_essential(&normalized.mesh)
-        .map_err(|error| invalid_realization(error.message()))?;
-    let block_system = transient_block_system(
+    let boundary = boundary::numerical_boundary(&model, &normalized)?;
+    if with_gauge {
+        boundary::require_compatible_complete_trace(&model, &normalized, scales)?;
+    }
+    let numerical_initial = normalize_state(&initial, &normalized.mesh, scales, with_gauge)?;
+    let block_system = super::block::transient_navier_stokes_block_system(
         program,
         &model,
         mesh_artifact,
@@ -461,11 +452,12 @@ pub fn advance_resolved_transient_navier_stokes_mini_2d_with_assembly(
         let force = model.conservative_body_force(&coordinate)?;
         Ok([length * force[0] / pressure, length * force[1] / pressure])
     };
-    let zero_velocity = |_| Ok([0.0; DIMENSION]);
+    let essential_velocity =
+        |coordinate_hat| boundary::essential_velocity(&model, scales, coordinate_hat);
     let numerical = advance_simplicial_mini_navier_stokes_2d_with_assembly(
         &normalized.mesh,
         &boundary,
-        &zero_velocity,
+        &essential_velocity,
         &body_force,
         numerical_initial,
         run.step_count,
@@ -503,6 +495,7 @@ fn normalize_state(
     state: &TransientNavierStokesInitialState2d,
     mesh: &SimplicialMesh,
     scales: IncompressibleFlowScaleProfile2d,
+    with_gauge: bool,
 ) -> Result<SimplicialMiniNavierStokesState2d, Diagnostic> {
     let velocity = SimplicialMiniVelocityField2d::new(
         mesh.clone(),
@@ -538,15 +531,18 @@ fn normalize_state(
             .map(|value| value / scales.pressure_value())
             .collect(),
     )?;
-    let pressure_reference = match state.pressure_reference {
-        super::SteadyStokesPressureReference2d::ZeroIntegral { multiplier } => {
+    let pressure_reference = match (state.pressure_reference, with_gauge) {
+        (super::SteadyStokesPressureReference2d::ZeroIntegral { multiplier }, true) => {
             SimplicialMiniStokesPressureReference2d::ZeroIntegral {
                 multiplier: multiplier / scales.gauge_value(),
             }
         }
-        super::SteadyStokesPressureReference2d::BoundaryTraction => {
+        (super::SteadyStokesPressureReference2d::BoundaryTraction, false) => {
+            SimplicialMiniStokesPressureReference2d::BoundaryTraction
+        }
+        _ => {
             return Err(invalid_realization(
-                "complete zero-velocity boundary requires a zero-integral initial pressure policy",
+                "transient initial pressure closure differs from the boundary-determined pressure regime",
             ));
         }
     };
@@ -606,9 +602,7 @@ fn reconstruct_state(
             }
         }
         SimplicialMiniStokesPressureReference2d::BoundaryTraction => {
-            return Err(invalid_realization(
-                "reference transient reconstruction lost its zero-integral pressure policy",
-            ));
+            super::SteadyStokesPressureReference2d::BoundaryTraction
         }
     };
     let time = DynQuantity::new(
@@ -658,6 +652,7 @@ fn require_exact_transient_plan(
     ),
     Diagnostic,
 > {
+    let with_gauge = boundary::pressure_uses_gauge(model)?;
     let expected_requirements = transient_navier_stokes_fieldwise_requirements_2d(model);
     if resolved.requirements() != &expected_requirements {
         return Err(invalid_realization(
@@ -716,8 +711,10 @@ fn require_exact_transient_plan(
     let mut expected_blocks = vec![
         AlgebraicBlock::Field(velocity),
         AlgebraicBlock::Field(pressure),
-        AlgebraicBlock::ConstraintMultiplier { field: pressure },
     ];
+    if with_gauge {
+        expected_blocks.push(AlgebraicBlock::ConstraintMultiplier { field: pressure });
+    }
     expected_blocks.sort_by_key(|block| match *block {
         AlgebraicBlock::Field(field) => (0_u8, field.ulid()),
         AlgebraicBlock::ConstraintMultiplier { field } => (1_u8, field.ulid()),
@@ -730,7 +727,7 @@ fn require_exact_transient_plan(
         || system.partition() != VectorLayoutKind::Replicated
     {
         return Err(invalid_realization(
-            "transient flow requires exact MINI/P1, zero-integral, replicated-f64 monolithic Realization graph choices",
+            "transient flow requires exact MINI/P1, boundary-selected pressure closure, replicated-f64 monolithic Realization graph choices",
         ));
     }
     let SolveRoot::Nonlinear(nonlinear_id) = graph.root() else {
@@ -812,7 +809,8 @@ fn require_exact_transient_plan(
         scale_for(AlgebraicBlock::Field(velocity))?,
         scale_for(AlgebraicBlock::Field(pressure))?,
     )?;
-    if scale_for(AlgebraicBlock::ConstraintMultiplier { field: pressure })? != scales.gauge()
+    if (with_gauge
+        && scale_for(AlgebraicBlock::ConstraintMultiplier { field: pressure })? != scales.gauge())
         || system
             .congruence_scaling()
             .ok_or_else(|| {
@@ -823,7 +821,7 @@ fn require_exact_transient_plan(
             != scales.weak_functional()
     {
         return Err(invalid_realization(
-            "transient plan gauge or weak-functional scale is not derived exactly from L/U/P",
+            "transient plan pressure-closure or weak-functional scale is not derived exactly from L/U/P",
         ));
     }
     let nonlinear = nonlinear_node.plan();
@@ -845,229 +843,6 @@ fn require_exact_transient_plan(
     )
     .map_err(|error| invalid_realization(error.message()))?;
     Ok((scales, numerical))
-}
-
-fn transient_block_system(
-    program: &KernelProgram,
-    model: &TransientIncompressibleNavierStokesCartesianModel2d,
-    mesh_artifact: MeshArtifactReference,
-    mesh: &SimplicialMesh,
-    boundary: &SimplicialMiniStokesBoundary2d,
-    resolved: &ResolvedTransientFieldwiseRealization,
-    scales: IncompressibleFlowScaleProfile2d,
-) -> Result<DiscreteBlockSystem, Diagnostic> {
-    let domain = downcast::<kinds::Domain>(model.domain(), "Domain")?;
-    let velocity = downcast::<kinds::Field>(model.velocity(), "velocity Field")?;
-    let pressure = downcast::<kinds::Field>(model.pressure(), "pressure Field")?;
-    let force = downcast::<kinds::Field>(model.force_potential(), "force-potential Field")?;
-    let momentum = downcast::<kinds::Relation>(model.momentum_relation(), "momentum Relation")?;
-    let incompressibility = downcast::<kinds::Relation>(
-        model.incompressibility_relation(),
-        "incompressibility Relation",
-    )?;
-    let force_definition = downcast::<kinds::Relation>(
-        model.force_potential_definition(),
-        "force-potential definition Relation",
-    )?;
-    let fields = vec![
-        FieldBlock::discrete(
-            domain,
-            velocity,
-            Space::simplex_p1_bubble(),
-            ValueShape::new([2_u32]).expect("2D velocity shape is representable"),
-            VELOCITY,
-            ValueFrame::SpatialCartesian,
-            scales.velocity(),
-            FieldBlockRole::Algebraic,
-        )?,
-        FieldBlock::discrete(
-            domain,
-            pressure,
-            Space::continuous_lagrange(NonZeroU16::MIN),
-            ValueShape::scalar(),
-            PRESSURE,
-            ValueFrame::Invariant,
-            scales.pressure(),
-            FieldBlockRole::Algebraic,
-        )?,
-        FieldBlock::coefficient(
-            domain,
-            force,
-            ValueShape::scalar(),
-            PRESSURE,
-            ValueFrame::Invariant,
-        ),
-    ];
-    let constraint = AlgebraicConstraint::ZeroIntegral { field: pressure };
-    let auxiliaries = vec![AuxiliaryBlock::new(constraint, scales.gauge())?];
-    let mut relations = vec![
-        RelationBlock::new(
-            force_definition,
-            BlockSupport::Volume(domain),
-            RelationDisposition::CoefficientDefinition { field: force },
-        ),
-        RelationBlock::new(
-            momentum,
-            BlockSupport::Volume(domain),
-            RelationDisposition::Residual {
-                tested: AlgebraicBlock::Field(velocity),
-            },
-        ),
-        RelationBlock::new(
-            incompressibility,
-            BlockSupport::Volume(domain),
-            RelationDisposition::Residual {
-                tested: AlgebraicBlock::Field(pressure),
-            },
-        ),
-    ];
-    let mut essential_relations = Vec::new();
-    for binding in model.boundary_relations() {
-        let relation = downcast::<kinds::Relation>(binding.relation(), "boundary Relation")?;
-        let support = downcast::<kinds::Domain>(binding.boundary(), "boundary Domain")?;
-        essential_relations.push(relation);
-        relations.push(RelationBlock::new(
-            relation,
-            BlockSupport::Boundary(support),
-            RelationDisposition::BoundaryCondition {
-                field: velocity,
-                treatment: crate::discrete_block::BoundaryTreatment::EssentialElimination,
-            },
-        ));
-    }
-    let residuals = vec![
-        ResidualBlock::new(
-            AlgebraicBlock::Field(velocity),
-            BlockSupport::Volume(domain),
-            [ResidualOrigin::Relation(momentum)],
-        )?,
-        ResidualBlock::new(
-            AlgebraicBlock::Field(pressure),
-            BlockSupport::Volume(domain),
-            [ResidualOrigin::Relation(incompressibility)],
-        )?,
-        ResidualBlock::new(
-            AlgebraicBlock::ConstraintMultiplier { field: pressure },
-            BlockSupport::Volume(domain),
-            [ResidualOrigin::AlgebraicConstraint(constraint)],
-        )?,
-    ];
-    let transformations = vec![
-        BlockTransformation::EssentialElimination {
-            field: velocity,
-            boundary_relations: essential_relations.clone(),
-        },
-        BlockTransformation::BackwardEulerDerivative {
-            relation: momentum,
-            state: velocity,
-            duration: resolved.plan().time_step().duration(),
-        },
-        BlockTransformation::EnergySkewConvection {
-            relation: momentum,
-            velocity,
-        },
-    ];
-    let closures = vec![
-        AlgebraicClosure::EssentialBoundary {
-            field: velocity,
-            relations: essential_relations,
-        },
-        AlgebraicClosure::ZeroIntegral { field: pressure },
-    ];
-    let cell_count = mesh
-        .entity_count(DIMENSION)
-        .expect("accepted 2D mesh owns cells");
-    let parameters = parameter_inventory([
-        model.mass_density_expression().parameter_fields(),
-        model.dynamic_viscosity_expression().parameter_fields(),
-        model.force_potential_expression().parameter_fields(),
-    ]);
-    let contributions = vec![
-        ContributionBatch::new(
-            [BlockSupport::Volume(domain)],
-            0..cell_count,
-            [0, 1],
-            [
-                ResidualOrigin::Relation(force_definition),
-                ResidualOrigin::Relation(momentum),
-                ResidualOrigin::Relation(incompressibility),
-            ],
-            parameters,
-            [
-                AlgebraicBlock::Field(velocity),
-                AlgebraicBlock::Field(pressure),
-            ],
-            [
-                AlgebraicBlock::Field(velocity),
-                AlgebraicBlock::Field(pressure),
-            ],
-            [
-                ContributionTerm::Mass,
-                ContributionTerm::Advection,
-                ContributionTerm::Stiffness,
-                ContributionTerm::MixedConstraint,
-                ContributionTerm::Load,
-            ],
-        )?,
-        ContributionBatch::new(
-            [BlockSupport::Volume(domain)],
-            cell_count..2 * cell_count,
-            [0, 1],
-            [ResidualOrigin::AlgebraicConstraint(constraint)],
-            [],
-            [
-                AlgebraicBlock::Field(pressure),
-                AlgebraicBlock::ConstraintMultiplier { field: pressure },
-            ],
-            [
-                AlgebraicBlock::Field(pressure),
-                AlgebraicBlock::ConstraintMultiplier { field: pressure },
-            ],
-            [ContributionTerm::AlgebraicConstraint],
-        )?,
-    ];
-    let expected_packets = 2 * cell_count;
-    if boundary.facets().is_empty() {
-        return Err(invalid_realization(
-            "transient block system requires a nonempty boundary closure",
-        ));
-    }
-    DiscreteBlockSystem::new(
-        DiscreteBlockContext::new(
-            program.model(),
-            eqiora_realization::SemanticRevision::new(program.revision().0),
-            BlockRealizationIdentity::Explicit(resolved.realization_revision()),
-            Some(mesh_artifact),
-        ),
-        fields,
-        auxiliaries,
-        relations,
-        residuals,
-        transformations,
-        closures,
-        contributions,
-        expected_packets,
-        2,
-        0,
-        LinearOperatorProperties::General,
-    )
-}
-
-fn parameter_inventory<'a>(
-    fields: impl IntoIterator<Item = &'a [Id<kinds::Parameter>]>,
-) -> Vec<Id<kinds::Parameter>> {
-    let mut result = fields.into_iter().flatten().copied().collect::<Vec<_>>();
-    result.sort_by_key(Id::ulid);
-    result.dedup();
-    result
-}
-
-fn downcast<E: eqiora_core::Entity>(id: RawId, label: &str) -> Result<Id<E>, Diagnostic> {
-    id.downcast::<E>().ok_or_else(|| {
-        invalid_realization(format!(
-            "transient Navier--Stokes block inventory expected {label} identity, received {id}"
-        ))
-    })
 }
 
 fn domain_id(model: &TransientIncompressibleNavierStokesCartesianModel2d) -> Id<kinds::Domain> {

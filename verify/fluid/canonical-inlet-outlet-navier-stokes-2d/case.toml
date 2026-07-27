@@ -1,0 +1,54 @@
+id = "fluid.canonical-inlet-outlet-navier-stokes-2d"
+status = "verified"
+scope = "canonical-transient-mini-nonzero-essential-and-constant-traction-boundary-2d"
+reference_kind = "registered-structural-and-executable-boundary-oracle"
+
+capabilities = [
+  "canonical-nonzero-essential-velocity-2d",
+  "canonical-constant-traction-facets-2d",
+  "boundary-selected-pressure-reference",
+  "preassembly-incompressible-flux-compatibility",
+]
+
+[problem]
+domain = "[0 m, 1 m] x [0 m, 1 m]"
+density = "1e-10 kg/m^3"
+dynamic_viscosity = "0.05 kg/(m s)"
+boundary = "0.1 m/s parabolic parent-inward normal inlet, zero constant-traction outlet, homogeneous walls"
+steps = 1
+time_step = "0.01 s"
+
+[acceptance]
+nonzero_essential_and_constant_traction_advance_together = true
+nonzero_parent_outward_flux_rejected_before_assembly = true
+all_traction_translation_mode_rejected = true
+complete_nonoverlapping_boundary_partition_required = true
+homogeneous_registered_evidence_exactly_unchanged = true
+traction_pressure_has_no_gauge_row = true
+all_essential_pressure_has_and_uses_gauge_row = true
+
+[falsifiers]
+nonzero_net_parent_outward_flux = "reject-before-assembly"
+all_traction_boundary = "reject-before-mesh-or-assembly"
+uncovered_boundary_side = "reject-canonical-lowering"
+overlapping_boundary_conditions = "reject-canonical-lowering"
+
+[claim_boundary]
+intrinsic_dimension = 2
+fixed_affine_triangle_mesh = true
+box_domain_only = true
+mini_p1_only = true
+constant_zero_traction_only = true
+normal_scalar_prescribed_velocity_only = true
+low_inertia_registered_run = true
+geometry_artifact = false
+drag_or_lift = false
+published_benchmark = false
+curved_boundary = false
+new_solver_or_element = false
+model_wire_change = false
+
+[evidence]
+package = "eqiora"
+test = "canonical_inlet_outlet_navier_stokes_2d"
+features = ["faer"]

@@ -15,10 +15,11 @@ use crate::canonical_boundary::{
 };
 use crate::spatial_expression::ScalarSpatialExpression;
 
+use super::expression::load_definition_root;
 use super::expression::lower_newtonian_stress_viscosity;
 use super::support::{
     is_field, lowering_error, relation_expression, relations_on, require_continuous_relation,
-    typed_relation,
+    typed_relation, unique_root,
 };
 
 #[derive(Debug)]
@@ -26,6 +27,10 @@ pub(crate) struct LoweredStokesBoundary<const D: usize> {
     pub(crate) inventory: CartesianBoundaryInventory<D>,
     pub(crate) normal_pressure_sources:
         BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), NormalPressureSource2d>,
+    pub(crate) normal_velocity_expressions:
+        BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), ScalarSpatialExpression>,
+    pub(crate) normal_velocity_fields: BTreeSet<RawId>,
+    pub(crate) normal_velocity_definitions: BTreeSet<RawId>,
     pub(crate) relations: BTreeSet<RawId>,
     pub(crate) boundary_relations: Vec<BoundaryRelationBinding>,
     pub(crate) ports: BTreeSet<RawId>,
@@ -76,6 +81,9 @@ pub(super) fn lower_dimension<const D: usize>(
     let exact_boundaries = exact_cartesian_boundaries::<D>(program, domain)?;
     let mut entries = BTreeMap::new();
     let mut normal_pressure_sources = BTreeMap::new();
+    let mut normal_velocity_expressions = BTreeMap::new();
+    let mut normal_velocity_fields = BTreeSet::new();
+    let mut normal_velocity_definitions = BTreeSet::new();
     let mut admitted_relations = BTreeSet::new();
     let mut boundary_relations = BTreeSet::new();
     let mut admitted_ports = BTreeSet::new();
@@ -141,6 +149,19 @@ pub(super) fn lower_dimension<const D: usize>(
         if let Some(normal_pressure) = candidate.normal_pressure {
             normal_pressure_sources.insert((axis, side), normal_pressure);
         }
+        if let PhysicalBoundaryDisposition::Prescribed(law) = candidate.disposition
+            && law.quantity() == PhysicalBoundaryQuantity::Trace
+        {
+            let (expression, field, definition) = prescribed_normal_velocity_expression::<D>(
+                program,
+                law.relation(),
+                velocity,
+                domain,
+            )?;
+            normal_velocity_expressions.insert((axis, side), expression);
+            normal_velocity_fields.insert(field);
+            normal_velocity_definitions.insert(definition);
+        }
         entries.insert(
             (axis, side),
             CartesianBoundaryEntry::new(boundary, candidate.disposition),
@@ -150,6 +171,9 @@ pub(super) fn lower_dimension<const D: usize>(
     Ok(LoweredStokesBoundary {
         inventory: CartesianBoundaryInventory::new(entries),
         normal_pressure_sources,
+        normal_velocity_expressions,
+        normal_velocity_fields,
+        normal_velocity_definitions,
         relations: admitted_relations,
         boundary_relations: boundary_relations.into_iter().collect(),
         ports: admitted_ports,
@@ -170,6 +194,15 @@ fn direct_disposition(
     let [root] = expression.roots() else {
         return Ok(None);
     };
+    if prescribed_normal_velocity_parts(program, expression, *root, velocity, relation)?.is_some() {
+        return Ok(Some(BoundaryCandidate {
+            disposition: PhysicalBoundaryDisposition::Prescribed(PrescribedBoundaryLaw::new(
+                PhysicalBoundaryQuantity::Trace,
+                relation,
+            )),
+            normal_pressure: None,
+        }));
+    }
     match expression.node(*root) {
         Some(ExprNode::Trace(value)) if is_field(expression, *value, velocity) => {
             Ok(Some(BoundaryCandidate {
@@ -262,11 +295,8 @@ fn normalized_pressure_source(
         PhysicalBoundaryDisposition::TraceZero => Ok(None),
         PhysicalBoundaryDisposition::FluxZero => Ok(Some(NormalPressureSource2d::Zero)),
         PhysicalBoundaryDisposition::Prescribed(law) => {
-            if law.quantity() != PhysicalBoundaryQuantity::Flux {
-                return Err(lowering_error(
-                    law.relation(),
-                    "steady Stokes does not yet admit a nonzero prescribed velocity trace",
-                ));
+            if law.quantity() == PhysicalBoundaryQuantity::Trace {
+                return Ok(None);
             }
             let expression = relation_expression(program, law.relation())?;
             let typed = typed_relation(program, law.relation())?;
@@ -310,6 +340,112 @@ fn normalized_pressure_source(
             }))
         }
         PhysicalBoundaryDisposition::PortBinding { .. } => Ok(None),
+    }
+}
+
+fn prescribed_normal_velocity_expression<const D: usize>(
+    program: &KernelProgram,
+    relation: RawId,
+    velocity: RawId,
+    domain: RawId,
+) -> Result<(ScalarSpatialExpression, RawId, RawId), Diagnostic> {
+    let expression = relation_expression(program, relation)?;
+    let [root] = expression.roots() else {
+        return Err(lowering_error(
+            relation,
+            "prescribed velocity trace requires exactly one residual root",
+        ));
+    };
+    let Some((value, sign)) =
+        prescribed_normal_velocity_parts(program, expression, *root, velocity, relation)?
+    else {
+        return Err(lowering_error(
+            relation,
+            "prescribed velocity trace must be the parent-outward normal of one scalar isotropic lift",
+        ));
+    };
+    let Some(ExprNode::Symbol(SymbolRef::Field(field))) = expression.node(value) else {
+        return Err(lowering_error(
+            relation,
+            "prescribed normal velocity must use one scalar volume coefficient Field",
+        ));
+    };
+    let field = field.erase();
+    let candidates = relations_on(program, domain)
+        .into_iter()
+        .filter_map(|definition| {
+            let definition_expression = relation_expression(program, definition).ok()?;
+            let root = unique_root(definition_expression, definition).ok()?;
+            load_definition_root(definition_expression, root, field)
+                .map(|source| (definition, source))
+        })
+        .collect::<Vec<_>>();
+    if candidates.len() != 1 {
+        return Err(lowering_error(
+            field,
+            format!(
+                "prescribed normal-velocity coefficient Field requires exactly one scalar definition Relation, found {}",
+                candidates.len()
+            ),
+        ));
+    }
+    let (definition, source) = candidates[0];
+    require_continuous_relation(program, definition)?;
+    let expression = crate::spatial_expression::lower(
+        program,
+        relation_expression(program, definition)?,
+        source,
+        definition,
+        D,
+    )?
+    .multiply(ScalarSpatialExpression::constant(D, sign));
+    Ok((expression, field, definition))
+}
+
+fn prescribed_normal_velocity_parts(
+    program: &KernelProgram,
+    expression: &ExprDag,
+    root: ExprId,
+    velocity: RawId,
+    relation: RawId,
+) -> Result<Option<(ExprId, f64)>, Diagnostic> {
+    let (left, right, sign) = match expression.node(root) {
+        Some(ExprNode::Add(left, right)) => (*left, *right, -1.0),
+        Some(ExprNode::Sub(left, right)) => (*left, *right, 1.0),
+        _ => return Ok(None),
+    };
+    for (trace, normal) in [(left, right), (right, left)] {
+        if !is_velocity_or_port_trace(expression, trace, velocity) {
+            continue;
+        }
+        let Some(ExprNode::NormalComponent(tensor)) = expression.node(normal) else {
+            continue;
+        };
+        let typed = typed_relation(program, relation)?;
+        let Some(proof) =
+            OperatorApplicationProof::classify(&typed, *tensor, StandardPureOperator::IsotropicLift)
+                .map_err(|error| {
+                    lowering_error(
+                        relation,
+                        format!(
+                            "prescribed velocity isotropic-lift proof failed at expression node {}: {error}",
+                            tensor.index()
+                        ),
+                    )
+                })?
+        else {
+            continue;
+        };
+        return Ok(Some((proof.operand(), sign)));
+    }
+    Ok(None)
+}
+
+fn is_velocity_or_port_trace(expression: &ExprDag, value: ExprId, velocity: RawId) -> bool {
+    match expression.node(value) {
+        Some(ExprNode::Trace(field)) => is_field(expression, *field, velocity),
+        Some(ExprNode::Symbol(SymbolRef::PortTrace(_))) => true,
+        _ => false,
     }
 }
 
