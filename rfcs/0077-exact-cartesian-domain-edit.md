@@ -1,4 +1,4 @@
-# RFC 0075: Exact topology-preserving Cartesian Domain edit
+# RFC 0077: Exact topology-preserving Cartesian Domain edit
 
 - Status: Accepted; bounded implementation verified in
   [`geometry.cartesian-domain-edit-3d`](../verify/geometry/cartesian-domain-edit-3d/README.md)

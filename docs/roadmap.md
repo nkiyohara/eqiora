@@ -63,7 +63,7 @@ finite-volume extensions in
 [RFC 0071](../rfcs/0071-spatial-periodic-boundary-connection.md), and
 [RFC 0072](../rfcs/0072-collocated-incompressible-finite-volume.md), plus the
 bounded immutable geometry edit in
-[RFC 0075](../rfcs/0075-exact-cartesian-domain-edit.md).
+[RFC 0077](../rfcs/0077-exact-cartesian-domain-edit.md).
 
 The CUDA path consumes the CPU-finalized operator; it does not own a second FSI
 lowering. The MPI path consumes accepted owner-row assembly payloads; it does
