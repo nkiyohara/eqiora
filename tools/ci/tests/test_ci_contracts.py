@@ -41,6 +41,31 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertIn("github.event.pull_request.head.sha || inputs.commit", workflow)
         self.assertIn("persist-credentials: false", workflow)
 
+    def test_windows_compile_probe_is_visible_complete_and_non_gating(self) -> None:
+        workflow = (
+            REPOSITORY_ROOT / ".github/workflows/windows-compile-probe.yml"
+        ).read_text(encoding="utf-8")
+        trigger = workflow.split("permissions:", maxsplit=1)[0]
+        command = (
+            "cargo +stable check --workspace --all-targets --all-features "
+            "--locked --keep-going"
+        )
+
+        self.assertIn("workflow_dispatch:", trigger)
+        self.assertIn("schedule:", trigger)
+        self.assertNotIn("pull_request:", trigger)
+        self.assertNotIn("push:", trigger)
+        self.assertIn("runs-on: windows-latest", workflow)
+        self.assertIn("continue-on-error: true", workflow)
+        self.assertEqual(workflow.count(f"run: {command}"), 1)
+        self.assertNotIn("--exclude", workflow)
+        self.assertIn("GITHUB_STEP_SUMMARY", workflow)
+
+        aggregate = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
+            encoding="utf-8"
+        ).split("\n  gate:\n", maxsplit=1)[1]
+        self.assertNotIn("windows", aggregate.lower())
+
     def test_base_owned_trust_workflow_never_checks_out_head_code(self) -> None:
         workflow = (
             REPOSITORY_ROOT / ".github/workflows/ci-definition-trust.yml"

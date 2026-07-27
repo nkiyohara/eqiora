@@ -1,0 +1,48 @@
+name: Windows compile probe
+
+run-name: Windows compile probe / ${{ github.event_name }} / ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-compile-probe
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  compile:
+    name: Windows compile probe
+    runs-on: windows-latest
+    timeout-minutes: 180
+    continue-on-error: true
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Compile every workspace target and feature
+        id: probe
+        run: cargo +stable check --workspace --all-targets --all-features --locked --keep-going
+      - name: Report probe result
+        if: always()
+        shell: pwsh
+        env:
+          PROBE_OUTCOME: ${{ steps.probe.outcome }}
+        run: |
+          @"
+          ## Windows compile probe
+
+          - Result: ``$env:PROBE_OUTCOME``
+          - Command: ``cargo +stable check --workspace --all-targets --all-features --locked --keep-going``
+          - Complete compiler output: open the **Compile every workspace target and feature** step in this run.
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
