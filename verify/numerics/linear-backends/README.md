@@ -30,3 +30,24 @@ cargo run -p eqiora-verify -- run --case numerics.linear-backends
 See [RFC 0010](../../../rfcs/0010-execution-backend-contracts.md) and the
 [backend strategy](../../../docs/development/library-and-accelerator-strategy.md)
 for ownership and graduation rules.
+
+## Pre-committed evidence for an unimplemented capability
+
+`expected/sparse-lu-contract.json` and `oracle/sparse_lu_oracle.py` freeze the
+exact-rational oracle for the proposed `SparseLu` direct algorithm of
+[Issue #126](https://github.com/nkiyohara/eqiora/issues/126). They were written
+by an agent that does not implement the slice, before any implementation
+existed.
+
+They are **not** part of the claim above. No `SparseLu` capability is claimed,
+executed, or verified by this case today: the oracle stands alone, the case
+manifest is unchanged, and nothing in the list above depends on it. The
+implementing agent wires the fixture and updates the manifest and the capability
+matrix in the pull request that adds the implementation.
+
+```bash
+python3 verify/numerics/linear-backends/oracle/sparse_lu_oracle.py --summary
+```
+
+See [the oracle reference](references/sparse-lu-oracle.md) for the witnesses,
+the falsifiers, the fixture digest, and the nonclaims.

@@ -1,0 +1,780 @@
+{
+  "schema": "eqiora.verify.numerics.linear-backends.sparse-lu-oracle/1",
+  "issue": 126,
+  "frozen": true,
+  "authoring": "Committed by a non-implementing oracle author before any SparseLu implementation existed. No Rust source was read while authoring it. The implementing agent may wire this fixture but may not change any value here.",
+  "rational_encoding": "Every non-index numeric value is an object {\"num\": integer, \"den\": integer} in lowest terms with den > 0. The file contains no binary floating-point literal and no tolerance.",
+  "mathematics": {
+    "note": "Facts about the matrices below, independent of Eqiora, verified by re-derivation in the oracle.",
+    "principal": {
+      "description": "Square canonical CSR system A x = b over exact rationals. A is neither structurally nor numerically symmetric, has sorted unique column indices, no structurally empty row, and det A = 64 so x and the transpose solution y are each unique. Every component of x differs from the corresponding component of y, so any storage-orientation confusion is observable in every component rather than in a subset.",
+      "n": 5,
+      "csr": {
+        "index_base": 0,
+        "row_ptr": [
+          0,
+          3,
+          6,
+          9,
+          11,
+          14
+        ],
+        "col_idx": [
+          0,
+          1,
+          3,
+          0,
+          1,
+          2,
+          1,
+          2,
+          4,
+          2,
+          3,
+          0,
+          3,
+          4
+        ],
+        "values": [
+          {
+            "num": 5,
+            "den": 1
+          },
+          {
+            "num": -4,
+            "den": 1
+          },
+          {
+            "num": -3,
+            "den": 1
+          },
+          {
+            "num": -1,
+            "den": 1
+          },
+          {
+            "num": 3,
+            "den": 1
+          },
+          {
+            "num": 2,
+            "den": 1
+          },
+          {
+            "num": -1,
+            "den": 1
+          },
+          {
+            "num": 1,
+            "den": 1
+          },
+          {
+            "num": 1,
+            "den": 1
+          },
+          {
+            "num": -2,
+            "den": 1
+          },
+          {
+            "num": 3,
+            "den": 1
+          },
+          {
+            "num": -1,
+            "den": 1
+          },
+          {
+            "num": 2,
+            "den": 1
+          },
+          {
+            "num": 2,
+            "den": 1
+          }
+        ]
+      },
+      "rhs": [
+        {
+          "num": 16,
+          "den": 1
+        },
+        {
+          "num": -1,
+          "den": 1
+        },
+        {
+          "num": 7,
+          "den": 1
+        },
+        {
+          "num": -9,
+          "den": 1
+        },
+        {
+          "num": 1,
+          "den": 1
+        }
+      ],
+      "solution": [
+        {
+          "num": 1,
+          "den": 1
+        },
+        {
+          "num": -2,
+          "den": 1
+        },
+        {
+          "num": 3,
+          "den": 1
+        },
+        {
+          "num": -1,
+          "den": 1
+        },
+        {
+          "num": 2,
+          "den": 1
+        }
+      ],
+      "transpose_solution": [
+        {
+          "num": 9,
+          "den": 2
+        },
+        {
+          "num": 5,
+          "den": 1
+        },
+        {
+          "num": -2,
+          "den": 1
+        },
+        {
+          "num": 1,
+          "den": 2
+        },
+        {
+          "num": 3,
+          "den": 2
+        }
+      ],
+      "determinant": {
+        "num": 64,
+        "den": 1
+      },
+      "componentwise_solution_difference": [
+        {
+          "num": -7,
+          "den": 2
+        },
+        {
+          "num": -7,
+          "den": 1
+        },
+        {
+          "num": 5,
+          "den": 1
+        },
+        {
+          "num": -3,
+          "den": 2
+        },
+        {
+          "num": 1,
+          "den": 2
+        }
+      ],
+      "structure": {
+        "nnz": 14,
+        "square": true,
+        "sorted_unique_columns": true,
+        "no_structurally_empty_row": true,
+        "diagonal_fully_present": true,
+        "all_stored_values_nonzero": true,
+        "min_column_index": 0,
+        "max_column_index": 4,
+        "structurally_symmetric": false,
+        "numerically_symmetric": false,
+        "pattern_asymmetry_witnesses": [
+          [
+            0,
+            3
+          ],
+          [
+            2,
+            4
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            4,
+            0
+          ],
+          [
+            4,
+            3
+          ]
+        ],
+        "value_asymmetry_witnesses": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "residuals": {
+        "normal_route_squared": {
+          "num": 0,
+          "den": 1
+        },
+        "transpose_route_squared": {
+          "num": 0,
+          "den": 1
+        }
+      },
+      "initial_guesses": {
+        "already_satisfied": {
+          "description": "Exactly the solution: the true residual is exactly zero, so the guess is accepted under any positive tolerance without factorization.",
+          "vector": [
+            {
+              "num": 1,
+              "den": 1
+            },
+            {
+              "num": -2,
+              "den": 1
+            },
+            {
+              "num": 3,
+              "den": 1
+            },
+            {
+              "num": -1,
+              "den": 1
+            },
+            {
+              "num": 2,
+              "den": 1
+            }
+          ],
+          "residual_squared": {
+            "num": 0,
+            "den": 1
+          }
+        },
+        "not_satisfied": {
+          "description": "The zero vector: the true residual equals b, so no positive tolerance below ||b||_2 accepts it.",
+          "vector": [
+            {
+              "num": 0,
+              "den": 1
+            },
+            {
+              "num": 0,
+              "den": 1
+            },
+            {
+              "num": 0,
+              "den": 1
+            },
+            {
+              "num": 0,
+              "den": 1
+            },
+            {
+              "num": 0,
+              "den": 1
+            }
+          ],
+          "residual_squared": {
+            "num": 388,
+            "den": 1
+          }
+        }
+      },
+      "falsifiers": [
+        {
+          "id": "csr-read-as-csc",
+          "kind": "numeric",
+          "detects": "CSR row arrays handed to a column-major (CSC) consumer, which silently transposes the operator.",
+          "misread_matrix_equals_transpose": true,
+          "wrong_vector": [
+            {
+              "num": 9,
+              "den": 2
+            },
+            {
+              "num": 5,
+              "den": 1
+            },
+            {
+              "num": -2,
+              "den": 1
+            },
+            {
+              "num": 1,
+              "den": 2
+            },
+            {
+              "num": 3,
+              "den": 2
+            }
+          ],
+          "residual_squared": {
+            "num": 650,
+            "den": 1
+          }
+        },
+        {
+          "id": "transpose-route-returns-normal-solution",
+          "kind": "numeric",
+          "detects": "A transpose-route solve that returns the normal-route solution.",
+          "wrong_vector": [
+            {
+              "num": 1,
+              "den": 1
+            },
+            {
+              "num": -2,
+              "den": 1
+            },
+            {
+              "num": 3,
+              "den": 1
+            },
+            {
+              "num": -1,
+              "den": 1
+            },
+            {
+              "num": 2,
+              "den": 1
+            }
+          ],
+          "residual_squared": {
+            "num": 386,
+            "den": 1
+          }
+        },
+        {
+          "id": "rhs-permuted",
+          "kind": "numeric",
+          "detects": "Right-hand side reordered relative to the matrix rows.",
+          "permutation": [
+            1,
+            2,
+            3,
+            4,
+            0
+          ],
+          "permuted_rhs": [
+            {
+              "num": -1,
+              "den": 1
+            },
+            {
+              "num": 7,
+              "den": 1
+            },
+            {
+              "num": -9,
+              "den": 1
+            },
+            {
+              "num": 1,
+              "den": 1
+            },
+            {
+              "num": 16,
+              "den": 1
+            }
+          ],
+          "wrong_vector": [
+            {
+              "num": 85,
+              "den": 16
+            },
+            {
+              "num": 57,
+              "den": 4
+            },
+            {
+              "num": -487,
+              "den": 32
+            },
+            {
+              "num": -157,
+              "den": 16
+            },
+            {
+              "num": 655,
+              "den": 32
+            }
+          ],
+          "residual_squared": {
+            "num": 934,
+            "den": 1
+          }
+        },
+        {
+          "id": "one-based-column-indices",
+          "kind": "structural-and-numeric",
+          "detects": "Column indices written or read with a one-based convention.",
+          "shift_down_negative_count": 3,
+          "shift_up_out_of_range_count": 2,
+          "lenient_decode_kept_entries": 11,
+          "lenient_decode_determinant": {
+            "num": 0,
+            "den": 1
+          },
+          "residual_squared": {
+            "num": 1455,
+            "den": 1
+          }
+        },
+        {
+          "id": "omitted-off-diagonal",
+          "kind": "numeric",
+          "detects": "A dropped off-diagonal entry, including the entry that makes the pattern non-structurally-symmetric.",
+          "omitted_entry": {
+            "row": 0,
+            "col": 3,
+            "value": {
+              "num": -3,
+              "den": 1
+            }
+          },
+          "reduced_determinant": {
+            "num": 58,
+            "den": 1
+          },
+          "wrong_vector": [
+            {
+              "num": 56,
+              "den": 29
+            },
+            {
+              "num": -46,
+              "den": 29
+            },
+            {
+              "num": 165,
+              "den": 58
+            },
+            {
+              "num": -32,
+              "den": 29
+            },
+            {
+              "num": 149,
+              "den": 58
+            }
+          ],
+          "residual_squared": {
+            "num": 9,
+            "den": 1
+          }
+        },
+        {
+          "id": "wrong-solution",
+          "kind": "numeric",
+          "detects": "A returned vector that is not the solution.",
+          "perturbation": {
+            "index": 0,
+            "delta": {
+              "num": 1,
+              "den": 1
+            }
+          },
+          "wrong_vector": [
+            {
+              "num": 2,
+              "den": 1
+            },
+            {
+              "num": -2,
+              "den": 1
+            },
+            {
+              "num": 3,
+              "den": 1
+            },
+            {
+              "num": -1,
+              "den": 1
+            },
+            {
+              "num": 2,
+              "den": 1
+            }
+          ],
+          "residual_squared": {
+            "num": 27,
+            "den": 1
+          }
+        }
+      ]
+    },
+    "rank_deficient": {
+      "description": "Square canonical CSR system with no structurally empty row whose third row is the exact sum of the first two. It is singular and the right-hand side is inconsistent, so no vector attains a zero residual and a correct direct solver must fail closed rather than return a value.",
+      "n": 3,
+      "csr": {
+        "index_base": 0,
+        "row_ptr": [
+          0,
+          2,
+          4,
+          7
+        ],
+        "col_idx": [
+          0,
+          1,
+          0,
+          2,
+          0,
+          1,
+          2
+        ],
+        "values": [
+          {
+            "num": 2,
+            "den": 1
+          },
+          {
+            "num": 5,
+            "den": 2
+          },
+          {
+            "num": 1,
+            "den": 1
+          },
+          {
+            "num": 3,
+            "den": 1
+          },
+          {
+            "num": 3,
+            "den": 1
+          },
+          {
+            "num": 5,
+            "den": 2
+          },
+          {
+            "num": 3,
+            "den": 1
+          }
+        ]
+      },
+      "rhs": [
+        {
+          "num": 1,
+          "den": 1
+        },
+        {
+          "num": 1,
+          "den": 1
+        },
+        {
+          "num": 5,
+          "den": 1
+        }
+      ],
+      "determinant": {
+        "num": 0,
+        "den": 1
+      },
+      "rank": 2,
+      "rank_deficiency_proof": {
+        "row_dependency": "row_2 = row_0 + row_1 exactly",
+        "right_null_vector": [
+          {
+            "num": -15,
+            "den": 1
+          },
+          {
+            "num": 12,
+            "den": 1
+          },
+          {
+            "num": 5,
+            "den": 1
+          }
+        ],
+        "left_null_vector": [
+          {
+            "num": 1,
+            "den": 1
+          },
+          {
+            "num": 1,
+            "den": 1
+          },
+          {
+            "num": -1,
+            "den": 1
+          }
+        ],
+        "nonsingular_minor": {
+          "rows": [
+            0,
+            1
+          ],
+          "cols": [
+            0,
+            1
+          ],
+          "determinant": {
+            "num": -5,
+            "den": 2
+          }
+        },
+        "rank_argument": "A nonzero 2x2 minor forces rank >= 2; a zero determinant forces rank <= 2; therefore rank = 2 and both null spaces are one-dimensional."
+      },
+      "consistency": {
+        "consistent": false,
+        "left_null_vector_dot_rhs": {
+          "num": -3,
+          "den": 1
+        },
+        "minimum_squared_residual": {
+          "num": 3,
+          "den": 1
+        },
+        "argument": "The left null space of A is spanned by the single vector w, so min over z of ||b - A z||_2^2 equals (w.b)^2 / ||w||_2^2, which is strictly positive."
+      },
+      "structure": {
+        "nnz": 7,
+        "square": true,
+        "sorted_unique_columns": true,
+        "no_structurally_empty_row": true,
+        "all_stored_values_nonzero": true
+      }
+    }
+  },
+  "contract_expectations": {
+    "source": "Issue #126, section 'Frozen design'",
+    "proved_by_this_oracle": false,
+    "note": "Contract expectations, not mathematical facts. This oracle checks only their internal consistency and shape; whether Eqiora honours them is established by Rust evidence written by the implementing agent.",
+    "capabilities": {
+      "axes": [
+        "solver",
+        "operator_property",
+        "preconditioner",
+        "reduction",
+        "scalar"
+      ],
+      "positive": [
+        {
+          "solver": "SparseLu",
+          "operator_property": "General",
+          "preconditioner": "Identity",
+          "reduction": "Fast",
+          "scalar": "F64",
+          "expected": "supported"
+        },
+        {
+          "solver": "SparseLu",
+          "operator_property": "SymmetricPositiveDefinite",
+          "preconditioner": "Identity",
+          "reduction": "Fast",
+          "scalar": "F64",
+          "expected": "supported"
+        },
+        {
+          "solver": "SparseLu",
+          "operator_property": "SymmetricIndefinite",
+          "preconditioner": "Identity",
+          "reduction": "Fast",
+          "scalar": "F64",
+          "expected": "supported"
+        }
+      ],
+      "negative": [
+        {
+          "solver": "SparseLu",
+          "operator_property": "General",
+          "preconditioner": "Jacobi",
+          "reduction": "Fast",
+          "scalar": "F64",
+          "expected": "rejected",
+          "reason": "Jacobi preconditioning is not part of the frozen SparseLu tuple set."
+        },
+        {
+          "solver": "SparseLu",
+          "operator_property": "SymmetricPositiveDefinite",
+          "preconditioner": "Jacobi",
+          "reduction": "Fast",
+          "scalar": "F64",
+          "expected": "rejected",
+          "reason": "Jacobi preconditioning is not part of the frozen SparseLu tuple set."
+        },
+        {
+          "solver": "SparseLu",
+          "operator_property": "SymmetricIndefinite",
+          "preconditioner": "Jacobi",
+          "reduction": "Fast",
+          "scalar": "F64",
+          "expected": "rejected",
+          "reason": "Jacobi preconditioning is not part of the frozen SparseLu tuple set."
+        },
+        {
+          "solver": "SparseLu",
+          "operator_property": "General",
+          "preconditioner": "Identity",
+          "reduction": "Reproducible",
+          "scalar": "F64",
+          "expected": "rejected",
+          "reason": "Reproducible reduction is not part of the frozen SparseLu tuple set."
+        },
+        {
+          "solver": "SparseLu",
+          "operator_property": "SymmetricPositiveDefinite",
+          "preconditioner": "Identity",
+          "reduction": "Reproducible",
+          "scalar": "F64",
+          "expected": "rejected",
+          "reason": "Reproducible reduction is not part of the frozen SparseLu tuple set."
+        },
+        {
+          "solver": "SparseLu",
+          "operator_property": "SymmetricIndefinite",
+          "preconditioner": "Identity",
+          "reduction": "Reproducible",
+          "scalar": "F64",
+          "expected": "rejected",
+          "reason": "Reproducible reduction is not part of the frozen SparseLu tuple set."
+        }
+      ]
+    },
+    "stable_solver_tags": {
+      "note": "Existing tags are frozen; SparseLu is additive.",
+      "preexisting": {
+        "CG": 0,
+        "BiCGSTAB": 1,
+        "MINRES": 2
+      },
+      "added": {
+        "SparseLu": 3
+      }
+    },
+    "artifact": {
+      "v1": {
+        "sparse_lu": "reject"
+      },
+      "v2": {
+        "sparse_lu": "sparse-lu",
+        "encoding": "kebab-case",
+        "variant": "SparseLu"
+      }
+    }
+  }
+}
