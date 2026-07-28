@@ -1,21 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <title>Eqiora Studio</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img">
+  <title>Eqiora</title>
   <defs>
-    <linearGradient id="surface" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="eq-bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#19251f"/>
       <stop offset="1" stop-color="#0b100d"/>
     </linearGradient>
-    <linearGradient id="mint" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#c1ead3"/>
-      <stop offset="1" stop-color="#76b593"/>
-    </linearGradient>
   </defs>
-  <rect width="1024" height="1024" rx="230" fill="url(#surface)"/>
-  <rect x="52" y="52" width="920" height="920" rx="188" fill="none" stroke="#9ed2b7" stroke-opacity=".22" stroke-width="12"/>
-  <rect x="250" y="500" width="132" height="252" rx="66" fill="url(#mint)" opacity=".68"/>
-  <rect x="446" y="250" width="132" height="502" rx="66" fill="url(#mint)"/>
-  <rect x="642" y="382" width="132" height="370" rx="66" fill="url(#mint)" opacity=".82"/>
-  <path d="M190 545c104 0 127-156 232-156s139 202 239 202 121-116 173-116" fill="none" stroke="#ef866f" stroke-linecap="round" stroke-width="30"/>
-  <circle cx="190" cy="545" r="30" fill="#ef866f"/>
-  <circle cx="834" cy="475" r="30" fill="#ef866f"/>
+  <rect width="1024" height="1024" rx="228" fill="url(#eq-bg)"/>
+  <rect x="52" y="52" width="920" height="920" rx="204" fill="none"
+        stroke="#9ed2b7" stroke-opacity=".12" stroke-width="6"/>
+  <g fill="none" stroke="#76b593" stroke-width="36">
+    <path d="M286 176H176V286"/>
+    <path d="M738 176H848V286"/>
+    <path d="M848 738V848H738"/>
+    <path d="M176 738V848H286"/>
+  </g>
+  <path d="M512 327L697 512 512 697 327 512Z" fill="#76b593"/>
+  <path d="M450 430L596 452 576 592 430 544Z" fill="none"
+        stroke="#0b100d" stroke-linejoin="round" stroke-width="36"/>
+  <path d="M512 212L812 512 512 812 212 512Z" fill="none"
+        stroke="#c1ead3" stroke-linejoin="round" stroke-width="58"/>
+  <path d="M608 252L664 308 608 364 552 308Z" fill="#ef866f"/>
 </svg>
