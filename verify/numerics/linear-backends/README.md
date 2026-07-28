@@ -37,7 +37,9 @@ for ownership and graduation rules.
 exact-rational oracle for the proposed `SparseLu` direct algorithm of
 [Issue #126](https://github.com/nkiyohara/eqiora/issues/126). They were written
 by an agent that does not implement the slice, before any implementation
-existed.
+existed, and later amended by that same agent to bind the acceptance threshold
+the implementer is not permitted to author. Neither the original nor the
+amendment read, ran, or saw any implementation.
 
 They are **not** part of the claim above. No `SparseLu` capability is claimed,
 executed, or verified by this case today: the oracle stands alone, the case
@@ -50,4 +52,5 @@ python3 verify/numerics/linear-backends/oracle/sparse_lu_oracle.py --summary
 ```
 
 See [the oracle reference](references/sparse-lu-oracle.md) for the witnesses,
-the falsifiers, the fixture digest, and the nonclaims.
+the falsifiers, the acceptance threshold and the plan it binds, the fixture
+digest, and the nonclaims.

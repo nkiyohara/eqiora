@@ -9,6 +9,13 @@ rational arithmetic, and fails if any recorded value disagrees.
 It reads no Eqiora source, imports nothing outside the Python standard library,
 and never constructs a binary floating-point number.
 
+The fixture also records one acceptance threshold. The threshold is a choice and
+is not derived here; what is derived here is the pair of walls it has to fall
+between — the worst case binary64 rounding can produce, and the least wrong
+result any frozen wrong route produces — together with every ordering comparison
+that places it between them. Those comparisons are counted separately from the
+equalities and reported by ``--summary``.
+
 Usage:
 
     python3 sparse_lu_oracle.py [--fixture PATH] [--summary] [--verbose]
@@ -46,6 +53,12 @@ FALSIFIER_IDS = (
 )
 
 AXES = ("solver", "operator_property", "preconditioner", "reduction", "scalar")
+TEST_PLAN_CASES = (
+    "early-initial-guess-accepted",
+    "initial-guess-not-accepted-early",
+    "principal-positive-solve",
+    "rank-deficient-fail-closed",
+)
 OPERATOR_PROPERTIES = ("General", "SymmetricIndefinite", "SymmetricPositiveDefinite")
 PREEXISTING_TAGS = {"CG": 0, "BiCGSTAB": 1, "MINRES": 2}
 ADDED_TAG = {"SparseLu": 3}
@@ -248,6 +261,56 @@ def is_dyadic(value: Fraction) -> bool:
     return den & (den - 1) == 0
 
 
+def dyadic_exponent(value: Fraction) -> int | None:
+    """The ``k`` with ``value == 2 ** k``, or ``None`` when it is not a power."""
+    if value <= 0:
+        return None
+    num, den = value.numerator, value.denominator
+    if num & (num - 1) != 0 or den & (den - 1) != 0:
+        return None
+    return num.bit_length() - den.bit_length()
+
+
+def matrix_infinity_norm(matrix: Matrix) -> Fraction:
+    return max(
+        (sum((abs(v) for v in row), Fraction(0)) for row in matrix), default=Fraction(0)
+    )
+
+
+def vector_infinity_norm(vector: Vector) -> Fraction:
+    return max((abs(v) for v in vector), default=Fraction(0))
+
+
+def exact_inverse(matrix: Matrix) -> Matrix | None:
+    """``A**-1`` assembled from independent unit-vector solves."""
+    n = len(matrix)
+    columns: list[Vector] = []
+    for j in range(n):
+        unit = [Fraction(1) if i == j else Fraction(0) for i in range(n)]
+        column = gauss_jordan_solve(matrix, unit)
+        if column is None:
+            return None
+        columns.append(column)
+    return [[columns[j][i] for j in range(n)] for i in range(n)]
+
+
+def identity(n: int) -> Matrix:
+    return [
+        [Fraction(1) if i == j else Fraction(0) for j in range(n)] for i in range(n)
+    ]
+
+
+def matmul(left: Matrix, right: Matrix) -> Matrix:
+    n = len(left)
+    return [
+        [
+            sum((left[i][k] * right[k][j] for k in range(n)), Fraction(0))
+            for j in range(n)
+        ]
+        for i in range(n)
+    ]
+
+
 def kebab_case(name: str) -> str:
     parts: list[str] = []
     current = ""
@@ -271,9 +334,18 @@ def in_range(index: Any, limit: int) -> bool:
 # --------------------------------------------------------------------------
 
 
+RELATIONS = {
+    "<": lambda a, b: a < b,
+    "<=": lambda a, b: a <= b,
+    ">": lambda a, b: a > b,
+    ">=": lambda a, b: a >= b,
+}
+
+
 class Checks:
     def __init__(self) -> None:
         self.records: list[tuple[str, bool, str]] = []
+        self.inequalities = 0
 
     def require(self, name: str, condition: bool, detail: str = "") -> bool:
         self.records.append((name, bool(condition), detail))
@@ -283,6 +355,24 @@ class Checks:
         ok = actual == expected
         detail = "" if ok else f"derived {actual!r} != recorded {expected!r}"
         return self.require(name, ok, detail)
+
+    def prove(
+        self, name: str, left: Any, relation: str, right: Any, detail: str = ""
+    ) -> bool:
+        """Record one ordering comparison between two exact rational magnitudes.
+
+        Both operands must already be exact. A binary floating-point operand is
+        an oracle or fixture defect rather than a failed check, so it aborts the
+        decode instead of being reported as a disagreement.
+        """
+        for side in (left, right):
+            if isinstance(side, bool) or not isinstance(side, (Fraction, int)):
+                raise FixtureError(f"inexact operand in inequality {name}: {side!r}")
+        ok = RELATIONS[relation](left, right)
+        self.inequalities += 1
+        if not ok:
+            detail = detail or f"{left} {relation} {right} is false"
+        return self.require(name, ok, "" if ok else detail)
 
     @property
     def failures(self) -> list[tuple[str, bool, str]]:
@@ -525,6 +615,179 @@ def check_principal(checks: Checks, node: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# --------------------------------------------------------------------------
+# acceptance threshold
+# --------------------------------------------------------------------------
+
+
+def check_acceptance(
+    checks: Checks, principal: dict[str, Any], ctx: dict[str, Any]
+) -> dict[str, Any]:
+    """The chosen threshold and every bound it is required to sit between.
+
+    The threshold is a choice, so nothing here derives it. Everything here
+    derives the two walls it must fall between — what rounding can produce and
+    what the frozen wrong routes produce — and proves the choice clears both.
+    """
+    node = principal["acceptance"]
+    matrix, solution, n = ctx["matrix"], ctx["solution"], ctx["n"]
+
+    relative = rat(node["relative_tolerance"])
+    checks.equal("acceptance.relative-tolerance-is-exactly-zero", relative, Fraction(0))
+
+    tolerance = rat(node["absolute_tolerance"])
+    checks.prove(
+        "acceptance.absolute-tolerance-is-positive", tolerance, ">", Fraction(0)
+    )
+    checks.require(
+        "acceptance.absolute-tolerance-is-dyadic",
+        is_dyadic(tolerance),
+        "the threshold must be exactly representable in binary64",
+    )
+    checks.equal(
+        "acceptance.absolute-tolerance-exponent",
+        dyadic_exponent(tolerance),
+        node["absolute_tolerance_exponent"],
+    )
+    squared = tolerance * tolerance
+    checks.equal(
+        "acceptance.absolute-tolerance-squared",
+        squared,
+        rat(node["absolute_tolerance_squared"]),
+    )
+
+    # The selection rule, restated as the two inequalities that determine it.
+    nano = Fraction(1, 10**9)
+    checks.prove("acceptance.selection-is-below-1e-9", tolerance, "<", nano)
+    checks.prove(
+        "acceptance.selection-is-the-largest-such-power-of-two",
+        tolerance * 2,
+        ">=",
+        nano,
+    )
+
+    # Lower wall: what a backward-stable binary64 factorization can produce.
+    envelope = node["backward_error_envelope"]
+    roundoff = rat(envelope["unit_roundoff"])
+    checks.equal("acceptance.unit-roundoff-is-binary64", roundoff, Fraction(1, 2**53))
+    checks.equal(
+        "acceptance.envelope-dimension-factor", envelope["dimension_factor"], 3 * n**3
+    )
+    checks.equal(
+        "acceptance.envelope-growth-factor", envelope["growth_factor"], 2 ** (n - 1)
+    )
+    matrix_norm = matrix_infinity_norm(matrix)
+    solution_norm = vector_infinity_norm(solution)
+    checks.equal(
+        "acceptance.envelope-matrix-infinity-norm",
+        matrix_norm,
+        rat(envelope["matrix_infinity_norm"]),
+    )
+    checks.equal(
+        "acceptance.envelope-solution-infinity-norm",
+        solution_norm,
+        rat(envelope["solution_infinity_norm"]),
+    )
+    derived = (
+        Fraction(envelope["dimension_factor"])
+        * envelope["growth_factor"]
+        * roundoff
+        * matrix_norm
+        * solution_norm
+    )
+    checks.equal("acceptance.envelope-value", derived, rat(envelope["value"]))
+    checks.prove("acceptance.tolerance-clears-the-envelope", tolerance, ">", derived)
+    checks.prove(
+        "acceptance.tolerance-clears-the-envelope-with-margin",
+        tolerance,
+        ">=",
+        derived * envelope["tolerance_exceeds_envelope_by_at_least"],
+        "the threshold must sit well above the worst case rounding can produce",
+    )
+
+    # Upper wall: the least wrong thing any frozen route produces.
+    discrimination = node["discrimination"]
+    wrong_routes = [rat(f["residual_squared"]) for f in principal["falsifiers"]]
+    wrong_routes.append(
+        rat(principal["initial_guesses"]["not_satisfied"]["residual_squared"])
+    )
+    smallest = min(wrong_routes)
+    checks.equal(
+        "acceptance.smallest-wrong-route-residual-squared",
+        smallest,
+        rat(discrimination["smallest_wrong_route_residual_squared"]),
+    )
+    margin_factor = discrimination["margin_factor_at_least"]
+    checks.prove(
+        "acceptance.tolerance-rejects-every-wrong-route", squared, "<", smallest
+    )
+    checks.prove(
+        "acceptance.tolerance-rejects-every-wrong-route-with-margin",
+        smallest,
+        ">=",
+        squared * margin_factor,
+    )
+
+    # Solution accuracy is a separate statement from residual acceptance.
+    forward = node["forward_error_ceiling"]
+    ceiling = rat(forward["ceiling"])
+    inverse = exact_inverse(matrix)
+    if inverse is None:
+        checks.require(
+            "acceptance.inverse-exists", False, "a forward bound needs a nonsingular A"
+        )
+        raise OracleAbort(checks, "the principal matrix has no inverse")
+    checks.equal(
+        "acceptance.inverse-is-a-genuine-inverse", matmul(matrix, inverse), identity(n)
+    )
+    inverse_norm = matrix_infinity_norm(inverse)
+    checks.equal(
+        "acceptance.inverse-infinity-norm",
+        inverse_norm,
+        rat(forward["inverse_infinity_norm"]),
+    )
+    implied = inverse_norm * tolerance
+    checks.equal(
+        "acceptance.forward-error-implied-bound", implied, rat(forward["implied_bound"])
+    )
+    checks.prove(
+        "acceptance.forward-error-ceiling-is-positive", ceiling, ">", Fraction(0)
+    )
+    checks.require("acceptance.forward-error-ceiling-is-dyadic", is_dyadic(ceiling))
+    checks.equal(
+        "acceptance.forward-error-ceiling-exponent",
+        dyadic_exponent(ceiling),
+        forward["ceiling_exponent"],
+    )
+    checks.prove(
+        "acceptance.forward-error-ceiling-covers-implied-bound",
+        ceiling,
+        ">=",
+        implied,
+        "residual acceptance must actually imply the componentwise ceiling",
+    )
+    checks.prove(
+        "acceptance.forward-error-ceiling-is-the-tightest-power-of-two",
+        ceiling / 2,
+        "<",
+        implied,
+        "a tighter power of two would not be implied by residual acceptance",
+    )
+    checks.equal(
+        "acceptance.forward-error-ceiling-tightness-is-recorded",
+        forward["ceiling_is_tightest_dyadic_power_of_two"],
+        True,
+    )
+
+    return {
+        "tolerance": tolerance,
+        "squared": squared,
+        "ceiling": ceiling,
+        "margin_factor": margin_factor,
+        "relative": relative,
+    }
+
+
 def check_initial_guesses(
     checks: Checks, node: dict[str, Any], ctx: dict[str, Any]
 ) -> None:
@@ -546,6 +809,13 @@ def check_initial_guesses(
         rat(satisfied["residual_squared"]),
     )
     checks.equal("guess.already-satisfied-equals-solution", guess, ctx["solution"])
+    checks.prove(
+        "guess.already-satisfied-is-accepted-early",
+        squared_norm(residual),
+        "<=",
+        ctx["squared"],
+        "the exact solution must clear the squared threshold and skip factorization",
+    )
 
     unsatisfied = node["not_satisfied"]
     other = ratvec(unsatisfied["vector"])
@@ -557,10 +827,25 @@ def check_initial_guesses(
         squared_norm(other_residual),
         rat(unsatisfied["residual_squared"]),
     )
-    checks.require(
+    checks.prove(
         "guess.not-satisfied-residual-is-positive",
-        squared_norm(other_residual) > 0,
+        squared_norm(other_residual),
+        ">",
+        Fraction(0),
         "the rejected guess must have a strictly positive residual",
+    )
+    checks.prove(
+        "guess.not-satisfied-is-not-accepted-early",
+        squared_norm(other_residual),
+        ">",
+        ctx["squared"],
+        "the branch is only observable if this guess fails the same threshold",
+    )
+    checks.prove(
+        "guess.not-satisfied-is-not-accepted-early-with-margin",
+        squared_norm(other_residual),
+        ">=",
+        ctx["squared"] * ctx["margin_factor"],
     )
 
 
@@ -585,10 +870,26 @@ def check_falsifiers(
         raise OracleAbort(checks, "the falsifier set is not the frozen set")
 
     for entry in entries:
-        checks.require(
+        residual_squared = rat(entry["residual_squared"])
+        checks.prove(
             f"falsifier.{entry['id']}.residual-is-positive",
-            rat(entry["residual_squared"]) > 0,
+            residual_squared,
+            ">",
+            Fraction(0),
             "a falsifier must produce a strictly positive true residual",
+        )
+        checks.prove(
+            f"falsifier.{entry['id']}.is-rejected-by-the-threshold",
+            residual_squared,
+            ">",
+            ctx["squared"],
+            "the threshold is useless against a route it would accept",
+        )
+        checks.prove(
+            f"falsifier.{entry['id']}.is-rejected-with-margin",
+            residual_squared,
+            ">=",
+            ctx["squared"] * ctx["margin_factor"],
         )
 
     check_csc_falsifier(checks, by_id["csr-read-as-csc"], ctx)
@@ -825,7 +1126,9 @@ def check_omission_falsifier(
 # --------------------------------------------------------------------------
 
 
-def check_rank_deficient(checks: Checks, node: dict[str, Any]) -> dict[str, Any]:
+def check_rank_deficient(
+    checks: Checks, node: dict[str, Any], analysed: dict[str, Any]
+) -> dict[str, Any]:
     n = node["n"]
     if not isinstance(n, int) or isinstance(n, bool) or n < 3:
         raise OracleAbort(checks, "rank-deficient dimension is not usable")
@@ -943,10 +1246,15 @@ def check_rank_deficient(checks: Checks, node: dict[str, Any]) -> dict[str, Any]
             minimum,
             rat(consistency["minimum_squared_residual"]),
         )
-        checks.require(
+        checks.prove(
             "rank-deficient.minimum-squared-residual-is-positive",
-            minimum > 0,
+            minimum,
+            ">",
+            Fraction(0),
             "no vector can attain a zero residual, so a solver must fail closed",
+        )
+        check_rank_deficient_acceptance(
+            checks, node["acceptance"], minimum, analysed["tolerance"]
         )
     return {
         "n": n,
@@ -954,6 +1262,40 @@ def check_rank_deficient(checks: Checks, node: dict[str, Any]) -> dict[str, Any]
         "nnz": len(csr["col_idx"]),
         "minimum": minimum,
     }
+
+
+def check_rank_deficient_acceptance(
+    checks: Checks, node: dict[str, Any], minimum: Fraction, analysed: Fraction
+) -> None:
+    """The squared acceptance target must sit strictly below what is attainable."""
+    tolerance = rat(node["absolute_tolerance"])
+    checks.equal(
+        "rank-deficient.acceptance-uses-the-analysed-tolerance", tolerance, analysed
+    )
+    squared = tolerance * tolerance
+    checks.equal(
+        "rank-deficient.acceptance-tolerance-squared",
+        squared,
+        rat(node["absolute_tolerance_squared"]),
+    )
+    checks.equal(
+        "rank-deficient.acceptance-records-the-derived-minimum",
+        minimum,
+        rat(node["minimum_attainable_residual_squared"]),
+    )
+    checks.prove(
+        "rank-deficient.acceptance-target-is-below-the-attainable-minimum",
+        squared,
+        "<",
+        minimum,
+        "if the target were reachable the system would not force a closed failure",
+    )
+    checks.prove(
+        "rank-deficient.acceptance-target-is-below-the-minimum-with-margin",
+        minimum,
+        ">=",
+        squared * node["margin_factor_at_least"],
+    )
 
 
 # --------------------------------------------------------------------------
@@ -965,7 +1307,123 @@ def tuple_key(entry: dict[str, Any]) -> tuple[str, ...]:
     return tuple(entry.get(axis) for axis in AXES)
 
 
-def check_contract(checks: Checks, node: dict[str, Any]) -> dict[str, Any]:
+def check_test_plan(
+    checks: Checks,
+    node: dict[str, Any],
+    analysed: dict[str, Any],
+    positive_keys: set[tuple[str, ...]],
+) -> int:
+    """Shape of the transcribed plan, and its binding to the analysed numbers.
+
+    Nothing here is proved about Eqiora. The load-bearing check is that every
+    tolerance and ceiling the plan declares is exactly the rational the
+    mathematics section proved bounds about, so no number can be wired that was
+    never analysed, and no analysed number can be silently replaced.
+    """
+    plan = node["plan"]
+    checks.equal("plan.solver", plan["solver"], "SparseLu")
+    checks.equal("plan.operator-property", plan["operator_property"], "General")
+    checks.equal("plan.preconditioner", plan["preconditioner"], "Identity")
+    checks.equal("plan.reduction", plan["reduction"], "Fast")
+    checks.equal("plan.scalar", plan["scalar"], "F64")
+    checks.equal("plan.maximum-iterations", plan["maximum_iterations"], 1)
+    checks.equal(
+        "plan.relative-tolerance-is-exactly-zero",
+        rat(plan["relative_tolerance"]),
+        Fraction(0),
+    )
+    checks.equal(
+        "plan.absolute-tolerance-is-the-analysed-tolerance",
+        rat(plan["absolute_tolerance"]),
+        analysed["tolerance"],
+    )
+    checks.require(
+        "plan.tuple-is-in-the-positive-capability-set",
+        tuple_key(plan) in positive_keys,
+        "the plan under test must be one the contract declares supported",
+    )
+
+    cases = node["cases"]
+    by_id = {case["id"]: case for case in cases}
+    unique = checks.equal("plan.case-ids-unique", len(by_id), len(cases))
+    complete = checks.equal("plan.case-set", sorted(by_id), sorted(TEST_PLAN_CASES))
+    if not (unique and complete):
+        raise OracleAbort(checks, "the test plan case set is not the frozen set")
+
+    for case in cases:
+        cid = case["id"]
+        checks.require(
+            f"plan.{cid}.expected-outcome-is-known",
+            case["expected"] in ("accepted", "rejected"),
+        )
+        checks.equal(
+            f"plan.{cid}.squared-target-is-the-analysed-tolerance-squared",
+            rat(case["expected_residual_squared_at_most"]),
+            analysed["squared"],
+        )
+        checks.require(
+            f"plan.{cid}.early-exit-expectation-is-boolean",
+            isinstance(case["expected_early_exit"], bool),
+        )
+        if "componentwise_solution_error_ceiling" in case:
+            checks.equal(
+                f"plan.{cid}.ceiling-is-the-analysed-ceiling",
+                rat(case["componentwise_solution_error_ceiling"]),
+                analysed["ceiling"],
+            )
+
+    checks.equal(
+        "plan.exactly-one-case-takes-the-early-exit",
+        [case["id"] for case in cases if case["expected_early_exit"]],
+        ["early-initial-guess-accepted"],
+    )
+    checks.equal(
+        "plan.exactly-one-case-fails-closed",
+        [case["id"] for case in cases if case["expected"] == "rejected"],
+        ["rank-deficient-fail-closed"],
+    )
+    checks.require(
+        "plan.accepted-cases-expect-the-exact-solution",
+        all(
+            case.get("expected_solution") == "mathematics.principal.solution"
+            for case in cases
+            if case["expected"] == "accepted"
+        ),
+    )
+    checks.require(
+        "plan.accepted-cases-carry-a-componentwise-ceiling",
+        all(
+            "componentwise_solution_error_ceiling" in case
+            for case in cases
+            if case["expected"] == "accepted"
+        ),
+        "residual acceptance alone does not bound the returned components",
+    )
+    checks.require(
+        "plan.accepted-cases-target-the-principal-witness",
+        all(
+            case["system"] == "mathematics.principal"
+            for case in cases
+            if case["expected"] == "accepted"
+        ),
+    )
+    checks.equal(
+        "plan.fail-closed-case-targets-the-singular-witness",
+        by_id["rank-deficient-fail-closed"]["system"],
+        "mathematics.rank_deficient",
+    )
+    checks.require(
+        "plan.the-two-guess-cases-differ-only-in-the-guess",
+        by_id["early-initial-guess-accepted"]["initial_guess"]
+        != by_id["initial-guess-not-accepted-early"]["initial_guess"],
+        "a branch is observable only when one guess fires it and another does not",
+    )
+    return len(cases)
+
+
+def check_contract(
+    checks: Checks, node: dict[str, Any], analysed: dict[str, Any]
+) -> dict[str, Any]:
     checks.equal(
         "contract.marked-as-not-proved-here", node["proved_by_this_oracle"], False
     )
@@ -1067,7 +1525,14 @@ def check_contract(checks: Checks, node: dict[str, Any]) -> dict[str, Any]:
         and bool(encoding)
         and all(part.isalnum() and part.islower() for part in encoding.split("-")),
     )
-    return {"positive": len(positive), "negative": len(negative), "tags": combined}
+
+    plan_cases = check_test_plan(checks, node["test_plan"], analysed, positive_keys)
+    return {
+        "positive": len(positive),
+        "negative": len(negative),
+        "tags": combined,
+        "plan_cases": plan_cases,
+    }
 
 
 # --------------------------------------------------------------------------
@@ -1109,10 +1574,12 @@ def run(fixture_path: str, expect_digest: str | None) -> tuple[Checks, dict[str,
     mathematics = document["mathematics"]
     principal_node = mathematics["principal"]
     context = check_principal(checks, principal_node)
+    acceptance = check_acceptance(checks, principal_node, context)
+    context.update(acceptance)
     check_initial_guesses(checks, principal_node["initial_guesses"], context)
     check_falsifiers(checks, principal_node["falsifiers"], context)
-    singular = check_rank_deficient(checks, mathematics["rank_deficient"])
-    contract = check_contract(checks, document["contract_expectations"])
+    singular = check_rank_deficient(checks, mathematics["rank_deficient"], acceptance)
+    contract = check_contract(checks, document["contract_expectations"], acceptance)
 
     summary = {
         "fixture": fixture_path,
@@ -1124,6 +1591,7 @@ def run(fixture_path: str, expect_digest: str | None) -> tuple[Checks, dict[str,
             "falsifiers": len(principal_node["falsifiers"]),
         },
         "rank_deficient": singular,
+        "acceptance": acceptance,
         "contract": contract,
     }
     return checks, summary
@@ -1152,7 +1620,11 @@ def print_summary(checks: Checks, summary: dict[str, Any]) -> None:
     tags = " ".join(
         f"{k}={v}" for k, v in sorted(contract["tags"].items(), key=lambda kv: kv[1])
     )
-    print(f"sparse-lu oracle: {len(checks.records)} checks passed")
+    acceptance = summary["acceptance"]
+    print(
+        f"sparse-lu oracle: {len(checks.records)} checks passed, "
+        f"{checks.inequalities} of them exact rational inequalities"
+    )
     print(f"  fixture         {shown}")
     print(f"  sha256          {summary['digest']}")
     print(
@@ -1164,8 +1636,15 @@ def print_summary(checks: Checks, summary: dict[str, Any]) -> None:
         f"rank={singular['rank']} min-residual^2={singular['minimum']}"
     )
     print(
+        f"  acceptance      rtol={acceptance['relative']} "
+        f"atol=2^{dyadic_exponent(acceptance['tolerance'])} "
+        f"atol^2={acceptance['squared']} "
+        f"ceiling=2^{dyadic_exponent(acceptance['ceiling'])}"
+    )
+    print(
         f"  contract        {contract['positive']} positive, "
-        f"{contract['negative']} negative, tags {tags}"
+        f"{contract['negative']} negative, {contract['plan_cases']} plan cases, "
+        f"tags {tags}"
     )
 
 

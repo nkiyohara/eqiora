@@ -3,7 +3,7 @@
   "issue": 126,
   "frozen": true,
   "authoring": "Committed by a non-implementing oracle author before any SparseLu implementation existed. No Rust source was read while authoring it. The implementing agent may wire this fixture but may not change any value here.",
-  "rational_encoding": "Every non-index numeric value is an object {\"num\": integer, \"den\": integer} in lowest terms with den > 0. The file contains no binary floating-point literal and no tolerance.",
+  "rational_encoding": "Every non-index numeric value is an object {\"num\": integer, \"den\": integer} in lowest terms with den > 0. The file contains no binary floating-point literal. Tolerances and error ceilings use the same encoding and are dyadic, so every acceptance inequality recorded here is decidable in exact rational arithmetic.",
   "mathematics": {
     "note": "Facts about the matrices below, independent of Eqiora, verified by re-derivation in the oracle.",
     "principal": {
@@ -238,6 +238,75 @@
         "transpose_route_squared": {
           "num": 0,
           "den": 1
+        }
+      },
+      "acceptance": {
+        "note": "Facts about the acceptance threshold, true independently of Eqiora. The threshold is a choice; every inequality recorded below is re-derived exactly by the oracle from the CSR arrays and that choice. Nothing here says what Eqiora does.",
+        "predicate": "accept xhat when ||b - A xhat||_2 <= absolute_tolerance + relative_tolerance * ||b||_2",
+        "relative_tolerance": {
+          "num": 0,
+          "den": 1
+        },
+        "relative_tolerance_argument": "Exactly zero. ||b||_2 = sqrt(388) is irrational, so any nonzero relative term would make the acceptance threshold irrational and none of the inequalities below could be decided in exact arithmetic. With the relative term removed the threshold is the rational absolute_tolerance itself, and squaring it keeps every comparison against a recorded squared residual rational.",
+        "absolute_tolerance": {
+          "num": 1,
+          "den": 1073741824
+        },
+        "absolute_tolerance_exponent": -30,
+        "absolute_tolerance_squared": {
+          "num": 1,
+          "den": 1152921504606846976
+        },
+        "absolute_tolerance_selection": "The largest power of two strictly below 1e-9: 2^-30 < 1e-9 <= 2^-29. The rule fixes the value before any bound is consulted, so the tolerance is not tuned to an implementation or to a falsifier; the two bounds below are then checked against it rather than used to choose it. Being a power of two it is dyadic and exactly representable in binary64, so a consumer compares against the same number the oracle proved about.",
+        "backward_error_envelope": {
+          "argument": "Standard backward-error analysis of LU with partial pivoting (Higham, Accuracy and Stability of Numerical Algorithms, 2nd ed., Thm 9.4) gives (A + dA) xhat = b with |dA| <= gamma_{3n} |L||U| componentwise, where gamma_k = k u / (1 - k u). Bounding |L| <= 1 and max |U| <= rho max |A| entrywise, and gamma_{3n} by 3 n u, yields the envelope R = 3 n^3 rho u ||A||_inf ||x||_inf on ||b - A xhat||_inf, hence on the 2-norm residual up to a factor at most sqrt(n) that the pessimism below absorbs. Every factor is deliberately worst case: rho is the worst-case partial-pivoting growth 2^(n-1) = 16 where this matrix grows by about one, and n^2 crudely bounds || |L||U| |xhat| ||_inf. R is an upper bound on what rounding can produce, not a prediction of what any implementation produces.",
+          "unit_roundoff": {
+            "num": 1,
+            "den": 9007199254740992
+          },
+          "dimension_factor": 375,
+          "growth_factor": 16,
+          "matrix_infinity_norm": {
+            "num": 12,
+            "den": 1
+          },
+          "solution_infinity_norm": {
+            "num": 3,
+            "den": 1
+          },
+          "value": {
+            "num": 3375,
+            "den": 140737488355328
+          },
+          "tolerance_exceeds_envelope_by_at_least": 32,
+          "conclusion": "absolute_tolerance / R = 131072/3375, above 38, so no backward-stable binary64 factorization of this system can miss acceptance on rounding alone."
+        },
+        "discrimination": {
+          "argument": "Acceptance compares ||b - A xhat||_2 against absolute_tolerance, so squaring both sides it rejects exactly when the true squared residual exceeds absolute_tolerance_squared. Every frozen wrong route and the rejected initial guess carry an exact squared residual recorded elsewhere in this witness; the smallest is 9. The oracle proves the strict inequality for each route separately rather than relying on the minimum.",
+          "smallest_wrong_route_residual_squared": {
+            "num": 9,
+            "den": 1
+          },
+          "margin_factor_at_least": 1000000000000000000,
+          "conclusion": "9 / absolute_tolerance_squared = 9 * 2^60, above 1e19, so the tolerance sits far below every wrong route while staying far above rounding. It discriminates the frozen routes by construction and is strict enough to catch errors much subtler than any of them."
+        },
+        "forward_error_ceiling": {
+          "argument": "Residual acceptance and solution accuracy are different statements, so the componentwise ceiling is derived rather than assumed. From xhat - x = A^-1 (A xhat - b) and ||v||_inf <= ||v||_2 for every v, any xhat accepted under the predicate satisfies max_i |xhat_i - x_i| <= ||A^-1||_inf * absolute_tolerance. A is nonsingular with det A = 64, so A^-1 is exact and rational and ||A^-1||_inf = 147/64.",
+          "inverse_infinity_norm": {
+            "num": 147,
+            "den": 64
+          },
+          "implied_bound": {
+            "num": 147,
+            "den": 68719476736
+          },
+          "ceiling": {
+            "num": 1,
+            "den": 268435456
+          },
+          "ceiling_exponent": -28,
+          "ceiling_is_tightest_dyadic_power_of_two": true,
+          "conclusion": "2^-28 >= 147 * 2^-36 while 2^-29 does not, so 2^-28 is the tightest power of two the residual tolerance provably implies. A consumer may assert it componentwise against the exact solution without a second tolerance."
         }
       },
       "initial_guesses": {
@@ -651,6 +720,23 @@
         },
         "argument": "The left null space of A is spanned by the single vector w, so min over z of ||b - A z||_2^2 equals (w.b)^2 / ||w||_2^2, which is strictly positive."
       },
+      "acceptance": {
+        "note": "The same chosen threshold applied to the singular inconsistent witness. Mathematics, not an Eqiora claim.",
+        "absolute_tolerance": {
+          "num": 1,
+          "den": 1073741824
+        },
+        "absolute_tolerance_squared": {
+          "num": 1,
+          "den": 1152921504606846976
+        },
+        "minimum_attainable_residual_squared": {
+          "num": 3,
+          "den": 1
+        },
+        "margin_factor_at_least": 1000000000000000000,
+        "argument": "min over z of ||b - A' z||_2^2 = 3 exactly, proved above from the one-dimensional left null space. Acceptance requires ||b - A' z||_2^2 <= absolute_tolerance_squared = 2^-60, and 2^-60 < 3 with 3 / 2^-60 = 3 * 2^60 above 3e18. The target is therefore rigorously below the attainable minimum: no vector whatsoever passes acceptance on this system, so a solver that returns any value at all is wrong independently of which value it returns, and failing closed is the only accepting behaviour."
+      },
       "structure": {
         "nnz": 7,
         "square": true,
@@ -752,6 +838,90 @@
           "scalar": "F64",
           "expected": "rejected",
           "reason": "Reproducible reduction is not part of the frozen SparseLu tuple set."
+        }
+      ]
+    },
+    "test_plan": {
+      "note": "Solver plan field values the wired Rust evidence must declare. Transcribed contract expectations, not mathematics, and not proved here. The oracle checks only their shape, their mutual consistency, and that every tolerance, ceiling and squared target below is exactly the rational analysed under `mathematics`. Whether Eqiora spells these fields this way, or honours them, is established by Rust evidence this author did not write.",
+      "plan": {
+        "solver": "SparseLu",
+        "operator_property": "General",
+        "preconditioner": "Identity",
+        "reduction": "Fast",
+        "scalar": "F64",
+        "relative_tolerance": {
+          "num": 0,
+          "den": 1
+        },
+        "absolute_tolerance": {
+          "num": 1,
+          "den": 1073741824
+        },
+        "maximum_iterations": 1
+      },
+      "plan_argument": "One plan drives every case below so a difference in outcome is attributable to the system and the initial guess alone. maximum_iterations is 1 because a direct factorization reaches its answer in a single solve: a run that needs a second pass is not the algorithm under test, and a run that needs none took the early exit.",
+      "cases": [
+        {
+          "id": "principal-positive-solve",
+          "system": "mathematics.principal",
+          "initial_guess": "none",
+          "expected": "accepted",
+          "expected_solution": "mathematics.principal.solution",
+          "expected_residual_squared_at_most": {
+            "num": 1,
+            "den": 1152921504606846976
+          },
+          "componentwise_solution_error_ceiling": {
+            "num": 1,
+            "den": 268435456
+          },
+          "expected_early_exit": false
+        },
+        {
+          "id": "early-initial-guess-accepted",
+          "system": "mathematics.principal",
+          "initial_guess": "mathematics.principal.initial_guesses.already_satisfied.vector",
+          "expected": "accepted",
+          "expected_solution": "mathematics.principal.solution",
+          "expected_residual_squared_at_most": {
+            "num": 1,
+            "den": 1152921504606846976
+          },
+          "componentwise_solution_error_ceiling": {
+            "num": 1,
+            "den": 268435456
+          },
+          "expected_early_exit": true,
+          "note": "The guess is exactly x, so its true squared residual is 0 and acceptance holds before any factorization. Pairing it with the case below is what makes the branch observable rather than merely reachable."
+        },
+        {
+          "id": "initial-guess-not-accepted-early",
+          "system": "mathematics.principal",
+          "initial_guess": "mathematics.principal.initial_guesses.not_satisfied.vector",
+          "expected": "accepted",
+          "expected_solution": "mathematics.principal.solution",
+          "expected_residual_squared_at_most": {
+            "num": 1,
+            "den": 1152921504606846976
+          },
+          "componentwise_solution_error_ceiling": {
+            "num": 1,
+            "den": 268435456
+          },
+          "expected_early_exit": false,
+          "note": "The zero guess has true squared residual 388, far above the squared threshold, so the early exit must not fire and the factorization must run and still land on x."
+        },
+        {
+          "id": "rank-deficient-fail-closed",
+          "system": "mathematics.rank_deficient",
+          "initial_guess": "none",
+          "expected": "rejected",
+          "expected_residual_squared_at_most": {
+            "num": 1,
+            "den": 1152921504606846976
+          },
+          "expected_early_exit": false,
+          "note": "No vector attains a squared residual at or below the target, whose exact proof is under mathematics.rank_deficient.acceptance, so returning any value is a failure and only a closed failure is correct."
         }
       ]
     },
