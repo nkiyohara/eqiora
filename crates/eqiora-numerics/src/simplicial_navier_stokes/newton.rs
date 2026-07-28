@@ -82,6 +82,7 @@ where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
+    super::element::require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
     let jacobian_pattern = build_step_jacobian_pattern(mesh, boundary, essential_velocity)?;
     let mut trajectory = SimplicialMiniNavierStokesTrajectory2d::new(initial);
     for _ in 0..step_count.get() {
@@ -165,6 +166,7 @@ where
             previous,
             plan,
             cell_quadrature,
+            facet_quadrature,
             current,
             NewtonEvidence {
                 iterations: 0,
@@ -240,6 +242,7 @@ where
                 previous,
                 plan,
                 cell_quadrature,
+                facet_quadrature,
                 current,
                 NewtonEvidence {
                     iterations: iteration,

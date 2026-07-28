@@ -23,13 +23,21 @@ every exact boundary facet before any assembly adapter is called. Nonzero net
 parent-outward flux is rejected explicitly. Separate lowering falsifiers reject
 an uncovered side and two conditions on one side.
 
-The executable uses positive low inertia because the existing method-native
-skew/conservative audit assumes boundary-negligible convective flux. That audit
-is outside this slice; the registered run still advances one genuine transient
-step with a nonzero 0.1 m/s inlet and the traction pressure regime.
+The method-native audit now reproduces the complete open-boundary identity:
+one half of the parent-outward momentum flux minus one half of the discrete
+divergence defect. It derives every normal from the unique incident parent
+cell, integrates the cubic P1 trace term with declared degree-three facet
+quadrature, and rejects degree-one quadrature before assembly. The authored
+low-inertia run remains, while a separate density-`1 kg/m^3` witness proves the
+same nonzero inlet and traction-pressure regime with non-negligible convection.
+
+This does not change the selected energy-skew weak operator or claim the
+classical advective/DFG do-nothing outlet law. It makes acceptance exact for the
+operator Eqiora already selects.
 
 Run:
 
 ```sh
 cargo run --locked -p eqiora-verify -- run --case fluid.canonical-inlet-outlet-navier-stokes-2d
+python3 verify/fluid/canonical-inlet-outlet-navier-stokes-2d/oracle.py
 ```

@@ -1,8 +1,13 @@
 use eqiora_assembly::LocalContribution;
 use eqiora_core::Diagnostic;
-use eqiora_meshing::{AffineGeometryMap, MeshGeometry, MeshTopology, QuadratureRule};
+use eqiora_meshing::{
+    AffineGeometryMap, MeshGeometry, MeshTopology, QuadratureRule, ReferenceCellFamily,
+};
 
-use super::{REQUIRED_CONVECTIVE_QUADRATURE_EXACTNESS, invalid};
+use super::{
+    REQUIRED_CONVECTIVE_FACET_QUADRATURE_EXACTNESS, REQUIRED_CONVECTIVE_QUADRATURE_EXACTNESS,
+    invalid,
+};
 use crate::operator::LocalOperator;
 use crate::simplicial_mini_transient::{MiniTransientCell, MiniTransport};
 use crate::simplicial_stokes::SimplicialMiniVelocityField2d;
@@ -148,17 +153,38 @@ pub(super) struct ConvectiveRealizationEvidence {
     pub(super) defect_identity_error: f64,
 }
 
+pub(super) fn require_convective_evidence_quadrature(
+    cell_quadrature: &QuadratureRule,
+    facet_quadrature: &QuadratureRule,
+) -> Result<(), Diagnostic> {
+    if cell_quadrature.polynomial_exactness().unwrap_or(0)
+        < REQUIRED_CONVECTIVE_QUADRATURE_EXACTNESS
+    {
+        return Err(invalid(
+            "convective evidence requires degree-eight cell quadrature exactness",
+        ));
+    }
+    let facet_cell = facet_quadrature.reference_cell();
+    if facet_cell.family() != ReferenceCellFamily::Simplex
+        || facet_cell.dimension() != DIMENSION - 1
+        || facet_quadrature.polynomial_exactness().unwrap_or(0)
+            < REQUIRED_CONVECTIVE_FACET_QUADRATURE_EXACTNESS
+    {
+        return Err(invalid(
+            "convective boundary-flux evidence requires degree-three quadrature exactness on the one-dimensional unit simplex",
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn integrate_convective_evidence(
     mesh: &eqiora_meshing::SimplicialMesh,
     velocity: &SimplicialMiniVelocityField2d,
     density: f64,
-    quadrature: &QuadratureRule,
+    cell_quadrature: &QuadratureRule,
+    facet_quadrature: &QuadratureRule,
 ) -> Result<ConvectiveRealizationEvidence, Diagnostic> {
-    if quadrature.polynomial_exactness().unwrap_or(0) < REQUIRED_CONVECTIVE_QUADRATURE_EXACTNESS {
-        return Err(invalid(
-            "convective evidence requires degree-eight quadrature",
-        ));
-    }
+    require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
     let spaces = MiniSpaces::new()?;
     let cell_count = mesh
         .entity_count(DIMENSION)
@@ -181,7 +207,7 @@ pub(super) fn integrate_convective_evidence(
         let mut local_residual = [0.0; crate::simplicial_stokes::LOCAL_VELOCITY_DOF_COUNT];
         let mut conservative = [0.0; crate::simplicial_stokes::LOCAL_VELOCITY_DOF_COUNT];
         let mut expected_defect = [0.0; crate::simplicial_stokes::LOCAL_VELOCITY_DOF_COUNT];
-        for point in quadrature.points() {
+        for point in cell_quadrature.points() {
             let basis = spaces.tabulate(&point.coordinates)?;
             let gradients = physical_gradients(&basis, &inverse);
             let (value, gradient) = evaluate_velocity(&coefficients, &basis.values, &gradients);
@@ -224,6 +250,13 @@ pub(super) fn integrate_convective_evidence(
             expected_defect_global[global] += expected_defect[local];
         }
     }
+    add_boundary_flux_defect(
+        mesh,
+        velocity,
+        density,
+        facet_quadrature,
+        &mut expected_defect_global,
+    )?;
     let coefficients = velocity
         .vertex_values()
         .iter()
@@ -261,6 +294,84 @@ pub(super) fn integrate_convective_evidence(
         conservative_defect_norm: defect_squared.sqrt(),
         defect_identity_error: identity_error_squared.sqrt(),
     })
+}
+
+fn add_boundary_flux_defect(
+    mesh: &eqiora_meshing::SimplicialMesh,
+    velocity: &SimplicialMiniVelocityField2d,
+    density: f64,
+    quadrature: &QuadratureRule,
+    expected_defect: &mut [f64],
+) -> Result<(), Diagnostic> {
+    let facet_count = mesh
+        .entity_count(DIMENSION - 1)
+        .expect("2D simplex mesh owns edge entities");
+    for facet_index in 0..facet_count {
+        let facet = eqiora_meshing::MeshEntity::new(DIMENSION - 1, facet_index);
+        if !mesh
+            .is_boundary_entity(facet)
+            .expect("accepted mesh classifies every edge")
+        {
+            continue;
+        }
+        let vertices = mesh
+            .entity_vertices(facet)
+            .expect("accepted boundary edge owns vertices");
+        let adjacent = mesh
+            .incidence(facet, DIMENSION)
+            .expect("accepted boundary edge owns cell incidence");
+        if vertices.len() != 2 || adjacent.len() != 1 {
+            return Err(invalid(
+                "convective boundary-flux evidence requires one segment and one incident parent cell",
+            ));
+        }
+        let parent = mesh
+            .cells()
+            .get(adjacent[0].entity.index())
+            .expect("accepted boundary incidence names a cell");
+        let opposite = parent
+            .iter()
+            .copied()
+            .find(|candidate| !vertices.iter().any(|vertex| vertex.index() == *candidate))
+            .ok_or_else(|| invalid("boundary edge has no unique opposite parent vertex"))?;
+        let first = &mesh.vertices()[vertices[0].index()];
+        let second = &mesh.vertices()[vertices[1].index()];
+        let opposite = &mesh.vertices()[opposite];
+        let tangent = [second[0] - first[0], second[1] - first[1]];
+        let parent_side =
+            tangent[0] * (opposite[1] - first[1]) - tangent[1] * (opposite[0] - first[0]);
+        if !parent_side.is_finite() || parent_side == 0.0 {
+            return Err(invalid(
+                "convective boundary-flux evidence found a degenerate parent orientation",
+            ));
+        }
+        // This is the parent-outward unit normal multiplied by edge measure.
+        // Keeping the product avoids a normalization and its cancelling
+        // multiplication in the boundary integral.
+        let outward_normal_measure = if parent_side > 0.0 {
+            [tangent[1], -tangent[0]]
+        } else {
+            [-tangent[1], tangent[0]]
+        };
+        for point in quadrature.points() {
+            let coordinate = point.coordinates[0];
+            let basis = [1.0 - coordinate, coordinate];
+            // The MINI bubble has exactly zero trace, so only the two P1
+            // endpoint coefficients contribute on this edge.
+            let value = std::array::from_fn::<_, COMPONENTS, _>(|component| {
+                basis[0] * velocity.vertex_values()[vertices[0].index()][component]
+                    + basis[1] * velocity.vertex_values()[vertices[1].index()][component]
+            });
+            let scale = 0.5 * point.weight * density * dot(&value, &outward_normal_measure);
+            for local in 0..2 {
+                for component in 0..COMPONENTS {
+                    expected_defect[COMPONENTS * vertices[local].index() + component] +=
+                        scale * value[component] * basis[local];
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn local_velocity_coefficients(

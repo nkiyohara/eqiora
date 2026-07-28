@@ -114,6 +114,7 @@ pub(super) fn accept_step(
     previous: &SimplicialMiniNavierStokesState2d,
     plan: MiniNavierStokesStepPlan2d,
     quadrature: &QuadratureRule,
+    facet_quadrature: &QuadratureRule,
     assembly: StepAssembly,
     newton: NewtonEvidence,
 ) -> Result<
@@ -157,8 +158,13 @@ pub(super) fn accept_step(
             )));
         }
     }
-    let convective =
-        integrate_convective_evidence(mesh, &assembly.velocity, plan.density(), quadrature)?;
+    let convective = integrate_convective_evidence(
+        mesh,
+        &assembly.velocity,
+        plan.density(),
+        quadrature,
+        facet_quadrature,
+    )?;
     let coefficient_scale = assembly
         .velocity
         .vertex_values()

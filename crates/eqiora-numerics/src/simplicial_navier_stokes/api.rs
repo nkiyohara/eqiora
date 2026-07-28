@@ -387,10 +387,11 @@ impl SimplicialMiniNavierStokesStepEvidence2d {
 
     /// Norm of the explicit skew-minus-conservative weak-form defect.
     ///
-    /// For homogeneous trace this is exactly the retained
-    /// `-rho/2 * div(u_h) * u_h` consistency term; it is evidence for a
-    /// Realization transformation, not a claim that the two discrete forms
-    /// are identical.
+    /// This is exactly one half of the parent-outward boundary momentum flux
+    /// minus the retained `rho/2 * div(u_h) * u_h` consistency term. The
+    /// boundary contribution vanishes for homogeneous trace. This is evidence
+    /// for a Realization transformation, not a claim that the two discrete
+    /// forms are identical.
     #[must_use]
     pub const fn conservative_advection_defect_norm(&self) -> f64 {
         self.conservative_advection_defect_norm

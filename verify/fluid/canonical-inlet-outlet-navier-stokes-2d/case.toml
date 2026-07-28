@@ -1,18 +1,19 @@
 id = "fluid.canonical-inlet-outlet-navier-stokes-2d"
 status = "verified"
 scope = "canonical-transient-mini-nonzero-essential-and-constant-traction-boundary-2d"
-reference_kind = "registered-structural-and-executable-boundary-oracle"
+reference_kind = "registered-structural-executable-and-independent-exact-rational-boundary-oracle"
 
 capabilities = [
   "canonical-nonzero-essential-velocity-2d",
   "canonical-constant-traction-facets-2d",
   "boundary-selected-pressure-reference",
   "preassembly-incompressible-flux-compatibility",
+  "open-boundary-energy-skew-conservative-defect-identity",
 ]
 
 [problem]
 domain = "[0 m, 1 m] x [0 m, 1 m]"
-density = "1e-10 kg/m^3"
+density = "1e-10 kg/m^3 authored fixture plus an inline 1 kg/m^3 ordinary-inertia audit witness"
 dynamic_viscosity = "0.05 kg/(m s)"
 boundary = "0.1 m/s parabolic parent-inward normal inlet, zero constant-traction outlet, homogeneous walls"
 steps = 1
@@ -26,12 +27,29 @@ complete_nonoverlapping_boundary_partition_required = true
 homogeneous_registered_evidence_exactly_unchanged = true
 traction_pressure_has_no_gauge_row = true
 all_essential_pressure_has_and_uses_gauge_row = true
+ordinary_positive_inertia_open_boundary_step = true
+complete_parent_outward_boundary_flux_in_defect_identity = true
+degree_three_facet_quadrature_required = true
+independent_exact_rational_oracle = true
 
 [falsifiers]
 nonzero_net_parent_outward_flux = "reject-before-assembly"
 all_traction_boundary = "reject-before-mesh-or-assembly"
 uncovered_boundary_side = "reject-canonical-lowering"
 overlapping_boundary_conditions = "reject-canonical-lowering"
+omitted_convective_boundary_flux = "independent exact-rational witness mismatch"
+reversed_parent_outward_normal = "independent exact-rational witness mismatch"
+omitted_discrete_divergence_defect = "independent exact-rational witness mismatch"
+degree_one_convective_facet_quadrature = "reject-before-assembly"
+
+[oracle]
+source = "standalone Python, exact Fraction arithmetic, authored by non-implementing Opus 5 without reading Rust"
+routes = "analytic polynomial coefficient integration plus independent degree-three point quadrature"
+sha256 = "4d7792e4517a8a315197b0b411e99c6f96706a4d0b941ed6948ef8405aafdc88"
+rows = 30
+checks_passed = 180
+checks_failed = 0
+result = "pass"
 
 [claim_boundary]
 intrinsic_dimension = 2
@@ -41,12 +59,15 @@ mini_p1_only = true
 constant_zero_traction_only = true
 normal_scalar_prescribed_velocity_only = true
 low_inertia_registered_run = true
+ordinary_positive_inertia_audit_witness = true
 geometry_artifact = false
 drag_or_lift = false
 published_benchmark = false
 curved_boundary = false
 new_solver_or_element = false
 model_wire_change = false
+selected_energy_skew_operator_change = false
+classical_advective_or_dfg_do_nothing_outlet = false
 
 [evidence]
 package = "eqiora"
