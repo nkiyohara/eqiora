@@ -1,7 +1,7 @@
 # Exact Cartesian Domain edit in 3D
 
 This case proves one deliberately narrow geometry-authoring action. A current
-Model wire v6 document with exactly one three-dimensional Cartesian body
+Model wire v7 document with exactly one three-dimensional Cartesian body
 changes the x- and z-axis intervals as one non-empty canonical axis-keyed set
 through the ordinary versioned transaction path. Preview is immutable and
 content-bound; commit replays the exact transaction against the same Model

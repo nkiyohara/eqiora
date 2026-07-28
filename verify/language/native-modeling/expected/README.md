@@ -1,6 +1,6 @@
 # Expected evidence
 
-- Source and native paths have equal generation-v1 structural semantic
+- Source and native paths have equal generation-v2 structural semantic
   fingerprints and distinct exact Model artifact references.
 - Their reference trajectories are bit-identical for the fixed-step fixture.
 - The native canonical model artifact round-trips with identical bytes and

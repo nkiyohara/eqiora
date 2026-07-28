@@ -60,8 +60,8 @@ shared application service → canonical model / owned run result
 
 The Studio bridge remains `eqiora.studio.bridge/v5`; that version owns the
 WebView DTO shape and is independent of the canonical Model wire. Compile/check
-ordinary authoring selects the shared current Model wire v6, while the closed
-control decoder continues to admit explicit v1--v6 requests and responses.
+ordinary authoring selects the shared current Model wire v7, while the closed
+control decoder continues to admit explicit v1--v7 requests and responses.
 Extending the Model wire alone does not advance the bridge protocol.
 
 The protocol modules under `src/` validate every value crossing the WebView

@@ -711,7 +711,7 @@ identity-parametric Semantic Kernel typing used for source models.
 The native path uses a client-neutral immutable `ModelDraft`; it neither
 manufactures source text nor assigns graph IDs before draft closure. Ordinary
 Python `compile` and `Model.define` select the same current profile as Rust and
-Studio without a codec argument. Exact v1--v6 compile, define, and replay live
+Studio without a codec argument. Exact v1--v7 compile, define, and replay live
 under `eqiora.compatibility`; those operations require a codec and never sniff
 or retry. Both paths cross the selected bounded transaction envelope, commit
 atomically, and reconstruct the matching immutable model envelope. The data
@@ -1145,7 +1145,7 @@ Concrete Truck objects, STEP parsing, and B-rep/modeling execution remain in
 `eqiora-cad-truck`; no concrete CAD kernel is part of the L2 boundary.
 
 Geometry consumes RFC 0037's sealed replayable Model contract rather than a
-concrete latest wire. Explicit Model v1--v6 codecs produce exact artifact
+concrete latest wire. Explicit Model v1--v7 codecs produce exact artifact
 identity and a validated immutable Kernel Program together; an identity-only
 reference cannot stand in for content. Thus a future Model codec extends one
 owned replay boundary without changing geometry consumers, while equal meaning
@@ -1473,7 +1473,7 @@ changing such a policy does not manufacture a data-format version. Artifact
 and protocol versions independently govern persisted bytes and external
 exchange.
 
-`ModelEnvelopeV1` through `ModelEnvelopeV6`
+`ModelEnvelopeV1` through `ModelEnvelopeV7`
 serialize their explicitly selected Semantic Model contracts through wire
 DTOs, then reconstruct through typed constructors, one graph transaction, and
 `KernelProgram` validation. Canonical JSON order and schema-domain-separated
@@ -1496,7 +1496,7 @@ another Model wire domain remains a different artifact and fails exact replay.
 The compatibility API selects and decodes exact Model codecs explicitly; the
 reference does not detect or upgrade schemas. The registered evidence
 constructs coherent Realization v1 and Run v2 lineage for v1/v2/v3 Models but
-does not lower or execute the physical Models; v4--v6 participation in the sealed
+does not lower or execute the physical Models; v4--v7 participation in the sealed
 reference contract does not by itself widen that registered lineage claim. [RFC
 0037](../rfcs/0037-version-neutral-model-artifact-reference.md) and
 [`artifacts.model-reference-lineage`](../verify/artifacts/model-reference-lineage/README.md)

@@ -7,11 +7,11 @@ semantic vocabulary without accepting a codec argument from the user.
 
 The shared `expected/profile.json` fixture fixes the cross-client mapping for
 this revision. It is a conformance input, not a promise that `current` will
-remain Model v6. Exact compatibility operations continue to name v1 through
-v6, replay only the selected codec, preserve the artifact schema and digest,
+remain Model v7. Exact compatibility operations continue to name v1 through
+v7, replay only the selected codec, preserve the artifact schema and digest,
 and reject unknown or mismatched generations without fallback. Quantitative
 edits retain that exact transaction codec and reconstruct a child Model in the
-same generation, including ordinary current-v6 Studio authoring. The current
+same generation, including ordinary current-v7 Studio authoring. The current
 fixture contains a generic content-addressed pure operator, so exact v4 rejects
 it instead of silently dropping its definition table.
 

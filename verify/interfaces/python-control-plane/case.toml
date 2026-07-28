@@ -14,7 +14,7 @@ capabilities = [
 ]
 
 [claim_boundary]
-current_model_wire = "v6"
+current_model_wire = "v7"
 source_compile = true
 exact_artifact_replay = true
 immutable_revision = true

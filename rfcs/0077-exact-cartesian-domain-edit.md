@@ -11,7 +11,7 @@
 
 ## Summary
 
-One current-v6 Semantic Model containing exactly one three-dimensional
+One current-v7 Semantic Model containing exactly one three-dimensional
 Cartesian body may produce an immutable child Model by changing a non-empty
 set of distinct axis intervals. The set is canonicalized by axis and committed
 atomically. The body Domain identity, its oriented boundary Domain identities,
@@ -72,7 +72,7 @@ span, UI state, or adapter object.
 
 Preview:
 
-1. requires the current Model wire v6;
+1. requires the current Model wire v7;
 2. finds exactly one three-dimensional `CartesianBox` body;
 3. collects a non-empty edit set and canonicalizes it by axis;
 4. rejects duplicate or out-of-range axes and any no-op member before emitting

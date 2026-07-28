@@ -17,7 +17,7 @@ The spatial artifact uses one continuum Representation, a supported scalar
 Field, scoped continuous Relations, and only the closed `grad`, `div`, and
 `trace` expression forms. It is reaccepted by the existing Rust scalar FEM
 application path. All three Python fixtures compare equal to independently
-compiled source through the shared generation-v1 structural semantic
+compiled source through the shared generation-v2 structural semantic
 fingerprint, while their exact Model digests remain distinct.
 
 Falsifiers reject a same-named foreign Field, a dimensional mismatch, an
