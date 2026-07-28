@@ -22,6 +22,7 @@ pub(super) fn validate_domains(
         match domain.kind() {
             DomainKind::Abstract
             | DomainKind::CartesianBox { .. }
+            | DomainKind::GeometryRegion { .. }
             | DomainKind::ScalarPhysical { .. }
             | DomainKind::BoundaryPhysical { .. } => {
                 if !parents.is_empty() {
@@ -64,12 +65,84 @@ pub(super) fn validate_domains(
                     )),
                 }
             }
+            DomainKind::GeometryBoundary { .. } => {
+                if parents.len() != 1 {
+                    diagnostics.push(kernel_error(
+                        id,
+                        format!(
+                            "geometry boundary Domain requires exactly one BoundaryOf parent, found {}",
+                            parents.len()
+                        ),
+                    ));
+                    continue;
+                }
+                let parent = *parents.first().expect("one boundary parent was checked");
+                match nodes.get(&parent) {
+                    Some(KernelNode::Domain(parent))
+                        if matches!(parent.kind(), DomainKind::GeometryRegion { .. }) => {}
+                    Some(KernelNode::Domain(_)) => diagnostics.push(kernel_error(
+                        id,
+                        "geometry boundary parent must be a geometry region Domain",
+                    )),
+                    _ => diagnostics.push(kernel_error(
+                        id,
+                        "BoundaryOf target has no Domain definition",
+                    )),
+                }
+            }
             _ => diagnostics.push(kernel_error(
                 id,
                 "Domain kind is newer than this semantic validator",
             )),
         }
     }
+}
+
+pub(super) fn validate_geometry_support_uses(
+    nodes: &BTreeMap<RawId, KernelNode>,
+    edges: &[Edge],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for (&id, node) in nodes {
+        let (support, subject) = match node {
+            KernelNode::Field(_) => (
+                edge_targets(edges, id, EdgeKind::DefinedOn)
+                    .into_iter()
+                    .find(|target| is_geometry_domain(*target, nodes)),
+                "Field spatial support",
+            ),
+            KernelNode::Relation(_) => (
+                edge_targets(edges, id, EdgeKind::AppliesOn)
+                    .into_iter()
+                    .find(|target| is_geometry_domain(*target, nodes)),
+                "Relation spatial scope",
+            ),
+            KernelNode::Port(port) => (
+                port.boundary_physical_contract()
+                    .map(|(_, boundary)| boundary.erase())
+                    .filter(|boundary| is_geometry_domain(*boundary, nodes)),
+                "boundary-physical Port support",
+            ),
+            _ => continue,
+        };
+        if support.is_some() {
+            diagnostics.push(kernel_error(
+                id,
+                format!("{subject} from a geometry Domain requires artifact admission"),
+            ));
+        }
+    }
+}
+
+fn is_geometry_domain(domain: RawId, nodes: &BTreeMap<RawId, KernelNode>) -> bool {
+    matches!(
+        nodes.get(&domain),
+        Some(KernelNode::Domain(domain))
+            if matches!(
+                domain.kind(),
+                DomainKind::GeometryRegion { .. } | DomainKind::GeometryBoundary { .. }
+            )
+    )
 }
 
 pub(super) fn validate_fields(

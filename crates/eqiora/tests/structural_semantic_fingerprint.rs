@@ -47,7 +47,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
         );
     }
     let fingerprint = source.structural_fingerprint().unwrap();
-    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V1);
+    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V2);
     assert_eq!(fingerprint.digest().len(), 64);
 
     let replay = ExactModelCodec::CURRENT

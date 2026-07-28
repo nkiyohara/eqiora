@@ -189,7 +189,7 @@ impl<'a> Canonicalizer<'a> {
         }
         let mut encoder = Encoder::new(self.limits.max_canonical_bytes.min(remaining_work));
         encoder.raw(PROJECTION_MAGIC)?;
-        encoder.u16(GENERATION_V1)?;
+        encoder.u16(GENERATION_V2)?;
         encoder.len(order.len())?;
         for vertex in order {
             let value = &self.graph.vertices[vertex];

@@ -1,4 +1,4 @@
-//! Explicit transaction wire v7 for spatial-periodic boundary Connections.
+//! Explicit transaction wire v7 for geometry-backed Domains.
 
 use eqiora_core::Diagnostic;
 use eqiora_graph::Transaction;
@@ -8,8 +8,8 @@ use crate::{ArtifactDigest, ModelDecoderLimits};
 
 /// Explicit v7 serialization of one ordered Semantic Model transaction.
 ///
-/// V7 inherits the complete v5 edit grammar and adds only the closed
-/// spatial-periodic Connection semantic. Decoding performs no version fallback
+/// V7 inherits the complete v6 edit grammar and adds only geometry-region and
+/// geometry-boundary Domain definitions. Decoding performs no version fallback
 /// and never mutates a graph store.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelTransactionEnvelopeV7 {

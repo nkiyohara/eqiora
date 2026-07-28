@@ -23,7 +23,10 @@ use eqiora_schema::kernel::{
 };
 
 use crate::conserving::validate_scalar_physical_networks;
-use geometry_domains::{field_support, spatial_support, validate_domains, validate_fields};
+use geometry_domains::{
+    field_support, spatial_support, validate_domains, validate_fields,
+    validate_geometry_support_uses,
+};
 
 /// A completely validated, immutable Semantic Kernel model.
 ///
@@ -107,6 +110,7 @@ impl KernelProgram {
 
         validate_closed_topology(snapshot, view.members(), &mut diagnostics);
         validate_domains(&nodes, &edges, &mut diagnostics);
+        validate_geometry_support_uses(&nodes, &edges, &mut diagnostics);
         validate_fields(&nodes, &edges, &mut diagnostics);
         validate_relations(&nodes, &edges, &mut diagnostics);
         validate_activations(&nodes, &edges, &mut diagnostics);

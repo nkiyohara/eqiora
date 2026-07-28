@@ -108,33 +108,36 @@ impl ExactModelCodec {
     /// Whether this wire admits nominal scalar physical semantics.
     #[must_use]
     pub const fn supports_scalar_physical(self) -> bool {
-        matches!(self, Self::V2 | Self::V3 | Self::V4 | Self::V5 | Self::V6)
+        matches!(
+            self,
+            Self::V2 | Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7
+        )
     }
 
     /// Whether this wire admits exact shaped values and field-valued boundary
     /// physical interfaces.
     #[must_use]
     pub const fn supports_boundary_physical(self) -> bool {
-        matches!(self, Self::V3 | Self::V4 | Self::V5 | Self::V6)
+        matches!(self, Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7)
     }
 
     /// Whether this wire admits the closed canonical tensor-operator
     /// vocabulary.
     #[must_use]
     pub const fn supports_tensor_operators(self) -> bool {
-        matches!(self, Self::V4 | Self::V5 | Self::V6)
+        matches!(self, Self::V4 | Self::V5 | Self::V6 | Self::V7)
     }
 
     /// Whether this wire admits expression-local content-addressed pure operators.
     #[must_use]
     pub const fn supports_pure_operators(self) -> bool {
-        matches!(self, Self::V5 | Self::V6)
+        matches!(self, Self::V5 | Self::V6 | Self::V7)
     }
 
     /// Whether this wire admits spatial-periodic boundary Connections.
     #[must_use]
     pub const fn supports_spatial_periodic(self) -> bool {
-        matches!(self, Self::V6)
+        matches!(self, Self::V6 | Self::V7)
     }
 
     pub(crate) fn replay_transaction(

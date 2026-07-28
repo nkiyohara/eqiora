@@ -98,6 +98,8 @@ describe("compile/check control protocol v1", () => {
     ]);
     expect(modelWireSchema.enum).toContain("v6");
     expect(requiredFeaturesSchema.items.enum).toContain("model-wire/v6");
+    expect(modelWireSchema.enum).toContain("v7");
+    expect(requiredFeaturesSchema.items.enum).toContain("model-wire/v7");
   });
 
   it("rejects unknown fields, protocols, and feature combinations", () => {

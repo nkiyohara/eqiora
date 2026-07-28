@@ -250,7 +250,7 @@ impl CompileControlExecutionV1 {
 ///
 /// This is the only point in the v1 control slice that enters compilation. It
 /// dispatches through the request's [`ExactModelCodec`], which replays the selected
-/// immutable `ModelTransactionEnvelopeV1` through `V5` before graph commit.
+/// immutable `ModelTransactionEnvelopeV1` through `V7` before graph commit.
 #[must_use]
 pub fn execute_compile_v1(request: &CompileRequestV1) -> CompileControlExecutionV1 {
     let document = match request
