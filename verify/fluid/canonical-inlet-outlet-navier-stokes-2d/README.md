@@ -30,6 +30,12 @@ cell, integrates the cubic P1 trace term with declared degree-three facet
 quadrature, and rejects degree-one quadrature before assembly. The authored
 low-inertia run remains, while a separate density-`1 kg/m^3` witness proves the
 same nonzero inlet and traction-pressure regime with non-negligible convection.
+The exact-rational oracle freezes P1 trace witnesses. In the executed MINI
+space, the cell-interior bubble vanishes identically on every facet, so the
+boundary trace has the same P1 degree; the Rust witness separately exercises
+that implementation fact. Both public advance functions therefore require
+cell quadrature of declared exactness eight and one-dimensional facet
+quadrature of declared exactness three.
 
 This does not change the selected energy-skew weak operator or claim the
 classical advective/DFG do-nothing outlet law. It makes acceptance exact for the
