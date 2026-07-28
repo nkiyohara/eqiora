@@ -4,6 +4,8 @@ use std::ops::Range;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
+use crate::csr::CanonicalCsrSystemView;
+
 /// Result of requesting an operator diagonal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiagonalAvailability {
@@ -162,6 +164,7 @@ pub struct LinearProblem<'a> {
     right_hand_side: &'a [f64],
     initial_guess: Option<&'a [f64]>,
     properties: LinearOperatorProperties,
+    canonical_csr_system: Option<&'a CanonicalCsrSystemView>,
 }
 
 impl<'a> LinearProblem<'a> {
@@ -195,7 +198,14 @@ impl<'a> LinearProblem<'a> {
             right_hand_side,
             initial_guess: None,
             properties,
+            canonical_csr_system: None,
         })
+    }
+
+    pub(crate) fn from_canonical(system: &'a CanonicalCsrSystemView) -> Result<Self, Diagnostic> {
+        let mut problem = Self::new(system, system.right_hand_side(), system.properties())?;
+        problem.canonical_csr_system = Some(system);
+        Ok(problem)
     }
 
     /// Attach an explicit initial guess.
@@ -236,6 +246,16 @@ impl<'a> LinearProblem<'a> {
     #[must_use]
     pub const fn properties(&self) -> LinearOperatorProperties {
         self.properties
+    }
+
+    /// Exact captured CSR system when the problem was created from that single
+    /// canonical owner.
+    ///
+    /// Hand-built and transposed problems return `None`; a backend requiring
+    /// materialized sparse storage must fail closed in that case.
+    #[must_use]
+    pub const fn canonical_csr_system(&self) -> Option<&'a CanonicalCsrSystemView> {
+        self.canonical_csr_system
     }
 }
 

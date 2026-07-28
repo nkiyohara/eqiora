@@ -173,7 +173,7 @@ impl CanonicalCsrSystemView {
     /// Returns `EQ0802` only if the internal fixed action contradicts the
     /// invariants already checked at construction.
     pub fn linear_problem(&self) -> Result<LinearProblem<'_>, Diagnostic> {
-        LinearProblem::new(self, &self.right_hand_side, self.properties)
+        LinearProblem::from_canonical(self)
     }
 
     fn apply_range(

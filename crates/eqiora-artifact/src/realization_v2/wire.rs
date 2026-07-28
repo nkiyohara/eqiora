@@ -646,6 +646,7 @@ enum WireLinearSolver {
     ConjugateGradient,
     BiConjugateGradientStabilized,
     MinimumResidual,
+    SparseLu,
 }
 
 impl WireLinearSolver {
@@ -654,6 +655,7 @@ impl WireLinearSolver {
             LinearSolver::ConjugateGradient => Self::ConjugateGradient,
             LinearSolver::BiConjugateGradientStabilized => Self::BiConjugateGradientStabilized,
             LinearSolver::MinimumResidual => Self::MinimumResidual,
+            LinearSolver::SparseLu => Self::SparseLu,
         }
     }
 
@@ -662,6 +664,7 @@ impl WireLinearSolver {
             Self::ConjugateGradient => LinearSolver::ConjugateGradient,
             Self::BiConjugateGradientStabilized => LinearSolver::BiConjugateGradientStabilized,
             Self::MinimumResidual => LinearSolver::MinimumResidual,
+            Self::SparseLu => LinearSolver::SparseLu,
         }
     }
 }

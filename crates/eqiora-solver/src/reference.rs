@@ -51,6 +51,9 @@ impl LinearSolverBackend for ReferenceLinearSolver {
             LinearSolver::BiConjugateGradientStabilized => {
                 bicgstab::solve_preconditioned_bicgstab(self.provider(), problem, plan, execution)
             }
+            LinearSolver::SparseLu => Err(invalid_realization(
+                "the reference adapter does not implement sparse LU",
+            )),
         }
     }
 }

@@ -675,6 +675,9 @@ impl WireLinearSolver {
             LinearSolver::MinimumResidual => Err(invalid_artifact(
                 "realization artifact v1 cannot encode MINRES; a versioned wire extension is required",
             )),
+            LinearSolver::SparseLu => Err(invalid_artifact(
+                "realization artifact v1 cannot encode sparse LU; a versioned wire extension is required",
+            )),
         }
     }
 

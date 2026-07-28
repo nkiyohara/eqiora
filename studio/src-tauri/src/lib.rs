@@ -904,6 +904,12 @@ fn project_spatial_result(
                         "the local scalar-elliptic Studio workflow received an unsupported minimum-residual solve report",
                     )));
                 }
+                LinearSolver::SparseLu => {
+                    return Err(Box::new(studio_error(
+                        "ST0008",
+                        "the local scalar-elliptic Studio workflow received an unsupported sparse-LU solve report",
+                    )));
+                }
             },
             preconditioner: match solve.preconditioner() {
                 PreconditionerPolicy::Identity => "identity",

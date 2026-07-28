@@ -4,7 +4,7 @@ use eqiora_realization::PortableRealizationGraph;
 use eqiora_solver::{
     CanonicalCsrAgreementFingerprintV1, CanonicalCsrSystemView, ExecutionProvider, ExecutionReport,
     ExecutionTopology, FixedOrderInnerProduct, LinearOperator, LinearOperatorOrientation,
-    LinearSolution, LinearSolver, PreconditionerPolicy, SolveReport, SolverPlan, SolverProvider,
+    LinearSolution, SolveReport, SolverPlan, SolverProvider,
 };
 use sha2::{Digest, Sha256};
 
@@ -14,6 +14,10 @@ use crate::binding::{
 };
 use crate::device::CudaLinearExecutionTrace;
 use crate::distributed::DistributedLinearExecutionTrace;
+
+mod device_payload;
+
+use device_payload::minimum_device_payload_bytes;
 
 /// Closed operation vocabulary of the first accepted linear-execution DAGs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -943,40 +947,6 @@ impl ExecutionDagView<'_> {
     pub const fn solver_plan(self) -> SolverPlan {
         self.receipt.plan
     }
-}
-
-fn minimum_device_payload_bytes(
-    system: &CanonicalCsrSystemView,
-    plan: SolverPlan,
-) -> Result<usize, Diagnostic> {
-    let vector_count = match plan.algorithm() {
-        LinearSolver::ConjugateGradient => 3usize,
-        LinearSolver::BiConjugateGradientStabilized => 7,
-        LinearSolver::MinimumResidual => 6,
-    };
-    let diagonal_count = usize::from(plan.preconditioner() == PreconditionerPolicy::Jacobi);
-    let dimension = system.columns();
-    let index_elements = system
-        .row_offsets()
-        .len()
-        .checked_add(system.column_indices().len())
-        .ok_or_else(|| invalid("device index payload size overflowed"))?;
-    let scalar_elements = system
-        .values()
-        .len()
-        .checked_add(system.right_hand_side().len())
-        .and_then(|count| {
-            count.checked_add(dimension.checked_mul(2 + vector_count + diagonal_count)?)
-        })
-        .ok_or_else(|| invalid("device scalar payload size overflowed"))?;
-    index_elements
-        .checked_mul(size_of::<i64>())
-        .and_then(|bytes| {
-            scalar_elements
-                .checked_mul(size_of::<f64>())
-                .and_then(|scalars| bytes.checked_add(scalars))
-        })
-        .ok_or_else(|| invalid("known device payload byte count overflowed"))
 }
 
 fn accepted_output_fingerprint(values: &[f64]) -> Result<AcceptedOutputFingerprintV1, Diagnostic> {

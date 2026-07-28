@@ -35,6 +35,8 @@ use crate::{
     ProducerReportSummaryV2, evaluate_admission, evaluate_phase_statuses,
 };
 
+mod krylov_workspace;
+
 /// Stable backend identity for Eqiora's distributed Krylov solvers over MPI.
 pub const MPI_DISTRIBUTED_KRYLOV_BACKEND: BackendId = BackendId::new("eqiora.mpi.krylov");
 
@@ -2019,40 +2021,6 @@ impl RunBuffers {
             complete_values: zeroed(global_dimension, "reconstructed values")?,
             acceptance: LinearAcceptanceWorkspace::new(complete_problem)?,
         })
-    }
-}
-
-impl KrylovWorkspace {
-    fn new(problem: &DistributedLinearProblem<'_>, plan: SolverPlan) -> Result<Self, Diagnostic> {
-        let dimension = problem.right_hand_side().len();
-        let mut solution = zeroed(dimension, "distributed Krylov solution")?;
-        if let Some(initial) = problem.initial_guess() {
-            solution.copy_from_slice(initial);
-        }
-        match plan.algorithm() {
-            LinearSolver::ConjugateGradient => Ok(Self::Cg(CgWorkspace {
-                solution,
-                applied: zeroed(dimension, "CG action")?,
-                residual: zeroed(dimension, "CG residual")?,
-                preconditioned: zeroed(dimension, "CG preconditioned residual")?,
-                direction: zeroed(dimension, "CG direction")?,
-                inverse_diagonal: zeroed(dimension, "Jacobi inverse diagonal")?,
-            })),
-            LinearSolver::MinimumResidual => Ok(Self::Minres(MinresWorkspace {
-                solution,
-                applied: zeroed(dimension, "MINRES action")?,
-                previous_residual: zeroed(dimension, "MINRES previous residual")?,
-                current_residual: zeroed(dimension, "MINRES current residual")?,
-                lanczos_image: zeroed(dimension, "MINRES Lanczos image")?,
-                basis: zeroed(dimension, "MINRES Lanczos basis")?,
-                direction: zeroed(dimension, "MINRES direction")?,
-                previous_direction: zeroed(dimension, "MINRES previous direction")?,
-                older_direction: zeroed(dimension, "MINRES older direction")?,
-            })),
-            LinearSolver::BiConjugateGradientStabilized => Err(invalid_realization(
-                "MPI distributed Krylov workspace does not implement BiCGSTAB",
-            )),
-        }
     }
 }
 

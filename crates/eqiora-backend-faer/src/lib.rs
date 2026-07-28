@@ -6,6 +6,8 @@
 //! returns Eqiora-owned convergence evidence after independent true-residual
 //! verification.
 
+mod sparse_lu;
+
 use std::sync::{Arc, Mutex};
 
 use eqiora_core::Diagnostic;
@@ -38,7 +40,7 @@ pub const FAER_SOLVER_PROVIDER: SolverProvider = SolverProvider::new(
     &[ProviderLibrary::new("faer", FAER_VERSION)],
 );
 
-/// Stateless faer adapter for host-local `f64` CG and BiCGSTAB.
+/// Stateless faer adapter for host-local `f64` CG, BiCGSTAB, and sparse LU.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FaerLinearSolver;
 
@@ -81,6 +83,27 @@ impl LinearSolverBackend for FaerLinearSolver {
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
+            SolverCapability {
+                algorithm: LinearSolver::SparseLu,
+                operator_properties: LinearOperatorProperties::General,
+                preconditioner: PreconditionerPolicy::Identity,
+                reduction: ReductionPolicy::Fast,
+                scalar_type: ScalarType::F64,
+            },
+            SolverCapability {
+                algorithm: LinearSolver::SparseLu,
+                operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
+                preconditioner: PreconditionerPolicy::Identity,
+                reduction: ReductionPolicy::Fast,
+                scalar_type: ScalarType::F64,
+            },
+            SolverCapability {
+                algorithm: LinearSolver::SparseLu,
+                operator_properties: LinearOperatorProperties::SymmetricIndefinite,
+                preconditioner: PreconditionerPolicy::Identity,
+                reduction: ReductionPolicy::Fast,
+                scalar_type: ScalarType::F64,
+            },
         ])
         .expect("faer exact capability set is nonempty")
     }
@@ -109,6 +132,7 @@ impl LinearSolverBackend for FaerLinearSolver {
             LinearSolver::BiConjugateGradientStabilized => {
                 solve_bicgstab(self.provider(), problem, plan, inverse_diagonal)
             }
+            LinearSolver::SparseLu => sparse_lu::solve_sparse_lu(self.provider(), problem, plan),
         }
     }
 }
@@ -447,6 +471,28 @@ mod tests {
         assert_eq!(FAER_SOLVER_PROVIDER.libraries()[0].name(), "faer");
         assert_eq!(FAER_SOLVER_PROVIDER.libraries()[0].version(), FAER_VERSION);
         assert_eq!(FaerLinearSolver.provider(), FAER_SOLVER_PROVIDER);
+    }
+
+    #[test]
+    fn sparse_lu_uses_only_explicit_parallelism_apis() {
+        let source = include_str!("sparse_lu.rs");
+        for process_global_wrapper in [
+            ".sp_lu(",
+            ".sp_qr(",
+            ".sp_cholesky(",
+            ".sp_solve_lower_triangular_in_place(",
+            ".sp_solve_upper_triangular_in_place(",
+            ".sp_solve_unit_lower_triangular_in_place(",
+            ".sp_solve_unit_upper_triangular_in_place(",
+        ] {
+            assert!(
+                !source.contains(process_global_wrapper),
+                "sparse LU must not call {process_global_wrapper}"
+            );
+        }
+        assert!(source.contains("factorize_numeric_lu("));
+        assert!(source.contains("solve_in_place_with_conj("));
+        assert!(source.contains("let parallelism = Par::Seq;"));
     }
 
     #[derive(Debug)]

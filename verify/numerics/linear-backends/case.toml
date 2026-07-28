@@ -1,7 +1,7 @@
 id = "numerics.linear-backends"
 status = "verified"
 scope = "linear-execution"
-reference_kind = "independent-backend-and-analytic"
+reference_kind = "independent-backend-analytic-and-exact-rational"
 
 capabilities = [
   "backend-neutral-solver-plan",
@@ -9,6 +9,8 @@ capabilities = [
   "reference-cg",
   "faer-cg",
   "faer-bicgstab",
+  "faer-sparse-lu",
+  "captured-csr-direct-solve",
   "deployment-bound-faer-provider-release",
   "jacobi-preconditioning",
   "true-residual-acceptance",
@@ -18,8 +20,32 @@ capabilities = [
 [problem]
 spd = "canonical Poisson plus a 2x2 analytic system"
 nonsymmetric = "manufactured 2x2 general operator"
+direct_nonsymmetric = "precommitted exact-rational 5x5, 14-nonzero, non-structurally-symmetric canonical CSR"
+direct_rank_deficient = "precommitted structurally nonempty inconsistent 3x3 canonical CSR"
 scalar = "f64"
 layout = "replicated"
+
+[sparse_lu_acceptance]
+relative_tolerance = "0 exactly"
+absolute_tolerance = "2^-30 exactly"
+maximum_iterations = 1
+componentwise_solution_error = "<= 2^-28"
+initial_guess_early_exit = "0 completed iterations and no factorization"
+ordinary_solve = "1 completed factor-and-solve attempt"
+fixture_sha256 = "2555229a72984bf922655dad70b8050d70a7271af6bfd85a81ca9a3be4e8bcec"
+
+[sparse_lu_boundary]
+host_local = true
+normal_orientation_only = true
+canonical_csr_capture_required = true
+identity_preconditioner_only = true
+fast_reduction_only = true
+explicit_faer_parallelism = "Par::Seq"
+matrix_free = false
+transposed = false
+distributed = false
+cuda = false
+performance = false
 
 [evidence]
 package = "eqiora"

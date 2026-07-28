@@ -10,6 +10,8 @@ use eqiora_solver::{
 };
 use sha2::{Digest, Sha256};
 
+mod solver_tag;
+
 const ADMISSION_PROTOCOL_VERSION: u8 = 1;
 const ADMISSION_RECORD_BYTES: usize = 58;
 const PHASE_STATUS_BYTES: usize = 28;
@@ -920,11 +922,7 @@ impl ProducerReportRecordV2 {
         ] {
             hash.update(value.to_bits().to_be_bytes());
         }
-        hash.update([match self.algorithm {
-            LinearSolver::ConjugateGradient => 0,
-            LinearSolver::BiConjugateGradientStabilized => 1,
-            LinearSolver::MinimumResidual => 2,
-        }]);
+        hash.update([solver_tag::linear_solver_tag(self.algorithm)]);
         hash.update([match self.preconditioner {
             PreconditionerPolicy::Identity => 0,
             PreconditionerPolicy::Jacobi => 1,
@@ -997,6 +995,7 @@ fn gather_invalid(message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use eqiora_distributed::GlobalVectorSpace;
     use eqiora_solver::{
         BackendId, ExecutionId, ExecutionProvider, ExecutionReport, LinearOperatorOrientation,
