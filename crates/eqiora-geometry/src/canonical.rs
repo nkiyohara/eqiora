@@ -12,10 +12,10 @@ use eqiora_core::diagnostic::codes;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{NamedEntitySet, PlanarFace, PlanarRegion};
+use crate::{CanonicalCircularHoleGeometryV1, NamedEntitySet, PlanarFace, PlanarRegion};
 
 const GEOMETRY_DEFINITION_SCHEMA: &str = "eqiora.geometry-definition-envelope/v1";
-const CANONICAL_ENCODING: &str = "eqiora.canonical-json/v1";
+pub(crate) const CANONICAL_ENCODING: &str = "eqiora.canonical-json/v1";
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_ARTIFACT, message)
@@ -79,12 +79,21 @@ pub struct CanonicalGeometryRef<'a> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum CanonicalGeometryKindRef<'a> {
     StraightEdgedPlanarV1(&'a CanonicalGeometryV1),
+    CircularHolePlanarV1(&'a CanonicalCircularHoleGeometryV1),
 }
 
 impl<'a> From<&'a CanonicalGeometryV1> for CanonicalGeometryRef<'a> {
     fn from(geometry: &'a CanonicalGeometryV1) -> Self {
         Self {
             kind: CanonicalGeometryKindRef::StraightEdgedPlanarV1(geometry),
+        }
+    }
+}
+
+impl<'a> From<&'a CanonicalCircularHoleGeometryV1> for CanonicalGeometryRef<'a> {
+    fn from(geometry: &'a CanonicalCircularHoleGeometryV1) -> Self {
+        Self {
+            kind: CanonicalGeometryKindRef::CircularHolePlanarV1(geometry),
         }
     }
 }
@@ -106,6 +115,7 @@ impl CanonicalGeometryRef<'_> {
     pub const fn digest_bytes(self) -> [u8; 32] {
         match self.kind {
             CanonicalGeometryKindRef::StraightEdgedPlanarV1(geometry) => geometry.digest_bytes(),
+            CanonicalGeometryKindRef::CircularHolePlanarV1(geometry) => geometry.digest_bytes(),
         }
     }
 
@@ -113,7 +123,8 @@ impl CanonicalGeometryRef<'_> {
     #[must_use]
     pub const fn ambient_dimension(self) -> usize {
         match self.kind {
-            CanonicalGeometryKindRef::StraightEdgedPlanarV1(_) => 2,
+            CanonicalGeometryKindRef::StraightEdgedPlanarV1(_)
+            | CanonicalGeometryKindRef::CircularHolePlanarV1(_) => 2,
         }
     }
 
@@ -121,7 +132,8 @@ impl CanonicalGeometryRef<'_> {
     #[must_use]
     pub const fn topological_dimension(self) -> usize {
         match self.kind {
-            CanonicalGeometryKindRef::StraightEdgedPlanarV1(_) => 2,
+            CanonicalGeometryKindRef::StraightEdgedPlanarV1(_)
+            | CanonicalGeometryKindRef::CircularHolePlanarV1(_) => 2,
         }
     }
 
@@ -133,6 +145,9 @@ impl CanonicalGeometryRef<'_> {
                 .region()
                 .entity_set(name)
                 .map(NamedEntitySet::dimension),
+            CanonicalGeometryKindRef::CircularHolePlanarV1(geometry) => {
+                geometry.entity_set(name).map(NamedEntitySet::dimension)
+            }
         }
     }
 }
@@ -151,7 +166,7 @@ impl CanonicalGeometryV1 {
         })?;
         Ok(Self {
             region: region.clone(),
-            digest: digest(&bytes),
+            digest: digest_with_schema(GEOMETRY_DEFINITION_SCHEMA, &bytes),
             bytes,
         })
     }
@@ -209,9 +224,9 @@ impl CanonicalGeometryV1 {
     }
 }
 
-fn digest(bytes: &[u8]) -> [u8; 32] {
+pub(crate) fn digest_with_schema(schema: &str, bytes: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(GEOMETRY_DEFINITION_SCHEMA.as_bytes());
+    hasher.update(schema.as_bytes());
     hasher.update([0]);
     hasher.update(bytes);
     hasher.finalize().into()
@@ -250,11 +265,7 @@ impl WireGeometryDefinitionV1 {
             entity_sets: region
                 .entity_sets()
                 .iter()
-                .map(|set| WireEntitySet {
-                    name: set.name().to_owned(),
-                    dimension: set.dimension(),
-                    members: set.members().to_vec(),
-                })
+                .map(WireEntitySet::from_set)
                 .collect(),
         }
     }
@@ -328,7 +339,7 @@ enum WireGeometryKind {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-enum WireLengthUnit {
+pub(crate) enum WireLengthUnit {
     Metre,
 }
 
@@ -341,8 +352,18 @@ struct WireFace {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
-struct WireEntitySet {
-    name: String,
-    dimension: usize,
-    members: Vec<usize>,
+pub(crate) struct WireEntitySet {
+    pub(crate) name: String,
+    pub(crate) dimension: usize,
+    pub(crate) members: Vec<usize>,
+}
+
+impl WireEntitySet {
+    pub(crate) fn from_set(set: &NamedEntitySet) -> Self {
+        Self {
+            name: set.name().to_owned(),
+            dimension: set.dimension(),
+            members: set.members().to_vec(),
+        }
+    }
 }

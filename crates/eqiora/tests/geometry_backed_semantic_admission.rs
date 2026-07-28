@@ -1,9 +1,11 @@
+use std::process::Command;
+
 use eqiora::api::StructuralSemanticFingerprint;
 use eqiora::artifact::ModelEnvelopeV7;
 use eqiora::diagnostic::codes;
 use eqiora::geometry::{
-    CanonicalGeometryRef, CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
-    PlanarFace, PlanarRegion,
+    CanonicalCircularHoleGeometryV1, CanonicalGeometryRef, CanonicalGeometryV1, EDGE_DIMENSION,
+    FACE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion,
 };
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::typing::SpatialSupport;
@@ -128,7 +130,7 @@ struct PositiveIds {
 }
 
 fn positive_model(
-    geometry: &CanonicalGeometryV1,
+    geometry_digest: [u8; 32],
     region_set: &str,
     boundary_set: &str,
     field_extent: u32,
@@ -150,7 +152,7 @@ fn positive_model(
         KernelNode::from(
             DomainDef::geometry_region(
                 ids.region,
-                GeometryDigest::new(geometry.digest_bytes()),
+                GeometryDigest::new(geometry_digest),
                 region_set,
             )
             .expect("named region"),
@@ -272,7 +274,7 @@ fn closed_artifact_admission_reconstructs_support_for_typing_and_later_queries()
     assert!(!debug.contains("vertices"));
     assert!(!debug.contains("canonical_bytes"));
 
-    let (store, model, ids) = positive_model(&geometry, "fluid", "hole", 2);
+    let (store, model, ids) = positive_model(geometry.digest_bytes(), "fluid", "hole", 2);
     let program =
         KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[geometry_ref])
             .expect("exact artifact bundle admits geometry-backed spatial meaning");
@@ -297,6 +299,77 @@ fn closed_artifact_admission_reconstructs_support_for_typing_and_later_queries()
 
     let artifact_free = KernelProgram::from_snapshot(&store.snapshot(), model)
         .expect_err("geometry-backed consumers require artifact admission");
+    assert!(artifact_free.iter().any(|diagnostic| {
+        diagnostic.code() == codes::INVALID_KERNEL_DEFINITION
+            && diagnostic.message().contains("requires artifact admission")
+    }));
+}
+
+#[test]
+fn independent_exact_circular_hole_identity_enters_the_same_admission_seam() {
+    let oracle = Command::new("python3")
+        .arg(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../verify/geometry/exact-circular-hole-geometry/oracle.py"),
+        )
+        .output()
+        .expect("independent Python identity oracle must execute");
+    assert!(
+        oracle.status.success(),
+        "independent oracle failed: {}",
+        String::from_utf8_lossy(&oracle.stderr)
+    );
+    let oracle_output = String::from_utf8(oracle.stdout).expect("oracle emits UTF-8");
+    let mut oracle_lines = oracle_output.lines();
+    let oracle_bytes = oracle_lines
+        .next()
+        .expect("oracle emits complete canonical JSON")
+        .as_bytes();
+    assert!(oracle_output.contains("bytes=511"));
+    assert!(
+        oracle_output
+            .contains("sha256=b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9")
+    );
+
+    let geometry = CanonicalCircularHoleGeometryV1::new(
+        [[0.0, 2.2], [0.0, 0.41]],
+        [0.2, 0.2],
+        0.05,
+        vec![
+            NamedEntitySet::new("fluid", FACE_DIMENSION, vec![0, 0]),
+            NamedEntitySet::new("walls", EDGE_DIMENSION, vec![3, 2]),
+            NamedEntitySet::new("inlet", EDGE_DIMENSION, vec![0]),
+            NamedEntitySet::new("cylinder", EDGE_DIMENSION, vec![4]),
+            NamedEntitySet::new("outlet", EDGE_DIMENSION, vec![1]),
+        ],
+        1e-12,
+    )
+    .expect("exact DFG-shaped circular-hole geometry");
+    assert_eq!(geometry.canonical_bytes(), oracle_bytes);
+    assert_eq!(geometry.canonical_bytes().len(), 511);
+    assert_eq!(
+        hex_digest(geometry.digest_bytes()),
+        "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
+    );
+
+    let geometry_ref = CanonicalGeometryRef::from(&geometry);
+    let (store, model, ids) = positive_model(geometry.digest_bytes(), "fluid", "cylinder", 2);
+    let program =
+        KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[geometry_ref])
+            .expect("the sibling family enters unchanged semantic admission");
+    let typed = program
+        .typed_relation_residual(ids.relation)
+        .expect("derived support survives without retaining geometry");
+    assert_eq!(
+        typed.node_types()[0].support,
+        Some(SpatialSupport::Volume {
+            domain: ids.region.erase(),
+            dimensions: 2,
+        })
+    );
+
+    let artifact_free = KernelProgram::from_snapshot(&store.snapshot(), model)
+        .expect_err("geometry-backed consumers still require artifact admission");
     assert!(artifact_free.iter().any(|diagnostic| {
         diagnostic.code() == codes::INVALID_KERNEL_DEFINITION
             && diagnostic.message().contains("requires artifact admission")
@@ -722,7 +795,7 @@ fn derived_geometry_boundary_support_has_no_admitted_consumer_yet() {
 #[test]
 fn admitted_spatial_cartesian_field_extent_must_match_geometry_dimension() {
     let geometry = square_with_hole();
-    let (store, model, ids) = positive_model(&geometry, "fluid", "hole", 3);
+    let (store, model, ids) = positive_model(geometry.digest_bytes(), "fluid", "hole", 3);
     let diagnostics = KernelProgram::from_snapshot_with_geometry(
         &store.snapshot(),
         model,

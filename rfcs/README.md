@@ -109,3 +109,4 @@ implementation or capability claim.
 - [RFC 0078: Direct Parameter-driven Cartesian coordinates](0078-direct-parameter-driven-cartesian-coordinates.md)
 - [RFC 0079: Authored planar geometry artifact](0079-authored-planar-geometry-artifact.md)
 - [RFC 0080: Geometry-backed semantic admission](0080-geometry-backed-semantic-admission.md)
+- [RFC 0081: Exact circular-hole planar geometry](0081-exact-circular-hole-geometry.md)

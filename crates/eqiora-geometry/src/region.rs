@@ -379,7 +379,7 @@ fn edge_count(faces: &[PlanarFace]) -> usize {
     faces.iter().flat_map(PlanarFace::loops).map(Vec::len).sum()
 }
 
-fn canonical_entity_sets(
+pub(crate) fn canonical_entity_sets(
     entity_sets: Vec<NamedEntitySet>,
     vertex_count: usize,
     edge_count: usize,

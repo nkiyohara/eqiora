@@ -19,6 +19,7 @@
 mod association;
 mod cad;
 mod canonical;
+mod circular_hole;
 mod correspondence;
 mod identity;
 mod region;
@@ -33,6 +34,7 @@ pub use cad::{
     StepLengthUnitV1, StepSourceDigest,
 };
 pub use canonical::{CanonicalGeometryLimits, CanonicalGeometryRef, CanonicalGeometryV1};
+pub use circular_hole::CanonicalCircularHoleGeometryV1;
 pub use correspondence::{
     CartesianBodyAssignment, CartesianBoundaryAssignment, GeometryCorrespondenceError,
     GeometryMeshCorrespondence,
