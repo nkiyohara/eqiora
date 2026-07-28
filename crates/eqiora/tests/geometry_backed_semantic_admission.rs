@@ -417,6 +417,30 @@ fn exact_circular_hole_external_admission_and_falsifiers_are_registered_evidence
         positive_zero.canonical_bytes()
     );
     assert_eq!(negative_zero.digest_bytes(), positive_zero.digest_bytes());
+    let positive_center_zero = circular_hole_with(
+        [[-1.0, 1.0], [-1.0, 1.0]],
+        [0.0, 0.0],
+        0.1,
+        circular_hole_sets(),
+        1e-12,
+    )
+    .expect("positive center zero is valid");
+    let negative_center_zero = circular_hole_with(
+        [[-1.0, 1.0], [-1.0, 1.0]],
+        [-0.0, -0.0],
+        0.1,
+        circular_hole_sets(),
+        1e-12,
+    )
+    .expect("negative center zero normalizes");
+    assert_eq!(
+        negative_center_zero.canonical_bytes(),
+        positive_center_zero.canonical_bytes()
+    );
+    assert_eq!(
+        negative_center_zero.digest_bytes(),
+        positive_center_zero.digest_bytes()
+    );
 
     for limits in [
         CanonicalGeometryLimits {
