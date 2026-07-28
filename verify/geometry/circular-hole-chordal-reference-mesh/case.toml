@@ -1,0 +1,114 @@
+id = "geometry.circular-hole-chordal-reference-mesh"
+status = "specified"
+scope = "one-dfg-shaped-rectangle-with-one-exact-circular-hole-realized-as-one-chordal-mesh"
+reference_kind = "independent-coordinate-closed-form-and-identity-chordal-circle-oracle"
+
+capabilities = [
+  "source-bound-chordal-circular-hole-realization",
+  "error-controlled-circular-boundary-segment-selection",
+  "stable-half-angle-segment-count-inverse",
+  "measured-circular-boundary-area-and-perimeter-deficits",
+  "chordal-reference-region-and-mesh-topology",
+]
+
+[problem]
+geometry = "DFG-shaped 2.2 m by 0.41 m rectangle with one radius-0.05 m circle centred at [0.2, 0.2] m"
+tolerance_m = 1e-12
+max_error_m = 1e-4
+min_quality = 1e-5
+max_segments = 50
+boundary_rule = "regular inscribed polygon, fixed phase theta_i = 2 pi i / n, at least eight segments"
+selection_rule = "n0 = ceil(pi / (2 asin(sqrt(epsilon_effective / (2 r))))) then stable-sagitta correction"
+identity = "exact source identity remains centre and radius; segment count, phase, quality policy, coordinates and metrics are Realization state"
+
+[oracle]
+source = "standalone Python, three mutually independent routes, authored without reading any implementation"
+routes = "coordinate+closed-form+identity"
+sha256 = "0bdbbec6f9ff9c532ba5f30c856d1cd3b25e64949e4b11abf5fa3823e6a25742"
+decimal_digits = 80
+checks_total = 99
+checks_failed = 0
+result = "pass"
+
+[expected]
+accepted_segments = 50
+analytic_candidate_n0 = 50
+outer_loop_vertices = 54
+vertices = 104
+triangles = 104
+boundary_edges = 104
+interior_edges = 104
+euler_characteristic = 0
+sagitta_n49_m = "1.0273036248318289955797595210037224856637053318839e-4"
+sagitta_n50_m = "9.8663578586421902383159656827472333154739014922844e-5"
+area_deficit_n50_m2 = "2.0654536205467760336685969666957589060533063430286e-5"
+perimeter_deficit_n50_m = "2.0666771241244346537321549979462280729278040417922e-4"
+evaluation_allowance_m = 6.252776074688882e-14
+area_allowance_m2 = 1.9643675380784617e-14
+epsilon_effective_m = 9.999999993747225e-05
+allowance_scale_m = 2.2
+set_dim1_0_x_low_edges = 14
+set_dim1_1_x_high_edges = 2
+set_dim1_2_y_low_edges = 19
+set_dim1_3_y_high_edges = 19
+set_dim1_4_circular_edges = 50
+set_dim0_corner_vertices = 4
+set_dim2_face_triangles = 104
+
+[acceptance]
+three_routes_agree = true
+hausdorff_measured_by_search_not_closed_form = true
+directed_hausdorff_distances_coincide = true
+triangle_count_derived_from_euler_characteristic = true
+triangle_count_agrees_with_construction_rule = true
+segment_count_is_minimal_for_the_request = true
+accepted_bound_within_requested_maximum = true
+generated_loop_convex_simple_and_centre_interior = true
+approximation_policy_separate_from_source_tolerance = true
+cell_quality_value_is_not_an_oracle = true
+exact_source_identity_excludes_realization_state = true
+
+[falsifiers]
+segments_49_insufficient = "sagitta(49) exceeds both epsilon_effective and the raw 1e-4 request"
+nonfinite_or_nonpositive_error = "reject before allocating region or mesh topology"
+error_equal_to_evaluation_allowance = "reject; the request must be strictly greater"
+error_below_evaluation_allowance = "reject at one ulp below the allowance"
+epsilon_effective_at_least_two_r = "select n = 8 before evaluating an out-of-domain inverse"
+max_segments_below_minimum_topology = "reject max_segments = 7"
+max_segments_49 = "reject; the corrected count exceeds the caller limit"
+request_above_private_hard_work_limit = "reject; 100000-segment reference-path bound"
+naive_acos_deep_cancellation = "1 - eps/r rounds to 1.0 and the count is undefined, with no mesh allocated"
+naive_acos_disagrees_where_defined = "scan finds a count differing by 68502762 while the stable route stays exact"
+quality_threshold_above_measured_quality = "SimplicialMesh rejection is not translated into success"
+source_digest_sensitivity = "a different exact source cannot be bound to this realization"
+exact_boundary_and_region_set_mappings = "all five source sets, including grouped walls"
+dimension_zero_alias_propagation = "at least one alias case propagates without renaming"
+boundary_facet_ownership = "every generated boundary facet owned exactly once by the existing correspondence"
+second_order_convergence_under_doubling = "boundary, area and perimeter deficits at n = 8, 16, 32, 64"
+
+[claim_boundary]
+ambient_dimension = 2
+topological_dimension = 2
+exact_source_binding = true
+one_axis_aligned_rectangle = true
+exactly_one_circular_hole = true
+error_controlled_chordal_boundary = true
+one_fixed_reference_topology = true
+straight_edged_affine_triangles = true
+exact_curved_element_or_isoparametric_mapping = false
+general_arc_ellipse_spline_nurbs_or_brep = false
+csg_booleans_or_cad = false
+multiple_holes_arbitrary_outer_loop_or_3d = false
+delaunay_or_advancing_front_mesher = false
+production_mesh_quality = false
+adaptive_sizing_or_boundary_layer_mesh = false
+curved_quadrature = false
+durable_realization_or_source_binding_wire = false
+cross_platform_mesh_byte_identity = false
+flow_solve_or_pde_convergence = false
+drag_lift_or_strouhal_reference = false
+studio_workflow_or_cylinder_demo = false
+
+[evidence]
+package = "eqiora"
+test = "circular_hole_chordal_reference_mesh"
