@@ -1,5 +1,5 @@
 id = "geometry.circular-hole-chordal-reference-mesh"
-status = "specified"
+status = "verified"
 scope = "one-dfg-shaped-rectangle-with-one-exact-circular-hole-realized-as-one-chordal-mesh"
 reference_kind = "independent-coordinate-closed-form-and-identity-chordal-circle-oracle"
 

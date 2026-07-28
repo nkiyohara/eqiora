@@ -10,8 +10,10 @@ quality policy, generated coordinates, and approximation metrics are Realization
 state and never enter that identity. This is a deliberately bounded reference
 path for one DFG-shaped cylinder geometry, not a generic production mesher.
 
-The governing contract is RFC 0082. The exact source this realization consumes
-is the sibling case [`../exact-circular-hole-geometry`](../exact-circular-hole-geometry/README.md).
+The governing contract is
+[RFC 0082](../../../rfcs/0082-source-bound-chordal-circular-hole-mesh.md). The
+exact source this realization consumes is the sibling case
+[`../exact-circular-hole-geometry`](../exact-circular-hole-geometry/README.md).
 
 ## Frozen oracle
 
@@ -86,13 +88,18 @@ second-order convergence of the boundary, area, and perimeter deficits.
 
 ```bash
 python3 verify/geometry/circular-hole-chordal-reference-mesh/oracle.py
+cargo test -p eqiora --test circular_hole_chordal_reference_mesh
+cargo run -p eqiora-verify -- run --case geometry.circular-hole-chordal-reference-mesh
 ```
 
-The oracle passes 99/99 today. The Rust evidence
-(`cargo test -p eqiora --test circular_hole_chordal_reference_mesh`) and the
-registered case run are not yet claimed: this case is frozen ahead of
-implementation, its status is `specified`, and no statement here rests on
-production output.
+The oracle passes 99/99 today, and the registered Rust evidence passes on
+default features: three tests covering the frozen DFG witness, the entity
+propagation and rejection paths, and the doubling convergence sequence. The
+first of them pins this oracle's SHA-256, executes it, and requires its
+`oracle.result=pass` line, so the production path is compared against the frozen
+oracle rather than against itself. The status is `verified`. No expected value
+here is derived from production output: the implementing lane wired the frozen
+oracle and did not author, tune, or relax its values, tolerances, or falsifiers.
 
 ## Not claimed
 
