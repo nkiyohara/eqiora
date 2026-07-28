@@ -1,0 +1,35 @@
+id = "geometry.model-references-a-geometry"
+status = "verified"
+scope = "graph-authored-v7-geometry-reference-and-structural-fingerprint-v2"
+reference_kind = "independent-topology-and-identity-falsifiers"
+
+capabilities = [
+  "geometry-region-and-boundary-model-validation",
+  "exact-model-and-transaction-v7-round-trip",
+  "geometry-aware-structural-fingerprint-v2",
+  "pre-admission-spatial-support-rejection",
+]
+
+[problem]
+model = "two authored-geometry regions, one named boundary, one unrelated Cartesian Domain, and one global Relation"
+identity = "full geometry digest, region entity-set names, boundary entity-set name, and BoundaryOf topology"
+generation = "eqiora.structural-semantic-fingerprint/v2"
+
+[claim_boundary]
+model_wire_v7 = true
+transaction_wire_v7 = true
+geometry_region_validation = true
+geometry_boundary_validation = true
+artifact_admission = false
+entity_set_existence = false
+entity_set_dimension = false
+geometry_spatial_support = false
+language_or_draft_authoring = false
+box_synthesis = false
+mesh_realization = false
+geometry_mesh_correspondence = false
+curves_or_general_3d_geometry = false
+
+[evidence]
+package = "eqiora"
+test = "geometry_referencing_model"

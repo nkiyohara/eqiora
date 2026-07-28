@@ -1,6 +1,6 @@
 # RFC 0073: Structural semantic fingerprint
 
-- Status: Implemented; bounded source/native comparison verified
+- Status: Implemented; bounded generation-v2 comparison verified
 - Authors: Eqiora contributors
 - Created: 2026-07-22
 - Depends on: [RFC 0008](0008-canonical-artifact-wire-v1.md),
@@ -10,7 +10,7 @@
 ## Summary
 
 Eqiora exposes a generation-tagged structural semantic fingerprint for one
-accepted `KernelProgram`. It is the domain-separated digest of a closed,
+accepted `KernelProgram`. The current generation v2 is the domain-separated digest of a closed,
 alpha-normalized, exactly canonically labelled projection of the selected
 Semantic Model graph. It supports bounded comparison across independent source,
 Rust-native, and Python-native authoring routes without weakening exact Model
@@ -47,9 +47,18 @@ remain distinct vertices, and every nominal reference and semantic edge keeps
 its target relationship. Two equal-valued Parameters cannot collapse into one;
 two nominal Domains cannot become shared merely because their payloads match.
 
-## Generation-v1 projection
+## Generation-v1 and generation-v2 projections
 
-Generation v1 includes:
+Generation v1 closed the Semantic Kernel vocabulary carried through exact Model
+v6. Generation v2 retains that complete projection and adds:
+
+- `GeometryRegion` with the full 32-byte geometry digest and exact entity-set
+  name;
+- `GeometryBoundary` with its exact entity-set name; and
+- their nominal identity and `BoundaryOf` topology through the same graph-edge
+  projection as every other Domain.
+
+Within the vocabulary admitted by each generation, the projection includes:
 
 - every admitted Domain, Representation, Field, Parameter, Port, Relation,
   Activation, Connection, and ClockDomain definition;
@@ -77,8 +86,10 @@ as mathematical zero. Non-finite quantities are rejected by this projection.
 
 The projection is closed over the vocabulary explicitly enumerated above. A
 future node, edge, expression, symbol, or enum variant is not silently omitted:
-generation v1 returns a diagnostic until a later fingerprint generation makes
-an explicit compatibility decision.
+generation v2 returns a diagnostic until a later fingerprint generation makes
+an explicit compatibility decision. All current constructors emit generation
+v2. The public v1 spelling remains available only to identify the closed
+historical comparison generation; it is not an implicit construction selector.
 
 ## Exact canonical labelling
 
@@ -94,7 +105,7 @@ Canonicalization proceeds as follows:
 3. when symmetry remains, individualize each candidate and recursively refine;
 4. serialize the lexicographically least discrete labelling; and
 5. hash the bytes with the domain
-   `eqiora.structural-semantic-fingerprint/v1` using SHA-256.
+   `eqiora.structural-semantic-fingerprint/v2` using SHA-256.
 
 Refinement uses complete bytes, not a probabilistic intermediate digest. The
 individualization search is exact; occurrence order may affect traversal only,
@@ -121,7 +132,7 @@ StructuralSemanticFingerprint { generation, digest }
 
 The public type is version-neutral; its explicit generation is part of
 equality and display. Internal construction limits are an admission policy and
-do not alter accepted generation-v1 bytes.
+do not alter accepted generation-v2 bytes.
 
 Python exposes the same boundary as the frozen
 `StructuralSemanticFingerprint`, `Model.structural_fingerprint`, and
@@ -135,11 +146,12 @@ The registered case proves:
 - fresh source compilations with renamed declarations and admitted reordering
   have distinct exact artifact references but equal structural fingerprints;
 - source, Rust-native draft, Python-native draft, exact codec v1, exact codec
-  v6, and exact replay routes preserve the stated identity boundary;
+  v7, and exact replay routes preserve the stated identity boundary;
 - scalar and scalar-physical graphs compare across authoring routes;
 - expression-arena allocation order and signed zero do not change the result;
 - values, operators, symbol rewiring, and nominal Domain sharing do change it;
-  and
+- geometry digest, region name, boundary name, and boundary-parent topology
+  change it, while fresh occurrence IDs do not; and
 - a deliberately exhausted exact-labelling budget fails without producing a
   route-dependent value.
 
@@ -166,9 +178,10 @@ evidence when those surfaces exist.
 ## Compatibility and nonclaims
 
 Fingerprint generations are independent of Model artifact codecs and compiler
-crate versions. Equality is defined only for equal explicit generations. A
-future generation may coexist with v1; no cross-generation equivalence is
-implied.
+crate versions. Equality is defined only for equal explicit generations.
+Generation v2 intentionally moves every current construction, including Models
+without geometry, to a new hash domain; it does not claim cross-generation
+equivalence with v1.
 
 This RFC does not define persistent entity identity, compilation-result cache
 semantics, a durable fingerprint artifact, mathematical equivalence, automatic

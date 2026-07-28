@@ -200,8 +200,9 @@ impl DomainDef {
 
     /// Construct one boundary selected from its parent region's geometry.
     ///
-    /// Whole-model validation checks the entity set against the unique
-    /// `BoundaryOf` parent.
+    /// Whole-model validation checks that exactly one `BoundaryOf` parent is a
+    /// geometry region. Artifact admission separately checks that both names
+    /// select compatible entity sets in the referenced geometry.
     ///
     /// # Errors
     /// Returns `EQ0302` for an unnamed entity set.

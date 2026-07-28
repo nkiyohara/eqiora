@@ -1,15 +1,27 @@
 use serde_json::{Value, json};
 
+use super::compile::feature_for;
 use super::{
     COMPILE_COMMAND_V1, COMPILE_FEATURE_V1, CONTROL_PROTOCOL_V1, MAX_COMPILE_FILENAME_BYTES_V1,
     MAX_COMPILE_REQUEST_BYTES_V1, MAX_COMPILE_REQUIRED_FEATURES_V1, MAX_COMPILE_RESPONSE_BYTES_V1,
     MAX_COMPILE_SOURCE_BYTES_V1, MAX_CONTROL_REQUEST_ID_BYTES_V1,
 };
+use crate::ExactModelCodec;
 
 /// Committed JSON Schema for the complete compile/check v1 request/response
 /// wire.
 pub const COMPILE_V1_SCHEMA_JSON: &str =
     include_str!("../../../../schemas/control/compile-v1.schema.json");
+
+const EXACT_MODEL_CODECS: [ExactModelCodec; 7] = [
+    ExactModelCodec::V1,
+    ExactModelCodec::V2,
+    ExactModelCodec::V3,
+    ExactModelCodec::V4,
+    ExactModelCodec::V5,
+    ExactModelCodec::V6,
+    ExactModelCodec::V7,
+];
 
 /// Generate the deterministic committed compile/check v1 JSON Schema.
 ///
@@ -27,16 +39,10 @@ pub fn generated_compile_v1_schema_json() -> Result<String, serde_json::Error> {
 }
 
 fn compile_v1_schema_value() -> Value {
-    let model_wires = json!(["v1", "v2", "v3", "v4", "v5", "v6"]);
-    let features = json!([
-        COMPILE_FEATURE_V1,
-        "model-wire/v1",
-        "model-wire/v2",
-        "model-wire/v3",
-        "model-wire/v4",
-        "model-wire/v5",
-        "model-wire/v6"
-    ]);
+    let model_wires = EXACT_MODEL_CODECS.map(ExactModelCodec::as_str);
+    let mut features = Vec::with_capacity(EXACT_MODEL_CODECS.len() + 1);
+    features.push(COMPILE_FEATURE_V1);
+    features.extend(EXACT_MODEL_CODECS.map(|codec| feature_for(codec).as_str()));
     json!({
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:eqiora:schema:control:compile-v1",

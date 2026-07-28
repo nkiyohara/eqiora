@@ -518,7 +518,7 @@ model decay {
     }
 
     #[test]
-    fn explicit_python_compatibility_keeps_v1_through_v6_separate() {
+    fn explicit_python_compatibility_keeps_v1_through_v7_separate() {
         for (python, schema) in [
             (PyExactModelCodec::V1, "eqiora.model-envelope/v1"),
             (PyExactModelCodec::V2, "eqiora.model-envelope/v2"),
@@ -526,6 +526,7 @@ model decay {
             (PyExactModelCodec::V4, "eqiora.model-envelope/v4"),
             (PyExactModelCodec::V5, "eqiora.model-envelope/v5"),
             (PyExactModelCodec::V6, "eqiora.model-envelope/v6"),
+            (PyExactModelCodec::V7, "eqiora.model-envelope/v7"),
         ] {
             let codec = ExactModelCodec::from(python);
             let document = codec.compile("decay.eqi", SOURCE).unwrap();

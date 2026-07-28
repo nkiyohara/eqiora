@@ -747,7 +747,7 @@ model pure_relation {
     }
 
     #[test]
-    fn value_edit_retains_current_v6_and_explicit_v1_codec_provenance() {
+    fn value_edit_retains_current_v7_and_explicit_v1_codec_provenance() {
         for codec in [ExactModelCodec::CURRENT, ExactModelCodec::V1] {
             let document = codec.compile("decay.eqi", SOURCE).unwrap();
             let base_digest = document.digest().unwrap();

@@ -15,7 +15,7 @@ conformance_kits = ["control-compile-check-v1"]
 
 [claim_boundary]
 compile_check = true
-model_wires = ["v1", "v2", "v3", "v4", "v5", "v6"]
+model_wires = ["v1", "v2", "v3", "v4", "v5", "v6", "v7"]
 preview = false
 execute = false
 cancel = false

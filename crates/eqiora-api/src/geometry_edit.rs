@@ -142,7 +142,7 @@ impl ModelDocument {
     ///
     /// # Errors
     /// Returns structured diagnostics when the selected Model is not the
-    /// current v6 profile, does not contain exactly one 3D Cartesian body, the
+    /// current v7 profile, does not contain exactly one 3D Cartesian body, the
     /// target or any axis is wrong, any edit is duplicated or a no-op, or
     /// complete child replay violates a graph, semantic, or artifact invariant.
     pub fn preview_cartesian_domain_edit<I>(

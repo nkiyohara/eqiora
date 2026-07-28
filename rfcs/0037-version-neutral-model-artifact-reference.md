@@ -9,7 +9,7 @@
 ## Summary
 
 Two sealed, generation-neutral boundaries let an explicitly selected Model
-v1--v6 artifact expose either exact identity alone or exact identity together
+v1--v7 artifact expose either exact identity alone or exact identity together
 with validated Semantic Kernel content. The artifact owner accepts the
 selected historical envelope into one opaque value. The identity-only surface
 feeds unchanged downstream lineage. The replayable surface lets semantic
@@ -29,7 +29,7 @@ would couple two independently versioned artifact families.
 The missing boundary is a typed identity projection:
 
 ```text
-explicit Model wire v1 | v2 | v3 | v4 | v5 | v6
+explicit Model wire v1 | v2 | v3 | v4 | v5 | v6 | v7
               -> exact typed Model artifact reference
               -> unchanged Realization envelope v1
               -> unchanged Run manifest v2
@@ -50,7 +50,7 @@ or turn identity linkage into an execution claim.
 
 `CanonicalModelArtifact` is a sealed trait implemented by the artifact owner's
 opaque `AcceptedModelArtifact`, its registered `ModelEnvelopeV1` through
-`ModelEnvelopeV6` implementations, and the reference itself. Each envelope
+`ModelEnvelopeV7` implementations, and the reference itself. Each envelope
 derives the reference from its own validated state. Callers cannot implement a
 permissive metadata adapter or construct a reference from three unrelated
 values.
@@ -62,11 +62,11 @@ It has no schema-sniffing, payload-decoding, conversion, or migration role.
 
 Some consumers need validated Model meaning as well as identity. Geometry is
 the first such consumer: it must inspect exact Domains and boundary-parent
-relations, but must not depend on `ModelEnvelopeV4` merely because v4 is the
+relations, but must not depend on `ModelEnvelopeV7` merely because v7 is the
 newest codec.
 
 `ReplayableCanonicalModelArtifact` is a sealed extension implemented by the
-opaque accepted artifact and its registered explicit Model v1--v6 envelopes.
+opaque accepted artifact and its registered explicit Model v1--v7 envelopes.
 `replay_model` invokes the selected envelope's ordinary codec-specific
 `to_program` path and returns one `ReplayedCanonicalModel` containing both:
 
@@ -113,7 +113,7 @@ No path tries one codec after another or upgrades old bytes.
 
 - Model envelope implementations, the sealed reference, and the sealed replay
   boundary live in `eqiora-artifact`;
-- the accepted v1--v6 envelope set and all encode/decode/identity/replay
+- the accepted v1--v7 envelope set and all encode/decode/identity/replay
   dispatch are generated from one registry in `eqiora-artifact`;
 - `eqiora-api` retains the public caller policy `ExactModelCodec`, maps its
   selected generation into that registry, and keeps one opaque accepted
@@ -128,7 +128,7 @@ generation selection. Adding a generation therefore updates both the single
 artifact-owned dispatch registration and `ExactModelCodec`. Generation-neutral
 CAD and Geometry consumers remain outside either historical match.
 
-The Semantic Kernel, Model v1/v2/v3/v4/v5/v6 bytes, Geometry Identity v1 bytes,
+The Semantic Kernel, Model v1/v2/v3/v4/v5/v6/v7 bytes, Geometry Identity v1 bytes,
 Realization v1 bytes, and Run v2 bytes do not change.
 
 ## Alternatives considered
@@ -184,7 +184,7 @@ case must:
 4. preserve exact Model digest, ontology identity, and semantic revision
    through that lineage; and
 5. encode and decode one semantic graph through every artifact-owner-registered
-   v1--v6 generation, rejecting every wrong-generation decoder choice; and
+   v1--v7 generation, rejecting every wrong-generation decoder choice; and
 6. prove that the same semantic graph encoded in different Model digest
    domains cannot substitute for the artifact selected by a Realization.
 

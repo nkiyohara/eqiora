@@ -15,7 +15,7 @@ Every selected Model is decoded again through its public, explicit
 `ExactModelCodec` selection before the Realization link is replayed. A second
 test exercises the artifact owner's single historical-envelope dispatch
 registration point by encoding and decoding the same semantic graph through
-every v1-v6 generation. Every wrong-generation decode fails, and matching
+every v1-v7 generation. Every wrong-generation decode fails, and matching
 Model identity and revision cannot replace the exact domain-separated artifact
 digest.
 

@@ -86,7 +86,7 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
 
         let replayed = ExactModelCodec::CURRENT
             .replay(&base_bytes)
-            .expect("Python-produced current-v6 artifact must replay through the Rust facade");
+            .expect("Python-produced current-v7 artifact must replay through the Rust facade");
         let replayed_reference = replayed
             .artifact_reference()
             .expect("the validated replay must retain a typed Model reference");

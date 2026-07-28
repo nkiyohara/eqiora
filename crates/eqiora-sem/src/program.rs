@@ -1,5 +1,7 @@
 //! Whole-model validation and immutable interpreter input.
 
+mod spatial_domains;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::diagnostic::codes;
@@ -16,12 +18,15 @@ use eqiora_schema::kernel::typing::{
 };
 use eqiora_schema::kernel::{
     ActivationKind, BoundaryPhysicalConnectionViolation, ClockKind, ConnectionSemantics,
-    DomainKind, ExprDag, ExprNode, KernelNode, RepresentationKind,
-    SpatialPeriodicBoundaryViolation, SymbolRef, ValueFrame, validate_boundary_physical_connection,
-    validate_spatial_periodic_boundary_connection,
+    DomainKind, ExprDag, ExprNode, KernelNode, SpatialPeriodicBoundaryViolation, SymbolRef,
+    validate_boundary_physical_connection, validate_spatial_periodic_boundary_connection,
 };
 
 use crate::conserving::validate_scalar_physical_networks;
+use spatial_domains::{
+    field_support, spatial_support, validate_domains, validate_fields,
+    validate_geometry_support_uses,
+};
 
 /// A completely validated, immutable Semantic Kernel model.
 ///
@@ -105,6 +110,7 @@ impl KernelProgram {
 
         validate_closed_topology(snapshot, view.members(), &mut diagnostics);
         validate_domains(&nodes, &edges, &mut diagnostics);
+        validate_geometry_support_uses(&nodes, &edges, &mut diagnostics);
         validate_fields(&nodes, &edges, &mut diagnostics);
         validate_relations(&nodes, &edges, &mut diagnostics);
         validate_activations(&nodes, &edges, &mut diagnostics);
@@ -291,156 +297,6 @@ fn validate_closed_topology(
                     ),
                 ));
             }
-        }
-    }
-}
-
-fn validate_domains(
-    nodes: &BTreeMap<RawId, KernelNode>,
-    edges: &[Edge],
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for (&id, node) in nodes {
-        let KernelNode::Domain(domain) = node else {
-            continue;
-        };
-        let parents = edge_targets(edges, id, EdgeKind::BoundaryOf);
-        match domain.kind() {
-            DomainKind::Abstract
-            | DomainKind::CartesianBox { .. }
-            | DomainKind::ScalarPhysical { .. }
-            | DomainKind::BoundaryPhysical { .. } => {
-                if !parents.is_empty() {
-                    diagnostics.push(kernel_error(
-                        id,
-                        "only a boundary Domain may have a BoundaryOf edge",
-                    ));
-                }
-            }
-            DomainKind::CartesianBoundary { axis, .. } => {
-                if parents.len() != 1 {
-                    diagnostics.push(kernel_error(
-                        id,
-                        format!(
-                            "Cartesian boundary Domain requires exactly one BoundaryOf parent, found {}",
-                            parents.len()
-                        ),
-                    ));
-                    continue;
-                }
-                let parent = *parents.first().expect("one boundary parent was checked");
-                match nodes.get(&parent) {
-                    Some(KernelNode::Domain(parent)) => match parent.kind() {
-                        DomainKind::CartesianBox { bounds } if *axis < bounds.len() => {}
-                        DomainKind::CartesianBox { bounds } => diagnostics.push(kernel_error(
-                            id,
-                            format!(
-                                "boundary axis {axis} is outside parent dimension {}",
-                                bounds.len()
-                            ),
-                        )),
-                        _ => diagnostics.push(kernel_error(
-                            id,
-                            "Cartesian boundary parent must be a Cartesian box Domain",
-                        )),
-                    },
-                    _ => diagnostics.push(kernel_error(
-                        id,
-                        "BoundaryOf target has no Domain definition",
-                    )),
-                }
-            }
-            _ => diagnostics.push(kernel_error(
-                id,
-                "Domain kind is newer than this semantic validator",
-            )),
-        }
-    }
-}
-
-fn validate_fields(
-    nodes: &BTreeMap<RawId, KernelNode>,
-    edges: &[Edge],
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for (&id, node) in nodes {
-        let KernelNode::Field(field) = node else {
-            continue;
-        };
-        let targets = edge_targets(edges, id, EdgeKind::DefinedOn);
-        if targets.is_empty() {
-            continue;
-        }
-        let domains = targets
-            .iter()
-            .filter(|target| target.kind() == eqiora_core::EntityKind::Domain)
-            .copied()
-            .collect::<Vec<_>>();
-        let representations = targets
-            .iter()
-            .filter(|target| target.kind() == eqiora_core::EntityKind::Representation)
-            .copied()
-            .collect::<Vec<_>>();
-        let spatial = domains.iter().any(|domain| {
-            matches!(
-                nodes.get(domain),
-                Some(KernelNode::Domain(domain))
-                    if matches!(domain.kind(), DomainKind::CartesianBox { .. })
-            )
-        }) || representations.iter().any(|representation| {
-            matches!(
-                nodes.get(representation),
-                Some(KernelNode::Representation(representation))
-                    if representation.kind() == RepresentationKind::Continuum
-            )
-        });
-        if !spatial {
-            continue;
-        }
-        if domains.len() != 1 || representations.len() != 1 || targets.len() != 2 {
-            diagnostics.push(kernel_error(
-                id,
-                format!(
-                    "spatial Field requires exactly one Domain and one Representation, found {} and {}",
-                    domains.len(),
-                    representations.len()
-                ),
-            ));
-            continue;
-        }
-        if !matches!(
-            nodes.get(&domains[0]),
-            Some(KernelNode::Domain(domain))
-                if matches!(domain.kind(), DomainKind::CartesianBox { .. })
-        ) {
-            diagnostics.push(kernel_error(
-                id,
-                "v0 spatial Field Domain must be a Cartesian box",
-            ));
-        }
-        if let Some(KernelNode::Domain(domain)) = nodes.get(&domains[0])
-            && let DomainKind::CartesianBox { bounds } = domain.kind()
-            && field.frame() == ValueFrame::SpatialCartesian
-            && field
-                .shape()
-                .extents()
-                .iter()
-                .any(|extent| usize::try_from(extent.get()).ok() != Some(bounds.len()))
-        {
-            diagnostics.push(kernel_error(
-                id,
-                "Cartesian spatial Field extents must equal its Domain ambient dimension",
-            ));
-        }
-        if !matches!(
-            nodes.get(&representations[0]),
-            Some(KernelNode::Representation(representation))
-                if representation.kind() == RepresentationKind::Continuum
-        ) {
-            diagnostics.push(kernel_error(
-                id,
-                "v0 spatial Field Representation must be continuum",
-            ));
         }
     }
 }
@@ -1075,54 +931,6 @@ enum SymbolTypeError {
     Missing,
     Typing(TypeViolation<RawId>),
     WrongPortContract,
-}
-
-fn field_support(
-    field: RawId,
-    nodes: &BTreeMap<RawId, KernelNode>,
-    edges: &[Edge],
-) -> Option<SpatialSupport<RawId>> {
-    let supports = edge_targets(edges, field, EdgeKind::DefinedOn)
-        .into_iter()
-        .filter_map(|target| spatial_support(target, nodes, edges))
-        .filter(|support| matches!(support, SpatialSupport::Volume { .. }))
-        .collect::<Vec<_>>();
-    (supports.len() == 1).then(|| supports[0].clone())
-}
-
-fn spatial_support(
-    domain: RawId,
-    nodes: &BTreeMap<RawId, KernelNode>,
-    edges: &[Edge],
-) -> Option<SpatialSupport<RawId>> {
-    let Some(KernelNode::Domain(definition)) = nodes.get(&domain) else {
-        return None;
-    };
-    match definition.kind() {
-        DomainKind::CartesianBox { bounds } => Some(SpatialSupport::Volume {
-            domain,
-            dimensions: bounds.len(),
-        }),
-        DomainKind::CartesianBoundary { .. } => {
-            let parents = edge_targets(edges, domain, EdgeKind::BoundaryOf);
-            if parents.len() != 1 {
-                return None;
-            }
-            let parent = *parents.first().expect("one boundary parent was checked");
-            let Some(KernelNode::Domain(parent_definition)) = nodes.get(&parent) else {
-                return None;
-            };
-            let DomainKind::CartesianBox { bounds } = parent_definition.kind() else {
-                return None;
-            };
-            Some(SpatialSupport::Boundary {
-                domain,
-                parent,
-                dimensions: bounds.len(),
-            })
-        }
-        _ => None,
-    }
 }
 
 fn edge_targets(edges: &[Edge], from: RawId, kind: EdgeKind) -> BTreeSet<RawId> {
