@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Independent identity oracle for Eqiora Issue #120, slice A1.
+"""Independent identity oracle for Eqiora RFC 0081, slice A1.
 
 Freezes the canonical wire bytes, byte length, and framed SHA-256 for the
 DFG-shaped witness of the `eqiora.planar-circular-hole-envelope/v1` family.
 
-This file is written by a non-implementing agent from the frozen issue body
+This file is written by a non-implementing agent from the frozen specification
 alone. It reads no Rust source, no fixture, and no existing artifact. It is
 stdlib-only (`hashlib`, `json`, `sys`) and must be committed unchanged.
 
-Number lexical form is fixed by the issue body ("Binary64 lexical spelling is
-the exact RFC 0079 `eqiora.canonical-json/v1` profile"):
+Number lexical form is fixed by that specification ("Binary64 lexical spelling
+is the exact RFC 0079 `eqiora.canonical-json/v1` profile"):
 
     `serde_json` shortest round-trip rendering for an f64, including a forced
     ``.0`` on integral finite values and the canonical lowercase exponent
     form -- i.e. Rust `ryu`, which coincides with CPython `repr(float)` on
-    every value in this witness. The body names the two spellings this
-    witness turns on: ``0.0`` and ``1e-12``. See the REJECTED PROFILES note
-    at the bottom of this file.
+    every value in this witness. The specification names the two spellings
+    this witness turns on: ``0.0`` and ``1e-12``. See the REJECTED PROFILES
+    note at the bottom of this file.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import hashlib
 import json
 import sys
 
-# --- frozen inputs, transcribed from the issue body -------------------------
+# --- frozen inputs, transcribed from the specification ----------------------
 
 SCHEMA = "eqiora.planar-circular-hole-envelope/v1"
 ENCODING = "eqiora.canonical-json/v1"
@@ -190,7 +190,7 @@ def digest(canonical_json: bytes) -> str:
 
 
 def _check_witness_geometry() -> None:
-    """The witness must satisfy the issue's admission predicates."""
+    """The witness must satisfy the specification's admission predicates."""
     (x_lo, x_hi), (y_lo, y_hi) = BOUNDS
     cx, cy = CENTER
     assert x_lo < x_hi and y_lo < y_hi, "bounds must be strictly increasing"
@@ -240,11 +240,12 @@ if __name__ == "__main__":
 
 # --- REJECTED PROFILES ------------------------------------------------------
 #
-# The issue body now states the binary64 lexical profile explicitly: the RFC
-# 0079 `eqiora.canonical-json/v1` profile is `serde_json` shortest round-trip
-# f64 rendering, with ".0" on integral finite values and the canonical
-# lowercase exponent form, and it names "0.0" and "1e-12" as required for this
-# witness. Profile A below is therefore the contract, not a choice made here.
+# The frozen specification states the binary64 lexical profile explicitly: the
+# RFC 0079 `eqiora.canonical-json/v1` profile is `serde_json` shortest
+# round-trip f64 rendering, with ".0" on integral finite values and the
+# canonical lowercase exponent form, and it names "0.0" and "1e-12" as
+# required for this witness. Profile A below is therefore the contract, not a
+# choice made here.
 #
 # The other profiles are retained as falsifier evidence: an implementation that
 # reproduces one of these digests has used the named wrong number form, and the
@@ -260,11 +261,12 @@ if __name__ == "__main__":
 #
 # --- STATED DEPENDENCY, NOT VERIFIED HERE -----------------------------------
 #
-# The issue delegates entity-set sorting to RFC 0079 rather than restating the
-# rule. This oracle assumes canonical order is dimension ascending, then set
-# name in UTF-8 byte order, which is what the issue's own witness listing
-# shows (cylinder, inlet, outlet, walls at dimension 1; then fluid at
-# dimension 2). A non-implementing author cannot read RFC 0079 to confirm it.
+# The specification delegates entity-set sorting to RFC 0079 rather than
+# restating the rule. This oracle assumes canonical order is dimension
+# ascending, then set name in UTF-8 byte order, which is what the
+# specification's own witness listing shows (cylinder, inlet, outlet, walls at
+# dimension 1; then fluid at dimension 2). A non-implementing author cannot
+# read RFC 0079 to confirm it.
 # If RFC 0079 sorts by name alone, this witness reorders to
 # cylinder, fluid, inlet, outlet, walls and the frozen digest is wrong. That
 # correction belongs to the contract owner, not to the implementing lane.

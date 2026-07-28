@@ -18,7 +18,7 @@ region = "fluid, exact topological dimension 2"
 boundary = "cylinder, exact topological dimension 1"
 
 [oracle]
-source = "standalone Python construction from frozen Issue 120, independent of Rust"
+source = "standalone Python construction from the frozen RFC 0081 contract, independent of Rust"
 canonical_bytes = 511
 sha256 = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
 
