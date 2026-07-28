@@ -3,12 +3,19 @@
   <title id="title">Eqiora</title>
   <desc id="description">Model meaning once. Realize it many ways.</desc>
   <rect width="1200" height="630" fill="#0d2b39"/>
-  <path d="M0 520C190 520 210 310 405 310s235 215 425 215 205-160 370-160"
-        fill="none" stroke="#ef866f" stroke-linecap="round" stroke-width="18"/>
-  <g fill="#9ed2b7">
-    <rect x="805" y="160" width="54" height="245" rx="27" opacity=".68"/>
-    <rect x="893" y="85" width="54" height="320" rx="27"/>
-    <rect x="981" y="135" width="54" height="270" rx="27" opacity=".82"/>
+  <g transform="translate(790 105) scale(.41)">
+    <g fill="none" stroke="#76b593" stroke-width="36">
+      <path d="M286 176H176V286"/>
+      <path d="M738 176H848V286"/>
+      <path d="M848 738V848H738"/>
+      <path d="M176 738V848H286"/>
+    </g>
+    <path d="M512 327L697 512 512 697 327 512Z" fill="#76b593"/>
+    <path d="M450 430L596 452 576 592 430 544Z" fill="none"
+          stroke="#0b100d" stroke-linejoin="round" stroke-width="36"/>
+    <path d="M512 212L812 512 512 812 212 512Z" fill="none"
+          stroke="#c1ead3" stroke-linejoin="round" stroke-width="58"/>
+    <path d="M608 252L664 308 608 364 552 308Z" fill="#ef866f"/>
   </g>
   <text x="92" y="220" fill="#f6faf8"
         font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"

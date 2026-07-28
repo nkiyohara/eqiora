@@ -144,36 +144,9 @@ button:disabled {
 }
 
 .brand-mark {
+  display: block;
   width: 28px;
   height: 28px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  align-items: end;
-  gap: 3px;
-  padding: 5px;
-  border: 1px solid rgba(158, 210, 183, 0.42);
-  border-radius: 9px;
-  background: rgba(158, 210, 183, 0.08);
-}
-
-.brand-mark i {
-  display: block;
-  border-radius: 5px;
-  background: var(--mint);
-}
-
-.brand-mark i:nth-child(1) {
-  height: 45%;
-  opacity: 0.62;
-}
-
-.brand-mark i:nth-child(2) {
-  height: 100%;
-}
-
-.brand-mark i:nth-child(3) {
-  height: 70%;
-  opacity: 0.8;
 }
 
 .app-bar__context {
@@ -2271,8 +2244,7 @@ h2 {
 
 @media (forced-colors: active) {
   .entity-dot,
-  .model-node::before,
-  .brand-mark i {
+  .model-node::before {
     forced-color-adjust: none;
   }
   .model-node,

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import iconUrl from "../assets/icon.svg";
 import {
   COMMAND_REGISTRY,
   type FocusTarget,
@@ -877,11 +878,7 @@ export function App() {
       <div className="studio-shell">
         <header className="app-bar">
           <div className="brand">
-            <span className="brand-mark" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-            </span>
+            <img alt="" className="brand-mark" height={28} src={iconUrl} width={28} />
             <span>
               <strong>Eqiora</strong>
               <small>Studio</small>

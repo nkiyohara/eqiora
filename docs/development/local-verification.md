@@ -127,6 +127,11 @@ change rather than reporting a clean gate, and rely on CI for that stage.
 `npm ci` in `studio/`, verification stops earlier still, at `biome: not found`.
 That failure looks like a lint error and is not one.
 
+**A whole-file hash cannot verify `icon.icns` regeneration.** The pinned
+Tauri CLI 2.11.4 may reorder the type-keyed ICNS chunks across identical
+runs, so compare chunk type, declared length, and payload hash or decoded
+pixels instead. Every other generated icon output remains byte-comparable.
+
 **Run `tools/ci/python_package_gate.py`, not a hand-assembled `uv run`.** A
 hand-written `uv run --with .` can answer from a cached wheel, so tests may miss
 a Rust change that must be visible to Python. The repository gate does not have
