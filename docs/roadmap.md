@@ -86,7 +86,7 @@ those two parent paths, not another physical semantics.
   enters the unchanged target ALE finalizer.
 - One accepted remeshing-aware trajectory projects to a complete XDMF 3
   temporal collection and HDF5 file image, and to a separate derived Dataset.
-- One current-v6 Model with one three-dimensional Cartesian body can replace a
+- One current-v7 Model with one three-dimensional Cartesian body can replace a
   non-empty canonical set of axis intervals through one ordinary immutable
   transaction while retaining body, boundary, membership, and incidence
   identities.

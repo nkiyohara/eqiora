@@ -1,6 +1,6 @@
 //! Whole-model validation and immutable interpreter input.
 
-mod geometry_domains;
+mod spatial_domains;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -23,7 +23,7 @@ use eqiora_schema::kernel::{
 };
 
 use crate::conserving::validate_scalar_physical_networks;
-use geometry_domains::{
+use spatial_domains::{
     field_support, spatial_support, validate_domains, validate_fields,
     validate_geometry_support_uses,
 };

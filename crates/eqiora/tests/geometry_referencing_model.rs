@@ -265,12 +265,15 @@ fn geometry_parent_rules_and_spatial_support_fail_closed() {
             build_transaction(ids, GeometryMeaning::default(), extra, false),
             ids.model,
         );
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message().contains("requires artifact admission")),
-            "geometry support must remain closed before artifact admission: {diagnostics:?}"
-        );
+        let admission = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.message().contains("requires artifact admission"))
+            .unwrap_or_else(|| {
+                panic!(
+                    "geometry support must remain closed before artifact admission: {diagnostics:?}"
+                )
+            });
+        assert_eq!(admission.code(), codes::INVALID_KERNEL_DEFINITION);
     }
 }
 
