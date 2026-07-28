@@ -41,3 +41,60 @@ pub(super) fn minimum_device_payload_bytes(
         })
         .ok_or_else(|| invalid("known device payload byte count overflowed"))
 }
+
+#[cfg(test)]
+mod tests {
+    use eqiora_core::diagnostic::codes;
+    use eqiora_solver::{CompleteCsrStorage, LinearOperatorProperties, ReductionPolicy};
+
+    use super::*;
+
+    struct OneByOne;
+
+    impl CompleteCsrStorage for OneByOne {
+        fn rows(&self) -> usize {
+            1
+        }
+
+        fn columns(&self) -> usize {
+            1
+        }
+
+        fn row_offsets(&self) -> &[usize] {
+            &[0, 1]
+        }
+
+        fn column_indices(&self) -> &[usize] {
+            &[0]
+        }
+
+        fn values(&self) -> &[f64] {
+            &[1.0]
+        }
+
+        fn right_hand_side(&self) -> &[f64] {
+            &[1.0]
+        }
+    }
+
+    #[test]
+    fn device_payload_rejects_sparse_lu_before_device_admission() {
+        let system =
+            CanonicalCsrSystemView::new(&OneByOne, LinearOperatorProperties::General).unwrap();
+        let plan = SolverPlan::new(
+            LinearSolver::SparseLu,
+            0.0,
+            1.0e-12,
+            std::num::NonZeroUsize::MIN,
+        )
+        .unwrap()
+        .with_reduction(ReductionPolicy::Fast);
+        let error = minimum_device_payload_bytes(&system, plan).unwrap_err();
+
+        assert_eq!(error.code(), codes::INVALID_REALIZATION);
+        assert_eq!(
+            error.message(),
+            "device payload estimation does not implement sparse LU"
+        );
+    }
+}

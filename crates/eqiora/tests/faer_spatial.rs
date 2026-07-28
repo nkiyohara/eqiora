@@ -16,7 +16,7 @@ use eqiora::solver::{
     CanonicalCsrSystemView, CompleteCsrStorage, ConvergenceReason, DiagonalAvailability,
     LinearOperator, LinearOperatorProperties, LinearProblem, LinearSolver, LinearSolverBackend,
     PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SERIAL_EXECUTION_PROVIDER,
-    ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
+    ScalarType, SolverCapabilities, SolverCapability, SolverPlan, Transposed,
 };
 use eqiora_backend_faer::{
     FAER_ADAPTER_VERSION, FAER_SOLVER_PROVIDER, FAER_VERSION, FaerLinearSolver,
@@ -305,6 +305,44 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
     assert_eq!(early.report().completed_iterations(), 0);
     assert_eq!(early.values(), initial);
 
+    let not_satisfied = rational_vector(
+        &oracle
+            .mathematics
+            .principal
+            .initial_guesses
+            .not_satisfied
+            .vector,
+    );
+    let not_satisfied_problem = system
+        .linear_problem()
+        .unwrap()
+        .with_initial_guess(&not_satisfied)
+        .unwrap();
+    let not_satisfied_solution = FaerLinearSolver
+        .solve(&not_satisfied_problem, plan)
+        .unwrap();
+    let not_satisfied_case = oracle
+        .contract_expectations
+        .test_plan
+        .cases
+        .iter()
+        .find(|case| case.id == "initial-guess-not-accepted-early")
+        .unwrap();
+    assert_eq!(
+        not_satisfied_solution.report().reason(),
+        ConvergenceReason::ResidualToleranceSatisfied
+    );
+    assert_eq!(not_satisfied_solution.report().completed_iterations(), 1);
+    assert_solution_matches_case(
+        not_satisfied_solution.values(),
+        &expected,
+        not_satisfied_case,
+    );
+    assert!(
+        not_satisfied_solution.report().true_residual_norm().powi(2)
+            <= rational(not_satisfied_case.expected_residual_squared_at_most)
+    );
+
     let hand_built = LinearProblem::new(
         &system,
         system.right_hand_side(),
@@ -316,6 +354,35 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
         missing_capture.code(),
         eqiora::diagnostic::codes::INVALID_REALIZATION
     );
+
+    let matrix_free_operator = DenseOperator {
+        entries: [[4.0, 1.0], [2.0, 3.0]],
+    };
+    let matrix_free = LinearProblem::new(
+        &matrix_free_operator,
+        &[6.0, 8.0],
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
+    let matrix_free_error = FaerLinearSolver.solve(&matrix_free, plan).unwrap_err();
+    assert_eq!(
+        matrix_free_error.code(),
+        eqiora::diagnostic::codes::INVALID_REALIZATION
+    );
+
+    let transposed_operator = Transposed::new(&system);
+    let transposed = LinearProblem::new(
+        &transposed_operator,
+        system.right_hand_side(),
+        LinearOperatorProperties::General,
+    )
+    .unwrap();
+    let transposed_error = FaerLinearSolver.solve(&transposed, plan).unwrap_err();
+    assert_eq!(
+        transposed_error.code(),
+        eqiora::diagnostic::codes::INVALID_REALIZATION
+    );
+    assert!(transposed_error.message().contains("normal-orientation"));
 
     let rank_deficient = fixture_storage(&oracle.mathematics.rank_deficient);
     let rank_deficient =
@@ -550,6 +617,7 @@ struct FrozenCsr {
 #[derive(Debug, Deserialize)]
 struct FrozenInitialGuesses {
     already_satisfied: FrozenInitialGuess,
+    not_satisfied: FrozenInitialGuess,
 }
 
 #[derive(Debug, Deserialize)]

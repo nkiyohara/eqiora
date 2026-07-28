@@ -43,3 +43,75 @@ impl KrylovWorkspace {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use eqiora_core::diagnostic::codes;
+    use eqiora_distributed::{DistributedLinearSystem, GlobalVectorSpace, Partition, PartitionId};
+    use eqiora_solver::{
+        CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties, ReductionPolicy,
+        ScalarType,
+    };
+
+    use super::*;
+
+    struct OneByOne;
+
+    impl CompleteCsrStorage for OneByOne {
+        fn rows(&self) -> usize {
+            1
+        }
+
+        fn columns(&self) -> usize {
+            1
+        }
+
+        fn row_offsets(&self) -> &[usize] {
+            &[0, 1]
+        }
+
+        fn column_indices(&self) -> &[usize] {
+            &[0]
+        }
+
+        fn values(&self) -> &[f64] {
+            &[1.0]
+        }
+
+        fn right_hand_side(&self) -> &[f64] {
+            &[1.0]
+        }
+    }
+
+    #[test]
+    fn mpi_workspace_rejects_sparse_lu_defensively() {
+        let complete =
+            CanonicalCsrSystemView::new(&OneByOne, LinearOperatorProperties::General).unwrap();
+        let partition = Partition::new(
+            GlobalVectorSpace::new(std::num::NonZeroUsize::MIN, ScalarType::F64),
+            std::num::NonZeroUsize::MIN,
+            vec![PartitionId::new(0)],
+        )
+        .unwrap();
+        let distributed = DistributedLinearSystem::from_complete(&complete, partition).unwrap();
+        let problem = distributed.local_problem(PartitionId::new(0)).unwrap();
+        let plan = SolverPlan::new(
+            LinearSolver::SparseLu,
+            0.0,
+            1.0e-12,
+            std::num::NonZeroUsize::MIN,
+        )
+        .unwrap()
+        .with_reduction(ReductionPolicy::Fast);
+        let error = match KrylovWorkspace::new(&problem, plan) {
+            Ok(_) => panic!("MPI workspace unexpectedly admitted sparse LU"),
+            Err(error) => error,
+        };
+
+        assert_eq!(error.code(), codes::INVALID_REALIZATION);
+        assert_eq!(
+            error.message(),
+            "MPI distributed Krylov workspace does not implement sparse LU"
+        );
+    }
+}

@@ -590,6 +590,22 @@ mod tests {
     }
 
     #[test]
+    fn reference_backend_rejects_sparse_lu_before_numerical_work() {
+        let problem = LinearProblem::new(
+            &DenseGeneral,
+            &[1.0, 2.0],
+            LinearOperatorProperties::General,
+        )
+        .unwrap();
+        let plan =
+            SolverPlan::new(LinearSolver::SparseLu, 0.0, 1.0e-12, NonZeroUsize::MIN).unwrap();
+        let error = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap_err();
+
+        assert_eq!(error.code(), codes::INVALID_REALIZATION);
+        assert!(error.message().contains("exact SolverCapability"));
+    }
+
+    #[test]
     fn reference_minres_solves_an_asserted_symmetric_indefinite_system() {
         let plan = SolverPlan::new(
             LinearSolver::MinimumResidual,
