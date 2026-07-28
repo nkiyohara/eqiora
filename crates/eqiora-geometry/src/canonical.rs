@@ -5,6 +5,8 @@
 //! entity catalog independently of the validated region from which both are
 //! derived.
 
+use core::fmt;
+
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use serde::{Deserialize, Serialize};
@@ -62,6 +64,77 @@ pub struct CanonicalGeometryV1 {
     region: PlanarRegion,
     bytes: Vec<u8>,
     digest: [u8; 32],
+}
+
+/// Borrowed, kind-erased semantic facts from one canonical geometry.
+///
+/// This value can only be derived from a canonical geometry owned by this
+/// crate. It deliberately exposes neither geometry content nor a constructor
+/// from caller-supplied digest and dimension facts.
+#[derive(Clone, Copy, PartialEq)]
+pub struct CanonicalGeometryRef<'a> {
+    kind: CanonicalGeometryKindRef<'a>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum CanonicalGeometryKindRef<'a> {
+    StraightEdgedPlanarV1(&'a CanonicalGeometryV1),
+}
+
+impl<'a> From<&'a CanonicalGeometryV1> for CanonicalGeometryRef<'a> {
+    fn from(geometry: &'a CanonicalGeometryV1) -> Self {
+        Self {
+            kind: CanonicalGeometryKindRef::StraightEdgedPlanarV1(geometry),
+        }
+    }
+}
+
+impl fmt::Debug for CanonicalGeometryRef<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CanonicalGeometryRef")
+            .field("digest", &self.digest_bytes())
+            .field("ambient_dimension", &self.ambient_dimension())
+            .field("topological_dimension", &self.topological_dimension())
+            .finish_non_exhaustive()
+    }
+}
+
+impl CanonicalGeometryRef<'_> {
+    /// Complete domain-separated content identity.
+    #[must_use]
+    pub const fn digest_bytes(self) -> [u8; 32] {
+        match self.kind {
+            CanonicalGeometryKindRef::StraightEdgedPlanarV1(geometry) => geometry.digest_bytes(),
+        }
+    }
+
+    /// Dimension of the physical coordinate embedding.
+    #[must_use]
+    pub const fn ambient_dimension(self) -> usize {
+        match self.kind {
+            CanonicalGeometryKindRef::StraightEdgedPlanarV1(_) => 2,
+        }
+    }
+
+    /// Highest topological dimension represented by the geometry.
+    #[must_use]
+    pub const fn topological_dimension(self) -> usize {
+        match self.kind {
+            CanonicalGeometryKindRef::StraightEdgedPlanarV1(_) => 2,
+        }
+    }
+
+    /// Topological dimension of one exact entity-set name.
+    #[must_use]
+    pub fn entity_set_dimension(self, name: &str) -> Option<usize> {
+        match self.kind {
+            CanonicalGeometryKindRef::StraightEdgedPlanarV1(geometry) => geometry
+                .region()
+                .entity_set(name)
+                .map(NamedEntitySet::dimension),
+        }
+    }
 }
 
 impl CanonicalGeometryV1 {

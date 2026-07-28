@@ -1,0 +1,60 @@
+id = "geometry.geometry-backed-semantic-admission"
+status = "verified"
+scope = "exact-closed-straight-edged-planar-artifact-bundle-to-semantic-spatial-support"
+reference_kind = "independent-frozen-geometry-identity-and-parent-relative-entity-set-falsifiers"
+
+capabilities = [
+  "exact-closed-geometry-artifact-bundle-admission",
+  "geometry-region-volume-support-reconstruction-2d",
+  "parent-relative-geometry-boundary-entity-set-admission",
+  "geometry-backed-field-and-relation-typing",
+]
+
+[problem]
+geometry = "RFC 0079 dyadic unit square with centred square hole"
+geometry_sha256 = "e6f8e17ac215ef37ca3c9de07b9979e34f13412a5de11dc9240ea1def8130030"
+region = "fluid, topological dimension 2"
+boundary = "hole, topological dimension 1, relative to fluid parent"
+field = "two-component SpatialCartesian continuum Field"
+relation = "divergence of the admitted Field, scoped to fluid"
+
+[acceptance]
+exactly_one_artifact_per_required_digest = true
+artifact_order_independent = true
+region_support_dimension = 2
+boundary_entity_set_codimension = 1
+typed_residual_reuses_retained_derived_support = true
+artifact_bytes_or_borrows_retained = false
+
+[falsifiers]
+missing_extra_or_duplicate_artifact = "reject-with-EQ0901"
+region_selects_edge_set = "reject-at-region-with-EQ0302"
+boundary_selects_face_set = "reject-at-boundary-with-EQ0302"
+same_name_only_in_foreign_artifact = "reject-against-own-parent-artifact"
+geometry_boundary_physical_port = "reject-non-Cartesian-embedding-contract"
+geometry_boundary_relation = "reject-non-Cartesian-embedding-contract"
+wrong_spatial_cartesian_extent = "reject-at-Field-with-EQ0302"
+caller_artifact_permutation = "equal-program-or-equal-diagnostics"
+
+[claim_boundary]
+artifact_family = "straight-edged-planar-v1"
+ambient_dimension = 2
+topological_dimension = 2
+exact_bundle_closure = true
+region_spatial_support = true
+boundary_entity_set_existence_and_dimension = true
+boundary_support_consumer = false
+source_or_draft_syntax = false
+box_synthesis = false
+artifact_storage_or_discovery = false
+mesh_admission_or_correspondence = false
+realization_or_numerical_lowering = false
+boundary_to_parent_geometric_incidence = false
+curves_or_exact_circle = false
+embedded_manifolds_or_3d = false
+cad = false
+cylinder_demo = false
+
+[evidence]
+package = "eqiora"
+test = "geometry_backed_semantic_admission"

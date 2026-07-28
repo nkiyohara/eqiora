@@ -185,6 +185,9 @@ fn same_layer_dependency_is_allowed(package: &str, dependency: &str) -> bool {
             // RFC 0049: Geometry Identity composes the existing revision-local
             // mesh entity vocabulary without moving mesh meaning into geometry.
             | ("eqiora-geometry", "eqiora-meshing")
+            // RFC 0080: semantic admission derives non-forgeable spatial
+            // support from canonical geometry rather than caller-owned facts.
+            | ("eqiora-sem", "eqiora-geometry")
     )
 }
 

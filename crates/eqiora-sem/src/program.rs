@@ -1,5 +1,7 @@
 //! Whole-model validation and immutable interpreter input.
 
+mod geometry_admission;
+mod snapshot_admission;
 mod spatial_domains;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -22,11 +24,7 @@ use eqiora_schema::kernel::{
     validate_boundary_physical_connection, validate_spatial_periodic_boundary_connection,
 };
 
-use crate::conserving::validate_scalar_physical_networks;
-use spatial_domains::{
-    field_support, spatial_support, validate_domains, validate_fields,
-    validate_geometry_support_uses,
-};
+use spatial_domains::field_support;
 
 /// A completely validated, immutable Semantic Kernel model.
 ///
@@ -41,95 +39,12 @@ pub struct KernelProgram {
     values: BTreeMap<RawId, DynQuantity>,
     edges: Vec<Edge>,
     boundary: BTreeSet<RawId>,
+    spatial_supports: BTreeMap<RawId, SpatialSupport<RawId>>,
 }
 
 impl KernelProgram {
     pub(crate) const fn node_definitions(&self) -> &BTreeMap<RawId, KernelNode> {
         &self.nodes
-    }
-
-    /// Select a `ModelView` from an immutable snapshot and validate all
-    /// cross-node invariants required for execution.
-    ///
-    /// Validation is diagnostic-accumulating: independent faults are returned
-    /// together in deterministic graph order.
-    ///
-    /// # Errors
-    /// Returns diagnostics when the view is absent, its semantic topology is
-    /// not closed, a symbol is unresolved, dimensions conflict, activation or
-    /// clock wiring is ambiguous, or a connection contract is invalid.
-    pub fn from_snapshot(
-        snapshot: &Snapshot,
-        model: OntologyId<Model>,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        let raw_model = model.erase();
-        let Some(view) = snapshot.ontology_view(&raw_model) else {
-            return Err(vec![
-                Diagnostic::error(
-                    codes::ONTOLOGY_VIEW_NOT_FOUND,
-                    format!("ModelView {raw_model} does not exist at the selected revision"),
-                )
-                .with_graph_path(model_path(model)),
-            ]);
-        };
-
-        let mut diagnostics = Vec::new();
-        let mut nodes = BTreeMap::new();
-        let mut values = BTreeMap::new();
-        for &member in view.members() {
-            match snapshot.node(member) {
-                Some(node) => match node.kernel_definition() {
-                    Some(definition) => {
-                        nodes.insert(member, definition.clone());
-                        if let Some(value) = node.value() {
-                            values.insert(member, value);
-                        }
-                    }
-                    None => diagnostics.push(kernel_error(
-                        member,
-                        "ModelView member has no complete Semantic Kernel definition",
-                    )),
-                },
-                None => diagnostics.push(
-                    Diagnostic::error(
-                        codes::NODE_NOT_FOUND,
-                        format!("ModelView member {member} is absent from the snapshot"),
-                    )
-                    .with_graph_path(kernel_path(member)),
-                ),
-            }
-        }
-
-        let edges = snapshot
-            .edges()
-            .filter(|edge| {
-                view.members().contains(&edge.from()) && view.members().contains(&edge.to())
-            })
-            .copied()
-            .collect::<Vec<_>>();
-
-        validate_closed_topology(snapshot, view.members(), &mut diagnostics);
-        validate_domains(&nodes, &edges, &mut diagnostics);
-        validate_geometry_support_uses(&nodes, &edges, &mut diagnostics);
-        validate_fields(&nodes, &edges, &mut diagnostics);
-        validate_relations(&nodes, &edges, &mut diagnostics);
-        validate_activations(&nodes, &edges, &mut diagnostics);
-        validate_connections(&nodes, &edges, &mut diagnostics);
-        crate::boundary_physical::validate_networks(&nodes, &edges, &mut diagnostics);
-        validate_scalar_physical_networks(&nodes, &edges, view.boundary(), &mut diagnostics);
-
-        if diagnostics.is_empty() {
-            Ok(Self {
-                revision: snapshot.revision(),
-                model,
-                nodes,
-                values,
-                edges,
-                boundary: view.boundary().clone(),
-            })
-        } else {
-            Err(diagnostics)
-        }
     }
 
     /// Graph Federation revision captured by this program.
@@ -224,10 +139,9 @@ impl KernelProgram {
         scope: Option<RawId>,
         root_contract: RootContract,
     ) -> Result<TypedResidual<RawId>, Vec<Diagnostic>> {
-        let relation_support =
-            scope.and_then(|scope| spatial_support(scope, &self.nodes, &self.edges));
+        let relation_support = scope.and_then(|scope| self.spatial_supports.get(&scope).cloned());
         TypedResidual::infer(expression, relation_support, root_contract, |symbol| {
-            symbol_type(symbol, &self.nodes, &self.edges)
+            symbol_type(symbol, &self.nodes, &self.edges, &self.spatial_supports)
         })
         .map_err(|errors| {
             errors
@@ -252,7 +166,8 @@ impl KernelProgram {
             Some(interface.clone()),
             RootContract::ComponentwiseResidual,
             |symbol| {
-                let mut inferred = symbol_type(symbol, &self.nodes, &self.edges)?;
+                let mut inferred =
+                    symbol_type(symbol, &self.nodes, &self.edges, &self.spatial_supports)?;
                 if matches!(symbol, SymbolRef::PortTrace(_) | SymbolRef::PortFlux(_)) {
                     inferred.support = Some(interface.clone());
                 }
@@ -304,6 +219,7 @@ fn validate_closed_topology(
 fn validate_relations(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
+    spatial_supports: &BTreeMap<RawId, SpatialSupport<RawId>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (&id, node) in nodes {
@@ -325,8 +241,11 @@ fn validate_relations(
         let symbols = validate_expression(
             relation.residuals(),
             id,
-            nodes,
-            edges,
+            TypingEnvironment {
+                nodes,
+                edges,
+                spatial_supports,
+            },
             scope,
             RootContract::ComponentwiseResidual,
             diagnostics,
@@ -375,6 +294,7 @@ fn validate_relations(
 fn validate_activations(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
+    spatial_supports: &BTreeMap<RawId, SpatialSupport<RawId>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (&id, node) in nodes {
@@ -420,8 +340,11 @@ fn validate_activations(
                 validate_expression(
                     guard,
                     id,
-                    nodes,
-                    edges,
+                    TypingEnvironment {
+                        nodes,
+                        edges,
+                        spatial_supports,
+                    },
                     None,
                     RootContract::ScalarActivation,
                     diagnostics,
@@ -432,8 +355,11 @@ fn validate_activations(
                 validate_expression(
                     guard,
                     id,
-                    nodes,
-                    edges,
+                    TypingEnvironment {
+                        nodes,
+                        edges,
+                        spatial_supports,
+                    },
                     None,
                     RootContract::ScalarActivation,
                     diagnostics,
@@ -722,11 +648,17 @@ fn scalar_connection_error(connection: RawId, violation: ScalarConnectionViolati
     }
 }
 
+#[derive(Clone, Copy)]
+struct TypingEnvironment<'a> {
+    nodes: &'a BTreeMap<RawId, KernelNode>,
+    edges: &'a [Edge],
+    spatial_supports: &'a BTreeMap<RawId, SpatialSupport<RawId>>,
+}
+
 fn validate_expression(
     expression: &ExprDag,
     owner: RawId,
-    nodes: &BTreeMap<RawId, KernelNode>,
-    edges: &[Edge],
+    environment: TypingEnvironment<'_>,
     scope: Option<RawId>,
     root_contract: RootContract,
     diagnostics: &mut Vec<Diagnostic>,
@@ -739,12 +671,20 @@ fn validate_expression(
             _ => None,
         })
         .collect();
-    let relation_support = scope.and_then(|scope| spatial_support(scope, nodes, edges));
+    let relation_support =
+        scope.and_then(|scope| environment.spatial_supports.get(&scope).cloned());
     if let Err(errors) = TypedResidual::infer(
         expression.clone(),
         relation_support,
         root_contract,
-        |symbol| symbol_type(symbol, nodes, edges),
+        |symbol| {
+            symbol_type(
+                symbol,
+                environment.nodes,
+                environment.edges,
+                environment.spatial_supports,
+            )
+        },
     ) {
         diagnostics.extend(
             errors
@@ -826,6 +766,7 @@ fn symbol_type(
     symbol: SymbolRef,
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
+    spatial_supports: &BTreeMap<RawId, SpatialSupport<RawId>>,
 ) -> Result<ExpressionType<RawId>, SymbolTypeError> {
     match symbol {
         SymbolRef::Field(id) | SymbolRef::Pre(id) | SymbolRef::Next(id) => {
@@ -834,7 +775,7 @@ fn symbol_type(
                     field.dimension(),
                     field.shape().clone(),
                     field.frame(),
-                    field_support(id.erase(), nodes, edges),
+                    field_support(id.erase(), edges, spatial_supports),
                 )),
                 _ => Err(SymbolTypeError::Missing),
             }
@@ -844,7 +785,7 @@ fn symbol_type(
                 field.dimension(),
                 field.shape().clone(),
                 field.frame(),
-                field_support(id.erase(), nodes, edges),
+                field_support(id.erase(), edges, spatial_supports),
             ))
             .map_err(SymbolTypeError::Typing),
             _ => Err(SymbolTypeError::Missing),
@@ -901,7 +842,7 @@ fn symbol_type(
             let DomainKind::BoundaryPhysical { connector } = connector.kind() else {
                 return Err(SymbolTypeError::WrongPortContract);
             };
-            let Some(support) = spatial_support(boundary.erase(), nodes, edges) else {
+            let Some(support) = spatial_supports.get(&boundary.erase()).cloned() else {
                 return Err(SymbolTypeError::WrongPortContract);
             };
             let dimension = if matches!(symbol, SymbolRef::PortTrace(_)) {

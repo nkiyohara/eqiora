@@ -1037,6 +1037,7 @@ name = "eqiora-sem"
 version = "0.1.0-alpha.1"
 dependencies = [
  "eqiora-core",
+ "eqiora-geometry",
  "eqiora-graph",
  "eqiora-schema",
 ]
