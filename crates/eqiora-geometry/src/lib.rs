@@ -18,6 +18,7 @@
 
 mod association;
 mod cad;
+mod canonical;
 mod correspondence;
 mod identity;
 mod region;
@@ -31,6 +32,7 @@ pub use cad::{
     CadBoxRealizationV1, CadKernelAdapter, CadRepairDispositionV1, ConstrainedRectangleV1,
     StepLengthUnitV1, StepSourceDigest,
 };
+pub use canonical::{CanonicalGeometryLimits, CanonicalGeometryV1};
 pub use correspondence::{
     CartesianBodyAssignment, CartesianBoundaryAssignment, GeometryCorrespondenceError,
     GeometryMeshCorrespondence,

@@ -1,0 +1,49 @@
+id = "geometry.authored-planar-geometry-artifact"
+status = "verified"
+scope = "one-canonical-straight-edged-planar-region-artifact"
+reference_kind = "independent-canonical-encoding-and-digest-derivation"
+
+capabilities = [
+  "bounded-external-planar-geometry-json-admission",
+  "canonical-planar-geometry-byte-identity",
+  "content-addressed-named-entity-set-catalog",
+]
+
+[problem]
+geometry = "one unit square with one centred square hole and three named canonical entity sets"
+encoding = "compact canonical JSON for eqiora.geometry-definition-envelope/v1"
+identity = "SHA-256 over the schema domain, one NUL separator, and the complete canonical bytes"
+
+[oracle]
+source = "standalone Python derivation from RFC 0079, independent of Rust serialization"
+canonical_bytes = 482
+sha256 = "e6f8e17ac215ef37ca3c9de07b9979e34f13412a5de11dc9240ea1def8130030"
+
+[falsifiers]
+noncanonical_whitespace = "reject rather than normalize"
+author_order_or_rotated_wire = "reject, while equivalent programmatic authorings derive one digest"
+filled_hole = "different content identity"
+invalid_topology_or_membership = "reject during PlanarRegion revalidation"
+duplicate_name_across_dimensions = "reject because name is the catalog key"
+unknown_wire_vocabulary = "reject"
+decoder_budget_excess = "reject before geometric validation"
+missing_digest_domain_or_separator = "does not match the independent oracle"
+
+[claim_boundary]
+external_json_admission = true
+canonical_byte_identity = true
+content_digest_stability = true
+entity_set_catalog = true
+model_vocabulary = false
+artifact_admission_into_model = false
+geometry_spatial_support = false
+language_or_draft_authoring = false
+mesh_realization = false
+geometry_mesh_correspondence = false
+curves_or_general_3d_geometry = false
+boolean_or_cad_operations = false
+geometric_equivalence = false
+
+[evidence]
+package = "eqiora-artifact"
+test = "geometry_definition_wire"
