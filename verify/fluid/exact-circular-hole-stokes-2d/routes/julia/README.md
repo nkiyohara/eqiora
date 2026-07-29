@@ -246,7 +246,7 @@ vertices are prescribed.
 ### Residuals and structure
 
 ```
-selected residual target      1.3239627651209673e-12   (max(1e-13, 1e-11*||b_hat||_2))
+selected residual target      1.3239627651209673e-07   (max(1e-13, 1e-6*||b_hat||_2), rtol amended)
 roundoff allowance            6.46950959525234e-05     (4096 eps (1 + ||A||inf ||x||inf + ||b||inf))
 true reduced residual (2)     5.43e-73                 independently reapplied
 weak pressure-row residual(2) 1.62e-75                 no gauge column to exclude
@@ -352,7 +352,8 @@ cond_2(A_hat_reduced) = 4.635683511e9
 ```
 
 Measured with a **Julia f64 Paige-Saunders MINRES, identity preconditioner,
-rtol 1e-11, atol 1e-13, cap 10000** — an *analogue* of the frozen tuple, run
+rtol 1e-6 (amended from 1e-11), atol 1e-13, cap 10000** — an *analogue* of the
+frozen tuple, run
 locally. It is **not** the registered `eqiora.reference` backend, not its
 `Reproducible` reduction, and not a hosted measurement, so it indicates
 feasibility rather than settling it. The implementation was validated on a
@@ -361,15 +362,16 @@ reapplied true residuals agree to four digits.
 
 | | iterations | recurred residual | true residual | max pressure error | max reaction error |
 |---|---|---|---|---|---|
-| MINRES + Identity | 9401 / 10000 | `1.3169e-12` | **`2.4680e-5`** | `9.37e-8 Pa` | `2.40e-8 N/m` |
+| MINRES + Identity | 5832 / 10000 | `1.3102e-7` | **`2.4679e-5`** | `3.33e-7 Pa` | `1.91e-8 N/m` |
 | f64 dense LU (*not* the frozen selection) | — | — | `1.55e-12` | `2.31e-14 Pa` | `9.42e-15 N/m` |
 | production tolerance `floor + 5e-7 * scale` | — | — | — | `3.66e-10 Pa` | `1.50e-10 N/m` |
 
 So, on this witness:
 
-1. MINRES reaches the *recurred* target only at iteration 9401 of the 10000
-   cap, leaving under 7 % headroom.
-2. Its **true** residual floors at `2.4680e-5`. Rerunning with the stopping
+1. MINRES reaches the *recurred* target at iteration 5832 of the 10000 cap,
+   leaving `41.7 %` headroom. Under the superseded rtol `1e-11` it reached the
+   target only at iteration 9401, leaving under 7 %.
+2. Its **true** residual floors at `2.4679e-5`. Rerunning with the stopping
    test disabled and the operator independently reapplied every 100 iterations
    for 20000 iterations, the best true residual seen is `2.467954e-5` at
    iteration 6100 — it does not improve afterwards, while the recurred estimate
@@ -379,8 +381,11 @@ So, on this witness:
    because the frozen roundoff allowance `4096 eps (1 + ||A||inf ||x||inf +
    ||b||inf)` evaluates to `6.470e-5` here, and the residual is measured
    against target-plus-allowance rather than against the target.
-3. The **pointwise** production tolerances are missed: pressure by `256x` and
-   reaction by `160x`. Velocity and flux pass, and both global balances pass.
+3. The **pointwise** production tolerances are missed: pressure by `911x` and
+   reaction by `127x`. Velocity and flux pass, and both global balances pass.
+   They were missed under the superseded rtol too, by `256x` and `160x`, so
+   this is a property of the iterative selection on this operator rather than
+   of the amended tolerance.
 4. A direct f64 factorization meets every tolerance with a `10^4` margin, so
    the gap is attributable to the iterative selection on a `4.6e9`-conditioned
    operator, not to the frozen tolerance table or the mesh.

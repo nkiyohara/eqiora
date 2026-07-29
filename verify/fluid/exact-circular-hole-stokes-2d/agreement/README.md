@@ -114,19 +114,31 @@ here, not a production run: the existing acceptance function was **read, never
 executed**, and there is still no production implementation of this capability.
 
 The recorded true-residual allowance is **not** the pressure-row allowance and
-is not used for a weak residual. On this witness it is `6.47e-05`, about
-`2.9e+07` times looser than the `2.23e-12` the contract actually names. The
-frozen weak norms pass the correct, much tighter bound by an enormous margin, so
-no value in this package changes — but the gate now measures the residual it
-says it measures.
+is not used for a weak residual. On this witness it is `6.48e-05`, about
+`489` times looser than the `1.32e-07` the contract actually names. The frozen
+weak norms pass the correct, tighter bound by an enormous margin, so no value in
+this package changes — but the gate now measures the residual it says it
+measures. Before the witness-tuple amendment the same two numbers were
+`6.47e-05` and `2.23e-12`, a separation of `2.9e+07`; the pressure-row bound
+tracks the selected target and the true-residual allowance does not, so amending
+the target narrowed the gap between them.
 
 | route | quantity | value | bound | limit | margin |
 | --- | --- | --- | --- | --- | ---: |
-| python | true reduced | `8.193525e-38` | recorded allowance | `6.469510e-05` | `7.90e+32` |
-| python | weak pressure row (2-norm) | `3.142092e-40` | pressure-row allowance | `2.233457e-12` | `7.11e+27` |
-| julia | true reduced | `5.421072e-73` | recorded allowance | `6.469510e-05` | `1.19e+68` |
-| julia | weak pressure row (2-norm) | `1.621881e-75` | pressure-row allowance | `2.233457e-12` | `1.38e+63` |
-| julia | weak pressure row (inf-norm) | `8.162678e-76` | pressure-row allowance | `2.233457e-12` | `2.74e+63` |
+| python | true reduced | `8.193525e-38` | recorded allowance | `6.482749e-05` | `7.91e+32` |
+| python | weak pressure row (2-norm) | `3.142092e-40` | pressure-row allowance | `1.323972e-07` | `4.21e+32` |
+| julia | true reduced | `5.421072e-73` | recorded allowance | `6.482749e-05` | `1.20e+68` |
+| julia | weak pressure row (2-norm) | `1.621881e-75` | pressure-row allowance | `1.323972e-07` | `8.16e+67` |
+| julia | weak pressure row (inf-norm) | `8.162678e-76` | pressure-row allowance | `1.323972e-07` | `1.62e+68` |
+
+Both limits are derived from the selected residual target, so the amendment of
+the frozen relative tolerance from `1e-11` to `1e-6` moved them mechanically:
+the true-residual limit by `0.2 %`, and the **weak pressure-row limit by five
+decades**, from `2.233457e-12` to `1.323972e-07`. No route value changed and no
+verdict changed — the frozen weak norms clear both bounds by more than 32
+orders of magnitude — but the gate's power to reject a mutated weak residual is
+correspondingly coarser, and the mutation record below says which probes that
+affects. See [`../amendment/README.md`](../amendment/README.md).
 
 The **2-norm is the contractual weak norm**. The Julia route also publishes an
 inf-norm; it is bounded under the same formula so that a published value stays
@@ -137,9 +149,9 @@ with each other.
 
 That allowance depends on the norm it bounds, exactly as the production check
 does, so the acceptance region is the fixed point of
-`n <= target + 4096 * eps * (1 + n + target)`. Its largest accepted binary64
-value here is `2.233457466897131e-12`, `5029` ulp above the limit evaluated at
-`n = 0`, and one ulp more is rejected.
+`n <= target + 4096 * eps * (1 + n + target)`. The fixed point is evaluated from
+the selected target each run, so the amendment of that target moved it; the
+value the gate now records is in the table above.
 
 **Domain before magnitude.** A norm cannot be negative and neither can a
 roundoff allowance, so every bounded quantity, every selected target, every
@@ -242,11 +254,10 @@ run after that correction, each rejected with a non-zero exit:
   and in **both together**, which preserves cross-route equality and is still
   rejected by the per-route domain guard;
 - a **negative recorded true-residual allowance** in each route;
-- a weak 2-norm at `2.2334574668971316e-12`, **one ulp above the existing weak
-  bound** and `2.9e+07` times below the `6.47e-05` allowance the gate previously
-  borrowed, in each route — and the same for the Julia inf-norm;
-- a weak 2-norm at `1e-11` and at `6.4e-05` in each route, both of which the old
-  reading accepted;
+- a weak 2-norm at `2.2334574668971316e-12`, **one ulp above the weak bound as
+  it then stood**, in each route — and the same for the Julia inf-norm;
+- a weak 2-norm at `1e-11` and at `6.4e-05` in each route, both of which the
+  reading before that correction accepted;
 - each route's true reduced residual one ulp past its own recorded bound;
 - `NaN` and `+inf` residuals;
 - and the pre-existing guards, re-confirmed intact against this same build: a
@@ -264,6 +275,19 @@ norm of `+0.0`.
 
 Those mutations were applied to throwaway copies outside the repository and are
 not part of the frozen tree.
+
+**Three of them no longer reject, and the amendment is why.** The weak
+pressure-row bound is derived from the selected residual target, which the
+witness-tuple amendment moved from `1.3239627651209673e-12` to
+`1.3239627651209673e-07`; the bound moved with it, from `2.233457e-12` to
+`1.323972e-07`. The weak 2-norm probes at `2.2334574668971316e-12` and at
+`1e-11`, and the corresponding Julia inf-norm probe, now fall inside the bound
+and would be accepted. The `6.4e-05` probe still rejects. This mutation set was
+run against the pre-amendment bound and is left as the record of that run
+rather than rewritten; the loss of discrimination is stated in
+[`../amendment/README.md`](../amendment/README.md) rather than absorbed
+silently. Every other mutation listed above is unaffected, because no other
+bound in this gate depends on the selected target.
 
 ## What agreement authorizes
 

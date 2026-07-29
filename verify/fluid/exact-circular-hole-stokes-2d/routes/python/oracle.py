@@ -100,7 +100,12 @@ SOLVER = {
     "preconditioner": "Identity",
     "reduction": "Reproducible",
     "scalar": "f64",
-    "relative_tolerance": 1e-11,
+    # Amended from 1e-11 by the case contract owner; see ../../amendment/. The
+    # superseded value accepted the f64-rounded elevated solution under elevated
+    # reapplication and rejected it under every binary64 summation order, so its
+    # verdict was decided by the evaluator's arithmetic. Everything else in this
+    # tuple is unchanged.
+    "relative_tolerance": 1e-06,
     "absolute_tolerance": 1e-13,
     "max_iterations": 10000,
 }

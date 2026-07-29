@@ -117,7 +117,12 @@ check!("solve.independent_reapplication_agrees",
 const RTRUE = sqrt(sum(z -> z * z, RES[PR.free]))
 const WEAK = [RES[pdof(PR, v)] for v in 1:PR.nv]
 const WEAK2 = sqrt(sum(z -> z * z, WEAK))
-const TARGET = max(T(1e-13), T(1e-11) * SOL.bred_norm)
+# Relative tolerance amended from 1e-11 by the case contract owner; see
+# ../../amendment/. The superseded value's verdict on the f64-rounded elevated
+# solution flipped with the reapplication precision. atol, the iteration cap and
+# every other element of the frozen tuple are unchanged.
+const RTOL = 1e-06
+const TARGET = max(T(1e-13), T(RTOL) * SOL.bred_norm)
 const ANORM = maximum(sum(abs, A[i, PR.free]) for i in PR.free)
 const XNORM = maximum(abs, SOL.xfull[PR.free])
 const BNORM = maximum(abs, B[PR.free] - A[PR.free, PR.essential] * PR.uess)
@@ -355,7 +360,7 @@ say()
 # ---------------------------------- 7. advisory: frozen solve selection in f64
 
 say("-- 7. ADVISORY: frozen f64 solve selection on this witness -----------------")
-say("  Julia analogue of the frozen tuple (MINRES, Identity, f64, rtol 1e-11,")
+say("  Julia analogue of the frozen tuple (MINRES, Identity, f64, rtol 1e-6,")
 say("  atol 1e-13, <=10000 iterations). NOT the registered eqiora.reference")
 say("  backend and NOT a hosted measurement; a feasibility indicator only.")
 
@@ -397,7 +402,7 @@ function advisory(tag, o2, extra = "")
 end
 const LU_DEV = advisory("f64 dense LU", observe64(ARED64 \ BRED64),
                         "(not the frozen selection)")
-const XM, ITM, ESTM = minres(ARED64, BRED64)
+const XM, ITM, ESTM = minres(ARED64, BRED64; rtol = RTOL)
 const FLOOR_TRUE, FLOOR_AT = minres(ARED64, BRED64; stop = false, maxiter = 20000,
                                     probe = 100)[4]
 const TRUE_M = norm(ARED64 * XM - BRED64)
@@ -510,8 +515,9 @@ frozen = obj(
                        "muhat_one_pressure" => MUHAT_DEV.pressure,
                        "muhat_one_reaction" => MUHAT_DEV.reaction),
     "advisory_f64_solve" => obj(
-        "disclaimer" => "Julia analogue of the frozen solve tuple, run locally. NOT the " *
-                        "registered eqiora.reference backend and NOT a hosted measurement.",
+        "disclaimer" => "Julia analogue of the frozen solve tuple at the amended rtol 1e-6, " *
+                        "run locally. NOT the registered eqiora.reference backend and NOT a " *
+                        "hosted measurement.",
         "cond2_A_hat_reduced" => KAPPA,
         "abs_eigenvalue_min" => minimum(abs, EV), "abs_eigenvalue_max" => maximum(abs, EV),
         "negative_eigenvalues" => count(<(0), EV), "positive_eigenvalues" => count(>(0), EV),

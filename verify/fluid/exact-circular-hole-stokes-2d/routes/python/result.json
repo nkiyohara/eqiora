@@ -65,7 +65,7 @@
     "preconditioner": "Identity",
     "reduction": "Reproducible",
     "scalar": "f64",
-    "relative_tolerance": 1e-11,
+    "relative_tolerance": 1e-06,
     "absolute_tolerance": 1e-13,
     "max_iterations": 10000
   },
@@ -255,7 +255,7 @@
       "true_reduced_dimensionless": 8.193525269074018e-38,
       "weak_pressure_row_dimensionless": 3.1420923017657965e-40,
       "weak_pressure_row_physical_m2_s": 3.864773531171929e-41,
-      "solver_selected_target": 1.3239627651209673e-12,
+      "solver_selected_target": 1.3239627651209673e-07,
       "roundoff_allowance": 6.469509595252338e-05,
       "reduced_rhs_2norm_dimensionless": 0.13239627651209673,
       "reduced_matrix_inf_norm_dimensionless": 2525.169952486783,
@@ -544,12 +544,12 @@
       {
         "name": "frozen.true_residual",
         "measured": 8.193525269074018e-38,
-        "limit": 6.469509727648616e-05
+        "limit": 6.482749222903548e-05
       },
       {
         "name": "frozen.weak_continuity_residual",
         "measured": 3.1420923017657965e-40,
-        "limit": 6.469509727648616e-05
+        "limit": 6.482749222903548e-05
       },
       {
         "name": "frozen.flux_balance",
@@ -589,12 +589,12 @@
       {
         "name": "reindexed.true_residual",
         "measured": 4.27787672079164e-38,
-        "limit": 6.469509727648616e-05
+        "limit": 6.482749222903548e-05
       },
       {
         "name": "reindexed.weak_continuity_residual",
         "measured": 3.894332706161058e-40,
-        "limit": 6.469509727648616e-05
+        "limit": 6.482749222903548e-05
       },
       {
         "name": "reindexed.flux_balance",

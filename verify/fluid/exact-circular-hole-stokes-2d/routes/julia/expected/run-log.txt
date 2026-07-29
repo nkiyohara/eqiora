@@ -88,7 +88,7 @@ output with the separately frozen first (Python) route.
   [ok] load.facet_load_only_on_facet_p1_rows            6
   mu_hat = mu U / (P L)           = 1.000000000000000044249552e+00
   [ok] solve.independent_reapplication_agrees           2.4761622481166792e-73
-  [ok] residual.true_reduced_within_target              5.421072e-73 <= 1.323963e-12 + 6.469510e-05
+  [ok] residual.true_reduced_within_target              5.421072e-73 <= 1.323963e-07 + 6.469510e-05
   [ok] residual.weak_pressure_rows_within_target        1.621881e-75
   [ok] residual.finite                                  
 
@@ -168,25 +168,25 @@ output with the separately frozen first (Python) route.
   [ok] falsifier.gauge_with_traction_partition_is_wrong gamma_hat = -8.776647e-01, pressure probes shift by 1.423602e+01 Pa
 
 -- 7. ADVISORY: frozen f64 solve selection on this witness -----------------
-  Julia analogue of the frozen tuple (MINRES, Identity, f64, rtol 1e-11,
+  Julia analogue of the frozen tuple (MINRES, Identity, f64, rtol 1e-6,
   atol 1e-13, <=10000 iterations). NOT the registered eqiora.reference
   backend and NOT a hosted measurement; a feasibility indicator only.
   cond_2(A_hat_reduced)  = 4.635684e+09
   |lambda| in [5.4383e-07, 2.5210e+03], 104 negative / 210 positive
   ||x_hat||_inf          = 2.816959e+04   (pressure block dominates)
   f64 dense LU   vel 5.274e-16/1.500e-07 OK | pre 2.309e-14/3.659e-10 OK | flux 2.914e-16/6.150e-08 OK | reac 9.416e-15/1.500e-10 OK (not the frozen selection)
-  MINRES: iterations = 9401 / 10000, recurred residual = 1.316901e-12, target = 1.323963e-12
-  MINRES: independently reapplied TRUE residual = 2.467956e-05 (allowance 6.469510e-05)
+  MINRES: iterations = 5832 / 10000, recurred residual = 1.310225e-07, target = 1.323963e-07
+  MINRES: independently reapplied TRUE residual = 2.467925e-05 (allowance 6.469510e-05)
   MINRES: best TRUE residual over 20000 unstopped iterations = 2.467954e-05 at 6100
-  f64 MINRES     vel 1.194e-09/1.500e-07 OK | pre 9.365e-08/3.659e-10 OVER | flux 4.965e-10/6.150e-08 OK | reac 2.398e-08/1.500e-10 OVER (the frozen selection)
+  f64 MINRES     vel 1.227e-07/1.500e-07 OK | pre 3.332e-07/3.659e-10 OVER | flux 6.705e-09/6.150e-08 OK | reac 1.908e-08/1.500e-10 OVER (the frozen selection)
 
   ADVISORY RESULT: the frozen selection did NOT meet the pointwise production
   tolerances for pressure and reaction. Reported, not relaxed. See README.
 
 -- 8. freeze --------------------------------------------------------------
   checks: 103 total, 103 passed, 0 failed
-  frozen file sha256 = 069becd79acb16cd358d2511a2ce2e407e1bdc68af2628fabd2734f4d03b8459
-  sha256 run.jl               f226f9eaaa257c8c1440264c5047a879010d79b4f9c6292e64e0675257347b91
+  frozen file sha256 = 3ab2d7c286545c3cb7a9e2c9cc759f02edb418d5dd63b81e67bba98cc4b0de90
+  sha256 run.jl               08f13fed247f3705686b86d0f78b3039641040555e63e94910c5ce5a7501011c
   sha256 src/oracle.jl        516c3064d4d0901bd797e1084555a229eeeac921cd0b76bbfc4d444e4e9fe133
   sha256 src/geometry.jl      32b99f4f71d66cb76dc20d0ba84f8929676de8b25f0ec13bf2efa3399839a39e
   sha256 src/mini.jl          93b47aa5dd85b73a72513399dec346bbd849ecdaa88f02d73f1254f999bf94e7

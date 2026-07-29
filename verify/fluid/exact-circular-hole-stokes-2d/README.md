@@ -19,6 +19,8 @@ routes/julia/    route B — explicit 3x3 Gauss-Legendre Duffy quadrature, no
              condensation, dense LU at 256-bit BigFloat, mesh independently
              reconstructed rather than consumed
 agreement/   the dual independent oracle gate, and the packaging-fidelity utility
+amendment/   the one amendment to the frozen witness tuple, its measurements,
+             its falsifiers and the proof that nothing physical moved
 ```
 
 ## Result
@@ -29,6 +31,8 @@ agreement/   the dual independent oracle gate, and the packaging-fidelity utilit
 | route A | `python3 routes/python/oracle.py --check` | **101 passed, 0 failed** |
 | route B | `julia routes/julia/run.jl` | **103 passed, 0 failed** |
 | gate | `python3 agreement/compare_routes.py` | **275 passed, 0 failed — PASS** |
+| amendment | `python3 amendment/adjudicate.py` | **24 passed, 0 failed — PASS** |
+| invariance | `python3 amendment/check_physical_invariance.py` | **35 passed, 0 failed** |
 
 The two routes agree on every frozen physical observation, with the smallest
 margin `2.88e+03` times inside its tolerance, and on every geometric selector
@@ -322,16 +326,18 @@ frozen solve selection may not be able to meet the frozen production tolerances
 on this witness. Nothing was relaxed and nothing was reinterpreted.
 
 Using a **Julia f64 Paige-Saunders MINRES analogue** of the frozen tuple
-(identity preconditioner, rtol `1e-11`, atol `1e-13`, cap 10000) on this
-witness:
+(identity preconditioner, rtol `1e-6` as amended, atol `1e-13`, cap 10000) on
+this witness:
 
-- MINRES reaches the recurred target only at iteration `9401` of `10000`;
-- its **true** residual floors at `2.4680e-5` — with the stopping test disabled
+- MINRES reaches the recurred target at iteration `5832` of `10000`, leaving
+  `41.7 %` cap headroom;
+- its **true** residual floors at `2.4679e-5` — with the stopping test disabled
   the best true residual over 20000 iterations is `2.467954e-5` at iteration
   6100, while the recurred estimate keeps collapsing, which is total loss of
-  Lanczos orthogonality;
-- the **pointwise** production tolerances are missed: pressure by `256x`
-  (`9.37e-8 Pa` against `3.66e-10 Pa`) and reaction by `160x` (`2.40e-8 N/m`
+  Lanczos orthogonality. The floor is unchanged by the amendment: it is already
+  reached before any of these stopping points;
+- the **pointwise** production tolerances are missed: pressure by `911x`
+  (`3.33e-7 Pa` against `3.66e-10 Pa`) and reaction by `127x` (`1.91e-8 N/m`
   against `1.50e-10 N/m`). Velocity and flux pass, and both global balances
   pass;
 - a **dense f64 LU** — explicitly *not* the frozen selection — meets every
@@ -344,3 +350,27 @@ This is **advisory and not production evidence**. It is not the registered
 measurement. It indicates feasibility rather than settling it, and it does not
 relax the frozen production contract. The decision it informs is the
 integrator's.
+
+## The one amendment to the frozen witness
+
+The frozen tuple's relative tolerance was amended from `1e-11` to `1e-6`, and
+with it the mechanically derived residual target, from
+`1.3239627651209673e-12` to `1.3239627651209673e-07`. Nothing else changed:
+`check_physical_invariance.py` digests each frozen document with the
+amendment-allowlisted leaves removed and requires the result to equal a record
+taken before the amendment, and both documents match.
+
+The superseded value was returned because its verdict on the f64-rounded
+elevated-precision solution **flips with the reapplication precision** — both
+routes accept that vector in elevated precision and reject it under every
+binary64 summation order measured. A target that cannot be evaluated to a
+stable verdict is not an acceptance policy.
+
+The residual gate is a solver-health and stopping threshold only. On this
+witness it provably cannot be anything else: evaluation-decidability needs a
+target above `2.33e-11` while implying the pressure tolerance needs one at or
+below `3.12e-12`, and those ranges are disjoint by `7.5x`. Physical acceptance
+rests solely on the dual-derived observations and balances, which are
+unchanged. See [`amendment/README.md`](amendment/README.md) for the derivation,
+the falsifiers and the full non-claims — including that this amendment does
+**not** make the strict `true_residual <= target` predicate satisfiable.

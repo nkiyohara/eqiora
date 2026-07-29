@@ -79,11 +79,11 @@
         "quantity": "true_reduced",
         "bound_family": "true_reduced",
         "value": 8.193525269074018e-38,
-        "selected_target": 1.3239627651209673e-12,
+        "selected_target": 1.3239627651209673e-07,
         "allowance": 6.469509595252338e-05,
         "allowance_origin": "recorded by the route",
-        "limit": 6.469509727648615e-05,
-        "margin_ratio": 7.895880607175766e+32,
+        "limit": 6.482749222903548e-05,
+        "margin_ratio": 7.912039091857452e+32,
         "role": "contractual true reduced residual"
       },
       {
@@ -91,11 +91,11 @@
         "quantity": "weak_pressure_row",
         "bound_family": "weak_pressure_row",
         "value": 3.1420923017657965e-40,
-        "selected_target": 1.3239627651209673e-12,
-        "allowance": 9.094947017741325e-13,
+        "selected_target": 1.3239627651209673e-07,
+        "allowance": 9.094948221866403e-13,
         "allowance_origin": "recomputed here from this norm and this target",
-        "limit": 2.2334574668951e-12,
-        "margin_ratio": 7.108185414031087e+27,
+        "limit": 1.323971860069189e-07,
+        "margin_ratio": 4.21366316745419e+32,
         "role": "contractual 2-norm of the pressure rows"
       },
       {
@@ -103,11 +103,11 @@
         "quantity": "true_reduced",
         "bound_family": "true_reduced",
         "value": 5.42107235895018e-73,
-        "selected_target": 1.3239627651209673e-12,
+        "selected_target": 1.3239627651209673e-07,
         "allowance": 6.46950959525234e-05,
         "allowance_origin": "recorded by the route",
-        "limit": 6.469509727648616e-05,
-        "margin_ratio": 1.1934003642226743e+68,
+        "limit": 6.48274922290355e-05,
+        "margin_ratio": 1.1958425923241079e+68,
         "role": "contractual true reduced residual"
       },
       {
@@ -115,11 +115,11 @@
         "quantity": "weak_pressure_row",
         "bound_family": "weak_pressure_row",
         "value": 1.6218813682949727e-75,
-        "selected_target": 1.3239627651209673e-12,
-        "allowance": 9.094947017741325e-13,
+        "selected_target": 1.3239627651209673e-07,
+        "allowance": 9.094948221866403e-13,
         "allowance_origin": "recomputed here from this norm and this target",
-        "limit": 2.2334574668951e-12,
-        "margin_ratio": 1.3770781948392785e+63,
+        "limit": 1.323971860069189e-07,
+        "margin_ratio": 8.163185581575763e+67,
         "role": "contractual 2-norm of the pressure rows"
       },
       {
@@ -127,11 +127,11 @@
         "quantity": "weak_pressure_row_infnorm",
         "bound_family": "weak_pressure_row",
         "value": 8.162677594446932e-76,
-        "selected_target": 1.3239627651209673e-12,
-        "allowance": 9.094947017741325e-13,
+        "selected_target": 1.3239627651209673e-07,
+        "allowance": 9.094948221866403e-13,
         "allowance_origin": "recomputed here from this norm and this target",
-        "limit": 2.2334574668951e-12,
-        "margin_ratio": 2.7361823875225953e+63,
+        "limit": 1.323971860069189e-07,
+        "margin_ratio": 1.621982302682011e+68,
         "role": "diagnostic inf-norm, bounded under the same formula; its passing is implied by the 2-norm result because ||r||_inf <= ||r||_2, so it adds an audited domain and magnitude record for a published value rather than a second independent criterion"
       }
     ]
@@ -148,12 +148,12 @@
   "compared": {
     "python_route": {
       "result": "routes/python/result.json",
-      "sha256": "f3c6579fb45879bb1861e203b9da470be42cfdd56f9dfe02b484b98c814bf685",
+      "sha256": "e7d83fd03d18f41659fc8ecb998b079b5ed9376754e55898da1c419f03f80e03",
       "method": "closed-form barycentric monomial cell blocks, exact bubble static condensation, dense LU at 40 decimal digits"
     },
     "julia_route": {
       "result": "routes/julia/expected/julia-route-frozen.json",
-      "sha256": "069becd79acb16cd358d2511a2ce2e407e1bdc68af2628fabd2734f4d03b8459",
+      "sha256": "3ab2d7c286545c3cb7a9e2c9cc759f02edb418d5dd63b81e67bba98cc4b0de90",
       "method": "explicit 3x3 Gauss-Legendre Duffy quadrature per cell, no condensation, dense LU at 256-bit BigFloat, mesh independently reconstructed"
     },
     "shared_mesh": {
@@ -1849,7 +1849,7 @@
       "check": "residuals.selected_target",
       "kind": "structural",
       "passed": true,
-      "detail": "got 1.3239627651209673e-12, want 1.3239627651209673e-12"
+      "detail": "got 1.3239627651209673e-07, want 1.3239627651209673e-07"
     },
     {
       "check": "residuals.operator_inf_norm",
@@ -1873,7 +1873,7 @@
       "check": "residuals.python.selected_target_is_finite_and_nonnegative",
       "kind": "structural",
       "passed": true,
-      "detail": "this route's own selected residual target is a norm bound, so it must be finite and nonnegative before it can form any bound; got 1.3239627651209673e-12"
+      "detail": "this route's own selected residual target is a norm bound, so it must be finite and nonnegative before it can form any bound; got 1.3239627651209673e-07"
     },
     {
       "check": "residuals.python.true_residual_allowance_is_finite_and_nonnegative",
@@ -1887,8 +1887,8 @@
       "passed": true,
       "domain": "finite and nonnegative",
       "value": 8.193525269074018e-38,
-      "limit": 6.469509727648615e-05,
-      "detail": "own selected target 1.3239627651209673e-12 plus own recorded true-residual roundoff allowance 6.469509595252338e-05, the contract's 4096 * eps * (1 + ||A||_inf * ||x||_inf + ||b||_inf); evaluated against this route's own values only"
+      "limit": 6.482749222903548e-05,
+      "detail": "own selected target 1.3239627651209673e-07 plus own recorded true-residual roundoff allowance 6.469509595252338e-05, the contract's 4096 * eps * (1 + ||A||_inf * ||x||_inf + ||b||_inf); evaluated against this route's own values only"
     },
     {
       "check": "residuals.python.weak_pressure_row_within_target_plus_pressure_row_allowance",
@@ -1896,14 +1896,14 @@
       "passed": true,
       "domain": "finite and nonnegative",
       "value": 3.1420923017657965e-40,
-      "limit": 2.2334574668951e-12,
-      "detail": "own selected target 1.3239627651209673e-12 plus the existing pressure-row roundoff allowance 9.094947017741325e-13, recomputed here as 4096 * eps * (1 + weak_norm + target) with every gauge term exactly zero because this route's pressure reference is BoundaryTraction with no gauge row, column or multiplier; the route's recorded true-residual allowance is NOT used here"
+      "limit": 1.323971860069189e-07,
+      "detail": "own selected target 1.3239627651209673e-07 plus the existing pressure-row roundoff allowance 9.094948221866403e-13, recomputed here as 4096 * eps * (1 + weak_norm + target) with every gauge term exactly zero because this route's pressure reference is BoundaryTraction with no gauge row, column or multiplier; the route's recorded true-residual allowance is NOT used here"
     },
     {
       "check": "residuals.julia.selected_target_is_finite_and_nonnegative",
       "kind": "structural",
       "passed": true,
-      "detail": "this route's own selected residual target is a norm bound, so it must be finite and nonnegative before it can form any bound; got 1.3239627651209673e-12"
+      "detail": "this route's own selected residual target is a norm bound, so it must be finite and nonnegative before it can form any bound; got 1.3239627651209673e-07"
     },
     {
       "check": "residuals.julia.true_residual_allowance_is_finite_and_nonnegative",
@@ -1917,8 +1917,8 @@
       "passed": true,
       "domain": "finite and nonnegative",
       "value": 5.42107235895018e-73,
-      "limit": 6.469509727648616e-05,
-      "detail": "own selected target 1.3239627651209673e-12 plus own recorded true-residual roundoff allowance 6.46950959525234e-05, the contract's 4096 * eps * (1 + ||A||_inf * ||x||_inf + ||b||_inf); evaluated against this route's own values only"
+      "limit": 6.48274922290355e-05,
+      "detail": "own selected target 1.3239627651209673e-07 plus own recorded true-residual roundoff allowance 6.46950959525234e-05, the contract's 4096 * eps * (1 + ||A||_inf * ||x||_inf + ||b||_inf); evaluated against this route's own values only"
     },
     {
       "check": "residuals.julia.weak_pressure_row_within_target_plus_pressure_row_allowance",
@@ -1926,8 +1926,8 @@
       "passed": true,
       "domain": "finite and nonnegative",
       "value": 1.6218813682949727e-75,
-      "limit": 2.2334574668951e-12,
-      "detail": "own selected target 1.3239627651209673e-12 plus the existing pressure-row roundoff allowance 9.094947017741325e-13, recomputed here as 4096 * eps * (1 + weak_norm + target) with every gauge term exactly zero because this route's pressure reference is BoundaryTraction with no gauge row, column or multiplier; the route's recorded true-residual allowance is NOT used here"
+      "limit": 1.323971860069189e-07,
+      "detail": "own selected target 1.3239627651209673e-07 plus the existing pressure-row roundoff allowance 9.094948221866403e-13, recomputed here as 4096 * eps * (1 + weak_norm + target) with every gauge term exactly zero because this route's pressure reference is BoundaryTraction with no gauge row, column or multiplier; the route's recorded true-residual allowance is NOT used here"
     },
     {
       "check": "residuals.julia.weak_pressure_row_infnorm_within_target_plus_pressure_row_allowance",
@@ -1935,8 +1935,8 @@
       "passed": true,
       "domain": "finite and nonnegative",
       "value": 8.162677594446932e-76,
-      "limit": 2.2334574668951e-12,
-      "detail": "own selected target 1.3239627651209673e-12 plus the existing pressure-row roundoff allowance 9.094947017741325e-13, recomputed here as 4096 * eps * (1 + weak_norm + target) with every gauge term exactly zero because this route's pressure reference is BoundaryTraction with no gauge row, column or multiplier; the route's recorded true-residual allowance is NOT used here"
+      "limit": 1.323971860069189e-07,
+      "detail": "own selected target 1.3239627651209673e-07 plus the existing pressure-row roundoff allowance 9.094948221866403e-13, recomputed here as 4096 * eps * (1 + weak_norm + target) with every gauge term exactly zero because this route's pressure reference is BoundaryTraction with no gauge row, column or multiplier; the route's recorded true-residual allowance is NOT used here"
     },
     {
       "check": "pressure_reference.python.kind",

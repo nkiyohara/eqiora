@@ -150,7 +150,8 @@ approximately.
   entrywise, max asymmetry exactly `0`).
 
 The contract's solver selection (`eqiora.reference`, MINRES, Identity, Reproducible,
-`f64`, rtol `1e-11`, atol `1e-13`, `<= 10000` iterations) is recorded and used to
+`f64`, rtol `1e-6` as amended from `1e-11`, atol `1e-13`, `<= 10000` iterations)
+is recorded and used to
 compute the acceptance target, but this route solves directly rather than
 iterating: its business is the exact answer the production path must reach.
 
@@ -217,7 +218,7 @@ The componentwise balance limit is `1e-10 N/m`.
 | --- | --- |
 | independently reapplied true reduced residual (dimensionless) | `8.193525269074018e-38` |
 | weak pressure-row residual (dimensionless) | `3.1420923017657965e-40` |
-| solver-selected target | `1.3239627651209673e-12` |
+| solver-selected target (amended; see [`../../amendment/`](../../amendment/README.md)) | `1.3239627651209673e-07` |
 | roundoff allowance `4096 eps (1 + \|\|A\|\|_inf \|\|x\|\|_inf + \|\|b\|\|_inf)` | `6.469509595252338e-05` |
 | pressure reference | `BoundaryTraction`, 2 traction facets |
 | gauge row / multiplier / `ZeroIntegral` | none, none, none (exact structural assertions) |
