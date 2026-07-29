@@ -1,0 +1,2376 @@
+{
+  "schema": "eqiora.verify/exact-circular-hole-stokes-2d/agreement/v1",
+  "gate": "dual independent oracle gate",
+  "verdict": "PASS",
+  "what_this_authorizes": "Agreement of the two independently derived routes authorizes implementation against the frozen contract. It does NOT verify any production implementation: no production implementation of this capability exists, none was read, and none was executed here.",
+  "formula": "abs(a - b) <= absolute_floor + 2e-10 * physical_scale",
+  "tolerances": {
+    "velocity": {
+      "unit": "m/s",
+      "absolute_floor": 2e-12,
+      "relative_coefficient": 2e-10,
+      "physical_scale": 0.3,
+      "tolerance": 6.2e-11,
+      "measured_max_abs_difference": 1.0842021724855044e-19,
+      "margin_ratio": 571849066.2849962,
+      "within_tolerance": true
+    },
+    "pressure": {
+      "unit": "Pa",
+      "absolute_floor": 2e-14,
+      "relative_coefficient": 2e-10,
+      "physical_scale": 0.0007317073170731707,
+      "tolerance": 1.6634146341463415e-13,
+      "measured_max_abs_difference": 0.0,
+      "margin_ratio": null,
+      "within_tolerance": true
+    },
+    "signed_flux": {
+      "unit": "m^2/s",
+      "absolute_floor": 2e-13,
+      "relative_coefficient": 2e-10,
+      "physical_scale": 0.123,
+      "tolerance": 2.48e-11,
+      "measured_max_abs_difference": 1.7219155529623352e-41,
+      "margin_ratio": 1.4402564607384362e+30,
+      "within_tolerance": true
+    },
+    "reaction": {
+      "unit": "N/m",
+      "absolute_floor": 2e-14,
+      "relative_coefficient": 2e-10,
+      "physical_scale": 0.0003,
+      "tolerance": 8e-14,
+      "measured_max_abs_difference": 2.7755575615628914e-17,
+      "margin_ratio": 2882.3037615171174,
+      "within_tolerance": true
+    }
+  },
+  "selector_comparison": {
+    "note": "Geometric selector coordinates carry no precommitted family. They are compared under the velocity-probe tolerance, the family whose selection they determine.",
+    "tolerance": 6.2e-11,
+    "measured_max_abs_difference_m": 1.1102230246251565e-16
+  },
+  "diagnostic_comparison": {
+    "note": "Dimensionless solver diagnostics are outside the four physical families and are compared as binary64 representation agreement.",
+    "limit_ulps": 4,
+    "measured_max_ulps": 1
+  },
+  "checks": {
+    "total": 291,
+    "passed": 291,
+    "failed": 0,
+    "structural": 213,
+    "numeric": 77,
+    "diagnostic": 1
+  },
+  "failures": [],
+  "compared": {
+    "python_route": {
+      "result": "routes/python/result.json",
+      "sha256": "f3c6579fb45879bb1861e203b9da470be42cfdd56f9dfe02b484b98c814bf685",
+      "method": "closed-form barycentric monomial cell blocks, exact bubble static condensation, dense LU at 40 decimal digits"
+    },
+    "julia_route": {
+      "result": "routes/julia/expected/julia-route-frozen.json",
+      "sha256": "069becd79acb16cd358d2511a2ce2e407e1bdc68af2628fabd2734f4d03b8459",
+      "method": "explicit 3x3 Gauss-Legendre Duffy quadrature per cell, no condensation, dense LU at 256-bit BigFloat, mesh independently reconstructed"
+    },
+    "shared_mesh": {
+      "file": "mesh/mesh.json",
+      "sha256": "ada2d08cde5b4e6bd13c97d3b76a45cad810d8eb7acf0f0edc82cd605acd2b39",
+      "role": "accepted"
+    },
+    "wrong_contract_falsifier_mesh": {
+      "file": "mesh/falsifier-wrong-diagonal.json",
+      "sha256": "eccb5642eab811cee1cad0cee8749f7f2a64d16ab300b041fa4efcbe7b61cd2f",
+      "role": "wrong-contract-falsifier"
+    },
+    "comparison_route": {
+      "file": "agreement/compare_routes.py",
+      "sha256": "f223d0452d27fb476c7e6e398d3620634e93d368454f29b1f9a72ea018eddebc"
+    }
+  },
+  "source_provenance": {
+    "contract_commit": "dea1fd138fce92fd0127f5df9155b675159a58c3",
+    "python_route_source_commit": "e8bbd44b49315f0d4ee723ec73df53a4f8f6f2f0",
+    "python_source_mesh_sha256": "2ec74b9f481a60b460c9bb8096821cd73eeb7e17ef18a7ae67828e605d17a8f2",
+    "python_source_result_sha256": "4037d358e613a016e21e04c9ff8fffa2475f056fb55a2f88c4c5828d957abfd7",
+    "julia_route_source_commit": "dccbc318744c7cec4f6b73f5ba0fe60880af7583",
+    "julia_source_frozen_sha256": "2ad9a041c75906055b3a4ae3a2f2e05f3964cb5e62276a21e19f354586254dff"
+  },
+  "structural_assertions": [
+    "route.python.schema",
+    "route.python.name",
+    "route.python.solve_route",
+    "route.python.reads_eqiora",
+    "route.julia.name",
+    "route.methods_are_distinct",
+    "velocity.count",
+    "velocity[0].python_keys",
+    "velocity[0].julia_keys",
+    "velocity[0].target.python",
+    "velocity[0].target.julia",
+    "velocity[0].tied_cells",
+    "velocity[0].barycentre.selector.arity",
+    "velocity[1].python_keys",
+    "velocity[1].julia_keys",
+    "velocity[1].target.python",
+    "velocity[1].target.julia",
+    "velocity[1].tied_cells",
+    "velocity[1].barycentre.selector.arity",
+    "velocity[2].python_keys",
+    "velocity[2].julia_keys",
+    "velocity[2].target.python",
+    "velocity[2].target.julia",
+    "velocity[2].tied_cells",
+    "velocity[2].barycentre.selector.arity",
+    "velocity[3].python_keys",
+    "velocity[3].julia_keys",
+    "velocity[3].target.python",
+    "velocity[3].target.julia",
+    "velocity[3].tied_cells",
+    "velocity[3].barycentre.selector.arity",
+    "velocity[4].python_keys",
+    "velocity[4].julia_keys",
+    "velocity[4].target.python",
+    "velocity[4].target.julia",
+    "velocity[4].tied_cells",
+    "velocity[4].barycentre.selector.arity",
+    "pressure.count",
+    "pressure.python_label_vocabulary",
+    "pressure.julia_label_vocabulary",
+    "pressure[0:cylinder_min_x].python_keys",
+    "pressure[0:cylinder_min_x].julia_keys",
+    "pressure[0:cylinder_min_x].tie_count.python",
+    "pressure[0:cylinder_min_x].tie_count.julia",
+    "pressure[0:cylinder_min_x].vertex.selector.arity",
+    "pressure[0:cylinder_min_x].python_tie_break_present_iff_tied",
+    "pressure[0:cylinder_min_x].candidate_count",
+    "pressure[0:cylinder_min_x].candidate[0].selector.arity",
+    "pressure[0:cylinder_min_x].candidates_in_lexicographic_order",
+    "pressure[0:cylinder_min_x].lexicographic_selection.python",
+    "pressure[0:cylinder_min_x].lexicographic_selection.julia",
+    "pressure[1:cylinder_max_x].python_keys",
+    "pressure[1:cylinder_max_x].julia_keys",
+    "pressure[1:cylinder_max_x].tie_count.python",
+    "pressure[1:cylinder_max_x].tie_count.julia",
+    "pressure[1:cylinder_max_x].vertex.selector.arity",
+    "pressure[1:cylinder_max_x].python_tie_break_present_iff_tied",
+    "pressure[1:cylinder_max_x].candidate_count",
+    "pressure[1:cylinder_max_x].candidate[0].selector.arity",
+    "pressure[1:cylinder_max_x].candidates_in_lexicographic_order",
+    "pressure[1:cylinder_max_x].lexicographic_selection.python",
+    "pressure[1:cylinder_max_x].lexicographic_selection.julia",
+    "pressure[2:cylinder_min_y].python_keys",
+    "pressure[2:cylinder_min_y].julia_keys",
+    "pressure[2:cylinder_min_y].tie_count.python",
+    "pressure[2:cylinder_min_y].tie_count.julia",
+    "pressure[2:cylinder_min_y].vertex.selector.arity",
+    "pressure[2:cylinder_min_y].python_tie_break_present_iff_tied",
+    "pressure[2:cylinder_min_y].candidate_count",
+    "pressure[2:cylinder_min_y].candidate[0].selector.arity",
+    "pressure[2:cylinder_min_y].candidate[1].selector.arity",
+    "pressure[2:cylinder_min_y].candidates_in_lexicographic_order",
+    "pressure[2:cylinder_min_y].lexicographic_selection.python",
+    "pressure[2:cylinder_min_y].lexicographic_selection.julia",
+    "pressure[2:cylinder_min_y].rejected_candidate_is_materially_different",
+    "pressure[3:cylinder_max_y].python_keys",
+    "pressure[3:cylinder_max_y].julia_keys",
+    "pressure[3:cylinder_max_y].tie_count.python",
+    "pressure[3:cylinder_max_y].tie_count.julia",
+    "pressure[3:cylinder_max_y].vertex.selector.arity",
+    "pressure[3:cylinder_max_y].python_tie_break_present_iff_tied",
+    "pressure[3:cylinder_max_y].candidate_count",
+    "pressure[3:cylinder_max_y].candidate[0].selector.arity",
+    "pressure[3:cylinder_max_y].candidate[1].selector.arity",
+    "pressure[3:cylinder_max_y].candidates_in_lexicographic_order",
+    "pressure[3:cylinder_max_y].lexicographic_selection.python",
+    "pressure[3:cylinder_max_y].lexicographic_selection.julia",
+    "pressure[3:cylinder_max_y].rejected_candidate_is_materially_different",
+    "pressure[4:outer_nearest_x_low_mid].python_keys",
+    "pressure[4:outer_nearest_x_low_mid].julia_keys",
+    "pressure[4:outer_nearest_x_low_mid].tie_count.python",
+    "pressure[4:outer_nearest_x_low_mid].tie_count.julia",
+    "pressure[4:outer_nearest_x_low_mid].vertex.selector.arity",
+    "pressure[4:outer_nearest_x_low_mid].python_tie_break_present_iff_tied",
+    "pressure[4:outer_nearest_x_low_mid].candidate_count",
+    "pressure[4:outer_nearest_x_low_mid].candidate[0].selector.arity",
+    "pressure[4:outer_nearest_x_low_mid].candidates_in_lexicographic_order",
+    "pressure[4:outer_nearest_x_low_mid].lexicographic_selection.python",
+    "pressure[4:outer_nearest_x_low_mid].lexicographic_selection.julia",
+    "pressure[5:outer_nearest_x_high_mid].python_keys",
+    "pressure[5:outer_nearest_x_high_mid].julia_keys",
+    "pressure[5:outer_nearest_x_high_mid].tie_count.python",
+    "pressure[5:outer_nearest_x_high_mid].tie_count.julia",
+    "pressure[5:outer_nearest_x_high_mid].vertex.selector.arity",
+    "pressure[5:outer_nearest_x_high_mid].python_tie_break_present_iff_tied",
+    "pressure[5:outer_nearest_x_high_mid].candidate_count",
+    "pressure[5:outer_nearest_x_high_mid].candidate[0].selector.arity",
+    "pressure[5:outer_nearest_x_high_mid].candidates_in_lexicographic_order",
+    "pressure[5:outer_nearest_x_high_mid].lexicographic_selection.python",
+    "pressure[5:outer_nearest_x_high_mid].lexicographic_selection.julia",
+    "flux.python_keys",
+    "flux.julia_keys",
+    "flux.inlet_sign_is_into_the_domain",
+    "flux.outlet_sign_is_out_of_the_domain",
+    "flux.julia_no_slip_walls_and_cylinder_are_exactly_zero",
+    "reaction.python_cylinder_keys",
+    "reaction.python_balance_keys",
+    "reaction.julia_keys",
+    "reaction.constraint_force_on_fluid.arity",
+    "reaction.fluid_force_on_cylinder.arity",
+    "reaction.orientations_are_exact_negations",
+    "reaction.fluid_force_on_cylinder_acts_along_plus_x",
+    "balance.constrained_reaction.arity",
+    "balance.integrated_body_force.arity",
+    "balance.integrated_traction.arity",
+    "balance.sum.arity",
+    "balance.body_force_and_traction_are_exactly_zero",
+    "mesh.shared.vertices",
+    "mesh.julia.vertices",
+    "mesh.shared.cells",
+    "mesh.julia.cells",
+    "mesh.shared.boundary_facets",
+    "mesh.julia.boundary_facets",
+    "mesh.shared.interior_edges",
+    "mesh.julia.interior_edges",
+    "mesh.shared.euler_characteristic",
+    "mesh.julia.euler_characteristic",
+    "mesh.shared.inlet_facets",
+    "mesh.julia.inlet_facets",
+    "mesh.shared.outlet_facets",
+    "mesh.julia.outlet_facets",
+    "mesh.shared.wall_facets",
+    "mesh.julia.wall_facets",
+    "mesh.shared.cylinder_facets",
+    "mesh.julia.cylinder_facets",
+    "mesh.julia.segments",
+    "mesh.julia.outer_loop_vertices",
+    "mesh.shared.segments",
+    "mesh.partition_covers_every_facet_exactly_once",
+    "mesh.shared.fluid_cells",
+    "mesh.shared.quad_diagonal",
+    "mesh.julia.quad_diagonal",
+    "mesh.python.quad_diagonal",
+    "mesh.julia.cell_pair",
+    "mesh.python.cell_pair",
+    "mesh.shared.cell_pair",
+    "mesh.python.admissible_meshes",
+    "mesh.python.falsifier_is_excluded_split",
+    "scales.python.L_m",
+    "scales.julia.L_m",
+    "scales.python.U_m_per_s",
+    "scales.julia.U_m_per_s",
+    "scales.python.P_Pa",
+    "scales.julia.P_Pa",
+    "scales.python.G_per_s",
+    "scales.julia.G_per_s",
+    "scales.python.Theta_W_per_m",
+    "scales.julia.Theta_W_per_m",
+    "scales.python.Theta_mathematical_W_per_m",
+    "scales.julia.Theta_mathematical_W_per_m",
+    "scales.python.mu_hat",
+    "scales.julia.mu_hat",
+    "scales.julia.mu_Pa_s",
+    "scales.python.mu_kg_m_s",
+    "scales.Theta_is_one_ulp_below_the_exact_decimal",
+    "dofs.python.velocity_p1",
+    "dofs.julia.velocity_p1",
+    "dofs.python.velocity_bubble",
+    "dofs.julia.velocity_bubble",
+    "dofs.python.pressure",
+    "dofs.julia.pressure",
+    "dofs.python.full_rows",
+    "dofs.julia.full_rows",
+    "dofs.python.prescribed_velocity",
+    "dofs.julia.prescribed_velocity",
+    "dofs.python.reduced_rows",
+    "dofs.julia.reduced_rows",
+    "dofs.python.gauge_rows",
+    "dofs.julia.gauge_rows",
+    "dofs.python.essential_vertices",
+    "dofs.julia.essential_vertices",
+    "dofs.python.free_vertices",
+    "dofs.julia.free_vertices",
+    "dofs.python.interior_vertices",
+    "dofs.python.bubbles_are_cell_interior",
+    "residuals.selected_target",
+    "residuals.operator_inf_norm",
+    "residuals.solution_inf_norm",
+    "residuals.rhs_2norm",
+    "residuals.both_routes_are_far_inside_target_plus_allowance",
+    "pressure_reference.python.kind",
+    "pressure_reference.julia.kind",
+    "pressure_reference.python.traction_facets",
+    "pressure_reference.julia.traction_facets",
+    "pressure_reference.python.traction_partition_nonempty",
+    "pressure_reference.python.gauge_row",
+    "pressure_reference.python.gauge_multiplier",
+    "pressure_reference.python.zero_integral",
+    "pressure_reference.julia.gauge_rows",
+    "pressure_reference.julia.gauge_columns",
+    "pressure_reference.julia.gauge_multipliers",
+    "pressure_reference.julia.zero_integral_constraints",
+    "pressure_reference.python.reduced_rows"
+  ],
+  "records": [
+    {
+      "check": "route.python.schema",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 'eqiora.verify/exact-circular-hole-stokes-2d/route/python/v1', want 'eqiora.verify/exact-circular-hole-stokes-2d/route/python/v1'"
+    },
+    {
+      "check": "route.python.name",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 'python-analytic-mini-p1', want 'python-analytic-mini-p1'"
+    },
+    {
+      "check": "route.python.solve_route",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 'static-condensation+dense-LU', want 'static-condensation+dense-LU'"
+    },
+    {
+      "check": "route.python.reads_eqiora",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got False, want False"
+    },
+    {
+      "check": "route.julia.name",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 'julia', want 'julia'"
+    },
+    {
+      "check": "route.methods_are_distinct",
+      "kind": "structural",
+      "passed": true,
+      "detail": "the Python route must remain the closed-form route; the Julia route assembles by explicit 3x3 Gauss-Legendre Duffy quadrature"
+    },
+    {
+      "check": "velocity.count",
+      "kind": "structural",
+      "passed": true,
+      "detail": "python 5, julia 5, contract 5"
+    },
+    {
+      "check": "velocity[0].python_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['barycentre_m', 'cell', 'selection_margin_m2', 'target_m', 'tied_cells', 'velocity_m_s'], want ['barycentre_m', 'cell', 'selection_margin_m2', 'target_m', 'tied_cells', 'velocity_m_s']"
+    },
+    {
+      "check": "velocity[0].julia_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['barycentre_m', 'target_m', 'tied_cells', 'u_x_m_per_s', 'u_y_m_per_s'], want ['barycentre_m', 'target_m', 'tied_cells', 'u_x_m_per_s', 'u_y_m_per_s']"
+    },
+    {
+      "check": "velocity[0].target.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got [0.1, 0.2], want [0.1, 0.2]"
+    },
+    {
+      "check": "velocity[0].target.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got [0.1, 0.2], want [0.1, 0.2]"
+    },
+    {
+      "check": "velocity[0].tied_cells",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "velocity[0].barycentre.selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "velocity[0].barycentre.selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.1001314216447587,
+      "julia": 0.1001314216447587,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[0].barycentre.selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.19791111277392828,
+      "julia": 0.19791111277392828,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[0].u_x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.08801138571928349,
+      "julia": 0.08801138571928349,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[0].u_y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": -0.004377542327224645,
+      "julia": -0.004377542327224645,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[1].python_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['barycentre_m', 'cell', 'selection_margin_m2', 'target_m', 'tied_cells', 'velocity_m_s'], want ['barycentre_m', 'cell', 'selection_margin_m2', 'target_m', 'tied_cells', 'velocity_m_s']"
+    },
+    {
+      "check": "velocity[1].julia_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['barycentre_m', 'target_m', 'tied_cells', 'u_x_m_per_s', 'u_y_m_per_s'], want ['barycentre_m', 'target_m', 'tied_cells', 'u_x_m_per_s', 'u_y_m_per_s']"
+    },
+    {
+      "check": "velocity[1].target.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got [0.2, 0.3], want [0.2, 0.3]"
+    },
+    {
+      "check": "velocity[1].target.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got [0.2, 0.3], want [0.2, 0.3]"
+    },
+    {
+      "check": "velocity[1].tied_cells",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "velocity[1].barycentre.selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "velocity[1].barycentre.selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.2044040267077555,
+      "julia": 0.2044040267077555,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[1].barycentre.selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.3032675576142757,
+      "julia": 0.30326755761427576,
+      "abs_difference": 5.551115123125783e-17,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[1].u_x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.16901430152689484,
+      "julia": 0.16901430152689484,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[1].u_y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": -0.00902439063845748,
+      "julia": -0.00902439063845748,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[2].python_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['barycentre_m', 'cell', 'selection_margin_m2', 'target_m', 'tied_cells', 'velocity_m_s'], want ['barycentre_m', 'cell', 'selection_margin_m2', 'target_m', 'tied_cells', 'velocity_m_s']"
+    },
+    {
+      "check": "velocity[2].julia_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['barycentre_m', 'target_m', 'tied_cells', 'u_x_m_per_s', 'u_y_m_per_s'], want ['barycentre_m', 'target_m', 'tied_cells', 'u_x_m_per_s', 'u_y_m_per_s']"
+    },
+    {
+      "check": "velocity[2].target.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got [0.3, 0.2], want [0.3, 0.2]"
+    },
+    {
+      "check": "velocity[2].target.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got [0.3, 0.2], want [0.3, 0.2]"
+    },
+    {
+      "check": "velocity[2].tied_cells",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "velocity[2].barycentre.selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "velocity[2].barycentre.selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.3198475226050584,
+      "julia": 0.3198475226050584,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[2].barycentre.selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.11550768456009686,
+      "julia": 0.11550768456009686,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[2].u_x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.09623743076579622,
+      "julia": 0.09623743076579622,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[2].u_y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.11251827536745837,
+      "julia": 0.11251827536745837,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[3].python_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['barycentre_m', 'cell', 'selection_margin_m2', 'target_m', 'tied_cells', 'velocity_m_s'], want ['barycentre_m', 'cell', 'selection_margin_m2', 'target_m', 'tied_cells', 'velocity_m_s']"
+    },
+    {
+      "check": "velocity[3].julia_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['barycentre_m', 'target_m', 'tied_cells', 'u_x_m_per_s', 'u_y_m_per_s'], want ['barycentre_m', 'target_m', 'tied_cells', 'u_x_m_per_s', 'u_y_m_per_s']"
+    },
+    {
+      "check": "velocity[3].target.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got [1.0, 0.2], want [1.0, 0.2]"
+    },
+    {
+      "check": "velocity[3].target.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got [1.0, 0.2], want [1.0, 0.2]"
+    },
+    {
+      "check": "velocity[3].tied_cells",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "velocity[3].barycentre.selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "velocity[3].barycentre.selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.8998685783552414,
+      "julia": 0.8998685783552413,
+      "abs_difference": 1.1102230246251565e-16,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[3].barycentre.selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.20208888722607174,
+      "julia": 0.20208888722607177,
+      "abs_difference": 2.7755575615628914e-17,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[3].u_x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.1326922903707496,
+      "julia": 0.1326922903707496,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[3].u_y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": -0.0007663108263206535,
+      "julia": -0.0007663108263206534,
+      "abs_difference": 1.0842021724855044e-19,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[4].python_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['barycentre_m', 'cell', 'selection_margin_m2', 'target_m', 'tied_cells', 'velocity_m_s'], want ['barycentre_m', 'cell', 'selection_margin_m2', 'target_m', 'tied_cells', 'velocity_m_s']"
+    },
+    {
+      "check": "velocity[4].julia_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['barycentre_m', 'target_m', 'tied_cells', 'u_x_m_per_s', 'u_y_m_per_s'], want ['barycentre_m', 'target_m', 'tied_cells', 'u_x_m_per_s', 'u_y_m_per_s']"
+    },
+    {
+      "check": "velocity[4].target.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got [2.0, 0.2], want [2.0, 0.2]"
+    },
+    {
+      "check": "velocity[4].target.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got [2.0, 0.2], want [2.0, 0.2]"
+    },
+    {
+      "check": "velocity[4].tied_cells",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "velocity[4].barycentre.selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "velocity[4].barycentre.selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 2.061054339220387,
+      "julia": 2.061054339220387,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[4].barycentre.selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.06666666666666667,
+      "julia": 0.06666666666666667,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[4].u_x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.2367220892434223,
+      "julia": 0.2367220892434223,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "velocity[4].u_y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.05088790553945741,
+      "julia": 0.05088790553945741,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure.count",
+      "kind": "structural",
+      "passed": true,
+      "detail": "python 6, julia 6, contract 6"
+    },
+    {
+      "check": "pressure.python_label_vocabulary",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['cylinder_min_x', 'cylinder_max_x', 'cylinder_min_y', 'cylinder_max_y', 'outer_nearest_x_low_mid', 'outer_nearest_x_high_mid'], want ['cylinder_min_x', 'cylinder_max_x', 'cylinder_min_y', 'cylinder_max_y', 'outer_nearest_x_low_mid', 'outer_nearest_x_high_mid']"
+    },
+    {
+      "check": "pressure.julia_label_vocabulary",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['cylinder_min_x', 'cylinder_max_x', 'cylinder_min_y', 'cylinder_max_y', 'outer_near_inlet_mid', 'outer_near_outlet_mid'], want ['cylinder_min_x', 'cylinder_max_x', 'cylinder_min_y', 'cylinder_max_y', 'outer_near_inlet_mid', 'outer_near_outlet_mid']"
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].python_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['name', 'position_m', 'pressure_Pa', 'selection_margin', 'tied_vertices', 'vertex'], want ['name', 'position_m', 'pressure_Pa', 'selection_margin', 'tied_vertices', 'vertex']"
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].julia_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m'], want ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m']"
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].tie_count.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].tie_count.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].vertex.selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].vertex.selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.15000000000000002,
+      "julia": 0.15000000000000002,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].vertex.selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.2,
+      "julia": 0.2,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].p",
+      "kind": "numeric",
+      "family": "pressure",
+      "passed": true,
+      "python": 20.611897142913634,
+      "julia": 20.611897142913634,
+      "abs_difference": 0.0,
+      "limit": 1.6634146341463415e-13
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].python_tie_break_present_iff_tied",
+      "kind": "structural",
+      "passed": true,
+      "detail": "tie_break present=False, tied=1"
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].candidate_count",
+      "kind": "structural",
+      "passed": true,
+      "detail": "python 1, julia 1, expected 1"
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].candidate[0].selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].candidate[0].selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.15000000000000002,
+      "julia": 0.15000000000000002,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].candidate[0].selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.2,
+      "julia": 0.2,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].candidate[0].p",
+      "kind": "numeric",
+      "family": "pressure",
+      "passed": true,
+      "python": 20.611897142913634,
+      "julia": 20.611897142913634,
+      "abs_difference": 0.0,
+      "limit": 1.6634146341463415e-13
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].candidates_in_lexicographic_order",
+      "kind": "structural",
+      "passed": true,
+      "detail": "tie candidates must be listed in lexicographic coordinate order"
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].lexicographic_selection.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "selected [0.15000000000000002, 0.2] is not the lexicographic minimum of [[0.15000000000000002, 0.2]]"
+    },
+    {
+      "check": "pressure[0:cylinder_min_x].lexicographic_selection.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "selected [0.15000000000000002, 0.2] is not the lexicographic minimum of [[0.15000000000000002, 0.2]]"
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].python_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['name', 'position_m', 'pressure_Pa', 'selection_margin', 'tied_vertices', 'vertex'], want ['name', 'position_m', 'pressure_Pa', 'selection_margin', 'tied_vertices', 'vertex']"
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].julia_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m'], want ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m']"
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].tie_count.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].tie_count.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].vertex.selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].vertex.selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.25,
+      "julia": 0.25,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].vertex.selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.2,
+      "julia": 0.2,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].p",
+      "kind": "numeric",
+      "family": "pressure",
+      "passed": true,
+      "python": 0.111521650853062,
+      "julia": 0.111521650853062,
+      "abs_difference": 0.0,
+      "limit": 1.6634146341463415e-13
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].python_tie_break_present_iff_tied",
+      "kind": "structural",
+      "passed": true,
+      "detail": "tie_break present=False, tied=1"
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].candidate_count",
+      "kind": "structural",
+      "passed": true,
+      "detail": "python 1, julia 1, expected 1"
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].candidate[0].selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].candidate[0].selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.25,
+      "julia": 0.25,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].candidate[0].selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.2,
+      "julia": 0.2,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].candidate[0].p",
+      "kind": "numeric",
+      "family": "pressure",
+      "passed": true,
+      "python": 0.111521650853062,
+      "julia": 0.111521650853062,
+      "abs_difference": 0.0,
+      "limit": 1.6634146341463415e-13
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].candidates_in_lexicographic_order",
+      "kind": "structural",
+      "passed": true,
+      "detail": "tie candidates must be listed in lexicographic coordinate order"
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].lexicographic_selection.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "selected [0.25, 0.2] is not the lexicographic minimum of [[0.25, 0.2]]"
+    },
+    {
+      "check": "pressure[1:cylinder_max_x].lexicographic_selection.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "selected [0.25, 0.2] is not the lexicographic minimum of [[0.25, 0.2]]"
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].python_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['name', 'position_m', 'pressure_Pa', 'selection_margin', 'tied_vertices', 'vertex'], want ['name', 'position_m', 'pressure_Pa', 'selection_margin', 'tied_vertices', 'vertex']"
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].julia_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m'], want ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m']"
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].tie_count.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 2, want 2"
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].tie_count.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 2, want 2"
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].vertex.selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].vertex.selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.19686047402353435,
+      "julia": 0.19686047402353435,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].vertex.selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.15009866357858642,
+      "julia": 0.15009866357858642,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].p",
+      "kind": "numeric",
+      "family": "pressure",
+      "passed": true,
+      "python": 11.03786740720071,
+      "julia": 11.03786740720071,
+      "abs_difference": 0.0,
+      "limit": 1.6634146341463415e-13
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].python_tie_break_present_iff_tied",
+      "kind": "structural",
+      "passed": true,
+      "detail": "tie_break present=True, tied=2"
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].candidate_count",
+      "kind": "structural",
+      "passed": true,
+      "detail": "python 2, julia 2, expected 2"
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].candidate[0].selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].candidate[0].selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.19686047402353435,
+      "julia": 0.19686047402353435,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].candidate[0].selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.15009866357858642,
+      "julia": 0.15009866357858642,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].candidate[0].p",
+      "kind": "numeric",
+      "family": "pressure",
+      "passed": true,
+      "python": 11.03786740720071,
+      "julia": 11.03786740720071,
+      "abs_difference": 0.0,
+      "limit": 1.6634146341463415e-13
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].candidate[1].selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].candidate[1].selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.20313952597646565,
+      "julia": 0.20313952597646565,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].candidate[1].selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.15009866357858642,
+      "julia": 0.15009866357858642,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].candidate[1].p",
+      "kind": "numeric",
+      "family": "pressure",
+      "passed": true,
+      "python": 10.025650927362767,
+      "julia": 10.025650927362767,
+      "abs_difference": 0.0,
+      "limit": 1.6634146341463415e-13
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].candidates_in_lexicographic_order",
+      "kind": "structural",
+      "passed": true,
+      "detail": "tie candidates must be listed in lexicographic coordinate order"
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].lexicographic_selection.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "selected [0.19686047402353435, 0.15009866357858642] is not the lexicographic minimum of [[0.19686047402353435, 0.15009866357858642], [0.20313952597646565, 0.15009866357858642]]"
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].lexicographic_selection.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "selected [0.19686047402353435, 0.15009866357858642] is not the lexicographic minimum of [[0.19686047402353435, 0.15009866357858642], [0.20313952597646565, 0.15009866357858642]]"
+    },
+    {
+      "check": "pressure[2:cylinder_min_y].rejected_candidate_is_materially_different",
+      "kind": "structural",
+      "passed": true,
+      "detail": "the tied candidates differ by 1.012216e+00 Pa, 6.09e+12x the pressure tolerance 1.663415e-13 Pa, so a selector disagreement between the routes could never hide inside the tolerance"
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].python_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['name', 'position_m', 'pressure_Pa', 'selection_margin', 'tied_vertices', 'vertex'], want ['name', 'position_m', 'pressure_Pa', 'selection_margin', 'tied_vertices', 'vertex']"
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].julia_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m'], want ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m']"
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].tie_count.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 2, want 2"
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].tie_count.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 2, want 2"
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].vertex.selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].vertex.selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.19686047402353435,
+      "julia": 0.19686047402353435,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].vertex.selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.2499013364214136,
+      "julia": 0.2499013364214136,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].p",
+      "kind": "numeric",
+      "family": "pressure",
+      "passed": true,
+      "python": 10.315730130178096,
+      "julia": 10.315730130178096,
+      "abs_difference": 0.0,
+      "limit": 1.6634146341463415e-13
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].python_tie_break_present_iff_tied",
+      "kind": "structural",
+      "passed": true,
+      "detail": "tie_break present=True, tied=2"
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].candidate_count",
+      "kind": "structural",
+      "passed": true,
+      "detail": "python 2, julia 2, expected 2"
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].candidate[0].selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].candidate[0].selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.19686047402353435,
+      "julia": 0.19686047402353435,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].candidate[0].selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.2499013364214136,
+      "julia": 0.2499013364214136,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].candidate[0].p",
+      "kind": "numeric",
+      "family": "pressure",
+      "passed": true,
+      "python": 10.315730130178096,
+      "julia": 10.315730130178096,
+      "abs_difference": 0.0,
+      "limit": 1.6634146341463415e-13
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].candidate[1].selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].candidate[1].selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.20313952597646567,
+      "julia": 0.20313952597646567,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].candidate[1].selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.2499013364214136,
+      "julia": 0.2499013364214136,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].candidate[1].p",
+      "kind": "numeric",
+      "family": "pressure",
+      "passed": true,
+      "python": 9.340718529737032,
+      "julia": 9.340718529737032,
+      "abs_difference": 0.0,
+      "limit": 1.6634146341463415e-13
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].candidates_in_lexicographic_order",
+      "kind": "structural",
+      "passed": true,
+      "detail": "tie candidates must be listed in lexicographic coordinate order"
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].lexicographic_selection.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "selected [0.19686047402353435, 0.2499013364214136] is not the lexicographic minimum of [[0.19686047402353435, 0.2499013364214136], [0.20313952597646567, 0.2499013364214136]]"
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].lexicographic_selection.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "selected [0.19686047402353435, 0.2499013364214136] is not the lexicographic minimum of [[0.19686047402353435, 0.2499013364214136], [0.20313952597646567, 0.2499013364214136]]"
+    },
+    {
+      "check": "pressure[3:cylinder_max_y].rejected_candidate_is_materially_different",
+      "kind": "structural",
+      "passed": true,
+      "detail": "the tied candidates differ by 9.750116e-01 Pa, 5.86e+12x the pressure tolerance 1.663415e-13 Pa, so a selector disagreement between the routes could never hide inside the tolerance"
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].python_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['name', 'position_m', 'pressure_Pa', 'selection_margin', 'tied_vertices', 'vertex'], want ['name', 'position_m', 'pressure_Pa', 'selection_margin', 'tied_vertices', 'vertex']"
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].julia_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m'], want ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m']"
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].tie_count.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].tie_count.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].vertex.selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].vertex.selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.0,
+      "julia": 0.0,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].vertex.selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.20000000000000004,
+      "julia": 0.20000000000000004,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].p",
+      "kind": "numeric",
+      "family": "pressure",
+      "passed": true,
+      "python": 19.780390332641403,
+      "julia": 19.780390332641403,
+      "abs_difference": 0.0,
+      "limit": 1.6634146341463415e-13
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].python_tie_break_present_iff_tied",
+      "kind": "structural",
+      "passed": true,
+      "detail": "tie_break present=False, tied=1"
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].candidate_count",
+      "kind": "structural",
+      "passed": true,
+      "detail": "python 1, julia 1, expected 1"
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].candidate[0].selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].candidate[0].selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.0,
+      "julia": 0.0,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].candidate[0].selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.20000000000000004,
+      "julia": 0.20000000000000004,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].candidate[0].p",
+      "kind": "numeric",
+      "family": "pressure",
+      "passed": true,
+      "python": 19.780390332641403,
+      "julia": 19.780390332641403,
+      "abs_difference": 0.0,
+      "limit": 1.6634146341463415e-13
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].candidates_in_lexicographic_order",
+      "kind": "structural",
+      "passed": true,
+      "detail": "tie candidates must be listed in lexicographic coordinate order"
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].lexicographic_selection.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "selected [0.0, 0.20000000000000004] is not the lexicographic minimum of [[0.0, 0.20000000000000004]]"
+    },
+    {
+      "check": "pressure[4:outer_nearest_x_low_mid].lexicographic_selection.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "selected [0.0, 0.20000000000000004] is not the lexicographic minimum of [[0.0, 0.20000000000000004]]"
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].python_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['name', 'position_m', 'pressure_Pa', 'selection_margin', 'tied_vertices', 'vertex'], want ['name', 'position_m', 'pressure_Pa', 'selection_margin', 'tied_vertices', 'vertex']"
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].julia_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m'], want ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m']"
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].tie_count.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].tie_count.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].vertex.selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].vertex.selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 2.2,
+      "julia": 2.2,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].vertex.selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.2,
+      "julia": 0.2,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].p",
+      "kind": "numeric",
+      "family": "pressure",
+      "passed": true,
+      "python": -0.04836168726748482,
+      "julia": -0.04836168726748482,
+      "abs_difference": 0.0,
+      "limit": 1.6634146341463415e-13
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].python_tie_break_present_iff_tied",
+      "kind": "structural",
+      "passed": true,
+      "detail": "tie_break present=False, tied=1"
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].candidate_count",
+      "kind": "structural",
+      "passed": true,
+      "detail": "python 1, julia 1, expected 1"
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].candidate[0].selector.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].candidate[0].selector.x",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 2.2,
+      "julia": 2.2,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].candidate[0].selector.y",
+      "kind": "numeric",
+      "family": "velocity",
+      "passed": true,
+      "python": 0.2,
+      "julia": 0.2,
+      "abs_difference": 0.0,
+      "limit": 6.2e-11
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].candidate[0].p",
+      "kind": "numeric",
+      "family": "pressure",
+      "passed": true,
+      "python": -0.04836168726748482,
+      "julia": -0.04836168726748482,
+      "abs_difference": 0.0,
+      "limit": 1.6634146341463415e-13
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].candidates_in_lexicographic_order",
+      "kind": "structural",
+      "passed": true,
+      "detail": "tie candidates must be listed in lexicographic coordinate order"
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].lexicographic_selection.python",
+      "kind": "structural",
+      "passed": true,
+      "detail": "selected [2.2, 0.2] is not the lexicographic minimum of [[2.2, 0.2]]"
+    },
+    {
+      "check": "pressure[5:outer_nearest_x_high_mid].lexicographic_selection.julia",
+      "kind": "structural",
+      "passed": true,
+      "detail": "selected [2.2, 0.2] is not the lexicographic minimum of [[2.2, 0.2]]"
+    },
+    {
+      "check": "flux.python_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['continuous_inlet_reference', 'inlet', 'outlet', 'sum'], want ['continuous_inlet_reference', 'inlet', 'outlet', 'sum']"
+    },
+    {
+      "check": "flux.julia_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['cylinder_m2_per_s', 'inlet_m2_per_s', 'outlet_m2_per_s', 'sum_m2_per_s', 'walls_m2_per_s'], want ['cylinder_m2_per_s', 'inlet_m2_per_s', 'outlet_m2_per_s', 'sum_m2_per_s', 'walls_m2_per_s']"
+    },
+    {
+      "check": "flux.inlet",
+      "kind": "numeric",
+      "family": "signed_flux",
+      "passed": true,
+      "python": -0.08149573099927537,
+      "julia": -0.08149573099927537,
+      "abs_difference": 0.0,
+      "limit": 2.48e-11
+    },
+    {
+      "check": "flux.outlet",
+      "kind": "numeric",
+      "family": "signed_flux",
+      "passed": true,
+      "python": 0.08149573099927537,
+      "julia": 0.08149573099927537,
+      "abs_difference": 0.0,
+      "limit": 2.48e-11
+    },
+    {
+      "check": "flux.sum",
+      "kind": "numeric",
+      "family": "signed_flux",
+      "passed": true,
+      "python": 1.7219155529623352e-41,
+      "julia": -2.4397176168141806e-76,
+      "abs_difference": 1.7219155529623352e-41,
+      "limit": 2.48e-11
+    },
+    {
+      "check": "flux.inlet_sign_is_into_the_domain",
+      "kind": "structural",
+      "passed": true,
+      "detail": "the parent-outward inlet flux must be negative in both routes"
+    },
+    {
+      "check": "flux.outlet_sign_is_out_of_the_domain",
+      "kind": "structural",
+      "passed": true,
+      "detail": "the parent-outward outlet flux must be positive in both routes"
+    },
+    {
+      "check": "flux.julia_no_slip_walls_and_cylinder_are_exactly_zero",
+      "kind": "structural",
+      "passed": true,
+      "detail": "the Julia route reports the no-slip partitions; the Python route does not emit them, so they are asserted one-sided and not compared"
+    },
+    {
+      "check": "reaction.python_cylinder_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['constraint_force_on_fluid', 'convention', 'fluid_force_on_cylinder'], want ['constraint_force_on_fluid', 'convention', 'fluid_force_on_cylinder']"
+    },
+    {
+      "check": "reaction.python_balance_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['constrained_reaction', 'integrated_body_force', 'integrated_traction', 'sum'], want ['constrained_reaction', 'integrated_body_force', 'integrated_traction', 'sum']"
+    },
+    {
+      "check": "reaction.julia_keys",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['all_essential_constrained_reaction_N_per_m', 'componentwise_sum_N_per_m', 'cylinder_constraint_force_on_fluid_N_per_m', 'fluid_force_on_cylinder_N_per_m', 'integrated_applied_traction_N_per_m', 'integrated_body_force_N_per_m'], want ['all_essential_constrained_reaction_N_per_m', 'componentwise_sum_N_per_m', 'cylinder_constraint_force_on_fluid_N_per_m', 'fluid_force_on_cylinder_N_per_m', 'integrated_applied_traction_N_per_m', 'integrated_body_force_N_per_m']"
+    },
+    {
+      "check": "reaction.constraint_force_on_fluid.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "reaction.constraint_force_on_fluid.x",
+      "kind": "numeric",
+      "family": "reaction",
+      "passed": true,
+      "python": -4.617062540501679,
+      "julia": -4.617062540501679,
+      "abs_difference": 0.0,
+      "limit": 8e-14
+    },
+    {
+      "check": "reaction.constraint_force_on_fluid.y",
+      "kind": "numeric",
+      "family": "reaction",
+      "passed": true,
+      "python": 0.03952008400301018,
+      "julia": 0.03952008400301015,
+      "abs_difference": 2.7755575615628914e-17,
+      "limit": 8e-14
+    },
+    {
+      "check": "reaction.fluid_force_on_cylinder.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "reaction.fluid_force_on_cylinder.x",
+      "kind": "numeric",
+      "family": "reaction",
+      "passed": true,
+      "python": 4.617062540501679,
+      "julia": 4.617062540501679,
+      "abs_difference": 0.0,
+      "limit": 8e-14
+    },
+    {
+      "check": "reaction.fluid_force_on_cylinder.y",
+      "kind": "numeric",
+      "family": "reaction",
+      "passed": true,
+      "python": -0.03952008400301018,
+      "julia": -0.03952008400301015,
+      "abs_difference": 2.7755575615628914e-17,
+      "limit": 8e-14
+    },
+    {
+      "check": "reaction.orientations_are_exact_negations",
+      "kind": "structural",
+      "passed": true,
+      "detail": "each route must publish the two orientations as exact componentwise negations, so a consumer cannot confuse them"
+    },
+    {
+      "check": "reaction.fluid_force_on_cylinder_acts_along_plus_x",
+      "kind": "structural",
+      "passed": true,
+      "detail": "the fluid force on the cylinder must act downstream in both routes"
+    },
+    {
+      "check": "balance.constrained_reaction.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "balance.constrained_reaction.x",
+      "kind": "numeric",
+      "family": "reaction",
+      "passed": true,
+      "python": -5.345112862320582e-41,
+      "julia": 1.0420751822924508e-76,
+      "abs_difference": 5.345112862320582e-41,
+      "limit": 8e-14
+    },
+    {
+      "check": "balance.constrained_reaction.y",
+      "kind": "numeric",
+      "family": "reaction",
+      "passed": true,
+      "python": 1.140769053837547e-40,
+      "julia": -1.3554736427488078e-76,
+      "abs_difference": 1.140769053837547e-40,
+      "limit": 8e-14
+    },
+    {
+      "check": "balance.integrated_body_force.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "balance.integrated_body_force.x",
+      "kind": "numeric",
+      "family": "reaction",
+      "passed": true,
+      "python": 0.0,
+      "julia": 0.0,
+      "abs_difference": 0.0,
+      "limit": 8e-14
+    },
+    {
+      "check": "balance.integrated_body_force.y",
+      "kind": "numeric",
+      "family": "reaction",
+      "passed": true,
+      "python": 0.0,
+      "julia": 0.0,
+      "abs_difference": 0.0,
+      "limit": 8e-14
+    },
+    {
+      "check": "balance.integrated_traction.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "balance.integrated_traction.x",
+      "kind": "numeric",
+      "family": "reaction",
+      "passed": true,
+      "python": 0.0,
+      "julia": 0.0,
+      "abs_difference": 0.0,
+      "limit": 8e-14
+    },
+    {
+      "check": "balance.integrated_traction.y",
+      "kind": "numeric",
+      "family": "reaction",
+      "passed": true,
+      "python": 0.0,
+      "julia": 0.0,
+      "abs_difference": 0.0,
+      "limit": 8e-14
+    },
+    {
+      "check": "balance.sum.arity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "2 vs 2"
+    },
+    {
+      "check": "balance.sum.x",
+      "kind": "numeric",
+      "family": "reaction",
+      "passed": true,
+      "python": -5.345112862320582e-41,
+      "julia": 1.0420751822924508e-76,
+      "abs_difference": 5.345112862320582e-41,
+      "limit": 8e-14
+    },
+    {
+      "check": "balance.sum.y",
+      "kind": "numeric",
+      "family": "reaction",
+      "passed": true,
+      "python": 1.140769053837547e-40,
+      "julia": -1.3554736427488078e-76,
+      "abs_difference": 1.140769053837547e-40,
+      "limit": 8e-14
+    },
+    {
+      "check": "balance.body_force_and_traction_are_exactly_zero",
+      "kind": "structural",
+      "passed": true,
+      "detail": "zero force potential and a (0,0) Pa outlet traction must integrate to exactly zero in both routes"
+    },
+    {
+      "check": "mesh.shared.vertices",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 104, want 104"
+    },
+    {
+      "check": "mesh.julia.vertices",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 104, want 104"
+    },
+    {
+      "check": "mesh.shared.cells",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 104, want 104"
+    },
+    {
+      "check": "mesh.julia.cells",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 104, want 104"
+    },
+    {
+      "check": "mesh.shared.boundary_facets",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 104, want 104"
+    },
+    {
+      "check": "mesh.julia.boundary_facets",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 104, want 104"
+    },
+    {
+      "check": "mesh.shared.interior_edges",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 104, want 104"
+    },
+    {
+      "check": "mesh.julia.interior_edges",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 104, want 104"
+    },
+    {
+      "check": "mesh.shared.euler_characteristic",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0, want 0"
+    },
+    {
+      "check": "mesh.julia.euler_characteristic",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0, want 0"
+    },
+    {
+      "check": "mesh.shared.inlet_facets",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 14, want 14"
+    },
+    {
+      "check": "mesh.julia.inlet_facets",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 14, want 14"
+    },
+    {
+      "check": "mesh.shared.outlet_facets",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 2, want 2"
+    },
+    {
+      "check": "mesh.julia.outlet_facets",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 2, want 2"
+    },
+    {
+      "check": "mesh.shared.wall_facets",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 38, want 38"
+    },
+    {
+      "check": "mesh.julia.wall_facets",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 38, want 38"
+    },
+    {
+      "check": "mesh.shared.cylinder_facets",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 50, want 50"
+    },
+    {
+      "check": "mesh.julia.cylinder_facets",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 50, want 50"
+    },
+    {
+      "check": "mesh.julia.segments",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 50, want 50"
+    },
+    {
+      "check": "mesh.julia.outer_loop_vertices",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 54, want 54"
+    },
+    {
+      "check": "mesh.shared.segments",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 50, want 50"
+    },
+    {
+      "check": "mesh.partition_covers_every_facet_exactly_once",
+      "kind": "structural",
+      "passed": true,
+      "detail": "the four named boundary sets must partition all 104 facets"
+    },
+    {
+      "check": "mesh.shared.fluid_cells",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 104, want 104"
+    },
+    {
+      "check": "mesh.shared.quad_diagonal",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 'O_i--I_j', want 'O_i--I_j'"
+    },
+    {
+      "check": "mesh.julia.quad_diagonal",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 'O_i--I_j', want 'O_i--I_j'"
+    },
+    {
+      "check": "mesh.python.quad_diagonal",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 'O_i--I_j', want 'O_i--I_j'"
+    },
+    {
+      "check": "mesh.julia.cell_pair",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got ['(O_i,O_j,I_j)', '(O_i,I_j,I_i)'], want ['(O_i,O_j,I_j)', '(O_i,I_j,I_i)']"
+    },
+    {
+      "check": "mesh.python.cell_pair",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got '(O_i, O_j, I_j) and (O_i, I_j, I_i)' (normalized '(O_i,O_j,I_j)(O_i,I_j,I_i)'), want the ordered pair ['(O_i,O_j,I_j)', '(O_i,I_j,I_i)']"
+    },
+    {
+      "check": "mesh.shared.cell_pair",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got '(O_i, O_j, I_j) then (O_i, I_j, I_i)' (normalized '(O_i,O_j,I_j)(O_i,I_j,I_i)'), want the ordered pair ['(O_i,O_j,I_j)', '(O_i,I_j,I_i)']"
+    },
+    {
+      "check": "mesh.python.admissible_meshes",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "mesh.python.falsifier_is_excluded_split",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 'I_i--O_j', want 'I_i--O_j'"
+    },
+    {
+      "check": "scales.python.L_m",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0.41, want 0.41"
+    },
+    {
+      "check": "scales.julia.L_m",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0.41, want 0.41"
+    },
+    {
+      "check": "scales.python.U_m_per_s",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0.3, want 0.3"
+    },
+    {
+      "check": "scales.julia.U_m_per_s",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0.3, want 0.3"
+    },
+    {
+      "check": "scales.python.P_Pa",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0.0007317073170731707, want 0.0007317073170731707"
+    },
+    {
+      "check": "scales.julia.P_Pa",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0.0007317073170731707, want 0.0007317073170731707"
+    },
+    {
+      "check": "scales.python.G_per_s",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0.7317073170731707, want 0.7317073170731707"
+    },
+    {
+      "check": "scales.julia.G_per_s",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0.7317073170731707, want 0.7317073170731707"
+    },
+    {
+      "check": "scales.python.Theta_W_per_m",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 8.999999999999999e-05, want 8.999999999999999e-05"
+    },
+    {
+      "check": "scales.julia.Theta_W_per_m",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 8.999999999999999e-05, want 8.999999999999999e-05"
+    },
+    {
+      "check": "scales.python.Theta_mathematical_W_per_m",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 9e-05, want 9e-05"
+    },
+    {
+      "check": "scales.julia.Theta_mathematical_W_per_m",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 9e-05, want 9e-05"
+    },
+    {
+      "check": "scales.python.mu_hat",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1.0, want 1.0"
+    },
+    {
+      "check": "scales.julia.mu_hat",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1.0, want 1.0"
+    },
+    {
+      "check": "scales.julia.mu_Pa_s",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0.001, want 0.001"
+    },
+    {
+      "check": "scales.python.mu_kg_m_s",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0.001, want 0.001"
+    },
+    {
+      "check": "scales.Theta_is_one_ulp_below_the_exact_decimal",
+      "kind": "structural",
+      "passed": true,
+      "detail": "both routes must record the binary64 Theta as exactly one ulp below 9e-5"
+    },
+    {
+      "check": "dofs.python.velocity_p1",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 208, want 208"
+    },
+    {
+      "check": "dofs.julia.velocity_p1",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 208, want 208"
+    },
+    {
+      "check": "dofs.python.velocity_bubble",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 208, want 208"
+    },
+    {
+      "check": "dofs.julia.velocity_bubble",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 208, want 208"
+    },
+    {
+      "check": "dofs.python.pressure",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 104, want 104"
+    },
+    {
+      "check": "dofs.julia.pressure",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 104, want 104"
+    },
+    {
+      "check": "dofs.python.full_rows",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 520, want 520"
+    },
+    {
+      "check": "dofs.julia.full_rows",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 520, want 520"
+    },
+    {
+      "check": "dofs.python.prescribed_velocity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 206, want 206"
+    },
+    {
+      "check": "dofs.julia.prescribed_velocity",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 206, want 206"
+    },
+    {
+      "check": "dofs.python.reduced_rows",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 314, want 314"
+    },
+    {
+      "check": "dofs.julia.reduced_rows",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 314, want 314"
+    },
+    {
+      "check": "dofs.python.gauge_rows",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0, want 0"
+    },
+    {
+      "check": "dofs.julia.gauge_rows",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0, want 0"
+    },
+    {
+      "check": "dofs.python.essential_vertices",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 103, want 103"
+    },
+    {
+      "check": "dofs.julia.essential_vertices",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 103, want 103"
+    },
+    {
+      "check": "dofs.python.free_vertices",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "dofs.julia.free_vertices",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
+      "check": "dofs.python.interior_vertices",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0, want 0"
+    },
+    {
+      "check": "dofs.python.bubbles_are_cell_interior",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got True, want True"
+    },
+    {
+      "check": "residuals.selected_target",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1.3239627651209673e-12, want 1.3239627651209673e-12"
+    },
+    {
+      "check": "residuals.operator_inf_norm",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 2525.169952486783, want 2525.169952486783"
+    },
+    {
+      "check": "residuals.solution_inf_norm",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 28169.592761981967, want 28169.592761981967"
+    },
+    {
+      "check": "residuals.rhs_2norm",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0.13239627651209673, want 0.13239627651209673"
+    },
+    {
+      "check": "residuals.roundoff_allowance",
+      "kind": "diagnostic",
+      "passed": true,
+      "python": 6.469509595252338e-05,
+      "julia": 6.46950959525234e-05,
+      "ulps": 1,
+      "limit_ulps": 4
+    },
+    {
+      "check": "residuals.both_routes_are_far_inside_target_plus_allowance",
+      "kind": "structural",
+      "passed": true,
+      "detail": "each route's independently reapplied true residual must sit below its own selected target"
+    },
+    {
+      "check": "pressure_reference.python.kind",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 'BoundaryTraction', want 'BoundaryTraction'"
+    },
+    {
+      "check": "pressure_reference.julia.kind",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 'BoundaryTraction', want 'BoundaryTraction'"
+    },
+    {
+      "check": "pressure_reference.python.traction_facets",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 2, want 2"
+    },
+    {
+      "check": "pressure_reference.julia.traction_facets",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 2, want 2"
+    },
+    {
+      "check": "pressure_reference.python.traction_partition_nonempty",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got True, want True"
+    },
+    {
+      "check": "pressure_reference.python.gauge_row",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got False, want False"
+    },
+    {
+      "check": "pressure_reference.python.gauge_multiplier",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got False, want False"
+    },
+    {
+      "check": "pressure_reference.python.zero_integral",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got False, want False"
+    },
+    {
+      "check": "pressure_reference.julia.gauge_rows",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0, want 0"
+    },
+    {
+      "check": "pressure_reference.julia.gauge_columns",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0, want 0"
+    },
+    {
+      "check": "pressure_reference.julia.gauge_multipliers",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0, want 0"
+    },
+    {
+      "check": "pressure_reference.julia.zero_integral_constraints",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 0, want 0"
+    },
+    {
+      "check": "pressure_reference.python.reduced_rows",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 314, want 314"
+    }
+  ]
+}

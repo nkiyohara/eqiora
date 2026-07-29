@@ -1,0 +1,198 @@
+==============================================================================
+Eqiora exact circular-hole steady Stokes 2D -- Julia numerical-oracle route (independent, non-implementing)
+==============================================================================
+julia            : 1.12.6
+BigFloat working precision : 256 bits
+
+ONE INDEPENDENTLY FROZEN ROUTE. Route-to-route comparison NOT performed here.
+Implementation of this slice may not begin until the integrator compares this
+output with the separately frozen first (Python) route.
+
+-- 1. internal method audit (not a capability or convergence claim) --------
+  [ok] quadrature.points                                9
+  [ok] quadrature.positive                              
+  [ok] quadrature.interior                              
+  [ok] quadrature.mass                                  0.0
+  [ok] quadrature.exact_degree4                         2.1590421387736112e-78
+  [ok] quadrature.degree5_inexact_as_declared           0.00011904761904761905
+  [ok] bubble.barycentre_is_one                         1.0
+  [ok] bubble.vanishes_on_edges                         0.0
+  [ok] bubble.reference_integral                        0.225
+  [ok] p1.partition_of_unity                            1.0
+  [ok] patch.matrix_symmetric                           0.0
+  [ok] patch.velocity_exact                             1.727233711018889e-77
+  [ok] patch.bubbles_vanish                             1.006498552412103e-77
+  [ok] patch.pressure_equals_2mu                        1.3817869688151111e-75
+  [ok] patch.reaction_balance                           -8.168563246864895e-78,3.281744050935889e-76
+  [ok] patch.reaction_bottom_y                          12.0
+  [ok] patch.reaction_top_y                             -12.0
+  [ok] patch.outflow_flux                               2.0
+  [ok] patch.free_rows_solved                           2.5854529611813994e-76
+
+-- 2. independent mesh reconstruction and source-fact recheck -------------
+  [ok] mesh.vertices_104                                104
+  [ok] mesh.cells_104                                   104
+  [ok] mesh.boundary_facets_104                         104
+  [ok] mesh.outer_loop_54                               54
+  [ok] mesh.segments_50                                 50
+  [ok] mesh.inlet_facets_14                             14
+  [ok] mesh.outlet_facets_2                             2
+  [ok] mesh.wall_facets_38                              38
+  [ok] mesh.cylinder_facets_50                          50
+  [ok] mesh.partition_complete_once                     104 of 104
+  [ok] mesh.all_cells_positive                          0.00021051229574916655
+  [ok] mesh.area_matches_source                         0.894166672902231
+  [ok] mesh.manifold_edges                              208 edges
+  [ok] mesh.boundary_edges_104                          104
+  [ok] mesh.interior_edges_104                          104
+  [ok] mesh.euler_characteristic_0                      0
+  [ok] mesh.facets_are_oriented_boundary_edges          
+  [ok] mesh.inlet_normal_is_minus_x                     
+  [ok] mesh.outlet_normal_is_plus_x                     
+  [ok] mesh.cylinder_normal_points_into_hole            
+  [ok] mesh.wall_normals_are_pm_y                       
+  [ok] mesh.boundary_error_within_1e-4                  9.866357864896924e-5
+  [ok] mesh.49_segments_would_exceed                    0.0001027303624831829
+  [ok] mesh.evaluation_allowance                        6.252776074688882e-14
+  [ok] rfc0082.sagitta49                                rel diff 2.831e-50
+  [ok] rfc0082.sagitta50                                rel diff 2.356e-52
+  [ok] rfc0082.area_deficit50                           rel diff 1.203e-50
+  [ok] rfc0082.perimeter_deficit50                      rel diff 8.311e-51
+  measured Hausdorff bound        = 9.86635785864414805e-05 m
+  ideal sagitta(50)               = 9.86635785864218971e-05 m
+  measured polygon area           = 7.83332709776901268e-03 m^2
+  measured polygon perimeter      = 3.13952597646566911e-01 m
+  index-free geometric mesh digest = 573f2c9260b2976853c84bc96a4301bc39e52578209ea84bbf679ad3d77ad871
+
+-- 3. lower the frozen witness and solve in elevated precision ------------
+  [ok] scale.P_equals_mu_U_over_L                       0.0007317073170731707
+  [ok] scale.Theta_one_ulp_below_9e-5                   8.999999999999999e-5
+  [ok] scale.G_equals_U_over_L                          0.7317073170731707
+  [ok] dof.layout_exact                                 520
+  [ok] dof.no_gauge_row                                 520
+  [ok] dof.no_gauge_column                              520
+  [ok] dof.p1_velocity_208                              208
+  [ok] dof.bubble_208                                   208
+  [ok] dof.pressure_104                                 104
+  [ok] dof.essential_206                                206
+  [ok] dof.reduced_314                                  314
+  [ok] trace.essential_vertices_103                     103
+  [ok] trace.single_free_vertex                         1
+  [ok] trace.free_vertex_is_outlet_midpoint             (2.2, 0.2)
+  [ok] trace.all_vertices_on_boundary                   
+  [ok] trace.bubbles_are_free                           
+  [ok] trace.outlet_corners_still_fixed                 2
+  [ok] trace.outlet_facets_still_in_traction_partition  2
+  [ok] assembly.exact_symmetry                          
+  [ok] load.zero_rhs_body_and_traction                  0.0
+  [ok] load.facet_load_only_on_facet_p1_rows            6
+  mu_hat = mu U / (P L)           = 1.000000000000000044249552e+00
+  [ok] solve.independent_reapplication_agrees           2.4761622481166792e-73
+  [ok] residual.true_reduced_within_target              5.421072e-73 <= 1.323963e-12 + 6.469510e-05
+  [ok] residual.weak_pressure_rows_within_target        1.621881e-75
+  [ok] residual.finite                                  
+
+-- 4. frozen observations -------------------------------------------------
+  u @ bary of cell for target (0.1, 0.2)  bary=(0.1001314216447587, 0.19791111277392828)
+       ux = 8.801138571928349633155802e-02 m/s
+       uy = -4.377542327224644445325396e-03 m/s
+  [ok] probe.velocity_unique_cell_(0.1, 0.2)            tied cells = 1
+  u @ bary of cell for target (0.2, 0.3)  bary=(0.2044040267077555, 0.30326755761427576)
+       ux = 1.690143015268948424038152e-01 m/s
+       uy = -9.024390638457479767875407e-03 m/s
+  [ok] probe.velocity_unique_cell_(0.2, 0.3)            tied cells = 1
+  u @ bary of cell for target (0.3, 0.2)  bary=(0.3198475226050584, 0.11550768456009686)
+       ux = 9.623743076579621822956315e-02 m/s
+       uy = 1.125182753674583662250158e-01 m/s
+  [ok] probe.velocity_unique_cell_(0.3, 0.2)            tied cells = 1
+  u @ bary of cell for target (1.0, 0.2)  bary=(0.8998685783552413, 0.20208888722607177)
+       ux = 1.326922903707495846194470e-01 m/s
+       uy = -7.663108263206533351552171e-04 m/s
+  [ok] probe.velocity_unique_cell_(1.0, 0.2)            tied cells = 1
+  u @ bary of cell for target (2.0, 0.2)  bary=(2.061054339220387, 0.06666666666666667)
+       ux = 2.367220892434223137653094e-01 m/s
+       uy = 5.088790553945741036869742e-02 m/s
+  [ok] probe.velocity_unique_cell_(2.0, 0.2)            tied cells = 1
+  p cylinder_min_x         vertex (0.15000000000000002, 0.2)  = 2.061189714291363421102836e+01 Pa
+  p cylinder_max_x         vertex (0.25, 0.2)  = 1.115216508530619960337532e-01 Pa
+  p cylinder_min_y         vertex (0.19686047402353435, 0.15009866357858642)  = 1.103786740720071012509271e+01 Pa
+       exact tie candidate (0.19686047402353435, 0.15009866357858642) -> 1.103786740720071012509271e+01 Pa
+       exact tie candidate (0.20313952597646565, 0.15009866357858642) -> 1.002565092736276661111803e+01 Pa
+  p cylinder_max_y         vertex (0.19686047402353435, 0.2499013364214136)  = 1.031573013017809619972348e+01 Pa
+       exact tie candidate (0.19686047402353435, 0.2499013364214136) -> 1.031573013017809619972348e+01 Pa
+       exact tie candidate (0.20313952597646567, 0.2499013364214136) -> 9.340718529737032699718538e+00 Pa
+  p outer_near_inlet_mid   vertex (0.0, 0.20000000000000004)  = 1.978039033264140230353856e+01 Pa
+  p outer_near_outlet_mid  vertex (2.2, 0.2)  = -4.836168726748482148983896e-02 Pa
+  signed inlet  flux = -8.149573099927537550641504e-02 m^2/s
+  signed outlet flux = 8.149573099927537550641504e-02 m^2/s
+  wall flux = 0.000000000000000000000000e+00, cylinder flux = 0.000000000000000000000000e+00 m^2/s
+  cylinder constraint force ON THE FLUID   = (-4.617062540501678457144282e+00, 3.952008400301015163830906e-02) N/m
+  fluid force ON THE CYLINDER (negation)   = (4.617062540501678457144282e+00, -3.952008400301015163830906e-02) N/m
+  all-essential constrained reaction       = (1.042075182292450759680408e-76, -1.355473642748807754093842e-76) N/m
+  integrated body force                    = (0.000000000000000000000000e+00, 0.000000000000000000000000e+00) N/m
+  integrated applied traction              = (0.000000000000000000000000e+00, 0.000000000000000000000000e+00) N/m
+  componentwise sum                        = (1.042075182292450759680408e-76, -1.355473642748807754093842e-76) N/m
+  pressure integral (supplementary)        = 1.728499492285225759974784e+00 Pa m^2
+  [ok] balance.momentum_le_1e-10                        1.3554736427488078e-76
+  [ok] balance.flux_sum_le_1e-8                         2.4397176168141806e-76
+  [ok] balance.wall_and_cylinder_flux_zero              
+  [ok] orientation.cylinder_negation_exact              
+  [ok] orientation.cylinder_force_is_not_zero           
+
+-- 5. stability of the frozen values --------------------------------------
+  [ok] stability.precision_256_vs_384                   vel 0.00e+00 pre 0.00e+00 flux 0.00e+00 reac 0.00e+00
+  [ok] stability.reindexing_invariant                   vel 0.00e+00 pre 0.00e+00 flux 0.00e+00 reac 0.00e+00 selectors_moved=false
+  [ok] stability.one_ulp_trig_actually_moved_the_mesh   
+  one-ulp cos/sin perturbation moves: vel 1.110e-16  pre 1.388e-17  flux 0.000e+00  reac 8.327e-17
+      route-to-route tolerances:      vel 6.200e-11  pre 1.663e-13  flux 2.480e-11  reac 8.000e-14
+  [ok] stability.one_ulp_trig_selectors_unmoved         
+  [ok] stability.one_ulp_trig_within_route_tolerance    
+  mu_hat := 1 exactly moves:          vel 0.000e+00  pre 1.776e-15  flux 0.000e+00  reac 8.882e-16
+
+-- 6. falsifiers ----------------------------------------------------------
+  [ok] falsifier.wrong_OiIj_diagonal                    vel 2.056e-02 pre 6.471e-01 flux 0.000e+00 reac 2.747e-02 
+  [ok] falsifier.vector_laplacian                       vel 4.039e-02 pre 9.423e+00 flux 0.000e+00 reac 2.170e+00 mu grad:grad instead of 2 mu sym:sym
+  [ok] falsifier.unnormalized_bubble                    vel 4.394e+00 pre 0.000e+00 flux 0.000e+00 reac 0.000e+00 assembled with l0*l1*l2 while the barycentre evaluation keeps the 27x convention
+  [ok] falsifier.coupling_sign_both_blocks              vel 0.000e+00 pre 4.122e+01 flux 0.000e+00 reac 0.000e+00 p -> -p
+  [ok] falsifier.momentum_only_sign_flip_loses_exact_symmetry reduced/full CSR symmetry assertion would reject before the solve
+  [ok] falsifier.coupling_sign_momentum_only            vel 0.000e+00 pre 4.122e+01 flux 0.000e+00 reac 0.000e+00 also destroys symmetry
+  [ok] falsifier.dropped_bubble_unknowns                reduced system is singular without the bubble enrichment: SingularException
+  [ok] falsifier.swapped_inlet_outlet_membership        vel 5.987e-02 pre 2.057e+01 flux 2.003e-02 reac 1.510e+00 
+  [ok] falsifier.reversed_inlet_normal_in_boundary_data vel 4.734e-01 pre 4.122e+01 flux 1.630e-01 reac 9.234e+00 flux-sum identity still holds: it is the probes that catch this
+  [ok] falsifier.reversed_normal_in_flux_breaks_balance |sum| = 1.629915e-01 > 1e-8
+  [ok] falsifier.omitted_cylinder_breaks_partition      54 of 104 facets covered
+  [ok] falsifier.omitted_cylinder_changes_solution      vel 2.407e-01 pre 2.054e+01 flux 1.382e-02 reac 4.617e+00 
+  [ok] falsifier.cylinder_traction_leaves_no_constrained_cylinder_vertex constrained cylinder vertices = 0
+  [ok] falsifier.stale_correspondence_from_refined_mesh_rejects n=52 gives 108 facets vs 104; 3 of the frozen cylinder indices are not chords
+  [ok] guard.radial_hit_on_corner_rejects               n=64 casts a ray along the (0,0) corner direction
+  [ok] falsifier.gauge_with_traction_partition_is_wrong gamma_hat = -8.776647e-01, pressure probes shift by 1.423602e+01 Pa
+
+-- 7. ADVISORY: frozen f64 solve selection on this witness -----------------
+  Julia analogue of the frozen tuple (MINRES, Identity, f64, rtol 1e-11,
+  atol 1e-13, <=10000 iterations). NOT the registered eqiora.reference
+  backend and NOT a hosted measurement; a feasibility indicator only.
+  cond_2(A_hat_reduced)  = 4.635684e+09
+  |lambda| in [5.4383e-07, 2.5210e+03], 104 negative / 210 positive
+  ||x_hat||_inf          = 2.816959e+04   (pressure block dominates)
+  f64 dense LU   vel 5.274e-16/1.500e-07 OK | pre 2.309e-14/3.659e-10 OK | flux 2.914e-16/6.150e-08 OK | reac 9.416e-15/1.500e-10 OK (not the frozen selection)
+  MINRES: iterations = 9401 / 10000, recurred residual = 1.316901e-12, target = 1.323963e-12
+  MINRES: independently reapplied TRUE residual = 2.467956e-05 (allowance 6.469510e-05)
+  MINRES: best TRUE residual over 20000 unstopped iterations = 2.467954e-05 at 6100
+  f64 MINRES     vel 1.194e-09/1.500e-07 OK | pre 9.365e-08/3.659e-10 OVER | flux 4.965e-10/6.150e-08 OK | reac 2.398e-08/1.500e-10 OVER (the frozen selection)
+
+  ADVISORY RESULT: the frozen selection did NOT meet the pointwise production
+  tolerances for pressure and reaction. Reported, not relaxed. See README.
+
+-- 8. freeze --------------------------------------------------------------
+  checks: 103 total, 103 passed, 0 failed
+  frozen file sha256 = 069becd79acb16cd358d2511a2ce2e407e1bdc68af2628fabd2734f4d03b8459
+  sha256 run.jl               f226f9eaaa257c8c1440264c5047a879010d79b4f9c6292e64e0675257347b91
+  sha256 src/oracle.jl        516c3064d4d0901bd797e1084555a229eeeac921cd0b76bbfc4d444e4e9fe133
+  sha256 src/geometry.jl      32b99f4f71d66cb76dc20d0ba84f8929676de8b25f0ec13bf2efa3399839a39e
+  sha256 src/mini.jl          93b47aa5dd85b73a72513399dec346bbd849ecdaa88f02d73f1254f999bf94e7
+  sha256 src/witness.jl       0f6ed91cce8d19e9b2b2b8335ac03157f12b723b9eb38f208158398be1fbf0b9
+  sha256 src/audit.jl         8b68f39f131e49947fb3f411c2657368077642de6fde8204c5569f5a6899bfe2
+  sha256 src/falsify.jl       b96511243ea913a3089fc1c5162aeaaf835719da7eb518f2c6c1b7f2df11a91b
+  sha256 src/minres.jl        57371deecc1d20aa10e6a92520814c86a1c0a542eb01d747f20014922cf55c88
+
+ROUTE STATUS: all internal checks passed.
