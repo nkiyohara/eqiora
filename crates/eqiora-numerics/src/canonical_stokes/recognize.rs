@@ -96,7 +96,7 @@ pub fn lower_steady_incompressible_stokes_cartesian_2d(
 /// Returns `EQ0703` for semantic ambiguity or unsupported boundary meaning,
 /// and rejects a source digest or named-set inventory that differs from the
 /// admitted Model before numerical realization.
-pub fn lower_steady_incompressible_stokes_geometry_2d(
+pub(super) fn lower_steady_incompressible_stokes_geometry_2d(
     program: &KernelProgram,
     geometry: &CanonicalCircularHoleGeometryV1,
 ) -> Result<SteadyIncompressibleStokesModel2d, Diagnostic> {

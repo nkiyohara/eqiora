@@ -12,13 +12,14 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::LinearOperatorProperties;
 
 use super::{
-    IncompressibleFlowScaleProfile2d, SteadyIncompressibleStokesModel2d,
-    SteadyStokesScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
+    IncompressibleFlowScaleProfile2d, SteadyStokesScaleProfile2d,
+    TransientIncompressibleNavierStokesCartesianModel2d,
 };
 use crate::canonical_boundary::BoundaryRelationBinding2d;
 use crate::canonical_boundary::{
     CartesianBoundaryInventory2d, PhysicalBoundaryDisposition, PhysicalBoundaryQuantity,
 };
+use crate::canonical_stokes::api::SteadyIncompressibleStokesModel2d;
 use crate::discrete_block::{
     AlgebraicClosure, AuxiliaryBlock, BlockRealizationIdentity, BlockSupport, BlockTransformation,
     ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, FieldBlock,

@@ -24,11 +24,10 @@ use eqiora_solver::{
 
 use super::{
     FinalizedSteadyStokesMini2dProblem, SteadyIncompressibleStokesCartesianModel2d,
-    SteadyIncompressibleStokesModel2d, SteadyStokesMiniSolution2d,
-    lower_steady_incompressible_stokes_cartesian_2d,
+    SteadyStokesMiniSolution2d, lower_steady_incompressible_stokes_cartesian_2d,
 };
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
-use crate::canonical_stokes::api::StokesBoundaryKey2d;
+use crate::canonical_stokes::api::{SteadyIncompressibleStokesModel2d, StokesBoundaryKey2d};
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
     SimplicialMiniStokesBoundaryFacet2d,
@@ -152,6 +151,12 @@ pub type SteadyStokesScaleProfile2d = IncompressibleFlowScaleProfile2d;
 /// Exact lowerer requirements for the admitted mixed Stokes path.
 #[must_use]
 pub fn steady_stokes_fieldwise_requirements_2d(
+    model: &SteadyIncompressibleStokesCartesianModel2d,
+) -> FieldwiseRealizationRequirements {
+    steady_stokes_fieldwise_requirements_for_model_2d(model.common())
+}
+
+pub(super) fn steady_stokes_fieldwise_requirements_for_model_2d(
     model: &SteadyIncompressibleStokesModel2d,
 ) -> FieldwiseRealizationRequirements {
     FieldwiseRealizationRequirements::new(
@@ -170,19 +175,29 @@ pub fn steady_stokes_fieldwise_requirements_2d(
 ///
 /// `q` remains immutable canonical coefficient data and receives no discrete
 /// unknown block. The plan derives gauge and functional scales from `L/U/P`,
-/// fixes positive degree-four Duffy assembly, and retains one exact MINRES
-/// policy without a fluid-named generic space tag.
+/// fixes positive degree-four Duffy assembly, and admits only the exact
+/// reference-MINRES and host-sparse-LU solver tuples verified for this path,
+/// without a fluid-named generic space tag.
 ///
 /// # Errors
 /// Returns `EQ0807` for an unsupported solver tuple or invalid derived plan.
 pub fn steady_stokes_mini_plan_2d(
+    model: &SteadyIncompressibleStokesCartesianModel2d,
+    mesh: MeshArtifactReference,
+    scales: SteadyStokesScaleProfile2d,
+    solver: SolverPlan,
+) -> Result<FieldwiseRealizationPlan, Diagnostic> {
+    steady_stokes_mini_plan_for_model_2d(model.common(), mesh, scales, solver)
+}
+
+pub(super) fn steady_stokes_mini_plan_for_model_2d(
     model: &SteadyIncompressibleStokesModel2d,
     mesh: MeshArtifactReference,
     scales: SteadyStokesScaleProfile2d,
     solver: SolverPlan,
 ) -> Result<FieldwiseRealizationPlan, Diagnostic> {
     let with_zero_integral_constraint = requires_zero_integral_constraint(model)?;
-    require_reference_solver(solver)?;
+    require_mini_solver(solver)?;
     let velocity = velocity_id(model);
     let pressure = pressure_id(model);
     let constraints = with_zero_integral_constraint
@@ -274,7 +289,7 @@ pub fn finalize_resolved_steady_stokes_mini_2d(
 /// # Errors
 /// Preserves all reference finalization failures plus the selected assembly
 /// adapter's complete-operation diagnostic.
-pub fn finalize_resolved_steady_stokes_mini_2d_with_assembly(
+fn finalize_resolved_steady_stokes_mini_2d_with_assembly(
     program: &KernelProgram,
     resolved: &ResolvedFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
@@ -288,15 +303,15 @@ pub fn finalize_resolved_steady_stokes_mini_2d_with_assembly(
     Diagnostic,
 > {
     let model = lower_steady_incompressible_stokes_cartesian_2d(program)?;
-    let scales = resolved_stokes_scales(program, resolved, mesh_artifact, &model)?;
+    let scales = resolved_stokes_scales(program, resolved, mesh_artifact, model.common())?;
     let normalized = normalize_mesh(&model, mesh, scales.length_value())?;
-    let boundary = numerical_boundary(&model, &normalized, scales.pressure_value())?;
+    let boundary = numerical_boundary(model.common(), &normalized, scales.pressure_value())?;
     let essential_velocity =
-        |coordinate_hat| cartesian_essential_velocity(&model, scales, coordinate_hat);
+        |coordinate_hat| cartesian_essential_velocity(model.common(), scales, coordinate_hat);
     let finalized = finalize_lowered_steady_stokes_mini_2d_with_assembly(
         resolved,
         mesh_artifact,
-        &model,
+        model.common(),
         mesh,
         &normalized.mesh,
         &boundary,
@@ -444,7 +459,7 @@ pub fn solve_resolved_steady_stokes_mini_2d(
 ///
 /// # Errors
 /// Preserves every typed admission, adapter, and physical reconstruction failure.
-pub fn solve_resolved_steady_stokes_mini_2d_with_assembly(
+fn solve_resolved_steady_stokes_mini_2d_with_assembly(
     program: &KernelProgram,
     resolved: &ResolvedFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
@@ -475,7 +490,7 @@ fn require_exact_plan(
     graph: &PortableRealizationGraph,
     mesh_artifact: MeshArtifactReference,
 ) -> Result<SteadyStokesScaleProfile2d, Diagnostic> {
-    let expected_requirements = steady_stokes_fieldwise_requirements_2d(model);
+    let expected_requirements = steady_stokes_fieldwise_requirements_for_model_2d(model);
     if resolved.requirements() != &expected_requirements {
         return Err(invalid_realization(
             "field-wise requirements differ from the exact Stokes Domain and unknown-Field inventory",
@@ -524,7 +539,8 @@ fn require_exact_plan(
         scale_for(AlgebraicBlock::Field(velocity))?,
         scale_for(AlgebraicBlock::Field(pressure))?,
     )?;
-    let expected = steady_stokes_mini_plan_2d(model, mesh_artifact, scales, plan.solver())?;
+    let expected =
+        steady_stokes_mini_plan_for_model_2d(model, mesh_artifact, scales, plan.solver())?;
     if plan != &expected {
         return Err(invalid_realization(
             "field-wise plan differs from the exact coherent-SI MINI Stokes contract",
@@ -815,13 +831,16 @@ fn cartesian_essential_velocity(
         })
 }
 
-fn require_reference_solver(solver: SolverPlan) -> Result<(), Diagnostic> {
-    if solver.algorithm() != LinearSolver::MinimumResidual
-        || solver.preconditioner() != PreconditionerPolicy::Identity
-        || solver.reduction() != ReductionPolicy::Reproducible
-    {
+fn require_mini_solver(solver: SolverPlan) -> Result<(), Diagnostic> {
+    let admitted = solver.preconditioner() == PreconditionerPolicy::Identity
+        && matches!(
+            (solver.algorithm(), solver.reduction()),
+            (LinearSolver::MinimumResidual, ReductionPolicy::Reproducible)
+                | (LinearSolver::SparseLu, ReductionPolicy::Fast)
+        );
+    if !admitted {
         return Err(invalid_realization(
-            "coherent-SI MINI Stokes requires reproducible identity-preconditioned MINRES",
+            "coherent-SI MINI Stokes requires identity-preconditioned reproducible MINRES or host-fast sparse LU",
         ));
     }
     Ok(())
@@ -928,3 +947,7 @@ fn realization_error(error: Diagnostic) -> Diagnostic {
 fn invalid_realization(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_REALIZATION, message)
 }
+
+#[cfg(test)]
+#[path = "realization_tests.rs"]
+mod tests;

@@ -10,14 +10,19 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_geometry::{CanonicalCircularHoleGeometryV1, CircularHoleChordalMeshV1};
 use eqiora_meshing::{MeshEntity, MeshTopology, SimplicialMesh};
-use eqiora_realization::ResolvedFieldwiseRealization;
+use eqiora_realization::{
+    FieldwiseRealizationPlan, FieldwiseRealizationRequirements, MeshArtifactReference,
+    ResolvedFieldwiseRealization,
+};
 use eqiora_sem::KernelProgram;
-use eqiora_solver::LinearSolverBackend;
+use eqiora_solver::{LinearSolverBackend, SolverPlan};
 
 use super::api::{SteadyIncompressibleStokesModel2d, StokesBoundaryKey2d};
 use super::physical::SteadyStokesMiniSolution2d;
 use super::realization::{
-    finalize_lowered_steady_stokes_mini_2d_with_assembly, resolved_stokes_scales,
+    SteadyStokesScaleProfile2d, finalize_lowered_steady_stokes_mini_2d_with_assembly,
+    resolved_stokes_scales, steady_stokes_fieldwise_requirements_for_model_2d,
+    steady_stokes_mini_plan_for_model_2d,
 };
 use super::recognize::lower_steady_incompressible_stokes_geometry_2d;
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
@@ -37,6 +42,7 @@ const REQUIRED_BOUNDARY_SETS: [&str; 4] = ["cylinder", "inlet", "outlet", "walls
 /// through that correspondence and never recovered from coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SteadyStokesGeometryBinding2d {
+    model: SteadyIncompressibleStokesModel2d,
     source: CanonicalCircularHoleGeometryV1,
     owner: CircularHoleChordalMeshV1,
     geometry: GeometryDefinitionV1,
@@ -52,6 +58,7 @@ impl SteadyStokesGeometryBinding2d {
     /// Rejects source, region, mesh, correspondence, named-set, or complete
     /// fluid-cell inventory drift before any Stokes assembly can begin.
     pub fn new(
+        program: &KernelProgram,
         source: CanonicalCircularHoleGeometryV1,
         owner: CircularHoleChordalMeshV1,
         geometry: GeometryDefinitionV1,
@@ -91,7 +98,14 @@ impl SteadyStokesGeometryBinding2d {
                 "the exact `fluid` entity set does not realize every mesh cell exactly once",
             ));
         }
+        let model = lower_steady_incompressible_stokes_geometry_2d(program, &source)?;
+        if model.geometry_source_digest() != Some(owner.source().digest_bytes()) {
+            return Err(invalid(
+                "Model GeometryRegion digest differs from the chordal owner's exact source revision",
+            ));
+        }
         Ok(Self {
+            model,
             source,
             owner,
             geometry,
@@ -99,6 +113,25 @@ impl SteadyStokesGeometryBinding2d {
             correspondence,
             entity_sets,
         })
+    }
+
+    /// Exact field-wise requirements derived from the bound Model.
+    #[must_use]
+    pub fn fieldwise_requirements(&self) -> FieldwiseRealizationRequirements {
+        steady_stokes_fieldwise_requirements_for_model_2d(&self.model)
+    }
+
+    /// Build the bounded MINI/P1 plan for this source-bound Model.
+    ///
+    /// # Errors
+    /// Preserves exact scale, solver-tuple, and plan-construction diagnostics.
+    pub fn mini_plan(
+        &self,
+        mesh: MeshArtifactReference,
+        scales: SteadyStokesScaleProfile2d,
+        solver: SolverPlan,
+    ) -> Result<FieldwiseRealizationPlan, Diagnostic> {
+        steady_stokes_mini_plan_for_model_2d(&self.model, mesh, scales, solver)
     }
 
     fn entities(&self, name: &str) -> Result<&[MeshEntity], Diagnostic> {
@@ -120,20 +153,14 @@ impl SteadyStokesGeometryBinding2d {
 /// the existing constrained-residual convention: force on the fluid.
 ///
 /// # Errors
-/// Preserves semantic lowering, exact-source binding, field-wise Realization,
-/// reference assembly, MINRES and coherent-SI reconstruction diagnostics.
+/// Preserves semantic replay, exact-source binding, field-wise Realization,
+/// reference assembly, backend execution and coherent-SI reconstruction diagnostics.
 pub fn solve_resolved_steady_stokes_geometry_mini_2d(
     program: &KernelProgram,
     resolved: &ResolvedFieldwiseRealization,
     binding: &SteadyStokesGeometryBinding2d,
     backend: &dyn LinearSolverBackend,
-) -> Result<
-    (
-        SteadyIncompressibleStokesModel2d,
-        SteadyStokesMiniSolution2d,
-    ),
-    Diagnostic,
-> {
+) -> Result<SteadyStokesMiniSolution2d, Diagnostic> {
     // Replay at the use site so a future decoded binding cannot bypass the
     // source/region/mesh relationship established by `new`.
     if binding.owner.source().digest_bytes() != binding.source.digest_bytes()
@@ -148,9 +175,11 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
         .correspondence
         .validate_against_region(&binding.geometry, &binding.mesh)?;
     let model = lower_steady_incompressible_stokes_geometry_2d(program, &binding.source)?;
-    if model.geometry_source_digest() != Some(binding.owner.source().digest_bytes()) {
+    if model != binding.model
+        || model.geometry_source_digest() != Some(binding.owner.source().digest_bytes())
+    {
         return Err(invalid(
-            "Model GeometryRegion digest differs from the chordal owner's exact source revision",
+            "Model meaning or GeometryRegion digest differs from the source-bound Stokes binding",
         ));
     }
     let mesh_reference = binding.mesh_reference()?;
@@ -189,7 +218,7 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
         &REFERENCE_ASSEMBLY_BACKEND,
     )?;
     let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan())?;
-    Ok((model, finalized.finish(solved)?))
+    finalized.finish(solved)
 }
 
 fn normalize_geometry_mesh(

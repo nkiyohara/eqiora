@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::ops::Deref;
 
 use eqiora_core::RawId;
 use eqiora_schema::kernel::BoundarySide;
@@ -86,7 +85,7 @@ impl SteadyStokesNormalPressure2d {
 /// pressure gauge, trace spaces, assembly, solver, and execution target remain
 /// Realization concerns.
 #[derive(Debug, Clone, PartialEq)]
-pub struct SteadyIncompressibleStokesModel2d {
+pub(super) struct SteadyIncompressibleStokesModel2d {
     pub(super) domain: RawId,
     pub(super) velocity: RawId,
     pub(super) pressure: RawId,
@@ -245,15 +244,73 @@ pub struct SteadyIncompressibleStokesCartesianModel2d {
     pub(super) boundary_inventory: CartesianBoundaryInventory2d,
 }
 
-impl Deref for SteadyIncompressibleStokesCartesianModel2d {
-    type Target = SteadyIncompressibleStokesModel2d;
-
-    fn deref(&self) -> &Self::Target {
-        &self.common
-    }
-}
-
 impl SteadyIncompressibleStokesCartesianModel2d {
+    /// Canonical Cartesian volume Domain.
+    #[must_use]
+    pub const fn domain(&self) -> RawId {
+        self.common.domain()
+    }
+
+    /// Canonical spatial-Cartesian velocity Field.
+    #[must_use]
+    pub const fn velocity(&self) -> RawId {
+        self.common.velocity()
+    }
+
+    /// Canonical invariant pressure Field.
+    #[must_use]
+    pub const fn pressure(&self) -> RawId {
+        self.common.pressure()
+    }
+
+    /// Canonical conservative-force potential Field.
+    #[must_use]
+    pub const fn force_potential(&self) -> RawId {
+        self.common.force_potential()
+    }
+
+    /// Physical Cartesian bounds in coherent SI coordinates.
+    #[must_use]
+    pub const fn bounds(&self) -> &[[f64; 2]; 2] {
+        self.common.bounds()
+    }
+
+    /// Positive constant dynamic viscosity in coherent SI units.
+    #[must_use]
+    pub fn dynamic_viscosity(&self) -> f64 {
+        self.common.dynamic_viscosity()
+    }
+
+    /// Immutable viscosity tape retaining revision-local Parameter identity.
+    #[must_use]
+    pub const fn dynamic_viscosity_expression(&self) -> &ScalarSpatialExpression {
+        self.common.dynamic_viscosity_expression()
+    }
+
+    /// Immutable conservative-force potential tape.
+    #[must_use]
+    pub const fn force_potential_expression(&self) -> &ScalarSpatialExpression {
+        self.common.force_potential_expression()
+    }
+
+    /// Exact scalar definition Relation for the conservative-force potential.
+    #[must_use]
+    pub const fn force_potential_definition(&self) -> RawId {
+        self.common.force_potential_definition()
+    }
+
+    /// Exact momentum Relation.
+    #[must_use]
+    pub const fn momentum_relation(&self) -> RawId {
+        self.common.momentum_relation()
+    }
+
+    /// Exact incompressibility Relation.
+    #[must_use]
+    pub const fn incompressibility_relation(&self) -> RawId {
+        self.common.incompressibility_relation()
+    }
+
     /// Complete package-neutral meaning of the four exact Cartesian sides.
     #[must_use]
     pub const fn boundary_inventory(&self) -> &CartesianBoundaryInventory2d {
@@ -279,5 +336,9 @@ impl SteadyIncompressibleStokesCartesianModel2d {
             common,
             boundary_inventory: CartesianBoundaryInventory2d::new(entries),
         }
+    }
+
+    pub(super) const fn common(&self) -> &SteadyIncompressibleStokesModel2d {
+        &self.common
     }
 }

@@ -5,10 +5,11 @@ on the exact circular-hole geometry, packaged together with the one immutable
 shared mesh they both had to satisfy, and with the comparison that decides
 whether they agree.
 
-**There is no production implementation of this capability.** None was written,
-read or executed at any point in this work. This directory is a
-pre-implementation oracle: it exists so that implementation can begin against
-values nobody implementing them chose.
+This directory began as a pre-implementation oracle: its numerical values were
+frozen before production code was written or read. It now also owns the
+registered production witness, whose ordinary `eqiora` integration test reads
+the frozen mesh and route-A observations directly and checks the complete
+Model-to-reaction path against them.
 
 ```text
 mesh/        the one immutable source-bound copy of the chordal reference mesh,
@@ -33,6 +34,7 @@ amendment/   the one amendment to the frozen witness tuple, its measurements,
 | gate | `python3 agreement/compare_routes.py` | **275 passed, 0 failed — PASS** |
 | amendment | `python3 amendment/adjudicate.py` | **24 passed, 0 failed — PASS** |
 | invariance | `python3 amendment/check_physical_invariance.py` | **35 passed, 0 failed** |
+| production | `cargo run -p eqiora-verify -- run --case fluid.exact-circular-hole-stokes-2d` | registered Eqiora execution and falsifiers |
 
 The two routes agree on every frozen physical observation, with the smallest
 margin `2.88e+03` times inside its tolerance, and on every geometric selector
@@ -42,11 +44,11 @@ arithmetic and carry no tolerance. See
 [`agreement/expected/agreement-report.json`](agreement/expected/agreement-report.json)
 for the frozen record.
 
-**Agreement authorizes implementation against the frozen contract. It does not
-verify production.** Nothing here has been run against Eqiora, and this case is
-not registered: it carries no `case.toml`, so the repository gate does not
-select it. Registration, the capability matrix and the roadmap are the
-integrator's, not this packaging step's.
+**Agreement authorizes implementation against the frozen contract; it does not
+verify production by itself.** Production evidence is the separate registered
+Cargo test named by `case.toml`. That test reconstructs the ordinary exact
+owner, compares the complete mesh inventory, executes the admitted Faer
+SparseLU tuple, and applies the physical observations without changing them.
 
 ## Provenance
 
@@ -213,17 +215,18 @@ The mesh files were not regenerated in this run: `mesh/build_mesh.py` is not an
 input to the gate, and `check_mesh.py` revalidates the frozen bytes in place.
 Both mesh digests are unchanged from the packaged values above.
 
-### The repository gate does not select only available work here
+### Gate state when the oracle was frozen
 
 `python3 tools/ci/local_verify.py fast --plan` derives the case id
 `fluid.exact-circular-hole-stokes-2d` from this directory path and plans three
 commands: `cargo fmt --all -- --check`, `cargo run -p eqiora-verify -- run --case
 fluid.exact-circular-hole-stokes-2d`, and `tools/ci/check_docs.py .`. The first
 and third were run and pass. **The second cannot run**: it was run and exits
-`1` with `unknown verification case ID`, because there is no `case.toml` here —
-this is a pre-implementation oracle rather than accepted evidence. Adding one so
-a gate would select an unimplemented capability would misstate what exists, so
-it was not added, and no claim of a passing repository gate is made.
+`1` with `unknown verification case ID`, because there was no `case.toml` at
+that pre-implementation revision. That was the correct fail-closed result then.
+The integrated slice now supplies the manifest and production target; current
+gate results are recorded with the integrating change, not retroactively
+attributed to this historical oracle run.
 
 The gate was additionally shown to be decisive rather than decorative.
 Twenty-eight mutations of the frozen inputs — values pushed past tolerance in
@@ -258,12 +261,11 @@ packaged values above throughout.
 
 ## Not verified here
 
-1. **No production implementation.** None exists, none was read, none was run.
-   Agreement authorizes implementation; it is not implementation evidence.
-2. **The repository gate was not run for this case.** With no `case.toml` there
-   is nothing for `local_verify.py` to select, and adding one to make a gate
-   select an unimplemented capability would misrepresent it. Registration is the
-   integrator's step.
+1. **The oracle routes do not verify production by themselves.** The registered
+   Cargo target is the production evidence and must pass the repository gate.
+2. **Hosted and non-local environments are not implied by a local run.** Record
+   the exact completed local gate and any hosted result beside the integrating
+   change.
 3. **Neither route's falsifier set was re-derived here.** Each route's own
    falsifiers were rerun as part of rerunning that route, and both routes report
    them all detected; this packaging step did not author or re-derive any of

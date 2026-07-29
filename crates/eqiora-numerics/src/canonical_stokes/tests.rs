@@ -277,14 +277,15 @@ fn lowers_exact_meaning_without_numerical_choices() {
             .boundary(2, BoundarySide::Lower)
             .is_none()
     );
-    assert_eq!(model.boundary_relations().len(), 4);
+    assert_eq!(model.common().boundary_relations().len(), 4);
     assert!(
         model
+            .common()
             .boundary_relations()
             .windows(2)
             .all(|pair| pair[0] < pair[1])
     );
-    for binding in model.boundary_relations() {
+    for binding in model.common().boundary_relations() {
         assert!(program.edges().iter().any(|edge| {
             edge.kind() == EdgeKind::AppliesOn
                 && edge.from() == binding.relation()
