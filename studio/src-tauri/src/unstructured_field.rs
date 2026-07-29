@@ -313,7 +313,7 @@ pub(super) struct UnstructuredFieldCache {
 impl UnstructuredFieldCache {
     #[allow(
         dead_code,
-        reason = "the accepted cylinder workflow in issue #132 is the first production publisher"
+        reason = "the accepted cylinder workflow is the first production publisher"
     )]
     pub(super) fn insert(
         &mut self,
