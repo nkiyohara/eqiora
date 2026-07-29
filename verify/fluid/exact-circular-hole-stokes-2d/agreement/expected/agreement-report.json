@@ -57,14 +57,90 @@
     "pressure_selectors_reconstructed": 6
   },
   "residual_bound": {
-    "note": "The residual criteria are per route, never cross-route. Each route's independently reapplied true residual and its weak pressure-row residual are required to be finite and within that route's own bound. The two routes solve at different working precisions, so neither their residuals nor their roundoff allowances are compared with each other.",
-    "bound": "residual <= own_selected_target + own_roundoff_allowance"
+    "note": "The residual criteria are per route, never cross-route, and the true and the weak residual do NOT share a bound. Each route's independently reapplied true reduced residual is bounded by that route's own selected target plus that route's own recorded true-residual roundoff allowance. Each weak pressure-row residual is bounded instead by the same selected target plus the existing pressure-row roundoff allowance, recomputed here from that norm. The two routes solve at different working precisions, so neither their residuals nor their allowances are compared with each other.",
+    "domain": "Every residual, every selected target, every allowance and every resulting limit is required to be finite and nonnegative before any magnitude is compared. A norm and a roundoff allowance cannot be negative, and a negative one is rejected as out of domain rather than allowed to satisfy value <= limit.",
+    "pressure_reference": "BoundaryTraction on both routes, with no gauge row, gauge column, gauge multiplier or ZeroIntegral constraint -- asserted structurally in this same run. The existing pressure-row allowance therefore has every gauge term exactly zero, which is the no-gauge form applied below.",
+    "true_reduced": {
+      "bound": "true_reduced <= own_selected_target + own_recorded_true_residual_roundoff_allowance",
+      "allowance": "4096 * eps * (1 + ||A||_inf * ||x||_inf + ||b||_inf), evaluated by each route in its own working precision",
+      "allowance_origin": "read from the route document as recorded; this gate does not recompute it and does not compare the two routes' allowances with each other"
+    },
+    "weak_pressure_row": {
+      "bound": "weak_norm <= selected_target + weak_roundoff",
+      "allowance": "weak_roundoff = 4096 * eps * (1 + weak_norm + selected_target)",
+      "allowance_origin": "the existing pressure-row roundoff allowance, recomputed here in binary64 for each frozen weak norm. The route's recorded true-residual allowance is NOT used for a weak residual: on this witness it is about 2.9e+07 times looser than the bound the contract names.",
+      "contractual_norm": "the 2-norm of the pressure rows. The Julia route also publishes an inf-norm; it is bounded under the same formula as a diagnostic, and passing it is implied by the 2-norm result because ||r||_inf <= ||r||_2.",
+      "coefficient": 4096.0,
+      "epsilon": 2.220446049250313e-16
+    },
+    "measured": [
+      {
+        "route": "python",
+        "quantity": "true_reduced",
+        "bound_family": "true_reduced",
+        "value": 8.193525269074018e-38,
+        "selected_target": 1.3239627651209673e-12,
+        "allowance": 6.469509595252338e-05,
+        "allowance_origin": "recorded by the route",
+        "limit": 6.469509727648615e-05,
+        "margin_ratio": 7.895880607175766e+32,
+        "role": "contractual true reduced residual"
+      },
+      {
+        "route": "python",
+        "quantity": "weak_pressure_row",
+        "bound_family": "weak_pressure_row",
+        "value": 3.1420923017657965e-40,
+        "selected_target": 1.3239627651209673e-12,
+        "allowance": 9.094947017741325e-13,
+        "allowance_origin": "recomputed here from this norm and this target",
+        "limit": 2.2334574668951e-12,
+        "margin_ratio": 7.108185414031087e+27,
+        "role": "contractual 2-norm of the pressure rows"
+      },
+      {
+        "route": "julia",
+        "quantity": "true_reduced",
+        "bound_family": "true_reduced",
+        "value": 5.42107235895018e-73,
+        "selected_target": 1.3239627651209673e-12,
+        "allowance": 6.46950959525234e-05,
+        "allowance_origin": "recorded by the route",
+        "limit": 6.469509727648616e-05,
+        "margin_ratio": 1.1934003642226743e+68,
+        "role": "contractual true reduced residual"
+      },
+      {
+        "route": "julia",
+        "quantity": "weak_pressure_row",
+        "bound_family": "weak_pressure_row",
+        "value": 1.6218813682949727e-75,
+        "selected_target": 1.3239627651209673e-12,
+        "allowance": 9.094947017741325e-13,
+        "allowance_origin": "recomputed here from this norm and this target",
+        "limit": 2.2334574668951e-12,
+        "margin_ratio": 1.3770781948392785e+63,
+        "role": "contractual 2-norm of the pressure rows"
+      },
+      {
+        "route": "julia",
+        "quantity": "weak_pressure_row_infnorm",
+        "bound_family": "weak_pressure_row",
+        "value": 8.162677594446932e-76,
+        "selected_target": 1.3239627651209673e-12,
+        "allowance": 9.094947017741325e-13,
+        "allowance_origin": "recomputed here from this norm and this target",
+        "limit": 2.2334574668951e-12,
+        "margin_ratio": 2.7361823875225953e+63,
+        "role": "diagnostic inf-norm, bounded under the same formula; its passing is implied by the 2-norm result because ||r||_inf <= ||r||_2, so it adds an audited domain and magnitude record for a published value rather than a second independent criterion"
+      }
+    ]
   },
   "checks": {
-    "total": 271,
-    "passed": 271,
+    "total": 275,
+    "passed": 275,
     "failed": 0,
-    "structural": 227,
+    "structural": 231,
     "numeric": 39,
     "bounded": 5
   },
@@ -92,7 +168,7 @@
     },
     "comparison_route": {
       "file": "agreement/compare_routes.py",
-      "sha256": "8881024d91c5eb48840e74fe16a8a77eee185aa031a60822fd3d100266784d46"
+      "sha256": "c108c322552322ded0832e02d8eca80fcf80e07782975c0ea03d090b390e607b"
     }
   },
   "provenance": {
@@ -1794,44 +1870,73 @@
       "detail": "got 0.13239627651209673, want 0.13239627651209673"
     },
     {
-      "check": "residuals.python.true_reduced_within_own_target_plus_allowance",
+      "check": "residuals.python.selected_target_is_finite_and_nonnegative",
+      "kind": "structural",
+      "passed": true,
+      "detail": "this route's own selected residual target is a norm bound, so it must be finite and nonnegative before it can form any bound; got 1.3239627651209673e-12"
+    },
+    {
+      "check": "residuals.python.true_residual_allowance_is_finite_and_nonnegative",
+      "kind": "structural",
+      "passed": true,
+      "detail": "this route's own recorded true-residual roundoff allowance must be finite and nonnegative before it can form a bound; it is never compared with the other route's allowance; got 6.469509595252338e-05"
+    },
+    {
+      "check": "residuals.python.true_reduced_within_target_plus_recorded_allowance",
       "kind": "bounded",
       "passed": true,
+      "domain": "finite and nonnegative",
       "value": 8.193525269074018e-38,
       "limit": 6.469509727648615e-05,
-      "detail": "own selected target 1.3239627651209673e-12 plus own recorded roundoff allowance 6.469509595252338e-05; the bound is the frozen contract's and is evaluated against this route's own values only"
+      "detail": "own selected target 1.3239627651209673e-12 plus own recorded true-residual roundoff allowance 6.469509595252338e-05, the contract's 4096 * eps * (1 + ||A||_inf * ||x||_inf + ||b||_inf); evaluated against this route's own values only"
     },
     {
-      "check": "residuals.python.weak_pressure_row_within_own_target_plus_allowance",
+      "check": "residuals.python.weak_pressure_row_within_target_plus_pressure_row_allowance",
       "kind": "bounded",
       "passed": true,
+      "domain": "finite and nonnegative",
       "value": 3.1420923017657965e-40,
-      "limit": 6.469509727648615e-05,
-      "detail": "own selected target 1.3239627651209673e-12 plus own recorded roundoff allowance 6.469509595252338e-05; the bound is the frozen contract's and is evaluated against this route's own values only"
+      "limit": 2.2334574668951e-12,
+      "detail": "own selected target 1.3239627651209673e-12 plus the existing pressure-row roundoff allowance 9.094947017741325e-13, recomputed here as 4096 * eps * (1 + weak_norm + target) with every gauge term exactly zero because this route's pressure reference is BoundaryTraction with no gauge row, column or multiplier; the route's recorded true-residual allowance is NOT used here"
     },
     {
-      "check": "residuals.julia.true_reduced_within_own_target_plus_allowance",
+      "check": "residuals.julia.selected_target_is_finite_and_nonnegative",
+      "kind": "structural",
+      "passed": true,
+      "detail": "this route's own selected residual target is a norm bound, so it must be finite and nonnegative before it can form any bound; got 1.3239627651209673e-12"
+    },
+    {
+      "check": "residuals.julia.true_residual_allowance_is_finite_and_nonnegative",
+      "kind": "structural",
+      "passed": true,
+      "detail": "this route's own recorded true-residual roundoff allowance must be finite and nonnegative before it can form a bound; it is never compared with the other route's allowance; got 6.46950959525234e-05"
+    },
+    {
+      "check": "residuals.julia.true_reduced_within_target_plus_recorded_allowance",
       "kind": "bounded",
       "passed": true,
+      "domain": "finite and nonnegative",
       "value": 5.42107235895018e-73,
       "limit": 6.469509727648616e-05,
-      "detail": "own selected target 1.3239627651209673e-12 plus own recorded roundoff allowance 6.46950959525234e-05; the bound is the frozen contract's and is evaluated against this route's own values only"
+      "detail": "own selected target 1.3239627651209673e-12 plus own recorded true-residual roundoff allowance 6.46950959525234e-05, the contract's 4096 * eps * (1 + ||A||_inf * ||x||_inf + ||b||_inf); evaluated against this route's own values only"
     },
     {
-      "check": "residuals.julia.weak_pressure_row_within_own_target_plus_allowance",
+      "check": "residuals.julia.weak_pressure_row_within_target_plus_pressure_row_allowance",
       "kind": "bounded",
       "passed": true,
+      "domain": "finite and nonnegative",
       "value": 1.6218813682949727e-75,
-      "limit": 6.469509727648616e-05,
-      "detail": "own selected target 1.3239627651209673e-12 plus own recorded roundoff allowance 6.46950959525234e-05; the bound is the frozen contract's and is evaluated against this route's own values only"
+      "limit": 2.2334574668951e-12,
+      "detail": "own selected target 1.3239627651209673e-12 plus the existing pressure-row roundoff allowance 9.094947017741325e-13, recomputed here as 4096 * eps * (1 + weak_norm + target) with every gauge term exactly zero because this route's pressure reference is BoundaryTraction with no gauge row, column or multiplier; the route's recorded true-residual allowance is NOT used here"
     },
     {
-      "check": "residuals.julia.weak_pressure_row_infnorm_within_own_target_plus_allowance",
+      "check": "residuals.julia.weak_pressure_row_infnorm_within_target_plus_pressure_row_allowance",
       "kind": "bounded",
       "passed": true,
+      "domain": "finite and nonnegative",
       "value": 8.162677594446932e-76,
-      "limit": 6.469509727648616e-05,
-      "detail": "own selected target 1.3239627651209673e-12 plus own recorded roundoff allowance 6.46950959525234e-05; the bound is the frozen contract's and is evaluated against this route's own values only"
+      "limit": 2.2334574668951e-12,
+      "detail": "own selected target 1.3239627651209673e-12 plus the existing pressure-row roundoff allowance 9.094947017741325e-13, recomputed here as 4096 * eps * (1 + weak_norm + target) with every gauge term exactly zero because this route's pressure reference is BoundaryTraction with no gauge row, column or multiplier; the route's recorded true-residual allowance is NOT used here"
     },
     {
       "check": "pressure_reference.python.kind",

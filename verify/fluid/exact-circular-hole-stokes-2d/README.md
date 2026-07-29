@@ -28,7 +28,7 @@ agreement/   the dual independent oracle gate, and the packaging-fidelity utilit
 | shared mesh | `python3 mesh/check_mesh.py` | **162 passed, 0 failed** |
 | route A | `python3 routes/python/oracle.py --check` | **101 passed, 0 failed** |
 | route B | `julia routes/julia/run.jl` | **103 passed, 0 failed** |
-| gate | `python3 agreement/compare_routes.py` | **271 passed, 0 failed — PASS** |
+| gate | `python3 agreement/compare_routes.py` | **275 passed, 0 failed — PASS** |
 
 The two routes agree on every frozen physical observation, with the smallest
 margin `2.88e+03` times inside its tolerance, and on every geometric selector
@@ -196,7 +196,7 @@ nothing about hosted CI.
 | `python3 mesh/check_mesh.py` | 162 passed, 0 failed | `0.10 s` |
 | `python3 routes/python/oracle.py --check` | 101 passed, 0 failed; `result.json` reproduced byte for byte | `57.5 s` |
 | `julia routes/julia/run.jl` | 103 passed, 0 failed, exit 0; rerun three times, `julia-route-frozen.json` and `run-log.txt` byte-identical each time | `~41 s` each |
-| `python3 agreement/compare_routes.py` | 271 passed, 0 failed — PASS | `< 1 s` |
+| `python3 agreement/compare_routes.py` | 275 passed, 0 failed — PASS | `< 1 s` |
 | `python3 agreement/compare_routes.py --check` | report reproduced byte for byte under three `PYTHONHASHSEED` values | `< 1 s` |
 | `python3 agreement/check_packaging_fidelity.py` | `PACKAGE INTEGRITY: PASS`, all five recorded digests match | `< 1 s` |
 | `ruff check` and `ruff format --check` on the packaged Python | `All checks passed`, `8 files already formatted` | `< 1 s` |
@@ -229,12 +229,28 @@ unit keys, a non-finite value, an introduced gauge row, a changed pressure
 reference, a changed facet count, reordered tie candidates, a changed DOF count,
 a changed scale, a broken boundary partition, a changed quad diagonal, a probe
 vertex and a tie candidate each moved one ulp off the shared mesh, a barycentre
-replaced by another cell's, and each route's true and weak pressure-row
-residuals pushed one ulp past its own target-plus-allowance bound — were each
-rejected with a non-zero exit. Eight further mutations appended a byte to either
-route document, the shared mesh or the gate's own source, and each was rejected
-both by `compare_routes.py --check` and by the packaging-fidelity package check.
-All thirty-six ran on throwaway copies outside the repository.
+replaced by another cell's, and each route's true reduced residual pushed one
+ulp past its own target-plus-allowance bound — were each rejected with a
+non-zero exit. Eight further mutations appended a byte to either route document,
+the shared mesh or the gate's own source, and each was rejected both by
+`compare_routes.py --check` and by the packaging-fidelity package check. All
+thirty-six ran on throwaway copies outside the repository.
+
+The weak pressure-row residuals were mutated against the bound the gate applied
+at the time, which borrowed each route's recorded *true-residual* allowance. A
+later cross-provider review established that the frozen contract names the
+existing *pressure-row* allowance for that residual instead, and that the
+bounded test admitted negative norms and negative allowances. The gate now
+applies `weak_norm <= target + 4096 * eps * (1 + weak_norm + target)`, the
+existing no-gauge production formula, and requires every residual, target,
+allowance and limit to be finite and nonnegative. **No route value, mesh value,
+selector, tolerance family, solver selection or claim changed** — the frozen
+weak norms `3.14e-40` and `1.62e-75` pass the corrected `2.23e-12` bound by more
+than `27` orders of magnitude. Thirty-five residual and guard mutations and four
+must-accept probes were run against the corrected gate; see
+[`agreement/README.md`](agreement/README.md) for both the formulas and that
+mutation set. The four route and mesh documents are byte-identical to the
+packaged values above throughout.
 
 ## Not verified here
 

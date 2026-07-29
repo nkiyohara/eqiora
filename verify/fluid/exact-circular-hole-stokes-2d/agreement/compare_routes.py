@@ -23,11 +23,15 @@ Three kinds of comparison live here, and they never borrow each other's rules.
    rational arithmetic and required to match exactly. A metre-valued mesh
    coordinate is a frozen input, not a measurement.
 
-3. **Residuals** are not cross-route observations. Each route is required to
-   satisfy the precommitted contract bound with its *own* selected target and
-   its *own* recorded roundoff allowance. The two routes solve at different
-   working precisions, so their residuals and allowances are never compared
-   with each other.
+3. **Residuals** are not cross-route observations, and the true and the weak
+   residual do not share a bound. Each route's independently reapplied *true*
+   reduced residual is bounded by that route's own selected target plus that
+   route's own recorded true-residual roundoff allowance. Each *weak
+   pressure-row* residual is bounded instead by the same selected target plus
+   the existing pressure-row roundoff allowance, recomputed here from that norm.
+   Every residual and every bound must be finite and nonnegative before any
+   magnitude is compared. The two routes solve at different working precisions,
+   so their residuals and allowances are never compared with each other.
 
     python3 compare_routes.py            # compare and rewrite the frozen report
     python3 compare_routes.py --check    # fail if the report would change
@@ -69,6 +73,40 @@ TOLERANCE_TABLE = {
 # A probe target, a selected cell and a probe vertex are frozen mesh geometry,
 # so they are reconstructed exactly from mesh/mesh.json and required to match
 # exactly. See SharedMeshGeometry below.
+
+# ---------------------------------------------------------------------------
+# The two residual bounds. They are different formulas and are never swapped.
+# ---------------------------------------------------------------------------
+# The frozen contract bounds the independently reapplied *true* reduced residual
+# by the solver's selected residual target plus
+#
+#     4096 * eps * (1 + ||A||_inf * ||x||_inf + ||b||_inf)
+#
+# which each route evaluated in its own working precision and published as its
+# own ``roundoff_allowance``. This gate reads that recorded value rather than
+# recomputing it, and never compares one route's allowance with the other's.
+#
+# The frozen contract bounds the *weak* pressure-row residual by the same
+# selected target plus "the existing pressure-row roundoff allowance". That is a
+# different formula, owned by the production weak-incompressibility acceptance
+# check rather than by this package:
+#
+#     roundoff  = 4096 * eps * (1 + norm + |multiplier| * ||gauge||_2 + target)
+#     tolerance = target + |multiplier| * ||gauge||_2 + roundoff
+#
+# Both routes publish a ``BoundaryTraction`` pressure reference with no gauge
+# row, no gauge column and no gauge multiplier -- asserted structurally below --
+# so every gauge term is exactly zero and drops out, leaving
+#
+#     weak_roundoff = 4096 * eps * (1 + weak_norm + target)
+#     weak_limit    = target + weak_roundoff
+#
+# recomputed here in binary64, independently, for each frozen weak norm. The
+# recorded true-residual allowance is NOT the pressure-row allowance and is not
+# used for a weak residual: on this witness it is about 2.9e+7 times looser than
+# the bound the contract actually names.
+WEAK_ROUNDOFF_COEFFICIENT = 4096.0
+EPSILON = sys.float_info.epsilon
 
 # ---------------------------------------------------------------------------
 # Route identity. A relabelled route must fail this gate, not silently pass it.
@@ -279,6 +317,10 @@ class Gate:
         self.records: list[dict] = []
         self.failures: list[str] = []
         self.max_difference: dict[str, float] = {key: 0.0 for key in TOLERANCE_TABLE}
+        # Every residual bound actually formed, with the target and allowance it
+        # was formed from, so the frozen report states the measured limits rather
+        # than only the formulas.
+        self.residual_bounds: list[dict] = []
 
     def structural(self, name: str, ok: bool, detail: str = "") -> bool:
         self.records.append(
@@ -326,22 +368,47 @@ class Gate:
         return ok
 
     def bounded(self, name: str, value: float, limit: float, detail: str) -> bool:
-        """One route's own quantity against one route's own precommitted bound.
+        """One route's own nonnegative quantity against its own precommitted bound.
 
         Used only for the residual criteria, which the frozen contract states
-        per route: the value, the target and the allowance all come from the
-        same document. Nothing here is a cross-route comparison.
+        per route: the value and the bound both come from that route's own
+        document, and nothing here is a cross-route comparison.
+
+        This is a **domain** check before it is a magnitude check. Every
+        quantity bounded here is a norm, and every bound here is a residual
+        target plus a roundoff allowance; none of the three can be negative or
+        non-finite. Testing only ``value <= limit`` would accept a negative
+        residual norm, and would accept a negative allowance that shrinks the
+        bound, so both operands are required to be finite and nonnegative first
+        and a violation is recorded as an out-of-domain rejection naming the
+        offending operand.
         """
-        if not (_finite(value) and _finite(limit)):
+        problems = []
+        if not _finite(value):
+            problems.append(f"value is not a finite number: {value!r}")
+        elif value < 0.0:
+            problems.append(f"value is negative and a norm cannot be: {value!r}")
+        if not _finite(limit):
+            problems.append(f"bound is not a finite number: {limit!r}")
+        elif limit < 0.0:
+            problems.append(
+                f"bound is negative, and a residual target plus a roundoff "
+                f"allowance cannot be: {limit!r}"
+            )
+        if problems:
+            reason = "; ".join(problems)
             self.records.append(
                 {
                     "check": name,
                     "kind": "bounded",
                     "passed": False,
-                    "detail": f"non-finite: value={value!r} limit={limit!r}",
+                    "domain": "rejected",
+                    "detail": f"outside the nonnegative finite domain: {reason}",
                 }
             )
-            self.failures.append(f"{name}: non-finite value or bound")
+            self.failures.append(
+                f"{name}: outside the nonnegative finite domain: {reason}"
+            )
             return False
         ok = value <= limit
         self.records.append(
@@ -349,6 +416,7 @@ class Gate:
                 "check": name,
                 "kind": "bounded",
                 "passed": ok,
+                "domain": "finite and nonnegative",
                 "value": value,
                 "limit": limit,
                 "detail": detail,
@@ -358,6 +426,16 @@ class Gate:
             self.failures.append(f"{name}: {value} > {limit}")
         return ok
 
+    def nonnegative(self, name: str, value: object, detail: str) -> bool:
+        """A quantity that must be finite and nonnegative before it forms a bound.
+
+        Applied to each route's selected residual target and to each route's
+        recorded true-residual roundoff allowance. Both are per-route inputs to
+        that route's own bound; neither is ever compared with the other route's.
+        """
+        ok = _finite(value) and value >= 0.0
+        return self.structural(name, ok, f"{detail}; got {value!r}")
+
 
 def _finite(value: object) -> bool:
     return (
@@ -365,6 +443,43 @@ def _finite(value: object) -> bool:
         and not isinstance(value, bool)
         and math.isfinite(value)
     )
+
+
+def _rendered(value: object) -> str:
+    """Console rendering of a measured magnitude that may be out of domain.
+
+    ``None`` marks a value the domain check rejected, so it is named rather than
+    formatted; nothing about the decision depends on this rendering.
+    """
+    return "rejected" if value is None else f"{value:.6e}"
+
+
+def weak_pressure_row_bound(norm: object, target: float) -> tuple[float, float]:
+    """The existing pressure-row allowance and bound for one weak residual norm.
+
+    Returns ``(allowance, limit)`` where
+
+    ```text
+    allowance = 4096 * eps * (1 + norm + target)
+    limit     = target + allowance
+    ```
+
+    evaluated in binary64 in exactly this association order. It transcribes the
+    existing production weak-incompressibility bound in its no-gauge form: both
+    routes publish ``BoundaryTraction`` with no gauge row, column or multiplier,
+    so the ``|multiplier| * ||gauge||_2`` product in that formula is exactly
+    ``0.0``, and adding an exact zero to a positive finite binary64 value
+    changes no bit of either the allowance or the tolerance. The production
+    function is read from, never executed here -- no production implementation
+    of this capability exists.
+
+    ``(nan, nan)`` is returned for a non-numeric or non-finite norm so that the
+    caller's domain check, rather than an exception, decides the outcome.
+    """
+    if not _finite(norm):
+        return (float("nan"), float("nan"))
+    allowance = WEAK_ROUNDOFF_COEFFICIENT * EPSILON * (1.0 + norm + target)
+    return (allowance, target + allowance)
 
 
 def _rational(value: object) -> Fraction:
@@ -1102,23 +1217,29 @@ def compare(
         python_residuals["reduced_rhs_2norm_dimensionless"],
         julia_residuals["b_hat_reduced_2norm"]["f64"],
     )
-    # The residual criteria are per route, not cross-route. The frozen contract
-    # requires that the independently reapplied true residual, and the weak
-    # pressure-row residual, are each finite and no larger than that route's own
-    # selected target plus that route's own roundoff allowance. The two routes
-    # solve at different working precisions, so their residuals and their
-    # allowances are deliberately NOT compared with each other -- doing so would
-    # be a cross-route observation nobody precommitted.
-    for label, target, allowance, values in (
+    # The residual criteria are per route, not cross-route, and the true and the
+    # weak residual do not share a bound. See the WEAK_ROUNDOFF_COEFFICIENT
+    # section above for the two formulas and for why the weak one is recomputed
+    # here instead of borrowing each route's recorded true-residual allowance.
+    #
+    # The two routes solve at different working precisions, so their residuals
+    # and their allowances are deliberately NOT compared with each other -- that
+    # would be a cross-route observation nobody precommitted. The one residual
+    # quantity the contract does share, the selected target, is required above to
+    # be bit-identical across the routes; that shared value is still validated
+    # per route here, so making it negative in *both* documents cannot slip
+    # through on cross-route equality alone.
+    for label, target, allowance, true_value, weak_values in (
         (
             "python",
             python_residuals["solver_selected_target"],
             python_residuals["roundoff_allowance"],
+            python_residuals["true_reduced_dimensionless"],
             (
-                ("true_reduced", python_residuals["true_reduced_dimensionless"]),
                 (
                     "weak_pressure_row",
                     python_residuals["weak_pressure_row_dimensionless"],
+                    "contractual 2-norm of the pressure rows",
                 ),
             ),
         ),
@@ -1126,32 +1247,119 @@ def compare(
             "julia",
             julia_residuals["selected_target"],
             julia_residuals["roundoff_allowance"],
+            julia_residuals["true_reduced_2norm"]["f64"],
             (
-                ("true_reduced", julia_residuals["true_reduced_2norm"]["f64"]),
                 (
                     "weak_pressure_row",
                     julia_residuals["weak_pressure_row_2norm"]["f64"],
+                    "contractual 2-norm of the pressure rows",
                 ),
                 (
                     "weak_pressure_row_infnorm",
                     julia_residuals["weak_pressure_row_infnorm"]["f64"],
+                    "diagnostic inf-norm, bounded under the same formula; its "
+                    "passing is implied by the 2-norm result because "
+                    "||r||_inf <= ||r||_2, so it adds an audited domain and "
+                    "magnitude record for a published value rather than a "
+                    "second independent criterion",
                 ),
             ),
         ),
     ):
-        limit = (
-            target + allowance
-            if _finite(target) and _finite(allowance)
-            else float("nan")
+        # Both inputs to every bound below are per-route quantities, and neither
+        # can be negative: a solver residual target is a norm bound, and a
+        # roundoff allowance is an accumulation of nonnegative terms. They are
+        # validated before any bound is formed, so a negative one can never
+        # silently shrink a limit. Neither is compared with the other route's.
+        target_ok = gate.nonnegative(
+            f"residuals.{label}.selected_target_is_finite_and_nonnegative",
+            target,
+            "this route's own selected residual target is a norm bound, so it "
+            "must be finite and nonnegative before it can form any bound",
         )
-        for name, value in values:
+        allowance_ok = gate.nonnegative(
+            f"residuals.{label}.true_residual_allowance_is_finite_and_nonnegative",
+            allowance,
+            "this route's own recorded true-residual roundoff allowance must be "
+            "finite and nonnegative before it can form a bound; it is never "
+            "compared with the other route's allowance",
+        )
+        if not (target_ok and allowance_ok):
+            gate.structural(
+                f"residuals.{label}.bounds_were_formed",
+                False,
+                "no residual bound was formed for this route: its selected "
+                "target or its recorded true-residual roundoff allowance is "
+                "outside the finite nonnegative domain",
+            )
+            continue
+
+        # 1. True reduced residual -- this route's own target plus this route's
+        #    own recorded true-residual allowance, read and not recomputed.
+        true_limit = target + allowance
+        gate.bounded(
+            f"residuals.{label}.true_reduced_within_target_plus_recorded_allowance",
+            true_value,
+            true_limit,
+            f"own selected target {target!r} plus own recorded true-residual "
+            f"roundoff allowance {allowance!r}, the contract's "
+            f"4096 * eps * (1 + ||A||_inf * ||x||_inf + ||b||_inf); evaluated "
+            f"against this route's own values only",
+        )
+        gate.residual_bounds.append(
+            {
+                "route": label,
+                "quantity": "true_reduced",
+                "bound_family": "true_reduced",
+                "value": true_value if _finite(true_value) else None,
+                "selected_target": target,
+                "allowance": allowance,
+                "allowance_origin": "recorded by the route",
+                "limit": true_limit,
+                "margin_ratio": (
+                    true_limit / true_value
+                    if _finite(true_value) and true_value > 0.0
+                    else None
+                ),
+                "role": "contractual true reduced residual",
+            }
+        )
+
+        # 2. Weak pressure-row residuals -- the same target plus the *existing
+        #    pressure-row* roundoff allowance, recomputed here per norm. The
+        #    recorded true-residual allowance is deliberately not used.
+        for name, value, role in weak_values:
+            weak_allowance, weak_limit = weak_pressure_row_bound(value, target)
             gate.bounded(
-                f"residuals.{label}.{name}_within_own_target_plus_allowance",
+                f"residuals.{label}.{name}_within_target_plus_pressure_row_allowance",
                 value,
-                limit,
-                f"own selected target {target!r} plus own recorded roundoff "
-                f"allowance {allowance!r}; the bound is the frozen contract's "
-                f"and is evaluated against this route's own values only",
+                weak_limit,
+                f"own selected target {target!r} plus the existing pressure-row "
+                f"roundoff allowance {weak_allowance!r}, recomputed here as "
+                f"4096 * eps * (1 + weak_norm + target) with every gauge term "
+                f"exactly zero because this route's pressure reference is "
+                f"BoundaryTraction with no gauge row, column or multiplier; the "
+                f"route's recorded true-residual allowance is NOT used here",
+            )
+            gate.residual_bounds.append(
+                {
+                    "route": label,
+                    "quantity": name,
+                    "bound_family": "weak_pressure_row",
+                    "value": value if _finite(value) else None,
+                    "selected_target": target,
+                    "allowance": weak_allowance if _finite(weak_allowance) else None,
+                    "allowance_origin": (
+                        "recomputed here from this norm and this target"
+                    ),
+                    "limit": weak_limit if _finite(weak_limit) else None,
+                    "margin_ratio": (
+                        weak_limit / value
+                        if _finite(weak_limit) and _finite(value) and value > 0.0
+                        else None
+                    ),
+                    "role": role,
+                }
             )
 
     # -- BoundaryTraction structure, and the absence of any gauge -----------
@@ -1286,14 +1494,66 @@ def build_report(gate: Gate, geometry: SharedMeshGeometry) -> dict:
         },
         "residual_bound": {
             "note": (
-                "The residual criteria are per route, never cross-route. Each "
-                "route's independently reapplied true residual and its weak "
-                "pressure-row residual are required to be finite and within "
-                "that route's own bound. The two routes solve at different "
-                "working precisions, so neither their residuals nor their "
-                "roundoff allowances are compared with each other."
+                "The residual criteria are per route, never cross-route, and the "
+                "true and the weak residual do NOT share a bound. Each route's "
+                "independently reapplied true reduced residual is bounded by "
+                "that route's own selected target plus that route's own recorded "
+                "true-residual roundoff allowance. Each weak pressure-row "
+                "residual is bounded instead by the same selected target plus "
+                "the existing pressure-row roundoff allowance, recomputed here "
+                "from that norm. The two routes solve at different working "
+                "precisions, so neither their residuals nor their allowances are "
+                "compared with each other."
             ),
-            "bound": "residual <= own_selected_target + own_roundoff_allowance",
+            "domain": (
+                "Every residual, every selected target, every allowance and "
+                "every resulting limit is required to be finite and nonnegative "
+                "before any magnitude is compared. A norm and a roundoff "
+                "allowance cannot be negative, and a negative one is rejected as "
+                "out of domain rather than allowed to satisfy value <= limit."
+            ),
+            "pressure_reference": (
+                "BoundaryTraction on both routes, with no gauge row, gauge "
+                "column, gauge multiplier or ZeroIntegral constraint -- asserted "
+                "structurally in this same run. The existing pressure-row "
+                "allowance therefore has every gauge term exactly zero, which is "
+                "the no-gauge form applied below."
+            ),
+            "true_reduced": {
+                "bound": (
+                    "true_reduced <= own_selected_target + "
+                    "own_recorded_true_residual_roundoff_allowance"
+                ),
+                "allowance": (
+                    "4096 * eps * (1 + ||A||_inf * ||x||_inf + ||b||_inf), "
+                    "evaluated by each route in its own working precision"
+                ),
+                "allowance_origin": (
+                    "read from the route document as recorded; this gate does "
+                    "not recompute it and does not compare the two routes' "
+                    "allowances with each other"
+                ),
+            },
+            "weak_pressure_row": {
+                "bound": "weak_norm <= selected_target + weak_roundoff",
+                "allowance": "weak_roundoff = 4096 * eps * (1 + weak_norm + selected_target)",
+                "allowance_origin": (
+                    "the existing pressure-row roundoff allowance, recomputed "
+                    "here in binary64 for each frozen weak norm. The route's "
+                    "recorded true-residual allowance is NOT used for a weak "
+                    "residual: on this witness it is about 2.9e+07 times looser "
+                    "than the bound the contract names."
+                ),
+                "contractual_norm": (
+                    "the 2-norm of the pressure rows. The Julia route also "
+                    "publishes an inf-norm; it is bounded under the same formula "
+                    "as a diagnostic, and passing it is implied by the 2-norm "
+                    "result because ||r||_inf <= ||r||_2."
+                ),
+                "coefficient": WEAK_ROUNDOFF_COEFFICIENT,
+                "epsilon": EPSILON,
+            },
+            "measured": gate.residual_bounds,
         },
         "checks": {
             "total": len(gate.records),
@@ -1383,7 +1643,20 @@ def main(argv: list[str] | None = None) -> int:
         f"{identity['pressure_selectors_reconstructed']} pressure selectors "
         f"rebuilt from {identity['source']} (no tolerance)"
     )
-    print(f"  {'residual':<12} per route   : {report['residual_bound']['bound']}")
+    bound = report["residual_bound"]
+    print(f"  {'residual':<12} true       : {bound['true_reduced']['bound']}")
+    print(
+        f"  {'residual':<12} weak       : {bound['weak_pressure_row']['bound']}, "
+        f"{bound['weak_pressure_row']['allowance']}"
+    )
+    for measured in bound["measured"]:
+        ratio = measured["margin_ratio"]
+        margin = "n/a" if ratio is None else f"{ratio:.3g}x inside"
+        print(
+            f"  {'':<12} {measured['route']}.{measured['quantity']} = "
+            f"{_rendered(measured['value'])}  limit "
+            f"{_rendered(measured['limit'])}  ({margin})"
+        )
     checks = report["checks"]
     print(
         f"agreement checks: {checks['passed']} passed, {checks['failed']} failed "
