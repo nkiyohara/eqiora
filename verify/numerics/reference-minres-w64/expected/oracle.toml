@@ -1,0 +1,19 @@
+conditioning_integer_sha256 = "8e505379c493dd40e2a82d901e3f79900d8b8e8afb4a05bbfc6ce151dae1114c"
+conditioning_integer_square_sum = 36494167799154161654
+inertia = [32, 32, 0]
+maximum_eigenvalue_magnitude = 65536.0
+minimum_eigenvalue_magnitude = 1.52587890625e-5
+condition_number_2 = 4294967296.0
+krylov_grade = 64
+right_hand_side_norm_2 = 92178.95952054019
+residual_target = 9.217895952054019e-8
+solution_absolute_tolerance = 0.01
+
+matrix_0_0 = 601.2115063667297
+matrix_0_1 = -3450.4550290107727
+right_hand_side_0 = 4809.692050933838
+right_hand_side_1 = -27603.64023208618
+right_hand_side_63 = 4991.29993057251
+
+exact_solution_first = 8.0
+exact_solution_other = 0.0

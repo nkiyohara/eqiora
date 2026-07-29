@@ -126,6 +126,10 @@ impl SolverPlan {
 
     /// Iteration limit or direct-solve work bound.
     ///
+    /// The `eqiora.reference` minimum-residual implementation caps its retained
+    /// full-H projection at the smaller of this value and the operator
+    /// dimension. Other providers interpret this common bound independently.
+    ///
     /// Sparse LU retains this field as part of the common plan identity,
     /// ignores it as a factorization control, and reports at most one completed
     /// factor-and-solve attempt.

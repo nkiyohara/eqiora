@@ -1,0 +1,58 @@
+id = "numerics.reference-minres-w64"
+status = "verified"
+scope = "host-reference-ill-conditioned-symmetric-indefinite-minimum-residual"
+reference_kind = "dual-independent-exact-dyadic-hadamard-oracle"
+
+capabilities = [
+  "full-two-pass-krylov-reorthogonalization",
+  "retained-full-hessenberg-projection",
+  "deferred-minimum-residual-reconstruction",
+  "independently-reapplied-true-residual",
+  "finite-krylov-grade-closure",
+  "plan-limit-failure",
+  "reproducible-reduction-routing",
+]
+
+[problem]
+dimension = 64
+operator = "Q diag(lambda_k) Q^T with a normalized Sylvester-Hadamard Q"
+properties = "exact binary64 symmetric indefinite, inertia (32 positive, 32 negative, 0 zero)"
+condition_number_2 = 4294967296
+exact_solution = "8 e_0"
+solver = "eqiora.reference MinimumResidual, Identity, Reproducible, f64"
+relative_tolerance = 1e-12
+absolute_tolerance = 0.0
+maximum_iterations = 128
+residual_target = 9.217895952054019e-8
+
+[oracle]
+conditioning_integer_sha256 = "8e505379c493dd40e2a82d901e3f79900d8b8e8afb4a05bbfc6ce151dae1114c"
+maximum_eigenvalue_magnitude = 65536
+minimum_eigenvalue_magnitude = 1.52587890625e-5
+krylov_grade = 64
+solution_absolute_tolerance = 0.01
+
+[falsifiers]
+one_pass_reorthogonalization = "recorded inner products must cover both complete passes"
+projected_residual_only = "absolute target 1e-20 must fail on independently reapplied residual at space closure"
+premature_closure = "grade-two invariant subspace accepts at exactly two iterations"
+plan_exhaustion = "grade-64 witness with a 32-iteration plan fails at the plan limit"
+wrong_solution = "every component is compared with the exact 8 e_0 solution under the precommitted forward bound"
+
+[claim_boundary]
+host_serial_f64 = true
+caller_asserted_symmetry = true
+preconditioner = "identity only"
+reduction = "reproducible only"
+full_basis_storage = true
+restart = false
+projected_refinement = false
+direct_factorization = false
+performance_or_scale = false
+distributed_or_accelerator = false
+arbitrary_conditioning = false
+singular_system_or_minres_qlp = false
+
+[evidence]
+package = "eqiora-solver"
+test = "reference_minres_w64"
