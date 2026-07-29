@@ -70,7 +70,7 @@ fn solve_minimum_residual(
         .map_or_else(|| vec![0.0; dimension], <[f64]>::to_vec);
     let mut applied = vec![0.0; dimension];
     execution.apply(problem.operator(), &solution, &mut applied)?;
-    let mut previous_residual = problem
+    let previous_residual = problem
         .right_hand_side()
         .iter()
         .zip(&applied)
@@ -98,82 +98,88 @@ fn solve_minimum_residual(
         return LinearSolution::new(solution, report);
     }
 
-    let mut current_residual = previous_residual.clone();
-    let mut lanczos_image = previous_residual.clone();
-    let mut beta = initial_residual_norm;
-    let mut previous_beta = 0.0;
-    let mut diagonal_bar = 0.0;
-    let mut epsilon = 0.0;
-    let mut residual_projection = initial_residual_norm;
-    let mut cosine = -1.0;
-    let mut sine = 0.0;
-    let mut direction = vec![0.0; dimension];
-    let mut previous_direction = vec![0.0; dimension];
+    let iteration_limit = plan.maximum_iterations().get().min(dimension);
+    let initial_solution = solution.clone();
+    let mut krylov_basis = Vec::with_capacity(iteration_limit);
+    krylov_basis.push(
+        previous_residual
+            .iter()
+            .map(|value| value / initial_residual_norm)
+            .collect::<Vec<_>>(),
+    );
+    let mut rotated_hessenberg = vec![vec![0.0; iteration_limit]; iteration_limit + 1];
+    let mut cosines = vec![0.0; iteration_limit];
+    let mut sines = vec![0.0; iteration_limit];
+    let mut projected_right_hand_side = vec![0.0; iteration_limit + 1];
+    projected_right_hand_side[0] = initial_residual_norm;
+    let mut operator_scale = 0.0_f64;
     let mut reported_residual_norm = initial_residual_norm;
 
-    for iteration in 1..=plan.maximum_iterations().get() {
-        if !beta.is_finite() || beta <= 0.0 {
-            return Err(solve_failed(
-                "MINRES Lanczos normalization broke down before convergence",
-            ));
-        }
-        let basis = lanczos_image
-            .iter()
-            .map(|value| value / beta)
-            .collect::<Vec<_>>();
-        execution.apply(problem.operator(), &basis, &mut applied)?;
-        if iteration >= 2 {
-            let recurrence = beta / previous_beta;
-            for index in 0..dimension {
-                applied[index] -= recurrence * previous_residual[index];
+    for iteration in 1..=iteration_limit {
+        let column = iteration - 1;
+        let current_basis = &krylov_basis[column];
+        execution.apply(problem.operator(), current_basis, &mut applied)?;
+        operator_scale = operator_scale.max(norm(execution, &applied)?);
+
+        // Full two-pass modified Gram-Schmidt retains every finite-precision
+        // projection coefficient. For an asserted symmetric operator this
+        // represents the same exact-arithmetic minimum-residual Krylov method
+        // as tridiagonal Lanczos, without discarding global reorthogonalization
+        // corrections that matter on ill-conditioned reference systems.
+        for _ in 0..2 {
+            for (row, existing_basis) in krylov_basis[..iteration].iter().enumerate() {
+                let correction = dot(execution, existing_basis, &applied)?;
+                rotated_hessenberg[row][column] += correction;
+                for index in 0..dimension {
+                    applied[index] -= correction * existing_basis[index];
+                }
             }
         }
-        let diagonal = dot(execution, &basis, &applied)?;
-        let recurrence = diagonal / beta;
-        for index in 0..dimension {
-            applied[index] -= recurrence * current_residual[index];
-        }
-        previous_residual = current_residual;
-        current_residual = applied.clone();
-        lanczos_image = current_residual.clone();
-        previous_beta = beta;
-        beta = norm(execution, &current_residual)?;
+        require_finite(&applied, "MINRES reorthogonalized Krylov image")?;
+        let next_beta = norm(execution, &applied)?;
+        let closure_tolerance = (dimension as f64) * f64::EPSILON * operator_scale;
+        let space_closed = next_beta <= closure_tolerance;
+        rotated_hessenberg[column + 1][column] = if space_closed { 0.0 } else { next_beta };
 
-        let previous_epsilon = epsilon;
-        let delta = cosine * diagonal_bar + sine * diagonal;
-        let diagonal_rotated = sine * diagonal_bar - cosine * diagonal;
-        epsilon = sine * beta;
-        diagonal_bar = -cosine * beta;
-        let rotation_norm = diagonal_rotated.hypot(beta);
+        for rotation in 0..column {
+            let upper = rotated_hessenberg[rotation][column];
+            let lower = rotated_hessenberg[rotation + 1][column];
+            rotated_hessenberg[rotation][column] =
+                cosines[rotation] * upper + sines[rotation] * lower;
+            rotated_hessenberg[rotation + 1][column] =
+                -sines[rotation] * upper + cosines[rotation] * lower;
+        }
+        let diagonal = rotated_hessenberg[column][column];
+        let subdiagonal = rotated_hessenberg[column + 1][column];
+        let rotation_norm = diagonal.hypot(subdiagonal);
         if !rotation_norm.is_finite() || rotation_norm <= f64::MIN_POSITIVE {
             return Err(solve_failed(
                 "MINRES orthogonal rotation broke down before convergence",
             ));
         }
-        cosine = diagonal_rotated / rotation_norm;
-        sine = beta / rotation_norm;
-        let step_projection = cosine * residual_projection;
-        residual_projection *= sine;
+        cosines[column] = diagonal / rotation_norm;
+        sines[column] = subdiagonal / rotation_norm;
+        rotated_hessenberg[column][column] = rotation_norm;
+        rotated_hessenberg[column + 1][column] = 0.0;
+        let projected_value = projected_right_hand_side[column];
+        projected_right_hand_side[column] = cosines[column] * projected_value;
+        projected_right_hand_side[column + 1] = -sines[column] * projected_value;
+        reported_residual_norm = projected_right_hand_side[column + 1].abs();
+        let next_basis = (iteration < iteration_limit && !space_closed)
+            .then(|| applied.iter().map(|value| value / next_beta).collect());
 
-        let older_direction =
-            std::mem::replace(&mut previous_direction, std::mem::take(&mut direction));
-        direction = (0..dimension)
-            .map(|index| {
-                (basis[index]
-                    - previous_epsilon * older_direction[index]
-                    - delta * previous_direction[index])
-                    / rotation_norm
-            })
-            .collect();
-        for index in 0..dimension {
-            solution[index] += step_projection * direction[index];
-        }
-        require_finite(&solution, "MINRES solution")?;
-        reported_residual_norm = residual_projection.abs();
-        if reported_residual_norm <= target {
+        if reported_residual_norm <= target || space_closed || iteration == iteration_limit {
+            solution = reconstruct_minimum_residual_solution(
+                &initial_solution,
+                &krylov_basis,
+                &rotated_hessenberg,
+                &projected_right_hand_side,
+                iteration,
+            )?;
+            require_finite(&solution, "MINRES solution")?;
             let true_residual_norm =
                 true_residual_norm(execution, problem, &solution, &mut applied)?;
-            if true_residual_norm <= target {
+            if reported_residual_norm <= target && true_residual_norm <= target {
                 let report = SolveReport::accepted(
                     provider,
                     execution.provider(),
@@ -189,21 +195,56 @@ fn solve_minimum_residual(
                 )?;
                 return LinearSolution::new(solution, report);
             }
+            if space_closed {
+                return Err(solve_failed(format!(
+                    "MINRES Krylov space closed at iteration {iteration} with operator scale {operator_scale:e} and true residual {true_residual_norm:e} above target {target:e}"
+                )));
+            }
         }
-        if beta == 0.0 {
-            let true_residual_norm =
-                true_residual_norm(execution, problem, &solution, &mut applied)?;
-            return Err(solve_failed(format!(
-                "MINRES Lanczos space closed with true residual {true_residual_norm:e} above target {target:e}"
-            )));
+        if let Some(next_basis) = next_basis {
+            krylov_basis.push(next_basis);
         }
     }
 
     let true_residual_norm = true_residual_norm(execution, problem, &solution, &mut applied)?;
+    if iteration_limit < plan.maximum_iterations().get() {
+        return Err(solve_failed(format!(
+            "MINRES exhausted the {dimension}-dimensional Krylov basis without stable space closure: reported residual {reported_residual_norm:e}, true residual {true_residual_norm:e}, target {target:e}"
+        )));
+    }
     Err(solve_failed(format!(
         "MINRES reached {} iterations: reported residual {reported_residual_norm:e}, true residual {true_residual_norm:e}, target {target:e}",
         plan.maximum_iterations()
     )))
+}
+
+fn reconstruct_minimum_residual_solution(
+    initial_solution: &[f64],
+    basis: &[Vec<f64>],
+    rotated_hessenberg: &[Vec<f64>],
+    projected_right_hand_side: &[f64],
+    iterations: usize,
+) -> Result<Vec<f64>, Diagnostic> {
+    let mut coefficients = projected_right_hand_side[..iterations].to_vec();
+    for row in (0..iterations).rev() {
+        for column in row + 1..iterations {
+            coefficients[row] -= rotated_hessenberg[row][column] * coefficients[column];
+        }
+        let diagonal = rotated_hessenberg[row][row];
+        if !diagonal.is_finite() || diagonal.abs() <= f64::MIN_POSITIVE {
+            return Err(solve_failed("MINRES projected triangular solve broke down"));
+        }
+        coefficients[row] /= diagonal;
+    }
+    require_finite(&coefficients, "MINRES projected coefficients")?;
+
+    let mut solution = initial_solution.to_vec();
+    for (coefficient, basis_vector) in coefficients.iter().zip(&basis[..iterations]) {
+        for (solution, basis_value) in solution.iter_mut().zip(basis_vector) {
+            *solution += coefficient * basis_value;
+        }
+    }
+    Ok(solution)
 }
 
 fn solve_preconditioned_conjugate_gradient(
@@ -425,11 +466,19 @@ fn solve_failed(message: impl Into<String>) -> Diagnostic {
 }
 
 #[cfg(test)]
+#[path = "reference_w64_fixture.rs"]
+mod reference_w64_fixture;
+
+#[cfg(test)]
 mod tests {
     use std::num::NonZeroUsize;
 
+    use super::reference_w64_fixture::{
+        HADAMARD_CONDITIONING_INTEGERS, HadamardConditionedSymmetricIndefinite, RecordingExecution,
+        right_hand_side as hadamard_witness_right_hand_side,
+    };
     use super::*;
-    use crate::{LinearOperator, LinearOperatorProperties, LinearSolver};
+    use crate::{LinearOperator, LinearOperatorProperties, LinearSolver, ReductionPolicy};
 
     #[derive(Debug)]
     struct DenseSpd;
@@ -644,6 +693,149 @@ mod tests {
                 .code(),
             codes::INVALID_REALIZATION
         );
+    }
+
+    #[test]
+    fn reference_minres_solves_the_hadamard_conditioned_indefinite_witness() {
+        let operator = HadamardConditionedSymmetricIndefinite;
+        let right_hand_side = hadamard_witness_right_hand_side();
+        let mut first_column = [0.0; 64];
+        let mut first_basis = [0.0; 64];
+        first_basis[0] = 1.0;
+        operator.apply(&first_basis, &mut first_column).unwrap();
+
+        assert_eq!(HADAMARD_CONDITIONING_INTEGERS[0], 1);
+        assert_eq!(HADAMARD_CONDITIONING_INTEGERS[63], 1_u64 << 32);
+        assert_eq!(first_column[0], 601.211_506_366_729_7);
+        assert_eq!(first_column[1], -3_450.455_029_010_772_7);
+        assert_eq!(right_hand_side[0], 4_809.692_050_933_838);
+        assert_eq!(right_hand_side[1], -27_603.640_232_086_18);
+        assert_eq!(right_hand_side[63], 4_991.299_930_572_51);
+
+        let problem = LinearProblem::new(
+            &operator,
+            &right_hand_side,
+            LinearOperatorProperties::SymmetricIndefinite,
+        )
+        .unwrap();
+        let plan = SolverPlan::new(
+            LinearSolver::MinimumResidual,
+            1.0e-12,
+            0.0,
+            NonZeroUsize::new(128).unwrap(),
+        )
+        .unwrap();
+        let solution = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap();
+
+        assert!(solution.report().completed_iterations() <= 64);
+        assert!((solution.report().residual_target() - 9.217_895_952_054_019e-8).abs() < 2.0e-20);
+        assert!(solution.report().true_residual_norm() <= solution.report().residual_target());
+        assert!((solution.values()[0] - 8.0).abs() <= 0.01);
+        assert!(
+            solution.values()[1..]
+                .iter()
+                .all(|value| value.abs() <= 0.01)
+        );
+        assert_eq!(solution.report().algorithm(), LinearSolver::MinimumResidual);
+        assert_eq!(
+            solution.report().preconditioner(),
+            PreconditionerPolicy::Identity
+        );
+        assert_eq!(solution.report().reduction(), ReductionPolicy::Reproducible);
+        assert_eq!(solution.report().backend().as_str(), "eqiora.reference");
+    }
+
+    #[test]
+    fn reference_minres_fails_closed_below_the_attainable_floor() {
+        let operator = HadamardConditionedSymmetricIndefinite;
+        let right_hand_side = hadamard_witness_right_hand_side();
+        let problem = LinearProblem::new(
+            &operator,
+            &right_hand_side,
+            LinearOperatorProperties::SymmetricIndefinite,
+        )
+        .unwrap();
+        let plan = SolverPlan::new(
+            LinearSolver::MinimumResidual,
+            0.0,
+            1.0e-20,
+            NonZeroUsize::new(128).unwrap(),
+        )
+        .unwrap();
+        let error = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap_err();
+
+        assert_eq!(error.code(), codes::NUMERICAL_SOLVE_FAILED);
+        assert!(error.message().contains("Krylov space closed"));
+        assert!(!error.message().contains("reached 128 iterations"));
+    }
+
+    #[test]
+    fn reference_minres_deflates_an_invariant_krylov_space_without_early_exit() {
+        #[derive(Debug)]
+        struct GradeTwoIndefinite;
+
+        impl LinearOperator for GradeTwoIndefinite {
+            fn rows(&self) -> usize {
+                3
+            }
+
+            fn columns(&self) -> usize {
+                3
+            }
+
+            fn apply(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+                output[0] = input[0];
+                output[1] = -input[1];
+                output[2] = 4.0 * input[2];
+                Ok(())
+            }
+        }
+
+        let problem = LinearProblem::new(
+            &GradeTwoIndefinite,
+            &[3.0, 5.0, 0.0],
+            LinearOperatorProperties::SymmetricIndefinite,
+        )
+        .unwrap();
+        let plan = SolverPlan::new(
+            LinearSolver::MinimumResidual,
+            1.0e-12,
+            0.0,
+            NonZeroUsize::new(10).unwrap(),
+        )
+        .unwrap();
+        let solution = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap();
+
+        assert_eq!(solution.report().completed_iterations(), 2);
+        for (actual, expected) in solution.values().iter().zip([3.0, -5.0, 0.0]) {
+            assert!((actual - expected).abs() <= 1.0e-13);
+        }
+    }
+
+    #[test]
+    fn reference_minres_routes_reorthogonalization_through_the_execution() {
+        let operator = HadamardConditionedSymmetricIndefinite;
+        let right_hand_side = hadamard_witness_right_hand_side();
+        let problem = LinearProblem::new(
+            &operator,
+            &right_hand_side,
+            LinearOperatorProperties::SymmetricIndefinite,
+        )
+        .unwrap();
+        let plan = SolverPlan::new(
+            LinearSolver::MinimumResidual,
+            1.0e-12,
+            0.0,
+            NonZeroUsize::new(128).unwrap(),
+        )
+        .unwrap();
+        let execution = RecordingExecution::default();
+        let solution = REFERENCE_LINEAR_SOLVER
+            .solve_with_execution(&problem, plan, &execution)
+            .unwrap();
+        let iterations = solution.report().completed_iterations();
+
+        assert!(execution.inner_products() >= iterations * (iterations + 1) / 2);
     }
 
     #[test]
