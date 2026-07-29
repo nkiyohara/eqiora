@@ -252,7 +252,10 @@ impl UnstructuredP1ScalarFieldProjection2d {
         &self.vertices_m
     }
 
-    /// Complete positively oriented connectivity in canonical mesh-cell order.
+    /// Complete connectivity in canonical mesh-cell order.
+    ///
+    /// Positive orientation and index validity are inherited from the
+    /// admitted [`eqiora_meshing::SimplicialMesh`] held by the fixed context.
     #[must_use]
     pub fn triangles(&self) -> &[[u32; 3]] {
         &self.triangles

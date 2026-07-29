@@ -284,6 +284,46 @@ describe("unstructured P1 scalar session", () => {
     });
   });
 
+  it("accepts equivalent signed-zero extrema and rejects non-finite triangle area", async () => {
+    const zeroContext = {
+      ...context(),
+      field: { ...context().field, maximum: 0 },
+    };
+    const zeroDescriptor = {
+      ...descriptor(),
+      field: { ...descriptor().field, maximum: 0 },
+    };
+    expect(
+      await new UnstructuredFieldDataSession(
+        bridge(zeroDescriptor, { values: new Float64Array([0, -0, 0, -0]) }),
+      ).load(zeroContext),
+    ).toMatchObject({ kind: "ready" });
+
+    const enormousBounds: [[number, number], [number, number]] = [
+      [-1e308, 1e308],
+      [-1e308, 1e308],
+    ];
+    const enormousContext = {
+      ...context(),
+      domain: { ...context().domain, boundsM: enormousBounds },
+    };
+    const enormousDescriptor = {
+      ...descriptor(),
+      domain: { ...descriptor().domain, boundsM: enormousBounds },
+    };
+    const enormousCoordinates = new Float64Array([
+      -1e308, -1e308, 1e308, -1e308, 1e308, 1e308, -1e308, 1e308,
+    ]);
+    expect(
+      await new UnstructuredFieldDataSession(
+        bridge(enormousDescriptor, { coordinates: enormousCoordinates }),
+      ).load(enormousContext),
+    ).toMatchObject({
+      kind: "failed",
+      failure: { code: "connectivity-invalid" },
+    });
+  });
+
   it("rejects missing, reordered, short, non-finite and bounds-drifted streams", async () => {
     const missing: UnstructuredFieldDataBridge = {
       open: bridge().open,

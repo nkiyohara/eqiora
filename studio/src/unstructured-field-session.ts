@@ -493,7 +493,7 @@ function validateCompletedStream(
         a === b ||
         b === c ||
         c === a ||
-        orientedAreaTwice(coordinates, a, b, c) <= 0
+        !(orientedAreaTwice(coordinates, a, b, c) > 0)
       ) {
         return {
           code: "connectivity-invalid",
@@ -507,8 +507,8 @@ function validateCompletedStream(
     const extrema = values === null ? null : finiteExtrema(values);
     if (
       extrema === null ||
-      !Object.is(extrema.minimum, descriptor.field.minimum) ||
-      !Object.is(extrema.maximum, descriptor.field.maximum)
+      extrema.minimum !== descriptor.field.minimum ||
+      extrema.maximum !== descriptor.field.maximum
     ) {
       return {
         code: "field-range-mismatch",

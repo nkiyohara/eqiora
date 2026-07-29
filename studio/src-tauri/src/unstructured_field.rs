@@ -344,21 +344,12 @@ impl UnstructuredFieldCache {
         projection: UnstructuredP1ScalarFieldProjection2d,
     ) -> Result<(), ProjectionError> {
         let field = CachedUnstructuredField::new(projection);
-        if self
-            .entries
-            .iter()
-            .any(|entry| entry.identity == field.identity)
-        {
-            return Err(Box::new(studio_error(
-                "ST0007",
-                "the unstructured field-view cache already retains this exact projection",
-            )));
-        }
-        self.entries.push_back(field);
-        while self.entries.len() > MAX_RETAINED_FIELDS {
-            self.entries.pop_front();
-        }
-        Ok(())
+        retain_unique_bounded(
+            &mut self.entries,
+            field,
+            MAX_RETAINED_FIELDS,
+            |retained, candidate| retained.identity == candidate.identity,
+        )
     }
 
     fn open(
@@ -391,6 +382,29 @@ impl UnstructuredFieldCache {
                 ))
             })
     }
+}
+
+fn retain_unique_bounded<T>(
+    entries: &mut VecDeque<T>,
+    candidate: T,
+    maximum: usize,
+    same_identity: impl Fn(&T, &T) -> bool,
+) -> Result<(), ProjectionError> {
+    debug_assert!(maximum > 0);
+    if entries
+        .iter()
+        .any(|retained| same_identity(retained, &candidate))
+    {
+        return Err(Box::new(studio_error(
+            "ST0007",
+            "the unstructured field-view cache already retains this exact projection",
+        )));
+    }
+    entries.push_back(candidate);
+    while entries.len() > maximum {
+        entries.pop_front();
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -657,5 +671,19 @@ mod tests {
             &(ITEMS_PER_CHUNK as f64).to_le_bytes()
         );
         assert!(encode_f64_values(&values, FieldStream::Values, 2).is_err());
+    }
+
+    #[test]
+    fn bounded_cache_policy_rejects_duplicates_and_evicts_the_oldest_entry() {
+        let mut entries = VecDeque::new();
+        retain_unique_bounded(&mut entries, 1, 2, PartialEq::eq).unwrap();
+        retain_unique_bounded(&mut entries, 2, 2, PartialEq::eq).unwrap();
+
+        let duplicate = retain_unique_bounded(&mut entries, 2, 2, PartialEq::eq).unwrap_err();
+        assert_eq!(duplicate.code, "ST0007");
+        assert_eq!(entries, VecDeque::from([1, 2]));
+
+        retain_unique_bounded(&mut entries, 3, 2, PartialEq::eq).unwrap();
+        assert_eq!(entries, VecDeque::from([2, 3]));
     }
 }
