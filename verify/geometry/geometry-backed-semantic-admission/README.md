@@ -21,9 +21,11 @@ artifact defines that name; the mirrored boundary on the defining artifact is
 valid. Other falsifiers cover missing, unreferenced, duplicate, and permuted
 bundles; declaration-only references; reversed region/boundary dimensions;
 multiple regions sharing one digest; spatial extent mismatch; and the absence
-of a non-Cartesian boundary embedding contract for Relations and physical
-Ports. Thus no accepted consumer observes the internally derived boundary
-support dimension in this slice.
+of a non-Cartesian boundary embedding contract for physical Ports. A continuous
+Relation may now consume the admitted boundary support; the sibling
+[`geometry-boundary-relation-scope`](../geometry-boundary-relation-scope/README.md)
+case owns that acceptance and its exact boundary. Boundary-physical Ports remain
+rejected.
 
 Run:
 

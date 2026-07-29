@@ -36,6 +36,10 @@ commands, and limitations. Execution is shell-free and fail-fast. An absent
 tool, unsupported environment, failed child process, malformed manifest, or
 unknown path never becomes a silent pass.
 
+A newly added directory under `verify/` is path-selected before manifest
+discovery can name its case. Land its valid `case.toml` in the same change as
+the first evidence files so `fast` and `affected` never plan an unknown case.
+
 The verification planner establishes patch correctness evidence; an optional
 implementation-agent identifier is separate provenance. When the final
 pull-request body supplies one, run the protected-base check:

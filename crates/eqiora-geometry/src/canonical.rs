@@ -12,7 +12,9 @@ use eqiora_core::diagnostic::codes;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{CanonicalCircularHoleGeometryV1, NamedEntitySet, PlanarFace, PlanarRegion};
+use crate::{
+    CanonicalCircularHoleGeometryV1, EDGE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion,
+};
 
 const GEOMETRY_DEFINITION_SCHEMA: &str = "eqiora.geometry-definition-envelope/v1";
 pub(crate) const CANONICAL_ENCODING: &str = "eqiora.canonical-json/v1";
@@ -148,6 +150,33 @@ impl CanonicalGeometryRef<'_> {
             CanonicalGeometryKindRef::CircularHolePlanarV1(geometry) => {
                 geometry.entity_set(name).map(NamedEntitySet::dimension)
             }
+        }
+    }
+
+    /// Exact constant parent-outward normal of one supported boundary set.
+    ///
+    /// The first curved family exposes a normal only when the named set is one
+    /// exact rectangle side. A circular member, a multi-side group, and every
+    /// straight-edged or unknown geometry family return `None`; callers must
+    /// not infer a catalogue from entity indices themselves.
+    #[must_use]
+    pub fn constant_parent_outward_normal(self, name: &str) -> Option<[f64; 2]> {
+        let CanonicalGeometryKindRef::CircularHolePlanarV1(geometry) = self.kind else {
+            return None;
+        };
+        let set = geometry.entity_set(name)?;
+        if set.dimension() != EDGE_DIMENSION {
+            return None;
+        }
+        let [boundary] = set.members() else {
+            return None;
+        };
+        match boundary {
+            0 => Some([-1.0, 0.0]),
+            1 => Some([1.0, 0.0]),
+            2 => Some([0.0, -1.0]),
+            3 => Some([0.0, 1.0]),
+            _ => None,
         }
     }
 }

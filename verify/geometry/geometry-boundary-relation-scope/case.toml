@@ -1,0 +1,56 @@
+id = "geometry.geometry-boundary-relation-scope"
+status = "verified"
+scope = "admitted-geometry-boundary-relation-scope-and-two-exact-constant-side-normals"
+reference_kind = "independent-symbolic-parent-relative-admission-and-normal-rule-oracle"
+
+capabilities = [
+  "admitted-geometry-boundary-relation-scope",
+  "parent-relative-boundary-entity-set-resolution",
+  "exact-circular-hole-inlet-outlet-constant-normal-projection",
+]
+
+[problem]
+relation = "one continuous Relation scoped to an admitted GeometryBoundary"
+parent = "the exact GeometryRegion and artifact selected by BoundaryOf"
+normals = "exact circular-hole family inlet [-1.0, 0.0] and outlet [1.0, 0.0]"
+
+[oracle]
+source = "standalone symbolic Python rule model authored before production implementation"
+contract_sha256 = "6dc106a8fe682b998c05bfd03eb75240f8904e57e988cdde08f4ff21499706ac"
+requirements = 16
+scenarios = 15
+accepted = 8
+rejected = 7
+
+[acceptance]
+relation_scope_requires_exact_parent_artifact_admission = true
+entity_set_dimension_is_parent_topological_dimension_minus_one = true
+artifact_bundle_order_independent = true
+inlet_parent_outward_normal = "[-1.0, 0.0]"
+outlet_parent_outward_normal = "[1.0, 0.0]"
+
+[falsifiers]
+absent_foreign_or_wrong_dimension_set = "reject-with-existing-EQ0302"
+wrong_parent_kind = "reject-with-existing-EQ0302"
+missing_parent_artifact = "reject-with-existing-EQ0901"
+artifact_free_relation = "reject-with-unchanged-EQ0302-text"
+geometry_boundary_physical_port = "reject-with-unchanged-EQ0302-text"
+multi_edge_walls = "accept-relation-without-single-normal"
+curved_cylinder = "accept-relation-without-single-normal"
+straight_edged_family = "accept-relation-without-single-normal"
+
+[claim_boundary]
+continuous_relation_scope = true
+exact_parent_relative_entity_set_admission = true
+exact_circular_hole_inlet_outlet_normals = true
+geometry_boundary_physical_port = false
+general_boundary_embedding = false
+circular_multi_edge_or_per_member_normal_catalogue = false
+curved_trace_space = false
+mesh_realization_or_solver_lowering = false
+embedded_manifold_or_3d = false
+cylinder_demo = false
+
+[evidence]
+package = "eqiora"
+test = "geometry_backed_semantic_admission"

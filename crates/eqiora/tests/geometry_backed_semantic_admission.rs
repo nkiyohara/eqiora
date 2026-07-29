@@ -395,6 +395,52 @@ fn independent_exact_circular_hole_identity_enters_the_same_admission_seam() {
 }
 
 #[test]
+fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
+    let oracle = Command::new("python3")
+        .arg(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
+                "../../verify/geometry/geometry-boundary-relation-scope/oracle/boundary_scope_oracle.py",
+            ),
+        )
+        .output()
+        .expect("independent boundary-scope oracle executes");
+    assert!(
+        oracle.status.success(),
+        "independent boundary-scope oracle failed: {}",
+        String::from_utf8_lossy(&oracle.stderr)
+    );
+    let oracle_output = String::from_utf8(oracle.stdout).expect("oracle emits UTF-8");
+    assert!(oracle_output.contains("registration=registered"));
+    assert!(oracle_output.ends_with("OK\n"));
+
+    let geometry = circular_hole_witness();
+    let reference = CanonicalGeometryRef::from(&geometry);
+    assert_eq!(
+        reference.constant_parent_outward_normal("inlet"),
+        Some([-1.0, 0.0])
+    );
+    assert_eq!(
+        reference.constant_parent_outward_normal("outlet"),
+        Some([1.0, 0.0])
+    );
+    assert_eq!(reference.constant_parent_outward_normal("walls"), None);
+    assert_eq!(reference.constant_parent_outward_normal("cylinder"), None);
+    assert_eq!(reference.constant_parent_outward_normal("fluid"), None);
+    assert_eq!(reference.constant_parent_outward_normal("absent"), None);
+
+    let straight_edged = square_with_hole();
+    let straight_reference = CanonicalGeometryRef::from(&straight_edged);
+    assert_eq!(
+        straight_reference.constant_parent_outward_normal("exterior"),
+        None
+    );
+    assert_eq!(
+        straight_reference.constant_parent_outward_normal("hole"),
+        None
+    );
+}
+
+#[test]
 fn exact_circular_hole_external_admission_and_falsifiers_are_registered_evidence() {
     let geometry = circular_hole_witness();
     let bytes = geometry.canonical_bytes();
@@ -1002,16 +1048,19 @@ fn geometry_boundary_port_requires_an_embedding_contract_even_after_admission() 
 }
 
 #[test]
-fn derived_geometry_boundary_support_has_no_admitted_consumer_yet() {
-    let geometry = square_with_hole();
+fn admitted_geometry_boundary_support_accepts_relation_scope_only() {
+    let geometry = circular_hole_witness();
     let region = Id::new();
     let boundary = Id::new();
+    let representation = Id::new();
+    let field = Id::new();
     let relation = Id::new();
     let activation = Id::new();
     let mut expression = ExprDagBuilder::new();
-    let zero = expression
-        .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
-        .expect("constant");
+    let field_value = expression
+        .symbol(SymbolRef::Field(field))
+        .expect("Field symbol");
+    let trace = expression.trace(field_value).expect("boundary trace");
     let (store, model) = committed_model(
         "geometry boundary Relation",
         vec![
@@ -1023,33 +1072,52 @@ fn derived_geometry_boundary_support_has_no_admitted_consumer_yet() {
                 )
                 .expect("region"),
             ),
-            KernelNode::from(DomainDef::geometry_boundary(boundary, "hole").expect("boundary")),
+            KernelNode::from(DomainDef::geometry_boundary(boundary, "cylinder").expect("boundary")),
+            KernelNode::from(RepresentationDef::continuum(representation)),
+            KernelNode::from(
+                FieldDef::shaped(
+                    field,
+                    DimExponents::DIMENSIONLESS,
+                    ValueShape::new([2]).expect("two-component vector"),
+                    ValueFrame::SpatialCartesian,
+                )
+                .expect("spatial Field"),
+            ),
             KernelNode::from(RelationDef::new(
                 relation,
-                expression.finish([zero]).expect("constant residual"),
+                expression.finish([trace]).expect("trace residual"),
             )),
             KernelNode::from(ActivationDef::continuous(activation)),
         ],
         [
             (boundary.erase(), region.erase(), EdgeKind::BoundaryOf),
+            (field.erase(), region.erase(), EdgeKind::DefinedOn),
+            (field.erase(), representation.erase(), EdgeKind::DefinedOn),
             (relation.erase(), boundary.erase(), EdgeKind::AppliesOn),
+            (relation.erase(), field.erase(), EdgeKind::DependsOn),
             (activation.erase(), relation.erase(), EdgeKind::Activates),
         ],
     );
-    let diagnostics = KernelProgram::from_snapshot_with_geometry(
+    let program = KernelProgram::from_snapshot_with_geometry(
         &store.snapshot(),
         model,
         &[CanonicalGeometryRef::from(&geometry)],
     )
-    .expect_err("a set dimension alone cannot define boundary expression embedding");
-    let embedding = diagnostics
+    .expect("artifact admission proves the exact boundary Relation scope");
+    program
+        .typed_relation_residual(relation)
+        .expect("the admitted boundary support remains available to typing");
+
+    let diagnostics = KernelProgram::from_snapshot(&store.snapshot(), model)
+        .expect_err("artifact-free boundary Relations remain rejected");
+    let admission = diagnostics
         .iter()
         .find(|diagnostic| {
             diagnostic.message()
-                == "Relation spatial scope on a geometry boundary Domain requires a non-Cartesian boundary embedding contract"
+                == "Relation spatial scope from a geometry Domain requires artifact admission"
         })
-        .expect("no consumer observes the derived boundary-support dimension");
-    assert_diagnostic_at(embedding, relation.erase());
+        .expect("the artifact-free entry keeps its exact diagnostic");
+    assert_diagnostic_at(admission, relation.erase());
 }
 
 #[test]
