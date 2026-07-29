@@ -428,6 +428,19 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
     assert_eq!(reference.constant_parent_outward_normal("fluid"), None);
     assert_eq!(reference.constant_parent_outward_normal("absent"), None);
 
+    let multi_edge_inlet = circular_hole_with(
+        [[0.0, 2.2], [0.0, 0.41]],
+        [0.2, 0.2],
+        0.05,
+        vec![NamedEntitySet::new("inlet", EDGE_DIMENSION, vec![0, 2])],
+        1.0e-12,
+    )
+    .expect("two-member inlet remains valid exact geometry");
+    assert_eq!(
+        CanonicalGeometryRef::from(&multi_edge_inlet).constant_parent_outward_normal("inlet"),
+        None
+    );
+
     let straight_edged = square_with_hole();
     let straight_reference = CanonicalGeometryRef::from(&straight_edged);
     assert_eq!(
@@ -436,6 +449,23 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
     );
     assert_eq!(
         straight_reference.constant_parent_outward_normal("hole"),
+        None
+    );
+
+    let straight_inlet = PlanarRegion::new(
+        vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+        vec![PlanarFace::new(vec![0, 1, 2, 3], Vec::new())],
+        vec![
+            NamedEntitySet::new("inlet", EDGE_DIMENSION, vec![0]),
+            NamedEntitySet::new("fluid", FACE_DIMENSION, vec![0]),
+        ],
+        0.0625,
+    )
+    .expect("straight-edged single-member inlet remains valid");
+    let straight_inlet =
+        CanonicalGeometryV1::from_region(&straight_inlet).expect("canonical straight inlet");
+    assert_eq!(
+        CanonicalGeometryRef::from(&straight_inlet).constant_parent_outward_normal("inlet"),
         None
     );
 }
