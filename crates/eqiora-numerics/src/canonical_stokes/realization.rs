@@ -949,5 +949,5 @@ fn invalid_realization(message: impl Into<String>) -> Diagnostic {
 }
 
 #[cfg(test)]
-#[path = "realization_tests.rs"]
+#[path = "realization/tests.rs"]
 mod tests;

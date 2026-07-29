@@ -146,7 +146,7 @@ impl SteadyStokesGeometryBinding2d {
             .ok_or_else(|| invalid(format!("geometry binding has no entity set named `{name}`")))
     }
 
-    fn mesh_reference(&self) -> Result<eqiora_realization::MeshArtifactReference, Diagnostic> {
+    fn mesh_reference(&self) -> Result<MeshArtifactReference, Diagnostic> {
         self.mesh.artifact_reference()
     }
 }
@@ -269,7 +269,7 @@ fn geometry_boundary(
     model: &SteadyIncompressibleStokesModel2d,
     binding: &SteadyStokesGeometryBinding2d,
     normalized: &SimplicialMesh,
-    scales: super::realization::SteadyStokesScaleProfile2d,
+    scales: SteadyStokesScaleProfile2d,
 ) -> Result<GeometryBoundary2d, Diagnostic> {
     let mut facet_owners = BTreeMap::new();
     let mut fixed_velocity = vec![None; normalized.vertices().len()];
