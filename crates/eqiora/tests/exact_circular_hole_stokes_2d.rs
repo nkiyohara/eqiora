@@ -13,6 +13,10 @@ use eqiora::geometry::{
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{BoundarySide, DomainDef, DomainKind, KernelNode};
 use eqiora::meshing::{MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh};
+use eqiora::numerics::{
+    IncompressibleFlowScaleProfile2d, SteadyStokesGeometryBinding2d, SteadyStokesMiniSolution2d,
+    solve_resolved_steady_stokes_geometry_mini_2d,
+};
 use eqiora::ontology::ModelView;
 use eqiora::realization::{
     DiscretizationMethod, FieldwiseRealizationRequest, MeshKind, RealizationCapabilities,
@@ -25,10 +29,7 @@ use eqiora::solver::{
 };
 use eqiora::{Diagnostic, DimExponents, DynQuantity};
 use eqiora_backend_faer::FaerLinearSolver;
-use eqiora_numerics::fluid::{
-    IncompressibleFlowScaleProfile2d, SteadyStokesGeometryBinding2d, SteadyStokesMiniSolution2d,
-    SteadyStokesPressureReference2d, solve_resolved_steady_stokes_geometry_mini_2d,
-};
+use eqiora_numerics::fluid::SteadyStokesPressureReference2d;
 use serde::Deserialize;
 
 const SOURCE: &str = r#"
