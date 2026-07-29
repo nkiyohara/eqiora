@@ -171,9 +171,11 @@ pub mod numerics {
         finalize_resolved_fixed_topology_ale_fsi_2d, lower_ale_fsi_cartesian_2d,
     };
     pub use eqiora_numerics::fluid::{
-        FinalizedSteadyStokesMini2dProblem, SteadyIncompressibleStokesCartesianModel2d,
+        FinalizedSteadyStokesMini2dProblem, IncompressibleFlowScaleProfile2d,
+        SteadyIncompressibleStokesCartesianModel2d, SteadyStokesGeometryBinding2d,
         SteadyStokesMiniSolution2d, finalize_resolved_steady_stokes_mini_2d,
-        lower_steady_incompressible_stokes_cartesian_2d, solve_resolved_steady_stokes_mini_2d,
+        lower_steady_incompressible_stokes_cartesian_2d,
+        solve_resolved_steady_stokes_geometry_mini_2d, solve_resolved_steady_stokes_mini_2d,
     };
     pub use eqiora_numerics::fsi::{
         FinalizedResolvedFixedReferenceFsiStep2d, FixedReferenceFsiCartesianModel2d,
