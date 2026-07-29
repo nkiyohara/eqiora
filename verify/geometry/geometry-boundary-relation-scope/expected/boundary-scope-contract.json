@@ -1,0 +1,132 @@
+{
+  "schema": "eqiora.evidence.geometry-boundary-relation-scope/v1",
+  "issue": 129,
+  "base_revision": "a5c122f550fbd3e2b83c6b7745a1deb7fbb0b200",
+  "registration": {"case_toml_present": false, "discovered_by_eqiora_verify": false,
+    "proposed_case_id": "geometry.geometry-boundary-relation-scope"},
+  "fixture_note": "A, B and C are opaque stand-ins bound to real artifacts by the implementing lane. No canonical bytes, length or digest appear here.",
+  "dimensions": {"ambient": 2, "topological": 2},
+
+  "members": [
+    ["S-xlo", "straight-axis-side", 0, "lower"],
+    ["S-xhi", "straight-axis-side", 0, "upper"],
+    ["S-ylo", "straight-axis-side", 1, "lower"],
+    ["S-yhi", "straight-axis-side", 1, "upper"],
+    ["H-circle", "curved-hole", null, null],
+    ["F-face", "face", null, null]
+  ],
+
+  "artifacts": {
+    "A": {"family": "circular-hole-planar-v1", "sets": [
+      ["fluid", 2, ["F-face"]], ["inlet", 1, ["S-xlo"]], ["outlet", 1, ["S-xhi"]],
+      ["walls", 1, ["S-ylo", "S-yhi"]], ["cylinder", 1, ["H-circle"]], ["spare", 1, ["S-yhi"]]]},
+    "B": {"family": "circular-hole-planar-v1", "sets": [
+      ["fluid", 2, ["F-face"]], ["inlet", 1, ["S-ylo", "S-yhi"]], ["notch", 1, ["S-xhi", "S-yhi"]]]},
+    "C": {"family": "straight-edged-planar-v1", "sets": [
+      ["fluid", 2, ["F-face"]], ["inlet", 1, ["S-xlo"]], ["hole", 1, ["S-ylo"]]]}
+  },
+
+  "normal_rule": {
+    "necessary": ["family", "admitted", "member-count", "curved-member"],
+    "frozen_pairs": [["A", "inlet", [-1.0, 0.0]], ["A", "outlet", [1.0, 0.0]]],
+    "orientation": "parent-outward unit normal of the parent region",
+    "outside_frozen_pairs": "unfrozen if every necessary condition holds, else none",
+    "reasons": ["family", "member-count", "curved-member"]
+  },
+
+  "detectors": {
+    "bundle": "closed-bundle-index",
+    "topology": "domain-topology-validation",
+    "set-admission": "geometry-boundary-entity-set-admission",
+    "support-use": "geometry-support-use-validation"
+  },
+
+  "diagnostics_authored_by": "pre-existing",
+  "new_diagnostic_texts": [],
+  "diagnostics": {
+    "absent-notch": ["EQ0302", "geometry boundary entity set `notch` is absent from its parent artifact"],
+    "dim-fluid": ["EQ0302", "geometry boundary entity set `fluid` has dimension 2, expected 1"],
+    "parent-kind": ["EQ0302", "geometry boundary parent must be a geometry region Domain"],
+    "missing-artifact": ["EQ0901", "missing canonical geometry artifact ", "prefix"],
+    "port-embedding": ["EQ0302", "boundary-physical Port support on a geometry Domain requires a non-Cartesian boundary embedding contract"],
+    "free-relation": ["EQ0302", "Relation spatial scope from a geometry Domain requires artifact admission"]
+  },
+
+  "programs": {
+    "P-A": [true, ["A"], [["region-a", "A", "fluid"]]],
+    "P-B": [true, ["B"], [["region-b", "B", "fluid"]]],
+    "P-C": [true, ["C"], [["region-c", "C", "fluid"]]],
+    "P-AB": [true, ["A", "B"], [["region-a", "A", "fluid"], ["region-b", "B", "fluid"]]],
+    "P-NOBUN": [true, [], [["region-a", "A", "fluid"]]],
+    "P-FREE": [false, [], [["region-a", "A", "fluid"]]]
+  },
+
+  "requirement_columns": ["id", "src", "text"],
+  "requirements": [
+    ["R1", "claim", "Relation scopes to a boundary admitted from its parent artifact"],
+    ["R2", "contract", "Scope needs parent and set from that exact artifact"],
+    ["R3", "contract", "Boundary-physical Port keeps its existing rejection"],
+    ["R4", "precommitted", "A wrong parent rejects"],
+    ["R5", "precommitted", "An absent entity set rejects"],
+    ["R6", "precommitted", "A set of dimension other than topological-1 rejects"],
+    ["R7", "precommitted", "A same-named foreign set cannot satisfy the scope"],
+    ["R8", "claim", "inlet projects exactly [-1.0, 0.0]"],
+    ["R9", "claim", "outlet projects exactly [1.0, 0.0]"],
+    ["R10", "contract", "walls returns no single normal, holding two edges"],
+    ["R11", "contract", "cylinder returns no single normal"],
+    ["R12", "contract", "straight-edged families return no single normal"],
+    ["R13", "contract", "no normal is frozen outside the two frozen pairs"],
+    ["R14", "contract", "caller and bundle order change neither outcome nor diagnostic"],
+    ["R15", "contract", "Model v7 bytes, fingerprints and geometry digests unchanged"],
+    ["R16", "derived", "the artifact-free entry path is unchanged"]
+  ],
+  "covered_elsewhere": {"R14": "order_invariance", "R15": "compatibility_obligations"},
+
+  "scenario_columns": ["id", "program", "parent", "set", "consumer", "outcome", "detector", "diag", "normal", "reason", "reqs"],
+  "scenarios": [
+    ["accept-inlet", "P-A", "region-a", "inlet", "rel-boundary", "accept", "set-admission", null, [-1.0, 0.0], null, ["R1", "R8"]],
+    ["accept-outlet", "P-A", "region-a", "outlet", "rel-boundary", "accept", "set-admission", null, [1.0, 0.0], null, ["R1", "R9"]],
+    ["accept-walls", "P-A", "region-a", "walls", "rel-boundary", "accept", "set-admission", null, null, "member-count", ["R1", "R10"]],
+    ["accept-cylinder", "P-A", "region-a", "cylinder", "rel-boundary", "accept", "set-admission", null, null, "curved-member", ["R1", "R11"]],
+    ["accept-spare-unfrozen", "P-A", "region-a", "spare", "rel-boundary", "accept", "set-admission", null, "unfrozen", null, ["R1", "R13"]],
+    ["accept-c-inlet", "P-C", "region-c", "inlet", "rel-boundary", "accept", "set-admission", null, null, "family", ["R1", "R12"]],
+    ["accept-b-inlet", "P-B", "region-b", "inlet", "rel-boundary", "accept", "set-admission", null, null, "member-count", ["R1", "R13"]],
+    ["accept-b-notch", "P-AB", "region-b", "notch", "rel-boundary", "accept", "set-admission", null, null, "member-count", ["R2", "R7"]],
+    ["reject-absent-set", "P-A", "region-a", "notch", "rel-boundary", "reject", "set-admission", "absent-notch", null, null, ["R5"]],
+    ["reject-foreign-set", "P-AB", "region-a", "notch", "rel-boundary", "reject", "set-admission", "absent-notch", null, null, ["R2", "R7"]],
+    ["reject-wrong-dimension", "P-A", "region-a", "fluid", "rel-boundary", "reject", "set-admission", "dim-fluid", null, null, ["R6"]],
+    ["reject-wrong-parent-kind", "P-A", "cartesian-box", "inlet", "rel-boundary", "reject", "topology", "parent-kind", null, null, ["R4"]],
+    ["reject-missing-artifact", "P-NOBUN", "region-a", "inlet", "rel-boundary", "reject", "bundle", "missing-artifact", null, null, ["R4"]],
+    ["reject-port-on-boundary", "P-A", "region-a", "inlet", "port-boundary", "reject", "support-use", "port-embedding", null, null, ["R3"]],
+    ["reject-free-relation", "P-FREE", "region-a", "inlet", "rel-boundary", "reject", "support-use", "free-relation", null, null, ["R16"]]
+  ],
+
+  "order_invariance": {
+    "quantifier": "every scenario, every permutation of its bundle",
+    "invariant": ["outcome", "diagnostic", "normal"],
+    "not_frozen_here": "node identity order, which RFC 0080 owns"
+  },
+
+  "compatibility_obligations": [
+    ["Model v7 artifact bytes unchanged", "verify/artifacts/model-reference-lineage"],
+    ["Exact v1-v7 replay unchanged", "verify/interfaces/current-authoring-profile"],
+    ["Structural fingerprints unchanged", "verify/interfaces/structural-semantic-fingerprint"],
+    ["Straight-edged wire/digest unchanged", "verify/geometry/authored-planar-geometry-artifact"],
+    ["Circular-hole wire/digest unchanged", "verify/geometry/exact-circular-hole-geometry"],
+    ["Chordal reference mesh unchanged", "verify/geometry/circular-hole-chordal-reference-mesh"],
+    ["Bundle closure and parent lookup kept", "verify/geometry/geometry-backed-semantic-admission"]
+  ],
+
+  "nonclaims": [
+    "geometry-boundary-physical-port",
+    "general-boundary-embedding",
+    "circular-or-multi-edge-set-normal",
+    "per-member-normal-catalogue",
+    "normal-outside-the-two-frozen-pairs",
+    "curved-trace-space",
+    "embedded-manifold-or-3d",
+    "mesh-realization-fluid-lowering-or-solve",
+    "new-geometry-kind-or-public-geometry-representation",
+    "real-canonical-artifact-bytes-or-digests"
+  ]
+}
