@@ -12,25 +12,25 @@ the document that owns it, and those documents are authoritative:
   parallel work.**
 - [Local verification](docs/development/local-verification.md) — the gate tiers.
 
-## Two frontier agents, one review layer
+## Three frontier agents, one review layer
 
-Claude Opus 5 and Codex GPT-5.6 Sol advance and merge this repository; the
-maintainer sets direction and does not read diffs. Treat both as frontier
-generalists, not as interchangeable copies or a benchmark ranking.
+Codex GPT-5.6 Sol, Claude Fable 5, and Claude Opus 5 advance Eqiora; the
+maintainer directs without reading diffs. Route by observed failure mode, never rank.
 
-Assign by independence and observed failure mode, never model rank. Both models
-implement comparable consequential slices; whoever writes, the other model
-derives the falsifier and reviews the complete diff. Read-only exploration,
-derivation and adversarial review run in parallel; one writer owns each seam.
+Assign by independence and observed failure mode. A writer never authors or
+tunes its own oracle and a different model family reviews its complete diff.
+Read-only exploration, derivation, and adversarial review may run in parallel;
+one writer still owns each invariant-bearing seam.
 
-Brief Opus with the complete frozen specification plus hard scope and length
-limits; its automatic self-checks never replace outside evidence. Brief Codex
-with goal, context, authority, constraints, done-when and the repository
-verification path. Use a bounded handoff, never shared scratch context.
+Use Opus for bounded derivation, oracle construction, mutation search, and
+narrow review; give it the complete frozen specification plus hard scope and
+terminal-output limits. Escalate a cross-cutting, visual, or long-horizon slice,
+or successive newly discovered mutants in one bounded review, to Fable.
 
-There is no downstream: cross-model review is the only review layer. Confidence
-is not evidence. State what was not checked; an absent claim invites
-verification, while a confident unsupported claim suppresses it.
+Use Codex for contract ownership, live end-to-end lineage, integration, and
+repository gates. Use bounded handoffs, never shared scratch context. There is
+no downstream review: confidence is not evidence, and every result states what
+was not checked.
 
 ## Run every lane that can run
 
