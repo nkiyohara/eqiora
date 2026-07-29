@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exact-rational oracle for the Eqiora ``SparseLu`` contract (Issue #126).
+"""Exact-rational oracle for the Eqiora ``SparseLu`` contract (RFC 0010).
 
 The companion fixture ``expected/sparse-lu-contract.json`` is frozen evidence
 committed before any SparseLu implementation existed. This script re-derives
@@ -41,7 +41,6 @@ CASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_FIXTURE = os.path.join(CASE_DIR, "expected", "sparse-lu-contract.json")
 
 SCHEMA = "eqiora.verify.numerics.linear-backends.sparse-lu-oracle/1"
-ISSUE = 126
 
 FALSIFIER_IDS = (
     "csr-read-as-csc",
@@ -1553,7 +1552,6 @@ def run(fixture_path: str, expect_digest: str | None) -> tuple[Checks, dict[str,
     checks = Checks()
 
     checks.equal("fixture.schema", document["schema"], SCHEMA)
-    checks.equal("fixture.issue", document["issue"], ISSUE)
     checks.equal("fixture.frozen", document["frozen"], True)
 
     rationals = walk_rationals(document)

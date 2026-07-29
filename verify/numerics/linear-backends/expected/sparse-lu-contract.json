@@ -1,6 +1,5 @@
 {
   "schema": "eqiora.verify.numerics.linear-backends.sparse-lu-oracle/1",
-  "issue": 126,
   "frozen": true,
   "authoring": "Committed by a non-implementing oracle author before any SparseLu implementation existed. No Rust source was read while authoring it. The implementing agent may wire this fixture but may not change any value here.",
   "rational_encoding": "Every non-index numeric value is an object {\"num\": integer, \"den\": integer} in lowest terms with den > 0. The file contains no binary floating-point literal. Tolerances and error ceilings use the same encoding and are dyadic, so every acceptance inequality recorded here is decidable in exact rational arithmetic.",
@@ -747,7 +746,7 @@
     }
   },
   "contract_expectations": {
-    "source": "Issue #126, section 'Frozen design'",
+    "source": "Frozen SparseLu design brief, section 'Frozen design'",
     "proved_by_this_oracle": false,
     "note": "Contract expectations, not mathematical facts. This oracle checks only their internal consistency and shape; whether Eqiora honours them is established by Rust evidence written by the implementing agent.",
     "capabilities": {

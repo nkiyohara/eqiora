@@ -33,7 +33,7 @@ const SOURCE: &str = include_str!("../../../verify/numerics/poisson-fem-fvm/mode
 const SPARSE_LU_CONTRACT: &str =
     include_str!("../../../verify/numerics/linear-backends/expected/sparse-lu-contract.json");
 const SPARSE_LU_CONTRACT_SHA256: &str =
-    "2555229a72984bf922655dad70b8050d70a7271af6bfd85a81ca9a3be4e8bcec";
+    "666309634cca3d6be5d16d8e90e6ad01d0b92694cbb70fd03acce38ef8e98780";
 
 #[test]
 fn faer_sparse_lu_source_keeps_serial_and_residual_handoffs() {

@@ -1,14 +1,16 @@
 # SparseLu exact-rational oracle
 
-Pre-committed evidence for [Issue #126](https://github.com/nkiyohara/eqiora/issues/126),
+Pre-committed evidence for the `SparseLu` direct algorithm under the `SolverPlan`
+contract of [RFC 0010](../../../../rfcs/0010-execution-backend-contracts.md),
 frozen before any `SparseLu` implementation exists.
 
 ## Authoring boundary
 
 This oracle and its fixture were written by an agent that does not implement the
-slice. While authoring them the agent read only `AGENTS.md`, Issue #126, and the
-existing files in this case directory. It read no Rust source, ran no Rust, and
-saw no candidate implementation. Nothing outside
+slice. While authoring them the agent read only `AGENTS.md`, the frozen
+`SparseLu` design brief it was given, and the existing files in this case
+directory. It read no Rust source, ran no Rust, and saw no candidate
+implementation. Nothing outside
 `verify/numerics/linear-backends/**` was changed.
 
 The implementing agent may wire this fixture into Rust evidence. It may not
@@ -28,7 +30,7 @@ residual already frozen.
 
 | Path | sha256 |
 | --- | --- |
-| `expected/sparse-lu-contract.json` | `2555229a72984bf922655dad70b8050d70a7271af6bfd85a81ca9a3be4e8bcec` |
+| `expected/sparse-lu-contract.json` | `666309634cca3d6be5d16d8e90e6ad01d0b92694cbb70fd03acce38ef8e98780` |
 
 The digest freezes the fixture, not the checker. `oracle/sparse_lu_oracle.py`
 carries no digest of itself; it recomputes the fixture digest on every run and
@@ -42,14 +44,14 @@ The fixture separates these deliberately and the distinction is load-bearing.
   independently of Eqiora. The oracle re-derives every one of them from the
   stored CSR arrays in exact rational arithmetic and fails on disagreement.
 - `contract_expectations` holds statements about the Eqiora and Faer slice,
-  transcribed from the frozen design in Issue #126. They carry
+  transcribed from the frozen `SparseLu` design brief. They carry
   `"proved_by_this_oracle": false`. The oracle checks only their internal
   consistency and shape — tuple axes, disjointness of the positive and negative
   sets, tag stability, kebab-case encoding. Whether Eqiora honours them is
   established by Rust evidence this author did not write.
 
-Enum spellings in `contract_expectations` are those given in Issue #126 and in
-the authoring brief. This author did not read the Rust enums, so the fixture
+Enum spellings in `contract_expectations` are those given in the frozen design
+and in the authoring brief. This author did not read the Rust enums, so the fixture
 fixes the tuple *shape* and the tag and encoding *values*; it is not evidence
 about Rust identifier spelling.
 
@@ -256,9 +258,10 @@ python3 verify/numerics/linear-backends/oracle/sparse_lu_oracle.py --summary
 Python standard library only, no arguments required, deterministic output,
 exit status `1` on any failure. `--verbose` lists every check; `--fixture`
 selects another fixture; `--expect-digest` enforces the digest above. At this
-revision the run reports **224 passing checks, 35 of them exact rational
-inequalities**, or 225 checks when the digest is enforced. The previous freeze
-reported 144 and 145.
+revision the run reports **223 passing checks, 35 of them exact rational
+inequalities**, or 224 checks when the digest is enforced. The previous freeze
+reported 144 and 145; one pre-existing fixture-identity check has since been
+dropped.
 
 The inequality count covers every ordering comparison between exact rational
 magnitudes. Each goes through one helper that rejects an inexact operand outright
@@ -316,7 +319,8 @@ any of the following is true, and none of it may be cited as such:
   strategy, conditioning, or scale;
 - anything about transposed solving as an Eqiora capability. The transpose
   solution `y` exists here only as a discriminator that makes storage-orientation
-  confusion observable; Issue #126 lists transposed problems among its nonclaims;
+  confusion observable; the frozen design lists transposed problems among its
+  nonclaims;
 - anything about threading, distribution, MPI, CUDA, reproducible reduction,
   Jacobi preconditioning, non-`f64` scalars, or cross-build bitwise
   reproducibility;

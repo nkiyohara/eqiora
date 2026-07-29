@@ -32,7 +32,7 @@ maximum_iterations = 1
 componentwise_solution_error = "<= 2^-28"
 initial_guess_early_exit = "0 completed iterations and no factorization"
 ordinary_solve = "1 completed factor-and-solve attempt"
-fixture_sha256 = "2555229a72984bf922655dad70b8050d70a7271af6bfd85a81ca9a3be4e8bcec"
+fixture_sha256 = "666309634cca3d6be5d16d8e90e6ad01d0b92694cbb70fd03acce38ef8e98780"
 
 [sparse_lu_boundary]
 host_local = true

@@ -5,9 +5,10 @@ agreement, accepted true residuals under the declared plan, and fail-closed
 capability behavior.
 
 `sparse-lu-contract.json` is the one exception. It is the frozen exact-rational
-fixture consumed by this case for the `SparseLu` algorithm introduced through
-[Issue #126](https://github.com/nkiyohara/eqiora/issues/126), committed ahead of
-implementation by a non-implementing author.
+fixture consumed by this case for the `SparseLu` algorithm added under the
+`SolverPlan` contract of
+[RFC 0010](../../../../rfcs/0010-execution-backend-contracts.md), committed ahead
+of implementation by a non-implementing author.
 
 It records integers and `{"num", "den"}` rational pairs only — no binary
 floating-point value anywhere, including in the falsifiers. Expected residuals

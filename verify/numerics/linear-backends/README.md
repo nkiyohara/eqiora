@@ -51,8 +51,9 @@ for ownership and graduation rules.
 ## Pre-committed sparse-LU evidence
 
 `expected/sparse-lu-contract.json` and `oracle/sparse_lu_oracle.py` freeze the
-exact-rational oracle for the proposed `SparseLu` direct algorithm of
-[Issue #126](https://github.com/nkiyohara/eqiora/issues/126). They were written
+exact-rational oracle for the proposed `SparseLu` direct algorithm under the
+`SolverPlan` contract of
+[RFC 0010](../../../rfcs/0010-execution-backend-contracts.md). They were written
 by an agent that does not implement the slice, before any implementation
 existed, and later amended by that same agent to bind the acceptance threshold
 the implementer is not permitted to author. Neither the original nor the
