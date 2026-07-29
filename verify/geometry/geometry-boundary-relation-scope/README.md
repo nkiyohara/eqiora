@@ -1,8 +1,8 @@
 # Geometry-boundary Relation scope evidence
 
 Precommitted evidence for Issue #129, frozen by a non-implementing agent at base
-`a5c122f` before any production code for the slice exists. It is deliberately
-**not a registered case**; see [Sequencing](#sequencing).
+`a5c122f` before any production code for the slice exists. It was frozen
+**before registration**; see [Sequencing](#sequencing).
 
 ## Frozen claim
 
@@ -89,12 +89,13 @@ green. It does not re-derive their values.
 
 ## Sequencing
 
-This directory has **no `case.toml`**, because the evidence is frozen before the
-implementation exists and registration is integration-owned. Two consequences,
-which pull in opposite directions:
+At the freeze this directory had **no `case.toml`**, because the evidence is
+frozen before the implementation exists and registration is integration-owned.
+Two consequences, which pull in opposite directions:
 
-- `eqiora-verify` collects manifests by walking for `case.toml`, so it does not
-  discover this package and no registered claim currently rests on it.
+- `eqiora-verify` collects manifests by walking for `case.toml`, so until that
+  manifest exists it does not discover this package and no registered claim
+  rests on it.
 - `tools/ci/local_verify.py` derives case IDs from the **path**, not from a
   manifest. Any diff touching this directory therefore plans
   `--case geometry.geometry-boundary-relation-scope`, which
@@ -114,6 +115,15 @@ apply this delta in the same change that first touches this tree.
 
 Until step 2 happens, the repository holds two contradictory registered claims.
 
+Step 1 is therefore something the oracle must survive, not forbid. It replays in
+both states and reports which one it saw: `registration=frozen-before-registration`
+while step 1 is outstanding, and `registration=registered` once this directory
+holds a manifest whose top-level `id` parses as exactly
+`geometry.geometry-boundary-relation-scope`. A manifest here declaring any other
+ID, or one that does not parse, still fails, and so does any other manifest under
+`verify/` claiming this ID. Nothing else about the manifest is checked: its
+content is the implementing lane's to write, not this package's to own.
+
 ## Run
 
 ```bash
@@ -121,6 +131,10 @@ python3 verify/geometry/geometry-boundary-relation-scope/oracle/boundary_scope_o
 ```
 
 ## Not checked here
+
+The corrected sequencing check reads the manifest's top-level TOML `id`, the form
+every registered manifest in this tree uses. `eqiora-verify`'s own loader was not
+read, so that agreement is a convention followed here, not one verified here.
 
 No Rust was built, no gate tier was run, and no production behaviour was
 observed — nothing implements this claim at `a5c122f`. The oracle checks the

@@ -2,7 +2,7 @@
   "schema": "eqiora.evidence.geometry-boundary-relation-scope/v1",
   "issue": 129,
   "base_revision": "a5c122f550fbd3e2b83c6b7745a1deb7fbb0b200",
-  "registration": {"case_toml_present": false, "discovered_by_eqiora_verify": false,
+  "registration": {"case_toml_at_freeze": false, "discovered_by_eqiora_verify_at_freeze": false,
     "proposed_case_id": "geometry.geometry-boundary-relation-scope"},
   "fixture_note": "A, B and C are opaque stand-ins bound to real artifacts by the implementing lane. No canonical bytes, length or digest appear here.",
   "dimensions": {"ambient": 2, "topological": 2},

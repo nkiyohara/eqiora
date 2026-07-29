@@ -24,6 +24,7 @@ import json
 import math
 import pathlib
 import sys
+import tomllib
 
 ORACLE = pathlib.Path(__file__).resolve()
 CASE = ORACLE.parents[1]
@@ -32,7 +33,7 @@ CONTRACT = CASE / "expected" / "boundary-scope-contract.json"
 
 # Freezing the fixture digest outside the fixture is what stops a later lane
 # from widening the table and calling the widened table "the oracle".
-CONTRACT_SHA256 = "30b201fba94b87422558da3aa1ef2cfdc18366c8ea54e82524e2c95d01bacd36"
+CONTRACT_SHA256 = "6dc106a8fe682b998c05bfd03eb75240f8904e57e988cdde08f4ff21499706ac"
 
 CIRCULAR_HOLE = "circular-hole-planar-v1"
 UNFROZEN = "unfrozen"
@@ -335,25 +336,28 @@ def check_obligations(contract: dict) -> None:
         require(manifest.is_file(), f"{obligation}: {evidence}/case.toml is absent")
 
 
-def check_sequencing(contract: dict) -> None:
-    """This package is deliberately unregistered; nothing may already claim it."""
+def check_sequencing(contract: dict) -> str:
+    """Frozen before registration, or registered under exactly the proposed ID."""
     registration = contract["registration"]
     require(
-        registration["case_toml_present"] is False
-        and registration["discovered_by_eqiora_verify"] is False,
-        "the fixture must record that this package is unregistered",
-    )
-    require(
-        not (CASE / "case.toml").exists(),
-        "a case.toml would contradict the recorded sequencing fact",
+        registration["case_toml_at_freeze"] is False
+        and registration["discovered_by_eqiora_verify_at_freeze"] is False,
+        "the fixture must record that this package was unregistered when frozen",
     )
     require(registration["proposed_case_id"] == PROPOSED_CASE_ID, "unexpected case id")
+    own = CASE / "case.toml"
     claim = f'id = "{PROPOSED_CASE_ID}"'
     for manifest in sorted((ROOT / "verify").glob("*/*/case.toml")):
-        require(
-            claim not in manifest.read_text(encoding="utf-8"),
-            f"{PROPOSED_CASE_ID} is already registered by {manifest}",
-        )
+        clear = manifest == own or claim not in manifest.read_text(encoding="utf-8")
+        require(clear, f"{PROPOSED_CASE_ID} is already registered by {manifest}")
+    if not own.is_file():
+        return "frozen-before-registration"
+    try:
+        declared = tomllib.loads(own.read_text(encoding="utf-8")).get("id")
+    except ValueError as error:  # tomllib.TOMLDecodeError derives from ValueError
+        raise Failure(f"{own} is not a valid manifest: {error}") from error
+    require(declared == PROPOSED_CASE_ID, f"{own} registers id {declared!r}")
+    return "registered"
 
 
 def main() -> int:
@@ -371,7 +375,7 @@ def main() -> int:
     check_agreement(contract, table)
     permutations = check_order_invariance(contract, table)
     check_obligations(contract)
-    check_sequencing(contract)
+    sequencing = check_sequencing(contract)
 
     out = sys.stdout.write
     accepted = sum(1 for row in table if row["outcome"] == "accept")
@@ -383,7 +387,7 @@ def main() -> int:
         hexes = " ".join(component.hex() for component in normal)
         out(f"normal {handle}.{name}={json.dumps(normal)} hex=[{hexes}]\n")
     out(f"bundle_permutations={permutations}\n")
-    out(f"case_toml_present={(CASE / 'case.toml').exists()}\n")
+    out(f"registration={sequencing}\n")
     out("OK\n")
     return 0
 
