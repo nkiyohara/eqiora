@@ -24,9 +24,11 @@ use eqiora_solver::{
 
 use super::{
     FinalizedSteadyStokesMini2dProblem, SteadyIncompressibleStokesCartesianModel2d,
-    SteadyStokesMiniSolution2d, lower_steady_incompressible_stokes_cartesian_2d,
+    SteadyIncompressibleStokesModel2d, SteadyStokesMiniSolution2d,
+    lower_steady_incompressible_stokes_cartesian_2d,
 };
-use crate::canonical_boundary::PhysicalBoundaryDisposition;
+use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
+use crate::canonical_stokes::api::StokesBoundaryKey2d;
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
     SimplicialMiniStokesBoundaryFacet2d,
@@ -150,7 +152,7 @@ pub type SteadyStokesScaleProfile2d = IncompressibleFlowScaleProfile2d;
 /// Exact lowerer requirements for the admitted mixed Stokes path.
 #[must_use]
 pub fn steady_stokes_fieldwise_requirements_2d(
-    model: &SteadyIncompressibleStokesCartesianModel2d,
+    model: &SteadyIncompressibleStokesModel2d,
 ) -> FieldwiseRealizationRequirements {
     FieldwiseRealizationRequirements::new(
         domain_id(model),
@@ -174,7 +176,7 @@ pub fn steady_stokes_fieldwise_requirements_2d(
 /// # Errors
 /// Returns `EQ0807` for an unsupported solver tuple or invalid derived plan.
 pub fn steady_stokes_mini_plan_2d(
-    model: &SteadyIncompressibleStokesCartesianModel2d,
+    model: &SteadyIncompressibleStokesModel2d,
     mesh: MeshArtifactReference,
     scales: SteadyStokesScaleProfile2d,
     solver: SolverPlan,
@@ -285,6 +287,32 @@ pub fn finalize_resolved_steady_stokes_mini_2d_with_assembly(
     ),
     Diagnostic,
 > {
+    let model = lower_steady_incompressible_stokes_cartesian_2d(program)?;
+    let scales = resolved_stokes_scales(program, resolved, mesh_artifact, &model)?;
+    let normalized = normalize_mesh(&model, mesh, scales.length_value())?;
+    let boundary = numerical_boundary(&model, &normalized, scales.pressure_value())?;
+    let essential_velocity =
+        |coordinate_hat| cartesian_essential_velocity(&model, scales, coordinate_hat);
+    let finalized = finalize_lowered_steady_stokes_mini_2d_with_assembly(
+        resolved,
+        mesh_artifact,
+        &model,
+        mesh,
+        &normalized.mesh,
+        &boundary,
+        scales,
+        &essential_velocity,
+        assembly,
+    )?;
+    Ok((model, finalized))
+}
+
+pub(super) fn resolved_stokes_scales(
+    program: &KernelProgram,
+    resolved: &ResolvedFieldwiseRealization,
+    mesh_artifact: MeshArtifactReference,
+    model: &SteadyIncompressibleStokesModel2d,
+) -> Result<SteadyStokesScaleProfile2d, Diagnostic> {
     if program.model() != resolved.model()
         || program.revision().0 != resolved.semantic_revision().get()
     {
@@ -292,12 +320,27 @@ pub fn finalize_resolved_steady_stokes_mini_2d_with_assembly(
             "resolved field-wise realization does not reference this exact Semantic Model revision",
         ));
     }
-    let model = lower_steady_incompressible_stokes_cartesian_2d(program)?;
-    requires_zero_integral_constraint(&model)?;
+    requires_zero_integral_constraint(model)?;
     let realization_graph = resolved.portable_graph()?;
-    let scales = require_exact_plan(&model, resolved, &realization_graph, mesh_artifact)?;
-    let normalized = normalize_mesh(&model, mesh, scales.length_value())?;
-    let boundary = numerical_boundary(&model, &normalized, scales.pressure_value())?;
+    require_exact_plan(model, resolved, &realization_graph, mesh_artifact)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn finalize_lowered_steady_stokes_mini_2d_with_assembly<B>(
+    resolved: &ResolvedFieldwiseRealization,
+    mesh_artifact: MeshArtifactReference,
+    model: &SteadyIncompressibleStokesModel2d,
+    physical_mesh: &SimplicialMesh,
+    normalized_mesh: &SimplicialMesh,
+    boundary: &SimplicialMiniStokesBoundary2d,
+    scales: SteadyStokesScaleProfile2d,
+    essential_velocity: &B,
+    assembly: &dyn AssemblyBackend,
+) -> Result<FinalizedSteadyStokesMini2dProblem, Diagnostic>
+where
+    B: Fn([f64; DIMENSION]) -> Result<[f64; DIMENSION], Diagnostic> + Sync,
+{
+    let realization_graph = resolved.portable_graph()?;
     let quadrature = triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS)?;
     let facet_quadrature = simplex_centroid_rule(DIMENSION - 1)?;
     let dimensionless_viscosity = model.dynamic_viscosity() * scales.velocity_value()
@@ -328,13 +371,12 @@ pub fn finalize_resolved_steady_stokes_mini_2d_with_assembly(
         }
         Ok(result)
     };
-    let zero_velocity = |_| Ok([0.0; DIMENSION]);
     let block_system = super::block::steady_stokes_block_system(
-        &model,
+        model,
         resolved,
         mesh_artifact,
-        &normalized.mesh,
-        &boundary,
+        normalized_mesh,
+        boundary,
         scales,
     )?;
     let checked_assembly = block_system.checked_backend(assembly);
@@ -347,11 +389,11 @@ pub fn finalize_resolved_steady_stokes_mini_2d_with_assembly(
         .linear_solve(root)
         .ok_or_else(|| invalid_realization("steady Stokes portable linear root is absent"))?;
     let inner = finalize_simplicial_mini_stokes_2d_with_boundary_and_assembly(
-        &normalized.mesh,
+        normalized_mesh,
         dimensionless_viscosity,
         &dimensionless_force,
-        &boundary,
-        &zero_velocity,
+        boundary,
+        essential_velocity,
         &quadrature,
         &facet_quadrature,
         &checked_assembly,
@@ -362,13 +404,13 @@ pub fn finalize_resolved_steady_stokes_mini_2d_with_assembly(
     let inner = inner.with_block_system(&block_system)?;
     let finalized = FinalizedSteadyStokesMini2dProblem::new(
         inner,
-        mesh.clone(),
+        physical_mesh.clone(),
         velocity_id(&model),
         pressure_id(&model),
         force_potential_id(&model),
         scales,
     );
-    Ok((model, finalized))
+    Ok(finalized)
 }
 
 /// Solve one resolved coherent-SI Stokes Model through reference assembly.
@@ -428,7 +470,7 @@ pub fn solve_resolved_steady_stokes_mini_2d_with_assembly(
 }
 
 fn require_exact_plan(
-    model: &SteadyIncompressibleStokesCartesianModel2d,
+    model: &SteadyIncompressibleStokesModel2d,
     resolved: &ResolvedFieldwiseRealization,
     graph: &PortableRealizationGraph,
     mesh_artifact: MeshArtifactReference,
@@ -614,7 +656,7 @@ pub(super) fn normalize_cartesian_mesh(
 }
 
 fn numerical_boundary(
-    model: &SteadyIncompressibleStokesCartesianModel2d,
+    model: &SteadyIncompressibleStokesModel2d,
     normalized: &NormalizedCartesianSimplicialMesh2d,
     pressure_scale: f64,
 ) -> Result<SimplicialMiniStokesBoundary2d, Diagnostic> {
@@ -622,25 +664,58 @@ fn numerical_boundary(
         .boundary_facets
         .iter()
         .map(|(facet, axis, side)| {
+            let key = StokesBoundaryKey2d::CartesianSide {
+                axis: *axis,
+                side: *side,
+            };
             let entry = model
-                .boundary_inventory()
-                .boundary(*axis, *side)
+                .boundary_entry(&key)
                 .ok_or_else(|| {
                     invalid_realization(format!(
                         "lowered 2D Stokes boundary inventory omits axis {axis} {side:?}"
                     ))
                 })?;
-            let condition = match entry.disposition() {
+            let condition = match entry.disposition {
                 PhysicalBoundaryDisposition::TraceZero => {
                     SimplicialMiniStokesBoundaryCondition2d::EssentialVelocity
                 }
-                PhysicalBoundaryDisposition::FluxZero
-                | PhysicalBoundaryDisposition::Prescribed(_) => {
+                PhysicalBoundaryDisposition::Prescribed(law)
+                    if law.quantity() == PhysicalBoundaryQuantity::Trace =>
+                {
+                    SimplicialMiniStokesBoundaryCondition2d::EssentialVelocity
+                }
+                PhysicalBoundaryDisposition::FluxZero => {
                     let pressure = model
-                        .normal_pressure(*axis, *side)
+                        .normal_pressure_for(&key)
                         .ok_or_else(|| {
                             invalid_realization(format!(
                                 "axis {axis} {side:?} is not an admitted normal-pressure boundary"
+                            ))
+                        })?
+                        .expression()
+                        .constant_value()
+                        .ok_or_else(|| {
+                            invalid_realization(format!(
+                                "axis {axis} {side:?} normal pressure is coordinate-dependent; this realization admits only a spatial constant"
+                            ))
+                        })?;
+                    let mut traction = [0.0; DIMENSION];
+                    traction[*axis] = match side {
+                        BoundarySide::Lower => pressure / pressure_scale,
+                        BoundarySide::Upper => -pressure / pressure_scale,
+                    };
+                    SimplicialMiniStokesBoundaryCondition2d::ConstantTraction {
+                        value: traction,
+                    }
+                }
+                PhysicalBoundaryDisposition::Prescribed(law) => {
+                    let pressure = model
+                        .normal_pressure_for(&key)
+                        .ok_or_else(|| {
+                            invalid_realization(format!(
+                                "prescribed Stokes {:?} law {} on axis {axis} {side:?} is outside the normal-pressure realization",
+                                law.quantity(),
+                                law.relation()
                             ))
                         })?
                         .expression()
@@ -672,6 +747,74 @@ fn numerical_boundary(
         .map_err(|error| invalid_realization(error.message()))
 }
 
+fn cartesian_essential_velocity(
+    model: &SteadyIncompressibleStokesModel2d,
+    scales: SteadyStokesScaleProfile2d,
+    coordinate_hat: [f64; DIMENSION],
+) -> Result<[f64; DIMENSION], Diagnostic> {
+    let lower = [model.bounds()[0][0], model.bounds()[1][0]];
+    let length = scales.length_value();
+    let physical = [
+        lower[0] + length * coordinate_hat[0],
+        lower[1] + length * coordinate_hat[1],
+    ];
+    let mut selected = None;
+    for axis in 0..DIMENSION {
+        for side in [BoundarySide::Lower, BoundarySide::Upper] {
+            let side_index = usize::from(side == BoundarySide::Upper);
+            let normalized_bound = (model.bounds()[axis][side_index] - lower[axis]) / length;
+            if coordinate_hat[axis] != normalized_bound {
+                continue;
+            }
+            let key = StokesBoundaryKey2d::CartesianSide { axis, side };
+            let disposition = model
+                .boundary_entry(&key)
+                .expect("lowered Cartesian Stokes model owns every exact side")
+                .disposition;
+            let value = match disposition {
+                PhysicalBoundaryDisposition::TraceZero => Some([0.0; DIMENSION]),
+                PhysicalBoundaryDisposition::Prescribed(law)
+                    if law.quantity() == PhysicalBoundaryQuantity::Trace =>
+                {
+                    let mut outward = [0.0; DIMENSION];
+                    outward[axis] = if side == BoundarySide::Lower {
+                        -1.0
+                    } else {
+                        1.0
+                    };
+                    Some(
+                        model
+                            .prescribed_normal_velocity(&key, outward, &physical)?
+                            .ok_or_else(|| {
+                                invalid_realization(format!(
+                                    "prescribed velocity Relation {} has no retained normal-velocity expression",
+                                    law.relation()
+                                ))
+                            })?,
+                    )
+                }
+                _ => None,
+            };
+            let Some(value) = value else {
+                continue;
+            };
+            if selected.is_some_and(|existing| existing != value) {
+                return Err(invalid_realization(
+                    "essential velocity prescriptions disagree at a shared Cartesian corner",
+                ));
+            }
+            selected = Some(value);
+        }
+    }
+    selected
+        .map(|value| value.map(|component| component / scales.velocity_value()))
+        .ok_or_else(|| {
+            invalid_realization(
+                "an essential boundary vertex is absent from the canonical trace inventory",
+            )
+        })
+}
+
 fn require_reference_solver(solver: SolverPlan) -> Result<(), Diagnostic> {
     if solver.algorithm() != LinearSolver::MinimumResidual
         || solver.preconditioner() != PreconditionerPolicy::Identity
@@ -685,56 +828,49 @@ fn require_reference_solver(solver: SolverPlan) -> Result<(), Diagnostic> {
 }
 
 fn requires_zero_integral_constraint(
-    model: &SteadyIncompressibleStokesCartesianModel2d,
+    model: &SteadyIncompressibleStokesModel2d,
 ) -> Result<bool, Diagnostic> {
-    let mut trace_sides = 0_usize;
-    let mut pressure_sides = 0_usize;
-    for axis in 0..DIMENSION {
-        for side in [BoundarySide::Lower, BoundarySide::Upper] {
-            let disposition = model
-                .boundary_inventory()
-                .boundary(axis, side)
-                .ok_or_else(|| {
-                    invalid_realization(format!(
-                        "lowered 2D Stokes boundary inventory omits axis {axis} {side:?}"
-                    ))
-                })?
-                .disposition();
-            match disposition {
-                PhysicalBoundaryDisposition::TraceZero => trace_sides += 1,
-                PhysicalBoundaryDisposition::FluxZero => {
-                    if model.normal_pressure(axis, side).is_none() {
-                        return Err(invalid_realization(format!(
-                            "flux-zero Stokes boundary on axis {axis} {side:?} is not an admitted normal-pressure law"
-                        )));
-                    }
-                    pressure_sides += 1;
+    let mut trace_boundaries = 0_usize;
+    let mut pressure_boundaries = 0_usize;
+    let mut boundary_count = 0_usize;
+    for (key, entry) in model.boundary_entries() {
+        boundary_count += 1;
+        match entry.disposition {
+            PhysicalBoundaryDisposition::TraceZero => trace_boundaries += 1,
+            PhysicalBoundaryDisposition::FluxZero => {
+                if model.normal_pressure_for(key).is_none() {
+                    return Err(invalid_realization(format!(
+                        "flux-zero Stokes boundary {key:?} is not an admitted normal-pressure law"
+                    )));
                 }
-                PhysicalBoundaryDisposition::Prescribed(law) => {
-                    if model.normal_pressure(axis, side).is_none() {
+                pressure_boundaries += 1;
+            }
+            PhysicalBoundaryDisposition::Prescribed(law) => match law.quantity() {
+                PhysicalBoundaryQuantity::Trace => trace_boundaries += 1,
+                PhysicalBoundaryQuantity::Flux => {
+                    if model.normal_pressure_for(key).is_none() {
                         return Err(invalid_realization(format!(
-                            "prescribed Stokes {:?} law {} on axis {axis} {side:?} is outside the normal-pressure realization",
+                            "prescribed Stokes {:?} law {} on {key:?} is outside the normal-pressure realization",
                             law.quantity(),
                             law.relation()
                         )));
                     }
-                    pressure_sides += 1;
+                    pressure_boundaries += 1;
                 }
-                PhysicalBoundaryDisposition::PortBinding { connection, port } => {
-                    return Err(invalid_realization(format!(
-                        "live Stokes PortBinding {connection} through Port {port} on axis {axis} {side:?} requires an explicit trace-space interface Realization"
-                    )));
-                }
+            },
+            PhysicalBoundaryDisposition::PortBinding { connection, port } => {
+                return Err(invalid_realization(format!(
+                    "live Stokes PortBinding {connection} through Port {port} on {key:?} requires an explicit trace-space interface Realization"
+                )));
             }
         }
     }
-    let side_count = 2 * DIMENSION;
-    match (trace_sides, pressure_sides) {
-        (trace, 0) if trace == side_count => Ok(true),
-        (trace, pressure) if trace > 0 && pressure > 0 && trace + pressure == side_count => {
+    match (trace_boundaries, pressure_boundaries) {
+        (trace, 0) if trace == boundary_count => Ok(true),
+        (trace, pressure) if trace > 0 && pressure > 0 && trace + pressure == boundary_count => {
             Ok(false)
         }
-        (0, pressure) if pressure == side_count => Err(invalid_realization(
+        (0, pressure) if pressure == boundary_count => Err(invalid_realization(
             "the bounded MINI Stokes realization requires positive-measure essential velocity boundary; pure traction remains unsupported",
         )),
         _ => Err(invalid_realization(
@@ -757,28 +893,28 @@ fn require_dimension(
     Ok(())
 }
 
-fn domain_id(model: &SteadyIncompressibleStokesCartesianModel2d) -> Id<kinds::Domain> {
+fn domain_id(model: &SteadyIncompressibleStokesModel2d) -> Id<kinds::Domain> {
     model
         .domain()
         .downcast()
         .expect("lowered Stokes Domain retains its entity kind")
 }
 
-fn velocity_id(model: &SteadyIncompressibleStokesCartesianModel2d) -> Id<kinds::Field> {
+fn velocity_id(model: &SteadyIncompressibleStokesModel2d) -> Id<kinds::Field> {
     model
         .velocity()
         .downcast()
         .expect("lowered Stokes velocity retains its Field kind")
 }
 
-fn pressure_id(model: &SteadyIncompressibleStokesCartesianModel2d) -> Id<kinds::Field> {
+fn pressure_id(model: &SteadyIncompressibleStokesModel2d) -> Id<kinds::Field> {
     model
         .pressure()
         .downcast()
         .expect("lowered Stokes pressure retains its Field kind")
 }
 
-fn force_potential_id(model: &SteadyIncompressibleStokesCartesianModel2d) -> Id<kinds::Field> {
+fn force_potential_id(model: &SteadyIncompressibleStokesModel2d) -> Id<kinds::Field> {
     model
         .force_potential()
         .downcast()

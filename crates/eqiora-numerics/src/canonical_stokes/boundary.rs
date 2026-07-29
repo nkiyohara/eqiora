@@ -29,6 +29,8 @@ pub(crate) struct LoweredStokesBoundary<const D: usize> {
         BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), NormalPressureSource2d>,
     pub(crate) normal_velocity_expressions:
         BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), ScalarSpatialExpression>,
+    pub(crate) normal_velocity_coefficients:
+        BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), (RawId, RawId)>,
     pub(crate) normal_velocity_fields: BTreeSet<RawId>,
     pub(crate) normal_velocity_definitions: BTreeSet<RawId>,
     pub(crate) relations: BTreeSet<RawId>,
@@ -40,6 +42,36 @@ pub(crate) struct LoweredStokesBoundary<const D: usize> {
 }
 
 pub(crate) type LoweredStokesBoundary2d = LoweredStokesBoundary<2>;
+
+#[derive(Debug)]
+pub(super) struct LoweredNamedStokesBoundary2d {
+    pub(super) entries: BTreeMap<String, CartesianBoundaryEntry>,
+    pub(super) normal_pressure_sources: BTreeMap<String, NormalPressureSource2d>,
+    pub(super) normal_velocity_expressions: BTreeMap<String, ScalarSpatialExpression>,
+    pub(super) normal_velocity_coefficients: BTreeMap<String, (RawId, RawId)>,
+    pub(super) normal_velocity_fields: BTreeSet<RawId>,
+    pub(super) normal_velocity_definitions: BTreeSet<RawId>,
+    pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
+    pub(super) ports: BTreeSet<RawId>,
+    pub(super) connections: BTreeSet<RawId>,
+    pub(super) connector_domains: BTreeSet<RawId>,
+    pub(super) uninterpreted_live_relations: BTreeSet<RawId>,
+}
+
+struct LoweredBoundaryEntries<K> {
+    entries: BTreeMap<K, CartesianBoundaryEntry>,
+    normal_pressure_sources: BTreeMap<K, NormalPressureSource2d>,
+    normal_velocity_expressions: BTreeMap<K, ScalarSpatialExpression>,
+    normal_velocity_coefficients: BTreeMap<K, (RawId, RawId)>,
+    normal_velocity_fields: BTreeSet<RawId>,
+    normal_velocity_definitions: BTreeSet<RawId>,
+    relations: BTreeSet<RawId>,
+    boundary_relations: Vec<BoundaryRelationBinding>,
+    ports: BTreeSet<RawId>,
+    connections: BTreeSet<RawId>,
+    connector_domains: BTreeSet<RawId>,
+    uninterpreted_live_relations: BTreeSet<RawId>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NormalPressureSource2d {
@@ -79,9 +111,73 @@ pub(super) fn lower_dimension<const D: usize>(
     volume_viscosity: &ScalarSpatialExpression,
 ) -> Result<LoweredStokesBoundary<D>, Diagnostic> {
     let exact_boundaries = exact_cartesian_boundaries::<D>(program, domain)?;
+    let lowered = lower_entries::<D, _>(
+        program,
+        domain,
+        velocity,
+        pressure,
+        volume_viscosity,
+        exact_boundaries,
+    )?;
+    Ok(LoweredStokesBoundary {
+        inventory: CartesianBoundaryInventory::new(lowered.entries),
+        normal_pressure_sources: lowered.normal_pressure_sources,
+        normal_velocity_expressions: lowered.normal_velocity_expressions,
+        normal_velocity_coefficients: lowered.normal_velocity_coefficients,
+        normal_velocity_fields: lowered.normal_velocity_fields,
+        normal_velocity_definitions: lowered.normal_velocity_definitions,
+        relations: lowered.relations,
+        boundary_relations: lowered.boundary_relations,
+        ports: lowered.ports,
+        connections: lowered.connections,
+        connector_domains: lowered.connector_domains,
+        uninterpreted_live_relations: lowered.uninterpreted_live_relations,
+    })
+}
+
+pub(super) fn lower_named(
+    program: &KernelProgram,
+    domain: RawId,
+    velocity: RawId,
+    pressure: RawId,
+    volume_viscosity: &ScalarSpatialExpression,
+    exact_boundaries: BTreeMap<String, RawId>,
+) -> Result<LoweredNamedStokesBoundary2d, Diagnostic> {
+    let lowered = lower_entries::<2, _>(
+        program,
+        domain,
+        velocity,
+        pressure,
+        volume_viscosity,
+        exact_boundaries,
+    )?;
+    Ok(LoweredNamedStokesBoundary2d {
+        entries: lowered.entries,
+        normal_pressure_sources: lowered.normal_pressure_sources,
+        normal_velocity_expressions: lowered.normal_velocity_expressions,
+        normal_velocity_coefficients: lowered.normal_velocity_coefficients,
+        normal_velocity_fields: lowered.normal_velocity_fields,
+        normal_velocity_definitions: lowered.normal_velocity_definitions,
+        boundary_relations: lowered.boundary_relations,
+        ports: lowered.ports,
+        connections: lowered.connections,
+        connector_domains: lowered.connector_domains,
+        uninterpreted_live_relations: lowered.uninterpreted_live_relations,
+    })
+}
+
+fn lower_entries<const D: usize, K: Clone + Ord>(
+    program: &KernelProgram,
+    domain: RawId,
+    velocity: RawId,
+    pressure: RawId,
+    volume_viscosity: &ScalarSpatialExpression,
+    exact_boundaries: BTreeMap<K, RawId>,
+) -> Result<LoweredBoundaryEntries<K>, Diagnostic> {
     let mut entries = BTreeMap::new();
     let mut normal_pressure_sources = BTreeMap::new();
     let mut normal_velocity_expressions = BTreeMap::new();
+    let mut normal_velocity_coefficients = BTreeMap::new();
     let mut normal_velocity_fields = BTreeSet::new();
     let mut normal_velocity_definitions = BTreeSet::new();
     let mut admitted_relations = BTreeSet::new();
@@ -91,7 +187,7 @@ pub(super) fn lower_dimension<const D: usize>(
     let mut connector_domains = BTreeSet::new();
     let mut uninterpreted_live_relations = BTreeSet::new();
 
-    for ((axis, side), boundary) in exact_boundaries {
+    for (key, boundary) in exact_boundaries {
         let relations = relations_on(program, boundary);
         for relation in &relations {
             require_continuous_relation(program, *relation)?;
@@ -147,7 +243,7 @@ pub(super) fn lower_dimension<const D: usize>(
                 .map(|relation| BoundaryRelationBinding::new(boundary, relation)),
         );
         if let Some(normal_pressure) = candidate.normal_pressure {
-            normal_pressure_sources.insert((axis, side), normal_pressure);
+            normal_pressure_sources.insert(key.clone(), normal_pressure);
         }
         if let PhysicalBoundaryDisposition::Prescribed(law) = candidate.disposition
             && law.quantity() == PhysicalBoundaryQuantity::Trace
@@ -158,20 +254,22 @@ pub(super) fn lower_dimension<const D: usize>(
                 velocity,
                 domain,
             )?;
-            normal_velocity_expressions.insert((axis, side), expression);
+            normal_velocity_expressions.insert(key.clone(), expression);
+            normal_velocity_coefficients.insert(key.clone(), (field, definition));
             normal_velocity_fields.insert(field);
             normal_velocity_definitions.insert(definition);
         }
         entries.insert(
-            (axis, side),
+            key,
             CartesianBoundaryEntry::new(boundary, candidate.disposition),
         );
     }
 
-    Ok(LoweredStokesBoundary {
-        inventory: CartesianBoundaryInventory::new(entries),
+    Ok(LoweredBoundaryEntries {
+        entries,
         normal_pressure_sources,
         normal_velocity_expressions,
+        normal_velocity_coefficients,
         normal_velocity_fields,
         normal_velocity_definitions,
         relations: admitted_relations,

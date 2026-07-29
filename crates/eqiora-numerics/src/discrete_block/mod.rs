@@ -214,6 +214,12 @@ pub(crate) fn boundary_treatment(
         .find(|(_, entry)| entry.boundary() == binding.boundary())
         .map(|(_, entry)| entry.disposition())
         .ok_or_else(|| invalid("a boundary Relation is absent from its exact inventory"))?;
+    boundary_treatment_for(disposition)
+}
+
+pub(crate) fn boundary_treatment_for(
+    disposition: PhysicalBoundaryDisposition,
+) -> Result<BoundaryTreatment, Diagnostic> {
     match disposition {
         PhysicalBoundaryDisposition::TraceZero => Ok(BoundaryTreatment::EssentialElimination),
         PhysicalBoundaryDisposition::FluxZero => Ok(BoundaryTreatment::Natural {

@@ -157,6 +157,7 @@ pub struct SteadyStokesMiniSolution2d {
     pressure: SimplicialP1Field,
     pressure_reference: SteadyStokesPressureReference2d,
     boundary_reaction: [f64; 2],
+    named_boundary_reactions: Vec<(String, [f64; 2])>,
     integrated_body_force: [f64; 2],
     integrated_boundary_traction: [f64; 2],
     pressure_integral: f64,
@@ -218,6 +219,11 @@ impl SteadyStokesMiniSolution2d {
         let boundary_reaction = dimensionless
             .boundary_reaction()
             .map(|value| value * force_scale);
+        let named_boundary_reactions = dimensionless
+            .named_boundary_reactions()
+            .iter()
+            .map(|(name, value)| (name.clone(), value.map(|component| component * force_scale)))
+            .collect::<Vec<_>>();
         let integrated_body_force = dimensionless
             .integrated_body_force()
             .map(|value| value * force_scale);
@@ -230,6 +236,11 @@ impl SteadyStokesMiniSolution2d {
             .into_iter()
             .chain([pressure_integral])
             .chain(boundary_reaction)
+            .chain(
+                named_boundary_reactions
+                    .iter()
+                    .flat_map(|(_, reaction)| reaction.iter().copied()),
+            )
             .chain(integrated_body_force)
             .chain(integrated_boundary_traction)
             .any(|value| !value.is_finite())
@@ -246,6 +257,7 @@ impl SteadyStokesMiniSolution2d {
             pressure,
             pressure_reference,
             boundary_reaction,
+            named_boundary_reactions,
             integrated_body_force,
             integrated_boundary_traction,
             pressure_integral,
@@ -300,6 +312,18 @@ impl SteadyStokesMiniSolution2d {
     #[must_use]
     pub const fn boundary_reaction(&self) -> [f64; 2] {
         self.boundary_reaction
+    }
+
+    /// Physical constrained-vertex reaction for one named surface, in N/m.
+    ///
+    /// The vector is force on the fluid. Force exerted by the fluid on that
+    /// surface is its componentwise negative.
+    #[must_use]
+    pub fn named_boundary_reaction(&self, name: &str) -> Option<[f64; 2]> {
+        self.named_boundary_reactions
+            .iter()
+            .find(|(candidate, _)| candidate == name)
+            .map(|(_, value)| *value)
     }
 
     /// Physical integrated body force per unit out-of-plane thickness, in N/m.
