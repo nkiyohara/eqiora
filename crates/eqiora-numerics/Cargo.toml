@@ -13,6 +13,7 @@ eqiora-artifact = { workspace = true }
 eqiora-core = { workspace = true }
 eqiora-distributed = { workspace = true }
 eqiora-execution = { workspace = true }
+eqiora-geometry = { workspace = true }
 eqiora-graph = { workspace = true }
 eqiora-ir = { workspace = true }
 eqiora-meshing = { workspace = true }

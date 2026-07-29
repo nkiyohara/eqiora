@@ -1,14 +1,19 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::{Diagnostic, DimExponents, RawId, ValueShape};
+use eqiora_geometry::CanonicalCircularHoleGeometryV1;
 use eqiora_graph::EdgeKind;
 use eqiora_schema::kernel::{DomainKind, ExprNode, KernelNode, SymbolRef, ValueFrame};
 use eqiora_sem::KernelProgram;
 
+use crate::canonical_boundary::CartesianBoundaryEntry;
 use crate::spatial_expression;
 
-use super::api::{SteadyIncompressibleStokesCartesianModel2d, SteadyStokesNormalPressure2d};
-use super::boundary::{self, LoweredStokesBoundary2d, NormalPressureSource2d};
+use super::api::{
+    SteadyIncompressibleStokesCartesianModel2d, SteadyIncompressibleStokesModel2d,
+    SteadyStokesBoundaryEntry2d, SteadyStokesNormalPressure2d, StokesBoundaryKey2d,
+};
+use super::boundary::{self, NormalPressureSource2d};
 use super::expression::{
     is_divergence_of_field, load_definition_root, lower_exact_twice_viscosity,
     momentum_viscous_root,
@@ -30,6 +35,34 @@ const PRESSURE: DimExponents = DimExponents {
     ..DimExponents::DIMENSIONLESS
 };
 
+enum BoundarySource2d {
+    Cartesian,
+    Named(BTreeMap<String, RawId>),
+}
+
+struct LoweredBoundaryProjection2d {
+    entries: BTreeMap<StokesBoundaryKey2d, SteadyStokesBoundaryEntry2d>,
+    cartesian_entries:
+        Option<BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), CartesianBoundaryEntry>>,
+    normal_pressure_sources: BTreeMap<StokesBoundaryKey2d, NormalPressureSource2d>,
+    normal_velocity_expressions:
+        BTreeMap<StokesBoundaryKey2d, crate::spatial_expression::ScalarSpatialExpression>,
+    normal_velocity_coefficients: BTreeMap<StokesBoundaryKey2d, (RawId, RawId)>,
+    normal_velocity_fields: BTreeSet<RawId>,
+    normal_velocity_definitions: BTreeSet<RawId>,
+    boundary_relations: Vec<crate::canonical_boundary::BoundaryRelationBinding2d>,
+    ports: BTreeSet<RawId>,
+    connections: BTreeSet<RawId>,
+    connector_domains: BTreeSet<RawId>,
+    uninterpreted_live_relations: BTreeSet<RawId>,
+}
+
+struct LoweredSteadyStokes2d {
+    model: SteadyIncompressibleStokesModel2d,
+    cartesian_entries:
+        Option<BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), CartesianBoundaryEntry>>,
+}
+
 /// Lower the exact canonical 2D steady incompressible Stokes subset.
 ///
 /// Recognition is identity-parametric and whole-model fail-closed. Source
@@ -43,7 +76,56 @@ pub fn lower_steady_incompressible_stokes_cartesian_2d(
     program: &KernelProgram,
 ) -> Result<SteadyIncompressibleStokesCartesianModel2d, Diagnostic> {
     let (domain, bounds) = unique_box_2d(program)?;
-    let (velocity, scalar_fields, representation) = exact_fields(program, domain)?;
+    let lowered = lower_steady_incompressible_stokes_2d_on(
+        program,
+        domain,
+        bounds,
+        BoundarySource2d::Cartesian,
+        None,
+    )?;
+    Ok(SteadyIncompressibleStokesCartesianModel2d::from_common(
+        lowered.model,
+        lowered
+            .cartesian_entries
+            .expect("Cartesian lowering retains its exact side inventory"),
+    ))
+}
+
+/// Lower the exact geometry-backed 2D steady incompressible Stokes subset.
+///
+/// The supplied exact circular-hole geometry authenticates the Model's
+/// `GeometryRegion` digest and supplies only exact bounds and fixed-side
+/// parent-outward normals. Mesh entity membership is deliberately absent from
+/// this method-neutral result and is resolved later through correspondence.
+///
+/// # Errors
+/// Returns `EQ0703` for semantic ambiguity or unsupported boundary meaning,
+/// and rejects a source digest or named-set inventory that differs from the
+/// admitted Model before numerical realization.
+pub(super) fn lower_steady_incompressible_stokes_geometry_2d(
+    program: &KernelProgram,
+    geometry: &CanonicalCircularHoleGeometryV1,
+) -> Result<SteadyIncompressibleStokesModel2d, Diagnostic> {
+    let (domain, boundaries) = unique_circular_hole_domain(program, geometry)?;
+    lower_steady_incompressible_stokes_2d_on(
+        program,
+        domain,
+        *geometry.bounds(),
+        BoundarySource2d::Named(boundaries),
+        Some(geometry.digest_bytes()),
+    )
+    .map(|lowered| lowered.model)
+}
+
+fn lower_steady_incompressible_stokes_2d_on(
+    program: &KernelProgram,
+    domain: RawId,
+    bounds: [[f64; 2]; 2],
+    boundary_source: BoundarySource2d,
+    geometry_source_digest: Option<[u8; 32]>,
+) -> Result<LoweredSteadyStokes2d, Diagnostic> {
+    let (velocity, scalar_fields, normal_velocity_fields, representation) =
+        exact_steady_fields(program, domain)?;
     let volume_relations = relations_on(program, domain);
     if volume_relations.len() < 3 {
         return Err(lowering_error(
@@ -177,7 +259,20 @@ pub fn lower_steady_incompressible_stokes_cartesian_2d(
         ));
     }
 
-    let boundary = boundary::lower(program, domain, velocity, pressure, &dynamic_viscosity)?;
+    let boundary = lower_boundary_projection(
+        program,
+        domain,
+        velocity,
+        pressure,
+        &dynamic_viscosity,
+        boundary_source,
+    )?;
+    if boundary.normal_velocity_fields != normal_velocity_fields {
+        return Err(lowering_error(
+            domain,
+            "every velocity-valued scalar Field must define one prescribed normal-velocity trace",
+        ));
+    }
     let volume_roles = StokesVolumeRoles {
         domain,
         representation,
@@ -189,8 +284,13 @@ pub fn lower_steady_incompressible_stokes_cartesian_2d(
         momentum_relation,
         incompressibility_relation,
     };
-    let normal_pressures = resolve_normal_pressures(program, &volume_roles, &boundary)?;
-    let model = SteadyIncompressibleStokesCartesianModel2d {
+    let normal_pressures = resolve_normal_pressures(
+        program,
+        &volume_roles,
+        &boundary.normal_pressure_sources,
+        &boundary.normal_velocity_definitions,
+    )?;
+    let model = SteadyIncompressibleStokesModel2d {
         domain,
         velocity,
         pressure,
@@ -201,9 +301,12 @@ pub fn lower_steady_incompressible_stokes_cartesian_2d(
         force_potential_definition,
         momentum_relation,
         incompressibility_relation,
-        boundary_inventory: boundary.inventory.clone(),
+        boundary_entries: boundary.entries.clone(),
         boundary_relations: boundary.boundary_relations.clone(),
-        normal_pressures: normal_pressures.by_side,
+        normal_pressures: normal_pressures.by_key,
+        normal_velocity_expressions: boundary.normal_velocity_expressions.clone(),
+        normal_velocity_coefficients: boundary.normal_velocity_coefficients.clone(),
+        geometry_source_digest,
     };
     require_closed_model(
         program,
@@ -213,7 +316,207 @@ pub fn lower_steady_incompressible_stokes_cartesian_2d(
         &normal_pressures.fields,
         &normal_pressures.definitions,
     )?;
-    Ok(model)
+    Ok(LoweredSteadyStokes2d {
+        model,
+        cartesian_entries: boundary.cartesian_entries,
+    })
+}
+
+fn lower_boundary_projection(
+    program: &KernelProgram,
+    domain: RawId,
+    velocity: RawId,
+    pressure: RawId,
+    dynamic_viscosity: &crate::spatial_expression::ScalarSpatialExpression,
+    source: BoundarySource2d,
+) -> Result<LoweredBoundaryProjection2d, Diagnostic> {
+    match source {
+        BoundarySource2d::Cartesian => {
+            let lowered = boundary::lower(program, domain, velocity, pressure, dynamic_viscosity)?;
+            let cartesian_entries = lowered
+                .inventory
+                .entries()
+                .map(|(key, entry)| (*key, *entry))
+                .collect::<BTreeMap<_, _>>();
+            Ok(LoweredBoundaryProjection2d {
+                entries: cartesian_entries
+                    .iter()
+                    .map(|(&(axis, side), entry)| {
+                        (
+                            StokesBoundaryKey2d::CartesianSide { axis, side },
+                            SteadyStokesBoundaryEntry2d {
+                                boundary: entry.boundary(),
+                                disposition: entry.disposition(),
+                            },
+                        )
+                    })
+                    .collect(),
+                cartesian_entries: Some(cartesian_entries),
+                normal_pressure_sources: lowered
+                    .normal_pressure_sources
+                    .into_iter()
+                    .map(|((axis, side), source)| {
+                        (StokesBoundaryKey2d::CartesianSide { axis, side }, source)
+                    })
+                    .collect(),
+                normal_velocity_expressions: lowered
+                    .normal_velocity_expressions
+                    .into_iter()
+                    .map(|((axis, side), expression)| {
+                        (
+                            StokesBoundaryKey2d::CartesianSide { axis, side },
+                            expression,
+                        )
+                    })
+                    .collect(),
+                normal_velocity_coefficients: lowered
+                    .normal_velocity_coefficients
+                    .into_iter()
+                    .map(|((axis, side), coefficient)| {
+                        (
+                            StokesBoundaryKey2d::CartesianSide { axis, side },
+                            coefficient,
+                        )
+                    })
+                    .collect(),
+                normal_velocity_fields: lowered.normal_velocity_fields,
+                normal_velocity_definitions: lowered.normal_velocity_definitions,
+                boundary_relations: lowered.boundary_relations,
+                ports: lowered.ports,
+                connections: lowered.connections,
+                connector_domains: lowered.connector_domains,
+                uninterpreted_live_relations: lowered.uninterpreted_live_relations,
+            })
+        }
+        BoundarySource2d::Named(boundaries) => {
+            let lowered = boundary::lower_named(
+                program,
+                domain,
+                velocity,
+                pressure,
+                dynamic_viscosity,
+                boundaries,
+            )?;
+            Ok(LoweredBoundaryProjection2d {
+                entries: lowered
+                    .entries
+                    .into_iter()
+                    .map(|(name, entry)| {
+                        (
+                            StokesBoundaryKey2d::NamedEntitySet(name),
+                            SteadyStokesBoundaryEntry2d {
+                                boundary: entry.boundary(),
+                                disposition: entry.disposition(),
+                            },
+                        )
+                    })
+                    .collect(),
+                cartesian_entries: None,
+                normal_pressure_sources: lowered
+                    .normal_pressure_sources
+                    .into_iter()
+                    .map(|(name, source)| (StokesBoundaryKey2d::NamedEntitySet(name), source))
+                    .collect(),
+                normal_velocity_expressions: lowered
+                    .normal_velocity_expressions
+                    .into_iter()
+                    .map(|(name, expression)| {
+                        (StokesBoundaryKey2d::NamedEntitySet(name), expression)
+                    })
+                    .collect(),
+                normal_velocity_coefficients: lowered
+                    .normal_velocity_coefficients
+                    .into_iter()
+                    .map(|(name, coefficient)| {
+                        (StokesBoundaryKey2d::NamedEntitySet(name), coefficient)
+                    })
+                    .collect(),
+                normal_velocity_fields: lowered.normal_velocity_fields,
+                normal_velocity_definitions: lowered.normal_velocity_definitions,
+                boundary_relations: lowered.boundary_relations,
+                ports: lowered.ports,
+                connections: lowered.connections,
+                connector_domains: lowered.connector_domains,
+                uninterpreted_live_relations: lowered.uninterpreted_live_relations,
+            })
+        }
+    }
+}
+
+fn unique_circular_hole_domain(
+    program: &KernelProgram,
+    geometry: &CanonicalCircularHoleGeometryV1,
+) -> Result<(RawId, BTreeMap<String, RawId>), Diagnostic> {
+    let regions = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
+            {
+                Some(domain)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if regions.len() != 1 {
+        return Err(model_lowering_error(
+            program,
+            format!(
+                "geometry-backed 2D Stokes requires exactly one GeometryRegion, found {}",
+                regions.len()
+            ),
+        ));
+    }
+    let region = regions[0];
+    let DomainKind::GeometryRegion {
+        geometry: model_geometry,
+        entity_set,
+    } = region.kind()
+    else {
+        unreachable!("GeometryRegion filter is exact");
+    };
+    if model_geometry.bytes() != geometry.digest_bytes() {
+        return Err(lowering_error(
+            region.id().erase(),
+            "exact circular-hole source revision differs from the Model GeometryRegion digest",
+        ));
+    }
+    if entity_set != "fluid" {
+        return Err(lowering_error(
+            region.id().erase(),
+            "geometry-backed steady Stokes requires the exact `fluid` region entity set",
+        ));
+    }
+    let domain = region.id().erase();
+    let boundaries = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(boundary)
+                if has_edge(program, boundary.id().erase(), domain, EdgeKind::BoundaryOf) =>
+            {
+                match boundary.kind() {
+                    DomainKind::GeometryBoundary { entity_set } => {
+                        Some((entity_set.clone(), boundary.id().erase()))
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .collect::<BTreeMap<_, _>>();
+    let required = BTreeSet::from([
+        "cylinder".to_owned(),
+        "inlet".to_owned(),
+        "outlet".to_owned(),
+        "walls".to_owned(),
+    ]);
+    if boundaries.keys().cloned().collect::<BTreeSet<_>>() != required {
+        return Err(lowering_error(
+            domain,
+            "geometry-backed steady Stokes requires exactly `inlet`, `outlet`, `walls`, and `cylinder` boundary entity sets",
+        ));
+    }
+    Ok((domain, boundaries))
 }
 
 pub(super) fn unique_box_2d(program: &KernelProgram) -> Result<(RawId, [[f64; 2]; 2]), Diagnostic> {
@@ -271,6 +574,79 @@ pub(super) fn unique_box<const D: usize>(
         .try_into()
         .expect("dimension equality establishes Cartesian bound count");
     Ok((domain.id().erase(), bounds))
+}
+
+fn exact_steady_fields(
+    program: &KernelProgram,
+    domain: RawId,
+) -> Result<(RawId, Vec<RawId>, BTreeSet<RawId>, RawId), Diagnostic> {
+    let fields = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Field(field)
+                if has_edge(program, field.id().erase(), domain, EdgeKind::DefinedOn)
+                    && continuum_representation(program, field.id().erase()).is_some() =>
+            {
+                Some(field)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let velocity_shape = ValueShape::new([2]).expect("two components are representable");
+    let velocity = fields
+        .iter()
+        .filter(|field| {
+            field.shape() == &velocity_shape
+                && field.frame() == ValueFrame::SpatialCartesian
+                && field.dimension() == VELOCITY
+        })
+        .map(|field| field.id().erase())
+        .collect::<Vec<_>>();
+    let pressure_scalars = fields
+        .iter()
+        .filter(|field| {
+            field.shape().is_scalar()
+                && field.frame() == ValueFrame::Invariant
+                && field.dimension() == PRESSURE
+        })
+        .map(|field| field.id().erase())
+        .collect::<Vec<_>>();
+    let normal_velocity_scalars = fields
+        .iter()
+        .filter(|field| {
+            field.shape().is_scalar()
+                && field.frame() == ValueFrame::Invariant
+                && field.dimension() == VELOCITY
+        })
+        .map(|field| field.id().erase())
+        .collect::<BTreeSet<_>>();
+    if fields.len() != velocity.len() + pressure_scalars.len() + normal_velocity_scalars.len()
+        || velocity.len() != 1
+        || pressure_scalars.len() < 2
+    {
+        return Err(lowering_error(
+            domain,
+            "steady Stokes Fields must be exactly one spatial velocity vector, at least two pressure-valued invariant scalars, and zero or more invariant normal-velocity scalars",
+        ));
+    }
+    let representation = continuum_representation(program, velocity[0])
+        .expect("field filter establishes one continuum Representation");
+    if pressure_scalars
+        .iter()
+        .chain(normal_velocity_scalars.iter())
+        .any(|field| continuum_representation(program, *field) != Some(representation))
+    {
+        return Err(lowering_error(
+            domain,
+            "steady Stokes solution and boundary-coefficient Fields must share one continuum Representation",
+        ));
+    }
+    Ok((
+        velocity[0],
+        pressure_scalars,
+        normal_velocity_scalars,
+        representation,
+    ))
 }
 
 pub(super) fn exact_fields(
@@ -346,7 +722,7 @@ pub(super) fn exact_fields_for_dimension<const D: usize>(
 }
 
 struct ResolvedNormalPressures2d {
-    by_side: BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), SteadyStokesNormalPressure2d>,
+    by_key: BTreeMap<StokesBoundaryKey2d, SteadyStokesNormalPressure2d>,
     fields: BTreeSet<RawId>,
     definitions: BTreeSet<RawId>,
 }
@@ -366,7 +742,8 @@ struct StokesVolumeRoles<'a> {
 fn resolve_normal_pressures(
     program: &KernelProgram,
     volume: &StokesVolumeRoles<'_>,
-    boundary: &LoweredStokesBoundary2d,
+    sources: &BTreeMap<StokesBoundaryKey2d, NormalPressureSource2d>,
+    normal_velocity_definitions: &BTreeSet<RawId>,
 ) -> Result<ResolvedNormalPressures2d, Diagnostic> {
     let scalar_fields = volume
         .scalar_fields
@@ -379,9 +756,9 @@ fn resolve_normal_pressures(
         RawId,
         (RawId, crate::spatial_expression::ScalarSpatialExpression),
     > = BTreeMap::new();
-    let mut by_side = BTreeMap::new();
+    let mut by_key = BTreeMap::new();
 
-    for (&side, source) in &boundary.normal_pressure_sources {
+    for (key, source) in sources {
         let pressure_law = match *source {
             NormalPressureSource2d::Zero => SteadyStokesNormalPressure2d::zero(
                 crate::spatial_expression::ScalarSpatialExpression::constant(2, 0.0),
@@ -443,7 +820,7 @@ fn resolve_normal_pressures(
                 SteadyStokesNormalPressure2d::field(field, definition, expression)
             }
         };
-        by_side.insert(side, pressure_law);
+        by_key.insert(key.clone(), pressure_law);
     }
 
     let expected_coefficient_fields = scalar_fields
@@ -464,6 +841,7 @@ fn resolve_normal_pressures(
         volume.incompressibility_relation,
     ]);
     expected_relations.extend(definitions.iter().copied());
+    expected_relations.extend(normal_velocity_definitions.iter().copied());
     if volume.relations.iter().copied().collect::<BTreeSet<_>>() != expected_relations {
         return Err(lowering_error(
             volume.domain,
@@ -472,7 +850,7 @@ fn resolve_normal_pressures(
     }
 
     Ok(ResolvedNormalPressures2d {
-        by_side,
+        by_key,
         fields: coefficient_fields,
         definitions,
     })
@@ -480,9 +858,9 @@ fn resolve_normal_pressures(
 
 fn require_closed_model(
     program: &KernelProgram,
-    model: &SteadyIncompressibleStokesCartesianModel2d,
+    model: &SteadyIncompressibleStokesModel2d,
     representation: RawId,
-    boundary: &LoweredStokesBoundary2d,
+    boundary: &LoweredBoundaryProjection2d,
     coefficient_fields: &BTreeSet<RawId>,
     coefficient_definitions: &BTreeSet<RawId>,
 ) -> Result<(), Diagnostic> {
@@ -506,6 +884,7 @@ fn require_closed_model(
             .map(|binding| binding.relation()),
     );
     relations.extend(coefficient_definitions.iter().copied());
+    relations.extend(boundary.normal_velocity_definitions.iter().copied());
     debug_assert!(boundary.uninterpreted_live_relations.is_subset(&relations));
     let activations = program
         .edges()
@@ -529,6 +908,7 @@ fn require_closed_model(
         .collect::<BTreeSet<_>>();
     let mut fields = BTreeSet::from([model.velocity(), model.pressure(), model.force_potential()]);
     fields.extend(coefficient_fields.iter().copied());
+    fields.extend(boundary.normal_velocity_fields.iter().copied());
     for node in program.nodes() {
         let admitted = match node {
             KernelNode::Domain(value) => domains.contains(&value.id().erase()),

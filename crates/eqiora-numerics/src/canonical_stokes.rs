@@ -4,6 +4,7 @@ mod api;
 mod block;
 mod boundary;
 mod expression;
+mod geometry_realization;
 mod inertial;
 mod navier_stokes;
 mod navier_stokes_fvm_realization;
@@ -15,6 +16,9 @@ mod support;
 
 pub use api::{SteadyIncompressibleStokesCartesianModel2d, SteadyStokesNormalPressure2d};
 pub(crate) use boundary::LoweredStokesBoundary;
+pub use geometry_realization::{
+    SteadyStokesGeometryBinding2d, solve_resolved_steady_stokes_geometry_mini_2d,
+};
 pub use inertial::{
     InertialIncompressibleNewtonianCartesianModel2d,
     lower_inertial_incompressible_newtonian_cartesian_2d,
@@ -50,8 +54,7 @@ pub use physical::{
 };
 pub use realization::{
     IncompressibleFlowScaleProfile2d, SteadyStokesScaleProfile2d,
-    finalize_resolved_steady_stokes_mini_2d, finalize_resolved_steady_stokes_mini_2d_with_assembly,
-    solve_resolved_steady_stokes_mini_2d, solve_resolved_steady_stokes_mini_2d_with_assembly,
+    finalize_resolved_steady_stokes_mini_2d, solve_resolved_steady_stokes_mini_2d,
     steady_stokes_fieldwise_requirements_2d, steady_stokes_mini_plan_2d,
 };
 pub use recognize::lower_steady_incompressible_stokes_cartesian_2d;

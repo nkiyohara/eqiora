@@ -1,0 +1,74 @@
+{
+  "schema": "eqiora.verify/exact-circular-hole-stokes-2d/amendment/route-a/v1",
+  "route": "python",
+  "statement": "Route A measurement of the reduced-system residual carried by the f64-rounded elevated-precision oracle solution, separated into representation, evaluation and implication. No production or candidate implementation was read or executed.",
+  "environment": {
+    "python": "3.12.3",
+    "mpmath": "1.3.0",
+    "working_dps": 60,
+    "binary64_eps": 2.220446049250313e-16,
+    "unit_roundoff": 1.1102230246251565e-16
+  },
+  "system": {
+    "reduced_dimension": 314,
+    "b_hat_2norm": 0.13239627651209673,
+    "b_hat_inf_norm": 0.0435374736944266,
+    "x_hat_2norm": 172402.8194291392,
+    "x_hat_inf_norm": 28169.592761981967,
+    "A_hat_inf_norm": 2525.169952486783,
+    "nonzeros_per_row_min": 2,
+    "nonzeros_per_row_max": 10,
+    "max_row_cancellation_sum_abs_A_x": 4719.385958699582,
+    "crude_product_A_inf_times_x_inf": 71133009.21634603
+  },
+  "targets": {
+    "superseded_relative_tolerance": 1e-11,
+    "superseded_target": 1.3239627651209673e-12,
+    "amended_relative_tolerance": 1e-06,
+    "amended_target": 1.3239627651209673e-07,
+    "absolute_tolerance": 1e-13
+  },
+  "representation": {
+    "elevated_residual_at_exact_solution": 2.0373699622727064e-57,
+    "min_ulp_distance_from_a_rounding_tie": 0.00127763742979176,
+    "x_minus_rounded_2norm": 7.52173668431179e-12,
+    "rho_elevated": 1.0872217642825674e-12
+  },
+  "evaluation": {
+    "f64_by_summation_order": {
+      "natural": 2.0801336037105343e-12,
+      "reversed": 1.847878127819729e-12,
+      "ascending_magnitude": 2.1680564474484507e-12,
+      "descending_magnitude": 1.7435339132457643e-12,
+      "kahan_compensated": 2.0750675775699914e-12
+    },
+    "f64_min": 1.7435339132457643e-12,
+    "f64_max": 2.1680564474484507e-12,
+    "gamma_m_bound_2norm": 2.2250313504501518e-11,
+    "decidable_bound_rho_plus_gamma": 2.3337535268784083e-11
+  },
+  "backward_error": {
+    "denominator_A2_x2_plus_b2": 434628821.88487494,
+    "eta_of_rounded_solution": 2.5014948607585717e-21,
+    "unit_roundoff": 1.1102230246251565e-16,
+    "note": "lambda_max 2521.007621520478 is route B's published value for the same operator. eta far below the unit roundoff means there is no normwise backward-stability floor near either target."
+  },
+  "implication": {
+    "note": "An explicitly constructed vector whose reduced residual equals the target exactly, and the pointwise pressure error it still carries. Solver-free: the direction comes from inverse iteration on the oracle's own operator.",
+    "z_2norm_for_unit_residual": 1838821.2615029232,
+    "at_superseded_target": {
+      "target": 1.3239627651209673e-12,
+      "achieved_residual_2norm": 1.3239627651209673e-12,
+      "max_pressure_probe_shift_Pa": 1.5525977191067952e-10,
+      "pressure_production_tolerance_Pa": 3.6587365853658537e-10,
+      "times_over_tolerance": 0.42435351189720694
+    },
+    "at_amended_target": {
+      "target": 1.3239627651209673e-07,
+      "achieved_residual_2norm": 1.3239627651209673e-07,
+      "max_pressure_probe_shift_Pa": 2.7206985031224173e-05,
+      "pressure_production_tolerance_Pa": 3.6587365853658537e-10,
+      "times_over_tolerance": 74361.69397940853
+    }
+  }
+}

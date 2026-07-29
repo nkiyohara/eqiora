@@ -220,6 +220,10 @@ impl SimplicialMiniStokesSolution2d {
             .find_map(|(candidate, reaction)| (candidate == name).then_some(*reaction))
     }
 
+    pub(crate) fn named_boundary_reactions(&self) -> &[(String, [f64; COMPONENTS])] {
+        &self.named_boundary_reactions
+    }
+
     /// Independently integrated body-force resultant.
     #[must_use]
     pub const fn integrated_body_force(&self) -> [f64; COMPONENTS] {

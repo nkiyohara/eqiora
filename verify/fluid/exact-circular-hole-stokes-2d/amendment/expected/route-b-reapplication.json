@@ -1,0 +1,43 @@
+{
+  "schema": "eqiora.verify/exact-circular-hole-stokes-2d/amendment/route-b/v1",
+  "route": "julia",
+  "statement": "Route B measurement of the reduced-system residual carried by the f64-rounded elevated-precision oracle solution. Independently assembled by explicit Duffy quadrature with the bubbles never condensed. No production or candidate implementation was read or executed.",
+  "environment": {
+    "julia": "1.12.6",
+    "bigfloat_precision_bits": 256,
+    "binary64_eps": 2.220446049250313e-16
+  },
+  "system": {
+    "reduced_dimension": 314.0,
+    "b_hat_2norm": 0.13239627651209673,
+    "x_hat_2norm": 172402.8194291392,
+    "x_hat_inf_norm": 28169.592761981967,
+    "A_hat_inf_norm": 2525.169952486783,
+    "nonzeros_per_row_min": 2.0,
+    "nonzeros_per_row_max": 17.0,
+    "max_row_cancellation_sum_abs_A_x": 4719.385958699583
+  },
+  "targets": {
+    "superseded_relative_tolerance": 1.0e-11,
+    "superseded_target": 1.3239627651209673e-12,
+    "amended_relative_tolerance": 1.0e-6,
+    "amended_target": 1.3239627651209673e-7,
+    "absolute_tolerance": 1.0e-13
+  },
+  "representation": {
+    "elevated_residual_at_exact_solution": 1.3089585756207458e-73,
+    "min_ulp_distance_from_a_rounding_tie": 0.002010614110107941,
+    "x_minus_rounded_2norm": 7.316653228699447e-12,
+    "rho_elevated": 1.0305126233950387e-12
+  },
+  "evaluation": {
+    "blas_dense_matvec": 1.5630028457610753e-12,
+    "full_system_path": 1.5807209588473672e-12,
+    "row_loop_natural": 1.9510962877750815e-12,
+    "row_loop_reversed": 1.8882088086975798e-12,
+    "f64_min": 1.5630028457610753e-12,
+    "f64_max": 1.9510962877750815e-12,
+    "gamma_m_bound_2norm": 2.3481355416471932e-11,
+    "decidable_bound_rho_plus_gamma": 2.451186803986697e-11
+  }
+}

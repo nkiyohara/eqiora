@@ -12,18 +12,19 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::LinearOperatorProperties;
 
 use super::{
-    IncompressibleFlowScaleProfile2d, SteadyIncompressibleStokesCartesianModel2d,
-    SteadyStokesScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
+    IncompressibleFlowScaleProfile2d, SteadyStokesScaleProfile2d,
+    TransientIncompressibleNavierStokesCartesianModel2d,
 };
 use crate::canonical_boundary::BoundaryRelationBinding2d;
 use crate::canonical_boundary::{
     CartesianBoundaryInventory2d, PhysicalBoundaryDisposition, PhysicalBoundaryQuantity,
 };
+use crate::canonical_stokes::api::SteadyIncompressibleStokesModel2d;
 use crate::discrete_block::{
     AlgebraicClosure, AuxiliaryBlock, BlockRealizationIdentity, BlockSupport, BlockTransformation,
     ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, FieldBlock,
     FieldBlockRole, RelationBlock, RelationDisposition, ResidualBlock, ResidualOrigin,
-    boundary_treatment,
+    boundary_treatment, boundary_treatment_for,
 };
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
@@ -42,7 +43,7 @@ const PRESSURE: DimExponents = DimExponents {
 };
 
 pub(super) fn steady_stokes_block_system(
-    model: &SteadyIncompressibleStokesCartesianModel2d,
+    model: &SteadyIncompressibleStokesModel2d,
     resolved: &ResolvedFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
@@ -93,42 +94,59 @@ pub(super) fn steady_stokes_block_system(
     ];
 
     let mut boundary_coefficients = Vec::new();
-    for axis in 0..2 {
-        for side in [
-            eqiora_schema::kernel::BoundarySide::Lower,
-            eqiora_schema::kernel::BoundarySide::Upper,
-        ] {
-            let Some(pressure_law) = model.normal_pressure(axis, side) else {
-                continue;
-            };
-            let (Some(raw_field), Some(raw_definition)) = (
-                pressure_law.coefficient_field(),
-                pressure_law.definition_relation(),
-            ) else {
-                continue;
-            };
-            let coefficient = field(raw_field)?;
-            let definition = relation(raw_definition)?;
-            if let Some((_, existing)) = boundary_coefficients
-                .iter()
-                .find(|(field, _)| *field == coefficient)
-            {
-                if *existing != definition {
-                    return Err(invalid_identity(
-                        "one definition Relation for a normal-pressure Field",
-                        raw_definition,
-                    ));
-                }
-            } else {
-                boundary_coefficients.push((coefficient, definition));
-                fields.push(FieldBlock::coefficient(
-                    domain,
-                    coefficient,
-                    ValueShape::scalar(),
-                    PRESSURE,
-                    ValueFrame::Invariant,
+    for pressure_law in model.normal_pressures() {
+        let (Some(raw_field), Some(raw_definition)) = (
+            pressure_law.coefficient_field(),
+            pressure_law.definition_relation(),
+        ) else {
+            continue;
+        };
+        let coefficient = field(raw_field)?;
+        let definition = relation(raw_definition)?;
+        if let Some((_, existing)) = boundary_coefficients
+            .iter()
+            .find(|(field, _)| *field == coefficient)
+        {
+            if *existing != definition {
+                return Err(invalid_identity(
+                    "one definition Relation for a normal-pressure Field",
+                    raw_definition,
                 ));
             }
+        } else {
+            boundary_coefficients.push((coefficient, definition));
+            fields.push(FieldBlock::coefficient(
+                domain,
+                coefficient,
+                ValueShape::scalar(),
+                PRESSURE,
+                ValueFrame::Invariant,
+            ));
+        }
+    }
+    let mut boundary_velocity_coefficients = Vec::new();
+    for (raw_field, raw_definition) in model.normal_velocity_coefficients() {
+        let coefficient = field(raw_field)?;
+        let definition = relation(raw_definition)?;
+        if let Some((_, existing)) = boundary_velocity_coefficients
+            .iter()
+            .find(|(field, _)| *field == coefficient)
+        {
+            if *existing != definition {
+                return Err(invalid_identity(
+                    "one definition Relation for a normal-velocity Field",
+                    raw_definition,
+                ));
+            }
+        } else {
+            boundary_velocity_coefficients.push((coefficient, definition));
+            fields.push(FieldBlock::coefficient(
+                domain,
+                coefficient,
+                ValueShape::scalar(),
+                VELOCITY,
+                ValueFrame::Invariant,
+            ));
         }
     }
 
@@ -163,8 +181,19 @@ pub(super) fn steady_stokes_block_system(
             RelationDisposition::CoefficientDefinition { field: *field },
         )
     }));
-    relations.extend(boundary_relation_blocks(
-        model.boundary_inventory(),
+    relations.extend(
+        boundary_velocity_coefficients
+            .iter()
+            .map(|(field, definition)| {
+                RelationBlock::new(
+                    *definition,
+                    BlockSupport::Volume(domain),
+                    RelationDisposition::CoefficientDefinition { field: *field },
+                )
+            }),
+    );
+    relations.extend(steady_boundary_relation_blocks(
+        model,
         model.boundary_relations(),
         velocity,
     )?);
@@ -604,16 +633,48 @@ fn parameter_inventory<'a>(
 }
 
 fn boundary_parameter_inventory(
-    model: &SteadyIncompressibleStokesCartesianModel2d,
+    model: &SteadyIncompressibleStokesModel2d,
 ) -> Vec<Id<kinds::Parameter>> {
-    use eqiora_schema::kernel::BoundarySide;
-
-    parameter_inventory((0..2).flat_map(|axis| {
-        [BoundarySide::Lower, BoundarySide::Upper]
-            .into_iter()
-            .filter_map(move |side| model.normal_pressure(axis, side))
+    parameter_inventory(
+        model
+            .normal_pressures()
             .map(|pressure| pressure.expression().parameter_fields())
-    }))
+            .chain(
+                model
+                    .normal_velocity_expressions()
+                    .map(crate::spatial_expression::ScalarSpatialExpression::parameter_fields),
+            ),
+    )
+}
+
+fn steady_boundary_relation_blocks(
+    model: &SteadyIncompressibleStokesModel2d,
+    bindings: &[BoundaryRelationBinding2d],
+    field: Id<kinds::Field>,
+) -> Result<Vec<RelationBlock>, Diagnostic> {
+    bindings
+        .iter()
+        .map(|binding| {
+            let disposition = model
+                .boundary_entries()
+                .find(|(_, entry)| entry.boundary == binding.boundary())
+                .map(|(_, entry)| entry.disposition)
+                .ok_or_else(|| {
+                    invalid_identity(
+                        "boundary Relation support in the exact Stokes inventory",
+                        binding.boundary(),
+                    )
+                })?;
+            Ok(RelationBlock::new(
+                relation(binding.relation())?,
+                BlockSupport::Boundary(domain_id(binding.boundary())?),
+                RelationDisposition::BoundaryCondition {
+                    field,
+                    treatment: boundary_treatment_for(disposition)?,
+                },
+            ))
+        })
+        .collect()
 }
 
 fn boundary_relation_blocks(
@@ -637,34 +698,41 @@ fn boundary_relation_blocks(
 }
 
 fn essential_relations(
-    model: &SteadyIncompressibleStokesCartesianModel2d,
+    model: &SteadyIncompressibleStokesModel2d,
 ) -> Result<Vec<Id<kinds::Relation>>, Diagnostic> {
     relations_with_disposition(model, |disposition| {
         disposition == PhysicalBoundaryDisposition::TraceZero
+            || matches!(
+                disposition,
+                PhysicalBoundaryDisposition::Prescribed(law)
+                    if law.quantity() == PhysicalBoundaryQuantity::Trace
+            )
     })
 }
 
 fn traction_relations(
-    model: &SteadyIncompressibleStokesCartesianModel2d,
+    model: &SteadyIncompressibleStokesModel2d,
 ) -> Result<Vec<Id<kinds::Relation>>, Diagnostic> {
     relations_with_disposition(model, |disposition| {
-        matches!(
-            disposition,
-            PhysicalBoundaryDisposition::FluxZero | PhysicalBoundaryDisposition::Prescribed(_)
-        )
+        disposition == PhysicalBoundaryDisposition::FluxZero
+            || matches!(
+                disposition,
+                PhysicalBoundaryDisposition::Prescribed(law)
+                    if law.quantity() == PhysicalBoundaryQuantity::Flux
+            )
     })
 }
 
 fn relations_with_disposition(
-    model: &SteadyIncompressibleStokesCartesianModel2d,
+    model: &SteadyIncompressibleStokesModel2d,
     predicate: impl Fn(PhysicalBoundaryDisposition) -> bool,
 ) -> Result<Vec<Id<kinds::Relation>>, Diagnostic> {
     model
         .boundary_relations()
         .iter()
         .filter(|binding| {
-            model.boundary_inventory().entries().any(|(_, entry)| {
-                entry.boundary() == binding.boundary() && predicate(entry.disposition())
+            model.boundary_entries().any(|(_, entry)| {
+                entry.boundary == binding.boundary() && predicate(entry.disposition)
             })
         })
         .map(|binding| relation(binding.relation()))

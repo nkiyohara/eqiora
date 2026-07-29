@@ -1,0 +1,91 @@
+id = "fluid.exact-circular-hole-stokes-2d"
+status = "verified"
+scope = "exact-circle-source-to-chordal-mini-stokes-faer-sparse-lu-reaction"
+reference_kind = "dual-independent-elevated-precision-assembly-and-physical-observations"
+
+capabilities = [
+  "exact-circular-hole-steady-stokes-lineage",
+  "named-geometry-boundary-mini-stokes",
+  "faer-sparse-lu-symmetric-indefinite-mini-stokes",
+  "named-cylinder-constrained-reaction",
+  "physical-probe-flux-and-global-balance-acceptance",
+]
+
+[geometry]
+bounds_m = [[0.0, 2.2], [0.0, 0.41]]
+circle_center_m = [0.2, 0.2]
+circle_radius_m = 0.05
+maximum_boundary_error_m = 1e-4
+maximum_circle_segments = 50
+minimum_mean_ratio = 1e-5
+realized_vertices = 104
+realized_cells = 104
+boundary_partition = "inlet 14; outlet 2; walls 38; cylinder 50"
+curved_elements = false
+
+[formulation]
+equations = "-div(2 mu sym(grad(u)) - p I) = 0; div(u) = 0"
+dynamic_viscosity_pa_s = 0.001
+velocity_space = "continuous vector MINI: P1 plus normalized cell bubble"
+pressure_space = "continuous scalar P1"
+pressure_reference = "boundary traction; no gauge row"
+volume_quadrature = "positive degree-four 3x3 Gauss-Legendre Duffy"
+
+[solve]
+backend = "eqiora.faer"
+provider_library = "faer 0.24.4"
+algorithm = "sparse-lu"
+operator_property = "symmetric-indefinite"
+preconditioner = "identity"
+reduction = "fast with independent fixed-order true-residual acceptance"
+scalar_type = "f64"
+relative_tolerance = 1e-6
+absolute_tolerance = 1e-13
+maximum_iterations = 10000
+
+[acceptance]
+velocity_barycentre_probes = 5
+pressure_vertex_probes = 6
+signed_inlet_and_outlet_flux = true
+cylinder_reaction_convention = "constraint force on the fluid"
+global_momentum_balance = true
+true_reduced_residual_reapplied = true
+weak_continuity_residual_reapplied = true
+physical_values = "routes/python/result.json, independently agreed by routes/python and routes/julia"
+
+[falsifiers]
+foreign_exact_source_revision = "reject-before-assembly"
+stale_mesh_correspondence = "reject-before-assembly"
+incomplete_circle_boundary_partition = "reject-before-assembly"
+traction_substituted_for_cylinder_no_slip = "reject-named-reaction-admission"
+swapped_inlet_and_outlet_membership = "miss-frozen-flux-or-reaction"
+reversed_inlet_normal_term = "miss-frozen-signed-flux"
+vertex_and_cell_reindexing = "preserve-geometric-selectors"
+sparse_lu_at_superseded_rtol_1e_11 = "reject-true-residual-acceptance"
+wrong_reaction_orientation = "miss-frozen-reaction"
+gauge_with_nonempty_traction_partition = "fail-exact-pressure-reference-assertion"
+
+[claim_boundary]
+steady_stokes_only = true
+intrinsic_dimension = 2
+affine_triangles_only = true
+coarse_demonstration_mesh_only = true
+all_vertices_on_boundary = true
+algebraic_constrained_vertex_force_only = true
+physically_scaled_or_mesh_independent_force = false
+drag_or_lift_coefficient = false
+pde_mesh_convergence = false
+curved_elements = false
+production_mesher = false
+navier_stokes_or_transient = false
+second_hole_or_3d = false
+general_direct_solver_policy = false
+reference_minres_physical_acceptance = false
+distributed_or_device_execution = false
+performance_or_scale = false
+cross_platform_bit_identity = false
+
+[evidence]
+package = "eqiora"
+test = "exact_circular_hole_stokes_2d"
+table = "routes/python/result.json"
