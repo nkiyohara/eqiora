@@ -3,6 +3,9 @@ import type { UnstructuredFieldDescriptor } from "./unstructured-field-protocol"
 export type CanvasPoint = Readonly<{ x: number; y: number }>;
 type Rgb = readonly [red: number, green: number, blue: number];
 
+const MAX_CANVAS_PIXEL_COUNT = 4_194_304;
+const MAX_RASTER_SAMPLE_COUNT = 32_000_000;
+
 export function drawUnstructuredP1Field(
   canvas: HTMLCanvasElement,
   descriptor: UnstructuredFieldDescriptor,
@@ -11,8 +14,11 @@ export function drawUnstructuredP1Field(
   values: Float64Array,
 ): void {
   requireDrawableContract(descriptor, coordinates, triangles, values);
-  const width = Math.max(1, Math.round(canvas.clientWidth * window.devicePixelRatio));
-  const height = Math.max(1, Math.round(canvas.clientHeight * window.devicePixelRatio));
+  const [width, height] = boundedCanvasDimensions(
+    canvas.clientWidth,
+    canvas.clientHeight,
+    window.devicePixelRatio,
+  );
   canvas.width = width;
   canvas.height = height;
   const context = canvas.getContext("2d");
@@ -30,6 +36,7 @@ export function drawUnstructuredP1Field(
       y: (1 - normalizedCoordinate(y, descriptor.domain.boundsM[1])) * height,
     };
   };
+  requireBoundedRasterWork(descriptor, triangles, point, width, height);
   const image = context.createImageData(width, height);
   const palette = scalarPalette();
   for (let triangle = 0; triangle < descriptor.mesh.triangleCount; triangle += 1) {
@@ -77,6 +84,44 @@ export function drawUnstructuredP1Field(
   }
 }
 
+function boundedCanvasDimensions(
+  clientWidth: number,
+  clientHeight: number,
+  devicePixelRatio: number,
+): readonly [width: number, height: number] {
+  const pixelRatio =
+    Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? Math.min(devicePixelRatio, 4) : 1;
+  const width = Math.max(1, Math.round(clientWidth * pixelRatio));
+  const height = Math.max(1, Math.round(clientHeight * pixelRatio));
+  const pixelCount = width * height;
+  if (pixelCount <= MAX_CANVAS_PIXEL_COUNT) return [width, height];
+  const scale = Math.sqrt(MAX_CANVAS_PIXEL_COUNT / pixelCount);
+  return [Math.max(1, Math.floor(width * scale)), Math.max(1, Math.floor(height * scale))];
+}
+
+function requireBoundedRasterWork(
+  descriptor: UnstructuredFieldDescriptor,
+  triangles: Uint32Array,
+  point: (vertex: number) => CanvasPoint,
+  width: number,
+  height: number,
+): void {
+  let samples = 0;
+  for (let triangle = 0; triangle < descriptor.mesh.triangleCount; triangle += 1) {
+    const a = triangles[triangle * 3];
+    const b = triangles[triangle * 3 + 1];
+    const c = triangles[triangle * 3 + 2];
+    if (a === undefined || b === undefined || c === undefined) {
+      throw new Error("Triangle connectivity is incomplete.");
+    }
+    const bounds = rasterBounds([point(a), point(b), point(c)], width, height);
+    samples += (bounds.upperX - bounds.lowerX + 1) * (bounds.upperY - bounds.lowerY + 1);
+    if (samples > MAX_RASTER_SAMPLE_COUNT) {
+      throw new Error("Triangle projection exceeds the bounded presentation work budget.");
+    }
+  }
+}
+
 export function interpolateP1Triangle(
   point: CanvasPoint,
   points: readonly [CanvasPoint, CanvasPoint, CanvasPoint],
@@ -105,14 +150,11 @@ function rasterizeP1Triangle(
   palette: readonly Rgb[],
 ): void {
   const [a, b, c] = points;
-  const denominator = triangleDenominator(a, b, c);
-  if (!Number.isFinite(denominator) || Math.abs(denominator) <= Number.EPSILON) {
-    throw new Error("Triangle projection is degenerate.");
-  }
-  const lowerX = clamp(Math.floor(Math.min(a.x, b.x, c.x)), 0, image.width - 1);
-  const upperX = clamp(Math.ceil(Math.max(a.x, b.x, c.x)), 0, image.width - 1);
-  const lowerY = clamp(Math.floor(Math.min(a.y, b.y, c.y)), 0, image.height - 1);
-  const upperY = clamp(Math.ceil(Math.max(a.y, b.y, c.y)), 0, image.height - 1);
+  const { denominator, lowerX, upperX, lowerY, upperY } = rasterBounds(
+    points,
+    image.width,
+    image.height,
+  );
   const edgeTolerance = 1e-10;
   for (let y = lowerY; y <= upperY; y += 1) {
     for (let x = lowerX; x <= upperX; x += 1) {
@@ -129,6 +171,31 @@ function rasterizeP1Triangle(
       image.data[offset + 3] = 255;
     }
   }
+}
+
+function rasterBounds(
+  points: readonly [CanvasPoint, CanvasPoint, CanvasPoint],
+  width: number,
+  height: number,
+): Readonly<{
+  denominator: number;
+  lowerX: number;
+  upperX: number;
+  lowerY: number;
+  upperY: number;
+}> {
+  const [a, b, c] = points;
+  const denominator = triangleDenominator(a, b, c);
+  if (!Number.isFinite(denominator) || Math.abs(denominator) <= Number.EPSILON) {
+    throw new Error("Triangle projection is degenerate.");
+  }
+  return {
+    denominator,
+    lowerX: clamp(Math.floor(Math.min(a.x, b.x, c.x)), 0, width - 1),
+    upperX: clamp(Math.ceil(Math.max(a.x, b.x, c.x)), 0, width - 1),
+    lowerY: clamp(Math.floor(Math.min(a.y, b.y, c.y)), 0, height - 1),
+    upperY: clamp(Math.ceil(Math.max(a.y, b.y, c.y)), 0, height - 1),
+  };
 }
 
 function triangleDenominator(a: CanvasPoint, b: CanvasPoint, c: CanvasPoint): number {

@@ -21,9 +21,11 @@ ready state until headers, byte shapes, finite coordinates/values, mesh bounds,
 positive connectivity, final counts, and exact extrema all agree. Changing
 context invalidates outstanding asynchronous work.
 
-The canvas is presentation only. The synchronized paged table and inspector
-remain the exact accessible alternative, and keyboard selection always names a
-canonical mesh vertex rather than an interpolated probe.
+The canvas is presentation only. Its backing resolution and triangle-pixel
+work are bounded independently of the accepted data-plane sizes; exceeding
+that presentation budget leaves the exact synchronized paged table, inspector,
+and lineage available. Keyboard selection always names a canonical mesh vertex
+rather than an interpolated probe.
 
 Run:
 
@@ -36,5 +38,6 @@ cargo run --locked -p eqiora-verify -- run --case interfaces.studio-unstructured
 ```
 
 This does not claim vectors, derived magnitude, contours, streamlines, glyphs,
-probes, moving-mesh deformation, animation, 3D, export, durable Field
-artifacts, GPU zero-copy, level of detail, or production-scale visualization.
+probes, moving-mesh deformation, animation, 3D, export, a new durable
+visualization/transport artifact, GPU zero-copy, level of detail, or
+production-scale visualization.

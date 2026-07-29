@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   decodeUnstructuredF64Chunk,
   decodeUnstructuredU32Chunk,
@@ -19,7 +19,7 @@ import {
   unstructuredFieldContextSchema,
   unstructuredFieldDescriptorSchema,
 } from "./unstructured-field-protocol";
-import { interpolateP1Triangle } from "./unstructured-field-renderer";
+import { drawUnstructuredP1Field, interpolateP1Triangle } from "./unstructured-field-renderer";
 import { UnstructuredFieldDataSession } from "./unstructured-field-session";
 import {
   nearestUnstructuredVertex,
@@ -378,6 +378,42 @@ describe("unstructured P1 scalar workspace", () => {
     expect(interpolateP1Triangle(points[0], points, coefficients)).toBe(1);
     expect(interpolateP1Triangle({ x: 1, y: 1 }, points, coefficients)).toBe(4);
     expect(interpolateP1Triangle({ x: 3, y: 3 }, points, coefficients)).toBeNull();
+  });
+
+  it("rejects excessive triangle-pixel work before allocating the raster", () => {
+    vi.stubGlobal("window", { devicePixelRatio: 4 });
+    const createImageData = vi.fn();
+    const canvas = {
+      clientHeight: 4_000,
+      clientWidth: 4_000,
+      getContext: () => ({ clearRect: vi.fn(), createImageData }),
+      height: 0,
+      width: 0,
+    } as unknown as HTMLCanvasElement;
+    const overlappingTriangles = new Uint32Array(8 * 3);
+    for (let triangle = 0; triangle < 8; triangle += 1) {
+      overlappingTriangles.set([0, 1, 2], triangle * 3);
+    }
+    const boundedDescriptor = {
+      ...descriptor(),
+      mesh: { ...descriptor().mesh, triangleCount: 8 },
+    };
+
+    try {
+      expect(() =>
+        drawUnstructuredP1Field(
+          canvas,
+          boundedDescriptor,
+          coordinates,
+          overlappingTriangles,
+          values,
+        ),
+      ).toThrow("Triangle projection exceeds the bounded presentation work budget.");
+      expect(canvas.width * canvas.height).toBeLessThanOrEqual(4_194_304);
+      expect(createImageData).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("selects exact vertices and retains a keyboard/screen-reader table alternative", () => {
