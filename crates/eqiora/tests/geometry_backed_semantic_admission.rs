@@ -6,6 +6,7 @@ use eqiora::diagnostic::codes;
 use eqiora::geometry::{
     CanonicalCircularHoleGeometryV1, CanonicalGeometryLimits, CanonicalGeometryRef,
     CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion,
+    VERTEX_DIMENSION,
 };
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::typing::SpatialSupport;
@@ -590,6 +591,19 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
     );
     assert_eq!(
         off_x_reference.constant_parent_outward_normal("outlet"),
+        None
+    );
+
+    let vertex_set = circular_hole_with(
+        [[0.0, 2.2], [0.0, 0.41]],
+        [0.2, 0.2],
+        0.05,
+        vec![NamedEntitySet::new("pin", VERTEX_DIMENSION, vec![0])],
+        1.0e-12,
+    )
+    .expect("a named rectangle corner remains valid exact geometry");
+    assert_eq!(
+        CanonicalGeometryRef::from(&vertex_set).constant_parent_outward_normal("pin"),
         None
     );
 
