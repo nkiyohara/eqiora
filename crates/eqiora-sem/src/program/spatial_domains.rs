@@ -1,6 +1,6 @@
 //! Spatial Domain validation and support reconstruction.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_graph::{Edge, EdgeKind};
@@ -13,11 +13,13 @@ pub(super) fn validate_domains(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> BTreeSet<RawId> {
+    let mut invalid = BTreeSet::new();
     for (&id, node) in nodes {
         let KernelNode::Domain(domain) = node else {
             continue;
         };
+        let diagnostics_before = diagnostics.len();
         let parents = edge_targets(edges, id, EdgeKind::BoundaryOf);
         match domain.kind() {
             DomainKind::Abstract
@@ -95,12 +97,17 @@ pub(super) fn validate_domains(
                 "Domain kind is newer than this semantic validator",
             )),
         }
+        if diagnostics.len() != diagnostics_before {
+            invalid.insert(id);
+        }
     }
+    invalid
 }
 
 pub(super) fn validate_geometry_support_uses(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
+    artifacts_admitted: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (&id, node) in nodes {
@@ -108,13 +115,17 @@ pub(super) fn validate_geometry_support_uses(
             KernelNode::Field(_) => (
                 edge_targets(edges, id, EdgeKind::DefinedOn)
                     .into_iter()
-                    .find(|target| is_geometry_domain(*target, nodes)),
+                    .find(|target| {
+                        geometry_support_requires_admission(*target, nodes, artifacts_admitted)
+                    }),
                 "Field spatial support",
             ),
             KernelNode::Relation(_) => (
                 edge_targets(edges, id, EdgeKind::AppliesOn)
                     .into_iter()
-                    .find(|target| is_geometry_domain(*target, nodes)),
+                    .find(|target| {
+                        geometry_support_requires_admission(*target, nodes, artifacts_admitted)
+                    }),
                 "Relation spatial scope",
             ),
             KernelNode::Port(port) => (
@@ -126,12 +137,41 @@ pub(super) fn validate_geometry_support_uses(
             _ => continue,
         };
         if support.is_some() {
-            diagnostics.push(kernel_error(
-                id,
-                format!("{subject} from a geometry Domain requires artifact admission"),
-            ));
+            let message = if artifacts_admitted {
+                if matches!(node, KernelNode::Port(_)) {
+                    format!(
+                        "{subject} on a geometry Domain requires a non-Cartesian boundary embedding contract"
+                    )
+                } else {
+                    format!(
+                        "{subject} on a geometry boundary Domain requires a non-Cartesian boundary embedding contract"
+                    )
+                }
+            } else {
+                format!("{subject} from a geometry Domain requires artifact admission")
+            };
+            diagnostics.push(kernel_error(id, message));
         }
     }
+}
+
+fn geometry_support_requires_admission(
+    domain: RawId,
+    nodes: &BTreeMap<RawId, KernelNode>,
+    artifacts_admitted: bool,
+) -> bool {
+    matches!(
+        nodes.get(&domain),
+        Some(KernelNode::Domain(domain))
+            if if artifacts_admitted {
+                matches!(domain.kind(), DomainKind::GeometryBoundary { .. })
+            } else {
+                matches!(
+                    domain.kind(),
+                    DomainKind::GeometryRegion { .. } | DomainKind::GeometryBoundary { .. }
+                )
+            }
+    )
 }
 
 fn is_geometry_domain(domain: RawId, nodes: &BTreeMap<RawId, KernelNode>) -> bool {
@@ -148,6 +188,7 @@ fn is_geometry_domain(domain: RawId, nodes: &BTreeMap<RawId, KernelNode>) -> boo
 pub(super) fn validate_fields(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
+    spatial_supports: &BTreeMap<RawId, SpatialSupport<RawId>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (&id, node) in nodes {
@@ -173,6 +214,9 @@ pub(super) fn validate_fields(
                 nodes.get(domain),
                 Some(KernelNode::Domain(domain))
                     if matches!(domain.kind(), DomainKind::CartesianBox { .. })
+            ) || matches!(
+                spatial_supports.get(domain),
+                Some(SpatialSupport::Volume { .. })
             )
         }) || representations.iter().any(|representation| {
             matches!(
@@ -195,29 +239,37 @@ pub(super) fn validate_fields(
             ));
             continue;
         }
-        if !matches!(
-            nodes.get(&domains[0]),
-            Some(KernelNode::Domain(domain))
-                if matches!(domain.kind(), DomainKind::CartesianBox { .. })
-        ) {
+        let admitted_volume = spatial_supports.get(&domains[0]).and_then(|support| {
+            if let SpatialSupport::Volume { dimensions, .. } = support {
+                Some(*dimensions)
+            } else {
+                None
+            }
+        });
+        if admitted_volume.is_none() {
             diagnostics.push(kernel_error(
                 id,
                 "v0 spatial Field Domain must be a Cartesian box",
             ));
         }
-        if let Some(KernelNode::Domain(domain)) = nodes.get(&domains[0])
-            && let DomainKind::CartesianBox { bounds } = domain.kind()
+        if let Some(dimensions) = admitted_volume
             && field.frame() == ValueFrame::SpatialCartesian
             && field
                 .shape()
                 .extents()
                 .iter()
-                .any(|extent| usize::try_from(extent.get()).ok() != Some(bounds.len()))
+                .any(|extent| usize::try_from(extent.get()).ok() != Some(dimensions))
         {
-            diagnostics.push(kernel_error(
-                id,
-                "Cartesian spatial Field extents must equal its Domain ambient dimension",
-            ));
+            let message = if matches!(
+                nodes.get(&domains[0]),
+                Some(KernelNode::Domain(domain))
+                    if matches!(domain.kind(), DomainKind::CartesianBox { .. })
+            ) {
+                "Cartesian spatial Field extents must equal its Domain ambient dimension"
+            } else {
+                "SpatialCartesian Field extents must equal its admitted Domain ambient dimension"
+            };
+            diagnostics.push(kernel_error(id, message));
         }
         if !matches!(
             nodes.get(&representations[0]),
@@ -234,48 +286,59 @@ pub(super) fn validate_fields(
 
 pub(super) fn field_support(
     field: RawId,
-    nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
+    spatial_supports: &BTreeMap<RawId, SpatialSupport<RawId>>,
 ) -> Option<SpatialSupport<RawId>> {
     let supports = edge_targets(edges, field, EdgeKind::DefinedOn)
         .into_iter()
-        .filter_map(|target| spatial_support(target, nodes, edges))
+        .filter_map(|target| spatial_supports.get(&target).cloned())
         .filter(|support| matches!(support, SpatialSupport::Volume { .. }))
         .collect::<Vec<_>>();
     (supports.len() == 1).then(|| supports[0].clone())
 }
 
-pub(super) fn spatial_support(
-    domain: RawId,
+pub(super) fn cartesian_spatial_supports(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
-) -> Option<SpatialSupport<RawId>> {
-    let Some(KernelNode::Domain(definition)) = nodes.get(&domain) else {
-        return None;
-    };
-    match definition.kind() {
-        DomainKind::CartesianBox { bounds } => Some(SpatialSupport::Volume {
-            domain,
-            dimensions: bounds.len(),
-        }),
-        DomainKind::CartesianBoundary { .. } => {
-            let parents = edge_targets(edges, domain, EdgeKind::BoundaryOf);
-            if parents.len() != 1 {
-                return None;
+) -> BTreeMap<RawId, SpatialSupport<RawId>> {
+    let mut supports = BTreeMap::new();
+    for (&domain, node) in nodes {
+        let KernelNode::Domain(definition) = node else {
+            continue;
+        };
+        match definition.kind() {
+            DomainKind::CartesianBox { bounds } => {
+                supports.insert(
+                    domain,
+                    SpatialSupport::Volume {
+                        domain,
+                        dimensions: bounds.len(),
+                    },
+                );
             }
-            let parent = *parents.first().expect("one boundary parent was checked");
-            let Some(KernelNode::Domain(parent_definition)) = nodes.get(&parent) else {
-                return None;
-            };
-            let DomainKind::CartesianBox { bounds } = parent_definition.kind() else {
-                return None;
-            };
-            Some(SpatialSupport::Boundary {
-                domain,
-                parent,
-                dimensions: bounds.len(),
-            })
+            DomainKind::CartesianBoundary { .. } => {
+                let parents = edge_targets(edges, domain, EdgeKind::BoundaryOf);
+                if parents.len() != 1 {
+                    continue;
+                }
+                let parent = *parents.first().expect("one boundary parent was checked");
+                let Some(KernelNode::Domain(parent_definition)) = nodes.get(&parent) else {
+                    continue;
+                };
+                let DomainKind::CartesianBox { bounds } = parent_definition.kind() else {
+                    continue;
+                };
+                supports.insert(
+                    domain,
+                    SpatialSupport::Boundary {
+                        domain,
+                        parent,
+                        dimensions: bounds.len(),
+                    },
+                );
+            }
+            _ => {}
         }
-        _ => None,
     }
+    supports
 }
