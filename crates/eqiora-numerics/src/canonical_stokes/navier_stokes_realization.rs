@@ -9,7 +9,7 @@ use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
-use eqiora_meshing::{SimplicialMesh, simplex_centroid_rule, triangle_duffy_gauss_legendre};
+use eqiora_meshing::{SimplicialMesh, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre};
 use eqiora_realization::{
     AlgebraicBlock, AlgebraicBlockScale, AlgebraicConstraint, BackwardEulerRelationStep,
     CoordinateTreatment, Discretization, DiscretizationMethod, EnergySkewConvection,
@@ -463,7 +463,7 @@ pub fn advance_resolved_transient_navier_stokes_mini_2d_with_assembly(
         run.step_count,
         numerical_plan,
         &triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS)?,
-        &simplex_centroid_rule(DIMENSION - 1)?,
+        &simplex_duffy_gauss_legendre(DIMENSION - 1, 2)?,
         &checked_assembly,
         solver,
     )?;

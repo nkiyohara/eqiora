@@ -27,6 +27,7 @@ pub use newton::{
 const DIMENSION: usize = 2;
 const COMPONENTS: usize = 2;
 const REQUIRED_CONVECTIVE_QUADRATURE_EXACTNESS: usize = 8;
+const REQUIRED_CONVECTIVE_FACET_QUADRATURE_EXACTNESS: usize = 3;
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_DISCRETIZATION, message)

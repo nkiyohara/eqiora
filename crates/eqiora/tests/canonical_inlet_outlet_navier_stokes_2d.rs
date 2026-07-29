@@ -156,6 +156,45 @@ fn canonical_run_admits_nonzero_inlet_and_traction_outlet_without_gauge() {
 }
 
 #[test]
+fn open_boundary_convective_identity_accepts_ordinary_positive_inertia() {
+    let source = SOURCE.replace(
+        "parameter density: kg / m ^ 3 = 0.0000000001;",
+        "parameter density: kg / m ^ 3 = 1;",
+    );
+    assert_ne!(source, SOURCE, "density witness replacement must apply");
+    let document = compile("ordinary-inertia-inlet-outlet.eqi", &source);
+    let mesh = unit_square_triangles(2);
+    let envelope = SimplicialMeshEnvelopeV1::from_mesh(&mesh).expect("mesh envelope");
+    let reference = prepare(document.program(), envelope);
+    let steady = solve_simplicial_mini_stokes_2d_with_boundary(
+        &mesh,
+        0.05,
+        &zero_force,
+        &inlet_outlet_boundary(&mesh),
+        &inlet_velocity,
+        &triangle_duffy_gauss_legendre(3).unwrap(),
+        &simplex_centroid_rule(1).unwrap(),
+        LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, stokes_solver()),
+    )
+    .expect("steady mixed state initializes the ordinary-inertia run");
+    let initial = reference
+        .initial_condition(
+            DynQuantity::new(0.0, TIME),
+            steady.velocity().clone(),
+            steady.pressure().clone(),
+            SteadyStokesPressureReference2d::BoundaryTraction,
+        )
+        .expect("boundary-determined initial pressure");
+    let trajectory = reference
+        .advance(initial, NonZeroUsize::MIN)
+        .expect("open-boundary identity admits ordinary positive inertia");
+    let evidence = &trajectory.steps()[0];
+    assert!(evidence.convective_residual_norm() > 1.0e-6);
+    assert!(evidence.conservative_advection_defect_norm() > 1.0e-6);
+    assert!(evidence.convective_power().abs() < 1.0e-12);
+}
+
+#[test]
 fn all_essential_regime_retains_and_uses_the_pressure_gauge() {
     let document = compile("homogeneous.eqi", HOMOGENEOUS_SOURCE);
     let mesh = unit_square_triangles(2);

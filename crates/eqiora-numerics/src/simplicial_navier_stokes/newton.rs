@@ -26,7 +26,8 @@ use crate::step_count::NonZeroStepCount;
 /// Fails closed on initial-state/mesh/pressure drift, insufficient quadrature,
 /// analytic linearization failure, Krylov nonconvergence, unsuccessful
 /// globalization, or non-monotone model time. A failed step does not mutate
-/// the last accepted state.
+/// the last accepted state. The convection audit requires cell exactness of at
+/// least eight and one-dimensional facet exactness of at least three.
 #[allow(clippy::too_many_arguments)]
 pub fn advance_simplicial_mini_navier_stokes_2d<F, B>(
     mesh: &SimplicialMesh,
@@ -63,7 +64,8 @@ where
 ///
 /// # Errors
 /// Preserves all fixed-domain, assembly, Newton, Krylov, and acceptance
-/// diagnostics without fallback.
+/// diagnostics without fallback, including the convection audit's minimum
+/// cell exactness of eight and one-dimensional facet exactness of three.
 #[allow(clippy::too_many_arguments)]
 pub fn advance_simplicial_mini_navier_stokes_2d_with_assembly<F, B>(
     mesh: &SimplicialMesh,
@@ -82,6 +84,7 @@ where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
+    super::element::require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
     let jacobian_pattern = build_step_jacobian_pattern(mesh, boundary, essential_velocity)?;
     let mut trajectory = SimplicialMiniNavierStokesTrajectory2d::new(initial);
     for _ in 0..step_count.get() {
@@ -165,6 +168,7 @@ where
             previous,
             plan,
             cell_quadrature,
+            facet_quadrature,
             current,
             NewtonEvidence {
                 iterations: 0,
@@ -240,6 +244,7 @@ where
                 previous,
                 plan,
                 cell_quadrature,
+                facet_quadrature,
                 current,
                 NewtonEvidence {
                     iterations: iteration,

@@ -13,7 +13,7 @@ use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{
     MeshEntity, MeshGeometry, MeshQualityGate, MeshTopology, SimplicialMesh, simplex_centroid_rule,
-    triangle_duffy_gauss_legendre,
+    simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
 };
 use eqiora::realization::{
     NonlinearSolvePlan, PlacementRequirementNode, RealizationRevision, SolveRoot, Target,
@@ -258,11 +258,30 @@ fn transient_admission_fails_closed_on_near_misses() {
         NonZeroStepCount::new(NonZeroUsize::MIN),
         plan(0.01, 12),
         &triangle_duffy_gauss_legendre(4).unwrap(),
-        &simplex_centroid_rule(1).unwrap(),
+        &simplex_duffy_gauss_legendre(1, 2).unwrap(),
         &FaerLinearSolver,
     )
     .unwrap_err();
     assert!(low_quadrature.to_string().contains("quadrature exactness"));
+
+    let low_facet_quadrature = advance_simplicial_mini_navier_stokes_2d(
+        &fixture.mesh,
+        &fixture.boundary,
+        &zero_trace,
+        &zero_force,
+        fixture.initial.clone(),
+        NonZeroStepCount::new(NonZeroUsize::MIN),
+        plan(0.01, 12),
+        &triangle_duffy_gauss_legendre(5).unwrap(),
+        &simplex_centroid_rule(1).unwrap(),
+        &FaerLinearSolver,
+    )
+    .unwrap_err();
+    assert!(
+        low_facet_quadrature
+            .to_string()
+            .contains("boundary-flux evidence requires degree-three")
+    );
 
     let other_mesh = unit_square_triangles(4);
     let other_boundary = SimplicialMiniStokesBoundary2d::all_essential(&other_mesh).unwrap();
@@ -275,7 +294,7 @@ fn transient_admission_fails_closed_on_near_misses() {
         NonZeroStepCount::new(NonZeroUsize::MIN),
         plan(0.01, 12),
         &triangle_duffy_gauss_legendre(5).unwrap(),
-        &simplex_centroid_rule(1).unwrap(),
+        &simplex_duffy_gauss_legendre(1, 2).unwrap(),
         &FaerLinearSolver,
     )
     .unwrap_err();
@@ -291,7 +310,7 @@ fn transient_admission_fails_closed_on_near_misses() {
         NonZeroStepCount::new(NonZeroUsize::MIN),
         plan(0.01, 12),
         &triangle_duffy_gauss_legendre(5).unwrap(),
-        &simplex_centroid_rule(1).unwrap(),
+        &simplex_duffy_gauss_legendre(1, 2).unwrap(),
         &FaerLinearSolver,
     )
     .unwrap_err();
@@ -311,7 +330,7 @@ fn transient_admission_fails_closed_on_near_misses() {
         NonZeroStepCount::new(NonZeroUsize::MIN),
         plan(0.01, 12),
         &triangle_duffy_gauss_legendre(5).unwrap(),
-        &simplex_centroid_rule(1).unwrap(),
+        &simplex_duffy_gauss_legendre(1, 2).unwrap(),
         &FaerLinearSolver,
     )
     .unwrap_err();
@@ -372,7 +391,7 @@ fn transient_admission_fails_closed_on_near_misses() {
         NonZeroStepCount::new(NonZeroUsize::MIN),
         strict_plan(0.01, 1),
         &triangle_duffy_gauss_legendre(5).unwrap(),
-        &simplex_centroid_rule(1).unwrap(),
+        &simplex_duffy_gauss_legendre(1, 2).unwrap(),
         &FaerLinearSolver,
     )
     .unwrap_err();
@@ -387,7 +406,7 @@ fn transient_admission_fails_closed_on_near_misses() {
         NonZeroStepCount::new(NonZeroUsize::MIN),
         plan(0.01, 20),
         &triangle_duffy_gauss_legendre(5).unwrap(),
-        &simplex_centroid_rule(1).unwrap(),
+        &simplex_duffy_gauss_legendre(1, 2).unwrap(),
         &CorruptJacobianAssembly,
         &FaerLinearSolver,
     )
@@ -645,7 +664,7 @@ fn advance(
         NonZeroStepCount::new(NonZeroUsize::new(steps).unwrap()),
         plan(dt, 12),
         &triangle_duffy_gauss_legendre(5).unwrap(),
-        &simplex_centroid_rule(1).unwrap(),
+        &simplex_duffy_gauss_legendre(1, 2).unwrap(),
         &FaerLinearSolver,
     )
 }
@@ -666,7 +685,7 @@ fn advance_with_assembly(
         NonZeroStepCount::new(NonZeroUsize::new(steps).unwrap()),
         plan(dt, 12),
         &triangle_duffy_gauss_legendre(5).unwrap(),
-        &simplex_centroid_rule(1).unwrap(),
+        &simplex_duffy_gauss_legendre(1, 2).unwrap(),
         assembly,
         &FaerLinearSolver,
     )
