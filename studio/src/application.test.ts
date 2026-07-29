@@ -5,6 +5,7 @@ import {
   COMMAND_REGISTRY,
   type CommandFacts,
   CYLINDER_EVIDENCE_FOCUS_ID,
+  DC_MOTOR_EVIDENCE_FOCUS_ID,
   resolveApplication,
   resolveApplicationWorkflows,
   resolveCommandAvailability,
@@ -49,6 +50,7 @@ function applicationInputs(overrides: Partial<ApplicationInputs> = {}): Applicat
     acceptedProjection: acceptedProjection(true),
     cad: { status: "unavailable", acceptedModelDigest: null },
     cylinderStatus: "idle",
+    dcMotorStatus: "idle",
     fieldWorkflow: null,
     ...overrides,
   };
@@ -58,12 +60,14 @@ function resolved(
   scalarElliptic: boolean,
   cad: ApplicationInputs["cad"],
   cylinderStatus: ApplicationInputs["cylinderStatus"] = "idle",
+  dcMotorStatus: ApplicationInputs["dcMotorStatus"] = "idle",
 ) {
   return resolveApplicationWorkflows(
     applicationInputs({
       acceptedProjection: acceptedProjection(scalarElliptic),
       cad,
       cylinderStatus,
+      dcMotorStatus,
     }),
   );
 }
@@ -84,6 +88,8 @@ function commandFacts(overrides: Partial<CommandFacts> = {}): CommandFacts {
     evidenceAvailable: false,
     fieldAvailable: false,
     cylinderRunning: false,
+    trajectoryAvailable: false,
+    dcMotorRunning: false,
     cadAvailability: {
       kind: "unavailable",
       reason: "workflow.reason.cad-unavailable",
@@ -98,6 +104,7 @@ describe("typed Studio application registry", () => {
       "relations",
       "scalar-elliptic",
       "cylinder-stokes",
+      "packaged-dc-drive",
       "cad-box",
     ]);
     expect(new Set(WORKFLOW_REGISTRY.map((workflow) => workflow.id)).size).toBe(
@@ -114,7 +121,9 @@ describe("typed Studio application registry", () => {
       "workspace.relations",
       "workspace.geometry",
       "workspace.field",
+      "workspace.trajectory",
       "example.cylinder",
+      "example.dc-drive",
       "example.spatial",
       "example.cad",
       "focus.source",
@@ -128,7 +137,7 @@ describe("typed Studio application registry", () => {
   });
 
   it("declares a bounded projection and semantic alternative for every workflow", () => {
-    const [relations, spatial, cylinder, cad] = WORKFLOW_REGISTRY;
+    const [relations, spatial, cylinder, dcDrive, cad] = WORKFLOW_REGISTRY;
 
     expect(relations.projection).toEqual({
       kind: "semantic-relation-graph",
@@ -160,6 +169,15 @@ describe("typed Studio application registry", () => {
         focusTarget: "field-value-table",
       },
     });
+    expect(dcDrive.projection).toEqual({
+      kind: "bounded-sampled-trajectory-view",
+      maximumSamples: 101,
+      maximumCommits: 11,
+      semanticAlternative: {
+        kind: "trajectory-sample-table",
+        focusTarget: "trajectory-sample-table",
+      },
+    });
     expect(cad.projection).toEqual({
       kind: "bounded-cad-triangle-view",
       maximumVertices: CAD_V1_VERTEX_COUNT,
@@ -183,6 +201,7 @@ describe("typed Studio application registry", () => {
       { kind: "unavailable", reason: "workflow.reason.compile-first" },
       { kind: "unavailable", reason: "workflow.reason.compile-first" },
       { kind: "unavailable", reason: "workflow.reason.cylinder-unavailable" },
+      { kind: "unavailable", reason: "workflow.reason.dc-drive-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.compile-first" },
     ]);
 
@@ -194,17 +213,23 @@ describe("typed Studio application registry", () => {
       { kind: "available", reason: null },
       { kind: "unavailable", reason: "workflow.reason.spatial-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.cylinder-unavailable" },
+      { kind: "unavailable", reason: "workflow.reason.dc-drive-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.cad-unavailable" },
     ]);
 
-    const accepted = resolved(true, { status: "ready", acceptedModelDigest: DIGEST }, "ready");
+    const accepted = resolved(
+      true,
+      { status: "ready", acceptedModelDigest: DIGEST },
+      "ready",
+      "ready",
+    );
     expect(accepted.every((workflow) => workflow.availability.kind === "available")).toBe(true);
 
     const staleCad = resolved(true, {
       status: "ready",
       acceptedModelDigest: "b".repeat(64),
     });
-    expect(staleCad[3]?.availability).toEqual({
+    expect(staleCad[4]?.availability).toEqual({
       kind: "unavailable",
       reason: "workflow.reason.cad-stale",
     });
@@ -212,7 +237,7 @@ describe("typed Studio application registry", () => {
 
   it("keeps pending workflow resolution distinct from unsupported applicability", () => {
     for (const status of ["idle", "loading"] as const) {
-      const cad = resolved(false, { status, acceptedModelDigest: null })[3];
+      const cad = resolved(false, { status, acceptedModelDigest: null })[4];
       expect(cad?.availability).toEqual({
         kind: "loading",
         reason: "workflow.reason.cad-loading",
@@ -224,6 +249,13 @@ describe("typed Studio application registry", () => {
     ).toEqual({
       kind: "loading",
       reason: "workflow.reason.cylinder-running",
+    });
+    expect(
+      resolved(false, { status: "unavailable", acceptedModelDigest: null }, "idle", "running")[3]
+        ?.availability,
+    ).toEqual({
+      kind: "loading",
+      reason: "workflow.reason.dc-drive-running",
     });
   });
 
@@ -289,6 +321,28 @@ describe("typed Studio application registry", () => {
       workspace: "relations",
       fellBack: true,
     });
+
+    const runningDcDrive = resolveApplication(
+      applicationInputs({
+        acceptedProjection: null,
+        dcMotorStatus: "running",
+      }),
+      "trajectory",
+    );
+    expect(runningDcDrive).toMatchObject({
+      workspace: "trajectory",
+      activeWorkflow: "packaged-dc-drive",
+      fellBack: false,
+    });
+
+    const failedDcDrive = resolveApplication(
+      applicationInputs({ dcMotorStatus: "failed" }),
+      "trajectory",
+    );
+    expect(failedDcDrive).toMatchObject({
+      workspace: "relations",
+      fellBack: true,
+    });
   });
 
   it("resolves toolbar, navigation, and palette availability from the same facts", () => {
@@ -302,6 +356,10 @@ describe("typed Studio application registry", () => {
     expect(availability["workspace.field"]).toEqual({
       enabled: false,
       reason: "command.reason.field-result-unavailable",
+    });
+    expect(availability["workspace.trajectory"]).toEqual({
+      enabled: false,
+      reason: "command.reason.trajectory-result-unavailable",
     });
     expect(availability["run.execute"]).toEqual({
       enabled: false,
@@ -321,19 +379,33 @@ describe("typed Studio application registry", () => {
       enabled: false,
       reason: "command.reason.cylinder-running",
     });
+    expect(
+      resolveCommandAvailability(commandFacts({ dcMotorRunning: true }))["example.dc-drive"],
+    ).toEqual({
+      enabled: false,
+      reason: "command.reason.dc-drive-running",
+    });
   });
 
   it("scopes commands and focus targets to compatible current workflows", () => {
-    const workflows = resolved(true, { status: "ready", acceptedModelDigest: DIGEST }, "ready");
+    const workflows = resolved(
+      true,
+      { status: "ready", acceptedModelDigest: DIGEST },
+      "ready",
+      "ready",
+    );
     const relations = workflows[0]?.commands.map((command) => command.id);
     const spatial = workflows[1]?.commands.map((command) => command.id);
     const cylinder = workflows[2]?.commands.map((command) => command.id);
-    const cad = workflows[3]?.commands.map((command) => command.id);
+    const dcDrive = workflows[3]?.commands.map((command) => command.id);
+    const cad = workflows[4]?.commands.map((command) => command.id);
 
     expect(relations).toContain("run.cancel");
     expect(spatial).toContain("run.cancel");
     expect(cylinder).toContain("focus.evidence");
     expect(cylinder).not.toContain("run.execute");
+    expect(dcDrive).toContain("focus.evidence");
+    expect(dcDrive).not.toContain("run.execute");
     expect(cad).toEqual([
       "model.compile",
       "history.undo",
@@ -341,7 +413,9 @@ describe("typed Studio application registry", () => {
       "workspace.relations",
       "workspace.geometry",
       "workspace.field",
+      "workspace.trajectory",
       "example.cylinder",
+      "example.dc-drive",
       "example.spatial",
       "example.cad",
       "focus.inspector",
@@ -370,7 +444,11 @@ describe("typed Studio application registry", () => {
     expect(resolveElementFocusId("evidence-inspector", "cylinder-stokes", "field")).toBe(
       CYLINDER_EVIDENCE_FOCUS_ID,
     );
+    expect(resolveElementFocusId("evidence-inspector", "packaged-dc-drive", "trajectory")).toBe(
+      DC_MOTOR_EVIDENCE_FOCUS_ID,
+    );
     expect(CYLINDER_EVIDENCE_FOCUS_ID).not.toBe("evidence-inspector");
+    expect(DC_MOTOR_EVIDENCE_FOCUS_ID).not.toBe("evidence-inspector");
   });
 
   it("resolves every registry-owned message through the fallback catalog", () => {

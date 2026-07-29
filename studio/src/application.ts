@@ -16,8 +16,13 @@ import {
   UNSTRUCTURED_FIELD_MAX_TRIANGLE_COUNT,
 } from "./unstructured-field-protocol";
 
-export type WorkflowId = "relations" | "scalar-elliptic" | "cylinder-stokes" | "cad-box";
-export type WorkspaceId = "relations" | "field" | "geometry";
+export type WorkflowId =
+  | "relations"
+  | "scalar-elliptic"
+  | "cylinder-stokes"
+  | "packaged-dc-drive"
+  | "cad-box";
+export type WorkspaceId = "relations" | "field" | "trajectory" | "geometry";
 
 export type CommandId =
   | "model.compile"
@@ -29,8 +34,10 @@ export type CommandId =
   | "view.reflow"
   | "workspace.relations"
   | "workspace.field"
+  | "workspace.trajectory"
   | "workspace.geometry"
   | "example.cylinder"
+  | "example.dc-drive"
   | "example.spatial"
   | "example.cad"
   | "focus.source"
@@ -47,12 +54,15 @@ export type FocusTarget =
   | "evidence-inspector"
   | "field-viewport"
   | "field-value-table"
+  | "trajectory-viewport"
+  | "trajectory-sample-table"
   | "cad-viewport"
   | "cad-domain-table";
 
 export type ElementFocusTarget = Exclude<FocusTarget, "source-editor" | "relation-view">;
 
 export const CYLINDER_EVIDENCE_FOCUS_ID = "cylinder-evidence-inspector";
+export const DC_MOTOR_EVIDENCE_FOCUS_ID = "dc-drive-evidence-inspector";
 
 /**
  * Resolve registry focus to the one visible workflow-owned element.
@@ -71,13 +81,21 @@ export function resolveElementFocusId(
         ? "cad-selection-inspector"
         : activeWorkflow === "cylinder-stokes"
           ? "unstructured-field-inspector"
-          : activeWorkspace === "field"
-            ? "field-selection-inspector"
-            : "inspector-panel";
+          : activeWorkflow === "packaged-dc-drive"
+            ? "trajectory-sample-table"
+            : activeWorkspace === "field"
+              ? "field-selection-inspector"
+              : "inspector-panel";
     case "evidence-inspector":
       return activeWorkflow === "cylinder-stokes"
         ? CYLINDER_EVIDENCE_FOCUS_ID
-        : "evidence-inspector";
+        : activeWorkflow === "packaged-dc-drive"
+          ? DC_MOTOR_EVIDENCE_FOCUS_ID
+          : "evidence-inspector";
+    case "trajectory-viewport":
+      return "trajectory-viewport";
+    case "trajectory-sample-table":
+      return "trajectory-sample-table";
     case "cad-viewport":
       return "cad-viewport";
     case "cad-domain-table":
@@ -104,8 +122,19 @@ export interface CommandDefinition {
 }
 
 const RELATION_WORKFLOWS = ["relations", "scalar-elliptic"] as const;
-const ALL_WORKFLOWS = ["relations", "scalar-elliptic", "cylinder-stokes", "cad-box"] as const;
-const EVIDENCE_WORKFLOWS = ["relations", "scalar-elliptic", "cylinder-stokes"] as const;
+const ALL_WORKFLOWS = [
+  "relations",
+  "scalar-elliptic",
+  "cylinder-stokes",
+  "packaged-dc-drive",
+  "cad-box",
+] as const;
+const EVIDENCE_WORKFLOWS = [
+  "relations",
+  "scalar-elliptic",
+  "cylinder-stokes",
+  "packaged-dc-drive",
+] as const;
 
 /**
  * Closed command metadata for the currently implemented Studio operations.
@@ -206,10 +235,28 @@ export const COMMAND_REGISTRY = [
     workflows: ALL_WORKFLOWS,
   },
   {
+    id: "workspace.trajectory",
+    group: "view",
+    label: "command.workspace.trajectory.label",
+    description: "command.workspace.trajectory.description",
+    shortcut: null,
+    focusTarget: "trajectory-viewport",
+    workflows: ALL_WORKFLOWS,
+  },
+  {
     id: "example.cylinder",
     group: "model",
     label: "command.example.cylinder.label",
     description: "command.example.cylinder.description",
+    shortcut: null,
+    focusTarget: null,
+    workflows: ALL_WORKFLOWS,
+  },
+  {
+    id: "example.dc-drive",
+    group: "model",
+    label: "command.example.dc-drive.label",
+    description: "command.example.dc-drive.description",
     shortcut: null,
     focusTarget: null,
     workflows: ALL_WORKFLOWS,
@@ -282,6 +329,10 @@ export type SemanticAlternative =
   | Readonly<{
       kind: "domain-table";
       focusTarget: "cad-domain-table";
+    }>
+  | Readonly<{
+      kind: "trajectory-sample-table";
+      focusTarget: "trajectory-sample-table";
     }>;
 
 export type ProjectionContract =
@@ -312,6 +363,12 @@ export type ProjectionContract =
       maximumTriangles: typeof CAD_V1_TRIANGLE_COUNT;
       maximumEntities: typeof CAD_V1_SEMANTIC_ENTITY_COUNT;
       semanticAlternative: Extract<SemanticAlternative, { kind: "domain-table" }>;
+    }>
+  | Readonly<{
+      kind: "bounded-sampled-trajectory-view";
+      maximumSamples: 101;
+      maximumCommits: 11;
+      semanticAlternative: Extract<SemanticAlternative, { kind: "trajectory-sample-table" }>;
     }>;
 
 type RelationsWorkflowDefinition = Readonly<{
@@ -341,6 +398,15 @@ type CylinderWorkflowDefinition = Readonly<{
   projection: Extract<ProjectionContract, { kind: "bounded-unstructured-p1-field-view" }>;
 }>;
 
+type DcMotorWorkflowDefinition = Readonly<{
+  id: "packaged-dc-drive";
+  workspace: "trajectory";
+  label: "workflow.dc-drive.label";
+  description: "workflow.dc-drive.description";
+  primaryFocus: "trajectory-viewport";
+  projection: Extract<ProjectionContract, { kind: "bounded-sampled-trajectory-view" }>;
+}>;
+
 type CadWorkflowDefinition = Readonly<{
   id: "cad-box";
   workspace: "geometry";
@@ -354,6 +420,7 @@ export type WorkflowDefinition =
   | RelationsWorkflowDefinition
   | ScalarEllipticWorkflowDefinition
   | CylinderWorkflowDefinition
+  | DcMotorWorkflowDefinition
   | CadWorkflowDefinition;
 
 /**
@@ -413,6 +480,22 @@ export const WORKFLOW_REGISTRY = [
     },
   },
   {
+    id: "packaged-dc-drive",
+    workspace: "trajectory",
+    label: "workflow.dc-drive.label",
+    description: "workflow.dc-drive.description",
+    primaryFocus: "trajectory-viewport",
+    projection: {
+      kind: "bounded-sampled-trajectory-view",
+      maximumSamples: 101,
+      maximumCommits: 11,
+      semanticAlternative: {
+        kind: "trajectory-sample-table",
+        focusTarget: "trajectory-sample-table",
+      },
+    },
+  },
+  {
     id: "cad-box",
     workspace: "geometry",
     label: "workflow.cad.label",
@@ -435,6 +518,7 @@ export type AcceptedApplicationProjection = Pick<DocumentProjection, "digest" | 
 
 export type CadApplicationStatus = "idle" | "loading" | "ready" | "unavailable";
 export type CylinderApplicationStatus = "idle" | "running" | "ready" | "failed";
+export type DcMotorApplicationStatus = "idle" | "running" | "ready" | "failed";
 
 export type CadApplicationInput = Readonly<{
   status: CadApplicationStatus;
@@ -449,6 +533,7 @@ export type ApplicationInputs = Readonly<{
   acceptedProjection: AcceptedApplicationProjection | null;
   cad: CadApplicationInput;
   cylinderStatus: CylinderApplicationStatus;
+  dcMotorStatus: DcMotorApplicationStatus;
   fieldWorkflow: "scalar-elliptic" | "cylinder-stokes" | null;
 }>;
 
@@ -482,6 +567,17 @@ function resolveAvailability(
         return unavailable("workflow.reason.cylinder-unavailable");
     }
   }
+  if (workflow.id === "packaged-dc-drive") {
+    switch (inputs.dcMotorStatus) {
+      case "running":
+        return { kind: "loading", reason: "workflow.reason.dc-drive-running" };
+      case "ready":
+        return { kind: "available", reason: null };
+      case "idle":
+      case "failed":
+        return unavailable("workflow.reason.dc-drive-unavailable");
+    }
+  }
   const document = inputs.acceptedProjection;
   if (document === null) {
     return unavailable("workflow.reason.compile-first");
@@ -505,6 +601,7 @@ function resolveAvailability(
             ? { kind: "available", reason: null }
             : unavailable("workflow.reason.cad-stale");
       }
+      throw new Error("Closed CAD status registry was not exhaustive");
   }
 }
 
@@ -546,9 +643,13 @@ export function resolveApplication(
   const field = workflows.find((workflow) => workflow.definition.id === inputs.fieldWorkflow);
   const fieldAvailable =
     field?.availability.kind === "available" || field?.availability.kind === "loading";
+  const trajectory = workflows.find((workflow) => workflow.definition.id === "packaged-dc-drive");
+  const trajectoryAvailable =
+    trajectory?.availability.kind === "available" || trajectory?.availability.kind === "loading";
   const workspace =
     (requestedWorkspace === "geometry" && !geometryAvailable) ||
-    (requestedWorkspace === "field" && !fieldAvailable)
+    (requestedWorkspace === "field" && !fieldAvailable) ||
+    (requestedWorkspace === "trajectory" && !trajectoryAvailable)
       ? "relations"
       : requestedWorkspace;
   const spatial = workflows.find((workflow) => workflow.definition.id === "scalar-elliptic");
@@ -557,9 +658,11 @@ export function resolveApplication(
       ? "cad-box"
       : workspace === "field"
         ? (inputs.fieldWorkflow ?? "relations")
-        : spatial?.availability.kind === "available"
-          ? "scalar-elliptic"
-          : "relations";
+        : workspace === "trajectory"
+          ? "packaged-dc-drive"
+          : spatial?.availability.kind === "available"
+            ? "scalar-elliptic"
+            : "relations";
   return {
     requestedWorkspace,
     workspace,
@@ -599,6 +702,8 @@ export type CommandFacts = Readonly<{
   evidenceAvailable: boolean;
   fieldAvailable: boolean;
   cylinderRunning: boolean;
+  trajectoryAvailable: boolean;
+  dcMotorRunning: boolean;
   cadAvailability: WorkflowAvailability;
 }>;
 
@@ -709,8 +814,13 @@ export function resolveCommandAvailability(facts: CommandFacts): CommandAvailabi
       facts.fieldAvailable,
       "command.reason.field-result-unavailable",
     ),
+    "workspace.trajectory": commandState(
+      facts.trajectoryAvailable,
+      "command.reason.trajectory-result-unavailable",
+    ),
     "workspace.geometry": commandState(cadEnabled, cadReason),
     "example.cylinder": commandState(!facts.cylinderRunning, "command.reason.cylinder-running"),
+    "example.dc-drive": commandState(!facts.dcMotorRunning, "command.reason.dc-drive-running"),
     "example.spatial": commandState(!facts.compiling, "command.reason.compiling"),
     "example.cad": commandState(!facts.compiling, "command.reason.compiling"),
     "focus.source": scoped("focus.source", { enabled: true, reason: null }),

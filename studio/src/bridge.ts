@@ -20,6 +20,12 @@ import {
   cylinderDemoResultSchema,
 } from "./cylinder-demo-protocol";
 import {
+  type DcMotorDemoRequest,
+  type DcMotorDemoResult,
+  dcMotorDemoRequestSchema,
+  dcMotorDemoResultSchema,
+} from "./dc-motor-demo-protocol";
+import {
   CAD_EXAMPLE_SOURCE,
   CAD_PREVIEW_MODEL_DIGEST,
   EXAMPLE_SOURCE,
@@ -97,6 +103,7 @@ export interface StudioBridge {
     request: SpatialRealizationRunRequest,
   ): Promise<BridgeEnvelope<SpatialRunResult>>;
   runCylinderDemo(request: CylinderDemoRequest): Promise<BridgeEnvelope<CylinderDemoResult>>;
+  runDcMotorDemo(request: DcMotorDemoRequest): Promise<BridgeEnvelope<DcMotorDemoResult>>;
 }
 
 const compileCommandEnvelopeSchema = z
@@ -329,6 +336,17 @@ const nativeBridge: StudioBridge = {
       "run_cylinder_demo",
       { request: checked.value },
       bridgeEnvelopeSchema(cylinderDemoResultSchema),
+    );
+  },
+  async runDcMotorDemo(request) {
+    const checked = checkedRequest(dcMotorDemoRequestSchema, request, "Packaged DC-drive demo");
+    if (!checked.ok) {
+      return checked.failure;
+    }
+    return checkedInvoke<DcMotorDemoResult>(
+      "run_dc_motor_demo",
+      { request: checked.value },
+      bridgeEnvelopeSchema(dcMotorDemoResultSchema),
     );
   },
 };
@@ -1042,6 +1060,14 @@ const previewBridge: StudioBridge = {
     return checked.ok
       ? protocolFailure(
           "The exact-cylinder solve is available only in native Studio; browser preview does not fabricate scientific results.",
+        )
+      : checked.failure;
+  },
+  async runDcMotorDemo(request) {
+    const checked = checkedRequest(dcMotorDemoRequestSchema, request, "Packaged DC-drive demo");
+    return checked.ok
+      ? protocolFailure(
+          "The packaged DC-drive execution is available only in native Studio; browser preview does not fabricate scientific results.",
         )
       : checked.failure;
   },

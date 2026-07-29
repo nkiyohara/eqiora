@@ -20,8 +20,11 @@ import { Icon, Inspector, ModelOutline, SourceEditor } from "./components";
 import { studioCompileRequest } from "./control-protocol";
 import { CylinderDemoSession, type CylinderDemoSessionState } from "./cylinder-demo-session";
 import { CylinderDemoWorkspace } from "./cylinder-demo-workspace";
+import { DcMotorDemoSession, type DcMotorDemoSessionState } from "./dc-motor-demo-session";
+import { DcMotorDemoWorkspace } from "./dc-motor-demo-workspace";
 import { type DiagnosticPresentation, Diagnostics } from "./diagnostics";
 import { CAD_EXAMPLE_SOURCE, EXAMPLE_SOURCE, SPATIAL_EXAMPLE_SOURCE } from "./example";
+import "./example-menu.css";
 import { formatMessage } from "./messages";
 import { ModelCanvas } from "./projection";
 import { BRIDGE_PROTOCOL, type SourceSpan, type StudioDiagnostic } from "./protocol";
@@ -73,6 +76,9 @@ export function App() {
   const [cylinderState, setCylinderState] = useState<CylinderDemoSessionState>({
     kind: "idle",
   });
+  const [dcMotorState, setDcMotorState] = useState<DcMotorDemoSessionState>({
+    kind: "idle",
+  });
   const scalarFieldSession = useMemo(
     () => new ScalarFieldDataSession(scalarFieldDataBridge, setScalarFieldState),
     [],
@@ -82,6 +88,7 @@ export function App() {
       new CylinderDemoSession(studioBridge, nativeUnstructuredFieldDataBridge, setCylinderState),
     [],
   );
+  const dcMotorSession = useMemo(() => new DcMotorDemoSession(studioBridge, setDcMotorState), []);
   latestSource.current = state.source;
   const sourceEdited = state.compiledSource !== state.source;
   const {
@@ -95,6 +102,7 @@ export function App() {
     cylinderState.kind === "solving" || cylinderState.kind === "loading-field"
       ? "running"
       : cylinderState.kind;
+  const dcMotorStatus = dcMotorState.kind;
   const fieldWorkflow =
     selectedFieldWorkflow === "scalar-elliptic" &&
     spatialState.latestResult?.plan.requirements.spatialDimension !== 2
@@ -110,6 +118,7 @@ export function App() {
             acceptedModelDigest: cadProjection?.modelDigest ?? null,
           },
           cylinderStatus,
+          dcMotorStatus,
           fieldWorkflow,
         },
         requestedWorkspace,
@@ -118,6 +127,7 @@ export function App() {
       cadProjection?.modelDigest,
       cadStatus,
       cylinderStatus,
+      dcMotorStatus,
       fieldWorkflow,
       requestedWorkspace,
       state.document,
@@ -688,15 +698,19 @@ export function App() {
           ? cadSelectionState.accepted !== null
           : application.activeWorkflow === "cylinder-stokes"
             ? cylinderState.kind === "ready"
-            : activeWorkspace === "field"
-              ? scalarFieldState.kind === "ready"
-              : selectedNode !== null,
+            : application.activeWorkflow === "packaged-dc-drive"
+              ? dcMotorState.kind === "ready"
+              : activeWorkspace === "field"
+                ? scalarFieldState.kind === "ready"
+                : selectedNode !== null,
       evidenceAvailable:
         application.activeWorkflow === "scalar-elliptic"
           ? spatialResult !== null
           : application.activeWorkflow === "cylinder-stokes"
             ? cylinderState.kind === "ready"
-            : application.activeWorkflow === "relations" && runResult !== null,
+            : application.activeWorkflow === "packaged-dc-drive"
+              ? dcMotorState.kind === "ready"
+              : application.activeWorkflow === "relations" && runResult !== null,
       fieldAvailable:
         fieldWorkflow === "cylinder-stokes"
           ? cylinderState.kind === "solving" ||
@@ -704,6 +718,8 @@ export function App() {
             cylinderState.kind === "ready"
           : spatialResult?.plan.requirements.spatialDimension === 2,
       cylinderRunning: cylinderState.kind === "solving" || cylinderState.kind === "loading-field",
+      trajectoryAvailable: dcMotorState.kind === "running" || dcMotorState.kind === "ready",
+      dcMotorRunning: dcMotorState.kind === "running",
       cadAvailability,
     });
     return Object.fromEntries(
@@ -724,6 +740,7 @@ export function App() {
     canUndo,
     revisionNavigationBlocked,
     cylinderState,
+    dcMotorState,
     fieldWorkflow,
     runPlanCurrent,
     runResult,
@@ -788,6 +805,14 @@ export function App() {
       });
     }
   }, [cylinderSession]);
+
+  const openDcMotorDemo = useCallback(async () => {
+    setRequestedWorkspace("trajectory");
+    const terminal = await dcMotorSession.run();
+    if (terminal.kind === "ready") {
+      window.requestAnimationFrame(() => focusTarget("trajectory-viewport"));
+    }
+  }, [dcMotorSession, focusTarget]);
 
   const openScalarField = useCallback(async () => {
     if (spatialResult === null || spatialResult.plan.requirements.spatialDimension !== 2) {
@@ -856,8 +881,19 @@ export function App() {
             void openScalarField();
           }
           return;
+        case "workspace.trajectory":
+          if (dcMotorState.kind === "idle" || dcMotorState.kind === "failed") {
+            void openDcMotorDemo();
+          } else {
+            setRequestedWorkspace("trajectory");
+            focusCommandTarget(command);
+          }
+          return;
         case "example.cylinder":
           void openCylinderDemo();
+          return;
+        case "example.dc-drive":
+          void openDcMotorDemo();
           return;
         case "example.spatial":
           void openSpatialExample();
@@ -880,9 +916,11 @@ export function App() {
       compile,
       focusCommandTarget,
       fieldWorkflow,
+      dcMotorState.kind,
       isSpatialDocument,
       openCadExample,
       openCylinderDemo,
+      openDcMotorDemo,
       openScalarField,
       openSpatialExample,
       run,
@@ -934,7 +972,9 @@ export function App() {
             <span className="document-name">
               {application.activeWorkflow === "cylinder-stokes"
                 ? "steady-flow-past-cylinder"
-                : "untitled.eqi"}
+                : application.activeWorkflow === "packaged-dc-drive"
+                  ? "org.example.dc_motor_control@0.1.0"
+                  : "untitled.eqi"}
             </span>
             <span aria-hidden="true">/</span>
             <span>
@@ -979,38 +1019,74 @@ export function App() {
               >
                 {formatMessage("workflow.relations.label")}
               </button>
-              <button
-                aria-current={activeWorkspace === "field" ? "page" : undefined}
-                disabled={!commandAvailability["workspace.field"].enabled}
-                onClick={() => executeCommand("workspace.field")}
-                title={commandAvailability["workspace.field"].reason ?? undefined}
-                type="button"
-              >
-                Field
-              </button>
-              <button
-                aria-current={activeWorkspace === "geometry" ? "page" : undefined}
-                disabled={!commandAvailability["workspace.geometry"].enabled}
-                onClick={() => executeCommand("workspace.geometry")}
-                title={commandAvailability["workspace.geometry"].reason ?? undefined}
-                type="button"
-              >
-                {formatMessage("workflow.cad.label")}
-              </button>
+              {commandAvailability["workspace.field"].enabled ? (
+                <button
+                  aria-current={activeWorkspace === "field" ? "page" : undefined}
+                  onClick={() => executeCommand("workspace.field")}
+                  type="button"
+                >
+                  Field
+                </button>
+              ) : null}
+              {commandAvailability["workspace.trajectory"].enabled ? (
+                <button
+                  aria-current={activeWorkspace === "trajectory" ? "page" : undefined}
+                  onClick={() => executeCommand("workspace.trajectory")}
+                  type="button"
+                >
+                  Trajectory
+                </button>
+              ) : null}
+              {commandAvailability["workspace.geometry"].enabled ? (
+                <button
+                  aria-current={activeWorkspace === "geometry" ? "page" : undefined}
+                  onClick={() => executeCommand("workspace.geometry")}
+                  type="button"
+                >
+                  {formatMessage("workflow.cad.label")}
+                </button>
+              ) : null}
             </nav>
           </div>
           <div className="app-bar__actions">
-            <button
-              className="secondary-action"
-              disabled={!commandAvailability["example.cylinder"].enabled}
-              onClick={() => executeCommand("example.cylinder")}
-              title={commandAvailability["example.cylinder"].reason ?? undefined}
-              type="button"
-            >
-              {cylinderState.kind === "solving" || cylinderState.kind === "loading-field"
-                ? "Solving cylinder…"
-                : formatMessage("command.example.cylinder.label")}
-            </button>
+            <details className="example-menu">
+              <summary className="secondary-action">Examples</summary>
+              <div className="example-menu__panel">
+                <span className="eyebrow">Immutable native examples</span>
+                <button
+                  disabled={!commandAvailability["example.dc-drive"].enabled}
+                  onClick={(event) => {
+                    event.currentTarget.closest("details")?.removeAttribute("open");
+                    executeCommand("example.dc-drive");
+                  }}
+                  title={commandAvailability["example.dc-drive"].reason ?? undefined}
+                  type="button"
+                >
+                  <span aria-hidden="true">⌁</span>
+                  <strong>
+                    {dcMotorState.kind === "running" ? "Running DC drive…" : "Sampled DC drive"}
+                  </strong>
+                  <small>3 packages · 100 steps · held control</small>
+                </button>
+                <button
+                  disabled={!commandAvailability["example.cylinder"].enabled}
+                  onClick={(event) => {
+                    event.currentTarget.closest("details")?.removeAttribute("open");
+                    executeCommand("example.cylinder");
+                  }}
+                  title={commandAvailability["example.cylinder"].reason ?? undefined}
+                  type="button"
+                >
+                  <span aria-hidden="true">◯</span>
+                  <strong>
+                    {cylinderState.kind === "solving" || cylinderState.kind === "loading-field"
+                      ? "Solving cylinder…"
+                      : "Exact-cylinder Stokes"}
+                  </strong>
+                  <small>Exact source · bounded pressure field</small>
+                </button>
+              </div>
+            </details>
             <span className={`runtime-badge runtime-badge--${studioBridge.mode}`}>
               <span aria-hidden="true" />
               {studioBridge.mode === "native" ? "Canonical runtime" : "Browser preview"}
@@ -1054,6 +1130,38 @@ export function App() {
             </button>
           </div>
         ) : null}
+        {dcMotorState.kind === "failed" ? (
+          <div className="cylinder-demo-failure" role="alert">
+            <span>{dcMotorState.message}</span>
+            <button
+              className="secondary-action"
+              onClick={() => void openDcMotorDemo()}
+              type="button"
+            >
+              Retry native demo
+            </button>
+          </div>
+        ) : null}
+
+        <main
+          className="trajectory-workspace-shell"
+          hidden={activeWorkspace !== "trajectory"}
+          id={activeWorkspace === "trajectory" ? "workspace" : undefined}
+          tabIndex={-1}
+        >
+          {dcMotorState.kind === "ready" ? (
+            <DcMotorDemoWorkspace result={dcMotorState.result} />
+          ) : (
+            <section className="scalar-field-load-state" aria-live="polite" role="status">
+              <span aria-hidden="true">⌁</span>
+              <h1>Running packaged DC drive…</h1>
+              <p>
+                The native runtime is compiling the exact package closure, executing 100 accepted
+                steps, and binding Model and Run identities.
+              </p>
+            </section>
+          )}
+        </main>
 
         <main
           className="geometry-workspace-shell"
