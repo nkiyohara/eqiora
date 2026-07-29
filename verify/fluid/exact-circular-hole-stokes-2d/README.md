@@ -58,16 +58,30 @@ implementation or an existing `verify/fluid` case.
 | solve | dense LU at 40 decimal digits, cross-checked by an independent LU on the uncondensed system | dense LU at 256-bit BigFloat, residual reapplied cell by cell |
 | checks reported at source | 101 route + 162 mesh | 103 |
 
-### What is durable, and what is only a local label
+### What is durable, and what is only a label
 
-The two source worktrees were throwaway, and **their branches were never
-pushed**. Every commit identifier below is therefore an *informative
-local-session label*: `e8bbd44` and `dccbc31` for the two final route commits,
-`cd8faa0` and `f5fd3ce` for the two worktrees' contract revisions, and
-`dea1fd1` for the packaging base. They may resolve to nothing in any other
-clone, and none of them is a durable reference. Nothing in this package, in the
-agreement gate, or in any default repository check reads them or needs them to
-exist.
+This package was assembled on **merged main `84b78c5`** ("Specify the circular
+reference quad diagonal"), which is durable and reachable from `origin/main`.
+It is recorded for orientation only: nothing here reads or resolves it.
+
+The other commit identifiers in this directory are not durable, for two
+different reasons.
+
+- **The two source worktrees were throwaway, and their branches were never
+  pushed.** `e8bbd44` and `dccbc31` are the two final route commits, and
+  `cd8faa0` and `f5fd3ce` the contract revisions those worktrees stood on.
+  These are *informative local-session labels* and may resolve to nothing in
+  any other clone.
+- **`dea1fd1` is neither a source-session label nor the packaging base.** It
+  was the exact review head of the separate RFC 0082 quad-diagonal
+  clarification branch — a branch that was pushed for review and deleted after
+  it squash-merged, so `dea1fd1` may equally fail to resolve elsewhere. Its
+  durable form is `84b78c5`, whose tree is identical to it. Route B's own
+  document repeats the earlier "packaging base" wording for `dea1fd1`; that
+  document is left as its author wrote it, and this section is the correction.
+
+Nothing in this package, in the agreement gate, or in any default repository
+check reads any of these identifiers or needs them to exist.
 
 What a future reader reproduces from instead:
 
@@ -84,12 +98,13 @@ What a future reader reproduces from instead:
 None of that depends on a temporary worktree or on resolving a git object.
 
 RFC 0081 and RFC 0082 — the entire public contract both routes derived against —
-were confirmed **byte-identical** at all three of those local revisions when the
-package was assembled; the revisions differed only in agent-routing
-documentation and in each worktree's own route files. Neither route author read
-the other's contract revision, and neither derived against different contract
-text. The durable form of that statement is the contract text carried inside the
-packaged documents, not the three labels.
+were confirmed **byte-identical** at both worktree contract revisions and at
+`dea1fd1` when the package was assembled, and they carry the same bytes at the
+merged base `84b78c5`; those revisions differed only in agent-routing
+documentation and in each worktree's own working files under this directory.
+Neither route author read the other's contract revision, and neither derived
+against different contract text. The durable form of that statement is the
+contract text carried inside the packaged documents, not the labels.
 
 The two routes cross-check each other's mesh without sharing an index
 convention: the gate reconstructs every cell barycentre, both boundary vertex

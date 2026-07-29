@@ -92,7 +92,7 @@
     },
     "comparison_route": {
       "file": "agreement/compare_routes.py",
-      "sha256": "50e7c83a2a9432e1908cddbbea26fd9f5546715507b74409bac9fb1441785fff"
+      "sha256": "8881024d91c5eb48840e74fe16a8a77eee185aa031a60822fd3d100266784d46"
     }
   },
   "provenance": {
@@ -102,11 +102,15 @@
       "rerunning each route in place: routes/python/oracle.py --check reproduces result.json byte for byte, and routes/julia/run.jl reruns byte-identical",
       "rerunning this gate, which regenerates expected/agreement-report.json byte for byte under --check"
     ],
-    "local_session_identifiers": {
-      "note": "Informative only. These identifiers name commits in local, unpushed session worktrees and may not resolve in any other clone. They are not durable references, nothing here depends on resolving them, and no future reproduction requires them.",
-      "contract_commit": "dea1fd138fce92fd0127f5df9155b675159a58c3",
+    "package_base": {
+      "commit": "84b78c57f573c78dc7e84e655f6910a9908d0ac2",
+      "note": "Merged main, reachable from origin/main, on which this package was assembled. Recorded for orientation only: nothing here reads or resolves it."
+    },
+    "non_durable_identifiers": {
+      "note": "Informative only, and none of these is the base of this package, which is recorded under 'package_base'. The two route source commits name commits in local, unpushed session worktrees. The RFC 0082 review head was the exact head reviewed on a separate branch, which was deleted after it squash-merged into the package base. Each may therefore fail to resolve in another clone, nothing here depends on resolving them, and no future reproduction requires them.",
       "python_route_source_commit": "e8bbd44b49315f0d4ee723ec73df53a4f8f6f2f0",
-      "julia_route_source_commit": "dccbc318744c7cec4f6b73f5ba0fe60880af7583"
+      "julia_route_source_commit": "dccbc318744c7cec4f6b73f5ba0fe60880af7583",
+      "rfc_0082_review_head_commit": "dea1fd138fce92fd0127f5df9155b675159a58c3"
     },
     "historical_source_digests": {
       "python_source_mesh_sha256": "2ec74b9f481a60b460c9bb8096821cd73eeb7e17ef18a7ae67828e605d17a8f2",

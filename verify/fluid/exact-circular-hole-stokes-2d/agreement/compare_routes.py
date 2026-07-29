@@ -213,11 +213,12 @@ SCALE_CONTRACT = {
 # Provenance, split by what a future reader can actually resolve.
 #
 # The two routes were frozen in throwaway local worktrees whose branches were
-# never pushed. Their commit identifiers are informative local-session labels
-# only: they are not durable references and may resolve to nothing in any other
-# clone. Nothing in this gate, in the packaged evidence, or in any default
-# repository check reads them, needs them, or depends on those worktrees still
-# existing.
+# never pushed, and the contract was reviewed on a separate branch that was
+# deleted after it squash-merged. None of those commit identifiers is a durable
+# reference and each may resolve to nothing in another clone; the durable base
+# this package was assembled on is PACKAGE_BASE, on merged main. Nothing in this
+# gate, in the packaged evidence, or in any default repository check reads any
+# of them, needs them, or depends on those worktrees still existing.
 #
 # What a future reader reproduces from instead is listed in DURABLE_ANCHORS:
 # the packaged bytes themselves, their digests, the contract text embedded in
@@ -232,16 +233,27 @@ DURABLE_ANCHORS = [
     "rerunning this gate, which regenerates expected/agreement-report.json byte "
     "for byte under --check",
 ]
-LOCAL_SESSION_IDENTIFIERS = {
+PACKAGE_BASE = {
+    "commit": "84b78c57f573c78dc7e84e655f6910a9908d0ac2",
     "note": (
-        "Informative only. These identifiers name commits in local, unpushed "
-        "session worktrees and may not resolve in any other clone. They are not "
-        "durable references, nothing here depends on resolving them, and no "
-        "future reproduction requires them."
+        "Merged main, reachable from origin/main, on which this package was "
+        "assembled. Recorded for orientation only: nothing here reads or "
+        "resolves it."
     ),
-    "contract_commit": "dea1fd138fce92fd0127f5df9155b675159a58c3",
+}
+NON_DURABLE_IDENTIFIERS = {
+    "note": (
+        "Informative only, and none of these is the base of this package, "
+        "which is recorded under 'package_base'. The two route source commits "
+        "name commits in local, unpushed session worktrees. The RFC 0082 "
+        "review head was the exact head reviewed on a separate branch, which "
+        "was deleted after it squash-merged into the package base. Each may "
+        "therefore fail to resolve in another clone, nothing here depends on "
+        "resolving them, and no future reproduction requires them."
+    ),
     "python_route_source_commit": "e8bbd44b49315f0d4ee723ec73df53a4f8f6f2f0",
     "julia_route_source_commit": "dccbc318744c7cec4f6b73f5ba0fe60880af7583",
+    "rfc_0082_review_head_commit": "dea1fd138fce92fd0127f5df9155b675159a58c3",
 }
 # Digests of the pre-packaging source documents, recorded as history. The
 # source files are not part of this package; these values document what the
@@ -1323,7 +1335,8 @@ def build_report(gate: Gate, geometry: SharedMeshGeometry) -> dict:
         },
         "provenance": {
             "durable_anchors": DURABLE_ANCHORS,
-            "local_session_identifiers": LOCAL_SESSION_IDENTIFIERS,
+            "package_base": PACKAGE_BASE,
+            "non_durable_identifiers": NON_DURABLE_IDENTIFIERS,
             "historical_source_digests": HISTORICAL_SOURCE_DIGESTS,
         },
         "records": gate.records,
