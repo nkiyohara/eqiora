@@ -4,9 +4,11 @@ This case registers one closed application projection for a coherent-SI scalar
 P1 Field on a bounded two-dimensional affine-triangle mesh. The ordinary
 positive fixture is the existing fixed-reference FSI pressure snapshot, not a
 cylinder-specific shortcut. `eqiora-api` replays the exact Model, semantic
-revision, Realization plan, Run, geometry/correspondence/mesh lineage, Field,
+revision, Realization plan, geometry/correspondence/mesh lineage, Field,
 Domain, logical snapshot, and vertex coefficient block before it copies any
-renderer-ready data.
+renderer-ready data. The logical snapshot digest must also be a registered
+output of the exact Run; matching Model and Realization lineage alone is not
+enough.
 
 Studio retains at most two accepted projections. Its descriptor carries the
 same artifact identities and declares three separate fixed-order streams:

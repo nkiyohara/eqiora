@@ -126,6 +126,22 @@ fn foreign_lineage_and_non_scalar_p1_data_fail_before_projection() {
     let pressure_snapshot = accepted.snapshot(accepted.pressure);
     let pressure_block = &accepted.snapshots.blocks(accepted.pressure).unwrap()[0];
 
+    let unbound_run = RunManifestV2::new(
+        &accepted.execution.realization,
+        accepted.execution.run.execution(),
+    )
+    .expect("unbound Run is otherwise valid");
+    assert!(
+        UnstructuredP1ScalarFieldProjection2d::from_fixed_snapshot(
+            &context,
+            &unbound_run,
+            pressure_snapshot,
+            pressure_block,
+        )
+        .is_err(),
+        "a snapshot absent from the exact Run output inventory must not project"
+    );
+
     let mut foreign_run: serde_json::Value =
         serde_json::from_slice(&accepted.execution.run.canonical_json().unwrap()).unwrap();
     foreign_run["semantic_revision"] = (accepted.execution.run.semantic_revision() + 1).into();
@@ -180,7 +196,7 @@ fn accepted_field() -> AcceptedField {
     let canonical = lower_fixed_reference_fsi_cartesian_2d(document.program())
         .expect("fixed-reference FSI meaning");
     let spatial = spatial_context(document.program(), &canonical);
-    let execution = execution_context(document.program(), &canonical, &spatial);
+    let mut execution = execution_context(document.program(), &canonical, &spatial);
     let solution = solve_step(
         &canonical,
         &spatial,
@@ -198,6 +214,13 @@ fn accepted_field() -> AcceptedField {
     .expect("fixed-spatial lineage");
     let snapshots = snapshot_fixed_reference_fsi_solution_v1(&context, &solution)
         .expect("accepted FSI snapshots");
+    execution.run = snapshots
+        .snapshots()
+        .iter()
+        .try_fold(execution.run, |run, snapshot| {
+            snapshot.digest().map(|digest| run.with_output(digest))
+        })
+        .expect("Run binds every accepted snapshot output");
     AcceptedField {
         spatial,
         execution,

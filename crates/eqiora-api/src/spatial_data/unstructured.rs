@@ -58,6 +58,12 @@ impl UnstructuredP1ScalarFieldProjection2d {
     ) -> Result<Self, Diagnostic> {
         run.validate_against(context.realization())?;
         snapshot.validate_against(context, std::slice::from_ref(block))?;
+        let snapshot_artifact = snapshot.digest()?;
+        if !run.outputs().contains(&snapshot_artifact) {
+            return Err(invalid_projection(
+                "Studio P1 projection snapshot is not an output of the exact Run",
+            ));
+        }
 
         let mesh_artifact = context.mesh().digest()?;
         if context.mesh().dimension() != 2 {
@@ -166,7 +172,7 @@ impl UnstructuredP1ScalarFieldProjection2d {
             semantic_revision: model.semantic_revision().get(),
             realization_artifact: context.realization().digest()?,
             run_artifact: run.digest()?,
-            snapshot_artifact: snapshot.digest()?,
+            snapshot_artifact,
             mesh_artifact,
             field: snapshot.field(),
             support_domain: snapshot.support_domain(),
