@@ -107,11 +107,7 @@ pub(crate) fn distributed_admission_fingerprint(
     hash.update(system.as_bytes());
     hash.update(partition.as_bytes());
     hash.update(layout.as_bytes());
-    hash.update([match plan.algorithm() {
-        LinearSolver::ConjugateGradient => 0,
-        LinearSolver::BiConjugateGradientStabilized => 1,
-        LinearSolver::MinimumResidual => 2,
-    }]);
+    hash.update([linear_solver_tag(plan.algorithm())]);
     hash.update([match plan.preconditioner() {
         PreconditionerPolicy::Identity => 0,
         PreconditionerPolicy::Jacobi => 1,
@@ -128,6 +124,15 @@ pub(crate) fn distributed_admission_fingerprint(
         "maximum iteration count",
     )?;
     Ok(DistributedAdmissionFingerprintV1(hash.finalize().into()))
+}
+
+const fn linear_solver_tag(algorithm: LinearSolver) -> u8 {
+    match algorithm {
+        LinearSolver::ConjugateGradient => 0,
+        LinearSolver::BiConjugateGradientStabilized => 1,
+        LinearSolver::MinimumResidual => 2,
+        LinearSolver::SparseLu => 3,
+    }
 }
 
 fn scalar_tag(scalar_type: ScalarType) -> u8 {
@@ -154,4 +159,20 @@ fn update_count(hash: &mut Sha256, value: usize, name: &'static str) -> Result<(
         .map_err(|_| invalid_realization(format!("distributed {name} exceeds portable u64")))?;
     hash.update(value.to_be_bytes());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn distributed_solver_tags_are_additive_and_frozen() {
+        assert_eq!(linear_solver_tag(LinearSolver::ConjugateGradient), 0);
+        assert_eq!(
+            linear_solver_tag(LinearSolver::BiConjugateGradientStabilized),
+            1
+        );
+        assert_eq!(linear_solver_tag(LinearSolver::MinimumResidual), 2);
+        assert_eq!(linear_solver_tag(LinearSolver::SparseLu), 3);
+    }
 }

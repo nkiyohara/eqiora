@@ -449,6 +449,7 @@ impl PyLinearSolveSummary {
                 LinearSolver::ConjugateGradient => "conjugate-gradient",
                 LinearSolver::MinimumResidual => "minimum-residual",
                 LinearSolver::BiConjugateGradientStabilized => "bicgstab",
+                LinearSolver::SparseLu => "sparse-lu",
             }
             .to_owned(),
             preconditioner: match report.preconditioner() {

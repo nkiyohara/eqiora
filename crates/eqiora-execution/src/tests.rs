@@ -1428,6 +1428,17 @@ fn graph_or_operator_drift_cannot_enter_an_admitted_token() {
 }
 
 #[test]
+fn distributed_admission_rejects_sparse_lu_before_fingerprinting() {
+    let complete = system([1.0, 0.0]);
+    let distributed = distributed_system(&complete, NonZeroUsize::new(2).unwrap());
+    let plan = SolverPlan::new(LinearSolver::SparseLu, 0.0, 1.0e-12, NonZeroUsize::MIN).unwrap();
+    let error = distributed.admission_fingerprint(plan).unwrap_err();
+
+    assert_eq!(error.code(), codes::INVALID_REALIZATION);
+    assert_eq!(error.message(), "distributed sparse LU is not implemented");
+}
+
+#[test]
 fn execution_and_plan_substitution_fail_at_the_output_boundary() {
     let graph = portable_graph();
     let system = system([1.0, 0.0]);

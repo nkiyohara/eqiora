@@ -199,66 +199,72 @@ fn realization_v1_golden_bytes_are_frozen() {
 }
 
 #[test]
-fn realization_v1_rejects_minres_without_retagging() {
+fn realization_v1_rejects_newer_solver_algorithms_without_retagging() {
     let (model_envelope, model) = model_fixture();
     let baseline = default_plan_v0().unwrap();
-    let minres = SolverPlan::new(
-        LinearSolver::MinimumResidual,
-        1.0e-12,
-        1.0e-14,
-        NonZeroUsize::new(100).unwrap(),
-    )
-    .unwrap();
-    let plan = RealizationPlan::new(
-        baseline.space(),
-        baseline.discretization(),
-        minres,
-        baseline.target(),
-        baseline.schedule(),
-    )
-    .unwrap();
-    let request = RealizationRequest::explicit(
-        model,
-        SemanticRevision::new(model_envelope.source_revision()),
-        RealizationRevision::new(12),
-        plan,
-    );
-    let requirements = RealizationRequirements::new(
-        NonZeroUsize::MIN,
-        ScalarType::F64,
-        VectorLayoutKind::Replicated,
-    );
-    let capabilities = RealizationCapabilities::cartesian_product(
-        [DiscretizationMethod::ContinuousGalerkin],
-        [(
-            eqiora_realization::MeshKind::GeneratedCartesian,
-            SpatialDimensionSupport::exact(NonZeroUsize::MIN),
-        )],
-        [VectorLayoutKind::Replicated],
-        SolverCapabilities::exact([SolverCapability {
-            algorithm: LinearSolver::MinimumResidual,
-            operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-            preconditioner: PreconditionerPolicy::Identity,
-            reduction: ReductionPolicy::Reproducible,
-            scalar_type: ScalarType::F64,
-        }])
-        .unwrap(),
-        TargetCapabilities::none().with_host_cpu(NonZeroUsize::MIN),
-    )
-    .unwrap();
-    let resolved = resolve(&request, requirements, &capabilities).unwrap();
-    let error = RealizationEnvelopeV1::from_resolved(
-        &model_envelope,
-        &resolved,
-        LayoutArtifacts::Replicated,
-    )
-    .unwrap_err();
+    for (algorithm, reduction, expected) in [
+        (
+            LinearSolver::MinimumResidual,
+            ReductionPolicy::Reproducible,
+            "realization artifact v1 cannot encode MINRES; a versioned wire extension is required",
+        ),
+        (
+            LinearSolver::SparseLu,
+            ReductionPolicy::Fast,
+            "realization artifact v1 cannot encode sparse LU; a versioned wire extension is required",
+        ),
+    ] {
+        let solver = SolverPlan::new(algorithm, 0.0, 1.0 / 1_073_741_824.0, NonZeroUsize::MIN)
+            .unwrap()
+            .with_reduction(reduction);
+        let plan = RealizationPlan::new(
+            baseline.space(),
+            baseline.discretization(),
+            solver,
+            baseline.target(),
+            baseline.schedule(),
+        )
+        .unwrap();
+        let request = RealizationRequest::explicit(
+            model,
+            SemanticRevision::new(model_envelope.source_revision()),
+            RealizationRevision::new(12),
+            plan,
+        );
+        let requirements = RealizationRequirements::new(
+            NonZeroUsize::MIN,
+            ScalarType::F64,
+            VectorLayoutKind::Replicated,
+        );
+        let capabilities = RealizationCapabilities::cartesian_product(
+            [DiscretizationMethod::ContinuousGalerkin],
+            [(
+                eqiora_realization::MeshKind::GeneratedCartesian,
+                SpatialDimensionSupport::exact(NonZeroUsize::MIN),
+            )],
+            [VectorLayoutKind::Replicated],
+            SolverCapabilities::exact([SolverCapability {
+                algorithm,
+                operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
+                preconditioner: PreconditionerPolicy::Identity,
+                reduction,
+                scalar_type: ScalarType::F64,
+            }])
+            .unwrap(),
+            TargetCapabilities::none().with_host_cpu(NonZeroUsize::MIN),
+        )
+        .unwrap();
+        let resolved = resolve(&request, requirements, &capabilities).unwrap();
+        let error = RealizationEnvelopeV1::from_resolved(
+            &model_envelope,
+            &resolved,
+            LayoutArtifacts::Replicated,
+        )
+        .unwrap_err();
 
-    assert_eq!(error.code(), codes::INVALID_ARTIFACT);
-    assert_eq!(
-        error.message(),
-        "realization artifact v1 cannot encode MINRES; a versioned wire extension is required"
-    );
+        assert_eq!(error.code(), codes::INVALID_ARTIFACT);
+        assert_eq!(error.message(), expected);
+    }
 }
 
 #[test]

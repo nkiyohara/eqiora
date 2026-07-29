@@ -51,6 +51,9 @@ impl LinearSolverBackend for ReferenceLinearSolver {
             LinearSolver::BiConjugateGradientStabilized => {
                 bicgstab::solve_preconditioned_bicgstab(self.provider(), problem, plan, execution)
             }
+            LinearSolver::SparseLu => Err(invalid_realization(
+                "the reference adapter does not implement sparse LU",
+            )),
         }
     }
 }
@@ -584,6 +587,22 @@ mod tests {
                 .code(),
             codes::INVALID_REALIZATION
         );
+    }
+
+    #[test]
+    fn reference_backend_rejects_sparse_lu_before_numerical_work() {
+        let problem = LinearProblem::new(
+            &DenseGeneral,
+            &[1.0, 2.0],
+            LinearOperatorProperties::General,
+        )
+        .unwrap();
+        let plan =
+            SolverPlan::new(LinearSolver::SparseLu, 0.0, 1.0e-12, NonZeroUsize::MIN).unwrap();
+        let error = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap_err();
+
+        assert_eq!(error.code(), codes::INVALID_REALIZATION);
+        assert!(error.message().contains("exact SolverCapability"));
     }
 
     #[test]

@@ -1,0 +1,949 @@
+{
+  "schema": "eqiora.verify.numerics.linear-backends.sparse-lu-oracle/1",
+  "frozen": true,
+  "authoring": "Committed by a non-implementing oracle author before any SparseLu implementation existed. No Rust source was read while authoring it. The implementing agent may wire this fixture but may not change any value here.",
+  "rational_encoding": "Every non-index numeric value is an object {\"num\": integer, \"den\": integer} in lowest terms with den > 0. The file contains no binary floating-point literal. Tolerances and error ceilings use the same encoding and are dyadic, so every acceptance inequality recorded here is decidable in exact rational arithmetic.",
+  "mathematics": {
+    "note": "Facts about the matrices below, independent of Eqiora, verified by re-derivation in the oracle.",
+    "principal": {
+      "description": "Square canonical CSR system A x = b over exact rationals. A is neither structurally nor numerically symmetric, has sorted unique column indices, no structurally empty row, and det A = 64 so x and the transpose solution y are each unique. Every component of x differs from the corresponding component of y, so any storage-orientation confusion is observable in every component rather than in a subset.",
+      "n": 5,
+      "csr": {
+        "index_base": 0,
+        "row_ptr": [
+          0,
+          3,
+          6,
+          9,
+          11,
+          14
+        ],
+        "col_idx": [
+          0,
+          1,
+          3,
+          0,
+          1,
+          2,
+          1,
+          2,
+          4,
+          2,
+          3,
+          0,
+          3,
+          4
+        ],
+        "values": [
+          {
+            "num": 5,
+            "den": 1
+          },
+          {
+            "num": -4,
+            "den": 1
+          },
+          {
+            "num": -3,
+            "den": 1
+          },
+          {
+            "num": -1,
+            "den": 1
+          },
+          {
+            "num": 3,
+            "den": 1
+          },
+          {
+            "num": 2,
+            "den": 1
+          },
+          {
+            "num": -1,
+            "den": 1
+          },
+          {
+            "num": 1,
+            "den": 1
+          },
+          {
+            "num": 1,
+            "den": 1
+          },
+          {
+            "num": -2,
+            "den": 1
+          },
+          {
+            "num": 3,
+            "den": 1
+          },
+          {
+            "num": -1,
+            "den": 1
+          },
+          {
+            "num": 2,
+            "den": 1
+          },
+          {
+            "num": 2,
+            "den": 1
+          }
+        ]
+      },
+      "rhs": [
+        {
+          "num": 16,
+          "den": 1
+        },
+        {
+          "num": -1,
+          "den": 1
+        },
+        {
+          "num": 7,
+          "den": 1
+        },
+        {
+          "num": -9,
+          "den": 1
+        },
+        {
+          "num": 1,
+          "den": 1
+        }
+      ],
+      "solution": [
+        {
+          "num": 1,
+          "den": 1
+        },
+        {
+          "num": -2,
+          "den": 1
+        },
+        {
+          "num": 3,
+          "den": 1
+        },
+        {
+          "num": -1,
+          "den": 1
+        },
+        {
+          "num": 2,
+          "den": 1
+        }
+      ],
+      "transpose_solution": [
+        {
+          "num": 9,
+          "den": 2
+        },
+        {
+          "num": 5,
+          "den": 1
+        },
+        {
+          "num": -2,
+          "den": 1
+        },
+        {
+          "num": 1,
+          "den": 2
+        },
+        {
+          "num": 3,
+          "den": 2
+        }
+      ],
+      "determinant": {
+        "num": 64,
+        "den": 1
+      },
+      "componentwise_solution_difference": [
+        {
+          "num": -7,
+          "den": 2
+        },
+        {
+          "num": -7,
+          "den": 1
+        },
+        {
+          "num": 5,
+          "den": 1
+        },
+        {
+          "num": -3,
+          "den": 2
+        },
+        {
+          "num": 1,
+          "den": 2
+        }
+      ],
+      "structure": {
+        "nnz": 14,
+        "square": true,
+        "sorted_unique_columns": true,
+        "no_structurally_empty_row": true,
+        "diagonal_fully_present": true,
+        "all_stored_values_nonzero": true,
+        "min_column_index": 0,
+        "max_column_index": 4,
+        "structurally_symmetric": false,
+        "numerically_symmetric": false,
+        "pattern_asymmetry_witnesses": [
+          [
+            0,
+            3
+          ],
+          [
+            2,
+            4
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            4,
+            0
+          ],
+          [
+            4,
+            3
+          ]
+        ],
+        "value_asymmetry_witnesses": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "residuals": {
+        "normal_route_squared": {
+          "num": 0,
+          "den": 1
+        },
+        "transpose_route_squared": {
+          "num": 0,
+          "den": 1
+        }
+      },
+      "acceptance": {
+        "note": "Facts about the acceptance threshold, true independently of Eqiora. The threshold is a choice; every inequality recorded below is re-derived exactly by the oracle from the CSR arrays and that choice. Nothing here says what Eqiora does.",
+        "predicate": "accept xhat when ||b - A xhat||_2 <= absolute_tolerance + relative_tolerance * ||b||_2",
+        "relative_tolerance": {
+          "num": 0,
+          "den": 1
+        },
+        "relative_tolerance_argument": "Exactly zero. ||b||_2 = sqrt(388) is irrational, so any nonzero relative term would make the acceptance threshold irrational and none of the inequalities below could be decided in exact arithmetic. With the relative term removed the threshold is the rational absolute_tolerance itself, and squaring it keeps every comparison against a recorded squared residual rational.",
+        "absolute_tolerance": {
+          "num": 1,
+          "den": 1073741824
+        },
+        "absolute_tolerance_exponent": -30,
+        "absolute_tolerance_squared": {
+          "num": 1,
+          "den": 1152921504606846976
+        },
+        "absolute_tolerance_selection": "The largest power of two strictly below 1e-9: 2^-30 < 1e-9 <= 2^-29. The rule fixes the value before any bound is consulted, so the tolerance is not tuned to an implementation or to a falsifier; the two bounds below are then checked against it rather than used to choose it. Being a power of two it is dyadic and exactly representable in binary64, so a consumer compares against the same number the oracle proved about.",
+        "backward_error_envelope": {
+          "argument": "Standard backward-error analysis of LU with partial pivoting (Higham, Accuracy and Stability of Numerical Algorithms, 2nd ed., Thm 9.4) gives (A + dA) xhat = b with |dA| <= gamma_{3n} |L||U| componentwise, where gamma_k = k u / (1 - k u). Bounding |L| <= 1 and max |U| <= rho max |A| entrywise, and gamma_{3n} by 3 n u, yields the envelope R = 3 n^3 rho u ||A||_inf ||x||_inf on ||b - A xhat||_inf, hence on the 2-norm residual up to a factor at most sqrt(n) that the pessimism below absorbs. Every factor is deliberately worst case: rho is the worst-case partial-pivoting growth 2^(n-1) = 16 where this matrix grows by about one, and n^2 crudely bounds || |L||U| |xhat| ||_inf. R is an upper bound on what rounding can produce, not a prediction of what any implementation produces.",
+          "unit_roundoff": {
+            "num": 1,
+            "den": 9007199254740992
+          },
+          "dimension_factor": 375,
+          "growth_factor": 16,
+          "matrix_infinity_norm": {
+            "num": 12,
+            "den": 1
+          },
+          "solution_infinity_norm": {
+            "num": 3,
+            "den": 1
+          },
+          "value": {
+            "num": 3375,
+            "den": 140737488355328
+          },
+          "tolerance_exceeds_envelope_by_at_least": 32,
+          "conclusion": "absolute_tolerance / R = 131072/3375, above 38, so no backward-stable binary64 factorization of this system can miss acceptance on rounding alone."
+        },
+        "discrimination": {
+          "argument": "Acceptance compares ||b - A xhat||_2 against absolute_tolerance, so squaring both sides it rejects exactly when the true squared residual exceeds absolute_tolerance_squared. Every frozen wrong route and the rejected initial guess carry an exact squared residual recorded elsewhere in this witness; the smallest is 9. The oracle proves the strict inequality for each route separately rather than relying on the minimum.",
+          "smallest_wrong_route_residual_squared": {
+            "num": 9,
+            "den": 1
+          },
+          "margin_factor_at_least": 1000000000000000000,
+          "conclusion": "9 / absolute_tolerance_squared = 9 * 2^60, above 1e19, so the tolerance sits far below every wrong route while staying far above rounding. It discriminates the frozen routes by construction and is strict enough to catch errors much subtler than any of them."
+        },
+        "forward_error_ceiling": {
+          "argument": "Residual acceptance and solution accuracy are different statements, so the componentwise ceiling is derived rather than assumed. From xhat - x = A^-1 (A xhat - b) and ||v||_inf <= ||v||_2 for every v, any xhat accepted under the predicate satisfies max_i |xhat_i - x_i| <= ||A^-1||_inf * absolute_tolerance. A is nonsingular with det A = 64, so A^-1 is exact and rational and ||A^-1||_inf = 147/64.",
+          "inverse_infinity_norm": {
+            "num": 147,
+            "den": 64
+          },
+          "implied_bound": {
+            "num": 147,
+            "den": 68719476736
+          },
+          "ceiling": {
+            "num": 1,
+            "den": 268435456
+          },
+          "ceiling_exponent": -28,
+          "ceiling_is_tightest_dyadic_power_of_two": true,
+          "conclusion": "2^-28 >= 147 * 2^-36 while 2^-29 does not, so 2^-28 is the tightest power of two the residual tolerance provably implies. A consumer may assert it componentwise against the exact solution without a second tolerance."
+        }
+      },
+      "initial_guesses": {
+        "already_satisfied": {
+          "description": "Exactly the solution: the true residual is exactly zero, so the guess is accepted under any positive tolerance without factorization.",
+          "vector": [
+            {
+              "num": 1,
+              "den": 1
+            },
+            {
+              "num": -2,
+              "den": 1
+            },
+            {
+              "num": 3,
+              "den": 1
+            },
+            {
+              "num": -1,
+              "den": 1
+            },
+            {
+              "num": 2,
+              "den": 1
+            }
+          ],
+          "residual_squared": {
+            "num": 0,
+            "den": 1
+          }
+        },
+        "not_satisfied": {
+          "description": "The zero vector: the true residual equals b, so no positive tolerance below ||b||_2 accepts it.",
+          "vector": [
+            {
+              "num": 0,
+              "den": 1
+            },
+            {
+              "num": 0,
+              "den": 1
+            },
+            {
+              "num": 0,
+              "den": 1
+            },
+            {
+              "num": 0,
+              "den": 1
+            },
+            {
+              "num": 0,
+              "den": 1
+            }
+          ],
+          "residual_squared": {
+            "num": 388,
+            "den": 1
+          }
+        }
+      },
+      "falsifiers": [
+        {
+          "id": "csr-read-as-csc",
+          "kind": "numeric",
+          "detects": "CSR row arrays handed to a column-major (CSC) consumer, which silently transposes the operator.",
+          "misread_matrix_equals_transpose": true,
+          "wrong_vector": [
+            {
+              "num": 9,
+              "den": 2
+            },
+            {
+              "num": 5,
+              "den": 1
+            },
+            {
+              "num": -2,
+              "den": 1
+            },
+            {
+              "num": 1,
+              "den": 2
+            },
+            {
+              "num": 3,
+              "den": 2
+            }
+          ],
+          "residual_squared": {
+            "num": 650,
+            "den": 1
+          }
+        },
+        {
+          "id": "transpose-route-returns-normal-solution",
+          "kind": "numeric",
+          "detects": "A transpose-route solve that returns the normal-route solution.",
+          "wrong_vector": [
+            {
+              "num": 1,
+              "den": 1
+            },
+            {
+              "num": -2,
+              "den": 1
+            },
+            {
+              "num": 3,
+              "den": 1
+            },
+            {
+              "num": -1,
+              "den": 1
+            },
+            {
+              "num": 2,
+              "den": 1
+            }
+          ],
+          "residual_squared": {
+            "num": 386,
+            "den": 1
+          }
+        },
+        {
+          "id": "rhs-permuted",
+          "kind": "numeric",
+          "detects": "Right-hand side reordered relative to the matrix rows.",
+          "permutation": [
+            1,
+            2,
+            3,
+            4,
+            0
+          ],
+          "permuted_rhs": [
+            {
+              "num": -1,
+              "den": 1
+            },
+            {
+              "num": 7,
+              "den": 1
+            },
+            {
+              "num": -9,
+              "den": 1
+            },
+            {
+              "num": 1,
+              "den": 1
+            },
+            {
+              "num": 16,
+              "den": 1
+            }
+          ],
+          "wrong_vector": [
+            {
+              "num": 85,
+              "den": 16
+            },
+            {
+              "num": 57,
+              "den": 4
+            },
+            {
+              "num": -487,
+              "den": 32
+            },
+            {
+              "num": -157,
+              "den": 16
+            },
+            {
+              "num": 655,
+              "den": 32
+            }
+          ],
+          "residual_squared": {
+            "num": 934,
+            "den": 1
+          }
+        },
+        {
+          "id": "one-based-column-indices",
+          "kind": "structural-and-numeric",
+          "detects": "Column indices written or read with a one-based convention.",
+          "shift_down_negative_count": 3,
+          "shift_up_out_of_range_count": 2,
+          "lenient_decode_kept_entries": 11,
+          "lenient_decode_determinant": {
+            "num": 0,
+            "den": 1
+          },
+          "residual_squared": {
+            "num": 1455,
+            "den": 1
+          }
+        },
+        {
+          "id": "omitted-off-diagonal",
+          "kind": "numeric",
+          "detects": "A dropped off-diagonal entry, including the entry that makes the pattern non-structurally-symmetric.",
+          "omitted_entry": {
+            "row": 0,
+            "col": 3,
+            "value": {
+              "num": -3,
+              "den": 1
+            }
+          },
+          "reduced_determinant": {
+            "num": 58,
+            "den": 1
+          },
+          "wrong_vector": [
+            {
+              "num": 56,
+              "den": 29
+            },
+            {
+              "num": -46,
+              "den": 29
+            },
+            {
+              "num": 165,
+              "den": 58
+            },
+            {
+              "num": -32,
+              "den": 29
+            },
+            {
+              "num": 149,
+              "den": 58
+            }
+          ],
+          "residual_squared": {
+            "num": 9,
+            "den": 1
+          }
+        },
+        {
+          "id": "wrong-solution",
+          "kind": "numeric",
+          "detects": "A returned vector that is not the solution.",
+          "perturbation": {
+            "index": 0,
+            "delta": {
+              "num": 1,
+              "den": 1
+            }
+          },
+          "wrong_vector": [
+            {
+              "num": 2,
+              "den": 1
+            },
+            {
+              "num": -2,
+              "den": 1
+            },
+            {
+              "num": 3,
+              "den": 1
+            },
+            {
+              "num": -1,
+              "den": 1
+            },
+            {
+              "num": 2,
+              "den": 1
+            }
+          ],
+          "residual_squared": {
+            "num": 27,
+            "den": 1
+          }
+        }
+      ]
+    },
+    "rank_deficient": {
+      "description": "Square canonical CSR system with no structurally empty row whose third row is the exact sum of the first two. It is singular and the right-hand side is inconsistent, so no vector attains a zero residual and a correct direct solver must fail closed rather than return a value.",
+      "n": 3,
+      "csr": {
+        "index_base": 0,
+        "row_ptr": [
+          0,
+          2,
+          4,
+          7
+        ],
+        "col_idx": [
+          0,
+          1,
+          0,
+          2,
+          0,
+          1,
+          2
+        ],
+        "values": [
+          {
+            "num": 2,
+            "den": 1
+          },
+          {
+            "num": 5,
+            "den": 2
+          },
+          {
+            "num": 1,
+            "den": 1
+          },
+          {
+            "num": 3,
+            "den": 1
+          },
+          {
+            "num": 3,
+            "den": 1
+          },
+          {
+            "num": 5,
+            "den": 2
+          },
+          {
+            "num": 3,
+            "den": 1
+          }
+        ]
+      },
+      "rhs": [
+        {
+          "num": 1,
+          "den": 1
+        },
+        {
+          "num": 1,
+          "den": 1
+        },
+        {
+          "num": 5,
+          "den": 1
+        }
+      ],
+      "determinant": {
+        "num": 0,
+        "den": 1
+      },
+      "rank": 2,
+      "rank_deficiency_proof": {
+        "row_dependency": "row_2 = row_0 + row_1 exactly",
+        "right_null_vector": [
+          {
+            "num": -15,
+            "den": 1
+          },
+          {
+            "num": 12,
+            "den": 1
+          },
+          {
+            "num": 5,
+            "den": 1
+          }
+        ],
+        "left_null_vector": [
+          {
+            "num": 1,
+            "den": 1
+          },
+          {
+            "num": 1,
+            "den": 1
+          },
+          {
+            "num": -1,
+            "den": 1
+          }
+        ],
+        "nonsingular_minor": {
+          "rows": [
+            0,
+            1
+          ],
+          "cols": [
+            0,
+            1
+          ],
+          "determinant": {
+            "num": -5,
+            "den": 2
+          }
+        },
+        "rank_argument": "A nonzero 2x2 minor forces rank >= 2; a zero determinant forces rank <= 2; therefore rank = 2 and both null spaces are one-dimensional."
+      },
+      "consistency": {
+        "consistent": false,
+        "left_null_vector_dot_rhs": {
+          "num": -3,
+          "den": 1
+        },
+        "minimum_squared_residual": {
+          "num": 3,
+          "den": 1
+        },
+        "argument": "The left null space of A is spanned by the single vector w, so min over z of ||b - A z||_2^2 equals (w.b)^2 / ||w||_2^2, which is strictly positive."
+      },
+      "acceptance": {
+        "note": "The same chosen threshold applied to the singular inconsistent witness. Mathematics, not an Eqiora claim.",
+        "absolute_tolerance": {
+          "num": 1,
+          "den": 1073741824
+        },
+        "absolute_tolerance_squared": {
+          "num": 1,
+          "den": 1152921504606846976
+        },
+        "minimum_attainable_residual_squared": {
+          "num": 3,
+          "den": 1
+        },
+        "margin_factor_at_least": 1000000000000000000,
+        "argument": "min over z of ||b - A' z||_2^2 = 3 exactly, proved above from the one-dimensional left null space. Acceptance requires ||b - A' z||_2^2 <= absolute_tolerance_squared = 2^-60, and 2^-60 < 3 with 3 / 2^-60 = 3 * 2^60 above 3e18. The target is therefore rigorously below the attainable minimum: no vector whatsoever passes acceptance on this system, so a solver that returns any value at all is wrong independently of which value it returns, and failing closed is the only accepting behaviour."
+      },
+      "structure": {
+        "nnz": 7,
+        "square": true,
+        "sorted_unique_columns": true,
+        "no_structurally_empty_row": true,
+        "all_stored_values_nonzero": true
+      }
+    }
+  },
+  "contract_expectations": {
+    "source": "Frozen SparseLu design brief, section 'Frozen design'",
+    "proved_by_this_oracle": false,
+    "note": "Contract expectations, not mathematical facts. This oracle checks only their internal consistency and shape; whether Eqiora honours them is established by Rust evidence written by the implementing agent.",
+    "capabilities": {
+      "axes": [
+        "solver",
+        "operator_property",
+        "preconditioner",
+        "reduction",
+        "scalar"
+      ],
+      "positive": [
+        {
+          "solver": "SparseLu",
+          "operator_property": "General",
+          "preconditioner": "Identity",
+          "reduction": "Fast",
+          "scalar": "F64",
+          "expected": "supported"
+        },
+        {
+          "solver": "SparseLu",
+          "operator_property": "SymmetricPositiveDefinite",
+          "preconditioner": "Identity",
+          "reduction": "Fast",
+          "scalar": "F64",
+          "expected": "supported"
+        },
+        {
+          "solver": "SparseLu",
+          "operator_property": "SymmetricIndefinite",
+          "preconditioner": "Identity",
+          "reduction": "Fast",
+          "scalar": "F64",
+          "expected": "supported"
+        }
+      ],
+      "negative": [
+        {
+          "solver": "SparseLu",
+          "operator_property": "General",
+          "preconditioner": "Jacobi",
+          "reduction": "Fast",
+          "scalar": "F64",
+          "expected": "rejected",
+          "reason": "Jacobi preconditioning is not part of the frozen SparseLu tuple set."
+        },
+        {
+          "solver": "SparseLu",
+          "operator_property": "SymmetricPositiveDefinite",
+          "preconditioner": "Jacobi",
+          "reduction": "Fast",
+          "scalar": "F64",
+          "expected": "rejected",
+          "reason": "Jacobi preconditioning is not part of the frozen SparseLu tuple set."
+        },
+        {
+          "solver": "SparseLu",
+          "operator_property": "SymmetricIndefinite",
+          "preconditioner": "Jacobi",
+          "reduction": "Fast",
+          "scalar": "F64",
+          "expected": "rejected",
+          "reason": "Jacobi preconditioning is not part of the frozen SparseLu tuple set."
+        },
+        {
+          "solver": "SparseLu",
+          "operator_property": "General",
+          "preconditioner": "Identity",
+          "reduction": "Reproducible",
+          "scalar": "F64",
+          "expected": "rejected",
+          "reason": "Reproducible reduction is not part of the frozen SparseLu tuple set."
+        },
+        {
+          "solver": "SparseLu",
+          "operator_property": "SymmetricPositiveDefinite",
+          "preconditioner": "Identity",
+          "reduction": "Reproducible",
+          "scalar": "F64",
+          "expected": "rejected",
+          "reason": "Reproducible reduction is not part of the frozen SparseLu tuple set."
+        },
+        {
+          "solver": "SparseLu",
+          "operator_property": "SymmetricIndefinite",
+          "preconditioner": "Identity",
+          "reduction": "Reproducible",
+          "scalar": "F64",
+          "expected": "rejected",
+          "reason": "Reproducible reduction is not part of the frozen SparseLu tuple set."
+        }
+      ]
+    },
+    "test_plan": {
+      "note": "Solver plan field values the wired Rust evidence must declare. Transcribed contract expectations, not mathematics, and not proved here. The oracle checks only their shape, their mutual consistency, and that every tolerance, ceiling and squared target below is exactly the rational analysed under `mathematics`. Whether Eqiora spells these fields this way, or honours them, is established by Rust evidence this author did not write.",
+      "plan": {
+        "solver": "SparseLu",
+        "operator_property": "General",
+        "preconditioner": "Identity",
+        "reduction": "Fast",
+        "scalar": "F64",
+        "relative_tolerance": {
+          "num": 0,
+          "den": 1
+        },
+        "absolute_tolerance": {
+          "num": 1,
+          "den": 1073741824
+        },
+        "maximum_iterations": 1
+      },
+      "plan_argument": "One plan drives every case below so a difference in outcome is attributable to the system and the initial guess alone. maximum_iterations is 1 because a direct factorization reaches its answer in a single solve: a run that needs a second pass is not the algorithm under test, and a run that needs none took the early exit.",
+      "cases": [
+        {
+          "id": "principal-positive-solve",
+          "system": "mathematics.principal",
+          "initial_guess": "none",
+          "expected": "accepted",
+          "expected_solution": "mathematics.principal.solution",
+          "expected_residual_squared_at_most": {
+            "num": 1,
+            "den": 1152921504606846976
+          },
+          "componentwise_solution_error_ceiling": {
+            "num": 1,
+            "den": 268435456
+          },
+          "expected_early_exit": false
+        },
+        {
+          "id": "early-initial-guess-accepted",
+          "system": "mathematics.principal",
+          "initial_guess": "mathematics.principal.initial_guesses.already_satisfied.vector",
+          "expected": "accepted",
+          "expected_solution": "mathematics.principal.solution",
+          "expected_residual_squared_at_most": {
+            "num": 1,
+            "den": 1152921504606846976
+          },
+          "componentwise_solution_error_ceiling": {
+            "num": 1,
+            "den": 268435456
+          },
+          "expected_early_exit": true,
+          "note": "The guess is exactly x, so its true squared residual is 0 and acceptance holds before any factorization. Pairing it with the case below is what makes the branch observable rather than merely reachable."
+        },
+        {
+          "id": "initial-guess-not-accepted-early",
+          "system": "mathematics.principal",
+          "initial_guess": "mathematics.principal.initial_guesses.not_satisfied.vector",
+          "expected": "accepted",
+          "expected_solution": "mathematics.principal.solution",
+          "expected_residual_squared_at_most": {
+            "num": 1,
+            "den": 1152921504606846976
+          },
+          "componentwise_solution_error_ceiling": {
+            "num": 1,
+            "den": 268435456
+          },
+          "expected_early_exit": false,
+          "note": "The zero guess has true squared residual 388, far above the squared threshold, so the early exit must not fire and the factorization must run and still land on x."
+        },
+        {
+          "id": "rank-deficient-fail-closed",
+          "system": "mathematics.rank_deficient",
+          "initial_guess": "none",
+          "expected": "rejected",
+          "expected_residual_squared_at_most": {
+            "num": 1,
+            "den": 1152921504606846976
+          },
+          "expected_early_exit": false,
+          "note": "No vector attains a squared residual at or below the target, whose exact proof is under mathematics.rank_deficient.acceptance, so returning any value is a failure and only a closed failure is correct."
+        }
+      ]
+    },
+    "stable_solver_tags": {
+      "note": "Existing tags are frozen; SparseLu is additive.",
+      "preexisting": {
+        "CG": 0,
+        "BiCGSTAB": 1,
+        "MINRES": 2
+      },
+      "added": {
+        "SparseLu": 3
+      }
+    },
+    "artifact": {
+      "v1": {
+        "sparse_lu": "reject"
+      },
+      "v2": {
+        "sparse_lu": "sparse-lu",
+        "encoding": "kebab-case",
+        "variant": "SparseLu"
+      }
+    }
+  }
+}

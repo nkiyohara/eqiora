@@ -233,6 +233,11 @@ impl DistributedLinearSystem {
                     "distributed BiCGSTAB is not implemented",
                 ));
             }
+            LinearSolver::SparseLu => {
+                return Err(invalid_realization(
+                    "distributed sparse LU is not implemented",
+                ));
+            }
         }
         if plan.preconditioner() == PreconditionerPolicy::Jacobi {
             for partition in 0..self.operator.partition().count().get() {

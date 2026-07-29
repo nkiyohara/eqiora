@@ -14,7 +14,7 @@ use crate::{
 pub enum ConvergenceReason {
     /// The supplied initial guess already met the declared tolerance.
     InitialResidualSatisfied,
-    /// An iteration produced an accepted independently verified residual.
+    /// Solver work produced an accepted independently verified residual.
     ResidualToleranceSatisfied,
 }
 
@@ -236,7 +236,7 @@ impl SolveReport {
             }
             (ConvergenceReason::ResidualToleranceSatisfied, 0) => {
                 return Err(solve_failed(
-                    "iterative residual convergence requires at least one completed iteration",
+                    "post-work residual convergence requires at least one completed iteration",
                 ));
             }
         }
@@ -250,7 +250,7 @@ impl SolveReport {
         // `reason` and `completed_iterations` are producer evidence, while the
         // residual values may be recomputed by an independent verifier. Their
         // reductions may legitimately place the initial norm on opposite sides
-        // of the tolerance threshold, so iterative producer termination does
+        // of the tolerance threshold, so post-work producer termination does
         // not imply a verifier-side unsatisfied initial residual.
         if true_residual_norm > residual_target {
             return Err(solve_failed(format!(

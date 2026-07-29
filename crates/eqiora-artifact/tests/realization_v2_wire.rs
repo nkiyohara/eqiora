@@ -72,6 +72,30 @@ fn realization_v2_golden_bytes_are_frozen() {
 }
 
 #[test]
+fn fieldwise_v2_additively_round_trips_sparse_lu() {
+    let fixture = fixture(ReductionPolicy::Reproducible);
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&fixture.realization.canonical_json().unwrap()).unwrap();
+    value["plan"]["solver"]["algorithm"] = serde_json::json!("sparse-lu");
+    value["plan"]["solver"]["relative_tolerance"] = serde_json::json!(0.0);
+    value["plan"]["solver"]["absolute_tolerance"] = serde_json::json!(1.0 / 1_073_741_824.0);
+    value["plan"]["solver"]["maximum_iterations"] = serde_json::json!(1);
+    value["plan"]["solver"]["reduction"] = serde_json::json!("fast");
+
+    let decoded =
+        RealizationEnvelopeV2::from_json(&serde_json::to_vec(&value).unwrap(), Default::default())
+            .unwrap();
+    assert_eq!(
+        decoded.plan().unwrap().solver().algorithm(),
+        LinearSolver::SparseLu
+    );
+    let canonical = decoded.canonical_json().unwrap();
+    assert!(String::from_utf8_lossy(&canonical).contains("\"sparse-lu\""));
+    let replay = RealizationEnvelopeV2::from_json(&canonical, Default::default()).unwrap();
+    assert_eq!(replay.canonical_json().unwrap(), canonical);
+}
+
+#[test]
 fn fieldwise_v2_scale_changes_are_identity_and_invalid_scales_fail_closed() {
     let fixture = fixture(ReductionPolicy::Reproducible);
     let bytes = fixture.realization.canonical_json().unwrap();

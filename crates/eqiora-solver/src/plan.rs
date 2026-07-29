@@ -12,9 +12,11 @@ pub enum LinearSolver {
     MinimumResidual,
     /// Bi-conjugate gradient stabilized for a square general operator.
     BiConjugateGradientStabilized,
+    /// Partial-pivot sparse LU for an explicitly captured square operator.
+    SparseLu,
 }
 
-/// Preconditioner policy selected independently from the Krylov algorithm.
+/// Preconditioner policy selected independently from the linear algorithm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PreconditionerPolicy {
     /// No transformation of the residual.
@@ -122,7 +124,11 @@ impl SolverPlan {
         self.absolute_tolerance
     }
 
-    /// Iteration limit.
+    /// Iteration limit or direct-solve work bound.
+    ///
+    /// Sparse LU retains this field as part of the common plan identity,
+    /// ignores it as a factorization control, and reports at most one completed
+    /// factor-and-solve attempt.
     #[must_use]
     pub const fn maximum_iterations(self) -> NonZeroUsize {
         self.maximum_iterations
@@ -167,6 +173,7 @@ impl LinearSolver {
                     | crate::LinearOperatorProperties::SymmetricIndefinite
             ),
             Self::BiConjugateGradientStabilized => true,
+            Self::SparseLu => true,
         }
     }
 }
@@ -228,5 +235,6 @@ mod tests {
             LinearSolver::BiConjugateGradientStabilized
                 .accepts(crate::LinearOperatorProperties::General)
         );
+        assert!(LinearSolver::SparseLu.accepts(crate::LinearOperatorProperties::General));
     }
 }

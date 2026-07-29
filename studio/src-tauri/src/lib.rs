@@ -895,16 +895,7 @@ fn project_spatial_result(
             backend: solve.backend().as_str().to_owned(),
             execution: project_execution(solve.execution()),
             verification: project_execution(solve.verification()),
-            algorithm: match solve.algorithm() {
-                LinearSolver::ConjugateGradient => "conjugate-gradient",
-                LinearSolver::BiConjugateGradientStabilized => "bicgstab",
-                LinearSolver::MinimumResidual => {
-                    return Err(Box::new(studio_error(
-                        "ST0008",
-                        "the local scalar-elliptic Studio workflow received an unsupported minimum-residual solve report",
-                    )));
-                }
-            },
+            algorithm: project_solver_algorithm(solve.algorithm())?,
             preconditioner: match solve.preconditioner() {
                 PreconditionerPolicy::Identity => "identity",
                 PreconditionerPolicy::Jacobi => "jacobi",
@@ -924,6 +915,21 @@ fn project_spatial_result(
             residual_target: solve.residual_target(),
         },
     })
+}
+
+fn project_solver_algorithm(algorithm: LinearSolver) -> Result<&'static str, ProjectionError> {
+    match algorithm {
+        LinearSolver::ConjugateGradient => Ok("conjugate-gradient"),
+        LinearSolver::BiConjugateGradientStabilized => Ok("bicgstab"),
+        LinearSolver::MinimumResidual => Err(Box::new(studio_error(
+            "ST0008",
+            "the local scalar-elliptic Studio workflow received an unsupported minimum-residual solve report",
+        ))),
+        LinearSolver::SparseLu => Err(Box::new(studio_error(
+            "ST0008",
+            "the local scalar-elliptic Studio workflow received an unsupported sparse-LU solve report",
+        ))),
+    }
 }
 
 #[derive(Debug, Default)]
@@ -1943,12 +1949,13 @@ mod tests {
     use super::{
         DocumentCache, MAX_DOCUMENTS, ModelDocument, ReferenceRunPlan, RunPlanDto,
         ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod,
-        ValueEditPlanDto, project_document, project_node, project_spatial_plan,
-        project_spatial_result, valid_run_id,
+        ValueEditPlanDto, project_document, project_node, project_solver_algorithm,
+        project_spatial_plan, project_spatial_result, valid_run_id,
     };
     use eqiora::entity::kinds;
     use eqiora::kernel::{DomainDef, KernelNode, PortDef};
     use eqiora::realization::RealizationRevision;
+    use eqiora::solver::LinearSolver;
     use eqiora::{DimExponents, Id};
     use std::collections::BTreeMap;
     use std::num::NonZeroUsize;
@@ -2068,6 +2075,18 @@ model decay {
         assert!(!valid_run_id("f8c0c89e-64a8-1f20-b623-d167499bb97d"));
         assert!(!valid_run_id("f8c0c89e-64a8-4f20-7623-d167499bb97d"));
         assert!(!valid_run_id("f8c0c89e64a84f20b623d167499bb97d"));
+    }
+
+    #[test]
+    fn spatial_projection_rejects_unadmitted_linear_algorithms() {
+        assert_eq!(
+            project_solver_algorithm(LinearSolver::ConjugateGradient).unwrap(),
+            "conjugate-gradient"
+        );
+        for algorithm in [LinearSolver::MinimumResidual, LinearSolver::SparseLu] {
+            let error = project_solver_algorithm(algorithm).unwrap_err();
+            assert_eq!(error.code, "ST0008");
+        }
     }
 
     #[test]

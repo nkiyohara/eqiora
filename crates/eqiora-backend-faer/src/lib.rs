@@ -6,6 +6,8 @@
 //! returns Eqiora-owned convergence evidence after independent true-residual
 //! verification.
 
+mod sparse_lu;
+
 use std::sync::{Arc, Mutex};
 
 use eqiora_core::Diagnostic;
@@ -38,7 +40,7 @@ pub const FAER_SOLVER_PROVIDER: SolverProvider = SolverProvider::new(
     &[ProviderLibrary::new("faer", FAER_VERSION)],
 );
 
-/// Stateless faer adapter for host-local `f64` CG and BiCGSTAB.
+/// Stateless faer adapter for host-local `f64` CG, BiCGSTAB, and sparse LU.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FaerLinearSolver;
 
@@ -81,6 +83,27 @@ impl LinearSolverBackend for FaerLinearSolver {
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
+            SolverCapability {
+                algorithm: LinearSolver::SparseLu,
+                operator_properties: LinearOperatorProperties::General,
+                preconditioner: PreconditionerPolicy::Identity,
+                reduction: ReductionPolicy::Fast,
+                scalar_type: ScalarType::F64,
+            },
+            SolverCapability {
+                algorithm: LinearSolver::SparseLu,
+                operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
+                preconditioner: PreconditionerPolicy::Identity,
+                reduction: ReductionPolicy::Fast,
+                scalar_type: ScalarType::F64,
+            },
+            SolverCapability {
+                algorithm: LinearSolver::SparseLu,
+                operator_properties: LinearOperatorProperties::SymmetricIndefinite,
+                preconditioner: PreconditionerPolicy::Identity,
+                reduction: ReductionPolicy::Fast,
+                scalar_type: ScalarType::F64,
+            },
         ])
         .expect("faer exact capability set is nonempty")
     }
@@ -109,6 +132,7 @@ impl LinearSolverBackend for FaerLinearSolver {
             LinearSolver::BiConjugateGradientStabilized => {
                 solve_bicgstab(self.provider(), problem, plan, inverse_diagonal)
             }
+            LinearSolver::SparseLu => sparse_lu::solve_sparse_lu(self.provider(), problem, plan),
         }
     }
 }

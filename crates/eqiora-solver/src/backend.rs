@@ -145,6 +145,11 @@ impl SolverCapabilities {
                         LinearOperatorProperties::SymmetricPositiveDefinite,
                         LinearOperatorProperties::SymmetricIndefinite,
                     ],
+                    LinearSolver::SparseLu => &[
+                        LinearOperatorProperties::General,
+                        LinearOperatorProperties::SymmetricPositiveDefinite,
+                        LinearOperatorProperties::SymmetricIndefinite,
+                    ],
                 };
                 properties.iter().flat_map(|operator_properties| {
                     preconditioners.iter().flat_map(|preconditioner| {
