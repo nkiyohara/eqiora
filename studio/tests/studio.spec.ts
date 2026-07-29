@@ -85,6 +85,16 @@ test("keeps every primary action unobstructed at the minimum shell size", async 
   await expect(page.getByText("41 samples", { exact: true })).toBeVisible();
 });
 
+test("groups immutable examples without crowding the application header", async ({ page }) => {
+  await page.goto("/");
+  const menu = page.getByText("Examples", { exact: true });
+  await menu.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: /Sampled DC drive/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Exact-cylinder Stokes/ })).toBeVisible();
+  await expectNoSeriousOrCriticalViolations(page);
+});
+
 test("selects exact CAD Domains from both the semantic table and keyboard viewport", async ({
   page,
 }) => {
@@ -257,12 +267,7 @@ test("provides every primary operation through an accessible command palette", a
 test("uses one workflow registry for navigation, toolbar, palette, and focus", async ({ page }) => {
   await page.goto("/");
 
-  const geometryNavigation = page.getByRole("button", { name: "Geometry", exact: true });
-  await expect(geometryNavigation).toBeDisabled();
-  await expect(geometryNavigation).toHaveAttribute(
-    "title",
-    "This canonical revision has no accepted bounded CAD plan.",
-  );
+  await expect(page.getByRole("button", { name: "Geometry", exact: true })).toHaveCount(0);
 
   await page.keyboard.press("Control+k");
   const dialog = page.getByRole("dialog", { name: "Commands" });
@@ -279,6 +284,7 @@ test("uses one workflow registry for navigation, toolbar, palette, and focus", a
   await search.fill("open CAD example");
   await dialog.getByRole("button", { name: /Open CAD example/ }).click();
   await expect(page.getByRole("heading", { name: "Semantic geometry" })).toBeVisible();
+  const geometryNavigation = page.getByRole("button", { name: "Geometry", exact: true });
   await expect(geometryNavigation).toBeEnabled();
 
   await page.keyboard.press("Control+k");
@@ -332,7 +338,7 @@ test("never fabricates the native exact-cylinder solve in browser preview", asyn
   const editor = page.getByRole("textbox", { name: "Eqiora model source" });
   const acceptedSource = await editor.inputValue();
 
-  await page.getByRole("button", { name: "Run cylinder demo" }).click();
+  await executePaletteCommand(page, "run cylinder demo", /Run cylinder demo/);
 
   await expect(
     page.getByText(
@@ -344,7 +350,31 @@ test("never fabricates the native exact-cylinder solve in browser preview", asyn
     page.getByRole("heading", { name: "Steady flow past an exact circular cylinder" }),
   ).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Relation view" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Field", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Field", exact: true })).toHaveCount(0);
+  await expect(page.locator(".document-name")).toHaveText("untitled.eqi");
+  await expect(page.getByText("Revision 1", { exact: true })).toBeVisible();
+  await expect(editor).toHaveValue(acceptedSource);
+  await expectNoSeriousOrCriticalViolations(page);
+});
+
+test("never fabricates the native packaged DC-drive execution in browser preview", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Eqiora model source" });
+  const acceptedSource = await editor.inputValue();
+
+  await executePaletteCommand(page, "run dc-drive demo", /Run DC-drive demo/);
+
+  await expect(
+    page.getByText(
+      "The packaged DC-drive execution is available only in native Studio; browser preview does not fabricate scientific results.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sampled DC drive" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Relation view" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Trajectory", exact: true })).toHaveCount(0);
   await expect(page.locator(".document-name")).toHaveText("untitled.eqi");
   await expect(page.getByText("Revision 1", { exact: true })).toBeVisible();
   await expect(editor).toHaveValue(acceptedSource);

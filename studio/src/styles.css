@@ -108,7 +108,7 @@ button:disabled {
   z-index: 3;
   min-height: 64px;
   display: grid;
-  grid-template-columns: 300px minmax(180px, 1fr) auto;
+  grid-template-columns: 210px minmax(180px, 1fr) auto;
   align-items: center;
   gap: 22px;
   padding: 0 18px;

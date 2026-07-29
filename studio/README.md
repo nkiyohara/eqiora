@@ -26,6 +26,9 @@ The implemented vertical slices provide:
   host placement;
 - independently checked true-residual and continuous-balance evidence without
   putting bulk mesh/field arrays in the control response;
+- one native packaged DC-drive workspace that compiles the exact checked-in
+  three-package closure, executes its accepted 100-step reference path, and
+  presents only production current, speed, held voltage, and exact lineage;
 - an explicit bounded 2D scalar Field view whose separate data plane retains
   exact Model/run/Realization identity, transfers fixed little-endian `f64`
   chunks from a two-entry session cache, and synchronizes a keyboard-accessible
@@ -34,9 +37,10 @@ The implemented vertical slices provide:
   shared transaction preview, optimistic preconditions, and atomic commit;
 - bounded immutable revision navigation with keyboard undo/redo and explicit
   source-basis versus canonical-child provenance;
-- one closed typed registry for the current Relations, scalar-elliptic, and
-  bounded-CAD workflows, including shared navigation, command availability,
-  focus targets, projection budgets, and semantic alternatives;
+- one closed typed registry for the current Relations, scalar-elliptic,
+  exact-cylinder, packaged DC-drive, and bounded-CAD workflows, including
+  shared navigation, command availability, focus targets, projection budgets,
+  and semantic alternatives;
 - a searchable native-modal command palette for every primary operation and
   secondary example fixture, backed by the same resolved command state;
 - a typed presentation-message catalog for registry-owned labels,
@@ -139,9 +143,10 @@ trees to infer applicability. Relations comes from an accepted document,
 scalar elliptic comes from the native-advertised document workflow, and CAD
 requires an exact current-Model projection. If Geometry becomes inapplicable,
 the shell falls back to Relations without mutating canonical or run state.
-Header controls and the command palette use the same typed availability and
-disabled-reason keys. Secondary example fixtures live in the palette so they
-do not compete with the primary modeling task in the permanent header.
+The native exact-cylinder and packaged DC-drive examples resolve independently
+of the editable document and fall back without replacing it. Header controls
+and the command palette use the same typed availability and disabled-reason
+keys.
 
 Each workflow declares a protocol-owned bounded projection and an accessible
 semantic alternative. The scalar spatial control response remains
@@ -149,6 +154,18 @@ summary-only; its field workflow separately declares an explicit owned-host
 copy, fixed chunk size, value limit, and semantic-table alternative. Registry
 text is resolved through `src/messages.ts`, whose keys and fallback English
 are presentation-only and never enter semantic identity or IPC.
+
+The packaged DC-drive command is a presentation composition, not a second
+scientific implementation. Rust prepares the three releases from their
+checked-in manifests and sources, derives the exact resolution, compiles
+`Main`, and runs the existing semantic interpreter with the configuration
+owned by `hybrid.packaged-dc-motor-controller`. Its closed response contains
+101 aligned samples of three existing Fields, 11 commit boundaries, the exact
+package graph, and Model/compilation/Run/binding identities. Run lineage is
+created only after structural trajectory acceptance. React formats and scales
+the retained values but derives no physical quantity; exact references,
+residuals, controller-law evidence, physical port samples, power, and energy
+remain outside the payload. Browser preview fails explicitly.
 
 ## Develop and verify
 
@@ -196,3 +213,5 @@ independent evidence are specified in
 The application-owned Field projection and bounded explicit data-plane case is
 registered in
 [`verify/interfaces/studio-scalar-field-view`](../verify/interfaces/studio-scalar-field-view/README.md).
+The presentation-only package/trajectory composition is registered in
+[`verify/interfaces/studio-packaged-dc-motor-demo`](../verify/interfaces/studio-packaged-dc-motor-demo/README.md).

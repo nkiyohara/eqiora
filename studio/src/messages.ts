@@ -16,6 +16,9 @@ export const ENGLISH_MESSAGES = {
   "command.example.cylinder.description":
     "Run the immutable exact-cylinder Stokes example and open its accepted pressure field.",
   "command.example.cylinder.label": "Run cylinder demo",
+  "command.example.dc-drive.description":
+    "Compile and execute the pinned three-package sampled DC-drive example.",
+  "command.example.dc-drive.label": "Run DC-drive demo",
   "command.example.spatial.description":
     "Load the manufactured scalar elliptic example through the ordinary compile path.",
   "command.example.spatial.label": "Open spatial example",
@@ -46,6 +49,7 @@ export const ENGLISH_MESSAGES = {
   "command.reason.compiling": "Compilation is in progress.",
   "command.reason.complete-run": "Complete an accepted run first.",
   "command.reason.cylinder-running": "The exact-cylinder demonstration is already running.",
+  "command.reason.dc-drive-running": "The packaged DC-drive demonstration is already running.",
   "command.reason.edit-preview": "Enter a distinct valid value and wait for transaction preview.",
   "command.reason.edit-run": "Wait for the current run to finish before changing revisions.",
   "command.reason.edit-source":
@@ -64,6 +68,8 @@ export const ENGLISH_MESSAGES = {
   "command.reason.spatial-plan": "Wait for the native runtime to accept this Realization.",
   "command.reason.time-input": "Enter valid model-time controls.",
   "command.reason.time-plan": "Wait for the native runtime to accept this plan.",
+  "command.reason.trajectory-result-unavailable":
+    "Run the packaged DC-drive example to view its production trajectory.",
   "command.reason.workflow-unavailable": "This operation is not available in the active workflow.",
   "command.run.cancel.description":
     "Request cancellation at the next safe, accepted semantic step.",
@@ -83,12 +89,18 @@ export const ENGLISH_MESSAGES = {
   "command.workspace.relations.description":
     "Show source, relation, inspector, diagnostics, and evidence projections.",
   "command.workspace.relations.label": "Show relations workspace",
+  "command.workspace.trajectory.description":
+    "Open the bounded production trajectory for the packaged DC-drive example.",
+  "command.workspace.trajectory.label": "Show trajectory workspace",
   "workflow.cad.description":
     "Inspect the exact bounded CAD plan through semantic geometry and Domain selection.",
   "workflow.cad.label": "Geometry",
   "workflow.cylinder.description":
     "Inspect one exact-circle, error-controlled affine Stokes solve and its accepted pressure P1 field.",
   "workflow.cylinder.label": "Cylinder Stokes",
+  "workflow.dc-drive.description":
+    "Inspect one pinned package closure, sampled trajectory, and exact Model/Run binding.",
+  "workflow.dc-drive.label": "DC drive",
   "workflow.reason.cad-loading": "The native runtime is resolving the exact CAD plan.",
   "workflow.reason.cad-stale": "The accepted CAD plan belongs to another Model revision.",
   "workflow.reason.cad-unavailable": "This canonical revision has no accepted bounded CAD plan.",
@@ -97,6 +109,10 @@ export const ENGLISH_MESSAGES = {
     "The native runtime is solving and binding the exact-cylinder result.",
   "workflow.reason.cylinder-unavailable":
     "Run the immutable exact-cylinder demonstration to open this workflow.",
+  "workflow.reason.dc-drive-running":
+    "The native runtime is compiling, executing, and binding the packaged DC drive.",
+  "workflow.reason.dc-drive-unavailable":
+    "Run the packaged DC-drive demonstration to open this workflow.",
   "workflow.reason.spatial-unavailable":
     "This canonical revision does not lower to the bounded scalar elliptic workflow.",
   "workflow.relations.description":

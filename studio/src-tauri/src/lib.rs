@@ -7,6 +7,7 @@
 mod cad;
 mod compile;
 mod cylinder_demo;
+mod dc_motor_demo;
 mod lifecycle;
 mod scalar_field;
 mod unstructured_field;
@@ -1948,6 +1949,7 @@ pub fn run() {
             open_unstructured_field_view,
             read_unstructured_field_chunk,
             cylinder_demo::run_cylinder_demo,
+            dc_motor_demo::run_dc_motor_demo,
             cancel_reference_run
         ])
         .run(tauri::generate_context!())
