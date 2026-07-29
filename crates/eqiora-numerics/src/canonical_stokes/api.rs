@@ -235,7 +235,8 @@ impl SteadyIncompressibleStokesModel2d {
 
 /// Compatibility wrapper for the exact Cartesian steady-Stokes subset.
 ///
-/// All method-neutral meaning lives in [`SteadyIncompressibleStokesModel2d`].
+/// All method-neutral meaning lives in the internal
+/// `SteadyIncompressibleStokesModel2d`.
 /// This wrapper retains the established four-side inventory without making
 /// Cartesian side classification part of geometry-backed realization.
 #[derive(Debug, Clone, PartialEq)]
