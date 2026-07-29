@@ -10,9 +10,8 @@ A continuous Relation may be scoped to a `GeometryBoundary` Domain when, and
 only when, its `BoundaryOf` parent is an admitted `GeometryRegion` and its named
 entity set is resolved against **that exact parent artifact** with dimension
 `topological_dimension - 1`. For the exact circular-hole family only, the
-DFG witness's single-member x-lower `inlet` and x-upper `outlet` sets project
-their exact constant parent-outward unit normals `[-1.0, 0.0]` and
-`[1.0, 0.0]`.
+single-edge `inlet` and `outlet` sets project their exact constant
+parent-outward unit normals `[-1.0, 0.0]` and `[1.0, 0.0]`.
 
 Boundary-physical Ports on geometry Domains keep their existing rejection.
 

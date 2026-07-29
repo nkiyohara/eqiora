@@ -572,6 +572,27 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
         None
     );
 
+    let witness_names_off_the_x_sides = circular_hole_with(
+        [[0.0, 2.2], [0.0, 0.41]],
+        [0.2, 0.2],
+        0.05,
+        vec![
+            NamedEntitySet::new("inlet", EDGE_DIMENSION, vec![2]),
+            NamedEntitySet::new("outlet", EDGE_DIMENSION, vec![4]),
+        ],
+        1.0e-12,
+    )
+    .expect("the witness names carry no side identity of their own");
+    let off_x_reference = CanonicalGeometryRef::from(&witness_names_off_the_x_sides);
+    assert_eq!(
+        off_x_reference.constant_parent_outward_normal("inlet"),
+        None
+    );
+    assert_eq!(
+        off_x_reference.constant_parent_outward_normal("outlet"),
+        None
+    );
+
     let straight_edged = square_with_hole();
     let straight_reference = CanonicalGeometryRef::from(&straight_edged);
     assert_eq!(
