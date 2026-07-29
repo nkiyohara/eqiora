@@ -18,7 +18,7 @@ routes/python/   route A — closed-form barycentric cell blocks, exact bubble
 routes/julia/    route B — explicit 3x3 Gauss-Legendre Duffy quadrature, no
              condensation, dense LU at 256-bit BigFloat, mesh independently
              reconstructed rather than consumed
-agreement/   the dual independent oracle gate, and the packaging-fidelity proof
+agreement/   the dual independent oracle gate, and the packaging-fidelity utility
 ```
 
 ## Result
@@ -28,10 +28,12 @@ agreement/   the dual independent oracle gate, and the packaging-fidelity proof
 | shared mesh | `python3 mesh/check_mesh.py` | **162 passed, 0 failed** |
 | route A | `python3 routes/python/oracle.py --check` | **101 passed, 0 failed** |
 | route B | `julia routes/julia/run.jl` | **103 passed, 0 failed** |
-| gate | `python3 agreement/compare_routes.py` | **291 passed, 0 failed — PASS** |
+| gate | `python3 agreement/compare_routes.py` | **271 passed, 0 failed — PASS** |
 
-The two routes agree on every frozen observation, with the smallest margin
-`2.88e+03` times inside its tolerance. See
+The two routes agree on every frozen physical observation, with the smallest
+margin `2.88e+03` times inside its tolerance, and on every geometric selector
+exactly — selectors are reconstructed from the shared mesh in exact rational
+arithmetic and carry no tolerance. See
 [`agreement/README.md`](agreement/README.md) for the full comparison and
 [`agreement/expected/agreement-report.json`](agreement/expected/agreement-report.json)
 for the frozen record.
@@ -50,27 +52,55 @@ implementation or an existing `verify/fluid` case.
 
 | | route A (Python) | route B (Julia) |
 | --- | --- | --- |
-| source branch | `agent/cylinder-stokes-oracle-python` | `agent/cylinder-stokes-oracle-julia` |
-| final source commit | `e8bbd44b49315f0d4ee723ec73df53a4f8f6f2f0` | `dccbc318744c7cec4f6b73f5ba0fe60880af7583` |
-| that worktree's contract commit | `cd8faa0` | `f5fd3ce` |
 | mesh | consumed the shared copy under `mesh/`, revalidated inside the route | reconstructed from the public rule; consumed no mesh file |
 | assembly | closed form, no quadrature anywhere | explicit positive `3x3` Gauss-Legendre Duffy loop per cell |
 | bubble | eliminated by exact static condensation | kept as an unknown, never eliminated |
 | solve | dense LU at 40 decimal digits, cross-checked by an independent LU on the uncondensed system | dense LU at 256-bit BigFloat, residual reapplied cell by cell |
 | checks reported at source | 101 route + 162 mesh | 103 |
 
-The packaging base is `dea1fd138fce92fd0127f5df9155b675159a58c3`. RFC 0081 and
-RFC 0082 — the entire public contract both routes derived against — are
-**byte-identical** at `dea1fd1`, `cd8faa0` and `f5fd3ce`; the three commits
-differ only in agent-routing documentation and in each worktree's own route
-files. Neither route author read the other's contract revision, and neither
-derived against different contract text.
+### What is durable, and what is only a local label
+
+The two source worktrees were throwaway, and **their branches were never
+pushed**. Every commit identifier below is therefore an *informative
+local-session label*: `e8bbd44` and `dccbc31` for the two final route commits,
+`cd8faa0` and `f5fd3ce` for the two worktrees' contract revisions, and
+`dea1fd1` for the packaging base. They may resolve to nothing in any other
+clone, and none of them is a durable reference. Nothing in this package, in the
+agreement gate, or in any default repository check reads them or needs them to
+exist.
+
+What a future reader reproduces from instead:
+
+- **the packaged bytes**, and their sha256 values, which the gate recomputes on
+  every run and records in
+  [`agreement/expected/agreement-report.json`](agreement/expected/agreement-report.json);
+- **the contract text and digests embedded in the packaged documents**,
+  including the shared mesh's own source digest;
+- **rerunning each route in place** — `routes/python/oracle.py --check`
+  reproduces `result.json` byte for byte, and `routes/julia/run.jl` reruns
+  byte-identical;
+- **rerunning the gate**, which regenerates its frozen report byte for byte.
+
+None of that depends on a temporary worktree or on resolving a git object.
+
+RFC 0081 and RFC 0082 — the entire public contract both routes derived against —
+were confirmed **byte-identical** at all three of those local revisions when the
+package was assembled; the revisions differed only in agent-routing
+documentation and in each worktree's own route files. Neither route author read
+the other's contract revision, and neither derived against different contract
+text. The durable form of that statement is the contract text carried inside the
+packaged documents, not the three labels.
 
 The two routes cross-check each other's mesh without sharing an index
-convention: route B publishes an index-free geometric digest
+convention: the gate reconstructs every cell barycentre, both boundary vertex
+sets and all eleven geometric selectors from `mesh/mesh.json` in exact rational
+arithmetic, and compares counts, the named partition, the quad diagonal and the
+ordered cell pair on both sides. Route B additionally publishes an index-free
+geometric digest
 `573f2c9260b2976853c84bc96a4301bc39e52578209ea84bbf679ad3d77ad871` over
-lexicographically ordered coordinates, and the gate compares counts, the named
-partition, the quad diagonal and the ordered cell pair on both sides.
+lexicographically ordered coordinates of **its own** reconstructed mesh; see the
+non-claim below for why that digest is not, and cannot be, reproduced from the
+shared mesh file.
 
 ## What packaging changed, and the proof that it changed nothing else
 
@@ -82,7 +112,11 @@ contract and RFC wording, then reran every deterministic generator so each
 self-hash describes the packaged source. That rerun necessarily changes the
 frozen files' bytes and digests.
 
-| file | source digest | packaged digest |
+The source column below is history: those files lived in the unpushed source
+worktrees and are not part of this package. The packaged column is what this
+directory contains and what every check here recomputes.
+
+| file | source digest (historical) | packaged digest |
 | --- | --- | --- |
 | `mesh/mesh.json` | `2ec74b9f481a60b460c9bb8096821cd73eeb7e17ef18a7ae67828e605d17a8f2` | `ada2d08cde5b4e6bd13c97d3b76a45cad810d8eb7acf0f0edc82cd605acd2b39` |
 | `mesh/falsifier-wrong-diagonal.json` | `1574239edbfddb510d144271d58beea9195c6b4a222c73f3c153ab54c9162dea` | `eccb5642eab811cee1cad0cee8749f7f2a64d16ab300b041fa4efcbe7b61cd2f` |
@@ -92,12 +126,13 @@ frozen files' bytes and digests.
 The three source digests the two authors reported were recomputed here rather
 than trusted, and all three matched exactly.
 
-`agreement/check_packaging_fidelity.py` is the argument that nothing but prose
-moved. It walks each source document and its packaged counterpart in parallel
-and requires identical key sets **in identical order**, identical array lengths,
-identical leaf types, and every non-string leaf bit-identical — floats compared
-by `repr` and by sign of zero, with non-finite values rejected outright. Run
-against all four files with the source worktrees still present:
+`agreement/check_packaging_fidelity.py`, in its **historical source-pair mode**,
+is the argument that nothing but prose moved. It walks each source document and
+its packaged counterpart in parallel and requires identical key sets **in
+identical order**, identical array lengths, identical leaf types, and every
+non-string leaf bit-identical — floats compared by `repr` and by sign of zero,
+with non-finite values rejected outright. Run once, against all four files,
+while the source worktrees still existed:
 
 | file | numeric / boolean leaves, all bit-identical | strings | strings changed |
 | --- | ---: | ---: | ---: |
@@ -128,6 +163,12 @@ isolation, before this comparison existed. Packaging deliberately did **not**
 rewrite it: the routes' self-descriptions are their authors', and the gate
 result lives in `agreement/` where it can be read as the separate act it is.
 
+That source-pair mode is history and is not needed again. The utility's
+**default, no-argument mode is self-contained**: it recomputes the sha256 of
+every document the frozen agreement report says it compared, requires each to
+equal the digest recorded there, and rejects any non-finite numeric leaf in any
+frozen JSON. It reads nothing outside this directory and resolves no git object.
+
 ## What was verified here, and in which environment
 
 Every command below ran in the foreground to completion. Environment: Linux
@@ -137,18 +178,21 @@ nothing about hosted CI.
 
 | command | result | wall clock |
 | --- | --- | ---: |
-| `python3 mesh/build_mesh.py` | regenerated both mesh files | `0.07 s` |
 | `python3 mesh/check_mesh.py` | 162 passed, 0 failed | `0.10 s` |
-| `python3 routes/python/oracle.py` | 101 passed, 0 failed | `55.0 s` |
-| `python3 routes/python/oracle.py --check` | 101 passed, 0 failed; `result.json` reproduced byte for byte | `54.8 s` |
-| `julia routes/julia/run.jl` | 103 passed, 0 failed, exit 0; rerun byte-identical | `40.8 s`, `39.9 s` |
-| `python3 agreement/compare_routes.py` | 291 passed, 0 failed — PASS | `< 1 s` |
+| `python3 routes/python/oracle.py --check` | 101 passed, 0 failed; `result.json` reproduced byte for byte | `57.5 s` |
+| `julia routes/julia/run.jl` | 103 passed, 0 failed, exit 0; rerun three times, `julia-route-frozen.json` and `run-log.txt` byte-identical each time | `~41 s` each |
+| `python3 agreement/compare_routes.py` | 271 passed, 0 failed — PASS | `< 1 s` |
 | `python3 agreement/compare_routes.py --check` | report reproduced byte for byte under three `PYTHONHASHSEED` values | `< 1 s` |
-| `python3 agreement/check_packaging_fidelity.py` | PASS, prose-only | `< 1 s` |
+| `python3 agreement/check_packaging_fidelity.py` | `PACKAGE INTEGRITY: PASS`, all five recorded digests match | `< 1 s` |
 | `ruff check` and `ruff format --check` on the packaged Python | `All checks passed`, `8 files already formatted` | `< 1 s` |
 | `python3 tools/ci/check_public_release_tree.py .` | no repository-local leaks | `< 1 s` |
 | `python3 tools/ci/check_docs.py .` | links and entry points valid | `< 1 s` |
-| `cargo fmt --all -- --check` | clean, exit 0 | `3.7 s` |
+| `cargo fmt --all -- --check` | clean, exit 0 | `3.6 s` |
+| `cargo xtask check-architecture` | file sizes, public surface, glob re-exports, dependency graph and RFC numbering all clean | `~10 s` |
+
+The mesh files were not regenerated in this run: `mesh/build_mesh.py` is not an
+input to the gate, and `check_mesh.py` revalidates the frozen bytes in place.
+Both mesh digests are unchanged from the packaged values above.
 
 ### The repository gate does not select only available work here
 
@@ -156,20 +200,26 @@ nothing about hosted CI.
 `fluid.exact-circular-hole-stokes-2d` from this directory path and plans three
 commands: `cargo fmt --all -- --check`, `cargo run -p eqiora-verify -- run --case
 fluid.exact-circular-hole-stokes-2d`, and `tools/ci/check_docs.py .`. The first
-and third were run and pass. **The second cannot run**: there is no `case.toml`
-here, because this is a pre-implementation oracle rather than accepted evidence.
-Adding one so a gate would select an unimplemented capability would misstate
-what exists, so it was not added, and no claim of a passing repository gate is
-made.
+and third were run and pass. **The second cannot run**: it was run and exits
+`1` with `unknown verification case ID`, because there is no `case.toml` here —
+this is a pre-implementation oracle rather than accepted evidence. Adding one so
+a gate would select an unimplemented capability would misstate what exists, so
+it was not added, and no claim of a passing repository gate is made.
 
-The gate was additionally shown to be decisive rather than decorative:
-twenty-one mutations of the frozen inputs — values pushed past tolerance in each
-of the four families, a missing probe, an extra probe, reordered probes, a
+The gate was additionally shown to be decisive rather than decorative.
+Twenty-eight mutations of the frozen inputs — values pushed past tolerance in
+each of the four families, a missing probe, an extra probe, reordered probes, a
 relabelled probe, a relabelled route, a broken reaction negation, two renamed
 unit keys, a non-finite value, an introduced gauge row, a changed pressure
 reference, a changed facet count, reordered tie candidates, a changed DOF count,
-a changed scale, a broken boundary partition and a changed quad diagonal — were
-each rejected with a non-zero exit, on throwaway copies outside the repository.
+a changed scale, a broken boundary partition, a changed quad diagonal, a probe
+vertex and a tie candidate each moved one ulp off the shared mesh, a barycentre
+replaced by another cell's, and each route's true and weak pressure-row
+residuals pushed one ulp past its own target-plus-allowance bound — were each
+rejected with a non-zero exit. Eight further mutations appended a byte to either
+route document, the shared mesh or the gate's own source, and each was rejected
+both by `compare_routes.py --check` and by the packaging-fidelity package check.
+All thirty-six ran on throwaway copies outside the repository.
 
 ## Not verified here
 
@@ -183,10 +233,23 @@ each rejected with a non-zero exit, on throwaway copies outside the repository.
    falsifiers were rerun as part of rerunning that route, and both routes report
    them all detected; this packaging step did not author or re-derive any of
    them.
-4. **Cross-platform byte identity of the mesh is not claimed**, and RFC 0082
-   does not claim it either: the transverse coordinates come from the platform
-   `libm`, so a production inventory comparison must be tolerance-based rather
-   than bitwise.
+4. **Byte identity of the mesh across independent reconstructions is not
+   claimed**, and RFC 0082 does not claim it either: the transverse coordinates
+   come from the platform `libm`, so a production inventory comparison must be
+   tolerance-based rather than bitwise. This was measured here rather than
+   assumed. Rebuilding route B's canonical index-free digest text from
+   `mesh/mesh.json` reproduces its structure exactly — the same 313 canonical
+   lines, the same vertex, cell and facet ordering, the same boundary-side
+   labels — but **13 of those lines differ**, because 2 of the 104 vertices
+   differ between the shared mesh and route B's own reconstruction: an inlet
+   `y` of `0.012187498836501692` against `0.01218749883650172` (`2.78e-17 m`,
+   16 ulp) and `0.09004906956144595` against `0.09004906956144597`
+   (`1.39e-17 m`, 1 ulp). So route B's digest
+   `573f2c92…` **cannot** be reproduced from the shared mesh file, and no check
+   here claims it can. Making one pass would require inventing a coordinate
+   tolerance for a digest, which is exactly what this package refuses to do.
+   Neither differing vertex is a probe selector, and both routes' probe
+   barycentres still map to the same shared-mesh cells exactly.
 5. **Route A's `reference_channel.py` is a diagnostic**, not part of the frozen
    route and not a claim. It was not rerun during packaging.
 6. **Lineage, artifact digests and replay-validated authored-region

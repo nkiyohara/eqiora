@@ -4,13 +4,30 @@
 Reads **only** the two packaged frozen JSON documents and the packaged shared
 mesh. It assembles nothing, solves nothing, and reads no production code --
 none exists for this capability. Its whole job is to decide whether the two
-independently derived routes agree under the precommitted tolerance formula
+independently derived routes agree.
 
-    abs(a - b) <= floor + 2e-10 * scale
+Three kinds of comparison live here, and they never borrow each other's rules.
 
-with the four precommitted (floor, scale) pairs below. Neither the formula nor
-any floor or scale may be edited here: an unsatisfiable oracle is returned with
-the argument, never relaxed.
+1. **Physical observations** -- velocity, pressure, signed flux and reaction --
+   are compared under the precommitted tolerance formula
+
+       abs(a - b) <= floor + 2e-10 * scale
+
+   with the four precommitted (floor, scale) pairs below. Neither the formula
+   nor any floor or scale may be edited here: an unsatisfiable oracle is
+   returned with the argument, never relaxed.
+
+2. **Geometric selectors** -- probe targets, the selected cell, probe vertices
+   and tie candidates -- carry no tolerance at all, and none is invented for
+   them. Every selector is reconstructed from ``mesh/mesh.json`` in exact
+   rational arithmetic and required to match exactly. A metre-valued mesh
+   coordinate is a frozen input, not a measurement.
+
+3. **Residuals** are not cross-route observations. Each route is required to
+   satisfy the precommitted contract bound with its *own* selected target and
+   its *own* recorded roundoff allowance. The two routes solve at different
+   working precisions, so their residuals and allowances are never compared
+   with each other.
 
     python3 compare_routes.py            # compare and rewrite the frozen report
     python3 compare_routes.py --check    # fail if the report would change
@@ -27,6 +44,7 @@ import json
 import math
 import pathlib
 import sys
+from fractions import Fraction
 
 HERE = pathlib.Path(__file__).resolve().parent
 CASE = HERE.parent
@@ -47,17 +65,10 @@ TOLERANCE_TABLE = {
     "reaction": {"floor": 2e-14, "scale": 0.0003, "unit": "N/m"},
 }
 
-# Geometric selector coordinates carry no precommitted family of their own.
-# They are compared under the velocity-probe family -- the family whose
-# selection they determine -- and the measured maximum is reported beside the
-# limit so a reader may apply any stricter reading. This is a stated reading of
-# the frozen table, not an addition to it.
-SELECTOR_FAMILY = "velocity"
-
-# Dimensionless solver diagnostics are likewise outside the four physical
-# families. They are required to agree to within this many binary64 ulps, which
-# is a representation-agreement bound rather than a physical tolerance.
-DIAGNOSTIC_MAX_ULPS = 4
+# Geometric selectors are NOT in this table and get no entry of their own.
+# A probe target, a selected cell and a probe vertex are frozen mesh geometry,
+# so they are reconstructed exactly from mesh/mesh.json and required to match
+# exactly. See SharedMeshGeometry below.
 
 # ---------------------------------------------------------------------------
 # Route identity. A relabelled route must fail this gate, not silently pass it.
@@ -141,10 +152,26 @@ JULIA_PRESSURE_NAMES = [
     "outer_near_outlet_mid",
 ]
 # The two routes spell the last two selectors differently. They denote the same
-# geometric selector, and this gate proves that by comparing the selected
-# coordinates; the two vocabularies are pinned so that a *third* spelling, or a
-# swap, fails closed rather than being absorbed by positional matching.
+# geometric selector, and this gate proves that by reconstructing the selector
+# from the shared mesh and requiring both routes to land on it exactly; the two
+# vocabularies are pinned so that a *third* spelling, or a swap, fails closed
+# rather than being absorbed by positional matching.
 EXPECTED_TIE_COUNTS = [1, 1, 2, 2, 1, 1]
+
+# The frozen contract's six pressure selectors, in the frozen order, stated as
+# the rule rather than as an answer: the extreme cylinder vertex on each axis,
+# then the outer-boundary vertex nearest each named point. An exact tie is
+# broken by lexicographic coordinate order. SharedMeshGeometry evaluates these
+# against mesh/mesh.json, so the expected vertices are derived here rather than
+# copied from either route.
+PRESSURE_SELECTOR_RULES = [
+    {"set": "cylinder", "rule": "min", "axis": 0},
+    {"set": "cylinder", "rule": "max", "axis": 0},
+    {"set": "cylinder", "rule": "min", "axis": 1},
+    {"set": "cylinder", "rule": "max", "axis": 1},
+    {"set": "outer", "rule": "nearest", "point": [0.0, 0.2]},
+    {"set": "outer", "rule": "nearest", "point": [2.2, 0.2]},
+]
 
 # Frozen mesh contract, checked against both routes independently.
 MESH_CONTRACT = {
@@ -183,20 +210,50 @@ SCALE_CONTRACT = {
     "mu_hat": 1.0,
 }
 
-# Provenance of the two isolated source routes, recorded so the frozen report
-# names what it compared. Packaging reran both generators after replacing
-# repository-numbered tracking prose, so the packaged digests differ from the
-# source digests by exactly that prose; see check_packaging_fidelity.py.
-SOURCE_PROVENANCE = {
+# Provenance, split by what a future reader can actually resolve.
+#
+# The two routes were frozen in throwaway local worktrees whose branches were
+# never pushed. Their commit identifiers are informative local-session labels
+# only: they are not durable references and may resolve to nothing in any other
+# clone. Nothing in this gate, in the packaged evidence, or in any default
+# repository check reads them, needs them, or depends on those worktrees still
+# existing.
+#
+# What a future reader reproduces from instead is listed in DURABLE_ANCHORS:
+# the packaged bytes themselves, their digests, the contract text embedded in
+# each packaged document, and rerunning each route's own checks.
+DURABLE_ANCHORS = [
+    "the packaged route bytes under routes/ and mesh/, and the sha256 of each, "
+    "recomputed by this gate on every run and recorded under 'compared'",
+    "the contract text and digests embedded in the packaged documents "
+    "themselves, including the shared mesh's own source digest",
+    "rerunning each route in place: routes/python/oracle.py --check reproduces "
+    "result.json byte for byte, and routes/julia/run.jl reruns byte-identical",
+    "rerunning this gate, which regenerates expected/agreement-report.json byte "
+    "for byte under --check",
+]
+LOCAL_SESSION_IDENTIFIERS = {
+    "note": (
+        "Informative only. These identifiers name commits in local, unpushed "
+        "session worktrees and may not resolve in any other clone. They are not "
+        "durable references, nothing here depends on resolving them, and no "
+        "future reproduction requires them."
+    ),
     "contract_commit": "dea1fd138fce92fd0127f5df9155b675159a58c3",
     "python_route_source_commit": "e8bbd44b49315f0d4ee723ec73df53a4f8f6f2f0",
+    "julia_route_source_commit": "dccbc318744c7cec4f6b73f5ba0fe60880af7583",
+}
+# Digests of the pre-packaging source documents, recorded as history. The
+# source files are not part of this package; these values document what the
+# optional packaging-fidelity differ was run against, and are not an input to
+# any check here.
+HISTORICAL_SOURCE_DIGESTS = {
     "python_source_mesh_sha256": (
         "2ec74b9f481a60b460c9bb8096821cd73eeb7e17ef18a7ae67828e605d17a8f2"
     ),
     "python_source_result_sha256": (
         "4037d358e613a016e21e04c9ff8fffa2475f056fb55a2f88c4c5828d957abfd7"
     ),
-    "julia_route_source_commit": "dccbc318744c7cec4f6b73f5ba0fe60880af7583",
     "julia_source_frozen_sha256": (
         "2ad9a041c75906055b3a4ae3a2f2e05f3964cb5e62276a21e19f354586254dff"
     ),
@@ -210,8 +267,6 @@ class Gate:
         self.records: list[dict] = []
         self.failures: list[str] = []
         self.max_difference: dict[str, float] = {key: 0.0 for key in TOLERANCE_TABLE}
-        self.max_difference["selector"] = 0.0
-        self.max_diagnostic_ulps = 0
 
     def structural(self, name: str, ok: bool, detail: str = "") -> bool:
         self.records.append(
@@ -238,8 +293,7 @@ class Gate:
             self.failures.append(f"{name}: non-finite value")
             return False
         difference = abs(python - julia)
-        bucket = "selector" if ".selector" in name else family
-        self.max_difference[bucket] = max(self.max_difference[bucket], difference)
+        self.max_difference[family] = max(self.max_difference[family], difference)
         ok = difference <= limit
         self.records.append(
             {
@@ -259,35 +313,37 @@ class Gate:
             )
         return ok
 
-    def diagnostic(self, name: str, python: float, julia: float) -> bool:
-        """Dimensionless solver diagnostic: binary64 representation agreement."""
-        if not (_finite(python) and _finite(julia)):
-            self.failures.append(f"{name}: non-finite value")
+    def bounded(self, name: str, value: float, limit: float, detail: str) -> bool:
+        """One route's own quantity against one route's own precommitted bound.
+
+        Used only for the residual criteria, which the frozen contract states
+        per route: the value, the target and the allowance all come from the
+        same document. Nothing here is a cross-route comparison.
+        """
+        if not (_finite(value) and _finite(limit)):
             self.records.append(
                 {
                     "check": name,
-                    "kind": "diagnostic",
+                    "kind": "bounded",
                     "passed": False,
-                    "detail": "non-finite",
+                    "detail": f"non-finite: value={value!r} limit={limit!r}",
                 }
             )
+            self.failures.append(f"{name}: non-finite value or bound")
             return False
-        ulps = _ulp_distance(python, julia)
-        self.max_diagnostic_ulps = max(self.max_diagnostic_ulps, ulps)
-        ok = ulps <= DIAGNOSTIC_MAX_ULPS
+        ok = value <= limit
         self.records.append(
             {
                 "check": name,
-                "kind": "diagnostic",
+                "kind": "bounded",
                 "passed": ok,
-                "python": python,
-                "julia": julia,
-                "ulps": ulps,
-                "limit_ulps": DIAGNOSTIC_MAX_ULPS,
+                "value": value,
+                "limit": limit,
+                "detail": detail,
             }
         )
         if not ok:
-            self.failures.append(f"{name}: {ulps} ulps > {DIAGNOSTIC_MAX_ULPS}")
+            self.failures.append(f"{name}: {value} > {limit}")
         return ok
 
 
@@ -299,16 +355,37 @@ def _finite(value: object) -> bool:
     )
 
 
-def _ulp_distance(a: float, b: float) -> int:
-    if a == b:
-        return 0
-    low, high = (a, b) if a < b else (b, a)
-    steps = 0
-    cursor = low
-    while cursor < high and steps <= DIAGNOSTIC_MAX_ULPS + 1:
-        cursor = math.nextafter(cursor, math.inf)
-        steps += 1
-    return steps
+def _rational(value: object) -> Fraction:
+    """Exact rational value of a parsed JSON number.
+
+    ``Fraction.from_float`` is exact for every finite binary64 value, so a
+    reconstruction built on it introduces no error of its own and therefore
+    needs -- and is given -- no tolerance anywhere.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"non-numeric coordinate {value!r}")
+    if isinstance(value, int):
+        return Fraction(value)
+    if not math.isfinite(value):
+        raise ValueError(f"non-finite coordinate {value!r}")
+    return Fraction.from_float(value)
+
+
+def _point(pair: object) -> tuple[Fraction, Fraction] | None:
+    """Exact rational point, or None if the input is not a finite 2-vector."""
+    if not isinstance(pair, list) or len(pair) != 2:
+        return None
+    if not all(_finite(component) for component in pair):
+        return None
+    return (_rational(pair[0]), _rational(pair[1]))
+
+
+def _decimal(point: tuple[Fraction, Fraction]) -> list[float]:
+    """Nearest binary64 rendering of an exact point, for the report only.
+
+    No comparison uses this. It exists so the frozen record is readable.
+    """
+    return [float(point[0]), float(point[1])]
 
 
 def _renderable(value: object) -> object:
@@ -327,6 +404,22 @@ def _exact(gate: Gate, name: str, got: object, want: object) -> bool:
     )
 
 
+def _exact_point(
+    gate: Gate, name: str, reported: object, want: tuple[Fraction, Fraction]
+) -> bool:
+    """A reported coordinate pair must be the frozen mesh coordinate exactly.
+
+    Rendered by value rather than by exact rational repr, so the frozen report
+    stays readable; the comparison itself is the exact rational one.
+    """
+    point = _point(reported)
+    return gate.structural(
+        name,
+        point == want,
+        f"got {reported!r}, want {_decimal(want)!r}",
+    )
+
+
 def _compare_vector(
     gate: Gate, name: str, family: str, python: list, julia: list
 ) -> None:
@@ -340,15 +433,124 @@ def _compare_vector(
         gate.numeric(f"{name}.{axis}", family, python[index], julia[index])
 
 
-def _lexicographic_minimum(candidates: list[list[float]]) -> list[float]:
-    return min(candidates, key=lambda position: (position[0], position[1]))
+# ---------------------------------------------------------------------------
+# Exact reconstruction of the shared mesh's geometric selectors
+# ---------------------------------------------------------------------------
+class SharedMeshGeometry:
+    """Every geometric selector of the frozen contract, derived from the mesh.
+
+    Built from ``mesh/mesh.json`` alone, in ``fractions.Fraction`` arithmetic
+    over the parsed binary64 inputs. Barycentres, squared distances, the argmin,
+    the tie set and the lexicographic tie break are all decided exactly, so no
+    step of this reconstruction rounds and no step of it needs a tolerance.
+
+    That matters because a selector disagreement is not a small numerical
+    disagreement: the two tied cylinder pressure vertices differ by about
+    ``1 Pa``. Deciding selectors under a physical tolerance would let exactly
+    the failure this gate exists to catch pass unnoticed.
+    """
+
+    def __init__(self, mesh_doc: dict) -> None:
+        self.vertices = [_point(vertex) for vertex in mesh_doc["vertices_m"]]
+        if any(vertex is None for vertex in self.vertices):
+            raise ValueError("the shared mesh carries a non-finite vertex")
+        self.cells = [tuple(cell) for cell in mesh_doc["cells"]]
+        self.barycentres = [
+            (
+                sum((self.vertices[i][0] for i in cell), Fraction(0)) / 3,
+                sum((self.vertices[i][1] for i in cell), Fraction(0)) / 3,
+            )
+            for cell in self.cells
+        ]
+        # A cell is named by its lexicographically sorted vertex-coordinate
+        # triple, never by its index: the contract requires the observations to
+        # survive renumbering, so the gate must not depend on a numbering.
+        self.triples = [
+            tuple(sorted(self.vertices[i] for i in cell)) for cell in self.cells
+        ]
+
+        facets = mesh_doc["boundary_facets"]
+        cylinder = {
+            index
+            for facet in mesh_doc["entity_sets"]["cylinder"]["facets"]
+            for index in facets[facet]["vertices"]
+        }
+        self.cylinder_vertices = sorted(cylinder)
+        self.outer_vertices = sorted(set(range(len(self.vertices))) - cylinder)
+
+    def select_cell(self, target: list[float]) -> tuple[tuple, int]:
+        """The contract's cell for one probe target: exact argmin, exact tie.
+
+        Returns the selected cell's coordinate triple and the exact size of the
+        minimum-squared-distance tie set. The tie break is the contract's
+        lexicographically sorted vertex-coordinate triple.
+        """
+        point = _point(target)
+        distances = [self._squared_distance(b, point) for b in self.barycentres]
+        smallest = min(distances)
+        tied = [i for i, d in enumerate(distances) if d == smallest]
+        return min(self.triples[i] for i in tied), len(tied)
+
+    def nearest_cell(self, reported: object) -> tuple[tuple, bool] | None:
+        """The unique mesh cell whose exact barycentre is nearest ``reported``.
+
+        Each route computes its own barycentre in its own precision, so the two
+        reported values differ in the last bits. Mapping each to the nearest
+        exact mesh barycentre recovers which cell was meant without ever
+        comparing the two approximate coordinates to each other. Returns the
+        cell's coordinate triple and whether that nearest cell is unique --
+        uniqueness is decided exactly, by strict inequality, not by a margin.
+        """
+        point = _point(reported)
+        if point is None:
+            return None
+        distances = [self._squared_distance(b, point) for b in self.barycentres]
+        smallest = min(distances)
+        nearest = [i for i, d in enumerate(distances) if d == smallest]
+        return self.triples[nearest[0]], len(nearest) == 1
+
+    def select_vertices(self, rule: dict) -> list[tuple[Fraction, Fraction]]:
+        """The contract's tied vertex set for one pressure selector.
+
+        Returned in lexicographic coordinate order, so the head of the list is
+        the contract's selection and the whole list is the candidate set both
+        routes must publish.
+        """
+        members = (
+            self.cylinder_vertices if rule["set"] == "cylinder" else self.outer_vertices
+        )
+        if rule["rule"] == "nearest":
+            anchor = _point(rule["point"])
+            key = {i: self._squared_distance(self.vertices[i], anchor) for i in members}
+            best = min(key.values())
+        elif rule["rule"] == "min":
+            key = {i: self.vertices[i][rule["axis"]] for i in members}
+            best = min(key.values())
+        else:
+            key = {i: -self.vertices[i][rule["axis"]] for i in members}
+            best = min(key.values())
+        return sorted(self.vertices[i] for i in members if key[i] == best)
+
+    @staticmethod
+    def _squared_distance(
+        a: tuple[Fraction, Fraction], b: tuple[Fraction, Fraction]
+    ) -> Fraction:
+        return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2
 
 
 # ---------------------------------------------------------------------------
 # The comparison itself
 # ---------------------------------------------------------------------------
-def compare(python_doc: dict, julia_doc: dict, mesh_doc: dict) -> Gate:
+def compare(
+    python_doc: dict, julia_doc: dict, mesh_doc: dict
+) -> tuple[Gate, SharedMeshGeometry]:
+    """Run every check, and return the ledger beside the geometry it used.
+
+    The report quotes the same reconstruction the checks ran against, rather
+    than rebuilding a second one that a reader would have to prove identical.
+    """
     gate = Gate()
+    geometry = SharedMeshGeometry(mesh_doc)
 
     # -- route identity and units ------------------------------------------
     _exact(gate, "route.python.schema", python_doc.get("schema"), PYTHON_SCHEMA)
@@ -394,14 +596,37 @@ def compare(python_doc: dict, julia_doc: dict, mesh_doc: dict) -> Gate:
         _exact(gate, f"{tag}.julia_keys", set(jl), JULIA_VELOCITY_KEYS)
         _exact(gate, f"{tag}.target.python", py["target_m"], target)
         _exact(gate, f"{tag}.target.julia", jl["target_m"], target)
-        _exact(gate, f"{tag}.tied_cells", py["tied_cells"], jl["tied_cells"])
-        _compare_vector(
-            gate,
-            f"{tag}.barycentre.selector",
-            SELECTOR_FAMILY,
-            py["barycentre_m"],
-            jl["barycentre_m"],
+
+        # The contract's cell for this target, recomputed exactly from the
+        # shared mesh: minimum squared distance from the target to every cell
+        # barycentre, ties broken by the lexicographically sorted vertex
+        # coordinate triple. Neither route's answer is consulted to obtain it.
+        contract_triple, contract_ties = geometry.select_cell(target)
+        _exact(
+            gate, f"{tag}.selector.tie_count.python", py["tied_cells"], contract_ties
         )
+        _exact(gate, f"{tag}.selector.tie_count.julia", jl["tied_cells"], contract_ties)
+        for label, reported in (
+            ("python", py["barycentre_m"]),
+            ("julia", jl["barycentre_m"]),
+        ):
+            mapped = geometry.nearest_cell(reported)
+            if mapped is None:
+                gate.structural(
+                    f"{tag}.selector.{label}_barycentre_maps_to_contract_cell",
+                    False,
+                    f"reported barycentre {reported!r} is not a finite 2-vector",
+                )
+                continue
+            triple, unique = mapped
+            gate.structural(
+                f"{tag}.selector.{label}_barycentre_maps_to_contract_cell",
+                unique and triple == contract_triple,
+                f"reported barycentre maps to the mesh cell with vertices "
+                f"{[_decimal(v) for v in triple]} (unique nearest: {unique}); the "
+                f"contract selects the cell with vertices "
+                f"{[_decimal(v) for v in contract_triple]}",
+            )
         gate.numeric(
             f"{tag}.u_x", "velocity", py["velocity_m_s"][0], jl["u_x_m_per_s"]["f64"]
         )
@@ -439,14 +664,31 @@ def compare(python_doc: dict, julia_doc: dict, mesh_doc: dict) -> Gate:
             gate, f"{tag}.python_keys", set(py) - {"tie_break"}, PYTHON_PRESSURE_KEYS
         )
         _exact(gate, f"{tag}.julia_keys", set(jl), JULIA_PRESSURE_KEYS)
+        # The contract's tied vertex set for this selector, recomputed exactly
+        # from the shared mesh in lexicographic coordinate order. A probe vertex
+        # is a stored mesh coordinate, so it is required to match the mesh
+        # bit-for-bit; no tolerance is applied to it, and none would be
+        # meaningful, because the rejected tied candidate is about 1 Pa away.
+        contract_tied = geometry.select_vertices(PRESSURE_SELECTOR_RULES[index])
+        _exact(
+            gate,
+            f"{tag}.selector.tie_count.contract",
+            len(contract_tied),
+            expected_ties,
+        )
         _exact(gate, f"{tag}.tie_count.python", py["tied_vertices"], expected_ties)
         _exact(gate, f"{tag}.tie_count.julia", jl["exact_tie_count"], expected_ties)
-        _compare_vector(
+        _exact_point(
             gate,
-            f"{tag}.vertex.selector",
-            SELECTOR_FAMILY,
+            f"{tag}.selector.python_vertex_is_the_contract_vertex",
             py["position_m"],
+            contract_tied[0],
+        )
+        _exact_point(
+            gate,
+            f"{tag}.selector.julia_vertex_is_the_contract_vertex",
             jl["vertex_m"],
+            contract_tied[0],
         )
         gate.numeric(f"{tag}.p", "pressure", py["pressure_Pa"], jl["p_Pa"]["f64"])
 
@@ -470,15 +712,27 @@ def compare(python_doc: dict, julia_doc: dict, mesh_doc: dict) -> Gate:
             f"expected {expected_ties}",
         ):
             continue
+        # Each candidate coordinate is a stored mesh vertex, so it is required
+        # to equal the reconstructed tied vertex in the same slot exactly. That
+        # subsumes the two weaker statements this used to make -- that each
+        # route's own list was lexicographically ordered, and that each route
+        # selected its own list's minimum -- because the reconstructed list is
+        # the contract's set in lexicographic order and its head is the
+        # contract's selection.
         for slot, (py_candidate, jl_candidate) in enumerate(
             zip(python_candidates, julia_candidates)
         ):
-            _compare_vector(
+            _exact_point(
                 gate,
-                f"{tag}.candidate[{slot}].selector",
-                SELECTOR_FAMILY,
+                f"{tag}.candidate[{slot}].selector.python",
                 py_candidate["position_m"],
+                contract_tied[slot],
+            )
+            _exact_point(
+                gate,
+                f"{tag}.candidate[{slot}].selector.julia",
                 jl_candidate["vertex_m"],
+                contract_tied[slot],
             )
             gate.numeric(
                 f"{tag}.candidate[{slot}].p",
@@ -486,26 +740,6 @@ def compare(python_doc: dict, julia_doc: dict, mesh_doc: dict) -> Gate:
                 py_candidate["pressure_Pa"],
                 jl_candidate["p_Pa"]["f64"],
             )
-        python_positions = [candidate["position_m"] for candidate in python_candidates]
-        julia_positions = [candidate["vertex_m"] for candidate in julia_candidates]
-        gate.structural(
-            f"{tag}.candidates_in_lexicographic_order",
-            python_positions == sorted(python_positions, key=tuple)
-            and julia_positions == sorted(julia_positions, key=tuple),
-            "tie candidates must be listed in lexicographic coordinate order",
-        )
-        gate.structural(
-            f"{tag}.lexicographic_selection.python",
-            py["position_m"] == _lexicographic_minimum(python_positions),
-            f"selected {py['position_m']} is not the lexicographic minimum "
-            f"of {python_positions}",
-        )
-        gate.structural(
-            f"{tag}.lexicographic_selection.julia",
-            jl["vertex_m"] == _lexicographic_minimum(julia_positions),
-            f"selected {jl['vertex_m']} is not the lexicographic minimum "
-            f"of {julia_positions}",
-        )
         if expected_ties > 1:
             pressure_limit = (
                 TOLERANCE_TABLE["pressure"]["floor"]
@@ -677,6 +911,29 @@ def compare(python_doc: dict, julia_doc: dict, mesh_doc: dict) -> Gate:
         julia_mesh["outer_loop_vertices"],
         MESH_CONTRACT["outer_loop_vertices"],
     )
+    # The two vertex sets the selector reconstruction partitions the mesh into.
+    # Anchoring them here means a mesh whose cylinder membership moved cannot
+    # silently change which vertex the pressure selectors resolve to.
+    _exact(
+        gate,
+        "mesh.shared.outer_loop_vertices",
+        len(geometry.outer_vertices),
+        MESH_CONTRACT["outer_loop_vertices"],
+    )
+    gate.structural(
+        "mesh.shared.cylinder_and_outer_vertices_partition_the_mesh",
+        len(geometry.cylinder_vertices) + len(geometry.outer_vertices)
+        == MESH_CONTRACT["vertices"],
+        f"cylinder {len(geometry.cylinder_vertices)} + outer "
+        f"{len(geometry.outer_vertices)} must be all "
+        f"{MESH_CONTRACT['vertices']} vertices, with no vertex in both",
+    )
+    _exact(
+        gate,
+        "mesh.shared.reconstructed_cell_barycentres",
+        len(geometry.barycentres),
+        MESH_CONTRACT["cells"],
+    )
     _exact(
         gate,
         "mesh.shared.segments",
@@ -760,12 +1017,10 @@ def compare(python_doc: dict, julia_doc: dict, mesh_doc: dict) -> Gate:
     _exact(gate, "scales.python.mu_kg_m_s", python_doc["model"]["mu_kg_m_s"], 0.001)
     gate.structural(
         "scales.Theta_is_one_ulp_below_the_exact_decimal",
-        _ulp_distance(
-            SCALE_CONTRACT["Theta_W_per_m"],
-            SCALE_CONTRACT["Theta_mathematical_W_per_m"],
-        )
-        == 1,
-        "both routes must record the binary64 Theta as exactly one ulp below 9e-5",
+        math.nextafter(SCALE_CONTRACT["Theta_W_per_m"], math.inf)
+        == SCALE_CONTRACT["Theta_mathematical_W_per_m"],
+        "both routes must record the binary64 Theta as exactly one ulp below "
+        "the exact decimal, and below rather than above it",
     )
 
     # -- degrees of freedom -------------------------------------------------
@@ -835,20 +1090,57 @@ def compare(python_doc: dict, julia_doc: dict, mesh_doc: dict) -> Gate:
         python_residuals["reduced_rhs_2norm_dimensionless"],
         julia_residuals["b_hat_reduced_2norm"]["f64"],
     )
-    gate.diagnostic(
-        "residuals.roundoff_allowance",
-        python_residuals["roundoff_allowance"],
-        julia_residuals["roundoff_allowance"],
-    )
-    gate.structural(
-        "residuals.both_routes_are_far_inside_target_plus_allowance",
-        python_residuals["true_reduced_dimensionless"]
-        < python_residuals["solver_selected_target"]
-        and julia_residuals["true_reduced_2norm"]["f64"]
-        < julia_residuals["selected_target"],
-        "each route's independently reapplied true residual must sit below its "
-        "own selected target",
-    )
+    # The residual criteria are per route, not cross-route. The frozen contract
+    # requires that the independently reapplied true residual, and the weak
+    # pressure-row residual, are each finite and no larger than that route's own
+    # selected target plus that route's own roundoff allowance. The two routes
+    # solve at different working precisions, so their residuals and their
+    # allowances are deliberately NOT compared with each other -- doing so would
+    # be a cross-route observation nobody precommitted.
+    for label, target, allowance, values in (
+        (
+            "python",
+            python_residuals["solver_selected_target"],
+            python_residuals["roundoff_allowance"],
+            (
+                ("true_reduced", python_residuals["true_reduced_dimensionless"]),
+                (
+                    "weak_pressure_row",
+                    python_residuals["weak_pressure_row_dimensionless"],
+                ),
+            ),
+        ),
+        (
+            "julia",
+            julia_residuals["selected_target"],
+            julia_residuals["roundoff_allowance"],
+            (
+                ("true_reduced", julia_residuals["true_reduced_2norm"]["f64"]),
+                (
+                    "weak_pressure_row",
+                    julia_residuals["weak_pressure_row_2norm"]["f64"],
+                ),
+                (
+                    "weak_pressure_row_infnorm",
+                    julia_residuals["weak_pressure_row_infnorm"]["f64"],
+                ),
+            ),
+        ),
+    ):
+        limit = (
+            target + allowance
+            if _finite(target) and _finite(allowance)
+            else float("nan")
+        )
+        for name, value in values:
+            gate.bounded(
+                f"residuals.{label}.{name}_within_own_target_plus_allowance",
+                value,
+                limit,
+                f"own selected target {target!r} plus own recorded roundoff "
+                f"allowance {allowance!r}; the bound is the frozen contract's "
+                f"and is evaluated against this route's own values only",
+            )
 
     # -- BoundaryTraction structure, and the absence of any gauge -----------
     python_reference = python_doc["observations"]["pressure_reference"]
@@ -915,7 +1207,7 @@ def compare(python_doc: dict, julia_doc: dict, mesh_doc: dict) -> Gate:
         DOF_CONTRACT["reduced_rows"],
     )
 
-    return gate
+    return gate, geometry
 
 
 # ---------------------------------------------------------------------------
@@ -925,7 +1217,7 @@ def digest(path: pathlib.Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def build_report(gate: Gate) -> dict:
+def build_report(gate: Gate, geometry: SharedMeshGeometry) -> dict:
     passed = sum(1 for record in gate.records if record["passed"])
     failed = len(gate.records) - passed
     verdict = "PASS" if failed == 0 else "RETURN"
@@ -943,10 +1235,6 @@ def build_report(gate: Gate) -> dict:
             "margin_ratio": (limit / measured) if measured > 0 else None,
             "within_tolerance": measured <= limit,
         }
-    selector_limit = (
-        TOLERANCE_TABLE[SELECTOR_FAMILY]["floor"]
-        + RELATIVE * TOLERANCE_TABLE[SELECTOR_FAMILY]["scale"]
-    )
     return {
         "schema": "eqiora.verify/exact-circular-hole-stokes-2d/agreement/v1",
         "gate": "dual independent oracle gate",
@@ -959,22 +1247,41 @@ def build_report(gate: Gate) -> dict:
         ),
         "formula": "abs(a - b) <= absolute_floor + 2e-10 * physical_scale",
         "tolerances": families,
-        "selector_comparison": {
+        "selector_identity": {
             "note": (
-                "Geometric selector coordinates carry no precommitted family. "
-                "They are compared under the velocity-probe tolerance, the "
-                "family whose selection they determine."
+                "Geometric selectors carry no tolerance and are given none. "
+                "Every probe target, selected cell, probe vertex and tie "
+                "candidate is reconstructed from mesh/mesh.json in exact "
+                "rational arithmetic and required to match exactly. Each "
+                "route's reported cell barycentre is mapped to the unique "
+                "nearest exact mesh-cell barycentre by exact squared distance; "
+                "the two routes' approximate barycentre coordinates are never "
+                "compared with each other."
             ),
-            "tolerance": selector_limit,
-            "measured_max_abs_difference_m": gate.max_difference["selector"],
+            "source": "mesh/mesh.json",
+            "arithmetic": (
+                "fractions.Fraction.from_float over the parsed binary64 inputs; "
+                "exact, so nothing here rounds and nothing here needs a bound"
+            ),
+            "cell_tie_break": (
+                "lexicographically sorted vertex-coordinate triple, as frozen "
+                "by the contract"
+            ),
+            "vertex_tie_break": "lexicographic coordinate order",
+            "cell_barycentres_reconstructed": len(geometry.barycentres),
+            "velocity_selectors_reconstructed": len(VELOCITY_TARGETS),
+            "pressure_selectors_reconstructed": len(PRESSURE_SELECTOR_RULES),
         },
-        "diagnostic_comparison": {
+        "residual_bound": {
             "note": (
-                "Dimensionless solver diagnostics are outside the four physical "
-                "families and are compared as binary64 representation agreement."
+                "The residual criteria are per route, never cross-route. Each "
+                "route's independently reapplied true residual and its weak "
+                "pressure-row residual are required to be finite and within "
+                "that route's own bound. The two routes solve at different "
+                "working precisions, so neither their residuals nor their "
+                "roundoff allowances are compared with each other."
             ),
-            "limit_ulps": DIAGNOSTIC_MAX_ULPS,
-            "measured_max_ulps": gate.max_diagnostic_ulps,
+            "bound": "residual <= own_selected_target + own_roundoff_allowance",
         },
         "checks": {
             "total": len(gate.records),
@@ -982,7 +1289,7 @@ def build_report(gate: Gate) -> dict:
             "failed": failed,
             "structural": sum(1 for r in gate.records if r["kind"] == "structural"),
             "numeric": sum(1 for r in gate.records if r["kind"] == "numeric"),
-            "diagnostic": sum(1 for r in gate.records if r["kind"] == "diagnostic"),
+            "bounded": sum(1 for r in gate.records if r["kind"] == "bounded"),
         },
         "failures": gate.failures,
         "compared": {
@@ -1014,10 +1321,11 @@ def build_report(gate: Gate) -> dict:
                 "sha256": digest(pathlib.Path(__file__).resolve()),
             },
         },
-        "source_provenance": SOURCE_PROVENANCE,
-        "structural_assertions": [
-            record["check"] for record in gate.records if record["kind"] == "structural"
-        ],
+        "provenance": {
+            "durable_anchors": DURABLE_ANCHORS,
+            "local_session_identifiers": LOCAL_SESSION_IDENTIFIERS,
+            "historical_source_digests": HISTORICAL_SOURCE_DIGESTS,
+        },
         "records": gate.records,
     }
 
@@ -1043,8 +1351,8 @@ def main(argv: list[str] | None = None) -> int:
     julia_doc = json.loads(JULIA_RESULT.read_text(encoding="utf-8"))
     mesh_doc = json.loads(MESH.read_text(encoding="utf-8"))
 
-    gate = compare(python_doc, julia_doc, mesh_doc)
-    report = build_report(gate)
+    gate, geometry = compare(python_doc, julia_doc, mesh_doc)
+    report = build_report(gate, geometry)
     payload = canonical_bytes(report)
 
     for family, entry in report["tolerances"].items():
@@ -1054,21 +1362,20 @@ def main(argv: list[str] | None = None) -> int:
             f"  {family:<12} max|dP - dJ| = {entry['measured_max_abs_difference']:.6e} "
             f"{entry['unit']:<6} limit {entry['tolerance']:.6e}  ({margin})"
         )
+    identity = report["selector_identity"]
     print(
-        f"  {'selector':<12} max|dP - dJ| = "
-        f"{report['selector_comparison']['measured_max_abs_difference_m']:.6e} m      "
-        f"limit {report['selector_comparison']['tolerance']:.6e}"
+        f"  {'selector':<12} exact       : "
+        f"{identity['cell_barycentres_reconstructed']} cell barycentres, "
+        f"{identity['velocity_selectors_reconstructed']} velocity and "
+        f"{identity['pressure_selectors_reconstructed']} pressure selectors "
+        f"rebuilt from {identity['source']} (no tolerance)"
     )
-    print(
-        f"  {'diagnostic':<12} max ulps     = "
-        f"{report['diagnostic_comparison']['measured_max_ulps']} "
-        f"(limit {DIAGNOSTIC_MAX_ULPS})"
-    )
+    print(f"  {'residual':<12} per route   : {report['residual_bound']['bound']}")
     checks = report["checks"]
     print(
         f"agreement checks: {checks['passed']} passed, {checks['failed']} failed "
         f"({checks['structural']} structural, {checks['numeric']} numeric, "
-        f"{checks['diagnostic']} diagnostic)"
+        f"{checks['bounded']} bounded)"
     )
     for failure in report["failures"]:
         print(f"  FAILED  {failure}", file=sys.stderr)

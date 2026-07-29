@@ -1,13 +1,30 @@
 #!/usr/bin/env python3
-"""Prove that packaging changed prose only, never a number or a structure.
+"""Packaging-fidelity utility. Not part of the dual independent oracle gate.
 
-The two oracle routes were frozen in separate source worktrees. Packaging them
-into this case replaced repository-numbered tracking prose with stable contract
-and RFC wording, then reran the deterministic generators so every self-hash
-describes the packaged source. That rerun rewrites the frozen JSON files, so
-their bytes and digests necessarily change.
+Two modes, and only the first one is ever needed again.
 
-This differ is the argument that nothing else did. Given a frozen JSON as it
+**Default, self-contained (no arguments).** Audits the package as it stands,
+reading nothing outside this directory:
+
+    python3 check_packaging_fidelity.py
+
+It recomputes the sha256 of every document the frozen agreement report says it
+compared, requires each to equal the digest recorded there, and walks each
+frozen JSON rejecting any non-finite numeric leaf. That is a complete integrity
+statement about the packaged bytes, and it needs no source worktree, no network
+and no git object to resolve.
+
+**Historical, optional (source/packaged pairs).** The argument recorded once,
+at packaging time, that packaging changed prose only:
+
+    python3 check_packaging_fidelity.py SOURCE_JSON PACKAGED_JSON [...]
+
+The two oracle routes were frozen in separate throwaway source worktrees, whose
+branches were never pushed. Packaging replaced repository-numbered tracking
+prose with stable contract and RFC wording, then reran the deterministic
+generators so every self-hash describes the packaged source. That rerun
+rewrites the frozen JSON files, so their bytes and digests necessarily change;
+this differ is the argument that nothing else did. Given a frozen JSON as it
 was emitted in the source worktree and the same file as emitted here, it walks
 both documents in parallel and requires:
 
@@ -20,22 +37,24 @@ both documents in parallel and requires:
 - string leaves are the only permitted difference, and every differing string
   path is reported so a reader can audit the wording change by hand.
 
-A single numeric, structural, ordering or type difference is a failure. This
-is not part of the route-agreement gate: it is the packaging argument, and it
-needs the original source worktrees, so it is parameterized rather than pinned.
+Those source files are **not** part of this package and the recorded result of
+that run is history. No accepted evidence here depends on this mode, and
+reproducing this package in future does not require running it.
 
-    python3 check_packaging_fidelity.py SOURCE_JSON PACKAGED_JSON [...]
-
-Pairs are given as consecutive arguments. Exit status is 0 only when every
-pair differs in string leaves alone.
+Exit status is 0 only when every checked document passes.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import pathlib
 import sys
+
+HERE = pathlib.Path(__file__).resolve().parent
+CASE = HERE.parent
+REPORT = HERE / "expected" / "agreement-report.json"
 
 
 def _leaf_kind(value: object) -> str:
@@ -133,8 +152,59 @@ def compare(source_path: pathlib.Path, packaged_path: pathlib.Path) -> Report:
     return report
 
 
+def check_package() -> int:
+    """Self-contained integrity audit of the packaged bytes. No source needed."""
+    if not REPORT.exists():
+        print(f"missing {REPORT}", file=sys.stderr)
+        return 2
+    report = json.loads(REPORT.read_text(encoding="utf-8"))
+    failures: list[str] = []
+    for name, entry in report["compared"].items():
+        relative = entry.get("result") or entry["file"]
+        path = CASE / relative
+        if not path.exists():
+            failures.append(f"{name}: missing {relative}")
+            continue
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        recorded = entry["sha256"]
+        agrees = actual == recorded
+        print(f"  {name:<32} {relative}")
+        print(f"    sha256 recorded in the report : {recorded}")
+        print(
+            f"    sha256 of the packaged bytes  : {actual}  "
+            f"{'match' if agrees else 'MISMATCH'}"
+        )
+        if not agrees:
+            failures.append(f"{name}: digest changed since the report was frozen")
+            continue
+        if path.suffix != ".json":
+            continue
+        # Walking a document against itself exercises the same type, ordering
+        # and finiteness rules as the historical differ, so a NaN or an Infinity
+        # anywhere in a frozen document is rejected here too.
+        document = json.loads(path.read_text(encoding="utf-8"))
+        audit = Report()
+        walk(document, document, "", audit)
+        print(
+            f"    numeric/boolean leaves        : {audit.numeric_leaves} "
+            f"(all finite: {not audit.failures})"
+        )
+        failures.extend(f"{name}: {failure}" for failure in audit.failures)
+
+    if failures:
+        print(f"  FAILURES : {len(failures)}")
+        for failure in failures:
+            print(f"      {failure}")
+        print("PACKAGE INTEGRITY: FAIL")
+        return 1
+    print("PACKAGE INTEGRITY: PASS")
+    return 0
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) < 2 or len(argv) % 2 != 0:
+    if not argv:
+        return check_package()
+    if len(argv) % 2 != 0:
         print(__doc__, file=sys.stderr)
         return 2
 

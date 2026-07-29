@@ -46,23 +46,27 @@
       "within_tolerance": true
     }
   },
-  "selector_comparison": {
-    "note": "Geometric selector coordinates carry no precommitted family. They are compared under the velocity-probe tolerance, the family whose selection they determine.",
-    "tolerance": 6.2e-11,
-    "measured_max_abs_difference_m": 1.1102230246251565e-16
+  "selector_identity": {
+    "note": "Geometric selectors carry no tolerance and are given none. Every probe target, selected cell, probe vertex and tie candidate is reconstructed from mesh/mesh.json in exact rational arithmetic and required to match exactly. Each route's reported cell barycentre is mapped to the unique nearest exact mesh-cell barycentre by exact squared distance; the two routes' approximate barycentre coordinates are never compared with each other.",
+    "source": "mesh/mesh.json",
+    "arithmetic": "fractions.Fraction.from_float over the parsed binary64 inputs; exact, so nothing here rounds and nothing here needs a bound",
+    "cell_tie_break": "lexicographically sorted vertex-coordinate triple, as frozen by the contract",
+    "vertex_tie_break": "lexicographic coordinate order",
+    "cell_barycentres_reconstructed": 104,
+    "velocity_selectors_reconstructed": 5,
+    "pressure_selectors_reconstructed": 6
   },
-  "diagnostic_comparison": {
-    "note": "Dimensionless solver diagnostics are outside the four physical families and are compared as binary64 representation agreement.",
-    "limit_ulps": 4,
-    "measured_max_ulps": 1
+  "residual_bound": {
+    "note": "The residual criteria are per route, never cross-route. Each route's independently reapplied true residual and its weak pressure-row residual are required to be finite and within that route's own bound. The two routes solve at different working precisions, so neither their residuals nor their roundoff allowances are compared with each other.",
+    "bound": "residual <= own_selected_target + own_roundoff_allowance"
   },
   "checks": {
-    "total": 291,
-    "passed": 291,
+    "total": 271,
+    "passed": 271,
     "failed": 0,
-    "structural": 213,
-    "numeric": 77,
-    "diagnostic": 1
+    "structural": 227,
+    "numeric": 39,
+    "bounded": 5
   },
   "failures": [],
   "compared": {
@@ -88,232 +92,28 @@
     },
     "comparison_route": {
       "file": "agreement/compare_routes.py",
-      "sha256": "f223d0452d27fb476c7e6e398d3620634e93d368454f29b1f9a72ea018eddebc"
+      "sha256": "50e7c83a2a9432e1908cddbbea26fd9f5546715507b74409bac9fb1441785fff"
     }
   },
-  "source_provenance": {
-    "contract_commit": "dea1fd138fce92fd0127f5df9155b675159a58c3",
-    "python_route_source_commit": "e8bbd44b49315f0d4ee723ec73df53a4f8f6f2f0",
-    "python_source_mesh_sha256": "2ec74b9f481a60b460c9bb8096821cd73eeb7e17ef18a7ae67828e605d17a8f2",
-    "python_source_result_sha256": "4037d358e613a016e21e04c9ff8fffa2475f056fb55a2f88c4c5828d957abfd7",
-    "julia_route_source_commit": "dccbc318744c7cec4f6b73f5ba0fe60880af7583",
-    "julia_source_frozen_sha256": "2ad9a041c75906055b3a4ae3a2f2e05f3964cb5e62276a21e19f354586254dff"
+  "provenance": {
+    "durable_anchors": [
+      "the packaged route bytes under routes/ and mesh/, and the sha256 of each, recomputed by this gate on every run and recorded under 'compared'",
+      "the contract text and digests embedded in the packaged documents themselves, including the shared mesh's own source digest",
+      "rerunning each route in place: routes/python/oracle.py --check reproduces result.json byte for byte, and routes/julia/run.jl reruns byte-identical",
+      "rerunning this gate, which regenerates expected/agreement-report.json byte for byte under --check"
+    ],
+    "local_session_identifiers": {
+      "note": "Informative only. These identifiers name commits in local, unpushed session worktrees and may not resolve in any other clone. They are not durable references, nothing here depends on resolving them, and no future reproduction requires them.",
+      "contract_commit": "dea1fd138fce92fd0127f5df9155b675159a58c3",
+      "python_route_source_commit": "e8bbd44b49315f0d4ee723ec73df53a4f8f6f2f0",
+      "julia_route_source_commit": "dccbc318744c7cec4f6b73f5ba0fe60880af7583"
+    },
+    "historical_source_digests": {
+      "python_source_mesh_sha256": "2ec74b9f481a60b460c9bb8096821cd73eeb7e17ef18a7ae67828e605d17a8f2",
+      "python_source_result_sha256": "4037d358e613a016e21e04c9ff8fffa2475f056fb55a2f88c4c5828d957abfd7",
+      "julia_source_frozen_sha256": "2ad9a041c75906055b3a4ae3a2f2e05f3964cb5e62276a21e19f354586254dff"
+    }
   },
-  "structural_assertions": [
-    "route.python.schema",
-    "route.python.name",
-    "route.python.solve_route",
-    "route.python.reads_eqiora",
-    "route.julia.name",
-    "route.methods_are_distinct",
-    "velocity.count",
-    "velocity[0].python_keys",
-    "velocity[0].julia_keys",
-    "velocity[0].target.python",
-    "velocity[0].target.julia",
-    "velocity[0].tied_cells",
-    "velocity[0].barycentre.selector.arity",
-    "velocity[1].python_keys",
-    "velocity[1].julia_keys",
-    "velocity[1].target.python",
-    "velocity[1].target.julia",
-    "velocity[1].tied_cells",
-    "velocity[1].barycentre.selector.arity",
-    "velocity[2].python_keys",
-    "velocity[2].julia_keys",
-    "velocity[2].target.python",
-    "velocity[2].target.julia",
-    "velocity[2].tied_cells",
-    "velocity[2].barycentre.selector.arity",
-    "velocity[3].python_keys",
-    "velocity[3].julia_keys",
-    "velocity[3].target.python",
-    "velocity[3].target.julia",
-    "velocity[3].tied_cells",
-    "velocity[3].barycentre.selector.arity",
-    "velocity[4].python_keys",
-    "velocity[4].julia_keys",
-    "velocity[4].target.python",
-    "velocity[4].target.julia",
-    "velocity[4].tied_cells",
-    "velocity[4].barycentre.selector.arity",
-    "pressure.count",
-    "pressure.python_label_vocabulary",
-    "pressure.julia_label_vocabulary",
-    "pressure[0:cylinder_min_x].python_keys",
-    "pressure[0:cylinder_min_x].julia_keys",
-    "pressure[0:cylinder_min_x].tie_count.python",
-    "pressure[0:cylinder_min_x].tie_count.julia",
-    "pressure[0:cylinder_min_x].vertex.selector.arity",
-    "pressure[0:cylinder_min_x].python_tie_break_present_iff_tied",
-    "pressure[0:cylinder_min_x].candidate_count",
-    "pressure[0:cylinder_min_x].candidate[0].selector.arity",
-    "pressure[0:cylinder_min_x].candidates_in_lexicographic_order",
-    "pressure[0:cylinder_min_x].lexicographic_selection.python",
-    "pressure[0:cylinder_min_x].lexicographic_selection.julia",
-    "pressure[1:cylinder_max_x].python_keys",
-    "pressure[1:cylinder_max_x].julia_keys",
-    "pressure[1:cylinder_max_x].tie_count.python",
-    "pressure[1:cylinder_max_x].tie_count.julia",
-    "pressure[1:cylinder_max_x].vertex.selector.arity",
-    "pressure[1:cylinder_max_x].python_tie_break_present_iff_tied",
-    "pressure[1:cylinder_max_x].candidate_count",
-    "pressure[1:cylinder_max_x].candidate[0].selector.arity",
-    "pressure[1:cylinder_max_x].candidates_in_lexicographic_order",
-    "pressure[1:cylinder_max_x].lexicographic_selection.python",
-    "pressure[1:cylinder_max_x].lexicographic_selection.julia",
-    "pressure[2:cylinder_min_y].python_keys",
-    "pressure[2:cylinder_min_y].julia_keys",
-    "pressure[2:cylinder_min_y].tie_count.python",
-    "pressure[2:cylinder_min_y].tie_count.julia",
-    "pressure[2:cylinder_min_y].vertex.selector.arity",
-    "pressure[2:cylinder_min_y].python_tie_break_present_iff_tied",
-    "pressure[2:cylinder_min_y].candidate_count",
-    "pressure[2:cylinder_min_y].candidate[0].selector.arity",
-    "pressure[2:cylinder_min_y].candidate[1].selector.arity",
-    "pressure[2:cylinder_min_y].candidates_in_lexicographic_order",
-    "pressure[2:cylinder_min_y].lexicographic_selection.python",
-    "pressure[2:cylinder_min_y].lexicographic_selection.julia",
-    "pressure[2:cylinder_min_y].rejected_candidate_is_materially_different",
-    "pressure[3:cylinder_max_y].python_keys",
-    "pressure[3:cylinder_max_y].julia_keys",
-    "pressure[3:cylinder_max_y].tie_count.python",
-    "pressure[3:cylinder_max_y].tie_count.julia",
-    "pressure[3:cylinder_max_y].vertex.selector.arity",
-    "pressure[3:cylinder_max_y].python_tie_break_present_iff_tied",
-    "pressure[3:cylinder_max_y].candidate_count",
-    "pressure[3:cylinder_max_y].candidate[0].selector.arity",
-    "pressure[3:cylinder_max_y].candidate[1].selector.arity",
-    "pressure[3:cylinder_max_y].candidates_in_lexicographic_order",
-    "pressure[3:cylinder_max_y].lexicographic_selection.python",
-    "pressure[3:cylinder_max_y].lexicographic_selection.julia",
-    "pressure[3:cylinder_max_y].rejected_candidate_is_materially_different",
-    "pressure[4:outer_nearest_x_low_mid].python_keys",
-    "pressure[4:outer_nearest_x_low_mid].julia_keys",
-    "pressure[4:outer_nearest_x_low_mid].tie_count.python",
-    "pressure[4:outer_nearest_x_low_mid].tie_count.julia",
-    "pressure[4:outer_nearest_x_low_mid].vertex.selector.arity",
-    "pressure[4:outer_nearest_x_low_mid].python_tie_break_present_iff_tied",
-    "pressure[4:outer_nearest_x_low_mid].candidate_count",
-    "pressure[4:outer_nearest_x_low_mid].candidate[0].selector.arity",
-    "pressure[4:outer_nearest_x_low_mid].candidates_in_lexicographic_order",
-    "pressure[4:outer_nearest_x_low_mid].lexicographic_selection.python",
-    "pressure[4:outer_nearest_x_low_mid].lexicographic_selection.julia",
-    "pressure[5:outer_nearest_x_high_mid].python_keys",
-    "pressure[5:outer_nearest_x_high_mid].julia_keys",
-    "pressure[5:outer_nearest_x_high_mid].tie_count.python",
-    "pressure[5:outer_nearest_x_high_mid].tie_count.julia",
-    "pressure[5:outer_nearest_x_high_mid].vertex.selector.arity",
-    "pressure[5:outer_nearest_x_high_mid].python_tie_break_present_iff_tied",
-    "pressure[5:outer_nearest_x_high_mid].candidate_count",
-    "pressure[5:outer_nearest_x_high_mid].candidate[0].selector.arity",
-    "pressure[5:outer_nearest_x_high_mid].candidates_in_lexicographic_order",
-    "pressure[5:outer_nearest_x_high_mid].lexicographic_selection.python",
-    "pressure[5:outer_nearest_x_high_mid].lexicographic_selection.julia",
-    "flux.python_keys",
-    "flux.julia_keys",
-    "flux.inlet_sign_is_into_the_domain",
-    "flux.outlet_sign_is_out_of_the_domain",
-    "flux.julia_no_slip_walls_and_cylinder_are_exactly_zero",
-    "reaction.python_cylinder_keys",
-    "reaction.python_balance_keys",
-    "reaction.julia_keys",
-    "reaction.constraint_force_on_fluid.arity",
-    "reaction.fluid_force_on_cylinder.arity",
-    "reaction.orientations_are_exact_negations",
-    "reaction.fluid_force_on_cylinder_acts_along_plus_x",
-    "balance.constrained_reaction.arity",
-    "balance.integrated_body_force.arity",
-    "balance.integrated_traction.arity",
-    "balance.sum.arity",
-    "balance.body_force_and_traction_are_exactly_zero",
-    "mesh.shared.vertices",
-    "mesh.julia.vertices",
-    "mesh.shared.cells",
-    "mesh.julia.cells",
-    "mesh.shared.boundary_facets",
-    "mesh.julia.boundary_facets",
-    "mesh.shared.interior_edges",
-    "mesh.julia.interior_edges",
-    "mesh.shared.euler_characteristic",
-    "mesh.julia.euler_characteristic",
-    "mesh.shared.inlet_facets",
-    "mesh.julia.inlet_facets",
-    "mesh.shared.outlet_facets",
-    "mesh.julia.outlet_facets",
-    "mesh.shared.wall_facets",
-    "mesh.julia.wall_facets",
-    "mesh.shared.cylinder_facets",
-    "mesh.julia.cylinder_facets",
-    "mesh.julia.segments",
-    "mesh.julia.outer_loop_vertices",
-    "mesh.shared.segments",
-    "mesh.partition_covers_every_facet_exactly_once",
-    "mesh.shared.fluid_cells",
-    "mesh.shared.quad_diagonal",
-    "mesh.julia.quad_diagonal",
-    "mesh.python.quad_diagonal",
-    "mesh.julia.cell_pair",
-    "mesh.python.cell_pair",
-    "mesh.shared.cell_pair",
-    "mesh.python.admissible_meshes",
-    "mesh.python.falsifier_is_excluded_split",
-    "scales.python.L_m",
-    "scales.julia.L_m",
-    "scales.python.U_m_per_s",
-    "scales.julia.U_m_per_s",
-    "scales.python.P_Pa",
-    "scales.julia.P_Pa",
-    "scales.python.G_per_s",
-    "scales.julia.G_per_s",
-    "scales.python.Theta_W_per_m",
-    "scales.julia.Theta_W_per_m",
-    "scales.python.Theta_mathematical_W_per_m",
-    "scales.julia.Theta_mathematical_W_per_m",
-    "scales.python.mu_hat",
-    "scales.julia.mu_hat",
-    "scales.julia.mu_Pa_s",
-    "scales.python.mu_kg_m_s",
-    "scales.Theta_is_one_ulp_below_the_exact_decimal",
-    "dofs.python.velocity_p1",
-    "dofs.julia.velocity_p1",
-    "dofs.python.velocity_bubble",
-    "dofs.julia.velocity_bubble",
-    "dofs.python.pressure",
-    "dofs.julia.pressure",
-    "dofs.python.full_rows",
-    "dofs.julia.full_rows",
-    "dofs.python.prescribed_velocity",
-    "dofs.julia.prescribed_velocity",
-    "dofs.python.reduced_rows",
-    "dofs.julia.reduced_rows",
-    "dofs.python.gauge_rows",
-    "dofs.julia.gauge_rows",
-    "dofs.python.essential_vertices",
-    "dofs.julia.essential_vertices",
-    "dofs.python.free_vertices",
-    "dofs.julia.free_vertices",
-    "dofs.python.interior_vertices",
-    "dofs.python.bubbles_are_cell_interior",
-    "residuals.selected_target",
-    "residuals.operator_inf_norm",
-    "residuals.solution_inf_norm",
-    "residuals.rhs_2norm",
-    "residuals.both_routes_are_far_inside_target_plus_allowance",
-    "pressure_reference.python.kind",
-    "pressure_reference.julia.kind",
-    "pressure_reference.python.traction_facets",
-    "pressure_reference.julia.traction_facets",
-    "pressure_reference.python.traction_partition_nonempty",
-    "pressure_reference.python.gauge_row",
-    "pressure_reference.python.gauge_multiplier",
-    "pressure_reference.python.zero_integral",
-    "pressure_reference.julia.gauge_rows",
-    "pressure_reference.julia.gauge_columns",
-    "pressure_reference.julia.gauge_multipliers",
-    "pressure_reference.julia.zero_integral_constraints",
-    "pressure_reference.python.reduced_rows"
-  ],
   "records": [
     {
       "check": "route.python.schema",
@@ -382,36 +182,28 @@
       "detail": "got [0.1, 0.2], want [0.1, 0.2]"
     },
     {
-      "check": "velocity[0].tied_cells",
+      "check": "velocity[0].selector.tie_count.python",
       "kind": "structural",
       "passed": true,
       "detail": "got 1, want 1"
     },
     {
-      "check": "velocity[0].barycentre.selector.arity",
+      "check": "velocity[0].selector.tie_count.julia",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got 1, want 1"
     },
     {
-      "check": "velocity[0].barycentre.selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "velocity[0].selector.python_barycentre_maps_to_contract_cell",
+      "kind": "structural",
       "passed": true,
-      "python": 0.1001314216447587,
-      "julia": 0.1001314216447587,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "reported barycentre maps to the mesh cell with vertices [[0.0, 0.20000000000000004], [0.15000000000000002, 0.2], [0.1503942649342761, 0.1937333383217848]] (unique nearest: True); the contract selects the cell with vertices [[0.0, 0.20000000000000004], [0.15000000000000002, 0.2], [0.1503942649342761, 0.1937333383217848]]"
     },
     {
-      "check": "velocity[0].barycentre.selector.y",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "velocity[0].selector.julia_barycentre_maps_to_contract_cell",
+      "kind": "structural",
       "passed": true,
-      "python": 0.19791111277392828,
-      "julia": 0.19791111277392828,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "reported barycentre maps to the mesh cell with vertices [[0.0, 0.20000000000000004], [0.15000000000000002, 0.2], [0.1503942649342761, 0.1937333383217848]] (unique nearest: True); the contract selects the cell with vertices [[0.0, 0.20000000000000004], [0.15000000000000002, 0.2], [0.1503942649342761, 0.1937333383217848]]"
     },
     {
       "check": "velocity[0].u_x",
@@ -458,36 +250,28 @@
       "detail": "got [0.2, 0.3], want [0.2, 0.3]"
     },
     {
-      "check": "velocity[1].tied_cells",
+      "check": "velocity[1].selector.tie_count.python",
       "kind": "structural",
       "passed": true,
       "detail": "got 1, want 1"
     },
     {
-      "check": "velocity[1].barycentre.selector.arity",
+      "check": "velocity[1].selector.tie_count.julia",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got 1, want 1"
     },
     {
-      "check": "velocity[1].barycentre.selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "velocity[1].selector.python_barycentre_maps_to_contract_cell",
+      "kind": "structural",
       "passed": true,
-      "python": 0.2044040267077555,
-      "julia": 0.2044040267077555,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "reported barycentre maps to the mesh cell with vertices [[0.19686047402353435, 0.2499013364214136], [0.20313952597646567, 0.2499013364214136], [0.21321208012326648, 0.41]] (unique nearest: True); the contract selects the cell with vertices [[0.19686047402353435, 0.2499013364214136], [0.20313952597646567, 0.2499013364214136], [0.21321208012326648, 0.41]]"
     },
     {
-      "check": "velocity[1].barycentre.selector.y",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "velocity[1].selector.julia_barycentre_maps_to_contract_cell",
+      "kind": "structural",
       "passed": true,
-      "python": 0.3032675576142757,
-      "julia": 0.30326755761427576,
-      "abs_difference": 5.551115123125783e-17,
-      "limit": 6.2e-11
+      "detail": "reported barycentre maps to the mesh cell with vertices [[0.19686047402353435, 0.2499013364214136], [0.20313952597646567, 0.2499013364214136], [0.21321208012326648, 0.41]] (unique nearest: True); the contract selects the cell with vertices [[0.19686047402353435, 0.2499013364214136], [0.20313952597646567, 0.2499013364214136], [0.21321208012326648, 0.41]]"
     },
     {
       "check": "velocity[1].u_x",
@@ -534,36 +318,28 @@
       "detail": "got [0.3, 0.2], want [0.3, 0.2]"
     },
     {
-      "check": "velocity[2].tied_cells",
+      "check": "velocity[2].selector.tie_count.python",
       "kind": "structural",
       "passed": true,
       "detail": "got 1, want 1"
     },
     {
-      "check": "velocity[2].barycentre.selector.arity",
+      "check": "velocity[2].selector.tie_count.julia",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got 1, want 1"
     },
     {
-      "check": "velocity[2].barycentre.selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "velocity[2].selector.python_barycentre_maps_to_contract_cell",
+      "kind": "structural",
       "passed": true,
-      "python": 0.3198475226050584,
-      "julia": 0.3198475226050584,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "reported barycentre maps to the mesh cell with vertices [[0.2404508497187474, 0.17061073738537635], [0.24381533400219318, 0.17591231629491422], [0.4752763840942346, 0.0]] (unique nearest: True); the contract selects the cell with vertices [[0.2404508497187474, 0.17061073738537635], [0.24381533400219318, 0.17591231629491422], [0.4752763840942346, 0.0]]"
     },
     {
-      "check": "velocity[2].barycentre.selector.y",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "velocity[2].selector.julia_barycentre_maps_to_contract_cell",
+      "kind": "structural",
       "passed": true,
-      "python": 0.11550768456009686,
-      "julia": 0.11550768456009686,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "reported barycentre maps to the mesh cell with vertices [[0.2404508497187474, 0.17061073738537635], [0.24381533400219318, 0.17591231629491422], [0.4752763840942346, 0.0]] (unique nearest: True); the contract selects the cell with vertices [[0.2404508497187474, 0.17061073738537635], [0.24381533400219318, 0.17591231629491422], [0.4752763840942346, 0.0]]"
     },
     {
       "check": "velocity[2].u_x",
@@ -610,36 +386,28 @@
       "detail": "got [1.0, 0.2], want [1.0, 0.2]"
     },
     {
-      "check": "velocity[3].tied_cells",
+      "check": "velocity[3].selector.tie_count.python",
       "kind": "structural",
       "passed": true,
       "detail": "got 1, want 1"
     },
     {
-      "check": "velocity[3].barycentre.selector.arity",
+      "check": "velocity[3].selector.tie_count.julia",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got 1, want 1"
     },
     {
-      "check": "velocity[3].barycentre.selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "velocity[3].selector.python_barycentre_maps_to_contract_cell",
+      "kind": "structural",
       "passed": true,
-      "python": 0.8998685783552414,
-      "julia": 0.8998685783552413,
-      "abs_difference": 1.1102230246251565e-16,
-      "limit": 6.2e-11
+      "detail": "reported barycentre maps to the mesh cell with vertices [[0.24960573506572392, 0.20626666167821522], [0.25, 0.2], [2.2, 0.2]] (unique nearest: True); the contract selects the cell with vertices [[0.24960573506572392, 0.20626666167821522], [0.25, 0.2], [2.2, 0.2]]"
     },
     {
-      "check": "velocity[3].barycentre.selector.y",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "velocity[3].selector.julia_barycentre_maps_to_contract_cell",
+      "kind": "structural",
       "passed": true,
-      "python": 0.20208888722607174,
-      "julia": 0.20208888722607177,
-      "abs_difference": 2.7755575615628914e-17,
-      "limit": 6.2e-11
+      "detail": "reported barycentre maps to the mesh cell with vertices [[0.24960573506572392, 0.20626666167821522], [0.25, 0.2], [2.2, 0.2]] (unique nearest: True); the contract selects the cell with vertices [[0.24960573506572392, 0.20626666167821522], [0.25, 0.2], [2.2, 0.2]]"
     },
     {
       "check": "velocity[3].u_x",
@@ -686,36 +454,28 @@
       "detail": "got [2.0, 0.2], want [2.0, 0.2]"
     },
     {
-      "check": "velocity[4].tied_cells",
+      "check": "velocity[4].selector.tie_count.python",
       "kind": "structural",
       "passed": true,
       "detail": "got 1, want 1"
     },
     {
-      "check": "velocity[4].barycentre.selector.arity",
+      "check": "velocity[4].selector.tie_count.julia",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got 1, want 1"
     },
     {
-      "check": "velocity[4].barycentre.selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "velocity[4].selector.python_barycentre_maps_to_contract_cell",
+      "kind": "structural",
       "passed": true,
-      "python": 2.061054339220387,
-      "julia": 2.061054339220387,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "reported barycentre maps to the mesh cell with vertices [[1.7831630176611604, 0.0], [2.2, 0.0], [2.2, 0.2]] (unique nearest: True); the contract selects the cell with vertices [[1.7831630176611604, 0.0], [2.2, 0.0], [2.2, 0.2]]"
     },
     {
-      "check": "velocity[4].barycentre.selector.y",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "velocity[4].selector.julia_barycentre_maps_to_contract_cell",
+      "kind": "structural",
       "passed": true,
-      "python": 0.06666666666666667,
-      "julia": 0.06666666666666667,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "reported barycentre maps to the mesh cell with vertices [[1.7831630176611604, 0.0], [2.2, 0.0], [2.2, 0.2]] (unique nearest: True); the contract selects the cell with vertices [[1.7831630176611604, 0.0], [2.2, 0.0], [2.2, 0.2]]"
     },
     {
       "check": "velocity[4].u_x",
@@ -768,6 +528,12 @@
       "detail": "got ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m'], want ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m']"
     },
     {
+      "check": "pressure[0:cylinder_min_x].selector.tie_count.contract",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
       "check": "pressure[0:cylinder_min_x].tie_count.python",
       "kind": "structural",
       "passed": true,
@@ -780,30 +546,16 @@
       "detail": "got 1, want 1"
     },
     {
-      "check": "pressure[0:cylinder_min_x].vertex.selector.arity",
+      "check": "pressure[0:cylinder_min_x].selector.python_vertex_is_the_contract_vertex",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got [0.15000000000000002, 0.2], want [0.15000000000000002, 0.2]"
     },
     {
-      "check": "pressure[0:cylinder_min_x].vertex.selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "pressure[0:cylinder_min_x].selector.julia_vertex_is_the_contract_vertex",
+      "kind": "structural",
       "passed": true,
-      "python": 0.15000000000000002,
-      "julia": 0.15000000000000002,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
-    },
-    {
-      "check": "pressure[0:cylinder_min_x].vertex.selector.y",
-      "kind": "numeric",
-      "family": "velocity",
-      "passed": true,
-      "python": 0.2,
-      "julia": 0.2,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "got [0.15000000000000002, 0.2], want [0.15000000000000002, 0.2]"
     },
     {
       "check": "pressure[0:cylinder_min_x].p",
@@ -828,30 +580,16 @@
       "detail": "python 1, julia 1, expected 1"
     },
     {
-      "check": "pressure[0:cylinder_min_x].candidate[0].selector.arity",
+      "check": "pressure[0:cylinder_min_x].candidate[0].selector.python",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got [0.15000000000000002, 0.2], want [0.15000000000000002, 0.2]"
     },
     {
-      "check": "pressure[0:cylinder_min_x].candidate[0].selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "pressure[0:cylinder_min_x].candidate[0].selector.julia",
+      "kind": "structural",
       "passed": true,
-      "python": 0.15000000000000002,
-      "julia": 0.15000000000000002,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
-    },
-    {
-      "check": "pressure[0:cylinder_min_x].candidate[0].selector.y",
-      "kind": "numeric",
-      "family": "velocity",
-      "passed": true,
-      "python": 0.2,
-      "julia": 0.2,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "got [0.15000000000000002, 0.2], want [0.15000000000000002, 0.2]"
     },
     {
       "check": "pressure[0:cylinder_min_x].candidate[0].p",
@@ -862,24 +600,6 @@
       "julia": 20.611897142913634,
       "abs_difference": 0.0,
       "limit": 1.6634146341463415e-13
-    },
-    {
-      "check": "pressure[0:cylinder_min_x].candidates_in_lexicographic_order",
-      "kind": "structural",
-      "passed": true,
-      "detail": "tie candidates must be listed in lexicographic coordinate order"
-    },
-    {
-      "check": "pressure[0:cylinder_min_x].lexicographic_selection.python",
-      "kind": "structural",
-      "passed": true,
-      "detail": "selected [0.15000000000000002, 0.2] is not the lexicographic minimum of [[0.15000000000000002, 0.2]]"
-    },
-    {
-      "check": "pressure[0:cylinder_min_x].lexicographic_selection.julia",
-      "kind": "structural",
-      "passed": true,
-      "detail": "selected [0.15000000000000002, 0.2] is not the lexicographic minimum of [[0.15000000000000002, 0.2]]"
     },
     {
       "check": "pressure[1:cylinder_max_x].python_keys",
@@ -894,6 +614,12 @@
       "detail": "got ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m'], want ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m']"
     },
     {
+      "check": "pressure[1:cylinder_max_x].selector.tie_count.contract",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
       "check": "pressure[1:cylinder_max_x].tie_count.python",
       "kind": "structural",
       "passed": true,
@@ -906,30 +632,16 @@
       "detail": "got 1, want 1"
     },
     {
-      "check": "pressure[1:cylinder_max_x].vertex.selector.arity",
+      "check": "pressure[1:cylinder_max_x].selector.python_vertex_is_the_contract_vertex",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got [0.25, 0.2], want [0.25, 0.2]"
     },
     {
-      "check": "pressure[1:cylinder_max_x].vertex.selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "pressure[1:cylinder_max_x].selector.julia_vertex_is_the_contract_vertex",
+      "kind": "structural",
       "passed": true,
-      "python": 0.25,
-      "julia": 0.25,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
-    },
-    {
-      "check": "pressure[1:cylinder_max_x].vertex.selector.y",
-      "kind": "numeric",
-      "family": "velocity",
-      "passed": true,
-      "python": 0.2,
-      "julia": 0.2,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "got [0.25, 0.2], want [0.25, 0.2]"
     },
     {
       "check": "pressure[1:cylinder_max_x].p",
@@ -954,30 +666,16 @@
       "detail": "python 1, julia 1, expected 1"
     },
     {
-      "check": "pressure[1:cylinder_max_x].candidate[0].selector.arity",
+      "check": "pressure[1:cylinder_max_x].candidate[0].selector.python",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got [0.25, 0.2], want [0.25, 0.2]"
     },
     {
-      "check": "pressure[1:cylinder_max_x].candidate[0].selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "pressure[1:cylinder_max_x].candidate[0].selector.julia",
+      "kind": "structural",
       "passed": true,
-      "python": 0.25,
-      "julia": 0.25,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
-    },
-    {
-      "check": "pressure[1:cylinder_max_x].candidate[0].selector.y",
-      "kind": "numeric",
-      "family": "velocity",
-      "passed": true,
-      "python": 0.2,
-      "julia": 0.2,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "got [0.25, 0.2], want [0.25, 0.2]"
     },
     {
       "check": "pressure[1:cylinder_max_x].candidate[0].p",
@@ -988,24 +686,6 @@
       "julia": 0.111521650853062,
       "abs_difference": 0.0,
       "limit": 1.6634146341463415e-13
-    },
-    {
-      "check": "pressure[1:cylinder_max_x].candidates_in_lexicographic_order",
-      "kind": "structural",
-      "passed": true,
-      "detail": "tie candidates must be listed in lexicographic coordinate order"
-    },
-    {
-      "check": "pressure[1:cylinder_max_x].lexicographic_selection.python",
-      "kind": "structural",
-      "passed": true,
-      "detail": "selected [0.25, 0.2] is not the lexicographic minimum of [[0.25, 0.2]]"
-    },
-    {
-      "check": "pressure[1:cylinder_max_x].lexicographic_selection.julia",
-      "kind": "structural",
-      "passed": true,
-      "detail": "selected [0.25, 0.2] is not the lexicographic minimum of [[0.25, 0.2]]"
     },
     {
       "check": "pressure[2:cylinder_min_y].python_keys",
@@ -1020,6 +700,12 @@
       "detail": "got ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m'], want ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m']"
     },
     {
+      "check": "pressure[2:cylinder_min_y].selector.tie_count.contract",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 2, want 2"
+    },
+    {
       "check": "pressure[2:cylinder_min_y].tie_count.python",
       "kind": "structural",
       "passed": true,
@@ -1032,30 +718,16 @@
       "detail": "got 2, want 2"
     },
     {
-      "check": "pressure[2:cylinder_min_y].vertex.selector.arity",
+      "check": "pressure[2:cylinder_min_y].selector.python_vertex_is_the_contract_vertex",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got [0.19686047402353435, 0.15009866357858642], want [0.19686047402353435, 0.15009866357858642]"
     },
     {
-      "check": "pressure[2:cylinder_min_y].vertex.selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "pressure[2:cylinder_min_y].selector.julia_vertex_is_the_contract_vertex",
+      "kind": "structural",
       "passed": true,
-      "python": 0.19686047402353435,
-      "julia": 0.19686047402353435,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
-    },
-    {
-      "check": "pressure[2:cylinder_min_y].vertex.selector.y",
-      "kind": "numeric",
-      "family": "velocity",
-      "passed": true,
-      "python": 0.15009866357858642,
-      "julia": 0.15009866357858642,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "got [0.19686047402353435, 0.15009866357858642], want [0.19686047402353435, 0.15009866357858642]"
     },
     {
       "check": "pressure[2:cylinder_min_y].p",
@@ -1080,30 +752,16 @@
       "detail": "python 2, julia 2, expected 2"
     },
     {
-      "check": "pressure[2:cylinder_min_y].candidate[0].selector.arity",
+      "check": "pressure[2:cylinder_min_y].candidate[0].selector.python",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got [0.19686047402353435, 0.15009866357858642], want [0.19686047402353435, 0.15009866357858642]"
     },
     {
-      "check": "pressure[2:cylinder_min_y].candidate[0].selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "pressure[2:cylinder_min_y].candidate[0].selector.julia",
+      "kind": "structural",
       "passed": true,
-      "python": 0.19686047402353435,
-      "julia": 0.19686047402353435,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
-    },
-    {
-      "check": "pressure[2:cylinder_min_y].candidate[0].selector.y",
-      "kind": "numeric",
-      "family": "velocity",
-      "passed": true,
-      "python": 0.15009866357858642,
-      "julia": 0.15009866357858642,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "got [0.19686047402353435, 0.15009866357858642], want [0.19686047402353435, 0.15009866357858642]"
     },
     {
       "check": "pressure[2:cylinder_min_y].candidate[0].p",
@@ -1116,30 +774,16 @@
       "limit": 1.6634146341463415e-13
     },
     {
-      "check": "pressure[2:cylinder_min_y].candidate[1].selector.arity",
+      "check": "pressure[2:cylinder_min_y].candidate[1].selector.python",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got [0.20313952597646565, 0.15009866357858642], want [0.20313952597646565, 0.15009866357858642]"
     },
     {
-      "check": "pressure[2:cylinder_min_y].candidate[1].selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "pressure[2:cylinder_min_y].candidate[1].selector.julia",
+      "kind": "structural",
       "passed": true,
-      "python": 0.20313952597646565,
-      "julia": 0.20313952597646565,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
-    },
-    {
-      "check": "pressure[2:cylinder_min_y].candidate[1].selector.y",
-      "kind": "numeric",
-      "family": "velocity",
-      "passed": true,
-      "python": 0.15009866357858642,
-      "julia": 0.15009866357858642,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "got [0.20313952597646565, 0.15009866357858642], want [0.20313952597646565, 0.15009866357858642]"
     },
     {
       "check": "pressure[2:cylinder_min_y].candidate[1].p",
@@ -1150,24 +794,6 @@
       "julia": 10.025650927362767,
       "abs_difference": 0.0,
       "limit": 1.6634146341463415e-13
-    },
-    {
-      "check": "pressure[2:cylinder_min_y].candidates_in_lexicographic_order",
-      "kind": "structural",
-      "passed": true,
-      "detail": "tie candidates must be listed in lexicographic coordinate order"
-    },
-    {
-      "check": "pressure[2:cylinder_min_y].lexicographic_selection.python",
-      "kind": "structural",
-      "passed": true,
-      "detail": "selected [0.19686047402353435, 0.15009866357858642] is not the lexicographic minimum of [[0.19686047402353435, 0.15009866357858642], [0.20313952597646565, 0.15009866357858642]]"
-    },
-    {
-      "check": "pressure[2:cylinder_min_y].lexicographic_selection.julia",
-      "kind": "structural",
-      "passed": true,
-      "detail": "selected [0.19686047402353435, 0.15009866357858642] is not the lexicographic minimum of [[0.19686047402353435, 0.15009866357858642], [0.20313952597646565, 0.15009866357858642]]"
     },
     {
       "check": "pressure[2:cylinder_min_y].rejected_candidate_is_materially_different",
@@ -1188,6 +814,12 @@
       "detail": "got ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m'], want ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m']"
     },
     {
+      "check": "pressure[3:cylinder_max_y].selector.tie_count.contract",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 2, want 2"
+    },
+    {
       "check": "pressure[3:cylinder_max_y].tie_count.python",
       "kind": "structural",
       "passed": true,
@@ -1200,30 +832,16 @@
       "detail": "got 2, want 2"
     },
     {
-      "check": "pressure[3:cylinder_max_y].vertex.selector.arity",
+      "check": "pressure[3:cylinder_max_y].selector.python_vertex_is_the_contract_vertex",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got [0.19686047402353435, 0.2499013364214136], want [0.19686047402353435, 0.2499013364214136]"
     },
     {
-      "check": "pressure[3:cylinder_max_y].vertex.selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "pressure[3:cylinder_max_y].selector.julia_vertex_is_the_contract_vertex",
+      "kind": "structural",
       "passed": true,
-      "python": 0.19686047402353435,
-      "julia": 0.19686047402353435,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
-    },
-    {
-      "check": "pressure[3:cylinder_max_y].vertex.selector.y",
-      "kind": "numeric",
-      "family": "velocity",
-      "passed": true,
-      "python": 0.2499013364214136,
-      "julia": 0.2499013364214136,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "got [0.19686047402353435, 0.2499013364214136], want [0.19686047402353435, 0.2499013364214136]"
     },
     {
       "check": "pressure[3:cylinder_max_y].p",
@@ -1248,30 +866,16 @@
       "detail": "python 2, julia 2, expected 2"
     },
     {
-      "check": "pressure[3:cylinder_max_y].candidate[0].selector.arity",
+      "check": "pressure[3:cylinder_max_y].candidate[0].selector.python",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got [0.19686047402353435, 0.2499013364214136], want [0.19686047402353435, 0.2499013364214136]"
     },
     {
-      "check": "pressure[3:cylinder_max_y].candidate[0].selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "pressure[3:cylinder_max_y].candidate[0].selector.julia",
+      "kind": "structural",
       "passed": true,
-      "python": 0.19686047402353435,
-      "julia": 0.19686047402353435,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
-    },
-    {
-      "check": "pressure[3:cylinder_max_y].candidate[0].selector.y",
-      "kind": "numeric",
-      "family": "velocity",
-      "passed": true,
-      "python": 0.2499013364214136,
-      "julia": 0.2499013364214136,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "got [0.19686047402353435, 0.2499013364214136], want [0.19686047402353435, 0.2499013364214136]"
     },
     {
       "check": "pressure[3:cylinder_max_y].candidate[0].p",
@@ -1284,30 +888,16 @@
       "limit": 1.6634146341463415e-13
     },
     {
-      "check": "pressure[3:cylinder_max_y].candidate[1].selector.arity",
+      "check": "pressure[3:cylinder_max_y].candidate[1].selector.python",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got [0.20313952597646567, 0.2499013364214136], want [0.20313952597646567, 0.2499013364214136]"
     },
     {
-      "check": "pressure[3:cylinder_max_y].candidate[1].selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "pressure[3:cylinder_max_y].candidate[1].selector.julia",
+      "kind": "structural",
       "passed": true,
-      "python": 0.20313952597646567,
-      "julia": 0.20313952597646567,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
-    },
-    {
-      "check": "pressure[3:cylinder_max_y].candidate[1].selector.y",
-      "kind": "numeric",
-      "family": "velocity",
-      "passed": true,
-      "python": 0.2499013364214136,
-      "julia": 0.2499013364214136,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "got [0.20313952597646567, 0.2499013364214136], want [0.20313952597646567, 0.2499013364214136]"
     },
     {
       "check": "pressure[3:cylinder_max_y].candidate[1].p",
@@ -1318,24 +908,6 @@
       "julia": 9.340718529737032,
       "abs_difference": 0.0,
       "limit": 1.6634146341463415e-13
-    },
-    {
-      "check": "pressure[3:cylinder_max_y].candidates_in_lexicographic_order",
-      "kind": "structural",
-      "passed": true,
-      "detail": "tie candidates must be listed in lexicographic coordinate order"
-    },
-    {
-      "check": "pressure[3:cylinder_max_y].lexicographic_selection.python",
-      "kind": "structural",
-      "passed": true,
-      "detail": "selected [0.19686047402353435, 0.2499013364214136] is not the lexicographic minimum of [[0.19686047402353435, 0.2499013364214136], [0.20313952597646567, 0.2499013364214136]]"
-    },
-    {
-      "check": "pressure[3:cylinder_max_y].lexicographic_selection.julia",
-      "kind": "structural",
-      "passed": true,
-      "detail": "selected [0.19686047402353435, 0.2499013364214136] is not the lexicographic minimum of [[0.19686047402353435, 0.2499013364214136], [0.20313952597646567, 0.2499013364214136]]"
     },
     {
       "check": "pressure[3:cylinder_max_y].rejected_candidate_is_materially_different",
@@ -1356,6 +928,12 @@
       "detail": "got ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m'], want ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m']"
     },
     {
+      "check": "pressure[4:outer_nearest_x_low_mid].selector.tie_count.contract",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
       "check": "pressure[4:outer_nearest_x_low_mid].tie_count.python",
       "kind": "structural",
       "passed": true,
@@ -1368,30 +946,16 @@
       "detail": "got 1, want 1"
     },
     {
-      "check": "pressure[4:outer_nearest_x_low_mid].vertex.selector.arity",
+      "check": "pressure[4:outer_nearest_x_low_mid].selector.python_vertex_is_the_contract_vertex",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got [0.0, 0.20000000000000004], want [0.0, 0.20000000000000004]"
     },
     {
-      "check": "pressure[4:outer_nearest_x_low_mid].vertex.selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "pressure[4:outer_nearest_x_low_mid].selector.julia_vertex_is_the_contract_vertex",
+      "kind": "structural",
       "passed": true,
-      "python": 0.0,
-      "julia": 0.0,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
-    },
-    {
-      "check": "pressure[4:outer_nearest_x_low_mid].vertex.selector.y",
-      "kind": "numeric",
-      "family": "velocity",
-      "passed": true,
-      "python": 0.20000000000000004,
-      "julia": 0.20000000000000004,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "got [0.0, 0.20000000000000004], want [0.0, 0.20000000000000004]"
     },
     {
       "check": "pressure[4:outer_nearest_x_low_mid].p",
@@ -1416,30 +980,16 @@
       "detail": "python 1, julia 1, expected 1"
     },
     {
-      "check": "pressure[4:outer_nearest_x_low_mid].candidate[0].selector.arity",
+      "check": "pressure[4:outer_nearest_x_low_mid].candidate[0].selector.python",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got [0.0, 0.20000000000000004], want [0.0, 0.20000000000000004]"
     },
     {
-      "check": "pressure[4:outer_nearest_x_low_mid].candidate[0].selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "pressure[4:outer_nearest_x_low_mid].candidate[0].selector.julia",
+      "kind": "structural",
       "passed": true,
-      "python": 0.0,
-      "julia": 0.0,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
-    },
-    {
-      "check": "pressure[4:outer_nearest_x_low_mid].candidate[0].selector.y",
-      "kind": "numeric",
-      "family": "velocity",
-      "passed": true,
-      "python": 0.20000000000000004,
-      "julia": 0.20000000000000004,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "got [0.0, 0.20000000000000004], want [0.0, 0.20000000000000004]"
     },
     {
       "check": "pressure[4:outer_nearest_x_low_mid].candidate[0].p",
@@ -1450,24 +1000,6 @@
       "julia": 19.780390332641403,
       "abs_difference": 0.0,
       "limit": 1.6634146341463415e-13
-    },
-    {
-      "check": "pressure[4:outer_nearest_x_low_mid].candidates_in_lexicographic_order",
-      "kind": "structural",
-      "passed": true,
-      "detail": "tie candidates must be listed in lexicographic coordinate order"
-    },
-    {
-      "check": "pressure[4:outer_nearest_x_low_mid].lexicographic_selection.python",
-      "kind": "structural",
-      "passed": true,
-      "detail": "selected [0.0, 0.20000000000000004] is not the lexicographic minimum of [[0.0, 0.20000000000000004]]"
-    },
-    {
-      "check": "pressure[4:outer_nearest_x_low_mid].lexicographic_selection.julia",
-      "kind": "structural",
-      "passed": true,
-      "detail": "selected [0.0, 0.20000000000000004] is not the lexicographic minimum of [[0.0, 0.20000000000000004]]"
     },
     {
       "check": "pressure[5:outer_nearest_x_high_mid].python_keys",
@@ -1482,6 +1014,12 @@
       "detail": "got ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m'], want ['exact_tie_count', 'name', 'p_Pa', 'tie_candidates', 'vertex_m']"
     },
     {
+      "check": "pressure[5:outer_nearest_x_high_mid].selector.tie_count.contract",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 1, want 1"
+    },
+    {
       "check": "pressure[5:outer_nearest_x_high_mid].tie_count.python",
       "kind": "structural",
       "passed": true,
@@ -1494,30 +1032,16 @@
       "detail": "got 1, want 1"
     },
     {
-      "check": "pressure[5:outer_nearest_x_high_mid].vertex.selector.arity",
+      "check": "pressure[5:outer_nearest_x_high_mid].selector.python_vertex_is_the_contract_vertex",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got [2.2, 0.2], want [2.2, 0.2]"
     },
     {
-      "check": "pressure[5:outer_nearest_x_high_mid].vertex.selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "pressure[5:outer_nearest_x_high_mid].selector.julia_vertex_is_the_contract_vertex",
+      "kind": "structural",
       "passed": true,
-      "python": 2.2,
-      "julia": 2.2,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
-    },
-    {
-      "check": "pressure[5:outer_nearest_x_high_mid].vertex.selector.y",
-      "kind": "numeric",
-      "family": "velocity",
-      "passed": true,
-      "python": 0.2,
-      "julia": 0.2,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "got [2.2, 0.2], want [2.2, 0.2]"
     },
     {
       "check": "pressure[5:outer_nearest_x_high_mid].p",
@@ -1542,30 +1066,16 @@
       "detail": "python 1, julia 1, expected 1"
     },
     {
-      "check": "pressure[5:outer_nearest_x_high_mid].candidate[0].selector.arity",
+      "check": "pressure[5:outer_nearest_x_high_mid].candidate[0].selector.python",
       "kind": "structural",
       "passed": true,
-      "detail": "2 vs 2"
+      "detail": "got [2.2, 0.2], want [2.2, 0.2]"
     },
     {
-      "check": "pressure[5:outer_nearest_x_high_mid].candidate[0].selector.x",
-      "kind": "numeric",
-      "family": "velocity",
+      "check": "pressure[5:outer_nearest_x_high_mid].candidate[0].selector.julia",
+      "kind": "structural",
       "passed": true,
-      "python": 2.2,
-      "julia": 2.2,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
-    },
-    {
-      "check": "pressure[5:outer_nearest_x_high_mid].candidate[0].selector.y",
-      "kind": "numeric",
-      "family": "velocity",
-      "passed": true,
-      "python": 0.2,
-      "julia": 0.2,
-      "abs_difference": 0.0,
-      "limit": 6.2e-11
+      "detail": "got [2.2, 0.2], want [2.2, 0.2]"
     },
     {
       "check": "pressure[5:outer_nearest_x_high_mid].candidate[0].p",
@@ -1576,24 +1086,6 @@
       "julia": -0.04836168726748482,
       "abs_difference": 0.0,
       "limit": 1.6634146341463415e-13
-    },
-    {
-      "check": "pressure[5:outer_nearest_x_high_mid].candidates_in_lexicographic_order",
-      "kind": "structural",
-      "passed": true,
-      "detail": "tie candidates must be listed in lexicographic coordinate order"
-    },
-    {
-      "check": "pressure[5:outer_nearest_x_high_mid].lexicographic_selection.python",
-      "kind": "structural",
-      "passed": true,
-      "detail": "selected [2.2, 0.2] is not the lexicographic minimum of [[2.2, 0.2]]"
-    },
-    {
-      "check": "pressure[5:outer_nearest_x_high_mid].lexicographic_selection.julia",
-      "kind": "structural",
-      "passed": true,
-      "detail": "selected [2.2, 0.2] is not the lexicographic minimum of [[2.2, 0.2]]"
     },
     {
       "check": "flux.python_keys",
@@ -1968,6 +1460,24 @@
       "detail": "got 54, want 54"
     },
     {
+      "check": "mesh.shared.outer_loop_vertices",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 54, want 54"
+    },
+    {
+      "check": "mesh.shared.cylinder_and_outer_vertices_partition_the_mesh",
+      "kind": "structural",
+      "passed": true,
+      "detail": "cylinder 50 + outer 54 must be all 104 vertices, with no vertex in both"
+    },
+    {
+      "check": "mesh.shared.reconstructed_cell_barycentres",
+      "kind": "structural",
+      "passed": true,
+      "detail": "got 104, want 104"
+    },
+    {
       "check": "mesh.shared.segments",
       "kind": "structural",
       "passed": true,
@@ -2133,7 +1643,7 @@
       "check": "scales.Theta_is_one_ulp_below_the_exact_decimal",
       "kind": "structural",
       "passed": true,
-      "detail": "both routes must record the binary64 Theta as exactly one ulp below 9e-5"
+      "detail": "both routes must record the binary64 Theta as exactly one ulp below the exact decimal, and below rather than above it"
     },
     {
       "check": "dofs.python.velocity_p1",
@@ -2280,19 +1790,44 @@
       "detail": "got 0.13239627651209673, want 0.13239627651209673"
     },
     {
-      "check": "residuals.roundoff_allowance",
-      "kind": "diagnostic",
+      "check": "residuals.python.true_reduced_within_own_target_plus_allowance",
+      "kind": "bounded",
       "passed": true,
-      "python": 6.469509595252338e-05,
-      "julia": 6.46950959525234e-05,
-      "ulps": 1,
-      "limit_ulps": 4
+      "value": 8.193525269074018e-38,
+      "limit": 6.469509727648615e-05,
+      "detail": "own selected target 1.3239627651209673e-12 plus own recorded roundoff allowance 6.469509595252338e-05; the bound is the frozen contract's and is evaluated against this route's own values only"
     },
     {
-      "check": "residuals.both_routes_are_far_inside_target_plus_allowance",
-      "kind": "structural",
+      "check": "residuals.python.weak_pressure_row_within_own_target_plus_allowance",
+      "kind": "bounded",
       "passed": true,
-      "detail": "each route's independently reapplied true residual must sit below its own selected target"
+      "value": 3.1420923017657965e-40,
+      "limit": 6.469509727648615e-05,
+      "detail": "own selected target 1.3239627651209673e-12 plus own recorded roundoff allowance 6.469509595252338e-05; the bound is the frozen contract's and is evaluated against this route's own values only"
+    },
+    {
+      "check": "residuals.julia.true_reduced_within_own_target_plus_allowance",
+      "kind": "bounded",
+      "passed": true,
+      "value": 5.42107235895018e-73,
+      "limit": 6.469509727648616e-05,
+      "detail": "own selected target 1.3239627651209673e-12 plus own recorded roundoff allowance 6.46950959525234e-05; the bound is the frozen contract's and is evaluated against this route's own values only"
+    },
+    {
+      "check": "residuals.julia.weak_pressure_row_within_own_target_plus_allowance",
+      "kind": "bounded",
+      "passed": true,
+      "value": 1.6218813682949727e-75,
+      "limit": 6.469509727648616e-05,
+      "detail": "own selected target 1.3239627651209673e-12 plus own recorded roundoff allowance 6.46950959525234e-05; the bound is the frozen contract's and is evaluated against this route's own values only"
+    },
+    {
+      "check": "residuals.julia.weak_pressure_row_infnorm_within_own_target_plus_allowance",
+      "kind": "bounded",
+      "passed": true,
+      "value": 8.162677594446932e-76,
+      "limit": 6.469509727648616e-05,
+      "detail": "own selected target 1.3239627651209673e-12 plus own recorded roundoff allowance 6.46950959525234e-05; the bound is the frozen contract's and is evaluated against this route's own values only"
     },
     {
       "check": "pressure_reference.python.kind",

@@ -21,9 +21,11 @@ rewriting if it would differ. It was confirmed to reproduce identically under
 three distinct `PYTHONHASHSEED` values, so no interpreter-dependent iteration
 order leaks into the frozen record.
 
-## The tolerance formula is an input, not a knob
+## Three kinds of comparison, and none borrows another's rule
 
-Every physical comparison uses exactly
+### 1. Physical observations — the precommitted tolerance formula
+
+Velocity, pressure, signed flux and reaction are compared under exactly
 
 ```text
 abs(a - b) <= absolute_floor + 2e-10 * physical_scale
@@ -36,31 +38,68 @@ abs(a - b) <= absolute_floor + 2e-10 * physical_scale
 | signed flux `m^2/s` | `2e-13` | `0.123` | `2.48e-11` | `1.721916e-41` | `1.44e+30` |
 | reaction / balance `N/m` | `2e-14` | `0.0003` | `8e-14` | `2.775558e-17` | `2.88e+03` |
 
-Two comparisons fall outside those four families, and the report labels both as
-such rather than folding them in:
+The formula, the floors and the scales are frozen inputs to this gate. An
+unsatisfiable oracle is returned with the argument, never relaxed. Nothing else
+in this directory is compared under them.
 
-- **Geometric selector coordinates** (probe targets, cell barycentres, probe
-  vertices, tie-candidate vertices) are compared under the velocity-probe
-  tolerance — the family whose selection they determine. Measured maximum
-  `1.110223e-16 m` against `6.2e-11 m`.
-- **Dimensionless solver diagnostics** (here only the roundoff allowance, which
-  the two routes evaluate at different working precisions) are compared as
-  binary64 representation agreement at `<= 4` ulp. Measured maximum `1` ulp. The
-  selected residual target, operator infinity norm, solution infinity norm and
-  reduced right-hand-side 2-norm are required to be **bit-identical**, and are.
+### 2. Geometric selectors — exact, with no tolerance at all
 
-Neither addition relaxes anything: both measured maxima are reported beside
-their limits so a reader can apply a stricter reading without rerunning.
+A probe target, a selected cell, a probe vertex and a tie candidate are frozen
+mesh geometry in metres, not measurements. They get no tolerance, and none is
+invented for them. Every one is reconstructed from
+[`../mesh/mesh.json`](../mesh/mesh.json) in `fractions.Fraction` arithmetic over
+the parsed binary64 inputs, and required to match exactly:
+
+- all 104 cell barycentres are rebuilt exactly, and the frozen contract's rule —
+  minimum squared distance from the target, ties broken by the lexicographically
+  sorted vertex-coordinate triple — is evaluated exactly to select the cell and
+  the exact tie count for each of the 5 velocity targets;
+- each route's reported barycentre is then mapped to the **unique** nearest
+  exact mesh-cell barycentre by exact squared distance, and both routes must map
+  to the contract-selected cell. Uniqueness is decided by strict inequality on
+  exact rationals, not by a margin. The two routes' approximate barycentre
+  coordinates are never compared with each other;
+- all 6 pressure selectors are rebuilt the same way — the extreme cylinder
+  vertex on each axis, then the outer-boundary vertex nearest each named point,
+  ties broken by lexicographic coordinate order — and each route's selected
+  vertex and complete tie-candidate list must equal the reconstructed set
+  bit-for-bit, in order;
+- the cell is named by its sorted vertex-coordinate triple, never by an index,
+  so the check survives renumbering exactly as the contract requires.
+
+This matters concretely: the two tied cylinder pressure vertices differ by about
+`1 Pa`, roughly `6e+12` times the pressure tolerance. Deciding a selector under
+a physical tolerance would let exactly the failure this gate exists to catch
+pass unnoticed.
+
+### 3. Residuals — per route, against each route's own bound
+
+Residuals are not cross-route observations, and this gate does not treat them as
+any. Each route is required, on its own, to satisfy the frozen contract's bound
+
+```text
+residual <= own_selected_target + own_roundoff_allowance
+```
+
+for both its independently reapplied true reduced residual and its weak
+pressure-row residual, using **that route's** selected target and **that
+route's** recorded roundoff allowance. The two routes solve at different working
+precisions, so neither their residuals nor their allowances are compared with
+each other.
+
+The quantities the two routes genuinely share are still required to be
+**bit-identical**, and are: the selected residual target, the operator infinity
+norm, the solution infinity norm and the reduced right-hand-side 2-norm.
 
 ## What is compared
 
-`291` checks — `213` structural, `77` numeric, `1` diagnostic — all passing.
+`271` checks — `227` structural, `39` numeric, `5` bounded — all passing.
 
-- all 5 velocity probes: both components, plus target and cell-barycentre
-  selectors and the tied-cell count;
-- all 6 pressure probes: value, vertex selector, exact tie count, **both**
-  two-way tie candidate sets in full, the lexicographic ordering of the
-  candidate list, and that each route selected the lexicographic minimum;
+- all 5 velocity probes: both components, plus the exactly reconstructed target,
+  cell and tie count;
+- all 6 pressure probes: value, the exactly reconstructed vertex and tie count,
+  and **both** two-way tie candidate sets in full, each candidate required to
+  equal the reconstructed candidate in the same slot;
 - signed inlet, outlet and sum flux, with inlet negative and outlet positive
   under the parent-outward normal;
 - both labelled cylinder reaction orientations, and that each route publishes
@@ -69,14 +108,15 @@ their limits so a reader can apply a stricter reading without rerunning.
 - global balance: constrained reaction, integrated body force, integrated
   applied traction, and the componentwise sum;
 - mesh counts, the complete boundary partition `14 / 2 / 38 / 50` covering all
-  104 facets exactly once, the frozen quad diagonal `O_i--I_j` and the ordered
+  104 facets exactly once, the cylinder/outer vertex partition the selector
+  reconstruction depends on, the frozen quad diagonal `O_i--I_j` and the ordered
   cell pair `(O_i,O_j,I_j)`, `(O_i,I_j,I_i)`;
 - the scale profile `L`, `U`, `P`, `G`, `Theta`, the exact-decimal `Theta`
   spelling, `mu` and `mu_hat`;
 - DOF counts `208 / 208 / 104 / 520 / 206 / 314`, zero gauge rows, 103 essential
   and 1 free velocity vertex, and cell-interior bubbles;
-- residual target, roundoff allowance, operator, right-hand-side and solution
-  scales;
+- the shared residual target, operator, right-hand-side and solution scales, and
+  each route's two residual bounds;
 - the `BoundaryTraction` pressure reference on both sides, and the absence of
   any gauge row, gauge column, gauge multiplier or `ZeroIntegral` constraint.
 
@@ -87,13 +127,23 @@ inventories and probe orders are pinned, the two routes' distinct probe label
 vocabularies are pinned separately so a third spelling cannot be absorbed by
 positional matching, and every compared value is required to be finite.
 
-Twenty-one mutations of the frozen inputs were each rejected with a non-zero
+Twenty-eight mutations of the frozen inputs were each rejected with a non-zero
 exit: a value pushed past tolerance in each of the four families; a missing
-probe; an extra probe; reordered probes; a relabelled probe; a relabelled
-route; a broken reaction negation; a renamed velocity unit key; a renamed flux
-unit key; a non-finite value; an introduced gauge row; a changed pressure
-reference; a changed mesh facet count; reordered tie candidates; a changed DOF
-count; a changed scale; a broken mesh partition; and a changed quad diagonal.
+probe; an extra probe; reordered probes; a relabelled probe; a relabelled route;
+a broken reaction negation; a renamed velocity unit key; a renamed flux unit
+key; a non-finite value; an introduced gauge row; a changed pressure reference;
+a changed mesh facet count; reordered tie candidates; a changed DOF count; a
+changed scale; a broken mesh partition; a changed quad diagonal; a pressure
+probe vertex moved by one ulp off the shared mesh; a tie candidate moved by one
+ulp off the shared mesh; a barycentre replaced by another cell's; and each
+route's true residual and weak pressure-row residual pushed one ulp past its own
+target-plus-allowance bound.
+
+Eight further mutations exercised the digest guards: appending a byte to either
+route document, to the shared mesh, or to the gate's own source is rejected both
+by `--check`, which refuses to rewrite a report whose recorded digests moved,
+and by the packaging-fidelity package check below.
+
 Those mutations were applied to throwaway copies outside the repository and are
 not part of the frozen tree.
 
@@ -113,5 +163,18 @@ solver selection both bound what may be built on it.
 
 ## Packaging fidelity
 
-`check_packaging_fidelity.py` is not part of this gate. It is the argument that
-packaging changed prose only — see [`../README.md`](../README.md).
+`check_packaging_fidelity.py` is not part of this gate, and has two modes.
+
+```bash
+python3 verify/fluid/exact-circular-hole-stokes-2d/agreement/check_packaging_fidelity.py
+```
+
+With no arguments it is **self-contained**: it recomputes the sha256 of every
+document the frozen report says it compared, requires each to equal the digest
+recorded there, and walks each frozen JSON rejecting any non-finite numeric
+leaf. It reads nothing outside this directory and resolves no git object.
+
+Given source/packaged pairs it instead runs the **historical** prose-only differ
+from packaging time — see [`../README.md`](../README.md). Those source files are
+not part of this package, no accepted evidence here depends on that mode, and
+reproducing this package in future does not require running it.
