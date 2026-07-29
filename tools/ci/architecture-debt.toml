@@ -396,17 +396,18 @@ removal = "withdraw either type, or fold the edit plan into an existing owner if
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 154
+ceiling = 155
 reason = """
 151 predate the predicate and are not yet triaged. One is deliberate: the
-geometry-definition envelope and the two v7 envelopes, added as architecture
-changes under the
-authored-geometry epic. Only the schema, encoding and digest live here; the
-region itself is an eqiora-geometry type. A wire generation costs exactly two
-names, its Model envelope and its transaction envelope, and cannot cost fewer:
-selection is explicit, so each generation is a distinct type a caller names.
+geometry-definition envelope, its explicit decoder-budget type, and the two v7
+envelopes, added as architecture changes under the authored-geometry epic. The
+validated content, canonical bytes and digest derivation live below this crate;
+the wrapper owns only artifact admission and ArtifactDigest projection. A wire
+generation costs exactly two names, its Model envelope and its transaction
+envelope, and cannot cost fewer: selection is explicit, so each generation is a
+distinct type a caller names.
 """
-removal = "lower in the lane that next splits the artifact model"
+removal = "fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
 
 [[public_surface]]
 crate = "eqiora-assembly"
@@ -466,15 +467,18 @@ ceiling = 22
 
 [[public_surface]]
 crate = "eqiora-geometry"
-ceiling = 30
+ceiling = 32
 reason = """
 Raised from 23 as an architecture change, not as drift. The seven added names
 are the authored-region vocabulary: a canonical straight-edged planar region,
 its face and named entity set, its loop alias, and the three topological
-dimension constants an entity set is written against. It is what lets a Model
-own a shape that is not a box.
+dimension constants an entity set is written against. Two more names make its
+content identity non-forgeable below artifact and semantic admission: one
+opaque canonical geometry value and its mandatory wire-work budget. Together
+they let a Model eventually own a shape that is not a box without accepting
+caller-supplied digest/fact pairs.
 """
-removal = "revisit when curved regions arrive; a second region kind should extend this vocabulary rather than duplicate it"
+removal = "when curved regions arrive, generalize the canonical value and budget in place and withdraw the v1-specific name rather than duplicating this boundary"
 
 [[public_surface]]
 crate = "eqiora-graph"

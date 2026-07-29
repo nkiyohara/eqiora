@@ -76,7 +76,7 @@ pub use external_import::{
     ExternalRuntimeComponentV1, ExternalRuntimeRoleV1, RawSourceSha256, ResolvedImportArrayV1,
     SelectedSourceEntityV1, StructuralSelectorV1,
 };
-pub use geometry_definition::GeometryDefinitionV1;
+pub use geometry_definition::{GeometryDefinitionDecoderLimits, GeometryDefinitionV1};
 pub use geometry_identity::{
     CartesianGeometryBodyV1, CartesianGeometryBoundaryV1, GeometryDecoderLimits, GeometryEntityV1,
     GeometryIdentityEnvelopeV1,

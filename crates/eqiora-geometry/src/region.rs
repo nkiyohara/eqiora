@@ -24,6 +24,7 @@
 //!   length, or related by a rigid motion are the same geometry. Identity is
 //!   the canonical form and nothing else.
 
+use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
@@ -148,9 +149,11 @@ impl PlanarRegion {
     ///
     /// Vertex order, loop rotation, loop orientation, face order and entity-set
     /// order are all normalized, so two authorings of the same region are the
-    /// same region. `tolerance_m` is the producer's coherent-SI classification
-    /// precision; it is part of geometry identity and is not mesh quality
-    /// policy.
+    /// same region. Entity-set members are already indices into the resulting
+    /// canonical vertex, edge and face enumerations; they are never interpreted
+    /// as author-relative indices or remapped. `tolerance_m` is the producer's
+    /// coherent-SI classification precision; it is part of geometry identity
+    /// and is not mesh quality policy.
     ///
     /// # Errors
     /// Returns `EQ0901` for a non-finite coordinate, an invalid tolerance, a
@@ -233,9 +236,18 @@ impl PlanarRegion {
 /// one region canonicalize identically. Coincidence is rejected rather than
 /// merged, because merging would silently change the topology the author wrote.
 fn canonical_vertices(
-    vertices: Vec<[f64; 2]>,
+    mut vertices: Vec<[f64; 2]>,
     tolerance_m: f64,
 ) -> Result<(Vec<[f64; 2]>, Vec<usize>), Diagnostic> {
+    for vertex in &mut vertices {
+        for coordinate in vertex {
+            // IEEE-754 signed zero is one geometric coordinate and therefore
+            // must have one canonical byte representation.
+            if *coordinate == 0.0 {
+                *coordinate = 0.0;
+            }
+        }
+    }
     let mut order: Vec<usize> = (0..vertices.len()).collect();
     order.sort_by(|left, right| {
         vertices[*left]
@@ -243,12 +255,10 @@ fn canonical_vertices(
             .expect("coordinates are finite")
     });
     let sorted: Vec<[f64; 2]> = order.iter().map(|index| vertices[*index]).collect();
-    for pair in sorted.windows(2) {
-        if distance(pair[0], pair[1]) <= tolerance_m {
-            return Err(invalid(
-                "geometry vertices must be separated by more than the classification tolerance",
-            ));
-        }
+    if !vertices_are_separated(&sorted, tolerance_m) {
+        return Err(invalid(
+            "geometry vertices must be separated by more than the classification tolerance",
+        ));
     }
     let mut remap = vec![0; vertices.len()];
     for (position, original) in order.iter().enumerate() {
@@ -376,9 +386,13 @@ fn canonical_entity_sets(
     face_count: usize,
 ) -> Result<Vec<NamedEntitySet>, Diagnostic> {
     let mut canonical = Vec::with_capacity(entity_sets.len());
+    let mut names = BTreeSet::new();
     for set in entity_sets {
         if set.name.trim().is_empty() {
             return Err(invalid("geometry entity set must be named"));
+        }
+        if !names.insert(set.name.clone()) {
+            return Err(invalid("geometry entity set names must be unique"));
         }
         let limit = match set.dimension {
             VERTEX_DIMENSION => vertex_count,
@@ -401,17 +415,71 @@ fn canonical_entity_sets(
     }
     canonical
         .sort_by(|left, right| (left.dimension, &left.name).cmp(&(right.dimension, &right.name)));
-    if canonical
-        .windows(2)
-        .any(|pair| pair[0].name == pair[1].name)
-    {
-        return Err(invalid("geometry entity set names must be unique"));
-    }
     Ok(canonical)
 }
 
+/// Whether every pair in an x-major lexicographically sorted point set is
+/// separated by more than `tolerance_m`.
+///
+/// Euclidean proximity implies proximity on each axis. A sweep therefore
+/// retains only the x-window that can still contain a violating point, narrows
+/// it by y in deterministic tree order, and uses overflow-safe `hypot` for the
+/// final predicate.
+fn vertices_are_separated(vertices: &[[f64; 2]], tolerance_m: f64) -> bool {
+    let mut active = BTreeSet::new();
+    let mut left = 0_usize;
+    for (index, vertex) in vertices.iter().enumerate() {
+        while left < index && vertex[0] - vertices[left][0] > tolerance_m {
+            active.remove(&(TotalF64::new(vertices[left][1]), left));
+            left += 1;
+        }
+        let lower = TotalF64::new(vertex[1] - tolerance_m);
+        let upper = TotalF64::new(vertex[1] + tolerance_m);
+        if active
+            .range((lower, 0)..=(upper, usize::MAX))
+            .any(|(_, candidate)| distance(*vertex, vertices[*candidate]) <= tolerance_m)
+        {
+            return false;
+        }
+        active.insert((TotalF64::new(vertex[1]), index));
+    }
+    true
+}
+
+#[derive(Clone, Copy, Debug)]
+struct TotalF64(f64);
+
+impl TotalF64 {
+    /// Keep numerical zero one ordering key even when arithmetic produces
+    /// either IEEE-754 sign. Canonical vertices already normalize signed zero;
+    /// this keeps the private sweep correct independently of that caller.
+    fn new(value: f64) -> Self {
+        Self(value + 0.0)
+    }
+}
+
+impl PartialEq for TotalF64 {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.total_cmp(&other.0) == Ordering::Equal
+    }
+}
+
+impl Eq for TotalF64 {}
+
+impl PartialOrd for TotalF64 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for TotalF64 {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.total_cmp(&other.0)
+    }
+}
+
 fn distance(left: [f64; 2], right: [f64; 2]) -> f64 {
-    ((left[0] - right[0]).powi(2) + (left[1] - right[1]).powi(2)).sqrt()
+    (left[0] - right[0]).hypot(left[1] - right[1])
 }
 
 /// Twice the signed area, positive when the loop runs counter-clockwise.
@@ -583,6 +651,99 @@ mod tests {
     }
 
     #[test]
+    fn entity_set_members_are_indices_in_the_canonical_primitive_enumeration() {
+        let sets = || {
+            vec![
+                NamedEntitySet::new("v", VERTEX_DIMENSION, vec![2]),
+                NamedEntitySet::new("e", EDGE_DIMENSION, vec![5]),
+                NamedEntitySet::new("f", FACE_DIMENSION, vec![0]),
+            ]
+        };
+        let authored = PlanarRegion::new(
+            vec![
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [1.0, 1.0],
+                [0.0, 1.0],
+                [0.25, 0.25],
+                [0.75, 0.25],
+                [0.75, 0.75],
+                [0.25, 0.75],
+            ],
+            vec![PlanarFace::new(vec![0, 1, 2, 3], vec![vec![4, 5, 6, 7]])],
+            sets(),
+            0.0625,
+        )
+        .expect("first authoring");
+        let permuted = PlanarRegion::new(
+            vec![
+                [0.75, 0.75],
+                [0.0, 1.0],
+                [1.0, 1.0],
+                [0.25, 0.25],
+                [1.0, 0.0],
+                [0.75, 0.25],
+                [0.0, 0.0],
+                [0.25, 0.75],
+            ],
+            vec![PlanarFace::new(vec![2, 4, 6, 1], vec![vec![3, 7, 0, 5]])],
+            sets(),
+            0.0625,
+        )
+        .expect("permuted authoring");
+
+        assert_eq!(authored, permuted);
+        for name in ["v", "e", "f"] {
+            assert_eq!(
+                authored.entity_set(name).unwrap().members(),
+                permuted.entity_set(name).unwrap().members()
+            );
+        }
+        assert_eq!(authored.entity_set("v").unwrap().members(), [2]);
+        assert_eq!(authored.vertices()[2], [0.25, 0.25]);
+        assert_eq!(authored.entity_set("e").unwrap().members(), [5]);
+        let hole = &authored.faces()[0].holes()[0];
+        assert_eq!((hole[1], hole[2]), (3, 5));
+        assert_eq!(authored.entity_set("f").unwrap().members(), [0]);
+        assert_eq!(authored.faces()[0].outer(), [0, 6, 7, 1]);
+    }
+
+    #[test]
+    fn entity_set_names_are_unique_across_every_dimension() {
+        let pairs = [
+            (VERTEX_DIMENSION, EDGE_DIMENSION),
+            (EDGE_DIMENSION, FACE_DIMENSION),
+            (VERTEX_DIMENSION, FACE_DIMENSION),
+            (EDGE_DIMENSION, EDGE_DIMENSION),
+        ];
+        for (left_dimension, right_dimension) in pairs {
+            for reverse in [false, true] {
+                let duplicate = NamedEntitySet::new("same", left_dimension, vec![0]);
+                let other = NamedEntitySet::new("same", right_dimension, vec![0]);
+                let distinct = NamedEntitySet::new("middle", EDGE_DIMENSION, vec![1]);
+                let sets = if reverse {
+                    vec![other, distinct, duplicate]
+                } else {
+                    vec![duplicate, distinct, other]
+                };
+                let result = PlanarRegion::new(
+                    vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+                    vec![PlanarFace::new(vec![0, 1, 2, 3], Vec::new())],
+                    sets,
+                    0.0625,
+                );
+                assert!(
+                    result
+                        .unwrap_err()
+                        .message()
+                        .contains("names must be unique"),
+                    "dimensions ({left_dimension}, {right_dimension}), reverse={reverse}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn a_self_intersecting_loop_is_rejected() {
         // Asymmetric on purpose. A symmetric bowtie has zero signed area and is
         // caught by the degeneracy check first, which would leave the
@@ -636,6 +797,91 @@ mod tests {
                 .message()
                 .contains("classification tolerance")
         );
+    }
+
+    #[test]
+    fn separation_sweep_matches_the_independent_all_pairs_oracle() {
+        fn sweep(mut vertices: Vec<[f64; 2]>, tolerance_m: f64) -> bool {
+            vertices.sort_by(|left, right| left.partial_cmp(right).unwrap());
+            vertices_are_separated(&vertices, tolerance_m)
+        }
+
+        fn brute_force(vertices: &[[f64; 2]], tolerance_m: f64) -> bool {
+            vertices.iter().enumerate().all(|(left, first)| {
+                vertices
+                    .iter()
+                    .skip(left + 1)
+                    .all(|second| distance(*first, *second) > tolerance_m)
+            })
+        }
+
+        let fixed = [
+            (vec![[0.0, 0.0], [0.0, 1.0], [0.03125, 0.0]], 0.0625, false),
+            (vec![[0.0, 0.0], [0.0625, 0.0]], 0.0625, false),
+            (vec![[0.0, 0.0], [0.125, 0.0]], 0.0625, true),
+            (vec![[0.0, 0.0], [-0.0, 0.0]], 0.0625, false),
+            (vec![[0.0, -0.0], [0.0, 0.0625], [1.0, 0.0]], 0.0625, false),
+            (vec![[0.0, 0.0], [0.0, -0.0625], [1.0, -0.0]], 0.0625, false),
+            (vec![[1.0e308, 0.0], [-1.0e308, 0.0]], 1.0, true),
+            (vec![[0.0, 0.0], [f64::from_bits(1), 0.0]], 1.0e-300, false),
+            (vec![[0.0, 0.0], [1.0e-200, 1.0e-200]], 1.0e-250, true),
+        ];
+        for (vertices, tolerance_m, expected) in fixed {
+            assert_eq!(sweep(vertices.clone(), tolerance_m), expected);
+            assert_eq!(brute_force(&vertices, tolerance_m), expected);
+        }
+
+        fn xorshift64(state: &mut u64) -> u64 {
+            *state ^= *state << 13;
+            *state ^= *state >> 7;
+            *state ^= *state << 17;
+            *state
+        }
+
+        fn lattice_coordinate(state: &mut u64) -> f64 {
+            let draw = xorshift64(state);
+            let value = ((draw % 256) as i64 - 128) as f64 / 64.0;
+            if value == 0.0 && (draw >> 32) & 1 == 0 {
+                -0.0
+            } else {
+                value
+            }
+        }
+
+        for seed in 1_u64..=512 {
+            let mut state = seed;
+            let tolerance_m =
+                [1.0 / 64.0, 1.0 / 32.0, 1.0 / 16.0][(xorshift64(&mut state) % 3) as usize];
+            let vertices = (0..64)
+                .map(|_| {
+                    [
+                        lattice_coordinate(&mut state),
+                        lattice_coordinate(&mut state),
+                    ]
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                sweep(vertices.clone(), tolerance_m),
+                brute_force(&vertices, tolerance_m),
+                "seed {seed}, tolerance {tolerance_m}"
+            );
+        }
+    }
+
+    #[test]
+    fn negative_zero_has_one_canonical_coordinate_identity() {
+        let region = PlanarRegion::new(
+            vec![[-0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+            vec![PlanarFace::new(vec![0, 1, 2, 3], Vec::new())],
+            vec![NamedEntitySet::new(
+                "edges",
+                EDGE_DIMENSION,
+                vec![0, 1, 2, 3],
+            )],
+            0.0625,
+        )
+        .unwrap();
+        assert_eq!(region.vertices()[0][0].to_bits(), 0.0_f64.to_bits());
     }
 
     #[test]

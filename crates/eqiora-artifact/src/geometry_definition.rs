@@ -1,9 +1,8 @@
 //! Content identity of one authored continuous geometry.
 //!
-//! The region itself lives in [`eqiora_geometry::PlanarRegion`], which owns its
-//! topology, embedding, canonical form and validation. This module owns only
-//! what makes it an artifact: a schema, a canonical encoding, and a
-//! domain-separated digest a Model can reference.
+//! [`eqiora_geometry::CanonicalGeometryV1`] owns the validated content,
+//! canonical bytes, and domain-separated identity. This module supplies the
+//! artifact admission budget and the repository-wide [`ArtifactDigest`] view.
 //!
 //! That split follows the one already drawn by
 //! [`GeometryIdentityEnvelopeV1`](crate::GeometryIdentityEnvelopeV1), whose
@@ -11,17 +10,36 @@
 //! shape is; this crate decides what naming one costs.
 
 use eqiora_core::Diagnostic;
-use eqiora_geometry::{NamedEntitySet, PlanarFace, PlanarRegion};
-use serde::{Deserialize, Serialize};
+use eqiora_geometry::{CanonicalGeometryLimits, CanonicalGeometryV1, PlanarRegion};
 
-use crate::{ArtifactDigest, CANONICAL_ENCODING, invalid_artifact};
+use crate::{ArtifactDigest, JsonDecoderLimits, check_json_limits};
 
-const GEOMETRY_DEFINITION_SCHEMA: &str = "eqiora.geometry-definition-envelope/v1";
+/// Admission budgets for one authored planar geometry artifact.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GeometryDefinitionDecoderLimits {
+    /// Common JSON byte and nesting admission.
+    pub json: JsonDecoderLimits,
+    /// Geometry-specific byte, entity, and membership budgets.
+    pub geometry: CanonicalGeometryLimits,
+}
+
+impl Default for GeometryDefinitionDecoderLimits {
+    fn default() -> Self {
+        let geometry = CanonicalGeometryLimits::default();
+        Self {
+            json: JsonDecoderLimits {
+                max_bytes: geometry.max_bytes,
+                ..JsonDecoderLimits::default()
+            },
+            geometry,
+        }
+    }
+}
 
 /// A content-addressed authored geometry.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeometryDefinitionV1 {
-    wire: WireGeometryDefinitionV1,
+    inner: CanonicalGeometryV1,
 }
 
 impl GeometryDefinitionV1 {
@@ -31,134 +49,68 @@ impl GeometryDefinitionV1 {
     /// invalid, so this cannot fail.
     #[must_use]
     pub fn from_region(region: &PlanarRegion) -> Self {
+        // PlanarRegion has already rejected non-finite values, the only
+        // content for which serde_json's finite-number serializer can fail.
         Self {
-            wire: WireGeometryDefinitionV1 {
-                schema: GEOMETRY_DEFINITION_SCHEMA.to_owned(),
-                encoding: CANONICAL_ENCODING.to_owned(),
-                kind: WireGeometryKind::StraightEdgedPlanarV1,
-                length_unit: WireLengthUnit::Metre,
-                tolerance_m: region.tolerance_m(),
-                vertices: region.vertices().to_vec(),
-                faces: region
-                    .faces()
-                    .iter()
-                    .map(|face| WireFace {
-                        outer: face.outer().to_vec(),
-                        holes: face.holes().to_vec(),
-                    })
-                    .collect(),
-                entity_sets: region
-                    .entity_sets()
-                    .iter()
-                    .map(|set| WireEntitySet {
-                        name: set.name().to_owned(),
-                        dimension: set.dimension(),
-                        members: set.members().to_vec(),
-                    })
-                    .collect(),
-            },
+            inner: CanonicalGeometryV1::from_region(region)
+                .expect("a validated planar region always has canonical JSON"),
         }
     }
 
-    /// Replay the region this artifact encodes.
+    /// Decode externally supplied canonical geometry JSON under explicit
+    /// syntax and geometry-work budgets.
     ///
-    /// Decoding revalidates rather than trusting the bytes, so an artifact
-    /// edited after it was written cannot re-enter as a region.
+    /// The decoded wire is revalidated as a [`PlanarRegion`] and re-encoded.
+    /// The input is admitted only when those reconstructed bytes equal it
+    /// exactly, so one geometry cannot acquire a second artifact identity.
     ///
     /// # Errors
-    /// Returns `EQ0901` for an unsupported schema, encoding, kind or unit, or
-    /// for any content [`PlanarRegion`] refuses.
+    /// Returns `EQ0901` for malformed, unknown, oversized, invalid, or
+    /// noncanonical data.
+    pub fn from_json(
+        bytes: &[u8],
+        limits: GeometryDefinitionDecoderLimits,
+    ) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.json)?;
+        Ok(Self {
+            inner: CanonicalGeometryV1::decode_canonical(bytes, limits.geometry)?,
+        })
+    }
+
+    /// Replay the validated region this artifact encodes.
+    ///
+    /// # Errors
+    /// This preserved signature cannot fail for a constructed artifact.
     pub fn region(&self) -> Result<PlanarRegion, Diagnostic> {
-        if self.wire.schema != GEOMETRY_DEFINITION_SCHEMA
-            || self.wire.encoding != CANONICAL_ENCODING
-            || self.wire.kind != WireGeometryKind::StraightEdgedPlanarV1
-            || self.wire.length_unit != WireLengthUnit::Metre
-        {
-            return Err(invalid_artifact(
-                "unsupported geometry definition schema, encoding, kind, or unit",
-            ));
-        }
-        PlanarRegion::new(
-            self.wire.vertices.clone(),
-            self.wire
-                .faces
-                .iter()
-                .map(|face| PlanarFace::new(face.outer.clone(), face.holes.clone()))
-                .collect(),
-            self.wire
-                .entity_sets
-                .iter()
-                .map(|set| NamedEntitySet::new(&set.name, set.dimension, set.members.clone()))
-                .collect(),
-            self.wire.tolerance_m,
-        )
+        Ok(self.inner.region().clone())
     }
 
     /// Canonical encoding of this geometry.
     ///
     /// # Errors
-    /// Returns `EQ0901` if canonical serialization fails.
+    /// This preserved signature cannot fail for a constructed artifact.
     pub fn canonical_json(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&self.wire).map_err(|error| {
-            invalid_artifact(format!("cannot serialize geometry definition: {error}"))
-        })
+        Ok(self.inner.canonical_bytes().to_vec())
     }
 
     /// Domain-separated content identity of this exact geometry.
     ///
     /// # Errors
-    /// Returns `EQ0901` if canonical serialization fails.
+    /// This preserved signature cannot fail for a constructed artifact.
     pub fn digest(&self) -> Result<ArtifactDigest, Diagnostic> {
-        Ok(ArtifactDigest::compute(
-            GEOMETRY_DEFINITION_SCHEMA.as_bytes(),
-            &self.canonical_json()?,
-        ))
+        Ok(ArtifactDigest::from_sha256(self.inner.digest_bytes()))
     }
-}
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-struct WireGeometryDefinitionV1 {
-    schema: String,
-    encoding: String,
-    kind: WireGeometryKind,
-    length_unit: WireLengthUnit,
-    tolerance_m: f64,
-    vertices: Vec<[f64; 2]>,
-    faces: Vec<WireFace>,
-    entity_sets: Vec<WireEntitySet>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireGeometryKind {
-    StraightEdgedPlanarV1,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireLengthUnit {
-    Metre,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-struct WireFace {
-    outer: Vec<usize>,
-    holes: Vec<Vec<usize>>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-struct WireEntitySet {
-    name: String,
-    dimension: usize,
-    members: Vec<usize>,
+    /// Lower-layer canonical content consumed by later admission.
+    #[must_use]
+    pub const fn canonical(&self) -> &CanonicalGeometryV1 {
+        &self.inner
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use eqiora_geometry::{EDGE_DIMENSION, FACE_DIMENSION};
+    use eqiora_geometry::{EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet, PlanarFace};
 
     use super::*;
 
@@ -232,30 +184,11 @@ mod tests {
     }
 
     #[test]
-    fn a_tampered_artifact_is_refused_rather_than_replayed() {
-        let mut artifact = GeometryDefinitionV1::from_region(&square_with_hole());
-        artifact.wire.faces[0].holes.clear();
-        // The entity sets still name the hole's four edges, which the region
-        // no longer has, so replay must refuse rather than silently shrink.
-        assert!(
-            artifact
-                .region()
-                .unwrap_err()
-                .message()
-                .contains("does not exist")
-        );
-    }
-
-    #[test]
-    fn an_unsupported_schema_is_refused() {
-        let mut artifact = GeometryDefinitionV1::from_region(&filled_square());
-        artifact.wire.schema = "eqiora.geometry-definition-envelope/v2".to_owned();
-        assert!(
-            artifact
-                .region()
-                .unwrap_err()
-                .message()
-                .contains("unsupported geometry definition")
+    fn lower_identity_is_the_artifact_identity() {
+        let artifact = GeometryDefinitionV1::from_region(&square_with_hole());
+        assert_eq!(
+            artifact.digest().unwrap().sha256_bytes(),
+            artifact.canonical().digest_bytes()
         );
     }
 }
