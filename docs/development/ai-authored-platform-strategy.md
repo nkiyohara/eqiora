@@ -292,38 +292,48 @@ checks.
 
 ## Division of labor
 
-Two agents, divided by **invariant ownership and oracle independence** rather
-than by task type. One writer per central seam; an independent verifier; one
-integrator per slice.
+Three agents, divided by **invariant ownership, observed failure mode, and
+oracle independence** rather than a static task taxonomy. One writer owns each
+central seam; a different model family supplies the independent verifier; one
+integrator owns acceptance per slice.
 
-### What each agent is actually good at
+### Routing from evidence, not reputation
 
-Assignment follows measured and reported strengths rather than a guess, and the
-first slice confirmed both profiles in practice.
+Anthropic describes [Fable 5](https://www.anthropic.com/claude/fable) as its
+highest-capability generally available model for long-running agents and
+[Opus 5](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model)
+as the lower-cost choice for complex agentic coding. Those are starting priors,
+not repository evidence. Eqiora routes work from failures observed on its own
+contracts:
 
-| | Claude (Opus 5) | Codex (GPT-5.6 Sol) |
-| --- | --- | --- |
-| Agentic coding | SWE-bench Pro 79.2%, Frontier-Bench 43.3% | 64.6%, 34.4% |
-| Novel reasoning | ARC-AGI-3 30.2% | 7.8% |
-| Long implementation runs | — | stays oriented, follows more requirements, finishes unglamorous work |
-| Work with a settled shape | — | strongest here; rewards precise prompts, punishes vague ones |
-| Ambiguous judgment, multiple defensible paths | strongest here | reported weakness |
-| Acting beyond what was asked | — | reported tendency; constrain with explicit write-path allowlists |
+| Agent | Strong observed use | Failure mode to guard | Default brief |
+| --- | --- | --- | --- |
+| Claude Opus 5 | bounded analytic/numerical derivation; refusing an ambiguous oracle rather than guessing; plausible-mutant search | successive review passes may reveal a new mutant each time; a broad implementation may produce substantial surface code before proving its live producer and lineage | complete frozen specification, writable-path allowlist, hard scope/length limit, precommitted probes, exact terminal verdict |
+| Claude Fable 5 | provisional escalation for the hardest long-horizon, cross-cutting, UI/vision, and review-convergence work; official capability lead, with Eqiora outcomes recorded as they land | higher cost and no exemption from independent evidence; safety routing or refusal must fail closed | whole goal plus invariant owner, live consumer, nonclaims, stop conditions, visual/runtime oracle, and repository gate |
+| Codex GPT-5.6 Sol | contract ownership; navigation through existing architecture; live end-to-end lineage; integration and complete repository gates | may widen authority or continue beyond an underspecified boundary unless ownership and write paths are explicit | goal, context, authority, constraints, done-when, integration-owned paths, and exact verification path |
 
-The first slice matched this exactly: a contract with unstated tolerances and
-rule IDs was correctly refused, and the same contract stated precisely was
-implemented without further questions.
+The routing rule is operational:
 
-Two consequences:
+1. Give Opus a bounded route when inputs, outputs, and stop conditions are
+   frozen. Its independent derivation and mutation search remain valuable even
+   when a first implementation attempt would be too open-ended.
+2. Escalate to Fable when the task crosses several ownership seams, needs
+   rendered/visual judgment, must sustain a long implementation, or a bounded
+   Opus review returns successive newly discovered mutants instead of
+   converging. Do not use Fable merely to repeat an unchanged prompt.
+3. Keep Codex on contract ownership and integration, and prefer it for a
+   settled slice whose main risk is losing the live Model--Realization--Run--
+   consumer lineage while navigating existing code.
+4. Re-evaluate these priors after concrete Eqiora outcomes. One successful or
+   failed run changes a probe, not a permanent model label.
 
-1. **Contract design, oracle derivation, and any decision with several
-   defensible answers belong to Claude.** Deriving a falsifier from first
-   principles is novel reasoning, which is the widest measured gap.
-2. **Implementation is not Codex-only.** Claude is the stronger agentic coder,
-   so both implement. Oracle independence is preserved by *cross-assignment*
-   rather than by role: **whoever implements a lane, the other agent writes its
-   falsifier and reviews it.** Lanes run in parallel when their writable paths
-   are disjoint.
+Implementation is not assigned exclusively to any model. Oracle independence
+is preserved by cross-assignment: whoever implements, another provider lineage
+derives the falsifier and reviews the complete diff. **Provider lineage** means
+the model family behind the service: Fable and Opus are both Claude; Codex/GPT
+is separate. A slice writer owns neither route of its dual oracle. Disjoint
+read-only lanes may run in parallel; disjoint writable lanes additionally
+require frozen contracts.
 
 Cross-assignment is symmetric and has no exemption for the integrator. The
 first slice violated this in one direction: Codex's implementation was reviewed
@@ -334,32 +344,22 @@ acceptance decision is the one for whom self-acceptance costs nothing, so the
 rule has to bind hardest exactly there. A brief review is enough; skipping it
 is not.
 
-Codex prompts must carry an explicit allowlist of writable paths and an
-explicit list of integration-owned paths, because acting beyond the request is
-a reported failure mode rather than a hypothetical one.
+Codex prompts carry explicit writable and integration-owned path lists. Claude
+prompts carry the same lists when they write; model capability never broadens
+authority.
 
-### What the billing models imply
+### What model cost implies
 
-The two agents are metered differently, and that difference — not preference —
-decides the granularity of a request.
+Anthropic currently prices Fable 5 at twice Opus 5 per token. Cost decides
+which already-qualified lane gets the stronger escalation, never whether a
+claim receives independent evidence. Opus is the ordinary bounded Claude lane;
+Fable is the capability-first escalation above. Codex remains suited to fewer,
+larger integration units under its different metering. Recheck current
+availability and pricing rather than preserving them as architecture.
 
-| | Claude (Max 20x) | Codex (Pro) |
-| --- | --- | --- |
-| Metering | five-hour rolling window plus weekly caps | credits, roughly one task at 5–45 |
-| Cheap shape | many small exchanges | few large, long-running ones |
-| Expensive shape | long single turns that idle | chatty round trips |
-
-So Claude carries the high-frequency work — exploration, verification,
-integration, oracle derivation, review, coordination — and may fan out many
-parallel subagents. Codex carries a small number of large units: central
-implementation, sustained autonomous runs, adversarial review.
-
-**An implementation request to Codex goes out only against a fully frozen
-contract.** Iterating a vague contract by round trip is the expensive shape,
-and it has already cost one full cycle: a contract missing tolerances and rule
-IDs was correctly refused rather than guessed at. Adversarial review of a
-*contract* is exempt — that is itself a large-grained task and does not need
-the contract settled first.
+An implementation request to any model goes out only against a fully frozen
+contract. Adversarial review of the contract is exempt: discovering what must
+be frozen is the bounded output of that lane.
 
 ### Agreed execution order
 
@@ -381,17 +381,15 @@ progress.
 5. **Demos of capabilities that already carry registered evidence.** No new
    hand-written physics; a demo never justifies a new formula site.
 
-| Phase | Claude — integrator and oracle | Codex — central implementation |
+| Phase | Owner | Independent route |
 | --- | --- | --- |
-| Contract | Freeze the claim, nonclaims, roles, derivation rules, stop condition, and API budget. Refresh the Issue queue; identify registration deltas. | Adversarially review whether the contract travels through existing Kernel, Realization, basis, quadrature, and assembly types. Do not create a competing central type. |
-| Oracle | Derive analytic values, signs, boundary terms, mutants, and thresholds **before** reading implementation details. | Do not author or tune expected values. Challenge them through independently run results. |
-| Implementation | Do not edit the form module concurrently. Hold integration context; resolve contract questions. | Sole writer. Run sustained build, test, Clippy, and rustdoc loops, plus `local_verify.py fast` and explicit `--case` runs. |
-| Evidence lane | After acceptance, own fixture prose, the public orientation path, capability-matrix wording, and cross-lane registration. | Supply proposed export, manifest, case, and matrix deltas. Do not edit integration-owned registries. |
-| Acceptance | Rebase to the accepted revision, run `local_verify.py affected`, review the full diff against the pre-committed oracle, retain merge authority. | Review signs, index ordering, transpose behavior, parameter roles, and resource bounds. Return anomalies; never self-accept. |
+| Contract | The per-slice contract owner, normally Codex, freezes claim, nonclaims, live consumer, derivation rules, stop condition, API budget, and registration deltas. | A non-writing route challenges bounded scientific ambiguity and cross-seam architecture before the writer is selected. |
+| Oracle | Independent agents from a provider lineage other than the intended writer derive values, signs, mutants, and thresholds before reading implementation. The slice writer owns neither route of a dual oracle. | The contract owner checks that the oracle binds the executable seam without authoring or tuning expected values. |
+| Implementation | Codex owns the settled existing-architecture path; Fable owns an escalated long-horizon or visual path; Opus may own a narrow fully frozen path. | One writer owns the seam; another provider lineage owns its falsifier and complete-diff review. |
+| Acceptance | The per-slice integrator rebases, runs `local_verify.py affected`, and audits registrations and environment limitations. It may merge only after the independent review at right accepts the exact final head. | A non-writing agent from another provider lineage checks signs, indices, lineage, visual/runtime output where applicable, and every precommitted falsifier. |
 
-If the contract proves insufficient, Codex stops and returns the missing
-requirement; Claude updates and re-accepts the contract before implementation
-resumes.
+If the contract proves insufficient, the writer returns the missing requirement;
+the contract owner re-freezes it before implementation resumes.
 
 ## What this document does not claim
 
