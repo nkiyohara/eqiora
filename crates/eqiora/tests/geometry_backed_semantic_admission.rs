@@ -499,13 +499,18 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
 
     let geometry = circular_hole_witness();
     let reference = CanonicalGeometryRef::from(&geometry);
+    let normal_bits = |name| {
+        reference
+            .constant_parent_outward_normal(name)
+            .map(|normal| normal.map(f64::to_bits))
+    };
     assert_eq!(
-        reference.constant_parent_outward_normal("inlet"),
-        Some([-1.0, 0.0])
+        normal_bits("inlet"),
+        Some([(-1.0f64).to_bits(), 0.0f64.to_bits()])
     );
     assert_eq!(
-        reference.constant_parent_outward_normal("outlet"),
-        Some([1.0, 0.0])
+        normal_bits("outlet"),
+        Some([1.0f64.to_bits(), 0.0f64.to_bits()])
     );
     assert_eq!(reference.constant_parent_outward_normal("walls"), None);
     assert_eq!(reference.constant_parent_outward_normal("cylinder"), None);
@@ -523,6 +528,38 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
     assert_eq!(
         CanonicalGeometryRef::from(&multi_edge_inlet).constant_parent_outward_normal("inlet"),
         None
+    );
+
+    let renamed_sides = circular_hole_with(
+        [[0.0, 2.2], [0.0, 0.41]],
+        [0.2, 0.2],
+        0.05,
+        vec![
+            NamedEntitySet::new("left", EDGE_DIMENSION, vec![0]),
+            NamedEntitySet::new("right", EDGE_DIMENSION, vec![1]),
+            NamedEntitySet::new("cylinder", EDGE_DIMENSION, vec![0]),
+        ],
+        1.0e-12,
+    )
+    .expect("exact side identity does not depend on an author-supplied set name");
+    let renamed_reference = CanonicalGeometryRef::from(&renamed_sides);
+    assert_eq!(
+        renamed_reference
+            .constant_parent_outward_normal("left")
+            .map(|normal| normal.map(f64::to_bits)),
+        Some([(-1.0f64).to_bits(), 0.0f64.to_bits()])
+    );
+    assert_eq!(
+        renamed_reference
+            .constant_parent_outward_normal("right")
+            .map(|normal| normal.map(f64::to_bits)),
+        Some([1.0f64.to_bits(), 0.0f64.to_bits()])
+    );
+    assert_eq!(
+        renamed_reference
+            .constant_parent_outward_normal("cylinder")
+            .map(|normal| normal.map(f64::to_bits)),
+        Some([(-1.0f64).to_bits(), 0.0f64.to_bits()])
     );
 
     let straight_edged = square_with_hole();

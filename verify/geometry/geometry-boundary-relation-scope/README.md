@@ -10,8 +10,10 @@ A continuous Relation may be scoped to a `GeometryBoundary` Domain when, and
 only when, its `BoundaryOf` parent is an admitted `GeometryRegion` and its named
 entity set is resolved against **that exact parent artifact** with dimension
 `topological_dimension - 1`. For the exact circular-hole family only, the
-single-edge `inlet` and `outlet` sets project their exact constant
-parent-outward unit normals `[-1.0, 0.0]` and `[1.0, 0.0]`.
+single-member x-lower and x-upper sets project their exact constant
+parent-outward unit normals `[-1.0, 0.0]` and `[1.0, 0.0]`, independent of
+their author-supplied names. The DFG witness names those sets `inlet` and
+`outlet`.
 
 Boundary-physical Ports on geometry Domains keep their existing rejection.
 
@@ -113,7 +115,8 @@ apply this delta in the same change that first touches this tree.
    whose README states that no accepted consumer observes boundary support.
 3. Add the capability-matrix row.
 
-Until step 2 happens, the repository holds two contradictory registered claims.
+Before step 2 happened, the repository held two contradictory registered
+claims.
 
 Step 1 is therefore something the oracle must survive, not forbid. It replays in
 both states and reports which one it saw: `registration=frozen-before-registration`

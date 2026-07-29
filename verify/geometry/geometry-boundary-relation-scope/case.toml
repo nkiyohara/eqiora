@@ -6,13 +6,13 @@ reference_kind = "independent-symbolic-parent-relative-admission-and-normal-rule
 capabilities = [
   "admitted-geometry-boundary-relation-scope",
   "parent-relative-boundary-entity-set-resolution",
-  "exact-circular-hole-inlet-outlet-constant-normal-projection",
+  "exact-circular-hole-x-lower-x-upper-constant-normal-projection",
 ]
 
 [problem]
 relation = "one continuous Relation scoped to an admitted GeometryBoundary"
 parent = "the exact GeometryRegion and artifact selected by BoundaryOf"
-normals = "exact circular-hole family inlet [-1.0, 0.0] and outlet [1.0, 0.0]"
+normals = "exact circular-hole family single-member x-lower [-1.0, 0.0] and x-upper [1.0, 0.0] sets; the witness names them inlet and outlet"
 
 [oracle]
 source = "standalone symbolic Python rule model authored before production implementation"
@@ -26,8 +26,8 @@ rejected = 7
 relation_scope_requires_exact_parent_artifact_admission = true
 entity_set_dimension_is_parent_topological_dimension_minus_one = true
 artifact_bundle_order_independent = true
-inlet_parent_outward_normal = "[-1.0, 0.0]"
-outlet_parent_outward_normal = "[1.0, 0.0]"
+x_lower_parent_outward_normal = "[-1.0, 0.0]"
+x_upper_parent_outward_normal = "[1.0, 0.0]"
 
 [falsifiers]
 absent_foreign_or_wrong_dimension_set = "reject-with-existing-EQ0302"
@@ -36,13 +36,13 @@ missing_parent_artifact = "reject-with-existing-EQ0901"
 artifact_free_relation = "reject-with-unchanged-EQ0302-text"
 geometry_boundary_physical_port = "reject-with-unchanged-EQ0302-text"
 multi_edge_walls = "accept-relation-without-single-normal"
-curved_cylinder = "accept-relation-without-single-normal"
+curved_cylinder_in_witness = "accept-relation-without-single-normal"
 straight_edged_family = "accept-relation-without-single-normal"
 
 [claim_boundary]
 continuous_relation_scope = true
 exact_parent_relative_entity_set_admission = true
-exact_circular_hole_inlet_outlet_normals = true
+exact_circular_hole_x_lower_x_upper_normals = true
 geometry_boundary_physical_port = false
 general_boundary_embedding = false
 circular_multi_edge_or_per_member_normal_catalogue = false
