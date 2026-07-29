@@ -4,9 +4,8 @@ No frozen decimal solution table is required. Tests require analytic solution
 agreement, accepted true residuals under the declared plan, and fail-closed
 capability behavior.
 
-`sparse-lu-contract.json` is the one exception, and it belongs to a capability
-this case does not yet claim. It is the frozen exact-rational fixture for the
-`SparseLu` algorithm proposed in
+`sparse-lu-contract.json` is the one exception. It is the frozen exact-rational
+fixture consumed by this case for the `SparseLu` algorithm introduced through
 [Issue #126](https://github.com/nkiyohara/eqiora/issues/126), committed ahead of
 implementation by a non-implementing author.
 

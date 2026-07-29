@@ -10,12 +10,12 @@ provides the production CG and BiCGSTAB algorithms behind the isolated adapter:
 Eqiora recomputes the accepted true residual independently of faer's recursive
 residual estimate.
 
-## Pre-committed, not yet claimed
+## Pre-committed sparse-LU oracle
 
 [`sparse-lu-oracle.md`](sparse-lu-oracle.md) documents the frozen exact-rational
-oracle for the `SparseLu` direct algorithm proposed in
+oracle consumed by this case for the `SparseLu` direct algorithm introduced through
 [Issue #126](https://github.com/nkiyohara/eqiora/issues/126). Its provenance is
-different in kind from the references above: it is not a description of an
-algorithm this case executes, but evidence committed before the implementation
-exists, by an author who read no implementation. That reference states the
-authoring boundary, the fixture digest, and the nonclaims.
+different in kind from the references above: it was committed before the
+implementation existed, by an author who read no implementation, and now fixes
+the values and falsifiers consumed by the registered Rust target. That reference
+states the authoring boundary, the fixture digest, and the nonclaims.

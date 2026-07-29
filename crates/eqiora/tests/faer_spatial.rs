@@ -272,12 +272,17 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
         .iter()
         .find(|case| case.id == "principal-positive-solve")
         .unwrap();
+    assert!(!positive_case.expected_early_exit);
     assert_eq!(solution.report().algorithm(), LinearSolver::SparseLu);
     assert_eq!(
         solution.report().reason(),
         ConvergenceReason::ResidualToleranceSatisfied
     );
     assert_eq!(solution.report().completed_iterations(), 1);
+    assert_eq!(
+        solution.report().reported_residual_norm(),
+        solution.report().true_residual_norm()
+    );
     assert_solution_matches_case(solution.values(), &expected, positive_case);
     assert!(
         solution.report().true_residual_norm().powi(2)
@@ -297,6 +302,14 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
         .unwrap()
         .with_initial_guess(&initial)
         .unwrap();
+    let early_case = oracle
+        .contract_expectations
+        .test_plan
+        .cases
+        .iter()
+        .find(|case| case.id == "early-initial-guess-accepted")
+        .unwrap();
+    assert!(early_case.expected_early_exit);
     let early = FaerLinearSolver.solve(&early_problem, plan).unwrap();
     assert_eq!(
         early.report().reason(),
@@ -328,11 +341,16 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
         .iter()
         .find(|case| case.id == "initial-guess-not-accepted-early")
         .unwrap();
+    assert!(!not_satisfied_case.expected_early_exit);
     assert_eq!(
         not_satisfied_solution.report().reason(),
         ConvergenceReason::ResidualToleranceSatisfied
     );
     assert_eq!(not_satisfied_solution.report().completed_iterations(), 1);
+    assert_eq!(
+        not_satisfied_solution.report().reported_residual_norm(),
+        not_satisfied_solution.report().true_residual_norm()
+    );
     assert_solution_matches_case(
         not_satisfied_solution.values(),
         &expected,
@@ -387,6 +405,14 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
     let rank_deficient = fixture_storage(&oracle.mathematics.rank_deficient);
     let rank_deficient =
         CanonicalCsrSystemView::new(&rank_deficient, LinearOperatorProperties::General).unwrap();
+    let rank_deficient_case = oracle
+        .contract_expectations
+        .test_plan
+        .cases
+        .iter()
+        .find(|case| case.id == "rank-deficient-fail-closed")
+        .unwrap();
+    assert!(!rank_deficient_case.expected_early_exit);
     let rejected = FaerLinearSolver
         .solve(&rank_deficient.linear_problem().unwrap(), plan)
         .unwrap_err();
@@ -669,6 +695,7 @@ struct FrozenCase {
     id: String,
     expected_residual_squared_at_most: FrozenRational,
     componentwise_solution_error_ceiling: Option<FrozenRational>,
+    expected_early_exit: bool,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]

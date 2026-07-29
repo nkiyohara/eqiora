@@ -493,6 +493,21 @@ mod tests {
         assert!(source.contains("factorize_numeric_lu("));
         assert!(source.contains("solve_in_place_with_conj("));
         assert!(source.contains("let parallelism = Par::Seq;"));
+        assert!(!source.contains("Par::Rayon"));
+        assert!(source.contains(
+            "column_matrix.as_ref(),\n            parallelism,\n            factor_stack,"
+        ));
+        assert!(source.contains(
+            "lu.solve_in_place_with_conj(Conj::No, output.as_mut(), parallelism, solve_stack);"
+        ));
+    }
+
+    #[test]
+    fn sparse_lu_reports_the_eqiora_recomputed_residual() {
+        let source = include_str!("sparse_lu.rs");
+        assert!(
+            source.contains("let reported_residual_norm = fixed_residual_norm(problem, &values)?;")
+        );
     }
 
     #[derive(Debug)]
