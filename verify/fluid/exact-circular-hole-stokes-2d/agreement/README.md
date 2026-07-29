@@ -138,7 +138,7 @@ with each other.
 That allowance depends on the norm it bounds, exactly as the production check
 does, so the acceptance region is the fixed point of
 `n <= target + 4096 * eps * (1 + n + target)`. Its largest accepted binary64
-value here is `2.233457466897131e-12`, `5030` ulp above the limit evaluated at
+value here is `2.233457466897131e-12`, `5029` ulp above the limit evaluated at
 `n = 0`, and one ulp more is rejected.
 
 **Domain before magnitude.** A norm cannot be negative and neither can a
