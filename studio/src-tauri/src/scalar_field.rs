@@ -476,7 +476,7 @@ fn encode_chunk(values: &[f64], chunk_index: u32) -> Result<Vec<u8>, ProjectionE
     Ok(bytes)
 }
 
-fn coherent_si_unit(dimension: DimExponents) -> String {
+pub(super) fn coherent_si_unit(dimension: DimExponents) -> String {
     let parts = [
         ("kg", dimension.mass),
         ("m", dimension.length),

@@ -8,6 +8,7 @@ mod cad;
 mod compile;
 mod lifecycle;
 mod scalar_field;
+mod unstructured_field;
 
 use std::collections::{BTreeMap, VecDeque};
 use std::num::NonZeroUsize;
@@ -41,6 +42,9 @@ use tauri::{State, ipc::Channel};
 
 use lifecycle::{CancellationStatus, CoalescingObserver, RunRegistry};
 use scalar_field::{ScalarFieldCache, open_scalar_field_view, read_scalar_field_chunk};
+use unstructured_field::{
+    UnstructuredFieldCache, open_unstructured_field_view, read_unstructured_field_chunk,
+};
 
 const PROTOCOL: &str = "eqiora.studio.bridge/v5";
 const MAX_DOCUMENTS: usize = 32;
@@ -988,6 +992,7 @@ struct AppState {
     documents: Mutex<DocumentCache>,
     runs: Mutex<RunRegistry>,
     scalar_fields: Mutex<ScalarFieldCache>,
+    unstructured_fields: Mutex<UnstructuredFieldCache>,
     host_worker_budget: NonZeroUsize,
 }
 
@@ -997,6 +1002,7 @@ impl Default for AppState {
             documents: Mutex::new(DocumentCache::default()),
             runs: Mutex::new(RunRegistry::default()),
             scalar_fields: Mutex::new(ScalarFieldCache::default()),
+            unstructured_fields: Mutex::new(UnstructuredFieldCache::default()),
             host_worker_budget: recommended_host_worker_budget(),
         }
     }
@@ -1938,6 +1944,8 @@ pub fn run() {
             run_spatial_realization,
             open_scalar_field_view,
             read_scalar_field_chunk,
+            open_unstructured_field_view,
+            read_unstructured_field_chunk,
             cancel_reference_run
         ])
         .run(tauri::generate_context!())

@@ -13,6 +13,10 @@ use eqiora_meshing::{
 };
 use eqiora_numerics::fsi::ResolvedFixedReferenceFsiSolution2d;
 
+mod unstructured;
+
+pub use unstructured::UnstructuredP1ScalarFieldProjection2d;
+
 /// Durable logical snapshots and their exact normalized numeric leaves.
 ///
 /// The bundle is an in-memory L4 composition, not another wire artifact. It

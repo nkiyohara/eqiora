@@ -138,6 +138,7 @@
         { "name": "ValueEditPlan", "from": "eqiora_api::ValueEditPlan" },
         { "name": "TransientNavierStokesInitialCondition2d", "from": "eqiora_api::TransientNavierStokesInitialCondition2d" },
         { "name": "TransientNavierStokesReference2d", "from": "eqiora_api::TransientNavierStokesReference2d" },
+        { "name": "UnstructuredP1ScalarFieldProjection2d", "from": "eqiora_api::UnstructuredP1ScalarFieldProjection2d" },
         { "name": "ValueEditResult", "from": "eqiora_api::ValueEditResult" },
         { "name": "VerifiedMlDatasetV1", "from": "eqiora_api::VerifiedMlDatasetV1" },
         { "name": "VerifiedVtuImportV1", "from": "eqiora_api::VerifiedVtuImportV1" },

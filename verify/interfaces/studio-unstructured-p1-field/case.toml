@@ -1,0 +1,48 @@
+id = "interfaces.studio-unstructured-p1-field"
+status = "verified"
+scope = "one-bounded-coherent-si-p1-scalar-field-on-a-two-dimensional-affine-triangle-mesh"
+reference_kind = "exact-artifact-lineage-replay-and-fail-closed-three-stream-projection"
+
+capabilities = [
+  "exact-model-realization-run-field-domain-mesh-identity",
+  "bounded-unstructured-p1-scalar-application-projection",
+  "fixed-little-endian-coordinate-connectivity-value-transfer",
+  "keyboard-accessible-triangle-field-presentation",
+]
+
+[canonical_contract]
+projection_owner = "eqiora-api fixed-spatial Field snapshot composition"
+accepted_source = "existing fixed-reference FSI pressure P1 snapshot"
+semantic_content = "exact Model revision, Realization plan, Run, Field, Domain, value dimension, mesh, and logical snapshot identity"
+studio_transport = "three canonical session-local streams with a closed 16-byte stream/index/count header: f64-le coordinates, u32-le triangles, f64-le vertex values"
+publication = "only after all three complete streams reproduce counts, bounds, index range, and scalar extrema"
+durable_visualization_artifact = false
+
+[falsifiers]
+foreign_model_revision_realization_or_run = "reject-before-projection-materialization"
+foreign_snapshot_field_domain_or_block = "reject-before-projection-materialization"
+descriptor_identity_or_count_drift = "reject-before-chunk-read"
+missing_duplicate_reordered_short_long_or_nonfinite_chunk = "reject-without-ready-state-publication"
+coordinate_bounds_or_connectivity_index_drift = "reject-without-rendering"
+final_value_count_or_range_drift = "reject-without-rendering"
+stale_async_completion = "discard-without-mutating-current-context"
+
+[claim_boundary]
+intrinsic_dimension = 2
+mesh_family = "fixed affine triangles"
+field_space = "one scalar P1 coefficient per vertex"
+scalar_type = "f64"
+unit_system = "coherent SI"
+maximum_vertices = 250000
+maximum_triangles = 500000
+transport = "session-local explicit owned host copy"
+vectors_or_derived_magnitude = false
+contours_streamlines_glyphs_or_probes = false
+moving_mesh_deformation_or_animation = false
+three_dimensional_renderer = false
+gpu_zero_copy_or_lod = false
+durable_field_artifact_or_export = false
+
+[evidence]
+package = "eqiora"
+test = "unstructured_p1_scalar_studio_projection"

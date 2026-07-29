@@ -384,15 +384,15 @@ removal = "split report projection from the execution runner"
 
 [[public_surface]]
 crate = "eqiora"
-ceiling = 277
-reason = "the facade is re-export-only and its width is already pinned by api/eqiora-facade-v1.json; 26 of these items are cross-crate globs this predicate cannot see through. The Cartesian Domain edit slice forwards CartesianDomainEditPlan and CartesianDomainEditResult, a net public capability addition of two against the eight the budget allows"
-removal = "lower with each name the facade withdraws"
+ceiling = 278
+reason = "the facade is re-export-only and its width is already pinned by api/eqiora-facade-v1.json; 26 of these items are cross-crate globs this predicate cannot see through. UnstructuredP1ScalarFieldProjection2d is the one public product value shared by the native Studio adapter and downstream clients for the bounded P1 scalar view"
+removal = "withdraw UnstructuredP1ScalarFieldProjection2d if Studio ceases to consume the typed application projection, otherwise lower with the next facade name withdrawn"
 
 [[public_surface]]
 crate = "eqiora-api"
-ceiling = 126
-reason = "the Cartesian Domain edit slice owns CartesianDomainEditPlan and CartesianDomainEditResult; they are named rather than glob-forwarded, so this count is real"
-removal = "withdraw either type, or fold the edit plan into an existing owner if a second geometry edit proves the pair redundant"
+ceiling = 127
+reason = "UnstructuredP1ScalarFieldProjection2d owns the bounded application projection consumed by Studio without introducing a durable artifact or visualization framework; construction and accessors are associated methods, so the capability costs one public name"
+removal = "withdraw UnstructuredP1ScalarFieldProjection2d if the native Studio adapter no longer consumes this exact typed boundary"
 
 [[public_surface]]
 crate = "eqiora-artifact"
