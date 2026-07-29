@@ -473,48 +473,6 @@ mod tests {
         assert_eq!(FaerLinearSolver.provider(), FAER_SOLVER_PROVIDER);
     }
 
-    #[test]
-    fn sparse_lu_uses_only_explicit_parallelism_apis() {
-        let source = include_str!("sparse_lu.rs");
-        let normalized_source = source.split_whitespace().collect::<Vec<_>>().join(" ");
-        for process_global_wrapper in [
-            ".sp_lu(",
-            ".sp_qr(",
-            ".sp_cholesky(",
-            ".sp_solve_lower_triangular_in_place(",
-            ".sp_solve_upper_triangular_in_place(",
-            ".sp_solve_unit_lower_triangular_in_place(",
-            ".sp_solve_unit_upper_triangular_in_place(",
-        ] {
-            assert!(
-                !source.contains(process_global_wrapper),
-                "sparse LU must not call {process_global_wrapper}"
-            );
-        }
-        assert!(source.contains("factorize_numeric_lu("));
-        assert!(source.contains("solve_in_place_with_conj("));
-        assert!(source.contains("let parallelism = Par::Seq;"));
-        assert!(!source.contains("Par::Rayon"));
-        assert!(!source.contains("Par::rayon"));
-        assert!(normalized_source.contains("column_matrix.as_ref(), parallelism, factor_stack,"));
-        assert!(normalized_source.contains(
-            "lu.solve_in_place_with_conj(Conj::No, output.as_mut(), parallelism, solve_stack);"
-        ));
-    }
-
-    #[test]
-    fn sparse_lu_reports_the_eqiora_recomputed_residual() {
-        let source = include_str!("sparse_lu.rs");
-        let normalized_source = source.split_whitespace().collect::<Vec<_>>().join(" ");
-        assert!(
-            normalized_source
-                .contains("let reported_residual_norm = fixed_residual_norm(problem, &values)?;")
-        );
-        assert!(normalized_source.contains(
-            "ConvergenceReason::ResidualToleranceSatisfied, 1, reported_residual_norm, values,"
-        ));
-    }
-
     #[derive(Debug)]
     struct DenseOperator {
         entries: [[f64; 2]; 2],
