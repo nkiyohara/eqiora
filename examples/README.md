@@ -15,6 +15,7 @@ cargo run --locked -p eqiora --example poisson
 | --- | --- | --- |
 | `quickstart` | [`decay.eqi`](decay.eqi) | Compile one scalar decay model and run it through the reference lifecycle. |
 | `poisson` | [`packages/org.example.poisson`](../packages/org.example.poisson/) | Compile a 2D Poisson model, select a Realization explicitly, run it on the host CPU, and report the L2 error against the exact solution. |
+| `steady-flow-past-cylinder` | [`steady-flow-past-cylinder.eqi`](steady-flow-past-cylinder.eqi), [exact geometry](steady-flow-past-cylinder.geometry.json), [Model v7](steady-flow-past-cylinder.model-v7.json) | In native Studio, replay one immutable exact rectangle-minus-circle Model, realize its error-controlled affine mesh, execute the accepted steady Stokes path, and inspect the pressure field with reaction and balance evidence. |
 
 Each example keeps the Model, the Realization, and the Run visibly separate.
 Selecting a mesh, a discretization, a solver, or a placement is always something
@@ -22,3 +23,10 @@ the caller writes down; there is no default Realization to fall back on.
 
 The [Poisson walkthrough](../docs/site/examples.md) explains what each stage
 means and what the reported evidence does and does not establish.
+
+The cylinder source, exact geometry, and canonical Model are one checked
+example set rather than three interchangeable inputs. Open it with **Run
+cylinder demo** in native Studio. Its 50-chord mesh is an error-controlled
+realization of the retained exact circle; the example does not claim curved
+finite elements, Navier--Stokes flow, a drag coefficient, vortex shedding,
+mesh convergence, or a benchmark comparison.

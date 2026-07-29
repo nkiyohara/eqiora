@@ -14,6 +14,12 @@ import {
   compileResponseV1Schema,
 } from "./control-protocol";
 import {
+  type CylinderDemoRequest,
+  type CylinderDemoResult,
+  cylinderDemoRequestSchema,
+  cylinderDemoResultSchema,
+} from "./cylinder-demo-protocol";
+import {
   CAD_EXAMPLE_SOURCE,
   CAD_PREVIEW_MODEL_DIGEST,
   EXAMPLE_SOURCE,
@@ -90,6 +96,7 @@ export interface StudioBridge {
   runSpatialRealization(
     request: SpatialRealizationRunRequest,
   ): Promise<BridgeEnvelope<SpatialRunResult>>;
+  runCylinderDemo(request: CylinderDemoRequest): Promise<BridgeEnvelope<CylinderDemoResult>>;
 }
 
 const compileCommandEnvelopeSchema = z
@@ -312,6 +319,17 @@ const nativeBridge: StudioBridge = {
       return protocolFailure("Native bridge returned a spatial result for another request.");
     }
     return response;
+  },
+  async runCylinderDemo(request) {
+    const checked = checkedRequest(cylinderDemoRequestSchema, request, "Cylinder demo");
+    if (!checked.ok) {
+      return checked.failure;
+    }
+    return checkedInvoke<CylinderDemoResult>(
+      "run_cylinder_demo",
+      { request: checked.value },
+      bridgeEnvelopeSchema(cylinderDemoResultSchema),
+    );
   },
 };
 
@@ -1018,6 +1036,14 @@ const previewBridge: StudioBridge = {
     } finally {
       previewSpatialRunId = null;
     }
+  },
+  async runCylinderDemo(request) {
+    const checked = checkedRequest(cylinderDemoRequestSchema, request, "Cylinder demo");
+    return checked.ok
+      ? protocolFailure(
+          "The exact-cylinder solve is available only in native Studio; browser preview does not fabricate scientific results.",
+        )
+      : checked.failure;
   },
   async cancelRun(request) {
     const checked = checkedRequest(cancelRunRequestSchema, request, "Run cancellation");

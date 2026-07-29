@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { UnstructuredFieldDescriptor } from "./unstructured-field-protocol";
 import { drawUnstructuredP1Field, normalizedCoordinate } from "./unstructured-field-renderer";
+import "./scalar-field-workspace.css";
 
 const TABLE_PAGE_SIZE = 100;
 

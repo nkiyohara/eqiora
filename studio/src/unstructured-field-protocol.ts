@@ -7,7 +7,7 @@ export const UNSTRUCTURED_FIELD_VIEW_PROTOCOL = "eqiora.studio.unstructured-fiel
 export const UNSTRUCTURED_FIELD_ITEMS_PER_CHUNK = 4_096;
 export const UNSTRUCTURED_FIELD_MAX_TRIANGLE_COUNT = MAX_SPATIAL_ENTITY_COUNT * 2;
 
-const digestSchema = z.string().regex(/^[0-9a-f]{64}$/);
+export const artifactDigestSchema = z.string().regex(/^[0-9a-f]{64}$/);
 const semanticRevisionSchema = z
   .string()
   .regex(/^(0|[1-9][0-9]{0,19})$/)
@@ -22,12 +22,12 @@ const finiteIntervalSchema = z
   .refine(([lower, upper]) => upper > lower, "Field-view interval must have positive extent.");
 const artifactIdentitySchema = z
   .object({
-    modelDigest: digestSchema,
+    modelDigest: artifactDigestSchema,
     semanticRevision: semanticRevisionSchema,
-    realizationDigest: digestSchema,
-    runDigest: digestSchema,
-    snapshotDigest: digestSchema,
-    meshDigest: digestSchema,
+    realizationDigest: artifactDigestSchema,
+    runDigest: artifactDigestSchema,
+    snapshotDigest: artifactDigestSchema,
+    meshDigest: artifactDigestSchema,
   })
   .strict();
 const projectionIdentitySchema = artifactIdentitySchema

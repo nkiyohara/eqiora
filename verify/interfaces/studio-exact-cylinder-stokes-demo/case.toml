@@ -1,0 +1,62 @@
+id = "interfaces.studio-exact-cylinder-stokes-demo"
+status = "verified"
+scope = "one-immutable-exact-circle-steady-stokes-native-studio-composition"
+reference_kind = "composition-of-dual-oracled-physics-and-exact-fail-closed-lineage"
+
+capabilities = [
+  "native-studio-exact-cylinder-stokes-example",
+  "exact-model-realization-run-snapshot-field-mesh-composition",
+  "named-cylinder-reaction-flux-momentum-and-residual-presentation",
+  "production-published-unstructured-pressure-p1-workspace",
+]
+
+[canonical_contract]
+example_id = "steady-flow-past-cylinder"
+model_source = "examples/steady-flow-past-cylinder.model-v7.json"
+exact_geometry_source = "examples/steady-flow-past-cylinder.geometry.json"
+realization = "source-owned 50-chord 104-triangle affine mesh at maximum boundary error 1e-4 m"
+physics = "steady coherent-SI MINI/P1 Stokes"
+solver = "faer sparse-LU, identity, Fast, f64, rtol 1e-6, atol 1e-13"
+field = "accepted authored pressure P1 snapshot"
+publication = "only after complete Model, geometry, Realization, Run, snapshot, mesh, Field and Domain replay"
+browser_preview = "reject without fabricated scientific result"
+
+[presented_evidence]
+geometry = "exact source digest, realized geometry digest, request/evaluation/error bounds, segment count"
+cylinder_reaction = "named algebraic constraint force on the fluid in N/m"
+flux = "physical-parent-outward inlet, outlet and exact signed sum in m2/s"
+momentum = "constraint reaction plus body force plus traction closure in N/m"
+solver = "frozen solver tuple, target, independently reapplied true residual and continuity residual"
+pressure = "coherent-SI kg m^-1 s^-2 vertex field with exact artifact lineage"
+
+[falsifiers]
+foreign_or_stale_lineage = "reject-before-cache-publication"
+missing_run_output_snapshot = "reject-before-projection-materialization"
+geometry_error_over_request = "reject-result-protocol"
+nonpressure_field_unit = "reject-result-protocol"
+flux_sum_or_momentum_closure_drift = "reject-result-protocol"
+true_residual_over_target = "reject-result-protocol"
+foreign_unstructured_descriptor_or_stream = "reject-without-ready-workspace"
+browser_scientific_fabrication = "forbidden"
+
+[claim_boundary]
+immutable_public_example_only = true
+steady_stokes_only = true
+intrinsic_dimension = 2
+affine_triangles_only = true
+coarse_demonstration_mesh_only = true
+cylinder_force_is_algebraic_constrained_vertex_force_on_fluid = true
+curved_finite_elements = false
+navier_stokes_or_transient = false
+reynolds_number = false
+drag_or_lift_coefficient = false
+vortex_shedding_or_strouhal_number = false
+pde_or_mesh_convergence = false
+benchmark_or_validation_comparison = false
+general_authored_geometry_workflow = false
+durable_visualization_transport = false
+production_meshing_or_scale = false
+
+[evidence]
+package = "eqiora"
+test = "exact_circular_hole_stokes_2d"

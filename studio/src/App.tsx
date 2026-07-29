@@ -7,6 +7,7 @@ import {
   type RunBlock,
   resolveApplication,
   resolveCommandAvailability,
+  resolveElementFocusId,
   type ValueEditBlock,
   type WorkspaceId,
 } from "./application";
@@ -17,6 +18,8 @@ import { type CommandAvailability, CommandPalette } from "./command-palette";
 import type { CommandId } from "./commands";
 import { Icon, Inspector, ModelOutline, SourceEditor } from "./components";
 import { studioCompileRequest } from "./control-protocol";
+import { CylinderDemoSession, type CylinderDemoSessionState } from "./cylinder-demo-session";
+import { CylinderDemoWorkspace } from "./cylinder-demo-workspace";
 import { type DiagnosticPresentation, Diagnostics } from "./diagnostics";
 import { CAD_EXAMPLE_SOURCE, EXAMPLE_SOURCE, SPATIAL_EXAMPLE_SOURCE } from "./example";
 import { formatMessage } from "./messages";
@@ -38,6 +41,7 @@ import {
   validateSpatialConfiguration,
 } from "./spatial-workflow";
 import { currentLayout, initialStudioState, type NodeLayout, studioReducer } from "./state";
+import { nativeUnstructuredFieldDataBridge } from "./unstructured-field-bridge";
 import { validateValueEditInput } from "./value-edit";
 import { readWorkspace, writeWorkspace } from "./workspace";
 
@@ -62,8 +66,20 @@ export function App() {
   const [requestedWorkspace, setRequestedWorkspace] = useState<WorkspaceId>("relations");
   const [scalarFieldState, setScalarFieldState] = useState(initialScalarFieldSessionState());
   const [selectedFieldOrdinal, setSelectedFieldOrdinal] = useState(0);
+  const [selectedFieldWorkflow, setSelectedFieldWorkflow] = useState<
+    "scalar-elliptic" | "cylinder-stokes" | null
+  >(null);
+  const [selectedCylinderVertex, setSelectedCylinderVertex] = useState(0);
+  const [cylinderState, setCylinderState] = useState<CylinderDemoSessionState>({
+    kind: "idle",
+  });
   const scalarFieldSession = useMemo(
     () => new ScalarFieldDataSession(scalarFieldDataBridge, setScalarFieldState),
+    [],
+  );
+  const cylinderSession = useMemo(
+    () =>
+      new CylinderDemoSession(studioBridge, nativeUnstructuredFieldDataBridge, setCylinderState),
     [],
   );
   latestSource.current = state.source;
@@ -75,6 +91,15 @@ export function App() {
     error: cadError,
     requestSelection: requestCadSelection,
   } = useCadSession(state.document === null || sourceEdited ? null : state.document.digest);
+  const cylinderStatus =
+    cylinderState.kind === "solving" || cylinderState.kind === "loading-field"
+      ? "running"
+      : cylinderState.kind;
+  const fieldWorkflow =
+    selectedFieldWorkflow === "scalar-elliptic" &&
+    spatialState.latestResult?.plan.requirements.spatialDimension !== 2
+      ? null
+      : selectedFieldWorkflow;
   const application = useMemo(
     () =>
       resolveApplication(
@@ -84,15 +109,17 @@ export function App() {
             status: cadStatus,
             acceptedModelDigest: cadProjection?.modelDigest ?? null,
           },
-          fieldAvailable: spatialState.latestResult?.plan.requirements.spatialDimension === 2,
+          cylinderStatus,
+          fieldWorkflow,
         },
         requestedWorkspace,
       ),
     [
       cadProjection?.modelDigest,
       cadStatus,
+      cylinderStatus,
+      fieldWorkflow,
       requestedWorkspace,
-      spatialState.latestResult?.plan.requirements.spatialDimension,
       state.document,
     ],
   );
@@ -305,6 +332,7 @@ export function App() {
   }, [loadReadOnlyExample]);
 
   const openSpatialExample = useCallback(async () => {
+    setSelectedFieldWorkflow(null);
     setRequestedWorkspace("relations");
     await loadReadOnlyExample("spatial", SPATIAL_EXAMPLE_SOURCE);
   }, [loadReadOnlyExample]);
@@ -658,14 +686,24 @@ export function App() {
       selectedEntity:
         application.activeWorkflow === "cad-box"
           ? cadSelectionState.accepted !== null
-          : activeWorkspace === "field"
-            ? scalarFieldState.kind === "ready"
-            : selectedNode !== null,
+          : application.activeWorkflow === "cylinder-stokes"
+            ? cylinderState.kind === "ready"
+            : activeWorkspace === "field"
+              ? scalarFieldState.kind === "ready"
+              : selectedNode !== null,
       evidenceAvailable:
         application.activeWorkflow === "scalar-elliptic"
           ? spatialResult !== null
-          : application.activeWorkflow === "relations" && runResult !== null,
-      fieldAvailable: spatialResult?.plan.requirements.spatialDimension === 2,
+          : application.activeWorkflow === "cylinder-stokes"
+            ? cylinderState.kind === "ready"
+            : application.activeWorkflow === "relations" && runResult !== null,
+      fieldAvailable:
+        fieldWorkflow === "cylinder-stokes"
+          ? cylinderState.kind === "solving" ||
+            cylinderState.kind === "loading-field" ||
+            cylinderState.kind === "ready"
+          : spatialResult?.plan.requirements.spatialDimension === 2,
+      cylinderRunning: cylinderState.kind === "solving" || cylinderState.kind === "loading-field",
       cadAvailability,
     });
     return Object.fromEntries(
@@ -685,6 +723,8 @@ export function App() {
     canRedo,
     canUndo,
     revisionNavigationBlocked,
+    cylinderState,
+    fieldWorkflow,
     runPlanCurrent,
     runResult,
     runValidation.value,
@@ -711,31 +751,12 @@ export function App() {
         case "relation-view":
           relationView.current?.focus();
           return;
-        case "selection-inspector":
+        default:
           document
             .getElementById(
-              application.activeWorkflow === "cad-box"
-                ? "cad-selection-inspector"
-                : activeWorkspace === "field"
-                  ? "field-selection-inspector"
-                  : "inspector-panel",
+              resolveElementFocusId(target, application.activeWorkflow, activeWorkspace),
             )
             ?.focus();
-          return;
-        case "evidence-inspector":
-          document.getElementById("evidence-inspector")?.focus();
-          return;
-        case "cad-viewport":
-          document.getElementById("cad-viewport")?.focus();
-          return;
-        case "cad-domain-table":
-          document.getElementById("cad-domain-table")?.focus();
-          return;
-        case "field-viewport":
-          document.getElementById("field-viewport")?.focus();
-          return;
-        case "field-value-table":
-          document.getElementById("field-value-table")?.focus();
           return;
       }
     },
@@ -754,10 +775,25 @@ export function App() {
     [focusTarget],
   );
 
+  const openCylinderDemo = useCallback(async () => {
+    setSelectedCylinderVertex(0);
+    setSelectedFieldWorkflow("cylinder-stokes");
+    setRequestedWorkspace("field");
+    const terminal = await cylinderSession.run();
+    if (terminal.kind === "ready") {
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById(resolveElementFocusId("field-viewport", "cylinder-stokes", "field"))
+          ?.focus();
+      });
+    }
+  }, [cylinderSession]);
+
   const openScalarField = useCallback(async () => {
     if (spatialResult === null || spatialResult.plan.requirements.spatialDimension !== 2) {
       return;
     }
+    setSelectedFieldWorkflow("scalar-elliptic");
     setRequestedWorkspace("field");
     if (
       scalarFieldState.kind === "ready" &&
@@ -813,7 +849,15 @@ export function App() {
           focusCommandTarget(command);
           return;
         case "workspace.field":
-          void openScalarField();
+          if (fieldWorkflow === "cylinder-stokes") {
+            setRequestedWorkspace("field");
+            focusCommandTarget(command);
+          } else {
+            void openScalarField();
+          }
+          return;
+        case "example.cylinder":
+          void openCylinderDemo();
           return;
         case "example.spatial":
           void openSpatialExample();
@@ -835,8 +879,10 @@ export function App() {
       commitValueEdit,
       compile,
       focusCommandTarget,
+      fieldWorkflow,
       isSpatialDocument,
       openCadExample,
+      openCylinderDemo,
       openScalarField,
       openSpatialExample,
       run,
@@ -885,7 +931,11 @@ export function App() {
             </span>
           </div>
           <div className="app-bar__context">
-            <span className="document-name">untitled.eqi</span>
+            <span className="document-name">
+              {application.activeWorkflow === "cylinder-stokes"
+                ? "steady-flow-past-cylinder"
+                : "untitled.eqi"}
+            </span>
             <span aria-hidden="true">/</span>
             <span>
               {state.document === null ? "No revision" : `Revision ${state.document.revision}`}
@@ -950,6 +1000,17 @@ export function App() {
             </nav>
           </div>
           <div className="app-bar__actions">
+            <button
+              className="secondary-action"
+              disabled={!commandAvailability["example.cylinder"].enabled}
+              onClick={() => executeCommand("example.cylinder")}
+              title={commandAvailability["example.cylinder"].reason ?? undefined}
+              type="button"
+            >
+              {cylinderState.kind === "solving" || cylinderState.kind === "loading-field"
+                ? "Solving cylinder…"
+                : formatMessage("command.example.cylinder.label")}
+            </button>
             <span className={`runtime-badge runtime-badge--${studioBridge.mode}`}>
               <span aria-hidden="true" />
               {studioBridge.mode === "native" ? "Canonical runtime" : "Browser preview"}
@@ -979,6 +1040,18 @@ export function App() {
           <div className="preview-banner" role="status">
             The browser preview demonstrates interaction and layout only. Tauri performs canonical
             compilation and execution through the Rust facade.
+          </div>
+        ) : null}
+        {cylinderState.kind === "failed" ? (
+          <div className="cylinder-demo-failure" role="alert">
+            <span>{cylinderState.message}</span>
+            <button
+              className="secondary-action"
+              onClick={() => void openCylinderDemo()}
+              type="button"
+            >
+              Retry native demo
+            </button>
           </div>
         ) : null}
 
@@ -1029,7 +1102,30 @@ export function App() {
           id={activeWorkspace === "field" ? "workspace" : undefined}
           tabIndex={-1}
         >
-          {scalarFieldState.kind === "ready" ? (
+          {fieldWorkflow === "cylinder-stokes" ? (
+            cylinderState.kind === "ready" ? (
+              <CylinderDemoWorkspace
+                field={cylinderState.field}
+                onSelect={setSelectedCylinderVertex}
+                result={cylinderState.result}
+                selectedVertex={selectedCylinderVertex}
+              />
+            ) : (
+              <section className="scalar-field-load-state" aria-live="polite" role="status">
+                <span aria-hidden="true">◯</span>
+                <h1>
+                  {cylinderState.kind === "loading-field"
+                    ? "Binding accepted pressure field…"
+                    : "Solving exact-cylinder Stokes system…"}
+                </h1>
+                <p>
+                  {cylinderState.kind === "loading-field"
+                    ? "The accepted Model, Realization, Run, snapshot, mesh, and pressure field identities are being checked before transfer."
+                    : "The native runtime is replaying exact geometry, realizing its bounded chordal mesh, and applying the frozen solver plan."}
+                </p>
+              </section>
+            )
+          ) : scalarFieldState.kind === "ready" ? (
             <ScalarFieldWorkspace
               descriptor={scalarFieldState.descriptor}
               onSelect={setSelectedFieldOrdinal}
@@ -1247,7 +1343,7 @@ export function App() {
                 result={spatialResult}
                 onViewField={
                   spatialResult?.plan.requirements.spatialDimension === 2
-                    ? () => executeCommand("workspace.field")
+                    ? () => void openScalarField()
                     : null
                 }
                 stale={spatialResultStale}
