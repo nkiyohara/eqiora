@@ -538,6 +538,8 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
             NamedEntitySet::new("left", EDGE_DIMENSION, vec![0]),
             NamedEntitySet::new("right", EDGE_DIMENSION, vec![1]),
             NamedEntitySet::new("cylinder", EDGE_DIMENSION, vec![0]),
+            NamedEntitySet::new("wall-lower", EDGE_DIMENSION, vec![2]),
+            NamedEntitySet::new("wall-upper", EDGE_DIMENSION, vec![3]),
         ],
         1.0e-12,
     )
@@ -560,6 +562,14 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
             .constant_parent_outward_normal("cylinder")
             .map(|normal| normal.map(f64::to_bits)),
         Some([(-1.0f64).to_bits(), 0.0f64.to_bits()])
+    );
+    assert_eq!(
+        renamed_reference.constant_parent_outward_normal("wall-lower"),
+        None
+    );
+    assert_eq!(
+        renamed_reference.constant_parent_outward_normal("wall-upper"),
+        None
     );
 
     let straight_edged = square_with_hole();
@@ -1248,6 +1258,52 @@ fn admitted_geometry_boundary_support_accepts_relation_scope_only() {
         })
         .expect("the artifact-free entry keeps its exact diagnostic");
     assert_diagnostic_at(admission, ids.relation.erase());
+
+    let region = Id::new();
+    let relation = Id::new();
+    let activation = Id::new();
+    let mut expression = ExprDagBuilder::new();
+    let x = expression
+        .spatial_coordinate(0)
+        .expect("region coordinate residual");
+    let (region_store, region_model) = committed_model(
+        "geometry region Relation without a Field",
+        vec![
+            KernelNode::from(
+                DomainDef::geometry_region(
+                    region,
+                    GeometryDigest::new(circular.digest_bytes()),
+                    "fluid",
+                )
+                .expect("region"),
+            ),
+            KernelNode::from(RelationDef::new(
+                relation,
+                expression.finish([x]).expect("closed residual DAG"),
+            )),
+            KernelNode::from(ActivationDef::continuous(activation)),
+        ],
+        [
+            (relation.erase(), region.erase(), EdgeKind::AppliesOn),
+            (activation.erase(), relation.erase(), EdgeKind::Activates),
+        ],
+    );
+    KernelProgram::from_snapshot_with_geometry(
+        &region_store.snapshot(),
+        region_model,
+        &[CanonicalGeometryRef::from(&circular)],
+    )
+    .expect("artifact admission also proves the parent region Relation scope");
+    let region_diagnostics = KernelProgram::from_snapshot(&region_store.snapshot(), region_model)
+        .expect_err("an artifact-free region Relation remains fail-closed");
+    let region_admission = region_diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic.message()
+                == "Relation spatial scope from a geometry Domain requires artifact admission"
+        })
+        .expect("the region-scoped Relation itself keeps the exact admission diagnostic");
+    assert_diagnostic_at(region_admission, relation.erase());
 }
 
 #[test]
