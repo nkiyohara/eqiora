@@ -75,24 +75,24 @@
   },
   "conformance": {
     "algebraic": {
-      "maximum_absolute_error": 4.922087021029277e-14,
-      "maximum_scaled_error": 0.000246104351051423
+      "maximum_absolute_error": 1.6583429554027746e-13,
+      "maximum_scaled_error": 0.0008291714777012496
     },
     "vertex_velocity_over_u": {
-      "maximum_absolute_error": 4.922087021029277e-14,
-      "maximum_scaled_error": 0.000246104351051423
+      "maximum_absolute_error": 1.6583429554027746e-13,
+      "maximum_scaled_error": 0.0008291714777012496
     },
     "bubble_velocity_over_u": {
-      "maximum_absolute_error": 1.0966271293821883e-14,
-      "maximum_scaled_error": 0.000054822441549811394
+      "maximum_absolute_error": 3.738871191816262e-14,
+      "maximum_scaled_error": 0.0001869131648157313
     },
     "pressure_over_p": {
-      "maximum_absolute_error": 5.342948306008566e-15,
-      "maximum_scaled_error": 0.000023950493324163285
+      "maximum_absolute_error": 1.6056600493641326e-14,
+      "maximum_scaled_error": 0.00007197589811962836
     },
     "displacement_over_l": {
-      "maximum_absolute_error": 6.158268339717665e-16,
-      "maximum_scaled_error": 3.0486476929295417e-6
+      "maximum_absolute_error": 2.0729945537922845e-15,
+      "maximum_scaled_error": 0.000010262349276199428
     }
   }
 }

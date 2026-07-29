@@ -17,3 +17,15 @@ source commit. It is accepted only when all of these close together:
 The bounded device and library values identify one selected-device run. They
 do not include host identity or private paths, and they do not establish a
 portable hardware-compatibility claim.
+
+Those closures are not all of one kind. The recorded coefficients, identities,
+report, receipt, environment, physical finish, and canonical artifact bytes are
+fixed by the pinned collection and must replay unchanged. The CPU-oracle
+closure is different: its `conformance` figures are the expected values of a
+comparison the replay performs live, re-solving the oracle from the current
+tree, so a change to the reference solver moves them without any device,
+operator, or acceptance rule changing. Refreshing them to the values that tree
+now produces is a restatement of the same closure, not a relaxation of it: the
+accepted bound stays the precommitted `2e-10 + 2e-10 max(|a|, |b|)`, it is
+never refitted to a refreshed figure, and the decoder rejects any recorded
+figure whose scaled error exceeds one.
