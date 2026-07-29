@@ -5,6 +5,7 @@
 //! Realization meaning; states, immutable segments, and roots add accepted
 //! time identity. Storage realization is a separate typed projection.
 
+mod authored_field;
 mod context;
 mod dataset;
 mod field;
