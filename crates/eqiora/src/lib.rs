@@ -54,9 +54,9 @@ pub mod api {
         ScalarEllipticRunOutcome, ScalarEllipticRunPlan, ScalarEllipticRunProgress,
         ScalarEllipticRunResult, ScalarFieldLocation, ScalarFieldSummary,
         SemanticFingerprintGeneration, StructuralSemanticFingerprint,
-        TransientNavierStokesInitialCondition2d, TransientNavierStokesReference2d, ValueEditPlan,
-        ValueEditResult, VerifiedMlDatasetV1, derive_ml_dataset_v1,
-        snapshot_fixed_reference_fsi_solution_v1, verify_ml_dataset_v1,
+        TransientNavierStokesInitialCondition2d, TransientNavierStokesReference2d,
+        UnstructuredP1ScalarFieldProjection2d, ValueEditPlan, ValueEditResult, VerifiedMlDatasetV1,
+        derive_ml_dataset_v1, snapshot_fixed_reference_fsi_solution_v1, verify_ml_dataset_v1,
     };
 
     /// Fresh XDMF artifact derivation and verified persisted replay.
