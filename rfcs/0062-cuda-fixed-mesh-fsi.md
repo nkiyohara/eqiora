@@ -115,9 +115,10 @@ The provider identity remains `eqiora.cuda.krylov`; the sole `SolverPlan`
 distinguishes MINRES from CG and BiCGSTAB. No `CudaMinresConfig` or
 physics-specific solver wrapper is introduced.
 
-The implementation follows the reference Lanczos and orthogonal-rotation
-recurrence. The finalized CSR, right-hand side, candidate, residual and Krylov
-vectors reside on the selected device for the solve. cuSPARSE supplies the CSR
+The implementation uses its own device-resident short-recurrence Lanczos and
+orthogonal-rotation algorithm. It does not inherit the CPU reference provider's
+retained-basis, full-H projection or dimension cap. The finalized CSR, right-hand
+side, candidate, residual and Krylov vectors reside on the selected device for the solve. cuSPARSE supplies the CSR
 action and cuBLAS supplies the existing level-one vector operations and native
 scalar reductions. Identity preconditioning allocates and transfers no
 diagonal. The generic CUDA execution admission accounts for the exact MINRES

@@ -135,10 +135,11 @@ LinearSolver::MinimumResidual
   + ScalarType::F64
 ```
 
-The implementation follows the same Lanczos and orthogonal-rotation
-recurrence as the CPU reference MINRES. It uses the existing distributed
-owned-vector, halo action, synchronized vector update, and scalar reduction
-contracts. The MPI provider uses the algorithm-neutral backend identity
+The implementation uses its own fixed-workspace, short-recurrence Lanczos and
+orthogonal-rotation algorithm. It does not inherit the CPU reference provider's
+retained-basis, full-H projection or dimension cap. It uses the existing
+distributed owned-vector, halo action, synchronized vector update, and scalar
+reduction contracts. The MPI provider uses the algorithm-neutral backend identity
 `eqiora.mpi.krylov`; the exact `SolverPlan` and capability tuple distinguish
 MINRES from CG. A MINRES execution therefore cannot report a CG plan even
 though both algorithms share one transport/provider implementation.
