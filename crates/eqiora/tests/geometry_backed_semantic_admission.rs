@@ -238,6 +238,90 @@ fn positive_model(
     (store, model, ids)
 }
 
+fn boundary_relation_model(
+    geometry_digest: [u8; 32],
+    region_set: &str,
+    boundary_set: &str,
+    extra_regions: impl IntoIterator<Item = ([u8; 32], &'static str)>,
+) -> (InMemoryGraphStore, OntologyId<Model>, PositiveIds) {
+    let ids = PositiveIds {
+        region: Id::new(),
+        boundary: Id::new(),
+        representation: Id::new(),
+        field: Id::new(),
+        relation: Id::new(),
+        activation: Id::new(),
+    };
+    let mut expression = ExprDagBuilder::new();
+    let field_value = expression
+        .symbol(SymbolRef::Field(ids.field))
+        .expect("Field symbol");
+    let trace = expression.trace(field_value).expect("boundary trace");
+    let mut nodes = vec![
+        KernelNode::from(
+            DomainDef::geometry_region(
+                ids.region,
+                GeometryDigest::new(geometry_digest),
+                region_set,
+            )
+            .expect("geometry region"),
+        ),
+        KernelNode::from(
+            DomainDef::geometry_boundary(ids.boundary, boundary_set).expect("geometry boundary"),
+        ),
+        KernelNode::from(RepresentationDef::continuum(ids.representation)),
+        KernelNode::from(
+            FieldDef::shaped(
+                ids.field,
+                DimExponents::DIMENSIONLESS,
+                ValueShape::new([2]).expect("two-component vector"),
+                ValueFrame::SpatialCartesian,
+            )
+            .expect("spatial Field"),
+        ),
+        KernelNode::from(RelationDef::new(
+            ids.relation,
+            expression.finish([trace]).expect("trace residual"),
+        )),
+        KernelNode::from(ActivationDef::continuous(ids.activation)),
+    ];
+    nodes.extend(extra_regions.into_iter().map(|(digest, set)| {
+        KernelNode::from(
+            DomainDef::geometry_region(Id::new(), GeometryDigest::new(digest), set)
+                .expect("extra geometry region"),
+        )
+    }));
+    let (store, model) = committed_model(
+        "geometry boundary Relation",
+        nodes,
+        [
+            (
+                ids.boundary.erase(),
+                ids.region.erase(),
+                EdgeKind::BoundaryOf,
+            ),
+            (ids.field.erase(), ids.region.erase(), EdgeKind::DefinedOn),
+            (
+                ids.field.erase(),
+                ids.representation.erase(),
+                EdgeKind::DefinedOn,
+            ),
+            (
+                ids.relation.erase(),
+                ids.boundary.erase(),
+                EdgeKind::AppliesOn,
+            ),
+            (ids.relation.erase(), ids.field.erase(), EdgeKind::DependsOn),
+            (
+                ids.activation.erase(),
+                ids.relation.erase(),
+                EdgeKind::Activates,
+            ),
+        ],
+    );
+    (store, model, ids)
+}
+
 fn declaration_model(
     regions: impl IntoIterator<Item = ([u8; 32], &'static str)>,
 ) -> (
@@ -1030,7 +1114,7 @@ fn domain_topology_fault_suppresses_secondary_entity_set_admission() {
 
 #[test]
 fn geometry_boundary_port_requires_an_embedding_contract_even_after_admission() {
-    let geometry = square_with_hole();
+    let geometry = circular_hole_witness();
     let region = Id::new();
     let boundary = Id::new();
     let connector = Id::new();
@@ -1054,7 +1138,7 @@ fn geometry_boundary_port_requires_an_embedding_contract_even_after_admission() 
                 )
                 .expect("region"),
             ),
-            KernelNode::from(DomainDef::geometry_boundary(boundary, "hole").expect("boundary")),
+            KernelNode::from(DomainDef::geometry_boundary(boundary, "cylinder").expect("boundary")),
             KernelNode::from(DomainDef::boundary_physical(connector, boundary_contract)),
             KernelNode::from(PortDef::boundary_physical(port, connector, boundary)),
         ],
@@ -1079,20 +1163,192 @@ fn geometry_boundary_port_requires_an_embedding_contract_even_after_admission() 
 
 #[test]
 fn admitted_geometry_boundary_support_accepts_relation_scope_only() {
+    let circular = circular_hole_witness();
+    for boundary_set in ["cylinder", "walls"] {
+        let (store, model, ids) = boundary_relation_model(
+            circular.digest_bytes(),
+            "fluid",
+            boundary_set,
+            std::iter::empty(),
+        );
+        let program = KernelProgram::from_snapshot_with_geometry(
+            &store.snapshot(),
+            model,
+            &[CanonicalGeometryRef::from(&circular)],
+        )
+        .expect("artifact admission proves the exact circular boundary Relation scope");
+        program
+            .typed_relation_residual(ids.relation)
+            .expect("the admitted circular boundary support remains available to typing");
+    }
+
+    let straight = square_with_hole();
+    let (straight_store, straight_model, straight_ids) =
+        boundary_relation_model(straight.digest_bytes(), "fluid", "hole", std::iter::empty());
+    let straight_program = KernelProgram::from_snapshot_with_geometry(
+        &straight_store.snapshot(),
+        straight_model,
+        &[CanonicalGeometryRef::from(&straight)],
+    )
+    .expect("the sibling straight-edged family admits the same Relation scope");
+    straight_program
+        .typed_relation_residual(straight_ids.relation)
+        .expect("straight-edged derived support remains available to typing");
+
+    let (store, model, ids) = boundary_relation_model(
+        circular.digest_bytes(),
+        "fluid",
+        "cylinder",
+        std::iter::empty(),
+    );
+    let diagnostics = KernelProgram::from_snapshot(&store.snapshot(), model)
+        .expect_err("artifact-free boundary Relations remain rejected");
+    let admission = diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic.message()
+                == "Relation spatial scope from a geometry Domain requires artifact admission"
+        })
+        .expect("the artifact-free entry keeps its exact diagnostic");
+    assert_diagnostic_at(admission, ids.relation.erase());
+}
+
+#[test]
+fn geometry_boundary_relation_falsifiers_reach_the_claimed_consumer() {
+    let circular = circular_hole_witness();
+    for (boundary_set, expected) in [
+        (
+            "absent",
+            "geometry boundary entity set `absent` is absent from its parent artifact",
+        ),
+        (
+            "fluid",
+            "geometry boundary entity set `fluid` has dimension 2, expected 1",
+        ),
+    ] {
+        let (store, model, ids) = boundary_relation_model(
+            circular.digest_bytes(),
+            "fluid",
+            boundary_set,
+            std::iter::empty(),
+        );
+        let diagnostics = KernelProgram::from_snapshot_with_geometry(
+            &store.snapshot(),
+            model,
+            &[CanonicalGeometryRef::from(&circular)],
+        )
+        .expect_err("invalid parent-relative entity set must reject the scoped Relation");
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.message() == expected)
+            .expect("the exact entity-set diagnostic reaches the Relation fixture");
+        assert_eq!(diagnostic.code(), codes::INVALID_KERNEL_DEFINITION);
+        assert_diagnostic_at(diagnostic, ids.boundary.erase());
+    }
+
+    let foreign = filled_square();
+    let (foreign_store, foreign_model, foreign_ids) = boundary_relation_model(
+        circular.digest_bytes(),
+        "fluid",
+        "foreign-only",
+        [(foreign.digest_bytes(), "body2")],
+    );
+    let foreign_diagnostics = KernelProgram::from_snapshot_with_geometry(
+        &foreign_store.snapshot(),
+        foreign_model,
+        &[
+            CanonicalGeometryRef::from(&foreign),
+            CanonicalGeometryRef::from(&circular),
+        ],
+    )
+    .expect_err("same-named membership in a foreign artifact cannot prove the parent selection");
+    let reverse_foreign_diagnostics = KernelProgram::from_snapshot_with_geometry(
+        &foreign_store.snapshot(),
+        foreign_model,
+        &[
+            CanonicalGeometryRef::from(&circular),
+            CanonicalGeometryRef::from(&foreign),
+        ],
+    )
+    .expect_err("artifact order cannot change the parent-relative rejection");
+    assert_eq!(foreign_diagnostics, reverse_foreign_diagnostics);
+    let foreign_diagnostic = foreign_diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic.message()
+                == "geometry boundary entity set `foreign-only` is absent from its parent artifact"
+        })
+        .expect("foreign membership is checked against the exact parent");
+    assert_diagnostic_at(foreign_diagnostic, foreign_ids.boundary.erase());
+
+    let (missing_store, missing_model, missing_ids) = boundary_relation_model(
+        circular.digest_bytes(),
+        "fluid",
+        "cylinder",
+        std::iter::empty(),
+    );
+    let missing =
+        KernelProgram::from_snapshot_with_geometry(&missing_store.snapshot(), missing_model, &[])
+            .expect_err("the scoped Relation cannot bypass a missing parent artifact");
+    let expected_missing = format!(
+        "missing canonical geometry artifact {}",
+        hex_digest(circular.digest_bytes())
+    );
+    let missing_diagnostic = missing
+        .iter()
+        .find(|diagnostic| diagnostic.message() == expected_missing)
+        .expect("the exact missing-artifact diagnostic reaches the Relation fixture");
+    assert_eq!(missing_diagnostic.code(), codes::INVALID_ARTIFACT);
+    assert_diagnostic_at(missing_diagnostic, missing_ids.region.erase());
+
+    let parent = Id::new();
+    let boundary = Id::new();
+    let relation = Id::new();
+    let activation = Id::new();
+    let mut expression = ExprDagBuilder::new();
+    let zero = expression
+        .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+        .expect("constant residual");
+    let (wrong_store, wrong_model) = committed_model(
+        "geometry boundary Relation with wrong parent kind",
+        vec![
+            KernelNode::from(DomainDef::new(parent)),
+            KernelNode::from(
+                DomainDef::geometry_boundary(boundary, "cylinder").expect("geometry boundary"),
+            ),
+            KernelNode::from(RelationDef::new(
+                relation,
+                expression.finish([zero]).expect("closed residual"),
+            )),
+            KernelNode::from(ActivationDef::continuous(activation)),
+        ],
+        [
+            (boundary.erase(), parent.erase(), EdgeKind::BoundaryOf),
+            (relation.erase(), boundary.erase(), EdgeKind::AppliesOn),
+            (activation.erase(), relation.erase(), EdgeKind::Activates),
+        ],
+    );
+    let wrong_parent =
+        KernelProgram::from_snapshot_with_geometry(&wrong_store.snapshot(), wrong_model, &[])
+            .expect_err("a geometry boundary Relation requires a geometry-region parent");
+    let wrong_parent_diagnostic = wrong_parent
+        .iter()
+        .find(|diagnostic| {
+            diagnostic.message() == "geometry boundary parent must be a geometry region Domain"
+        })
+        .expect("the exact parent-kind diagnostic reaches the Relation fixture");
+    assert_diagnostic_at(wrong_parent_diagnostic, boundary.erase());
+}
+
+#[test]
+fn admitted_geometry_boundary_field_keeps_its_embedding_diagnostic() {
     let geometry = circular_hole_witness();
     let region = Id::new();
     let boundary = Id::new();
     let representation = Id::new();
     let field = Id::new();
-    let relation = Id::new();
-    let activation = Id::new();
-    let mut expression = ExprDagBuilder::new();
-    let field_value = expression
-        .symbol(SymbolRef::Field(field))
-        .expect("Field symbol");
-    let trace = expression.trace(field_value).expect("boundary trace");
     let (store, model) = committed_model(
-        "geometry boundary Relation",
+        "geometry boundary Field",
         vec![
             KernelNode::from(
                 DomainDef::geometry_region(
@@ -1100,9 +1356,11 @@ fn admitted_geometry_boundary_support_accepts_relation_scope_only() {
                     GeometryDigest::new(geometry.digest_bytes()),
                     "fluid",
                 )
-                .expect("region"),
+                .expect("geometry region"),
             ),
-            KernelNode::from(DomainDef::geometry_boundary(boundary, "cylinder").expect("boundary")),
+            KernelNode::from(
+                DomainDef::geometry_boundary(boundary, "cylinder").expect("geometry boundary"),
+            ),
             KernelNode::from(RepresentationDef::continuum(representation)),
             KernelNode::from(
                 FieldDef::shaped(
@@ -1113,41 +1371,27 @@ fn admitted_geometry_boundary_support_accepts_relation_scope_only() {
                 )
                 .expect("spatial Field"),
             ),
-            KernelNode::from(RelationDef::new(
-                relation,
-                expression.finish([trace]).expect("trace residual"),
-            )),
-            KernelNode::from(ActivationDef::continuous(activation)),
         ],
         [
             (boundary.erase(), region.erase(), EdgeKind::BoundaryOf),
-            (field.erase(), region.erase(), EdgeKind::DefinedOn),
+            (field.erase(), boundary.erase(), EdgeKind::DefinedOn),
             (field.erase(), representation.erase(), EdgeKind::DefinedOn),
-            (relation.erase(), boundary.erase(), EdgeKind::AppliesOn),
-            (relation.erase(), field.erase(), EdgeKind::DependsOn),
-            (activation.erase(), relation.erase(), EdgeKind::Activates),
         ],
     );
-    let program = KernelProgram::from_snapshot_with_geometry(
+    let diagnostics = KernelProgram::from_snapshot_with_geometry(
         &store.snapshot(),
         model,
         &[CanonicalGeometryRef::from(&geometry)],
     )
-    .expect("artifact admission proves the exact boundary Relation scope");
-    program
-        .typed_relation_residual(relation)
-        .expect("the admitted boundary support remains available to typing");
-
-    let diagnostics = KernelProgram::from_snapshot(&store.snapshot(), model)
-        .expect_err("artifact-free boundary Relations remain rejected");
-    let admission = diagnostics
+    .expect_err("a Field still requires a non-Cartesian boundary embedding contract");
+    let embedding = diagnostics
         .iter()
         .find(|diagnostic| {
             diagnostic.message()
-                == "Relation spatial scope from a geometry Domain requires artifact admission"
+                == "Field spatial support on a geometry boundary Domain requires a non-Cartesian boundary embedding contract"
         })
-        .expect("the artifact-free entry keeps its exact diagnostic");
-    assert_diagnostic_at(admission, relation.erase());
+        .expect("the live Field branch keeps its exact diagnostic");
+    assert_diagnostic_at(embedding, field.erase());
 }
 
 #[test]
