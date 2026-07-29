@@ -467,7 +467,7 @@ ceiling = 22
 
 [[public_surface]]
 crate = "eqiora-geometry"
-ceiling = 34
+ceiling = 35
 reason = """
 Raised from 23 as an architecture change, not as drift. The seven added names
 are the authored-region vocabulary: a canonical straight-edged planar region,
@@ -482,8 +482,12 @@ cannot be constructed from those facts and exposes no geometry content. One
 additional opaque canonical owner retains an exact circular hole as
 rectangle bounds plus centre/radius identity, without putting mesh refinement
 into the artifact or reopening the closed straight-edged v1 wire.
+One source-bound chordal owner now keeps that exact source reference beside
+the requested and accepted approximation evidence, named region, and accepted
+mesh. Solver and Studio are its two downstream consumers; returning a loose
+tuple would let both lose or reconstruct the source-binding invariant.
 """
-removal = "lower by one if the closed straight-edged and circular-hole owners can become one equally non-forgeable kind-erased owned value without changing either accepted wire/digest; also lower if that owned value can replace the separate borrowed semantic reference without exposing content or caller-authored facts"
+removal = "lower by one if the closed straight-edged and circular-hole owners can become one equally non-forgeable kind-erased owned value without changing either accepted wire/digest; lower again when a general geometry-Realization owner preserves non-forgeable source binding and error evidence while replacing the dedicated chordal owner; also lower if the owned geometry value can replace the separate borrowed semantic reference without exposing content or caller-authored facts"
 
 [[public_surface]]
 crate = "eqiora-graph"
