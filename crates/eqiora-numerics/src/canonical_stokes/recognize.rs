@@ -57,6 +57,12 @@ struct LoweredBoundaryProjection2d {
     uninterpreted_live_relations: BTreeSet<RawId>,
 }
 
+struct LoweredSteadyStokes2d {
+    model: SteadyIncompressibleStokesModel2d,
+    cartesian_entries:
+        Option<BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), CartesianBoundaryEntry>>,
+}
+
 /// Lower the exact canonical 2D steady incompressible Stokes subset.
 ///
 /// Recognition is identity-parametric and whole-model fail-closed. Source
@@ -78,9 +84,9 @@ pub fn lower_steady_incompressible_stokes_cartesian_2d(
         None,
     )?;
     Ok(SteadyIncompressibleStokesCartesianModel2d::from_common(
-        lowered.0,
+        lowered.model,
         lowered
-            .1
+            .cartesian_entries
             .expect("Cartesian lowering retains its exact side inventory"),
     ))
 }
@@ -108,7 +114,7 @@ pub(super) fn lower_steady_incompressible_stokes_geometry_2d(
         BoundarySource2d::Named(boundaries),
         Some(geometry.digest_bytes()),
     )
-    .map(|lowered| lowered.0)
+    .map(|lowered| lowered.model)
 }
 
 fn lower_steady_incompressible_stokes_2d_on(
@@ -117,13 +123,7 @@ fn lower_steady_incompressible_stokes_2d_on(
     bounds: [[f64; 2]; 2],
     boundary_source: BoundarySource2d,
     geometry_source_digest: Option<[u8; 32]>,
-) -> Result<
-    (
-        SteadyIncompressibleStokesModel2d,
-        Option<BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), CartesianBoundaryEntry>>,
-    ),
-    Diagnostic,
-> {
+) -> Result<LoweredSteadyStokes2d, Diagnostic> {
     let (velocity, scalar_fields, normal_velocity_fields, representation) =
         exact_steady_fields(program, domain)?;
     let volume_relations = relations_on(program, domain);
@@ -316,7 +316,10 @@ fn lower_steady_incompressible_stokes_2d_on(
         &normal_pressures.fields,
         &normal_pressures.definitions,
     )?;
-    Ok((model, boundary.cartesian_entries))
+    Ok(LoweredSteadyStokes2d {
+        model,
+        cartesian_entries: boundary.cartesian_entries,
+    })
 }
 
 fn lower_boundary_projection(
@@ -333,7 +336,7 @@ fn lower_boundary_projection(
             let cartesian_entries = lowered
                 .inventory
                 .entries()
-                .map(|(key, entry)| (*key, entry.clone()))
+                .map(|(key, entry)| (*key, *entry))
                 .collect::<BTreeMap<_, _>>();
             Ok(LoweredBoundaryProjection2d {
                 entries: cartesian_entries

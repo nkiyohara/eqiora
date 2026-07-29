@@ -34,6 +34,11 @@ use crate::simplicial_stokes::{
 const DIMENSION: usize = 2;
 const REQUIRED_BOUNDARY_SETS: [&str; 4] = ["cylinder", "inlet", "outlet", "walls"];
 
+struct GeometryBoundary2d {
+    boundary: SimplicialMiniStokesBoundary2d,
+    fixed_velocity: Vec<Option<[f64; DIMENSION]>>,
+}
+
 /// Replay-validated exact-circle to affine-mesh binding for steady Stokes.
 ///
 /// This value is deliberately narrower than a geometry framework. It accepts
@@ -186,13 +191,13 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
     let scales = resolved_stokes_scales(program, resolved, mesh_reference, &model)?;
     let normalized =
         normalize_geometry_mesh(model.bounds(), binding.mesh.mesh(), scales.length_value())?;
-    let (boundary, fixed_velocity) = geometry_boundary(&model, binding, &normalized, scales)?;
+    let geometry_boundary = geometry_boundary(&model, binding, &normalized, scales)?;
     let lookup = normalized
         .vertices()
         .iter()
         .enumerate()
         .filter_map(|(index, coordinate)| {
-            fixed_velocity[index]
+            geometry_boundary.fixed_velocity[index]
                 .map(|value| ((coordinate[0].to_bits(), coordinate[1].to_bits()), value))
         })
         .collect::<BTreeMap<_, _>>();
@@ -212,7 +217,7 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
         &model,
         binding.mesh.mesh(),
         &normalized,
-        &boundary,
+        &geometry_boundary.boundary,
         scales,
         &essential_velocity,
         &REFERENCE_ASSEMBLY_BACKEND,
@@ -265,13 +270,7 @@ fn geometry_boundary(
     binding: &SteadyStokesGeometryBinding2d,
     normalized: &SimplicialMesh,
     scales: super::realization::SteadyStokesScaleProfile2d,
-) -> Result<
-    (
-        SimplicialMiniStokesBoundary2d,
-        Vec<Option<[f64; DIMENSION]>>,
-    ),
-    Diagnostic,
-> {
+) -> Result<GeometryBoundary2d, Diagnostic> {
     let mut facet_owners = BTreeMap::new();
     let mut fixed_velocity = vec![None; normalized.vertices().len()];
     let physical = binding.mesh.mesh();
@@ -397,7 +396,10 @@ fn geometry_boundary(
             binding.entities("cylinder")?.iter().copied(),
         )
         .map_err(|error| invalid(error.message()))?;
-    Ok((boundary, fixed_velocity))
+    Ok(GeometryBoundary2d {
+        boundary,
+        fixed_velocity,
+    })
 }
 
 fn facet_outward_unit_normal(

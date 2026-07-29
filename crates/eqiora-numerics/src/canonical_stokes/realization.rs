@@ -420,9 +420,9 @@ where
     let finalized = FinalizedSteadyStokesMini2dProblem::new(
         inner,
         physical_mesh.clone(),
-        velocity_id(&model),
-        pressure_id(&model),
-        force_potential_id(&model),
+        velocity_id(model),
+        pressure_id(model),
+        force_potential_id(model),
         scales,
     );
     Ok(finalized)
