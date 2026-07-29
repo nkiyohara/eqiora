@@ -327,6 +327,30 @@ test("never invents browser compiler diagnostics or source spans", async ({ page
   await expect(page.getByRole("button", { name: /Go to untitled\.eqi/ })).toHaveCount(0);
 });
 
+test("never fabricates the native exact-cylinder solve in browser preview", async ({ page }) => {
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Eqiora model source" });
+  const acceptedSource = await editor.inputValue();
+
+  await page.getByRole("button", { name: "Run cylinder demo" }).click();
+
+  await expect(
+    page.getByText(
+      "The exact-cylinder solve is available only in native Studio; browser preview does not fabricate scientific results.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Steady flow past an exact circular cylinder" }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Relation view" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Field", exact: true })).toBeDisabled();
+  await expect(page.locator(".document-name")).toHaveText("untitled.eqi");
+  await expect(page.getByText("Revision 1", { exact: true })).toBeVisible();
+  await expect(editor).toHaveValue(acceptedSource);
+  await expectNoSeriousOrCriticalViolations(page);
+});
+
 test("has no serious or critical automated WCAG 2.2 violations in primary states", async ({
   page,
 }) => {

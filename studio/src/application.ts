@@ -11,8 +11,12 @@ import {
 } from "./protocol";
 import { SCALAR_FIELD_VALUES_PER_CHUNK } from "./scalar-field-protocol";
 import { MAX_SPATIAL_ENTITY_COUNT } from "./spatial-protocol";
+import {
+  UNSTRUCTURED_FIELD_ITEMS_PER_CHUNK,
+  UNSTRUCTURED_FIELD_MAX_TRIANGLE_COUNT,
+} from "./unstructured-field-protocol";
 
-export type WorkflowId = "relations" | "scalar-elliptic" | "cad-box";
+export type WorkflowId = "relations" | "scalar-elliptic" | "cylinder-stokes" | "cad-box";
 export type WorkspaceId = "relations" | "field" | "geometry";
 
 export type CommandId =
@@ -26,6 +30,7 @@ export type CommandId =
   | "workspace.relations"
   | "workspace.field"
   | "workspace.geometry"
+  | "example.cylinder"
   | "example.spatial"
   | "example.cad"
   | "focus.source"
@@ -45,6 +50,49 @@ export type FocusTarget =
   | "cad-viewport"
   | "cad-domain-table";
 
+export type ElementFocusTarget = Exclude<FocusTarget, "source-editor" | "relation-view">;
+
+export const CYLINDER_EVIDENCE_FOCUS_ID = "cylinder-evidence-inspector";
+
+/**
+ * Resolve registry focus to the one visible workflow-owned element.
+ *
+ * Workspaces remain mounted while hidden, so shared IDs or document-order
+ * lookup would silently target an inactive surface.
+ */
+export function resolveElementFocusId(
+  target: ElementFocusTarget,
+  activeWorkflow: WorkflowId,
+  activeWorkspace: WorkspaceId,
+): string {
+  switch (target) {
+    case "selection-inspector":
+      return activeWorkflow === "cad-box"
+        ? "cad-selection-inspector"
+        : activeWorkflow === "cylinder-stokes"
+          ? "unstructured-field-inspector"
+          : activeWorkspace === "field"
+            ? "field-selection-inspector"
+            : "inspector-panel";
+    case "evidence-inspector":
+      return activeWorkflow === "cylinder-stokes"
+        ? CYLINDER_EVIDENCE_FOCUS_ID
+        : "evidence-inspector";
+    case "cad-viewport":
+      return "cad-viewport";
+    case "cad-domain-table":
+      return "cad-domain-table";
+    case "field-viewport":
+      return activeWorkflow === "cylinder-stokes"
+        ? "unstructured-field-viewport"
+        : "field-viewport";
+    case "field-value-table":
+      return activeWorkflow === "cylinder-stokes"
+        ? "unstructured-vertex-table"
+        : "field-value-table";
+  }
+}
+
 export interface CommandDefinition {
   readonly id: CommandId;
   readonly group: CommandGroup;
@@ -56,7 +104,8 @@ export interface CommandDefinition {
 }
 
 const RELATION_WORKFLOWS = ["relations", "scalar-elliptic"] as const;
-const ALL_WORKFLOWS = ["relations", "scalar-elliptic", "cad-box"] as const;
+const ALL_WORKFLOWS = ["relations", "scalar-elliptic", "cylinder-stokes", "cad-box"] as const;
+const EVIDENCE_WORKFLOWS = ["relations", "scalar-elliptic", "cylinder-stokes"] as const;
 
 /**
  * Closed command metadata for the currently implemented Studio operations.
@@ -157,6 +206,15 @@ export const COMMAND_REGISTRY = [
     workflows: ALL_WORKFLOWS,
   },
   {
+    id: "example.cylinder",
+    group: "model",
+    label: "command.example.cylinder.label",
+    description: "command.example.cylinder.description",
+    shortcut: null,
+    focusTarget: null,
+    workflows: ALL_WORKFLOWS,
+  },
+  {
     id: "example.spatial",
     group: "model",
     label: "command.example.spatial.label",
@@ -208,7 +266,7 @@ export const COMMAND_REGISTRY = [
     description: "command.focus.evidence.description",
     shortcut: null,
     focusTarget: "evidence-inspector",
-    workflows: RELATION_WORKFLOWS,
+    workflows: EVIDENCE_WORKFLOWS,
   },
 ] as const satisfies readonly CommandDefinition[];
 
@@ -241,6 +299,14 @@ export type ProjectionContract =
       semanticAlternative: Extract<SemanticAlternative, { kind: "field-value-table" }>;
     }>
   | Readonly<{
+      kind: "bounded-unstructured-p1-field-view";
+      maximumVertices: typeof MAX_SPATIAL_ENTITY_COUNT;
+      maximumTriangles: typeof UNSTRUCTURED_FIELD_MAX_TRIANGLE_COUNT;
+      transfer: "explicit-owned-host-copy";
+      itemsPerChunk: typeof UNSTRUCTURED_FIELD_ITEMS_PER_CHUNK;
+      semanticAlternative: Extract<SemanticAlternative, { kind: "field-value-table" }>;
+    }>
+  | Readonly<{
       kind: "bounded-cad-triangle-view";
       maximumVertices: typeof CAD_V1_VERTEX_COUNT;
       maximumTriangles: typeof CAD_V1_TRIANGLE_COUNT;
@@ -266,6 +332,15 @@ type ScalarEllipticWorkflowDefinition = Readonly<{
   projection: Extract<ProjectionContract, { kind: "bounded-scalar-field-view" }>;
 }>;
 
+type CylinderWorkflowDefinition = Readonly<{
+  id: "cylinder-stokes";
+  workspace: "field";
+  label: "workflow.cylinder.label";
+  description: "workflow.cylinder.description";
+  primaryFocus: "field-viewport";
+  projection: Extract<ProjectionContract, { kind: "bounded-unstructured-p1-field-view" }>;
+}>;
+
 type CadWorkflowDefinition = Readonly<{
   id: "cad-box";
   workspace: "geometry";
@@ -278,6 +353,7 @@ type CadWorkflowDefinition = Readonly<{
 export type WorkflowDefinition =
   | RelationsWorkflowDefinition
   | ScalarEllipticWorkflowDefinition
+  | CylinderWorkflowDefinition
   | CadWorkflowDefinition;
 
 /**
@@ -319,6 +395,24 @@ export const WORKFLOW_REGISTRY = [
     },
   },
   {
+    id: "cylinder-stokes",
+    workspace: "field",
+    label: "workflow.cylinder.label",
+    description: "workflow.cylinder.description",
+    primaryFocus: "field-viewport",
+    projection: {
+      kind: "bounded-unstructured-p1-field-view",
+      maximumVertices: MAX_SPATIAL_ENTITY_COUNT,
+      maximumTriangles: UNSTRUCTURED_FIELD_MAX_TRIANGLE_COUNT,
+      transfer: "explicit-owned-host-copy",
+      itemsPerChunk: UNSTRUCTURED_FIELD_ITEMS_PER_CHUNK,
+      semanticAlternative: {
+        kind: "field-value-table",
+        focusTarget: "field-value-table",
+      },
+    },
+  },
+  {
     id: "cad-box",
     workspace: "geometry",
     label: "workflow.cad.label",
@@ -340,6 +434,7 @@ export const WORKFLOW_REGISTRY = [
 export type AcceptedApplicationProjection = Pick<DocumentProjection, "digest" | "workflows">;
 
 export type CadApplicationStatus = "idle" | "loading" | "ready" | "unavailable";
+export type CylinderApplicationStatus = "idle" | "running" | "ready" | "failed";
 
 export type CadApplicationInput = Readonly<{
   status: CadApplicationStatus;
@@ -353,7 +448,8 @@ export type CadApplicationInput = Readonly<{
 export type ApplicationInputs = Readonly<{
   acceptedProjection: AcceptedApplicationProjection | null;
   cad: CadApplicationInput;
-  fieldAvailable: boolean;
+  cylinderStatus: CylinderApplicationStatus;
+  fieldWorkflow: "scalar-elliptic" | "cylinder-stokes" | null;
 }>;
 
 export type WorkflowAvailability =
@@ -375,6 +471,17 @@ function resolveAvailability(
   workflow: WorkflowDefinition,
   inputs: ApplicationInputs,
 ): WorkflowAvailability {
+  if (workflow.id === "cylinder-stokes") {
+    switch (inputs.cylinderStatus) {
+      case "running":
+        return { kind: "loading", reason: "workflow.reason.cylinder-running" };
+      case "ready":
+        return { kind: "available", reason: null };
+      case "idle":
+      case "failed":
+        return unavailable("workflow.reason.cylinder-unavailable");
+    }
+  }
   const document = inputs.acceptedProjection;
   if (document === null) {
     return unavailable("workflow.reason.compile-first");
@@ -436,9 +543,12 @@ export function resolveApplication(
   const cad = workflows.find((workflow) => workflow.definition.id === "cad-box");
   const geometryAvailable =
     cad?.availability.kind === "available" || cad?.availability.kind === "loading";
+  const field = workflows.find((workflow) => workflow.definition.id === inputs.fieldWorkflow);
+  const fieldAvailable =
+    field?.availability.kind === "available" || field?.availability.kind === "loading";
   const workspace =
     (requestedWorkspace === "geometry" && !geometryAvailable) ||
-    (requestedWorkspace === "field" && !inputs.fieldAvailable)
+    (requestedWorkspace === "field" && !fieldAvailable)
       ? "relations"
       : requestedWorkspace;
   const spatial = workflows.find((workflow) => workflow.definition.id === "scalar-elliptic");
@@ -446,7 +556,7 @@ export function resolveApplication(
     workspace === "geometry"
       ? "cad-box"
       : workspace === "field"
-        ? "scalar-elliptic"
+        ? (inputs.fieldWorkflow ?? "relations")
         : spatial?.availability.kind === "available"
           ? "scalar-elliptic"
           : "relations";
@@ -488,6 +598,7 @@ export type CommandFacts = Readonly<{
   selectedEntity: boolean;
   evidenceAvailable: boolean;
   fieldAvailable: boolean;
+  cylinderRunning: boolean;
   cadAvailability: WorkflowAvailability;
 }>;
 
@@ -599,6 +710,7 @@ export function resolveCommandAvailability(facts: CommandFacts): CommandAvailabi
       "command.reason.field-result-unavailable",
     ),
     "workspace.geometry": commandState(cadEnabled, cadReason),
+    "example.cylinder": commandState(!facts.cylinderRunning, "command.reason.cylinder-running"),
     "example.spatial": commandState(!facts.compiling, "command.reason.compiling"),
     "example.cad": commandState(!facts.compiling, "command.reason.compiling"),
     "focus.source": scoped("focus.source", { enabled: true, reason: null }),

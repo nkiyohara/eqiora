@@ -1,0 +1,47 @@
+model Main {
+  domain body = box(0, 2.2, 0, 0.41);
+  domain x_lower = boundary(body, axis = 0, side = lower);
+  domain x_upper = boundary(body, axis = 0, side = upper);
+  domain y_lower = boundary(body, axis = 1, side = lower);
+  domain y_upper = boundary(body, axis = 1, side = upper);
+  representation space = continuum;
+
+  field velocity on body as space: m / s shape spatial_vector;
+  field pressure on body as space: kg / (m * s ^ 2) = 0;
+  field force_potential on body as space: kg / (m * s ^ 2) = 0;
+  field inlet_profile on body as space: m / s = 0;
+  parameter dynamic_viscosity: kg / (m * s) = 0.001;
+  parameter zero_pressure: kg / (m * s ^ 2) = 0;
+  parameter inlet_speed: m / s = 0.3;
+  parameter channel_height: m = 0.41;
+
+  relation force_definition continuous on body {
+    force_potential - zero_pressure = 0;
+  }
+  relation inlet_profile_definition continuous on body {
+    inlet_profile
+      - 4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
+        / channel_height ^ 2 = 0;
+  }
+  relation momentum continuous on body {
+    -div(
+      2 * dynamic_viscosity * symmetric_part(grad(velocity))
+      - isotropic_lift(pressure)
+    ) - grad(force_potential) = 0;
+  }
+  relation incompressibility continuous on body {
+    div(velocity) = 0;
+  }
+
+  relation inlet_velocity continuous on x_lower {
+    trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0;
+  }
+  relation outlet_traction continuous on x_upper {
+    normal(
+      2 * dynamic_viscosity * symmetric_part(grad(velocity))
+      - isotropic_lift(pressure)
+    ) = 0;
+  }
+  relation lower_wall continuous on y_lower { trace(velocity) = 0; }
+  relation upper_wall continuous on y_upper { trace(velocity) = 0; }
+}

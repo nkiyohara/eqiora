@@ -27,12 +27,13 @@ ready state until headers, byte shapes, finite coordinates/values, mesh bounds,
 positive connectivity, final counts, and exact extrema all agree. Changing
 context invalidates outstanding asynchronous work.
 
-This slice verifies the projection, bounded cache/data plane, session, and
-workspace components in isolation. It does not yet populate that cache from a
-production publisher or mount the workspace in the application; the accepted
-cylinder workflow is the first composition that owns those two connections.
-The exact-source admission remains in-process and circle-specific; it is not a
-durable source-to-realization binding or general authored-geometry context.
+This slice verifies the reusable projection, bounded cache/data plane, session,
+and workspace components. The separate
+[`studio-exact-cylinder-stokes-demo`](../studio-exact-cylinder-stokes-demo/README.md)
+case composes them through their first production publisher and
+application-mounted workflow. The exact-source admission remains in-process and
+circle-specific; it is not a durable source-to-realization binding or general
+authored-geometry context.
 
 The canvas is presentation only. Its backing resolution and triangle-pixel
 work are bounded independently of the accepted data-plane sizes; exceeding

@@ -115,6 +115,31 @@ pub(super) struct UnstructuredFieldDescriptor {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct UnstructuredFieldContext {
+    model_digest: String,
+    semantic_revision: String,
+    realization_digest: String,
+    run_digest: String,
+    snapshot_digest: String,
+    mesh_digest: String,
+    field: FieldContext,
+    domain: DomainDescriptor,
+    mesh: MeshDescriptor,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FieldContext {
+    id: String,
+    dimension: String,
+    coherent_si_unit: String,
+    value_count: usize,
+    minimum: f64,
+    maximum: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct FieldDescriptor {
     id: String,
     dimension: String,
@@ -310,6 +335,27 @@ impl CachedUnstructuredField {
         }
     }
 
+    fn context(&self) -> UnstructuredFieldContext {
+        UnstructuredFieldContext {
+            model_digest: self.identity.model_digest.clone(),
+            semantic_revision: self.identity.semantic_revision.clone(),
+            realization_digest: self.identity.realization_digest.clone(),
+            run_digest: self.identity.run_digest.clone(),
+            snapshot_digest: self.identity.snapshot_digest.clone(),
+            mesh_digest: self.identity.mesh_digest.clone(),
+            field: FieldContext {
+                id: self.descriptor.field.id.clone(),
+                dimension: self.descriptor.field.dimension.clone(),
+                coherent_si_unit: self.descriptor.field.coherent_si_unit.clone(),
+                value_count: self.descriptor.field.value_count,
+                minimum: self.descriptor.field.minimum,
+                maximum: self.descriptor.field.maximum,
+            },
+            domain: self.descriptor.domain.clone(),
+            mesh: self.descriptor.mesh.clone(),
+        }
+    }
+
     fn chunk(&self, stream: FieldStream, chunk_index: u32) -> Result<Vec<u8>, ProjectionError> {
         match stream {
             FieldStream::Coordinates => encode_f64_arrays(
@@ -335,21 +381,26 @@ pub(super) struct UnstructuredFieldCache {
 }
 
 impl UnstructuredFieldCache {
-    #[allow(
-        dead_code,
-        reason = "the accepted cylinder workflow is the first production publisher"
-    )]
-    pub(super) fn insert(
+    pub(super) fn publish(
         &mut self,
         projection: UnstructuredP1ScalarFieldProjection2d,
-    ) -> Result<(), ProjectionError> {
+    ) -> Result<UnstructuredFieldContext, ProjectionError> {
         let field = CachedUnstructuredField::new(projection);
+        if let Some(retained) = self
+            .entries
+            .iter()
+            .find(|retained| retained.identity == field.identity)
+        {
+            return Ok(retained.context());
+        }
+        let context = field.context();
         retain_unique_bounded(
             &mut self.entries,
             field,
             MAX_RETAINED_FIELDS,
             |retained, candidate| retained.identity == candidate.identity,
-        )
+        )?;
+        Ok(context)
     }
 
     fn open(

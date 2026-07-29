@@ -2,17 +2,23 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::num::NonZeroUsize;
 
+use eqiora::api::UnstructuredP1ScalarFieldProjection2d;
 use eqiora::artifact::{
-    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, SimplicialMeshEnvelopeV1,
+    DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1, FieldSnapshotEnvelopeV1,
+    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelopeV7,
+    RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora::compatibility::ExactModelCodec;
 use eqiora::geometry::{
-    CanonicalCircularHoleGeometryV1, CanonicalGeometryRef, CircularHoleChordalMeshV1,
-    EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
+    CanonicalCircularHoleGeometryV1, CanonicalGeometryLimits, CanonicalGeometryRef,
+    CircularHoleChordalMeshV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
 };
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{BoundarySide, DomainDef, DomainKind, KernelNode};
-use eqiora::meshing::{MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh};
+use eqiora::meshing::{
+    DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape, MeshEntity,
+    MeshQualityGate, MeshTopology, SimplicialMesh,
+};
 use eqiora::numerics::{
     IncompressibleFlowScaleProfile2d, SteadyStokesGeometryBinding2d, SteadyStokesMiniSolution2d,
     solve_resolved_steady_stokes_geometry_mini_2d,
@@ -25,62 +31,19 @@ use eqiora::realization::{
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
-    LinearSolver, LinearSolverBackend, PreconditionerPolicy, ReductionPolicy, SolverPlan,
+    LinearSolver, LinearSolverBackend, PreconditionerPolicy, ReductionPolicy,
+    SERIAL_EXECUTION_PROVIDER, SolverPlan,
 };
 use eqiora::{Diagnostic, DimExponents, DynQuantity};
 use eqiora_backend_faer::FaerLinearSolver;
 use eqiora_numerics::fluid::SteadyStokesPressureReference2d;
 use serde::Deserialize;
 
-const SOURCE: &str = r#"
-model Main {
-  domain body = box(0, 2.2, 0, 0.41);
-  domain x_lower = boundary(body, axis = 0, side = lower);
-  domain x_upper = boundary(body, axis = 0, side = upper);
-  domain y_lower = boundary(body, axis = 1, side = lower);
-  domain y_upper = boundary(body, axis = 1, side = upper);
-  representation space = continuum;
-
-  field velocity on body as space: m / s shape spatial_vector;
-  field pressure on body as space: kg / (m * s ^ 2) = 0;
-  field force_potential on body as space: kg / (m * s ^ 2) = 0;
-  field inlet_profile on body as space: m / s = 0;
-  parameter dynamic_viscosity: kg / (m * s) = 0.001;
-  parameter zero_pressure: kg / (m * s ^ 2) = 0;
-  parameter inlet_speed: m / s = 0.3;
-  parameter channel_height: m = 0.41;
-
-  relation force_definition continuous on body {
-    force_potential - zero_pressure = 0;
-  }
-  relation inlet_profile_definition continuous on body {
-    inlet_profile
-      - 4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
-        / channel_height ^ 2 = 0;
-  }
-  relation momentum continuous on body {
-    -div(
-      2 * dynamic_viscosity * symmetric_part(grad(velocity))
-      - isotropic_lift(pressure)
-    ) - grad(force_potential) = 0;
-  }
-  relation incompressibility continuous on body {
-    div(velocity) = 0;
-  }
-
-  relation inlet_velocity continuous on x_lower {
-    trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0;
-  }
-  relation outlet_traction continuous on x_upper {
-    normal(
-      2 * dynamic_viscosity * symmetric_part(grad(velocity))
-      - isotropic_lift(pressure)
-    ) = 0;
-  }
-  relation lower_wall continuous on y_lower { trace(velocity) = 0; }
-  relation upper_wall continuous on y_upper { trace(velocity) = 0; }
-}
-"#;
+const SOURCE: &str = include_str!("../../../examples/steady-flow-past-cylinder.eqi");
+const EXAMPLE_GEOMETRY: &[u8] =
+    include_bytes!("../../../examples/steady-flow-past-cylinder.geometry.json");
+const EXAMPLE_MODEL: &[u8] =
+    include_bytes!("../../../examples/steady-flow-past-cylinder.model-v7.json");
 
 const LENGTH: DimExponents = DimExponents {
     length: 1,
@@ -101,8 +64,18 @@ const PRESSURE: DimExponents = DimExponents {
 #[test]
 fn exact_geometry_model_executes_the_frozen_reference_tuple() {
     let witness = execute_witness(1.0e-6).expect("frozen reference tuple executes");
+    let authored = execute_source_witness(exact_source(), SOURCE, 1.0e-6)
+        .expect("readable example source executes");
+    assert_same_example_solution(&witness.solution, &authored.solution);
     let ExecutedWitness {
         solution,
+        model,
+        realization,
+        source,
+        owner,
+        geometry,
+        correspondence,
+        mesh,
         inlet_facets,
         outlet_facets,
         wall_facets,
@@ -226,6 +199,17 @@ fn exact_geometry_model_executes_the_frozen_reference_tuple() {
             * f64::EPSILON
             * (1.0 + dimensionless.continuity_residual_norm() + report.residual_target());
     assert!(dimensionless.continuity_residual_norm() <= weak_bound);
+
+    assert_studio_pressure_projection(
+        &solution,
+        &model,
+        &realization,
+        &source,
+        &owner,
+        &geometry,
+        &correspondence,
+        &mesh,
+    );
 }
 
 #[path = "exact_circular_hole_stokes_2d/falsifiers.rs"]
@@ -233,6 +217,13 @@ mod falsifiers;
 
 struct ExecutedWitness {
     solution: SteadyStokesMiniSolution2d,
+    model: ModelEnvelopeV7,
+    realization: RealizationEnvelopeV2,
+    source: CanonicalCircularHoleGeometryV1,
+    owner: CircularHoleChordalMeshV1,
+    geometry: GeometryDefinitionV1,
+    correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+    mesh: SimplicialMeshEnvelopeV1,
     inlet_facets: Vec<MeshEntity>,
     outlet_facets: Vec<MeshEntity>,
     wall_facets: Vec<MeshEntity>,
@@ -240,8 +231,18 @@ struct ExecutedWitness {
 }
 
 fn execute_witness(relative_tolerance: f64) -> Result<ExecutedWitness, Diagnostic> {
-    let source = exact_source();
-    execute_source_witness(source, SOURCE, relative_tolerance)
+    let source = CanonicalCircularHoleGeometryV1::decode_canonical(
+        embedded_json(EXAMPLE_GEOMETRY),
+        CanonicalGeometryLimits::default(),
+    )?;
+    assert_eq!(source, exact_source());
+    let model = ModelEnvelopeV7::from_json(embedded_json(EXAMPLE_MODEL), Default::default())?;
+    let program = replay_example_program(&model, &source)?;
+    execute_program_witness(source, program, model, relative_tolerance)
+}
+
+fn embedded_json(bytes: &[u8]) -> &[u8] {
+    bytes.strip_suffix(b"\n").unwrap_or(bytes)
 }
 
 fn execute_source_witness(
@@ -250,6 +251,16 @@ fn execute_source_witness(
     relative_tolerance: f64,
 ) -> Result<ExecutedWitness, Diagnostic> {
     let program = geometry_program_from_text(&source, model_source);
+    let model = ModelEnvelopeV7::from_program(&program)?;
+    execute_program_witness(source, program, model, relative_tolerance)
+}
+
+fn execute_program_witness(
+    source: CanonicalCircularHoleGeometryV1,
+    program: KernelProgram,
+    model: ModelEnvelopeV7,
+    relative_tolerance: f64,
+) -> Result<ExecutedWitness, Diagnostic> {
     let owner = frozen_owner(&source);
     assert_frozen_mesh_inventory(&owner);
     let geometry = GeometryDefinitionV1::from_region(owner.region());
@@ -271,11 +282,11 @@ fn execute_source_witness(
         .expect("cylinder facets");
     let binding = SteadyStokesGeometryBinding2d::new(
         &program,
-        source,
-        owner,
-        geometry,
-        mesh,
-        correspondence,
+        source.clone(),
+        owner.clone(),
+        geometry.clone(),
+        mesh.clone(),
+        correspondence.clone(),
     )?;
     let scales = IncompressibleFlowScaleProfile2d::new(
         DynQuantity::new(0.41, LENGTH),
@@ -315,6 +326,8 @@ fn execute_source_witness(
         .expect("faer symmetric mixed simplex capability"),
     )
     .expect("reference capability resolves");
+    let realization =
+        RealizationEnvelopeV2::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)?;
     let solution = solve_resolved_steady_stokes_geometry_mini_2d(
         &program,
         &resolved,
@@ -323,11 +336,170 @@ fn execute_source_witness(
     )?;
     Ok(ExecutedWitness {
         solution,
+        model,
+        realization,
+        source,
+        owner,
+        geometry,
+        correspondence,
+        mesh,
         inlet_facets,
         outlet_facets,
         wall_facets,
         cylinder_facets,
     })
+}
+
+fn replay_example_program(
+    model: &ModelEnvelopeV7,
+    source: &CanonicalCircularHoleGeometryV1,
+) -> Result<KernelProgram, Diagnostic> {
+    let (transaction, model_id) = model.to_transaction().map_err(|diagnostics| {
+        diagnostics
+            .into_iter()
+            .next()
+            .expect("Model replay diagnostic")
+    })?;
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).map_err(|diagnostics| {
+        diagnostics
+            .into_iter()
+            .next()
+            .expect("Model commit diagnostic")
+    })?;
+    KernelProgram::from_snapshot_with_geometry(
+        &store.snapshot(),
+        model_id,
+        &[CanonicalGeometryRef::from(source)],
+    )
+    .map_err(|diagnostics| {
+        diagnostics
+            .into_iter()
+            .next()
+            .expect("Semantic replay diagnostic")
+    })
+}
+
+fn assert_same_example_solution(
+    embedded: &SteadyStokesMiniSolution2d,
+    authored: &SteadyStokesMiniSolution2d,
+) {
+    assert_eq!(
+        embedded.velocity().vertex_values().len(),
+        authored.velocity().vertex_values().len()
+    );
+    assert_eq!(
+        embedded.pressure().vertex_values().len(),
+        authored.pressure().vertex_values().len()
+    );
+    for (embedded, authored) in embedded
+        .velocity()
+        .vertex_values()
+        .iter()
+        .flatten()
+        .zip(authored.velocity().vertex_values().iter().flatten())
+    {
+        assert_close(*embedded, *authored, velocity_tolerance());
+    }
+    for (embedded, authored) in embedded
+        .pressure()
+        .vertex_values()
+        .iter()
+        .zip(authored.pressure().vertex_values())
+    {
+        assert_close(*embedded, *authored, pressure_tolerance());
+    }
+    for boundary in ["inlet", "outlet"] {
+        assert_close(
+            embedded
+                .named_boundary_flux(boundary)
+                .expect("embedded named flux"),
+            authored
+                .named_boundary_flux(boundary)
+                .expect("authored named flux"),
+            flux_tolerance(),
+        );
+    }
+    assert_vector_close(
+        embedded
+            .named_boundary_reaction("cylinder")
+            .expect("embedded cylinder reaction"),
+        authored
+            .named_boundary_reaction("cylinder")
+            .expect("authored cylinder reaction"),
+        reaction_tolerance(),
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn assert_studio_pressure_projection(
+    solution: &SteadyStokesMiniSolution2d,
+    model: &ModelEnvelopeV7,
+    realization: &RealizationEnvelopeV2,
+    source: &CanonicalCircularHoleGeometryV1,
+    owner: &CircularHoleChordalMeshV1,
+    geometry: &GeometryDefinitionV1,
+    correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+    mesh: &SimplicialMeshEnvelopeV1,
+) {
+    let payload = DiscreteFieldPayload::new(
+        mesh.mesh(),
+        DiscreteFieldAssociation::Vertex,
+        DiscreteFieldShape::Scalar,
+        solution.pressure().vertex_values().to_vec(),
+    )
+    .expect("accepted pressure payload");
+    let block =
+        DiscreteFieldEnvelopeV1::from_payload(mesh, &payload).expect("accepted pressure block");
+    let snapshot = FieldSnapshotEnvelopeV1::new_authored_fieldwise(
+        model,
+        realization,
+        source,
+        owner,
+        geometry,
+        correspondence,
+        mesh,
+        solution.pressure_field(),
+        std::slice::from_ref(&block),
+    )
+    .expect("accepted authored pressure snapshot");
+    let execution = ExecutionProvenanceV1::from_provider_releases(
+        FaerLinearSolver.provider(),
+        SERIAL_EXECUTION_PROVIDER,
+        ExecutionTopologyV1::Host {
+            workers: NonZeroUsize::MIN,
+        },
+        ReductionPolicy::Fast,
+        std::iter::empty::<(&str, &str)>(),
+    )
+    .expect("accepted execution provenance");
+    let run = RunManifestV2::new(realization, execution)
+        .expect("accepted Run")
+        .with_output(snapshot.digest().expect("snapshot identity"));
+    let projection = UnstructuredP1ScalarFieldProjection2d::from_authored_fieldwise_snapshot(
+        model,
+        realization,
+        source,
+        owner,
+        geometry,
+        correspondence,
+        mesh,
+        &run,
+        &snapshot,
+        &block,
+    )
+    .expect("accepted Studio pressure projection");
+
+    assert_eq!(projection.model_artifact(), &model.digest().unwrap());
+    assert_eq!(
+        projection.realization_artifact(),
+        &realization.digest().unwrap()
+    );
+    assert_eq!(projection.run_artifact(), &run.digest().unwrap());
+    assert_eq!(projection.snapshot_artifact(), &snapshot.digest().unwrap());
+    assert_eq!(projection.mesh_artifact(), &mesh.digest().unwrap());
+    assert_eq!(projection.field(), solution.pressure_field());
+    assert_eq!(projection.values(), solution.pressure().vertex_values());
 }
 
 #[derive(Debug, Deserialize)]

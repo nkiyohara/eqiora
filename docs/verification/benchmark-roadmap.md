@@ -196,6 +196,13 @@ nonlinear cases are separate obligations.
 | `fluid.oseen-mms` | Manufactured Oseen/Navier–Stokes flow | pressure/velocity convergence and inf-sup behavior | `proposed` |
 | `fluid.hydrostatic-balance` | Static fluid under gravity | pressure null space and well-balanced forcing | `proposed` |
 
+The native Studio `steady-flow-past-cylinder` example does not advance
+`fluid.flow-past-cylinder`: it is a bounded steady Stokes demonstration on one
+coarse error-controlled affine mesh, with no Reynolds-number, wake,
+drag/lift-coefficient, Strouhal-number, convergence, benchmark, or validation
+claim. Its reproducible application-composition evidence is indexed separately
+as `interfaces.studio-exact-cylinder-stokes-demo`.
+
 ## Compressible-flow candidates
 
 Smooth and discontinuous cases are intentionally separate: a method can be

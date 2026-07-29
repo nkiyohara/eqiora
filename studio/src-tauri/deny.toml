@@ -39,10 +39,16 @@ unsound = "all"
 # Eqiora Studio or the pinned Tauri/GTK graph. Remove this exception on any
 # glib/Tauri boundary change or when a fixed compatible release is available.
 #
+# The accepted exact-cylinder solve uses the pinned faer 0.24.4 adapter, whose
+# gemm/pulp graph retains paste 1.0.15. RUSTSEC-2024-0436 is an unmaintained
+# notice without a safe upgrade, not a reported vulnerability. Remove this
+# exception when the accepted faer graph no longer resolves paste.
+#
 # tauri-utils -> urlpattern 0.3 retains the exact unmaintained rust-unic
 # family. Remove these notices together when that upstream graph migrates.
 # Never broaden an exception to a new advisory.
 ignore = [
+    "RUSTSEC-2024-0436",
     "RUSTSEC-2026-0196",
     "RUSTSEC-2026-0197",
     "RUSTSEC-2024-0370",

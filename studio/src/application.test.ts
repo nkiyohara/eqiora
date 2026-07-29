@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   type AcceptedApplicationProjection,
+  type ApplicationInputs,
   COMMAND_REGISTRY,
+  type CommandFacts,
+  CYLINDER_EVIDENCE_FOCUS_ID,
   resolveApplication,
   resolveApplicationWorkflows,
   resolveCommandAvailability,
+  resolveElementFocusId,
   WORKFLOW_REGISTRY,
 } from "./application";
 import {
@@ -16,6 +20,10 @@ import { ENGLISH_MESSAGES, formatMessage } from "./messages";
 import { MAX_PROJECTION_EDGE_COUNT, MAX_PROJECTION_NODE_COUNT } from "./protocol";
 import { SCALAR_FIELD_VALUES_PER_CHUNK } from "./scalar-field-protocol";
 import { MAX_SPATIAL_ENTITY_COUNT } from "./spatial-protocol";
+import {
+  UNSTRUCTURED_FIELD_ITEMS_PER_CHUNK,
+  UNSTRUCTURED_FIELD_MAX_TRIANGLE_COUNT,
+} from "./unstructured-field-protocol";
 
 const DIGEST = "a".repeat(64);
 
@@ -36,15 +44,52 @@ function acceptedProjection(scalarElliptic: boolean): AcceptedApplicationProject
   };
 }
 
+function applicationInputs(overrides: Partial<ApplicationInputs> = {}): ApplicationInputs {
+  return {
+    acceptedProjection: acceptedProjection(true),
+    cad: { status: "unavailable", acceptedModelDigest: null },
+    cylinderStatus: "idle",
+    fieldWorkflow: null,
+    ...overrides,
+  };
+}
+
 function resolved(
   scalarElliptic: boolean,
-  cad: Parameters<typeof resolveApplicationWorkflows>[0]["cad"],
+  cad: ApplicationInputs["cad"],
+  cylinderStatus: ApplicationInputs["cylinderStatus"] = "idle",
 ) {
-  return resolveApplicationWorkflows({
-    acceptedProjection: acceptedProjection(scalarElliptic),
-    cad,
+  return resolveApplicationWorkflows(
+    applicationInputs({
+      acceptedProjection: acceptedProjection(scalarElliptic),
+      cad,
+      cylinderStatus,
+    }),
+  );
+}
+
+function commandFacts(overrides: Partial<CommandFacts> = {}): CommandFacts {
+  return {
+    activeWorkflow: "scalar-elliptic",
+    compiling: false,
+    documentAccepted: true,
+    valueEditReady: false,
+    valueEditBlock: null,
+    revisionNavigationBlocked: false,
+    canUndo: false,
+    canRedo: false,
+    runBlock: "spatial-plan",
+    runActivity: "spatial-running",
+    selectedEntity: false,
+    evidenceAvailable: false,
     fieldAvailable: false,
-  });
+    cylinderRunning: false,
+    cadAvailability: {
+      kind: "unavailable",
+      reason: "workflow.reason.cad-unavailable",
+    },
+    ...overrides,
+  };
 }
 
 describe("typed Studio application registry", () => {
@@ -52,6 +97,7 @@ describe("typed Studio application registry", () => {
     expect(WORKFLOW_REGISTRY.map((workflow) => workflow.id)).toEqual([
       "relations",
       "scalar-elliptic",
+      "cylinder-stokes",
       "cad-box",
     ]);
     expect(new Set(WORKFLOW_REGISTRY.map((workflow) => workflow.id)).size).toBe(
@@ -68,6 +114,7 @@ describe("typed Studio application registry", () => {
       "workspace.relations",
       "workspace.geometry",
       "workspace.field",
+      "example.cylinder",
       "example.spatial",
       "example.cad",
       "focus.source",
@@ -81,9 +128,7 @@ describe("typed Studio application registry", () => {
   });
 
   it("declares a bounded projection and semantic alternative for every workflow", () => {
-    const relations = WORKFLOW_REGISTRY[0];
-    const spatial = WORKFLOW_REGISTRY[1];
-    const cad = WORKFLOW_REGISTRY[2];
+    const [relations, spatial, cylinder, cad] = WORKFLOW_REGISTRY;
 
     expect(relations.projection).toEqual({
       kind: "semantic-relation-graph",
@@ -104,6 +149,17 @@ describe("typed Studio application registry", () => {
         focusTarget: "field-value-table",
       },
     });
+    expect(cylinder.projection).toEqual({
+      kind: "bounded-unstructured-p1-field-view",
+      maximumVertices: MAX_SPATIAL_ENTITY_COUNT,
+      maximumTriangles: UNSTRUCTURED_FIELD_MAX_TRIANGLE_COUNT,
+      transfer: "explicit-owned-host-copy",
+      itemsPerChunk: UNSTRUCTURED_FIELD_ITEMS_PER_CHUNK,
+      semanticAlternative: {
+        kind: "field-value-table",
+        focusTarget: "field-value-table",
+      },
+    });
     expect(cad.projection).toEqual({
       kind: "bounded-cad-triangle-view",
       maximumVertices: CAD_V1_VERTEX_COUNT,
@@ -116,15 +172,17 @@ describe("typed Studio application registry", () => {
     });
   });
 
-  it("derives applicability only from accepted projection and exact CAD session identity", () => {
-    const noDocument = resolveApplicationWorkflows({
-      acceptedProjection: null,
-      cad: { status: "ready", acceptedModelDigest: DIGEST },
-      fieldAvailable: false,
-    });
+  it("derives applicability from accepted projection and exact workflow evidence", () => {
+    const noDocument = resolveApplicationWorkflows(
+      applicationInputs({
+        acceptedProjection: null,
+        cad: { status: "ready", acceptedModelDigest: DIGEST },
+      }),
+    );
     expect(noDocument.map((workflow) => workflow.availability)).toEqual([
       { kind: "unavailable", reason: "workflow.reason.compile-first" },
       { kind: "unavailable", reason: "workflow.reason.compile-first" },
+      { kind: "unavailable", reason: "workflow.reason.cylinder-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.compile-first" },
     ]);
 
@@ -135,108 +193,106 @@ describe("typed Studio application registry", () => {
     expect(unavailable.map((workflow) => workflow.availability)).toEqual([
       { kind: "available", reason: null },
       { kind: "unavailable", reason: "workflow.reason.spatial-unavailable" },
+      { kind: "unavailable", reason: "workflow.reason.cylinder-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.cad-unavailable" },
     ]);
 
-    const accepted = resolved(true, {
-      status: "ready",
-      acceptedModelDigest: DIGEST,
-    });
+    const accepted = resolved(true, { status: "ready", acceptedModelDigest: DIGEST }, "ready");
     expect(accepted.every((workflow) => workflow.availability.kind === "available")).toBe(true);
 
     const staleCad = resolved(true, {
       status: "ready",
       acceptedModelDigest: "b".repeat(64),
     });
-    expect(staleCad[2]?.availability).toEqual({
+    expect(staleCad[3]?.availability).toEqual({
       kind: "unavailable",
       reason: "workflow.reason.cad-stale",
     });
   });
 
-  it("keeps pending CAD resolution distinct from unsupported applicability", () => {
+  it("keeps pending workflow resolution distinct from unsupported applicability", () => {
     for (const status of ["idle", "loading"] as const) {
-      const cad = resolved(false, { status, acceptedModelDigest: null })[2];
+      const cad = resolved(false, { status, acceptedModelDigest: null })[3];
       expect(cad?.availability).toEqual({
         kind: "loading",
         reason: "workflow.reason.cad-loading",
       });
     }
+    expect(
+      resolved(false, { status: "unavailable", acceptedModelDigest: null }, "running")[2]
+        ?.availability,
+    ).toEqual({
+      kind: "loading",
+      reason: "workflow.reason.cylinder-running",
+    });
   });
 
-  it("falls back from an inapplicable Geometry workspace without touching model state", () => {
+  it("falls back from inapplicable workspaces without touching canonical model state", () => {
     const unavailable = resolveApplication(
-      {
+      applicationInputs({
         acceptedProjection: acceptedProjection(false),
-        cad: { status: "unavailable", acceptedModelDigest: null },
-        fieldAvailable: false,
-      },
+        fieldWorkflow: null,
+      }),
       "geometry",
     );
-    expect(unavailable.workspace).toBe("relations");
-    expect(unavailable.activeWorkflow).toBe("relations");
-    expect(unavailable.fellBack).toBe(true);
-    expect(unavailable.requestedWorkspace).toBe("geometry");
+    expect(unavailable).toMatchObject({
+      workspace: "relations",
+      activeWorkflow: "relations",
+      fellBack: true,
+      requestedWorkspace: "geometry",
+    });
 
     const loading = resolveApplication(
-      {
+      applicationInputs({
         acceptedProjection: acceptedProjection(false),
         cad: { status: "loading", acceptedModelDigest: null },
-        fieldAvailable: false,
-      },
+      }),
       "geometry",
     );
-    expect(loading.workspace).toBe("geometry");
-    expect(loading.activeWorkflow).toBe("cad-box");
-    expect(loading.fellBack).toBe(false);
+    expect(loading).toMatchObject({
+      workspace: "geometry",
+      activeWorkflow: "cad-box",
+      fellBack: false,
+    });
 
-    const field = resolveApplication(
-      {
-        acceptedProjection: acceptedProjection(true),
-        cad: { status: "unavailable", acceptedModelDigest: null },
-        fieldAvailable: true,
-      },
+    const scalarField = resolveApplication(
+      applicationInputs({ fieldWorkflow: "scalar-elliptic" }),
       "field",
     );
-    expect(field.workspace).toBe("field");
-    expect(field.activeWorkflow).toBe("scalar-elliptic");
+    expect(scalarField).toMatchObject({
+      workspace: "field",
+      activeWorkflow: "scalar-elliptic",
+    });
 
-    const missingField = resolveApplication(
-      {
-        acceptedProjection: acceptedProjection(true),
-        cad: { status: "unavailable", acceptedModelDigest: null },
-        fieldAvailable: false,
-      },
+    const cylinder = resolveApplication(
+      applicationInputs({
+        acceptedProjection: null,
+        cylinderStatus: "running",
+        fieldWorkflow: "cylinder-stokes",
+      }),
       "field",
     );
-    expect(missingField.workspace).toBe("relations");
-    expect(missingField.fellBack).toBe(true);
+    expect(cylinder).toMatchObject({
+      workspace: "field",
+      activeWorkflow: "cylinder-stokes",
+      fellBack: false,
+    });
+
+    const failedCylinder = resolveApplication(
+      applicationInputs({
+        cylinderStatus: "failed",
+        fieldWorkflow: "cylinder-stokes",
+      }),
+      "field",
+    );
+    expect(failedCylinder).toMatchObject({
+      workspace: "relations",
+      fellBack: true,
+    });
   });
 
   it("resolves toolbar, navigation, and palette availability from the same facts", () => {
-    const cadAvailability = resolved(true, {
-      status: "unavailable",
-      acceptedModelDigest: null,
-    })[2]?.availability;
-    expect(cadAvailability).toBeDefined();
-    if (cadAvailability === undefined) return;
-
-    const availability = resolveCommandAvailability({
-      activeWorkflow: "scalar-elliptic",
-      compiling: false,
-      documentAccepted: true,
-      valueEditReady: false,
-      valueEditBlock: null,
-      revisionNavigationBlocked: false,
-      canUndo: false,
-      canRedo: false,
-      runBlock: "spatial-plan",
-      runActivity: "spatial-running",
-      selectedEntity: false,
-      evidenceAvailable: false,
-      fieldAvailable: false,
-      cadAvailability,
-    });
+    const availability = resolveCommandAvailability(commandFacts());
 
     expect(Object.keys(availability)).toHaveLength(COMMAND_REGISTRY.length);
     expect(availability["workspace.geometry"]).toEqual({
@@ -259,19 +315,25 @@ describe("typed Studio application registry", () => {
       enabled: false,
       reason: "command.reason.select-entity",
     });
+    expect(
+      resolveCommandAvailability(commandFacts({ cylinderRunning: true }))["example.cylinder"],
+    ).toEqual({
+      enabled: false,
+      reason: "command.reason.cylinder-running",
+    });
   });
 
   it("scopes commands and focus targets to compatible current workflows", () => {
-    const workflows = resolved(true, {
-      status: "ready",
-      acceptedModelDigest: DIGEST,
-    });
+    const workflows = resolved(true, { status: "ready", acceptedModelDigest: DIGEST }, "ready");
     const relations = workflows[0]?.commands.map((command) => command.id);
     const spatial = workflows[1]?.commands.map((command) => command.id);
-    const cad = workflows[2]?.commands.map((command) => command.id);
+    const cylinder = workflows[2]?.commands.map((command) => command.id);
+    const cad = workflows[3]?.commands.map((command) => command.id);
 
     expect(relations).toContain("run.cancel");
     expect(spatial).toContain("run.cancel");
+    expect(cylinder).toContain("focus.evidence");
+    expect(cylinder).not.toContain("run.execute");
     expect(cad).toEqual([
       "model.compile",
       "history.undo",
@@ -279,6 +341,7 @@ describe("typed Studio application registry", () => {
       "workspace.relations",
       "workspace.geometry",
       "workspace.field",
+      "example.cylinder",
       "example.spatial",
       "example.cad",
       "focus.inspector",
@@ -297,6 +360,19 @@ describe("typed Studio application registry", () => {
     ).toBe("cad-viewport");
   });
 
+  it("routes evidence focus to the visible workflow-owned element", () => {
+    expect(resolveElementFocusId("evidence-inspector", "relations", "relations")).toBe(
+      "evidence-inspector",
+    );
+    expect(resolveElementFocusId("evidence-inspector", "scalar-elliptic", "relations")).toBe(
+      "evidence-inspector",
+    );
+    expect(resolveElementFocusId("evidence-inspector", "cylinder-stokes", "field")).toBe(
+      CYLINDER_EVIDENCE_FOCUS_ID,
+    );
+    expect(CYLINDER_EVIDENCE_FOCUS_ID).not.toBe("evidence-inspector");
+  });
+
   it("resolves every registry-owned message through the fallback catalog", () => {
     for (const workflow of WORKFLOW_REGISTRY) {
       expect(formatMessage(workflow.label)).toBe(ENGLISH_MESSAGES[workflow.label]);
@@ -306,11 +382,9 @@ describe("typed Studio application registry", () => {
       expect(formatMessage(command.label)).toBe(ENGLISH_MESSAGES[command.label]);
       expect(formatMessage(command.description)).toBe(ENGLISH_MESSAGES[command.description]);
     }
-    for (const workflow of resolveApplicationWorkflows({
-      acceptedProjection: null,
-      cad: { status: "idle", acceptedModelDigest: null },
-      fieldAvailable: false,
-    })) {
+    for (const workflow of resolveApplicationWorkflows(
+      applicationInputs({ acceptedProjection: null }),
+    )) {
       expect(workflow.availability.reason).not.toBeNull();
       if (workflow.availability.reason !== null) {
         expect(formatMessage(workflow.availability.reason)).not.toHaveLength(0);
