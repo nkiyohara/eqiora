@@ -1,0 +1,65 @@
+id = "geometry.exact-circular-hole-geometry"
+status = "verified"
+scope = "one-canonical-axis-aligned-rectangle-with-one-exact-circular-hole"
+reference_kind = "independent-canonical-encoding-and-domain-separated-digest-oracle"
+
+capabilities = [
+  "exact-analytic-circle-geometry-identity",
+  "bounded-external-circular-hole-json-admission",
+  "named-exact-region-and-boundary-entity-sets",
+  "kind-erased-geometry-backed-semantic-admission",
+]
+
+[problem]
+geometry = "DFG-shaped 2.2 m by 0.41 m rectangle with one radius-0.05 m circle centred at [0.2, 0.2] m"
+encoding = "compact canonical JSON for eqiora.planar-circular-hole-envelope/v1"
+identity = "SHA-256 over the sibling schema domain, one NUL separator, and the complete canonical bytes"
+region = "fluid, exact topological dimension 2"
+boundary = "cylinder, exact topological dimension 1"
+
+[oracle]
+source = "standalone Python construction from the frozen RFC 0081 contract, independent of Rust"
+canonical_bytes = 511
+sha256 = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
+
+[acceptance]
+circle_identity_is_center_and_radius = true
+mesh_refinement_absent_from_identity = true
+external_bytes_reconstruct_exactly = true
+semantic_admission_reuses_kind_erased_reference = true
+artifact_bytes_or_borrows_retained_by_program = false
+
+[falsifiers]
+noncanonical_number_or_field_spelling = "reject rather than normalize"
+nonfinite_or_nonpositive_radius_or_tolerance = "reject-with-EQ0901"
+reversed_or_nonfinite_span = "reject-with-EQ0901"
+tangent_or_insufficiently_clear_circle = "reject-with-EQ0901"
+invalid_or_duplicate_entity_set = "reject-with-EQ0901"
+decoder_budget_excess = "reject-with-EQ0901"
+signed_zero = "one canonical identity"
+straight_edged_family = "bytes-and-digest-unchanged"
+caller_supplied_digest_or_dimensions = "no-safe-construction-path"
+
+[claim_boundary]
+ambient_dimension = 2
+topological_dimension = 2
+exact_circle = true
+one_axis_aligned_rectangle = true
+exactly_one_circular_hole = true
+external_json_admission = true
+content_digest_stability = true
+geometry_backed_semantic_admission = true
+language_or_draft_syntax = false
+artifact_storage_or_discovery = false
+chordal_or_curved_realization = false
+mesh_generation_or_correspondence = false
+boundary_embedding_or_physical_port = false
+navier_stokes_lowering = false
+general_arcs_ellipses_nurbs_or_brep = false
+csg_booleans_or_cad = false
+multiple_circles_or_3d = false
+cylinder_flow_demo = false
+
+[evidence]
+package = "eqiora"
+test = "geometry_backed_semantic_admission"

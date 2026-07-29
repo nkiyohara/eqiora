@@ -467,7 +467,7 @@ ceiling = 22
 
 [[public_surface]]
 crate = "eqiora-geometry"
-ceiling = 33
+ceiling = 34
 reason = """
 Raised from 23 as an architecture change, not as drift. The seven added names
 are the authored-region vocabulary: a canonical straight-edged planar region,
@@ -478,9 +478,12 @@ opaque canonical geometry value and its mandatory wire-work budget. Together
 they let a Model eventually own a shape that is not a box without accepting
 caller-supplied digest/fact pairs. One borrowed, kind-erased reference now
 projects only derived digest and dimension facts into semantic admission; it
-cannot be constructed from those facts and exposes no geometry content.
+cannot be constructed from those facts and exposes no geometry content. One
+additional opaque canonical owner retains an exact circular hole as
+rectangle bounds plus centre/radius identity, without putting mesh refinement
+into the artifact or reopening the closed straight-edged v1 wire.
 """
-removal = "lower by one if CanonicalGeometryV1 becomes the kind-erased stable value and can provide semantic facts without a separate borrowed wrapper; when curved regions arrive, generalize the canonical value and budget in place rather than duplicating this boundary"
+removal = "lower by one if the closed straight-edged and circular-hole owners can become one equally non-forgeable kind-erased owned value without changing either accepted wire/digest; also lower if that owned value can replace the separate borrowed semantic reference without exposing content or caller-authored facts"
 
 [[public_surface]]
 crate = "eqiora-graph"
