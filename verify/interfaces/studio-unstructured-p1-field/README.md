@@ -1,14 +1,20 @@
 # Studio unstructured P1 scalar Field
 
 This case registers one closed application projection for a coherent-SI scalar
-P1 Field on a bounded two-dimensional affine-triangle mesh. The ordinary
-positive fixture is the existing fixed-reference FSI pressure snapshot, not a
-cylinder-specific shortcut. `eqiora-api` replays the exact Model, semantic
-revision, Realization plan, geometry/correspondence/mesh lineage, Field,
-Domain, logical snapshot, and vertex coefficient block before it copies any
-renderer-ready data. The logical snapshot digest must also be a registered
-output of the exact Run; matching Model and Realization lineage alone is not
-enough.
+P1 Field on a bounded two-dimensional affine-triangle mesh. One positive
+fixture remains the fixed-reference FSI pressure snapshot. A second admits the
+same snapshot and projection values through an in-process Model v7/field-wise
+Realization v2 lineage only when the exact circular-hole source, its opaque
+chordal owner, authored region, correspondence, and complete imported mesh
+replay together. `eqiora-api` replays the exact Model, semantic revision,
+Realization plan, geometry/correspondence/mesh lineage, Field, Domain, logical
+snapshot, and vertex coefficient block before it copies any renderer-ready
+data. The logical snapshot digest must also be a registered output of the exact
+Run; matching Model and Realization lineage alone is not enough.
+
+Foreign resources at every layer reject before publication. In particular, an
+authored polygon with the same `fluid` set name cannot substitute for the
+region owned by another exact circular-hole source.
 
 Studio retains at most two accepted projections. Its descriptor carries the
 same artifact identities and declares three separate fixed-order streams:
@@ -25,6 +31,8 @@ This slice verifies the projection, bounded cache/data plane, session, and
 workspace components in isolation. It does not yet populate that cache from a
 production publisher or mount the workspace in the application; the accepted
 cylinder workflow is the first composition that owns those two connections.
+The exact-source admission remains in-process and circle-specific; it is not a
+durable source-to-realization binding or general authored-geometry context.
 
 The canvas is presentation only. Its backing resolution and triangle-pixel
 work are bounded independently of the accepted data-plane sizes; exceeding

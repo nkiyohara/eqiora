@@ -13,27 +13,29 @@ use ulid::Ulid;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldDecoderLimits,
-    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference,
-    RealizationEnvelopeV3, ReplayableCanonicalModelArtifact,
-    ReplayableFixedTopologyAleRealizationArtifact, SimplicialMeshEnvelopeV1,
-    ValidatedFixedSpatialContextV1, ValidatedMovingSpatialContextV2, check_json_limits,
-    invalid_artifact,
+    GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference, RealizationEnvelopeV3,
+    ReplayableCanonicalModelArtifact, ReplayableFixedTopologyAleRealizationArtifact,
+    SimplicialMeshEnvelopeV1, ValidatedFixedSpatialContextV1, ValidatedMovingSpatialContextV2,
+    check_json_limits, invalid_artifact,
 };
+
+use super::context::ValidatedCircularHoleFieldwiseContext;
 
 const FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.field-snapshot-envelope/v1";
 
 /// The common validated lineage needed to construct the unchanged V1
-/// coefficient-snapshot wire in either fixed or moving geometry.
+/// coefficient-snapshot wire after any admitted spatial lineage.
 ///
 /// This stays private: it removes duplicated validation machinery without
 /// turning an implementation seam into another public extension point.
-trait ValidatedFieldSnapshotContext {
+pub(super) trait ValidatedFieldSnapshotContext {
     fn model_reference(&self) -> &ModelArtifactReference;
     fn program(&self) -> &eqiora_sem::KernelProgram;
     fn realization_artifact(&self) -> Result<ArtifactDigest, Diagnostic>;
-    fn geometry(&self) -> &GeometryIdentityEnvelopeV1;
+    fn geometry_artifact(&self) -> Result<ArtifactDigest, Diagnostic>;
     fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1;
     fn mesh(&self) -> &SimplicialMeshEnvelopeV1;
+    fn active_cells(&self, domain: Id<kinds::Domain>) -> Result<Vec<usize>, Diagnostic>;
     fn realized_field_space(
         &self,
         field: Id<kinds::Field>,
@@ -90,7 +92,7 @@ impl FieldSnapshotEnvelopeV1 {
         Self::new_in_context(context, field, blocks)
     }
 
-    fn new_in_context<'a>(
+    pub(super) fn new_in_context<'a>(
         context: &impl ValidatedFieldSnapshotContext,
         field: Id<kinds::Field>,
         blocks: impl IntoIterator<Item = &'a DiscreteFieldEnvelopeV1>,
@@ -160,9 +162,7 @@ impl FieldSnapshotEnvelopeV1 {
 
         let field_shape = definition.shape().clone();
         require_portable_shape(&field_shape)?;
-        let active_cells = correspondence.body_cells(realized_domain).ok_or_else(|| {
-            invalid_artifact("Field snapshot Domain has no exact mesh cell correspondence")
-        })?;
+        let active_cells = context.active_cells(realized_domain)?;
         let active_vertices = cell_closure_vertices(mesh, &active_cells)?;
         for block in &ordered {
             if block.mesh_artifact() != mesh.digest()? {
@@ -186,7 +186,7 @@ impl FieldSnapshotEnvelopeV1 {
                 model_sha256: context.model_reference().artifact().to_string(),
                 semantic_revision: context.model_reference().semantic_revision().get(),
                 realization_sha256: context.realization_artifact()?.to_string(),
-                geometry_sha256: context.geometry().digest()?.to_string(),
+                geometry_sha256: context.geometry_artifact()?.to_string(),
                 correspondence_sha256: correspondence.digest()?.to_string(),
                 mesh_sha256: mesh.digest()?.to_string(),
                 field_ulid: field.ulid().to_string(),
@@ -522,8 +522,8 @@ impl ValidatedFieldSnapshotContext for ValidatedFixedSpatialContextV1<'_> {
         self.realization().digest()
     }
 
-    fn geometry(&self) -> &GeometryIdentityEnvelopeV1 {
-        ValidatedFixedSpatialContextV1::geometry(self)
+    fn geometry_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
+        ValidatedFixedSpatialContextV1::geometry(self).digest()
     }
 
     fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1 {
@@ -532,6 +532,12 @@ impl ValidatedFieldSnapshotContext for ValidatedFixedSpatialContextV1<'_> {
 
     fn mesh(&self) -> &SimplicialMeshEnvelopeV1 {
         ValidatedFixedSpatialContextV1::mesh(self)
+    }
+
+    fn active_cells(&self, domain: Id<kinds::Domain>) -> Result<Vec<usize>, Diagnostic> {
+        self.correspondence()
+            .body_cells(domain)
+            .ok_or_else(|| invalid_artifact("Field snapshot Domain has no exact mesh cells"))
     }
 
     fn realized_field_space(
@@ -557,8 +563,8 @@ impl<M: ReplayableCanonicalModelArtifact, R: ReplayableFixedTopologyAleRealizati
         self.realization_artifact()
     }
 
-    fn geometry(&self) -> &GeometryIdentityEnvelopeV1 {
-        ValidatedMovingSpatialContextV2::geometry(self)
+    fn geometry_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
+        ValidatedMovingSpatialContextV2::geometry(self).digest()
     }
 
     fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1 {
@@ -569,11 +575,62 @@ impl<M: ReplayableCanonicalModelArtifact, R: ReplayableFixedTopologyAleRealizati
         ValidatedMovingSpatialContextV2::mesh(self)
     }
 
+    fn active_cells(&self, domain: Id<kinds::Domain>) -> Result<Vec<usize>, Diagnostic> {
+        self.correspondence()
+            .body_cells(domain)
+            .ok_or_else(|| invalid_artifact("Field snapshot Domain has no exact mesh cells"))
+    }
+
     fn realized_field_space(
         &self,
         field: Id<kinds::Field>,
     ) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
         ValidatedMovingSpatialContextV2::realized_field_space(self, field)
+    }
+}
+
+impl ValidatedFieldSnapshotContext for ValidatedCircularHoleFieldwiseContext<'_> {
+    fn model_reference(&self) -> &ModelArtifactReference {
+        ValidatedCircularHoleFieldwiseContext::model_reference(self)
+    }
+
+    fn program(&self) -> &eqiora_sem::KernelProgram {
+        ValidatedCircularHoleFieldwiseContext::program(self)
+    }
+
+    fn realization_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
+        self.realization().digest()
+    }
+
+    fn geometry_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
+        self.geometry().digest()
+    }
+
+    fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1 {
+        ValidatedCircularHoleFieldwiseContext::correspondence(self)
+    }
+
+    fn mesh(&self) -> &SimplicialMeshEnvelopeV1 {
+        ValidatedCircularHoleFieldwiseContext::mesh(self)
+    }
+
+    fn active_cells(&self, domain: Id<kinds::Domain>) -> Result<Vec<usize>, Diagnostic> {
+        ValidatedCircularHoleFieldwiseContext::active_cells(self, domain)
+    }
+
+    fn realized_field_space(
+        &self,
+        field: Id<kinds::Field>,
+    ) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
+        let spatial = self.realization().plan()?.spatial().clone();
+        let binding = spatial
+            .field_spaces()
+            .iter()
+            .find(|binding| binding.field() == field)
+            .ok_or_else(|| {
+                invalid_artifact("Field snapshot Field is absent from the exact Realization")
+            })?;
+        Ok((spatial.domain(), binding.space().family()))
     }
 }
 

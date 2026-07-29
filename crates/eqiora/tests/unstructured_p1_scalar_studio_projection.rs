@@ -14,6 +14,9 @@ use support::fixed_reference_fsi::{
 
 mod support;
 
+#[path = "unstructured_p1_scalar_studio_projection/authored.rs"]
+mod authored;
+
 struct AcceptedField {
     spatial: SpatialContext,
     execution: ExecutionContext,
