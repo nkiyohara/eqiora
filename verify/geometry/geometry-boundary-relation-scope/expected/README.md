@@ -8,7 +8,8 @@ pass as running the oracle.
 
 ## Two independent routes
 
-The table enumerates outcomes transcribed from the public claim in Issue #129.
+The table enumerates outcomes transcribed from the public geometry-boundary
+Relation-scope claim.
 The oracle re-derives every one of them from the fixture alone — outcome,
 detector, diagnostic key, mutation classification and both normals — and the
 run fails unless the two agree. The normals are derived from each member's

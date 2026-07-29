@@ -1,6 +1,6 @@
 # Geometry-boundary Relation scope evidence
 
-Precommitted evidence for Issue #129, frozen by a non-implementing agent at base
+Precommitted evidence for the geometry-boundary Relation-scope contract, frozen by a non-implementing agent at base
 `a5c122f` before any production code for the slice exists. It was frozen
 **before registration**; see [Sequencing](#sequencing).
 
@@ -74,7 +74,7 @@ rejected against `A` and accepted against `B` inside the same two-artifact
 bundle. `reject-free-relation` is the sharp guard against simply deleting the
 Relation arm of the existing support-use check.
 
-Issue #129 authors **no new diagnostic text**. Every sentence above already
+This contract authors **no new diagnostic text**. Every sentence above already
 exists at `a5c122f` and is frozen here as a compatibility obligation.
 
 ## Order invariance and compatibility

@@ -1,8 +1,9 @@
 # References
 
-The claim, non-claims and precommitted falsifier list come from Eqiora Issue
-#129, *Admit one named geometry-boundary Relation scope with fixed-side
-normals* (titled *…with inlet/outlet normals* at the freeze). The base revision is
+The claim, non-claims and precommitted falsifier list come from the accepted
+geometry-boundary Relation-scope contract, *Admit one named geometry-boundary
+Relation scope with fixed-side normals* (titled *…with inlet/outlet normals* at
+the freeze). The base revision is
 `a5c122f550fbd3e2b83c6b7745a1deb7fbb0b200`.
 
 The contracts this package consumes without extending:

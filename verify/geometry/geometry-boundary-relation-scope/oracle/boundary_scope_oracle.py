@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent precommitted oracle for Eqiora Issue #129.
+"""Independent precommitted oracle for geometry-boundary Relation scope.
 
 Freezes which continuous Relation scopes onto an admitted `GeometryBoundary`
 are accepted, which mutations reject and at which detector, and the exact
@@ -12,7 +12,8 @@ artificial symbolic table whose handles the implementing lane binds to real
 artifacts. Stdlib only.
 
 Two routes must agree: the table enumerated in the frozen contract, transcribed
-from the public claim in Issue #129, and the rule model below, which re-derives
+from the public geometry-boundary Relation-scope claim, and the rule model
+below, which re-derives
 every outcome, every mutation classification and both normals from the fixture.
 """
 
@@ -40,7 +41,7 @@ UNFROZEN = "unfrozen"
 PROPOSED_CASE_ID = "geometry.geometry-boundary-relation-scope"
 
 # Pre-existing diagnostic sentences, transcribed as compatibility obligations
-# rather than authored here. Issue #129 adds no diagnostic text of its own.
+# rather than authored here. This contract adds no diagnostic text of its own.
 ABSENT = "geometry boundary entity set `{name}` is absent from its parent artifact"
 DIM = "geometry boundary entity set `{name}` has dimension {found}, expected {want}"
 
