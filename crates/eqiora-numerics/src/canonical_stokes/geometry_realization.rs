@@ -155,11 +155,13 @@ impl SteadyStokesGeometryBinding2d {
 ///
 /// The Model source digest, chordal owner, artifacts and correspondence are
 /// all reaccepted before assembly. The returned named `cylinder` reaction uses
-/// the existing constrained-residual convention: force on the fluid.
+/// the existing constrained-residual convention: force on the fluid. Retained
+/// inlet and outlet fluxes use the physical parent-outward convention.
 ///
 /// # Errors
 /// Preserves semantic replay, exact-source binding, field-wise Realization,
-/// reference assembly, backend execution and coherent-SI reconstruction diagnostics.
+/// reference assembly, backend execution, coherent-SI reconstruction and
+/// named-boundary flux reconstruction diagnostics.
 pub fn solve_resolved_steady_stokes_geometry_mini_2d(
     program: &KernelProgram,
     resolved: &ResolvedFieldwiseRealization,
@@ -223,7 +225,64 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
         &REFERENCE_ASSEMBLY_BACKEND,
     )?;
     let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan())?;
-    finalized.finish(solved)
+    let solution = finalized.finish(solved)?;
+    let named_boundary_fluxes = ["inlet", "outlet"]
+        .into_iter()
+        .map(|name| {
+            boundary_flux(
+                binding.mesh.mesh(),
+                solution.velocity().vertex_values(),
+                binding.entities(name)?,
+            )
+            .map(|flux| (name.to_owned(), flux))
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
+    solution.with_named_boundary_fluxes(named_boundary_fluxes)
+}
+
+fn boundary_flux(
+    mesh: &SimplicialMesh,
+    velocity: &[[f64; DIMENSION]],
+    facets: &[MeshEntity],
+) -> Result<f64, Diagnostic> {
+    if velocity.len() != mesh.vertices().len() {
+        return Err(invalid(
+            "named Stokes boundary flux requires one velocity per mesh vertex",
+        ));
+    }
+    if facets.is_empty() {
+        return Err(invalid(
+            "named Stokes boundary flux requires at least one facet",
+        ));
+    }
+    let mut total = 0.0;
+    for &facet in facets {
+        let vertices = mesh
+            .entity_vertices(facet)
+            .filter(|vertices| {
+                facet.dimension() == DIMENSION - 1
+                    && vertices.len() == DIMENSION
+                    && vertices.iter().all(|vertex| vertex.dimension() == 0)
+            })
+            .ok_or_else(|| invalid("named Stokes flux set contains a non-edge entity"))?;
+        let [first, second] = [vertices[0].index(), vertices[1].index()];
+        let first_coordinate = &mesh.vertices()[first];
+        let second_coordinate = &mesh.vertices()[second];
+        let length = (second_coordinate[0] - first_coordinate[0])
+            .hypot(second_coordinate[1] - first_coordinate[1]);
+        let normal = facet_outward_unit_normal(mesh, facet)?;
+        let average_velocity = [
+            0.5 * (velocity[first][0] + velocity[second][0]),
+            0.5 * (velocity[first][1] + velocity[second][1]),
+        ];
+        total += length * (average_velocity[0] * normal[0] + average_velocity[1] * normal[1]);
+    }
+    if !total.is_finite() {
+        return Err(invalid(
+            "named Stokes boundary flux reconstruction is non-finite",
+        ));
+    }
+    Ok(total)
 }
 
 fn normalize_geometry_mesh(
@@ -408,7 +467,7 @@ fn facet_outward_unit_normal(
 ) -> Result<[f64; DIMENSION], Diagnostic> {
     let vertices = mesh
         .entity_vertices(facet)
-        .ok_or_else(|| invalid("correspondence facet is absent from the normalized mesh"))?;
+        .ok_or_else(|| invalid("correspondence facet is absent from the bound mesh"))?;
     let adjacent = mesh
         .incidence(facet, DIMENSION)
         .ok_or_else(|| invalid("correspondence facet has no cell incidence"))?;

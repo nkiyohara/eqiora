@@ -158,6 +158,7 @@ pub struct SteadyStokesMiniSolution2d {
     pressure_reference: SteadyStokesPressureReference2d,
     boundary_reaction: [f64; 2],
     named_boundary_reactions: Vec<(String, [f64; 2])>,
+    named_boundary_fluxes: Vec<(String, f64)>,
     integrated_body_force: [f64; 2],
     integrated_boundary_traction: [f64; 2],
     pressure_integral: f64,
@@ -258,6 +259,7 @@ impl SteadyStokesMiniSolution2d {
             pressure_reference,
             boundary_reaction,
             named_boundary_reactions,
+            named_boundary_fluxes: Vec::new(),
             integrated_body_force,
             integrated_boundary_traction,
             pressure_integral,
@@ -324,6 +326,39 @@ impl SteadyStokesMiniSolution2d {
             .iter()
             .find(|(candidate, _)| candidate == name)
             .map(|(_, value)| *value)
+    }
+
+    /// Physical parent-outward volumetric flux for one retained named surface,
+    /// in m²/s per unit out-of-plane thickness.
+    ///
+    /// Geometry-backed solves retain flux only for correspondence-derived
+    /// inlet and outlet facets. Other solve paths return `None` rather than
+    /// inferring surfaces from coordinates.
+    #[must_use]
+    pub fn named_boundary_flux(&self, name: &str) -> Option<f64> {
+        self.named_boundary_fluxes
+            .iter()
+            .find(|(candidate, _)| candidate == name)
+            .map(|(_, value)| *value)
+    }
+
+    pub(super) fn with_named_boundary_fluxes(
+        mut self,
+        named_boundary_fluxes: Vec<(String, f64)>,
+    ) -> Result<Self, Diagnostic> {
+        if named_boundary_fluxes
+            .iter()
+            .any(|(_, value)| !value.is_finite())
+            || named_boundary_fluxes
+                .windows(2)
+                .any(|pair| pair[0].0 >= pair[1].0)
+        {
+            return Err(invalid_realization(
+                "named Stokes boundary flux evidence must be finite and strictly name-ordered",
+            ));
+        }
+        self.named_boundary_fluxes = named_boundary_fluxes;
+        Ok(self)
     }
 
     /// Physical integrated body force per unit out-of-plane thickness, in N/m.

@@ -89,12 +89,10 @@ fn swapped_inlet_and_outlet_membership_misses_the_frozen_oracle() {
     let swapped = circular_source([0.2, 0.2], [1, 0], vec![2, 3], 4);
     let witness =
         execute_source_witness(swapped, SOURCE, 1.0e-6).expect("swapped witness still solves");
-    let mesh = witness.solution.velocity().mesh();
-    let inlet_flux = signed_flux(
-        mesh,
-        witness.solution.velocity().vertex_values(),
-        &witness.inlet_facets,
-    );
+    let inlet_flux = witness
+        .solution
+        .named_boundary_flux("inlet")
+        .expect("swapped witness retains inlet flux");
     let reaction = witness
         .solution
         .named_boundary_reaction("cylinder")
@@ -121,11 +119,10 @@ fn reversing_the_inlet_normal_term_flips_the_signed_flux_oracle() {
     assert_ne!(reversed_normal, SOURCE);
     let witness = execute_source_witness(exact_source(), &reversed_normal, 1.0e-6)
         .expect("reversed inlet-normal witness still solves");
-    let inlet_flux = signed_flux(
-        witness.solution.velocity().mesh(),
-        witness.solution.velocity().vertex_values(),
-        &witness.inlet_facets,
-    );
+    let inlet_flux = witness
+        .solution
+        .named_boundary_flux("inlet")
+        .expect("reversed witness retains inlet flux");
     let expected = frozen_oracle().observations.signed_flux_m2_s.inlet;
     assert!(
         (inlet_flux - expected).abs() > flux_tolerance(),

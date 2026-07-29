@@ -151,16 +151,14 @@ fn exact_geometry_model_executes_the_frozen_reference_tuple() {
         assert_close(pressure[vertex], probe.pressure_pa, pressure_tolerance());
     }
 
-    let inlet_flux = signed_flux(
-        physical_mesh,
-        solution.velocity().vertex_values(),
-        &inlet_facets,
-    );
-    let outlet_flux = signed_flux(
-        physical_mesh,
-        solution.velocity().vertex_values(),
-        &outlet_facets,
-    );
+    let inlet_flux = solution
+        .named_boundary_flux("inlet")
+        .expect("retained inlet flux");
+    let outlet_flux = solution
+        .named_boundary_flux("outlet")
+        .expect("retained outlet flux");
+    assert_eq!(solution.named_boundary_flux("walls"), None);
+    assert_eq!(solution.named_boundary_flux("cylinder"), None);
     assert_close(
         inlet_flux,
         oracle.observations.signed_flux_m2_s.inlet,
@@ -648,46 +646,6 @@ fn select_nearest_vertex(
                 .then_with(|| coordinate_cmp(left_coordinate, right_coordinate))
         })
         .expect("nonempty selector set")
-}
-
-fn signed_flux(mesh: &SimplicialMesh, velocity: &[[f64; 2]], facets: &[MeshEntity]) -> f64 {
-    facets
-        .iter()
-        .map(|&facet| {
-            let vertices = entity_vertex_indices(mesh, facet);
-            assert_eq!(vertices.len(), 2);
-            let first = vertices[0];
-            let second = vertices[1];
-            let edge = [
-                mesh.vertices()[second][0] - mesh.vertices()[first][0],
-                mesh.vertices()[second][1] - mesh.vertices()[first][1],
-            ];
-            let length = edge[0].hypot(edge[1]);
-            let mut normal = [edge[1] / length, -edge[0] / length];
-            let cell = adjacent_cell(mesh, first, second);
-            let third = mesh.cells()[cell]
-                .iter()
-                .copied()
-                .find(|vertex| *vertex != first && *vertex != second)
-                .expect("triangle has a third vertex");
-            let midpoint = [
-                0.5 * (mesh.vertices()[first][0] + mesh.vertices()[second][0]),
-                0.5 * (mesh.vertices()[first][1] + mesh.vertices()[second][1]),
-            ];
-            let into_cell = [
-                mesh.vertices()[third][0] - midpoint[0],
-                mesh.vertices()[third][1] - midpoint[1],
-            ];
-            if normal[0] * into_cell[0] + normal[1] * into_cell[1] > 0.0 {
-                normal = [-normal[0], -normal[1]];
-            }
-            let average_velocity = [
-                0.5 * (velocity[first][0] + velocity[second][0]),
-                0.5 * (velocity[first][1] + velocity[second][1]),
-            ];
-            length * (average_velocity[0] * normal[0] + average_velocity[1] * normal[1])
-        })
-        .sum()
 }
 
 fn adjacent_cell(mesh: &SimplicialMesh, first: usize, second: usize) -> usize {
