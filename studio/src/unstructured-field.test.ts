@@ -19,9 +19,9 @@ import {
   unstructuredFieldContextSchema,
   unstructuredFieldDescriptorSchema,
 } from "./unstructured-field-protocol";
+import { interpolateP1Triangle } from "./unstructured-field-renderer";
 import { UnstructuredFieldDataSession } from "./unstructured-field-session";
 import {
-  interpolateP1Triangle,
   nearestUnstructuredVertex,
   UnstructuredFieldWorkspace,
   unstructuredVertexCoordinates,
