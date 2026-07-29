@@ -1,190 +1,180 @@
 # Chordal realization binding verification
 
-This case covers one closed versioned canonical artifact,
-`CircularHoleChordalRealizationEnvelopeV1`, that binds an exact circular-hole
-source geometry to the chordal realization derived from it, and to the realized
-region, mesh, and correspondence resources that realization accepted. Its
-schema and digest domain are:
+This case covers one closed versioned canonical artifact binding an exact
+circular-hole source geometry to the chordal realization derived from it, and to
+the realized region, mesh, and correspondence resources that realization
+accepted. It is reusable and therefore deliberately carries **no Model digest**.
 
 ```text
-eqiora.circular-hole-chordal-realization-envelope/v1
-eqiora.canonical-json/v1
+schema    eqiora.circular-hole-chordal-realization-envelope/v1
+encoding  eqiora.canonical-json/v1
+identity  sha256(schema-domain || 0x00 || canonical JSON)      [RFC 0008]
+
+field order, exactly:
+schema, encoding, source_geometry_sha256, realized_geometry_sha256,
+mesh_sha256, correspondence_sha256, requested_max_boundary_error_m,
+boundary_evaluation_allowance_m, boundary_error_bound_m, circle_segments,
+circle_area_deficit_m2, circle_perimeter_deficit_m, reference_minimum_mean_ratio
 ```
 
-Canonical field order is exactly:
+## What this case owns, and what it does not
 
-```text
-schema, encoding,
-source_geometry_sha256, realized_geometry_sha256, mesh_sha256,
-correspondence_sha256,
-requested_max_boundary_error_m, boundary_evaluation_allowance_m,
-boundary_error_bound_m, circle_segments,
-circle_area_deficit_m2, circle_perimeter_deficit_m,
-reference_minimum_mean_ratio
-```
+It owns the encoding and the binding relation, and no geometry, approximation
+metric, or resource content. Circle sampling, trigonometric metrics, geometry
+vertices, mesh topology, correspondence assignments, and every actual resource
+digest belong to existing component contracts, which stay authoritative:
 
-The identity is `sha256(schema-domain || 0x00 || canonical JSON)`, the framing
-RFC 0008 fixes for every canonical artifact. This is a reusable realization
-artifact and therefore deliberately carries **no Model digest**: the same
-realization may be bound by more than one Model.
+| Upstream authority | SHA-256 |
+| --- | --- |
+| [`../exact-circular-hole-geometry/oracle.py`](../exact-circular-hole-geometry/oracle.py) | `df423b7848833e2667d8a064542c9adbd88543f054a2d364b90124393cf20d19` |
+| [`../circular-hole-chordal-reference-mesh/oracle.py`](../circular-hole-chordal-reference-mesh/oracle.py) | `0bdbbec6f9ff9c532ba5f30c856d1cd3b25e64949e4b11abf5fa3823e6a25742` |
 
-The in-memory chordal owner is the sibling case
-[`../circular-hole-chordal-reference-mesh`](../circular-hole-chordal-reference-mesh/README.md)
-(RFC 0082), whose nonclaims include a durable source-to-mesh wire. This case is
-that wire. The exact source is
-[`../exact-circular-hole-geometry`](../exact-circular-hole-geometry/README.md)
-(RFC 0081).
+The oracle names both, verifies those digests on every run, and never copies or
+executes their algorithms. Re-deriving them would duplicate an authoritative
+derivation rather than add evidence; an earlier revision that did so was rejected.
 
-## Status
+## What is claimed, and what is not
 
-This directory holds a **pre-implementation** oracle only. No implementation of
-the envelope exists yet, this case carries no `case.toml`, and no capability row
-claims it. The oracle, its frozen expected fixture, and its falsifier table were
-frozen before any implementation began, by a lane that wrote no production Rust
-and read none to obtain a value.
+1. The envelope is a **closed canonical content-addressed binding** over
+   thirteen field values, with frozen field order and digest domain.
+2. **Construction captures, it never accepts a caller-supplied field tuple.**
+3. **Validation is relational**: it regenerates and compares rather than trusting
+   stored values, and the replay contract below is the whole of it.
+4. Every listed mutation or substitution is detected on at least one named axis,
+   and the table says which. Where nothing rejects, the row says so.
+5. Nothing else: **no realization envelope byte sequence or digest** (the frozen
+   envelope bytes here are artificial), **no cross-platform identity of generated
+   binary64 coordinates or mesh bytes** (replay over generated values is
+   same-environment), **no mesh or correspondence wire layout**, no exact curved
+   mesh, CAD kernel, solver value, remeshing policy, or Model binding, and no
+   claim that an implementation exists.
 
-An unregistered directory here is **not** inert to the local gate. The planner
-derives a case ID from the path shape `verify/<area>/<case>/` alone
-(`local_verify.py:changed_case_ids`) without checking that a manifest exists, so
-`fast` and `affected` both select
-`geometry.circular-hole-chordal-realization-binding` and run
+## The returned proof, kept
 
-```text
-cargo run --locked -p eqiora-verify -- run --case geometry.circular-hole-chordal-realization-binding
-```
+This lane first tried to freeze the literal canonical bytes and digest of the
+envelope over the RFC 0081 DFG source, and returned a proof that published
+contracts cannot supply them ahead of runtime. The contract owner accepted the
+proof and narrowed the lane rather than weakening the gate:
 
-which exits 1 with `unknown verification case ID`. Until this case is
-registered, the gate therefore fails on this directory's mere presence. That is
-a known, recorded consequence of freezing the oracle ahead of the manifest, not
-a defect in the oracle; the implementing slice closes it by adding the
-`case.toml` that registers the exact claim.
+- `realized_geometry_sha256` — the wire is published, but binary64 vertex
+  coordinates are not. RFC 0082 pins the mathematical phase only, cross-platform
+  mesh-byte identity is an explicit non-claim, and every inscribed polygon with
+  at least eight segments has irrational vertices.
+- `mesh_sha256` — `eqiora.simplicial-mesh-envelope/v1` has no published canonical
+  field order, and inherits the coordinate problem above.
+- `correspondence_sha256` — no published wire in any RFC, schema, or document.
+- `boundary_error_bound_m`, `circle_area_deficit_m2`, `circle_perimeter_deficit_m`
+  — RFC 0082 stores these as *measured* values from the generated loop, so they
+  may differ from the closed form in the last places.
 
-Recorded on this tree, `python3 tools/ci/local_verify.py fast --base
-origin/main`: formatting passed, 1515 Rust tests passed with none failing,
-default-feature Clippy passed, `geometry.authored-planar-geometry-artifact`
-passed, and the gate then stopped fail-fast on the unregistered case above with
-exit status 2. Every stage that does not depend on this manifest passes.
+Three actual resource digests and three measured binary64 metrics are therefore
+unavailable to any known-answer fixture: the claim is relational, and the only
+frozen identity here is artificial.
 
 ## Replay contract
 
-External replay regenerates rather than trusts. From the exact source resolved
-by `source_geometry_sha256`, it regenerates the chordal owner using the stored
-`requested_max_boundary_error_m`, the stored `circle_segments` as the segment
-*maximum*, and the stored `reference_minimum_mean_ratio` as the quality
-threshold. It then requires:
+Frozen as a finite table in oracle and fixture; nothing is manufactured to fill it.
 
-- exact equality for the deterministic metrics that regeneration reproduces;
-- the realized geometry to equal the regenerated region;
-- correspondence conformance to replay; and
-- all four bound resource digests to match exactly.
+| Step | Phase | Requirement |
+| --- | --- | --- |
+| k1 | construction | capture every field from already-validated resources |
+| k2 | construction | never accept a caller-supplied raw field tuple |
+| a | validation | resolve the exact source; its digest must equal `source_geometry_sha256` |
+| b | validation | regenerate the chordal owner from that source, the stored request, stored `circle_segments` as a **maximum**, and the stored `reference_minimum_mean_ratio` |
+| c | validation | exact-compare every regenerated metric against the stored scalar |
+| d | validation | require the supplied realized geometry to equal the regenerated region |
+| e | validation | replay mesh and correspondence conformance |
+| f | validation | exact-compare all four bound resource digests |
 
 Because the segment count is replayed as a maximum rather than as an answer, a
-stored count that is too small cannot satisfy the stored request, and a stored
-count that is too large regenerates a smaller one. Both directions fail.
+stored count too small cannot satisfy the stored request, and one too large
+regenerates a smaller one. An arbitrary conforming affine mesh is admissible,
+including a fixed external one: it enters through its own bound digest and
+conformance replay, not by being the mesh this path would have built.
 
-The envelope supports an arbitrary conforming affine mesh, including a fixed
-external mesh. What the regenerated chordal owner proves is the exact-source to
-realized-region step; the mesh is admitted through its own bound digest and the
-correspondence conformance replay, not by being the mesh this path would have
-generated.
+## Detection axes
 
-## Frozen oracle
+| Axis | Meaning | Replay steps |
+| --- | --- | --- |
+| `envelope_digest` | envelope canonical digest | — |
+| `source_semantics` | semantic source type/digest | a |
+| `owner_replay` | deterministic owner replay | b, c |
+| `region_equality` | realized-region equality | d |
+| `correspondence` | correspondence conformance | e |
+| `resource_digest` | bound resource digest | f |
 
-The non-implementing oracle is
-[`oracle/binding_oracle.py`](oracle/binding_oracle.py), SHA-256
-`1d920610df68b7256bda2f9186978aaec4df11dc4546bd11d6e4b3192ccb83db`. It is
-standard library only, runs at 80 decimal digits, and reports 73 checks with 0
-failures. Its expected values are frozen in
-[`expected/binding-contract.json`](expected/binding-contract.json), which the
-oracle re-derives and compares byte-for-byte on every run.
+## Mutations and substitutions
 
-It derives, from published contracts alone:
+Twenty-one rows in three kinds. **Envelope** mutations change the canonical digest
+— executed on the artificial witness — and each also breaks a replay relation.
+**Policy** rows are replayed inputs with no regenerated counterpart, so they are
+digest changes only: whether the regenerated selection also changes is owned by
+the upstream chordal contract, which this oracle does not execute. **Substitution**
+rows leave the envelope bytes unchanged, so the canonical digest never catches
+them. The oracle machine-checks that every mutable field has a row, that every
+required substitution subject is named, that rows declare axes from the vocabulary
+above, and that every axis is exercised; `schema` and `encoding` need no row,
+since any other value is rejected before encoding.
 
-- the canonical binary64 rendering rule of `eqiora.canonical-json/v1`,
-  reconstructed from its branch structure and validated against two frozen
-  repository literals this lane did not author — the 482-byte RFC 0079
-  square-with-hole region and the 511-byte RFC 0081 DFG exact source. This
-  matters: a naive `repr` spells `1e-05`, while the canonical wire spells the
-  same value `0.00001`;
-- the exact source identity
-  `b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9`;
-- the evaluation allowance `6.252776074688882e-14 m`, shown to be an *exact*
-  dyadic product `2476979795053773 / 2^95` in binary64, so no rounding enters
-  it and its association order is irrelevant;
-- the accepted segment count 50, by two mutually independent routes — a
-  monotone search over `sagitta(n)` that uses no inverse function at all, and
-  RFC 0082's stable half-angle inverse — required to agree; and
-- the ideal sagitta, area-deficit, and perimeter-deficit at 80 digits from an
-  independently implemented `pi`/`sin`/`cos`/`asin` kernel.
+| Row | Kind | Detected by |
+| --- | --- | --- |
+| `source_digest_nibble` | envelope | envelope digest, source semantics, resource digest |
+| `realized_digest_nibble` | envelope | envelope digest, region equality, resource digest |
+| `mesh_digest_nibble` | envelope | envelope digest, resource digest |
+| `correspondence_digest_nibble` | envelope | envelope digest, correspondence, resource digest |
+| `allowance_halved` | envelope | envelope digest, owner replay |
+| `bound_halved` | envelope | envelope digest, owner replay |
+| `segments_above` | envelope | envelope digest, owner replay |
+| `segments_below` | envelope | envelope digest, owner replay |
+| `area_deficit_halved` | envelope | envelope digest, owner replay |
+| `perimeter_deficit_halved` | envelope | envelope digest, owner replay |
+| `request_halved` | policy | envelope digest only |
+| `mean_ratio_halved` | policy | envelope digest only |
+| `source_center_perturbed` | substitution | source semantics, owner replay |
+| `source_radius_perturbed` | substitution | source semantics, owner replay |
+| `source_boundary_identity` | substitution | source semantics |
+| `polygonal_source_same_name` | substitution | source semantics — wrong family, refused by type before any digest comparison |
+| `realized_vertex_perturbed` | substitution | region equality, resource digest |
+| `realized_order_rotated` | substitution | region equality, resource digest |
+| `mesh_topology_changed` | substitution | correspondence, resource digest |
+| `correspondence_mapping_changed` | substitution | correspondence, resource digest |
+| `conforming_mesh_substituted` | substitution | resource digest |
 
-The only inequalities it asserts are the ones RFC 0082 already mandates: the
-accepted bound never exceeds the request, the request exceeds the allowance,
-and the count is at least eight. It introduces no tunable numeric tolerance.
+## What is not a falsifier
 
-## What the oracle deliberately does not freeze
+A changed but internally self-consistent policy, with the realization regenerated
+to match, **defines a different valid artifact**: classified as a canonical-digest
+change, not an automatic replay rejection, and never to be claimed as rejected.
+The oracle freezes one such coherent variant — its identity differs and every
+relation holds. Only an externally expected envelope digest separates the two.
 
-Three of the four bound resource digests are **not derivable** from published
-contracts, and are reported as blocked rather than invented:
+## The artificial encoding witness
 
-| Field | Why it is blocked |
-| --- | --- |
-| `realized_geometry_sha256` | The wire is published (RFC 0079), but the binary64 vertex coordinates are not determined. RFC 0082 pins only the mathematical phase `theta_i = 2 pi i / n`; it pins neither a binary64 association order nor a correctly-rounded transcendental, and RFC 0082 and the capability matrix both explicitly non-claim cross-platform mesh-byte identity. Every regular inscribed polygon with `n >= 8` has irrational vertices, so no choice of witness avoids this. |
-| `mesh_sha256` | `eqiora.simplicial-mesh-envelope/v1` has no published canonical field order. RFC 0013 lists its content only; no RFC, schema, or document gives its key spelling, field order, or vertex/cell numbering rule. It also inherits the coordinate block above. |
-| `correspondence_sha256` | `eqiora.geometry-mesh-correspondence-envelope/v1` has no published wire in any RFC, schema, or document. RFC 0049 additionally closes it over one exact Model artifact, whose Domain ULIDs are author-chosen and are not determined by the frozen claim. |
+One 704-byte envelope, identity
+`fb1724d42f209a6ccf5e00af35aa5d567ec01e261c12af1aa676083844c980e4`, built from
+four artificial 64-hex slots and exact powers of two, with twelve segments.
+Guards run on every pass: each slot is a valid but repeated-pair hex string no
+content digest can be, each scalar is an exact positive power of two whose compact
+JSON spelling is a short plain decimal, and the record is marked
+`is_realization_prediction: false`. It freezes the encoding and nothing else;
+wiring it as a positive oracle for a real chain is forbidden.
 
-The same block reaches `boundary_error_bound_m`,
-`circle_area_deficit_m2`, and `circle_perimeter_deficit_m`, which RFC 0082
-stores as *measured* rather than closed-form values. The oracle freezes their
-ideal high-precision values and the binary64 spelling of those ideals, and
-states that a measured value may differ in the last places.
+## Status, and how to run
 
-The consequence is stated plainly: **the DFG envelope's literal canonical bytes
-and digest cannot be frozen ahead of implementation.** What is frozen instead
-is the total function `canonical_envelope(values)`, which takes the thirteen
-real field values and derives the canonical bytes and identity independently.
-That is the oracle an implementation must agree with byte-for-byte.
-
-The fixture additionally carries one 765-byte *encoding witness* whose three
-blocked fields are explicitly declared slots, so that the byte production and
-every single-field mutation are exactly checkable today. It is marked
-`is_dfg_realization_prediction: false` and must never be wired as a positive
-oracle for the real chain.
-
-## Falsifiers
-
-Twenty-one falsifiers are frozen; eighteen carry exact expected bytes or
-digests. Each is classified by the failure it must produce.
-
-| Falsifier | Failure mode |
-| --- | --- |
-| each of the four bound digests, one nibble | canonical-byte/digest, plus semantic-source for the source and resource-digest for the other three |
-| requested error, evaluation allowance, realized error bound, both deficits, minimum mean ratio, each one ulp | canonical-byte/digest and deterministic replay mismatch |
-| segment count 51 and 49 | canonical-byte/digest and deterministic replay mismatch, in both directions |
-| exact-circle centre one ulp, radius one ulp, circular boundary set membership | semantic source mismatch, each with an exact mutated source identity |
-| a same-named polygonal source carrying all five entity-set names | semantic source mismatch; a different family under a different schema domain is not the exact circle |
-| realized boundary vertex one ulp | realized-region and resource-digest mismatch |
-| externally supplied rotated realized outer loop | realized-region and canonical-byte mismatch; rejected at admission rather than renormalized |
-| mesh boundary topology, correspondence entity mapping | conformance and resource-digest mismatch |
-| a valid conforming mesh substituted without updating the bound digest | resource-digest mismatch, before any conformance work |
-
-The last three are contract-level rather than byte-frozen, for exactly the
-reason the blocked table gives. Signed-zero normalization is checked as
-identity-*preserving*, not identity-changing.
-
-## Run
+Pre-implementation oracle only: no implementation exists, this case carries no
+`case.toml`, and no capability row claims it. One sequencing fact for the
+implementing lane — an unregistered directory here is not inert to the local gate.
+`local_verify.py:changed_case_ids` derives a case ID from the path shape
+`verify/<area>/<case>/` alone, while the registered set comes from a
+`verify/*/*/case.toml` glob, so both tiers select
+`geometry.circular-hole-chordal-realization-binding` and cannot resolve it, which
+the implementing slice closes by adding `case.toml`. This revision changes only
+evidence files here and was **not** run against the gate, so no stage result is
+asserted for this tree.
 
 ```bash
 python3 verify/geometry/circular-hole-chordal-realization-binding/oracle/binding_oracle.py
 ```
 
-It prints machine-readable `key=value` lines and exits non-zero on any failure.
-`--emit` regenerates the frozen fixture; an ordinary run only compares against
-it.
-
-## Not claimed
-
-No mathematically exact curved mesh edge, NURBS or isogeometric basis, generic
-CAD kernel, cross-platform mesh byte identity, solver accuracy, DFG benchmark
-coefficient, automatic remeshing policy, or Model binding is claimed. Nothing
-here claims an implementation exists, and nothing here claims the DFG
-realization chain's literal digests.
+Machine-readable `key=value` lines, non-zero exit on any failure; `--emit`
+regenerates the frozen fixture, and an ordinary run only compares against it.
