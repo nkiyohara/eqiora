@@ -138,7 +138,7 @@ fn solve_minimum_residual(
         require_finite(&applied, "MINRES reorthogonalized Krylov image")?;
         let next_beta = norm(execution, &applied)?;
         let closure_tolerance = (dimension as f64) * f64::EPSILON * operator_scale;
-        let space_closed = next_beta <= closure_tolerance;
+        let space_closed = iteration == dimension || next_beta <= closure_tolerance;
         rotated_hessenberg[column + 1][column] = if space_closed { 0.0 } else { next_beta };
 
         for rotation in 0..column {
@@ -207,14 +207,9 @@ fn solve_minimum_residual(
     }
 
     let true_residual_norm = true_residual_norm(execution, problem, &solution, &mut applied)?;
-    if iteration_limit < plan.maximum_iterations().get() {
-        return Err(solve_failed(format!(
-            "MINRES exhausted the {dimension}-dimensional Krylov basis without stable space closure: reported residual {reported_residual_norm:e}, true residual {true_residual_norm:e}, target {target:e}"
-        )));
-    }
     Err(solve_failed(format!(
-        "MINRES reached {} iterations: reported residual {reported_residual_norm:e}, true residual {true_residual_norm:e}, target {target:e}",
-        plan.maximum_iterations()
+        "MINRES reached the plan limit of {} iterations: reported residual {reported_residual_norm:e}, true residual {true_residual_norm:e}, target {target:e}",
+        plan.maximum_iterations(),
     )))
 }
 
@@ -727,7 +722,7 @@ mod tests {
         .unwrap();
         let solution = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap();
 
-        assert!(solution.report().completed_iterations() <= 64);
+        assert_eq!(solution.report().completed_iterations(), 64);
         assert!((solution.report().residual_target() - 9.217_895_952_054_019e-8).abs() < 2.0e-20);
         assert!(solution.report().true_residual_norm() <= solution.report().residual_target());
         assert!((solution.values()[0] - 8.0).abs() <= 0.01);
@@ -766,7 +761,31 @@ mod tests {
 
         assert_eq!(error.code(), codes::NUMERICAL_SOLVE_FAILED);
         assert!(error.message().contains("Krylov space closed"));
-        assert!(!error.message().contains("reached 128 iterations"));
+        assert!(!error.message().contains("plan limit"));
+    }
+
+    #[test]
+    fn reference_minres_fails_at_the_plan_limit_before_the_krylov_grade() {
+        let operator = HadamardConditionedSymmetricIndefinite;
+        let right_hand_side = hadamard_witness_right_hand_side();
+        let problem = LinearProblem::new(
+            &operator,
+            &right_hand_side,
+            LinearOperatorProperties::SymmetricIndefinite,
+        )
+        .unwrap();
+        let plan = SolverPlan::new(
+            LinearSolver::MinimumResidual,
+            0.0,
+            1.0e-20,
+            NonZeroUsize::new(32).unwrap(),
+        )
+        .unwrap();
+        let error = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap_err();
+
+        assert_eq!(error.code(), codes::NUMERICAL_SOLVE_FAILED);
+        assert!(error.message().contains("plan limit of 32 iterations"));
+        assert!(!error.message().contains("Krylov space closed"));
     }
 
     #[test]
@@ -835,7 +854,7 @@ mod tests {
             .unwrap();
         let iterations = solution.report().completed_iterations();
 
-        assert!(execution.inner_products() >= iterations * (iterations + 1) / 2);
+        assert!(execution.inner_products() >= iterations * (iterations + 1));
     }
 
     #[test]
