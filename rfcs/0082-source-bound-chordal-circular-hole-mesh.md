@@ -123,7 +123,11 @@ Every circular direction is cast from the circle centre to the rectangle. The
 cast-axis coordinate is set directly to the exact rectangle bound; it is not
 reconstructed by the algebraically equal but rounding-sensitive
 `c + ((bound-c)/d)*d` expression. Adjacent inner and outer ray pairs form two
-positive triangles. Rectangle corners crossed between rays are inserted in
+positive triangles. Specifically, for adjacent ray indices `i` and
+`j = (i + 1) mod n`, inner circle vertices `I_i`, `I_j`, and outer rectangle
+hits `O_i`, `O_j`, the shared quad diagonal is `O_i--I_j`. The two cells are
+`(O_i, O_j, I_j)` and `(O_i, I_j, I_i)`, with their stored order normalized to
+positive orientation. Rectangle corners crossed between rays are inserted in
 boundary-angle order, and a deterministic fan fills the area between the
 outer ray chord and exact rectangle sides.
 
