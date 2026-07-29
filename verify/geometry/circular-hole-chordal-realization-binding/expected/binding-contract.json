@@ -1,0 +1,280 @@
+{
+  "schema": "eqiora.circular-hole-chordal-realization-envelope/v1",
+  "encoding": "eqiora.canonical-json/v1",
+  "digest_framing": "sha256(schema-domain UTF-8 || 0x00 || canonical JSON)",
+  "canonical_field_order": [
+    "schema",
+    "encoding",
+    "source_geometry_sha256",
+    "realized_geometry_sha256",
+    "mesh_sha256",
+    "correspondence_sha256",
+    "requested_max_boundary_error_m",
+    "boundary_evaluation_allowance_m",
+    "boundary_error_bound_m",
+    "circle_segments",
+    "circle_area_deficit_m2",
+    "circle_perimeter_deficit_m",
+    "reference_minimum_mean_ratio"
+  ],
+  "has_model_digest": false,
+  "derived_from_published_contracts": {
+    "exact_source": {
+      "schema": "eqiora.planar-circular-hole-envelope/v1",
+      "canonical_bytes": 511,
+      "sha256": "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9",
+      "canonical_json": "{\"schema\":\"eqiora.planar-circular-hole-envelope/v1\",\"encoding\":\"eqiora.canonical-json/v1\",\"kind\":\"axis-aligned-rectangle-with-circular-hole-v1\",\"length_unit\":\"metre\",\"tolerance_m\":1e-12,\"bounds\":[[0.0,2.2],[0.0,0.41]],\"circle\":{\"center\":[0.2,0.2],\"radius_m\":0.05},\"entity_sets\":[{\"name\":\"cylinder\",\"dimension\":1,\"members\":[4]},{\"name\":\"inlet\",\"dimension\":1,\"members\":[0]},{\"name\":\"outlet\",\"dimension\":1,\"members\":[1]},{\"name\":\"walls\",\"dimension\":1,\"members\":[2,3]},{\"name\":\"fluid\",\"dimension\":2,\"members\":[0]}]}"
+    },
+    "boundary_evaluation_allowance_m": {
+      "rule": "128 * f64::EPSILON * scale_m",
+      "scale_m": "2.2",
+      "exact_integer_ratio": [
+        2476979795053773,
+        39614081257132168796771975168
+      ],
+      "canonical_spelling": "6.252776074688882e-14"
+    },
+    "epsilon_effective_m": "0.00009999999993747225",
+    "circle_segments": 50,
+    "requested_max_boundary_error_m": "0.0001",
+    "reference_minimum_mean_ratio": "0.00001",
+    "ideal_high_precision_80_digits": {
+      "sagitta_n49_m": "0.00010273036248318289955797595210037224856637053318838709119979099227595000893652151",
+      "sagitta_n50_m": "0.000098663578586421902383159656827472333154739014922844023243779659255593429288668817",
+      "area_deficit_n50_m2": "0.0000206545362054677603366859696669575890605330634302857515218739024870609734350669",
+      "perimeter_deficit_n50_m": "0.00020666771241244346537321549979462280729278040417921828229066107171400682470612"
+    },
+    "ideal_binary64_spelling": {
+      "boundary_error_bound_m": "0.00009866357864894965",
+      "circle_area_deficit_m2": "0.00002065453620546776",
+      "circle_perimeter_deficit_m": "0.00020666771241244347"
+    }
+  },
+  "mandated_inequalities": {
+    "bound_within_request": "boundary_error_bound_m <= requested_max_boundary_error_m",
+    "request_above_allowance": "requested_max_boundary_error_m > boundary_evaluation_allowance_m",
+    "minimum_segments": "circle_segments >= 8",
+    "source": "RFC 0082; no tolerance is introduced by this oracle"
+  },
+  "encoding_witness": {
+    "witness_kind": "declared-slot-encoding-witness",
+    "is_dfg_realization_prediction": false,
+    "warning": "realized_geometry_sha256, mesh_sha256 and correspondence_sha256 below are declared slots, not derived values. This envelope digest must never be wired as a positive oracle for the real DFG chain. The reusable oracle is canonical_envelope(values): feed the thirteen real field values and require byte-for-byte and digest equality.",
+    "declared_slot_rule": "sha256(envelope schema || 0x00 || 'declared-encoding-slot' || 0x00 || field name)",
+    "values": {
+      "schema": "eqiora.circular-hole-chordal-realization-envelope/v1",
+      "encoding": "eqiora.canonical-json/v1",
+      "source_geometry_sha256": "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9",
+      "realized_geometry_sha256": "7df56b6118c267a11f20d9700a4fef721869bc46db6227bdc8c33f73f59404bb",
+      "mesh_sha256": "9de581336a58c269e07ec78d02656752ddd42cd607373e8c4eeb785b19016bb1",
+      "correspondence_sha256": "959dd8878015713c1e285ab8167f087b5cb44f4188caf0381b4b195d035ac396",
+      "requested_max_boundary_error_m": "0.0001",
+      "boundary_evaluation_allowance_m": "6.252776074688882e-14",
+      "boundary_error_bound_m": "0.00009866357864894965",
+      "circle_segments": 50,
+      "circle_area_deficit_m2": "0.00002065453620546776",
+      "circle_perimeter_deficit_m": "0.00020666771241244347",
+      "reference_minimum_mean_ratio": "0.00001"
+    },
+    "canonical_json": "{\"schema\":\"eqiora.circular-hole-chordal-realization-envelope/v1\",\"encoding\":\"eqiora.canonical-json/v1\",\"source_geometry_sha256\":\"b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9\",\"realized_geometry_sha256\":\"7df56b6118c267a11f20d9700a4fef721869bc46db6227bdc8c33f73f59404bb\",\"mesh_sha256\":\"9de581336a58c269e07ec78d02656752ddd42cd607373e8c4eeb785b19016bb1\",\"correspondence_sha256\":\"959dd8878015713c1e285ab8167f087b5cb44f4188caf0381b4b195d035ac396\",\"requested_max_boundary_error_m\":0.0001,\"boundary_evaluation_allowance_m\":6.252776074688882e-14,\"boundary_error_bound_m\":0.00009866357864894965,\"circle_segments\":50,\"circle_area_deficit_m2\":0.00002065453620546776,\"circle_perimeter_deficit_m\":0.00020666771241244347,\"reference_minimum_mean_ratio\":0.00001}",
+    "canonical_bytes": 765,
+    "sha256": "e44e8371f2bb8e9f878696de7efffe0ea2f3714bc0354b376b03344310f71775"
+  },
+  "not_derivable_from_published_contracts": {
+    "realized_geometry_sha256": "The wire is published (RFC 0079), but the binary64 vertex coordinates are not determined by any published contract. RFC 0082 pins only the mathematical phase theta_i = 2 pi i / n; it pins neither a binary64 association order nor a correctly-rounded transcendental, and RFC 0082 and the capability matrix both explicitly non-claim cross-platform mesh-byte identity. Every regular inscribed polygon with n >= 8 has irrational vertices, so no admissible witness avoids this.",
+    "mesh_sha256": "eqiora.simplicial-mesh-envelope/v1 has no published canonical field order. RFC 0013 lists its content only (dimension, affine f64 coordinates, connectivity, accepted mean-ratio threshold, recomputed quality evidence); no RFC, schema, or document gives its key spelling, field order, or vertex/cell numbering rule. It also inherits the coordinate block above.",
+    "correspondence_sha256": "eqiora.geometry-mesh-correspondence-envelope/v1 has no published wire in any RFC, schema, or document. RFC 0049 additionally closes it over one exact Model artifact, whose Domain ULIDs are author-chosen and are not determined by the frozen public claim."
+  },
+  "falsifiers": [
+    {
+      "id": "source_geometry_digest",
+      "target": "source_geometry_sha256",
+      "kind": "envelope-single-field-mutation",
+      "failure_mode": "canonical-byte/digest + semantic-source",
+      "expected_sha256": "982ca9b5859d1cf762ed6ac55ec464d0f8370ff3c8f3c9c4487f281f499db546",
+      "expected_byte_length": 765,
+      "note": "a different exact source cannot be bound; replay regenerates from the stored source and its digest must equal the bound one"
+    },
+    {
+      "id": "realized_geometry_digest",
+      "target": "realized_geometry_sha256",
+      "kind": "envelope-single-field-mutation",
+      "failure_mode": "canonical-byte/digest + resource-digest",
+      "expected_sha256": "bf75cd4eeb32b808fbd8e8debec8c9fbef913a28eb030327d4c2c36ac9523cdd",
+      "expected_byte_length": 765,
+      "note": "the supplied realized-region artifact no longer matches the bound digest"
+    },
+    {
+      "id": "mesh_digest",
+      "target": "mesh_sha256",
+      "kind": "envelope-single-field-mutation",
+      "failure_mode": "canonical-byte/digest + resource-digest",
+      "expected_sha256": "54102200cbcbac764393e8d5729abe12b637079566b902675ed18a89ad6d9943",
+      "expected_byte_length": 765,
+      "note": "the supplied mesh artifact no longer matches the bound digest"
+    },
+    {
+      "id": "correspondence_digest",
+      "target": "correspondence_sha256",
+      "kind": "envelope-single-field-mutation",
+      "failure_mode": "canonical-byte/digest + resource-digest",
+      "expected_sha256": "c4252cc7f8c6108a8b75a0d204345fd46411ffb7fcba77829a136c73e94c0442",
+      "expected_byte_length": 765,
+      "note": "the supplied correspondence artifact no longer matches the bound digest"
+    },
+    {
+      "id": "requested_max_boundary_error",
+      "target": "requested_max_boundary_error_m",
+      "kind": "envelope-single-field-mutation",
+      "failure_mode": "canonical-byte/digest + replay-mismatch",
+      "expected_sha256": "31777dd1b2a99cd9b92f164eb2cdfd3f87d44e157472269f458e324de8eeb7c5",
+      "expected_byte_length": 781,
+      "note": "regeneration uses the stored request, so a perturbed request changes the effective budget and the regenerated realization"
+    },
+    {
+      "id": "boundary_evaluation_allowance",
+      "target": "boundary_evaluation_allowance_m",
+      "kind": "envelope-single-field-mutation",
+      "failure_mode": "canonical-byte/digest + replay-mismatch",
+      "expected_sha256": "486105a0c6f6b695de894c9d60f6cfa1b1bd8d192a3e178f80bcef9e7a6a9298",
+      "expected_byte_length": 765,
+      "note": "the allowance is derived from the exact source scale, so a stored value differing from 128 * f64::EPSILON * scale_m cannot survive replay"
+    },
+    {
+      "id": "boundary_error_bound",
+      "target": "boundary_error_bound_m",
+      "kind": "envelope-single-field-mutation",
+      "failure_mode": "canonical-byte/digest + replay-mismatch",
+      "expected_sha256": "f13871e4456dc3f252f668687acaf4ccb79ec90c744e169b1931a4ea56a72693",
+      "expected_byte_length": 765,
+      "note": "the accepted bound is regenerated, not trusted"
+    },
+    {
+      "id": "circle_segments",
+      "target": "circle_segments",
+      "kind": "envelope-single-field-mutation",
+      "failure_mode": "canonical-byte/digest + replay-mismatch",
+      "expected_sha256": "6f51f4fbac94d3a6b42d2efc263f8bc919b9c3a8f3fb80bbf29a8fb8a74c08b3",
+      "expected_byte_length": 765,
+      "note": "the stored count is replayed as the segment maximum; 51 regenerates 50 and the stored count no longer equals the regenerated count"
+    },
+    {
+      "id": "circle_segments_below_minimal",
+      "target": "circle_segments",
+      "kind": "envelope-single-field-mutation",
+      "failure_mode": "canonical-byte/digest + replay-mismatch",
+      "expected_sha256": "7decdaafd15d04ad94f1da14ba31e268beec5804d30bba1b3e5d79616dae330c",
+      "expected_byte_length": 765,
+      "note": "49 as the segment maximum cannot satisfy the stored request at all"
+    },
+    {
+      "id": "circle_area_deficit",
+      "target": "circle_area_deficit_m2",
+      "kind": "envelope-single-field-mutation",
+      "failure_mode": "canonical-byte/digest + replay-mismatch",
+      "expected_sha256": "47a35ab9b18d4d6a7166eb141daffea7e934d7d5a58d56378a96898ff0e295b5",
+      "expected_byte_length": 766,
+      "note": "the deficit is a regenerated deterministic metric, compared for exact equality against the regenerated chordal owner"
+    },
+    {
+      "id": "circle_perimeter_deficit",
+      "target": "circle_perimeter_deficit_m",
+      "kind": "envelope-single-field-mutation",
+      "failure_mode": "canonical-byte/digest + replay-mismatch",
+      "expected_sha256": "68127a342620fcb37fedb60995e8e63725a98a879bc0e8b20335878288c25428",
+      "expected_byte_length": 764,
+      "note": "as for the area deficit"
+    },
+    {
+      "id": "reference_minimum_mean_ratio",
+      "target": "reference_minimum_mean_ratio",
+      "kind": "envelope-single-field-mutation",
+      "failure_mode": "canonical-byte/digest + replay-mismatch",
+      "expected_sha256": "7e4f93b204c5d51f2201026f1ebc0197dae11881c44812fb0952c62994860875",
+      "expected_byte_length": 781,
+      "note": "the stored threshold is replayed as the quality gate; a different threshold is a different regeneration request"
+    },
+    {
+      "id": "source_circle_center",
+      "target": "exact circular-hole source",
+      "kind": "exact-source-mutation",
+      "failure_mode": "semantic-source",
+      "expected_source_sha256": "8d8071e416557eddbcdbea377620ce20773c0634beca0a90bcdd0272c490fd73",
+      "expected_source_byte_length": 527,
+      "note": "moving the exact circle centre by one ulp is a different exact source; the bound source_geometry_sha256 no longer resolves"
+    },
+    {
+      "id": "source_circle_radius",
+      "target": "exact circular-hole source",
+      "kind": "exact-source-mutation",
+      "failure_mode": "semantic-source",
+      "expected_source_sha256": "d322a6a0cfe17ba1dac6940dd591c8b52769809db42058889958bbf56797e974",
+      "expected_source_byte_length": 526,
+      "note": "a different exact radius is a different exact source"
+    },
+    {
+      "id": "source_boundary_identity",
+      "target": "exact circular-hole source",
+      "kind": "exact-source-mutation",
+      "failure_mode": "semantic-source",
+      "expected_source_sha256": "b9300f8148ed30ded9407c8dc8e1539181d858e09ca37b3489b6a51101b73eed",
+      "expected_source_byte_length": 513,
+      "note": "renaming or remembering the circular boundary set differently changes exact source identity even though the shape is unchanged"
+    },
+    {
+      "id": "polygonal_source_substituted",
+      "target": "source_geometry_sha256",
+      "kind": "same-named-polygonal-source",
+      "failure_mode": "semantic-source",
+      "expected_source_sha256": "b02409d9f1d5d61dcf689effc0085d159e6a724095323dc98cdb9a62852ee87e",
+      "expected_source_byte_length": 582,
+      "note": "a straight-edged-planar-v1 region carrying the identical five entity-set names is not the exact circle: it is a different family under a different schema domain, so construction must reject it rather than accept a polygon as the exact source"
+    },
+    {
+      "id": "realized_boundary_vertex",
+      "target": "realized_geometry_sha256",
+      "kind": "realized-region-mutation",
+      "failure_mode": "realized-region + resource-digest",
+      "expected_region_sha256": "53d22003c208b877163f85ac11e1e5e578a0e19ab404bf0f0422a7268aaa3430",
+      "expected_region_byte_length": 596,
+      "note": "moving one realized boundary vertex by one ulp changes the region identity, so it can no longer equal the regenerated region nor match the bound realized_geometry_sha256"
+    },
+    {
+      "id": "realized_boundary_order",
+      "target": "realized_geometry_sha256",
+      "kind": "non-canonical-loop-rotation",
+      "failure_mode": "realized-region + canonical-byte/digest",
+      "supplied_sha256": "b19fc5a4202286cc77dfd0e437a6e3b3bb63b099a3d48018d60354af18181e4d",
+      "expected_behaviour": "reject at admission; canonical reconstruction rotates the loop back to its smallest index and therefore cannot reproduce the supplied bytes",
+      "note": "the same cycle in a different rotation is not a second identity, and is not silently normalized either"
+    },
+    {
+      "id": "mesh_boundary_topology",
+      "target": "mesh_sha256",
+      "kind": "mesh-topology-mutation",
+      "failure_mode": "conformance + resource-digest",
+      "expected_behaviour": "removing, adding, or reconnecting one boundary facet breaks the complete once-only boundary facet ownership replayed through the correspondence, and changes the mesh identity so the bound mesh_sha256 no longer resolves",
+      "byte_frozen": false,
+      "blocked_by": "mesh_sha256"
+    },
+    {
+      "id": "correspondence_entity_mapping",
+      "target": "correspondence_sha256",
+      "kind": "correspondence-mapping-mutation",
+      "failure_mode": "conformance + resource-digest",
+      "expected_behaviour": "remapping one named entity to a different mesh cell or facet set fails correspondence conformance replay and changes the correspondence identity",
+      "byte_frozen": false,
+      "blocked_by": "correspondence_sha256"
+    },
+    {
+      "id": "conforming_mesh_without_updated_digest",
+      "target": "mesh_sha256",
+      "kind": "resource-substitution",
+      "failure_mode": "resource-digest",
+      "expected_behaviour": "a different but individually valid conforming affine mesh, supplied while the envelope still carries the previous mesh_sha256, is rejected on the digest before any conformance work; a fixed external mesh is admissible only when the envelope binds that mesh's own digest",
+      "byte_frozen": false,
+      "blocked_by": "mesh_sha256"
+    }
+  ],
+  "checks_total": 72
+}
