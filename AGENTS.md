@@ -18,9 +18,9 @@ Codex GPT-5.6 Sol, Claude Fable 5, and Claude Opus 5 advance Eqiora; the
 maintainer directs without reading diffs. Route by observed failure mode, never rank.
 
 Assign by independence and observed failure mode. A writer never authors or
-tunes its own oracle and a different model family reviews its complete diff.
-Read-only exploration, derivation, and adversarial review may run in parallel;
-one writer still owns each invariant-bearing seam.
+tunes its own oracle; another provider lineage reviews its complete diff
+(Claude includes Fable and Opus; Codex/GPT is separate). Read-only exploration,
+derivation, and review may run in parallel; one writer owns each seam.
 
 Use Opus for bounded derivation, oracle construction, mutation search, and
 narrow review; give it the complete frozen specification plus hard scope and

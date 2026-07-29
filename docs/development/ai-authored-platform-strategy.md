@@ -328,10 +328,12 @@ The routing rule is operational:
    failed run changes a probe, not a permanent model label.
 
 Implementation is not assigned exclusively to any model. Oracle independence
-is preserved by cross-assignment: whoever implements, another model family
-derives the falsifier and reviews the complete diff. Disjoint read-only lanes
-may run in parallel; disjoint writable lanes additionally require frozen
-contracts.
+is preserved by cross-assignment: whoever implements, another provider lineage
+derives the falsifier and reviews the complete diff. **Provider lineage** means
+the model family behind the service: Fable and Opus are both Claude; Codex/GPT
+is separate. A slice writer owns neither route of its dual oracle. Disjoint
+read-only lanes may run in parallel; disjoint writable lanes additionally
+require frozen contracts.
 
 Cross-assignment is symmetric and has no exemption for the integrator. The
 first slice violated this in one direction: Codex's implementation was reviewed
@@ -381,10 +383,10 @@ progress.
 
 | Phase | Owner | Independent route |
 | --- | --- | --- |
-| Contract | Codex freezes claim, nonclaims, live consumer, derivation rules, stop condition, API budget, and registration deltas. | Opus challenges bounded scientific ambiguity; Fable challenges cross-seam architecture when escalation criteria hold. |
-| Oracle | Opus ordinarily derives analytic values, signs, mutants, and thresholds before reading implementation. Fable may own the harder second route. | Codex checks that the oracle binds the existing executable seam without authoring or tuning expected values. |
-| Implementation | Codex owns the settled existing-architecture path; Fable owns an escalated long-horizon or visual path; Opus may own a narrow fully frozen path. | A different model family owns the falsifier and complete-diff review. |
-| Acceptance | Codex integrator rebases, runs `local_verify.py affected`, audits registrations and environment limitations, and retains merge authority. | Non-writing Claude route checks signs, indices, lineage, visual/runtime output where applicable, and every precommitted falsifier. |
+| Contract | The per-slice contract owner, normally Codex, freezes claim, nonclaims, live consumer, derivation rules, stop condition, API budget, and registration deltas. | A non-writing route challenges bounded scientific ambiguity and cross-seam architecture before the writer is selected. |
+| Oracle | Independent agents from a provider lineage other than the intended writer derive values, signs, mutants, and thresholds before reading implementation. The slice writer owns neither route of a dual oracle. | The contract owner checks that the oracle binds the executable seam without authoring or tuning expected values. |
+| Implementation | Codex owns the settled existing-architecture path; Fable owns an escalated long-horizon or visual path; Opus may own a narrow fully frozen path. | One writer owns the seam; another provider lineage owns its falsifier and complete-diff review. |
+| Acceptance | The per-slice integrator rebases, runs `local_verify.py affected`, and audits registrations and environment limitations. It may merge only after the independent review at right accepts the exact final head. | A non-writing agent from another provider lineage checks signs, indices, lineage, visual/runtime output where applicable, and every precommitted falsifier. |
 
 If the contract proves insufficient, the writer returns the missing requirement;
 the contract owner re-freezes it before implementation resumes.
