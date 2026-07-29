@@ -11,10 +11,13 @@ renderer-ready data.
 Studio retains at most two accepted projections. Its descriptor carries the
 same artifact identities and declares three separate fixed-order streams:
 coordinates as `f64-le`, triangle connectivity as `u32-le`, and vertex values
-as `f64-le`. The session requests each chunk once in canonical order and does
-not publish a ready state until byte shapes, finite coordinates/values, mesh
-bounds, connectivity indices, final counts, and exact extrema all agree.
-Changing context invalidates outstanding asynchronous work.
+as `f64-le`. Every payload begins with the closed v1 16-byte little-endian
+header carrying its magic, stream, chunk index, and item count, so a duplicated
+or reordered equal-length payload cannot borrow the request's identity. The
+session requests each chunk once in canonical order and does not publish a
+ready state until headers, byte shapes, finite coordinates/values, mesh bounds,
+positive connectivity, final counts, and exact extrema all agree. Changing
+context invalidates outstanding asynchronous work.
 
 The canvas is presentation only. The synchronized paged table and inspector
 remain the exact accessible alternative, and keyboard selection always names a

@@ -504,8 +504,20 @@ function drawTriangles(
   }
 }
 
-type CanvasPoint = Readonly<{ x: number; y: number }>;
+export type CanvasPoint = Readonly<{ x: number; y: number }>;
 type Rgb = readonly [red: number, green: number, blue: number];
+
+export function interpolateP1Triangle(
+  point: CanvasPoint,
+  points: readonly [CanvasPoint, CanvasPoint, CanvasPoint],
+  values: readonly [number, number, number],
+): number | null {
+  const [a, b, c] = points;
+  const weights = barycentricWeights(point.x, point.y, a, b, c, triangleDenominator(a, b, c));
+  return weights === null
+    ? null
+    : weights[0] * values[0] + weights[1] * values[1] + weights[2] * values[2];
+}
 
 function rasterizeP1Triangle(
   image: ImageData,
@@ -516,7 +528,7 @@ function rasterizeP1Triangle(
   palette: readonly Rgb[],
 ): void {
   const [a, b, c] = points;
-  const denominator = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+  const denominator = triangleDenominator(a, b, c);
   if (!Number.isFinite(denominator) || Math.abs(denominator) <= Number.EPSILON) {
     throw new Error("Triangle projection is degenerate.");
   }
@@ -529,13 +541,9 @@ function rasterizeP1Triangle(
     for (let x = lowerX; x <= upperX; x += 1) {
       const sampleX = x + 0.5;
       const sampleY = y + 0.5;
-      const weightA = ((b.y - c.y) * (sampleX - c.x) + (c.x - b.x) * (sampleY - c.y)) / denominator;
-      const weightB = ((c.y - a.y) * (sampleX - c.x) + (a.x - c.x) * (sampleY - c.y)) / denominator;
-      const weightC = 1 - weightA - weightB;
-      if (weightA < -edgeTolerance || weightB < -edgeTolerance || weightC < -edgeTolerance) {
-        continue;
-      }
-      const value = weightA * values[0] + weightB * values[1] + weightC * values[2];
+      const weights = barycentricWeights(sampleX, sampleY, a, b, c, denominator, edgeTolerance);
+      if (weights === null) continue;
+      const value = weights[0] * values[0] + weights[1] * values[1] + weights[2] * values[2];
       const colour =
         palette[Math.round(normalizedScalar(value, minimum, maximum) * (palette.length - 1))];
       if (colour === undefined) continue;
@@ -546,6 +554,28 @@ function rasterizeP1Triangle(
       image.data[offset + 3] = 255;
     }
   }
+}
+
+function triangleDenominator(a: CanvasPoint, b: CanvasPoint, c: CanvasPoint): number {
+  return (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+}
+
+function barycentricWeights(
+  x: number,
+  y: number,
+  a: CanvasPoint,
+  b: CanvasPoint,
+  c: CanvasPoint,
+  denominator: number,
+  edgeTolerance = 0,
+): readonly [number, number, number] | null {
+  if (!Number.isFinite(denominator) || Math.abs(denominator) <= Number.EPSILON) return null;
+  const weightA = ((b.y - c.y) * (x - c.x) + (c.x - b.x) * (y - c.y)) / denominator;
+  const weightB = ((c.y - a.y) * (x - c.x) + (a.x - c.x) * (y - c.y)) / denominator;
+  const weightC = 1 - weightA - weightB;
+  return weightA < -edgeTolerance || weightB < -edgeTolerance || weightC < -edgeTolerance
+    ? null
+    : [weightA, weightB, weightC];
 }
 
 function requireDrawableContract(

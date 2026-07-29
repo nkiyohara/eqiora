@@ -21,6 +21,7 @@ import {
 } from "./unstructured-field-protocol";
 import { UnstructuredFieldDataSession } from "./unstructured-field-session";
 import {
+  interpolateP1Triangle,
   nearestUnstructuredVertex,
   UnstructuredFieldWorkspace,
   unstructuredVertexCoordinates,
@@ -172,23 +173,61 @@ describe("unstructured P1 scalar protocol", () => {
   });
 
   it("decodes exact little-endian stream shapes and rejects malformed f64 data", () => {
-    expect(decodeUnstructuredF64Chunk(encodeUnstructuredF64Chunk(coordinates), 4, 2)).toEqual({
+    expect(
+      decodeUnstructuredF64Chunk(
+        encodeUnstructuredF64Chunk(coordinates, "coordinates"),
+        "coordinates",
+        0,
+        4,
+        2,
+      ),
+    ).toEqual({
       ok: true,
       value: coordinates,
     });
-    expect(decodeUnstructuredU32Chunk(encodeUnstructuredU32Chunk(triangles), 2, 3)).toEqual({
+    expect(decodeUnstructuredU32Chunk(encodeUnstructuredU32Chunk(triangles), 0, 2, 3)).toEqual({
       ok: true,
       value: triangles,
     });
-    expect(decodeUnstructuredF64Chunk(new ArrayBuffer(7), 1, 1)).toMatchObject({
+    expect(decodeUnstructuredF64Chunk(new ArrayBuffer(7), "values", 0, 1, 1)).toMatchObject({
       ok: false,
       failure: { code: "invalid-chunk" },
     });
     expect(
-      decodeUnstructuredF64Chunk(encodeUnstructuredF64Chunk([Number.POSITIVE_INFINITY]), 1, 1),
+      decodeUnstructuredF64Chunk(
+        encodeUnstructuredF64Chunk([Number.POSITIVE_INFINITY], "values"),
+        "values",
+        0,
+        1,
+        1,
+      ),
     ).toMatchObject({
       ok: false,
       failure: { code: "nonfinite-chunk" },
+    });
+    expect(
+      decodeUnstructuredF64Chunk(
+        encodeUnstructuredF64Chunk(values, "values", 0),
+        "values",
+        1,
+        4,
+        1,
+      ),
+    ).toMatchObject({
+      ok: false,
+      failure: { code: "invalid-chunk" },
+    });
+    expect(
+      decodeUnstructuredF64Chunk(
+        encodeUnstructuredF64Chunk(coordinates, "coordinates"),
+        "values",
+        0,
+        8,
+        1,
+      ),
+    ).toMatchObject({
+      ok: false,
+      failure: { code: "invalid-chunk" },
     });
   });
 });
@@ -245,6 +284,65 @@ describe("unstructured P1 scalar session", () => {
     });
   });
 
+  it("rejects missing, reordered, short, non-finite and bounds-drifted streams", async () => {
+    const missing: UnstructuredFieldDataBridge = {
+      open: bridge().open,
+      async readChunk() {
+        return {
+          ok: false,
+          failure: { code: "bridge-rejected", message: "missing chunk" },
+        };
+      },
+    };
+    expect(await new UnstructuredFieldDataSession(missing).load(context())).toMatchObject({
+      kind: "failed",
+      failure: { code: "chunk-rejected" },
+    });
+
+    const reordered: UnstructuredFieldDataBridge = {
+      open: bridge().open,
+      async readChunk() {
+        return {
+          ok: true,
+          value: { stream: "values", values },
+        };
+      },
+    };
+    expect(await new UnstructuredFieldDataSession(reordered).load(context())).toMatchObject({
+      kind: "failed",
+      failure: { code: "chunk-order-mismatch" },
+    });
+
+    expect(
+      await new UnstructuredFieldDataSession(
+        bridge(descriptor(), { coordinates: coordinates.slice(0, 6) }),
+      ).load(context()),
+    ).toMatchObject({
+      kind: "failed",
+      failure: { code: "chunk-size-mismatch" },
+    });
+    expect(
+      await new UnstructuredFieldDataSession(
+        bridge(descriptor(), {
+          coordinates: new Float64Array([0, 0, 1, 0, 1, Number.NaN, 0, 1]),
+        }),
+      ).load(context()),
+    ).toMatchObject({
+      kind: "failed",
+      failure: { code: "chunk-nonfinite" },
+    });
+    expect(
+      await new UnstructuredFieldDataSession(
+        bridge(descriptor(), {
+          coordinates: new Float64Array([0, 0, 1, 0, 1, 2, 0, 1]),
+        }),
+      ).load(context()),
+    ).toMatchObject({
+      kind: "failed",
+      failure: { code: "coordinate-bounds-mismatch" },
+    });
+  });
+
   it("drops stale asynchronous publication without mutating the new context", async () => {
     let resolveOpen:
       | ((value: Awaited<ReturnType<UnstructuredFieldDataBridge["open"]>>) => void)
@@ -270,6 +368,18 @@ describe("unstructured P1 scalar session", () => {
 });
 
 describe("unstructured P1 scalar workspace", () => {
+  it("interpolates the admitted vertex coefficients as one P1 triangle", () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 3, y: 0 },
+      { x: 0, y: 3 },
+    ] as const;
+    const coefficients = [1, 4, 7] as const;
+    expect(interpolateP1Triangle(points[0], points, coefficients)).toBe(1);
+    expect(interpolateP1Triangle({ x: 1, y: 1 }, points, coefficients)).toBe(4);
+    expect(interpolateP1Triangle({ x: 3, y: 3 }, points, coefficients)).toBeNull();
+  });
+
   it("selects exact vertices and retains a keyboard/screen-reader table alternative", () => {
     expect(unstructuredVertexCoordinates(coordinates, 2)).toEqual({ xM: 1, yM: 1 });
     expect(nearestUnstructuredVertex(descriptor(), coordinates, 0.9, 0.9)).toBe(2);

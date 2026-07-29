@@ -14,7 +14,7 @@ capabilities = [
 projection_owner = "eqiora-api fixed-spatial Field snapshot composition"
 accepted_source = "existing fixed-reference FSI pressure P1 snapshot"
 semantic_content = "exact Model revision, Realization plan, Run, Field, Domain, value dimension, mesh, and logical snapshot identity"
-studio_transport = "three canonical session-local streams: f64-le coordinates, u32-le triangles, f64-le vertex values"
+studio_transport = "three canonical session-local streams with a closed 16-byte stream/index/count header: f64-le coordinates, u32-le triangles, f64-le vertex values"
 publication = "only after all three complete streams reproduce counts, bounds, index range, and scalar extrema"
 durable_visualization_artifact = false
 

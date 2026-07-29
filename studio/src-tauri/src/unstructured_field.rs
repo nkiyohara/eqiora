@@ -20,6 +20,8 @@ pub(super) const UNSTRUCTURED_FIELD_VIEW_PROTOCOL: &str =
     "eqiora.studio.unstructured-field-view/v1";
 const MAX_RETAINED_FIELDS: usize = 2;
 const ITEMS_PER_CHUNK: usize = 4_096;
+const CHUNK_MAGIC: [u8; 4] = *b"EQP1";
+const CHUNK_HEADER_BYTES: usize = 16;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -41,6 +43,16 @@ enum FieldStream {
     Coordinates,
     Triangles,
     Values,
+}
+
+impl FieldStream {
+    const fn code(self) -> u8 {
+        match self {
+            Self::Coordinates => 0,
+            Self::Triangles => 1,
+            Self::Values => 2,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -217,6 +229,10 @@ impl UnstructuredFieldIdentity {
     }
 
     fn validate(&self, protocol: &str) -> Result<(), ProjectionError> {
+        let canonical_revision = self
+            .semantic_revision
+            .parse::<u64>()
+            .is_ok_and(|revision| revision.to_string() == self.semantic_revision);
         let digests = [
             &self.model_digest,
             &self.realization_digest,
@@ -225,7 +241,7 @@ impl UnstructuredFieldIdentity {
             &self.mesh_digest,
         ];
         if protocol != UNSTRUCTURED_FIELD_VIEW_PROTOCOL
-            || self.semantic_revision.parse::<u64>().is_err()
+            || !canonical_revision
             || digests
                 .into_iter()
                 .any(|digest| ArtifactDigest::from_hex(digest.clone()).is_err())
@@ -296,11 +312,19 @@ impl CachedUnstructuredField {
 
     fn chunk(&self, stream: FieldStream, chunk_index: u32) -> Result<Vec<u8>, ProjectionError> {
         match stream {
-            FieldStream::Coordinates => {
-                encode_f64_arrays(self.projection.vertices_m(), chunk_index)
+            FieldStream::Coordinates => encode_f64_arrays(
+                self.projection.vertices_m(),
+                FieldStream::Coordinates,
+                chunk_index,
+            ),
+            FieldStream::Triangles => encode_u32_arrays(
+                self.projection.triangles(),
+                FieldStream::Triangles,
+                chunk_index,
+            ),
+            FieldStream::Values => {
+                encode_f64_values(self.projection.values(), FieldStream::Values, chunk_index)
             }
-            FieldStream::Triangles => encode_u32_arrays(self.projection.triangles(), chunk_index),
-            FieldStream::Values => encode_f64_values(self.projection.values(), chunk_index),
         }
     }
 }
@@ -442,9 +466,17 @@ fn bytes_with_capacity(
     components: usize,
     scalar_bytes: usize,
 ) -> Result<Vec<u8>, ProjectionError> {
-    let byte_count = item_count
+    let payload_bytes = item_count
         .checked_mul(components)
         .and_then(|count| count.checked_mul(scalar_bytes))
+        .ok_or_else(|| {
+            Box::new(studio_error(
+                "ST0002",
+                "unstructured Field chunk byte count overflowed",
+            ))
+        })?;
+    let byte_count = CHUNK_HEADER_BYTES
+        .checked_add(payload_bytes)
         .ok_or_else(|| {
             Box::new(studio_error(
                 "ST0002",
@@ -461,12 +493,34 @@ fn bytes_with_capacity(
     Ok(bytes)
 }
 
+fn write_chunk_header(
+    bytes: &mut Vec<u8>,
+    stream: FieldStream,
+    chunk_index: u32,
+    item_count: usize,
+) -> Result<(), ProjectionError> {
+    let item_count = u32::try_from(item_count).map_err(|_| {
+        Box::new(studio_error(
+            "ST0002",
+            "unstructured Field chunk item count exceeds portable u32",
+        ))
+    })?;
+    bytes.extend_from_slice(&CHUNK_MAGIC);
+    bytes.push(stream.code());
+    bytes.extend_from_slice(&[0; 3]);
+    bytes.extend_from_slice(&chunk_index.to_le_bytes());
+    bytes.extend_from_slice(&item_count.to_le_bytes());
+    Ok(())
+}
+
 fn encode_f64_arrays<const N: usize>(
     values: &[[f64; N]],
+    stream: FieldStream,
     chunk_index: u32,
 ) -> Result<Vec<u8>, ProjectionError> {
     let range = chunk_range(values.len(), chunk_index)?;
     let mut bytes = bytes_with_capacity(range.len(), N, size_of::<f64>())?;
+    write_chunk_header(&mut bytes, stream, chunk_index, range.len())?;
     for item in &values[range] {
         for value in item {
             bytes.extend_from_slice(&value.to_le_bytes());
@@ -477,10 +531,12 @@ fn encode_f64_arrays<const N: usize>(
 
 fn encode_u32_arrays<const N: usize>(
     values: &[[u32; N]],
+    stream: FieldStream,
     chunk_index: u32,
 ) -> Result<Vec<u8>, ProjectionError> {
     let range = chunk_range(values.len(), chunk_index)?;
     let mut bytes = bytes_with_capacity(range.len(), N, size_of::<u32>())?;
+    write_chunk_header(&mut bytes, stream, chunk_index, range.len())?;
     for item in &values[range] {
         for value in item {
             bytes.extend_from_slice(&value.to_le_bytes());
@@ -489,9 +545,14 @@ fn encode_u32_arrays<const N: usize>(
     Ok(bytes)
 }
 
-fn encode_f64_values(values: &[f64], chunk_index: u32) -> Result<Vec<u8>, ProjectionError> {
+fn encode_f64_values(
+    values: &[f64],
+    stream: FieldStream,
+    chunk_index: u32,
+) -> Result<Vec<u8>, ProjectionError> {
     let range = chunk_range(values.len(), chunk_index)?;
     let mut bytes = bytes_with_capacity(range.len(), 1, size_of::<f64>())?;
+    write_chunk_header(&mut bytes, stream, chunk_index, range.len())?;
     for value in &values[range] {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
@@ -532,23 +593,52 @@ mod tests {
         let mut foreign = open_request();
         foreign.field_id = "Parameter:01HZX3W0A1B2C3D4E5F6G7H8J9".to_owned();
         assert!(UnstructuredFieldIdentity::from_open(&foreign).is_err());
+
+        let mut noncanonical = open_request();
+        noncanonical.semantic_revision = "00".to_owned();
+        assert!(UnstructuredFieldIdentity::from_open(&noncanonical).is_err());
+
+        let mut maximum = open_request();
+        maximum.semantic_revision = u64::MAX.to_string();
+        assert!(UnstructuredFieldIdentity::from_open(&maximum).is_ok());
     }
 
     #[test]
     fn little_endian_stream_chunks_preserve_item_boundaries() {
         let coordinates = [[0.0, -1.0], [2.5, 3.0]];
-        let coordinate_bytes = encode_f64_arrays(&coordinates, 0).unwrap();
-        assert_eq!(coordinate_bytes.len(), 4 * size_of::<f64>());
+        let coordinate_bytes =
+            encode_f64_arrays(&coordinates, FieldStream::Coordinates, 0).unwrap();
         assert_eq!(
-            f64::from_le_bytes(coordinate_bytes[8..16].try_into().unwrap()),
+            coordinate_bytes.len(),
+            CHUNK_HEADER_BYTES + 4 * size_of::<f64>()
+        );
+        assert_eq!(&coordinate_bytes[..4], &CHUNK_MAGIC);
+        assert_eq!(coordinate_bytes[4], FieldStream::Coordinates.code());
+        assert_eq!(
+            u32::from_le_bytes(coordinate_bytes[12..16].try_into().unwrap()),
+            2
+        );
+        assert_eq!(
+            f64::from_le_bytes(
+                coordinate_bytes[CHUNK_HEADER_BYTES + 8..CHUNK_HEADER_BYTES + 16]
+                    .try_into()
+                    .unwrap()
+            ),
             -1.0
         );
 
         let triangles = [[0, 1, 2], [2, 3, 0]];
-        let triangle_bytes = encode_u32_arrays(&triangles, 0).unwrap();
-        assert_eq!(triangle_bytes.len(), 6 * size_of::<u32>());
+        let triangle_bytes = encode_u32_arrays(&triangles, FieldStream::Triangles, 0).unwrap();
         assert_eq!(
-            u32::from_le_bytes(triangle_bytes[12..16].try_into().unwrap()),
+            triangle_bytes.len(),
+            CHUNK_HEADER_BYTES + 6 * size_of::<u32>()
+        );
+        assert_eq!(
+            u32::from_le_bytes(
+                triangle_bytes[CHUNK_HEADER_BYTES + 12..CHUNK_HEADER_BYTES + 16]
+                    .try_into()
+                    .unwrap()
+            ),
             2
         );
 
@@ -556,13 +646,16 @@ mod tests {
             .map(|value| value as f64)
             .collect::<Vec<_>>();
         assert_eq!(
-            encode_f64_values(&values, 0).unwrap().len(),
-            ITEMS_PER_CHUNK * size_of::<f64>()
+            encode_f64_values(&values, FieldStream::Values, 0)
+                .unwrap()
+                .len(),
+            CHUNK_HEADER_BYTES + ITEMS_PER_CHUNK * size_of::<f64>()
         );
+        let tail = encode_f64_values(&values, FieldStream::Values, 1).unwrap();
         assert_eq!(
-            encode_f64_values(&values, 1).unwrap(),
-            (ITEMS_PER_CHUNK as f64).to_le_bytes()
+            &tail[CHUNK_HEADER_BYTES..],
+            &(ITEMS_PER_CHUNK as f64).to_le_bytes()
         );
-        assert!(encode_f64_values(&values, 2).is_err());
+        assert!(encode_f64_values(&values, FieldStream::Values, 2).is_err());
     }
 }
