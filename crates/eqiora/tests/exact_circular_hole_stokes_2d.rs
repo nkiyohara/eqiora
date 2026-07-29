@@ -586,8 +586,11 @@ fn velocity_at_barycentre(solution: &SteadyStokesMiniSolution2d, cell: usize) ->
     let velocity = solution.velocity();
     let mut value = velocity.cell_bubble_values()[cell];
     for &vertex in &velocity.mesh().cells()[cell] {
-        for component in 0..2 {
-            value[component] += velocity.vertex_values()[vertex][component] / 3.0;
+        for (value_component, vertex_component) in value
+            .iter_mut()
+            .zip(velocity.vertex_values()[vertex].iter())
+        {
+            *value_component += vertex_component / 3.0;
         }
     }
     value
