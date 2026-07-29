@@ -124,7 +124,11 @@ pub(super) fn validate_geometry_support_uses(
                 edge_targets(edges, id, EdgeKind::AppliesOn)
                     .into_iter()
                     .find(|target| {
-                        geometry_support_requires_admission(*target, nodes, artifacts_admitted)
+                        geometry_relation_support_requires_admission(
+                            *target,
+                            nodes,
+                            artifacts_admitted,
+                        )
                     }),
                 "Relation spatial scope",
             ),
@@ -153,6 +157,14 @@ pub(super) fn validate_geometry_support_uses(
             diagnostics.push(kernel_error(id, message));
         }
     }
+}
+
+fn geometry_relation_support_requires_admission(
+    domain: RawId,
+    nodes: &BTreeMap<RawId, KernelNode>,
+    artifacts_admitted: bool,
+) -> bool {
+    !artifacts_admitted && is_geometry_domain(domain, nodes)
 }
 
 fn geometry_support_requires_admission(
