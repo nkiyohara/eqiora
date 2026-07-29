@@ -476,6 +476,7 @@ mod tests {
     #[test]
     fn sparse_lu_uses_only_explicit_parallelism_apis() {
         let source = include_str!("sparse_lu.rs");
+        let normalized_source = source.split_whitespace().collect::<Vec<_>>().join(" ");
         for process_global_wrapper in [
             ".sp_lu(",
             ".sp_qr(",
@@ -494,10 +495,9 @@ mod tests {
         assert!(source.contains("solve_in_place_with_conj("));
         assert!(source.contains("let parallelism = Par::Seq;"));
         assert!(!source.contains("Par::Rayon"));
-        assert!(source.contains(
-            "column_matrix.as_ref(),\n            parallelism,\n            factor_stack,"
-        ));
-        assert!(source.contains(
+        assert!(!source.contains("Par::rayon"));
+        assert!(normalized_source.contains("column_matrix.as_ref(), parallelism, factor_stack,"));
+        assert!(normalized_source.contains(
             "lu.solve_in_place_with_conj(Conj::No, output.as_mut(), parallelism, solve_stack);"
         ));
     }
@@ -505,9 +505,14 @@ mod tests {
     #[test]
     fn sparse_lu_reports_the_eqiora_recomputed_residual() {
         let source = include_str!("sparse_lu.rs");
+        let normalized_source = source.split_whitespace().collect::<Vec<_>>().join(" ");
         assert!(
-            source.contains("let reported_residual_norm = fixed_residual_norm(problem, &values)?;")
+            normalized_source
+                .contains("let reported_residual_norm = fixed_residual_norm(problem, &values)?;")
         );
+        assert!(normalized_source.contains(
+            "ConvergenceReason::ResidualToleranceSatisfied, 1, reported_residual_norm, values,"
+        ));
     }
 
     #[derive(Debug)]
