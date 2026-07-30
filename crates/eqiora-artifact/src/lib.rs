@@ -5,6 +5,7 @@
 //! transaction; deserialization never bypasses an existing invariant.
 
 mod cad;
+mod circular_hole_chordal_realization;
 mod discrete_field;
 mod distributed;
 mod external_import;
@@ -65,6 +66,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub use cad::{CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1};
+pub use circular_hole_chordal_realization::CircularHoleChordalRealizationEnvelopeV1;
 pub use discrete_field::{DiscreteFieldEnvelopeV1, FieldDecoderLimits};
 pub use distributed::{
     DistributedDecoderLimits, DistributedLayoutEnvelopeV1, LinearSystemEnvelopeV1,

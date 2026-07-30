@@ -212,14 +212,18 @@ mutants; it is not a general replacement for production canonical JSON.
 
 ## Status and run
 
-Pre-implementation oracle only: no implementation exists, this directory has no
-`case.toml`, and no capability row claims it. The implementing slice must add
-the manifest before invoking repository gates because an unregistered
-`verify/<area>/<case>/` path is selected but cannot be resolved.
+The implementation and this case are registered. The focused Rust evidence
+constructs actual validated resources without freezing their runtime binary64
+values, executes the independent oracle, checks canonical admission and digest
+framing, replays every bound relation, rejects changed fields and substituted
+resources, and proves both a separately bound cell-renumbered conforming mesh
+and a plateau-preserving required-quality change.
 
 ```bash
 python3 verify/geometry/circular-hole-chordal-realization-binding/oracle/binding_oracle.py
+cargo test -p eqiora-artifact --test circular_hole_chordal_realization_binding
 ```
 
-Machine-readable `key=value` lines are emitted with non-zero exit on failure.
-`--emit` regenerates the frozen fixture; an ordinary run only compares it.
+The oracle emits machine-readable `key=value` lines with non-zero exit on
+failure. `--emit` regenerates the frozen fixture; an ordinary run only compares
+it. The Rust test consumes the frozen contract but does not alter it.
