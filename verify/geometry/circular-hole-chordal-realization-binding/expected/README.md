@@ -1,86 +1,80 @@
 # Expected values
 
-The non-implementing oracle is
+The non-implementing stdlib oracle is
 [`../oracle/binding_oracle.py`](../oracle/binding_oracle.py), SHA-256
-`10dffe52de2078f6b936c7ece32db35beb367bc63111853e5a09e04e6ea695ec`. It reports
-47 checks with 0 failures and freezes every expected value in
-[`binding-contract.json`](binding-contract.json), 3568 bytes, which an ordinary
-run re-derives and compares byte-for-byte, so the file cannot drift from the
-derivation that produced it.
+`0351c223c8100a96f4d11babcf46200737554f996653e9e58ab3378fa6240a41`.
+It reports 60 checks with 0 failures and freezes every expected value in
+[`binding-contract.json`](binding-contract.json), 3690 bytes.
+An ordinary run re-derives that fixture and compares it byte-for-byte.
 
-These values are frozen ahead of implementation. None is derived from production
-output, and none may be tuned or relaxed by the implementing lane: an
-implementer who believes a value is wrong returns the proof rather than
-adjusting the value.
+These values are frozen before binding implementation. None is derived from
+production output, and none may be tuned or relaxed by the implementing lane.
 
-## The one frozen envelope identity
+## Artificial envelope identity
 
-Exact compact canonical bytes of the artificial encoding witness, 704 bytes:
+Exact compact canonical bytes of the synthetic encoding witness, 703 bytes:
 
 ```json
-{"schema":"eqiora.circular-hole-chordal-realization-envelope/v1","encoding":"eqiora.canonical-json/v1","source_geometry_sha256":"5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a","realized_geometry_sha256":"6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b","mesh_sha256":"7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c","correspondence_sha256":"8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d","requested_max_boundary_error_m":0.0625,"boundary_evaluation_allowance_m":0.00390625,"boundary_error_bound_m":0.03125,"circle_segments":12,"circle_area_deficit_m2":0.015625,"circle_perimeter_deficit_m":0.125,"reference_minimum_mean_ratio":0.5}
+{"schema":"eqiora.circular-hole-chordal-realization-envelope/v1","encoding":"eqiora.canonical-json/v1","source_geometry_sha256":"5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a","realized_geometry_sha256":"6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b","mesh_sha256":"7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c","correspondence_sha256":"8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d","requested_max_boundary_error_m":0.0625,"boundary_evaluation_allowance_m":0.00390625,"boundary_error_bound_m":0.03125,"circle_segments":12,"circle_area_deficit_m2":0.015625,"circle_perimeter_deficit_m":0.125,"required_minimum_mean_ratio":0.5}
 ```
 
 | Quantity | Value |
 | --- | --- |
-| canonical bytes | 704 |
-| identity `sha256(schema-domain \|\| 0x00 \|\| bytes)` | `fb1724d42f209a6ccf5e00af35aa5d567ec01e261c12af1aa676083844c980e4` |
+| canonical bytes | 703 |
+| identity `sha256(schema-domain \|\| 0x00 \|\| bytes)` | `b35012b4177cfd150e0cdeaaf4901b8d0976c50b2b929dde42885aa5bf6234ee` |
 | `is_realization_prediction` | `false` |
 
-Every field is chosen by this lane: four artificial 64-hex slots, six exact
-powers of two, and a segment count of twelve. Guards run on every pass — each
-slot is a valid hex string of one repeated pair, which no content digest can be;
-each scalar is an exact positive power of two whose compact JSON spelling is a
-short plain decimal that round-trips; the segment count is an integer of at
-least eight; and the stored bound and allowance stay within the stored request.
+The four digest slots are synthetic repeated-pair sentinels selected by this
+lane and not copied from runtime resources. They are valid lowercase 64-hex
+values; no claim is made that such a bit pattern cannot be a SHA-256 output.
+The six floating scalars are exact positive powers of two with short plain JSON
+spellings, and the segment count is twelve.
 
-What it is for: it freezes canonical byte production, the frozen field order as
-it appears in those bytes, and the exact effect of every single-field mutation,
-all checkable today without production output. What it is not: a realization
-envelope digest. Wiring it as a positive oracle for a real chain would be a
-false positive and is forbidden.
+This witness freezes only the bytes shown, their field order, and digest
+framing. The oracle's Python JSON producer is authoritative for this selected
+dyadic witness and selected dyadic mutants only. Production `serde_json` owns
+canonical spelling for arbitrary runtime binary64 observations.
 
-The reusable expected value is `canonical_json(values)` in the oracle: given the
-thirteen field values an implementation captured, it independently derives the
-canonical bytes those values must have, and rejects any map whose vocabulary is
-unknown, missing a field, reordered, or carrying an unsupported schema or
-canonical-encoding identifier.
+## Identity mutation roll
 
-## Falsifier expected values
-
-Twelve single-field mutations of the witness are executed on every run; each must
-produce a valid encoding with an identity different from the witness, and all
-twelve must be mutually distinct. Rather than freeze twelve digests of variants
-no implementation ever produces, the fixture pins them collectively:
+Twelve single-field mutations are executed; each is a valid encoding with an
+identity different from the witness, and all twelve identities are distinct.
 
 | Quantity | Value |
 | --- | --- |
-| `mutation_digest_roll` | `5844e35fa417e0c2e55f74ad42a90f34e6d02ee8007ff5452870d65add301743` |
+| `mutation_digest_roll` | `ea8cef92d9a17a7938ef952d3a82945f2b3e0a447c596f58de343dae341e154e` |
 
-The roll is `sha256` over `"<id>=<digest>"` lines for the twelve mutations,
-sorted by id, so any change to any one of them breaks it.
+The roll is SHA-256 over sorted `"<id>=<digest>"` lines. The first ten rows bind
+digest or regenerated-observation mismatches to relational detectors. The two
+policy rows freeze identity change only; deterministic production regeneration
+owns whether replay rejects or lands on a valid policy plateau.
 
-Nine substitutions carry no envelope digest at all: they leave the envelope bytes
-unchanged by construction, and the fixture records the replay axis that catches
-each instead.
+## Admission and substitution tables
 
-## Not a falsifier
+| Table | Rows | Frozen meaning |
+| --- | ---: | --- |
+| pre-replay admission falsifiers | 11 | malformed or over-budget input is rejected by `decoder_admission` before relational replay |
+| resource substitutions | 16 | unchanged envelope bytes are rejected by the named resource relation |
+| all detector rows | 39 | 12 identity mutations + 11 admission faults + 16 substitutions |
+
+Exact row identifiers and axes are frozen in `binding-contract.json`. The oracle
+checks exact equality with the required class sets rather than prefix matching.
+
+## Encoding-only policy variant
 
 | Quantity | Value |
 | --- | --- |
-| coherent policy variant identity | `2f64339cda832f74f0ef046426a357fa0a8b3f338ec0a0cc988ee7a0470ecc12` |
+| artificial policy variant identity | `8f6a92ea083569280a2d7f8a959983ab8c7a3834c285d0fa1f1a586c7594f3d0` |
 | classification | `canonical_digest_change` |
-| `replay_rejects` | `false` |
+| `replay_outcome` | `not_evaluated` |
 
-A self-consistent policy change with the realization regenerated to match is a
-distinct valid artifact. It is expected to differ in identity and to be rejected
-by nothing.
+This proves only that changed artificial values produce a distinct encoding
+identity. It owns no resources and supplies no evidence that relational replay
+accepts or rejects.
 
-## Deliberately not expected values
+## Deliberately absent expected values
 
 `realized_geometry_sha256`, `mesh_sha256`, and `correspondence_sha256` are not
-frozen as constants, and neither are the three measured binary64 metrics.
-Published contracts do not determine them ahead of runtime; the case README
-carries the returned proof per field. No row here requires them as known
-answers, and no upstream geometry, metric, or resource digest is re-derived in
-this directory.
+frozen as runtime constants, nor are the three measured binary64 observations.
+No upstream geometry, mesh, correspondence, or numerical derivation is copied
+into this directory.

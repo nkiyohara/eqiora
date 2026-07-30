@@ -1,68 +1,76 @@
 # References
 
-Every value in this case is either read from a contract published in this
-repository, or chosen by this lane and labelled as such at every appearance. No
-production Rust was read or run to obtain a value, and no value was copied from
-production test output.
+Every frozen value is either read from a published contract or chosen by this
+lane and labelled synthetic. No production output was read or executed to
+obtain an expected value.
 
 ## Contracts consulted
 
-- [RFC 0008](../../../../rfcs/0008-canonical-artifact-wire-v1.md) — the
-  canonical JSON encoding identifier and the domain-separated digest framing
-  `sha256(schema-domain || 0x00 || canonical bytes)` this envelope reuses
-  unchanged, plus the rule that every admitted finite IEEE-754 value must
-  survive serialize/decode/serialize as the identical value and bytes.
+- [RFC 0008](../../../../rfcs/0008-canonical-artifact-wire-v1.md) — canonical
+  JSON identifier, domain-separated digest framing, canonical round trip, and
+  decoder resource bounds.
 - [RFC 0079](../../../../rfcs/0079-authored-planar-geometry-artifact.md) — the
-  straight-edged planar region wire the realized region is encoded in, and its
-  canonical normalization order, which is why a rotated boundary loop is not a
-  canonical encoding of anything.
+  canonical straight-edged region consumed as the realized geometry.
 - [RFC 0081](../../../../rfcs/0081-exact-circular-hole-geometry.md) — the exact
-  circular-hole wire and its distinct schema domain, which is what refuses a
-  same-named polygonal source by type before any digest comparison.
+  circular-hole source family and its distinct schema domain.
 - [RFC 0082](../../../../rfcs/0082-source-bound-chordal-circular-hole-mesh.md) —
-  the approximation contract: the caller segment limit that the stored count is
-  replayed as a maximum against, the quality threshold, the minimum of eight
-  segments, and the statement that the stored metrics are *measured* from the
-  generated loop rather than accepted from a closed form.
+  requested boundary-error policy, segment work limit, required mesh-quality
+  threshold, measured approximation observations, and minimum eight segments.
 - [RFC 0049](../../../../rfcs/0049-geometry-identity-and-mesh-correspondence.md)
-  — correspondence semantics, and the reason its digest is not derivable here:
-  it is closed over one exact Model artifact whose Domain ULIDs are
-  revision-local and author-chosen.
+  — general geometry/mesh correspondence completeness, identity, and
+  parent-outward orientation semantics.
+- [`geometry_mesh_correspondence_sources.rs`](../../../../crates/eqiora-artifact/src/geometry_mesh_correspondence_sources.rs)
+  — the accepted public `from_region` / `validate_against_region` contract for
+  the Model-free `authored-planar-region-v1` correspondence variant. Its wire
+  binds only canonical authored geometry, simplicial mesh, dimension, and
+  derived assignments; the binding oracle does not use the Model-bound
+  Cartesian variant from the same outer artifact family.
+- [`authored_region_correspondence.rs`](../../../../crates/eqiora-artifact/tests/authored_region_correspondence.rs)
+  — accepted executable examples of totality, missing or relabelled facets,
+  wrong orientation, exterior/hole assignment swaps, and alternative conforming
+  topology.
 - [RFC 0013](../../../../rfcs/0013-realization-and-run-provenance-wire.md) — the
-  simplicial mesh envelope's content list. It names the schema and what the
-  artifact records; no published document gives its canonical field order.
+  simplicial mesh artifact content and its recomputed quality evidence.
+- [`eqiora.meshing` public stub](../../../../bindings/python/python/eqiora/meshing.pyi)
+  — the accepted distinction between the input
+  `required_minimum_mean_ratio` threshold and the measured
+  `minimum_mean_ratio`.
+
+The accepted source and tests above were consulted only to select and name the
+already-public Model-free correspondence contract. The stdlib oracle neither
+imports nor executes Rust, and no frozen bytes, digest, metric, topology, or
+assignment were copied from production.
 
 ## Upstream component authorities
 
-The sibling cases own the science this binding consumes and remain authoritative
-for how each bound resource is built:
-
 - [`../../exact-circular-hole-geometry`](../../exact-circular-hole-geometry/README.md)
-  — the exact centre/radius/boundary identity;
+  owns exact centre, radius, boundary identity, canonical bytes, and source
+  digest.
 - [`../../circular-hole-chordal-reference-mesh`](../../circular-hole-chordal-reference-mesh/README.md)
-  — the in-memory chordal realization, its segment selection, and its
-  approximation metrics; its own nonclaims list the durable source-to-mesh wire
-  that this case supplies.
+  owns segment selection, generated coordinates, approximation observations,
+  named chordal region, and source-owned reference mesh.
 
-This case owns the wire between them and nothing inside them. The oracle pins
-both sibling oracles by path and SHA-256 and verifies those digests on every run,
-so a change upstream surfaces here as a failure rather than as silent drift. It
-does not re-implement circle sampling, trigonometric metrics, geometry vertices,
-mesh topology, correspondence assignments, or any resource digest; an earlier
-revision that duplicated those derivations was rejected as over-specification.
-No high-precision numerical kernel is reproduced here for the same reason.
+The binding oracle pins both sibling oracle files by SHA-256 on every run. It
+does not reimplement their sampling, trigonometric metrics, geometry vertices,
+mesh topology, or resource digests.
+
+The authored-region correspondence digest is deliberately not predicted. It
+binds generated realized-geometry and mesh digests plus assignments derived
+from those resources, so it inherits their runtime binary64 coordinate and
+topology identities.
 
 ## Values chosen by this lane
 
-Labelled artificial wherever they appear, and predicting nothing about any
-realization:
+- four synthetic repeated-pair 64-hex sentinel slots, not copied from runtime
+  resources; no assertion is made that SHA-256 cannot output those patterns;
+- six exact positive dyadic floating values and a segment count of twelve for
+  the encoding witness; and
+- dyadic values for one encoding-only policy variant whose replay outcome is
+  explicitly `not_evaluated`.
 
-- the four 64-hex digest slots of the encoding witness, each a single repeated
-  hex pair so that no content digest can collide with the pattern;
-- its six scalars, each an exact positive power of two with a short plain
-  decimal spelling, and its segment count of twelve;
-- the scalars of the coherent policy variant, chosen on the same rule.
+The Python JSON encoder is used only for those selected dyadic values and
+mutants. Production `serde_json` remains authoritative for arbitrary runtime
+binary64 canonical spelling.
 
-Published DFG benchmark results are not evidence for this wire-only case: no
-flow, drag, lift, or Strouhal value is claimed, and no envelope digest over any
-real realization is frozen anywhere in this directory.
+Published flow, drag, lift, or Strouhal results are not evidence for this
+wire-only case. No binding digest over a real realization is frozen here.

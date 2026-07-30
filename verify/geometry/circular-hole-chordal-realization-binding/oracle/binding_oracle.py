@@ -34,7 +34,7 @@ FIELD_ORDER = tuple(
     "schema encoding source_geometry_sha256 realized_geometry_sha256 mesh_sha256"
     " correspondence_sha256 requested_max_boundary_error_m boundary_evaluation_allowance_m"
     " boundary_error_bound_m circle_segments circle_area_deficit_m2"
-    " circle_perimeter_deficit_m reference_minimum_mean_ratio".split()
+    " circle_perimeter_deficit_m required_minimum_mean_ratio".split()
 )
 DIGEST_FIELDS = FIELD_ORDER[2:6]
 FLOAT_FIELDS = tuple(f for f in FIELD_ORDER[6:] if f != "circle_segments")
@@ -61,23 +61,39 @@ WITNESS = {
     "circle_segments": 12,
     "circle_area_deficit_m2": 0.015625,
     "circle_perimeter_deficit_m": 0.125,
-    "reference_minimum_mean_ratio": 0.5,
+    "required_minimum_mean_ratio": 0.5,
 }
+IS_REALIZATION_PREDICTION = False
 
 
-class VocabularyError(ValueError):
-    """A value map is not exactly the frozen field vocabulary, in order."""
+class ContractError(ValueError):
+    """The artificial witness violates the frozen wire contract."""
 
 
 def canonical_json(values: dict) -> bytes:
-    """Canonical bytes; rejects unknown, missing, reordered, unversioned input."""
+    """Encode the chosen dyadic witness family, not arbitrary runtime floats."""
     keys = tuple(values)
     if set(keys) != set(FIELD_ORDER):
-        raise VocabularyError(f"vocabulary {sorted(set(keys) ^ set(FIELD_ORDER))}")
+        raise ContractError(f"vocabulary {sorted(set(keys) ^ set(FIELD_ORDER))}")
     if keys != FIELD_ORDER:
-        raise VocabularyError("fields are not in canonical order")
+        raise ContractError("fields are not in canonical order")
     if values["schema"] != ENVELOPE_SCHEMA or values["encoding"] != ENCODING:
-        raise VocabularyError("unsupported schema or canonical-encoding identifier")
+        raise ContractError("unsupported schema or canonical-encoding identifier")
+    for field in DIGEST_FIELDS:
+        digest = values[field]
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+        ):
+            raise ContractError(f"{field} is not lowercase SHA-256")
+    for field in FLOAT_FIELDS:
+        value = values[field]
+        if not isinstance(value, float) or not math.isfinite(value) or value <= 0.0:
+            raise ContractError(f"{field} is not finite and positive")
+    segments = values["circle_segments"]
+    if isinstance(segments, bool) or not isinstance(segments, int) or segments < 8:
+        raise ContractError("circle_segments is not an integer of at least eight")
     return json.dumps(values, separators=(",", ":"), allow_nan=False).encode()
 
 
@@ -101,7 +117,7 @@ def simple_dyadic(value: object) -> bool:
 
 
 def artificial_slot(digest: str) -> bool:
-    """True for a valid 64-hex string of one repeated pair, never a content digest."""
+    """True for a synthetic repeated-pair sentinel not copied from a resource."""
     hexish = len(digest) == 64 and all(c in "0123456789abcdef" for c in digest)
     return hexish and digest == digest[:2] * 32
 
@@ -113,9 +129,64 @@ def check(name: str, ok: object, detail: str = "") -> None:
 def rejected(values: dict) -> bool:
     try:
         canonical_json(values)
-    except VocabularyError:
+    except (ContractError, TypeError, ValueError):
         return True
     return False
+
+
+def raw_json(values: dict) -> bytes:
+    """Serialize a deliberately invalid admission input without validation."""
+    return json.dumps(values, separators=(",", ":"), allow_nan=True).encode()
+
+
+def object_depth(value: object) -> int:
+    """Small independent structural depth measure for the artificial witness."""
+    if isinstance(value, dict):
+        return 1 + max((object_depth(item) for item in value.values()), default=0)
+    if isinstance(value, list):
+        return 1 + max((object_depth(item) for item in value), default=0)
+    return 0
+
+
+def decode_pairs(pairs: list[tuple[str, object]]) -> dict:
+    """Preserve field order and reject duplicate JSON names."""
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ContractError(f"duplicate field {key}")
+        value[key] = item
+    return value
+
+
+def reject_constant(value: str) -> object:
+    """Reject the non-standard NaN/Infinity tokens accepted by Python JSON."""
+    raise ContractError(f"non-finite JSON token {value}")
+
+
+def admit_artificial(
+    payload: bytes,
+    *,
+    max_bytes: int = 4096,
+    max_depth: int = 64,
+) -> dict:
+    """Admit only canonical bytes in the artificial dyadic witness domain."""
+    if len(payload) > max_bytes:
+        raise ContractError("encoded-byte budget exceeded")
+    try:
+        value = json.loads(
+            payload,
+            object_pairs_hook=decode_pairs,
+            parse_constant=reject_constant,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ContractError("invalid JSON") from error
+    if not isinstance(value, dict):
+        raise ContractError("top-level value is not an object")
+    if object_depth(value) > max_depth:
+        raise ContractError("nesting-depth budget exceeded")
+    if canonical_json(value) != payload:
+        raise ContractError("input is not the canonical encoding")
+    return value
 
 
 OPS = {
@@ -131,22 +202,24 @@ OPS = {
 REPLAY = (
     "k1 construction capture every field from already-validated resources",
     "k2 construction never accept a caller-supplied raw field tuple",
+    "p admission decode the binding envelope under its closed canonical vocabulary and budgets, and require the four resources to have passed their separately owned bounded decoders before relational replay",
     "a validation resolve the exact source; its digest must equal source_geometry_sha256",
-    "b validation regenerate the chordal owner from that source, the stored request, stored circle_segments as a maximum, and the stored reference_minimum_mean_ratio",
+    "b validation regenerate the chordal owner from that source, the stored request, stored circle_segments as a maximum, and the stored required_minimum_mean_ratio",
     "c validation exact-compare every regenerated metric against the stored scalar",
     "d validation require the supplied realized geometry to equal the regenerated region",
-    "e validation replay mesh and correspondence conformance",
+    "e validation replay the Model-free authored-planar-region-v1 correspondence against the supplied realized geometry and mesh",
     "f validation exact-compare all four bound resource digests",
 )
-REQUIRED_STEPS = frozenset({"k1", "k2", "a", "b", "c", "d", "e", "f"})
+REQUIRED_STEPS = frozenset({"k1", "k2", "p", "a", "b", "c", "d", "e", "f"})
 
 # The six detection axes, each mapped to the replay steps that carry it.
 AXES = {
     "envelope_digest": ("envelope canonical digest", ()),
+    "decoder_admission": ("binding-envelope decoder admission", ("p",)),
     "source_semantics": ("semantic source type/digest", ("a",)),
     "owner_replay": ("deterministic owner replay", ("b", "c")),
     "region_equality": ("realized-region equality", ("d",)),
-    "correspondence": ("correspondence conformance", ("e",)),
+    "authored_correspondence": ("authored-region correspondence replay", ("e",)),
     "resource_digest": ("bound resource digest", ("f",)),
 }
 
@@ -157,7 +230,7 @@ ENVELOPE_MUTATIONS = (
     "source_digest_nibble source_geometry_sha256 nibble envelope_digest|source_semantics|resource_digest",
     "realized_digest_nibble realized_geometry_sha256 nibble envelope_digest|region_equality|resource_digest",
     "mesh_digest_nibble mesh_sha256 nibble envelope_digest|resource_digest",
-    "correspondence_digest_nibble correspondence_sha256 nibble envelope_digest|correspondence|resource_digest",
+    "correspondence_digest_nibble correspondence_sha256 nibble envelope_digest|authored_correspondence|resource_digest",
     "allowance_halved boundary_evaluation_allowance_m halve envelope_digest|owner_replay",
     "bound_halved boundary_error_bound_m halve envelope_digest|owner_replay",
     "segments_above circle_segments increment envelope_digest|owner_replay",
@@ -171,7 +244,38 @@ ENVELOPE_MUTATIONS = (
 # the regenerated selection changes is owned by the upstream chordal contract.
 POLICY_CHANGES = (
     "request_halved requested_max_boundary_error_m halve envelope_digest",
-    "mean_ratio_halved reference_minimum_mean_ratio halve envelope_digest",
+    "mean_ratio_halved required_minimum_mean_ratio halve envelope_digest",
+)
+
+# Pre-replay malformed inputs, "<id> <axes>". These have no admitted envelope
+# identity and must be rejected before any resource relation is evaluated.
+ADMISSION_FALSIFIERS = (
+    "unknown_vocabulary decoder_admission",
+    "missing_vocabulary decoder_admission",
+    "reordered_vocabulary decoder_admission",
+    "extra_vocabulary decoder_admission",
+    "noncanonical_json decoder_admission",
+    "malformed_digest decoder_admission",
+    "nonfinite_scalar decoder_admission",
+    "zero_scalar decoder_admission",
+    "negative_scalar decoder_admission",
+    "byte_budget_overflow decoder_admission",
+    "depth_budget_overflow decoder_admission",
+)
+REQUIRED_ADMISSION_CLASSES = frozenset(
+    {
+        "unknown_vocabulary",
+        "missing_vocabulary",
+        "reordered_vocabulary",
+        "extra_vocabulary",
+        "noncanonical_json",
+        "malformed_digest",
+        "nonfinite_scalar",
+        "zero_scalar",
+        "negative_scalar",
+        "byte_budget_overflow",
+        "depth_budget_overflow",
+    }
 )
 
 # Substitutions inside a bound resource, "<id> <axes>". The envelope bytes are
@@ -183,14 +287,39 @@ SUBSTITUTIONS = (
     "polygonal_source_same_name source_semantics",
     "realized_vertex_perturbed region_equality|resource_digest",
     "realized_order_rotated region_equality|resource_digest",
-    "mesh_topology_changed correspondence|resource_digest",
-    "correspondence_mapping_changed correspondence|resource_digest",
+    "mesh_refined authored_correspondence|resource_digest",
+    "mesh_renumbered authored_correspondence|resource_digest",
+    "mesh_topology_changed authored_correspondence|resource_digest",
+    "correspondence_relabelled authored_correspondence|resource_digest",
+    "correspondence_incomplete authored_correspondence|resource_digest",
+    "correspondence_reoriented authored_correspondence|resource_digest",
+    "correspondence_stale authored_correspondence|resource_digest",
+    "correspondence_inlet_outlet_swapped authored_correspondence|resource_digest",
+    "correspondence_exterior_hole_swapped authored_correspondence|resource_digest",
     "conforming_mesh_substituted resource_digest",
 )
-REQUIRED_SUBJECTS = "source_center source_radius source_boundary polygonal_source realized_vertex realized_order mesh_topology correspondence_mapping conforming_mesh".split()
+REQUIRED_SUBSTITUTION_CLASSES = frozenset(
+    {
+        "source_center_perturbed",
+        "source_radius_perturbed",
+        "source_boundary_identity",
+        "polygonal_source_same_name",
+        "realized_vertex_perturbed",
+        "realized_order_rotated",
+        "mesh_refined",
+        "mesh_renumbered",
+        "mesh_topology_changed",
+        "correspondence_relabelled",
+        "correspondence_incomplete",
+        "correspondence_reoriented",
+        "correspondence_stale",
+        "correspondence_inlet_outlet_swapped",
+        "correspondence_exterior_hole_swapped",
+        "conforming_mesh_substituted",
+    }
+)
 
-# A self-consistent policy change with the realization regenerated to match is a
-# distinct valid artifact, not corruption.
+# An artificial encoding variant. No resource relation is evaluated here.
 COHERENT_ID = "coherent_policy_variant"
 COHERENT = variant(
     requested_max_boundary_error_m=0.03125,
@@ -201,14 +330,73 @@ COHERENT = variant(
 )
 
 MUTATIONS = tuple(r.split() for r in ENVELOPE_MUTATIONS + POLICY_CHANGES)
+ADMISSIONS = tuple(r.split() for r in ADMISSION_FALSIFIERS)
 SUBS = tuple(r.split() for r in SUBSTITUTIONS)
-ROWS = tuple((r[0], r[3]) for r in MUTATIONS) + tuple((r[0], r[1]) for r in SUBS)
+ROWS = (
+    tuple((r[0], r[3]) for r in MUTATIONS)
+    + tuple((r[0], r[1]) for r in ADMISSIONS)
+    + tuple((r[0], r[1]) for r in SUBS)
+)
 AXES_OF = {name: axes.split("|") for name, axes in ROWS}
 CHECKS: list[tuple[str, bool, str]] = []
 
 BYTES = canonical_json(WITNESS)
 TEXT = BYTES.decode()
 SHA256 = identity(BYTES)
+
+
+def admission_rejects(case_id: str) -> bool:
+    """Execute one malformed artificial-wire class without production code."""
+    max_bytes = 4096
+    max_depth = 64
+    if case_id == "unknown_vocabulary":
+        payloads = (
+            raw_json(variant(schema="eqiora.other/v1")),
+            raw_json(variant(encoding="raw-json/v1")),
+        )
+    elif case_id == "missing_vocabulary":
+        payloads = (raw_json({k: v for k, v in WITNESS.items() if k != "mesh_sha256"}),)
+    elif case_id == "reordered_vocabulary":
+        payloads = (raw_json({k: WITNESS[k] for k in FIELD_ORDER[::-1]}),)
+    elif case_id == "extra_vocabulary":
+        payloads = (raw_json({**WITNESS, "extra": 1}),)
+    elif case_id == "noncanonical_json":
+        payloads = (b" " + BYTES,)
+    elif case_id == "malformed_digest":
+        payloads = tuple(
+            raw_json(variant(**{field: "not-a-lowercase-sha256"}))
+            for field in DIGEST_FIELDS
+        )
+    elif case_id == "nonfinite_scalar":
+        payloads = tuple(
+            raw_json(variant(**{field: float("nan")})) for field in FLOAT_FIELDS
+        )
+    elif case_id == "zero_scalar":
+        payloads = tuple(
+            raw_json(variant(**{field: 0.0})) for field in FLOAT_FIELDS
+        ) + (raw_json(variant(circle_segments=0)),)
+    elif case_id == "negative_scalar":
+        payloads = tuple(
+            raw_json(variant(**{field: -abs(WITNESS[field])})) for field in FLOAT_FIELDS
+        ) + (raw_json(variant(circle_segments=-1)),)
+    elif case_id == "byte_budget_overflow":
+        payloads = (BYTES,)
+        max_bytes = len(BYTES) - 1
+    elif case_id == "depth_budget_overflow":
+        payloads = (BYTES,)
+        max_depth = 0
+    else:
+        raise AssertionError(f"unknown admission class {case_id}")
+
+    for payload in payloads:
+        try:
+            admit_artificial(payload, max_bytes=max_bytes, max_depth=max_depth)
+        except ContractError:
+            continue
+        return False
+    return True
+
+
 # 1. field order, checked directly and again against the emitted bytes.
 _pos = [TEXT.find(f'"{name}":') for name in FIELD_ORDER]
 _order = tuple(WITNESS) == FIELD_ORDER and len(set(FIELD_ORDER)) == 13
@@ -232,41 +420,62 @@ _allowance = WITNESS["boundary_evaluation_allowance_m"]
 _ordered = _bound <= _request and _allowance < _request
 _parsed = json.loads(TEXT)
 check("witness.four_distinct_digest_slots", len(set(_slots)) == 4)
-check("witness.slots_valid_and_artificial", _artificial)
+check("witness.slots_valid_synthetic_sentinels", _artificial)
 check("witness.scalars_simple_dyadic", _dyadic)
 check("witness.segments_min_eight", isinstance(_segments, int) and _segments >= 8)
 check("witness.bound_and_allowance_within_request", _ordered)
 check("witness.round_trips", _parsed == WITNESS and tuple(_parsed) == FIELD_ORDER)
 check("witness.domain_separated", SHA256 != hashlib.sha256(BYTES).hexdigest())
-check("witness.not_a_realization_prediction", _artificial and _dyadic)
+check(
+    "witness.not_a_realization_prediction_declared", IS_REALIZATION_PREDICTION is False
+)
 # 4. the replay contract is complete and reachable from the detection axes.
 _steps = [r.split(" ", 2) for r in REPLAY]
 _carried = {step for _, steps in AXES.values() for step in steps}
-_validation = {s[0] for s in _steps if s[1] == "validation"}
+_checked = {s[0] for s in _steps if s[1] in {"admission", "validation"}}
 _construction = {s[0] for s in _steps if s[1] == "construction"}
 check("replay.steps_complete", frozenset(s[0] for s in _steps) == REQUIRED_STEPS)
 check("replay.construction_captures_and_refuses_tuple", _construction == {"k1", "k2"})
-check("replay.every_validation_step_has_an_axis", _carried == _validation)
-# 5. coverage: every mutable field, every required substitution, every axis.
+check("replay.every_admission_and_validation_step_has_an_axis", _carried == _checked)
+# 5. coverage: every mutable field and Issue class, with every detector axis used.
 _mutable = set(FIELD_ORDER) - set(FIELD_ORDER[:2])
+_admission_ids = [r[0] for r in ADMISSIONS]
 _sub_ids = [r[0] for r in SUBS]
 _mut_axes = [AXES_OF[r[0]] for r in MUTATIONS]
+_admission_axes = [AXES_OF[i] for i in _admission_ids]
 _sub_axes = [AXES_OF[i] for i in _sub_ids]
-_named = all(any(i.startswith(s) for i in _sub_ids) for s in REQUIRED_SUBJECTS)
-_known = all(a and set(a) <= set(AXES) for a in _sub_axes + _mut_axes)
+_known = all(
+    axes and set(axes) <= set(AXES) for axes in _sub_axes + _admission_axes + _mut_axes
+)
 _used = {a for axes in AXES_OF.values() for a in axes}
+_unknown_axes = _used - set(AXES)
 _no_digest = all("envelope_digest" not in a for a in _sub_axes)
 _two_axes = all("envelope_digest" in a and len(a) > 1 for a in _mut_axes[:10])
 _only_digest = all(a == ["envelope_digest"] for a in _mut_axes[10:])
 check("coverage.every_mutable_field_mutated", {r[1] for r in MUTATIONS} == _mutable)
-check("coverage.required_substitutions_named", _named and len(SUBS) == 9)
-check("coverage.row_names_unique", len(AXES_OF) == len(ROWS) == 21)
-check("coverage.rows_declare_known_axes", _known)
-check("coverage.every_axis_exercised", _used == set(AXES))
+check(
+    "coverage.required_admission_classes_exact",
+    frozenset(_admission_ids) == REQUIRED_ADMISSION_CLASSES,
+)
+check(
+    "coverage.required_substitution_classes_exact",
+    frozenset(_sub_ids) == REQUIRED_SUBSTITUTION_CLASSES,
+)
+check("coverage.row_names_unique", len(AXES_OF) == len(ROWS) == 39)
+check("coverage.rows_declare_known_axes", _known, ",".join(sorted(_unknown_axes)))
+check(
+    "coverage.every_axis_exercised",
+    _used == set(AXES),
+    f"missing={','.join(sorted(set(AXES) - _used))}",
+)
 check("coverage.subs_never_claim_digest", _no_digest)
 check("coverage.env_mutations_digest_and_replay", _two_axes)
-check("coverage.policy_is_digest_only", _only_digest)
-# 6. every mutation is executed: a valid encoding of different values.
+check("coverage.policy_identity_only_in_oracle", _only_digest)
+check(
+    "coverage.admission_is_pre_replay_only",
+    all(axes == ["decoder_admission"] for axes in _admission_axes),
+)
+# 6. every identity mutation and artificial admission falsifier is executed.
 DIGESTS: dict[str, str] = {}
 for _id, _field, _op, _axes in MUTATIONS:
     _values = variant(**{_field: OPS[_op](WITNESS[_field])})
@@ -274,7 +483,10 @@ for _id, _field, _op, _axes in MUTATIONS:
     check(f"mutation.{_id}", DIGESTS[_id] != SHA256, DIGESTS[_id])
 check("mutation.twelve_distinct_identities", len(set(DIGESTS.values())) == 12)
 ROLL = hashlib.sha256("\n".join(f"{k}={DIGESTS[k]}" for k in sorted(DIGESTS)).encode())
-# 7. a coherent policy variant is a distinct valid artifact, not a rejection.
+REPLAY_ROLL = hashlib.sha256("\n".join(REPLAY).encode())
+for _id in _admission_ids:
+    check(f"admission.{_id}", admission_rejects(_id))
+# 7. one policy variant has a different encoding identity; replay is not evaluated.
 COHERENT_BYTES = canonical_json(COHERENT)
 COHERENT_SHA256 = identity(COHERENT_BYTES)
 check("coherent.identity_differs", COHERENT_SHA256 != SHA256)
@@ -293,21 +505,28 @@ CONTRACT = {
     "canonical_field_order": list(FIELD_ORDER),
     "upstream_authorities": UPSTREAM,
     "artificial_encoding_witness": {
-        "is_realization_prediction": False,
+        "is_realization_prediction": IS_REALIZATION_PREDICTION,
         "exact_bytes_in": "expected/README.md",
         "canonical_bytes": len(BYTES),
         "sha256": SHA256,
     },
-    "replay_contract": REPLAY,
-    "detection_axes": {k: [v[0], ",".join(v[1])] for k, v in AXES.items()},
-    "envelope_mutations": [[r[0], r[3]] for r in MUTATIONS[:10]],
-    "policy_changes": [[r[0], r[3]] for r in MUTATIONS[10:]],
-    "substitutions": [[r[0], r[1]] for r in SUBS],
+    "replay_contract": {
+        "steps": [step.split(" ", 1)[0] for step in REPLAY],
+        "sha256": REPLAY_ROLL.hexdigest(),
+    },
+    "detection_axes": {k: ",".join(v[1]) for k, v in AXES.items()},
+    "envelope_mutations": {r[0]: r[3] for r in MUTATIONS[:10]},
+    "policy_changes": {
+        r[0]: [r[3], "outcome_owned_by_deterministic_regeneration"]
+        for r in MUTATIONS[10:]
+    },
+    "admission_falsifiers": [r[0] for r in ADMISSIONS],
+    "substitutions": {r[0]: r[1] for r in SUBS},
     "mutation_digest_roll": ROLL.hexdigest(),
     "not_a_falsifier": {
         "id": COHERENT_ID,
         "classification": "canonical_digest_change",
-        "replay_rejects": False,
+        "replay_outcome": "not_evaluated",
         "canonical_bytes": len(COHERENT_BYTES),
         "sha256": COHERENT_SHA256,
     },
@@ -336,8 +555,13 @@ for _key, _value in (
     ("witness.sha256", SHA256),
     ("witness.is_realization_prediction", "false"),
     ("replay.steps", ",".join(s[0] for s in _steps)),
+    ("replay.sha256", REPLAY_ROLL.hexdigest()),
+    ("coverage.admission_rows", len(ADMISSIONS)),
+    ("coverage.substitution_rows", len(SUBS)),
+    ("coverage.total_rows", len(ROWS)),
     ("coverage.mutation_digest_roll", ROLL.hexdigest()),
     ("not_a_falsifier.classification", "canonical_digest_change"),
+    ("not_a_falsifier.replay_outcome", "not_evaluated"),
     ("not_a_falsifier.sha256", COHERENT_SHA256),
     ("not_claimed.resource_digests", ",".join(DIGEST_FIELDS[1:])),
     ("fixture.bytes", _size),
