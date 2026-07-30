@@ -78,11 +78,12 @@ tables, convergence studies, or the reproducible execution environment.
 
 Every completed proving workflow also has one checked-in ordinary Python
 script that imports the installed `eqiora` package and consumes the same
-Rust-owned Model, Geometry, Mesh, Realization, Run, Result, and trajectory
-contracts as verification and Studio. A repository-only Rust executable,
-private Studio bridge, or re-authored demo dataset may help development, but
-does not complete the workflow. Native Rust tests remain scientific evidence;
-the Python script is the reproducible user composition over that evidence.
+applicable Rust-owned Model, Geometry, Mesh, Realization, Run, Result, or
+trajectory contracts as verification and Studio. It does not recreate missing
+meaning in Python. A repository-only Rust executable, private Studio bridge,
+or re-authored demo dataset may help development, but does not complete the
+workflow. Native Rust tests remain scientific evidence; the Python script is
+the reproducible user composition over that evidence.
 
 ## Film grammar
 

@@ -3,7 +3,7 @@
 Python authoring produces immutable declarations that close into the same
 Rust-owned semantic model as Eqiora Language and Studio.
 
-The public alpha includes native builders for bounded scalar `Field`,
+The current source-tree Python surface includes native builders for bounded scalar `Field`,
 `Parameter`, and continuous `Relation` declarations, physical domains and
 ports, exact model identity, and one Rust-owned exact
 axis-aligned-rectangle-with-circular-hole geometry. A typed `Realization`
