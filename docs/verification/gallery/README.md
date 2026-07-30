@@ -76,14 +76,16 @@ The authoritative result remains available independently of the film. A film
 is a lossy presentation and is never a replacement for field data, comparison
 tables, convergence studies, or the reproducible execution environment.
 
-Every completed proving workflow also has one checked-in ordinary Python
-script that imports the installed `eqiora` package and consumes the same
-applicable Rust-owned Model, Geometry, Mesh, Realization, Run, Result, or
-trajectory contracts as verification and Studio. It does not recreate missing
-meaning in Python. A repository-only Rust executable, private Studio bridge,
-or re-authored demo dataset may help development, but does not complete the
-workflow. Native Rust tests remain scientific evidence; the Python script is
-the reproducible user composition over that evidence.
+## Python composition admission
+
+A proving workflow is admitted as complete only when it has one checked-in
+ordinary Python script that imports the installed `eqiora` package and
+consumes the same applicable Rust-owned Model, Geometry, Mesh, Realization,
+Run, Result, or trajectory contracts as verification and Studio. It does not
+recreate missing meaning in Python. A repository-only Rust executable, private
+Studio bridge, or re-authored demo dataset may help development, but does not
+complete the workflow. Native Rust tests remain scientific evidence; the
+Python script is the reproducible user composition over that evidence.
 
 ## Film grammar
 
