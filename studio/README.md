@@ -29,6 +29,10 @@ The implemented vertical slices provide:
 - one native packaged DC-drive workspace that compiles the exact checked-in
   three-package closure, executes its accepted 100-step reference path, and
   presents only production current, speed, held voltage, and exact lineage;
+- one native mixed-boundary linear-elasticity workspace that compiles the exact
+  direct Model, executes the frozen 16-by-16 Q1/CG plan, and presents
+  solver-owned displacement, reaction/body-force, residual, and lineage
+  evidence;
 - an explicit bounded 2D scalar Field view whose separate data plane retains
   exact Model/run/Realization identity, transfers fixed little-endian `f64`
   chunks from a two-entry session cache, and synchronizes a keyboard-accessible
@@ -38,9 +42,9 @@ The implemented vertical slices provide:
 - bounded immutable revision navigation with keyboard undo/redo and explicit
   source-basis versus canonical-child provenance;
 - one closed typed registry for the current Relations, scalar-elliptic,
-  exact-cylinder, packaged DC-drive, and bounded-CAD workflows, including
-  shared navigation, command availability, focus targets, projection budgets,
-  and semantic alternatives;
+  exact-cylinder, packaged DC-drive, mixed-boundary structural, and bounded-CAD
+  workflows, including shared navigation, command availability, focus targets,
+  projection budgets, and semantic alternatives;
 - a searchable native-modal command palette for every primary operation and
   secondary example fixture, backed by the same resolved command state;
 - a typed presentation-message catalog for registry-owned labels,
@@ -137,16 +141,17 @@ The browser development view is explicitly labelled **Browser preview**. It
 exists for deterministic interaction and visual testing; it does not parse or
 execute Eqiora semantics. Only the Tauri shell calls the native adapter.
 
-`src/application.ts` is the closed application-shell registry. It does not
-discover packages or plugins and does not inspect source text or component
-trees to infer applicability. Relations comes from an accepted document,
+`src/application-registry.ts` owns the closed data registry while
+`src/application.ts` resolves application state. Neither discovers packages or
+plugins or inspects source text or component trees to infer applicability.
+Relations comes from an accepted document,
 scalar elliptic comes from the native-advertised document workflow, and CAD
 requires an exact current-Model projection. If Geometry becomes inapplicable,
 the shell falls back to Relations without mutating canonical or run state.
-The native exact-cylinder and packaged DC-drive examples resolve independently
-of the editable document and fall back without replacing it. Header controls
-and the command palette use the same typed availability and disabled-reason
-keys.
+The native exact-cylinder, packaged DC-drive, and mixed-boundary structural
+examples resolve independently of the editable document and fall back without
+replacing it. Header controls, the immutable example menu, and the command
+palette use the same typed availability and disabled-reason keys.
 
 Each workflow declares a protocol-owned bounded projection and an accessible
 semantic alternative. The scalar spatial control response remains
@@ -166,6 +171,17 @@ created only after structural trajectory acceptance. React formats and scales
 the retained values but derives no physical quantity; exact references,
 residuals, controller-law evidence, physical port samples, power, and energy
 remain outside the payload. Browser preview fails explicitly.
+
+The structural command is likewise a presentation composition over
+`solid.mixed-boundary-elasticity-2d`. Rust compiles the exact checked-in direct
+Model v4, resolves the frozen generated Cartesian continuous-Q1 plan through
+the public facade, and executes the reference host-serial CG path. Its closed
+response contains ordered mesh connectivity, the existing solver-owned
+two-component displacement field, constrained reaction, integrated body force,
+solve/assembly evidence, and exact Model/Realization/output-less-Run lineage.
+React applies only the labelled display transform `x + scale * u`; it derives
+no stress, strain, traction, analytic reference, or validation quantity.
+Browser preview fails explicitly.
 
 ## Develop and verify
 
@@ -215,3 +231,5 @@ registered in
 [`verify/interfaces/studio-scalar-field-view`](../verify/interfaces/studio-scalar-field-view/README.md).
 The presentation-only package/trajectory composition is registered in
 [`verify/interfaces/studio-packaged-dc-motor-demo`](../verify/interfaces/studio-packaged-dc-motor-demo/README.md).
+The presentation-only structural composition is registered in
+[`verify/interfaces/studio-mixed-boundary-elasticity-demo`](../verify/interfaces/studio-mixed-boundary-elasticity-demo/README.md).

@@ -13,18 +13,9 @@ import {
   compileResponseMatchesRequest,
   compileResponseV1Schema,
 } from "./control-protocol";
-import {
-  type CylinderDemoRequest,
-  type CylinderDemoResult,
-  cylinderDemoRequestSchema,
-  cylinderDemoResultSchema,
-} from "./cylinder-demo-protocol";
-import {
-  type DcMotorDemoRequest,
-  type DcMotorDemoResult,
-  dcMotorDemoRequestSchema,
-  dcMotorDemoResultSchema,
-} from "./dc-motor-demo-protocol";
+import type { CylinderDemoRequest, CylinderDemoResult } from "./cylinder-demo-protocol";
+import type { DcMotorDemoRequest, DcMotorDemoResult } from "./dc-motor-demo-protocol";
+import { nativeDemoBridge, previewDemoBridge } from "./demo-bridge";
 import {
   CAD_EXAMPLE_SOURCE,
   CAD_PREVIEW_MODEL_DIGEST,
@@ -67,6 +58,7 @@ import {
   spatialRunPlanSchema,
   spatialRunResultSchema,
 } from "./spatial-protocol";
+import type { StructuralDemoRequest, StructuralDemoResult } from "./structural-demo-protocol";
 import {
   type ValueEditCommitRequest,
   type ValueEditPlan,
@@ -104,6 +96,7 @@ export interface StudioBridge {
   ): Promise<BridgeEnvelope<SpatialRunResult>>;
   runCylinderDemo(request: CylinderDemoRequest): Promise<BridgeEnvelope<CylinderDemoResult>>;
   runDcMotorDemo(request: DcMotorDemoRequest): Promise<BridgeEnvelope<DcMotorDemoResult>>;
+  runStructuralDemo(request: StructuralDemoRequest): Promise<BridgeEnvelope<StructuralDemoResult>>;
 }
 
 const compileCommandEnvelopeSchema = z
@@ -328,26 +321,13 @@ const nativeBridge: StudioBridge = {
     return response;
   },
   async runCylinderDemo(request) {
-    const checked = checkedRequest(cylinderDemoRequestSchema, request, "Cylinder demo");
-    if (!checked.ok) {
-      return checked.failure;
-    }
-    return checkedInvoke<CylinderDemoResult>(
-      "run_cylinder_demo",
-      { request: checked.value },
-      bridgeEnvelopeSchema(cylinderDemoResultSchema),
-    );
+    return nativeDemoBridge.runCylinder(request);
   },
   async runDcMotorDemo(request) {
-    const checked = checkedRequest(dcMotorDemoRequestSchema, request, "Packaged DC-drive demo");
-    if (!checked.ok) {
-      return checked.failure;
-    }
-    return checkedInvoke<DcMotorDemoResult>(
-      "run_dc_motor_demo",
-      { request: checked.value },
-      bridgeEnvelopeSchema(dcMotorDemoResultSchema),
-    );
+    return nativeDemoBridge.runDcMotor(request);
+  },
+  async runStructuralDemo(request) {
+    return nativeDemoBridge.runStructural(request);
   },
 };
 
@@ -1056,20 +1036,13 @@ const previewBridge: StudioBridge = {
     }
   },
   async runCylinderDemo(request) {
-    const checked = checkedRequest(cylinderDemoRequestSchema, request, "Cylinder demo");
-    return checked.ok
-      ? protocolFailure(
-          "The exact-cylinder solve is available only in native Studio; browser preview does not fabricate scientific results.",
-        )
-      : checked.failure;
+    return previewDemoBridge.runCylinder(request);
   },
   async runDcMotorDemo(request) {
-    const checked = checkedRequest(dcMotorDemoRequestSchema, request, "Packaged DC-drive demo");
-    return checked.ok
-      ? protocolFailure(
-          "The packaged DC-drive execution is available only in native Studio; browser preview does not fabricate scientific results.",
-        )
-      : checked.failure;
+    return previewDemoBridge.runDcMotor(request);
+  },
+  async runStructuralDemo(request) {
+    return previewDemoBridge.runStructural(request);
   },
   async cancelRun(request) {
     const checked = checkedRequest(cancelRunRequestSchema, request, "Run cancellation");

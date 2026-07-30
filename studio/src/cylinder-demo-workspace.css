@@ -103,7 +103,7 @@
   min-height: 0;
 }
 
-.cylinder-demo-failure {
+.demo-failure {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -115,7 +115,7 @@
   font-size: 11px;
 }
 
-.cylinder-demo-failure .secondary-action {
+.demo-failure .secondary-action {
   flex: none;
 }
 

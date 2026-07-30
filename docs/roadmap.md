@@ -219,12 +219,15 @@ Implemented bounded slices include:
   immutable undo/redo navigation;
 - a scalar-elliptic FEM/FVM surface with bounded serial/Rayon placement;
 - one CAD box semantic-selection workflow;
+- immutable native exact-cylinder Stokes, packaged DC-drive, and
+  mixed-boundary linear-elasticity demonstrations with fail-closed browser
+  previews;
 - a closed typed workflow registry used by navigation, toolbar, and command
-  palette; and
+  palette, with registry data separated from application resolution; and
 - an explicit data plane for one accepted generated-Cartesian 2D scalar Field,
   synchronized across table, raster, and inspector views.
 
-General mesh rendering, imported/adaptive fields, vector/tensor and 3D
+General mesh rendering, imported/adaptive fields, general vector/tensor and 3D
 visualization, production level-of-detail, source-language services, dynamic
 workflow plugins, and whole-product localization remain open.
 

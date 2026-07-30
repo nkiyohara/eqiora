@@ -90,6 +90,7 @@ test("groups immutable examples without crowding the application header", async 
   const menu = page.getByText("Examples", { exact: true });
   await menu.focus();
   await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: /Elastic panel/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Sampled DC drive/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Exact-cylinder Stokes/ })).toBeVisible();
   await expectNoSeriousOrCriticalViolations(page);
@@ -375,6 +376,30 @@ test("never fabricates the native packaged DC-drive execution in browser preview
   await expect(page.getByRole("heading", { name: "Sampled DC drive" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Relation view" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Trajectory", exact: true })).toHaveCount(0);
+  await expect(page.locator(".document-name")).toHaveText("untitled.eqi");
+  await expect(page.getByText("Revision 1", { exact: true })).toBeVisible();
+  await expect(editor).toHaveValue(acceptedSource);
+  await expectNoSeriousOrCriticalViolations(page);
+});
+
+test("never fabricates the native structural solve in browser preview", async ({ page }) => {
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Eqiora model source" });
+  const acceptedSource = await editor.inputValue();
+
+  await executePaletteCommand(page, "run structural demo", /Run structural demo/);
+
+  await expect(
+    page.getByText(
+      "The structural solve is available only in native Studio; browser preview does not fabricate scientific results.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "A clamped elastic panel, resolved" }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Relation view" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Structure", exact: true })).toHaveCount(0);
   await expect(page.locator(".document-name")).toHaveText("untitled.eqi");
   await expect(page.getByText("Revision 1", { exact: true })).toBeVisible();
   await expect(editor).toHaveValue(acceptedSource);

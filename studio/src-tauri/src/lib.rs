@@ -10,6 +10,7 @@ mod cylinder_demo;
 mod dc_motor_demo;
 mod lifecycle;
 mod scalar_field;
+mod structural_demo;
 mod unstructured_field;
 
 use std::collections::{BTreeMap, VecDeque};
@@ -1950,6 +1951,7 @@ pub fn run() {
             read_unstructured_field_chunk,
             cylinder_demo::run_cylinder_demo,
             dc_motor_demo::run_dc_motor_demo,
+            structural_demo::run_structural_demo,
             cancel_reference_run
         ])
         .run(tauri::generate_context!())

@@ -193,6 +193,14 @@ The beam gallery is an educational entry point, not sufficient evidence for a
 continuum solid implementation. Patch, locking, singularity, dynamics, and
 nonlinear cases are separate obligations.
 
+The native Studio mixed-boundary elastic-panel example does not advance any
+candidate in this table. `interfaces.studio-mixed-boundary-elasticity-demo`
+composes the already verified `solid.mixed-boundary-elasticity-2d` direct Model
+and public Q1/CG executor into a bounded displacement/reaction presentation.
+Studio derives no stress, strain, traction, analytic reference, convergence
+order, or validation quantity; the existing scientific case remains their sole
+authority.
+
 ## Incompressible and low-Mach flow candidates
 
 | ID | Case | Purpose | Status |

@@ -19,6 +19,9 @@ export const ENGLISH_MESSAGES = {
   "command.example.dc-drive.description":
     "Compile and execute the pinned three-package sampled DC-drive example.",
   "command.example.dc-drive.label": "Run DC-drive demo",
+  "command.example.structural.description":
+    "Execute the verified mixed-boundary 2D elasticity example.",
+  "command.example.structural.label": "Run structural demo",
   "command.example.spatial.description":
     "Load the manufactured scalar elliptic example through the ordinary compile path.",
   "command.example.spatial.label": "Open spatial example",
@@ -50,6 +53,9 @@ export const ENGLISH_MESSAGES = {
   "command.reason.complete-run": "Complete an accepted run first.",
   "command.reason.cylinder-running": "The exact-cylinder demonstration is already running.",
   "command.reason.dc-drive-running": "The packaged DC-drive demonstration is already running.",
+  "command.reason.structural-running": "The structural demonstration is already running.",
+  "command.reason.structural-result-unavailable":
+    "Run the structural example to view its accepted displacement.",
   "command.reason.edit-preview": "Enter a distinct valid value and wait for transaction preview.",
   "command.reason.edit-run": "Wait for the current run to finish before changing revisions.",
   "command.reason.edit-source":
@@ -92,6 +98,9 @@ export const ENGLISH_MESSAGES = {
   "command.workspace.trajectory.description":
     "Open the bounded production trajectory for the packaged DC-drive example.",
   "command.workspace.trajectory.label": "Show trajectory workspace",
+  "command.workspace.structure.description":
+    "Open the bounded displacement-grid view for the accepted structural solve.",
+  "command.workspace.structure.label": "Show structural workspace",
   "workflow.cad.description":
     "Inspect the exact bounded CAD plan through semantic geometry and Domain selection.",
   "workflow.cad.label": "Geometry",
@@ -113,6 +122,10 @@ export const ENGLISH_MESSAGES = {
     "The native runtime is compiling, executing, and binding the packaged DC drive.",
   "workflow.reason.dc-drive-unavailable":
     "Run the packaged DC-drive demonstration to open this workflow.",
+  "workflow.reason.structural-running":
+    "The native runtime is resolving and solving the structural example.",
+  "workflow.reason.structural-unavailable":
+    "Run the mixed-boundary elasticity demonstration to open this workflow.",
   "workflow.reason.spatial-unavailable":
     "This canonical revision does not lower to the bounded scalar elliptic workflow.",
   "workflow.relations.description":
@@ -121,6 +134,9 @@ export const ENGLISH_MESSAGES = {
   "workflow.spatial.description":
     "Resolve, execute, and verify one bounded scalar elliptic Realization.",
   "workflow.spatial.label": "Scalar elliptic",
+  "workflow.structural.description":
+    "Inspect one verified Q1 displacement field with solver-owned balance and lineage evidence.",
+  "workflow.structural.label": "Structure",
 } as const;
 
 export type MessageKey = keyof typeof ENGLISH_MESSAGES;
