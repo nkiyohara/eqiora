@@ -143,6 +143,8 @@ impl CircularHoleChordalRealizationEnvelopeV1 {
     ///
     /// The stored segment count is a maximum work limit, not a trusted answer.
     /// The returned owner is freshly regenerated from exact source meaning.
+    /// Its `mesh()` is the owner's reference mesh and can differ from the
+    /// separately supplied, digest-bound conforming `mesh` resource.
     /// A decoded envelope becomes an accepted binding only after this method
     /// succeeds.
     ///

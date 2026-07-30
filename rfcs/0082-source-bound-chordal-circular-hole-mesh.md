@@ -63,6 +63,20 @@ geometry digest, the owner's request and bit-exact observations, and the
 digests of the realized authored planar region, a conforming simplicial mesh,
 and its Model-free `authored-planar-region-v1` correspondence.
 
+Its schema domain is
+`eqiora.circular-hole-chordal-realization-envelope/v1`. RFC 0008 digest framing
+applies to this exact canonical field order:
+
+```text
+schema, encoding,
+source_geometry_sha256, realized_geometry_sha256,
+mesh_sha256, correspondence_sha256,
+requested_max_boundary_error_m,
+boundary_evaluation_allowance_m, boundary_error_bound_m,
+circle_segments, circle_area_deficit_m2, circle_perimeter_deficit_m,
+required_minimum_mean_ratio
+```
+
 Bounded canonical admission precedes resource access. Replay regenerates the
 owner from the supplied exact source, stored request, stored circle-segment
 count as a work limit, and stored required minimum mean-ratio threshold. It

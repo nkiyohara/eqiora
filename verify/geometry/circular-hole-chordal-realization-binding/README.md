@@ -107,7 +107,7 @@ replay checks.
 The first ten rows change one digest or regenerated observation. They change
 identity and break a named resource relation against unchanged resources.
 
-| Row | Field | Detected by |
+| Row | Field | Precommitted detector axis |
 | --- | --- | --- |
 | `source_digest_nibble` | source digest | envelope digest, source semantics, resource digest |
 | `realized_digest_nibble` | realized digest | envelope digest, region equality, resource digest |
@@ -158,9 +158,10 @@ non-finite/non-positive class is exercised for every applicable scalar field.
 ## Resource substitutions
 
 Substitutions leave envelope bytes unchanged, so only relational replay detects
-them.
+them. The table freezes detector ownership; it does not claim that every named
+substitution is separately constructed by this slice.
 
-| Row | Detected by |
+| Row | Precommitted detector axis |
 | --- | --- |
 | `source_center_perturbed` | source semantics, owner replay |
 | `source_radius_perturbed` | source semantics, owner replay |
@@ -182,6 +183,10 @@ them.
 The oracle machine-checks exact membership of the 11 admission and 16
 substitution classes, all 12 identity-mutation rows, unique row names, known
 axes, complete mutable-field coverage, and use of every axis: 39 rows total.
+The Rust evidence directly executes representative identity, source, realized
+geometry, conforming-mesh, correspondence-variant, and policy faults, while
+the separately owned correspondence evidence exercises its detailed
+membership and orientation falsifiers.
 
 ## Encoding-only policy variant
 

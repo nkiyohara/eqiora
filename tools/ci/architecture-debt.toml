@@ -410,7 +410,7 @@ closed public owner for durable exact-source replay across process boundaries;
 keeping the wire, admission, and replay on that owner costs one name and avoids
 a generic approximate-geometry abstraction.
 """
-removal = "withdraw the circular-hole binding if durable exact-source publication is removed; otherwise fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
+removal = "withdraw the circular-hole binding and lower by one if durable exact-source publication is removed; independently, fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
 
 [[public_surface]]
 crate = "eqiora-assembly"

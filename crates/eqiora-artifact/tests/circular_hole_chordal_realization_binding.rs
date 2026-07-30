@@ -193,6 +193,35 @@ fn decode(bytes: &[u8]) -> CircularHoleChordalRealizationEnvelopeV1 {
         .expect("locally valid canonical binding")
 }
 
+fn locally_admitted_cartesian_correspondence() -> GeometryMeshCorrespondenceEnvelopeV1 {
+    let wire = serde_json::json!({
+        "schema": "eqiora.geometry-mesh-correspondence-envelope/v1",
+        "encoding": "eqiora.canonical-json/v1",
+        "geometry_sha256": "11".repeat(32),
+        "mesh_sha256": "22".repeat(32),
+        "dimension": 2,
+        "bodies": [{
+            "domain_ulid": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "geometry_entity": {"dimension": 2, "index": 0},
+            "cell_indices": [0],
+        }],
+        "boundaries": [{
+            "domain_ulid": "01ARZ3NDEKTSV4RRFFQ69G5FAW",
+            "parent_ulid": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "geometry_entity": {"dimension": 1, "index": 0},
+            "axis": 0,
+            "side": "lower",
+            "orientation": "parent-outward",
+            "facet_indices": [0],
+        }],
+    });
+    GeometryMeshCorrespondenceEnvelopeV1::from_json(
+        &serde_json::to_vec(&wire).unwrap(),
+        Default::default(),
+    )
+    .expect("locally admitted Model-bound Cartesian correspondence variant")
+}
+
 #[test]
 fn independent_oracle_canonical_wire_and_exact_resources_agree() {
     let oracle_bytes = std::fs::read(oracle_path()).expect("read independent oracle");
@@ -448,6 +477,21 @@ fn replay_rejects_mutated_fields_and_substituted_resources() {
                 &resources.correspondence,
             )
             .is_err()
+    );
+
+    let model_bound_correspondence = locally_admitted_cartesian_correspondence();
+    let error = binding
+        .replay_against(
+            &resources.source,
+            &resources.geometry,
+            &resources.mesh,
+            &model_bound_correspondence,
+        )
+        .expect_err("the durable binding accepts only the Model-free authored-region variant");
+    assert!(
+        error
+            .message()
+            .contains("was not derived from an authored planar region")
     );
 }
 
