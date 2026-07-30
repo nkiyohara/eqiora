@@ -108,6 +108,45 @@ Those remain independent vertical slices. They must reuse the established
 meaning-to-evidence path rather than introduce a second physical or identity
 authority.
 
+## Flagship evidence-gallery sequence
+
+The [evidence-gallery experience contract](verification/gallery/README.md)
+defines eight future public demonstrations and the fail-closed publication
+boundary over accepted results. It is a product acceptance surface, not a
+second benchmark or capability authority.
+
+The intended visible delivery order is:
+
+1. laminar cylinder wake;
+2. thin cylindrical-shell collapse;
+3. Turek--Hron FSI3;
+4. Stokes minimum-drag shape optimization;
+5. three-dimensional Taylor--Green breakdown;
+6. notched-plate phase-field fracture;
+7. dam break around an obstacle;
+8. full electric-motor multiphysics.
+
+This revises the initial gallery proposal by moving the bounded Stokes design
+case immediately after FSI, where it can reuse accepted force,
+parameter-driven geometry, mesh-motion, and result-history seams. The final
+motor remains last because no single motor benchmark verifies its
+electromagnetic, circuit, rotating, thermal, and coolant composition.
+
+Visible delivery order is not implementation serialization. Before the first
+film, the fluid line closes smooth transient verification, non-box transient
+lowering, physical boundary functionals, durable general 2D field
+trajectories, and deterministic accepted-result publication. The nonlinear
+solid line closes large-rotation, shell, continuation, imperfection, and any
+claimed contact or plasticity evidence before shell collapse. Independent
+three-dimensional, fracture, free-surface, and electromagnetic lanes may start
+whenever their contracts and writable seams satisfy the repository's parallel
+lane rules.
+
+The gallery specifications do not promote any benchmark or capability. A film
+is eligible only after its exact supporting cases, result lineage, media
+projection, dossier, and accessibility assets pass the common admission
+contract.
+
 ## Implemented foundations
 
 The following foundations are implemented for the exact boundaries indexed by

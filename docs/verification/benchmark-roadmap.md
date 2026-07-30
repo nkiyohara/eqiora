@@ -24,6 +24,10 @@ Community benchmarks optimize for comparison. Validation cases compare a model
 with experimental evidence. One case may serve more than one role, but those
 claims must be evaluated separately.
 
+The [evidence-gallery experience contract](gallery/README.md) selects a future
+public story from this layered portfolio. Contract, result-readiness, and
+publication-readiness states do not change a case's status here.
+
 ## Status vocabulary
 
 | Status | Required evidence |
@@ -54,7 +58,7 @@ semantics.
 | 7 | `thermal.slab-bc-gallery` | Steady and transient slab with Dirichlet, Neumann, and Robin boundaries | Analytic temperature and heat flux | diffusion, time integration, boundary operators | `proposed` |
 | 8 | `fluid.couette-poiseuille` | Couette, plane Poiseuille, and pipe Poiseuille flow | Analytic velocity, flow rate, wall shear, mass balance | viscosity, no-slip, pressure/body-force/flow-rate driving | `proposed` |
 | 9 | `hybrid.thermal-sampled-controller` | Continuous thermal plant with sampled controller | Analytic limits and deterministic reference trajectory | continuous/periodic Activation, `pre`/`next`, hold | `implemented` |
-| 10 | `fluid.taylor-green` | Taylor–Green vortex | Analytic decay or manufactured reference | smooth transient flow, temporal/spatial convergence | `proposed` |
+| 10 | `fluid.taylor-green` | Smooth Taylor–Green vortex | Analytic decay or manufactured reference | smooth transient flow, temporal/spatial convergence | `proposed` |
 | 11 | `thermal.scalar-heat-mms` | Scalar heat equation | Manufactured solution and expected convergence order | spatial realization, source terms, default realization | `proposed` |
 | 12 | `fluid.lid-driven-cavity` | Lid-driven cavity | Published centerline and vortex quantities plus refinement | incompressibility, recirculation, corner singularity | `proposed` |
 | 13 | `fluid.sod` | Sod shock tube | Exact Riemann solution, conservation, discontinuity location | compressible Euler, shock/contact/rarefaction | `proposed` |
@@ -187,6 +191,8 @@ expressions; those remain solely owned by the hybrid case.
 | `solid.euler-buckling` | Column buckling | geometric stiffness and eigenvalue bifurcation | `proposed` |
 | `solid.snap-through-arch` | Shallow arch snap-through | path following and limit points | `proposed` |
 | `solid.hertz-contact` | Hertz contact | unilateral contact and pressure distribution | `proposed` |
+| `solid.thin-cylinder-collapse` | Imperfect thin cylindrical-shell collapse | shell kinematics, limit path, imperfection sensitivity, applicable contact/plasticity | `proposed` |
+| `solid.notched-plate-fracture` | Notched-plate phase-field fracture | irreversibility, fracture energy, length-scale/mesh relation | `proposed` |
 | `solid.free-forced-vibration` | Beam/plate vibration gallery | mass, damping, eigenmodes, transient forcing | `proposed` |
 
 The beam gallery is an educational entry point, not sufficient evidence for a
@@ -210,6 +216,7 @@ authority.
 | `fluid.natural-convection-cavity` | Differentially heated cavity | momentum/energy coupling and Nusselt number | `proposed` |
 | `fluid.oseen-mms` | Manufactured Oseen/Navier–Stokes flow | pressure/velocity convergence and inf-sup behavior | `proposed` |
 | `fluid.hydrostatic-balance` | Static fluid under gravity | pressure null space and well-balanced forcing | `proposed` |
+| `fluid.taylor-green-breakdown-3d` | Viscous 3D Taylor–Green breakdown | energy/dissipation identity, published histories, periodic 3D scale | `proposed` |
 
 The native Studio `steady-flow-past-cylinder` example does not advance
 `fluid.flow-past-cylinder`: it is a bounded steady Stokes demonstration on one
@@ -217,6 +224,11 @@ coarse error-controlled affine mesh, with no Reynolds-number, wake,
 drag/lift-coefficient, Strouhal-number, convergence, benchmark, or validation
 claim. Its reproducible application-composition evidence is indexed separately
 as `interfaces.studio-exact-cylinder-stokes-demo`.
+
+`fluid.taylor-green` is the smooth analytic or manufactured transient
+precursor. `fluid.taylor-green-breakdown-3d` is a separate numerical stress and
+scale obligation; a plausible 3D vortex rendering cannot promote the smooth
+case or replace its convergence evidence.
 
 ## Compressible-flow candidates
 
@@ -258,6 +270,7 @@ error, overshoot/undershoot, and a norm appropriate to nonsmooth solutions.
 | `em.resonant-cavity` | Electromagnetic cavity | vector eigenproblem and spurious-mode control | `proposed` |
 | `em.skin-effect` | Conducting slab/cylinder | frequency-domain diffusion and skin depth | `proposed` |
 | `em.team-7` | TEAM Problem 7 | 3D eddy-current community comparison | `proposed` |
+| `em.team-30-induction-motor` | TEAM Problem 30 induction motor | prescribed-motion torque, induced voltage, losses, and harmonic slip limits | `proposed` |
 | `em.mie-sphere` | Scattering from a dielectric/conducting sphere | open boundary and analytic scattering coefficients | `proposed` |
 | `acoustics.duct-standing-wave` | Standing wave in a duct | wave propagation and reflecting boundaries | `proposed` |
 | `acoustics.helmholtz-cavity` | Helmholtz cavity modes | scalar eigenproblem | `proposed` |
@@ -290,6 +303,7 @@ error, overshoot/undershoot, and a norm appropriate to nonsmooth solutions.
 | `multiphysics.turek-hron-fsi` | Turek–Hron FSI | moving interface, lift/drag, partitioned/monolithic coupling | `proposed` |
 | `multiphysics.induction-heating` | Eddy currents with thermal response | harmonic/transient coupling | `proposed` |
 | `multiphysics.piezoelectric-beam` | Piezoelectric beam | electromechanical constitutive coupling | `proposed` |
+| `multiphysics.cooled-electric-motor` | Cooled rotating electric-motor system | explicit electromagnetic/circuit/rotational/thermal/fluid power balance | `proposed` |
 | `optimization.cantilever-compliance` | Cantilever compliance optimization | gradient and topology/shape update | `proposed` |
 | `optimization.cylinder-drag` | Cylinder drag reduction | PDE-constrained shape derivative | `proposed` |
 | `inverse.transient-heat` | Infer conductivity/source from temperatures | parameter sensitivity and uncertainty | `proposed` |
