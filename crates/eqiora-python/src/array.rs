@@ -4,7 +4,7 @@ use std::mem;
 use std::sync::Mutex;
 
 use numpy::{IntoPyArray, PyArray1, PyArrayDescrMethods, PyArrayMethods, PyUntypedArrayMethods};
-use pyo3::exceptions::{PyBufferError, PyRuntimeError};
+use pyo3::exceptions::{PyBufferError, PyIndexError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
 use pyo3::types::{PyAny, PyDict, PyModule};
@@ -387,6 +387,35 @@ impl PyArrayBuffer {
 
     const fn __len__(&self) -> usize {
         self.len()
+    }
+
+    /// Read one scalar without forcing NumPy materialization.
+    fn __getitem__(&self, py: Python<'_>, index: isize) -> PyResult<f64> {
+        let index = if index < 0 {
+            self.len.checked_sub(index.unsigned_abs())
+        } else {
+            usize::try_from(index)
+                .ok()
+                .filter(|&index| index < self.len)
+        }
+        .ok_or_else(|| PyIndexError::new_err("Array index out of range"))?;
+
+        let numpy = {
+            let storage = self
+                .storage
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("Array storage lock is poisoned"))?;
+            match &*storage {
+                ArrayStorage::Native(values) => return Ok(values[index]),
+                ArrayStorage::Materializing => {
+                    return Err(PyRuntimeError::new_err(
+                        "Array NumPy materialization is already in progress",
+                    ));
+                }
+                ArrayStorage::Numpy(array) => array.clone_ref(py),
+            }
+        };
+        Ok(numpy.bind(py).readonly().as_slice()?[index])
     }
 
     fn __repr__(&self) -> String {

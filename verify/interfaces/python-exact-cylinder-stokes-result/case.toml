@@ -1,5 +1,5 @@
 id = "interfaces.python-exact-cylinder-stokes-result"
-status = "specified"
+status = "verified"
 scope = "installed-python-one-exact-cylinder-steady-stokes-typed-result"
 reference_kind = "composition-of-dual-independent-fluid-oracle-and-independent-lineage-replay"
 

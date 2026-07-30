@@ -18,6 +18,7 @@ mod reference_run;
 mod remeshing_trajectory;
 mod spatial;
 mod spatial_data;
+mod steady_stokes;
 mod transient_fluid;
 
 pub use cad::*;
@@ -39,6 +40,7 @@ pub use remeshing_trajectory::{
 };
 pub use spatial::*;
 pub use spatial_data::*;
+pub use steady_stokes::CircularHoleSteadyStokesResult2d;
 pub use transient_fluid::*;
 
 use std::collections::BTreeMap;

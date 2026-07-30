@@ -149,6 +149,16 @@ impl PyCircularHoleChordalMesh {
     }
 }
 
+impl PyCircularHoleChordalMesh {
+    pub(crate) const fn source(&self) -> &CanonicalCircularHoleGeometryV1 {
+        &self.source
+    }
+
+    pub(crate) const fn owner(&self) -> &CircularHoleChordalMeshV1 {
+        &self.realization
+    }
+}
+
 /// Derive one bounded chordal reference mesh from exact circular-hole meaning.
 #[pyfunction]
 #[pyo3(signature = (

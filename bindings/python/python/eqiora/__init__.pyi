@@ -15,6 +15,7 @@ import numpy as np
 import numpy.typing as npt
 
 from . import compatibility as compatibility
+from . import fluid as fluid
 from . import geometry as geometry
 from . import meshing as meshing
 
@@ -250,6 +251,7 @@ class Relation:
 
 @final
 class Array:
+    def __getitem__(self, index: int, /) -> float: ...
     def numpy(self, *, copy: bool | None = None) -> _Float64Array: ...
     def __array__(
         self, dtype: object | None = None, copy: bool | None = None
