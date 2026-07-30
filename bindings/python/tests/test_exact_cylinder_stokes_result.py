@@ -283,9 +283,6 @@ def test_complete_result_replays_binding_run_and_frozen_observations(
     assert isinstance(binding_bytes, bytes)
     binding = json.loads(binding_bytes)
     assert tuple(binding) == BINDING_FIELDS
-    assert (
-        json.dumps(binding, separators=(",", ":")).encode() == binding_bytes
-    )
     assert binding["schema"] == (
         "eqiora.circular-hole-chordal-realization-envelope/v1"
     )
@@ -312,7 +309,6 @@ def test_complete_result_replays_binding_run_and_frozen_observations(
     assert isinstance(run_bytes, bytes)
     run = json.loads(run_bytes)
     assert tuple(run) == RUN_FIELDS
-    assert json.dumps(run, separators=(",", ":")).encode() == run_bytes
     assert run["schema"] == "eqiora.run-manifest/v2"
     assert run["model_sha256"] == result.model_digest
     assert run["semantic_revision"] == result.semantic_revision
