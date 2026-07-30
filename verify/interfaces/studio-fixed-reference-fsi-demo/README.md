@@ -53,13 +53,11 @@ npm --prefix studio test
 cargo test --manifest-path studio/src-tauri/Cargo.toml --locked fsi_demo
 ```
 
-This manifest is precommitted: it is authored before the composition exists,
-by an agent that does not implement it. Its status is therefore `specified`
-and it declares no executable evidence yet. The integrator promotes it to
-`verified` and registers `[evidence]` only once the native composition and its
-fail-closed protocol path pass against an unmodified oracle; an implementer
-that believes the oracle is wrong returns the proof instead of editing this
-directory.
+This manifest was precommitted before the composition existed by an agent that
+did not implement it. The native composition, closed protocol tests, and
+browser fail-closed path passed without changing its claim, thresholds, or
+falsifiers, so the integrator promoted it to `verified` and registered the
+existing spatial-trajectory test as executable evidence.
 
 The claim is exactly one checked-in direct Model, one reconstructed mesh, one
 frozen fieldwise plan and solver tuple, one prestrained initial state, two

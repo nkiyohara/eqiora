@@ -1,5 +1,5 @@
 id = "interfaces.studio-fixed-reference-fsi-demo"
-status = "specified"
+status = "verified"
 scope = "one-immutable-fixed-reference-monolithic-fsi-two-step-native-studio-composition"
 reference_kind = "presentation-only-composition-of-an-existing-verified-coupled-step-and-spatial-trajectory"
 
@@ -99,7 +99,10 @@ performance_or_scale = false
 precommitted = true
 authored_before_implementation_by_a_nonimplementing_agent = true
 oracle_owner = "this manifest and the four case READMEs; an implementer returns a proof rather than editing them"
-promote_to_verified_when = "the native composition, its closed protocol tests, and its browser fail-closed path all pass under an unmodified oracle"
-proposed_evidence_package = "eqiora"
-proposed_evidence_test = "fixed_reference_fsi_spatial_trajectory"
-proposed_native_test_filter = "fsi_demo"
+accepted_without_oracle_changes = true
+native_protocol_test = "fsi_demo"
+browser_fail_closed_path = "verified by the Studio Playwright path"
+
+[evidence]
+package = "eqiora"
+test = "fixed_reference_fsi_spatial_trajectory"

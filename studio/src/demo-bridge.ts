@@ -13,6 +13,12 @@ import {
   dcMotorDemoRequestSchema,
   dcMotorDemoResultSchema,
 } from "./dc-motor-demo-protocol";
+import {
+  type FsiDemoRequest,
+  type FsiDemoResult,
+  fsiDemoRequestSchema,
+  fsiDemoResultSchema,
+} from "./fsi-demo-protocol";
 import { type BridgeEnvelope, bridgeEnvelopeSchema } from "./protocol";
 import {
   type StructuralDemoRequest,
@@ -56,6 +62,15 @@ const STRUCTURAL = {
     "The structural solve is available only in native Studio; browser preview does not fabricate scientific results.",
 } satisfies DemoContract<StructuralDemoRequest, StructuralDemoResult>;
 
+const FSI = {
+  label: "Fixed-reference FSI demo",
+  command: "run_fsi_demo",
+  request: fsiDemoRequestSchema,
+  result: fsiDemoResultSchema,
+  previewRefusal:
+    "The fixed-reference FSI solve is available only in native Studio; browser preview does not fabricate scientific results.",
+} satisfies DemoContract<FsiDemoRequest, FsiDemoResult>;
+
 async function runNativeDemo<Request, Result>(
   contract: DemoContract<Request, Result>,
   request: Request,
@@ -85,11 +100,13 @@ function rejectPreviewDemo<Request, Result>(
 export const nativeDemoBridge = {
   runCylinder: (request: CylinderDemoRequest) => runNativeDemo(CYLINDER, request),
   runDcMotor: (request: DcMotorDemoRequest) => runNativeDemo(DC_MOTOR, request),
+  runFsi: (request: FsiDemoRequest) => runNativeDemo(FSI, request),
   runStructural: (request: StructuralDemoRequest) => runNativeDemo(STRUCTURAL, request),
 } as const;
 
 export const previewDemoBridge = {
   runCylinder: (request: CylinderDemoRequest) => rejectPreviewDemo(CYLINDER, request),
   runDcMotor: (request: DcMotorDemoRequest) => rejectPreviewDemo(DC_MOTOR, request),
+  runFsi: (request: FsiDemoRequest) => rejectPreviewDemo(FSI, request),
   runStructural: (request: StructuralDemoRequest) => rejectPreviewDemo(STRUCTURAL, request),
 } as const;

@@ -6,6 +6,7 @@ import {
   type CommandFacts,
   CYLINDER_EVIDENCE_FOCUS_ID,
   DC_MOTOR_EVIDENCE_FOCUS_ID,
+  FSI_EVIDENCE_FOCUS_ID,
   resolveApplication,
   resolveApplicationWorkflows,
   resolveCommandAvailability,
@@ -52,6 +53,7 @@ function applicationInputs(overrides: Partial<ApplicationInputs> = {}): Applicat
     cad: { status: "unavailable", acceptedModelDigest: null },
     cylinderStatus: "idle",
     dcMotorStatus: "idle",
+    fsiStatus: "idle",
     structuralStatus: "idle",
     fieldWorkflow: null,
     ...overrides,
@@ -64,6 +66,7 @@ function resolved(
   cylinderStatus: ApplicationInputs["cylinderStatus"] = "idle",
   dcMotorStatus: ApplicationInputs["dcMotorStatus"] = "idle",
   structuralStatus: ApplicationInputs["structuralStatus"] = "idle",
+  fsiStatus: ApplicationInputs["fsiStatus"] = "idle",
 ) {
   return resolveApplicationWorkflows(
     applicationInputs({
@@ -71,6 +74,7 @@ function resolved(
       cad,
       cylinderStatus,
       dcMotorStatus,
+      fsiStatus,
       structuralStatus,
     }),
   );
@@ -96,6 +100,8 @@ function commandFacts(overrides: Partial<CommandFacts> = {}): CommandFacts {
     dcMotorRunning: false,
     structuralAvailable: false,
     structuralRunning: false,
+    fsiAvailable: false,
+    fsiRunning: false,
     cadAvailability: {
       kind: "unavailable",
       reason: "workflow.reason.cad-unavailable",
@@ -112,6 +118,7 @@ describe("typed Studio application registry", () => {
       "cylinder-stokes",
       "packaged-dc-drive",
       "structural-elasticity",
+      "fixed-reference-fsi",
       "cad-box",
     ]);
     expect(new Set(WORKFLOW_REGISTRY.map((workflow) => workflow.id)).size).toBe(
@@ -130,9 +137,11 @@ describe("typed Studio application registry", () => {
       "workspace.field",
       "workspace.trajectory",
       "workspace.structure",
+      "workspace.fsi",
       "example.cylinder",
       "example.dc-drive",
       "example.structural",
+      "example.fsi",
       "example.spatial",
       "example.cad",
       "focus.source",
@@ -146,7 +155,7 @@ describe("typed Studio application registry", () => {
   });
 
   it("declares a bounded projection and semantic alternative for every workflow", () => {
-    const [relations, spatial, cylinder, dcDrive, structural, cad] = WORKFLOW_REGISTRY;
+    const [relations, spatial, cylinder, dcDrive, structural, fsi, cad] = WORKFLOW_REGISTRY;
 
     expect(relations.projection).toEqual({
       kind: "semantic-relation-graph",
@@ -197,6 +206,17 @@ describe("typed Studio application registry", () => {
         focusTarget: "structural-vertex-table",
       },
     });
+    expect(fsi.projection).toEqual({
+      kind: "bounded-fixed-reference-fsi-trajectory-view",
+      maximumVertices: 9,
+      maximumTriangles: 8,
+      acceptedSteps: 2,
+      components: 2,
+      semanticAlternative: {
+        kind: "fsi-vertex-table",
+        focusTarget: "fsi-vertex-table",
+      },
+    });
     expect(cad.projection).toEqual({
       kind: "bounded-cad-triangle-view",
       maximumVertices: CAD_V1_VERTEX_COUNT,
@@ -222,6 +242,7 @@ describe("typed Studio application registry", () => {
       { kind: "unavailable", reason: "workflow.reason.cylinder-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.dc-drive-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.structural-unavailable" },
+      { kind: "unavailable", reason: "workflow.reason.fsi-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.compile-first" },
     ]);
 
@@ -235,12 +256,14 @@ describe("typed Studio application registry", () => {
       { kind: "unavailable", reason: "workflow.reason.cylinder-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.dc-drive-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.structural-unavailable" },
+      { kind: "unavailable", reason: "workflow.reason.fsi-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.cad-unavailable" },
     ]);
 
     const accepted = resolved(
       true,
       { status: "ready", acceptedModelDigest: DIGEST },
+      "ready",
       "ready",
       "ready",
       "ready",
@@ -251,7 +274,7 @@ describe("typed Studio application registry", () => {
       status: "ready",
       acceptedModelDigest: "b".repeat(64),
     });
-    expect(staleCad[5]?.availability).toEqual({
+    expect(staleCad[6]?.availability).toEqual({
       kind: "unavailable",
       reason: "workflow.reason.cad-stale",
     });
@@ -259,7 +282,7 @@ describe("typed Studio application registry", () => {
 
   it("keeps pending workflow resolution distinct from unsupported applicability", () => {
     for (const status of ["idle", "loading"] as const) {
-      const cad = resolved(false, { status, acceptedModelDigest: null })[5];
+      const cad = resolved(false, { status, acceptedModelDigest: null })[6];
       expect(cad?.availability).toEqual({
         kind: "loading",
         reason: "workflow.reason.cad-loading",
@@ -290,6 +313,19 @@ describe("typed Studio application registry", () => {
     ).toEqual({
       kind: "loading",
       reason: "workflow.reason.structural-running",
+    });
+    expect(
+      resolved(
+        false,
+        { status: "unavailable", acceptedModelDigest: null },
+        "idle",
+        "idle",
+        "idle",
+        "running",
+      )[5]?.availability,
+    ).toEqual({
+      kind: "loading",
+      reason: "workflow.reason.fsi-running",
     });
   });
 
@@ -377,6 +413,16 @@ describe("typed Studio application registry", () => {
       workspace: "relations",
       fellBack: true,
     });
+
+    const runningFsi = resolveApplication(
+      applicationInputs({ acceptedProjection: null, fsiStatus: "running" }),
+      "fsi",
+    );
+    expect(runningFsi).toMatchObject({
+      workspace: "fsi",
+      activeWorkflow: "fixed-reference-fsi",
+      fellBack: false,
+    });
   });
 
   it("resolves toolbar, navigation, and palette availability from the same facts", () => {
@@ -433,6 +479,16 @@ describe("typed Studio application registry", () => {
       enabled: true,
       reason: null,
     });
+    expect(resolveCommandAvailability(commandFacts({ fsiRunning: true }))["example.fsi"]).toEqual({
+      enabled: false,
+      reason: "command.reason.fsi-running",
+    });
+    expect(
+      resolveCommandAvailability(commandFacts({ fsiAvailable: true }))["workspace.fsi"],
+    ).toEqual({
+      enabled: true,
+      reason: null,
+    });
   });
 
   it("scopes commands and focus targets to compatible current workflows", () => {
@@ -442,13 +498,15 @@ describe("typed Studio application registry", () => {
       "ready",
       "ready",
       "ready",
+      "ready",
     );
     const relations = workflows[0]?.commands.map((command) => command.id);
     const spatial = workflows[1]?.commands.map((command) => command.id);
     const cylinder = workflows[2]?.commands.map((command) => command.id);
     const dcDrive = workflows[3]?.commands.map((command) => command.id);
     const structural = workflows[4]?.commands.map((command) => command.id);
-    const cad = workflows[5]?.commands.map((command) => command.id);
+    const fsi = workflows[5]?.commands.map((command) => command.id);
+    const cad = workflows[6]?.commands.map((command) => command.id);
 
     expect(relations).toContain("run.cancel");
     expect(spatial).toContain("run.cancel");
@@ -458,6 +516,8 @@ describe("typed Studio application registry", () => {
     expect(dcDrive).not.toContain("run.execute");
     expect(structural).toContain("focus.evidence");
     expect(structural).not.toContain("run.execute");
+    expect(fsi).toContain("focus.evidence");
+    expect(fsi).not.toContain("run.execute");
     expect(cad).toEqual([
       "model.compile",
       "history.undo",
@@ -467,9 +527,11 @@ describe("typed Studio application registry", () => {
       "workspace.field",
       "workspace.trajectory",
       "workspace.structure",
+      "workspace.fsi",
       "example.cylinder",
       "example.dc-drive",
       "example.structural",
+      "example.fsi",
       "example.spatial",
       "example.cad",
       "focus.inspector",
@@ -504,9 +566,13 @@ describe("typed Studio application registry", () => {
     expect(resolveElementFocusId("evidence-inspector", "structural-elasticity", "structure")).toBe(
       STRUCTURAL_EVIDENCE_FOCUS_ID,
     );
+    expect(resolveElementFocusId("evidence-inspector", "fixed-reference-fsi", "fsi")).toBe(
+      FSI_EVIDENCE_FOCUS_ID,
+    );
     expect(CYLINDER_EVIDENCE_FOCUS_ID).not.toBe("evidence-inspector");
     expect(DC_MOTOR_EVIDENCE_FOCUS_ID).not.toBe("evidence-inspector");
     expect(STRUCTURAL_EVIDENCE_FOCUS_ID).not.toBe("evidence-inspector");
+    expect(FSI_EVIDENCE_FOCUS_ID).not.toBe("evidence-inspector");
   });
 
   it("resolves every registry-owned message through the fallback catalog", () => {
