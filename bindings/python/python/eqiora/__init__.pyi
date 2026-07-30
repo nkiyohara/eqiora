@@ -891,4 +891,5 @@ __all__ = [
     "trace",
     "compatibility",
     "diff",
+    "geometry",
 ]
