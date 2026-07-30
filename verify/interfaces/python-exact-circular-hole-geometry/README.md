@@ -1,0 +1,38 @@
+# Python exact circular-hole geometry verification
+
+This case freezes one deliberately bounded Python authoring surface:
+`eqiora.geometry.RectangleWithCircularHole`. The native value is owned by Rust
+and delegates exact geometry meaning to the existing canonical
+axis-aligned-rectangle-with-one-circular-hole family. It exposes immutable
+bounds, circle data, tolerance, canonical bytes, digest, and the names and
+dimensions of the five fixed-role selections.
+
+The sole byte oracle remains
+[`examples/steady-flow-past-cylinder.geometry.json`](../../../examples/steady-flow-past-cylinder.geometry.json).
+The test removes exactly its terminal newline and requires byte equality; this
+case does not copy or independently reinterpret that geometry formula.
+[`geometry.exact-circular-hole-geometry`](../../geometry/exact-circular-hole-geometry/README.md)
+remains authoritative for the wire encoding, framed digest, geometry
+predicates, and semantic admission. The Rust-side Python test also decodes the
+published Python bytes through that public Rust contract and compares the
+complete digest.
+
+The positive witness groups both y sides under the one `walls` selection.
+Signed zero has one equality, hash, byte, and digest identity. Swapping inlet
+and outlet role names changes identity. Falsifiers require structured
+`ValidationError` for invalid exact geometry, ambiguous cross-dimensional
+selection naming, and an unknown selection lookup. Unexpected mesh sizing,
+circle segmentation, or approximation arguments are not accepted.
+
+The oracle commit is intentionally red until the implementation lands. Run:
+
+```bash
+cargo test -p eqiora-python --test python_geometry_authoring
+pytest bindings/python/tests/test_geometry_authoring.py
+cargo run -p eqiora-verify -- run --case interfaces.python-exact-circular-hole-geometry
+```
+
+This case does not claim generic rectangles, circles, Boolean construction,
+general selection queries, geometry or boundary handles, mesh generation,
+import, Model construction, solve, Result, visualization, performance, or
+physical validation.
