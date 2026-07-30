@@ -18,18 +18,28 @@ or infer selection membership from coordinates.
 The non-implementing evidence lane froze this adapter test before its public
 API existed. Its inputs come from the already accepted
 [`geometry.circular-hole-chordal-reference-mesh`](../../geometry/circular-hole-chordal-reference-mesh/README.md)
-case and its authoritative RFC 0082 mesh fixture. The existing Rust
-`SimplicialMeshEnvelopeV1` contract was applied to those accepted coordinates,
-cells, and the `1e-5` quality gate before the Python implementation began.
+case. The expected artifact is derived through the exact public Rust chain the
+adapter must expose:
+
+```text
+CanonicalCircularHoleGeometryV1
+  -> CircularHoleChordalMeshV1::from_exact(..., 1e-4, 50, MeshQualityGate(1e-5))
+  -> SimplicialMeshEnvelopeV1::from_mesh(owner.mesh())
+```
+
+The accepted fluid `mesh.json` remains an independent topology witness, not a
+substitute serialization for the public owner. Its existing conformance check
+matches coordinates within the RFC allowance and compares unordered cell
+vertex sets. It deliberately does not freeze the owner's local cell rotations.
 
 The resulting inner mesh artifact has:
 
-- 4,843 canonical bytes;
+- 4,835 canonical bytes;
 - raw canonical-byte SHA-256
-  `fc4ffb57a6d7402d219eeccd921c2bd6bf1e3292946c6bc445d94805d76ef94b`;
+  `d977d9125488fffee72deaf9a0f146bc42dc05a135692919a374d746da0f1079`;
   and
 - domain-separated mesh digest
-  `c0d57813a0ca56aade9b286d1f4fff7df217ff130ac176515be5ef174b07847b`.
+  `148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a`.
 
 These two hashes are intentionally different. `mesh_digest` is the latter:
 
@@ -64,13 +74,39 @@ RFC 0082 remains the independent scientific oracle for chord selection,
 boundary error, area deficit, and perimeter deficit. This adapter case reuses
 its published allowances; it does not tune them from Python output.
 
-The minimum mean ratio `0.0064272786692910235` and minimum signed measure scale
+The minimum mean ratio `0.003213006369764433` and minimum signed measure scale
 `0.0004210245914983321` are compared exactly because
 `SimplicialMeshEnvelopeV1` serializes their binary64 values as canonical
 acceptance evidence and rejects any bitwise-different replay. That exact
 comparison verifies byte-for-byte adapter fidelity. It is not a new claim
 that this one cell-quality value is an independently derived scientific
 tolerance or a production mesh-quality target.
+
+### Local-cell-order audit
+
+The first oracle revision rebuilt a `SimplicialMesh` directly from the accepted
+fluid fixture's recorded cell order. That was the wrong projection. After the
+owner vertices are mapped to fixture indices, owner cell 0 is
+`[50, 52, 1]`; the accepted fixture records the same oriented triangle as
+`[1, 50, 52]`. Their unordered vertex set is identical, so the accepted RFC
+topology check passes, but the local reference origin differs.
+
+The current `AffineMapQuality` uses the Frobenius norm of the Jacobian whose
+columns are based at local vertex 0. A cyclic cell rotation therefore preserves
+orientation and signed measure but does not preserve this recorded quality
+value. Rebuilding from fixture order produces the superseded
+`minimum_mean_ratio=0.0064272786692910235`, 4,843 bytes, and mesh digest
+`c0d57813a0ca56aade9b286d1f4fff7df217ff130ac176515be5ef174b07847b`.
+Those values describe a different in-memory ordering and are now an explicit
+falsifier for bypassing the public owner.
+
+This was not consumption of `falsifier-wrong-diagonal.json`. That file declares
+`role=wrong-contract-falsifier`, fails the mapped unordered-cell-set comparison,
+and independently produces `minimum_mean_ratio=0.006427278669291052` and mesh
+digest
+`17f363d9cea003e89508473b9857b2b11206c9b6e02e9e9203be28567899ec56`.
+The accepted fixture and wrong-diagonal fixture are therefore distinguished
+both structurally and by artifact identity.
 
 ## Falsifiers
 

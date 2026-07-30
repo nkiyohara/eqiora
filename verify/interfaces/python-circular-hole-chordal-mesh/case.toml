@@ -20,13 +20,13 @@ max_segments = 50
 ownership = "same-process wrapper retains exact source, opaque RFC 0082 owner, inner mesh artifact, and Rust-derived correspondence"
 
 [oracle]
-source = "non-implementing installed-wheel test precommitted from accepted RFC 0082 fixture and SimplicialMeshEnvelopeV1 contract"
+source = "non-implementing installed-wheel test precommitted from the public RFC 0082 owner-to-SimplicialMeshEnvelopeV1 projection"
 rfc_case = "geometry.circular-hole-chordal-reference-mesh"
 geometry_case = "interfaces.python-exact-circular-hole-geometry"
 mesh_schema = "eqiora.simplicial-mesh-envelope/v1"
-canonical_bytes = 4843
-canonical_raw_sha256 = "fc4ffb57a6d7402d219eeccd921c2bd6bf1e3292946c6bc445d94805d76ef94b"
-domain_separated_mesh_digest = "c0d57813a0ca56aade9b286d1f4fff7df217ff130ac176515be5ef174b07847b"
+canonical_bytes = 4835
+canonical_raw_sha256 = "d977d9125488fffee72deaf9a0f146bc42dc05a135692919a374d746da0f1079"
+domain_separated_mesh_digest = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
 digest_frame = "sha256(mesh schema || NUL || canonical bytes)"
 
 [expected]
@@ -41,7 +41,7 @@ wall_entities = 38
 cylinder_entities = 50
 fluid_entities = 104
 boundary_evaluation_allowance_m = 6.252776074688882e-14
-minimum_mean_ratio = 0.0064272786692910235
+minimum_mean_ratio = 0.003213006369764433
 minimum_signed_measure_scale = 0.0004210245914983321
 
 [acceptance]
@@ -65,6 +65,8 @@ source_from_mesh = "killed because equal mesh bytes retain two distinct exact so
 hardcoded_standard_names = "killed by swapped x-side roles and their swapped realized counts"
 geometry_tolerance_as_mesh_policy = "killed by changed source tolerance with unchanged mesh request and mesh identity"
 raw_sha_as_mesh_digest = "raw SHA-256 of mesh_canonical_json differs from the domain-separated public mesh digest"
+accepted_fixture_rebuilt_as_owner_artifact = "killed because direct reconstruction in accepted fixture local-cell order gives a different quality value and artifact identity than the public owner-to-envelope projection"
+wrong_diagonal_fixture = "declared negative role, different mapped unordered cell set, and different artifact identity from both the owner projection and accepted fixture"
 
 [claim_boundary]
 ambient_dimension = 2
