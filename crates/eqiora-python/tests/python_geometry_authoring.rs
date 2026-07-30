@@ -40,6 +40,29 @@ fn python_exact_circular_hole_geometry_replays_rust_owned_identity() -> PyResult
             expected_oriented_digest,
             "51ece8fa2d8709d932b0c758d59c187e4fd572f73217c31dcbe407f8d873be7f"
         );
+        let expected_off_axis = CanonicalCircularHoleGeometryV1::new(
+            [[0.0, 2.2], [0.0, 0.41]],
+            [0.3, 0.2],
+            0.05,
+            vec![
+                NamedEntitySet::new("fluid", 2, vec![0]),
+                NamedEntitySet::new("walls", 1, vec![3, 2]),
+                NamedEntitySet::new("inlet", 1, vec![0]),
+                NamedEntitySet::new("cylinder", 1, vec![4]),
+                NamedEntitySet::new("outlet", 1, vec![1]),
+            ],
+            1e-12,
+        )
+        .expect("the public exact geometry contract must admit the off-axis witness");
+        let expected_off_axis_digest = expected_off_axis
+            .digest_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert_eq!(
+            expected_off_axis_digest,
+            "552ebf459396ed5bc7f72ab48f34046baa828b6af808794e861bd958dc613881"
+        );
 
         let locals = PyDict::new(py);
         locals.set_item("eqiora", module)?;
@@ -49,6 +72,11 @@ fn python_exact_circular_hole_geometry_replays_rust_owned_identity() -> PyResult
             PyBytes::new(py, expected_oriented.canonical_bytes()),
         )?;
         locals.set_item("expected_oriented_digest", expected_oriented_digest)?;
+        locals.set_item(
+            "expected_off_axis_json",
+            PyBytes::new(py, expected_off_axis.canonical_bytes()),
+        )?;
+        locals.set_item("expected_off_axis_digest", expected_off_axis_digest)?;
         py.run(
             c_str!(
                 r#"
@@ -92,6 +120,11 @@ assert oriented.digest == expected_oriented_digest
 assert oriented.selection_names == (
     "ceiling", "cylinder", "floor", "inlet", "outlet", "fluid"
 )
+
+off_axis = make(circle_center=(0.3, 0.2))
+assert off_axis.circle_center == (0.3, 0.2)
+assert off_axis.canonical_json == expected_off_axis_json
+assert off_axis.digest == expected_off_axis_digest
 
 try:
     geometry.selection_dimension("missing")

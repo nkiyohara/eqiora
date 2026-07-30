@@ -35,6 +35,22 @@ DISTINCT_Y_CANONICAL_JSON = (
     b',{"name":"fluid","dimension":2,"members":[0]}]}'
 )
 DISTINCT_Y_DIGEST = "51ece8fa2d8709d932b0c758d59c187e4fd572f73217c31dcbe407f8d873be7f"
+OFF_AXIS_CANONICAL_JSON = (
+    b'{"schema":"eqiora.planar-circular-hole-envelope/v1"'
+    b',"encoding":"eqiora.canonical-json/v1"'
+    b',"kind":"axis-aligned-rectangle-with-circular-hole-v1"'
+    b',"length_unit":"metre"'
+    b',"tolerance_m":1e-12'
+    b',"bounds":[[0.0,2.2],[0.0,0.41]]'
+    b',"circle":{"center":[0.3,0.2],"radius_m":0.05}'
+    b',"entity_sets":['
+    b'{"name":"cylinder","dimension":1,"members":[4]}'
+    b',{"name":"inlet","dimension":1,"members":[0]}'
+    b',{"name":"outlet","dimension":1,"members":[1]}'
+    b',{"name":"walls","dimension":1,"members":[2,3]}'
+    b',{"name":"fluid","dimension":2,"members":[0]}]}'
+)
+OFF_AXIS_DIGEST = "552ebf459396ed5bc7f72ab48f34046baa828b6af808794e861bd958dc613881"
 STANDARD_ARGUMENTS: dict[str, Any] = {
     "bounds": ((0.0, 2.2), (0.0, 0.41)),
     "circle_center": (0.2, 0.2),
@@ -123,6 +139,15 @@ def test_distinct_y_roles_pin_lower_and_upper_canonical_members() -> None:
         "outlet",
         "fluid",
     )
+
+
+def test_off_axis_center_pins_constructor_and_getter_coordinate_order() -> None:
+    off_axis = geometry(circle_center=(0.3, 0.2))
+
+    assert len(OFF_AXIS_CANONICAL_JSON) == 511
+    assert off_axis.circle_center == (0.3, 0.2)
+    assert off_axis.canonical_json == OFF_AXIS_CANONICAL_JSON
+    assert off_axis.digest == OFF_AXIS_DIGEST
 
 
 def test_identity_is_exact_hashable_and_normalizes_signed_zero() -> None:

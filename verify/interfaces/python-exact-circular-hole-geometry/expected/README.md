@@ -5,4 +5,10 @@ The canonical byte oracle is the existing
 with exactly its terminal newline removed. Its digest and exact validation
 meaning are already frozen by
 [`geometry.exact-circular-hole-geometry`](../../../geometry/exact-circular-hole-geometry/README.md).
-No second geometry encoding or tolerance is maintained here.
+
+Supplemental exact wrapper witnesses retain that same canonical schema,
+geometry formula, number rules, and tolerance while changing only the input
+needed to discriminate one adapter mapping: distinct y-role names pin boundary
+orientation, and an off-axis centre pins coordinate pass-through and getter
+order. Their exact content and digest are test expectations, not alternate
+encodings, geometry families, or tolerances.

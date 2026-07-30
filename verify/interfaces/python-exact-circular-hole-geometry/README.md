@@ -10,10 +10,10 @@ roles: one region plus x-lower, x-upper, y-lower, y-upper, and hole
 boundaries. Equal same-dimensional names group roles into one selection, so
 the standard witness exposes five names because both y roles are `walls`.
 
-The sole byte oracle remains
+The repository-owned standard byte oracle remains
 [`examples/steady-flow-past-cylinder.geometry.json`](../../../examples/steady-flow-past-cylinder.geometry.json).
 The test removes exactly its terminal newline and requires byte equality; this
-case does not copy or independently reinterpret that geometry formula.
+case does not independently reinterpret that geometry formula.
 [`geometry.exact-circular-hole-geometry`](../../geometry/exact-circular-hole-geometry/README.md)
 remains authoritative for the wire encoding, framed digest, geometry
 predicates, and semantic admission. The Rust-side Python test also decodes the
@@ -34,6 +34,15 @@ RFC-derived 556-byte canonical content and digest
 pin `floor` to canonical boundary member 2 and `ceiling` to member 3. Reversing
 the implementation mapping therefore fails exact content and identity, rather
 than merely producing a second unequal value.
+
+The standard centre has equal coordinates and therefore cannot expose an x/y
+transpose. A second valid wrapper witness uses centre `(0.3, 0.2)`, while
+retaining the exact same bounds, radius, tolerance, entity sets, schema, and
+canonical-number rules. Its public getter must return `(0.3, 0.2)`, its exact
+511-byte content is pinned, and its digest is
+`552ebf459396ed5bc7f72ab48f34046baa828b6af808794e861bd958dc613881`.
+Transposing either constructor pass-through or getter order therefore fails
+independently of the symmetric standard witness.
 
 The registered executable case is the package gate: it rebuilds and installs
 the non-editable wheel before running the public Python contract. That
