@@ -893,4 +893,5 @@ __all__ = [
     "compatibility",
     "diff",
     "geometry",
+    "meshing",
 ]
