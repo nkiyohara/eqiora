@@ -27,6 +27,9 @@ PACKAGE = ROOT
 PYPROJECT = ROOT / "pyproject.toml"
 MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v1"
 PYTHON_TEST_FIXTURES = (
+    # Ordinary installed-package examples are executable consumer fixtures,
+    # including any checked-in data they resolve relative to the repository.
+    Path("examples"),
     Path("verify/interfaces/control-plane-compile-check"),
     Path("verify/interfaces/current-authoring-profile"),
     # The packaged-Poisson consumer test compiles the shipped package source
@@ -310,6 +313,8 @@ def safe_extract_sdist(archive: Path, destination: Path) -> Path:
         extracted / "Cargo.lock",
         extracted / "pyproject.toml",
         extracted / "crates/eqiora-python/Cargo.toml",
+        extracted / "examples/python/exact_cylinder_geometry.py",
+        extracted / "examples/steady-flow-past-cylinder.geometry.json",
     )
     missing = [
         str(path.relative_to(extracted)) for path in required if not path.is_file()
