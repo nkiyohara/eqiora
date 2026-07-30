@@ -26,6 +26,38 @@ A relation receives an explicit zero-valued residual. Symbolic equality and
 Python truth testing are not modeling syntax. Declarations and expressions
 are frozen; validation and artifact creation happen atomically in Rust.
 
+## Exact geometry authoring
+
+The first geometry constructor is intentionally one closed analytic family,
+not a Python Boolean algebra:
+
+```python
+import eqiora
+
+geometry = eqiora.geometry.RectangleWithCircularHole(
+    bounds=((0.0, 2.2), (0.0, 0.41)),
+    circle_center=(0.2, 0.2),
+    circle_radius=0.05,
+    tolerance=1e-12,
+    region="fluid",
+    x_lower="inlet",
+    x_upper="outlet",
+    y_lower="walls",
+    y_upper="walls",
+    hole="cylinder",
+)
+
+assert geometry.selection_dimension("fluid") == 2
+assert geometry.selection_dimension("cylinder") == 1
+print(geometry.digest)
+```
+
+Rust owns validation, canonical ordering, bytes, and identity. The circle
+remains centre-and-radius geometry; chord count, mesh size, and approximation
+tolerance cannot enter this constructor. Generic primitives and Boolean
+operations, multiple holes, selection handles, meshing, Model binding, solve,
+Result, and visualization remain separate slices.
+
 Scalar conserving connections use nominal physical-domain identity:
 
 ```python

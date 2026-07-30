@@ -15,6 +15,7 @@ import numpy as np
 import numpy.typing as npt
 
 from . import compatibility as compatibility
+from . import geometry as geometry
 
 _Float64Array = npt.NDArray[np.float64]
 
@@ -890,4 +891,5 @@ __all__ = [
     "trace",
     "compatibility",
     "diff",
+    "geometry",
 ]

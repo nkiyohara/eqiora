@@ -7,6 +7,7 @@ mod array;
 mod differentiation;
 mod error;
 mod execution;
+mod geometry;
 mod jax_ffi;
 mod model;
 mod modeling;
@@ -429,6 +430,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PySeries>()?;
     module.add_class::<PyRunResult>()?;
     execution::register(module)?;
+    geometry::register(module)?;
     modeling::register(module)?;
     realization::register(module)?;
     module.add_function(wrap_pyfunction!(compile, module)?)?;

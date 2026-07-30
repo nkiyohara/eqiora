@@ -1,6 +1,6 @@
 """Python ergonomics over Eqiora's canonical Rust implementation."""
 
-from . import compatibility
+from . import compatibility, geometry
 
 from ._eqiora import (
     __version__,
@@ -140,6 +140,7 @@ __all__ = [
     "trace",
     "compatibility",
     "diff",
+    "geometry",
 ]
 
 
