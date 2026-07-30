@@ -179,7 +179,9 @@ pub mod numerics {
     };
     pub use eqiora_numerics::fsi::{
         FinalizedResolvedFixedReferenceFsiStep2d, FixedReferenceFsiCartesianModel2d,
+        FixedReferenceFsiPartition2d, FixedReferenceFsiScaleProfile2d, FixedReferenceFsiState2d,
         ResolvedFixedReferenceFsiSolution2d, finalize_resolved_fixed_reference_fsi_step_2d,
+        fixed_reference_fsi_plan_2d, fixed_reference_fsi_requirements_2d,
         lower_fixed_reference_fsi_cartesian_2d,
     };
     pub use eqiora_numerics::scalar::{
