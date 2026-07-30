@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gc
 import hashlib
+import importlib.resources
 import json
 import math
 import subprocess
@@ -18,12 +19,20 @@ import eqiora
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-MODEL_PATH = REPOSITORY_ROOT / "examples" / "steady-flow-past-cylinder.model-v7.json"
 PYTHON_DEMO = REPOSITORY_ROOT / "examples" / "python" / "exact_cylinder_stokes.py"
+PACKAGED_MODEL = (
+    importlib.resources.files("eqiora")
+    .joinpath("examples")
+    .joinpath("steady-flow-past-cylinder.model-v7.json")
+)
 
 SOURCE_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
 MESH_DIGEST = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
 MODEL_DIGEST = "668fa55e5ab1a46d0b7523e4e3162442ccd7698697c4308604cf4fe9269249de"
+MODEL_RESOURCE_BYTES = 16_798
+MODEL_RESOURCE_SHA256 = (
+    "b6c7be43520070084bf1a0f20a15772a69f4375dce168424341509189ddf5d1f"
+)
 SEMANTIC_REVISION = 1
 REALIZATION_REVISION = 133
 
@@ -74,9 +83,11 @@ RUN_FIELDS = (
 
 
 def model_v7_bytes() -> bytes:
-    encoded = MODEL_PATH.read_bytes()
+    encoded = PACKAGED_MODEL.read_bytes()
+    assert len(encoded) == MODEL_RESOURCE_BYTES
+    assert hashlib.sha256(encoded).hexdigest() == MODEL_RESOURCE_SHA256
     assert encoded.endswith(b"\n")
-    return encoded[:-1]
+    return encoded
 
 
 def semantic_model_digest(encoded: bytes) -> str:
@@ -547,10 +558,20 @@ def test_isolated_installed_package_path_is_lazy_and_self_contained(
 ) -> None:
     program = f"""
 import gc
+import hashlib
+import importlib.resources
 import sys
 import eqiora
 
-model_v7 = {model_v7_bytes()!r}
+model_v7 = (
+    importlib.resources.files("eqiora")
+    .joinpath("examples")
+    .joinpath("steady-flow-past-cylinder.model-v7.json")
+    .read_bytes()
+)
+assert len(model_v7) == {MODEL_RESOURCE_BYTES}
+assert hashlib.sha256(model_v7).hexdigest() == {MODEL_RESOURCE_SHA256!r}
+assert model_v7.endswith(b"\\n")
 geometry = eqiora.geometry.RectangleWithCircularHole(
     bounds=((0.0, 2.2), (0.0, 0.41)),
     circle_center=(0.2, 0.2),
@@ -612,12 +633,13 @@ print(coordinates.shape[0], triangles.shape[0], pressure.shape[0])
     ]
 
 
-def test_checked_in_python_demo_runs_with_the_real_model_file() -> None:
+def test_checked_in_python_demo_runs_with_packaged_model_resource(
+    accepted: tuple[Any, Any, Any],
+) -> None:
     if not PYTHON_DEMO.is_file():
         pytest.skip("consumer tree does not carry the checked-in Python example")
 
-    encoded_model = MODEL_PATH.read_bytes()
-    assert encoded_model.endswith(b"\n")
+    model_v7_bytes()
     completed = subprocess.run(
         [sys.executable, "-I", str(PYTHON_DEMO)],
         cwd=REPOSITORY_ROOT,
@@ -630,7 +652,7 @@ def test_checked_in_python_demo_runs_with_the_real_model_file() -> None:
     assert completed.stderr == ""
     lines = completed.stdout.splitlines()
     assert len(lines) == 5
-    assert_digest(lines[0])
+    assert lines[0] == accepted[2].run_digest
     assert lines[1].startswith("LinearSolveSummary(")
     assert lines[2].startswith("pressure ") and lines[2].endswith(" Pa")
     assert lines[3].startswith("cylinder force on fluid ")

@@ -12,7 +12,7 @@ capabilities = [
 ]
 
 [problem]
-model = "the accepted steady-flow-past-cylinder ModelEnvelopeV7 supplied explicitly as bytes"
+model = "one packaged byte-exact copy of the accepted steady-flow-past-cylinder ModelEnvelopeV7, supplied explicitly to the bounded solve"
 geometry = "DFG-shaped 2.2 m by 0.41 m rectangle with one exact radius-0.05 m circle centred at [0.2, 0.2] m"
 realization = "the accepted exact-source-owned 50-chord, 104-triangle reference mesh"
 physics = "steady coherent-SI MINI/P1 Stokes"
@@ -30,6 +30,8 @@ digest_policy = "source, mesh, and model identities are frozen; produced realiza
 
 [expected]
 model_digest = "668fa55e5ab1a46d0b7523e4e3162442ccd7698697c4308604cf4fe9269249de"
+packaged_model_bytes = 16798
+packaged_model_raw_sha256 = "b6c7be43520070084bf1a0f20a15772a69f4375dce168424341509189ddf5d1f"
 semantic_revision = 1
 source_digest = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
 mesh_digest = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
@@ -46,6 +48,8 @@ residual_target = 1.3239627651209673e-7
 
 [acceptance]
 caller_supplies_model_v7_bytes = true
+one_packaged_model_resource_is_byte_exact = true
+installed_test_reads_only_the_package_resource = true
 only_frozen_semantic_model_is_admitted = true
 geometry_and_mesh_ownership_fail_closed = true
 canonical_binding_and_run_bytes_replay_to_public_digests = true
@@ -58,6 +62,7 @@ numpy_import_is_lazy_until_matrix_materialization = true
 isolated_installed_package_program = true
 checked_in_python_demo_with_newline_terminated_model = true
 registered_installed_wheel_evidence = true
+supplementary_clean_distribution_consumer_demo = true
 supplementary_embedded_pyo3_public_package_boundary = true
 
 [falsifiers]
@@ -72,9 +77,14 @@ hardcoded_generated_digests = "killed by independent digest replay from public c
 result_owned_matrix_lifetime = "killed by retaining all views after deleting Result and forcing collection"
 array_index_bounds = "negative one replays the final scalar; an isize-sized negative index, len, and an isize-sized positive index are rejected with IndexError"
 eager_numpy_dependency = "killed in both isolated installed-package and embedded-native programs"
+missing_or_changed_packaged_model = "installed-wheel tests require the exact 16798-byte resource and its frozen raw SHA-256"
+repository_model_dependency = "distribution consumer copies only the demo and runs it with no repository Model file"
 
 [claim_boundary]
 one_frozen_model = true
+one_packaged_exact_model_artifact = true
+general_packaged_model_catalog = false
+general_packaged_model_loader = false
 one_exact_geometry = true
 one_chordal_realization = true
 steady_stokes_only = true
