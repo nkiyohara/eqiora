@@ -13,10 +13,18 @@ correspondence. Python does not select the chord count, sample the circle,
 construct connectivity, compute quality, encode an artifact, derive a digest,
 or infer selection membership from coordinates.
 
-## Precommitted positive witness
+## Independently owned positive witness
 
-The non-implementing evidence lane froze this adapter test before its public
-API existed. Its inputs come from the already accepted
+The non-implementing evidence lane froze the API shape, claim boundary, and
+falsifiers before the public Python implementation existed. The first oracle
+revision's exact artifact values were wrong: it reconstructed the accepted
+fluid fixture's local cell order instead of replaying the public owner. The
+installed-package gate exposed that provenance mismatch.
+
+Before acceptance, the independent evidence owner corrected the values below
+by replaying the pre-existing public Rust producer, without reading or changing
+the new Python implementation and without consuming its output. The producer's
+inputs come from the already accepted
 [`geometry.circular-hole-chordal-reference-mesh`](../../geometry/circular-hole-chordal-reference-mesh/README.md)
 case. The expected artifact is derived through the exact public Rust chain the
 adapter must expose:

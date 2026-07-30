@@ -1,6 +1,12 @@
 # Frozen adapter observations
 
-The installed-wheel test embeds the pre-implementation expected observations:
+The installed-wheel test embeds independently owned acceptance observations.
+The API shape and falsifiers were frozen before implementation. The first
+oracle revision's exact artifact values were wrong; the installed-package gate
+found that provenance mismatch. Before acceptance, the independent evidence
+owner corrected the values below by replaying the pre-existing public Rust
+owner-to-envelope producer, without reading or changing the Python
+implementation and without taking values from its output:
 
 - exact source digest
   `b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9`;

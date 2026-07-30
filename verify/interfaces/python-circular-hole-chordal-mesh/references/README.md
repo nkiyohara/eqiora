@@ -1,7 +1,14 @@
 # Reference provenance
 
-The adapter evidence was authored before its Python implementation. It
-consumes, without changing:
+The adapter API shape, claim boundary, and falsifiers were authored before its
+Python implementation. The first oracle revision's exact artifact values were
+wrong; the installed-package gate exposed that it had reconstructed the
+accepted fluid fixture's local cell order rather than the public owner.
+
+Before acceptance, the independent evidence owner corrected those values by
+replaying the pre-existing public Rust producer, without reading or changing
+the new Python implementation and without taking values from its output. That
+replay consumes, without changing:
 
 - RFC 0082 and
   `geometry.circular-hole-chordal-reference-mesh` for the exact-source-bound
@@ -12,11 +19,11 @@ consumes, without changing:
 - the accepted `SimplicialMeshEnvelopeV1` contract for the inner mesh's
   canonical bytes and domain-separated identity.
 
-The artifact values were derived before the adapter implementation by applying
-`SimplicialMeshEnvelopeV1::from_mesh` directly to the public owner's
-`owner.mesh()`. The standalone test independently hashes the exposed
+The corrected artifact values were independently derived by applying
+`SimplicialMeshEnvelopeV1::from_mesh` directly to the pre-existing public
+owner's `owner.mesh()`. The standalone test independently hashes the exposed
 `mesh_canonical_json` bytes and compares the Python observations to those
-precommitted values. It does not derive expected values from the new Python
+acceptance values. It does not derive expected values from the new Python
 adapter. The property name and the distinct raw/domain-separated hashes keep
 this inner mesh encoding separate from the live source-bound wrapper.
 

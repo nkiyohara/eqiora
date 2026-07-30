@@ -1,7 +1,7 @@
 id = "interfaces.python-circular-hole-chordal-mesh"
 status = "verified"
 scope = "installed-python-one-exact-source-bound-chordal-circular-hole-reference-mesh"
-reference_kind = "precommitted-installed-wheel-projection-of-rfc0082-and-simplicial-mesh-v1"
+reference_kind = "independently-owned-pre-acceptance-public-rfc0082-owner-to-simplicial-mesh-v1-projection"
 
 capabilities = [
   "python-exact-source-bound-chordal-reference-mesh",
@@ -20,7 +20,7 @@ max_segments = 50
 ownership = "same-process wrapper retains exact source, opaque RFC 0082 owner, inner mesh artifact, and Rust-derived correspondence"
 
 [oracle]
-source = "non-implementing installed-wheel test precommitted from the public RFC 0082 owner-to-SimplicialMeshEnvelopeV1 projection"
+source = "independent evidence owner corrected the acceptance values from the pre-existing public RFC 0082 owner-to-SimplicialMeshEnvelopeV1 projection without consuming the Python adapter output"
 rfc_case = "geometry.circular-hole-chordal-reference-mesh"
 geometry_case = "interfaces.python-exact-circular-hole-geometry"
 mesh_schema = "eqiora.simplicial-mesh-envelope/v1"
