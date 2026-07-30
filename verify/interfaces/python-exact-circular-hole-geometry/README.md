@@ -24,11 +24,13 @@ and outlet role names changes identity. Falsifiers require structured
 selection naming, and an unknown selection lookup. Unexpected mesh sizing,
 circle segmentation, or approximation arguments are not accepted.
 
-The oracle commit is intentionally red until the implementation lands. Run:
+The executable case crosses the native Python boundary, and the package gate
+rebuilds and installs the non-editable wheel before running the public Python
+contract. Run:
 
 ```bash
 cargo test -p eqiora-python --test python_geometry_authoring
-pytest bindings/python/tests/test_geometry_authoring.py
+python3 tools/ci/python_package_gate.py
 cargo run -p eqiora-verify -- run --case interfaces.python-exact-circular-hole-geometry
 ```
 
