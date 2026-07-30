@@ -1,0 +1,95 @@
+id = "interfaces.python-circular-hole-chordal-mesh"
+status = "verified"
+scope = "installed-python-one-exact-source-bound-chordal-circular-hole-reference-mesh"
+reference_kind = "independently-owned-pre-acceptance-public-rfc0082-owner-to-simplicial-mesh-v1-projection"
+
+capabilities = [
+  "python-exact-source-bound-chordal-reference-mesh",
+  "python-inner-simplicial-mesh-canonical-identity",
+  "python-realized-named-selection-counts",
+  "python-chordal-approximation-and-quality-observations",
+]
+
+[problem]
+geometry = "DFG-shaped 2.2 m by 0.41 m rectangle with one exact radius-0.05 m circle centred at [0.2, 0.2] m"
+constructor = "eqiora.meshing.circular_hole_chordal"
+result_type = "immutable eqiora.meshing.CircularHoleChordalMesh"
+max_boundary_error_m = 1e-4
+required_minimum_mean_ratio = 1e-5
+max_segments = 50
+ownership = "same-process wrapper retains exact source, opaque RFC 0082 owner, inner mesh artifact, and Rust-derived correspondence"
+
+[oracle]
+source = "independent evidence owner corrected the acceptance values from the pre-existing public RFC 0082 owner-to-SimplicialMeshEnvelopeV1 projection without consuming the Python adapter output"
+rfc_case = "geometry.circular-hole-chordal-reference-mesh"
+geometry_case = "interfaces.python-exact-circular-hole-geometry"
+mesh_schema = "eqiora.simplicial-mesh-envelope/v1"
+canonical_bytes = 4835
+canonical_raw_sha256 = "d977d9125488fffee72deaf9a0f146bc42dc05a135692919a374d746da0f1079"
+domain_separated_mesh_digest = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
+digest_frame = "sha256(mesh schema || NUL || canonical bytes)"
+
+[expected]
+source_digest = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
+dimension = 2
+segments = 50
+vertices = 104
+cells = 104
+inlet_entities = 14
+outlet_entities = 2
+wall_entities = 38
+cylinder_entities = 50
+fluid_entities = 104
+boundary_evaluation_allowance_m = 6.252776074688882e-14
+minimum_mean_ratio = 0.003213006369764433
+minimum_signed_measure_scale = 0.0004210245914983321
+
+[acceptance]
+installed_package_public_api = true
+same_process_exact_source_binding = true
+immutable_wrapper = true
+inner_mesh_bytes_and_digest_exact = true
+raw_and_domain_separated_digests_distinct = true
+mesh_canonical_json_named_as_inner_mesh_projection = true
+approximation_policy_distinct_from_geometry_classification_tolerance = true
+realized_selection_counts_come_from_rust_correspondence = true
+checked_in_python_file_is_the_repository_demo = true
+isolated_public_api_program_always_runs = true
+
+[falsifiers]
+max_segments_49 = "structured validation; 49 chords cannot meet the frozen 1e-4 m request"
+too_strict_quality = "structured validation; 0.5 exceeds the accepted mesh minimum mean ratio"
+unknown_selection = "structured validation rather than zero, None, or an empty set"
+swapped_inlet_outlet = "same inner mesh digest, different source digest, inlet=2 and outlet=14"
+source_from_mesh = "killed because equal mesh bytes retain two distinct exact source identities"
+hardcoded_standard_names = "killed by swapped x-side roles and their swapped realized counts"
+geometry_tolerance_as_mesh_policy = "killed by changed source tolerance with unchanged mesh request and mesh identity"
+raw_sha_as_mesh_digest = "raw SHA-256 of mesh_canonical_json differs from the domain-separated public mesh digest"
+accepted_fixture_rebuilt_as_owner_artifact = "killed because direct reconstruction in accepted fixture local-cell order gives a different quality value and artifact identity than the public owner-to-envelope projection"
+wrong_diagonal_fixture = "declared negative role, different mapped unordered cell set, and different artifact identity from both the owner projection and accepted fixture"
+
+[claim_boundary]
+ambient_dimension = 2
+topological_dimension = 2
+one_axis_aligned_rectangle = true
+exactly_one_exact_circular_hole = true
+one_fixed_phase_chordal_reference_topology = true
+same_process_source_binding = true
+inner_simplicial_mesh_artifact_identity = true
+durable_source_to_mesh_binding = false
+cross_process_generated_realization_proof = false
+replayable_generated_realization = false
+generic_mesh_or_mesh_request = false
+external_import = false
+production_mesher = false
+curved_elements = false
+model_or_physics = false
+solve_or_result = false
+visualization = false
+performance = false
+physical_validation = false
+future_result_lineage_prerequisite = "CircularHoleChordalRealizationEnvelopeV1"
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_package_gate.py"

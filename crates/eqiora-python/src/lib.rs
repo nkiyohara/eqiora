@@ -9,6 +9,7 @@ mod error;
 mod execution;
 mod geometry;
 mod jax_ffi;
+mod meshing;
 mod model;
 mod modeling;
 mod realization;
@@ -431,6 +432,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyRunResult>()?;
     execution::register(module)?;
     geometry::register(module)?;
+    meshing::register(module)?;
     modeling::register(module)?;
     realization::register(module)?;
     module.add_function(wrap_pyfunction!(compile, module)?)?;

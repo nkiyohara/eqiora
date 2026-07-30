@@ -14,6 +14,10 @@ use pyo3::types::{PyBytes, PyModule, PyTuple};
 
 use crate::error::validation_error;
 
+pub(crate) fn digest_to_hex(bytes: &[u8; 32]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 /// One exact rectangle-minus-circle value with fixed semantic selection roles.
 #[pyclass(
     name = "RectangleWithCircularHole",
@@ -118,11 +122,7 @@ impl PyRectangleWithCircularHole {
     /// Lowercase domain-separated SHA-256 identity.
     #[getter]
     fn digest(&self) -> String {
-        self.geometry
-            .digest_bytes()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect()
+        digest_to_hex(&self.geometry.digest_bytes())
     }
 
     /// Canonically ordered fixed-role selection names.
@@ -167,6 +167,12 @@ impl PyRectangleWithCircularHole {
             self.geometry.entity_sets().len(),
             self.digest(),
         )
+    }
+}
+
+impl PyRectangleWithCircularHole {
+    pub(crate) const fn geometry(&self) -> &CanonicalCircularHoleGeometryV1 {
+        &self.geometry
     }
 }
 

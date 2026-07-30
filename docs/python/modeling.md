@@ -55,8 +55,39 @@ print(geometry.digest)
 Rust owns validation, canonical ordering, bytes, and identity. The circle
 remains centre-and-radius geometry; chord count, mesh size, and approximation
 tolerance cannot enter this constructor. Generic primitives and Boolean
-operations, multiple holes, selection handles, meshing, Model binding, solve,
-Result, and visualization remain separate slices.
+operations, multiple holes, selection handles, Model binding, solve, Result,
+and visualization remain separate slices.
+
+## Bounded chordal reference mesh
+
+The matching meshing operation is an explicit Realization choice rather than a
+method on exact geometry:
+
+```python
+mesh = eqiora.meshing.circular_hole_chordal(
+    geometry,
+    max_boundary_error=1e-4,
+    required_minimum_mean_ratio=1e-5,
+    max_segments=50,
+)
+
+assert mesh.source_digest == geometry.digest
+assert mesh.circle_segments == 50
+assert mesh.selection_entity_count("cylinder") == 50
+print(mesh.mesh_digest)
+```
+
+Rust retains the exact source, chooses and measures the chordal approximation,
+accepts the affine-triangle mesh, and derives realized named selections through
+the geometry-to-mesh correspondence. `mesh_canonical_json` and `mesh_digest`
+identify only the accepted inner simplicial mesh. The returned object is a
+same-process owner, not a durable source-to-mesh artifact.
+
+This bounded operation supports the one rectangle-with-circular-hole family
+and fixed-phase reference topology. It is not a generic `Mesh` or
+`MeshRequest`, production mesher, curved-element path, external import,
+cross-process generated-realization proof, Model binding, solve, Result, or
+visualization surface.
 
 Scalar conserving connections use nominal physical-domain identity:
 

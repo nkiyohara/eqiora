@@ -1,8 +1,7 @@
 # Repository instructions
 
-These instructions apply to the entire repository. They state only what an
-agent cannot infer from the code. Everything with a longer explanation lives in
-the document that owns it, and those documents are authoritative:
+These repository-wide instructions state only what an agent cannot infer from the code.
+Everything longer lives in the document that owns it, and those documents are authoritative:
 
 - [AI-authored platform strategy](docs/development/ai-authored-platform-strategy.md)
   — what Eqiora optimizes for, and which rules the agent-authorship premise amends.
@@ -27,10 +26,9 @@ narrow review; give it the complete frozen specification plus hard scope and
 terminal-output limits. Escalate a cross-cutting, visual, or long-horizon slice,
 or successive newly discovered mutants in one bounded review, to Fable.
 
-Use Codex for contract ownership, live end-to-end lineage, integration, and
-repository gates. Use bounded handoffs, never shared scratch context. There is
-no downstream review: confidence is not evidence, and every result states what
-was not checked.
+Use Codex for contract ownership, live end-to-end lineage, integration, and repository gates.
+Use bounded handoffs, never shared scratch context. There is no downstream review:
+confidence is not evidence, and every result states what was not checked.
 
 ## Run every lane that can run
 
@@ -121,6 +119,8 @@ values, tolerances, or falsifiers for its own implementation. Wiring a
 pre-committed fixture is permitted; owning the evidence content is not. Where
 an implementer believes a pre-committed oracle is wrong, it stops and returns
 the proof rather than adjusting the implementation to match.
+An exact-artifact oracle replays the producer's exact ordering: a geometrically
+equivalent fixture is not byte evidence when local order changes quality or digest.
 
 Every change is reviewed **before integration** by an agent that did not write
 it. **The integrator's own work is not exempt** — holding the acceptance
