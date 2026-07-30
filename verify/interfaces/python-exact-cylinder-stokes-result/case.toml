@@ -1,0 +1,94 @@
+id = "interfaces.python-exact-cylinder-stokes-result"
+status = "specified"
+scope = "installed-python-one-exact-cylinder-steady-stokes-typed-result"
+reference_kind = "composition-of-dual-independent-fluid-oracle-and-independent-lineage-replay"
+
+capabilities = [
+  "python-exact-cylinder-steady-stokes-run",
+  "python-typed-exact-cylinder-steady-stokes-result",
+  "python-complete-pressure-field-and-support-mesh",
+  "python-model-realization-run-snapshot-lineage",
+  "python-result-owner-independent-read-only-matrix-views",
+]
+
+[problem]
+model = "the accepted steady-flow-past-cylinder ModelEnvelopeV7 supplied explicitly as bytes"
+geometry = "DFG-shaped 2.2 m by 0.41 m rectangle with one exact radius-0.05 m circle centred at [0.2, 0.2] m"
+realization = "the accepted exact-source-owned 50-chord, 104-triangle reference mesh"
+physics = "steady coherent-SI MINI/P1 Stokes"
+entry_point = "eqiora.fluid.solve_exact_cylinder_stokes"
+result_type = "immutable eqiora.fluid.CircularHoleSteadyStokesResult"
+
+[oracle]
+fluid_case = "fluid.exact-circular-hole-stokes-2d"
+model_case = "model.model-envelope-v7-canonical-identity"
+geometry_case = "interfaces.python-exact-circular-hole-geometry"
+mesh_case = "interfaces.python-circular-hole-chordal-mesh"
+lineage_case = "interfaces.studio-exact-cylinder-stokes-demo"
+numeric_route = "verify/fluid/exact-circular-hole-stokes-2d/routes/python/result.json"
+digest_policy = "source, mesh, and model identities are frozen; produced realization, snapshot, and run identities are replayed relationally from canonical public bytes"
+
+[expected]
+model_digest = "668fa55e5ab1a46d0b7523e4e3162442ccd7698697c4308604cf4fe9269249de"
+semantic_revision = 1
+source_digest = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
+mesh_digest = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
+realization_revision = 133
+vertices = 104
+triangles = 104
+pressure_values = 104
+pressure_probes = 6
+circle_segments = 50
+relative_tolerance = 1e-6
+absolute_tolerance = 1e-13
+maximum_iterations = 10000
+residual_target = 1.3239627651209673e-7
+
+[acceptance]
+caller_supplies_model_v7_bytes = true
+only_frozen_semantic_model_is_admitted = true
+geometry_and_mesh_ownership_fail_closed = true
+canonical_binding_and_run_bytes_replay_to_public_digests = true
+complete_pressure_and_support_mesh_are_coindexed = true
+pressure_flux_reaction_balance_and_residual_oracles = true
+immutable_result_identity_is_run_identity = true
+matrix_views_are_memoized_read_only_and_owner_independent = true
+numpy_import_is_lazy_until_matrix_materialization = true
+isolated_installed_package_program = true
+embedded_pyo3_public_package_boundary = true
+
+[falsifiers]
+malformed_model_v7 = "CompatibilityError with EQ0901 before solve"
+foreign_source_revision = "same semantic digest but rejected by frozen source ownership with EQ0807"
+foreign_geometry_owner = "same inner mesh identity cannot substitute a different exact source owner"
+swapped_boundary_roles = "same inner mesh identity cannot substitute a different authored boundary meaning"
+coarse_mesh = "different topology and approximation policy rejected before solve"
+quality_policy_plateau = "same topology coordinates with a different mesh artifact identity rejected before solve"
+uncanonical_model_bytes_rejected = "killed: pretty JSON is admitted by the existing decoder and must replay to the same run identity"
+hardcoded_generated_digests = "killed by independent digest replay from public canonical binding and run bytes"
+result_owned_matrix_lifetime = "killed by retaining all views after deleting Result and forcing collection"
+eager_numpy_dependency = "killed in both isolated installed-package and embedded-native programs"
+
+[claim_boundary]
+one_frozen_model = true
+one_exact_geometry = true
+one_chordal_realization = true
+steady_stokes_only = true
+intrinsic_dimension = 2
+affine_triangles_only = true
+complete_pressure_p1_field = true
+velocity_or_bubble_projection = false
+general_model_or_fluid_authoring = false
+generic_solver_or_meshing_choice = false
+curved_elements = false
+drag_or_lift_coefficient = false
+visualization = false
+mesh_or_pde_convergence = false
+navier_stokes_or_transient = false
+fsi = false
+performance_or_scale = false
+cross_platform_bit_identity = false
+
+[evidence]
+package = "eqiora-python"
+test = "python_exact_cylinder_stokes_result"
