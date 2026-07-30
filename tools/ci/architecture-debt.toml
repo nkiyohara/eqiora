@@ -384,9 +384,9 @@ removal = "split report projection from the execution runner"
 
 [[public_surface]]
 crate = "eqiora"
-ceiling = 281
-reason = "the facade is re-export-only and its width is already pinned by api/eqiora-facade-v1.json; 26 of these items are cross-crate globs this predicate cannot see through. UnstructuredP1ScalarFieldProjection2d is the one public product value shared by the native Studio adapter and downstream clients for the bounded P1 scalar view. The three named geometry-backed Stokes exports anticipate the studio/src-tauri steady-flow-past-cylinder composition by making its binding, scale profile and solve entry point reachable without widening the facade beyond those names"
-removal = "withdraw the three geometry-backed Stokes exports if the planned studio/src-tauri steady-flow-past-cylinder composition is abandoned or removed, or when a generic application service subsumes its direct use; withdraw UnstructuredP1ScalarFieldProjection2d if Studio ceases to consume the typed application projection, otherwise lower the ceiling with the next facade name withdrawn"
+ceiling = 286
+reason = "the facade is re-export-only and its width is already pinned by api/eqiora-facade-v1.json; 26 of these items are cross-crate globs this predicate cannot see through. UnstructuredP1ScalarFieldProjection2d is the one public product value shared by the native Studio adapter and downstream clients for the bounded P1 scalar view. The three named geometry-backed Stokes exports make the steady-flow-past-cylinder Studio composition reachable. Five named fixed-reference FSI owner contracts complete the already-exported 2D finalization seam so an application client can construct one accepted step through the facade alone; repeated steps reuse the same contracts"
+removal = "withdraw the geometry-backed Stokes exports if the steady-flow-past-cylinder Studio composition is removed or a generic application service subsumes direct use; withdraw the five fixed-reference FSI composition exports if the planned fixed-reference FSI Studio composition is abandoned or later removed and no other facade client consumes them, or when a prepared FSI application service subsumes direct use; withdraw UnstructuredP1ScalarFieldProjection2d if Studio ceases to consume the typed application projection, otherwise lower the ceiling with the next facade name withdrawn"
 
 [[public_surface]]
 crate = "eqiora-api"
