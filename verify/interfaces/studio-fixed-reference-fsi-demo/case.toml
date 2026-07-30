@@ -1,0 +1,108 @@
+id = "interfaces.studio-fixed-reference-fsi-demo"
+status = "verified"
+scope = "one-immutable-fixed-reference-monolithic-fsi-two-step-native-studio-composition"
+reference_kind = "presentation-only-composition-of-an-existing-verified-coupled-step-and-spatial-trajectory"
+
+capabilities = [
+  "native-studio-fixed-reference-fsi-example",
+  "bounded-mini-p1-coupled-interface-state-presentation",
+  "solver-owned-interface-action-and-energy-evidence",
+  "exact-model-realization-run-state-trajectory-lineage",
+]
+
+[canonical_contract]
+example_id = "fixed-reference-monolithic-fsi-step"
+model_source = "verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi"
+model_codec = "exact Model v4"
+mesh = "reconstructed exact 9-vertex 8-affine-triangle conforming two-body mesh"
+fluid_domain = "[0 m, 1 m] x [0 m, 1 m]"
+solid_domain = "[1 m, 2 m] x [0 m, 1 m]"
+interface = "one complete conforming side at x = 1 m"
+realization = "existing fieldwise coupled multi-Domain plan at realization revision 1"
+scale_profile = "L = 2 m, U = 0.5 m/s, P = 4 Pa"
+time_step_s = 0.05
+solver = "existing reference MINRES, identity, reproducible, f64"
+placement = "one-host-one-worker"
+initial_state = "existing prestrained state: free interface midpoint displacement [0.02 m, 0 m], every other coefficient zero"
+accepted_steps = 2
+accepted_coordinates_s = [0.05, 0.10]
+trajectory = "existing immutable two-state fixed-spatial lineage constructed in memory"
+scientific_authority = "fsi.fixed-reference-monolithic-step-2d and artifacts.fixed-reference-fsi-spatial-trajectory"
+browser_preview = "reject without fabricated scientific result"
+
+[presented_evidence]
+regions = "solver-owned fluid cells, solid cells, and interface facets"
+velocity = "shared mesh-vertex velocity and fluid MINI cell-bubble velocity in m/s"
+pressure = "P1 fluid-closure support vertices and coefficients in kg m^-1 s^-2"
+displacement = "solid displacement in m, exact zero outside the solid closure"
+interface_action = "free-interface fluid and solid actions in N/m"
+energy = "kinetic, elastic, numerical-increment, and viscous terms in J/m"
+physics_acceptance = "numerical residual, continuity, kinematic, shared-trace jump, interface action imbalance, and energy defect"
+solver_stopping = "frozen solver tuple, solver-owned target, and backend stopping report"
+execution = "assembly placement and solve evidence"
+lineage = "exact Model, geometry, correspondence, mesh, Realization, final Run, state, and trajectory digests"
+
+[reused_thresholds]
+owner = "restated by reference from the registered scientific cases and never re-derived, tuned, or relaxed here"
+true_residual = "no greater than the solver-owned target"
+numerical_residual = "< 1e-9"
+continuity_residual = "< 1e-9"
+kinematic_residual = "< 1e-14"
+shared_trace_velocity_jump = "exactly zero"
+interface_action_imbalance = "< 1e-9 N/m"
+absolute_energy_defect = "< 1e-9 J/m"
+
+[falsifiers]
+wrong_vertex_cell_or_facet_count = "reject-result-protocol"
+reordered_or_degenerate_connectivity = "reject-result-protocol"
+pressure_support_outside_fluid_closure = "reject-result-protocol"
+nonzero_displacement_outside_solid_closure = "reject-result-protocol"
+missing_mini_bubble_block = "reject-result-protocol"
+wrong_free_interface_action_cardinality = "reject-result-protocol"
+nonfinite_or_wrong_unit_value = "reject-result-protocol"
+action_and_energy_unit_conflation = "reject-result-protocol"
+foreign_solver_tuple = "reject-result-protocol"
+true_residual_over_solver_target = "reject-result-protocol"
+reauthored_or_relaxed_acceptance_threshold = "reject-result-protocol"
+nonzero_shared_trace_jump = "reject-result-protocol"
+solver_stopping_presented_as_physics_acceptance = "reject-result-protocol"
+duplicated_reordered_or_nonconsecutive_accepted_step = "reject-result-protocol"
+foreign_or_stale_lineage_digest = "reject-before-ready-publication"
+stale_scientific_case_id_or_status = "reject-before-execution"
+stale_native_response = "discard-before-ready-publication"
+browser_scientific_fabrication = "forbidden"
+
+[claim_boundary]
+immutable_single_composition_only = true
+intrinsic_dimension = 2
+fixed_reference_configuration_only = true
+two_consecutive_accepted_steps_only = true
+application_recomputes_physics = false
+application_derives_stress_drag_or_lift = false
+application_compares_analytic_reference = false
+display_scale_changes_solver_values = false
+solver_stopping_evidence_is_physics_acceptance = false
+general_fsi_or_deformation_viewer = false
+moving_mesh_or_ale = false
+advection_or_navier_stokes = false
+remeshing = false
+partitioned_coupling = false
+other_model_geometry_mesh_or_time_plan = false
+standalone_3d_structure = false
+validation_or_benchmark = false
+durable_disk_publication = false
+production_solver = false
+mpi_or_gpu = false
+performance_or_scale = false
+
+[acceptance]
+precommitted = true
+authored_before_implementation_by_a_nonimplementing_agent = true
+oracle_owner = "this manifest and the four case READMEs; an implementer returns a proof rather than editing them"
+accepted_without_oracle_changes = true
+native_protocol_test = "fsi_demo"
+browser_fail_closed_path = "verified by the Studio Playwright path"
+
+[evidence]
+package = "eqiora"
+test = "fixed_reference_fsi_spatial_trajectory"

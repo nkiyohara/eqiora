@@ -19,6 +19,7 @@ const ALL_WORKFLOWS = [
   "cylinder-stokes",
   "packaged-dc-drive",
   "structural-elasticity",
+  "fixed-reference-fsi",
   "cad-box",
 ] as const;
 const EVIDENCE_WORKFLOWS = [
@@ -27,6 +28,7 @@ const EVIDENCE_WORKFLOWS = [
   "cylinder-stokes",
   "packaged-dc-drive",
   "structural-elasticity",
+  "fixed-reference-fsi",
 ] as const;
 
 /**
@@ -143,6 +145,15 @@ export const COMMAND_REGISTRY = [
     workflows: ALL_WORKFLOWS,
   },
   {
+    id: "workspace.fsi",
+    group: "view",
+    label: "command.workspace.fsi.label",
+    description: "command.workspace.fsi.description",
+    shortcut: null,
+    focusTarget: "fsi-viewport",
+    workflows: ALL_WORKFLOWS,
+  },
+  {
     id: "example.cylinder",
     group: "model",
     label: "command.example.cylinder.label",
@@ -165,6 +176,15 @@ export const COMMAND_REGISTRY = [
     group: "model",
     label: "command.example.structural.label",
     description: "command.example.structural.description",
+    shortcut: null,
+    focusTarget: null,
+    workflows: ALL_WORKFLOWS,
+  },
+  {
+    id: "example.fsi",
+    group: "model",
+    label: "command.example.fsi.label",
+    description: "command.example.fsi.description",
     shortcut: null,
     focusTarget: null,
     workflows: ALL_WORKFLOWS,
@@ -311,6 +331,24 @@ export const WORKFLOW_REGISTRY = [
       semanticAlternative: {
         kind: "structural-vertex-table",
         focusTarget: "structural-vertex-table",
+      },
+    },
+  },
+  {
+    id: "fixed-reference-fsi",
+    workspace: "fsi",
+    label: "workflow.fsi.label",
+    description: "workflow.fsi.description",
+    primaryFocus: "fsi-viewport",
+    projection: {
+      kind: "bounded-fixed-reference-fsi-trajectory-view",
+      maximumVertices: 9,
+      maximumTriangles: 8,
+      acceptedSteps: 2,
+      components: 2,
+      semanticAlternative: {
+        kind: "fsi-vertex-table",
+        focusTarget: "fsi-vertex-table",
       },
     },
   },

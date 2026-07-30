@@ -26,6 +26,8 @@ import { DemoFailureBanner, DemoLoadState } from "./demo-state";
 import { type DiagnosticPresentation, Diagnostics } from "./diagnostics";
 import { CAD_EXAMPLE_SOURCE, EXAMPLE_SOURCE, SPATIAL_EXAMPLE_SOURCE } from "./example";
 import { ExampleMenu } from "./example-menu";
+import { FsiDemoSession, type FsiDemoSessionState } from "./fsi-demo-session";
+import { FsiDemoWorkspace } from "./fsi-demo-workspace";
 import { formatMessage } from "./messages";
 import { ModelCanvas } from "./projection";
 import { BRIDGE_PROTOCOL, type SourceSpan, type StudioDiagnostic } from "./protocol";
@@ -85,6 +87,7 @@ export function App() {
   const [structuralState, setStructuralState] = useState<StructuralDemoSessionState>({
     kind: "idle",
   });
+  const [fsiState, setFsiState] = useState<FsiDemoSessionState>({ kind: "idle" });
   const scalarFieldSession = useMemo(
     () => new ScalarFieldDataSession(scalarFieldDataBridge, setScalarFieldState),
     [],
@@ -99,6 +102,7 @@ export function App() {
     () => new StructuralDemoSession(studioBridge, setStructuralState),
     [],
   );
+  const fsiSession = useMemo(() => new FsiDemoSession(studioBridge, setFsiState), []);
   latestSource.current = state.source;
   const sourceEdited = state.compiledSource !== state.source;
   const {
@@ -114,6 +118,7 @@ export function App() {
       : cylinderState.kind;
   const dcMotorStatus = dcMotorState.kind;
   const structuralStatus = structuralState.kind;
+  const fsiStatus = fsiState.kind;
   const fieldWorkflow =
     selectedFieldWorkflow === "scalar-elliptic" &&
     spatialState.latestResult?.plan.requirements.spatialDimension !== 2
@@ -130,6 +135,7 @@ export function App() {
           },
           cylinderStatus,
           dcMotorStatus,
+          fsiStatus,
           structuralStatus,
           fieldWorkflow,
         },
@@ -140,6 +146,7 @@ export function App() {
       cadStatus,
       cylinderStatus,
       dcMotorStatus,
+      fsiStatus,
       structuralStatus,
       fieldWorkflow,
       requestedWorkspace,
@@ -715,9 +722,11 @@ export function App() {
               ? dcMotorState.kind === "ready"
               : application.activeWorkflow === "structural-elasticity"
                 ? structuralState.kind === "ready"
-                : activeWorkspace === "field"
-                  ? scalarFieldState.kind === "ready"
-                  : selectedNode !== null,
+                : application.activeWorkflow === "fixed-reference-fsi"
+                  ? fsiState.kind === "ready"
+                  : activeWorkspace === "field"
+                    ? scalarFieldState.kind === "ready"
+                    : selectedNode !== null,
       evidenceAvailable:
         application.activeWorkflow === "scalar-elliptic"
           ? spatialResult !== null
@@ -727,7 +736,9 @@ export function App() {
               ? dcMotorState.kind === "ready"
               : application.activeWorkflow === "structural-elasticity"
                 ? structuralState.kind === "ready"
-                : application.activeWorkflow === "relations" && runResult !== null,
+                : application.activeWorkflow === "fixed-reference-fsi"
+                  ? fsiState.kind === "ready"
+                  : application.activeWorkflow === "relations" && runResult !== null,
       fieldAvailable:
         fieldWorkflow === "cylinder-stokes"
           ? cylinderState.kind === "solving" ||
@@ -739,6 +750,8 @@ export function App() {
       dcMotorRunning: dcMotorState.kind === "running",
       structuralAvailable: structuralState.kind === "running" || structuralState.kind === "ready",
       structuralRunning: structuralState.kind === "running",
+      fsiAvailable: fsiState.kind === "running" || fsiState.kind === "ready",
+      fsiRunning: fsiState.kind === "running",
       cadAvailability,
     });
     return Object.fromEntries(
@@ -761,6 +774,7 @@ export function App() {
     cylinderState,
     dcMotorState,
     structuralState,
+    fsiState,
     fieldWorkflow,
     runPlanCurrent,
     runResult,
@@ -841,6 +855,14 @@ export function App() {
       window.requestAnimationFrame(() => focusTarget("structural-viewport"));
     }
   }, [focusTarget, structuralSession]);
+
+  const openFsiDemo = useCallback(async () => {
+    setRequestedWorkspace("fsi");
+    const terminal = await fsiSession.run();
+    if (terminal.kind === "ready") {
+      window.requestAnimationFrame(() => focusTarget("fsi-viewport"));
+    }
+  }, [focusTarget, fsiSession]);
 
   const openScalarField = useCallback(async () => {
     if (spatialResult === null || spatialResult.plan.requirements.spatialDimension !== 2) {
@@ -925,6 +947,14 @@ export function App() {
             focusCommandTarget(command);
           }
           return;
+        case "workspace.fsi":
+          if (fsiState.kind === "idle" || fsiState.kind === "failed") {
+            void openFsiDemo();
+          } else {
+            setRequestedWorkspace("fsi");
+            focusCommandTarget(command);
+          }
+          return;
         case "example.cylinder":
           void openCylinderDemo();
           return;
@@ -933,6 +963,9 @@ export function App() {
           return;
         case "example.structural":
           void openStructuralDemo();
+          return;
+        case "example.fsi":
+          void openFsiDemo();
           return;
         case "example.spatial":
           void openSpatialExample();
@@ -956,10 +989,12 @@ export function App() {
       focusCommandTarget,
       fieldWorkflow,
       dcMotorState.kind,
+      fsiState.kind,
       isSpatialDocument,
       openCadExample,
       openCylinderDemo,
       openDcMotorDemo,
+      openFsiDemo,
       openStructuralDemo,
       openScalarField,
       openSpatialExample,
@@ -1089,6 +1124,15 @@ export function App() {
                   Structure
                 </button>
               ) : null}
+              {commandAvailability["workspace.fsi"].enabled ? (
+                <button
+                  aria-current={activeWorkspace === "fsi" ? "page" : undefined}
+                  onClick={() => executeCommand("workspace.fsi")}
+                  type="button"
+                >
+                  FSI
+                </button>
+              ) : null}
               {commandAvailability["workspace.geometry"].enabled ? (
                 <button
                   aria-current={activeWorkspace === "geometry" ? "page" : undefined}
@@ -1107,6 +1151,7 @@ export function App() {
                 cylinderState.kind === "solving" || cylinderState.kind === "loading-field"
               }
               dcMotorStatus={dcMotorState.kind}
+              fsiStatus={fsiState.kind}
               onExecute={executeCommand}
               structuralStatus={structuralState.kind}
             />
@@ -1159,6 +1204,9 @@ export function App() {
             onRetry={() => void openStructuralDemo()}
           />
         ) : null}
+        {fsiState.kind === "failed" ? (
+          <DemoFailureBanner message={fsiState.message} onRetry={() => void openFsiDemo()} />
+        ) : null}
 
         <main
           className="trajectory-workspace-shell"
@@ -1190,6 +1238,23 @@ export function App() {
               detail="The native runtime is compiling the exact structural Model, resolving the frozen Q1 plan, and accepting the solver-owned displacement and lineage."
               glyph="⌗"
               title="Solving the elastic panel…"
+            />
+          )}
+        </main>
+
+        <main
+          className="fsi-workspace-shell"
+          hidden={activeWorkspace !== "fsi"}
+          id={activeWorkspace === "fsi" ? "workspace" : undefined}
+          tabIndex={-1}
+        >
+          {fsiState.kind === "ready" ? (
+            <FsiDemoWorkspace result={fsiState.result} />
+          ) : (
+            <DemoLoadState
+              detail="The native runtime is compiling one exact coupled Model, accepting two consecutive reference steps, and publishing one immutable in-memory trajectory."
+              glyph="⇄"
+              title="Solving the coupled interface…"
             />
           )}
         </main>
