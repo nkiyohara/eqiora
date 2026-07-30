@@ -5,8 +5,10 @@
 - Created: 2026-07-28
 - Related RFCs and evidence:
   [RFC 0079](0079-authored-planar-geometry-artifact.md),
-  [RFC 0081](0081-exact-circular-hole-geometry.md), and
-  [`geometry.circular-hole-chordal-reference-mesh`](../verify/geometry/circular-hole-chordal-reference-mesh/README.md)
+  [RFC 0081](0081-exact-circular-hole-geometry.md),
+  [`geometry.circular-hole-chordal-reference-mesh`](../verify/geometry/circular-hole-chordal-reference-mesh/README.md),
+  and
+  [`geometry.circular-hole-chordal-realization-binding`](../verify/geometry/circular-hole-chordal-realization-binding/README.md)
 
 ## Summary
 
@@ -28,11 +30,11 @@ change geometry identity. Returning an unbound `(region, mesh)` pair would
 preserve the exact source only in caller convention and would let downstream
 solver or presentation code lose which circle it approximates.
 
-A generic mesher interface, durable source-to-mesh wire, Delaunay dependency,
-or high-order geometry contract would establish compatibility and numerical
-claims the first cylinder path does not need. This RFC adds one bounded owner
-and reuses existing `PlanarRegion`, `SimplicialMesh`, mesh quality, artifact,
-and correspondence contracts.
+A generic mesher interface, Delaunay dependency, or high-order geometry
+contract would establish compatibility and numerical claims the first cylinder
+path does not need. This RFC adds one bounded owner and reuses existing
+`PlanarRegion`, `SimplicialMesh`, mesh quality, artifact, and correspondence
+contracts.
 
 ## Owned realization
 
@@ -49,7 +51,44 @@ and correspondence contracts.
 - a validated `SimplicialMesh`.
 
 The value exposes immutable observations only. There is no constructor from an
-independent digest, region, mesh, or metric tuple and no durable encoding.
+independent digest, region, mesh, or metric tuple, and the owner itself has no
+durable encoding. A separate binding envelope described below captures only a
+validated owner and its exact resources.
+
+## Durable realization binding
+
+`CircularHoleChordalRealizationEnvelopeV1` is the closed canonical durable
+binding for this dedicated reference path. It captures the exact source
+geometry digest, the owner's request and bit-exact observations, and the
+digests of the realized authored planar region, a conforming simplicial mesh,
+and its Model-free `authored-planar-region-v1` correspondence.
+
+Its schema domain is
+`eqiora.circular-hole-chordal-realization-envelope/v1`. RFC 0008 digest framing
+applies to this exact canonical field order:
+
+```text
+schema, encoding,
+source_geometry_sha256, realized_geometry_sha256,
+mesh_sha256, correspondence_sha256,
+requested_max_boundary_error_m,
+boundary_evaluation_allowance_m, boundary_error_bound_m,
+circle_segments, circle_area_deficit_m2, circle_perimeter_deficit_m,
+required_minimum_mean_ratio
+```
+
+Bounded canonical admission precedes resource access. Replay regenerates the
+owner from the supplied exact source, stored request, stored circle-segment
+count as a work limit, and stored required minimum mean-ratio threshold. It
+then requires bit-exact owner observations, exact region equality, successful
+authored-region correspondence validation, and equality of all four resource
+digests. A coherent policy change always changes binding identity even when
+deterministic regeneration lands on the same resources.
+
+The binding does not serialize or generalize `CircularHoleChordalMeshV1`, and
+it does not admit a caller-provided observation tuple. It is the minimum
+durable relational witness needed to keep the exact source and all realized
+resources inseparable in the future installed Python and Result lineage.
 
 ## Approximation contract
 
@@ -198,14 +237,17 @@ area, and perimeter convergence.
 ## Compatibility and architecture
 
 No existing exact geometry wire, digest, Model byte, mesh wire, correspondence
-wire, or solver contract changes. The `eqiora-geometry` public surface rises
+wire, or solver contract changes. The new binding is a separate schema domain.
+The `eqiora-geometry` public surface rises
 from 34 to 35 for the opaque source-bound owner. This is an explicit
 architecture change: solver and Studio are its two downstream consumers, and a
 loose tuple would duplicate or lose the source-binding invariant.
 
-The deletion condition is a future general geometry-Realization owner that
-preserves non-forgeable exact-source binding, error evidence, and immutable
-region/mesh access while replacing this dedicated type without adding a
+The `eqiora-artifact` public surface rises by one for the binding envelope. Its
+deletion condition, and the owner's, is a future general
+geometry-Realization owner that preserves non-forgeable exact-source binding,
+error evidence, immutable region/mesh access, canonical bounded admission, and
+resource replay while replacing these dedicated types without adding a
 parallel wire.
 
 ## Nonclaims
@@ -213,7 +255,7 @@ parallel wire.
 This RFC adds no exact curved finite element, isoparametric or NURBS mapping,
 general arc, ellipse, spline, B-rep, CSG, multiple hole, arbitrary outer loop,
 3D geometry, Delaunay or advancing-front mesher, production mesh quality,
-adaptive sizing, boundary-layer mesh, curved quadrature, durable
-source-to-mesh wire, cross-platform mesh-byte identity, flow solve, drag,
-lift, Strouhal reference, PDE convergence, Studio workflow, or completed
-cylinder demonstration.
+adaptive sizing, boundary-layer mesh, curved quadrature, cross-platform
+mesh-byte identity, generic approximate-geometry binding, Model/Run/Result
+binding, flow solve, drag, lift, Strouhal reference, PDE convergence, Studio
+workflow, or completed cylinder demonstration.

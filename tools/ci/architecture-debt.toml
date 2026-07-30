@@ -396,7 +396,7 @@ removal = "withdraw UnstructuredP1ScalarFieldProjection2d if the native Studio a
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 155
+ceiling = 156
 reason = """
 151 predate the predicate and are not yet triaged. One is deliberate: the
 geometry-definition envelope, its explicit decoder-budget type, and the two v7
@@ -405,9 +405,12 @@ validated content, canonical bytes and digest derivation live below this crate;
 the wrapper owns only artifact admission and ArtifactDigest projection. A wire
 generation costs exactly two names, its Model envelope and its transaction
 envelope, and cannot cost fewer: selection is explicit, so each generation is a
-distinct type a caller names.
+distinct type a caller names. CircularHoleChordalRealizationEnvelopeV1 is one
+closed public owner for durable exact-source replay across process boundaries;
+keeping the wire, admission, and replay on that owner costs one name and avoids
+a generic approximate-geometry abstraction.
 """
-removal = "fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
+removal = "withdraw the circular-hole binding and lower by one if durable exact-source publication is removed; independently, fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
 
 [[public_surface]]
 crate = "eqiora-assembly"
