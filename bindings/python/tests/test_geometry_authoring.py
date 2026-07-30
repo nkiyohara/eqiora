@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +17,24 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 CANONICAL_EXAMPLE = (
     REPOSITORY_ROOT / "examples" / "steady-flow-past-cylinder.geometry.json"
 )
+PYTHON_DEMO = REPOSITORY_ROOT / "examples" / "python" / "exact_cylinder_geometry.py"
+DISTINCT_Y_CANONICAL_JSON = (
+    b'{"schema":"eqiora.planar-circular-hole-envelope/v1"'
+    b',"encoding":"eqiora.canonical-json/v1"'
+    b',"kind":"axis-aligned-rectangle-with-circular-hole-v1"'
+    b',"length_unit":"metre"'
+    b',"tolerance_m":1e-12'
+    b',"bounds":[[0.0,2.2],[0.0,0.41]]'
+    b',"circle":{"center":[0.2,0.2],"radius_m":0.05}'
+    b',"entity_sets":['
+    b'{"name":"ceiling","dimension":1,"members":[3]}'
+    b',{"name":"cylinder","dimension":1,"members":[4]}'
+    b',{"name":"floor","dimension":1,"members":[2]}'
+    b',{"name":"inlet","dimension":1,"members":[0]}'
+    b',{"name":"outlet","dimension":1,"members":[1]}'
+    b',{"name":"fluid","dimension":2,"members":[0]}]}'
+)
+DISTINCT_Y_DIGEST = "51ece8fa2d8709d932b0c758d59c187e4fd572f73217c31dcbe407f8d873be7f"
 STANDARD_ARGUMENTS: dict[str, Any] = {
     "bounds": ((0.0, 2.2), (0.0, 0.41)),
     "circle_center": (0.2, 0.2),
@@ -87,6 +107,22 @@ def test_fixed_roles_form_the_canonical_named_selection_catalogue() -> None:
         authored.selection_dimension("missing")
     assert caught.value.category == "validation"
     assert caught.value.diagnostics
+
+
+def test_distinct_y_roles_pin_lower_and_upper_canonical_members() -> None:
+    oriented = geometry(y_lower="floor", y_upper="ceiling")
+
+    assert len(DISTINCT_Y_CANONICAL_JSON) == 556
+    assert oriented.canonical_json == DISTINCT_Y_CANONICAL_JSON
+    assert oriented.digest == DISTINCT_Y_DIGEST
+    assert oriented.selection_names == (
+        "ceiling",
+        "cylinder",
+        "floor",
+        "inlet",
+        "outlet",
+        "fluid",
+    )
 
 
 def test_identity_is_exact_hashable_and_normalizes_signed_zero() -> None:
@@ -201,3 +237,24 @@ def test_bounded_geometry_module_does_not_claim_generic_cad_or_handles() -> None
         "selection",
     ):
         assert not hasattr(authored, unsupported_member)
+
+
+def test_checked_in_python_demo_runs_from_installed_package() -> None:
+    completed = subprocess.run(
+        [sys.executable, str(PYTHON_DEMO)],
+        cwd=REPOSITORY_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert completed.stderr == ""
+    assert completed.stdout.splitlines() == [
+        "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9",
+        "cylinder 1",
+        "inlet 1",
+        "outlet 1",
+        "walls 1",
+        "fluid 2",
+    ]

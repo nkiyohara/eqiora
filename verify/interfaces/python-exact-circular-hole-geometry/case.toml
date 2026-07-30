@@ -24,10 +24,12 @@ digest_is_lowercase_sha256 = true
 signed_zero_has_one_identity = true
 exact_equality_and_hash = true
 y_sides_group_as_one_walls_selection = true
+distinct_y_roles_pin_lower_member_2_and_upper_member_3 = true
 unknown_selection_is_structured_validation = true
 
 [falsifiers]
 swapped_inlet_outlet_roles = "different exact identity"
+reversed_y_lower_y_upper_mapping = "reject-by-independent-556-byte-content-and-digest-witness"
 nonfinite_or_nonpositive_radius_or_tolerance = "structured-validation-error"
 reversed_nonfinite_or_degenerate_span = "structured-validation-error"
 tangent_or_insufficiently_clear_circle = "structured-validation-error"
@@ -52,5 +54,5 @@ performance = false
 physical_validation = false
 
 [evidence]
-package = "eqiora-python"
-test = "python_geometry_authoring"
+runner = "python-installed-wheel"
+script = "tools/ci/python_package_gate.py"

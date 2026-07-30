@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use eqiora::geometry::{CanonicalCircularHoleGeometryV1, CanonicalGeometryLimits};
+use eqiora::geometry::{CanonicalCircularHoleGeometryV1, CanonicalGeometryLimits, NamedEntitySet};
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyBytes, PyDict, PyDictMethods, PyModule};
@@ -16,10 +16,39 @@ fn python_exact_circular_hole_geometry_replays_rust_owned_identity() -> PyResult
         let reference = fs::read(fixture)?;
         assert_eq!(reference.last(), Some(&b'\n'));
         let expected = &reference[..reference.len() - 1];
+        let expected_oriented = CanonicalCircularHoleGeometryV1::new(
+            [[0.0, 2.2], [0.0, 0.41]],
+            [0.2, 0.2],
+            0.05,
+            vec![
+                NamedEntitySet::new("fluid", 2, vec![0]),
+                NamedEntitySet::new("floor", 1, vec![2]),
+                NamedEntitySet::new("inlet", 1, vec![0]),
+                NamedEntitySet::new("ceiling", 1, vec![3]),
+                NamedEntitySet::new("cylinder", 1, vec![4]),
+                NamedEntitySet::new("outlet", 1, vec![1]),
+            ],
+            1e-12,
+        )
+        .expect("the public exact geometry contract must admit the oriented witness");
+        let expected_oriented_digest = expected_oriented
+            .digest_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert_eq!(
+            expected_oriented_digest,
+            "51ece8fa2d8709d932b0c758d59c187e4fd572f73217c31dcbe407f8d873be7f"
+        );
 
         let locals = PyDict::new(py);
         locals.set_item("eqiora", module)?;
         locals.set_item("expected_json", PyBytes::new(py, expected))?;
+        locals.set_item(
+            "expected_oriented_json",
+            PyBytes::new(py, expected_oriented.canonical_bytes()),
+        )?;
+        locals.set_item("expected_oriented_digest", expected_oriented_digest)?;
         py.run(
             c_str!(
                 r#"
@@ -56,6 +85,13 @@ assert geometry == same == signed_zero
 assert hash(geometry) == hash(same) == hash(signed_zero)
 assert geometry != swapped
 assert geometry.digest != swapped.digest
+
+oriented = make(y_lower="floor", y_upper="ceiling")
+assert oriented.canonical_json == expected_oriented_json
+assert oriented.digest == expected_oriented_digest
+assert oriented.selection_names == (
+    "ceiling", "cylinder", "floor", "inlet", "outlet", "fluid"
+)
 
 try:
     geometry.selection_dimension("missing")
