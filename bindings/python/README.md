@@ -66,6 +66,28 @@ typed lowering, atomic commit, execution, and artifact identity remain in
 Rust. Spatial authoring and the bounded FEM/FVM realization path are described
 in [Modeling and realization](https://eqiora.org/python/modeling/).
 
+The first exact-geometry authoring surface is similarly narrow and native:
+
+```python
+geometry = eqiora.geometry.RectangleWithCircularHole(
+    bounds=((0.0, 2.2), (0.0, 0.41)),
+    circle_center=(0.2, 0.2),
+    circle_radius=0.05,
+    tolerance=1e-12,
+    region="fluid",
+    x_lower="inlet",
+    x_upper="outlet",
+    y_lower="walls",
+    y_upper="walls",
+    hole="cylinder",
+)
+print(geometry.digest, geometry.selection_names)
+```
+
+This is one exact axis-aligned rectangle with one circular hole, not a generic
+Python CAD or Boolean implementation. Meshing, geometry-backed Model binding,
+solve, Result, and visualization are separate capabilities.
+
 ## Structured diagnostics
 
 Failures expose stable categories and structured diagnostics:

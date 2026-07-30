@@ -5,8 +5,10 @@ Rust-owned semantic model as Eqiora Language and Studio.
 
 The public alpha includes native builders for bounded scalar `Field`,
 `Parameter`, and continuous `Relation` declarations, physical domains and
-ports, and exact model identity. A typed `Realization` separately selects an
-admitted numerical path; choosing FEM or FVM never changes model meaning.
+ports, exact model identity, and one Rust-owned exact
+axis-aligned-rectangle-with-circular-hole geometry. A typed `Realization`
+separately selects an admitted numerical path; choosing FEM or FVM never
+changes model or geometry meaning.
 
 Start with the complete [five-minute example](../get-started.md), then read
 the maintained
@@ -14,6 +16,6 @@ the maintained
 for spatial support, revision identity, transaction behavior, supported
 expressions, and fail-closed examples.
 
-General vector/tensor authoring, state charts, component declarations, CAD
-builders, and arbitrary realization graphs remain outside this alpha's Python
-surface.
+General vector/tensor authoring, state charts, component declarations, generic
+CAD/Boolean builders, meshing and solve composition for authored geometry, and
+arbitrary realization graphs remain outside this alpha's Python surface.
