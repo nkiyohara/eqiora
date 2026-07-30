@@ -43,6 +43,9 @@ Changelog = "https://github.com/nkiyohara/eqiora/blob/main/CHANGELOG.md"
 Security = "https://github.com/nkiyohara/eqiora/security/policy"
 
 [tool.maturin]
+include = [
+    { path = "steady-flow-past-cylinder.model-v7.json", from = "out-dir", to = "eqiora/examples/" },
+]
 exclude = [
     ".git/**",
     "**/.git/**",
@@ -50,8 +53,6 @@ exclude = [
     # directory, and `safe_extract_sdist` rejects any other member kind. It is
     # repository-development instruction anyway and has no place in a wheel.
     "CLAUDE.md",
-    "target/**",
-    "**/target/**",
     "**/__pycache__/**",
     "**/*.pyc",
     "**/*.pyo",

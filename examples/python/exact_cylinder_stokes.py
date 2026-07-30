@@ -1,6 +1,6 @@
 """Solve the accepted exact-cylinder steady-Stokes case with installed Eqiora."""
 
-from pathlib import Path
+from importlib.resources import files
 
 import eqiora
 
@@ -25,9 +25,10 @@ def solve() -> eqiora.fluid.CircularHoleSteadyStokesResult:
         max_segments=50,
     )
     model_v7 = (
-        Path(__file__).resolve().parents[1]
-        / "steady-flow-past-cylinder.model-v7.json"
-    ).read_bytes()
+        files(eqiora)
+        .joinpath("examples", "steady-flow-past-cylinder.model-v7.json")
+        .read_bytes()
+    )
     return eqiora.fluid.solve_exact_cylinder_stokes(
         model_v7=model_v7,
         geometry=geometry,
