@@ -152,8 +152,8 @@ In particular, `mesh_canonical_json` and the inner
 source-to-mesh binding. The live wrapper is not a cross-process proof and
 cannot publish or replay the generated realization for a later Result
 lineage. Cross-process publication, replay, and future Result lineage require
-the separately accepted `CircularHoleChordalRealizationEnvelopeV1` durable
-realization artifact.
+future acceptance of the separate
+`CircularHoleChordalRealizationEnvelopeV1` durable realization artifact.
 
 Run the registered evidence after implementation:
 

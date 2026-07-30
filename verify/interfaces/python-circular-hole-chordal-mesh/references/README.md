@@ -37,5 +37,5 @@ mapped unordered-cell-set comparison.
 The inner mesh artifact contains coordinates, cells, acceptance policy, and
 quality evidence only. It contains no durable exact-source binding. A
 cross-process generated realization and later Result lineage remain dependent
-on the separately accepted `CircularHoleChordalRealizationEnvelopeV1` durable
-realization artifact.
+on future acceptance of the separate
+`CircularHoleChordalRealizationEnvelopeV1` durable realization artifact.
