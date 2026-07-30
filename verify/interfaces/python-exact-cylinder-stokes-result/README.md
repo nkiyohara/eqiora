@@ -75,8 +75,17 @@ other owners are deleted. None can be made writeable.
 
 NumPy remains absent while constructing the exact geometry, source-bound mesh,
 solving, inspecting scalar metadata, and indexing pressure. Matrix access is
-the lazy-import boundary. The contract is exercised both from the installed
-package under `python -I` and from an embedded PyO3 public-package load.
+the lazy-import boundary. Negative-one indexing replays the last scalar;
+an isize-sized negative index, the index `len(pressure)`, and an isize-sized
+positive index all fail with `IndexError`.
+
+The registered evidence target is the repository's installed-wheel package
+gate. Its pytest runs both an isolated inline program and the checked-in
+`examples/python/exact_cylinder_stokes.py` under `python -I`. The latter reads
+the newline-terminated repository Model file through its real path; the
+checked-in-demo test does not substitute stripped or embedded Model bytes. A
+separate embedded PyO3 public-package test remains supplementary evidence
+exercised by the ordinary Rust gate, not the registered runner for this case.
 
 ## Fail-closed boundary and non-claims
 
@@ -90,11 +99,17 @@ projection, drag/lift coefficient, generic meshing or solver selection,
 visualization, convergence study, transient flow, Navier–Stokes, FSI,
 performance, or cross-platform bit identity.
 
-After implementation, run:
+Run the registered evidence after implementation:
 
 ```bash
-cargo test -p eqiora-python --test python_exact_cylinder_stokes_result
-python3 tools/ci/python_package_gate.py
 cargo run --locked -p eqiora-verify -- run \
   --case interfaces.python-exact-cylinder-stokes-result
+```
+
+The package gate can be invoked directly, and the supplementary embedded
+boundary can be checked separately:
+
+```bash
+python3 tools/ci/python_package_gate.py
+cargo test -p eqiora-python --test python_exact_cylinder_stokes_result
 ```

@@ -19,6 +19,7 @@ import eqiora
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 MODEL_PATH = REPOSITORY_ROOT / "examples" / "steady-flow-past-cylinder.model-v7.json"
+PYTHON_DEMO = REPOSITORY_ROOT / "examples" / "python" / "exact_cylinder_stokes.py"
 
 SOURCE_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
 MESH_DIGEST = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
@@ -337,6 +338,14 @@ def test_complete_result_replays_binding_run_and_frozen_observations(
     assert np.isfinite(pressure).all()
     assert float(pressure.min()) == result.pressure_minimum
     assert float(pressure.max()) == result.pressure_maximum
+    assert len(result.pressure) == len(pressure)
+    assert result.pressure[-1] == pressure[-1]
+    with pytest.raises(IndexError):
+        result.pressure[-sys.maxsize]
+    with pytest.raises(IndexError):
+        result.pressure[len(result.pressure)]
+    with pytest.raises(IndexError):
+        result.pressure[sys.maxsize]
 
     for position, expected in PRESSURE_PROBES:
         squared_distance = np.square(
@@ -601,3 +610,29 @@ print(coordinates.shape[0], triangles.shape[0], pressure.shape[0])
         MESH_DIGEST,
         "104 104 104",
     ]
+
+
+def test_checked_in_python_demo_runs_with_the_real_model_file() -> None:
+    if not PYTHON_DEMO.is_file():
+        pytest.skip("consumer tree does not carry the checked-in Python example")
+
+    encoded_model = MODEL_PATH.read_bytes()
+    assert encoded_model.endswith(b"\n")
+    completed = subprocess.run(
+        [sys.executable, "-I", str(PYTHON_DEMO)],
+        cwd=REPOSITORY_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+    assert completed.stderr == ""
+    lines = completed.stdout.splitlines()
+    assert len(lines) == 5
+    assert_digest(lines[0])
+    assert lines[1].startswith("LinearSolveSummary(")
+    assert lines[2].startswith("pressure ") and lines[2].endswith(" Pa")
+    assert lines[3].startswith("cylinder force on fluid ")
+    assert lines[3].endswith(" N/m")
+    assert lines[4].startswith("net flux ") and lines[4].endswith(" m^2/s")

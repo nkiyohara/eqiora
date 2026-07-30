@@ -50,12 +50,15 @@ only_frozen_semantic_model_is_admitted = true
 geometry_and_mesh_ownership_fail_closed = true
 canonical_binding_and_run_bytes_replay_to_public_digests = true
 complete_pressure_and_support_mesh_are_coindexed = true
+pressure_array_index_bounds_fail_closed = true
 pressure_flux_reaction_balance_and_residual_oracles = true
 immutable_result_identity_is_run_identity = true
 matrix_views_are_memoized_read_only_and_owner_independent = true
 numpy_import_is_lazy_until_matrix_materialization = true
 isolated_installed_package_program = true
-embedded_pyo3_public_package_boundary = true
+checked_in_python_demo_with_newline_terminated_model = true
+registered_installed_wheel_evidence = true
+supplementary_embedded_pyo3_public_package_boundary = true
 
 [falsifiers]
 malformed_model_v7 = "CompatibilityError with EQ0901 before solve"
@@ -67,6 +70,7 @@ quality_policy_plateau = "same topology coordinates with a different mesh artifa
 uncanonical_model_bytes_rejected = "killed: pretty JSON is admitted by the existing decoder and must replay to the same run identity"
 hardcoded_generated_digests = "killed by independent digest replay from public canonical binding and run bytes"
 result_owned_matrix_lifetime = "killed by retaining all views after deleting Result and forcing collection"
+array_index_bounds = "negative one replays the final scalar; an isize-sized negative index, len, and an isize-sized positive index are rejected with IndexError"
 eager_numpy_dependency = "killed in both isolated installed-package and embedded-native programs"
 
 [claim_boundary]
@@ -90,5 +94,5 @@ performance_or_scale = false
 cross_platform_bit_identity = false
 
 [evidence]
-package = "eqiora-python"
-test = "python_exact_cylinder_stokes_result"
+runner = "python-installed-wheel"
+script = "tools/ci/python_package_gate.py"
