@@ -37,5 +37,5 @@ mapped unordered-cell-set comparison.
 The inner mesh artifact contains coordinates, cells, acceptance policy, and
 quality evidence only. It contains no durable exact-source binding. A
 cross-process generated realization and later Result lineage remain dependent
-on the `CircularHoleChordalRealizationEnvelopeV1` tracked by the
-[circular-hole realization artifact work](https://github.com/nkiyohara/eqiora/issues/128).
+on the separately accepted `CircularHoleChordalRealizationEnvelopeV1` durable
+realization artifact.
