@@ -117,6 +117,45 @@ fn oracle_path() -> std::path::PathBuf {
     )
 }
 
+fn expected_path(file: &str) -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "../../verify/geometry/circular-hole-chordal-realization-binding/expected/{file}"
+    ))
+}
+
+fn independent_encoding_witness() -> (Vec<u8>, String) {
+    let readme = std::fs::read_to_string(expected_path("README.md"))
+        .expect("read independent expected values");
+    let after_fence = readme
+        .split_once("```json\n")
+        .expect("expected values contain the witness JSON")
+        .1;
+    let witness = after_fence
+        .split_once("\n```")
+        .expect("witness JSON fence is closed")
+        .0
+        .as_bytes()
+        .to_vec();
+
+    let contract: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(expected_path("binding-contract.json"))
+            .expect("read independent binding contract"),
+    )
+    .expect("independent binding contract is JSON");
+    let artificial = &contract["artificial_encoding_witness"];
+    assert_eq!(
+        witness.len() as u64,
+        artificial["canonical_bytes"]
+            .as_u64()
+            .expect("canonical byte count")
+    );
+    let digest = artificial["sha256"]
+        .as_str()
+        .expect("witness digest")
+        .to_owned();
+    (witness, digest)
+}
+
 fn hex(bytes: impl AsRef<[u8]>) -> String {
     bytes
         .as_ref()
@@ -178,6 +217,11 @@ fn independent_oracle_canonical_wire_and_exact_resources_agree() {
     ] {
         assert!(stdout.contains(expected), "oracle omitted {expected}");
     }
+
+    let (witness_bytes, witness_digest) = independent_encoding_witness();
+    let witness = decode(&witness_bytes);
+    assert_eq!(witness.canonical_json().unwrap(), witness_bytes);
+    assert_eq!(witness.digest().unwrap().as_str(), witness_digest);
 
     let resources = resources(REQUIRED_MINIMUM_MEAN_RATIO);
     let binding = capture(&resources);
@@ -254,16 +298,23 @@ fn canonical_admission_rejects_every_pre_replay_fault_class() {
         "\"requested_max_boundary_error_m\":NaN",
     );
     let unknown_schema = replace_once(&bytes, SCHEMA, "eqiora.unknown/v1");
+    let unknown_encoding =
+        replace_once(&bytes, "eqiora.canonical-json/v1", "eqiora.unknown-json/v1");
     let reordered = replace_once(&bytes, &prefix, &reordered_prefix);
     let noncanonical = [b" ".as_slice(), bytes.as_slice()].concat();
     let extra = replace_once(&bytes, "{", "{\"extra\":0,");
+    let required_minimum_mean_ratio =
+        serde_json::to_string(&binding.required_minimum_mean_ratio()).unwrap();
     let missing = replace_once(
         &bytes,
-        &format!(
-            ",\"required_minimum_mean_ratio\":{}",
-            binding.required_minimum_mean_ratio()
-        ),
+        &format!(",\"required_minimum_mean_ratio\":{required_minimum_mean_ratio}"),
         "",
+    );
+    let bound_below_allowance = replace_f64(
+        &bytes,
+        "boundary_error_bound_m",
+        binding.boundary_error_bound_m(),
+        binding.boundary_evaluation_allowance_m() / 2.0,
     );
 
     for invalid in [
@@ -272,10 +323,12 @@ fn canonical_admission_rejects_every_pre_replay_fault_class() {
         negative_request,
         nonfinite_request,
         unknown_schema,
+        unknown_encoding,
         reordered,
         noncanonical,
         extra,
         missing,
+        bound_below_allowance,
     ] {
         assert!(
             CircularHoleChordalRealizationEnvelopeV1::from_json(
