@@ -18,6 +18,22 @@ CANONICAL_EXAMPLE = (
     REPOSITORY_ROOT / "examples" / "steady-flow-past-cylinder.geometry.json"
 )
 PYTHON_DEMO = REPOSITORY_ROOT / "examples" / "python" / "exact_cylinder_geometry.py"
+STANDARD_CANONICAL_JSON = (
+    b'{"schema":"eqiora.planar-circular-hole-envelope/v1"'
+    b',"encoding":"eqiora.canonical-json/v1"'
+    b',"kind":"axis-aligned-rectangle-with-circular-hole-v1"'
+    b',"length_unit":"metre"'
+    b',"tolerance_m":1e-12'
+    b',"bounds":[[0.0,2.2],[0.0,0.41]]'
+    b',"circle":{"center":[0.2,0.2],"radius_m":0.05}'
+    b',"entity_sets":['
+    b'{"name":"cylinder","dimension":1,"members":[4]}'
+    b',{"name":"inlet","dimension":1,"members":[0]}'
+    b',{"name":"outlet","dimension":1,"members":[1]}'
+    b',{"name":"walls","dimension":1,"members":[2,3]}'
+    b',{"name":"fluid","dimension":2,"members":[0]}]}'
+)
+STANDARD_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
 DISTINCT_Y_CANONICAL_JSON = (
     b'{"schema":"eqiora.planar-circular-hole-envelope/v1"'
     b',"encoding":"eqiora.canonical-json/v1"'
@@ -63,6 +79,33 @@ STANDARD_ARGUMENTS: dict[str, Any] = {
     "y_upper": "walls",
     "hole": "cylinder",
 }
+EXPECTED_DEMO_STDOUT = [
+    STANDARD_DIGEST,
+    "cylinder 1",
+    "inlet 1",
+    "outlet 1",
+    "walls 1",
+    "fluid 2",
+]
+ISOLATED_GEOMETRY_PROGRAM = """
+import eqiora
+
+geometry = eqiora.geometry.RectangleWithCircularHole(
+    bounds=((0.0, 2.2), (0.0, 0.41)),
+    circle_center=(0.2, 0.2),
+    circle_radius=0.05,
+    tolerance=1e-12,
+    region="fluid",
+    x_lower="inlet",
+    x_upper="outlet",
+    y_lower="walls",
+    y_upper="walls",
+    hole="cylinder",
+)
+print(geometry.digest)
+for selection in geometry.selection_names:
+    print(selection, geometry.selection_dimension(selection))
+"""
 
 
 def geometry(**overrides: object) -> object:
@@ -82,19 +125,21 @@ def assert_structured_validation(**overrides: object) -> None:
     assert all(diagnostic.message for diagnostic in error.diagnostics)
 
 
-def test_standard_geometry_replays_the_existing_exact_fixture() -> None:
-    reference = CANONICAL_EXAMPLE.read_bytes()
-    assert reference.endswith(b"\n")
-
+def test_standard_geometry_replays_the_frozen_exact_identity() -> None:
     authored = geometry()
     assert type(authored).__module__ == "eqiora._eqiora"
-    assert authored.canonical_json == reference.removesuffix(b"\n")
+    assert len(STANDARD_CANONICAL_JSON) == 511
+    assert authored.canonical_json == STANDARD_CANONICAL_JSON
+    assert authored.digest == STANDARD_DIGEST
     assert isinstance(authored.canonical_json, bytes)
     assert re.fullmatch(r"[0-9a-f]{64}", authored.digest)
     assert authored.bounds == ((0.0, 2.2), (0.0, 0.41))
     assert authored.circle_center == (0.2, 0.2)
     assert authored.circle_radius == 0.05
     assert authored.tolerance == 1e-12
+
+    if CANONICAL_EXAMPLE.is_file():
+        assert CANONICAL_EXAMPLE.read_bytes() == STANDARD_CANONICAL_JSON + b"\n"
 
 
 def test_fixed_roles_form_the_canonical_named_selection_catalogue() -> None:
@@ -264,7 +309,26 @@ def test_bounded_geometry_module_does_not_claim_generic_cad_or_handles() -> None
         assert not hasattr(authored, unsupported_member)
 
 
+def test_public_geometry_program_runs_in_an_isolated_subprocess(
+    tmp_path: Path,
+) -> None:
+    completed = subprocess.run(
+        [sys.executable, "-I", "-c", ISOLATED_GEOMETRY_PROGRAM],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert completed.stderr == ""
+    assert completed.stdout.splitlines() == EXPECTED_DEMO_STDOUT
+
+
 def test_checked_in_python_demo_runs_from_installed_package() -> None:
+    if not PYTHON_DEMO.is_file():
+        pytest.skip("consumer tree does not carry the checked-in Python example")
+
     completed = subprocess.run(
         [sys.executable, str(PYTHON_DEMO)],
         cwd=REPOSITORY_ROOT,
@@ -275,11 +339,4 @@ def test_checked_in_python_demo_runs_from_installed_package() -> None:
     )
 
     assert completed.stderr == ""
-    assert completed.stdout.splitlines() == [
-        "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9",
-        "cylinder 1",
-        "inlet 1",
-        "outlet 1",
-        "walls 1",
-        "fluid 2",
-    ]
+    assert completed.stdout.splitlines() == EXPECTED_DEMO_STDOUT
