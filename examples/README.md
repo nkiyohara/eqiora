@@ -10,6 +10,7 @@ Run them from the repository root:
 cargo run --locked -p eqiora --example quickstart
 cargo run --locked -p eqiora --example poisson
 python examples/python/exact_cylinder_geometry.py
+python examples/python/exact_cylinder_mesh.py
 ```
 
 | Example | Source | What it shows |
@@ -17,6 +18,7 @@ python examples/python/exact_cylinder_geometry.py
 | `quickstart` | [`decay.eqi`](decay.eqi) | Compile one scalar decay model and run it through the reference lifecycle. |
 | `poisson` | [`packages/org.example.poisson`](../packages/org.example.poisson/) | Compile a 2D Poisson model, select a Realization explicitly, run it on the host CPU, and report the L2 error against the exact solution. |
 | `exact-cylinder-geometry` | [`python/exact_cylinder_geometry.py`](python/exact_cylinder_geometry.py) | From an installed `eqiora` package, author the exact rectangle-with-one-circular-hole identity and inspect its fixed-role named selections. |
+| `exact-cylinder-mesh` | [`python/exact_cylinder_mesh.py`](python/exact_cylinder_mesh.py) | From an installed `eqiora` package, explicitly realize the exact cylinder source as the bounded error-controlled chordal reference mesh and inspect Rust-derived selection counts. |
 | `steady-flow-past-cylinder` | [`steady-flow-past-cylinder.eqi`](steady-flow-past-cylinder.eqi), [exact geometry](steady-flow-past-cylinder.geometry.json), [Model v7](steady-flow-past-cylinder.model-v7.json) | In native Studio, replay one immutable exact rectangle-minus-circle Model, realize its error-controlled affine mesh, execute the accepted steady Stokes path, and inspect the pressure field with reaction and balance evidence. |
 
 Each example keeps the Model, the Realization, and the Run visibly separate.

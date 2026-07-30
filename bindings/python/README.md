@@ -81,12 +81,22 @@ geometry = eqiora.geometry.RectangleWithCircularHole(
     y_upper="walls",
     hole="cylinder",
 )
-print(geometry.digest, geometry.selection_names)
+mesh = eqiora.meshing.circular_hole_chordal(
+    geometry,
+    max_boundary_error=1e-4,
+    required_minimum_mean_ratio=1e-5,
+    max_segments=50,
+)
+print(geometry.digest, mesh.mesh_digest)
+print(mesh.selection_entity_count("cylinder"))
 ```
 
 This is one exact axis-aligned rectangle with one circular hole, not a generic
-Python CAD or Boolean implementation. Meshing, geometry-backed Model binding,
-solve, Result, and visualization are separate capabilities.
+Python CAD or Boolean implementation. Its matching meshing operation is one
+Rust-owned, error-controlled chordal reference path, not a generic or
+production mesher. The returned wrapper binds its exact source only within the
+live process; durable generated-realization replay, geometry-backed Model
+binding, solve, Result, and visualization are separate capabilities.
 
 ## Structured diagnostics
 

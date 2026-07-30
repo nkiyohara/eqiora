@@ -16,6 +16,7 @@ import numpy.typing as npt
 
 from . import compatibility as compatibility
 from . import geometry as geometry
+from . import meshing as meshing
 
 _Float64Array = npt.NDArray[np.float64]
 
