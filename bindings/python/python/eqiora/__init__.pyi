@@ -894,6 +894,7 @@ __all__ = [
     "trace",
     "compatibility",
     "diff",
+    "fluid",
     "geometry",
     "meshing",
 ]
