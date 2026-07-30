@@ -12,8 +12,11 @@ the standard witness exposes five names because both y roles are `walls`.
 
 The repository-owned standard byte oracle remains
 [`examples/steady-flow-past-cylinder.geometry.json`](../../../examples/steady-flow-past-cylinder.geometry.json).
-The test removes exactly its terminal newline and requires byte equality; this
-case does not independently reinterpret that geometry formula.
+The test embeds the same frozen 511 canonical bytes and digest so that it
+remains self-contained in an isolated consumer tree. When the checked-in
+canonical file is present, the test also requires that file to equal the
+embedded bytes plus exactly one terminal newline; this case does not
+independently reinterpret that geometry formula.
 [`geometry.exact-circular-hole-geometry`](../../geometry/exact-circular-hole-geometry/README.md)
 remains authoritative for the wire encoding, framed digest, geometry
 predicates, and semantic admission. The Rust-side Python test also decodes the
@@ -45,11 +48,16 @@ Transposing either constructor pass-through or getter order therefore fails
 independently of the symmetric standard witness.
 
 The registered executable case is the package gate: it rebuilds and installs
-the non-editable wheel before running the public Python contract. That
-contract also launches the checked-in
-`examples/python/exact_cylinder_geometry.py` with the installed-wheel
-interpreter and pins its digest and five selection/dimension lines. The
-in-process Rust test remains supplemental cross-language coverage. Run:
+the non-editable wheel before running the public Python contract. In the
+repository tree, that contract launches the actual checked-in
+`examples/python/exact_cylinder_geometry.py` with the isolated installed-wheel
+interpreter and pins its digest and five selection/dimension lines. In an
+isolated packaged consumer tree, which intentionally carries no `examples/`,
+the same test suite always executes an equivalent public-API program in an
+isolated subprocess and pins the same output. Only the separate repository-file
+presence and execution check is explicitly skipped there; the embedded byte,
+digest, public API, and validation evidence still runs. The in-process Rust
+test remains supplemental cross-language coverage. Run:
 
 ```bash
 cargo test -p eqiora-python --test python_geometry_authoring

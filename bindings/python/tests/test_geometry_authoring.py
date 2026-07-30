@@ -330,7 +330,7 @@ def test_checked_in_python_demo_runs_from_installed_package() -> None:
         pytest.skip("consumer tree does not carry the checked-in Python example")
 
     completed = subprocess.run(
-        [sys.executable, str(PYTHON_DEMO)],
+        [sys.executable, "-I", str(PYTHON_DEMO)],
         cwd=REPOSITORY_ROOT,
         check=True,
         capture_output=True,
