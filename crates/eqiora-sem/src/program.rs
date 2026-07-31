@@ -19,9 +19,10 @@ use eqiora_schema::kernel::typing::{
     TypedResidualError,
 };
 use eqiora_schema::kernel::{
-    ActivationKind, BoundaryPhysicalConnectionViolation, ClockKind, ConnectionSemantics,
-    DomainKind, ExprDag, ExprNode, KernelNode, SpatialPeriodicBoundaryViolation, SymbolRef,
-    validate_boundary_physical_connection, validate_spatial_periodic_boundary_connection,
+    ActivationKind, AxisBounds, BoundaryPhysicalConnectionViolation, ClockKind,
+    ConnectionSemantics, DomainKind, ExprDag, ExprNode, KernelNode,
+    SpatialPeriodicBoundaryViolation, SymbolRef, validate_boundary_physical_connection,
+    validate_spatial_periodic_boundary_connection,
 };
 
 use spatial_domains::field_support;
@@ -40,11 +41,16 @@ pub struct KernelProgram {
     edges: Vec<Edge>,
     boundary: BTreeSet<RawId>,
     spatial_supports: BTreeMap<RawId, SpatialSupport<RawId>>,
+    cartesian_bounds: BTreeMap<RawId, Vec<AxisBounds>>,
 }
 
 impl KernelProgram {
     pub(crate) const fn node_definitions(&self) -> &BTreeMap<RawId, KernelNode> {
         &self.nodes
+    }
+
+    pub(crate) const fn cartesian_bounds_map(&self) -> &BTreeMap<RawId, Vec<AxisBounds>> {
+        &self.cartesian_bounds
     }
 
     /// Graph Federation revision captured by this program.
@@ -89,6 +95,30 @@ impl KernelProgram {
     #[must_use]
     pub fn boundary(&self) -> &BTreeSet<RawId> {
         &self.boundary
+    }
+
+    /// Resolve the accepted Cartesian bounds for one Domain.
+    ///
+    /// This is the single metric projection of fixed and Parameter-backed
+    /// coordinate recipes. Callers must not interpret raw sources
+    /// independently.
+    ///
+    /// # Errors
+    /// Returns `EQ0302` when `domain` is absent or is not an accepted
+    /// Cartesian box.
+    pub fn resolved_cartesian_bounds(
+        &self,
+        domain: Id<kinds::Domain>,
+    ) -> Result<&[AxisBounds], Diagnostic> {
+        self.cartesian_bounds
+            .get(&domain.erase())
+            .map(Vec::as_slice)
+            .ok_or_else(|| {
+                kernel_error(
+                    domain.erase(),
+                    "selected Domain is not an accepted Cartesian box",
+                )
+            })
     }
 
     /// Reconstruct the exact typed residual owned by one accepted Relation.
@@ -390,6 +420,7 @@ fn require_no_clocks(
 fn validate_connections(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
+    cartesian_bounds: &BTreeMap<RawId, Vec<AxisBounds>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut memberships = BTreeMap::new();
@@ -440,9 +471,14 @@ fn validate_connections(
             let contracts = ports
                 .iter()
                 .filter_map(|port| {
-                    crate::boundary_physical::resolve_port_contract(*port, nodes, edges)
-                        .ok()
-                        .flatten()
+                    crate::boundary_physical::resolve_port_contract(
+                        *port,
+                        nodes,
+                        edges,
+                        cartesian_bounds,
+                    )
+                    .ok()
+                    .flatten()
                 })
                 .collect::<Vec<_>>();
             if contracts.len() != ports.len() {

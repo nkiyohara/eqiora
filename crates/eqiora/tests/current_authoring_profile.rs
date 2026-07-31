@@ -53,7 +53,7 @@ fn rust_authoring_and_control_select_the_registered_current_profile() {
     assert!(
         String::from_utf8(edit.transaction_json().unwrap())
             .unwrap()
-            .contains("eqiora.model-transaction-envelope/v7")
+            .contains("eqiora.model-transaction-envelope/v8")
     );
     assert_eq!(
         source
@@ -91,6 +91,7 @@ fn exact_replay_remains_explicit_and_unknown_or_mismatched_codecs_fail_closed() 
         ExactModelCodec::V5,
         ExactModelCodec::V6,
         ExactModelCodec::V7,
+        ExactModelCodec::V8,
     ];
     assert_eq!(
         codecs.map(ExactModelCodec::as_str).as_slice(),

@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
-    GeometryRevisionAssociationEnvelopeV1, ModelDecoderLimits, ModelEnvelopeV7,
-    ModelTransactionEnvelopeV7, SimplicialMeshEnvelopeV1,
+    GeometryRevisionAssociationEnvelopeV1, ModelDecoderLimits, ModelEnvelopeV8,
+    ModelTransactionEnvelopeV8, SimplicialMeshEnvelopeV1,
 };
 use eqiora::geometry::BodyAssociationCandidate;
 use eqiora::graph::{EdgeKind, Op, Precondition};
@@ -91,7 +91,7 @@ fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associ
         plan.expected_child_digest(),
         distinct.expected_child_digest()
     );
-    let ordinary_transaction = ModelTransactionEnvelopeV7::from_json(
+    let ordinary_transaction = ModelTransactionEnvelopeV8::from_json(
         &plan.transaction_json().unwrap(),
         ModelDecoderLimits::default(),
     )
@@ -408,7 +408,7 @@ fn geometry_identity_rejects_a_missing_boundary_of_mutant() {
     });
     assert_eq!(edges.len() + 1, original_edge_count);
 
-    let edge_only_mutant = ModelEnvelopeV7::from_json(
+    let edge_only_mutant = ModelEnvelopeV8::from_json(
         &serde_json::to_vec(&edge_only_wire).unwrap(),
         ModelDecoderLimits::default(),
     )
@@ -432,7 +432,7 @@ fn geometry_identity_rejects_a_missing_boundary_of_mutant() {
         .as_array_mut()
         .unwrap()
         .retain(|node| node["id"]["ulid"] != boundary.ulid().to_string());
-    let missing_role_mutant = ModelEnvelopeV7::from_json(
+    let missing_role_mutant = ModelEnvelopeV8::from_json(
         &serde_json::to_vec(&missing_role_wire).unwrap(),
         ModelDecoderLimits::default(),
     )
@@ -449,8 +449,8 @@ fn geometry_identity_rejects_a_missing_boundary_of_mutant() {
     );
 }
 
-fn model_artifact(document: &ModelDocument) -> ModelEnvelopeV7 {
-    ModelEnvelopeV7::from_json(
+fn model_artifact(document: &ModelDocument) -> ModelEnvelopeV8 {
+    ModelEnvelopeV8::from_json(
         &document.canonical_json().unwrap(),
         ModelDecoderLimits::default(),
     )
@@ -522,10 +522,10 @@ fn cartesian_bounds(document: &ModelDocument) -> Vec<(f64, f64)> {
     else {
         unreachable!();
     };
-    let DomainKind::CartesianBox { bounds } = body.kind() else {
-        unreachable!();
-    };
-    bounds
+    document
+        .program()
+        .resolved_cartesian_bounds(body.id())
+        .unwrap()
         .iter()
         .map(|axis| (axis.lower().value(), axis.upper().value()))
         .collect()

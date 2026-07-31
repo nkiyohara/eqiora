@@ -460,13 +460,15 @@ fn cartesian_boxes_2d(
     program
         .nodes()
         .filter_map(|node| match node {
-            KernelNode::Domain(domain) => match domain.kind() {
-                DomainKind::CartesianBox { bounds } => Some((domain.id().erase(), bounds)),
-                _ => None,
-            },
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::CartesianBox { .. }) =>
+            {
+                Some((domain.id().erase(), domain.id()))
+            }
             _ => None,
         })
-        .map(|(domain, bounds)| {
+        .map(|(domain, typed_domain)| {
+            let bounds = program.resolved_cartesian_bounds(typed_domain)?;
             if bounds.len() != 2 {
                 return Err(lowering_error(
                     domain,

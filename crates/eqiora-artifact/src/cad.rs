@@ -14,7 +14,7 @@ use eqiora_geometry::{
     CadBoxRealizationV1, CadKernelAdapter, CadRepairDispositionV1, ConstrainedRectangleV1,
     StepLengthUnitV1, StepSourceDigest,
 };
-use eqiora_schema::kernel::{DomainKind, KernelNode};
+use eqiora_schema::kernel::KernelNode;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
@@ -373,17 +373,15 @@ fn validate_model_target(
     design: &CadBoxDesignV1,
 ) -> Result<(), Diagnostic> {
     let replay = model.replay_model()?;
-    let Some(KernelNode::Domain(domain)) = replay.program().node(design.target_body().erase())
-    else {
+    let Some(KernelNode::Domain(_)) = replay.program().node(design.target_body().erase()) else {
         return Err(invalid_artifact(
             "CAD target does not name a retained Semantic Domain",
         ));
     };
-    let DomainKind::CartesianBox { bounds } = domain.kind() else {
-        return Err(invalid_artifact(
-            "CAD v1 target must be a Cartesian box Domain",
-        ));
-    };
+    let bounds = replay
+        .program()
+        .resolved_cartesian_bounds(design.target_body())
+        .map_err(|_| invalid_artifact("CAD v1 target must be a Cartesian box Domain"))?;
     if bounds.len() != 3 {
         return Err(invalid_artifact("CAD v1 target must be three-dimensional"));
     }

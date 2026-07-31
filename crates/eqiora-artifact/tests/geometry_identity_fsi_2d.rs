@@ -593,12 +593,14 @@ fn fixture(source: &str, right_upper: f64) -> Fixture {
     let mut bodies = program
         .nodes()
         .filter_map(|node| match node {
-            KernelNode::Domain(definition) => match definition.kind() {
-                DomainKind::CartesianBox { bounds } => {
-                    Some((bounds[0].lower().value(), definition.id()))
-                }
-                _ => None,
-            },
+            KernelNode::Domain(definition)
+                if matches!(definition.kind(), DomainKind::CartesianBox { .. }) =>
+            {
+                let bounds = program
+                    .resolved_cartesian_bounds(definition.id())
+                    .expect("accepted Cartesian bounds");
+                Some((bounds[0].lower().value(), definition.id()))
+            }
             _ => None,
         })
         .collect::<Vec<_>>();

@@ -6,9 +6,9 @@
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use eqiora_schema::kernel::{
-    ActivationDef, BoundaryPhysicalConnector, ConnectionDef, DomainDef, DomainKind, FieldDef,
-    GeometryDigest, KernelNode, ParameterDef, PortDef, PortPayload, RelationDef, RepresentationDef,
-    ValueFrame,
+    ActivationDef, AxisBounds, BoundaryPhysicalConnector, CartesianCoordinateSource, ConnectionDef,
+    DomainDef, DomainKind, FieldDef, GeometryDigest, KernelNode, ParameterDef, PortDef,
+    PortPayload, RelationDef, RepresentationDef, ValueFrame,
 };
 use serde::{Deserialize, Serialize};
 
@@ -40,6 +40,10 @@ impl WireNode {
 
     pub(crate) fn encode_v7(node: &KernelNode) -> Result<Self, Diagnostic> {
         Self::encode(node, WireVersion::V7)
+    }
+
+    pub(crate) fn encode_v8(node: &KernelNode) -> Result<Self, Diagnostic> {
+        Self::encode(node, WireVersion::V8)
     }
 
     pub(crate) fn encode_v6(node: &KernelNode) -> Result<Self, Diagnostic> {
@@ -262,6 +266,7 @@ impl WireNode {
     }
 
     pub(crate) fn ensure_v1(&self) -> Result<(), Diagnostic> {
+        self.reject_coordinate_sources_before_v8()?;
         match &self.definition {
             WireNodeDefinition::Domain {
                 domain: WireDomainKind::ScalarPhysical { .. },
@@ -284,6 +289,7 @@ impl WireNode {
     }
 
     pub(crate) fn ensure_v2(&self) -> Result<(), Diagnostic> {
+        self.reject_coordinate_sources_before_v8()?;
         match &self.definition {
             WireNodeDefinition::Domain {
                 domain: WireDomainKind::BoundaryPhysical { .. },
@@ -302,6 +308,7 @@ impl WireNode {
     }
 
     pub(crate) fn ensure_v3(&self) -> Result<(), Diagnostic> {
+        self.reject_coordinate_sources_before_v8()?;
         match &self.definition {
             WireNodeDefinition::Field { .. } => Err(invalid_artifact(
                 "model wire v3 requires the single shaped Field representation",
@@ -318,6 +325,7 @@ impl WireNode {
     }
 
     pub(crate) fn ensure_v4(&self) -> Result<(), Diagnostic> {
+        self.reject_coordinate_sources_before_v8()?;
         match &self.definition {
             WireNodeDefinition::Field { .. } => Err(invalid_artifact(
                 "model wire v4 requires the single shaped Field representation",
@@ -334,6 +342,7 @@ impl WireNode {
     }
 
     pub(crate) fn ensure_v5(&self) -> Result<(), Diagnostic> {
+        self.reject_coordinate_sources_before_v8()?;
         match &self.definition {
             WireNodeDefinition::Field { .. } => Err(invalid_artifact(
                 "model wire v5 requires the single shaped Field representation",
@@ -354,11 +363,41 @@ impl WireNode {
     }
 
     pub(crate) fn ensure_v6(&self) -> Result<(), Diagnostic> {
+        self.reject_coordinate_sources_before_v8()?;
         match &self.definition {
             WireNodeDefinition::Field { .. } => Err(invalid_artifact(
                 "model wire v6 requires the single shaped Field representation",
             )),
             _ => Ok(()),
+        }
+    }
+
+    pub(crate) fn ensure_v8(&self) -> Result<(), Diagnostic> {
+        match &self.definition {
+            WireNodeDefinition::Field { .. } => Err(invalid_artifact(
+                "model wire v8 requires the single shaped Field representation",
+            )),
+            WireNodeDefinition::Domain {
+                domain: WireDomainKind::CartesianBox { .. },
+            } => Err(invalid_artifact(
+                "model wire v8 requires Cartesian coordinate-source definitions",
+            )),
+            _ => Ok(()),
+        }
+    }
+
+    fn reject_coordinate_sources_before_v8(&self) -> Result<(), Diagnostic> {
+        if matches!(
+            &self.definition,
+            WireNodeDefinition::Domain {
+                domain: WireDomainKind::CartesianBoxSources { .. },
+            }
+        ) {
+            Err(invalid_artifact(
+                "Cartesian coordinate sources require model wire v8",
+            ))
+        } else {
+            Ok(())
         }
     }
 
@@ -384,6 +423,12 @@ impl WireNode {
             } => vec![connector, boundary],
             WireNodeDefinition::Relation { residuals } => residuals.semantic_references(),
             WireNodeDefinition::Activation { activation } => activation.semantic_references(),
+            WireNodeDefinition::Domain {
+                domain: WireDomainKind::CartesianBoxSources { coordinates },
+            } => coordinates
+                .iter()
+                .flat_map(WireCartesianAxisDefinition::semantic_references)
+                .collect(),
             _ => Vec::new(),
         }
     }
@@ -398,41 +443,52 @@ pub(crate) enum WireVersion {
     V5,
     V6,
     V7,
+    V8,
 }
 
 impl WireVersion {
     pub(crate) const fn supports_scalar_physical(self) -> bool {
         matches!(
             self,
-            Self::V2 | Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7
+            Self::V2 | Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7 | Self::V8
         )
     }
 
     pub(crate) const fn supports_boundary_physical(self) -> bool {
-        matches!(self, Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7)
+        matches!(
+            self,
+            Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7 | Self::V8
+        )
     }
 
     pub(crate) const fn supports_shaped_fields(self) -> bool {
-        matches!(self, Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7)
+        matches!(
+            self,
+            Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7 | Self::V8
+        )
     }
 
     /// Whether a Domain may name an authored geometry rather than describe a
     /// box. Only the newest generation may, because an older decoder shown a
     /// geometry reference would have to guess at a shape it cannot read.
     pub(crate) const fn supports_geometry_region(self) -> bool {
-        matches!(self, Self::V7)
+        matches!(self, Self::V7 | Self::V8)
+    }
+
+    pub(crate) const fn supports_coordinate_sources(self) -> bool {
+        matches!(self, Self::V8)
     }
 
     pub(crate) const fn supports_spatial_periodic(self) -> bool {
-        matches!(self, Self::V6 | Self::V7)
+        matches!(self, Self::V6 | Self::V7 | Self::V8)
     }
 
     pub(crate) const fn supports_tensor_operators(self) -> bool {
-        matches!(self, Self::V4 | Self::V5 | Self::V6 | Self::V7)
+        matches!(self, Self::V4 | Self::V5 | Self::V6 | Self::V7 | Self::V8)
     }
 
     pub(crate) const fn supports_pure_operators(self) -> bool {
-        matches!(self, Self::V5 | Self::V6 | Self::V7)
+        matches!(self, Self::V5 | Self::V6 | Self::V7 | Self::V8)
     }
 }
 
@@ -490,6 +546,9 @@ pub(crate) enum WireDomainKind {
     CartesianBox {
         bounds: Vec<WireAxisBounds>,
     },
+    CartesianBoxSources {
+        coordinates: Vec<WireCartesianAxisDefinition>,
+    },
     CartesianBoundary {
         axis: usize,
         side: WireBoundarySide,
@@ -518,8 +577,34 @@ impl WireDomainKind {
     pub(crate) fn encode(value: &DomainKind, version: WireVersion) -> Result<Self, Diagnostic> {
         Ok(match value {
             DomainKind::Abstract => Self::Abstract,
-            DomainKind::CartesianBox { bounds } => Self::CartesianBox {
-                bounds: bounds.iter().copied().map(WireAxisBounds::encode).collect(),
+            DomainKind::CartesianBox { coordinates } if version.supports_coordinate_sources() => {
+                Self::CartesianBoxSources {
+                    coordinates: coordinates
+                        .iter()
+                        .copied()
+                        .map(WireCartesianAxisDefinition::encode)
+                        .collect(),
+                }
+            }
+            DomainKind::CartesianBox { coordinates } => Self::CartesianBox {
+                bounds: coordinates
+                    .iter()
+                    .copied()
+                    .map(|coordinate| {
+                        let (
+                            CartesianCoordinateSource::Fixed(lower),
+                            CartesianCoordinateSource::Fixed(upper),
+                        ) = (coordinate.lower(), coordinate.upper())
+                        else {
+                            return Err(invalid_artifact(
+                                "Cartesian coordinate sources require model wire v8",
+                            ));
+                        };
+                        AxisBounds::new(lower, upper)
+                            .map(WireAxisBounds::encode)
+                            .map_err(|error| invalid_artifact(error.message()))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
             },
             DomainKind::CartesianBoundary { axis, side } => Self::CartesianBoundary {
                 axis: *axis,
@@ -569,6 +654,14 @@ impl WireDomainKind {
                 bounds
                     .iter()
                     .map(WireAxisBounds::decode)
+                    .collect::<Result<Vec<_>, _>>()?,
+            )
+            .map_err(|error| invalid_artifact(error.message())),
+            Self::CartesianBoxSources { coordinates } => DomainDef::cartesian_box_from_sources(
+                id,
+                coordinates
+                    .iter()
+                    .map(WireCartesianAxisDefinition::decode)
                     .collect::<Result<Vec<_>, _>>()?,
             )
             .map_err(|error| invalid_artifact(error.message())),

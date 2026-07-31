@@ -1,0 +1,40 @@
+id = "geometry.direct-parameter-cartesian-coordinates"
+status = "verified"
+scope = "one-root-length-parameter-two-endpoints-one-3d-cartesian-domain"
+reference_kind = "dual-independent-analytic-and-direct-coordinate-oracle"
+
+capabilities = [
+  "direct-parameter-cartesian-coordinate-source",
+  "single-owner-resolved-cartesian-bounds",
+  "exact-model-transaction-v8",
+  "structural-semantic-fingerprint-v3",
+]
+
+conformance_kits = ["direct-parameter-cartesian-coordinates-v1"]
+
+[falsifiers]
+non_cartesian_domain_parameter_dependency = "reject during whole-Model semantic admission"
+direct_value_edit_of_geometry_parameter = "reject before an incomplete geometry impact plan is exposed"
+direct_fixed_bound_edit_of_parameter_domain = "reject in favor of the regeneration owner"
+invalid_coordinate_name_kind_expression_or_interval = "reject with the coordinate-specific diagnostic"
+shared_parameter_across_domains = "reject during whole-Model semantic admission"
+
+[claim_boundary]
+root_parameter = true
+one_cartesian_domain = true
+dimensions = 3
+referenced_endpoints = 2
+exact_model_wire = "v8"
+exact_transaction_wire = "v8"
+immutable_second_revision_projection = true
+application_regeneration = false
+python = false
+studio = false
+cad_kernel = false
+mesh_regeneration = false
+multi_domain_parameter = false
+symbolic_coordinate_expression = false
+
+[evidence]
+package = "eqiora"
+test = "direct_parameter_cartesian_coordinates"

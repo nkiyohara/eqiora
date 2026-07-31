@@ -17,6 +17,7 @@ const TRANSACTION_SCHEMA_V4: &str = "eqiora.model-transaction-envelope/v4";
 const TRANSACTION_SCHEMA_V5: &str = "eqiora.model-transaction-envelope/v5";
 const TRANSACTION_SCHEMA_V6: &str = "eqiora.model-transaction-envelope/v6";
 const TRANSACTION_SCHEMA_V7: &str = "eqiora.model-transaction-envelope/v7";
+const TRANSACTION_SCHEMA_V8: &str = "eqiora.model-transaction-envelope/v8";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TransactionSchemaVersion {
@@ -26,6 +27,7 @@ enum TransactionSchemaVersion {
     V5,
     V6,
     V7,
+    V8,
 }
 
 impl TransactionSchemaVersion {
@@ -37,6 +39,7 @@ impl TransactionSchemaVersion {
             Self::V5 => TRANSACTION_SCHEMA_V5,
             Self::V6 => TRANSACTION_SCHEMA_V6,
             Self::V7 => TRANSACTION_SCHEMA_V7,
+            Self::V8 => TRANSACTION_SCHEMA_V8,
         }
     }
 
@@ -48,6 +51,7 @@ impl TransactionSchemaVersion {
             Self::V5 => "model transaction v5",
             Self::V6 => "model transaction v6",
             Self::V7 => "model transaction v7",
+            Self::V8 => "model transaction v8",
         }
     }
 
@@ -59,6 +63,7 @@ impl TransactionSchemaVersion {
             Self::V5 => "model transaction v5 envelope",
             Self::V6 => "model transaction v6 envelope",
             Self::V7 => "model transaction v7 envelope",
+            Self::V8 => "model transaction v8 envelope",
         }
     }
 }
@@ -100,6 +105,10 @@ impl ModelTransactionEnvelopeV2 {
         Self::from_transaction_version(transaction, TransactionSchemaVersion::V7)
     }
 
+    pub(crate) fn from_transaction_v8(transaction: &Transaction) -> Result<Self, Diagnostic> {
+        Self::from_transaction_version(transaction, TransactionSchemaVersion::V8)
+    }
+
     pub(crate) fn from_transaction_v6(transaction: &Transaction) -> Result<Self, Diagnostic> {
         Self::from_transaction_version(transaction, TransactionSchemaVersion::V6)
     }
@@ -118,6 +127,7 @@ impl ModelTransactionEnvelopeV2 {
                 TransactionSchemaVersion::V5 => WireModelOp::encode_v5(op),
                 TransactionSchemaVersion::V6 => WireModelOp::encode_v6(op),
                 TransactionSchemaVersion::V7 => WireModelOp::encode_v7(op),
+                TransactionSchemaVersion::V8 => WireModelOp::encode_v8(op),
             })
             .collect::<Result<Vec<_>, _>>()?;
         let preconditions = transaction
@@ -173,6 +183,13 @@ impl ModelTransactionEnvelopeV2 {
         limits: ModelDecoderLimits,
     ) -> Result<Self, Diagnostic> {
         Self::from_json_version(bytes, limits, TransactionSchemaVersion::V7)
+    }
+
+    pub(crate) fn from_json_v8(
+        bytes: &[u8],
+        limits: ModelDecoderLimits,
+    ) -> Result<Self, Diagnostic> {
+        Self::from_json_version(bytes, limits, TransactionSchemaVersion::V8)
     }
 
     pub(crate) fn from_json_v6(
@@ -234,6 +251,10 @@ impl ModelTransactionEnvelopeV2 {
         self.digest_version(TransactionSchemaVersion::V7)
     }
 
+    pub(crate) fn digest_v8(&self) -> Result<ArtifactDigest, Diagnostic> {
+        self.digest_version(TransactionSchemaVersion::V8)
+    }
+
     pub(crate) fn digest_v6(&self) -> Result<ArtifactDigest, Diagnostic> {
         self.digest_version(TransactionSchemaVersion::V6)
     }
@@ -273,6 +294,7 @@ impl ModelTransactionEnvelopeV2 {
             TRANSACTION_SCHEMA_V5 => TransactionSchemaVersion::V5,
             TRANSACTION_SCHEMA_V6 => TransactionSchemaVersion::V6,
             TRANSACTION_SCHEMA_V7 => TransactionSchemaVersion::V7,
+            TRANSACTION_SCHEMA_V8 => TransactionSchemaVersion::V8,
             _ => TransactionSchemaVersion::V2,
         }
     }
@@ -352,7 +374,9 @@ impl ModelTransactionEnvelopeV2 {
         )?;
         if matches!(
             version,
-            TransactionSchemaVersion::V5 | TransactionSchemaVersion::V6
+            TransactionSchemaVersion::V5
+                | TransactionSchemaVersion::V6
+                | TransactionSchemaVersion::V8
         ) {
             for op in &self.wire.ops {
                 op.validate_v5_features()?;
@@ -373,6 +397,7 @@ impl ModelTransactionEnvelopeV2 {
                 TransactionSchemaVersion::V5 => op.ensure_v5()?,
                 TransactionSchemaVersion::V6 => op.ensure_v6()?,
                 TransactionSchemaVersion::V7 => op.ensure_v7()?,
+                TransactionSchemaVersion::V8 => op.ensure_v8()?,
             }
             op.decode()?;
         }

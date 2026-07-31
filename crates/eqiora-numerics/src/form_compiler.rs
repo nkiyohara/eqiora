@@ -439,15 +439,15 @@ pub(crate) fn typed_relation(
 }
 
 fn cartesian_q1_dimension(program: &KernelProgram, domain: RawId) -> Option<usize> {
-    match program.node(domain) {
-        Some(KernelNode::Domain(definition)) => match definition.kind() {
-            DomainKind::CartesianBox { bounds } if (1..=3).contains(&bounds.len()) => {
-                Some(bounds.len())
-            }
-            _ => None,
-        },
-        _ => None,
+    let Some(KernelNode::Domain(definition)) = program.node(domain) else {
+        return None;
+    };
+    if !matches!(definition.kind(), DomainKind::CartesianBox { .. }) {
+        return None;
     }
+    let bounds = program.resolved_cartesian_bounds(definition.id()).ok()?;
+    let dimensions = bounds.len();
+    (1..=3).contains(&dimensions).then_some(dimensions)
 }
 
 fn boundary_inventory(

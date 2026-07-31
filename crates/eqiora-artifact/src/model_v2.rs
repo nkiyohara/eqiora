@@ -22,6 +22,7 @@ const MODEL_SCHEMA_V4: &str = "eqiora.model-envelope/v4";
 const MODEL_SCHEMA_V5: &str = "eqiora.model-envelope/v5";
 const MODEL_SCHEMA_V6: &str = "eqiora.model-envelope/v6";
 const MODEL_SCHEMA_V7: &str = "eqiora.model-envelope/v7";
+const MODEL_SCHEMA_V8: &str = "eqiora.model-envelope/v8";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ModelSchemaVersion {
@@ -31,6 +32,7 @@ enum ModelSchemaVersion {
     V5,
     V6,
     V7,
+    V8,
 }
 
 impl ModelSchemaVersion {
@@ -42,6 +44,7 @@ impl ModelSchemaVersion {
             Self::V5 => MODEL_SCHEMA_V5,
             Self::V6 => MODEL_SCHEMA_V6,
             Self::V7 => MODEL_SCHEMA_V7,
+            Self::V8 => MODEL_SCHEMA_V8,
         }
     }
 
@@ -53,6 +56,7 @@ impl ModelSchemaVersion {
             Self::V5 => "decode eqiora.model-envelope/v5",
             Self::V6 => "decode eqiora.model-envelope/v6",
             Self::V7 => "decode eqiora.model-envelope/v7",
+            Self::V8 => "decode eqiora.model-envelope/v8",
         }
     }
 
@@ -64,6 +68,7 @@ impl ModelSchemaVersion {
             Self::V5 => "model v5",
             Self::V6 => "model v6",
             Self::V7 => "model v7",
+            Self::V8 => "model v8",
         }
     }
 
@@ -75,6 +80,7 @@ impl ModelSchemaVersion {
             Self::V5 => "model v5 envelope",
             Self::V6 => "model v6 envelope",
             Self::V7 => "model v7 envelope",
+            Self::V8 => "model v8 envelope",
         }
     }
 }
@@ -111,6 +117,10 @@ impl ModelEnvelopeV2 {
         Self::from_program_version(program, ModelSchemaVersion::V7)
     }
 
+    pub(crate) fn from_program_v8(program: &KernelProgram) -> Result<Self, Diagnostic> {
+        Self::from_program_version(program, ModelSchemaVersion::V8)
+    }
+
     pub(crate) fn from_program_v6(program: &KernelProgram) -> Result<Self, Diagnostic> {
         Self::from_program_version(program, ModelSchemaVersion::V6)
     }
@@ -128,6 +138,7 @@ impl ModelEnvelopeV2 {
                 ModelSchemaVersion::V5 => WireNode::encode_v5(node),
                 ModelSchemaVersion::V6 => WireNode::encode_v6(node),
                 ModelSchemaVersion::V7 => WireNode::encode_v7(node),
+                ModelSchemaVersion::V8 => WireNode::encode_v8(node),
             })
             .collect::<Result<Vec<_>, _>>()?;
         let values = program
@@ -209,6 +220,13 @@ impl ModelEnvelopeV2 {
         Self::from_json_version(bytes, limits, ModelSchemaVersion::V7)
     }
 
+    pub(crate) fn from_json_v8(
+        bytes: &[u8],
+        limits: ModelDecoderLimits,
+    ) -> Result<Self, Diagnostic> {
+        Self::from_json_version(bytes, limits, ModelSchemaVersion::V8)
+    }
+
     pub(crate) fn from_json_v6(
         bytes: &[u8],
         limits: ModelDecoderLimits,
@@ -268,6 +286,10 @@ impl ModelEnvelopeV2 {
 
     pub(crate) fn digest_v7(&self) -> Result<ArtifactDigest, Diagnostic> {
         self.digest_version(ModelSchemaVersion::V7)
+    }
+
+    pub(crate) fn digest_v8(&self) -> Result<ArtifactDigest, Diagnostic> {
+        self.digest_version(ModelSchemaVersion::V8)
     }
 
     pub(crate) fn digest_v6(&self) -> Result<ArtifactDigest, Diagnostic> {
@@ -379,6 +401,7 @@ impl ModelEnvelopeV2 {
             MODEL_SCHEMA_V4 => ModelSchemaVersion::V4,
             MODEL_SCHEMA_V5 => ModelSchemaVersion::V5,
             MODEL_SCHEMA_V6 => ModelSchemaVersion::V6,
+            MODEL_SCHEMA_V8 => ModelSchemaVersion::V8,
             _ => ModelSchemaVersion::V2,
         }
     }
@@ -489,7 +512,10 @@ impl ModelEnvelopeV2 {
             version,
         )?;
 
-        if matches!(version, ModelSchemaVersion::V5 | ModelSchemaVersion::V6) {
+        if matches!(
+            version,
+            ModelSchemaVersion::V5 | ModelSchemaVersion::V6 | ModelSchemaVersion::V8
+        ) {
             for node in &self.wire.nodes {
                 node.validate_v5_features()?;
             }
@@ -507,6 +533,7 @@ impl ModelEnvelopeV2 {
                 ModelSchemaVersion::V5 => node.ensure_v5()?,
                 ModelSchemaVersion::V6 => node.ensure_v6()?,
                 ModelSchemaVersion::V7 => node.ensure_v7()?,
+                ModelSchemaVersion::V8 => node.ensure_v8()?,
             }
             node.decode()?;
         }
@@ -532,7 +559,7 @@ impl ModelEnvelopeV2 {
             require_reference(&ids, &edge.to, "edge target", version)?;
             let from = edge.from.decode_raw()?;
             let to = edge.to.decode_raw()?;
-            if !edge.kind.decode().permits(from.kind(), to.kind()) {
+            if !edge_permitted(version, edge.kind.decode(), from.kind(), to.kind()) {
                 return Err(invalid_artifact(format!(
                     "{} edge endpoints violate the closed graph edge schema",
                     version.model_label()
@@ -608,4 +635,17 @@ fn reject_duplicates(
     } else {
         Ok(())
     }
+}
+
+fn edge_permitted(
+    version: ModelSchemaVersion,
+    edge: eqiora_graph::EdgeKind,
+    from: EntityKind,
+    to: EntityKind,
+) -> bool {
+    edge.permits(from, to)
+        && (matches!(version, ModelSchemaVersion::V8)
+            || !(edge == eqiora_graph::EdgeKind::DependsOn
+                && from == EntityKind::Domain
+                && to == EntityKind::Parameter))
 }

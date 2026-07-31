@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DynQuantity, EntityKind, GraphPath, ValueShape};
+use eqiora_core::{Diagnostic, EntityKind, GraphPath, ValueShape};
 use eqiora_lang::{
     BoundaryConnectionDecl, BoundaryPairingSyntax, ComponentItem, ComponentPortDecl,
     ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorSyntax, DomainSyntax,
@@ -9,13 +9,13 @@ use eqiora_lang::{
 };
 use eqiora_schema::kernel::typing::SpatialSupport;
 use eqiora_schema::kernel::{
-    AxisBounds, BoundaryPairing, BoundaryPhysicalConnector, BoundaryPhysicalPortContract,
-    BoundarySide, CartesianBoundaryEmbedding, ValueFrame, validate_boundary_physical_connection,
+    BoundaryPairing, BoundaryPhysicalConnector, BoundaryPhysicalPortContract, BoundarySide,
+    CartesianBoundaryEmbedding, ValueFrame, validate_boundary_physical_connection,
 };
 
 use crate::connection_sets::ConnectionFragment;
 use crate::diagnostics::source_error;
-use crate::dimensions::{length_dimension, lower_dimension};
+use crate::dimensions::lower_dimension;
 use crate::identity::{
     DeclarationPath, ElaborationIdentityLimits, ElaborationKey, FullElaborationIdentity,
     GeneratedRole, IdentityNamespace, InstancePath, ModelViewKey,
@@ -36,6 +36,8 @@ use super::flat::{
     FlatItemBlueprint, PhysicalExposureContractIdentity, PhysicalExposureProjectionBlueprint,
     RelationIdentity, SourceLocation,
 };
+
+mod cartesian;
 use super::parameters::{
     ConstantValue, ParameterLineage, ParameterResolver, ResolvedParameter, normalize_zero,
 };
@@ -252,7 +254,7 @@ pub(super) struct RootExpansion<'a, 'd> {
     physical_connections: Vec<StagedPhysicalConnection>,
     spatial_periodic_ports: BTreeSet<FullElaborationIdentity>,
     physical_exposures: Vec<PhysicalExposureProjectionBlueprint>,
-    boundary_embeddings: BTreeMap<FullElaborationIdentity, CartesianBoundaryEmbedding>,
+    boundary_embeddings: BTreeMap<FullElaborationIdentity, Option<CartesianBoundaryEmbedding>>,
     boundary_parents: BTreeMap<FullElaborationIdentity, FullElaborationIdentity>,
     boundary_sides: BTreeMap<FullElaborationIdentity, (usize, BoundarySide)>,
     complete_exterior_memberships: CompleteExteriorMembershipBudget,
@@ -993,78 +995,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 }
             }
         }
-        for item in model.items() {
-            let Item::Domain(declaration) = item else {
-                continue;
-            };
-            let DomainSyntax::Boundary { parent, .. } = declaration.syntax() else {
-                continue;
-            };
-            let Some(SpatialSupport::Volume {
-                domain: parent_identity,
-                dimensions,
-            }) = scope.spatial_support(parent).cloned()
-            else {
-                return Err(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    self.model.file,
-                    declaration.range(),
-                    format!("boundary parent `{parent}` is not an exact spatial volume support"),
-                ));
-            };
-            scope.insert_spatial_support(
-                declaration.name().to_owned(),
-                SpatialSupport::Boundary {
-                    domain: identities.entities[declaration.name()].full,
-                    parent: parent_identity,
-                    dimensions,
-                },
-            );
-
-            let DomainSyntax::Boundary { axis, side, .. } = declaration.syntax() else {
-                unreachable!("boundary syntax was selected above");
-            };
-            let parent_declaration = model.items().iter().find_map(|item| match item {
-                Item::Domain(candidate) if candidate.name() == parent => Some(candidate),
-                _ => None,
-            });
-            let Some(parent_declaration) = parent_declaration else {
-                continue;
-            };
-            let DomainSyntax::CartesianBox(bounds) = parent_declaration.syntax() else {
-                continue;
-            };
-            let axes = bounds
-                .iter()
-                .map(|(lower, upper)| {
-                    AxisBounds::new(
-                        DynQuantity::new(*lower, length_dimension()),
-                        DynQuantity::new(*upper, length_dimension()),
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let side = match side {
-                eqiora_lang::BoundarySideSyntax::Lower => BoundarySide::Lower,
-                eqiora_lang::BoundarySideSyntax::Upper => BoundarySide::Upper,
-            };
-            let embedding =
-                CartesianBoundaryEmbedding::derive(&axes, *axis, side).ok_or_else(|| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        self.model.file,
-                        declaration.range(),
-                        "Cartesian boundary axis exceeds its exact parent dimension",
-                    )
-                })?;
-            self.boundary_embeddings
-                .insert(identities.entities[declaration.name()].full, embedding);
-            self.boundary_parents.insert(
-                identities.entities[declaration.name()].full,
-                parent_identity,
-            );
-            self.boundary_sides
-                .insert(identities.entities[declaration.name()].full, (*axis, side));
-        }
+        self.allocate_cartesian_boundaries(scope, &identities)?;
         for item in model.items() {
             let Item::Field(declaration) = item else {
                 continue;
@@ -2627,46 +2558,48 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     "conserving Connection cannot mix scalar and field-physical Ports",
                 ));
             }
-            let contracts = boundary_members
-                .iter()
-                .map(|(_, connector, boundary)| {
-                    let embedding =
-                        self.boundary_embeddings
-                            .get(boundary)
-                            .cloned()
-                            .ok_or_else(|| {
-                                source_error(
-                                    codes::LANGUAGE_TYPE_ERROR,
-                                    self.model.file,
-                                    self.model.range(),
-                                    "field-physical Port boundary has no exact Cartesian embedding",
-                                )
-                            })?;
-                    Ok(BoundaryPhysicalPortContract {
+            let mut contracts = Vec::with_capacity(boundary_members.len());
+            let mut metric_validation_deferred = false;
+            for (_, connector, boundary) in &boundary_members {
+                let embedding = self.boundary_embeddings.get(boundary).ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.model.file,
+                        self.model.range(),
+                        "field-physical Port boundary has no Cartesian embedding recipe",
+                    )
+                })?;
+                let parent = *self.boundary_parents.get(boundary).ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.model.file,
+                        self.model.range(),
+                        "field-physical Port boundary has no exact parent identity",
+                    )
+                })?;
+                if let Some(embedding) = embedding {
+                    contracts.push(BoundaryPhysicalPortContract {
                         connector: *connector,
                         boundary: *boundary,
-                        parent: *self.boundary_parents.get(boundary).ok_or_else(|| {
-                            source_error(
-                                codes::LANGUAGE_TYPE_ERROR,
-                                self.model.file,
-                                self.model.range(),
-                                "field-physical Port boundary has no exact parent identity",
-                            )
-                        })?,
-                        embedding,
-                    })
-                })
-                .collect::<Result<Vec<_>, Diagnostic>>()?;
-            validate_boundary_physical_connection(&contracts).map_err(|violation| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    self.model.file,
-                    self.model.range(),
-                    format!(
-                        "field-physical Connection is incompatible before topology normalization: {violation:?}"
-                    ),
-                )
-            })?;
+                        parent,
+                        embedding: embedding.clone(),
+                    });
+                } else {
+                    metric_validation_deferred = true;
+                }
+            }
+            if !metric_validation_deferred {
+                validate_boundary_physical_connection(&contracts).map_err(|violation| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.model.file,
+                        self.model.range(),
+                        format!(
+                            "field-physical Connection is incompatible before topology normalization: {violation:?}"
+                        ),
+                    )
+                })?;
+            }
         }
         let endpoints = self
             .physical_ports

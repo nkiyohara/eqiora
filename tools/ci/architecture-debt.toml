@@ -160,7 +160,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/hierarchy/expand.rs"
-ceiling = 2944
+ceiling = 2877
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -190,7 +190,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/lower.rs"
-ceiling = 3374
+ceiling = 3291
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -202,7 +202,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/source_identity.rs"
-ceiling = 2341
+ceiling = 2306
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -226,31 +226,31 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/ast.rs"
-ceiling = 1743
+ceiling = 1736
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/draft.rs"
-ceiling = 1772
+ceiling = 1761
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/factory.rs"
-ceiling = 2116
+ceiling = 2098
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/formatter.rs"
-ceiling = 1051
+ceiling = 1050
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-lang/src/parser.rs"
-ceiling = 2775
+ceiling = 2701
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -274,7 +274,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-numerics/src/canonical_elasticity.rs"
-ceiling = 1114
+ceiling = 1112
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -396,7 +396,7 @@ removal = "withdraw any bounded Result when no application client consumes its p
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 156
+ceiling = 158
 reason = """
 151 predate the predicate and are not yet triaged. One is deliberate: the
 geometry-definition envelope, its explicit decoder-budget type, and the two v7
@@ -405,12 +405,14 @@ validated content, canonical bytes and digest derivation live below this crate;
 the wrapper owns only artifact admission and ArtifactDigest projection. A wire
 generation costs exactly two names, its Model envelope and its transaction
 envelope, and cannot cost fewer: selection is explicit, so each generation is a
-distinct type a caller names. CircularHoleChordalRealizationEnvelopeV1 is one
-closed public owner for durable exact-source replay across process boundaries;
-keeping the wire, admission, and replay on that owner costs one name and avoids
-a generic approximate-geometry abstraction.
+distinct type a caller names. Model and transaction v8 therefore add exactly
+two names for direct Parameter-backed Cartesian coordinates while v1-v7 remain
+explicit and frozen. CircularHoleChordalRealizationEnvelopeV1 is one closed
+public owner for durable exact-source replay across process boundaries; keeping
+the wire, admission, and replay on that owner costs one name and avoids a
+generic approximate-geometry abstraction.
 """
-removal = "withdraw the circular-hole binding and lower by one if durable exact-source publication is removed; independently, fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
+removal = "withdraw the circular-hole binding and lower by one when common CAD/mesh publication replaces it; withdraw both v8 envelopes only when that exact compatibility generation leaves the support window; independently, fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
 
 [[public_surface]]
 crate = "eqiora-assembly"
@@ -518,7 +520,9 @@ ceiling = 48
 
 [[public_surface]]
 crate = "eqiora-lang"
-ceiling = 81
+ceiling = 82
+reason = "one closed Cartesian endpoint syntax type distinguishes fixed literals from root Parameter references while retaining the exact source range needed for typed diagnostics"
+removal = "withdraw it if direct coordinate references are removed, or replace it and lower the ceiling when one accepted general coordinate-expression syntax safely subsumes the closed endpoint grammar"
 
 [[public_surface]]
 crate = "eqiora-meshing"
@@ -548,14 +552,16 @@ ceiling = 8
 
 [[public_surface]]
 crate = "eqiora-schema"
-ceiling = 89
+ceiling = 91
 reason = """
 88 predate the predicate. One is deliberate: GeometryDigest, added as an
 architecture change so a Kernel Domain can name an authored geometry instead of
-describing a box. The Kernel gains a way to name a shape, not a way to describe
-one, which is why it is one type and not a geometry vocabulary.
+describing a box. Two closed coordinate recipe types distinguish an axis from
+its fixed or exact-Parameter endpoints without adding a geometry-expression
+language. The Kernel gains a way to name a shape and a bounded way to retain
+Cartesian coordinate meaning, not a generic geometry vocabulary.
 """
-removal = "withdraw if a Domain ever carries geometry structurally rather than by reference"
+removal = "withdraw GeometryDigest if a Domain ever carries geometry structurally rather than by reference; replace the two coordinate recipe types and lower by two only when an accepted general coordinate-expression owner safely subsumes their closed grammar"
 
 [[public_surface]]
 crate = "eqiora-sem"

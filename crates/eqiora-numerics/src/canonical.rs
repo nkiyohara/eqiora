@@ -1769,33 +1769,33 @@ where
 pub(crate) fn unique_cartesian_box(
     program: &KernelProgram,
 ) -> Result<(RawId, Vec<[f64; 2]>), Diagnostic> {
-    let boxes = program
+    let domains = program
         .nodes()
         .filter_map(|node| match node {
-            KernelNode::Domain(domain) => match domain.kind() {
-                DomainKind::CartesianBox { bounds } => Some((
-                    domain.id().erase(),
-                    bounds
-                        .iter()
-                        .map(|axis| [axis.lower().value(), axis.upper().value()])
-                        .collect(),
-                )),
-                _ => None,
-            },
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::CartesianBox { .. }) =>
+            {
+                Some(domain)
+            }
             _ => None,
         })
         .collect::<Vec<_>>();
-    if boxes.len() == 1 {
-        Ok(boxes.into_iter().next().expect("one Cartesian box exists"))
-    } else {
-        Err(model_lowering_error(
+    if domains.len() != 1 {
+        let count = domains.len();
+        return Err(model_lowering_error(
             program,
-            format!(
-                "scalar elliptic Cartesian lowering requires one box Domain, found {}",
-                boxes.len()
-            ),
-        ))
+            format!("scalar elliptic Cartesian lowering requires one box Domain, found {count}"),
+        ));
     }
+    let domain = domains[0];
+    let bounds = program.resolved_cartesian_bounds(domain.id())?;
+    Ok((
+        domain.id().erase(),
+        bounds
+            .iter()
+            .map(|axis| [axis.lower().value(), axis.upper().value()])
+            .collect(),
+    ))
 }
 
 fn invalid_realization(message: impl Into<String>) -> Diagnostic {

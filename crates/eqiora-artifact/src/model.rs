@@ -382,7 +382,11 @@ impl ModelEnvelopeV1 {
             require_reference(&ids, &edge.to, "edge target")?;
             let from = edge.from.decode_raw()?;
             let to = edge.to.decode_raw()?;
-            if !edge.kind.decode().permits(from.kind(), to.kind()) {
+            let edge_kind = edge.kind.decode();
+            let coordinate_dependency = edge_kind == eqiora_graph::EdgeKind::DependsOn
+                && from.kind() == eqiora_core::EntityKind::Domain
+                && to.kind() == eqiora_core::EntityKind::Parameter;
+            if coordinate_dependency || !edge_kind.permits(from.kind(), to.kind()) {
                 return Err(invalid_artifact(
                     "wire edge endpoints violate the closed graph edge schema",
                 ));

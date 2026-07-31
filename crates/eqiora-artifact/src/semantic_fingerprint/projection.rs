@@ -23,6 +23,7 @@ impl ProjectionGraph {
     pub(super) fn from_program(
         program: &KernelProgram,
         limits: SemanticFingerprintLimits,
+        generation: SemanticFingerprintGeneration,
     ) -> Result<Self, Diagnostic> {
         let node_count = program.nodes().len();
         if node_count == 0 || node_count > limits.max_nodes {
@@ -58,6 +59,7 @@ impl ProjectionGraph {
                 node,
                 program.value(node.id()),
                 program.boundary().contains(&node.id()),
+                generation,
                 &ids,
                 &mut references,
                 &mut budget,

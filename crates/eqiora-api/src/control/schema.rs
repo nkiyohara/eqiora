@@ -13,7 +13,7 @@ use crate::ExactModelCodec;
 pub const COMPILE_V1_SCHEMA_JSON: &str =
     include_str!("../../../../schemas/control/compile-v1.schema.json");
 
-const EXACT_MODEL_CODECS: [ExactModelCodec; 7] = [
+const EXACT_MODEL_CODECS: [ExactModelCodec; 8] = [
     ExactModelCodec::V1,
     ExactModelCodec::V2,
     ExactModelCodec::V3,
@@ -21,6 +21,7 @@ const EXACT_MODEL_CODECS: [ExactModelCodec; 7] = [
     ExactModelCodec::V5,
     ExactModelCodec::V6,
     ExactModelCodec::V7,
+    ExactModelCodec::V8,
 ];
 
 /// Generate the deterministic committed compile/check v1 JSON Schema.

@@ -1,0 +1,737 @@
+use eqiora::api::{ModelDocument, SemanticFingerprintGeneration, StructuralSemanticFingerprint};
+use eqiora::artifact::{
+    ModelDecoderLimits, ModelEnvelopeV1, ModelEnvelopeV7, ModelEnvelopeV8,
+    ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3,
+    ModelTransactionEnvelopeV4, ModelTransactionEnvelopeV5, ModelTransactionEnvelopeV6,
+    ModelTransactionEnvelopeV7, ModelTransactionEnvelopeV8,
+};
+use eqiora::compatibility::ExactModelCodec;
+use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Precondition, Transaction};
+use eqiora::kernel::{
+    AxisBounds, CartesianAxisDefinition, CartesianCoordinateSource, DomainDef, DomainKind,
+    KernelNode,
+};
+use eqiora::ontology::ModelView;
+use eqiora::sem::KernelProgram;
+use eqiora::{Diagnostic, DimExponents, DynQuantity, Id, diagnostic::codes, kinds};
+use serde::Deserialize;
+
+const SOURCE: &str = include_str!(
+    "../../../verify/geometry/direct-parameter-cartesian-coordinates/models/parameter-box.eqi"
+);
+const PERMUTED: &str = include_str!(
+    "../../../verify/geometry/direct-parameter-cartesian-coordinates/models/permuted.eqi"
+);
+const ORACLE: &[u8] = include_bytes!(
+    "../../../verify/geometry/direct-parameter-cartesian-coordinates/expected/oracle.json"
+);
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Oracle {
+    schema: String,
+    base: RevisionOracle,
+    second_revision: RevisionOracle,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RevisionOracle {
+    parameter_m: f64,
+    bounds_m: [[f64; 2]; 3],
+    extents_m: [f64; 3],
+    volume_m3: f64,
+}
+
+#[test]
+fn direct_sources_resolve_once_and_match_both_precommitted_revisions() {
+    let oracle: Oracle = serde_json::from_slice(ORACLE).unwrap();
+    assert_eq!(
+        oracle.schema,
+        "eqiora.verify.direct-parameter-cartesian-coordinates-oracle/v1"
+    );
+    let (mut store, base, body, parameter) = compile_program(SOURCE);
+
+    assert_recipe_and_dependency(&base, body, parameter);
+    assert_revision(&base, body, parameter, &oracle.base);
+    assert_eq!(
+        StructuralSemanticFingerprint::from_program(&base)
+            .unwrap()
+            .generation(),
+        SemanticFingerprintGeneration::V3
+    );
+
+    let before = base.value(parameter.erase()).unwrap();
+    let mut update = Transaction::new("independent second immutable revision");
+    update
+        .require(Precondition::RevisionIs(base.revision()))
+        .require(Precondition::ValueEquals {
+            target: parameter.erase(),
+            expected: before,
+        })
+        .push(Op::SetValue {
+            target: parameter.erase(),
+            value: DynQuantity::new(oracle.second_revision.parameter_m, length_dimension()),
+        });
+    store.commit(update).unwrap();
+    let second = KernelProgram::from_snapshot(&store.snapshot(), base.model()).unwrap();
+
+    assert_recipe_and_dependency(&second, body, parameter);
+    assert_revision(&second, body, parameter, &oracle.second_revision);
+    assert_eq!(
+        base.nodes().collect::<Vec<_>>(),
+        second.nodes().collect::<Vec<_>>()
+    );
+    assert_eq!(base.edges(), second.edges());
+}
+
+#[test]
+fn declaration_permutations_preserve_structure_without_relabelling_exact_occurrences() {
+    let (base_transaction, base_program) = compiled_parts(SOURCE);
+    let (permuted_transaction, permuted_program) = compiled_parts(PERMUTED);
+
+    let base_model = ModelEnvelopeV8::from_program(&base_program).unwrap();
+    let permuted_model = ModelEnvelopeV8::from_program(&permuted_program).unwrap();
+    assert_eq!(
+        StructuralSemanticFingerprint::from_program(&base_program).unwrap(),
+        StructuralSemanticFingerprint::from_program(&permuted_program).unwrap()
+    );
+    assert_ne!(
+        base_model.digest().unwrap(),
+        permuted_model.digest().unwrap()
+    );
+    let base_ids = base_program
+        .nodes()
+        .map(KernelNode::id)
+        .collect::<std::collections::BTreeSet<_>>();
+    let permuted_ids = permuted_program
+        .nodes()
+        .map(KernelNode::id)
+        .collect::<std::collections::BTreeSet<_>>();
+    assert!(base_ids.is_disjoint(&permuted_ids));
+
+    let base_edit = ModelTransactionEnvelopeV8::from_transaction(&base_transaction).unwrap();
+    let permuted_edit =
+        ModelTransactionEnvelopeV8::from_transaction(&permuted_transaction).unwrap();
+    assert_ne!(base_edit.digest().unwrap(), permuted_edit.digest().unwrap());
+
+    let model_bytes = base_model.canonical_json().unwrap();
+    let replayed = ModelEnvelopeV8::from_json(&model_bytes, ModelDecoderLimits::default()).unwrap();
+    assert_eq!(replayed.to_program().unwrap(), base_program);
+    let transaction_bytes = base_edit.canonical_json().unwrap();
+    let replayed =
+        ModelTransactionEnvelopeV8::from_json(&transaction_bytes, ModelDecoderLimits::default())
+            .unwrap();
+    let replayed = replayed.to_transaction().unwrap();
+    assert_eq!(replayed.label(), base_transaction.label());
+    assert_eq!(replayed.preconditions(), base_transaction.preconditions());
+    assert_eq!(replayed.ops(), base_transaction.ops());
+
+    assert!(ModelEnvelopeV7::from_program(&base_program).is_err());
+    assert!(ModelTransactionEnvelopeV7::from_transaction(&base_transaction).is_err());
+    assert!(ModelEnvelopeV7::from_json(&model_bytes, ModelDecoderLimits::default()).is_err());
+    assert!(
+        ModelTransactionEnvelopeV7::from_json(&transaction_bytes, ModelDecoderLimits::default())
+            .is_err()
+    );
+
+    let mut malformed: serde_json::Value = serde_json::from_slice(&model_bytes).unwrap();
+    assert!(replace_parameter_source_with_unknown(&mut malformed));
+    assert!(
+        ModelEnvelopeV8::from_json(
+            &serde_json::to_vec(&malformed).unwrap(),
+            ModelDecoderLimits::default()
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn old_codecs_reject_parameter_sources_while_fixed_v7_and_v8_remain_equivalent() {
+    for codec in [
+        ExactModelCodec::V1,
+        ExactModelCodec::V2,
+        ExactModelCodec::V3,
+        ExactModelCodec::V4,
+        ExactModelCodec::V5,
+        ExactModelCodec::V6,
+        ExactModelCodec::V7,
+    ] {
+        assert!(
+            codec.compile("parameter-box.eqi", SOURCE).is_err(),
+            "{} admitted a v8 coordinate source",
+            codec.as_str()
+        );
+    }
+
+    let fixed = SOURCE.replace("box(-1, extent, extent, 6", "box(-1, 2, 2, 6");
+    let v7 = ExactModelCodec::V7.compile("fixed-v7.eqi", &fixed).unwrap();
+    let v8 = ExactModelCodec::V8.compile("fixed-v8.eqi", &fixed).unwrap();
+    assert!(v7.structurally_equivalent(&v8).unwrap());
+    assert_eq!(
+        v7.program()
+            .resolved_cartesian_bounds(domain(&v7, "body"))
+            .unwrap(),
+        v8.program()
+            .resolved_cartesian_bounds(domain(&v8, "body"))
+            .unwrap()
+    );
+}
+
+#[test]
+fn closed_language_and_whole_model_invariants_fail_before_exposure() {
+    assert_compile_rejected_with(
+        "model m { domain body = box(0, missing); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }",
+        codes::LANGUAGE_TYPE_ERROR,
+        "unresolved Cartesian coordinate Parameter `missing`",
+    );
+    assert_compile_rejected_with(
+        "model m { parameter extent: s = 1; domain body = box(0, extent); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }",
+        codes::LANGUAGE_TYPE_ERROR,
+        "Cartesian coordinate Parameter `extent` is not a length",
+    );
+    assert_compile_rejected_with(
+        "model m { parameter extent: m = 1; domain body = box(0, extent + 1); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }",
+        codes::SYNTAX_ERROR,
+        "after Cartesian bounds",
+    );
+    assert_compile_rejected_with(
+        "model m { parameter extent: m = 7; domain body = box(-1, extent, extent, 6); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }",
+        codes::INVALID_KERNEL_DEFINITION,
+        "resolves to non-finite, equal, or reversed bounds",
+    );
+    assert_compile_rejected_with(
+        "model m { parameter extent: m = 1; domain a = box(0, extent); domain b = box(0, extent); relation r continuous on a { coordinate(0) - coordinate(0) = 0; } }",
+        codes::INVALID_KERNEL_DEFINITION,
+        "is already owned by Domain",
+    );
+
+    let (transaction, model, symbols) = compiled(SOURCE);
+    let body = symbols.get("body").unwrap();
+    let parameter = symbols.get("extent").unwrap();
+    let mut missing_dependency = Transaction::new(transaction.label());
+    for op in transaction.ops() {
+        if !matches!(
+            op,
+            Op::Connect {
+                from,
+                to,
+                edge: EdgeKind::DependsOn,
+            } if *from == body && *to == parameter
+        ) {
+            missing_dependency.push(op.clone());
+        }
+    }
+    let mut store = InMemoryGraphStore::new();
+    store.commit(missing_dependency).unwrap();
+    assert!(KernelProgram::from_snapshot(&store.snapshot(), model).is_err());
+
+    let invalid_axis = CartesianAxisDefinition::new(
+        CartesianCoordinateSource::Fixed(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)),
+        CartesianCoordinateSource::fixed(DynQuantity::new(1.0, length_dimension())).unwrap(),
+    );
+    assert!(DomainDef::cartesian_box_from_sources(Id::new(), vec![invalid_axis]).is_err());
+}
+
+#[test]
+fn every_historical_wire_rejects_a_domain_parameter_dependency_edge() {
+    let fixed = SOURCE.replace("box(-1, extent, extent, 6", "box(-1, 2, 2, 6");
+    for codec in [
+        ExactModelCodec::V1,
+        ExactModelCodec::V2,
+        ExactModelCodec::V3,
+        ExactModelCodec::V4,
+        ExactModelCodec::V5,
+        ExactModelCodec::V6,
+        ExactModelCodec::V7,
+    ] {
+        let document = codec.compile("fixed-with-parameter.eqi", &fixed).unwrap();
+        let body = domain(&document, "body");
+        let parameter: Id<kinds::Parameter> = document.aliases()["extent"].downcast().unwrap();
+        let mut wire: serde_json::Value =
+            serde_json::from_slice(&document.canonical_json().unwrap()).unwrap();
+        wire["edges"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({
+                "from": {"kind": "domain", "ulid": body.ulid().to_string()},
+                "to": {"kind": "parameter", "ulid": parameter.ulid().to_string()},
+                "kind": "depends-on"
+            }));
+        let bytes = serde_json::to_vec(&wire).unwrap();
+        assert!(
+            codec.replay(&bytes).is_err(),
+            "{} admitted Domain DependsOn Parameter",
+            codec.as_str()
+        );
+        if matches!(codec, ExactModelCodec::V1) {
+            assert!(ModelEnvelopeV1::from_json(&bytes, ModelDecoderLimits::default()).is_err());
+        }
+    }
+
+    let (transaction, _, symbols) = compiled(SOURCE);
+    let body: Id<kinds::Domain> = symbols.get("body").unwrap().downcast().unwrap();
+    let mut fixed_dependency = Transaction::new(transaction.label());
+    for op in transaction.ops() {
+        match op {
+            Op::DefineKernelNode { node } if node.id() == body.erase() => {
+                fixed_dependency.push(Op::DefineKernelNode {
+                    node: DomainDef::cartesian_box(
+                        body,
+                        vec![
+                            axis_bounds(-1.0, 2.0),
+                            axis_bounds(2.0, 6.0),
+                            axis_bounds(0.5, 5.5),
+                        ],
+                    )
+                    .unwrap()
+                    .into(),
+                });
+            }
+            _ => {
+                fixed_dependency.push(op.clone());
+            }
+        }
+    }
+    assert!(ModelTransactionEnvelopeV1::from_transaction(&fixed_dependency).is_err());
+    assert!(ModelTransactionEnvelopeV2::from_transaction(&fixed_dependency).is_err());
+    assert!(ModelTransactionEnvelopeV3::from_transaction(&fixed_dependency).is_err());
+    assert!(ModelTransactionEnvelopeV4::from_transaction(&fixed_dependency).is_err());
+    assert!(ModelTransactionEnvelopeV5::from_transaction(&fixed_dependency).is_err());
+    assert!(ModelTransactionEnvelopeV6::from_transaction(&fixed_dependency).is_err());
+    assert!(ModelTransactionEnvelopeV7::from_transaction(&fixed_dependency).is_err());
+}
+
+#[test]
+fn an_extra_dependency_to_an_unreferenced_in_model_parameter_fails_whole_model_validation() {
+    let source = SOURCE.replace(
+        "parameter extent: m = 2;",
+        "parameter extent: m = 2;\n  parameter spare: m = 3;",
+    );
+    let (transaction, model, symbols) = compiled(&source);
+    let body = symbols.get("body").unwrap();
+    let spare = symbols.get("spare").unwrap();
+
+    let mut accepted = InMemoryGraphStore::new();
+    accepted.commit(clone_transaction(&transaction)).unwrap();
+    KernelProgram::from_snapshot(&accepted.snapshot(), model)
+        .expect("an in-Model Parameter that no coordinate references is valid on its own");
+
+    let mut extra = clone_transaction(&transaction);
+    extra.push(Op::Connect {
+        from: body,
+        to: spare,
+        edge: EdgeKind::DependsOn,
+    });
+    let mut store = InMemoryGraphStore::new();
+    store.commit(extra).unwrap();
+    assert!(KernelProgram::from_snapshot(&store.snapshot(), model).is_err());
+}
+
+#[test]
+fn a_non_cartesian_domain_cannot_carry_a_parameter_dependency() {
+    let (transaction, model, symbols) = compiled(SOURCE);
+    let parameter = symbols.get("extent").unwrap();
+    let abstract_domain = Id::<kinds::Domain>::new();
+    let mut mutated = Transaction::new(transaction.label());
+    for precondition in transaction.preconditions() {
+        mutated.require(precondition.clone());
+    }
+    for op in transaction.ops() {
+        match op {
+            Op::DefineOntologyView { view } => {
+                mutated.push(Op::DefineKernelNode {
+                    node: DomainDef::new(abstract_domain).into(),
+                });
+                let members = view
+                    .members()
+                    .iter()
+                    .copied()
+                    .chain([abstract_domain.erase()]);
+                mutated.push(Op::DefineOntologyView {
+                    view: ModelView::new(model, members, view.boundary().iter().copied())
+                        .unwrap()
+                        .into(),
+                });
+            }
+            _ => {
+                mutated.push(op.clone());
+            }
+        }
+    }
+    mutated.push(Op::Connect {
+        from: abstract_domain.erase(),
+        to: parameter,
+        edge: EdgeKind::DependsOn,
+    });
+
+    let mut store = InMemoryGraphStore::new();
+    store.commit(mutated).unwrap();
+    let diagnostics = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap_err();
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.code() == codes::INVALID_KERNEL_DEFINITION
+            && diagnostic
+                .message()
+                .contains("non-Cartesian Domain must not depend on Parameters")
+    }));
+}
+
+#[test]
+fn incomplete_edit_paths_reject_a_geometry_driving_parameter() {
+    let document = ModelDocument::compile("parameter-box.eqi", SOURCE).unwrap();
+    let parameter = document.aliases()["extent"];
+    let value_error = document.preview_value_edit(parameter, 3.5).unwrap_err();
+    assert_eq!(value_error.code(), codes::INVALID_OPERATION);
+    assert_eq!(
+        value_error.message(),
+        "value edit cannot target a Cartesian coordinate Parameter; use the geometry regeneration owner"
+    );
+
+    let body = domain(&document, "body");
+    let edit_errors = document
+        .preview_cartesian_domain_edit(body, [(0, axis_bounds(-2.0, 3.5))])
+        .unwrap_err();
+    assert!(edit_errors.iter().any(|diagnostic| {
+        diagnostic.code() == codes::INVALID_OPERATION
+            && diagnostic.message()
+                == "direct Cartesian Domain edit does not admit a Parameter-backed coordinate"
+    }));
+}
+
+#[test]
+fn absent_parameter_definition_and_non_finite_value_fail_whole_model_resolution() {
+    let (mut store, base, _, parameter) = compile_program(SOURCE);
+    let mut non_finite = Transaction::new("non-finite revision-local length");
+    non_finite
+        .require(Precondition::RevisionIs(base.revision()))
+        .push(Op::SetValue {
+            target: parameter.erase(),
+            value: DynQuantity::new(f64::NAN, length_dimension()),
+        });
+    store.commit(non_finite).unwrap();
+    assert!(KernelProgram::from_snapshot(&store.snapshot(), base.model()).is_err());
+
+    // A defined Parameter always seeds its revision-local value and no public
+    // operation clears it. The constructible absence is therefore a coordinate
+    // reference to a Parameter outside the selected Model.
+    let (transaction, model, symbols) = compiled(SOURCE);
+    let outside = symbols.get("extent").unwrap();
+    let mut narrowed = Transaction::new(transaction.label());
+    for precondition in transaction.preconditions() {
+        narrowed.require(precondition.clone());
+    }
+    for op in transaction.ops() {
+        let retained = match op {
+            Op::DefineOntologyView { view } => Op::DefineOntologyView {
+                view: ModelView::new(
+                    model,
+                    view.members()
+                        .iter()
+                        .copied()
+                        .filter(|member| *member != outside),
+                    view.boundary().iter().copied(),
+                )
+                .unwrap()
+                .into(),
+            },
+            _ => op.clone(),
+        };
+        narrowed.push(retained);
+    }
+    let mut store = InMemoryGraphStore::new();
+    store.commit(narrowed).unwrap();
+    assert!(KernelProgram::from_snapshot(&store.snapshot(), model).is_err());
+}
+
+#[test]
+fn v8_decoding_rejects_wrong_kind_and_foreign_coordinate_parameter_ids() {
+    let (_, base, body, _) = compile_program(SOURCE);
+    let wire = v8_wire(&base);
+    decode_v8(&wire).expect("the unmutated v8 model decodes");
+
+    let mut wrong_kind = wire.clone();
+    assert_eq!(
+        retarget_coordinate_parameters(&mut wrong_kind, &wire_id("domain", body.ulid())),
+        2
+    );
+    assert!(decode_v8(&wrong_kind).is_err());
+
+    let mut foreign = wire.clone();
+    assert_eq!(
+        retarget_coordinate_parameters(
+            &mut foreign,
+            &wire_id("parameter", Id::<kinds::Parameter>::new().ulid())
+        ),
+        2
+    );
+    assert!(decode_v8(&foreign).is_err());
+}
+
+#[test]
+fn v8_decoding_rejects_duplicate_and_forged_dependency_edges() {
+    let (_, base, body, parameter) = compile_program(SOURCE);
+    let wire = v8_wire(&base);
+    let edge = dependency_edge_index(&wire, body, parameter);
+
+    let mut duplicated = wire.clone();
+    let repeated = duplicated["edges"][edge].clone();
+    duplicated["edges"].as_array_mut().unwrap().push(repeated);
+    assert!(decode_v8(&duplicated).is_err());
+
+    // The recipe still names the real Parameter; only the persisted
+    // dependency claims an identity the Model does not contain.
+    let mut forged = wire.clone();
+    forged["edges"][edge]["to"] = wire_id("parameter", Id::<kinds::Parameter>::new().ulid());
+    assert!(decode_v8(&forged).is_err());
+
+    let mut wrong_kind = wire.clone();
+    wrong_kind["edges"][edge]["to"] = node_id(&wire, "relation");
+    assert!(decode_v8(&wrong_kind).is_err());
+}
+
+#[test]
+fn v8_decoding_rejects_a_parameter_definition_that_omits_its_mandatory_value() {
+    let (_, base, _, _) = compile_program(SOURCE);
+    let wire = v8_wire(&base);
+    decode_v8(&wire).expect("the unmutated v8 model decodes");
+
+    let mut omitted = wire.clone();
+    assert!(remove_parameter_definition_value(&mut omitted));
+    assert!(decode_v8(&omitted).is_err());
+}
+
+fn compile_program(
+    source: &str,
+) -> (
+    InMemoryGraphStore,
+    KernelProgram,
+    Id<kinds::Domain>,
+    Id<kinds::Parameter>,
+) {
+    let (transaction, model, symbols) = compiled(source);
+    let body = symbols.get("body").unwrap().downcast().unwrap();
+    let parameter = symbols.get("extent").unwrap().downcast().unwrap();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    (store, program, body, parameter)
+}
+
+fn compiled_parts(source: &str) -> (Transaction, KernelProgram) {
+    let (transaction, model, _) = compiled(source);
+    let retained = clone_transaction(&transaction);
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    (retained, program)
+}
+
+fn compiled(
+    source: &str,
+) -> (
+    Transaction,
+    eqiora::ontology::OntologyId<eqiora::ontology::Model>,
+    eqiora::compiler::ModelSymbols,
+) {
+    let mut models = eqiora::compiler::compile("parameter-box.eqi", source).unwrap();
+    models.remove(0).into_parts()
+}
+
+fn clone_transaction(transaction: &Transaction) -> Transaction {
+    let mut retained = Transaction::new(transaction.label());
+    for precondition in transaction.preconditions() {
+        retained.require(precondition.clone());
+    }
+    for op in transaction.ops() {
+        retained.push(op.clone());
+    }
+    retained
+}
+
+fn assert_compile_rejected_with(source: &str, code: eqiora::Code, message_fragment: &str) {
+    let diagnostics = ModelDocument::compile("rejected.eqi", source).unwrap_err();
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.code() == code && diagnostic.message().contains(message_fragment)
+        }),
+        "expected {code} containing {message_fragment:?}, got {diagnostics:#?}"
+    );
+}
+
+fn assert_recipe_and_dependency(
+    program: &KernelProgram,
+    body: Id<kinds::Domain>,
+    parameter: Id<kinds::Parameter>,
+) {
+    let Some(KernelNode::Domain(domain)) = program.node(body.erase()) else {
+        panic!("body must be a Domain");
+    };
+    let DomainKind::CartesianBox { coordinates } = domain.kind() else {
+        panic!("body must be Cartesian");
+    };
+    assert!(matches!(
+        coordinates[0].upper(),
+        CartesianCoordinateSource::Parameter(target) if target == parameter
+    ));
+    assert!(matches!(
+        coordinates[1].lower(),
+        CartesianCoordinateSource::Parameter(target) if target == parameter
+    ));
+    assert_eq!(
+        program
+            .edges()
+            .iter()
+            .filter(|edge| {
+                edge.from() == body.erase()
+                    && edge.to() == parameter.erase()
+                    && edge.kind() == EdgeKind::DependsOn
+            })
+            .count(),
+        1
+    );
+}
+
+fn assert_revision(
+    program: &KernelProgram,
+    body: Id<kinds::Domain>,
+    parameter: Id<kinds::Parameter>,
+    oracle: &RevisionOracle,
+) {
+    assert_eq!(
+        program.value(parameter.erase()).unwrap().value(),
+        oracle.parameter_m
+    );
+    let bounds = program.resolved_cartesian_bounds(body).unwrap();
+    let actual_bounds: [[f64; 2]; 3] = bounds
+        .iter()
+        .map(|axis| [axis.lower().value(), axis.upper().value()])
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+    assert_eq!(actual_bounds, oracle.bounds_m);
+    let extents = actual_bounds.map(|axis| axis[1] - axis[0]);
+    assert_eq!(extents, oracle.extents_m);
+    assert_eq!(extents.into_iter().product::<f64>(), oracle.volume_m3);
+}
+
+fn domain(document: &ModelDocument, name: &str) -> Id<kinds::Domain> {
+    document.aliases()[name].downcast().unwrap()
+}
+
+fn length_dimension() -> DimExponents {
+    DimExponents {
+        length: 1,
+        ..DimExponents::DIMENSIONLESS
+    }
+}
+
+fn axis_bounds(lower: f64, upper: f64) -> AxisBounds {
+    AxisBounds::new(
+        DynQuantity::new(lower, length_dimension()),
+        DynQuantity::new(upper, length_dimension()),
+    )
+    .unwrap()
+}
+
+fn v8_wire(program: &KernelProgram) -> serde_json::Value {
+    let bytes = ModelEnvelopeV8::from_program(program)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+fn decode_v8(wire: &serde_json::Value) -> Result<ModelEnvelopeV8, Diagnostic> {
+    ModelEnvelopeV8::from_json(
+        &serde_json::to_vec(wire).unwrap(),
+        ModelDecoderLimits::default(),
+    )
+}
+
+fn wire_id(kind: &str, ulid: impl std::fmt::Display) -> serde_json::Value {
+    serde_json::json!({"kind": kind, "ulid": ulid.to_string()})
+}
+
+fn node_id(wire: &serde_json::Value, kind: &str) -> serde_json::Value {
+    wire["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|node| node["id"].clone())
+        .find(|id| id["kind"] == kind)
+        .unwrap_or_else(|| panic!("the proving Model defines one {kind} node"))
+}
+
+fn dependency_edge_index(
+    wire: &serde_json::Value,
+    body: Id<kinds::Domain>,
+    parameter: Id<kinds::Parameter>,
+) -> usize {
+    wire["edges"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|edge| {
+            edge["kind"] == "depends-on"
+                && edge["from"] == wire_id("domain", body.ulid())
+                && edge["to"] == wire_id("parameter", parameter.ulid())
+        })
+        .expect("v8 persists one Domain DependsOn Parameter edge")
+}
+
+fn remove_parameter_definition_value(wire: &mut serde_json::Value) -> bool {
+    wire["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|node| node["id"]["kind"] == "parameter")
+        .expect("the proving Model defines one Parameter node")["definition"]
+        .as_object_mut()
+        .unwrap()
+        .remove("value")
+        .is_some()
+}
+
+fn retarget_coordinate_parameters(
+    value: &mut serde_json::Value,
+    replacement: &serde_json::Value,
+) -> usize {
+    match value {
+        serde_json::Value::Object(object) => {
+            if object.get("source").and_then(serde_json::Value::as_str) == Some("parameter") {
+                object.insert("parameter".to_owned(), replacement.clone());
+                return 1;
+            }
+            object
+                .values_mut()
+                .map(|value| retarget_coordinate_parameters(value, replacement))
+                .sum()
+        }
+        serde_json::Value::Array(values) => values
+            .iter_mut()
+            .map(|value| retarget_coordinate_parameters(value, replacement))
+            .sum(),
+        _ => 0,
+    }
+}
+
+fn replace_parameter_source_with_unknown(value: &mut serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Object(object) => {
+            if object.get("source").and_then(serde_json::Value::as_str) == Some("parameter") {
+                object.insert(
+                    "source".to_owned(),
+                    serde_json::Value::String("future-coordinate".to_owned()),
+                );
+                return true;
+            }
+            object
+                .values_mut()
+                .any(replace_parameter_source_with_unknown)
+        }
+        serde_json::Value::Array(values) => {
+            values.iter_mut().any(replace_parameter_source_with_unknown)
+        }
+        _ => false,
+    }
+}

@@ -711,7 +711,7 @@ identity-parametric Semantic Kernel typing used for source models.
 The native path uses a client-neutral immutable `ModelDraft`; it neither
 manufactures source text nor assigns graph IDs before draft closure. Ordinary
 Python `compile` and `Model.define` select the same current profile as Rust and
-Studio without a codec argument. Exact v1--v7 compile, define, and replay live
+Studio without a codec argument. Exact v1--v8 compile, define, and replay live
 under `eqiora.compatibility`; those operations require a codec and never sniff
 or retry. Both paths cross the selected bounded transaction envelope, commit
 atomically, and reconstruct the matching immutable model envelope. The data
@@ -1145,7 +1145,7 @@ Concrete Truck objects, STEP parsing, and B-rep/modeling execution remain in
 `eqiora-cad-truck`; no concrete CAD kernel is part of the L2 boundary.
 
 Geometry consumes RFC 0037's sealed replayable Model contract rather than a
-concrete latest wire. Explicit Model v1--v7 codecs produce exact artifact
+concrete latest wire. Explicit Model v1--v8 codecs produce exact artifact
 identity and a validated immutable Kernel Program together; an identity-only
 reference cannot stand in for content. Thus a future Model codec extends one
 owned replay boundary without changing geometry consumers, while equal meaning

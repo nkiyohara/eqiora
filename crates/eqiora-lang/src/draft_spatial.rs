@@ -1,9 +1,25 @@
 //! Draft-local spatial identities for client-neutral native construction.
 
-use crate::ast::BoundarySideSyntax;
+use crate::ast::{BoundarySideSyntax, DomainSyntax, TextRange};
+use crate::cartesian::CartesianCoordinateSyntax;
 use crate::draft::DraftSymbol;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+
+fn fixed_cartesian_syntax(bounds: &[(f64, f64)]) -> DomainSyntax {
+    let range = TextRange::new(0, 0);
+    DomainSyntax::CartesianBox(
+        bounds
+            .iter()
+            .map(|&(lower, upper)| {
+                (
+                    CartesianCoordinateSyntax::fixed(lower, range),
+                    CartesianCoordinateSyntax::fixed(upper, range),
+                )
+            })
+            .collect(),
+    )
+}
 
 /// Lower or upper oriented side of a Cartesian Domain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -53,6 +69,17 @@ pub(crate) enum DraftSpatialDomainKind {
 }
 
 impl DraftSpatialDomain {
+    pub(crate) fn syntax(&self) -> DomainSyntax {
+        match self.kind() {
+            DraftSpatialDomainKind::CartesianBox { bounds } => fixed_cartesian_syntax(bounds),
+            DraftSpatialDomainKind::Boundary { parent, axis, side } => DomainSyntax::Boundary {
+                parent: parent.name().to_owned(),
+                axis: *axis,
+                side: (*side).into(),
+            },
+        }
+    }
+
     /// Declare one Cartesian box with one lower/upper pair per axis.
     ///
     /// Geometric validity is checked by the shared compiler lowerer, exactly

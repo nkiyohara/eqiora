@@ -377,18 +377,7 @@ impl ModelDraft {
             let item = match declaration {
                 DraftDeclaration::SpatialDomain(domain) => Item::Domain(DomainDecl {
                     name: domain.name().to_owned(),
-                    syntax: match domain.kind() {
-                        DraftSpatialDomainKind::CartesianBox { bounds } => {
-                            DomainSyntax::CartesianBox(bounds.clone())
-                        }
-                        DraftSpatialDomainKind::Boundary { parent, axis, side } => {
-                            DomainSyntax::Boundary {
-                                parent: parent.name().to_owned(),
-                                axis: *axis,
-                                side: (*side).into(),
-                            }
-                        }
-                    },
+                    syntax: domain.syntax(),
                     range,
                 }),
                 DraftDeclaration::PhysicalDomain(domain) => Item::Domain(DomainDecl {

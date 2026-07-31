@@ -10,7 +10,8 @@ use eqiora_schema::Model;
 
 use super::geometry_admission::{admit_entity_sets, index_closed_bundle};
 use super::spatial_domains::{
-    cartesian_spatial_supports, validate_domains, validate_fields, validate_geometry_support_uses,
+    cartesian_spatial_supports, resolve_cartesian_bounds, validate_domains, validate_fields,
+    validate_geometry_support_uses,
 };
 use super::{
     KernelProgram, kernel_error, kernel_path, model_path, validate_activations,
@@ -108,8 +109,9 @@ impl KernelProgram {
             .collect::<Vec<_>>();
 
         validate_closed_topology(snapshot, view.members(), &mut diagnostics);
-        let invalid_domains = validate_domains(&nodes, &edges, &mut diagnostics);
-        let mut spatial_supports = cartesian_spatial_supports(&nodes, &edges);
+        let cartesian_bounds = resolve_cartesian_bounds(&nodes, &values, &edges, &mut diagnostics);
+        let invalid_domains = validate_domains(&nodes, &edges, &cartesian_bounds, &mut diagnostics);
+        let mut spatial_supports = cartesian_spatial_supports(&nodes, &edges, &cartesian_bounds);
         let artifacts_admitted = geometry.is_some();
         if let Some(geometry) = geometry {
             let artifacts = match index_closed_bundle(&nodes, geometry) {
@@ -127,8 +129,13 @@ impl KernelProgram {
         validate_fields(&nodes, &edges, &spatial_supports, &mut diagnostics);
         validate_relations(&nodes, &edges, &spatial_supports, &mut diagnostics);
         validate_activations(&nodes, &edges, &spatial_supports, &mut diagnostics);
-        validate_connections(&nodes, &edges, &mut diagnostics);
-        crate::boundary_physical::validate_networks(&nodes, &edges, &mut diagnostics);
+        validate_connections(&nodes, &edges, &cartesian_bounds, &mut diagnostics);
+        crate::boundary_physical::validate_networks(
+            &nodes,
+            &edges,
+            &cartesian_bounds,
+            &mut diagnostics,
+        );
         validate_scalar_physical_networks(&nodes, &edges, view.boundary(), &mut diagnostics);
 
         if diagnostics.is_empty() {
@@ -140,6 +147,7 @@ impl KernelProgram {
                 edges,
                 boundary: view.boundary().clone(),
                 spatial_supports,
+                cartesian_bounds,
             })
         } else {
             Err(diagnostics)

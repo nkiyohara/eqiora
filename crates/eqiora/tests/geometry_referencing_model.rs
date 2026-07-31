@@ -131,7 +131,7 @@ fn geometry_domains_validate_and_round_trip_only_through_exact_v7() {
     );
 
     let current = ExactModelCodec::CURRENT;
-    assert_eq!(current, ExactModelCodec::V7);
+    assert_eq!(current, ExactModelCodec::V8);
     assert!(current.supports_scalar_physical());
     assert!(current.supports_boundary_physical());
     assert!(current.supports_tensor_operators());

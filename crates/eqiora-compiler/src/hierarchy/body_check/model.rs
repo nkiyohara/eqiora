@@ -325,7 +325,10 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                     ));
                 }
                 if bounds.iter().any(|(lower, upper)| {
-                    !lower.is_finite() || !upper.is_finite() || upper <= lower
+                    lower
+                        .fixed_value()
+                        .zip(upper.fixed_value())
+                        .is_some_and(|(lower, upper)| upper <= lower)
                 }) {
                     self.diagnostics.push(source_error(
                         codes::LANGUAGE_TYPE_ERROR,

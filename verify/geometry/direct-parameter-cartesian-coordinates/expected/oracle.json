@@ -1,0 +1,15 @@
+{
+  "schema": "eqiora.verify.direct-parameter-cartesian-coordinates-oracle/v1",
+  "base": {
+    "parameterM": 2.0,
+    "boundsM": [[-1.0, 2.0], [2.0, 6.0], [0.5, 5.5]],
+    "extentsM": [3.0, 4.0, 5.0],
+    "volumeM3": 60.0
+  },
+  "secondRevision": {
+    "parameterM": 3.5,
+    "boundsM": [[-1.0, 3.5], [3.5, 6.0], [0.5, 5.5]],
+    "extentsM": [4.5, 2.5, 5.0],
+    "volumeM3": 56.25
+  }
+}

@@ -59,6 +59,91 @@ impl AxisBounds {
     }
 }
 
+/// One unevaluated Cartesian coordinate endpoint.
+///
+/// A fixed endpoint carries a coherent-SI length. A Parameter endpoint names
+/// one exact root Model Parameter whose revision-local value is resolved by
+/// the Semantic Kernel.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CartesianCoordinateSource {
+    /// One fixed finite coherent-SI length.
+    Fixed(DynQuantity),
+    /// One exact root Model Parameter identity.
+    Parameter(Id<kinds::Parameter>),
+}
+
+impl CartesianCoordinateSource {
+    /// Construct one locally valid fixed coordinate.
+    ///
+    /// Increasing-axis validation belongs to whole-Model resolution because
+    /// the other endpoint may be Parameter-driven.
+    ///
+    /// # Errors
+    /// Returns `EQ0302` when `value` is not a finite length.
+    pub fn fixed(value: DynQuantity) -> Result<Self, Diagnostic> {
+        let length = DimExponents {
+            length: 1,
+            ..DimExponents::DIMENSIONLESS
+        };
+        if value.dim() != length || !value.value().is_finite() {
+            return Err(Diagnostic::error(
+                codes::INVALID_KERNEL_DEFINITION,
+                "fixed Cartesian coordinate must be a finite physical length",
+            ));
+        }
+        Ok(Self::Fixed(value))
+    }
+
+    /// Construct one Parameter-backed coordinate.
+    #[must_use]
+    pub const fn parameter(parameter: Id<kinds::Parameter>) -> Self {
+        Self::Parameter(parameter)
+    }
+
+    fn validate(self) -> Result<(), Diagnostic> {
+        match self {
+            Self::Fixed(value) => Self::fixed(value).map(|_| ()),
+            Self::Parameter(_) => Ok(()),
+        }
+    }
+}
+
+/// Unevaluated lower and upper sources for one Cartesian axis.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CartesianAxisDefinition {
+    lower: CartesianCoordinateSource,
+    upper: CartesianCoordinateSource,
+}
+
+impl CartesianAxisDefinition {
+    /// Construct one axis recipe from two locally valid coordinate sources.
+    #[must_use]
+    pub const fn new(lower: CartesianCoordinateSource, upper: CartesianCoordinateSource) -> Self {
+        Self { lower, upper }
+    }
+
+    /// Convert one already validated fixed interval into its source recipe.
+    #[must_use]
+    pub const fn fixed(bounds: AxisBounds) -> Self {
+        Self {
+            lower: CartesianCoordinateSource::Fixed(bounds.lower()),
+            upper: CartesianCoordinateSource::Fixed(bounds.upper()),
+        }
+    }
+
+    /// Lower endpoint source.
+    #[must_use]
+    pub const fn lower(self) -> CartesianCoordinateSource {
+        self.lower
+    }
+
+    /// Upper endpoint source.
+    #[must_use]
+    pub const fn upper(self) -> CartesianCoordinateSource {
+        self.upper
+    }
+}
+
 /// Outward side of one Cartesian coordinate axis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BoundarySide {
@@ -98,7 +183,10 @@ pub enum DomainKind {
     /// Identity-only domain retained for non-spatial and schema-defined uses.
     Abstract,
     /// Runtime-dimensional Cartesian box in physical space.
-    CartesianBox { bounds: Vec<AxisBounds> },
+    CartesianBox {
+        /// Coordinate recipes in physical axis order.
+        coordinates: Vec<CartesianAxisDefinition>,
+    },
     /// One oriented side of a parent Cartesian box. The parent is supplied by
     /// exactly one `BoundaryOf` graph edge.
     CartesianBoundary { axis: usize, side: BoundarySide },
@@ -148,21 +236,51 @@ impl DomainDef {
     /// Construct a non-empty Cartesian box of arbitrary runtime dimension.
     ///
     /// # Errors
-    /// Returns `EQ0302` for an empty axis set.
+    /// Returns `EQ0302` for an empty axis set or a locally invalid fixed
+    /// coordinate.
     pub fn cartesian_box(
         id: Id<kinds::Domain>,
         bounds: Vec<AxisBounds>,
     ) -> Result<Self, Diagnostic> {
-        if bounds.is_empty() {
+        Self::cartesian_box_from_sources(
+            id,
+            bounds
+                .into_iter()
+                .map(CartesianAxisDefinition::fixed)
+                .collect(),
+        )
+    }
+
+    /// Construct a non-empty Cartesian box from unevaluated coordinate
+    /// sources.
+    ///
+    /// Whole-Model validation resolves Parameter values and proves that every
+    /// resulting interval is finite and strictly increasing.
+    ///
+    /// # Errors
+    /// Returns `EQ0302` for an empty axis set.
+    pub fn cartesian_box_from_sources(
+        id: Id<kinds::Domain>,
+        coordinates: Vec<CartesianAxisDefinition>,
+    ) -> Result<Self, Diagnostic> {
+        if coordinates.is_empty() {
             return Err(Diagnostic::error(
                 codes::INVALID_KERNEL_DEFINITION,
                 "Cartesian Domain requires at least one coordinate axis",
             )
             .with_graph_path(kernel_path(id.erase())));
         }
+        for axis in &coordinates {
+            axis.lower()
+                .validate()
+                .map_err(|diagnostic| diagnostic.with_graph_path(kernel_path(id.erase())))?;
+            axis.upper()
+                .validate()
+                .map_err(|diagnostic| diagnostic.with_graph_path(kernel_path(id.erase())))?;
+        }
         Ok(Self {
             id,
-            kind: DomainKind::CartesianBox { bounds },
+            kind: DomainKind::CartesianBox { coordinates },
         })
     }
 

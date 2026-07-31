@@ -3,6 +3,8 @@
 use core::fmt;
 use std::ops::Range;
 
+pub use crate::cartesian::{BoundarySideSyntax, CartesianCoordinateSyntax};
+
 /// Half-open UTF-8 byte range in one source file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TextRange {
@@ -1053,8 +1055,8 @@ impl DomainDecl {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum DomainSyntax {
-    /// Cartesian box bounds in coherent SI length units, one pair per axis.
-    CartesianBox(Vec<(f64, f64)>),
+    /// Cartesian coordinate sources, one lower/upper pair per axis.
+    CartesianBox(Vec<(CartesianCoordinateSyntax, CartesianCoordinateSyntax)>),
     /// One oriented side of a named parent Cartesian box.
     Boundary {
         /// Parent Domain name.
@@ -1072,15 +1074,6 @@ pub enum DomainSyntax {
         /// Dimension of the through variable.
         through_dimension: Expr,
     },
-}
-
-/// Source spelling of a Cartesian boundary side.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BoundarySideSyntax {
-    /// Lower coordinate side.
-    Lower,
-    /// Upper coordinate side.
-    Upper,
 }
 
 /// Canonical Representation declaration.

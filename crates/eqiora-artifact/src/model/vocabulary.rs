@@ -10,9 +10,9 @@ use eqiora_schema::kernel::pure_operator::{
     PureValueClass, ResultAxis,
 };
 use eqiora_schema::kernel::{
-    ActivationKind, AxisBounds, BoundaryPairing, BoundarySide, ClockDomainDef, ClockKind,
-    ConnectionSemantics, EventDirection, PortDef, PortPayload, RationalTime, RepresentationKind,
-    SignalDirection, ValueFrame,
+    ActivationKind, AxisBounds, BoundaryPairing, BoundarySide, CartesianAxisDefinition,
+    CartesianCoordinateSource, ClockDomainDef, ClockKind, ConnectionSemantics, EventDirection,
+    PortDef, PortPayload, RationalTime, RepresentationKind, SignalDirection, ValueFrame,
 };
 use serde::{Deserialize, Serialize};
 
@@ -118,6 +118,73 @@ impl WireAxisBounds {
     pub(crate) fn decode(&self) -> Result<AxisBounds, Diagnostic> {
         AxisBounds::new(self.lower.decode()?, self.upper.decode()?)
             .map_err(|error| invalid_artifact(error.message()))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WireCartesianAxisDefinition {
+    lower: WireCartesianCoordinateSource,
+    upper: WireCartesianCoordinateSource,
+}
+
+impl WireCartesianAxisDefinition {
+    pub(crate) fn encode(value: CartesianAxisDefinition) -> Self {
+        Self {
+            lower: WireCartesianCoordinateSource::encode(value.lower()),
+            upper: WireCartesianCoordinateSource::encode(value.upper()),
+        }
+    }
+
+    pub(crate) fn decode(&self) -> Result<CartesianAxisDefinition, Diagnostic> {
+        Ok(CartesianAxisDefinition::new(
+            self.lower.decode()?,
+            self.upper.decode()?,
+        ))
+    }
+
+    pub(crate) fn semantic_references(&self) -> impl Iterator<Item = &WireId> {
+        self.lower
+            .semantic_reference()
+            .into_iter()
+            .chain(self.upper.semantic_reference())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "source", rename_all = "kebab-case", deny_unknown_fields)]
+enum WireCartesianCoordinateSource {
+    Fixed { value: WireQuantity },
+    Parameter { parameter: WireId },
+}
+
+impl WireCartesianCoordinateSource {
+    fn encode(value: CartesianCoordinateSource) -> Self {
+        match value {
+            CartesianCoordinateSource::Fixed(value) => Self::Fixed {
+                value: WireQuantity::encode(value),
+            },
+            CartesianCoordinateSource::Parameter(parameter) => Self::Parameter {
+                parameter: WireId::from_raw(parameter.erase()),
+            },
+        }
+    }
+
+    fn decode(&self) -> Result<CartesianCoordinateSource, Diagnostic> {
+        match self {
+            Self::Fixed { value } => CartesianCoordinateSource::fixed(value.decode()?)
+                .map_err(|error| invalid_artifact(error.message())),
+            Self::Parameter { parameter } => Ok(CartesianCoordinateSource::parameter(
+                parameter.typed::<kinds::Parameter>()?,
+            )),
+        }
+    }
+
+    const fn semantic_reference(&self) -> Option<&WireId> {
+        match self {
+            Self::Parameter { parameter } => Some(parameter),
+            Self::Fixed { .. } => None,
+        }
     }
 }
 
