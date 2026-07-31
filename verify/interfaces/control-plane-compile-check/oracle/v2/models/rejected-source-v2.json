@@ -1,0 +1,7 @@
+{
+  "protocol": "eqiora.control/v2",
+  "command": "model.compile-check/v1",
+  "requestId": "shared-rejected-source-v2",
+  "filename": "empty.eqi",
+  "source": ""
+}

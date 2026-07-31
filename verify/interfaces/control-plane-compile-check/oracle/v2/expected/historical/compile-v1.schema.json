@@ -1,0 +1,319 @@
+{
+  "$defs": {
+    "acceptedOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "$ref": "#/$defs/model"
+        },
+        "status": {
+          "const": "accepted"
+        }
+      },
+      "required": [
+        "status",
+        "model"
+      ],
+      "type": "object"
+    },
+    "diagnostic": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "pattern": "^[A-Z]{2}[0-9]{4}$",
+          "type": "string"
+        },
+        "graphPath": {
+          "oneOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "message": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "patch": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/patch"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warning",
+            "note"
+          ]
+        },
+        "source": {
+          "enum": [
+            "control",
+            "kernel"
+          ]
+        },
+        "span": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sourceSpan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "severity",
+        "code",
+        "message",
+        "graphPath",
+        "span",
+        "patch"
+      ],
+      "type": "object"
+    },
+    "model": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "modelId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "schema": {
+          "enum": [
+            "eqiora.model-envelope/v1",
+            "eqiora.model-envelope/v2",
+            "eqiora.model-envelope/v3",
+            "eqiora.model-envelope/v4",
+            "eqiora.model-envelope/v5",
+            "eqiora.model-envelope/v6"
+          ]
+        },
+        "semanticRevision": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "wire": {
+          "$ref": "#/$defs/modelWire"
+        }
+      },
+      "required": [
+        "wire",
+        "schema",
+        "digest",
+        "modelId",
+        "semanticRevision"
+      ],
+      "type": "object"
+    },
+    "modelWire": {
+      "enum": [
+        "v1",
+        "v2",
+        "v3",
+        "v4",
+        "v5",
+        "v6",
+        "v7",
+        "v8"
+      ],
+      "type": "string"
+    },
+    "patch": {
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary"
+      ],
+      "type": "object"
+    },
+    "rejectedOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "diagnostics": {
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "status": {
+          "const": "rejected"
+        }
+      },
+      "required": [
+        "status",
+        "diagnostics"
+      ],
+      "type": "object"
+    },
+    "request": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "const": "model.compile-check/v1"
+        },
+        "filename": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string",
+          "x-eqiora-maxUtf8Bytes": 4096
+        },
+        "modelWire": {
+          "$ref": "#/$defs/modelWire"
+        },
+        "protocol": {
+          "const": "eqiora.control/v1"
+        },
+        "requestId": {
+          "$ref": "#/$defs/requestId"
+        },
+        "requiredFeatures": {
+          "$ref": "#/$defs/requiredFeatures"
+        },
+        "source": {
+          "maxLength": 8388608,
+          "type": "string",
+          "x-eqiora-maxUtf8Bytes": 8388608
+        }
+      },
+      "required": [
+        "protocol",
+        "command",
+        "requestId",
+        "requiredFeatures",
+        "modelWire",
+        "filename",
+        "source"
+      ],
+      "type": "object",
+      "x-eqiora-maxEncodedUtf8Bytes": 8404992
+    },
+    "requestId": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "type": "string"
+    },
+    "requiredFeatures": {
+      "description": "Input order and duplicates are normalized; an admitted request contains exactly compile/check v1 and its selected Model wire feature.",
+      "items": {
+        "enum": [
+          "model.compile-check/v1",
+          "model-wire/v1",
+          "model-wire/v2",
+          "model-wire/v3",
+          "model-wire/v4",
+          "model-wire/v5",
+          "model-wire/v6",
+          "model-wire/v7",
+          "model-wire/v8"
+        ],
+        "type": "string"
+      },
+      "maxItems": 16,
+      "type": "array"
+    },
+    "response": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "const": "model.compile-check/v1"
+        },
+        "modelWire": {
+          "$ref": "#/$defs/modelWire"
+        },
+        "outcome": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/acceptedOutcome"
+            },
+            {
+              "$ref": "#/$defs/rejectedOutcome"
+            }
+          ]
+        },
+        "protocol": {
+          "const": "eqiora.control/v1"
+        },
+        "requestId": {
+          "$ref": "#/$defs/requestId"
+        },
+        "requiredFeatures": {
+          "$ref": "#/$defs/requiredFeatures"
+        }
+      },
+      "required": [
+        "protocol",
+        "command",
+        "requestId",
+        "requiredFeatures",
+        "modelWire",
+        "outcome"
+      ],
+      "type": "object",
+      "x-eqiora-maxEncodedUtf8Bytes": 8404992
+    },
+    "sourceSpan": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "file": {
+          "maxLength": 4096,
+          "type": "string",
+          "x-eqiora-maxUtf8Bytes": 4096
+        },
+        "start": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "file",
+        "start",
+        "end"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "urn:eqiora:schema:control:compile-v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Closed control-plane request and response. Scientific arrays, meshes, Fields, and trajectories are excluded.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/response"
+    }
+  ],
+  "title": "Eqiora compile/check control protocol v1"
+}
