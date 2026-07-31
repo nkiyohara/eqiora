@@ -26,12 +26,12 @@ tool versions, artifact filenames and SHA-256 values, wheel tags, and passing
 profiles. It is release provenance, not a claim that independent builds are
 byte-identical.
 
-This case, the JAX case, and the PyTorch case select the same registered host
-target. One aggregate execution builds the candidate once, then separately
-requires the base, typing, JAX, PyTorch, and Matplotlib check groups from its
-manifest. Each case remains independently attributable through the
-verification report; none may substitute an ambient wheel or an independently
-rebuilt candidate.
+This case and the JAX, PyTorch, and exact-cylinder pressure-still cases select
+the same registered host target. One aggregate execution builds the candidate
+once, then separately requires the base, typing, JAX, PyTorch, and Matplotlib
+check groups from its manifest. Each case remains independently attributable
+through the verification report; none may substitute an ambient wheel or an
+independently rebuilt candidate.
 
 ## Falsifiers
 
