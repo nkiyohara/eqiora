@@ -26,6 +26,10 @@ ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT
 PYPROJECT = ROOT / "pyproject.toml"
 MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v1"
+EXACT_CYLINDER_DEMO = Path("examples/python/exact_cylinder_stokes.py")
+EXACT_CYLINDER_REPOSITORY_MODEL = Path(
+    "examples/steady-flow-past-cylinder.model-v7.json"
+)
 PYTHON_TEST_FIXTURES = (
     Path("verify/interfaces/control-plane-compile-check"),
     Path("verify/interfaces/current-authoring-profile"),
@@ -626,6 +630,32 @@ def prepare_base_consumer_tree(extracted: Path, run_root: Path) -> tuple[Path, P
     return tests, typecheck
 
 
+def prepare_exact_cylinder_demo_consumer(
+    extracted: Path,
+    run_root: Path,
+) -> Path:
+    """Copy one checked-in demo without its repository Model dependency."""
+
+    source = extracted / EXACT_CYLINDER_DEMO
+    if not source.is_file():
+        raise CandidateError(
+            f"source distribution omits checked-in demo {EXACT_CYLINDER_DEMO}"
+        )
+    repository_model = run_root / EXACT_CYLINDER_REPOSITORY_MODEL
+    if repository_model.exists():
+        raise CandidateError(
+            "exact-cylinder consumer tree unexpectedly carries the repository Model"
+        )
+    destination = run_root / EXACT_CYLINDER_DEMO
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
+    if repository_model.exists():  # pragma: no cover - copy2 cannot create it
+        raise CandidateError(
+            "exact-cylinder demo copy introduced the repository Model"
+        )
+    return destination
+
+
 def run_public_smoke(
     *,
     python: Path,
@@ -672,6 +702,7 @@ def run_base_profile(
     run_root = scratch / f"run-base-{python_version}"
     run_root.mkdir()
     tests, typecheck = prepare_base_consumer_tree(extracted, run_root)
+    prepare_exact_cylinder_demo_consumer(extracted, run_root)
     assert_installed_origin(
         python,
         wheel,
@@ -703,6 +734,7 @@ def run_base_profile(
     return [
         f"cp{python_version.replace('.', '')}:installed-wheel",
         f"cp{python_version.replace('.', '')}:base-and-numpy",
+        f"cp{python_version.replace('.', '')}:packaged-exact-cylinder-model-demo",
         f"cp{python_version.replace('.', '')}:async-and-cancellation",
         f"cp{python_version.replace('.', '')}:strict-base-typing",
         f"cp{python_version.replace('.', '')}:public-smoke-base",

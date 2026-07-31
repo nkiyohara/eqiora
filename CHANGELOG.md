@@ -8,6 +8,12 @@ are recorded here.
 
 ### Changed
 
+- The pre-release `eqiora::numerics` facade no longer re-exports
+  `SteadyStokesGeometryBinding2d` or
+  `solve_resolved_steady_stokes_geometry_mini_2d`. Application consumers use
+  `eqiora::api::CircularHoleSteadyStokesResult2d`; lower-level numerical
+  composition remains available from its owning `eqiora-numerics` crate.
+
 - Assembly, meshing, geometry, and solver contracts now use their owning crate
   and `eqiora` namespace paths; aliases formerly exposed from numerics,
   artifact, and realization have been removed.

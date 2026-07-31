@@ -43,6 +43,13 @@ Changelog = "https://github.com/nkiyohara/eqiora/blob/main/CHANGELOG.md"
 Security = "https://github.com/nkiyohara/eqiora/security/policy"
 
 [tool.maturin]
+include = [
+    { path = "steady-flow-past-cylinder.model-v7.json", from = "out-dir", to = "eqiora/examples/" },
+]
+# Do not exclude the repository-root target tree here: maturin applies these
+# patterns to explicit out-dir includes as well. The git sdist generator admits
+# only tracked source files, while the generated Model resource is copied from
+# Cargo OUT_DIR by the explicit include above.
 exclude = [
     ".git/**",
     "**/.git/**",
@@ -50,8 +57,6 @@ exclude = [
     # directory, and `safe_extract_sdist` rejects any other member kind. It is
     # repository-development instruction anyway and has no place in a wheel.
     "CLAUDE.md",
-    "target/**",
-    "**/target/**",
     "**/__pycache__/**",
     "**/*.pyc",
     "**/*.pyo",

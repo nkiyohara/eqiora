@@ -34,11 +34,11 @@ pub mod api {
         CadBoxIntentV1, CadBoxPlanV1, CadRegenerationPlanV1, CadRenderProjectionV1,
         CadRenderTriangleV1, CadSelectionRequestV1, CadSemanticEntityKindV1, CadSemanticEntityV1,
         CadSemanticSelectionV1, CartesianDomainEditPlan, CartesianDomainEditResult,
-        CartesianFieldOrder, CartesianScalarFieldProjection, DerivativeContract,
-        DerivativeImplementation, DifferentiableDevice, DifferentiableEvaluation,
-        DifferentiableJvp, DifferentiableParameterPoint, DifferentiablePrimal,
-        DifferentiableProgram, DifferentiableProgramIdentity, DifferentiableScalarType,
-        DifferentiableVjp, DifferentiationEvidence, DifferentiationMode,
+        CartesianFieldOrder, CartesianScalarFieldProjection, CircularHoleSteadyStokesResult2d,
+        DerivativeContract, DerivativeImplementation, DifferentiableDevice,
+        DifferentiableEvaluation, DifferentiableJvp, DifferentiableParameterPoint,
+        DifferentiablePrimal, DifferentiableProgram, DifferentiableProgramIdentity,
+        DifferentiableScalarType, DifferentiableVjp, DifferentiationEvidence, DifferentiationMode,
         FixedReferenceFsiSnapshotSetV1, LinearizationState, MAX_SCALAR_ELLIPTIC_ENTITY_COUNT,
         MlDatasetArtifactsV1, MlDatasetBlockArrayV1, MlDatasetDerivationPlanV1,
         MlDatasetDescriptorRoleV1, MlDatasetFieldSelectionV1, MlDatasetMaterializationLimitsV1,
@@ -172,10 +172,9 @@ pub mod numerics {
     };
     pub use eqiora_numerics::fluid::{
         FinalizedSteadyStokesMini2dProblem, IncompressibleFlowScaleProfile2d,
-        SteadyIncompressibleStokesCartesianModel2d, SteadyStokesGeometryBinding2d,
-        SteadyStokesMiniSolution2d, finalize_resolved_steady_stokes_mini_2d,
-        lower_steady_incompressible_stokes_cartesian_2d,
-        solve_resolved_steady_stokes_geometry_mini_2d, solve_resolved_steady_stokes_mini_2d,
+        SteadyIncompressibleStokesCartesianModel2d, SteadyStokesMiniSolution2d,
+        finalize_resolved_steady_stokes_mini_2d, lower_steady_incompressible_stokes_cartesian_2d,
+        solve_resolved_steady_stokes_mini_2d,
     };
     pub use eqiora_numerics::fsi::{
         FinalizedResolvedFixedReferenceFsiStep2d, FixedReferenceFsiCartesianModel2d,

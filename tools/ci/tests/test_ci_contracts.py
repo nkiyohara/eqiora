@@ -205,6 +205,11 @@ class HostedTriggerTests(unittest.TestCase):
         studio = workflow.split("  studio:\n", maxsplit=1)[1].split(
             "\n  gate:", maxsplit=1
         )[0]
+        formatting = (
+            "cargo +stable fmt --manifest-path "
+            "studio/src-tauri/Cargo.toml -- --check"
+        )
+        self.assertEqual(workflow.count(formatting), 1)
         self.assertIn("rustup toolchain install 1.89.0", studio)
         self.assertIn(
             "cargo +1.89.0 check --manifest-path studio/src-tauri/Cargo.toml --locked --all-targets",
@@ -331,6 +336,29 @@ class DependencyIdentityTests(unittest.TestCase):
 
 
 class PythonPackageGateTests(unittest.TestCase):
+    def test_sdist_remains_git_backed_for_explicit_out_dir_includes(self) -> None:
+        document = tomllib.loads(
+            (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        )
+        maturin = document["tool"]["maturin"]
+
+        self.assertEqual(maturin["sdist-generator"], "git")
+        self.assertIn(
+            {
+                "path": "steady-flow-past-cylinder.model-v7.json",
+                "from": "out-dir",
+                "to": "eqiora/examples/",
+            },
+            maturin["include"],
+        )
+        self.assertTrue(
+            {
+                "target/**",
+                "/target/**",
+                "**/target/**",
+            }.isdisjoint(maturin["exclude"])
+        )
+
     def test_fallback_activates_venv_for_pep517_backend_tools(self) -> None:
         virtual_environment = Path("/tmp/eqiora-test-venv")
         environment = venv_environment(

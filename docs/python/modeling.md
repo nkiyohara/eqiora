@@ -89,6 +89,45 @@ and fixed-phase reference topology. It is not a generic `Mesh` or
 cross-process generated-realization proof, Model binding, solve, Result, or
 visualization surface.
 
+## Exact-cylinder steady Stokes result
+
+The first fluid application consumes the accepted geometry-bound Model v7
+artifact explicitly and returns one immutable result:
+
+```python
+from importlib.resources import files
+
+model_v7 = (
+    files(eqiora)
+    .joinpath("examples", "steady-flow-past-cylinder.model-v7.json")
+    .read_bytes()
+)
+result = eqiora.fluid.solve_exact_cylinder_stokes(
+    model_v7=model_v7,
+    geometry=geometry,
+    mesh=mesh,
+)
+
+print(result.solve)
+print(result.pressure_minimum, result.pressure_maximum)
+print(result.cylinder_force_on_fluid, result.net_flux)
+```
+
+Studio and Python use the same Rust composition for Model replay, exact-source
+binding, field-wise Realization, solve, pressure snapshot, and Run provenance.
+`result.pressure` is the existing immutable rank-one `Array`;
+`result.coordinates` and `result.triangles` lazily publish read-only NumPy
+matrices in matching mesh order.
+
+This operation admits only the checked exact-cylinder Model, geometry, mesh,
+scale profile, and SparseLU policy. Supplying the Model bytes is explicit
+artifact consumption; the wheel ships an exact copy of that one canonical
+artifact so the documented script needs no repository-local runtime input.
+This is not a general Model catalog or Python fluid authoring. Velocity
+projection, drag/lift, solver selection, visualization, transient flow, and FSI
+remain separate slices. The runnable file is
+[`examples/python/exact_cylinder_stokes.py`](../../examples/python/exact_cylinder_stokes.py).
+
 Scalar conserving connections use nominal physical-domain identity:
 
 ```python

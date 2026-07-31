@@ -14,8 +14,8 @@ use eqiora_core::{Diagnostic, DimExponents, Id};
 use eqiora_geometry::{CanonicalCircularHoleGeometryV1, CircularHoleChordalMeshV1};
 use eqiora_meshing::{DiscreteFieldAssociation, DiscreteFieldShape};
 
-const MAX_STUDIO_P1_VERTICES: usize = 250_000;
-const MAX_STUDIO_P1_TRIANGLES: usize = 500_000;
+const MAX_APPLICATION_P1_VERTICES: usize = 250_000;
+const MAX_APPLICATION_P1_TRIANGLES: usize = 500_000;
 
 struct ProjectionLineage {
     model_artifact: ArtifactDigest,
@@ -71,7 +71,7 @@ impl UnstructuredP1ScalarFieldProjection2d {
         let snapshot_artifact = snapshot.digest()?;
         if !run.outputs().contains(&snapshot_artifact) {
             return Err(invalid_projection(
-                "Studio P1 projection snapshot is not an output of the exact Run",
+                "application P1 projection snapshot is not an output of the exact Run",
             ));
         }
 
@@ -126,7 +126,7 @@ impl UnstructuredP1ScalarFieldProjection2d {
         let snapshot_artifact = snapshot.digest()?;
         if !run.outputs().contains(&snapshot_artifact) {
             return Err(invalid_projection(
-                "Studio P1 projection snapshot is not an output of the exact Run",
+                "application P1 projection snapshot is not an output of the exact Run",
             ));
         }
         let model = model.artifact_reference()?;
@@ -153,7 +153,7 @@ impl UnstructuredP1ScalarFieldProjection2d {
         let mesh_artifact = mesh.digest()?;
         if mesh.dimension() != 2 {
             return Err(invalid_projection(
-                "Studio P1 projection requires one two-dimensional affine-triangle mesh",
+                "application P1 projection requires one two-dimensional affine-triangle mesh",
             ));
         }
         if !snapshot.value_shape().is_scalar()
@@ -161,12 +161,12 @@ impl UnstructuredP1ScalarFieldProjection2d {
             || block.component_shape() != DiscreteFieldShape::Scalar
         {
             return Err(invalid_projection(
-                "Studio P1 projection requires one scalar vertex coefficient block",
+                "application P1 projection requires one scalar vertex coefficient block",
             ));
         }
         if block.mesh_artifact() != mesh_artifact {
             return Err(invalid_projection(
-                "Studio P1 projection Field references a foreign mesh artifact",
+                "application P1 projection Field references a foreign mesh artifact",
             ));
         }
 
@@ -174,35 +174,35 @@ impl UnstructuredP1ScalarFieldProjection2d {
         let vertex_count = mesh.vertices().len();
         let triangle_count = mesh.cells().len();
         if vertex_count == 0
-            || vertex_count > MAX_STUDIO_P1_VERTICES
+            || vertex_count > MAX_APPLICATION_P1_VERTICES
             || triangle_count == 0
-            || triangle_count > MAX_STUDIO_P1_TRIANGLES
+            || triangle_count > MAX_APPLICATION_P1_TRIANGLES
         {
             return Err(invalid_projection(format!(
-                "Studio P1 projection admits at most {MAX_STUDIO_P1_VERTICES} vertices and \
-                 {MAX_STUDIO_P1_TRIANGLES} triangles",
+                "application P1 projection admits at most {MAX_APPLICATION_P1_VERTICES} vertices and \
+                 {MAX_APPLICATION_P1_TRIANGLES} triangles",
             )));
         }
         if block.entity_count()? != vertex_count || block.values().len() != vertex_count {
             return Err(invalid_projection(
-                "Studio P1 projection requires exactly one scalar per mesh vertex",
+                "application P1 projection requires exactly one scalar per mesh vertex",
             ));
         }
 
         let mut vertices_m = Vec::new();
         vertices_m.try_reserve_exact(vertex_count).map_err(|_| {
-            invalid_projection("Studio P1 coordinate allocation exceeds available capacity")
+            invalid_projection("application P1 coordinate allocation exceeds available capacity")
         })?;
         let mut bounds_m = [[f64::INFINITY, f64::NEG_INFINITY]; 2];
         for vertex in mesh.vertices() {
             let [x, y] = vertex.as_slice() else {
                 return Err(invalid_projection(
-                    "Studio P1 mesh vertex does not have exactly two coordinates",
+                    "application P1 mesh vertex does not have exactly two coordinates",
                 ));
             };
             if !x.is_finite() || !y.is_finite() {
                 return Err(invalid_projection(
-                    "Studio P1 mesh contains a non-finite coordinate",
+                    "application P1 mesh contains a non-finite coordinate",
                 ));
             }
             vertices_m.push([*x, *y]);
@@ -213,37 +213,38 @@ impl UnstructuredP1ScalarFieldProjection2d {
         }
         if bounds_m.iter().any(|[lower, upper]| upper <= lower) {
             return Err(invalid_projection(
-                "Studio P1 coordinate bounds must have positive extent",
+                "application P1 coordinate bounds must have positive extent",
             ));
         }
 
         let mut triangles = Vec::new();
         triangles.try_reserve_exact(triangle_count).map_err(|_| {
-            invalid_projection("Studio P1 connectivity allocation exceeds available capacity")
+            invalid_projection("application P1 connectivity allocation exceeds available capacity")
         })?;
         for cell in mesh.cells() {
             let [a, b, c] = cell.as_slice() else {
                 return Err(invalid_projection(
-                    "Studio P1 mesh cell is not an affine triangle",
+                    "application P1 mesh cell is not an affine triangle",
                 ));
             };
             let portable = |vertex| {
-                u32::try_from(vertex)
-                    .map_err(|_| invalid_projection("Studio P1 vertex index exceeds portable u32"))
+                u32::try_from(vertex).map_err(|_| {
+                    invalid_projection("application P1 vertex index exceeds portable u32")
+                })
             };
             triangles.push([portable(*a)?, portable(*b)?, portable(*c)?]);
         }
 
         let mut values = Vec::new();
         values.try_reserve_exact(vertex_count).map_err(|_| {
-            invalid_projection("Studio P1 value allocation exceeds available capacity")
+            invalid_projection("application P1 value allocation exceeds available capacity")
         })?;
         let mut minimum = f64::INFINITY;
         let mut maximum = f64::NEG_INFINITY;
         for &value in block.values() {
             if !value.is_finite() {
                 return Err(invalid_projection(
-                    "Studio P1 Field contains a non-finite scalar",
+                    "application P1 Field contains a non-finite scalar",
                 ));
             }
             values.push(value);
@@ -361,6 +362,16 @@ impl UnstructuredP1ScalarFieldProjection2d {
     #[must_use]
     pub const fn maximum(&self) -> f64 {
         self.maximum
+    }
+
+    /// Transfer all native arrays to one client adapter without cloning.
+    ///
+    /// Vertex coordinates and scalar values have identical canonical
+    /// mesh-vertex order. Triangle connectivity retains canonical mesh-cell
+    /// order.
+    #[must_use]
+    pub fn into_arrays(self) -> (Vec<[f64; 2]>, Vec<[u32; 3]>, Vec<f64>) {
+        (self.vertices_m, self.triangles, self.values)
     }
 }
 

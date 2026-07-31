@@ -13,6 +13,7 @@ mod meshing;
 mod model;
 mod modeling;
 mod realization;
+mod steady_stokes;
 
 use std::collections::BTreeMap;
 
@@ -435,6 +436,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     meshing::register(module)?;
     modeling::register(module)?;
     realization::register(module)?;
+    steady_stokes::register(module)?;
     module.add_function(wrap_pyfunction!(compile, module)?)?;
     module.add_function(wrap_pyfunction!(compile_exact, module)?)?;
     module.add_function(wrap_pyfunction!(define_exact, module)?)?;
