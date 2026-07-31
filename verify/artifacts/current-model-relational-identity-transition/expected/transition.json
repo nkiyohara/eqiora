@@ -1,0 +1,819 @@
+{
+  "schema": "eqiora.verify.current-model-relational-identity-transition/v1",
+  "current_model_schema": "eqiora.model-envelope/v8",
+  "canonical_encoding": "eqiora.canonical-json/v1",
+  "deterministic": [
+    {
+      "name": "packaged-dc-motor-controller",
+      "case": "hybrid.packaged-dc-motor-controller",
+      "target": "verify/hybrid/packaged-dc-motor-controller/expected/identities.json",
+      "target_replacement": "expected/deterministic/packaged-dc-motor-controller/identities.json",
+      "model_bytes": "expected/deterministic/packaged-dc-motor-controller/model.json",
+      "model_canonical_bytes": 22324,
+      "model_raw_sha256": "4e4d4b24d169e233093920e3ada331d9b0f76eadb080e85349f0d34701adaa45",
+      "model_digest": "3480c16e990c653d6c965392aa1b3e13922964f750d991eda3443c1cc7747790",
+      "model_ulid": "1D1AHHDKDG4XZZ7XEKJWE6MM37",
+      "source_revision": 1,
+      "superseded": {
+        "/model_digest": "b378b065f17238023179fc51e3f14d51b541b49d5f3a7b8ff9ab88b5513cc46f",
+        "/compilation_digest": "a8f32aa197730124e860bbf7cf966b24c16e781f554330819541fcab3a9145d7",
+        "/run_digest": "f901795f536ad2ec1aca6bd6f7dc18a2f3d16c56bbff2fcc0528be556f92d661",
+        "/run_binding_digest": "db1623a1341e5e373571a4fb832d5c8ab8cfda505cb2aa7dd3394761c1c9e479"
+      },
+      "model_pointer": "/model_digest",
+      "edges": [
+        {
+          "pointer": "/compilation_digest",
+          "artifact": "compilation.json",
+          "schema": "eqiora.package-compilation.v1",
+          "digest_domain": "eqiora.package-compilation.sha256.v1",
+          "digest": "05c96387e21ef45cdee3a883c741a03034fd2688ee82f0011bfeae51118f5387",
+          "raw_sha256": "092a2d49c4530b03cf428233b6b00a9fdda25c2683696a2ae1006ddd1fc7d569",
+          "references": [
+            {
+              "path": "/model_sha256",
+              "target": "/model_digest"
+            }
+          ]
+        },
+        {
+          "pointer": "/run_digest",
+          "artifact": "run.json",
+          "schema": "eqiora.run-manifest/v1",
+          "digest_domain": "eqiora.run-manifest/v1",
+          "digest": "e61c0f2811e8f84f7b4cb822c65475d15c7ef44a3d66f3ce04f9f0bd8ce75f56",
+          "raw_sha256": "0dfd31c9b02e99413b7b6eb29ebfa68921e85f71ead3c59e25ad54602bee0250",
+          "references": [
+            {
+              "path": "/model_sha256",
+              "target": "/model_digest"
+            }
+          ]
+        },
+        {
+          "pointer": "/run_binding_digest",
+          "artifact": "run-binding.json",
+          "schema": "eqiora.package-run-binding.v1",
+          "digest_domain": "eqiora.package-run-binding.sha256.v1",
+          "digest": "c08e85c3cb31f9695a35e82161d37a50aa0dc542eeb490826cca4acadabea205",
+          "raw_sha256": "c90faa0c5b756523ca777374e94976f3996f2e52a9c6521026acbeea9e66d569",
+          "references": [
+            {
+              "path": "/model_sha256",
+              "target": "/model_digest"
+            },
+            {
+              "path": "/package_compilation_sha256",
+              "target": "/compilation_digest"
+            },
+            {
+              "path": "/run_sha256",
+              "target": "/run_digest"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "composed-model-package",
+      "case": "packages.composed-model-package",
+      "target": "verify/packages/composed-model-package/expected/identities.json",
+      "target_replacement": "expected/deterministic/composed-model-package/identities.json",
+      "model_bytes": "expected/deterministic/composed-model-package/model.json",
+      "model_canonical_bytes": 8891,
+      "model_raw_sha256": "a572d19a869f3a7926493227d360dd4a926aa7cbc8f04fa26424a5c30186a3ca",
+      "model_digest": "1dbffb49023cb83dff879fdee62feb417a4c4d1c98e7cbfd0c9966373a154a72",
+      "model_ulid": "4MVGH6F0402A82JDJQQ2YNMAH7",
+      "source_revision": 1,
+      "superseded": {
+        "/model_digest": "f02d59cef97dd8348aefbb93a327a967ea7408bb93e01cf8323670d5262ffb69",
+        "/compilation_digest": "6cdd401188c4bf887d4fb9456fb2eda4d2d1681a43b0841278d1bd8a03fc754f"
+      },
+      "model_pointer": "/model_digest",
+      "edges": [
+        {
+          "pointer": "/compilation_digest",
+          "artifact": "compilation.json",
+          "schema": "eqiora.package-compilation.v1",
+          "digest_domain": "eqiora.package-compilation.sha256.v1",
+          "digest": "2ca07a3ca12774dfbcdb0dc434000d11bf4419f4c9fae7504b7d8b1aba780b48",
+          "raw_sha256": "c34f9abd5dabc108095c01be1220a43be438fef5d76ec04bd487e1690bcaa1ad",
+          "references": [
+            {
+              "path": "/model_sha256",
+              "target": "/model_digest"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "offline-model-package",
+      "case": "packages.offline-model-package",
+      "target": "verify/packages/offline-model-package/expected/identities.json",
+      "target_replacement": "expected/deterministic/offline-model-package/identities.json",
+      "model_bytes": "expected/deterministic/offline-model-package/model.json",
+      "model_canonical_bytes": 8891,
+      "model_raw_sha256": "8f9bc321740bc52e32ba35eff10e61856d675b1338406a2b224f0b29112d2b4f",
+      "model_digest": "92837f0f85ff4a1310af0ca6e412d3ace81393df837d017caf5bfabeb8f6c1a1",
+      "model_ulid": "3JNCJVGEYX9N2QSYVEXRXWXWF4",
+      "source_revision": 1,
+      "superseded": {
+        "/model_digest": "b6a653852e183074a03cd2f7a703fd4a7f2902424b94ebe8f0ba4f6fa21f9cd9",
+        "/compilation_digest": "ab0062f12a63f98e8730681867de4be6f7f70fd3e198c204855658dc336ce8e9",
+        "/run_digest": "96b3df6a8e50e7d073e26c5c92169a2e354e69d88e05c077846be481debd6afa",
+        "/run_binding_digest": "41a0aa3c8ba97168f1daeb1d330742f709854cb5dab6d5ae748a0ac84a5e2d2d"
+      },
+      "model_pointer": "/model_digest",
+      "edges": [
+        {
+          "pointer": "/compilation_digest",
+          "artifact": "compilation.json",
+          "schema": "eqiora.package-compilation.v1",
+          "digest_domain": "eqiora.package-compilation.sha256.v1",
+          "digest": "a6e31415d973c5dc23a92a101ba3db7cef7b1b70b0dc51d2b73214f1fc00bf49",
+          "raw_sha256": "179372056262933b6ece16d149200b63f285fe9ec1e1775284610c8332601566",
+          "references": [
+            {
+              "path": "/model_sha256",
+              "target": "/model_digest"
+            }
+          ]
+        },
+        {
+          "pointer": "/run_digest",
+          "artifact": "run.json",
+          "schema": "eqiora.run-manifest/v1",
+          "digest_domain": "eqiora.run-manifest/v1",
+          "digest": "a78b69afb1afdd131ce7fb2e8f74b07805fa81f4e604feacd5455b06b8ae966d",
+          "raw_sha256": "fcb9c2583def266341bf8316c7ebe4fc702fe1f4309929f7e2ad17e71d648a8b",
+          "references": [
+            {
+              "path": "/model_sha256",
+              "target": "/model_digest"
+            }
+          ]
+        },
+        {
+          "pointer": "/run_binding_digest",
+          "artifact": "run-binding.json",
+          "schema": "eqiora.package-run-binding.v1",
+          "digest_domain": "eqiora.package-run-binding.sha256.v1",
+          "digest": "f9187628cd679fac62e86c785a40200dec79ee1c1f97357057b3c8ebd7be3ac4",
+          "raw_sha256": "a477279acb25bc9887a7f55e6b2f191ec55a124f97bb13af958967a5eec3aa1f",
+          "references": [
+            {
+              "path": "/model_sha256",
+              "target": "/model_digest"
+            },
+            {
+              "path": "/package_compilation_sha256",
+              "target": "/compilation_digest"
+            },
+            {
+              "path": "/run_sha256",
+              "target": "/run_digest"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "typed-execution-lineage",
+      "case": "packages.typed-execution-lineage",
+      "target": "verify/packages/typed-execution-lineage/expected/identities.json",
+      "target_replacement": "expected/deterministic/typed-execution-lineage/identities.json",
+      "model_bytes": "expected/deterministic/typed-execution-lineage/model.json",
+      "model_canonical_bytes": 9055,
+      "model_raw_sha256": "ef65eb406507adb34b8846be52bedeee05e2b20280d1df49136cbb7f2084ea9d",
+      "model_digest": "c2c35e6b58f6ee0d40b8aa2bd0c252e519eec6f6779e39366ae2e28cdbd5300a",
+      "model_ulid": "7Q7ZYW89BV0RH2HSB3S5ZMTY0K",
+      "source_revision": 1,
+      "superseded": {
+        "/model_sha256": "a071e8e5984ac8a820a617cdd501f1baf774a7a9352241f066e9baa88e46e5d7",
+        "/package_compilation_sha256": "68c0116ab4341a5e52cfdd278d644c2c90c06c9633085726cfce0853238a8ca1",
+        "/realization_sha256": "627859e021e201b839280eb6f6595941c576336b1f953450213923da8c5c4e7a",
+        "/run_sha256": "4b3a2c9043c60b7404f75a9680d0a597c97a9c85f75f92d50f413cc44790be34",
+        "/package_execution_binding_sha256": "9aa24bdbfd5aa6f588eb39e28dcc27ea97a12b5ed6f8d58149697ce366248178"
+      },
+      "model_pointer": "/model_sha256",
+      "edges": [
+        {
+          "pointer": "/package_compilation_sha256",
+          "artifact": "compilation.json",
+          "schema": "eqiora.package-compilation.v1",
+          "digest_domain": "eqiora.package-compilation.sha256.v1",
+          "digest": "6e72043a1d0569d7488717cd7ffdf54a01c7e5e65262cecc3a49fcdce645dec0",
+          "raw_sha256": "2734fd25ea2335d4ae8b1c8e74a9949631e4da6bf79e153e52a7f93454ba348f",
+          "references": [
+            {
+              "path": "/model_sha256",
+              "target": "/model_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/realization_sha256",
+          "artifact": "realization.json",
+          "schema": "eqiora.realization-envelope/v1",
+          "digest_domain": "eqiora.realization-envelope/v1",
+          "digest": "56aaedd742d70be44abea1180efd2199ac1db45fce843b59802ae44269097ee8",
+          "raw_sha256": "65e71c2f66a22d590345030df7c759fbc345d7a222cb905a4cdda6f4ef7acfd1",
+          "references": [
+            {
+              "path": "/model_sha256",
+              "target": "/model_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/run_sha256",
+          "artifact": "run.json",
+          "schema": "eqiora.run-manifest/v2",
+          "digest_domain": "eqiora.run-manifest/v2",
+          "digest": "90ea0ff773fdf6b9c2ddebe1c7326ac7abd5abe47ba8fa0b42b20495c585236d",
+          "raw_sha256": "facfb33968922905d4bdd186429b188a1ca986d6006a2f881627e77772e47d1d",
+          "references": [
+            {
+              "path": "/model_sha256",
+              "target": "/model_sha256"
+            },
+            {
+              "path": "/realization_sha256",
+              "target": "/realization_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/package_execution_binding_sha256",
+          "artifact": "binding.json",
+          "schema": "eqiora.package-execution-binding.v1",
+          "digest_domain": "eqiora.package-execution-binding.sha256.v1",
+          "digest": "8f348b8cecc967781a666e554ffbc572e3a6c85f09de97bdaa946d85f8916e08",
+          "raw_sha256": "13a86e608fb391c595e8c1a9ddbea4b366c5a2774dd5ef1a93107811d08673da",
+          "references": [
+            {
+              "path": "/model_sha256",
+              "target": "/model_sha256"
+            },
+            {
+              "path": "/package_compilation_sha256",
+              "target": "/package_compilation_sha256"
+            },
+            {
+              "path": "/realization_sha256",
+              "target": "/realization_sha256"
+            },
+            {
+              "path": "/run_sha256",
+              "target": "/run_sha256"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "fixed-topology-ale-monolithic-3d",
+      "case": "fsi.fixed-topology-ale-monolithic-3d",
+      "target": "verify/fsi/fixed-topology-ale-monolithic-3d/expected/accepted-trajectory.json",
+      "target_replacement": "expected/deterministic/fixed-topology-ale-monolithic-3d/accepted-trajectory.json",
+      "model_bytes": "expected/deterministic/fixed-topology-ale-monolithic-3d/model.json",
+      "model_canonical_bytes": 73102,
+      "model_raw_sha256": "cc890dfcfc5b7e6ed344d0adee486ade6f60a59f95d1615c2bac6bc9ebe87316",
+      "model_digest": "d9251b43094316ceb3bd9cfb63a77148286a408ecd342497c6d1c808ea312bee",
+      "model_ulid": "3ZKTPKMVRYCSX6T8RW6TJWCY6Z",
+      "source_revision": 1,
+      "superseded": {
+        "/provenance/model_sha256": "61b8447f7c097f0d960939b18f8b831c6c2e7118b038c055c0b0a7b8a6d7bb5a",
+        "/provenance/geometry_identity_sha256": "21634a6b256e0e0fb0e8ef04dd6104579fc32a3c05e8e71d5a230cd317c61ad7",
+        "/provenance/correspondence_sha256": "8006fa03e95c1b697cc5a84ea7e3e08100e805429981125ecb8cf0b94da8a4d2",
+        "/provenance/realization_sha256": "281eb214bc10d549afc30fc47c3b0155d1061cfb2bd4a6d30487fe4aa512d65a",
+        "/provenance/run_sha256": "270d6c93932d50d84aba493e58527c3ffe224298d85dc4a962b1eca083e6b262",
+        "/provenance/trajectory_sha256": "25db68cf0efe5af37a00d7915335fe5e4fa497c40edfa85f576bed3f2dabb598",
+        "/frames[0]/geometry_state_sha256": "40ba926b97be78ec5c8c7d87560166b9a799abbe6e40e7d4211ebaf97944222a",
+        "/frames[1]/geometry_state_sha256": "fba31b6049afd15b723329479a44e0f1d7a0715b935c9fd6710c40e2218fc642",
+        "/frames[2]/geometry_state_sha256": "f989cc6281948577409298e8d27fa3d61f224d708facef325dc2e0c0e1b6ab44",
+        "/frames[0]/spatial_state_sha256": "861d4800148c8368aa0aead03141e288fad21e8888ffc913938199c53004d8a2",
+        "/frames[1]/spatial_state_sha256": "34e6c098e81d5f65504549f9afa8103ff276be7e53ec9ccf2d8f0972ad6fbf92",
+        "/frames[2]/spatial_state_sha256": "b79054492319d29d07b431145c367da62ae33f07ce19bbc862cd1bab6df519df"
+      },
+      "model_pointer": "/provenance/model_sha256",
+      "supporting_artifacts": [
+        {
+          "pointer": "/internal/trajectory-segment-0",
+          "artifact": "trajectory-segment-0.json",
+          "schema": "eqiora.spatial-trajectory-segment/v2",
+          "digest_domain": "eqiora.spatial-trajectory-segment/v2",
+          "digest": "bd6a3387257a1ba9999f0ede853264e49ff8284711e99f6202d9dea0500765df",
+          "raw_sha256": "8cd06587d8d480c2d038f95e438559154ad0d8257c7038466cef345bf0bfd754",
+          "references": [
+            {
+              "path": "/reference/model_sha256",
+              "target": "/provenance/model_sha256"
+            },
+            {
+              "path": "/reference/realization_sha256",
+              "target": "/provenance/realization_sha256"
+            },
+            {
+              "path": "/reference/reference_geometry_sha256",
+              "target": "/provenance/geometry_identity_sha256"
+            },
+            {
+              "path": "/reference/correspondence_sha256",
+              "target": "/provenance/correspondence_sha256"
+            },
+            {
+              "path": "/states[0]/state_sha256",
+              "target": "/frames[0]/spatial_state_sha256"
+            },
+            {
+              "path": "/states[0]/geometry_state_sha256",
+              "target": "/frames[0]/geometry_state_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/internal/trajectory-segment-1",
+          "artifact": "trajectory-segment-1.json",
+          "schema": "eqiora.spatial-trajectory-segment/v2",
+          "digest_domain": "eqiora.spatial-trajectory-segment/v2",
+          "digest": "ba686a7cd062adc59c0de6c0532b2f209aa3f12f13f9f2b386036493087f1f13",
+          "raw_sha256": "34bb05c6da49f1df17ba8ebc4081d11f3d805ee1b638ce094a6df27511b86610",
+          "references": [
+            {
+              "path": "/reference/model_sha256",
+              "target": "/provenance/model_sha256"
+            },
+            {
+              "path": "/reference/realization_sha256",
+              "target": "/provenance/realization_sha256"
+            },
+            {
+              "path": "/reference/reference_geometry_sha256",
+              "target": "/provenance/geometry_identity_sha256"
+            },
+            {
+              "path": "/reference/correspondence_sha256",
+              "target": "/provenance/correspondence_sha256"
+            },
+            {
+              "path": "/states[0]/state_sha256",
+              "target": "/frames[1]/spatial_state_sha256"
+            },
+            {
+              "path": "/states[0]/geometry_state_sha256",
+              "target": "/frames[1]/geometry_state_sha256"
+            },
+            {
+              "path": "/states[0]/predecessor_geometry_state_sha256",
+              "target": "/frames[0]/geometry_state_sha256"
+            },
+            {
+              "path": "/states[1]/state_sha256",
+              "target": "/frames[2]/spatial_state_sha256"
+            },
+            {
+              "path": "/states[1]/geometry_state_sha256",
+              "target": "/frames[2]/geometry_state_sha256"
+            },
+            {
+              "path": "/states[1]/predecessor_geometry_state_sha256",
+              "target": "/frames[1]/geometry_state_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/internal/trajectory-root-0",
+          "artifact": "trajectory-root-0.json",
+          "schema": "eqiora.spatial-trajectory/v2",
+          "digest_domain": "eqiora.spatial-trajectory/v2",
+          "digest": "b576c49816389e37e6e1b61d8990e94828f2329b1cb15139753da4a71fa91bb9",
+          "raw_sha256": "a6c4f32bc244df6f13cf246d43e2f759558317554f015df08b37b15feb0d4cda",
+          "references": [
+            {
+              "path": "/reference/model_sha256",
+              "target": "/provenance/model_sha256"
+            },
+            {
+              "path": "/reference/realization_sha256",
+              "target": "/provenance/realization_sha256"
+            },
+            {
+              "path": "/reference/reference_geometry_sha256",
+              "target": "/provenance/geometry_identity_sha256"
+            },
+            {
+              "path": "/reference/correspondence_sha256",
+              "target": "/provenance/correspondence_sha256"
+            },
+            {
+              "path": "/segments[0]/segment_sha256",
+              "target": "/internal/trajectory-segment-0"
+            },
+            {
+              "path": "/segments[0]/first_geometry_state_sha256",
+              "target": "/frames[0]/geometry_state_sha256"
+            },
+            {
+              "path": "/segments[0]/last_geometry_state_sha256",
+              "target": "/frames[0]/geometry_state_sha256"
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "pointer": "/provenance/geometry_identity_sha256",
+          "artifact": "geometry-identity.json",
+          "schema": "eqiora.geometry-identity-envelope/v1",
+          "digest_domain": "eqiora.geometry-identity-envelope/v1",
+          "digest": "7290a99449e87a530ed467a5654ad3840966725fc4723058315d659dc0b251c9",
+          "raw_sha256": "e0c3a34f215d21dd7c89838f2aa7ba98ed6ec26f4bf2e484fe3f747dc004486f",
+          "references": [
+            {
+              "path": "/model_sha256",
+              "target": "/provenance/model_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/provenance/correspondence_sha256",
+          "artifact": "correspondence.json",
+          "schema": "eqiora.geometry-mesh-correspondence-envelope/v1",
+          "digest_domain": "eqiora.geometry-mesh-correspondence-envelope/v1",
+          "digest": "5a3bb7c21dbc4207e7b1e4f3c69eda4d42db02f0d898f4a4bda56dc2f239f4eb",
+          "raw_sha256": "2b3d6cf1da3d575ead9380721fe46f1a648b8e92e39302ee6658225729af86e7",
+          "references": [
+            {
+              "path": "/geometry_sha256",
+              "target": "/provenance/geometry_identity_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/provenance/realization_sha256",
+          "artifact": "realization.json",
+          "schema": "eqiora.realization-envelope/v5",
+          "digest_domain": "eqiora.realization-envelope/v5",
+          "digest": "29c576280edd955106b4800850db321839a2b811c4940588963e15d64eb4bbc5",
+          "raw_sha256": "ae6de4343b5ea610abad2e4721738b5d096d1b59eb1c4f9a1a45ef30e77e3bff",
+          "references": [
+            {
+              "path": "/model_sha256",
+              "target": "/provenance/model_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/provenance/run_sha256",
+          "artifact": "run.json",
+          "schema": "eqiora.run-manifest/v2",
+          "digest_domain": "eqiora.run-manifest/v2",
+          "digest": "1438e9c667431ae434515715bf9d25318626a9fb9af87698058e5e1c71f104bb",
+          "raw_sha256": "cc933842f748d6613903391fefd50775b37f1db0aba25e35e12f225a199bcae0",
+          "references": [
+            {
+              "path": "/model_sha256",
+              "target": "/provenance/model_sha256"
+            },
+            {
+              "path": "/output_sha256[0]",
+              "target": "/provenance/trajectory_sha256"
+            },
+            {
+              "path": "/realization_sha256",
+              "target": "/provenance/realization_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/provenance/trajectory_sha256",
+          "artifact": "trajectory.json",
+          "schema": "eqiora.spatial-trajectory/v2",
+          "digest_domain": "eqiora.spatial-trajectory/v2",
+          "digest": "ff31d77a14365054b3551145e40cd38695d1fca78465f11f8c78d88297ee1ddc",
+          "raw_sha256": "3d83faf6eb35d3ae34ecbe43d4973b991cf75db28166150e0bae35b4cbf6c1fc",
+          "references": [
+            {
+              "path": "/reference/correspondence_sha256",
+              "target": "/provenance/correspondence_sha256"
+            },
+            {
+              "path": "/reference/model_sha256",
+              "target": "/provenance/model_sha256"
+            },
+            {
+              "path": "/reference/realization_sha256",
+              "target": "/provenance/realization_sha256"
+            },
+            {
+              "path": "/reference/reference_geometry_sha256",
+              "target": "/provenance/geometry_identity_sha256"
+            },
+            {
+              "path": "/previous_root_sha256",
+              "target": "/internal/trajectory-root-0"
+            },
+            {
+              "path": "/segments[0]/segment_sha256",
+              "target": "/internal/trajectory-segment-0"
+            },
+            {
+              "path": "/segments[1]/segment_sha256",
+              "target": "/internal/trajectory-segment-1"
+            },
+            {
+              "path": "/segments[0]/first_geometry_state_sha256",
+              "target": "/frames[0]/geometry_state_sha256"
+            },
+            {
+              "path": "/segments[0]/last_geometry_state_sha256",
+              "target": "/frames[0]/geometry_state_sha256"
+            },
+            {
+              "path": "/segments[1]/first_geometry_predecessor_sha256",
+              "target": "/frames[0]/geometry_state_sha256"
+            },
+            {
+              "path": "/segments[1]/first_geometry_state_sha256",
+              "target": "/frames[1]/geometry_state_sha256"
+            },
+            {
+              "path": "/segments[1]/last_geometry_state_sha256",
+              "target": "/frames[2]/geometry_state_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/frames[0]/geometry_state_sha256",
+          "artifact": "geometry-state-0.json",
+          "schema": "eqiora.geometry-state-envelope/v3",
+          "digest_domain": "eqiora.geometry-state-envelope/v3",
+          "digest": "a145d2a17d381f76b024f95191ead5c94c66ec13d18e1a31e83c96cfd5968769",
+          "raw_sha256": "e388c1d537666f6145b1f4dcbf7aac4b06caa8d2829f68c2955df0469338e07a",
+          "references": [
+            {
+              "path": "/reference/correspondence_sha256",
+              "target": "/provenance/correspondence_sha256"
+            },
+            {
+              "path": "/reference/geometry_sha256",
+              "target": "/provenance/geometry_identity_sha256"
+            },
+            {
+              "path": "/reference/model_sha256",
+              "target": "/provenance/model_sha256"
+            },
+            {
+              "path": "/reference/realization_sha256",
+              "target": "/provenance/realization_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/frames[1]/geometry_state_sha256",
+          "artifact": "geometry-state-1.json",
+          "schema": "eqiora.geometry-state-envelope/v3",
+          "digest_domain": "eqiora.geometry-state-envelope/v3",
+          "digest": "5a6ed01ad21b504acb788a5e6596a3b24fd64798be7de262c7a7e239a0ecb7b8",
+          "raw_sha256": "f161b3242d047683e7d066ff84a2a3af97c31a80709cece9235deecda2671ee1",
+          "references": [
+            {
+              "path": "/predecessor_geometry_state_sha256",
+              "target": "/frames[0]/geometry_state_sha256"
+            },
+            {
+              "path": "/reference/correspondence_sha256",
+              "target": "/provenance/correspondence_sha256"
+            },
+            {
+              "path": "/reference/geometry_sha256",
+              "target": "/provenance/geometry_identity_sha256"
+            },
+            {
+              "path": "/reference/model_sha256",
+              "target": "/provenance/model_sha256"
+            },
+            {
+              "path": "/reference/realization_sha256",
+              "target": "/provenance/realization_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/frames[2]/geometry_state_sha256",
+          "artifact": "geometry-state-2.json",
+          "schema": "eqiora.geometry-state-envelope/v3",
+          "digest_domain": "eqiora.geometry-state-envelope/v3",
+          "digest": "e2fef29f1567b59cbd3d6d8d21c5aa8f2adcc2487bd8e9aeb3f65dcaf3c6beb3",
+          "raw_sha256": "219efcac207363aae732003683f2c0f8b7b92b88fd2d028eee88bc474392fed4",
+          "references": [
+            {
+              "path": "/predecessor_geometry_state_sha256",
+              "target": "/frames[1]/geometry_state_sha256"
+            },
+            {
+              "path": "/reference/correspondence_sha256",
+              "target": "/provenance/correspondence_sha256"
+            },
+            {
+              "path": "/reference/geometry_sha256",
+              "target": "/provenance/geometry_identity_sha256"
+            },
+            {
+              "path": "/reference/model_sha256",
+              "target": "/provenance/model_sha256"
+            },
+            {
+              "path": "/reference/realization_sha256",
+              "target": "/provenance/realization_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/frames[0]/spatial_state_sha256",
+          "artifact": "spatial-state-0.json",
+          "schema": "eqiora.spatial-state-envelope/v2",
+          "digest_domain": "eqiora.spatial-state-envelope/v2",
+          "digest": "b9162ade66880f37eb1fe4b71553c96e559e53f9d17f16603b1d9b9c73776721",
+          "raw_sha256": "a931c6642b5d67c6dc7ffe3bbf22e2a234c65e557c2b2e8eb58e14e489cccfff",
+          "references": [
+            {
+              "path": "/geometry_state/geometry_state_sha256",
+              "target": "/frames[0]/geometry_state_sha256"
+            },
+            {
+              "path": "/reference/correspondence_sha256",
+              "target": "/provenance/correspondence_sha256"
+            },
+            {
+              "path": "/reference/model_sha256",
+              "target": "/provenance/model_sha256"
+            },
+            {
+              "path": "/reference/realization_sha256",
+              "target": "/provenance/realization_sha256"
+            },
+            {
+              "path": "/reference/reference_geometry_sha256",
+              "target": "/provenance/geometry_identity_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/frames[1]/spatial_state_sha256",
+          "artifact": "spatial-state-1.json",
+          "schema": "eqiora.spatial-state-envelope/v2",
+          "digest_domain": "eqiora.spatial-state-envelope/v2",
+          "digest": "3da8196e0f8f69cd37ea9eebbe12eb0be934d08cd5cdf09801b43877a25f2bce",
+          "raw_sha256": "0d26a37d5f293228ecbfae8ec7fc7b30a72b1a56b25987c602a22aabbbcbc0c3",
+          "references": [
+            {
+              "path": "/geometry_state/geometry_state_sha256",
+              "target": "/frames[1]/geometry_state_sha256"
+            },
+            {
+              "path": "/geometry_state/predecessor_geometry_state_sha256",
+              "target": "/frames[0]/geometry_state_sha256"
+            },
+            {
+              "path": "/reference/correspondence_sha256",
+              "target": "/provenance/correspondence_sha256"
+            },
+            {
+              "path": "/reference/model_sha256",
+              "target": "/provenance/model_sha256"
+            },
+            {
+              "path": "/reference/realization_sha256",
+              "target": "/provenance/realization_sha256"
+            },
+            {
+              "path": "/reference/reference_geometry_sha256",
+              "target": "/provenance/geometry_identity_sha256"
+            }
+          ]
+        },
+        {
+          "pointer": "/frames[2]/spatial_state_sha256",
+          "artifact": "spatial-state-2.json",
+          "schema": "eqiora.spatial-state-envelope/v2",
+          "digest_domain": "eqiora.spatial-state-envelope/v2",
+          "digest": "7e036f3bbdc05738c4feae900919bfe2dde987fd879e18c05c41e44fa36d66d6",
+          "raw_sha256": "253961809d28b22811de33006ed993e7e51269630f4523f66b9c553fbf231aa1",
+          "references": [
+            {
+              "path": "/geometry_state/geometry_state_sha256",
+              "target": "/frames[2]/geometry_state_sha256"
+            },
+            {
+              "path": "/geometry_state/predecessor_geometry_state_sha256",
+              "target": "/frames[1]/geometry_state_sha256"
+            },
+            {
+              "path": "/reference/correspondence_sha256",
+              "target": "/provenance/correspondence_sha256"
+            },
+            {
+              "path": "/reference/model_sha256",
+              "target": "/provenance/model_sha256"
+            },
+            {
+              "path": "/reference/realization_sha256",
+              "target": "/provenance/realization_sha256"
+            },
+            {
+              "path": "/reference/reference_geometry_sha256",
+              "target": "/provenance/geometry_identity_sha256"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "bridge": [
+    {
+      "name": "canonical-cartesian-poisson-cuda",
+      "case": "numerics.canonical-cartesian-poisson-cuda",
+      "environment": "NVIDIA CUDA accelerator, not reproduced by the default gate",
+      "historical_artifact": "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/model.json",
+      "historical_schema": "eqiora.model-envelope/v1",
+      "historical_bytes": 9005,
+      "historical_raw_sha256": "f4f2ea7810ff64f53842d82c4598f426a81c36641e852a6ed142a8630f008779",
+      "historical_artifact_digest": "f02dac023f7ee1e93b862ff2bf6bbade3fd7269dbec2b8bef07610948bc0c597",
+      "historical_fingerprint": "eqiora.structural-semantic-fingerprint/v2:40dcf9d4593c126f7057f2d7cfb8298b74ea44da929ac4f4a6cdb1cb27784fa9",
+      "current_model_bytes_path": "expected/bridge/canonical-cartesian-poisson-cuda/current-model.json",
+      "current_bytes": 9164,
+      "current_raw_sha256": "db5fc70078102d835fd3dc335db2ccedbe3ec62fb19a183fd162b258237db07e",
+      "current_artifact_digest": "55ee1b2bf79d9839d810a229e55a7da92e0da00e6e271b63d4f44cf1cc31bc10",
+      "current_fingerprint": "eqiora.structural-semantic-fingerprint/v2:40dcf9d4593c126f7057f2d7cfb8298b74ea44da929ac4f4a6cdb1cb27784fa9",
+      "model_ulid": "01KY7GY843Y01QMPP1M1FECW0R",
+      "source_revision": 1,
+      "historical_bundle": [
+        {
+          "path": "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/q1-fem-realization.json",
+          "schema": "eqiora.realization-envelope/v1",
+          "raw_sha256": "7c0aa4ecda5924c8d893d2dca18b5bede035b0fc6a660480cebddff9d3a2ef78",
+          "artifact_digest": "fb64151d1788879102f224b04e25de3fbcbb00d8b2b96899600a2afe1ce47490",
+          "model_sha256": "f02dac023f7ee1e93b862ff2bf6bbade3fd7269dbec2b8bef07610948bc0c597"
+        },
+        {
+          "path": "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/q1-fem-run.json",
+          "schema": "eqiora.run-manifest/v2",
+          "raw_sha256": "84cde9d5b9e182da8ccda2ca873947236cf50a59f96a3ec94bced9c4f945c6a0",
+          "artifact_digest": "e360ba4660983d67866bde561057a594f2e7c5db511edd5dab4b82fd288d749d",
+          "model_sha256": "f02dac023f7ee1e93b862ff2bf6bbade3fd7269dbec2b8bef07610948bc0c597"
+        },
+        {
+          "path": "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/cell-centered-tpfa-realization.json",
+          "schema": "eqiora.realization-envelope/v1",
+          "raw_sha256": "007dc6e351635be8a6ec554476b2b39fbf253a12566db43716750e7080271fc1",
+          "artifact_digest": "140e0a9a572c3b22847be77c9ebca58af3a65109dd2dd85600b943299e4f1578",
+          "model_sha256": "f02dac023f7ee1e93b862ff2bf6bbade3fd7269dbec2b8bef07610948bc0c597"
+        },
+        {
+          "path": "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/cell-centered-tpfa-run.json",
+          "schema": "eqiora.run-manifest/v2",
+          "raw_sha256": "8a4e39fe8fe946c3c1fc4e2f7f72d177760f78fa3df0f7920311754e61b6bcff",
+          "artifact_digest": "1c103ab6758bed22a267aa8b9ba8b89ff6bd16f06c5166c849b6f2b5d7b81a6e",
+          "model_sha256": "f02dac023f7ee1e93b862ff2bf6bbade3fd7269dbec2b8bef07610948bc0c597"
+        }
+      ]
+    },
+    {
+      "name": "fixed-reference-cuda-solve-2d",
+      "case": "fsi.fixed-reference-cuda-solve-2d",
+      "environment": "NVIDIA CUDA accelerator, not reproduced by the default gate",
+      "historical_artifact": "verify/fsi/fixed-reference-cuda-solve-2d/artifacts/model.json",
+      "historical_schema": "eqiora.model-envelope/v4",
+      "historical_bytes": 52802,
+      "historical_raw_sha256": "0b5c3dc013f8711bdf94ea8c6ef0a07841a91f2f31a3d6062982728db665fd8f",
+      "historical_artifact_digest": "16d7bfb39746ccfda33c07ac3f054b42827ee5dd65380c553b93f7c3751d26ba",
+      "historical_fingerprint": "eqiora.structural-semantic-fingerprint/v2:f119284aa8ae835ba45d3d407f132d2b009b5c15930e20d3a26214901a3700b6",
+      "current_model_bytes_path": "expected/bridge/fixed-reference-cuda-solve-2d/current-model.json",
+      "current_bytes": 53044,
+      "current_raw_sha256": "c30297bb76ea4b426f79fd5534b26768db410e99a7b6735e3dc70edac45a4781",
+      "current_artifact_digest": "490d39abd32b1515c77a4454cbebba8ed2c229e5b1825364345736187afb1423",
+      "current_fingerprint": "eqiora.structural-semantic-fingerprint/v2:f119284aa8ae835ba45d3d407f132d2b009b5c15930e20d3a26214901a3700b6",
+      "model_ulid": "6GHJ7J4GVC2G81JV2ZZHSHNS20",
+      "source_revision": 1,
+      "historical_bundle": [
+        {
+          "path": "verify/fsi/fixed-reference-cuda-solve-2d/artifacts/cuda-realization.json",
+          "schema": "eqiora.realization-envelope/v3",
+          "raw_sha256": "d764a7285f5989fd738c93f101ac453d2fefd3f62d1f6f488014f96f391b5883",
+          "artifact_digest": "a31823abb46e5cb66847c64a8d640186fb96daa54a01eb8155a98e25a44e2d3f",
+          "model_sha256": "16d7bfb39746ccfda33c07ac3f054b42827ee5dd65380c553b93f7c3751d26ba"
+        },
+        {
+          "path": "verify/fsi/fixed-reference-cuda-solve-2d/artifacts/cuda-run.json",
+          "schema": "eqiora.run-manifest/v2",
+          "raw_sha256": "918f3c203e5ff59edd6ac540205fc41a755ec19e9d28e6ffdabc1d38dd911fe6",
+          "artifact_digest": "eb43a8cd185925189a523bae1eb9d59ac229960c1a1c50311dea759baebc073a",
+          "model_sha256": "16d7bfb39746ccfda33c07ac3f054b42827ee5dd65380c553b93f7c3751d26ba"
+        }
+      ]
+    }
+  ]
+}

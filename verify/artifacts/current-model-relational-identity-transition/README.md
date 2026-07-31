@@ -1,0 +1,365 @@
+# Current Model relational identity transition
+
+RFC 0083 resets the Model artifact epoch. Changing the Model digest changes a
+downstream artifact **only** when that exact artifact embeds the Model
+reference. This case is the independent oracle that says, for every checked-in
+Model reference in the repository, which of those it is — and, where an identity
+may legitimately change, exactly what it changes to.
+
+The classification is by producer semantics, not by a closed fixture list.
+[`expected/classification.json`](expected/classification.json) records the
+complete search, every classified entry, and the exact two-state transition
+contract below;
+[`expected/classification-inventory.txt`](expected/classification-inventory.txt)
+freezes its 338 exact candidate paths so the registered test can repeat the
+same repository sweep;
+[`expected/transition.json`](expected/transition.json) records the precommitted
+identities.
+
+## What this case owns
+
+- the complete classification of every Model-bearing fixture, and exactly one
+  fate for each of the 338 candidate paths;
+- complete precommitted current Model canonical bytes for the five
+  deterministic fixtures, plus every permitted downstream identity they imply;
+- the canonical bytes of each downstream artifact whose identity changes, so
+  every artifact-reference edge is re-derivable from bytes alone; and
+- the complete ALE segment-to-root identity chain, the opaque exact
+  Realization v4 golden, and the structural semantic bridge for the two
+  recorded accelerator bundles.
+
+## The reset is an exact two-state transition
+
+The repository is either wholly before the reset or wholly after it. There is no
+sentinel file whose absence declares the reset done, and no directory, suffix, or
+glob allowance: `search.transition` in
+[`expected/classification.json`](expected/classification.json) names every path
+by hand.
+
+| Set | Count | Meaning |
+| --- | --- | --- |
+| `retired` | 44 | disappears; present in every pre-reset state, absent in every post-reset one |
+| preserved | 304 | the rest of the frozen inventory; still exists afterwards, though an in-place migration may stop it matching the sweep |
+| `required_post_reset` | 13 | the complete set of paths the reset may add: 11 byte-frozen promotions — 10 staged control-v2 targets plus the historical cylinder — and 2 existence-only unversioned Rust owners |
+| `preserved_evidence` | 40 | invariant evidence — the same path in both states — whose deletion the reset must never reach |
+| `promoted_evidence` | 1 | evidence whose bytes survive at a different path, so it is invariant at neither |
+
+**44, 304 and 13 are not one partition of 338.** What partitions the inventory
+is 34 + 304: the retired paths that are inventory members, plus the preserved
+ones. The other ten retired paths carry no Model signal and were never members.
+The 13 required paths are post-reset additions and replacements: twelve do not
+exist yet, and the thirteenth,
+`verify/interfaces/control-plane-compile-check/expected/contract.json`, is the
+one existing inventory member whose bytes the reset replaces in place.
+
+Thirty-four retired paths are inventory members: the historical Model and
+Transaction generation modules `model_v2`--`model_v7` and
+`model_transaction_v2`--`model_transaction_v7`, the version-named current owners
+`model_v8.rs` and `model_transaction_v8.rs`, the exact-codec host
+`crates/eqiora-api/src/codec.rs` with its two v1-only test files, the
+compatibility-only wire goldens, the Python `eqiora.compatibility` module and
+stub, the live control-v1 schema, the superseded v7 cylinder resource, and the
+four signal-bearing staged control-v2 files. The other ten carry no Model signal
+and so were never inventory members: the seven staged control-v2 request
+fixtures and the three live control-v1 request fixtures.
+
+### Version-named owners retire; unversioned owners replace them
+
+RFC 0083 keeps `v8` in *persisted* names because they identify released bytes,
+and makes the public Rust and Python owners unversioned. `model_v8.rs` and
+`model_transaction_v8.rs` are source owners, not persisted names, so they retire
+with the rest. The reset folds each wrapper together with the surviving current
+encoding it delegates to into one unversioned owner —
+`crates/eqiora-artifact/src/model_wire.rs` for Model and
+`crates/eqiora-artifact/src/model_transaction_wire.rs` for Transaction — which
+gives the exact current persisted wire an unversioned product owner without
+growing the already large `model.rs` and `model_transaction.rs`.
+
+Their **existence** is required and their **content** is not frozen here: this
+case does not own the current encoding, `artifacts.current-model-canonical-identity`
+does. They must also not exist before the reset, or the repository is mid-flight
+rather than pre-reset.
+
+One consequence for the implementer: the registered test root in this case
+imports `ModelEnvelopeV8` from `eqiora_artifact`. After the reset that name is
+gone, and
+rewiring the import to the unversioned current owner is a mechanical change the
+implementation makes. Rewiring a name is not authoring an oracle; changing any
+expected value, tolerance, or set in this case still is not available.
+
+### The superseded cylinder becomes oracle input, not a product example
+
+`examples/steady-flow-past-cylinder.model-v7.json` is read by the accepted
+oracle `crates/eqiora-artifact/tests/current_model_wire_oracle.rs` as its
+superseded specimen. After the reset it is historical evidence, and shipping it
+from `examples/` would claim it is still a product example. Its exact bytes move
+to
+`verify/artifacts/current-model-canonical-identity/expected/historical/steady-flow-past-cylinder.model-v7.json`,
+beside the other historical Model specimens, under a frozen 16,798-byte
+promotion digest. The unversioned
+`examples/steady-flow-past-cylinder.model.json` is the current resource and does
+not move.
+
+That is why invariant evidence and promoted evidence are separate lists. A
+single `preserved_evidence` list holding both would make the pre state demand a
+path the reset removes, or the post state demand one it never creates; splitting
+them keeps the real pre state and the synthetic post state each exact.
+
+**A proper nonempty subset missing is a partial transition and fails.** One
+retired path removed is refused exactly like forty; one retired compatibility
+surface surviving an otherwise complete reset is refused the same way. That is
+what makes this a contract rather than a heuristic: the reset cannot land one
+seam at a time and call each step green.
+
+The previous sentinel keyed the post-reset state on the deletion of
+`crates/eqiora-api/src/codec.rs` while permitting only twelve paths to
+disappear. It refused a structurally correct reset — that same file, the
+historical modules, the Python compatibility module, and every staged
+control-v2 path had to go and were not permitted to.
+
+## Promotion moves bytes, never meaning
+
+Each staged file retires **only** once its exact live target exists carrying the
+staged source's frozen digest — the v2 schema at
+`schemas/control/compile-v2.schema.json`, the v2 expected contract in place of
+the v1 one, the historical v1 schema copy, the seven request fixtures, and the
+historical cylinder resource. The retired live `models/accepted-v1.json` and
+`schemas/control/compile-v1.schema.json` bytes survive byte-for-byte as
+`models/retired-v1.json` and the historical copy, so retiring control v1
+preserves the exact request and schema it retires. Nine of the eleven digests
+are also frozen independently by the control-v2 lane's own `fixtureDigests`;
+this case consumes and re-derives them rather than authoring them.
+
+Three of the promoted paths carry a Model search signal, and the two
+unversioned wire owners will carry one as soon as they exist. The post-reset
+predicate admits the 13 required paths on top of the preserved inventory, and
+those five are the ones expected to be found by the sweep. An implementation
+that needs another new signal-bearing path, or that cannot retire a listed one,
+stops and returns the delta to this oracle. Widening a set here to fit an
+implementation choice is not an available move.
+
+## Every candidate has exactly one fate
+
+`classification.json` names 109 of the 338 candidates in an entry and leaves the
+other 229 to the `non-fixture-search-hit` remainder. A remainder is what keeps
+the classification complete without listing every path twice, and it is also
+where a classification can quietly say the wrong thing: "everything else
+migrates in place" stops being true the moment a path the reset *removes* is
+left unnamed.
+
+So `dispositions` declares the seven fates an entry may assign — `delete`,
+`rename-source`, `delegate`, `migrate`, `preserve-bytes`,
+`decompose-by-claim`, and the remainder's `migrate-in-place` — every
+path-bearing entry declares exactly one, and no path is named by two entries.
+All 34 retired inventory members are named explicitly: fifteen as
+compatibility-only deletions (the `v3`--`v7` generation modules, the
+exact-codec host with its two v1-only API tests, and the Python compatibility
+module with its stub), two as version-named current owners the reset *renames*,
+two as the v2-named source files *decomposed by claim*, and fifteen by the
+fixture, delegated, and remaining mixed-claim entries. The remainder therefore
+excludes retired paths by construction, and both routes check that it does.
+
+`model_v8.rs` and `model_transaction_v8.rs` are the reason `rename-source`
+exists as a fate. They are not compatibility-only — they host the exact current
+persisted wire, which survives — so calling them deleted would misstate what
+happens to the encoding, and leaving them to the remainder would call a removed
+path an in-place migration.
+
+`model_v2.rs` and `model_transaction_v2.rs` are the reason `decompose-by-claim`
+reaches product source and not only tests and fixtures. The version in a file
+name is the generation the module was born for, not the only one it still serves:
+RFC 0083 says in as many words that "the current implementation hosts v8
+encoding in `model_v2.rs`", and current v8 delegates to
+`ModelEnvelopeV2::from_program_v8`, `from_json_v8`, and `digest_v8` with the
+Transaction functions alongside. So their fate is not one verb. The historical
+`V2`--`V7` admission and per-generation selection are deleted; the exact current
+v8 encoder, decoder, and digest **migrates** to the matching unversioned owner —
+`model_v2.rs` to `model_wire.rs`, `model_transaction_v2.rs` to
+`model_transaction_wire.rs`. Calling either file compatibility-only would have
+authorised deleting the current encoder along with the branch the reset is
+actually removing.
+
+The four retired v2/v8 source files therefore reach the same two unversioned
+owners by two different routes, and the mapping is per file in both. Both routes
+check the `from`/`to` pairs in order rather than as sets, so a reset that sent
+Model to `model_transaction_wire.rs` fails instead of passing on membership.
+
+## The oracle excludes its own two executor files, exactly
+
+This case's executable oracle is two files: the integration-test root
+`crates/eqiora-artifact/tests/current_model_relational_identity_transition.rs`
+and the private support module
+`current_model_relational_identity_transition/transition_contract.rs` it
+includes with `#[path]`, so the case keeps one Cargo integration-test target.
+The split is by responsibility — embedded literals and the identities derived
+from them in the root, the repository sweep and the transition contract in the
+module — and it is what keeps both files inside the 2,000-line test ceiling
+without a debt entry.
+
+Both files spell the tokens the sweep searches for, so both are excluded from
+it, by exact path, declared in `search.excluded_paths`. Not by their directory,
+not by a suffix rule, and not by anything resembling "tests": every other test
+file in the repository, including the sibling oracle
+`crates/eqiora-artifact/tests/current_model_wire_oracle.rs`, stays a classified
+candidate. Both routes check that the exclusion is exactly those two paths, that
+each one really would be found without it, and that a third file added beside
+them arrives as an unclassified candidate to be returned here.
+
+## Path existence cannot see a private branch
+
+A file that survives the reset can still hold the branch the reset exists to
+delete. `encode_v1`--`encode_v8` and `ensure_v1`--`ensure_v8` live today inside
+`model.rs`, `model_transaction.rs`, `model/node.rs`, `model/expression.rs`, and
+`model/vocabulary.rs` — every one of which is preserved. A contract that only
+counted paths would call that reset complete.
+
+`search.forbidden_product_tokens` closes it: three narrowly frozen
+product-source scopes, 102 exact case-sensitive substrings, evaluated **only**
+in the post-reset state.
+
+| Scope | Reaches | Forbids |
+| --- | --- | --- |
+| `rust-product-source` | `src/` of the four `eqiora*` crates and the Studio Tauri host | 90 tokens: the versioned public spellings, the wire DTOs, the generation selectors, the private per-generation encode/admit/derive branches, and the exact v1--v7 Model and Transaction schema strings — 86 of which the pre-reset tree carries |
+| `python-product-source` | the `eqiora` package, its stubs, and the shipped Python examples | 6 tokens: the compatibility module and every exact-generation selector — all 6 present today |
+| `control-product-source` | the control plane, the Python control host, `studio/src-tauri/src/compile.rs`, and Studio product TS/TSX | 6 tokens: the caller-selected Model generation inputs of control v1 — all 6 present today |
+
+### 98 of the 102 are there to remove; four are prospective
+
+A post-reset-only contract is worth nothing if the tokens were never there in
+the first place, so `pre_reset_occurrence` measures that instead of asserting
+it. Of the 102, **98 occur** in the files their own scope covers, and **four do
+not**: `from_program_v2`, `from_json_v2`, `from_transaction_v2`, and
+`digest_v2`. No product source spells those four today. They sit beside
+`from_program_v3`--`from_program_v8` and their siblings, which is exactly where
+a renamed historical v2 branch would most plausibly reappear while the reset is
+being written, so they stay forbidden after it — a prospective guard costs
+nothing and catches that. Claiming they occur now would simply be false, and
+this case does not.
+
+Both routes freeze that presence and absence exactly — 86 of 90 Rust tokens,
+6 of 6 Python, 6 of 6 control — and re-measure it against the working tree, so a
+scope that silently stops carrying a token it forbids, or that already carries
+one of the four, fails here. **After the reset all 102 are forbidden**, present
+ones and prospective ones alike.
+
+Matching is exact substring, deliberately. Recognizing a `#[cfg(test)]` module
+or a comment needs a permissive textual parser, and a parser that guesses what a
+scope contains is the thing this contract replaces. `*.test.*` and `*.spec.*`
+are filename patterns needing no parser, and the single Rust test-only module in
+the control scope is excluded by its exact path. That exclusion is scoped to the
+control tokens alone: a control test may legitimately name a field it proves the
+v2 decoder rejects, while a historical Model spelling in product Rust is a
+branch wherever it sits. A reset that adds another test-only module in scope
+returns that path here rather than assuming it.
+
+Four tokens are **deliberately permitted** and the contract fails if any is
+forbidden: `eqiora.control/v1`, because the v2 decoder's exact rejection
+diagnostic may name the protocol it refuses; `eqiora.model-envelope/v8` and
+`eqiora.model-transaction-envelope/v8`, because persisted names identify
+released bytes; and `model.compile-check/v1`, a command name rather than a Model
+generation selector. Only the full old schema string is forbidden, never bare
+`vN` text, so `eqiora.realization-envelope/v4` and every retained separately
+versioned family are untouched.
+
+Nothing under `verify/`, `crates/*/tests/`, `bindings/python/tests/`, `rfcs/`,
+`docs/`, `CHANGELOG.md`, or `schemas/` is scanned. Those hold the negative
+corpus and the historical record the reset must keep; forbidding a token there
+would delete the evidence that the reset happened.
+
+## What the transition predicate does not claim
+
+For paths it bounds which exist, not what survives inside them: a preserved file
+that is emptied still passes, only the eleven promotion targets have frozen
+bytes, and the two unversioned wire owners are required by existence alone. It
+covers the signal-bearing inventory plus the twenty-two paths named explicitly
+outside it — ten retired, twelve added — so deleting some other file that never
+carried a Model reference is invisible here and belongs to that file's own
+owner.
+
+The token contract bounds tokens, not behaviour: a file that spells no forbidden
+token may still hold a historical branch under another name, and a scope that is
+empty after the reset passes vacuously. It says nothing about any path outside
+its three declared scopes, and it is never applied to the pre-reset tree — this
+checkout carries 98 of the 102 tokens by construction, and the registered test
+freezes exactly which 98 rather than refusing the tree.
+
+The post-reset state is exercised against synthetic path sets rather than an
+observed repository, because no repository is in that state yet. The checkout
+this case ships with is pre-reset, and the same predicate classifies it. The
+synthetic post-reset state is the *maximal* one, in which every preserved path
+still matches the sweep; it is one complete valid post-reset state, not the
+exact signal set a real reset must produce. A preserved path migrated in place
+may stop matching, which is admissible and which the predicate allows by
+containment rather than equality.
+
+The sweep reads checked-in content. Building the Python extension copies example
+resources into maturin's staging directory
+`bindings/python/python/eqiora/examples`, so a tree that has run the gate holds
+an untracked build copy of an already classified Model resource there; that one
+exact directory is excluded, like `target` and `__pycache__` beside it. Without
+that exclusion the sweep reports its own build output as an unclassified
+candidate, which is how this case failed `local_verify.py fast` before the
+exclusion existed. Nothing under that path is checked in today, and a file that
+became checked in there would be outside this sweep and would need
+classification by hand.
+
+## What this case does not own
+
+The control-v2 accepted Model facts belong to the control oracle. The packaged
+`steady-flow-past-cylinder` resource and its replacement digest belong to
+`artifacts.current-model-canonical-identity`. The fingerprint byte projection
+belongs to RFC 0073; this case owns only the *equality relation* between two
+freshly observed fingerprints. Every scientific array, coordinate, field, time
+value, tolerance, balance, convergence result, source identity, and package
+identity is an immutable input here.
+
+## The four producer classes that carry a Model reference
+
+| Class | Rule | Members |
+| --- | --- | --- |
+| deterministic | complete precommitted current Model bytes and every permitted downstream identity | packaged DC motor, composed package, offline package, typed-execution lineage, fixed-topology ALE 3D |
+| flat fresh occurrence | shape, exact-identity inequality, fingerprint equality, same-execution linkage — never an occurrence-dependent literal | control v2, agent-authored change, Model-reference lineage, geometry-to-Model, FSI spatial trajectory, and the digest-relation cases |
+| historical recorded execution | untouched bytes plus the semantic bridge; never a relabelled current Run | canonical Cartesian Poisson CUDA, fixed-reference CUDA FSI |
+| retained separate-family golden | exact bytes, opaque Model reference | Realization v1--v3 goldens, the Realization v4 golden |
+
+The composed-package, offline-package, typed-execution, packaged DC-motor, and
+fixed-topology ALE fixtures are deterministic, not flat-fresh. Their
+cross-run reproducibility claims are retained; the same-execution linkage
+assertions this case adds do not replace them.
+
+## Why the deterministic literals are independent of the implementer
+
+The reset writer is a different lineage and cannot influence these values: the
+accepted deterministic producers were replayed here through their already-live
+current encoder before the reset existed, and the observed bytes were then
+**discarded as authority**. Every committed identity is re-derived from the
+committed bytes alone — canonical JSON re-rendered from the wire contract, the
+RFC 0008 schema-domain preimage rebuilt by hand, SHA-256 taken with `hashlib`,
+and each artifact-reference edge read out of the downstream bytes. See
+[`references/`](references/README.md). The implementation may wire these values;
+it may not regenerate or select them.
+
+## Identity-only containment
+
+Each replacement fixture is the committed fixture with exactly its precommitted
+identity pointers substituted. All five replacements are byte-length-identical
+to the fixtures they replace. The registered test reconstructs each replacement
+as same-length substitutions of unique 64-byte identity literals and compares
+the raw bytes exactly; JSON key order, whitespace, number spelling, and every
+non-identity byte are therefore immutable. That containment, not the digests
+themselves, is the claim.
+
+## The historical bridge is exact evidence, not prose
+
+For each recorded accelerator bundle the case records the untouched artifact's
+raw hash and its RFC 0008 artifact digest — both re-derivable from the bytes
+without a product decoder — together with a freshly observed
+`SemanticFingerprintGeneration::V2` value. It then commits a current Model
+artifact built from that same decoded semantic program and records the same
+fields. The fingerprints agree while the schema-domain artifact digests differ.
+
+Source identity is deliberately not a bridge field: the CUDA FSI bundle has no
+checked-in source, and source-identity construction is not owned here. The old
+Run observed the **historical** artifact; current semantic equivalence is
+independently bridged. Neither this case nor any wording derived from it may say
+that the current Run was observed.

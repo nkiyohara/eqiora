@@ -1,0 +1,1012 @@
+{
+  "schema": "eqiora.verify.current-model-relational-identity-classification/v1",
+  "search": {
+    "scope": "complete repository working tree at the classified revision, excluding .git",
+    "method": "the registered Rust oracle recursively scans the repository root for Model/Transaction schema literals, persisted Model digest/reference spellings, exact-codec or versioned-envelope producer tokens, and same-line lower-hex-64 literals with Model/Transaction language; only .git, the generated directory names `target`, `node_modules`, `dist`, and `__pycache__`, the two trees in `excluded_trees`, and the two exact files in `excluded_paths` are excluded",
+    "definition": "a Model-bearing fixture is a checked-in file that carries Model artifact bytes, a Model artifact digest, or an assertion pinning a Model artifact identity; search hits that are product surfaces or source/package identities are classified but are not promoted into the identity-delta class",
+    "inventory": "expected/classification-inventory.txt",
+    "candidate_path_count": 338,
+    "classified_inventory_path_count": 109,
+    "excluded_trees": [
+      "verify/artifacts/current-model-relational-identity-transition",
+      "bindings/python/python/eqiora/examples"
+    ],
+    "excluded_paths": [
+      "crates/eqiora-artifact/tests/current_model_relational_identity_transition.rs",
+      "crates/eqiora-artifact/tests/current_model_relational_identity_transition/transition_contract.rs"
+    ],
+    "excluded_paths_note": "this case's own executable oracle is two files: the integration-test root and the private support module it includes with `#[path]`, split because a single file exceeded the 2,000-line test ceiling. Both spell the tokens the sweep searches for, so both are excluded by exact path — never by their directory, by a suffix rule, or by anything resembling `crates/*/tests/`. Every other test file in the repository, including the sibling oracle `crates/eqiora-artifact/tests/current_model_wire_oracle.rs`, stays a classified candidate. A third executor file added beside these two arrives as an unclassified candidate and is returned to this oracle.",
+    "transition": {
+      "contract": "the epoch reset is an exact two-state transition, not a sentinel heuristic. Every inventory path is either retired or preserved; `retired` additionally names the staged control-v2 promotion sources and the retired control-v1 request fixtures, which carry no search signal and are therefore not inventory members.",
+      "pre_reset": "every path in `retired` exists, every inventory path exists, the discovered candidate set equals the frozen inventory exactly, every promotion source carries its frozen sha256, no promotion target marked `target_exists_pre_reset: false` exists yet, and no path in `required_post_reset_without_frozen_bytes` exists yet",
+      "post_reset": "no path in `retired` exists, every preserved inventory path exists although an in-place migration may stop matching the search signal, every path in `required_post_reset` exists — those in `promotion` carrying their frozen sha256, those in `required_post_reset_without_frozen_bytes` by existence alone — every path in `preserved_evidence` exists, every declared product-source scope is free of every forbidden token, and the discovered candidate set is contained in the preserved inventory together with `required_post_reset`",
+      "partial_transition": "any other combination fails, including exactly one retired path missing before the reset and exactly one retired path surviving after it. A proper nonempty subset of `retired` is never an admissible state, so a reset cannot land one seam at a time.",
+      "unchanged_from_the_accepted_contract": "no new signal-bearing path may appear in either state; `required_post_reset` is the complete set of paths the reset is permitted to add, and of those only `schemas/control/compile-v2.schema.json`, the promoted historical v1 schema copy, the promoted historical cylinder resource, and the two unversioned Rust wire owners carry a search signal",
+      "escape": "an implementation that needs another new signal-bearing path, another declared scope exclusion, or that cannot retire a listed path, stops and returns the delta to this oracle. Widening a set here to admit an implementation choice is not an available move.",
+      "ownership_of_the_unversioned_wire_owners": "the reset folds the retired `model_v8.rs` and `model_transaction_v8.rs` wrappers together with the surviving current encoding into `crates/eqiora-artifact/src/model_wire.rs` and `crates/eqiora-artifact/src/model_transaction_wire.rs`. This gives the exact current persisted wire an unversioned product owner without growing the already-large `model.rs` and `model_transaction.rs`. Their existence is required; their content is not frozen here, because this oracle does not own the current encoding — `artifacts.current-model-canonical-identity` does.",
+      "counts": "44, 304 and 13 are not one partition of 338. What partitions the inventory is 34 + 304: the 34 retired paths that are inventory members plus the 304 preserved ones. The other 10 retired paths carry no search signal and were never members. The 13 required paths are post-reset additions and replacements, not inventory members: 12 are created by the reset, and `verify/interfaces/control-plane-compile-check/expected/contract.json` is the one existing member whose bytes are replaced in place. Of the 13, 11 carry a frozen promotion digest — 10 staged control-v2 sources plus the historical cylinder — and 2 are required by existence alone.",
+      "retired_path_count": 44,
+      "retired_inside_the_inventory_count": 34,
+      "preserved_path_count": 304,
+      "required_post_reset_path_count": 13,
+      "retired": [
+        "bindings/python/python/eqiora/compatibility.py",
+        "bindings/python/python/eqiora/compatibility.pyi",
+        "crates/eqiora-api/src/codec.rs",
+        "crates/eqiora-api/tests/control_compile_v1.rs",
+        "crates/eqiora-api/tests/versioned_model_document.rs",
+        "crates/eqiora-artifact/src/model_transaction_v2.rs",
+        "crates/eqiora-artifact/src/model_transaction_v3.rs",
+        "crates/eqiora-artifact/src/model_transaction_v4.rs",
+        "crates/eqiora-artifact/src/model_transaction_v5.rs",
+        "crates/eqiora-artifact/src/model_transaction_v6.rs",
+        "crates/eqiora-artifact/src/model_transaction_v7.rs",
+        "crates/eqiora-artifact/src/model_transaction_v8.rs",
+        "crates/eqiora-artifact/src/model_v2.rs",
+        "crates/eqiora-artifact/src/model_v3.rs",
+        "crates/eqiora-artifact/src/model_v4.rs",
+        "crates/eqiora-artifact/src/model_v5.rs",
+        "crates/eqiora-artifact/src/model_v6.rs",
+        "crates/eqiora-artifact/src/model_v7.rs",
+        "crates/eqiora-artifact/src/model_v8.rs",
+        "crates/eqiora-artifact/tests/legacy_v1_golden.rs",
+        "crates/eqiora-artifact/tests/legacy_v2_golden.rs",
+        "crates/eqiora-artifact/tests/legacy_v3_golden.rs",
+        "crates/eqiora-artifact/tests/model_v2_wire.rs",
+        "crates/eqiora-artifact/tests/model_v3_wire.rs",
+        "crates/eqiora-artifact/tests/model_v4_wire.rs",
+        "crates/eqiora-artifact/tests/model_v5_wire.rs",
+        "crates/eqiora-artifact/tests/model_v6_wire.rs",
+        "crates/eqiora-artifact/tests/model_v8_wire.rs",
+        "examples/steady-flow-past-cylinder.model-v7.json",
+        "schemas/control/compile-v1.schema.json",
+        "verify/interfaces/control-plane-compile-check/models/accepted-v1.json",
+        "verify/interfaces/control-plane-compile-check/models/rejected-source-v1.json",
+        "verify/interfaces/control-plane-compile-check/models/unsupported-protocol-v1.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/README.md",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/expected/contract.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/expected/historical/compile-v1.schema.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/accepted-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/forbidden-model-wire-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/forbidden-required-features-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/rejected-source-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/retired-v1.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/unknown-command-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/unknown-protocol-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/schema/compile-v2.schema.json"
+      ],
+      "retired_outside_inventory": [
+        "verify/interfaces/control-plane-compile-check/models/accepted-v1.json",
+        "verify/interfaces/control-plane-compile-check/models/rejected-source-v1.json",
+        "verify/interfaces/control-plane-compile-check/models/unsupported-protocol-v1.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/accepted-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/forbidden-model-wire-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/forbidden-required-features-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/rejected-source-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/retired-v1.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/unknown-command-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/unknown-protocol-v2.json"
+      ],
+      "required_post_reset": [
+        "crates/eqiora-artifact/src/model_transaction_wire.rs",
+        "crates/eqiora-artifact/src/model_wire.rs",
+        "schemas/control/compile-v2.schema.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/steady-flow-past-cylinder.model-v7.json",
+        "verify/interfaces/control-plane-compile-check/expected/contract.json",
+        "verify/interfaces/control-plane-compile-check/expected/historical/compile-v1.schema.json",
+        "verify/interfaces/control-plane-compile-check/models/accepted-v2.json",
+        "verify/interfaces/control-plane-compile-check/models/forbidden-model-wire-v2.json",
+        "verify/interfaces/control-plane-compile-check/models/forbidden-required-features-v2.json",
+        "verify/interfaces/control-plane-compile-check/models/rejected-source-v2.json",
+        "verify/interfaces/control-plane-compile-check/models/retired-v1.json",
+        "verify/interfaces/control-plane-compile-check/models/unknown-command-v2.json",
+        "verify/interfaces/control-plane-compile-check/models/unknown-protocol-v2.json"
+      ],
+      "required_post_reset_without_frozen_bytes": [
+        "crates/eqiora-artifact/src/model_transaction_wire.rs",
+        "crates/eqiora-artifact/src/model_wire.rs"
+      ],
+      "promotion": [
+        {
+          "source": "examples/steady-flow-past-cylinder.model-v7.json",
+          "target": "verify/artifacts/current-model-canonical-identity/expected/historical/steady-flow-past-cylinder.model-v7.json",
+          "bytes": 16798,
+          "sha256": "b6c7be43520070084bf1a0f20a15772a69f4375dce168424341509189ddf5d1f",
+          "target_exists_pre_reset": false,
+          "note": "after the reset the superseded v7 cylinder is historical oracle input, not a product example: it is the negative specimen the accepted oracle `crates/eqiora-artifact/tests/current_model_wire_oracle.rs` reads. Its exact bytes are preserved and its ownership moves beside the other historical Model specimens; the unversioned `examples/steady-flow-past-cylinder.model.json` stays where it is and is unchanged"
+        },
+        {
+          "source": "verify/interfaces/control-plane-compile-check/oracle/v2/schema/compile-v2.schema.json",
+          "target": "schemas/control/compile-v2.schema.json",
+          "bytes": 5953,
+          "sha256": "e94e7dd5cb31ebbe81e77b4116d767a183787e58bd8b3c592ba3854d51503f53",
+          "target_exists_pre_reset": false
+        },
+        {
+          "source": "verify/interfaces/control-plane-compile-check/oracle/v2/expected/contract.json",
+          "target": "verify/interfaces/control-plane-compile-check/expected/contract.json",
+          "bytes": 14128,
+          "sha256": "ec1b37a97683e7f5e0dcf3ddc6f27d8be2a3ddd55650f96a22fa2b9a32c3bac0",
+          "target_exists_pre_reset": true,
+          "note": "the only promotion target that already exists: the live v1 expected contract is replaced in place by the frozen v2 contract"
+        },
+        {
+          "source": "verify/interfaces/control-plane-compile-check/oracle/v2/expected/historical/compile-v1.schema.json",
+          "target": "verify/interfaces/control-plane-compile-check/expected/historical/compile-v1.schema.json",
+          "bytes": 6978,
+          "sha256": "25cb0117212fbec1423dfd931570dac3ab571bc06d61a85daa6d18065d560f8c",
+          "target_exists_pre_reset": false,
+          "note": "byte-identical to the retired live `schemas/control/compile-v1.schema.json`; historical, never generated, registered, packaged, or dispatched"
+        },
+        {
+          "source": "verify/interfaces/control-plane-compile-check/oracle/v2/models/accepted-v2.json",
+          "target": "verify/interfaces/control-plane-compile-check/models/accepted-v2.json",
+          "bytes": 301,
+          "sha256": "ee65f680798d4bdea3f3cefbb09225a8cf10d44c4b1ba18f21250336d4190592",
+          "target_exists_pre_reset": false
+        },
+        {
+          "source": "verify/interfaces/control-plane-compile-check/oracle/v2/models/forbidden-model-wire-v2.json",
+          "target": "verify/interfaces/control-plane-compile-check/models/forbidden-model-wire-v2.json",
+          "bytes": 322,
+          "sha256": "8b0d21508149e56bc438cf778fd78fc84980dc8760b104595651208132914d1d",
+          "target_exists_pre_reset": false
+        },
+        {
+          "source": "verify/interfaces/control-plane-compile-check/oracle/v2/models/forbidden-required-features-v2.json",
+          "target": "verify/interfaces/control-plane-compile-check/models/forbidden-required-features-v2.json",
+          "bytes": 368,
+          "sha256": "f61b742a4851a3fac8e9102c2e04fcdc94aeb69cf02d7cd5a60d154440000b82",
+          "target_exists_pre_reset": false
+        },
+        {
+          "source": "verify/interfaces/control-plane-compile-check/oracle/v2/models/rejected-source-v2.json",
+          "target": "verify/interfaces/control-plane-compile-check/models/rejected-source-v2.json",
+          "bytes": 164,
+          "sha256": "35437226815dd1e50787a135bd6c577c0ce67930e5b2d67472aa03e5e7d01da8",
+          "target_exists_pre_reset": false
+        },
+        {
+          "source": "verify/interfaces/control-plane-compile-check/oracle/v2/models/retired-v1.json",
+          "target": "verify/interfaces/control-plane-compile-check/models/retired-v1.json",
+          "bytes": 389,
+          "sha256": "d49a244aea172eb82bd34ba52fff8a64ed1e38be2366ba54e4f5ddbad44d459d",
+          "target_exists_pre_reset": false,
+          "note": "byte-identical to the retired live `models/accepted-v1.json`; the control-v1 request survives as retired-protocol evidence rather than being re-authored"
+        },
+        {
+          "source": "verify/interfaces/control-plane-compile-check/oracle/v2/models/unknown-command-v2.json",
+          "target": "verify/interfaces/control-plane-compile-check/models/unknown-command-v2.json",
+          "bytes": 297,
+          "sha256": "60c6c686e2769fbcc14ad6567f390d831f8eae1729a3e194738e879db9c02547",
+          "target_exists_pre_reset": false
+        },
+        {
+          "source": "verify/interfaces/control-plane-compile-check/oracle/v2/models/unknown-protocol-v2.json",
+          "target": "verify/interfaces/control-plane-compile-check/models/unknown-protocol-v2.json",
+          "bytes": 311,
+          "sha256": "a0d47450e860350fe25b302717eae13fdfeb3e24f2f9948811b70499e8909391",
+          "target_exists_pre_reset": false
+        }
+      ],
+      "preserved_evidence": [
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-v1.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-v2.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-v3.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-v4.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-v5.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-v6.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-v7.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-transaction-v1.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-transaction-v2.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-transaction-v3.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-transaction-v4.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-transaction-v5.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-transaction-v6.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-transaction-v7.json",
+        "verify/artifacts/realization-run-wire/expected/realization-v1.json",
+        "verify/artifacts/realization-run-wire/expected/realization-v2.json",
+        "verify/artifacts/realization-run-wire/expected/realization-v3.json",
+        "crates/eqiora-artifact/tests/realization_v4_wire.rs",
+        "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/model.json",
+        "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/q1-fem-realization.json",
+        "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/q1-fem-run.json",
+        "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/cell-centered-tpfa-realization.json",
+        "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/cell-centered-tpfa-run.json",
+        "verify/fsi/fixed-reference-cuda-solve-2d/artifacts/model.json",
+        "verify/fsi/fixed-reference-cuda-solve-2d/artifacts/cuda-realization.json",
+        "verify/fsi/fixed-reference-cuda-solve-2d/artifacts/cuda-run.json",
+        "crates/eqiora-artifact/src/realization_v2.rs",
+        "crates/eqiora-artifact/src/realization_v3.rs",
+        "crates/eqiora-artifact/src/realization_v4.rs",
+        "crates/eqiora-artifact/src/realization_v5.rs",
+        "crates/eqiora-artifact/src/run_v2.rs",
+        "crates/eqiora-artifact/src/geometry_state_v2.rs",
+        "crates/eqiora-artifact/src/geometry_state_v3.rs",
+        "crates/eqiora-artifact/src/spatial_state_v2.rs",
+        "crates/eqiora-artifact/src/spatial_state_v3.rs",
+        "crates/eqiora-artifact/src/spatial_trajectory_v2.rs",
+        "crates/eqiora-artifact/src/spatial_trajectory_v3.rs",
+        "crates/eqiora-artifact/tests/current_model_wire_oracle.rs",
+        "verify/artifacts/current-model-canonical-identity/expected/model-v8.json",
+        "verify/artifacts/current-model-canonical-identity/expected/model-transaction-v8.json"
+      ],
+      "preserved_evidence_note": "invariant evidence only: every path here exists at the same location in both states. The historical Model and Transaction specimens survive as a negative rejection corpus, and no Realization, Run, spatial, or geometry family member is retired by this transition. Evidence whose location changes is not listed here — it is in `promoted_evidence`, so that both the real pre-reset state and the synthetic post-reset state stay exact rather than being the union of two phases.",
+      "promoted_evidence": [
+        {
+          "pre_reset": "examples/steady-flow-past-cylinder.model-v7.json",
+          "post_reset": "verify/artifacts/current-model-canonical-identity/expected/historical/steady-flow-past-cylinder.model-v7.json",
+          "owner": "artifacts.current-model-canonical-identity",
+          "note": "the same bytes are evidence in both states at different paths, so it is preserved evidence in neither. Its pre-reset path is retired, its post-reset path is required, and the byte identity between them is the `promotion` entry."
+        }
+      ],
+      "promoted_evidence_note": "each entry names one evidence file whose bytes survive and whose owner changes. `pre_reset` is a member of `retired`, `post_reset` is a member of `required_post_reset`, and a `promotion` row freezes the exact bytes carried across. Deleting the bytes rather than moving them fails as a substituted promotion, not as a missing path."
+    },
+    "forbidden_product_tokens": {
+      "applies": "post_reset_only",
+      "why": "path existence cannot see a private historical branch left inside a file the reset preserves. `encode_v1`--`encode_v8` and `ensure_v1`--`ensure_v8` live today in `crates/eqiora-artifact/src/model.rs`, `model_transaction.rs`, `model/node.rs`, `model/expression.rs`, and `model/vocabulary.rs`, every one of which survives the reset. A contract that only counted paths would call that reset complete.",
+      "matching": "exact case-sensitive byte substring over UTF-8 file content. No regular expression, no language parser, and no `#[cfg(test)]` stripping: a permissive textual parser would decide what a scope contains by guessing, which is what this contract exists to avoid.",
+      "not_scanned": "verify fixtures, oracles, and the control-v2 contract and schema falsifiers; `crates/*/tests/`; `bindings/python/tests/`; `rfcs/`; `docs/`; `CHANGELOG.md`; `schemas/`; and every retained artifact byte. Those hold the negative corpus and the historical record the reset must keep, and forbidding a token there would delete the evidence that the reset happened.",
+      "pre_reset_non_claim": "this contract is never evaluated against the pre-reset checkout: it carries almost everything the reset removes, and refusing it would be refusing the state this case ships in. `pre_reset_occurrence` records exactly how much of it is there, because \"the tree spells all 102\" would be false.",
+      "pre_reset_occurrence": {
+        "measured_state": "pre_reset",
+        "why": "a post-reset-only token contract is worth nothing if the tokens were never there to remove, so non-vacuity has to be measured rather than asserted. It is measured exactly: 98 of the 102 tokens occur in the files their own scope covers, and 4 do not.",
+        "measured_over": "the checked-in files each scope covers in this pre-reset checkout, by the same exact case-sensitive substring rule the post-reset scan uses",
+        "present_token_count": 98,
+        "prospective_token_count": 4,
+        "scopes": [
+          {
+            "name": "rust-product-source",
+            "declared": 90,
+            "present": 86,
+            "absent": [
+              "from_program_v2",
+              "from_json_v2",
+              "from_transaction_v2",
+              "digest_v2"
+            ]
+          },
+          {
+            "name": "python-product-source",
+            "declared": 6,
+            "present": 6,
+            "absent": []
+          },
+          {
+            "name": "control-product-source",
+            "declared": 6,
+            "present": 6,
+            "absent": []
+          }
+        ],
+        "prospective": "the four absent tokens are prospective post-reset guards, not observations. No product source spells them today; they name the per-generation entry points beside `from_program_v3`--`from_program_v8`, `from_json_v3`--`from_json_v8`, `from_transaction_v3`--`from_transaction_v8`, and `digest_v3`--`digest_v8`, which is where a renamed historical v2 branch would most plausibly reappear while the reset is being written. Forbidding them after the reset costs nothing and catches that; claiming they occur now would be false.",
+        "post_reset_claim": "unchanged. After the reset all 102 tokens are forbidden in every declared scope, present ones and prospective ones alike."
+      },
+      "deliberately_permitted": [
+        {
+          "token": "eqiora.control/v1",
+          "why": "the current v2 decoder's exact rejection diagnostic may intentionally name the retired protocol it refuses"
+        },
+        {
+          "token": "eqiora.model-envelope/v8",
+          "why": "persisted names retain `v8` because they identify released bytes (RFC 0083)"
+        },
+        {
+          "token": "eqiora.model-transaction-envelope/v8",
+          "why": "the persisted current Transaction schema likewise keeps its released name"
+        },
+        {
+          "token": "model.compile-check/v1",
+          "why": "a control command name, not a Model generation selector"
+        }
+      ],
+      "scopes": [
+        {
+          "name": "rust-product-source",
+          "paths": [
+            "crates/eqiora-artifact/src/**/*.rs",
+            "crates/eqiora-api/src/**/*.rs",
+            "crates/eqiora/src/**/*.rs",
+            "crates/eqiora-python/src/**/*.rs",
+            "studio/src-tauri/src/**/*.rs"
+          ],
+          "forbidden": [
+            "ModelEnvelopeV1",
+            "ModelEnvelopeV2",
+            "ModelEnvelopeV3",
+            "ModelEnvelopeV4",
+            "ModelEnvelopeV5",
+            "ModelEnvelopeV6",
+            "ModelEnvelopeV7",
+            "ModelEnvelopeV8",
+            "ModelTransactionEnvelopeV1",
+            "ModelTransactionEnvelopeV2",
+            "ModelTransactionEnvelopeV3",
+            "ModelTransactionEnvelopeV4",
+            "ModelTransactionEnvelopeV5",
+            "ModelTransactionEnvelopeV6",
+            "ModelTransactionEnvelopeV7",
+            "ModelTransactionEnvelopeV8",
+            "WireModelEnvelopeV1",
+            "WireModelEnvelopeV2",
+            "WireModelContentV1",
+            "WireModelContentV2",
+            "WireModelTransactionEnvelopeV1",
+            "WireModelTransactionEnvelopeV2",
+            "ExactModelCodec",
+            "ModelArtifactGeneration",
+            "AcceptedModelEnvelope",
+            "VersionedModelTransactionEnvelope",
+            "ModelSchemaVersion",
+            "TransactionSchemaVersion",
+            "ModelOperationWireVersion",
+            "encode_v1",
+            "encode_v2",
+            "encode_v3",
+            "encode_v4",
+            "encode_v5",
+            "encode_v6",
+            "encode_v7",
+            "encode_v8",
+            "ensure_v1",
+            "ensure_v2",
+            "ensure_v3",
+            "ensure_v4",
+            "ensure_v5",
+            "ensure_v6",
+            "ensure_v7",
+            "ensure_v8",
+            "from_program_v2",
+            "from_program_v3",
+            "from_program_v4",
+            "from_program_v5",
+            "from_program_v6",
+            "from_program_v7",
+            "from_program_v8",
+            "from_json_v2",
+            "from_json_v3",
+            "from_json_v4",
+            "from_json_v5",
+            "from_json_v6",
+            "from_json_v7",
+            "from_json_v8",
+            "from_transaction_v2",
+            "from_transaction_v3",
+            "from_transaction_v4",
+            "from_transaction_v5",
+            "from_transaction_v6",
+            "from_transaction_v7",
+            "from_transaction_v8",
+            "digest_v2",
+            "digest_v3",
+            "digest_v4",
+            "digest_v5",
+            "digest_v6",
+            "digest_v7",
+            "digest_v8",
+            "reject_coordinate_dependency_before_v8",
+            "exact_codec",
+            "eqiora::compatibility",
+            "eqiora.model-envelope/v1",
+            "eqiora.model-envelope/v2",
+            "eqiora.model-envelope/v3",
+            "eqiora.model-envelope/v4",
+            "eqiora.model-envelope/v5",
+            "eqiora.model-envelope/v6",
+            "eqiora.model-envelope/v7",
+            "eqiora.model-transaction-envelope/v1",
+            "eqiora.model-transaction-envelope/v2",
+            "eqiora.model-transaction-envelope/v3",
+            "eqiora.model-transaction-envelope/v4",
+            "eqiora.model-transaction-envelope/v5",
+            "eqiora.model-transaction-envelope/v6",
+            "eqiora.model-transaction-envelope/v7"
+          ],
+          "note": "the versioned public spellings, the wire DTOs, the generation selectors, the private per-generation encode/admit branches, and the exact old schema strings. Only the full schema string is forbidden, never bare `vN` text, so `eqiora.realization-envelope/v4` and the retained separately versioned families are untouched."
+        },
+        {
+          "name": "python-product-source",
+          "paths": [
+            "bindings/python/python/eqiora/**/*.py",
+            "bindings/python/python/eqiora/**/*.pyi",
+            "examples/python/**/*.py"
+          ],
+          "forbidden": [
+            "eqiora.compatibility",
+            "ExactModelCodec",
+            "compile_exact",
+            "define_exact",
+            "replay_exact",
+            "exact_codec"
+          ],
+          "note": "the Python compatibility module, its stub, and every exact-generation selector reachable from a binding or a shipped example"
+        },
+        {
+          "name": "control-product-source",
+          "paths": [
+            "crates/eqiora-api/src/control/**/*.rs",
+            "crates/eqiora-python/src/**/*.rs",
+            "studio/src-tauri/src/compile.rs",
+            "studio/src/**/*.ts",
+            "studio/src/**/*.tsx"
+          ],
+          "exclude_names": ["*.test.*", "*.spec.*"],
+          "exclude_paths": ["crates/eqiora-api/src/control/tests.rs"],
+          "forbidden": [
+            "modelWire",
+            "requiredFeatures",
+            "model-wire/",
+            "CompileFeatureV1",
+            "COMPILE_FEATURE_V1",
+            "MAX_COMPILE_REQUIRED_FEATURES_V1"
+          ],
+          "note": "the caller-selected Model generation inputs of control v1. Test sources are excluded here and only here, because a control test may legitimately name a field it proves the v2 decoder rejects. `*.test.*` and `*.spec.*` are filename patterns needing no parser; Rust `#[cfg(test)]` modules cannot be recognized without one, so the single test-only module in scope is excluded by its exact path instead. A reset that adds another test-only module in scope returns that path to this oracle rather than assuming it."
+        }
+      ],
+      "scope_count": 3,
+      "forbidden_token_count": 102,
+      "non_claims": "this contract bounds tokens, not behaviour: a file that spells no forbidden token may still hold a historical branch under another name, and a scope that is empty after the reset passes vacuously. It also says nothing about any path outside the declared scopes."
+    }
+  },
+  "classes": {
+    "deterministic-current-model-bytes": "deterministic hierarchy elaboration, package compilation, or replay; receives complete precommitted current Model bytes and every permitted downstream identity",
+    "flat-fresh-occurrence": "flat compilation deliberately allocating fresh occurrence ULIDs; receives shape, exact-identity inequality, semantic-fingerprint equality, and same-execution linkage relations, never an occurrence-dependent literal",
+    "historical-recorded-execution": "recorded execution from an environment the default gate does not reproduce; bytes stay untouched and receive the structural semantic bridge, never a relabelled current Run",
+    "retained-separate-family-golden": "golden of a separately versioned artifact family; exact bytes retained and the Model reference treated as opaque",
+    "delegated-current-owner-evidence": "exact current bytes, current assertions, or historical rejection specimens already owned by another registered oracle; retained there rather than duplicated here",
+    "negative-historical-rejection-corpus": "literal historical bytes retained only as negative specimens proving that the current decoder rejects old schemas; no historical runtime decoder is retained",
+    "current-owner-assertion": "semantic, scientific, application, or documentation claim that survives and migrates to the ordinary current owner",
+    "mixed-claim-surface": "one file contains both a surviving current claim and a removed compatibility selector; each claim has its own selector and disposition",
+    "compatibility-only": "sole claim is that a removed Model or Transaction generation stays callable or byte-stable; deleted by the reset",
+    "source-or-package-identity": "hash of source text or package content, not a Model artifact identity; immutable input",
+    "prose-transcript": "documentation transcript of one flat compilation; unreproducible by construction and covered by no registered case",
+    "version-named-current-owner": "source file that hosts the exact current encoding behind a version-named path; the reset renames it to the unversioned owner rather than deleting the behaviour it hosts",
+    "non-fixture-search-hit": "a product declaration or consumer surface found by the exhaustive candidate sweep; it migrates in place but contributes no frozen identity literal"
+  },
+  "dispositions": {
+    "delete": "the path is retired and its sole claim goes with it",
+    "rename-source": "the path is retired and the behaviour it hosts moves unchanged to the unversioned owner named in `renames_to`",
+    "delegate": "another registered case owns the claim; this case neither freezes nor migrates it, whatever happens to the path itself under `search.transition`",
+    "migrate": "the path survives and its claim moves to the current owner, with any identity literal it carries substituted by the precommitted successor",
+    "preserve-bytes": "the path survives byte-identical, and any Model reference inside it stays opaque",
+    "decompose-by-claim": "the file carries several claims with different fates; each entry in `claims` carries its own disposition",
+    "migrate-in-place": "the path survives an in-place migration and contributes no frozen identity literal here. The inventory remainder inherits this fate, and only paths that survive may: no retired path is left to it."
+  },
+  "disposition_completeness": "every entry naming at least one path declares exactly one disposition from the vocabulary above, no path is named by two entries, and every one of the 338 inventory paths therefore has exactly one fate: 109 from an entry and 229 from the remainder rule.",
+  "entries": [
+    {
+      "class": "deterministic-current-model-bytes",
+      "case": "hybrid.packaged-dc-motor-controller",
+      "disposition": "migrate",
+      "paths": ["verify/hybrid/packaged-dc-motor-controller/expected/identities.json"],
+      "producer": "crates/eqiora/tests/packaged_dc_motor_controller.rs",
+      "identity_literals": 4,
+      "owned_here": true
+    },
+    {
+      "class": "deterministic-current-model-bytes",
+      "case": "packages.composed-model-package",
+      "disposition": "migrate",
+      "paths": ["verify/packages/composed-model-package/expected/identities.json"],
+      "producer": "crates/eqiora/tests/composed_model_package.rs",
+      "identity_literals": 2,
+      "owned_here": true
+    },
+    {
+      "class": "deterministic-current-model-bytes",
+      "case": "packages.offline-model-package",
+      "disposition": "migrate",
+      "paths": ["verify/packages/offline-model-package/expected/identities.json"],
+      "producer": "crates/eqiora/tests/offline_model_package.rs",
+      "identity_literals": 4,
+      "owned_here": true
+    },
+    {
+      "class": "deterministic-current-model-bytes",
+      "case": "packages.typed-execution-lineage",
+      "disposition": "migrate",
+      "paths": ["verify/packages/typed-execution-lineage/expected/identities.json"],
+      "producer": "crates/eqiora/tests/typed_package_execution_lineage.rs",
+      "identity_literals": 5,
+      "owned_here": true
+    },
+    {
+      "class": "deterministic-current-model-bytes",
+      "case": "fsi.fixed-topology-ale-monolithic-3d",
+      "disposition": "migrate",
+      "paths": ["verify/fsi/fixed-topology-ale-monolithic-3d/expected/accepted-trajectory.json"],
+      "producer": "crates/eqiora/tests/fixed_topology_ale_fsi_3d.rs",
+      "identity_literals": 12,
+      "owned_here": true
+    },
+    {
+      "class": "delegated-current-owner-evidence",
+      "case": "artifacts.current-model-canonical-identity",
+      "disposition": "delegate",
+      "paths": [
+        "verify/artifacts/current-model-canonical-identity/README.md",
+        "verify/artifacts/current-model-canonical-identity/case.toml",
+        "verify/artifacts/current-model-canonical-identity/expected/README.md",
+        "verify/artifacts/current-model-canonical-identity/expected/model-v8.json",
+        "verify/artifacts/current-model-canonical-identity/expected/model-transaction-v8.json",
+        "verify/artifacts/current-model-canonical-identity/models/README.md",
+        "verify/artifacts/current-model-canonical-identity/references/README.md",
+        "verify/artifacts/current-model-canonical-identity/references/derive_canonical_bytes.py",
+        "crates/eqiora-artifact/tests/current_model_wire_oracle.rs",
+        "examples/steady-flow-past-cylinder.model.json",
+        "examples/steady-flow-past-cylinder.model-v7.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/steady-flow-past-cylinder.model-v7.json"
+      ],
+      "identity_literals": 1,
+      "owned_here": false,
+      "owner": "artifacts.current-model-canonical-identity",
+      "note": "the exact current Model and Transaction, their executable oracle, and both current and historical cylinder resources remain owned by the accepted full-byte oracle; this transition consumes its current cylinder identity without duplicating it. The historical cylinder is listed at both its pre-reset and post-reset paths: after the reset it is oracle input, not a product example, so it moves beside the other historical Model specimens with its bytes unchanged. `examples/steady-flow-past-cylinder.model.json` is the unversioned current resource and does not move."
+    },
+    {
+      "class": "negative-historical-rejection-corpus",
+      "case": "artifacts.current-model-canonical-identity",
+      "disposition": "delegate",
+      "paths": [
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-v1.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-v2.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-v3.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-v4.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-v5.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-v6.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-v7.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-transaction-v1.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-transaction-v2.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-transaction-v3.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-transaction-v4.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-transaction-v5.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-transaction-v6.json",
+        "verify/artifacts/current-model-canonical-identity/expected/historical/model-transaction-v7.json"
+      ],
+      "identity_literals": 0,
+      "owned_here": false,
+      "owner": "artifacts.current-model-canonical-identity",
+      "note": "literal v1-v7 bytes survive only as negative specimens for the current decoder; this preserves historical evidence without preserving a historical runtime branch"
+    },
+    {
+      "class": "current-owner-assertion",
+      "case": "interfaces.python-exact-cylinder-stokes-result",
+      "disposition": "migrate",
+      "paths": [
+        "verify/interfaces/python-exact-cylinder-stokes-result/case.toml",
+        "verify/interfaces/python-exact-cylinder-stokes-result/README.md",
+        "verify/interfaces/python-exact-cylinder-stokes-result/models/README.md",
+        "bindings/python/tests/test_exact_cylinder_stokes_result.py",
+        "crates/eqiora-python/tests/python_exact_cylinder_stokes_result.rs",
+        "crates/eqiora-api/src/steady_stokes.rs"
+      ],
+      "identity_literals": 0,
+      "owner": "artifacts.current-model-canonical-identity",
+      "note": "consumers migrate to the delegated current cylinder resource while preserving all Stokes arrays, tolerances, balances, and lineage assertions"
+    },
+    {
+      "class": "flat-fresh-occurrence",
+      "case": "interfaces.control-plane-compile-check",
+      "disposition": "delegate",
+      "paths": [
+        "verify/interfaces/control-plane-compile-check/expected/contract.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/README.md",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/expected/contract.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/expected/historical/compile-v1.schema.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/accepted-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/forbidden-model-wire-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/forbidden-required-features-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/rejected-source-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/retired-v1.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/unknown-command-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/models/unknown-protocol-v2.json",
+        "verify/interfaces/control-plane-compile-check/oracle/v2/schema/compile-v2.schema.json"
+      ],
+      "owned_here": false,
+      "owner": "interfaces.control-plane-compile-check v2 oracle",
+      "note": "RFC 0083 excludes the accepted control-v2 Model facts from identity-delta ownership; the independently merged v2 schema, contract, historical copy, and positive/negative fixtures own their shape and structural relations. `delegate` is the fate of the claim, not of the path: eleven of these are staged sources that retire under `search.transition.promotion` once their frozen bytes reach their live targets, and `verify/interfaces/control-plane-compile-check/expected/contract.json` is the one live target replaced in place. What happens to each path is frozen in `search.transition`, never here."
+    },
+    {
+      "class": "flat-fresh-occurrence",
+      "case": "interfaces.agent-authored-model-change",
+      "disposition": "migrate",
+      "paths": ["verify/interfaces/agent-authored-model-change/expected/oracle.json"],
+      "producer": "crates/eqiora/tests/agent_authored_model_change.rs",
+      "identity_literals": 0,
+      "note": "the oracle holds only field values and one absolute tolerance; base, plan, and result Model identities are compared inside one execution and never frozen"
+    },
+    {
+      "class": "flat-fresh-occurrence",
+      "case": "artifacts.model-reference-lineage",
+      "disposition": "migrate",
+      "paths": ["verify/artifacts/model-reference-lineage/case.toml"],
+      "producer": "crates/eqiora/tests/model_artifact_reference_lineage.rs",
+      "identity_literals": 0,
+      "note": "typed Model-reference lineage compares references in process; its v1-v7 dispatch capabilities are compatibility-only claims that the reset must narrow"
+    },
+    {
+      "class": "flat-fresh-occurrence",
+      "case": "geometry.model-references-a-geometry",
+      "disposition": "migrate",
+      "paths": ["verify/geometry/model-references-a-geometry/case.toml"],
+      "producer": "crates/eqiora/tests/geometry_referencing_model.rs",
+      "identity_literals": 0,
+      "note": "geometry-to-Model lineage already asserts the current codec and a generation-v2 fingerprint in process; only its v7 scope wording is superseded"
+    },
+    {
+      "class": "flat-fresh-occurrence",
+      "case": "artifacts.fixed-reference-fsi-spatial-trajectory",
+      "disposition": "migrate",
+      "paths": ["verify/artifacts/fixed-reference-fsi-spatial-trajectory/case.toml"],
+      "producer": "crates/eqiora/tests/fixed_reference_fsi_spatial_trajectory.rs",
+      "identity_literals": 0,
+      "note": "every state, segment, trajectory, and dataset identity is derived and compared inside one execution"
+    },
+    {
+      "class": "flat-fresh-occurrence",
+      "case": "interfaces.structural-semantic-fingerprint",
+      "disposition": "delegate",
+      "paths": ["verify/interfaces/structural-semantic-fingerprint/case.toml"],
+      "identity_literals": 0,
+      "note": "RFC 0073 owner; this transition case consumes its fingerprint values and owns only their equality relation"
+    },
+    {
+      "class": "flat-fresh-occurrence",
+      "cases": [
+        "geometry.direct-parameter-cartesian-coordinates",
+        "geometry.cartesian-domain-edit-3d",
+        "geometry.parameter-cartesian-regeneration",
+        "language.hierarchical-connection-sets",
+        "fluid.packaged-steady-stokes-2d",
+        "interfaces.python-fixed-reference-fsi-demo",
+        "fsi.fixed-reference-distributed-assembly-loopback-2d"
+      ],
+      "identity_literals": 0,
+      "note": "each pins only a Model-digest relation (equal, unequal, foreign-digest rejection, or explicit non-claim), never a Model digest value"
+    },
+    {
+      "class": "historical-recorded-execution",
+      "case": "numerics.canonical-cartesian-poisson-cuda",
+      "disposition": "preserve-bytes",
+      "paths": [
+        "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/model.json",
+        "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/q1-fem-realization.json",
+        "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/q1-fem-run.json",
+        "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/cell-centered-tpfa-realization.json",
+        "verify/numerics/canonical-cartesian-poisson-cuda/artifacts/cell-centered-tpfa-run.json"
+      ],
+      "identity_literals": 0,
+      "bridged": true,
+      "note": "bytes unchanged; bridged by raw hash, artifact digest, and generation-v2 fingerprint"
+    },
+    {
+      "class": "historical-recorded-execution",
+      "case": "fsi.fixed-reference-cuda-solve-2d",
+      "disposition": "preserve-bytes",
+      "paths": [
+        "verify/fsi/fixed-reference-cuda-solve-2d/artifacts/model.json",
+        "verify/fsi/fixed-reference-cuda-solve-2d/artifacts/cuda-realization.json",
+        "verify/fsi/fixed-reference-cuda-solve-2d/artifacts/cuda-run.json"
+      ],
+      "identity_literals": 0,
+      "bridged": true,
+      "note": "bytes unchanged; bridged by raw hash, artifact digest, and generation-v2 fingerprint. This bundle has no checked-in source, so source identity is deliberately not a bridge field"
+    },
+    {
+      "class": "historical-recorded-execution",
+      "cases": [
+        "numerics.canonical-cartesian-poisson-mpi",
+        "fsi.fixed-reference-distributed-solve-mpi-2d",
+        "fsi.fixed-reference-distributed-cuda-solve-mpi-2d",
+        "fsi.fixed-reference-distributed-assembly-mpi-2d"
+      ],
+      "paths": [],
+      "identity_literals": 0,
+      "bridged": false,
+      "note": "searched and found to hold no checked-in Model, Realization, or Run bundle; each executes live under its own environment feature, so there is nothing to migrate and nothing to bridge"
+    },
+    {
+      "class": "retained-separate-family-golden",
+      "case": "artifacts.realization-run-wire",
+      "disposition": "preserve-bytes",
+      "paths": [
+        "verify/artifacts/realization-run-wire/expected/realization-v1.json",
+        "verify/artifacts/realization-run-wire/expected/realization-v2.json",
+        "verify/artifacts/realization-run-wire/expected/realization-v3.json"
+      ],
+      "identity_literals": 0,
+      "note": "Realization v1-v3 keep their exact bytes and opaque historical Model references"
+    },
+    {
+      "class": "retained-separate-family-golden",
+      "case": "artifacts.realization-run-wire",
+      "disposition": "migrate",
+      "paths": ["crates/eqiora-artifact/tests/realization_v4_wire.rs"],
+      "identity_literals": 1,
+      "note": "the frozen Realization v4 golden ba9efbdbca265dea0fdf9b1476ea2cae876eb2c97b4ac6f332f3755d866b5d9e is built over the historical fixed-reference CUDA Model bytes; it stays byte-identical and its Model reference stays opaque, so after the reset it must be verified without admitting those bytes through a product decoder"
+    },
+    {
+      "class": "compatibility-only",
+      "paths": [
+        "crates/eqiora-artifact/tests/legacy_v1_golden.rs",
+        "crates/eqiora-artifact/tests/legacy_v2_golden.rs",
+        "crates/eqiora-artifact/tests/legacy_v3_golden.rs"
+      ],
+      "disposition": "delete",
+      "identity_literals": 0,
+      "note": "their sole positive claim is callable historical Model/Transaction wire; the delegated negative corpus retains the literal old bytes without retaining these runtime decoders"
+    },
+    {
+      "class": "mixed-claim-surface",
+      "disposition": "decompose-by-claim",
+      "paths": [
+        "crates/eqiora-artifact/tests/model_v2_wire.rs",
+        "crates/eqiora-artifact/tests/model_v3_wire.rs",
+        "crates/eqiora-artifact/tests/model_v4_wire.rs",
+        "crates/eqiora-artifact/tests/model_v5_wire.rs",
+        "crates/eqiora-artifact/tests/model_v6_wire.rs"
+      ],
+      "identity_literals": 0,
+      "claims": [
+        {
+          "selector": "historical generation encode/decode and fallback assertions",
+          "disposition": "delete",
+          "class": "compatibility-only"
+        },
+        {
+          "selector": "wrong-kind, dangling-reference, decoder-budget, shaped-field, pure-operator, periodic, and ordered-transaction falsifiers",
+          "disposition": "migrate",
+          "class": "current-owner-assertion",
+          "owner": "unversioned current semantic-validation and decoder-limit tests"
+        }
+      ],
+      "note": "these files are decomposed by claim; deleting the whole files before moving their current semantic falsifiers is forbidden"
+    },
+    {
+      "class": "mixed-claim-surface",
+      "disposition": "decompose-by-claim",
+      "paths": ["crates/eqiora-artifact/tests/model_v8_wire.rs"],
+      "identity_literals": 0,
+      "claims": [
+        {
+          "selector": "v8_round_trips_one_parameter_driven_cartesian_model",
+          "disposition": "delegate",
+          "class": "delegated-current-owner-evidence",
+          "owner": "artifacts.current-model-canonical-identity"
+        },
+        {
+          "selector": "v8_model_canonicalizes_input_permutations_but_not_coordinate_order",
+          "disposition": "delegate",
+          "class": "delegated-current-owner-evidence",
+          "owner": "artifacts.current-model-canonical-identity"
+        },
+        {
+          "selector": "v8_transaction_keeps_authored_operation_order",
+          "disposition": "delegate",
+          "class": "delegated-current-owner-evidence",
+          "owner": "artifacts.current-model-canonical-identity"
+        },
+        {
+          "selector": "ModelEnvelopeV1 through ModelEnvelopeV7 encode/decode calls",
+          "disposition": "delete",
+          "class": "compatibility-only"
+        }
+      ],
+      "note": "the file may disappear only after its positive current assertions are represented by the delegated full-byte owner; its historical callable branches disappear"
+    },
+    {
+      "class": "mixed-claim-surface",
+      "disposition": "decompose-by-claim",
+      "case": "interfaces.current-authoring-profile",
+      "paths": [
+        "verify/interfaces/current-authoring-profile/expected/profile.json",
+        "crates/eqiora/tests/current_authoring_profile.rs"
+      ],
+      "identity_literals": 0,
+      "claims": [
+        {
+          "selector": "modelSchema and ordinary source/native/edit/transaction linkage",
+          "disposition": "migrate",
+          "class": "current-owner-assertion",
+          "owner": "interfaces.current-authoring-profile"
+        },
+        {
+          "selector": "modelWire, exactCodecs, ExactModelCodec, and caller-selected replay",
+          "disposition": "delete",
+          "class": "compatibility-only"
+        }
+      ],
+      "note": "the registered case survives as the ordinary current-authoring contract; only the selectable compatibility matrix is retired"
+    },
+    {
+      "class": "mixed-claim-surface",
+      "disposition": "decompose-by-claim",
+      "case": "interfaces.python-control-plane",
+      "paths": [
+        "verify/interfaces/python-control-plane/case.toml",
+        "verify/interfaces/python-control-plane/README.md",
+        "verify/interfaces/python-control-plane/references/README.md",
+        "crates/eqiora-python/tests/python_control_plane.rs",
+        "bindings/python/tests/test_control_plane.py"
+      ],
+      "identity_literals": 0,
+      "claims": [
+        {
+          "selector": "opaque identity, revision, edit, and ordinary current replay",
+          "disposition": "migrate",
+          "class": "current-owner-assertion",
+          "owner": "interfaces.python-control-plane"
+        },
+        {
+          "selector": "ExactModelCodec, compile_exact, exact replay, and compatibility exception assertions",
+          "disposition": "delete",
+          "class": "compatibility-only"
+        }
+      ]
+    },
+    {
+      "class": "current-owner-assertion",
+      "disposition": "migrate",
+      "paths": [
+        "crates/eqiora/tests/canonical_tensor_operators.rs",
+        "verify/language/canonical-tensor-operators/case.toml",
+        "verify/language/canonical-tensor-operators/README.md",
+        "verify/language/canonical-pure-operator/case.toml",
+        "verify/electrical/parallel-dc-network/README.md",
+        "docs/architecture.md"
+      ],
+      "identity_literals": 0,
+      "note": "scientific operator semantics and architecture wording migrate to the current owner; none is compatibility-only evidence"
+    },
+    {
+      "class": "mixed-claim-surface",
+      "disposition": "decompose-by-claim",
+      "paths": [
+        "schemas/control/compile-v1.schema.json",
+        "studio/src/control-protocol.ts"
+      ],
+      "identity_literals": 0,
+      "claims": [
+        {
+          "selector": "control-v1 dispatch and caller-selected modelWire",
+          "disposition": "delete",
+          "class": "compatibility-only"
+        },
+        {
+          "selector": "compile/check operation and unknown-protocol rejection",
+          "disposition": "migrate",
+          "class": "current-owner-assertion",
+          "owner": "interfaces.control-plane-compile-check v2 conformance kit"
+        }
+      ]
+    },
+    {
+      "class": "source-or-package-identity",
+      "disposition": "migrate-in-place",
+      "paths": [
+        "bindings/python/tests/test_fixed_reference_fsi.py",
+        "bindings/python/tests/test_mixed_boundary_elasticity.py",
+        "packages/Eqiora.Electrical.Circuits/package.json",
+        "packages/Eqiora.Electromechanical.DcDrive/package.json",
+        "packages/Eqiora.Fluid.Incompressible/package.json",
+        "packages/Eqiora.Mechanics.BoundaryLoads/package.json",
+        "packages/Eqiora.Solid.LinearElasticity/package.json",
+        "packages/org.example.closed_circuit/package.json",
+        "packages/org.example.dc-motor-control/package.json",
+        "packages/org.example.parallel/package.json",
+        "packages/releases/Eqiora.Fluid.Incompressible/0.3.0/package.json",
+        "packages/releases/Eqiora.Solid.LinearElasticity/0.5.0/package.json",
+        "crates/eqiora/tests/fsi_3d_package_releases.rs",
+        "crates/eqiora/tests/mixed_static_pressure_mini_stokes_2d.rs",
+        "crates/eqiora/tests/port_closed_si_mini_stokes_2d.rs",
+        "crates/eqiora/tests/dynamic_linear_solid_semantics_2d.rs",
+        "crates/eqiora-artifact/tests/legacy_time_backend_version_golden.rs"
+      ],
+      "identity_literals": 0,
+      "note": "MODEL_SHA256 in the two Python demonstrations hashes the packaged .eqi source text, not a Model artifact; package semantic and source digests and the zero-filled time-manifest placeholders are likewise immutable inputs"
+    },
+    {
+      "class": "prose-transcript",
+      "disposition": "migrate",
+      "paths": ["docs/site/examples.md"],
+      "identity_literals": 1,
+      "note": "the Stage 4 evidence block prints Model digest 87f60f730dae4ed057873e9751271b987e9200a25d1ce3174eca0ee747f910df from ModelDocument::compile of flat source; fresh occurrence ULIDs make that value unreproducible by construction and no registered case checks it"
+    },
+    {
+      "class": "compatibility-only",
+      "disposition": "delete",
+      "paths": [
+        "bindings/python/python/eqiora/compatibility.py",
+        "bindings/python/python/eqiora/compatibility.pyi",
+        "crates/eqiora-api/src/codec.rs",
+        "crates/eqiora-api/tests/control_compile_v1.rs",
+        "crates/eqiora-api/tests/versioned_model_document.rs",
+        "crates/eqiora-artifact/src/model_v3.rs",
+        "crates/eqiora-artifact/src/model_v4.rs",
+        "crates/eqiora-artifact/src/model_v5.rs",
+        "crates/eqiora-artifact/src/model_v6.rs",
+        "crates/eqiora-artifact/src/model_v7.rs",
+        "crates/eqiora-artifact/src/model_transaction_v3.rs",
+        "crates/eqiora-artifact/src/model_transaction_v4.rs",
+        "crates/eqiora-artifact/src/model_transaction_v5.rs",
+        "crates/eqiora-artifact/src/model_transaction_v6.rs",
+        "crates/eqiora-artifact/src/model_transaction_v7.rs"
+      ],
+      "identity_literals": 0,
+      "note": "the retired inventory paths whose sole claim is that a removed Model or Transaction generation stays callable: the `v3`--`v7` generation modules, the exact-codec host `crates/eqiora-api/src/codec.rs` with the two v1-only API tests that exercise it, and the Python compatibility module with its stub. They are named here rather than left to the inventory remainder, because the remainder says a path migrates in place and these are deleted. `model_v2.rs` and `model_transaction_v2.rs` are deliberately absent: they host the current v8 implementation as well as the historical branch, so they are decomposed by claim below rather than deleted whole. The literal historical bytes survive in the delegated negative corpus; the runtime decoders do not."
+    },
+    {
+      "class": "mixed-claim-surface",
+      "disposition": "decompose-by-claim",
+      "paths": ["crates/eqiora-artifact/src/model_v2.rs"],
+      "identity_literals": 0,
+      "claims": [
+        {
+          "selector": "`ModelSchemaVersion` and its `V2`--`V7` schema, label, and envelope-label admission; the public `ModelEnvelopeV2` spelling with its v2 `from_program` and `from_json` entry points; and the `from_program_v3`--`from_program_v7`, `from_json_v3`--`from_json_v7`, and `digest_v3`--`digest_v7` per-generation selectors",
+          "disposition": "delete",
+          "class": "compatibility-only"
+        },
+        {
+          "selector": "the exact current v8 encoder, decoder, and digest implementation this file hosts — `from_program_v8`, `from_json_v8`, `digest_v8`, and the private `from_program_version`, `from_json_version`, `digest_version`, `WireModelEnvelopeV2`, and shared encoding helpers they reach — moved unchanged in behaviour",
+          "disposition": "migrate",
+          "class": "current-owner-assertion",
+          "owner": "crates/eqiora-artifact/src/model_wire.rs"
+        }
+      ],
+      "note": "RFC 0083 states that the current implementation hosts v8 encoding in `model_v2.rs` and that the owner slice moves or renames that code under current ownership while preserving its exact behavior. Its sole claim is therefore not the deleted one: deleting the whole file would delete the current encoder, and calling it compatibility-only would misstate the reset. Retaining the private helper does not retain `ModelEnvelopeV2` or its decoder, which is what the first claim removes."
+    },
+    {
+      "class": "mixed-claim-surface",
+      "disposition": "decompose-by-claim",
+      "paths": ["crates/eqiora-artifact/src/model_transaction_v2.rs"],
+      "identity_literals": 0,
+      "claims": [
+        {
+          "selector": "`TransactionSchemaVersion` and its `V2`--`V7` schema, label, and envelope-label admission; the public `ModelTransactionEnvelopeV2` spelling with its v2 `from_transaction` and `from_json` entry points; and the `from_transaction_v3`--`from_transaction_v7`, `from_json_v3`--`from_json_v7`, and `digest_v3`--`digest_v7` per-generation selectors",
+          "disposition": "delete",
+          "class": "compatibility-only"
+        },
+        {
+          "selector": "the exact current v8 Transaction encoder, decoder, and digest implementation this file hosts — `from_transaction_v8`, `from_json_v8`, `digest_v8`, and the private `from_transaction_version`, `from_json_version`, `digest_version`, `WireModelTransactionEnvelopeV2`, and shared encoding helpers they reach — moved unchanged in behaviour",
+          "disposition": "migrate",
+          "class": "current-owner-assertion",
+          "owner": "crates/eqiora-artifact/src/model_transaction_wire.rs"
+        }
+      ],
+      "note": "the Transaction counterpart of the same RFC 0083 sentence: the current v8 Transaction encoding lives here, so the file is decomposed by claim rather than deleted whole. Its historical admission and per-generation selection go; its current implementation moves to the matching unversioned owner."
+    },
+    {
+      "class": "version-named-current-owner",
+      "disposition": "rename-source",
+      "paths": [
+        "crates/eqiora-artifact/src/model_v8.rs",
+        "crates/eqiora-artifact/src/model_transaction_v8.rs"
+      ],
+      "renames_to": [
+        "crates/eqiora-artifact/src/model_wire.rs",
+        "crates/eqiora-artifact/src/model_transaction_wire.rs"
+      ],
+      "rename_pairing": "positional: `renames_to[i]` is the unversioned owner that `paths[i]` becomes, so the two arrays are read as an ordered zip and never as two sets",
+      "renames": [
+        {
+          "from": "crates/eqiora-artifact/src/model_v8.rs",
+          "to": "crates/eqiora-artifact/src/model_wire.rs"
+        },
+        {
+          "from": "crates/eqiora-artifact/src/model_transaction_v8.rs",
+          "to": "crates/eqiora-artifact/src/model_transaction_wire.rs"
+        }
+      ],
+      "identity_literals": 0,
+      "note": "these two are retired paths and are not compatibility-only: they host the exact current persisted wire, which survives. RFC 0083 keeps `v8` in persisted names and makes the source owners unversioned, so the reset moves the behaviour to `model_wire.rs` and `model_transaction_wire.rs` and removes the version-named paths. Calling that a deletion would misstate what happens to the encoding; leaving it to the remainder would call a removed path an in-place migration. The mapping is per file, not per set: Model goes to `model_wire.rs` and Transaction to `model_transaction_wire.rs`, and `renames` states that pairing so a swap is a failure rather than a re-ordering. The content of the new owners is not frozen here — `artifacts.current-model-canonical-identity` owns it — so `search.transition` requires them by existence alone."
+    },
+    {
+      "class": "non-fixture-search-hit",
+      "disposition": "migrate-in-place",
+      "inventory_remainder": true,
+      "excludes_retired": true,
+      "path_count": 229,
+      "identity_literals": 0,
+      "note": "every candidate path in classification-inventory.txt not named by an entry above is a product declaration, consumer, test harness, or documentation search hit; it receives no identity literal and remains subject to current-owner migration rather than deletion. The rule excludes retired paths by construction: all 34 retired inventory members are named by an entry above — 15 as compatibility-only deletions, 2 as version-named current owners the reset renames, 2 as the v2-named source files decomposed by claim because they host the current v8 implementation, and 15 by the fixture, delegated, and remaining mixed-claim entries — so no path this remainder covers is one the reset removes."
+    }
+  ]
+}
