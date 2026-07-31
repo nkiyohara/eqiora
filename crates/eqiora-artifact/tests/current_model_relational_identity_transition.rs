@@ -1109,11 +1109,8 @@ fn the_moving_spatial_replacement_replays_through_the_retained_spatial_wires() {
             expected["model_ulid"]
         );
         assert!(
-            ModelEnvelope::from_json(
-                frozen(BRIDGES[1].historical),
-                ModelDecoderLimits::default()
-            )
-            .is_err(),
+            ModelEnvelope::from_json(frozen(BRIDGES[1].historical), ModelDecoderLimits::default())
+                .is_err(),
             "the pre-reset Model input is rejected by the current owner, which is why it moves"
         );
 

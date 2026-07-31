@@ -30,8 +30,9 @@ use eqiora_solver::{
 };
 use ulid::Ulid;
 
-const MODEL: &[u8] =
-    include_bytes!("../../../verify/fsi/fixed-reference-cuda-solve-2d/artifacts/model.json");
+const MODEL: &[u8] = include_bytes!(
+    "../../../verify/artifacts/current-model-relational-identity-transition/expected/bridge/fixed-reference-cuda-solve-2d/current-model.json"
+);
 
 #[test]
 fn moving_state_segment_and_prefix_root_round_trip_with_frozen_identities() {
@@ -103,15 +104,15 @@ fn moving_state_segment_and_prefix_root_round_trip_with_frozen_identities() {
 
     assert_eq!(
         state_1.digest().unwrap().to_string(),
-        "2cb018c9b3159f4e825bbaf1fcdc46098632841dbb399d616f08a51f28b218aa"
+        "40f51f912abc9b74ae7521594b9f1be049c238b408867bb65f4d4fa414c7db38"
     );
     assert_eq!(
         decoded_segment.digest().unwrap().to_string(),
-        "806b8b3d73e335dc01d2229045dbd5b81f226080f08ee5567df3fd2808630e92"
+        "e6f04b579279e51f8e5512dd1ffb2e22a1941608c936de5da1bfe646ec8a4d50"
     );
     assert_eq!(
         decoded_root.digest().unwrap().to_string(),
-        "8a9f5359f507ad7b8c120c83d71719fc7765d969fef3fb92a5a88ef80e3c72a8"
+        "8b2ee5f2acbf398b7f5f9f34accdc9090f79612194b31b5000e1188cd7bcb0b3"
     );
 }
 
@@ -301,7 +302,11 @@ struct Resources {
 
 impl Resources {
     fn new() -> Self {
-        let model = ModelEnvelope::from_json(MODEL, Default::default()).unwrap();
+        let model = ModelEnvelope::from_json(
+            MODEL.strip_suffix(b"\n").unwrap_or(MODEL),
+            Default::default(),
+        )
+        .unwrap();
         let mesh = SimplicialMeshEnvelopeV1::from_mesh(&reference_mesh()).unwrap();
         let ids = Ids::new();
         let geometry =
