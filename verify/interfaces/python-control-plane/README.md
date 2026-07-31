@@ -1,7 +1,7 @@
 # Python control-plane verification
 
 This case exercises the private PyO3 module as an in-process Python client and
-then crosses back through the public Rust facade. A source-compiled current-v7
+then crosses back through the public Rust facade. A source-compiled current-v8
 `Model` must replay exactly: canonical bytes, semantic digest, typed Model ID,
 and revision identity are preserved rather than recreated by Python.
 

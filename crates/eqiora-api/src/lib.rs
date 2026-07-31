@@ -53,13 +53,17 @@ use eqiora_artifact::{
     AcceptedModelArtifact, CanonicalModelArtifact, ModelArtifactGeneration, ModelArtifactReference,
     ModelDecoderLimits, ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2,
     ModelTransactionEnvelopeV3, ModelTransactionEnvelopeV4, ModelTransactionEnvelopeV5,
-    ModelTransactionEnvelopeV6, ModelTransactionEnvelopeV7, ReplayableCanonicalModelArtifact,
+    ModelTransactionEnvelopeV6, ModelTransactionEnvelopeV7, ModelTransactionEnvelopeV8,
+    ReplayableCanonicalModelArtifact,
 };
 use eqiora_compiler::{CompiledModel, ModelSymbols};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DynQuantity, EntityKind, RawId};
-use eqiora_graph::{GraphStore, InMemoryGraphStore, Op, Precondition, Revision, Transaction};
+use eqiora_graph::{
+    EdgeKind, GraphStore, InMemoryGraphStore, Op, Precondition, Revision, Transaction,
+};
 use eqiora_lang::ModelDraft;
+use eqiora_schema::kernel::KernelNode;
 use eqiora_sem::KernelProgram;
 use serde::{Deserialize, Serialize};
 
@@ -421,6 +425,18 @@ impl ModelDocument {
                 format!("value edits are not valid for {:?}", node.id().kind()),
             ));
         }
+        if matches!(node.id().kind(), EntityKind::Parameter)
+            && self.program.edges().iter().any(|edge| {
+                edge.kind() == EdgeKind::DependsOn
+                    && edge.to() == target
+                    && matches!(self.program.node(edge.from()), Some(KernelNode::Domain(_)))
+            })
+        {
+            return Err(Diagnostic::error(
+                codes::INVALID_OPERATION,
+                "value edit cannot target a Cartesian coordinate Parameter; use the geometry regeneration owner",
+            ));
+        }
         let Some(before) = self.program.value(target) else {
             return Err(Diagnostic::error(
                 codes::INVALID_OPERATION,
@@ -674,7 +690,7 @@ model decay {
     }
 
     #[test]
-    fn current_v7_authoring_retains_the_v4_tensor_vocabulary() {
+    fn current_v8_authoring_retains_the_v4_tensor_vocabulary() {
         let source = r#"
 model elastic_relation {
   domain body = box(0, 1, 0, 1);
@@ -706,7 +722,7 @@ model elastic_relation {
     }
 
     #[test]
-    fn current_v7_closes_generic_pure_operators_while_exact_v4_rejects_them() {
+    fn current_v8_closes_generic_pure_operators_while_exact_v4_rejects_them() {
         let source = r#"
 public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
   = component(left, 0) * component(right, 1);
@@ -731,7 +747,7 @@ model pure_relation {
         let bytes = current.canonical_json().unwrap();
         let json = String::from_utf8_lossy(&bytes);
         assert!(json.contains("pure-operator-application"));
-        assert!(json.contains("eqiora.model-envelope/v7"));
+        assert!(json.contains("eqiora.model-envelope/v8"));
         assert!(ExactModelCodec::V4.replay(&bytes).is_err());
         let replay = ExactModelCodec::CURRENT.replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
@@ -753,7 +769,7 @@ model pure_relation {
     }
 
     #[test]
-    fn value_edit_retains_current_v7_and_explicit_v1_codec_provenance() {
+    fn value_edit_retains_current_v8_and_explicit_v1_codec_provenance() {
         for codec in [ExactModelCodec::CURRENT, ExactModelCodec::V1] {
             let document = codec.compile("decay.eqi", SOURCE).unwrap();
             let base_digest = document.digest().unwrap();

@@ -8,7 +8,8 @@ use eqiora_sem::KernelProgram;
 
 use crate::{
     ArtifactDigest, ModelDecoderLimits, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3,
-    ModelEnvelopeV4, ModelEnvelopeV5, ModelEnvelopeV6, ModelEnvelopeV7, invalid_artifact,
+    ModelEnvelopeV4, ModelEnvelopeV5, ModelEnvelopeV6, ModelEnvelopeV7, ModelEnvelopeV8,
+    invalid_artifact,
 };
 
 mod sealed {
@@ -353,4 +354,5 @@ define_model_artifact_registry!(
     (V5, ModelEnvelopeV5, "eqiora.model-envelope/v5"),
     (V6, ModelEnvelopeV6, "eqiora.model-envelope/v6"),
     (V7, ModelEnvelopeV7, "eqiora.model-envelope/v7"),
+    (V8, ModelEnvelopeV8, "eqiora.model-envelope/v8"),
 );

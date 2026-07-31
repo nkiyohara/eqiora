@@ -1,0 +1,7 @@
+model param_box_3d {
+  parameter extent: m = 2;
+  domain body = box(-1, extent, extent, 6, 0.5, 5.5);
+  relation retain continuous on body {
+    coordinate(0) - coordinate(0) = 0;
+  }
+}

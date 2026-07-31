@@ -2,6 +2,8 @@
 
 use core::fmt;
 
+mod domain_validation;
+
 use crate::ast::{
     ActivationSyntax, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
     BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, BoundarySetBindingDecl,
@@ -15,6 +17,7 @@ use crate::ast::{
     RepresentationSyntax, SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange,
     ValueShapeSyntax, VisibilitySyntax,
 };
+use domain_validation::validate_domain_syntax;
 
 /// A structural source-AST construction failure.
 ///
@@ -1197,31 +1200,6 @@ fn validate_pure_operator_expression(
     }
 }
 
-fn validate_domain_syntax(syntax: &DomainSyntax) -> Result<(), AstConstructionError> {
-    match syntax {
-        DomainSyntax::CartesianBox(bounds) => {
-            if bounds.is_empty() {
-                return Err(AstConstructionError::new(
-                    "a Cartesian box requires at least one coordinate pair",
-                ));
-            }
-            for (lower, upper) in bounds {
-                validate_finite(*lower, "Cartesian lower bound")?;
-                validate_finite(*upper, "Cartesian upper bound")?;
-            }
-            Ok(())
-        }
-        DomainSyntax::Boundary { parent, .. } => validate_identifier(parent, "parent Domain"),
-        DomainSyntax::ScalarPhysical {
-            across_dimension,
-            through_dimension,
-        } => {
-            validate_expression(across_dimension)?;
-            validate_expression(through_dimension)
-        }
-    }
-}
-
 fn validate_connector_syntax(syntax: &ConnectorSyntax) -> Result<(), AstConstructionError> {
     match syntax {
         ConnectorSyntax::ScalarPhysical {
@@ -1432,6 +1410,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::cartesian::CartesianCoordinateSyntax;
 
     fn range(start: u32, end: u32) -> TextRange {
         TextRange::new(start, end)
@@ -1449,7 +1428,10 @@ mod tests {
     fn owned_flat_model_formats_and_parses_identically() {
         let domain = SourceAstFactory::domain(
             "body",
-            DomainSyntax::CartesianBox(vec![(0.0, 1.0)]),
+            DomainSyntax::CartesianBox(vec![(
+                CartesianCoordinateSyntax::fixed(0.0, TextRange::new(0, 0)),
+                CartesianCoordinateSyntax::fixed(1.0, TextRange::new(0, 0)),
+            )]),
             range(0, 0),
         )
         .expect("Domain");

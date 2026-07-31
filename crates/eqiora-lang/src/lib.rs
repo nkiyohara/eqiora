@@ -7,6 +7,7 @@
 //! graph storage.
 
 mod ast;
+mod cartesian;
 mod draft;
 mod draft_spatial;
 mod factory;
@@ -28,6 +29,7 @@ pub use ast::{
     RepresentationSyntax, SignalDirectionSyntax, SupportBindingDecl, SupportSlotDecl,
     SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
+pub use cartesian::CartesianCoordinateSyntax;
 pub use draft::{
     DraftConservingConnection, DraftConservingPort, DraftDeclaration, DraftExpression, DraftField,
     DraftParameter, DraftPhysicalDomain, DraftRelation, ModelDraft, NativeModelAst,

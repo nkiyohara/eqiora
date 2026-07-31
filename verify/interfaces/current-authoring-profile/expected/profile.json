@@ -1,7 +1,7 @@
 {
   "schema": "eqiora.verify.current-authoring-profile/v1",
   "profile": "current",
-  "modelWire": "v7",
-  "modelSchema": "eqiora.model-envelope/v7",
-  "exactCodecs": ["v1", "v2", "v3", "v4", "v5", "v6", "v7"]
+  "modelWire": "v8",
+  "modelSchema": "eqiora.model-envelope/v8",
+  "exactCodecs": ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"]
 }

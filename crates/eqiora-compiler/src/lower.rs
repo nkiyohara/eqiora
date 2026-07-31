@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 
+mod domain;
+
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, OntologyId, RawId, ValueShape};
@@ -15,10 +17,10 @@ use eqiora_schema::kernel::scalar_connection::{
     ScalarConnectionKind, ScalarConnectionViolation, ScalarPortContract, validate_scalar_connection,
 };
 use eqiora_schema::kernel::{
-    ActivationDef, AxisBounds, BoundaryPhysicalConnector, BoundarySide, ClockDomainDef,
-    ConnectionDef, ConnectionSemantics, DomainDef, ExprDag, ExprDagBuilder, ExprId, FieldDef,
-    KernelNode, ParameterDef, PortDef, RationalTime, RelationDef, RepresentationDef,
-    SignalDirection, SymbolRef, UnaryMathFunction, ValueFrame,
+    ActivationDef, BoundaryPhysicalConnector, BoundarySide, ClockDomainDef, ConnectionDef,
+    ConnectionSemantics, DomainDef, ExprDag, ExprDagBuilder, ExprId, FieldDef, KernelNode,
+    ParameterDef, PortDef, RationalTime, RelationDef, RepresentationDef, SignalDirection,
+    SymbolRef, UnaryMathFunction, ValueFrame,
 };
 use eqiora_schema::{Model, ModelView};
 
@@ -758,11 +760,14 @@ pub(crate) fn lower_typed_model(
                 let Binding::Domain(id, contract) = bindings[name].clone() else {
                     unreachable!("first pass assigns Domain bindings");
                 };
-                lower_domain(file, *range, id, contract, lowering_contract, &bindings).map(
-                    |(definition, parent)| {
+                domain::lower_domain(file, *range, id, contract, lowering_contract, &bindings).map(
+                    |(definition, parent, dependencies)| {
                         nodes.push(definition.into());
                         if let Some(parent) = parent {
                             edges.push((id.erase(), parent, EdgeKind::BoundaryOf));
+                        }
+                        for dependency in dependencies {
+                            edges.push((id.erase(), dependency, EdgeKind::DependsOn));
                         }
                     },
                 )
@@ -1977,94 +1982,6 @@ impl ExpressionLowerer<'_> {
             expression.range(),
             diagnostic.message(),
         )
-    }
-}
-
-fn lower_domain(
-    file: &str,
-    range: TextRange,
-    id: Id<kinds::Domain>,
-    contract: DomainContract,
-    lowering_contract: &LoweringDomainContract,
-    bindings: &BTreeMap<String, Binding>,
-) -> Result<(DomainDef, Option<RawId>), Diagnostic> {
-    match (lowering_contract, contract) {
-        (
-            LoweringDomainContract::Source(DomainSyntax::CartesianBox(bounds)),
-            DomainContract::Spatial { .. },
-        ) => {
-            let mut lowered = Vec::with_capacity(bounds.len());
-            for &(lower, upper) in bounds {
-                lowered.push(
-                    AxisBounds::new(
-                        DynQuantity::new(normalize_zero(lower), length_dimension()),
-                        DynQuantity::new(normalize_zero(upper), length_dimension()),
-                    )
-                    .map_err(|diagnostic| {
-                        source_error(
-                            codes::LANGUAGE_TYPE_ERROR,
-                            file,
-                            range,
-                            diagnostic.message(),
-                        )
-                    })?,
-                );
-            }
-            DomainDef::cartesian_box(id, lowered)
-                .map(|definition| (definition, None))
-                .map_err(|diagnostic| {
-                    source_error(
-                        codes::LANGUAGE_LOWERING_ERROR,
-                        file,
-                        range,
-                        diagnostic.message(),
-                    )
-                })
-        }
-        (
-            LoweringDomainContract::Source(DomainSyntax::Boundary { parent, axis, side }),
-            DomainContract::Spatial { .. },
-        ) => {
-            let Some(parent_binding) = bindings.get(parent) else {
-                return Err(unresolved(file, range, parent, "boundary parent Domain"));
-            };
-            let Binding::Domain(parent_id, DomainContract::Spatial { .. }) = parent_binding else {
-                return Err(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    range,
-                    format!("boundary parent `{parent}` is not a spatial Domain"),
-                ));
-            };
-            let side = match side {
-                BoundarySideSyntax::Lower => BoundarySide::Lower,
-                BoundarySideSyntax::Upper => BoundarySide::Upper,
-            };
-            Ok((
-                DomainDef::cartesian_boundary(id, *axis, side),
-                Some(parent_id.erase()),
-            ))
-        }
-        (
-            LoweringDomainContract::Source(DomainSyntax::ScalarPhysical { .. }),
-            DomainContract::ScalarPhysical {
-                across_dimension,
-                through_dimension,
-            },
-        ) => Ok((
-            DomainDef::scalar_physical(id, across_dimension, through_dimension),
-            None,
-        )),
-        (
-            LoweringDomainContract::BoundaryPhysical(_),
-            DomainContract::BoundaryPhysical(connector),
-        ) => Ok((DomainDef::boundary_physical(id, connector), None)),
-        _ => Err(source_error(
-            codes::LANGUAGE_LOWERING_ERROR,
-            file,
-            range,
-            "Domain syntax is newer than this compiler",
-        )),
     }
 }
 

@@ -102,6 +102,7 @@ fn every_immutable_model_wire_is_selected_explicitly_without_fallback() {
         ExactModelCodec::V5,
         ExactModelCodec::V6,
         ExactModelCodec::V7,
+        ExactModelCodec::V8,
     ] {
         let request = CompileRequestV1::new_exact(
             format!("registered-{}", wire.as_str()),

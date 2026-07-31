@@ -1736,7 +1736,11 @@ fn project_node(
             "domain",
             match definition.kind() {
                 DomainKind::Abstract => "Abstract continuous domain".to_owned(),
-                DomainKind::CartesianBox { bounds } => {
+                DomainKind::CartesianBox { .. } => {
+                    let bounds = document
+                        .program()
+                        .resolved_cartesian_bounds(definition.id())
+                        .map_err(|diagnostic| Box::new(diagnostic.into()))?;
                     format!("{}D Cartesian continuous domain", bounds.len())
                 }
                 DomainKind::CartesianBoundary { axis, side } => {

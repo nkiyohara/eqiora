@@ -1,6 +1,6 @@
 id = "geometry.cartesian-domain-edit-3d"
 status = "verified"
-scope = "current-v7-one-body-two-axis-topology-preserving-cartesian-edit"
+scope = "current-v8-one-body-two-axis-topology-preserving-cartesian-edit"
 reference_kind = "independently-compiled-target-and-geometry-identity-replay"
 
 capabilities = [
@@ -10,7 +10,7 @@ capabilities = [
 ]
 
 [problem]
-base = "one current-v7 Model with one 3D Cartesian body and six oriented boundaries"
+base = "one current-v8 Model with one 3D Cartesian body and six oriented boundaries"
 edit = "atomically replace x [-0.5, 0.5] with [-0.6, 0.6] and z [-0.5, 0.5] with [-0.75, 0.75]"
 oracle = "separately compiled target fixture, unchanged y interval, and independently evaluated 1.8 m^3 volume"
 
@@ -39,7 +39,7 @@ non_finite_or_reversed_axis_bounds = "reject at typed AxisBounds construction"
 missing_boundary_of_edge = "edge-only replay fails; a replayable missing-role mutant is rejected by Geometry Identity"
 
 [claim_boundary]
-current_model_wire_v7 = true
+current_model_wire_v8 = true
 one_cartesian_body = true
 three_dimensions = true
 non_empty_axis_keyed_edit_set = true

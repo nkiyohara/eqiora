@@ -6,7 +6,7 @@ use eqiora_core::{Diagnostic, GraphPath, Id, RawId};
 use eqiora_graph::{Edge, EdgeKind};
 use eqiora_schema::kernel::typing::TypedResidual;
 use eqiora_schema::kernel::{
-    ActivationKind, BoundaryPhysicalPortContract, CartesianBoundaryEmbedding,
+    ActivationKind, AxisBounds, BoundaryPhysicalPortContract, CartesianBoundaryEmbedding,
     CartesianPeriodicBoundaryIdentification, ConnectionSemantics, DomainKind, ExprDag,
     ExprDagBuilder, ExprNode, KernelNode, SymbolRef, ValueFrame,
     validate_boundary_physical_connection, validate_spatial_periodic_boundary_connection,
@@ -103,13 +103,18 @@ impl KernelProgram {
         let contracts = ports
             .iter()
             .map(|port| {
-                resolve_port_contract(port.erase(), self.node_definitions(), self.edges())?
-                    .ok_or_else(|| {
-                        port_error(
-                            port.erase(),
-                            "Connection member is not a boundary-physical Port",
-                        )
-                    })
+                resolve_port_contract(
+                    port.erase(),
+                    self.node_definitions(),
+                    self.edges(),
+                    self.cartesian_bounds_map(),
+                )?
+                .ok_or_else(|| {
+                    port_error(
+                        port.erase(),
+                        "Connection member is not a boundary-physical Port",
+                    )
+                })
             })
             .collect::<Result<Vec<_>, _>>()?;
         let geometry = match connection_definition.semantics() {
@@ -199,13 +204,7 @@ impl KernelProgram {
                 "boundary junction anchor has no unique parent Domain",
             ));
         };
-        let Some(KernelNode::Domain(parent_definition)) = self.node(parent) else {
-            return Err(port_error(
-                anchor.erase(),
-                "boundary junction parent Domain is missing",
-            ));
-        };
-        let DomainKind::CartesianBox { bounds } = parent_definition.kind() else {
+        let Some(bounds) = self.cartesian_bounds_map().get(&parent) else {
             return Err(port_error(
                 anchor.erase(),
                 "boundary junction parent is not a Cartesian volume",
@@ -250,6 +249,7 @@ pub(crate) fn resolve_port_contract(
     port_id: RawId,
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
+    cartesian_bounds: &BTreeMap<RawId, Vec<AxisBounds>>,
 ) -> Result<Option<BoundaryPhysicalPortContract<RawId>>, Diagnostic> {
     let Some(KernelNode::Port(port)) = nodes.get(&port_id) else {
         return Ok(None);
@@ -296,13 +296,7 @@ pub(crate) fn resolve_port_contract(
         ));
     }
     let parent = *parents.first().expect("one boundary parent was checked");
-    let Some(KernelNode::Domain(parent_definition)) = nodes.get(&parent) else {
-        return Err(port_error(
-            port_id,
-            "boundary-physical Port parent has no Domain definition",
-        ));
-    };
-    let DomainKind::CartesianBox { bounds } = parent_definition.kind() else {
+    let Some(bounds) = cartesian_bounds.get(&parent) else {
         return Err(port_error(
             port_id,
             "boundary-physical Port parent must be a Cartesian volume Domain",
@@ -339,6 +333,7 @@ pub(crate) fn resolve_port_contract(
 pub(crate) fn validate_networks(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
+    cartesian_bounds: &BTreeMap<RawId, Vec<AxisBounds>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (&id, node) in nodes {
@@ -348,7 +343,7 @@ pub(crate) fn validate_networks(
         if port.boundary_physical_contract().is_none() {
             continue;
         }
-        let contract = match resolve_port_contract(id, nodes, edges) {
+        let contract = match resolve_port_contract(id, nodes, edges, cartesian_bounds) {
             Ok(Some(contract)) => contract,
             Ok(None) => continue,
             Err(error) => {

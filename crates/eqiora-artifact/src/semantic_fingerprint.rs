@@ -14,9 +14,9 @@ use std::collections::BTreeMap;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, RawId, ValueShape};
 use eqiora_graph::EdgeKind;
 use eqiora_schema::kernel::{
-    ActivationKind, BoundaryPairing, BoundarySide, ClockKind, ConnectionSemantics, DomainKind,
-    EventDirection, ExprDag, ExprNode, KernelNode, PortPayload, RepresentationKind,
-    SignalDirection, SymbolRef, UnaryMathFunction, ValueFrame,
+    ActivationKind, BoundaryPairing, BoundarySide, CartesianCoordinateSource, ClockKind,
+    ConnectionSemantics, DomainKind, EventDirection, ExprDag, ExprNode, KernelNode, PortPayload,
+    RepresentationKind, SignalDirection, SymbolRef, UnaryMathFunction, ValueFrame,
 };
 use eqiora_sem::KernelProgram;
 use sha2::{Digest, Sha256};
@@ -25,9 +25,11 @@ use crate::{ArtifactDigest, invalid_artifact};
 use canonical::{Canonicalizer, Encoder};
 use projection::{ConstructionBudget, ProjectionGraph, Reference};
 
-const FINGERPRINT_DOMAIN: &[u8] = b"eqiora.structural-semantic-fingerprint/v2\0";
+const FINGERPRINT_DOMAIN_V2: &[u8] = b"eqiora.structural-semantic-fingerprint/v2\0";
+const FINGERPRINT_DOMAIN_V3: &[u8] = b"eqiora.structural-semantic-fingerprint/v3\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
 const GENERATION_V2: u16 = 2;
+const GENERATION_V3: u16 = 3;
 
 /// Compatibility generation of the structural semantic projection.
 ///
@@ -40,6 +42,9 @@ pub enum SemanticFingerprintGeneration {
     V1,
     /// Closed projection through Model wire v7, including geometry-backed Domains.
     V2,
+    /// Closed projection through Model wire v8, including direct Cartesian
+    /// coordinate sources.
+    V3,
 }
 
 impl SemanticFingerprintGeneration {
@@ -49,6 +54,23 @@ impl SemanticFingerprintGeneration {
         match self {
             Self::V1 => "eqiora.structural-semantic-fingerprint/v1",
             Self::V2 => "eqiora.structural-semantic-fingerprint/v2",
+            Self::V3 => "eqiora.structural-semantic-fingerprint/v3",
+        }
+    }
+
+    const fn code(self) -> u16 {
+        match self {
+            Self::V1 => 1,
+            Self::V2 => GENERATION_V2,
+            Self::V3 => GENERATION_V3,
+        }
+    }
+
+    const fn hash_domain(self) -> &'static [u8] {
+        match self {
+            Self::V1 => b"eqiora.structural-semantic-fingerprint/v1\0",
+            Self::V2 => FINGERPRINT_DOMAIN_V2,
+            Self::V3 => FINGERPRINT_DOMAIN_V3,
         }
     }
 }
@@ -68,8 +90,8 @@ impl StructuralSemanticFingerprint {
     /// Construct the current bounded structural projection.
     ///
     /// # Errors
-    /// Returns `EQ0901` when the program contains vocabulary newer than this
-    /// generation or exact canonical labeling exceeds the fixed generation-v2
+    /// Returns `EQ0901` when the program contains unsupported vocabulary or
+    /// exact canonical labeling exceeds the selected generation's fixed
     /// resource policy.
     pub fn from_program(program: &KernelProgram) -> Result<Self, Diagnostic> {
         ProjectionIdentity::from_program(program, SemanticFingerprintLimits::default())
@@ -78,8 +100,8 @@ impl StructuralSemanticFingerprint {
 
     /// Construct with an explicit bounded canonicalization policy.
     ///
-    /// Limits affect admission only.  Every accepted construction produces
-    /// exactly the same generation-v2 bytes and digest.
+    /// Limits affect admission only. Every accepted construction produces
+    /// exactly the same bytes and digest for its selected generation.
     ///
     /// # Errors
     /// Returns `EQ0901` for unsupported meaning or exhausted limits.
@@ -191,19 +213,37 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let graph = ProjectionGraph::from_program(program, limits)?;
-        let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
+        let generation = projection_generation(program);
+        let graph = ProjectionGraph::from_program(program, limits, generation)?;
+        let canonical = Canonicalizer::new(&graph, limits, generation.code()).canonicalize()?;
         let mut hasher = Sha256::new();
-        hasher.update(FINGERPRINT_DOMAIN);
+        hasher.update(generation.hash_domain());
         hasher.update(&canonical);
         let digest = ArtifactDigest::from_sha256(hasher.finalize().into());
         Ok(Self {
-            fingerprint: StructuralSemanticFingerprint {
-                generation: SemanticFingerprintGeneration::V2,
-                digest,
-            },
+            fingerprint: StructuralSemanticFingerprint { generation, digest },
             canonical,
         })
+    }
+}
+
+fn projection_generation(program: &KernelProgram) -> SemanticFingerprintGeneration {
+    let has_parameter_coordinate = program.nodes().any(|node| {
+        let KernelNode::Domain(domain) = node else {
+            return false;
+        };
+        let DomainKind::CartesianBox { coordinates } = domain.kind() else {
+            return false;
+        };
+        coordinates.iter().any(|axis| {
+            matches!(axis.lower(), CartesianCoordinateSource::Parameter(_))
+                || matches!(axis.upper(), CartesianCoordinateSource::Parameter(_))
+        })
+    });
+    if has_parameter_coordinate {
+        SemanticFingerprintGeneration::V3
+    } else {
+        SemanticFingerprintGeneration::V2
     }
 }
 
@@ -211,6 +251,7 @@ fn encode_node(
     node: &KernelNode,
     current_value: Option<DynQuantity>,
     boundary: bool,
+    generation: SemanticFingerprintGeneration,
     ids: &BTreeMap<RawId, usize>,
     references: &mut Vec<Reference>,
     budget: &mut ConstructionBudget,
@@ -219,7 +260,14 @@ fn encode_node(
     match node {
         KernelNode::Domain(domain) => {
             encoder.u8(1)?;
-            encode_domain_kind(&mut encoder, domain.kind())?;
+            encode_domain_kind(
+                &mut encoder,
+                domain.kind(),
+                generation,
+                ids,
+                references,
+                budget,
+            )?;
         }
         KernelNode::Representation(representation) => {
             encoder.u8(2)?;
@@ -345,15 +393,55 @@ fn encode_node(
     encoder.finish()
 }
 
-fn encode_domain_kind(encoder: &mut Encoder, kind: &DomainKind) -> Result<(), Diagnostic> {
+fn encode_domain_kind(
+    encoder: &mut Encoder,
+    kind: &DomainKind,
+    generation: SemanticFingerprintGeneration,
+    ids: &BTreeMap<RawId, usize>,
+    references: &mut Vec<Reference>,
+    budget: &mut ConstructionBudget,
+) -> Result<(), Diagnostic> {
     match kind {
         DomainKind::Abstract => encoder.u8(1),
-        DomainKind::CartesianBox { bounds } => {
+        DomainKind::CartesianBox { coordinates } => {
             encoder.u8(2)?;
-            encoder.len(bounds.len())?;
-            for axis in bounds {
-                encode_quantity(encoder, axis.lower())?;
-                encode_quantity(encoder, axis.upper())?;
+            encoder.len(coordinates.len())?;
+            for (axis_index, axis) in coordinates.iter().enumerate() {
+                for (endpoint, source) in [(1, axis.lower()), (2, axis.upper())] {
+                    match (generation, source) {
+                        (
+                            SemanticFingerprintGeneration::V1 | SemanticFingerprintGeneration::V2,
+                            CartesianCoordinateSource::Fixed(value),
+                        ) => encode_quantity(encoder, value)?,
+                        (
+                            SemanticFingerprintGeneration::V1 | SemanticFingerprintGeneration::V2,
+                            CartesianCoordinateSource::Parameter(_),
+                        ) => return Err(newer_vocabulary("Cartesian coordinate source")),
+                        (
+                            SemanticFingerprintGeneration::V3,
+                            CartesianCoordinateSource::Fixed(value),
+                        ) => {
+                            encoder.u8(1)?;
+                            encode_quantity(encoder, value)?;
+                        }
+                        (
+                            SemanticFingerprintGeneration::V3,
+                            CartesianCoordinateSource::Parameter(parameter),
+                        ) => {
+                            encoder.u8(2)?;
+                            let mut label = Encoder::new(32);
+                            label.u8(4)?;
+                            label.usize(axis_index)?;
+                            label.u8(endpoint)?;
+                            push_reference(
+                                references,
+                                label.finish()?,
+                                lookup(ids, parameter.erase(), "Cartesian coordinate Parameter")?,
+                                budget,
+                            )?;
+                        }
+                    }
+                }
             }
             Ok(())
         }

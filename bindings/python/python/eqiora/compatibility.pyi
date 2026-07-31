@@ -11,6 +11,7 @@ class ExactModelCodec:
     V5: ClassVar[ExactModelCodec]
     V6: ClassVar[ExactModelCodec]
     V7: ClassVar[ExactModelCodec]
+    V8: ClassVar[ExactModelCodec]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 

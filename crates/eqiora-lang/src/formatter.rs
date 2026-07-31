@@ -2,6 +2,8 @@
 
 use core::fmt::Write;
 
+mod cartesian;
+
 use crate::ast::{
     ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax,
     BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax,
@@ -12,6 +14,7 @@ use crate::ast::{
     RepresentationSyntax, SignalDirectionSyntax, SupportSlotSyntax, UnaryOp, ValueShapeSyntax,
     VisibilitySyntax,
 };
+use cartesian::format_cartesian_coordinate;
 
 /// Format a syntax tree into canonical Eqiora Language source.
 #[must_use]
@@ -287,13 +290,9 @@ fn format_item(item: &Item, indent: usize, output: &mut String) {
                         if index != 0 {
                             output.push_str(", ");
                         }
-                        write!(
-                            output,
-                            "{}, {}",
-                            format_number(*lower),
-                            format_number(*upper)
-                        )
-                        .expect("String write");
+                        format_cartesian_coordinate(lower, output);
+                        output.push_str(", ");
+                        format_cartesian_coordinate(upper, output);
                     }
                     output.push(')');
                 }

@@ -43,6 +43,8 @@ def python_model_codec(wire: object) -> eqiora.compatibility.ExactModelCodec:
         return eqiora.compatibility.ExactModelCodec.V6
     if wire == "v7":
         return eqiora.compatibility.ExactModelCodec.V7
+    if wire == "v8":
+        return eqiora.compatibility.ExactModelCodec.V8
     raise AssertionError(f"Python test fixture selects unsupported Model wire: {wire!r}")
 
 

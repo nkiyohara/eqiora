@@ -600,9 +600,7 @@ fn unique_box<const D: usize>(
         ));
     }
     let box_domain = boxes[0];
-    let DomainKind::CartesianBox { bounds } = box_domain.kind() else {
-        unreachable!("Cartesian box filter is exact");
-    };
+    let bounds = program.resolved_cartesian_bounds(box_domain.id())?;
     if bounds.len() != D {
         return Err(lowering_error(
             box_domain.id().erase(),

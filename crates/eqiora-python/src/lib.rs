@@ -98,6 +98,8 @@ enum PyExactModelCodec {
     V6,
     /// Domains that name an authored geometry by digest and entity set.
     V7,
+    /// Direct fixed-or-Parameter Cartesian coordinate sources.
+    V8,
 }
 
 impl From<PyExactModelCodec> for ExactModelCodec {
@@ -110,6 +112,7 @@ impl From<PyExactModelCodec> for ExactModelCodec {
             PyExactModelCodec::V5 => Self::V5,
             PyExactModelCodec::V6 => Self::V6,
             PyExactModelCodec::V7 => Self::V7,
+            PyExactModelCodec::V8 => Self::V8,
         }
     }
 }
@@ -126,6 +129,7 @@ impl TryFrom<ExactModelCodec> for PyExactModelCodec {
             ExactModelCodec::V5 => Ok(Self::V5),
             ExactModelCodec::V6 => Ok(Self::V6),
             ExactModelCodec::V7 => Ok(Self::V7),
+            ExactModelCodec::V8 => Ok(Self::V8),
             _ => Err(eqiora::Diagnostic::error(
                 eqiora::diagnostic::codes::NOT_IMPLEMENTED,
                 "model uses a codec unsupported by this Python SDK",
@@ -507,6 +511,7 @@ model decay {
             (PyExactModelCodec::V5, ExactModelCodec::V5),
             (PyExactModelCodec::V6, ExactModelCodec::V6),
             (PyExactModelCodec::V7, ExactModelCodec::V7),
+            (PyExactModelCodec::V8, ExactModelCodec::V8),
         ] {
             assert_eq!(ExactModelCodec::from(python), rust);
             assert_eq!(PyExactModelCodec::try_from(rust).unwrap(), python);
@@ -519,17 +524,17 @@ model decay {
         assert_eq!(document.exact_codec(), ExactModelCodec::CURRENT);
         assert_eq!(
             PyExactModelCodec::try_from(document.exact_codec()).unwrap(),
-            PyExactModelCodec::V7
+            PyExactModelCodec::V8
         );
         assert!(
             String::from_utf8(document.canonical_json().unwrap())
                 .unwrap()
-                .contains("eqiora.model-envelope/v7")
+                .contains("eqiora.model-envelope/v8")
         );
     }
 
     #[test]
-    fn explicit_python_compatibility_keeps_v1_through_v7_separate() {
+    fn explicit_python_compatibility_keeps_v1_through_v8_separate() {
         for (python, schema) in [
             (PyExactModelCodec::V1, "eqiora.model-envelope/v1"),
             (PyExactModelCodec::V2, "eqiora.model-envelope/v2"),
@@ -538,6 +543,7 @@ model decay {
             (PyExactModelCodec::V5, "eqiora.model-envelope/v5"),
             (PyExactModelCodec::V6, "eqiora.model-envelope/v6"),
             (PyExactModelCodec::V7, "eqiora.model-envelope/v7"),
+            (PyExactModelCodec::V8, "eqiora.model-envelope/v8"),
         ] {
             let codec = ExactModelCodec::from(python);
             let document = codec.compile("decay.eqi", SOURCE).unwrap();

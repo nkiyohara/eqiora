@@ -11,7 +11,9 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use eqiora_graph::{GraphStore, Op, Precondition, Revision, Transaction};
-use eqiora_schema::kernel::{AxisBounds, DomainDef, DomainKind, KernelNode};
+use eqiora_schema::kernel::{
+    AxisBounds, CartesianCoordinateSource, DomainDef, DomainKind, KernelNode,
+};
 use sha2::{Digest, Sha256};
 
 use crate::{ExactModelCodec, ModelDocument, VersionedModelTransactionEnvelope, single_diagnostic};
@@ -142,7 +144,7 @@ impl ModelDocument {
     ///
     /// # Errors
     /// Returns structured diagnostics when the selected Model is not the
-    /// current v7 profile, does not contain exactly one 3D Cartesian body, the
+    /// current v8 profile, does not contain exactly one 3D Cartesian body, the
     /// target or any axis is wrong, any edit is duplicated or a no-op, or
     /// complete child replay violates a graph, semantic, or artifact invariant.
     pub fn preview_cartesian_domain_edit<I>(
@@ -183,11 +185,23 @@ impl ModelDocument {
                 format!("Cartesian Domain edit target {target_raw} is outside this Model"),
             )));
         };
-        let DomainKind::CartesianBox { bounds } = domain.kind() else {
+        let DomainKind::CartesianBox { coordinates } = domain.kind() else {
             return Err(single_diagnostic(invalid_edit(
                 "Cartesian Domain edit target is not a Cartesian body",
             )));
         };
+        if coordinates.iter().any(|axis| {
+            !matches!(axis.lower(), CartesianCoordinateSource::Fixed(_))
+                || !matches!(axis.upper(), CartesianCoordinateSource::Fixed(_))
+        }) {
+            return Err(single_diagnostic(invalid_edit(
+                "direct Cartesian Domain edit does not admit a Parameter-backed coordinate",
+            )));
+        }
+        let bounds = self
+            .program
+            .resolved_cartesian_bounds(target)
+            .map_err(|diagnostic| vec![diagnostic])?;
         if bounds.len() != 3 {
             return Err(single_diagnostic(invalid_edit(format!(
                 "Cartesian Domain edit v1 requires three dimensions, found {}",
@@ -204,7 +218,7 @@ impl ModelDocument {
 
         let mut validation_diagnostics = Vec::new();
         let mut seen_axes = BTreeSet::new();
-        let mut replacement_bounds = bounds.clone();
+        let mut replacement_bounds = bounds.to_vec();
         let mut canonical_edits = Vec::with_capacity(requested.len());
         for (axis, after) in requested {
             if !seen_axes.insert(axis) {
@@ -462,12 +476,7 @@ model Pair {
         assert!(child.structurally_equivalent(&independent_target).unwrap());
         assert_eq!(result.result_digest(), child.digest().unwrap());
 
-        let KernelNode::Domain(base_body) = base.program().node(body.erase()).unwrap() else {
-            panic!("base body must remain a Domain");
-        };
-        let DomainKind::CartesianBox { bounds } = base_body.kind() else {
-            panic!("base body must remain Cartesian");
-        };
+        let bounds = base.program().resolved_cartesian_bounds(body).unwrap();
         assert_eq!(bounds[0], axis_bounds(-0.5, 0.5));
     }
 

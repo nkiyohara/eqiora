@@ -39,13 +39,13 @@ fn explicit_v2_compiles_and_round_trips_scalar_physical_source() {
 }
 
 #[test]
-fn current_v7_round_trips_without_weakening_explicit_v5_replay() {
+fn current_v8_round_trips_without_weakening_explicit_v5_replay() {
     let document = ModelDocument::compile("decay.eqi", DECAY_SOURCE).unwrap();
-    assert_eq!(document.exact_codec(), ExactModelCodec::V7);
+    assert_eq!(document.exact_codec(), ExactModelCodec::V8);
 
     let bytes = document.canonical_json().unwrap();
     let digest = document.digest().unwrap();
-    assert!(String::from_utf8_lossy(&bytes).contains("eqiora.model-envelope/v7"));
+    assert!(String::from_utf8_lossy(&bytes).contains("eqiora.model-envelope/v8"));
     assert_eq!(
         document
             .artifact_reference()
@@ -55,8 +55,8 @@ fn current_v7_round_trips_without_weakening_explicit_v5_replay() {
         digest
     );
 
-    let reconstructed = ExactModelCodec::V7.replay(&bytes).unwrap();
-    assert_eq!(reconstructed.exact_codec(), ExactModelCodec::V7);
+    let reconstructed = ExactModelCodec::V8.replay(&bytes).unwrap();
+    assert_eq!(reconstructed.exact_codec(), ExactModelCodec::V8);
     assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
     assert_eq!(reconstructed.digest().unwrap(), digest);
     for historical in [
@@ -65,6 +65,8 @@ fn current_v7_round_trips_without_weakening_explicit_v5_replay() {
         ExactModelCodec::V3,
         ExactModelCodec::V4,
         ExactModelCodec::V5,
+        ExactModelCodec::V6,
+        ExactModelCodec::V7,
     ] {
         assert_eq!(
             historical.replay(&bytes).unwrap_err()[0].code(),

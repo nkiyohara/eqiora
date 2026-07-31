@@ -40,6 +40,9 @@ pub enum CompileFeatureV1 {
     /// Model and transaction wire v7.
     #[serde(rename = "model-wire/v7")]
     ModelSchemaGeneration7,
+    /// Model and transaction wire v8.
+    #[serde(rename = "model-wire/v8")]
+    ModelSchemaGeneration8,
 }
 
 impl CompileFeatureV1 {
@@ -55,6 +58,7 @@ impl CompileFeatureV1 {
             Self::ModelSchemaGeneration5 => "model-wire/v5",
             Self::ModelSchemaGeneration6 => "model-wire/v6",
             Self::ModelSchemaGeneration7 => "model-wire/v7",
+            Self::ModelSchemaGeneration8 => "model-wire/v8",
         }
     }
 
@@ -68,6 +72,7 @@ impl CompileFeatureV1 {
             "model-wire/v5" => Ok(Self::ModelSchemaGeneration5),
             "model-wire/v6" => Ok(Self::ModelSchemaGeneration6),
             "model-wire/v7" => Ok(Self::ModelSchemaGeneration7),
+            "model-wire/v8" => Ok(Self::ModelSchemaGeneration8),
             _ => Err(ControlDiagnosticV1::unsupported(format!(
                 "required control feature `{value}` is not supported by compile/check v1"
             ))),
@@ -348,6 +353,7 @@ pub(super) const fn feature_for(model_codec: ExactModelCodec) -> CompileFeatureV
         ExactModelCodec::V5 => CompileFeatureV1::ModelSchemaGeneration5,
         ExactModelCodec::V6 => CompileFeatureV1::ModelSchemaGeneration6,
         ExactModelCodec::V7 => CompileFeatureV1::ModelSchemaGeneration7,
+        ExactModelCodec::V8 => CompileFeatureV1::ModelSchemaGeneration8,
     }
 }
 
@@ -360,6 +366,7 @@ pub(super) fn parse_model_codec(value: &str) -> Result<ExactModelCodec, ControlD
         "v5" => Ok(ExactModelCodec::V5),
         "v6" => Ok(ExactModelCodec::V6),
         "v7" => Ok(ExactModelCodec::V7),
+        "v8" => Ok(ExactModelCodec::V8),
         _ => Err(ControlDiagnosticV1::unsupported(format!(
             "unsupported Model wire `{value}` for compile/check v1"
         ))),

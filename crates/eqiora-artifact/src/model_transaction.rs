@@ -1,7 +1,7 @@
 //! Versioned wire contract for Semantic Model edit transactions.
 
 use eqiora_core::{Diagnostic, EntityKind, GraphClass, OntologyId, RawId};
-use eqiora_graph::{Op, Precondition, Revision, Transaction};
+use eqiora_graph::{EdgeKind, Op, Precondition, Revision, Transaction};
 use eqiora_schema::{Model, ModelView};
 use serde::{Deserialize, Serialize};
 
@@ -259,6 +259,10 @@ impl WireModelOp {
         Self::encode(op, ModelOperationWireVersion::V7)
     }
 
+    pub(crate) fn encode_v8(op: &Op) -> Result<Self, Diagnostic> {
+        Self::encode(op, ModelOperationWireVersion::V8)
+    }
+
     pub(crate) fn encode_v6(op: &Op) -> Result<Self, Diagnostic> {
         Self::encode(op, ModelOperationWireVersion::V6)
     }
@@ -274,6 +278,7 @@ impl WireModelOp {
                     ModelOperationWireVersion::V5 => WireNode::encode_v5(node)?,
                     ModelOperationWireVersion::V6 => WireNode::encode_v6(node)?,
                     ModelOperationWireVersion::V7 => WireNode::encode_v7(node)?,
+                    ModelOperationWireVersion::V8 => WireNode::encode_v8(node)?,
                 },
             }),
             Op::SetValue { target, value } => {
@@ -286,6 +291,11 @@ impl WireModelOp {
             Op::Connect { from, to, edge } => {
                 require_semantic_id(*from, "Connect source")?;
                 require_semantic_id(*to, "Connect target")?;
+                if !operation_edge_permitted(version, *edge, from.kind(), to.kind()) {
+                    return Err(invalid_artifact(
+                        "model transaction edge is unsupported by this wire generation",
+                    ));
+                }
                 Ok(Self::Connect {
                     from: WireId::from_raw(*from),
                     to: WireId::from_raw(*to),
@@ -414,6 +424,7 @@ impl WireModelOp {
     }
 
     fn ensure_v1(&self) -> Result<(), Diagnostic> {
+        self.reject_coordinate_dependency_before_v8()?;
         match self {
             Self::DefineKernelNode { node } => node.ensure_v1(),
             _ => Ok(()),
@@ -421,6 +432,7 @@ impl WireModelOp {
     }
 
     pub(crate) fn ensure_v2(&self) -> Result<(), Diagnostic> {
+        self.reject_coordinate_dependency_before_v8()?;
         match self {
             Self::DefineKernelNode { node } => node.ensure_v2(),
             _ => Ok(()),
@@ -428,6 +440,7 @@ impl WireModelOp {
     }
 
     pub(crate) fn ensure_v3(&self) -> Result<(), Diagnostic> {
+        self.reject_coordinate_dependency_before_v8()?;
         match self {
             Self::DefineKernelNode { node } => node.ensure_v3(),
             _ => Ok(()),
@@ -435,6 +448,7 @@ impl WireModelOp {
     }
 
     pub(crate) fn ensure_v4(&self) -> Result<(), Diagnostic> {
+        self.reject_coordinate_dependency_before_v8()?;
         match self {
             Self::DefineKernelNode { node } => node.ensure_v4(),
             _ => Ok(()),
@@ -442,6 +456,7 @@ impl WireModelOp {
     }
 
     pub(crate) fn ensure_v5(&self) -> Result<(), Diagnostic> {
+        self.reject_coordinate_dependency_before_v8()?;
         match self {
             Self::DefineKernelNode { node } => node.ensure_v5(),
             _ => Ok(()),
@@ -455,10 +470,34 @@ impl WireModelOp {
     }
 
     pub(crate) fn ensure_v6(&self) -> Result<(), Diagnostic> {
+        self.reject_coordinate_dependency_before_v8()?;
         match self {
             Self::DefineKernelNode { node } => node.ensure_v6(),
             _ => Ok(()),
         }
+    }
+
+    pub(crate) fn ensure_v8(&self) -> Result<(), Diagnostic> {
+        match self {
+            Self::DefineKernelNode { node } => node.ensure_v8(),
+            _ => Ok(()),
+        }
+    }
+
+    fn reject_coordinate_dependency_before_v8(&self) -> Result<(), Diagnostic> {
+        if let Self::Connect { from, to, edge } = self {
+            let from = from.decode_raw()?;
+            let to = to.decode_raw()?;
+            if edge.decode() == EdgeKind::DependsOn
+                && from.kind() == EntityKind::Domain
+                && to.kind() == EntityKind::Parameter
+            {
+                return Err(invalid_artifact(
+                    "Domain-to-Parameter dependency requires model transaction wire v8",
+                ));
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn ensure_value_shape_limits(
@@ -491,6 +530,20 @@ enum ModelOperationWireVersion {
     V5,
     V6,
     V7,
+    V8,
+}
+
+fn operation_edge_permitted(
+    version: ModelOperationWireVersion,
+    edge: EdgeKind,
+    from: EntityKind,
+    to: EntityKind,
+) -> bool {
+    edge.permits(from, to)
+        && (matches!(version, ModelOperationWireVersion::V8)
+            || !(edge == EdgeKind::DependsOn
+                && from == EntityKind::Domain
+                && to == EntityKind::Parameter))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

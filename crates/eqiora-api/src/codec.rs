@@ -37,6 +37,9 @@ pub enum ExactModelCodec {
     /// Domains that name an authored geometry by digest and entity set.
     #[serde(rename = "v7")]
     V7,
+    /// Direct fixed-or-Parameter Cartesian coordinate sources.
+    #[serde(rename = "v8")]
+    V8,
 }
 
 impl ExactModelCodec {
@@ -44,7 +47,7 @@ impl ExactModelCodec {
     ///
     /// This mapping is not a stability promise for the current semantic
     /// vocabulary. Exact artifacts retain the codec selected when authored.
-    pub const CURRENT: Self = Self::V7;
+    pub const CURRENT: Self = Self::V8;
 
     /// Exact generation spelling used by compatibility protocols.
     #[must_use]
@@ -57,6 +60,7 @@ impl ExactModelCodec {
             Self::V5 => "v5",
             Self::V6 => "v6",
             Self::V7 => "v7",
+            Self::V8 => "v8",
         }
     }
 
@@ -75,6 +79,7 @@ impl ExactModelCodec {
             Self::V5 => ModelArtifactGeneration::V5,
             Self::V6 => ModelArtifactGeneration::V6,
             Self::V7 => ModelArtifactGeneration::V7,
+            Self::V8 => ModelArtifactGeneration::V8,
         }
     }
 
@@ -110,7 +115,7 @@ impl ExactModelCodec {
     pub const fn supports_scalar_physical(self) -> bool {
         matches!(
             self,
-            Self::V2 | Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7
+            Self::V2 | Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7 | Self::V8
         )
     }
 
@@ -118,26 +123,29 @@ impl ExactModelCodec {
     /// physical interfaces.
     #[must_use]
     pub const fn supports_boundary_physical(self) -> bool {
-        matches!(self, Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7)
+        matches!(
+            self,
+            Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7 | Self::V8
+        )
     }
 
     /// Whether this wire admits the closed canonical tensor-operator
     /// vocabulary.
     #[must_use]
     pub const fn supports_tensor_operators(self) -> bool {
-        matches!(self, Self::V4 | Self::V5 | Self::V6 | Self::V7)
+        matches!(self, Self::V4 | Self::V5 | Self::V6 | Self::V7 | Self::V8)
     }
 
     /// Whether this wire admits expression-local content-addressed pure operators.
     #[must_use]
     pub const fn supports_pure_operators(self) -> bool {
-        matches!(self, Self::V5 | Self::V6 | Self::V7)
+        matches!(self, Self::V5 | Self::V6 | Self::V7 | Self::V8)
     }
 
     /// Whether this wire admits spatial-periodic boundary Connections.
     #[must_use]
     pub const fn supports_spatial_periodic(self) -> bool {
-        matches!(self, Self::V6 | Self::V7)
+        matches!(self, Self::V6 | Self::V7 | Self::V8)
     }
 
     pub(crate) fn replay_transaction(
@@ -168,6 +176,8 @@ impl ExactModelCodec {
                 .map(VersionedModelTransactionEnvelope::V6),
             Self::V7 => ModelTransactionEnvelopeV7::from_transaction(transaction)
                 .map(VersionedModelTransactionEnvelope::V7),
+            Self::V8 => ModelTransactionEnvelopeV8::from_transaction(transaction)
+                .map(VersionedModelTransactionEnvelope::V8),
         }
     }
 
@@ -190,6 +200,8 @@ impl ExactModelCodec {
                 .map(VersionedModelTransactionEnvelope::V6),
             Self::V7 => ModelTransactionEnvelopeV7::from_json(bytes, ModelDecoderLimits::default())
                 .map(VersionedModelTransactionEnvelope::V7),
+            Self::V8 => ModelTransactionEnvelopeV8::from_json(bytes, ModelDecoderLimits::default())
+                .map(VersionedModelTransactionEnvelope::V8),
         }
     }
 
@@ -218,6 +230,7 @@ pub(crate) enum VersionedModelTransactionEnvelope {
     V5(ModelTransactionEnvelopeV5),
     V6(ModelTransactionEnvelopeV6),
     V7(ModelTransactionEnvelopeV7),
+    V8(ModelTransactionEnvelopeV8),
 }
 
 impl VersionedModelTransactionEnvelope {
@@ -230,6 +243,7 @@ impl VersionedModelTransactionEnvelope {
             Self::V5(envelope) => envelope.canonical_json(),
             Self::V6(envelope) => envelope.canonical_json(),
             Self::V7(envelope) => envelope.canonical_json(),
+            Self::V8(envelope) => envelope.canonical_json(),
         }
     }
 
@@ -242,6 +256,7 @@ impl VersionedModelTransactionEnvelope {
             Self::V5(envelope) => envelope.digest(),
             Self::V6(envelope) => envelope.digest(),
             Self::V7(envelope) => envelope.digest(),
+            Self::V8(envelope) => envelope.digest(),
         }
         .map(|digest| digest.to_string())
     }
@@ -255,6 +270,7 @@ impl VersionedModelTransactionEnvelope {
             Self::V5(envelope) => envelope.to_transaction(),
             Self::V6(envelope) => envelope.to_transaction(),
             Self::V7(envelope) => envelope.to_transaction(),
+            Self::V8(envelope) => envelope.to_transaction(),
         }
     }
 
@@ -267,6 +283,7 @@ impl VersionedModelTransactionEnvelope {
             Self::V5(_) => ExactModelCodec::V5,
             Self::V6(_) => ExactModelCodec::V6,
             Self::V7(_) => ExactModelCodec::V7,
+            Self::V8(_) => ExactModelCodec::V8,
         }
     }
 }

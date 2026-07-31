@@ -178,16 +178,14 @@ impl GeometryIdentityEnvelopeV1 {
         let mut next_boundary_index = 0_usize;
         let mut common_dimension = None;
         for (body_index, body) in bodies.into_iter().enumerate() {
-            let Some(KernelNode::Domain(definition)) = program.node(body.erase()) else {
+            let Some(KernelNode::Domain(_)) = program.node(body.erase()) else {
                 return Err(invalid_artifact(
                     "geometry body identity does not name a retained Domain",
                 ));
             };
-            let DomainKind::CartesianBox { bounds } = definition.kind() else {
-                return Err(invalid_artifact(
-                    "geometry identity v1 admits only Cartesian box bodies",
-                ));
-            };
+            let bounds = program.resolved_cartesian_bounds(body).map_err(|_| {
+                invalid_artifact("geometry identity v1 admits only Cartesian box bodies")
+            })?;
             let dimension = bounds.len();
             if common_dimension
                 .replace(dimension)

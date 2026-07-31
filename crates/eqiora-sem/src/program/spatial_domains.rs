@@ -2,16 +2,164 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use eqiora_core::{Diagnostic, RawId};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, RawId};
 use eqiora_graph::{Edge, EdgeKind};
 use eqiora_schema::kernel::typing::SpatialSupport;
-use eqiora_schema::kernel::{DomainKind, KernelNode, RepresentationKind, ValueFrame};
+use eqiora_schema::kernel::{
+    AxisBounds, CartesianCoordinateSource, DomainKind, KernelNode, RepresentationKind, ValueFrame,
+};
 
 use super::{edge_targets, kernel_error};
+
+pub(super) fn resolve_cartesian_bounds(
+    nodes: &BTreeMap<RawId, KernelNode>,
+    values: &BTreeMap<RawId, DynQuantity>,
+    edges: &[Edge],
+    diagnostics: &mut Vec<Diagnostic>,
+) -> BTreeMap<RawId, Vec<AxisBounds>> {
+    let mut resolved = BTreeMap::new();
+    let mut parameter_owners = BTreeMap::new();
+    for (&domain, node) in nodes {
+        let KernelNode::Domain(definition) = node else {
+            continue;
+        };
+        let dependencies = edge_targets(edges, domain, EdgeKind::DependsOn);
+        let DomainKind::CartesianBox { coordinates } = definition.kind() else {
+            if !dependencies.is_empty() {
+                diagnostics.push(kernel_error(
+                    domain,
+                    format!(
+                        "non-Cartesian Domain must not depend on Parameters, found targets {dependencies:?}"
+                    ),
+                ));
+            }
+            continue;
+        };
+
+        let mut references = BTreeSet::new();
+        let mut bounds = Vec::with_capacity(coordinates.len());
+        for (axis, coordinate) in coordinates.iter().copied().enumerate() {
+            let lower = resolve_coordinate(
+                domain,
+                axis,
+                "lower",
+                coordinate.lower(),
+                nodes,
+                values,
+                &mut references,
+                diagnostics,
+            );
+            let upper = resolve_coordinate(
+                domain,
+                axis,
+                "upper",
+                coordinate.upper(),
+                nodes,
+                values,
+                &mut references,
+                diagnostics,
+            );
+            if let (Some(lower), Some(upper)) = (lower, upper) {
+                match AxisBounds::new(lower, upper) {
+                    Ok(axis_bounds) => bounds.push(axis_bounds),
+                    Err(_) => diagnostics.push(kernel_error(
+                        domain,
+                        format!(
+                            "Cartesian axis {axis} resolves to non-finite, equal, or reversed bounds"
+                        ),
+                    )),
+                }
+            }
+        }
+
+        if references != dependencies {
+            diagnostics.push(kernel_error(
+                domain,
+                format!(
+                    "Cartesian coordinate Parameter set {references:?} differs from DependsOn targets {dependencies:?}"
+                ),
+            ));
+        }
+        for parameter in references {
+            if let Some(previous) = parameter_owners.insert(parameter, domain)
+                && previous != domain
+            {
+                diagnostics.push(kernel_error(
+                    domain,
+                    format!(
+                        "Cartesian coordinate Parameter {parameter} is already owned by Domain {previous}"
+                    ),
+                ));
+            }
+        }
+        if bounds.len() == coordinates.len() {
+            resolved.insert(domain, bounds);
+        }
+    }
+    resolved
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_coordinate(
+    domain: RawId,
+    axis: usize,
+    role: &str,
+    source: CartesianCoordinateSource,
+    nodes: &BTreeMap<RawId, KernelNode>,
+    values: &BTreeMap<RawId, DynQuantity>,
+    references: &mut BTreeSet<RawId>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<DynQuantity> {
+    match source {
+        CartesianCoordinateSource::Fixed(value) => Some(value),
+        CartesianCoordinateSource::Parameter(parameter) => {
+            let parameter = parameter.erase();
+            references.insert(parameter);
+            let length = DimExponents {
+                length: 1,
+                ..DimExponents::DIMENSIONLESS
+            };
+            let Some(KernelNode::Parameter(definition)) = nodes.get(&parameter) else {
+                diagnostics.push(kernel_error(
+                    domain,
+                    format!("Cartesian axis {axis} {role} references absent Parameter {parameter}"),
+                ));
+                return None;
+            };
+            if definition.value().dim() != length {
+                diagnostics.push(kernel_error(
+                    domain,
+                    format!("Cartesian axis {axis} {role} Parameter {parameter} is not a length"),
+                ));
+                return None;
+            }
+            let Some(value) = values.get(&parameter).copied() else {
+                diagnostics.push(kernel_error(
+                    domain,
+                    format!(
+                        "Cartesian axis {axis} {role} Parameter {parameter} has no revision-local value"
+                    ),
+                ));
+                return None;
+            };
+            if value.dim() != length || !value.value().is_finite() {
+                diagnostics.push(kernel_error(
+                    domain,
+                    format!(
+                        "Cartesian axis {axis} {role} Parameter {parameter} has no finite length value"
+                    ),
+                ));
+                return None;
+            }
+            Some(value)
+        }
+    }
+}
 
 pub(super) fn validate_domains(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
+    cartesian_bounds: &BTreeMap<RawId, Vec<AxisBounds>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> BTreeSet<RawId> {
     let mut invalid = BTreeSet::new();
@@ -47,20 +195,28 @@ pub(super) fn validate_domains(
                 }
                 let parent = *parents.first().expect("one boundary parent was checked");
                 match nodes.get(&parent) {
-                    Some(KernelNode::Domain(parent)) => match parent.kind() {
-                        DomainKind::CartesianBox { bounds } if *axis < bounds.len() => {}
-                        DomainKind::CartesianBox { bounds } => diagnostics.push(kernel_error(
-                            id,
-                            format!(
-                                "boundary axis {axis} is outside parent dimension {}",
-                                bounds.len()
-                            ),
-                        )),
-                        _ => diagnostics.push(kernel_error(
-                            id,
-                            "Cartesian boundary parent must be a Cartesian box Domain",
-                        )),
-                    },
+                    Some(KernelNode::Domain(parent_definition))
+                        if matches!(parent_definition.kind(), DomainKind::CartesianBox { .. }) =>
+                    {
+                        match cartesian_bounds.get(&parent) {
+                            Some(bounds) if *axis < bounds.len() => {}
+                            Some(bounds) => diagnostics.push(kernel_error(
+                                id,
+                                format!(
+                                    "boundary axis {axis} is outside parent dimension {}",
+                                    bounds.len()
+                                ),
+                            )),
+                            None => diagnostics.push(kernel_error(
+                                id,
+                                "Cartesian boundary parent has no valid resolved bounds",
+                            )),
+                        }
+                    }
+                    Some(KernelNode::Domain(_)) => diagnostics.push(kernel_error(
+                        id,
+                        "Cartesian boundary parent must be a Cartesian box Domain",
+                    )),
                     _ => diagnostics.push(kernel_error(
                         id,
                         "BoundaryOf target has no Domain definition",
@@ -312,6 +468,7 @@ pub(super) fn field_support(
 pub(super) fn cartesian_spatial_supports(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
+    cartesian_bounds: &BTreeMap<RawId, Vec<AxisBounds>>,
 ) -> BTreeMap<RawId, SpatialSupport<RawId>> {
     let mut supports = BTreeMap::new();
     for (&domain, node) in nodes {
@@ -319,14 +476,16 @@ pub(super) fn cartesian_spatial_supports(
             continue;
         };
         match definition.kind() {
-            DomainKind::CartesianBox { bounds } => {
-                supports.insert(
-                    domain,
-                    SpatialSupport::Volume {
+            DomainKind::CartesianBox { .. } => {
+                if let Some(bounds) = cartesian_bounds.get(&domain) {
+                    supports.insert(
                         domain,
-                        dimensions: bounds.len(),
-                    },
-                );
+                        SpatialSupport::Volume {
+                            domain,
+                            dimensions: bounds.len(),
+                        },
+                    );
+                }
             }
             DomainKind::CartesianBoundary { .. } => {
                 let parents = edge_targets(edges, domain, EdgeKind::BoundaryOf);
@@ -337,7 +496,10 @@ pub(super) fn cartesian_spatial_supports(
                 let Some(KernelNode::Domain(parent_definition)) = nodes.get(&parent) else {
                     continue;
                 };
-                let DomainKind::CartesianBox { bounds } = parent_definition.kind() else {
+                let DomainKind::CartesianBox { .. } = parent_definition.kind() else {
+                    continue;
+                };
+                let Some(bounds) = cartesian_bounds.get(&parent) else {
                     continue;
                 };
                 supports.insert(

@@ -132,7 +132,8 @@
         "v4",
         "v5",
         "v6",
-        "v7"
+        "v7",
+        "v8"
       ],
       "type": "string"
     },
@@ -228,7 +229,8 @@
           "model-wire/v4",
           "model-wire/v5",
           "model-wire/v6",
-          "model-wire/v7"
+          "model-wire/v7",
+          "model-wire/v8"
         ],
         "type": "string"
       },

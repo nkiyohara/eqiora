@@ -36,8 +36,8 @@ Domain --DependsOn--> Parameter
 ```
 
 The set of Parameter IDs present in the coordinate definition must equal the
-set of outgoing `DependsOn` targets exactly. Model and Transaction v7 persist
-this meaning. Historical v1--v6 codecs remain frozen.
+set of outgoing `DependsOn` targets exactly. Model and Transaction v8 persist
+this meaning. Historical v1--v7 codecs remain frozen.
 
 ## Motivation
 
@@ -95,7 +95,7 @@ Each axis stores one lower and one upper `CartesianCoordinateSource`.
 - the same Parameter may occur at more than one endpoint in one Domain; and
 - repeated references create one dependency-set member, not duplicate edges.
 
-The first v7 admission allows one coordinate Parameter to belong to at most
+The first v8 admission allows one coordinate Parameter to belong to at most
 one Cartesian Domain definition. Reusing it at several endpoints of that one
 Domain is valid; sharing it across two Domains is rejected. This is not a
 mathematical necessity. It keeps the first authoring and regeneration owner
@@ -139,7 +139,7 @@ IDs from all coordinate sources and compares it with the exact outgoing
 `DependsOn` target set. Missing, extra, wrong-kind, dangling, or
 outside-Model targets fail. The existing Relation invariant remains unchanged:
 its symbol set must still equal its own dependency targets. A reverse index
-over the validated Domain reference sets enforces the first-v7 one-Domain
+over the validated Domain reference sets enforces the first-v8 one-Domain
 ownership restriction without making that index persisted meaning.
 
 ### One resolved-bounds owner
@@ -161,7 +161,7 @@ The implementation exposes one
 `KernelProgram::resolved_cartesian_bounds(...)`-style semantic query. Existing
 Geometry Identity, CAD validation, API, numerical, and other metric-bound
 consumers must migrate from matching and interpreting raw Cartesian payloads
-independently to consuming that query. The Model v7 encoder necessarily
+independently to consuming that query. The Model v8 encoder necessarily
 serializes the coordinate definition itself; other artifact producers that
 need evaluated metric bounds use the semantic query. A private in-memory cache
 is permitted only as a derivable optimization; it is not persisted meaning,
@@ -193,8 +193,8 @@ Diagnostics remain at the narrowest authoritative layer:
   source-initial-value failures;
 - the graph schema reports an inadmissible edge endpoint pair;
 - Semantic Kernel validation reports dependency-set or one-Domain-ownership
-  mismatch, absent or invalid decoded/current revision-local values, and
-  resolved interval failure; and
+  mismatch, an absent referenced Parameter definition, invalid current values,
+  and resolved interval failure; and
 - artifact decoders report unknown versions, unknown variants, malformed
   IDs, limits, and locally invalid payloads before graph mutation.
 
@@ -208,8 +208,17 @@ Coordinate sources are encoded in axis order and lower-before-upper order.
 `Fixed` and `Parameter` are distinct tagged alternatives. Resolved Parameter
 IDs, rather than source aliases or declaration traversal order, enter
 canonical Model meaning. Dependency targets are deduplicated and sorted by
-exact ID. Declaration and dependency input permutations cannot change the
-emitted canonical transaction or Model bytes.
+exact ID.
+
+Independent source compilations continue to mint fresh occurrence ULIDs.
+Sources that differ only by declaration or dependency input order therefore
+compare through the structural semantic fingerprint; equal exact Model or
+Transaction bytes, digests, and occurrence IDs are explicit nonclaims.
+Transaction operation order remains authoritative, so permuting already
+emitted operations produces a different exact artifact. Within one
+compilation, unordered dependency-set iteration is normalized before emission;
+it does not add a second dependency edge or change the source-to-transaction
+mapping.
 
 The existing compiler rule normalizes signed source zero for fixed coordinates
 and Parameter initial values. The regeneration slice applies the same rule to its requested
@@ -225,7 +234,7 @@ Domain definition and graph topology remain unchanged. The newly resolved
 bounds change Geometry Identity through its existing exact Model-bound
 projection.
 
-A v7 Domain containing only `Fixed` sources has the same bounded mathematical
+A v8 Domain containing only `Fixed` sources has the same bounded mathematical
 meaning and resolved `AxisBounds` as the corresponding historical fixed-bounds
 Domain. A conformance fixture may prove structural equivalence across those
 two exact artifacts. It does not claim equal Model bytes, transaction bytes,
@@ -241,12 +250,17 @@ Parameter binding behavior.
 
 ## Exact wire generation and compatibility
 
-Model v7 is required. Model v6 stores only concrete axis bounds and has no
+The accepted design originally reserved v7. Before this implementation began,
+v7 shipped as the closed authored-geometry Domain grammar. Exact historical
+grammars do not widen, so direct coordinate sources advance mechanically to
+v8 and leave the semantic decision unchanged.
+
+Model v8 is required. Model v7 stores only concrete axis bounds and has no
 field from which a decoder can reconstruct whether an endpoint is fixed or
 which exact Parameter drives it. Encoding the recipe in an unrelated artifact
 would not repair that missing Model meaning.
 
-Transaction v7 is also required. Initial source compilation and every typed
+Transaction v8 is also required. Initial source compilation and every typed
 construction of the new Domain definition must carry it through
 `DefineKernelNode`; a new Model wire without the matching definition grammar
 in the ordinary transaction path would make authoring and replay disagree. No
@@ -254,29 +268,29 @@ new graph operation is needed.
 
 Compatibility is explicit:
 
-- v1--v6 Model and Transaction schemas, bytes, digests, semantics, golden
+- v1--v7 Model and Transaction schemas, bytes, digests, semantics, golden
   fixtures, exact entry points, and rejection behavior remain frozen;
-- v1--v6 reject the parametric coordinate payload;
-- v1--v6 Model and Transaction codecs also reject
+- v1--v7 reject the parametric coordinate payload;
+- v1--v7 Model and Transaction codecs also reject
   `Domain --DependsOn--> Parameter`, even though the shared in-memory
   `EdgeKind` learns that endpoint pair;
-- ordinary current authoring moves from the explicit v6 codec to v7;
-- v7 decoding never sniffs, retries, or falls back to an older generation;
+- ordinary current authoring moves from the explicit v7 codec to v8;
+- v8 decoding never sniffs, retries, or falls back to an older generation;
 - no historical artifact is automatically upgraded or rewritten; and
 - recompiling old fixed-literal source under current authoring may produce new
-  v7 bytes and digests while preserving the bounded fixed geometry meaning.
+  v8 bytes and digests while preserving the bounded fixed geometry meaning.
 
-The first v7 implementation must add both exact codec selectors and keep every
+The first v8 implementation must add both exact codec selectors and keep every
 historical selector independently callable. It may not silently widen an
 older encoder merely because the in-memory graph vocabulary learned the new
 Domain-to-Parameter endpoint pair.
 
-Moving current authoring to v7 must not remove RFC 0077's fixed-geometry edit
+Moving current authoring to v8 must not remove RFC 0077's fixed-geometry edit
 capability. That slice therefore migrates the existing fixed-only
-`CartesianDomainEditPlan` consumer to v7 coordinate definitions: an accepted
+`CartesianDomainEditPlan` consumer to v8 coordinate definitions: an accepted
 edit replaces the selected axis endpoints with `Fixed` sources and otherwise
-retains RFC 0077's exact identity and atomicity contract. Historical v6 plans
-remain available through their exact v6 document path. A direct bounds edit
+retains RFC 0077's exact identity and atomicity contract. Historical v7 plans
+remain available through their exact v7 document path. A direct bounds edit
 against any Domain containing a `Parameter` coordinate is rejected; the regeneration slice
 owns that change.
 
@@ -320,8 +334,8 @@ The decision is intentionally split into two implementation issues:
 1. The semantics-and-replay slice owns source,
    compiler, schema, dependency validation, `KernelProgram` evaluation,
    the closed metric-consumer inventory, compiler package-declaration identity,
-   exact Model/Transaction v7 replay, fixed-only ModelDraft compatibility, and
-   migration of RFC 0077's fixed edit plan to current v7. Its proving Model
+   exact Model/Transaction v8 replay, fixed-only ModelDraft compatibility, and
+   migration of RFC 0077's fixed edit plan to current v8. Its proving Model
    uses one root length Parameter at two endpoints of one 3D Cartesian Domain.
 2. The regeneration slice owns one immutable
    Parameter-driven regeneration plan, one exact value transaction, the
@@ -338,7 +352,7 @@ the semantics-and-replay slice, not a deferred capability.
 
 | Formulation | Semantic authority | Evaluation cost | Initial implementation | Compatibility and extension |
 |---|---|---:|---|---|
-| Closed direct coordinate sources | One Model definition | Linear in endpoints | Moderate v7 and consumer migration | Explicit generation boundary; later terms require a new decision |
+| Closed direct coordinate sources | One Model definition | Linear in endpoints | Moderate v8 and consumer migration | Explicit generation boundary; later terms require a new decision |
 | Recipe plus materialized bounds | Two synchronized values | Linear plus equality checks | Lower consumer churn | Every edit and decoder inherits consistency risk |
 | CAD or geometry sidecar | Split across artifacts | Lookup plus external replay | Low kernel churn | Model replay is incomplete without optional state |
 | Residual or generic expression DAG | One but over-broad authority | Expression evaluation | High typing, canonicalization, and policy cost | Prematurely fixes geometry algebra and differentiation |
@@ -355,7 +369,7 @@ implementation cost.
 
 ### Persist a CAD or geometry sidecar
 
-A sidecar could map Parameters to endpoints while leaving v6 unchanged, but
+A sidecar could map Parameters to endpoints while leaving v7 unchanged, but
 the same Model could then mean different geometry depending on which optional
 artifact a client supplied. That violates the Model/Realization separation and
 makes semantic replay incomplete. Rejected.
@@ -398,7 +412,7 @@ different mathematical relationship. Rejected.
 Shared dimensions across several bodies are mathematically natural. Admitting
 them now would require the regeneration slice to own complete multi-Domain impact,
 association, and selection evidence or would leave a valid Model with no
-accepted value-edit path. The first v7 instead rejects cross-Domain sharing.
+accepted value-edit path. The first v8 instead rejects cross-Domain sharing.
 A later extension must add the complete atomic dependent set before relaxing
 that admission rule.
 
@@ -414,20 +428,22 @@ owner emits one ordinary value transaction after semantic preview.
 The semantics-and-replay slice must falsify the semantic and persistence contract with at least:
 
 - unknown, wrong-kind, Component-scoped, or non-length coordinate names;
-- non-finite or absent revision-local Parameter values;
+- non-finite revision-local Parameter values, absent referenced Parameter
+  definitions, and malformed artifacts that omit the mandatory Parameter
+  definition value;
 - one coordinate Parameter referenced by more than one Domain;
 - missing, extra, wrong-kind, dangling, or foreign `DependsOn` targets;
 - a coordinate reference set that differs from the dependency target set;
 - evaluation producing equal or reversed bounds;
-- declaration or dependency permutations changing canonical v7 Model or
-  Transaction bytes and digests;
-- v6 accepting any parametric coordinate payload;
-- any v1--v6 Model or Transaction codec accepting a
+- declaration or dependency permutations changing the structural semantic
+  fingerprint, or producing a non-canonical dependency set;
+- v7 accepting any parametric coordinate payload;
+- any v1--v7 Model or Transaction codec accepting a
   `Domain --DependsOn--> Parameter` edge;
-- an unknown or forged v7 coordinate alternative replaying;
-- a fixed-only v7 Domain changing the bounded historical fixed geometry
+- an unknown or forged v8 coordinate alternative replaying;
+- a fixed-only v8 Domain changing the bounded historical fixed geometry
   meaning; and
-- fixed-only ModelDraft or RFC 0077 editing disappearing under current v7;
+- fixed-only ModelDraft or RFC 0077 editing disappearing under current v8;
 - direct fixed-bound editing admitting a Parameter-backed Domain;
 - package canonical-declaration identity ignoring the fixed/Parameter choice
   or exact root Parameter declaration; and

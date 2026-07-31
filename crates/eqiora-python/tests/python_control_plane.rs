@@ -86,7 +86,7 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
 
         let replayed = ExactModelCodec::CURRENT
             .replay(&base_bytes)
-            .expect("Python-produced current-v7 artifact must replay through the Rust facade");
+            .expect("Python-produced current-v8 artifact must replay through the Rust facade");
         let replayed_reference = replayed
             .artifact_reference()
             .expect("the validated replay must retain a typed Model reference");
@@ -137,7 +137,7 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
         );
 
         let replay_kwargs = PyDict::new(py);
-        replay_kwargs.set_item("codec", module.getattr("ExactModelCodec")?.getattr("V7")?)?;
+        replay_kwargs.set_item("codec", module.getattr("ExactModelCodec")?.getattr("V8")?)?;
         let replayed_child = module
             .getattr("replay_exact")?
             .call((PyBytes::new(py, &child_bytes),), Some(&replay_kwargs))?;

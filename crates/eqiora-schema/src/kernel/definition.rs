@@ -10,7 +10,10 @@ use super::{BoundaryPhysicalConnector, ExprDag, RationalTime, ValueFrame};
 
 mod spatial;
 
-pub use spatial::{AxisBounds, BoundarySide, DomainDef, DomainKind, GeometryDigest};
+pub use spatial::{
+    AxisBounds, BoundarySide, CartesianAxisDefinition, CartesianCoordinateSource, DomainDef,
+    DomainKind, GeometryDigest,
+};
 
 /// Canonical field representation before a discrete space is chosen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

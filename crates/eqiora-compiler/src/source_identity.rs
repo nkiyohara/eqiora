@@ -8,18 +8,21 @@
 use core::fmt;
 use std::collections::BTreeMap;
 
+mod domain;
+
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_lang::{
     ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
     BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax,
-    BoundarySetBindingDecl, BoundarySideSyntax, ClockDecl, ComponentDecl, ComponentItem,
-    ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl,
-    ConnectionSyntax, ConnectorDecl, ConnectorSyntax, Document, DomainDecl, DomainSyntax, Expr,
-    ExprKind, FieldDecl, FieldSlotDecl, FrameSyntax, InstanceDecl, Item, ModelDecl, NamePath,
-    ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl, RelationDecl, RelationFamilyDecl,
-    RepresentationDecl, RepresentationSyntax, SignalDirectionSyntax, SupportSlotDecl,
-    SupportSlotSyntax, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    BoundarySetBindingDecl, BoundarySideSyntax, CartesianCoordinateSyntax, ClockDecl,
+    ComponentDecl, ComponentItem, ComponentParameterDecl, ComponentPortDecl,
+    ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl, ConnectorSyntax,
+    Document, DomainDecl, DomainSyntax, Expr, ExprKind, FieldDecl, FieldSlotDecl, FrameSyntax,
+    InstanceDecl, Item, ModelDecl, NamePath, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
+    RelationDecl, RelationFamilyDecl, RepresentationDecl, RepresentationSyntax,
+    SignalDirectionSyntax, SupportSlotDecl, SupportSlotSyntax, UnaryOp, ValueShapeSyntax,
+    VisibilitySyntax,
 };
 use sha2::{Digest, Sha256};
 
@@ -28,6 +31,7 @@ use crate::connection_sets::{
 };
 use crate::identity::IdentityNamespace;
 use crate::pure_operator::compile_definition;
+use domain::encode_domain;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
 const CANONICAL_VERSION: u16 = 1;
@@ -725,57 +729,6 @@ fn encode_field_slot(
             encode_value_shape(encoder, shape)
         }
         None => encoder.u8(0),
-    })
-}
-
-fn encode_domain(
-    encoder: &mut Encoder,
-    declaration: &DomainDecl,
-    budget: &mut Budget,
-) -> Result<(), Diagnostic> {
-    encoder.field(1, |encoder| {
-        encode_name(encoder, declaration.name(), budget)
-    })?;
-    encoder.field(2, |encoder| match declaration.syntax() {
-        DomainSyntax::CartesianBox(bounds) => {
-            encoder.u16(1)?;
-            encoder.u32(as_u32(bounds.len(), "Cartesian axis count")?)?;
-            for (lower, upper) in bounds {
-                encoder.f64(*lower)?;
-                encoder.f64(*upper)?;
-            }
-            Ok(())
-        }
-        DomainSyntax::Boundary { parent, axis, side } => {
-            encoder.u16(2)?;
-            encoder.field(1, |encoder| encode_name(encoder, parent, budget))?;
-            encoder.field(2, |encoder| {
-                encoder.u64(u64::try_from(*axis).map_err(|_| {
-                    source_identity_error("boundary axis does not fit canonical u64")
-                })?)
-            })?;
-            encoder.field(3, |encoder| {
-                encoder.u8(match side {
-                    BoundarySideSyntax::Lower => 1,
-                    BoundarySideSyntax::Upper => 2,
-                })
-            })
-        }
-        DomainSyntax::ScalarPhysical {
-            across_dimension,
-            through_dimension,
-        } => {
-            encoder.u16(3)?;
-            encoder.field(1, |encoder| {
-                encode_expression(encoder, across_dimension, budget, 1)
-            })?;
-            encoder.field(2, |encoder| {
-                encode_expression(encoder, through_dimension, budget, 1)
-            })
-        }
-        _ => Err(source_identity_error(
-            "Domain syntax is newer than source identity v1",
-        )),
     })
 }
 
@@ -2294,6 +2247,18 @@ model M {
         let negative = negative.remove(0);
         assert_eq!(positive.model(), negative.model());
         assert_eq!(positive.transaction().ops(), negative.transaction().ops());
+    }
+
+    #[test]
+    fn cartesian_coordinate_sources_preserve_exact_root_declaration_identity() {
+        let parameter = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, extent, extent, 6); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }";
+        let declarations_permuted = "model m { domain body = box(-1, extent, extent, 6); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } parameter other: m = 2; parameter extent: m = 2; }";
+        let fixed = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, 2, 2, 6); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }";
+        let other_root = "model m { parameter extent: m = 2; parameter other: m = 2; domain body = box(-1, other, other, 6); relation r continuous on body { coordinate(0) - coordinate(0) = 0; } }";
+
+        assert_eq!(identity(parameter), identity(declarations_permuted));
+        assert_ne!(identity(parameter), identity(fixed));
+        assert_ne!(identity(parameter), identity(other_root));
     }
 
     #[test]
