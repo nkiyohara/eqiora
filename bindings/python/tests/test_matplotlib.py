@@ -154,6 +154,10 @@ def test_headless_figure_is_caller_saveable_and_nonblank(
     assert height > 0
     assert (width, height) == figure.canvas.get_width_height()
     assert destination.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    field_position = figure.axes[0].get_position()
+    colorbar_position = figure.axes[1].get_position()
+    assert colorbar_position.y0 == pytest.approx(field_position.y0)
+    assert colorbar_position.y1 == pytest.approx(field_position.y1)
 
     encoded.seek(0)
     pixels = image.imread(encoded, format="png")

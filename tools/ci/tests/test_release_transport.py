@@ -68,7 +68,7 @@ def candidate_document(root: Path) -> tuple[Path, Path, dict]:
             )
         records.append(record)
     document = {
-        "format": "eqiora.python-distribution-candidate/v1",
+        "format": "eqiora.python-distribution-candidate/v2",
         "project": "eqiora",
         "version": "0.1.0a1",
         "acceptance": "complete",

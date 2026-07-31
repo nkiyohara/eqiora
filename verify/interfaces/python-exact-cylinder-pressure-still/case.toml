@@ -55,6 +55,9 @@ blank_or_invalid_output = "PNG decode or nonuniform visible-pixel check fails"
 input_mutation = "Result identities or read-only arrays change after plotting"
 
 [claim_boundary]
+candidate_profile = "matplotlib"
+ordinary_gil_cpython = "3.13"
+exact_matplotlib = "3.11.1"
 one_exact_cylinder_result = true
 one_vertex_p1_pressure_field = true
 affine_triangles = true

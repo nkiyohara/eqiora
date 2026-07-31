@@ -2,6 +2,7 @@
 
 try:
     from matplotlib.figure import Figure
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
 except ModuleNotFoundError as error:
     if error.name not in {"matplotlib", "matplotlib.figure"}:
         raise
@@ -15,7 +16,6 @@ from .fluid import CircularHoleSteadyStokesResult
 __all__ = ["plot_pressure"]
 
 _FIELD_RECT = (0.065, 0.23, 0.82, 0.58)
-_COLORBAR_RECT = (0.91, 0.14, 0.025, 0.75)
 
 
 def plot_pressure(result: CircularHoleSteadyStokesResult, /) -> Figure:
@@ -61,7 +61,8 @@ def plot_pressure(result: CircularHoleSteadyStokesResult, /) -> Figure:
     axes.set_xlabel("x [m]")
     axes.set_ylabel("y [m]")
     axes.set_title("Steady Stokes pressure")
-    colorbar_axes = figure.add_axes(_COLORBAR_RECT)
+    divider = make_axes_locatable(axes)
+    colorbar_axes = divider.append_axes("right", size="2.5%", pad=0.18)
     colorbar = figure.colorbar(field, cax=colorbar_axes)
     colorbar.set_label("Pressure [Pa]")
     return figure

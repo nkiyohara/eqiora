@@ -78,7 +78,9 @@ NumPy is the only mandatory Python runtime dependency. Importing `eqiora` must
 not eagerly import NumPy. PyTorch, JAX, and Matplotlib remain optional extras,
 and importing the base package must neither require nor import any of them.
 The first Matplotlib adapter uses exact release 3.11.1 with the headless Agg
-backend. A wider compatibility range requires separate boundary evidence.
+backend. Its registered adapter profile runs on ordinary-GIL CPython 3.13;
+the other wheel interpreters are not Matplotlib adapter compatibility
+evidence. A wider compatibility range requires separate boundary evidence.
 
 Dependency ranges are compatibility claims. Widening one requires an installed
 wheel test at the new boundary; changing an exact framework baseline requires

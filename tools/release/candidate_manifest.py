@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 
-MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v1"
+MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v2"
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 REQUIRED_PROFILES = ("base", "jax", "matplotlib", "torch", "typing")

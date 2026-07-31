@@ -160,6 +160,8 @@ still does not claim raw-array or general Field plotting, contours, velocity,
 interactive behavior, animation, deterministic image bytes, media admission,
 or validation from visual similarity.
 
+## Conserving connections
+
 Scalar conserving connections use nominal physical-domain identity:
 
 ```python

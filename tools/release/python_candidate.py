@@ -25,7 +25,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT
 PYPROJECT = ROOT / "pyproject.toml"
-MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v1"
+MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v2"
 EXACT_CYLINDER_DEMO = Path("examples/python/exact_cylinder_stokes.py")
 EXACT_CYLINDER_REPOSITORY_MODEL = Path(
     "examples/steady-flow-past-cylinder.model-v7.json"
@@ -184,6 +184,7 @@ def checked_run(
     """Run one shell-free command under a source-isolated environment."""
 
     environment = os.environ.copy()
+    environment.pop("DISPLAY", None)
     environment.pop("MATPLOTLIBRC", None)
     environment.pop("MPLCONFIGDIR", None)
     environment.pop("PYTHONPATH", None)
@@ -814,7 +815,6 @@ def run_optional_profile(
         matplotlib_config = scratch / "matplotlib-config"
         matplotlib_config.mkdir()
         environment_variables = {
-            "DISPLAY": "",
             "EQIORA_TEST_MATPLOTLIB_VERSION": config.matplotlib.split("==", maxsplit=1)[
                 1
             ],
