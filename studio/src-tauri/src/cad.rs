@@ -203,9 +203,10 @@ fn build_plan(document: &ModelDocument) -> Result<CadBoxPlanV1, Diagnostic> {
     let KernelNode::Domain(definition) = node else {
         return Err(invalid_cad("Studio CAD alias `body` is not a Domain"));
     };
-    let DomainKind::CartesianBox { bounds } = definition.kind() else {
+    let DomainKind::CartesianBox { .. } = definition.kind() else {
         return Err(invalid_cad("Studio CAD v1 requires one Cartesian box body"));
     };
+    let bounds = document.program().resolved_cartesian_bounds(body)?;
     let actual_bounds = bounds
         .iter()
         .map(|bounds| (bounds.lower().value(), bounds.upper().value()))
