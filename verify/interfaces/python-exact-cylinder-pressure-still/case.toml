@@ -74,4 +74,4 @@ scientific_validation_from_pixels = false
 
 [evidence]
 runner = "python-installed-wheel"
-script = "tools/ci/python_matplotlib_gate.py"
+script = "tools/ci/python_distribution_gate.py"

@@ -36,9 +36,13 @@ nondimensionalize, derive, integrate, or validate pressure.
 
 ## Installed and headless boundary
 
-The focused gate installs an ordinary wheel with the `matplotlib` extra in an
-isolated environment, fixes the reviewed Matplotlib release, removes
-`DISPLAY`, and selects Agg from the evidence environment. The adapter itself
+Registered evidence obtains this profile from the same complete candidate and
+manifest as the base, typing, PyTorch, and JAX profiles. Its closed Matplotlib
+check group installs the optional extra in an isolated environment, fixes the
+reviewed release, removes `DISPLAY`, isolates Matplotlib configuration, and
+selects Agg from the evidence environment. The focused
+`tools/ci/python_matplotlib_gate.py` script remains available for standalone
+development but is not a second registered artifact build. The adapter itself
 does not call `show`, save a file, or select a backend. Its returned Figure is
 owned by the caller.
 

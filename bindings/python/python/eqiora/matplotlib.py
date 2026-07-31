@@ -2,7 +2,9 @@
 
 try:
     from matplotlib.figure import Figure
-except ImportError as error:  # pragma: no cover - exercised without the extra
+except ModuleNotFoundError as error:
+    if error.name not in {"matplotlib", "matplotlib.figure"}:
+        raise
     raise ImportError(
         "eqiora.matplotlib requires the optional 'matplotlib' dependency; "
         "install eqiora[matplotlib]"

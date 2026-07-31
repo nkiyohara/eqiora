@@ -47,7 +47,12 @@ def _base_checks() -> frozenset[str]:
 PROFILE_CHECKS = {
     "base": _base_checks(),
     "jax": frozenset({"cp313:jax", "cp313:public-smoke-jax"}),
-    "matplotlib": frozenset({"cp313:matplotlib", "cp313:public-smoke-matplotlib"}),
+    "matplotlib": frozenset(
+        {
+            "cp313:matplotlib",
+            "cp313:packaged-exact-cylinder-pressure-demo",
+        }
+    ),
     "torch": frozenset({"cp313:torch", "cp313:public-smoke-torch"}),
     "typing": frozenset(
         {

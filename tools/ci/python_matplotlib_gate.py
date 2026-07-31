@@ -33,16 +33,21 @@ def venv_python(environment: Path) -> Path:
 def run(argv: list[str], *, cwd: Path = ROOT) -> None:
     environment = os.environ.copy()
     environment.pop("DISPLAY", None)
+    environment.pop("MATPLOTLIBRC", None)
     environment.pop("PYTHONPATH", None)
-    environment.update(
-        {
-            "EQIORA_TEST_MATPLOTLIB_VERSION": MATPLOTLIB.removeprefix("matplotlib=="),
-            "MPLBACKEND": "Agg",
-            "PIP_DISABLE_PIP_VERSION_CHECK": "1",
-            "PYTHONNOUSERSITE": "1",
-        }
-    )
-    subprocess.run(argv, cwd=cwd, env=environment, check=True)
+    with tempfile.TemporaryDirectory(prefix="eqiora-matplotlib-config-") as config:
+        environment.update(
+            {
+                "EQIORA_TEST_MATPLOTLIB_VERSION": MATPLOTLIB.removeprefix(
+                    "matplotlib=="
+                ),
+                "MPLBACKEND": "Agg",
+                "MPLCONFIGDIR": config,
+                "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+                "PYTHONNOUSERSITE": "1",
+            }
+        )
+        subprocess.run(argv, cwd=cwd, env=environment, check=True)
 
 
 def uv_gate_command(uv: str) -> list[str]:
@@ -78,10 +83,11 @@ def main() -> int:
         if uv := shutil.which("uv"):
             run(uv_gate_command(uv))
             return 0
-        interpreter = shutil.which("python3.13")
+        interpreter_name = f"python{PYTHON}"
+        interpreter = shutil.which(interpreter_name)
         if interpreter is None:
             raise RuntimeError(
-                "the Matplotlib evidence gate requires CPython 3.13 or uv"
+                f"the Matplotlib evidence gate requires CPython {PYTHON} or uv"
             )
         with tempfile.TemporaryDirectory(prefix="eqiora-matplotlib-gate-") as directory:
             environment = Path(directory)

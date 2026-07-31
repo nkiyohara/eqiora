@@ -131,7 +131,7 @@ def candidate_document(root: Path) -> tuple[Path, Path, dict]:
             "cp313:matplotlib",
             "cp313:public-smoke-torch",
             "cp313:public-smoke-jax",
-            "cp313:public-smoke-matplotlib",
+            "cp313:packaged-exact-cylinder-pressure-demo",
             "cp313:complete-public-typing",
         ],
     }

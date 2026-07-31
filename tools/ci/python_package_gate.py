@@ -56,6 +56,7 @@ def run(
     virtual_environment: Path | None = None,
 ) -> None:
     child_environment = os.environ.copy()
+    child_environment.pop("PYTHONPATH", None)
     child_environment.update(
         {
             "PIP_DISABLE_PIP_VERSION_CHECK": "1",

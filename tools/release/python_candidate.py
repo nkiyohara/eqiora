@@ -184,6 +184,8 @@ def checked_run(
     """Run one shell-free command under a source-isolated environment."""
 
     environment = os.environ.copy()
+    environment.pop("MATPLOTLIBRC", None)
+    environment.pop("MPLCONFIGDIR", None)
     environment.pop("PYTHONPATH", None)
     environment.update(
         {
@@ -809,12 +811,15 @@ def run_optional_profile(
     elif name == "matplotlib":
         exact = [config.matplotlib]
         test = "test_matplotlib.py"
+        matplotlib_config = scratch / "matplotlib-config"
+        matplotlib_config.mkdir()
         environment_variables = {
             "DISPLAY": "",
             "EQIORA_TEST_MATPLOTLIB_VERSION": config.matplotlib.split("==", maxsplit=1)[
                 1
             ],
             "MPLBACKEND": "Agg",
+            "MPLCONFIGDIR": str(matplotlib_config),
         }
     else:  # pragma: no cover - closed internal call set
         raise CandidateError(f"unknown optional profile: {name}")
@@ -867,9 +872,14 @@ def run_optional_profile(
             profile=name,
         )
     compact = config.extras_interpreter.replace(".", "")
+    verification = (
+        "packaged-exact-cylinder-pressure-demo"
+        if name == "matplotlib"
+        else f"public-smoke-{name}"
+    )
     return [
         f"cp{compact}:{name}",
-        f"cp{compact}:public-smoke-{name}",
+        f"cp{compact}:{verification}",
     ]
 
 

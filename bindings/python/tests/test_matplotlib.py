@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import io
 import os
 import struct
@@ -171,6 +172,18 @@ def test_headless_figure_is_caller_saveable_and_nonblank(
     )
     assert high_resolution_width > width
     assert high_resolution_height > height
+
+
+def test_caller_owned_figure_keeps_its_render_data_alive() -> None:
+    result = accepted_result()
+    figure = eqplot.plot_pressure(result)
+
+    del result
+    gc.collect()
+
+    encoded = io.BytesIO()
+    figure.savefig(encoded, format="png")
+    assert encoded.getvalue().startswith(b"\x89PNG\r\n\x1a\n")
 
 
 def test_foreign_inputs_fail_before_rendering(
