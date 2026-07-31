@@ -582,7 +582,9 @@ identity-delta ownership because the control oracle owns their shape and
 structural relation. Its
 writable allowlist is only
 `verify/artifacts/current-model-relational-identity-transition/**` and
-`crates/eqiora-artifact/tests/current_model_relational_identity_transition.rs`.
+`crates/eqiora-artifact/tests/current_model_relational_identity_transition.rs`
+together with its private support module under
+`crates/eqiora-artifact/tests/current_model_relational_identity_transition/`.
 Candidate replacement bytes and target paths live under that oracle case;
 the oracle does not edit target consumer cases, capability matrix, roadmap,
 crate roots, or registries. It returns those registration deltas to the
