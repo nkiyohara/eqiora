@@ -99,7 +99,7 @@ those two parent paths, not another physical semantics.
   GPU-aware MPI, distributed ALE/remeshing, recovery, or fault semantics;
 - arbitrary CAD, persistent naming across topology change, healing, curved or
   high-order geometry, or a general Boolean/history kernel;
-- parameter-driven geometry regeneration;
+- multiple-Parameter or multiple-Domain geometry regeneration;
 - ALE, remeshing, FSI, or CAD shape sensitivities and adjoints;
 - temporal XDMF import, arbitrary trajectory export, parallel HDF5, or a
   production Dataset loader.
@@ -282,8 +282,8 @@ The next product wavefront is dependency-ordered rather than calendar-ordered:
 Geometry and CAD
   atomic axis-keyed Cartesian Domain edit and identity-preserving regeneration  closed
     -> direct Parameter-driven Cartesian coordinates (RFC 0078 accepted)
-      -> exact Model/Transaction v8 semantic replay
-        -> atomic Parameter-driven geometry regeneration
+      -> exact Model/Transaction v8 semantic replay                         closed
+        -> atomic Parameter-driven geometry regeneration                    closed
           -> curved and multi-body Geometry Identity
             -> sketch, feature, import, and meshing adapters
               -> Python and Studio projections
@@ -335,7 +335,7 @@ precedent. See
 [RFC 0075](../rfcs/0075-fem-form-compiler-poisson-q1.md) and the
 [AI-authored platform strategy](development/ai-authored-platform-strategy.md).
 
-After the exact Geometry Identity edit-and-regeneration seam is accepted, CAD
+With the exact Geometry Identity edit-and-regeneration seam accepted, CAD
 adapters, mesh regeneration, Python authoring, Studio editing, and independent
 physics evidence fan out from that revision. They reunite first as a
 single-physics user path and then as a coupled FSI path; client projections do

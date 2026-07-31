@@ -219,7 +219,6 @@ impl ModelDocument {
         let mut validation_diagnostics = Vec::new();
         let mut seen_axes = BTreeSet::new();
         let mut replacement_bounds = bounds.to_vec();
-        let mut canonical_edits = Vec::with_capacity(requested.len());
         for (axis, after) in requested {
             if !seen_axes.insert(axis) {
                 validation_diagnostics.push(invalid_edit(format!(
@@ -240,11 +239,12 @@ impl ModelDocument {
                 continue;
             }
             replacement_bounds[axis] = after;
-            canonical_edits.push((axis, before, after));
         }
         if !validation_diagnostics.is_empty() {
             return Err(validation_diagnostics);
         }
+        let canonical_edits =
+            canonical_axis_differences(bounds, &replacement_bounds).map_err(single_diagnostic)?;
 
         let replacement_domain =
             DomainDef::cartesian_box(target, replacement_bounds).map_err(single_diagnostic)?;
@@ -340,23 +340,35 @@ fn replay_edit(
     transaction: &VersionedModelTransactionEnvelope,
     transaction_digest: &str,
 ) -> Result<ModelDocument, Vec<Diagnostic>> {
-    let bytes = transaction.canonical_json().map_err(single_diagnostic)?;
-    let replay = base
-        .exact_codec()
-        .decode_transaction(&bytes)
-        .map_err(single_diagnostic)?;
-    if replay.digest().map_err(single_diagnostic)? != transaction_digest {
-        return Err(single_diagnostic(Diagnostic::error(
-            codes::INVALID_ARTIFACT,
-            "Cartesian Domain edit transaction identity changed during replay",
-        )));
-    }
+    base.replay_model_transaction(
+        transaction,
+        transaction_digest,
+        "Cartesian Domain edit transaction identity changed during replay",
+    )
+}
 
-    let mut store = base.store.clone();
-    store.commit(replay.to_transaction().map_err(single_diagnostic)?)?;
-    let program =
-        eqiora_sem::KernelProgram::from_snapshot(&store.snapshot(), base.program.model())?;
-    ModelDocument::from_store(store, program, base.aliases.clone(), base.exact_codec())
+pub(crate) fn canonical_axis_differences(
+    before: &[AxisBounds],
+    after: &[AxisBounds],
+) -> Result<Vec<(usize, AxisBounds, AxisBounds)>, Diagnostic> {
+    if before.len() != after.len() {
+        return Err(invalid_edit(
+            "Cartesian coordinate revisions have different dimensions",
+        ));
+    }
+    let edits = before
+        .iter()
+        .copied()
+        .zip(after.iter().copied())
+        .enumerate()
+        .filter_map(|(axis, (before, after))| (before != after).then_some((axis, before, after)))
+        .collect::<Vec<_>>();
+    if edits.is_empty() {
+        return Err(invalid_edit(
+            "Cartesian coordinate change would not alter resolved geometry",
+        ));
+    }
+    Ok(edits)
 }
 
 fn plan_key(base_digest: &str, transaction_digest: &str, child_digest: &str) -> String {

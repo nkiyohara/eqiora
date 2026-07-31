@@ -384,7 +384,7 @@ fn incomplete_edit_paths_reject_a_geometry_driving_parameter() {
     assert_eq!(value_error.code(), codes::INVALID_OPERATION);
     assert_eq!(
         value_error.message(),
-        "value edit cannot target a Cartesian coordinate Parameter; use the geometry regeneration owner"
+        "value edit cannot target a Cartesian coordinate Parameter; the geometry regeneration owner currently accepts one 3D Domain"
     );
 
     let body = domain(&document, "body");

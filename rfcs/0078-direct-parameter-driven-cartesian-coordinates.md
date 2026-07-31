@@ -1,8 +1,7 @@
 # RFC 0078: Direct Parameter-driven Cartesian coordinates
 
-- Status: Accepted; implementation is tracked by
-  the semantics-and-replay slice, and atomic
-  regeneration by the value-transaction slice
+- Status: Accepted; semantics/replay and the bounded atomic-regeneration
+  application owner are verified
 - Authors: Eqiora contributors
 - Created: 2026-07-24
 - Depends on: [RFC 0008](0008-canonical-artifact-wire-v1.md),
@@ -241,8 +240,8 @@ two exact artifacts. It does not claim equal Model bytes, transaction bytes,
 digests, source provenance, or general cross-generation equivalence.
 
 The compiler's package canonical-declaration identity includes the closed root
-Model coordinate syntax and resolved declaration identity. The semantics-and-replay slice must
-prove that changing `Fixed` to `Parameter`, or changing the referenced root
+Model coordinate syntax and resolved declaration identity. The
+semantics-and-replay evidence proves that changing `Fixed` to `Parameter`, or changing the referenced root
 declaration, changes the package semantic digest, while source/declaration
 permutations do not. Historical package identities are not relabelled. This
 changes no `eqiora-package` payload and adds no package-instance or Component
@@ -302,7 +301,7 @@ the Domain once. Parameter-driven regeneration does not compose or execute
 that transaction: the coordinate definition is unchanged.
 
 The implementation of RFC 0077 also owns a smaller validated, canonical
-axis-keyed edit-set seam. The regeneration slice reuses that internal seam to compare the
+axis-keyed edit-set seam. The bounded regeneration owner reuses that internal seam to compare the
 before and after `KernelProgram` projections. It then emits one ordinary
 Parameter `SetValue` transaction:
 
@@ -329,15 +328,17 @@ that owner; they do not compose a value edit with independent Domain commits.
 
 ## Follow-up slices
 
-The decision is intentionally split into two implementation issues:
+The decision was implemented as two closed verification slices:
 
-1. The semantics-and-replay slice owns source,
+1. [`geometry.direct-parameter-cartesian-coordinates`](../verify/geometry/direct-parameter-cartesian-coordinates/README.md)
+   owns source,
    compiler, schema, dependency validation, `KernelProgram` evaluation,
    the closed metric-consumer inventory, compiler package-declaration identity,
    exact Model/Transaction v8 replay, fixed-only ModelDraft compatibility, and
    migration of RFC 0077's fixed edit plan to current v8. Its proving Model
    uses one root length Parameter at two endpoints of one 3D Cartesian Domain.
-2. The regeneration slice owns one immutable
+2. [`geometry.parameter-cartesian-regeneration`](../verify/geometry/parameter-cartesian-regeneration/README.md)
+   owns one immutable
    Parameter-driven regeneration plan, one exact value transaction, the
    complete two-axis difference, Geometry Identity transition, and retained
    selection evidence.
