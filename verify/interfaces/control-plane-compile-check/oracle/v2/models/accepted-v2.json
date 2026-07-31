@@ -1,0 +1,7 @@
+{
+  "protocol": "eqiora.control/v2",
+  "command": "model.compile-check/v1",
+  "requestId": "shared-accepted-v2",
+  "filename": "shared-decay.eqi",
+  "source": "model decay {\n  field x: 1 = 1;\n  parameter rate: 1 / s = 1;\n  relation flow continuous {\n    derivative(x) + rate * x = 0;\n  }\n}\n"
+}
