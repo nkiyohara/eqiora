@@ -1,6 +1,8 @@
-"""Solve the accepted exact-cylinder steady-Stokes case with installed Eqiora."""
+"""Solve and optionally plot the accepted exact-cylinder steady-Stokes case."""
 
+import argparse
 from importlib.resources import files
+from pathlib import Path
 
 import eqiora
 
@@ -36,7 +38,15 @@ def solve() -> eqiora.fluid.CircularHoleSteadyStokesResult:
     )
 
 
-if __name__ == "__main__":
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--pressure-png",
+        type=Path,
+        help="save the accepted P1 pressure still (requires eqiora[matplotlib])",
+    )
+    arguments = parser.parse_args()
+
     result = solve()
     print(result.run_digest)
     print(result.solve)
@@ -48,3 +58,13 @@ if __name__ == "__main__":
     )
     print("cylinder force on fluid", result.cylinder_force_on_fluid, "N/m")
     print("net flux", result.net_flux, "m^2/s")
+    if arguments.pressure_png is not None:
+        import eqiora.matplotlib as eqplot
+
+        figure = eqplot.plot_pressure(result)
+        figure.savefig(arguments.pressure_png, dpi=180)
+        print("pressure still", arguments.pressure_png)
+
+
+if __name__ == "__main__":
+    main()

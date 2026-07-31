@@ -25,7 +25,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT
 PYPROJECT = ROOT / "pyproject.toml"
-MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v1"
+MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v2"
 EXACT_CYLINDER_DEMO = Path("examples/python/exact_cylinder_stokes.py")
 EXACT_CYLINDER_REPOSITORY_MODEL = Path(
     "examples/steady-flow-past-cylinder.model-v7.json"
@@ -92,6 +92,7 @@ class DistributionConfig:
     twine: str
     torch: str
     jax: tuple[str, ...]
+    matplotlib: str
     rust: str
 
     @property
@@ -147,6 +148,7 @@ def load_config() -> DistributionConfig:
         twine=raw["twine"],
         torch=raw["tested-torch"],
         jax=jax,
+        matplotlib=raw["tested-matplotlib"],
         rust=cargo["workspace"]["package"]["rust-version"],
     )
     if config.interpreters != ("3.11", "3.12", "3.13", "3.14"):
@@ -182,6 +184,9 @@ def checked_run(
     """Run one shell-free command under a source-isolated environment."""
 
     environment = os.environ.copy()
+    environment.pop("DISPLAY", None)
+    environment.pop("MATPLOTLIBRC", None)
+    environment.pop("MPLCONFIGDIR", None)
     environment.pop("PYTHONPATH", None)
     environment.update(
         {
@@ -480,6 +485,7 @@ def inspect_wheel(
             "eqiora/compatibility.pyi",
             "eqiora/diff.pyi",
             "eqiora/jax.pyi",
+            "eqiora/matplotlib.pyi",
             "eqiora/torch.pyi",
             "eqiora/py.typed",
             f"{dist_info}licenses/LICENSE",
@@ -528,14 +534,20 @@ def inspect_wheel(
         or ";" in numpy_requirements[0]
     ):
         raise CandidateError("wheel must declare the reviewed NumPy range")
-    for framework in ("torch", "jax", "jaxlib"):
+    for framework in ("torch", "jax", "jaxlib", "matplotlib"):
         declarations = [item for item in normalized if item.startswith(framework)]
         if not declarations or any("extra==" not in item for item in declarations):
             raise CandidateError(
                 f"{framework} must remain an optional-extra dependency"
             )
-    if sorted(metadata.get_all("Provides-Extra", [])) != ["jax", "torch"]:
-        raise CandidateError("wheel must expose exactly the jax and torch extras")
+    if sorted(metadata.get_all("Provides-Extra", [])) != [
+        "jax",
+        "matplotlib",
+        "torch",
+    ]:
+        raise CandidateError(
+            "wheel must expose exactly the jax, matplotlib, and torch extras"
+        )
 
     return version, {
         "filename": wheel.name,
@@ -606,7 +618,10 @@ assert eqiora.__version__ == expected_version
 files = {str(path) for path in distribution.files or ()}
 assert "eqiora/py.typed" in files
 assert "eqiora/__init__.pyi" in files
-assert not any(name in __import__("sys").modules for name in ("torch", "jax", "jaxlib"))
+assert not any(
+    name in __import__("sys").modules
+    for name in ("torch", "jax", "jaxlib", "matplotlib")
+)
 """
     checked_run(
         [str(python), "-I", "-c", script],
@@ -654,6 +669,29 @@ def prepare_exact_cylinder_demo_consumer(
             "exact-cylinder demo copy introduced the repository Model"
         )
     return destination
+
+
+def assert_matplotlib_is_optional(python: Path, run_root: Path) -> None:
+    """Require the base wheel to explain its absent Matplotlib adapter."""
+
+    script = """
+import importlib.util
+import sys
+
+assert importlib.util.find_spec("matplotlib") is None
+import eqiora
+assert "matplotlib" not in sys.modules
+try:
+    import eqiora.matplotlib
+except ImportError as error:
+    assert str(error) == (
+        "eqiora.matplotlib requires the optional 'matplotlib' dependency; "
+        "install eqiora[matplotlib]"
+    )
+else:
+    raise AssertionError("the base environment unexpectedly imported Matplotlib")
+"""
+    checked_run([str(python), "-I", "-c", script], cwd=run_root)
 
 
 def run_public_smoke(
@@ -709,6 +747,7 @@ def run_base_profile(
         run_root,
         config.python_version,
     )
+    assert_matplotlib_is_optional(python, run_root)
     checked_run(
         [str(python), "-I", "-m", "pytest", "-q", str(tests)],
         cwd=run_root,
@@ -738,6 +777,7 @@ def run_base_profile(
         f"cp{python_version.replace('.', '')}:async-and-cancellation",
         f"cp{python_version.replace('.', '')}:strict-base-typing",
         f"cp{python_version.replace('.', '')}:public-smoke-base",
+        f"cp{python_version.replace('.', '')}:matplotlib-free-base",
     ]
 
 
@@ -769,6 +809,18 @@ def run_optional_profile(
             "JAX_ENABLE_X64": "1",
             "XLA_FLAGS": "--xla_force_host_platform_device_count=2",
         }
+    elif name == "matplotlib":
+        exact = [config.matplotlib]
+        test = "test_matplotlib.py"
+        matplotlib_config = scratch / "matplotlib-config"
+        matplotlib_config.mkdir()
+        environment_variables = {
+            "EQIORA_TEST_MATPLOTLIB_VERSION": config.matplotlib.split("==", maxsplit=1)[
+                1
+            ],
+            "MPLBACKEND": "Agg",
+            "MPLCONFIGDIR": str(matplotlib_config),
+        }
     else:  # pragma: no cover - closed internal call set
         raise CandidateError(f"unknown optional profile: {name}")
 
@@ -783,22 +835,51 @@ def run_optional_profile(
     run_root.mkdir()
     test_path = run_root / test
     shutil.copy2(extracted / f"bindings/python/tests/{test}", test_path)
+    demo = None
+    if name == "matplotlib":
+        demo = prepare_exact_cylinder_demo_consumer(extracted, run_root)
     checked_run(
         [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
         cwd=run_root,
         extra_environment=environment_variables,
     )
-    run_public_smoke(
-        python=python,
-        extracted=extracted,
-        run_root=run_root,
-        expected_version=config.python_version,
-        profile=name,
-    )
+    if name == "matplotlib":
+        assert demo is not None
+        destination = run_root / "exact-cylinder-pressure.png"
+        checked_run(
+            [
+                str(python),
+                "-I",
+                str(demo),
+                "--pressure-png",
+                str(destination),
+            ],
+            cwd=run_root,
+            extra_environment=environment_variables,
+        )
+        if not destination.is_file() or not destination.read_bytes().startswith(
+            b"\x89PNG\r\n\x1a\n"
+        ):
+            raise CandidateError(
+                "installed exact-cylinder Matplotlib demo did not write a PNG"
+            )
+    else:
+        run_public_smoke(
+            python=python,
+            extracted=extracted,
+            run_root=run_root,
+            expected_version=config.python_version,
+            profile=name,
+        )
     compact = config.extras_interpreter.replace(".", "")
+    verification = (
+        "packaged-exact-cylinder-pressure-demo"
+        if name == "matplotlib"
+        else f"public-smoke-{name}"
+    )
     return [
         f"cp{compact}:{name}",
-        f"cp{compact}:public-smoke-{name}",
+        f"cp{compact}:{verification}",
     ]
 
 
@@ -881,10 +962,11 @@ def run_full_typing_profile(
         interpreter=interpreter,
         environment=environment,
         requirements=[
-            f"{wheel}[torch,jax]",
+            f"{wheel}[torch,jax,matplotlib]",
             config.mypy,
             config.torch,
             *config.jax,
+            config.matplotlib,
         ],
     )
     run_root = scratch / "run-typing-all"
@@ -913,6 +995,7 @@ def run_full_typing_profile(
             str(typecheck / "diff.py"),
             str(typecheck / "torch_adapter.py"),
             str(typecheck / "jax_adapter.py"),
+            str(typecheck / "matplotlib_adapter.py"),
         ],
         cwd=run_root,
     )
@@ -1148,6 +1231,17 @@ def build_candidate(
                     config=config,
                 )
             )
+            checks.extend(
+                run_optional_profile(
+                    name="matplotlib",
+                    uv=uv,
+                    interpreter=extras_interpreter,
+                    wheel=extras_wheel,
+                    extracted=extracted,
+                    scratch=scratch,
+                    config=config,
+                )
+            )
             checks.append(
                 run_full_typing_profile(
                     uv=uv,
@@ -1191,7 +1285,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-extras",
         action="store_true",
-        help="development-only: omit the exact PyTorch/JAX and full stub profiles",
+        help=(
+            "development-only: omit the exact PyTorch/JAX/Matplotlib "
+            "and full stub profiles"
+        ),
     )
     return parser.parse_args()
 

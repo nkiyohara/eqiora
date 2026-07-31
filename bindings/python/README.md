@@ -3,8 +3,8 @@
 Eqiora is a typed mathematical modeling and execution system backed by one
 canonical Rust implementation. Its Python SDK provides immutable native
 declarations, synchronous and awaitable execution, explicit NumPy/DLPack
-ownership, and bounded first-order PyTorch and JAX adapters without
-reimplementing model meaning in Python.
+ownership, bounded first-order PyTorch and JAX adapters, and an optional
+Matplotlib Result adapter without reimplementing model meaning in Python.
 
 > **Alpha — `0.1.0a1`.** The supported boundary is intentionally narrow.
 > Consult the [capability matrix](https://eqiora.org/capabilities/) before
@@ -24,12 +24,13 @@ Optional first-order framework adapters are explicit:
 ```console
 python -m pip install "eqiora[torch]==0.1.0a1"
 python -m pip install "eqiora[jax]==0.1.0a1"
+python -m pip install "eqiora[matplotlib]==0.1.0a1"
 ```
 
-The base package imports neither PyTorch nor JAX. The PyTorch extra declares
-`torch>=2.13,<2.14`; this release verifies exactly PyTorch 2.13.0. It also
-verifies the exact JAX/JAXLIB 0.11.0 pair on CPython 3.13. The JAX extra
-requires Python 3.12 or newer.
+The base package imports none of these optional libraries. The PyTorch extra
+declares `torch>=2.13,<2.14`; this release verifies exactly PyTorch 2.13.0. It
+also verifies the exact JAX/JAXLIB 0.11.0 pair and Matplotlib 3.11.1 on
+CPython 3.13. The JAX extra requires Python 3.12 or newer.
 
 ## Five-minute model and run
 
@@ -97,6 +98,22 @@ Rust-owned, error-controlled chordal reference path, not a generic or
 production mesher. The returned wrapper binds its exact source only within the
 live process; durable generated-realization replay, geometry-backed Model
 binding, solve, Result, and visualization are separate capabilities.
+
+The accepted exact-cylinder Result can be presented as one bounded pressure
+still:
+
+```python
+import eqiora.matplotlib as eqplot
+
+# `result` is the accepted exact-cylinder Result returned by the fluid solve.
+figure = eqplot.plot_pressure(result)
+figure.savefig("exact-cylinder-pressure.png")
+```
+
+The adapter accepts the complete accepted Result rather than raw arrays. It
+uses the Result's explicit triangle connectivity, vertex-associated P1
+pressure, and full pressure range in pascals. It is not a generic Field plot,
+animation, media-publication, or visual-validation claim.
 
 ## Structured diagnostics
 

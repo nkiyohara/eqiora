@@ -9,10 +9,11 @@ The accepted wheel family is CPython 3.11 through 3.14 with per-interpreter ABI
 tags and a `manylinux_2_17` floor. Every wheel is installed outside the source
 tree and runs the base, NumPy ownership, synchronous/awaitable execution, and
 cancellation tests plus a strict typed consumer. The CPython 3.13 wheel also
-runs the exact PyTorch 2.13.0 and JAX/JAXLIB 0.11.0 profiles and allowlist-free
-runtime/stub parity. Before any upload, the published base quick start runs
-against every installed wheel and the framework quick starts run against that
-same CPython 3.13 wheel.
+runs the exact PyTorch 2.13.0, JAX/JAXLIB 0.11.0, and Matplotlib 3.11.1
+profiles and allowlist-free runtime/stub parity. Before any upload, the
+published base quick start runs against every installed wheel, the framework
+quick starts run against that same CPython 3.13 wheel, and the copied
+exact-cylinder demo saves a headless pressure PNG from the Matplotlib profile.
 
 Normal profiles retain ordinary dependency resolution. A separate CPython
 3.12 environment pins NumPy 2.1.0, replays the array-ownership/DLPack
@@ -25,11 +26,12 @@ tool versions, artifact filenames and SHA-256 values, wheel tags, and passing
 profiles. It is release provenance, not a claim that independent builds are
 byte-identical.
 
-This case, the JAX case, and the PyTorch case select the same registered host
-target. One aggregate execution builds the candidate once, then separately
-requires the base, typing, JAX, and PyTorch check groups from its manifest.
-Each case remains independently attributable through the verification report;
-none may substitute an ambient wheel or an independently rebuilt candidate.
+This case and the JAX, PyTorch, and exact-cylinder pressure-still cases select
+the same registered host target. One aggregate execution builds the candidate
+once, then separately requires the base, typing, JAX, PyTorch, and Matplotlib
+check groups from its manifest. Each case remains independently attributable
+through the verification report; none may substitute an ambient wheel or an
+independently rebuilt candidate.
 
 ## Falsifiers
 
@@ -39,11 +41,12 @@ The gate rejects:
 - an incomplete sdist or a wheel built from the checkout;
 - a host-native or wrong-interpreter wheel tag;
 - absent PEP 639 license files, `NOTICE`, SBOM, `py.typed`, or public stubs;
-- a PyTorch or JAX dependency leaking into the base dependency set;
+- a PyTorch, JAX, or Matplotlib dependency leaking into the base dependency
+  set;
 - an import resolved from the checkout;
 - a strict consumer, runtime/stub parity, framework, ownership, async, or
   cancellation failure;
-- a missing required base, typing, PyTorch, or JAX manifest check;
+- a missing required base, typing, PyTorch, JAX, or Matplotlib manifest check;
 - a public quick-start failure before upload or drift from the exact NumPy
   2.1.0 lower-bound profile.
 

@@ -18,10 +18,10 @@ from pathlib import Path
 from typing import Any
 
 
-MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v1"
+MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v2"
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
-REQUIRED_PROFILES = ("base", "jax", "torch", "typing")
+REQUIRED_PROFILES = ("base", "jax", "matplotlib", "torch", "typing")
 
 
 def _base_checks() -> frozenset[str]:
@@ -38,6 +38,7 @@ def _base_checks() -> frozenset[str]:
                 f"cp{python}:base-and-numpy",
                 f"cp{python}:async-and-cancellation",
                 f"cp{python}:public-smoke-base",
+                f"cp{python}:matplotlib-free-base",
             }
         )
     return frozenset(checks)
@@ -46,6 +47,12 @@ def _base_checks() -> frozenset[str]:
 PROFILE_CHECKS = {
     "base": _base_checks(),
     "jax": frozenset({"cp313:jax", "cp313:public-smoke-jax"}),
+    "matplotlib": frozenset(
+        {
+            "cp313:matplotlib",
+            "cp313:packaged-exact-cylinder-pressure-demo",
+        }
+    ),
     "torch": frozenset({"cp313:torch", "cp313:public-smoke-torch"}),
     "typing": frozenset(
         {

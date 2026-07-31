@@ -1,0 +1,80 @@
+id = "interfaces.python-exact-cylinder-pressure-still"
+status = "verified"
+scope = "installed-python-one-accepted-exact-cylinder-p1-pressure-headless-still"
+reference_kind = "accepted-result-lineage-replay-plus-explicit-renderer-input-capture"
+
+capabilities = [
+  "python-accepted-exact-cylinder-pressure-plot",
+  "python-explicit-p1-triangle-rendering",
+  "python-headless-caller-saveable-still",
+  "python-optional-matplotlib-adapter",
+]
+
+[problem]
+result_case = "interfaces.python-exact-cylinder-stokes-result"
+result_type = "eqiora.fluid.CircularHoleSteadyStokesResult"
+field = "complete accepted vertex-associated P1 pressure"
+support = "the Result's accepted 104-vertex, 104-triangle affine mesh"
+adapter = "eqiora.matplotlib.plot_pressure"
+renderer = "Matplotlib Agg in the registered evidence environment"
+
+[oracle]
+lineage_case = "interfaces.python-exact-cylinder-stokes-result"
+coordinates = "exact equality to result.coordinates columns without permutation"
+connectivity = "exact equality to result.triangles, passed explicitly"
+values = "exact equality to result.pressure.numpy(copy=False)"
+normalization = "exact Result pressure minimum and maximum"
+units = "coherent-SI pressure labelled Pa"
+
+[acceptance]
+installed_wheel_with_optional_extra = true
+live_accepted_result_only = true
+explicit_triangle_connectivity = true
+vertex_association_preserved = true
+gouraud_p1_presentation = true
+equal_spatial_aspect = true
+result_bounds_preserved = true
+headless_draw = true
+caller_saveable_png = true
+valid_decodable_nonblank_png = true
+base_import_is_matplotlib_free = true
+result_and_arrays_are_not_mutated = true
+
+[falsifiers]
+lineage_free_or_raw_input = "rejected before a renderer invocation"
+coordinate_or_value_permutation = "captured renderer inputs differ from the accepted co-indexed Result arrays"
+coordinate_axis_swap = "captured x/y inputs differ from coordinate columns zero/one"
+automatic_retriangulation = "captured tripcolor invocation omits explicit accepted triangles"
+connectivity_drift = "captured renderer triangles differ exactly"
+wrong_pressure_range = "artist color limits differ from the Result extrema"
+wrong_quantity_or_unit = "values or Pa label differ"
+repository_or_studio_dependency = "installed isolated solve reads only the packaged Model resource"
+gui_dependency = "Agg render runs with DISPLAY absent"
+mandatory_dependency_leak = "base installed package neither requires nor imports Matplotlib"
+blank_or_invalid_output = "PNG decode or nonuniform visible-pixel check fails"
+input_mutation = "Result identities or read-only arrays change after plotting"
+
+[claim_boundary]
+candidate_profile = "matplotlib"
+ordinary_gil_cpython = "3.13"
+exact_matplotlib = "3.11.1"
+one_exact_cylinder_result = true
+one_vertex_p1_pressure_field = true
+affine_triangles = true
+presentation_interpolation_only = true
+generic_result_or_field_plotting = false
+raw_array_plotting = false
+velocity_or_vector_plotting = false
+contours_or_streamlines = false
+probes_or_derived_quantities = false
+interactive_gui = false
+trajectory_or_animation = false
+media_admission = false
+durable_image_provenance = false
+reproducible_image_bytes = false
+exact_pixels_or_dimensions = false
+scientific_validation_from_pixels = false
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_distribution_gate.py"

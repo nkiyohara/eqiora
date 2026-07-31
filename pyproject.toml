@@ -32,6 +32,7 @@ jax = [
     "jax==0.11.0; python_version >= '3.12'",
     "jaxlib==0.11.0; python_version >= '3.12'",
 ]
+matplotlib = ["matplotlib==3.11.1"]
 torch = ["torch>=2.13,<2.14"]
 
 [project.urls]
@@ -88,3 +89,4 @@ mypy = "mypy==2.3.0"
 twine = "twine==6.2.0"
 tested-torch = "torch==2.13.0"
 tested-jax = ["jax==0.11.0", "jaxlib==0.11.0"]
+tested-matplotlib = "matplotlib==3.11.1"

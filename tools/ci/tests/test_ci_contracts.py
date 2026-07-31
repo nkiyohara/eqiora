@@ -17,7 +17,12 @@ from check_gate import JOB_SURFACES, evaluate, parse_relevance, parse_results  #
 from classify_changes import SURFACES, changed_paths, classify, render_outputs  # noqa: E402
 from local_verify import HOSTED_TEST_PROFILE  # noqa: E402
 from python_jax_gate import uv_gate_command as jax_uv_gate_command  # noqa: E402
+from python_matplotlib_gate import (  # noqa: E402
+    run as run_matplotlib_gate_command,
+    uv_gate_command as matplotlib_uv_gate_command,
+)
 from python_package_gate import (  # noqa: E402
+    run as run_python_package_gate_command,
     uv_gate_command,
     venv_environment,
     venv_python,
@@ -380,6 +385,15 @@ class PythonPackageGateTests(unittest.TestCase):
         self.assertEqual(command[index + 1], "eqiora")
         self.assertEqual(command[command.index("--python") + 1], "/usr/bin/python3")
 
+    @mock.patch("python_package_gate.subprocess.run")
+    def test_package_gate_removes_host_python_path(self, run: mock.Mock) -> None:
+        with mock.patch.dict(os.environ, {"PYTHONPATH": "/host/cpython312"}):
+            run_python_package_gate_command(["python", "-V"])
+
+        environment = run.call_args.kwargs["env"]
+        self.assertNotIn("PYTHONPATH", environment)
+        self.assertEqual(environment["PYTHONNOUSERSITE"], "1")
+
     def test_torch_gate_installs_the_extra_and_exact_verified_release(self) -> None:
         command = torch_uv_gate_command("uv", "/usr/bin/python3")
 
@@ -396,6 +410,35 @@ class PythonPackageGateTests(unittest.TestCase):
         self.assertIn("jaxlib==0.11.0", command)
         self.assertEqual(command[command.index("--python") + 1], "3.13")
         self.assertTrue(command[-1].endswith("bindings/python/tests/test_jax.py"))
+
+    def test_matplotlib_gate_installs_the_extra_and_exact_renderer(self) -> None:
+        command = matplotlib_uv_gate_command("uv")
+
+        self.assertEqual(command[command.index("--extra") + 1], "matplotlib")
+        self.assertIn("matplotlib==3.11.1", command)
+        self.assertEqual(command[command.index("--python") + 1], "3.13")
+        self.assertTrue(
+            command[-1].endswith("bindings/python/tests/test_matplotlib.py")
+        )
+
+    @mock.patch("python_matplotlib_gate.subprocess.run")
+    def test_matplotlib_gate_isolates_host_configuration(
+        self,
+        run: mock.Mock,
+    ) -> None:
+        inherited = {
+            "MATPLOTLIBRC": "/host/matplotlibrc",
+            "MPLCONFIGDIR": "/host/matplotlib-config",
+            "PYTHONPATH": "/host/cpython312",
+        }
+        with mock.patch.dict(os.environ, inherited):
+            run_matplotlib_gate_command(["python", "-V"])
+
+        environment = run.call_args.kwargs["env"]
+        self.assertNotIn("MATPLOTLIBRC", environment)
+        self.assertNotIn("PYTHONPATH", environment)
+        self.assertNotEqual(environment["MPLCONFIGDIR"], inherited["MPLCONFIGDIR"])
+        self.assertEqual(environment["MPLBACKEND"], "Agg")
 
 
 class ChangeClassificationTests(unittest.TestCase):
