@@ -520,6 +520,7 @@ def build_plan(
         ci_contract_inputs = {
             "Cargo.toml",
             "Cargo.lock",
+            "pyproject.toml",
             "crates/eqiora-backend-faer/Cargo.toml",
             "crates/eqiora-backend-faer/src/lib.rs",
             "crates/eqiora-backend-rayon/Cargo.toml",

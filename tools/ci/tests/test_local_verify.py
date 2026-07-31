@@ -215,6 +215,7 @@ class PlanTests(unittest.TestCase):
         inputs = [
             "Cargo.toml",
             "Cargo.lock",
+            "pyproject.toml",
             "crates/eqiora-backend-faer/Cargo.toml",
             "crates/eqiora-backend-faer/src/lib.rs",
             "crates/eqiora-backend-rayon/Cargo.toml",
