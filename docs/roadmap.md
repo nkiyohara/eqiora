@@ -284,9 +284,11 @@ Geometry and CAD
     -> direct Parameter-driven Cartesian coordinates (RFC 0078 accepted)
       -> exact Model/Transaction v8 semantic replay                         closed
         -> atomic Parameter-driven geometry regeneration                    closed
+          -> one current-only pre-1.0 Model/Transaction artifact epoch
+             (parallel prerequisite for Python and Studio projections)
           -> curved and multi-body Geometry Identity
             -> sketch, feature, import, and meshing adapters
-              -> Python and Studio projections
+              -> Python and Studio projections (after the artifact epoch)
                 -> CAD and ALE shape sensitivity
 
 Physics libraries and credibility
