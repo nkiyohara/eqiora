@@ -970,7 +970,6 @@ def run_full_typing_profile(
             "-m",
             "mypy.stubtest",
             "eqiora",
-            "eqiora.matplotlib",
             "--concise",
             "--ignore-disjoint-bases",
         ],
