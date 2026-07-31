@@ -27,8 +27,9 @@
 //! spell the tokens it searches for; see `ORACLE_FILES` there.
 
 use eqiora_artifact::{
-    CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelopeV8, ReplayableCanonicalModelArtifact,
-    SemanticFingerprintGeneration, StructuralSemanticFingerprint,
+    CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelopeV8, RealizationEnvelopeV4,
+    ReplayableCanonicalModelArtifact, SemanticFingerprintGeneration, SpatialStateEnvelopeV2,
+    SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2, StructuralSemanticFingerprint,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -292,6 +293,44 @@ const BRIDGES: [Bridge; 2] = [
     },
 ];
 
+/// One consumer whose Model *input* the reset moves, rather than a checked-in
+/// fixture whose target file the reset rewrites.
+///
+/// `moving_spatial_v2_wire.rs` builds its SpatialState, segment, and prefix root
+/// at run time from a Model it reads out of the historical fixed-reference CUDA
+/// bundle, and freezes three digests of what it built. The reset rejects those
+/// Model bytes, so the input moves to the current owner and the three digests
+/// move with it. Both states of each artifact are committed here so the
+/// substitution is checkable rather than asserted.
+struct ModelInputConsumer {
+    name: &'static str,
+    /// `(artifact name, pre-reset canonical bytes, replacement canonical bytes)`.
+    artifacts: &'static [(&'static str, &'static [u8], &'static [u8])],
+}
+
+const MODEL_INPUT_CONSUMERS: [ModelInputConsumer; 1] = [ModelInputConsumer {
+    name: "moving-spatial-v2-wire",
+    artifacts: &[
+        (
+            "spatial-state-1",
+            oracle!("expected/consumer/moving-spatial-v2-wire/pre-reset/spatial-state-1.json"),
+            oracle!("expected/consumer/moving-spatial-v2-wire/replacement/spatial-state-1.json"),
+        ),
+        (
+            "trajectory-segment-1",
+            oracle!("expected/consumer/moving-spatial-v2-wire/pre-reset/trajectory-segment-1.json"),
+            oracle!(
+                "expected/consumer/moving-spatial-v2-wire/replacement/trajectory-segment-1.json"
+            ),
+        ),
+        (
+            "trajectory-root-1",
+            oracle!("expected/consumer/moving-spatial-v2-wire/pre-reset/trajectory-root-1.json"),
+            oracle!("expected/consumer/moving-spatial-v2-wire/replacement/trajectory-root-1.json"),
+        ),
+    ],
+}];
+
 fn frozen(bytes: &[u8]) -> &[u8] {
     bytes.strip_suffix(b"\n").unwrap_or(bytes)
 }
@@ -329,6 +368,58 @@ fn replace_exact_once(bytes: &mut [u8], old: &str, new: &str) {
     );
     let start = matches[0];
     bytes[start..start + old.len()].copy_from_slice(new.as_bytes());
+}
+
+/// Read the frozen `old -> new` identity table of one consumer, checking that it
+/// is a substitution and not a rewrite: every side is a distinct 64-character
+/// lowercase hex identity, and no replacement is itself superseded. Sequential
+/// application would otherwise be able to substitute a value it had just
+/// written.
+fn identity_substitutions(expected: &Value) -> BTreeMap<String, String> {
+    let table = expected["identity_substitutions"].as_object().unwrap();
+    let map = table
+        .iter()
+        .map(|(old, new)| (old.clone(), new.as_str().unwrap().to_owned()))
+        .collect::<BTreeMap<_, _>>();
+    assert_eq!(
+        map.len(),
+        expected["identity_substitution_count"].as_u64().unwrap() as usize
+    );
+    for (old, new) in &map {
+        for identity in [old, new] {
+            assert_eq!(identity.len(), 64);
+            assert!(
+                identity
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)),
+                "an identity literal is 64 lowercase hex characters: {identity}"
+            );
+        }
+        assert_ne!(old, new, "a substitution that changes nothing is not one");
+        assert!(
+            !map.contains_key(new),
+            "{new} is both a replacement and a superseded identity, so the table is order-dependent"
+        );
+    }
+    map
+}
+
+/// Apply an identity table to canonical bytes. Every substitution is
+/// length-preserving, so no offset moves and no non-identity byte can shift.
+fn substitute_identities(source: &[u8], table: &BTreeMap<String, String>) -> Vec<u8> {
+    let mut out = source.to_vec();
+    for (old, new) in table {
+        let positions = out
+            .windows(old.len())
+            .enumerate()
+            .filter_map(|(index, window)| (window == old.as_bytes()).then_some(index))
+            .collect::<Vec<_>>();
+        for start in positions {
+            out[start..start + new.len()].copy_from_slice(new.as_bytes());
+        }
+    }
+    assert_eq!(out.len(), source.len());
+    out
 }
 
 /// RFC 0008 content identity: schema-domain bytes, one NUL, canonical content.
@@ -751,6 +842,429 @@ fn retained_realization_v4_is_an_opaque_exact_golden() {
         wire["model_sha256"],
         transition()["bridge"][1]["current_artifact_digest"]
     );
+}
+
+/// The retained v4 golden is accepted from its committed bytes alone.
+///
+/// `realization_v4_wire.rs` currently reconstructs the golden: it decodes the
+/// historical fixed-reference CUDA Model with `ModelEnvelopeV4` and re-encodes a
+/// Realization over it. That route disappears with the historical decoders, and
+/// the two ways of restoring it are both wrong — admitting those bytes through
+/// the current Model owner, or rebuilding the golden over a current Model. This
+/// freezes the third route, which is the one RFC 0083 requires: the Realization
+/// family is retained, so its own decoder verifies its own bytes and the Model
+/// reference inside them stays an opaque 64-character string.
+#[test]
+fn the_retained_realization_v4_golden_is_accepted_without_any_model_decoder() {
+    let transition = transition();
+    let expected = entry(&transition, "retained_family_goldens", "realization-v4");
+    let bytes = frozen(RETAINED_REALIZATION_V4);
+    assert_eq!(
+        bytes.len(),
+        expected["canonical_bytes"].as_u64().unwrap() as usize
+    );
+    assert_eq!(raw_sha256(bytes), expected["raw_sha256"]);
+    assert_eq!(expected["post_reset_acceptance"]["model_decoder_calls"], 0);
+
+    // The retained family decoder, and nothing else, admits the golden.
+    let golden = RealizationEnvelopeV4::from_json(bytes, Default::default())
+        .expect("the retained Realization family still decodes its own golden");
+    assert_eq!(golden.canonical_json().unwrap(), bytes);
+    assert_eq!(
+        golden.digest().unwrap().as_str(),
+        expected["artifact_digest"].as_str().unwrap()
+    );
+    assert_eq!(
+        domain_digest(expected["family"].as_str().unwrap(), bytes),
+        expected["artifact_digest"].as_str().unwrap()
+    );
+
+    // Opaque means read, never resolved: the reference is compared as a string
+    // and its bytes are never handed to a decoder.
+    let opaque = &expected["opaque_model_reference"];
+    assert_eq!(golden.model_artifact().as_str(), opaque["value"]);
+    assert_eq!(
+        golden.model().unwrap().ulid().to_string(),
+        expected["model_ulid"]
+    );
+    assert_eq!(
+        golden.semantic_revision().get(),
+        expected["semantic_revision"].as_u64().unwrap()
+    );
+
+    // An implementation that keeps the current include target and merely swaps
+    // the decoder fails here rather than quietly admitting a historical schema.
+    let historical = frozen(BRIDGES[1].historical);
+    assert_eq!(raw_sha256(historical), opaque["raw_sha256"]);
+    assert_eq!(
+        serde_json::from_slice::<Value>(historical).unwrap()["schema"],
+        opaque["schema"]
+    );
+    assert!(
+        ModelEnvelopeV8::from_json(historical, ModelDecoderLimits::default()).is_err(),
+        "the current Model owner must reject the opaque historical bytes: {}",
+        expected["forbidden"]["current_model_decoder_on_opaque_bytes"]
+    );
+
+    // And the current Model of the same semantic program is not this golden's
+    // Model, however equivalent the program is.
+    let current =
+        ModelEnvelopeV8::from_json(frozen(BRIDGES[1].current), ModelDecoderLimits::default())
+            .unwrap();
+    assert!(
+        golden.validate_model_artifact(&current).is_err(),
+        "the schema domain is part of identity, so the current Model cannot claim this golden"
+    );
+}
+
+/// Relabelling the golden's Model reference is refused, and only the bytes can
+/// refuse it.
+///
+/// This is the failure the frozen bytes exist for. A golden whose `model_sha256`
+/// is swapped for the current bridge digest is *internally consistent*: its
+/// Model ULID and semantic revision are unchanged, so `validate_model_artifact`
+/// accepts it against the current Model. Nothing inside the artifact objects.
+/// The exact 8,333 committed bytes are the only thing that does.
+#[test]
+fn relabelling_the_retained_realization_v4_golden_to_a_current_model_is_refused() {
+    let transition = transition();
+    let expected = entry(&transition, "retained_family_goldens", "realization-v4");
+    let forbidden = &expected["forbidden"];
+    let bytes = frozen(RETAINED_REALIZATION_V4);
+
+    let mut relabelled = bytes.to_vec();
+    replace_exact_once(
+        &mut relabelled,
+        expected["opaque_model_reference"]["value"]
+            .as_str()
+            .unwrap(),
+        forbidden["relabelled_model_reference"].as_str().unwrap(),
+    );
+    assert_eq!(relabelled.len(), bytes.len());
+    assert_ne!(relabelled, bytes);
+    assert_eq!(
+        raw_sha256(&relabelled),
+        forbidden["relabelled_raw_sha256"],
+        "the exact bytes a relabelled golden would carry are frozen, not recomputed by the reset"
+    );
+    assert_ne!(raw_sha256(&relabelled), expected["raw_sha256"]);
+    assert_ne!(
+        domain_digest(expected["family"].as_str().unwrap(), &relabelled),
+        expected["artifact_digest"].as_str().unwrap()
+    );
+
+    // The relabelled golden decodes and validates. That is the point: identity
+    // checks inside the family cannot see this, so the freeze must be on bytes.
+    let current =
+        ModelEnvelopeV8::from_json(frozen(BRIDGES[1].current), ModelDecoderLimits::default())
+            .unwrap();
+    let decoded = RealizationEnvelopeV4::from_json(&relabelled, Default::default()).unwrap();
+    assert!(
+        decoded.validate_model_artifact(&current).is_ok(),
+        "a relabelled golden is internally consistent, which is why its bytes are frozen"
+    );
+    assert_ne!(
+        decoded.digest().unwrap().as_str(),
+        expected["artifact_digest"]
+    );
+}
+
+/// The moving-spatial consumer's replacement changes exactly its identities.
+///
+/// Both states of all three artifacts are committed, so this is a comparison
+/// rather than a claim: the replacement must be the pre-reset bytes with the
+/// frozen identity table applied and nothing else. Byte lengths are equal, every
+/// changed leaf is a 64-character identity in the table, and every other leaf —
+/// coordinates, steps, times, Field inventory, physical dimensions, ULIDs — is
+/// byte-identical.
+#[test]
+fn the_moving_spatial_consumer_replacement_is_an_identity_only_substitution() {
+    let transition = transition();
+    for consumer in &MODEL_INPUT_CONSUMERS {
+        let expected = entry(&transition, "model_input_consumers", consumer.name);
+        let table = identity_substitutions(expected);
+        assert_eq!(
+            table
+                .get(expected["pre_reset_model_digest"].as_str().unwrap())
+                .map(String::as_str),
+            expected["current_model_digest"].as_str(),
+            "the Model edge of the table is the precommitted current Model, not a chosen one"
+        );
+
+        let artifacts = expected["artifacts"].as_array().unwrap();
+        assert_eq!(artifacts.len(), consumer.artifacts.len());
+        for (frozen_entry, (name, pre, replacement)) in artifacts.iter().zip(consumer.artifacts) {
+            assert_eq!(frozen_entry["name"], *name);
+            let (pre, replacement) = (frozen(pre), frozen(replacement));
+            let bytes = frozen_entry["canonical_bytes"].as_u64().unwrap() as usize;
+            assert_eq!(pre.len(), bytes);
+            assert_eq!(
+                replacement.len(),
+                bytes,
+                "{name} replacement must be byte-length identical"
+            );
+            assert_eq!(raw_sha256(pre), frozen_entry["pre_reset_raw_sha256"]);
+            assert_eq!(
+                raw_sha256(replacement),
+                frozen_entry["replacement_raw_sha256"]
+            );
+
+            let schema = frozen_entry["schema"].as_str().unwrap();
+            assert_eq!(
+                domain_digest(schema, pre),
+                frozen_entry["pre_reset_digest"].as_str().unwrap()
+            );
+            assert_eq!(
+                domain_digest(schema, replacement),
+                frozen_entry["replacement_digest"].as_str().unwrap()
+            );
+
+            // Leaf-by-leaf containment, then the byte reconstruction.
+            let before = flatten(&serde_json::from_slice(pre).unwrap());
+            let after = flatten(&serde_json::from_slice(replacement).unwrap());
+            assert_eq!(
+                before.iter().map(|(path, _)| path).collect::<Vec<_>>(),
+                after.iter().map(|(path, _)| path).collect::<Vec<_>>(),
+                "{name} keeps its exact leaf set and order"
+            );
+            let changed = before
+                .iter()
+                .zip(&after)
+                .filter(|((_, old), (_, new))| old != new)
+                .map(|((path, old), (_, new))| {
+                    (
+                        path.clone(),
+                        old.as_str().unwrap().to_owned(),
+                        new.as_str().unwrap().to_owned(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                changed
+                    .iter()
+                    .map(|(path, ..)| path.clone())
+                    .collect::<BTreeSet<_>>(),
+                frozen_entry["substituted_pointers"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|path| path.as_str().unwrap().to_owned())
+                    .collect::<BTreeSet<_>>(),
+                "{name} substitutes exactly its frozen pointer set"
+            );
+            for (path, old, new) in &changed {
+                assert_eq!(
+                    table.get(old).map(String::as_str),
+                    Some(new.as_str()),
+                    "{name}{path} moved outside the frozen identity table"
+                );
+            }
+            assert_eq!(
+                before.len() - changed.len(),
+                frozen_entry["unchanged_leaves"].as_u64().unwrap() as usize,
+                "{name} must leave every non-identity leaf alone"
+            );
+            assert_eq!(
+                substitute_identities(pre, &table),
+                replacement,
+                "{name} replacement must be the committed fixture with only its identities moved"
+            );
+        }
+    }
+}
+
+/// The replacement is re-derivable through the retained spatial wires, and it
+/// carries no superseded identity anywhere.
+#[test]
+fn the_moving_spatial_replacement_replays_through_the_retained_spatial_wires() {
+    let transition = transition();
+    for consumer in &MODEL_INPUT_CONSUMERS {
+        let expected = entry(&transition, "model_input_consumers", consumer.name);
+        let table = identity_substitutions(expected);
+        let current_model = expected["current_model_digest"].as_str().unwrap();
+
+        // The Model input the reset moves to, through the current owner only.
+        let model =
+            ModelEnvelopeV8::from_json(frozen(BRIDGES[1].current), ModelDecoderLimits::default())
+                .expect("the precommitted current Model input decodes through the current owner");
+        assert_eq!(model.digest().unwrap().as_str(), current_model);
+        assert_eq!(
+            model.model().unwrap().ulid().to_string(),
+            expected["model_ulid"]
+        );
+        assert!(
+            ModelEnvelopeV8::from_json(
+                frozen(BRIDGES[1].historical),
+                ModelDecoderLimits::default()
+            )
+            .is_err(),
+            "the pre-reset Model input is rejected by the current owner, which is why it moves"
+        );
+
+        let mut replayed = BTreeMap::new();
+        for (frozen_entry, (name, _, replacement)) in expected["artifacts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .zip(consumer.artifacts)
+        {
+            let replacement = frozen(replacement);
+            let schema = frozen_entry["schema"].as_str().unwrap();
+            let digest = match schema {
+                "eqiora.spatial-state-envelope/v2" => {
+                    let decoded =
+                        SpatialStateEnvelopeV2::from_json(replacement, Default::default()).unwrap();
+                    assert_eq!(decoded.canonical_json().unwrap(), replacement);
+                    decoded.digest().unwrap().as_str().to_owned()
+                }
+                "eqiora.spatial-trajectory-segment/v2" => {
+                    let decoded = SpatialTrajectorySegmentEnvelopeV2::from_json(
+                        replacement,
+                        Default::default(),
+                    )
+                    .unwrap();
+                    assert_eq!(decoded.canonical_json().unwrap(), replacement);
+                    decoded.digest().unwrap().as_str().to_owned()
+                }
+                "eqiora.spatial-trajectory/v2" => {
+                    let decoded =
+                        SpatialTrajectoryEnvelopeV2::from_json(replacement, Default::default())
+                            .unwrap();
+                    assert_eq!(decoded.canonical_json().unwrap(), replacement);
+                    decoded.digest().unwrap().as_str().to_owned()
+                }
+                other => panic!("{name} names an unclassified retained spatial schema {other}"),
+            };
+            assert_eq!(digest, frozen_entry["replacement_digest"].as_str().unwrap());
+
+            // No superseded identity may survive anywhere in a replacement.
+            let text = std::str::from_utf8(replacement).unwrap();
+            for superseded in table.keys() {
+                assert!(
+                    !text.contains(superseded.as_str()),
+                    "{name} still carries the superseded identity {superseded}"
+                );
+            }
+            replayed.insert((*name).to_owned(), digest);
+        }
+
+        // Every reference edge, read out of the replacement bytes alone.
+        for (frozen_entry, (name, _, replacement)) in expected["artifacts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .zip(consumer.artifacts)
+        {
+            let wire: Value = serde_json::from_slice(frozen(replacement)).unwrap();
+            for edge in frozen_entry["references"].as_array().unwrap() {
+                let target = edge["target"].as_str().unwrap();
+                let value = match target.strip_prefix("artifact:") {
+                    Some(artifact) => replayed[artifact].clone(),
+                    None if target == "current_model_digest" => current_model.to_owned(),
+                    None => expected["downstream_current_identities"][target]
+                        .as_str()
+                        .unwrap()
+                        .to_owned(),
+                };
+                assert_eq!(
+                    resolve(&wire, edge["path"].as_str().unwrap()),
+                    &Value::String(value),
+                    "{name}{} must name {target}",
+                    edge["path"]
+                );
+            }
+        }
+    }
+}
+
+/// An omitted, partial, or regenerated moving-spatial substitution is refused.
+///
+/// The three digests are consumed by one file, so a reset that moves some of
+/// them and not others, or that points the consumer at a Model it produced
+/// itself, would otherwise be caught only by whichever assertion happened to run
+/// first. Each of those is a separate failure here.
+#[test]
+fn an_omitted_partial_or_regenerated_moving_spatial_substitution_is_refused() {
+    let transition = transition();
+    for consumer in &MODEL_INPUT_CONSUMERS {
+        let expected = entry(&transition, "model_input_consumers", consumer.name);
+        let table = identity_substitutions(expected);
+        let artifacts = expected["artifacts"].as_array().unwrap();
+
+        // Omission: the frozen literals the consumer carries today are exactly
+        // the pre-reset digests, and not one of them survives the migration.
+        let literals = expected["frozen_literals"].as_array().unwrap();
+        assert_eq!(literals.len(), artifacts.len());
+        for (literal, frozen_entry) in literals.iter().zip(artifacts) {
+            assert_eq!(literal["artifact"], frozen_entry["name"]);
+            assert_eq!(literal["pre_reset"], frozen_entry["pre_reset_digest"]);
+            assert_eq!(literal["replacement"], frozen_entry["replacement_digest"]);
+            assert_ne!(literal["pre_reset"], literal["replacement"]);
+        }
+
+        for (frozen_entry, (name, pre, replacement)) in artifacts.iter().zip(consumer.artifacts) {
+            let (pre, replacement) = (frozen(pre), frozen(replacement));
+            let schema = frozen_entry["schema"].as_str().unwrap();
+            let target = frozen_entry["replacement_digest"].as_str().unwrap();
+            assert_ne!(
+                domain_digest(schema, pre),
+                target,
+                "{name} left wholly unmigrated must not reach its replacement identity"
+            );
+
+            // Partial substitution: omitting any one identity this artifact
+            // actually carries is a failure, so no proper subset of the table
+            // can be mistaken for the whole of it. An identity the artifact does
+            // not carry — a sibling's own digest, say — is not a partial
+            // migration of *this* artifact and is checked through the sibling.
+            let mut carried = 0;
+            for omitted in table.keys() {
+                if !pre
+                    .windows(omitted.len())
+                    .any(|window| window == omitted.as_bytes())
+                {
+                    continue;
+                }
+                carried += 1;
+                let mut partial = table.clone();
+                partial.remove(omitted);
+                let rebuilt = substitute_identities(pre, &partial);
+                assert_ne!(
+                    raw_sha256(&rebuilt),
+                    raw_sha256(replacement),
+                    "{name} without {omitted} must not equal the replacement"
+                );
+                assert_ne!(
+                    domain_digest(schema, &rebuilt),
+                    target,
+                    "{name} without {omitted} must not reach the replacement identity"
+                );
+            }
+            assert!(
+                carried > 0,
+                "{name} must carry at least one identity for a partial migration to be possible"
+            );
+
+            // Regenerated but unregistered: a current Model that is not the
+            // precommitted one is a different Model, however current it is.
+            let foreign = transition["bridge"][0]["current_artifact_digest"]
+                .as_str()
+                .unwrap();
+            assert!(!table.values().any(|value| value == foreign));
+            let mut regenerated = replacement.to_vec();
+            replace_exact_once(
+                &mut regenerated,
+                expected["current_model_digest"].as_str().unwrap(),
+                foreign,
+            );
+            assert_ne!(regenerated, replacement);
+            assert_ne!(
+                domain_digest(schema, &regenerated),
+                target,
+                "{name} built over an unregistered current Model must not reach the replacement"
+            );
+        }
+    }
 }
 
 #[test]

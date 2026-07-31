@@ -23,10 +23,15 @@ identities.
 - complete precommitted current Model canonical bytes for the five
   deterministic fixtures, plus every permitted downstream identity they imply;
 - the canonical bytes of each downstream artifact whose identity changes, so
-  every artifact-reference edge is re-derivable from bytes alone; and
+  every artifact-reference edge is re-derivable from bytes alone;
 - the complete ALE segment-to-root identity chain, the opaque exact
   Realization v4 golden, and the structural semantic bridge for the two
-  recorded accelerator bundles.
+  recorded accelerator bundles;
+- the current Model input and the three replacement identities of the one
+  consumer whose Model *input* the reset moves rather than whose fixture it
+  rewrites; and
+- the executable post-reset acceptance route for the retained Realization v4
+  golden, which decodes no Model at all.
 
 ## The reset is an exact two-state transition
 
@@ -138,10 +143,103 @@ that needs another new signal-bearing path, or that cannot retire a listed one,
 stops and returns the delta to this oracle. Widening a set here to fit an
 implementation choice is not an available move.
 
+## Two consumers the remainder was wrong about
+
+A remainder is only safe while every path it covers really does migrate in place
+carrying no identity literal. Two files broke that, in opposite directions, and
+both are named explicitly now.
+
+### `moving_spatial_v2_wire.rs` migrates its Model input
+
+The file reads its Model out of the historical fixed-reference CUDA bundle,
+decodes it with `ModelEnvelopeV4`, and freezes three digests of what it then
+builds — a SpatialState v2, a trajectory segment, and a prefix root. The
+remainder covered it and says `identity_literals: 0`. Both halves are false: the
+reset rejects those Model bytes, and the file freezes three Model-derived
+identities.
+
+It is not a flat-fresh consumer either. Its ULIDs, reference mesh, shear
+schedule, snapshot seeds, and Field inventory are all fixed, and its Model comes
+from bytes rather than a compilation, so nothing allocates a fresh occurrence. It
+is a deterministic replay, and RFC 0083 already says what happens to it:
+*spatial authored-field/context projections change only their Model input to the
+current typed owner and retain the spatial artifact schemas and replay rules*.
+
+So the input moves to the current Model of the **same semantic program** — the
+bridge Model this case already precommits at
+[`expected/bridge/fixed-reference-cuda-solve-2d/current-model.json`](expected/bridge/fixed-reference-cuda-solve-2d/current-model.json),
+whose Model ULID and semantic revision are the historical ones and whose
+generation-v2 fingerprint the bridge above proves equal. Nothing else may be
+chosen: a Model the reset produces itself is a different Model, and every
+downstream identity would move with it.
+
+`model_input_consumers` in [`expected/transition.json`](expected/transition.json)
+freezes the consequence exactly. All three artifacts are committed in **both**
+states, because this consumer builds them at run time and has no checked-in
+target file to compare against; without the pre-reset side there would be nothing
+for the replacement to be a delta *of*. The two states are byte-length identical,
+and the replacement is the pre-reset bytes with one 16-entry identity table
+applied and nothing else — 87 leaves across the three artifacts, 33 identity
+substitutions and the other 54 byte-identical. Coordinates, steps, times,
+physical dimensions, Field
+and Domain ULIDs, and the reference mesh digest are all on the untouched side.
+
+The three digests the consumer freezes move with them:
+
+| Frozen at | Pre-reset | Replacement |
+| --- | --- | --- |
+| `state_1.digest()` | `2cb018c9…b218aa` | `40f51f91…c7db38` |
+| `decoded_segment.digest()` | `806b8b3d…630e92` | `e6f04b57…8a4d50` |
+| `decoded_root.digest()` | `8a9f5359…3c72a8` | `8b2ee5f2…bcb0b3` |
+
+### `realization_v4_wire.rs` keeps its golden and loses its decoder
+
+The v4 golden is a retained separate-family golden and its Model reference stays
+opaque — that much the classification already said. What it did not say is that
+the file *reconstructs* the golden: it decodes the same historical Model with
+`ModelEnvelopeV4` and re-encodes a Realization over it. That route disappears
+with the historical decoders, and the two obvious repairs are both wrong.
+Handing those bytes to the current Model owner is admitting a historical schema,
+and rebuilding the golden over a current Model is relabelling it.
+
+`retained_family_goldens` freezes the third route, which needs no Model decoder
+at all: the Realization family is retained, so its own decoder reads the
+committed 8,333 bytes, re-encodes them canonically, and reproduces
+`ba9efbdb…b5d9e` and the RFC 0008 artifact digest. The Model reference is
+compared as a string and never resolved. The golden literal is unchanged; this
+amendment adds no replacement for it.
+
+Relabelling gets its own falsifier because nothing inside the artifact can catch
+it. A golden whose `model_sha256` is swapped for the current bridge digest keeps
+its Model ULID and revision, still decodes, and still *passes*
+`validate_model_artifact` against the current Model. The exact bytes are the only
+thing that refuses it, so the bytes a relabelled golden would carry are frozen
+too.
+
+### The handoff is a list of operations, not a target to hit
+
+Both entries carry a `handoff` with the exact operations and the exact forbidden
+moves, so the implementation wires values rather than searching for them. For
+`moving_spatial_v2_wire.rs`: repoint `MODEL` at the current bridge Model,
+stripping one optional trailing line feed; replace the `ModelEnvelopeV4` import,
+the `Resources::model` field type, and the two `ValidatedMovingSpatialContextV2`
+type parameters with the unversioned current owner; and substitute the three
+digest literals, each of which occurs exactly once. For `realization_v4_wire.rs`:
+add the golden as `include_bytes!`, make the frozen-digest test hash and
+round-trip those bytes instead of `Fixture::new().envelope()`, and repoint
+`MODEL` at the same current Model so the surviving constructive tests keep an
+ordinary current-owner path.
+
+Nothing else in either file changes. Every assertion, seed, coordinate, decoder
+limit, and rejection case is retained, and no assertion is relaxed. If an
+operation cannot be applied as written, the lane stops and returns the delta
+here; choosing a different Model, a different target path, or a different digest
+is not an available move.
+
 ## Every candidate has exactly one fate
 
-`classification.json` names 109 of the 338 candidates in an entry and leaves the
-other 229 to the `non-fixture-search-hit` remainder. A remainder is what keeps
+`classification.json` names 110 of the 338 candidates in an entry and leaves the
+other 228 to the `non-fixture-search-hit` remainder. A remainder is what keeps
 the classification complete without listing every path twice, and it is also
 where a classification can quietly say the wrong thing: "everything else
 migrates in place" stops being true the moment a path the reset *removes* is
@@ -313,14 +411,25 @@ freshly observed fingerprints. Every scientific array, coordinate, field, time
 value, tolerance, balance, convergence result, source identity, and package
 identity is an immutable input here.
 
+The two consumer files above are not owned here either. This case freezes their
+Model input, their replacement identities, and the moves that must fail; it does
+not own their assertions, their fixture construction, their decoder-limit and
+rejection cases, or the wording beside them. It does not reconstruct the
+moving-spatial producer: the committed artifacts are the exact bytes that
+producer emitted through its already-live current encoder, and the registered
+test replays them through the retained spatial decoders rather than rebuilding
+the fixture that made them. The Realization and spatial wire families keep their
+schema identities and meanings unchanged — the only thing that moves inside them
+is a Model reference.
+
 ## The four producer classes that carry a Model reference
 
 | Class | Rule | Members |
 | --- | --- | --- |
-| deterministic | complete precommitted current Model bytes and every permitted downstream identity | packaged DC motor, composed package, offline package, typed-execution lineage, fixed-topology ALE 3D |
+| deterministic | complete precommitted current Model bytes and every permitted downstream identity | packaged DC motor, composed package, offline package, typed-execution lineage, fixed-topology ALE 3D, and the moving-spatial v2 wire consumer whose Model *input* moves |
 | flat fresh occurrence | shape, exact-identity inequality, fingerprint equality, same-execution linkage — never an occurrence-dependent literal | control v2, agent-authored change, Model-reference lineage, geometry-to-Model, FSI spatial trajectory, and the digest-relation cases |
 | historical recorded execution | untouched bytes plus the semantic bridge; never a relabelled current Run | canonical Cartesian Poisson CUDA, fixed-reference CUDA FSI |
-| retained separate-family golden | exact bytes, opaque Model reference | Realization v1--v3 goldens, the Realization v4 golden |
+| retained separate-family golden | exact bytes, opaque Model reference, accepted through its own family decoder | Realization v1--v3 goldens, the Realization v4 golden |
 
 The composed-package, offline-package, typed-execution, packaged DC-motor, and
 fixed-topology ALE fixtures are deterministic, not flat-fresh. Their
@@ -343,7 +452,8 @@ it may not regenerate or select them.
 
 Each replacement fixture is the committed fixture with exactly its precommitted
 identity pointers substituted. All five replacements are byte-length-identical
-to the fixtures they replace. The registered test reconstructs each replacement
+to the fixtures they replace, as are the three moving-spatial consumer artifacts
+above. The registered test reconstructs each replacement
 as same-length substitutions of unique 64-byte identity literals and compares
 the raw bytes exactly; JSON key order, whitespace, number spelling, and every
 non-identity byte are therefore immutable. That containment, not the digests

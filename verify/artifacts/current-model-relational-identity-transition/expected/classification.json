@@ -6,7 +6,7 @@
     "definition": "a Model-bearing fixture is a checked-in file that carries Model artifact bytes, a Model artifact digest, or an assertion pinning a Model artifact identity; search hits that are product surfaces or source/package identities are classified but are not promoted into the identity-delta class",
     "inventory": "expected/classification-inventory.txt",
     "candidate_path_count": 338,
-    "classified_inventory_path_count": 109,
+    "classified_inventory_path_count": 110,
     "excluded_trees": [
       "verify/artifacts/current-model-relational-identity-transition",
       "bindings/python/python/eqiora/examples"
@@ -520,6 +520,15 @@
       "owned_here": true
     },
     {
+      "class": "deterministic-current-model-bytes",
+      "disposition": "migrate",
+      "paths": ["crates/eqiora-artifact/tests/moving_spatial_v2_wire.rs"],
+      "identity_literals": 3,
+      "owned_here": false,
+      "model_input_consumer": "moving-spatial-v2-wire",
+      "note": "the remainder previously covered this file and says a path migrates in place carrying no identity literal; both halves are false of it. It is a deterministic replay -- fixed ULIDs, a fixed reference mesh, fixed snapshot seeds, no fresh occurrence allocation -- and it freezes three Model-derived SpatialState/Trajectory v2 digests. Its Model input is the historical fixed-reference CUDA v4 bytes, which the reset rejects, so RFC 0083's consumer row for spatial context projections applies: only the Model input moves to the current typed owner, and the spatial schemas and replay rules are retained. `owned_here` stays false because the five owned deterministic fixtures each replace a checked-in target file and freeze their own current Model bytes; this consumer constructs its artifacts at run time and reuses the already precommitted bridge Model, so its three replacements are frozen by `model_input_consumers` in transition.json rather than by the deterministic fixture table"
+    },
+    {
       "class": "delegated-current-owner-evidence",
       "case": "artifacts.current-model-canonical-identity",
       "disposition": "delegate",
@@ -722,7 +731,8 @@
       "disposition": "migrate",
       "paths": ["crates/eqiora-artifact/tests/realization_v4_wire.rs"],
       "identity_literals": 1,
-      "note": "the frozen Realization v4 golden ba9efbdbca265dea0fdf9b1476ea2cae876eb2c97b4ac6f332f3755d866b5d9e is built over the historical fixed-reference CUDA Model bytes; it stays byte-identical and its Model reference stays opaque, so after the reset it must be verified without admitting those bytes through a product decoder"
+      "retained_family_golden": "realization-v4",
+      "note": "the frozen Realization v4 golden ba9efbdbca265dea0fdf9b1476ea2cae876eb2c97b4ac6f332f3755d866b5d9e is built over the historical fixed-reference CUDA Model bytes; it stays byte-identical and its Model reference stays opaque, so after the reset it must be verified without admitting those bytes through a product decoder. Today the file does admit them: it reconstructs the golden by decoding those bytes with ModelEnvelopeV4 and re-encoding, which the reset removes. `retained_family_goldens` in transition.json therefore freezes the executable post-reset route -- decode the committed golden bytes with the retained Realization family decoder alone -- together with the two moves that must fail: decoding the opaque Model bytes through the current Model owner, and relabelling the golden's Model reference to the current bridge digest. The one identity literal is retained unchanged; this classification adds no replacement for it"
     },
     {
       "class": "compatibility-only",
@@ -1004,7 +1014,7 @@
       "disposition": "migrate-in-place",
       "inventory_remainder": true,
       "excludes_retired": true,
-      "path_count": 229,
+      "path_count": 228,
       "identity_literals": 0,
       "note": "every candidate path in classification-inventory.txt not named by an entry above is a product declaration, consumer, test harness, or documentation search hit; it receives no identity literal and remains subject to current-owner migration rather than deletion. The rule excludes retired paths by construction: all 34 retired inventory members are named by an entry above — 15 as compatibility-only deletions, 2 as version-named current owners the reset renames, 2 as the v2-named source files decomposed by claim because they host the current v8 implementation, and 15 by the fixture, delegated, and remaining mixed-claim entries — so no path this remainder covers is one the reset removes."
     }
