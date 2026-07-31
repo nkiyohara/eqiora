@@ -5,6 +5,7 @@
 - Created: 2026-07-31
 - Depends on: [RFC 0037](0037-version-neutral-model-artifact-reference.md),
   [RFC 0054](0054-curated-facade-and-control-plane.md),
+  [RFC 0073](0073-structural-semantic-fingerprint.md),
   [RFC 0077](0077-exact-cartesian-domain-edit.md), and
   [RFC 0078](0078-direct-parameter-driven-cartesian-coordinates.md)
 - Supersedes: the live multi-generation Model/Transaction compatibility policy
@@ -405,20 +406,42 @@ model decay {
 
 The source string includes one final line feed after the closing brace.
 
-The positive oracle independently derives the complete current Model artifact
-for this exact source and freezes its literal digest, Model identity, and
-semantic revision in `oracle/v2/expected/contract.json`; equality to a value
-returned by the same execution is not sufficient. It also fixes the complete
-accepted response shape and constants. If the public language and artifact
-contracts do not determine those literals independently, the oracle stops
-rather than reading the implementation or omitting them.
+Flat source compilation allocates fresh occurrence ULIDs. The Model ULID is
+part of exact artifact identity, so independent compilations of this source
+correctly produce different `modelId` and `digest` values; RFC 0073 and
+RFC 0078 explicitly make equality of those values a nonclaim. The control
+oracle therefore must not freeze either value from one producer run.
+
+Instead, the positive oracle freezes a relation already owned by RFC 0073:
+two independent control invocations and one ordinary compilation of this exact
+source must have pairwise-distinct exact Model identities and digests, revision
+1, and equal generation-v2 `StructuralSemanticFingerprint` values. Generation
+v2 alpha-normalizes occurrence ULIDs and completely covers this witness's
+scalar meaning. RFC 0078 separately makes current coordinate sources consumers
+of the same structural comparison boundary.
+
+One in-process `execute_compile_v2` invocation returns a
+`CompileControlExecutionV2` containing both the closed response and the exact
+optional `ModelDocument` that produced it. The response's digest, Model
+identity, and revision must equal that same value's artifact reference; they
+must never be compared with a second compilation. The fingerprint relation may
+use independently compiled documents because it is occurrence-invariant.
+
+The accepted response is also checked for the exact schema and transaction
+schema constants, a valid 64-character lowercase digest, a nonempty Model
+identity within its bound, and revision 1. The oracle does not freeze one
+fingerprint digest or fresh occurrence identity: RFC 0073's registered evidence
+owns the fingerprint algorithm, while this application-surface oracle owns the
+precommitted equality/inequality relations and response linkage.
 
 The expected contract has schema
 `eqiora.verify.control-plane-compile-check/v2`. It names every request file,
-the accepted literal Model facts, expected outcome, diagnostic source,
-severity and code for every rejection, whether the exact message or only
-nonemptiness is frozen, the generated resource boundaries, and the forbidden
-response fields `source`, `mesh`, `fields`, and `trajectory`.
+the accepted schema facts, revision, identity-shape predicates, structural
+fingerprint equality and exact-identity inequality relations, response-to-
+document linkage, expected outcome, diagnostic source, severity and code
+for every rejection, whether the exact message or only nonemptiness is frozen,
+the generated resource boundaries, and the forbidden response fields
+`source`, `mesh`, `fields`, and `trajectory`.
 
 The oracle copies the previous accepted v1 request byte-for-byte to
 `verify/interfaces/control-plane-compile-check/oracle/v2/models/retired-v1.json`
@@ -471,7 +494,8 @@ classification targets, not an exhaustive inventory:
 - fixed-topology ALE 3D accepted trajectory;
 - packaged DC motor controller identities;
 - composed, offline, and typed-execution package identities;
-- Realization v4 wire evidence;
+- Realization v4 wire evidence, classified as a retained separate-family
+  golden rather than a current-Model identity delta;
 - canonical Cartesian Poisson CUDA and MPI recorded evidence, classified for
   historical bridging rather than identity delta;
 - fixed-reference CUDA and distributed MPI FSI recorded evidence, likewise
@@ -480,12 +504,46 @@ classification targets, not an exhaustive inventory:
 - geometry-to-Model and typed Model-reference lineage; and
 - agent-authored Model change evidence.
 
-Pure relational fixtures that can be reproduced without claiming a new
-physical observation receive independently frozen current bytes and digests.
-The oracle may change only the current Model digest and an identity computed
-from an artifact that embeds that reference. Arrays, coordinates, fields,
-time values, source and package identities, tolerances, balances, convergence
-evidence, and scientific falsifiers are immutable inputs.
+The classification is by producer semantics, not by a closed fixture list.
+Every Model-bearing fixture found by the repository search belongs to exactly
+one of these classes:
+
+- Deterministic hierarchy elaboration, package compilation, or replay receives
+  independently precommitted complete current Model bytes and every permitted
+  downstream digest. Before the reset, the oracle captures the accepted
+  deterministic producer through its already-live current encoder, then
+  independently checks canonical JSON, schema-domain hashing, and every
+  artifact-reference edge from those captured bytes. The reset writer cannot
+  regenerate or select those literals.
+- Flat compilation that deliberately allocates fresh occurrence identities
+  receives no occurrence-dependent literal. Its oracle freezes identity shape,
+  exact-identity inequality, semantic-fingerprint equality, and same-execution
+  reference linkage, as in the control-v2 witness above.
+- A recorded execution from an environment not reproduced by the default gate
+  remains historical observation evidence and receives the semantic bridge
+  below, not a relabelled current Run.
+- A retained separately versioned artifact-family golden keeps its exact bytes
+  and treats a retired Model reference as opaque unless a later transition for
+  that artifact family says otherwise.
+
+The composed-package, offline-package, typed-execution, packaged DC-motor, and
+fixed-topology ALE fixtures are in the deterministic class, not the flat-fresh
+class. Their current Model bytes and downstream identity literals are frozen by
+the transition oracle before implementation. Same-execution linkage assertions
+are added without replacing their existing cross-run reproducibility claims.
+
+For every class, arrays, coordinates, fields, time values, source and package
+identities, tolerances, balances, convergence evidence, and scientific
+falsifiers are immutable inputs. A permitted identity-only delta may change
+only the current Model digest and an identity computed from an artifact that
+embeds that reference.
+
+The Realization v4 golden remains exact historical evidence for its separately
+versioned artifact family, like the v1--v3 goldens above. Its embedded Model
+digest becomes an opaque historical reference: the reset verifies the
+Realization bytes and digest without decoding the retired Model artifact and
+does not re-encode the golden against an arbitrary current Model. A separate
+future Realization-family transition would be required to replace it.
 
 The checked-in canonical Cartesian Poisson CUDA and fixed-reference CUDA FSI
 Model/Realization/Run bundles are recorded accelerator observations. Any
@@ -500,18 +558,28 @@ plus a structural semantic bridge.
 
 That bridge is exact evidence, not prose: before historical decoders are
 removed, the independent oracle records the historical artifact raw hash,
-artifact digest, source identity, and
-`SemanticFingerprintGeneration::V1` value; it independently derives the
-current Model artifact and records the same fields. The fingerprints and
-source identities must agree while the schema-domain artifact digests differ.
+artifact digest, and a freshly observed
+`SemanticFingerprintGeneration::V2` value. It constructs a current Model
+artifact from the same decoded semantic program through the current owner and
+records the same fields. The generation-v2 values are produced by the already
+verified RFC 0073 owner; this
+transition case owns their equality relation, not an independent derivation of
+the fingerprint byte projection. RFC 0078 establishes that current coordinate
+sources participate in this comparison. The fingerprints must agree while the
+schema-domain artifact digests differ. Source identity is deliberately not a
+bridge field: the CUDA FSI bundle has no checked-in source, and source-identity
+construction is not owned by this transition oracle.
 After the reset, runtime verification hashes the untouched historical bytes
 without admitting them through a product decoder and replays only the current
 artifact. Capability and case wording must say that the old Run observed the
 historical artifact and that current semantic equivalence is independently
 bridged; it must not say that the current Run was observed.
 
-The relational oracle classifies the control-v2 Model literal but excludes it
-from identity-delta ownership because the control oracle authors it fresh. Its
+The historical side's generation-v2 value is derived fresh in this transition
+pass and is not inferred from an earlier generation-v1 value. The relational
+oracle classifies the control-v2 accepted Model facts but excludes them from
+identity-delta ownership because the control oracle owns their shape and
+structural relation. Its
 writable allowlist is only
 `verify/artifacts/current-model-relational-identity-transition/**` and
 `crates/eqiora-artifact/tests/current_model_relational_identity_transition.rs`.
@@ -519,8 +587,12 @@ Candidate replacement bytes and target paths live under that oracle case;
 the oracle does not edit target consumer cases, capability matrix, roadmap,
 crate roots, or registries. It returns those registration deltas to the
 integrator, and the implementation later wires only the precommitted values.
-The same implementation writer updates the affected CUDA/MPI case wording;
-the integrator owns their manifests and capability-matrix narrowing.
+For every classified fixture, the oracle also returns any required claim-
+wording delta. The implementation writer updates prose colocated with its
+owned test, while the integrator alone edits case manifests and the capability
+matrix. In particular, the CUDA/MPI wording narrows to historical observation
+plus the semantic bridge; deterministic package and ALE claims retain their
+cross-run reproducibility rather than narrowing to same-execution linkage.
 
 The implementation records the break under the `Changed` heading of
 `CHANGELOG.md` `[Unreleased]`. That entry names the removed Rust
