@@ -1,6 +1,6 @@
 # RFC 0083: One current Model artifact epoch before 1.0
 
-- Status: Accepted contract; implementation tracked by Issue #258
+- Status: Accepted contract; implementation pending
 - Authors: Eqiora contributors
 - Created: 2026-07-31
 - Depends on: [RFC 0037](0037-version-neutral-model-artifact-reference.md),
