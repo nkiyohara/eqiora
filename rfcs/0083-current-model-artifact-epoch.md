@@ -8,7 +8,9 @@
   [RFC 0077](0077-exact-cartesian-domain-edit.md), and
   [RFC 0078](0078-direct-parameter-driven-cartesian-coordinates.md)
 - Supersedes: the live multi-generation Model/Transaction compatibility policy
-  in RFC 0037 and the stable `eqiora::compatibility` decision in RFC 0054
+  in RFC 0037, and the stable `eqiora::compatibility` decision and requirement
+  for a separate compile/check feature list in every control generation in
+  RFC 0054
 
 ## Summary
 
@@ -249,6 +251,276 @@ The Python pre-1.0 release policy permits this immediate removal only because
 this RFC fixes the scope, retained bytes, rejection behavior, consumer
 inventory, and migration note. This exception does not authorize unrelated
 public API removal or silent behavior changes.
+
+### Frozen compile/check v2 contract
+
+Control v2 changes the protocol envelope, not the compile/check operation.
+The exact identities are therefore:
+
+| Identity | Value |
+| --- | --- |
+| protocol | `eqiora.control/v2` |
+| command | `model.compile-check/v1` |
+| schema file | `schemas/control/compile-v2.schema.json` |
+| schema `$id` | `urn:eqiora:schema:control:compile-v2` |
+| registered case | `interfaces.control-plane-compile-check` |
+
+The request is one closed object with exactly `protocol`, `command`,
+`requestId`, `filename`, and `source`, serialized in that order. The response
+is one closed object with exactly `protocol`, `command`, `requestId`, and
+`outcome`, serialized in that order. `requiredFeatures`, `modelWire`, and every
+`model-wire/*` feature disappear from both directions. For this command the
+closed protocol and command identities are the complete version-admission
+mechanism and supersede RFC 0054's separate per-generation feature-list
+requirement. Extending the request vocabulary requires another exact control
+contract rather than permissively admitting a new feature spelling.
+
+An accepted outcome has `status` followed by `model`. Its closed Model
+descriptor has these fields in order:
+
+1. `schema`, fixed to `eqiora.model-envelope/v8`;
+2. `transactionSchema`, fixed to
+   `eqiora.model-transaction-envelope/v8`;
+3. `digest`, the 64-character lowercase Model artifact digest;
+4. `modelId`, the typed Model identity, with length from 1 through 128;
+5. `semanticRevision`, a nonnegative integer. The independent witness is
+   expected to derive revision 1, but control v2 retains the public revision
+   domain admitted by the v1 compile/check schema rather than introducing a
+   new positive-only rule.
+
+The two schema values are mandatory observed output facts, not caller policy.
+`transactionSchema` discharges RFC 0054's requirement to identify the wire
+used for transaction construction. Canonical encoding is implied by the
+frozen artifact schemas and is not duplicated as another control wire field.
+The schema facts occur only inside an accepted Model descriptor. A rejected
+outcome has `status` followed by a nonempty `diagnostics` array and does not
+report Model or Transaction schema facts.
+
+The following v1 value shapes retain their field topology and spelling, but
+are owned by new v2 Rust DTOs rather than aliases. The numeric response bounds
+below are deliberate v2 tightenings rather than inherited v1 admission:
+
+- `requestId` is a string of length 1 through 128 matching
+  `^[A-Za-z0-9._:-]+$`;
+- `sourceSpan` is a closed `file`, `start`, `end` object in that order;
+  `file` has both `maxLength: 4096` and a 4096-byte UTF-8 limit, while
+  `start` and `end` are integers from 0 through 4294967295;
+- `patch` is a closed object containing one nonempty `summary`; and
+- `diagnostic` is a closed object containing `source`, `severity`, `code`,
+  `message`, `graphPath`, `span`, and `patch` in that order. Source is
+  `control` or `kernel`, severity is `error`, `warning`, or `note`, code
+  matches `^[A-Z]{2}[0-9]{4}$`, and message contains 1 through 1048576
+  characters and at most 1 MiB of UTF-8. `graphPath` is null or an array of at
+  most 256 strings, each containing 1 through 4096 characters and at most
+  4096 UTF-8 bytes. `span` and `patch` are required but nullable with the
+  shapes above; patch summary contains 1 through 4096 characters and at most
+  4096 UTF-8 bytes. A rejected outcome contains at most 1024 diagnostics.
+
+If kernel projection would exceed the message, graph-path, patch-summary,
+diagnostic-count, or total response bound, no partial kernel diagnostic is
+serialized or truncated. The admitted request receives a rejected v2 response
+containing exactly one control-source error with code `EQ0901`, message
+`compile/check diagnostics exceed the control v2 response limits`, and null
+`graphPath`, `span`, and `patch`.
+
+The v2 schema is derived from this complete section. It does not generally
+inherit the v1 schema and in particular must not inherit the v1 schema's
+inconsistent `model.schema` v1--v6 enumeration.
+
+The v1 resource policy remains the v2 policy rather than being recomputed from
+the smaller envelope: encoded request and response are each bounded by
+8 MiB plus 16 KiB; source has both `maxLength: 8388608` and an 8 MiB UTF-8 byte
+limit; filename has both `maxLength: 4096` and a 4096-byte UTF-8 limit; and the
+request and Model identities are each bounded by 128 characters. A filename
+is nonempty and contains no control character. The JSON objects are closed.
+Malformed JSON, malformed UTF-8, unknown fields, invalid identifiers, and
+exhausted bounds fail with a control-source error diagnostic carrying
+`EQ0901`.
+
+Protocol dispatch is bounded and precedes full v2 DTO admission. The
+transport-neutral decoder returns either one admitted request or one standalone
+`ControlDiagnosticV2`; a pre-admission diagnostic is not a protocol response,
+has no request ID, and is never wrapped in a synthetic v2 response. A request
+whose `protocol` is `eqiora.control/v1` or `eqiora.control/unknown-test` returns
+a control-source error carrying `EQ0001` and never reaches the compiler. The
+same rule, including code `EQ0001`, applies to an unknown command after v2
+protocol admission. The dispatch prelude admits at most 128 characters and
+128 UTF-8 bytes for each of `protocol` and `command`. A longer value returns
+`EQ0901` without echoing caller content; its message is required nonempty but
+is not frozen. Dispatch never retries or reinterprets the request under another
+contract.
+
+A v2 request containing `modelWire`, `requiredFeatures`, or another unknown
+member fails the closed v2 DTO with `EQ0901` before compilation. Malformed
+input for which no request ID can be admitted likewise returns only the
+standalone diagnostic. Once a request is admitted, compilation always produces
+the closed v2 response and echoes its request ID; a compilation failure is a
+rejected outcome with kernel-source diagnostics and no Model descriptor.
+
+Dispatcher-owned unsupported-protocol and unsupported-command witnesses freeze
+the complete diagnostic value, including the stable message. JSON/DTO/resource
+admission witnesses and kernel diagnostics freeze source, severity, and code,
+and require a nonempty message without freezing parser- or compiler-owned
+wording. The empty-source witness retains kernel code `EQ0602`. The v2 schema's
+diagnostic definition validates both response diagnostics and the standalone
+pre-admission value even though that value is not a top-level response.
+
+Each dispatcher diagnostic has `source = control`, `severity = error`, and
+null `graphPath`, `span`, and `patch`. The following are three independent
+exact message values; the line feeds separating them are not part of a value:
+
+```text
+unsupported control protocol `eqiora.control/v1`; expected `eqiora.control/v2`
+unsupported control protocol `eqiora.control/unknown-test`; expected `eqiora.control/v2`
+unsupported control command `model.unknown-test`; expected `model.compile-check/v1`
+```
+
+The independent oracle owns these exact input witnesses:
+
+- accepted: request ID `shared-accepted-v2`, filename `shared-decay.eqi`, and
+  the complete source below;
+- rejected source: request ID `shared-rejected-source-v2`, filename
+  `empty.eqi`, and an empty source;
+- retired protocol: `oracle/v2/models/retired-v1.json`, the previous accepted
+  v1 request preserved byte-for-byte;
+- unknown protocol: the accepted v2 witness with protocol changed to
+  `eqiora.control/unknown-test`;
+- forbidden selection: the accepted v2 witness plus `modelWire: "v8"`;
+- forbidden feature list: the accepted v2 witness plus
+  `requiredFeatures: ["model.compile-check/v1", "model-wire/v8"]`;
+- unknown command: the accepted v2 witness with command changed to
+  `model.unknown-test`; and
+- generated resource falsifiers at source byte length 8388609, filename byte
+  length 4097, request-ID length 129, and encoded-request length 8404993.
+
+```eqiora
+model decay {
+  field x: 1 = 1;
+  parameter rate: 1 / s = 1;
+  relation flow continuous {
+    derivative(x) + rate * x = 0;
+  }
+}
+```
+
+The source string includes one final line feed after the closing brace.
+
+The positive oracle independently derives the complete current Model artifact
+for this exact source and freezes its literal digest, Model identity, and
+semantic revision in `oracle/v2/expected/contract.json`; equality to a value
+returned by the same execution is not sufficient. It also fixes the complete
+accepted response shape and constants. If the public language and artifact
+contracts do not determine those literals independently, the oracle stops
+rather than reading the implementation or omitting them.
+
+The expected contract has schema
+`eqiora.verify.control-plane-compile-check/v2`. It names every request file,
+the accepted literal Model facts, expected outcome, diagnostic source,
+severity and code for every rejection, whether the exact message or only
+nonemptiness is frozen, the generated resource boundaries, and the forbidden
+response fields `source`, `mesh`, `fields`, and `trajectory`.
+
+The oracle copies the previous accepted v1 request byte-for-byte to
+`verify/interfaces/control-plane-compile-check/oracle/v2/models/retired-v1.json`
+and the previous v1 schema byte-for-byte to
+`verify/interfaces/control-plane-compile-check/oracle/v2/expected/historical/compile-v1.schema.json`.
+The current v1 paths remain live until the atomic implementation lands. In that
+implementation the copies become the retired-protocol evidence, the live
+`schemas/control/compile-v1.schema.json` is deleted, and the previous v1
+rejected-source and unsupported-protocol specimens and v1 expected contract
+are deleted as compatibility-only. Historical copies are not generated,
+registered, packaged, or dispatched.
+
+The case ID remains `interfaces.control-plane-compile-check`, with scope
+`client-neutral-bounded-compile-check-control-v2`, reference kind
+`shared-wire-fixtures-and-ordinary-compiler-admission`, and conformance kit
+`control-compile-check-v2`. Its claim boundary replaces `model_wires` with
+`model_owner = "current"` and
+`model_schema = "eqiora.model-envelope/v8"`; every other boolean non-claim is
+retained. All five existing capability entries carry forward. In
+`fail-closed-control-negotiation`, negotiation now means closed protocol and
+command admission; it does not imply a feature list.
+
+The control-oracle writer may write only
+`verify/interfaces/control-plane-compile-check/oracle/v2/**`. It does not edit
+the live schema directory, v1 fixtures, case manifest, implementation,
+capability matrix, or registries. Its v2 schema is staged at
+`oracle/v2/schema/compile-v2.schema.json`; the existing v1 case and all current
+projection-drift consumers therefore remain unchanged, and the oracle lane
+must leave `local_verify.py affected` green. The atomic implementation later
+promotes the schema to `schemas/control/compile-v2.schema.json` and the frozen
+v2 fixtures byte-for-byte into the live case, then returns the
+manifest/registry delta to its integrator.
+
+### Relational identity transition
+
+Changing the Model digest changes a downstream artifact only when that exact
+artifact embeds the Model reference. It does not authorize rewriting an
+unrelated separately versioned golden. In particular, the Realization v1--v3
+goldens under `artifacts.realization-run-wire` retain their historical opaque
+Model references and exact bytes.
+
+Before the implementation writer migrates a checked-in relational identity,
+another provider lineage owns the registered oracle
+`artifacts.current-model-relational-identity-transition`. A read-only pass
+first searches the complete repository for checked-in Model references. Its
+write pass commits the complete classification as evidence and independently
+derives every permitted identity-only delta. The following are required
+classification targets, not an exhaustive inventory:
+
+- fixed-topology ALE 3D accepted trajectory;
+- packaged DC motor controller identities;
+- composed, offline, and typed-execution package identities;
+- Realization v4 wire evidence;
+- canonical Cartesian Poisson CUDA and MPI recorded evidence, classified for
+  historical bridging rather than identity delta;
+- fixed-reference CUDA and distributed MPI FSI recorded evidence, likewise
+  classified for historical bridging;
+- fixed-reference FSI spatial trajectory;
+- geometry-to-Model and typed Model-reference lineage; and
+- agent-authored Model change evidence.
+
+Pure relational fixtures that can be reproduced without claiming a new
+physical observation receive independently frozen current bytes and digests.
+The oracle may change only the current Model digest and an identity computed
+from an artifact that embeds that reference. Arrays, coordinates, fields,
+time values, source and package identities, tolerances, balances, convergence
+evidence, and scientific falsifiers are immutable inputs.
+
+The checked-in canonical Cartesian Poisson CUDA and fixed-reference CUDA FSI
+Model/Realization/Run bundles are recorded accelerator observations. Any
+checked-in canonical Cartesian Poisson MPI or distributed MPI FSI execution
+bundle is the same class: the default gate does not reproduce an optional
+accelerator or distributed environment. Their bytes remain unchanged as
+historical evidence and are not members of the identity-delta class. A new
+current Run may replace one only after fresh execution in its stated
+environment. Until then, the ordinary numerical path consumes the current
+Model owner while the case narrows its claim to the historical observation
+plus a structural semantic bridge.
+
+That bridge is exact evidence, not prose: before historical decoders are
+removed, the independent oracle records the historical artifact raw hash,
+artifact digest, source identity, and
+`SemanticFingerprintGeneration::V1` value; it independently derives the
+current Model artifact and records the same fields. The fingerprints and
+source identities must agree while the schema-domain artifact digests differ.
+After the reset, runtime verification hashes the untouched historical bytes
+without admitting them through a product decoder and replays only the current
+artifact. Capability and case wording must say that the old Run observed the
+historical artifact and that current semantic equivalence is independently
+bridged; it must not say that the current Run was observed.
+
+The relational oracle classifies the control-v2 Model literal but excludes it
+from identity-delta ownership because the control oracle authors it fresh. Its
+writable allowlist is only
+`verify/artifacts/current-model-relational-identity-transition/**` and
+`crates/eqiora-artifact/tests/current_model_relational_identity_transition.rs`.
+Candidate replacement bytes and target paths live under that oracle case;
+the oracle does not edit target consumer cases, capability matrix, roadmap,
+crate roots, or registries. It returns those registration deltas to the
+integrator, and the implementation later wires only the precommitted values.
+The same implementation writer updates the affected CUDA/MPI case wording;
+the integrator owns their manifests and capability-matrix narrowing.
 
 The implementation records the break under the `Changed` heading of
 `CHANGELOG.md` `[Unreleased]`. That entry names the removed Rust
