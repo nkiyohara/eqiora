@@ -15,6 +15,8 @@ then use the focused guides:
   synchronous and awaitable runs, cancellation, errors, NumPy, and DLPack.
 - [Differentiation and framework adapters](differentiation.md) covers the
   framework-neutral program and the bounded PyTorch and JAX projections.
+- [Modeling and realization](modeling.md#exact-cylinder-pressure-still) also
+  shows the optional Matplotlib still for the accepted exact-cylinder Result.
 - [Generated API reference](api.md) is derived only from the public type
   stubs shipped in the distribution.
 
@@ -23,4 +25,3 @@ authoritative in the
 [capability matrix](https://github.com/nkiyohara/eqiora/blob/main/docs/capability-matrix.md).
 These guides explain how to use accepted capabilities; they do not widen
 them.
-

@@ -33,8 +33,8 @@ A candidate is accepted only from a clean source commit. The release gate:
 2. rebuilds every wheel from that source distribution, not the checkout;
 3. checks the declared wheel tags and metadata;
 4. installs each wheel into an isolated environment outside the source tree;
-5. runs the base, NumPy ownership, async/cancellation, typing, PyTorch, and JAX
-   profiles within their exact declared boundaries;
+5. runs the base, NumPy ownership, async/cancellation, typing, PyTorch, JAX,
+   and Matplotlib profiles within their exact declared boundaries;
 6. replays the public base quick start on every wheel and the public framework
    quick starts on the exact framework interpreter before upload;
 7. verifies NumPy 2.1.0 separately on CPython 3.12 while retaining the ordinary
@@ -43,11 +43,11 @@ A candidate is accepted only from a clean source commit. The release gate:
    NumPy floor, and passing profiles in the candidate manifest.
 
 Registered host evidence builds this complete candidate once for one source
-commit and platform. The distribution, typing, PyTorch, and JAX validations
-then require their own closed check groups from that same manifest and wheel
-family. The distinct evidence cases share one exact aggregate target, so the
-verification runner may execute the target once while retaining a report for
-each case. The focused PyTorch and JAX scripts remain developer diagnostics;
+commit and platform. The distribution, typing, PyTorch, JAX, and Matplotlib
+validations then require their own closed check groups from that same manifest
+and wheel family. The distinct evidence cases share one exact aggregate target,
+so the verification runner may execute the target once while retaining a
+report for each case. The focused adapter scripts remain developer diagnostics;
 they are not a second candidate identity and may rebuild during standalone use.
 
 The manifest is provenance for one artifact set. It is not a reproducible-build
@@ -75,8 +75,10 @@ release authority; ordinary feature work does not imply it.
 ## Dependencies and extras
 
 NumPy is the only mandatory Python runtime dependency. Importing `eqiora` must
-not eagerly import NumPy. PyTorch and JAX remain optional extras, and importing
-the base package must neither require nor import either framework.
+not eagerly import NumPy. PyTorch, JAX, and Matplotlib remain optional extras,
+and importing the base package must neither require nor import any of them.
+The first Matplotlib adapter uses exact release 3.11.1 with the headless Agg
+backend. A wider compatibility range requires separate boundary evidence.
 
 Dependency ranges are compatibility claims. Widening one requires an installed
 wheel test at the new boundary; changing an exact framework baseline requires

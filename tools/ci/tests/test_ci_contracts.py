@@ -17,6 +17,9 @@ from check_gate import JOB_SURFACES, evaluate, parse_relevance, parse_results  #
 from classify_changes import SURFACES, changed_paths, classify, render_outputs  # noqa: E402
 from local_verify import HOSTED_TEST_PROFILE  # noqa: E402
 from python_jax_gate import uv_gate_command as jax_uv_gate_command  # noqa: E402
+from python_matplotlib_gate import (  # noqa: E402
+    uv_gate_command as matplotlib_uv_gate_command,
+)
 from python_package_gate import (  # noqa: E402
     uv_gate_command,
     venv_environment,
@@ -396,6 +399,15 @@ class PythonPackageGateTests(unittest.TestCase):
         self.assertIn("jaxlib==0.11.0", command)
         self.assertEqual(command[command.index("--python") + 1], "3.13")
         self.assertTrue(command[-1].endswith("bindings/python/tests/test_jax.py"))
+
+    def test_matplotlib_gate_installs_the_extra_and_exact_renderer(self) -> None:
+        command = matplotlib_uv_gate_command("uv", "/usr/bin/python3")
+
+        self.assertEqual(command[command.index("--extra") + 1], "matplotlib")
+        self.assertIn("matplotlib==3.11.1", command)
+        self.assertTrue(
+            command[-1].endswith("bindings/python/tests/test_matplotlib.py")
+        )
 
 
 class ChangeClassificationTests(unittest.TestCase):

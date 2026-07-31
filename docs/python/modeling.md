@@ -124,9 +124,41 @@ scale profile, and SparseLU policy. Supplying the Model bytes is explicit
 artifact consumption; the wheel ships an exact copy of that one canonical
 artifact so the documented script needs no repository-local runtime input.
 This is not a general Model catalog or Python fluid authoring. Velocity
-projection, drag/lift, solver selection, visualization, transient flow, and FSI
-remain separate slices. The runnable file is
+projection, drag/lift, solver selection, transient flow, and FSI remain
+separate slices. The runnable file is
 [`examples/python/exact_cylinder_stokes.py`](../../examples/python/exact_cylinder_stokes.py).
+
+## Exact-cylinder pressure still
+
+Install the optional Matplotlib adapter and ask the same runnable file to save
+the accepted pressure field:
+
+```console
+python -m pip install 'eqiora[matplotlib]'
+python examples/python/exact_cylinder_stokes.py \
+  --pressure-png exact-cylinder-pressure.png
+```
+
+The equivalent composition API is:
+
+```python
+import eqiora.matplotlib as eqplot
+
+figure = eqplot.plot_pressure(result)
+figure.savefig("exact-cylinder-pressure.png")
+```
+
+The adapter accepts only the complete
+`CircularHoleSteadyStokesResult`. It sends the Result's co-indexed P1 pressure,
+coordinates, and explicit accepted triangle connectivity to Matplotlib and
+uses the Result's pressure extrema in pascals. Gouraud shading is presentation
+interpolation of the accepted vertex coefficients, not a new scientific
+field.
+
+Matplotlib remains optional and is not imported by base `eqiora`. This bounded
+still does not claim raw-array or general Field plotting, contours, velocity,
+interactive behavior, animation, deterministic image bytes, media admission,
+or validation from visual similarity.
 
 Scalar conserving connections use nominal physical-domain identity:
 

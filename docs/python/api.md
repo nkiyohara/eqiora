@@ -1187,6 +1187,16 @@ class CircularHoleSteadyStokesResult:
 def solve_exact_cylinder_stokes(*, model_v7: bytes, geometry: RectangleWithCircularHole, mesh: CircularHoleChordalMesh) -> CircularHoleSteadyStokesResult: ...
 ```
 
+## `eqiora.matplotlib`
+
+Source: [`bindings/python/python/eqiora/matplotlib.pyi`](https://github.com/nkiyohara/eqiora/blob/main/bindings/python/python/eqiora/matplotlib.pyi)
+
+### `eqiora.matplotlib.plot_pressure`
+
+```python
+def plot_pressure(result: CircularHoleSteadyStokesResult, /) -> Figure: ...
+```
+
 ## `eqiora.diff`
 
 Source: [`bindings/python/python/eqiora/diff.pyi`](https://github.com/nkiyohara/eqiora/blob/main/bindings/python/python/eqiora/diff.pyi)

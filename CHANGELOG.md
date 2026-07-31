@@ -6,6 +6,12 @@ are recorded here.
 
 ## [Unreleased]
 
+### Added
+
+- Added an optional `eqiora.matplotlib` adapter that plots the accepted
+  exact-cylinder P1 pressure Result as a caller-owned, headless-saveable
+  Matplotlib Figure without making Matplotlib a base dependency.
+
 ### Changed
 
 - The pre-release `eqiora::numerics` facade no longer re-exports

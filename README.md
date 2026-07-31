@@ -42,8 +42,9 @@ print(result["state"].values.numpy(copy=False)[-1])
 ```
 
 The [five-minute guide](https://eqiora.org/get-started/) continues through
-structured diagnostics, array ownership, asynchronous runs, and the bounded
-PyTorch and JAX integrations.
+structured diagnostics, array ownership, asynchronous runs, bounded PyTorch
+and JAX integrations, and optional Matplotlib presentation of accepted
+results.
 
 ## One model, two layers
 

@@ -44,6 +44,7 @@ class PythonCandidateTests(unittest.TestCase):
             twine="twine==6.2.0",
             torch="torch==2.13.0",
             jax=("jax==0.11.0", "jaxlib==0.11.0"),
+            matplotlib="matplotlib==3.11.1",
             rust="1.89",
         )
 
@@ -128,11 +129,13 @@ License-Expression: Apache-2.0
 License-File: LICENSE
 License-File: NOTICE
 Provides-Extra: jax
+Provides-Extra: matplotlib
 Provides-Extra: torch
 Requires-Dist: numpy<3,>=2.1
 Requires-Dist: torch>=2.13,<2.14; extra == "torch"
 Requires-Dist: jax==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: jaxlib==0.11.0; python_version >= "3.12" and extra == "jax"
+Requires-Dist: matplotlib==3.11.1; extra == "matplotlib"
 
 typed candidate
 """
@@ -148,6 +151,7 @@ typed candidate
                     "eqiora/compatibility.pyi",
                     "eqiora/diff.pyi",
                     "eqiora/jax.pyi",
+                    "eqiora/matplotlib.pyi",
                     "eqiora/torch.pyi",
                     "eqiora/py.typed",
                     "eqiora/_eqiora.cpython-313-x86_64-linux-gnu.so",
@@ -183,11 +187,13 @@ License-Expression: Apache-2.0
 License-File: LICENSE
 License-File: NOTICE
 Provides-Extra: jax
+Provides-Extra: matplotlib
 Provides-Extra: torch
 Requires-Dist: numpy<3,>=2.1
 Requires-Dist: torch>=2.13,<2.14
 Requires-Dist: jax==0.11.0; extra == "jax"
 Requires-Dist: jaxlib==0.11.0; extra == "jax"
+Requires-Dist: matplotlib==3.11.1; extra == "matplotlib"
 
 invalid candidate
 """
@@ -203,6 +209,7 @@ invalid candidate
                     "eqiora/compatibility.pyi",
                     "eqiora/diff.pyi",
                     "eqiora/jax.pyi",
+                    "eqiora/matplotlib.pyi",
                     "eqiora/torch.pyi",
                     "eqiora/py.typed",
                     "eqiora/_eqiora.cpython-313-x86_64-linux-gnu.so",
