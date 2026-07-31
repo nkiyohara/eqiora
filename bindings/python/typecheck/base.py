@@ -4,6 +4,7 @@ import numpy as np
 import numpy.typing as npt
 
 import eqiora
+from eqiora.solid import MixedBoundaryElasticityResult
 
 
 def check_native_modeling() -> None:
@@ -74,3 +75,11 @@ def check_execution(
 
 class _InvalidModelSubclass(eqiora.Model):  # type: ignore[misc]
     pass
+
+
+def check_structural_result(model: eqiora.Model) -> None:
+    result = eqiora.solid.solve_mixed_boundary_elasticity(model)
+    assert_type(result, MixedBoundaryElasticityResult)
+    assert_type(result.coordinates, npt.NDArray[np.float64])
+    assert_type(result.cells, npt.NDArray[np.uint32])
+    assert_type(result.displacement, npt.NDArray[np.float64])

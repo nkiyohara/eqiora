@@ -28,6 +28,7 @@ MODULES = (
     ("eqiora.geometry", Path("bindings/python/python/eqiora/geometry.pyi")),
     ("eqiora.meshing", Path("bindings/python/python/eqiora/meshing.pyi")),
     ("eqiora.fluid", Path("bindings/python/python/eqiora/fluid.pyi")),
+    ("eqiora.solid", Path("bindings/python/python/eqiora/solid.pyi")),
     (
         "eqiora.matplotlib",
         Path("bindings/python/python/eqiora/matplotlib.pyi"),

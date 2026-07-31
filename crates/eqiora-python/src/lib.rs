@@ -5,10 +5,12 @@
 
 mod array;
 mod differentiation;
+mod elasticity;
 mod error;
 mod execution;
 mod geometry;
 mod jax_ffi;
+mod matrix;
 mod meshing;
 mod model;
 mod modeling;
@@ -428,6 +430,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     model::register(module)?;
     array::register(module)?;
     differentiation::register(module)?;
+    elasticity::register(module)?;
     jax_ffi::register_module(module)?;
     module.add_class::<PySeries>()?;
     module.add_class::<PyRunResult>()?;

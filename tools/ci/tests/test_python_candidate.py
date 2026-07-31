@@ -152,8 +152,10 @@ typed candidate
                     "eqiora/diff.pyi",
                     "eqiora/jax.pyi",
                     "eqiora/matplotlib.pyi",
+                    "eqiora/solid.pyi",
                     "eqiora/torch.pyi",
                     "eqiora/py.typed",
+                    "eqiora/examples/mixed-boundary-elasticity.eqi",
                     "eqiora/_eqiora.cpython-313-x86_64-linux-gnu.so",
                     f"{dist_info}sboms/eqiora-python.cyclonedx.json",
                 ):
@@ -210,8 +212,10 @@ invalid candidate
                     "eqiora/diff.pyi",
                     "eqiora/jax.pyi",
                     "eqiora/matplotlib.pyi",
+                    "eqiora/solid.pyi",
                     "eqiora/torch.pyi",
                     "eqiora/py.typed",
+                    "eqiora/examples/mixed-boundary-elasticity.eqi",
                     "eqiora/_eqiora.cpython-313-x86_64-linux-gnu.so",
                     f"{dist_info}sboms/eqiora-python.cyclonedx.json",
                 ):
