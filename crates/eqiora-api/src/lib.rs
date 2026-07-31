@@ -12,6 +12,7 @@ mod differentiation;
 mod elasticity;
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 mod external_data;
+mod fixed_reference_fsi;
 mod geometry_edit;
 mod ml_dataset;
 pub mod package;
@@ -30,6 +31,7 @@ pub use elasticity::MixedBoundaryElasticityResult2d;
 pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;
+pub use fixed_reference_fsi::FixedReferenceFsiResult2d;
 pub use geometry_edit::{CartesianDomainEditPlan, CartesianDomainEditResult};
 pub use ml_dataset::*;
 pub use reference_run::*;

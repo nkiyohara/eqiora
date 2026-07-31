@@ -384,15 +384,15 @@ removal = "split report projection from the execution runner"
 
 [[public_surface]]
 crate = "eqiora"
-ceiling = 286
-reason = "the facade is re-export-only and its width is already pinned by api/eqiora-facade-v1.json; 26 of these items are cross-crate globs this predicate cannot see through. The exact-cylinder and mixed-boundary elasticity Result values are bounded application compositions shared by Studio and installed Python; the scalar projection remains the exact-cylinder pressure view. Five named fixed-reference FSI owner contracts complete the already-exported 2D finalization seam so an application client can construct one accepted step through the facade alone"
-removal = "withdraw either bounded Result when both Studio and Python cease to consume its typed boundary; replace both application Results with one accepted general spatial Result only when its scientific and lineage contract exists; withdraw the fixed-reference FSI composition exports if that planned slice is abandoned; otherwise lower the ceiling with the next facade name withdrawn"
+ceiling = 277
+reason = "the facade is re-export-only and its width is pinned by api/eqiora-facade-v1.json; bounded exact-cylinder, mixed-boundary elasticity, and fixed-reference FSI Result values are the application compositions shared by Studio and installed Python. The FSI slice replaces ten low-level construction exports with one complete Result and ratchets the facade down by nine names"
+removal = "withdraw any bounded Result when no application client consumes its path; replace the three application Results with one accepted general spatial Result only when that contract preserves their scientific and lineage evidence; otherwise lower the ceiling with the next facade name withdrawn"
 
 [[public_surface]]
 crate = "eqiora-api"
-ceiling = 129
-reason = "UnstructuredP1ScalarFieldProjection2d owns the bounded pressure view; CircularHoleSteadyStokesResult2d and MixedBoundaryElasticityResult2d each own one complete Model-to-Run composition shared by Studio and installed Python. They are application values rather than durable artifacts or generic solver infrastructure; the elasticity slice costs exactly one public name to remove duplicated composition from two clients"
-removal = "withdraw either bounded Result when no application client consumes its path; replace both with one accepted general spatial Result only when that contract can preserve their scientific and lineage evidence; withdraw the scalar projection when no client consumes the bounded pressure view"
+ceiling = 130
+reason = "UnstructuredP1ScalarFieldProjection2d owns the bounded pressure view; CircularHoleSteadyStokesResult2d, MixedBoundaryElasticityResult2d, and FixedReferenceFsiResult2d each own one complete Model-to-Run application composition shared by Studio and installed Python. They are application values rather than durable artifacts or generic solver infrastructure; the FSI slice costs exactly one public name while deleting its duplicated Studio composition and ten low-level facade exports"
+removal = "withdraw any bounded Result when no application client consumes its path; replace all three with one accepted general spatial Result only when that contract can preserve their scientific and lineage evidence; withdraw the scalar projection when no client consumes the bounded pressure view"
 
 [[public_surface]]
 crate = "eqiora-artifact"

@@ -1,5 +1,5 @@
 id = "interfaces.python-fixed-reference-fsi-demo"
-status = "specified"
+status = "verified"
 scope = "one-installed-python-immutable-fixed-reference-monolithic-fsi-two-step-result-and-headless-still"
 reference_kind = "shared-rust-application-result-lineage-and-presentation-transparency"
 
@@ -26,7 +26,7 @@ trajectory_case = "artifacts.fixed-reference-fsi-spatial-trajectory"
 lineage_case = "interfaces.studio-fixed-reference-fsi-demo"
 matplotlib_case = "interfaces.python-exact-cylinder-pressure-still"
 equivalence_case = "interfaces.structural-semantic-fingerprint"
-model_admission = "structural semantic equivalence to the accepted exact-v4 source under fresh occurrence identities, not equal exact Model digests"
+model_admission = "structural semantic equivalence to the accepted exact-v4 source, preserving the caller's exact artifact identity; digest equality is neither required nor claimed"
 production_comparison = "the existing Rust scientific tests compare the production composition against the independent support composition for solver coefficients and for ordered two-state, state, trajectory, and Run lineage"
 thresholds = "restated only by reference from the registered scientific cases; never re-derived, tuned, or relaxed here"
 arrays = "coindexed partition, velocity, bubble, pressure-support, displacement, and interface-action arrays in coherent SI order"
@@ -36,7 +36,8 @@ rendering = "partition-owned region and connectivity, fluid-cell pressure, and d
 packaged_source_is_byte_exact = true
 caller_compiles_and_supplies_exact_v4_model = true
 studio_and_python_consume_one_production_rust_composition = true
-independent_authoring_routes_allocate_fresh_occurrence_identities = true
+admission_is_structural_and_never_digest_equality = true
+caller_exact_artifact_identity_is_retained_in_lineage = true
 structural_semantic_equivalence_is_the_claimed_criterion = true
 equal_exact_model_digest_is_not_claimed = true
 production_and_support_compositions_agree_in_existing_rust_tests = true
@@ -60,7 +61,7 @@ base_import_is_matplotlib_free = true
 
 [falsifiers]
 foreign_model_meaning = "rejected before Realization"
-equal_digest_claimed_for_independent_routes = "structural comparison passes while exact identities differ, so a digest-equality claim is rejected"
+digest_equality_used_as_admission = "admission that compares exact Model digests instead of the closed structural projection is rejected"
 foreign_solver_tuple = "rejected by the shared Rust application boundary"
 model_realization_run_or_trajectory_drift = "public canonical lineage fields disagree"
 foreign_or_stale_lineage_digest = "rejected before result construction"

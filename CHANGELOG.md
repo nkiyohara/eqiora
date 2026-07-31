@@ -17,6 +17,12 @@ are recorded here.
   now consume one Rust-owned Model-to-Run result, and the optional Matplotlib
   adapter can render its original and explicitly scaled displacement meshes.
 
+- Added `eqiora.fsi.solve_fixed_reference_fsi(...)` and a packaged two-step
+  Python example for the accepted exact-v4 monolithic FSI case. Studio and
+  Python now consume one Rust-owned Model-to-trajectory-to-Run result; the
+  optional Matplotlib adapter presents either accepted step with an explicit
+  displacement scale.
+
 ### Changed
 
 - The pre-release `eqiora::numerics` facade no longer re-exports
@@ -24,6 +30,11 @@ are recorded here.
   `solve_resolved_steady_stokes_geometry_mini_2d`. Application consumers use
   `eqiora::api::CircularHoleSteadyStokesResult2d`; lower-level numerical
   composition remains available from its owning `eqiora-numerics` crate.
+
+- The pre-release `eqiora::numerics` facade no longer re-exports the ten
+  low-level fixed-reference FSI construction and solution names. Application
+  consumers use `eqiora::api::FixedReferenceFsiResult2d`; lower-level
+  numerical composition remains available from `eqiora-numerics`.
 
 - Assembly, meshing, geometry, and solver contracts now use their owning crate
   and `eqiora` namespace paths; aliases formerly exposed from numerics,

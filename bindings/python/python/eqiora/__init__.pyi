@@ -16,6 +16,7 @@ import numpy.typing as npt
 
 from . import compatibility as compatibility
 from . import fluid as fluid
+from . import fsi as fsi
 from . import geometry as geometry
 from . import meshing as meshing
 from . import solid as solid
@@ -896,6 +897,7 @@ __all__ = [
     "compatibility",
     "diff",
     "fluid",
+    "fsi",
     "geometry",
     "meshing",
     "solid",

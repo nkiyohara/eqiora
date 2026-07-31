@@ -198,6 +198,50 @@ figure.savefig("mixed-boundary-displacement.png")
 The complete runnable workflow is
 [`examples/python/mixed_boundary_elasticity.py`](../../examples/python/mixed_boundary_elasticity.py).
 
+## Fixed-reference FSI demo
+
+The installed package carries the accepted exact-v4 two-body FSI source.
+Python compiles it explicitly; the shared Rust application service owns the
+fixed mesh, coupled Realization, both consecutive monolithic steps, spatial
+states, trajectory, and final Run:
+
+```python
+source = (
+    files(eqiora)
+    .joinpath("examples", "fixed-reference-fsi.eqi")
+    .read_text()
+)
+model = eqiora.compatibility.compile_exact(
+    source,
+    filename="fixed-reference-fsi.eqi",
+    codec=eqiora.compatibility.ExactModelCodec.V4,
+)
+result = eqiora.fsi.solve_fixed_reference_fsi(model)
+
+assert tuple(step.ordinal for step in result.steps) == (1, 2)
+assert not result.coordinates.flags.writeable
+assert not result.step(2).displacement.flags.writeable
+```
+
+The optional still selects an already accepted step and applies an explicitly
+labelled presentation-only displacement scale:
+
+```python
+figure = eqplot.plot_fixed_reference_fsi(
+    result,
+    step=2,
+    displacement_scale=12,
+)
+figure.savefig("fixed-reference-fsi.png")
+```
+
+The complete runnable workflow is
+[`examples/python/fixed_reference_fsi.py`](../../examples/python/fixed_reference_fsi.py).
+It is one immutable fixed-reference 2D composition. It does not expose a
+general coupling graph, Python time loop, ALE or remeshing, partitioned
+iteration, stress/drag/lift derivation, animation, or scientific validation
+from pixels.
+
 ## Conserving connections
 
 Scalar conserving connections use nominal physical-domain identity:

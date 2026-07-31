@@ -1,4 +1,5 @@
 use eqiora::realization::{SolveRoot, TransformationNode};
+use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
     common::PhysicalBoundaryDisposition, fsi::FixedReferenceFsiCartesianModel2d,
     fsi::lower_fixed_reference_fsi_cartesian_2d,
@@ -62,6 +63,9 @@ fn direct_and_exact_packages_share_one_fixed_reference_fsi_meaning() {
 fn fixed_reference_monolithic_fsi_step_2d() {
     let direct = direct_document();
     let packaged = packaged_document();
+    let shared =
+        eqiora::api::FixedReferenceFsiResult2d::solve_reference(&direct, &REFERENCE_LINEAR_SOLVER)
+            .expect("production application result consumes the oracle-owned direct Model");
 
     let direct_model = lower_fixed_reference_fsi_cartesian_2d(direct.program())
         .expect("direct fixed-reference FSI semantics lower");
@@ -88,6 +92,22 @@ fn fixed_reference_monolithic_fsi_step_2d() {
     assert_eq!(
         direct.solution.solid_displacement_coefficients(),
         packaged.solution.solid_displacement_coefficients()
+    );
+    assert_eq!(
+        shared.solutions()[0].vertex_velocity_coefficients(),
+        direct.solution.vertex_velocity_coefficients()
+    );
+    assert_eq!(
+        shared.solutions()[0].fluid_velocity_bubble_coefficients(),
+        direct.solution.fluid_velocity_bubble_coefficients()
+    );
+    assert_eq!(
+        shared.solutions()[0].fluid_pressure_coefficients(),
+        direct.solution.fluid_pressure_coefficients()
+    );
+    assert_eq!(
+        shared.solutions()[0].solid_displacement_coefficients(),
+        direct.solution.solid_displacement_coefficients()
     );
 
     for execution in [&direct, &packaged] {

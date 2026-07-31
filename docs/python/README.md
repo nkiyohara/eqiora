@@ -16,7 +16,8 @@ then use the focused guides:
 - [Differentiation and framework adapters](differentiation.md) covers the
   framework-neutral program and the bounded PyTorch and JAX projections.
 - [Modeling and realization](modeling.md#exact-cylinder-pressure-still) also
-  shows the optional Matplotlib still for the accepted exact-cylinder Result.
+  shows the accepted exact-cylinder, mixed-boundary structural, and
+  fixed-reference FSI Result/Matplotlib workflows.
 - [Generated API reference](api.md) is derived only from the public type
   stubs shipped in the distribution.
 
