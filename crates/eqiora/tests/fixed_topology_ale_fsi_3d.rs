@@ -11,12 +11,11 @@ use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1, FieldSnapshotEnvelopeV1,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV3,
-    LayoutArtifacts, ModelEnvelopeV5, RealizationEnvelopeV5, RunManifestV2,
-    SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2,
-    SpatialTrajectorySegmentEnvelopeV2, ValidatedMovingSpatialContextV2,
+    LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV5, RunManifestV2, SimplicialMeshEnvelopeV1,
+    SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
+    ValidatedMovingSpatialContextV2,
 };
 use eqiora::backends::faer::FaerLinearSolver;
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{
     CellId, DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape, FacetId,
     FixedTopologyGeometryAction, FixedTopologyGeometryState, MeshEntity, MeshQualityGate,
@@ -78,9 +77,9 @@ const DIRECT_SOURCE: &str =
 
 #[test]
 fn faer_closes_tetrahedral_trajectory_and_first_order_refinement() {
-    let document = ExactModelCodec::V5
-        .compile("fixed-topology-ale-fsi-direct-3d.eqi", DIRECT_SOURCE)
-        .unwrap();
+    let document =
+        eqiora::api::ModelDocument::compile("fixed-topology-ale-fsi-direct-3d.eqi", DIRECT_SOURCE)
+            .unwrap();
     let canonical = lower_ale_fsi_cartesian_3d(document.program()).unwrap();
     let fixture = Fixture::new(document, canonical);
 
@@ -249,7 +248,7 @@ impl MovingSnapshotSet {
 }
 
 fn publish_moving_artifact_dag(fixture: &Fixture, trajectory: &AleFsiTrajectory3d, time_step: f64) {
-    let model = ModelEnvelopeV5::from_program(fixture.document.program()).unwrap();
+    let model = ModelEnvelope::from_program(fixture.document.program()).unwrap();
     let geometry = GeometryIdentityEnvelopeV1::new(
         &model,
         [
@@ -468,7 +467,7 @@ fn publish_moving_artifact_dag(fixture: &Fixture, trajectory: &AleFsiTrajectory3
 
 fn assert_geometry_state_v3_replay_falsifiers(
     fixture: &Fixture,
-    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelopeV5, RealizationEnvelopeV5>,
+    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope, RealizationEnvelopeV5>,
     snapshots: &[MovingSnapshotSet],
     geometry_states: &[GeometryStateEnvelopeV3],
 ) {
@@ -580,7 +579,7 @@ fn assert_geometry_state_v3_replay_falsifiers(
 fn public_result_asset(
     fixture: &Fixture,
     trajectory: &AleFsiTrajectory3d,
-    model: &ModelEnvelopeV5,
+    model: &ModelEnvelope,
     geometry: &GeometryIdentityEnvelopeV1,
     correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
     realization: &RealizationEnvelopeV5,
@@ -661,7 +660,7 @@ fn public_result_asset(
 
 fn moving_snapshots(
     fixture: &Fixture,
-    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelopeV5, RealizationEnvelopeV5>,
+    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope, RealizationEnvelopeV5>,
     state: &AleFsiState3d,
 ) -> MovingSnapshotSet {
     let vector = DiscreteFieldShape::Vector {

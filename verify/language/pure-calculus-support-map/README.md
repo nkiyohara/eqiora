@@ -31,8 +31,8 @@ cargo run -p eqiora-verify -- run --case language.pure-calculus-support-map
 
 The existing tensor, packaged elasticity, packaged Stokes, private block, and
 fixed-reference FSI cases remain independent regressions for the unchanged
-Model v4 meaning and executable numerical paths. The later
+current Model meaning and executable numerical paths. The later
 [`language.canonical-pure-operator`](../canonical-pure-operator/README.md) case
 owns source declarations, exact-package lookup, the generic application, and
-Model/Transaction v5; those are intentionally not retroactive claims of this
-V4 foundation case.
+current Model/Transaction replay; those are intentionally not retroactive
+claims of this foundation case.

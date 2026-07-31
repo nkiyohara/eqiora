@@ -138,7 +138,7 @@ impl WireEntityKind {
             EntityKind::Activation => Self::Activation,
             EntityKind::Connection => Self::Connection,
             EntityKind::ClockDomain => Self::ClockDomain,
-            _ => unreachable!("ModelEnvelopeV1 contains Semantic Kernel nodes only"),
+            _ => unreachable!("ModelEnvelope contains Semantic Kernel nodes only"),
         }
     }
 }

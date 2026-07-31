@@ -1,8 +1,7 @@
 use std::num::NonZeroUsize;
 
 use eqiora::api::ModelDocument;
-use eqiora::artifact::{ModelEnvelopeV1, ModelEnvelopeV2, ModelTransactionEnvelopeV2};
-use eqiora::compatibility::ExactModelCodec;
+use eqiora::artifact::{ModelEnvelope, ModelTransactionEnvelope};
 use eqiora::compiler::{ModelSymbols, compile};
 use eqiora::diagnostic::codes;
 use eqiora::entity::kinds;
@@ -185,9 +184,11 @@ fn admit_transaction(
     model: OntologyId<Model>,
 ) -> (KernelProgram, Vec<u8>) {
     let envelope =
-        ModelTransactionEnvelopeV2::from_transaction(&transaction).expect("v2 edit identity");
-    let bytes = envelope.canonical_json().expect("canonical v2 edit bytes");
-    let decoded = ModelTransactionEnvelopeV2::from_json(&bytes, Default::default())
+        ModelTransactionEnvelope::from_transaction(&transaction).expect("v2 edit identity");
+    let bytes = envelope
+        .canonical_json()
+        .expect("canonical current edit bytes");
+    let decoded = ModelTransactionEnvelope::from_json(&bytes, Default::default())
         .expect("v2 edit round trip");
     let mut store = InMemoryGraphStore::new();
     store
@@ -439,14 +440,13 @@ fn named_physical_values(
 #[test]
 fn source_parallel_dc_roundtrips_and_reaccepts_analytic_solution() {
     let fixture = compile_fixture(false);
-    let model = ModelEnvelopeV2::from_program(&fixture.program).expect("physical model v2");
-    assert!(ModelEnvelopeV1::from_program(&fixture.program).is_err());
+    let model = ModelEnvelope::from_program(&fixture.program).expect("current physical model");
     let model_bytes = model.canonical_json().expect("canonical model bytes");
     let model_digest = model.digest().expect("canonical model digest");
     let decoded =
-        ModelEnvelopeV2::from_json(&model_bytes, Default::default()).expect("v2 model decode");
-    let decoded_program = decoded.to_program().expect("v2 model reconstruction");
-    let reconstructed = ModelEnvelopeV2::from_program(&decoded_program).expect("re-encoded v2");
+        ModelEnvelope::from_json(&model_bytes, Default::default()).expect("current model decode");
+    let decoded_program = decoded.to_program().expect("current model reconstruction");
+    let reconstructed = ModelEnvelope::from_program(&decoded_program).expect("re-encoded model");
     assert_eq!(reconstructed.canonical_json().unwrap(), model_bytes);
     assert_eq!(reconstructed.digest().unwrap(), model_digest);
     assert_eq!(decoded.model().unwrap(), fixture.model);
@@ -563,27 +563,21 @@ fn source_parallel_dc_roundtrips_and_reaccepts_analytic_solution() {
 }
 
 #[test]
-fn native_parallel_dc_crosses_v2_and_matches_source_analytic_acceptance() {
+fn native_parallel_dc_crosses_the_current_wire_and_matches_source_acceptance() {
     let draft = native_parallel_dc_draft();
-    let current = ModelDocument::define(&draft).expect("native draft through current authoring");
-    assert_eq!(current.exact_codec(), ExactModelCodec::CURRENT);
-    let native = ExactModelCodec::V2
-        .define(&draft)
-        .expect("native physical draft through explicit v2");
-    let source = ExactModelCodec::V2
-        .compile("parallel-dc.eqi", SOURCE)
-        .expect("source physical model through explicit v2");
-    assert_eq!(native.exact_codec(), ExactModelCodec::V2);
-    assert_eq!(source.exact_codec(), ExactModelCodec::V2);
+    let native = eqiora::api::ModelDocument::define(&draft)
+        .expect("native physical draft through current authoring");
+    let source = eqiora::api::ModelDocument::compile("parallel-dc.eqi", SOURCE)
+        .expect("source physical model through the current wire");
 
-    let bytes = native.canonical_json().expect("native canonical v2 bytes");
-    let digest = native.digest().expect("native canonical v2 digest");
-    let reconstructed = ExactModelCodec::V2
-        .replay(&bytes)
-        .expect("native v2 artifact reconstruction");
+    let bytes = native
+        .canonical_json()
+        .expect("native canonical current bytes");
+    let digest = native.digest().expect("native canonical current digest");
+    let reconstructed =
+        eqiora::api::ModelDocument::replay(&bytes).expect("native current artifact reconstruction");
     assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
     assert_eq!(reconstructed.digest().unwrap(), digest);
-    assert!(ExactModelCodec::V1.replay(&bytes).is_err());
 
     let source_problem = lower_document(&source);
     let source_solution = accept_analytic_document(&source, &source_problem);
@@ -637,8 +631,8 @@ fn native_parallel_dc_crosses_v2_and_matches_source_analytic_acceptance() {
 fn fixed_source_ids_make_model_identity_and_junctions_insertion_independent() {
     let forward = compile_fixture(false);
 
-    let forward_model = ModelEnvelopeV2::from_program(&forward.program).unwrap();
-    let reversed_model = ModelEnvelopeV2::from_program(&forward.alternate_program).unwrap();
+    let forward_model = ModelEnvelope::from_program(&forward.program).unwrap();
+    let reversed_model = ModelEnvelope::from_program(&forward.alternate_program).unwrap();
     assert_eq!(
         forward_model.canonical_json().unwrap(),
         reversed_model.canonical_json().unwrap()
@@ -677,8 +671,8 @@ fn unrelated_relation_changes_model_identity_not_the_selected_physical_system() 
     let (base_program, _) = admit_transaction(base, model);
     let (augmented_program, _) = admit_transaction(augmented, model);
 
-    let base_model = ModelEnvelopeV2::from_program(&base_program).unwrap();
-    let augmented_model = ModelEnvelopeV2::from_program(&augmented_program).unwrap();
+    let base_model = ModelEnvelope::from_program(&base_program).unwrap();
+    let augmented_model = ModelEnvelope::from_program(&augmented_program).unwrap();
     assert_ne!(
         base_model.canonical_json().unwrap(),
         augmented_model.canonical_json().unwrap()

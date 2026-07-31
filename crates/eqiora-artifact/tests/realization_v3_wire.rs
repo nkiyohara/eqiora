@@ -1,7 +1,7 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
-    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV4,
+    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
     RealizationDecoderLimits, RealizationEnvelopeV3, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora_compiler::compile;
@@ -210,7 +210,7 @@ fn coupled_v3_applies_decoder_limits_to_aggregate_inventories() {
 }
 
 struct Fixture {
-    model: ModelEnvelopeV4,
+    model: ModelEnvelope,
     mesh: SimplicialMeshEnvelopeV1,
     requirements: CoupledFieldwiseRealizationRequirements,
     plan: CoupledFieldwiseRealizationPlan,
@@ -220,7 +220,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         let program = program_fixture();
-        let model = ModelEnvelopeV4::from_program(&program).unwrap();
+        let model = ModelEnvelope::from_program(&program).unwrap();
         let mesh = mesh(2.0);
         let first_domain = Id::new();
         let second_domain = Id::new();

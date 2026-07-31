@@ -44,7 +44,6 @@ already selected lock bytes and one explicit local-store capability; the
 adapter never searches, installs, or updates a package:
 
 ```rust
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::package::{
     DirectoryPackageStore, PackagedModelDocument, ResolutionRecordV1,
 };
@@ -55,9 +54,12 @@ let model = PackagedModelDocument::compile_locked(
     &store,
     &lock,
     "Main",
-    ExactModelCodec::V2,
 )?;
 ```
+
+Package compilation always emits Eqiora's single current Model contract. It
+has no artifact-generation selector. Persisted Model v1--v7 bytes are not
+migrated by this path and reject when replayed as a current Model.
 
 `DirectoryPackageStore::open_ambient` is the explicitly named convenience for
 callers that choose to grant one root-path lookup. Both constructors retain the

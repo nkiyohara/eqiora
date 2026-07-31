@@ -13,10 +13,9 @@ def solve() -> eqiora.fsi.FixedReferenceFsiResult:
         .joinpath("examples", "fixed-reference-fsi.eqi")
         .read_text(encoding="utf-8")
     )
-    model = eqiora.compatibility.compile_exact(
+    model = eqiora.compile(
         source,
         filename="fixed-reference-fsi.eqi",
-        codec=eqiora.compatibility.ExactModelCodec.V4,
     )
     return eqiora.fsi.solve_fixed_reference_fsi(model)
 

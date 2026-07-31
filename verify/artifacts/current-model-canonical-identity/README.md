@@ -59,9 +59,9 @@ substitution failing when it is not. No digest is preserved across the change.
 
 Replay stops at the typed reconstruction. This Model's Domains are
 geometry-bound, so whole-model admission needs the geometry bundle and belongs
-to the geometry-admitting layer. The registered cylinder cases own that claim
-and are untouched here, as are every fluid, geometry, mesh, balance, and solver
-oracle.
+to the geometry-admitting layer. The registered cylinder cases consume this
+current resource and own that claim; their fluid, geometry, mesh, balance, and
+solver oracles remain independent of this byte oracle.
 
 Run:
 

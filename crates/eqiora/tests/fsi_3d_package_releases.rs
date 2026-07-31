@@ -1,4 +1,3 @@
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::kernel::BoundarySide;
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
@@ -154,13 +153,11 @@ fn exact_package_graph_lowers_to_three_dimensional_ale_fsi_roles() {
     for release in [&mechanics, &fluid, &solid, &root] {
         store.insert(release).expect("install exact release");
     }
-    let document =
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V5)
-            .expect("compile exact 3D FSI package graph offline");
+    let document = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect("compile exact 3D FSI package graph offline");
     let model = lower_ale_fsi_cartesian_3d(document.model().program())
         .expect("package-expanded canonical 3D ALE FSI roles lower");
-    let direct = ExactModelCodec::V5
-        .compile("direct-ale-fsi-3d.eqi", DIRECT_SOURCE)
+    let direct = eqiora::api::ModelDocument::compile("direct-ale-fsi-3d.eqi", DIRECT_SOURCE)
         .expect("direct 3D ALE FSI Model compiles");
     let direct_model = lower_ale_fsi_cartesian_3d(direct.program())
         .expect("direct canonical 3D ALE FSI roles lower");

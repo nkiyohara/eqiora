@@ -57,9 +57,9 @@ balance assertion is admitted.
 
 ## Identity and replay
 
-- numerical mesh, quadrature, or solver-plan changes preserve exact Model v4
+- numerical mesh, quadrature, or solver-plan changes preserve exact current Model
   canonical bytes and digest while changing Realization identity;
-- Model v4, Realization v1, and Run v2 encode/decode/re-encode without byte or
+- current Model, Realization v1, and Run v2 encode/decode/re-encode without byte or
   digest drift; and
 - substituted Model coefficients, Model digest, semantic revision, or
   Realization digest fail exact lineage replay.

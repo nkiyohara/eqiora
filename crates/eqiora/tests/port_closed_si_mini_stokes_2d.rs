@@ -1,7 +1,6 @@
 use std::num::NonZeroUsize;
 
 use eqiora::artifact::SimplicialMeshEnvelopeV1;
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::kernel::BoundarySide;
 use eqiora::meshing::{MeshQualityGate, SimplicialMesh};
 use eqiora::package::{
@@ -77,8 +76,7 @@ struct Observation {
 fn exact_three_release_chain_reaches_the_unchanged_si_mini_path() {
     let mechanics = public_mechanics_release();
     let fluid = public_fluid_release(&mechanics);
-    let direct = ExactModelCodec::V4
-        .compile("direct.eqi", DIRECT)
+    let direct = eqiora::api::ModelDocument::compile("direct.eqi", DIRECT)
         .expect("direct zero-trace Stokes Model compiles");
     let packaged = compile_root(&fluid, &mechanics, "fluid", "mechanics", PACKAGED);
 
@@ -556,7 +554,7 @@ fn compile_root(
     store.insert(mechanics).expect("install mechanics package");
     store.insert(fluid).expect("install fluid package");
     store.insert(&root).expect("install verification root");
-    PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V4)
+    PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("exact three-release chain compiles offline")
 }
 

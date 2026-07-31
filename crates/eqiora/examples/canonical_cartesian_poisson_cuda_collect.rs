@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use eqiora::artifact::{
-    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1, RunManifestV2,
+    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV1, RunManifestV2,
 };
 use eqiora::backends::cuda::{
     CUDA_ADAPTER_VERSION, CUDA_BINDING_TOOLKIT, CUDA_LINEAR_EXECUTION_PROVIDER,
@@ -231,7 +231,7 @@ fn collect() -> Result<Collection, String> {
 
     let (program, source_identity) = canonical::compile_program_with_identity()?;
     let model =
-        ModelEnvelopeV1::from_program(&program).map_err(|diagnostic| diagnostic.to_string())?;
+        ModelEnvelope::from_program(&program).map_err(|diagnostic| diagnostic.to_string())?;
     let model_json = model
         .canonical_json()
         .map_err(|diagnostic| diagnostic.to_string())?;

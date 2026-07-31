@@ -3,7 +3,7 @@
 This registered case composes the canonical two-dimensional scalar-elliptic
 path with the admitted MPI complete-CSR bridge. The parent compiles
 [`models/poisson.eqi`](models/poisson.eqi) exactly once, writes one bounded
-canonical `ModelEnvelopeV1`, and launches the current test binary under one,
+canonical current `ModelEnvelope`, and launches the current test binary under one,
 two, and four ranks. Children reconstruct `KernelProgram` from those shared
 bytes; no rank recompiles or alpha-normalizes source.
 

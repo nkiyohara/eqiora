@@ -1,6 +1,7 @@
 import subprocess
 import sys
 from importlib import metadata
+from pathlib import Path
 
 import pytest
 
@@ -14,6 +15,16 @@ model decay {
   }
 }
 """
+
+HISTORICAL_MODEL = (
+    Path(__file__).resolve().parents[3]
+    / "verify"
+    / "artifacts"
+    / "current-model-canonical-identity"
+    / "expected"
+    / "historical"
+    / "model-v7.json"
+)
 
 
 def test_distribution_version_is_native_and_matches_installed_metadata() -> None:
@@ -43,19 +54,32 @@ def test_revision_identity_is_exact_across_artifact_replay() -> None:
 
     model = eqiora.compile(SOURCE, filename="decay.eqi")
     revision = model.revision
-    replay = eqiora.compatibility.replay_exact(
-        model.to_json(),
-        codec=model.exact_codec,
-    )
+    replay = eqiora.replay(model.to_json())
 
     assert revision.number == 1
     assert revision.model_id == model.model_id
     assert revision.digest == model.digest
-    assert revision.exact_codec == model.exact_codec
     assert replay.revision == revision
     assert replay == model
     assert hash(replay) == hash(model)
     assert hash(replay.revision) == hash(revision)
+
+
+def test_current_only_surface_rejects_retired_selectors_and_model_wire() -> None:
+    import eqiora
+
+    for retired in (
+        "compatibility",
+        "ExactModelCodec",
+        "compile_exact",
+        "define_exact",
+        "replay_exact",
+    ):
+        assert not hasattr(eqiora, retired)
+
+    with pytest.raises(eqiora.CompatibilityError) as caught:
+        eqiora.replay(HISTORICAL_MODEL.read_bytes())
+    assert [diagnostic.code for diagnostic in caught.value.diagnostics] == ["EQ0901"]
 
 
 def test_value_edit_is_atomic_immutable_and_stale_base_safe() -> None:
@@ -75,10 +99,7 @@ def test_value_edit_is_atomic_immutable_and_stale_base_safe() -> None:
     assert edit == base.preview_value_edit("rate", 2.0)
     assert hash(edit) == hash(base.preview_value_edit("rate", 2.0))
 
-    replay = eqiora.compatibility.replay_exact(
-        child.to_json(),
-        codec=child.exact_codec,
-    )
+    replay = eqiora.replay(child.to_json())
     assert replay == child
 
     with pytest.raises(eqiora.ValidationError) as caught:
@@ -116,10 +137,7 @@ def test_exception_taxonomy_keeps_structured_diagnostics() -> None:
     assert validation.value.diagnostics[0].source_span is not None
 
     with pytest.raises(eqiora.CompatibilityError) as compatibility:
-        eqiora.compatibility.replay_exact(
-            b"{}",
-            codec=eqiora.compatibility.ExactModelCodec.V7,
-        )
+        eqiora.replay(b"{}")
     assert compatibility.value.category == "compatibility"
     assert compatibility.value.diagnostics[0].code == "EQ0901"
 

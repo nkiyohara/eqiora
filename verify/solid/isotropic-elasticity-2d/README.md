@@ -1,7 +1,7 @@
 # Canonical two-dimensional isotropic elasticity
 
 This case verifies one complete semantic-to-numerical slice for a
-two-dimensional isotropic small-strain solid. One explicit Model v4 contains a
+two-dimensional isotropic small-strain solid. One current Model contains a
 spatial-vector displacement Field, a scalar conservative-load-potential Field,
 its pointwise definition, the canonical tensor balance, and homogeneous trace
 Relations on all four sides of a Cartesian box.
@@ -29,8 +29,7 @@ The evidence is deliberately redundant across different failure modes:
   second-order continuous displacement L2 convergence;
 - recovered boundary reaction against integrated conservative body force in
   each component, including a nonzero affine-potential falsifier; and
-- explicit Model v4, Realization v1, and Run v2 identity separation and replay;
-  and
+- current Model, Realization v1, and Run v2 identity separation and replay; and
 - rejection before assembly when legacy compatibility resolution admits only
   a symmetric-indefinite MINRES tuple but the elasticity finalizer requires
   its known symmetric-positive-definite operator property.

@@ -12,7 +12,7 @@ capabilities = [
 ]
 
 [problem]
-model = "one packaged byte-exact copy of the accepted steady-flow-past-cylinder ModelEnvelopeV7, supplied explicitly to the bounded solve"
+model = "one packaged byte-exact copy of the accepted current steady-flow-past-cylinder Model envelope, supplied explicitly to the bounded solve"
 geometry = "DFG-shaped 2.2 m by 0.41 m rectangle with one exact radius-0.05 m circle centred at [0.2, 0.2] m"
 realization = "the accepted exact-source-owned 50-chord, 104-triangle reference mesh"
 physics = "steady coherent-SI MINI/P1 Stokes"
@@ -21,7 +21,7 @@ result_type = "immutable eqiora.fluid.CircularHoleSteadyStokesResult"
 
 [oracle]
 fluid_case = "fluid.exact-circular-hole-stokes-2d"
-model_case = "model.model-envelope-v7-canonical-identity"
+model_case = "artifacts.current-model-canonical-identity"
 geometry_case = "interfaces.python-exact-circular-hole-geometry"
 mesh_case = "interfaces.python-circular-hole-chordal-mesh"
 lineage_case = "interfaces.studio-exact-cylinder-stokes-demo"
@@ -29,9 +29,11 @@ numeric_route = "verify/fluid/exact-circular-hole-stokes-2d/routes/python/result
 digest_policy = "source, mesh, and model identities are frozen; produced realization, snapshot, and run identities are replayed relationally from canonical public bytes"
 
 [expected]
-model_digest = "668fa55e5ab1a46d0b7523e4e3162442ccd7698697c4308604cf4fe9269249de"
+model_digest = "8bc5155bc1b64ed37f7a2ac010a966e1619091a118e6cf7806dbdf9621977146"
+canonical_model_bytes = 16797
+canonical_model_raw_sha256 = "672016cb80683fb1448adab79d7c8f6a2fdda22f92c6df2d82b684bd5e65e099"
 packaged_model_bytes = 16798
-packaged_model_raw_sha256 = "b6c7be43520070084bf1a0f20a15772a69f4375dce168424341509189ddf5d1f"
+packaged_model_raw_sha256 = "5c5c7924d6efe624a4b4df5f03f2fab03e423fc2ebafb658ba8ad050a7496387"
 semantic_revision = 1
 source_digest = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
 mesh_digest = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
@@ -47,8 +49,8 @@ maximum_iterations = 10000
 residual_target = 1.3239627651209673e-7
 
 [acceptance]
-caller_supplies_model_v7_bytes = true
-one_packaged_model_resource_is_byte_exact = true
+caller_supplies_current_model_bytes = true
+one_packaged_current_model_resource_is_byte_exact = true
 installed_test_reads_only_the_package_resource = true
 only_frozen_semantic_model_is_admitted = true
 geometry_and_mesh_ownership_fail_closed = true
@@ -66,23 +68,23 @@ supplementary_clean_distribution_consumer_demo = true
 supplementary_embedded_pyo3_public_package_boundary = true
 
 [falsifiers]
-malformed_model_v7 = "CompatibilityError with EQ0901 before solve"
+malformed_current_model = "CompatibilityError with EQ0901 before solve"
 foreign_source_revision = "same semantic digest but rejected by frozen source ownership with EQ0807"
 foreign_geometry_owner = "same inner mesh identity cannot substitute a different exact source owner"
 swapped_boundary_roles = "same inner mesh identity cannot substitute a different authored boundary meaning"
 coarse_mesh = "different topology and approximation policy rejected before solve"
 quality_policy_plateau = "same topology coordinates with a different mesh artifact identity rejected before solve"
-uncanonical_model_bytes_rejected = "killed: pretty JSON is admitted by the existing decoder and must replay to the same run identity"
+noncanonical_model_bytes = "pretty JSON is admitted by the current decoder and must replay to the same run identity"
 hardcoded_generated_digests = "killed by independent digest replay from public canonical binding and run bytes"
 result_owned_matrix_lifetime = "killed by retaining all views after deleting Result and forcing collection"
 array_index_bounds = "negative one replays the final scalar; an isize-sized negative index, len, and an isize-sized positive index are rejected with IndexError"
 eager_numpy_dependency = "killed in both isolated installed-package and embedded-native programs"
-missing_or_changed_packaged_model = "installed-wheel tests require the exact 16798-byte resource and its frozen raw SHA-256"
+missing_or_changed_packaged_model = "installed-wheel tests require the exact current canonical payload plus its newline-terminated 16798-byte resource"
 repository_model_dependency = "distribution consumer copies only the demo and runs it with no repository Model file"
 
 [claim_boundary]
 one_frozen_model = true
-one_packaged_exact_model_artifact = true
+one_packaged_current_model_artifact = true
 general_packaged_model_catalog = false
 general_packaged_model_loader = false
 one_exact_geometry = true

@@ -1,4 +1,3 @@
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::compiler::{CompiledModel, compile};
 use eqiora::entity::kinds;
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore};
@@ -144,7 +143,7 @@ model Main {{
     let mut store = InMemoryPackageStore::default();
     store.insert(components).expect("insert component release");
     store.insert(&root).expect("insert root release");
-    PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V2)
+    PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile locked support occurrence")
 }
 

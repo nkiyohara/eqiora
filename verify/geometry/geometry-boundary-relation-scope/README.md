@@ -83,9 +83,10 @@ Every scenario is re-decided under every permutation of its supplied artifact
 bundle; outcome, diagnostic and normal must be identical. Node identity ordering
 is not re-derived here — RFC 0080 owns it.
 
-The package also requires that the Model v7, structural-fingerprint and geometry
-wire evidence listed under `compatibility_obligations` still exists and stays
-green. It does not re-derive their values.
+The byte-frozen contract retains its pre-reset Model-generation labels as
+historical evidence. Its live obligations are satisfied by current Model replay,
+historical-byte rejection, structural-fingerprint, and geometry wire cases; it
+does not make an old decoder callable or re-derive any value.
 
 ## Sequencing
 

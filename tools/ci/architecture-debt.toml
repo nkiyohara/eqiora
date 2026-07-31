@@ -378,7 +378,7 @@ removal = "split report projection from the execution runner"
 
 [[public_surface]]
 crate = "eqiora"
-ceiling = 279
+ceiling = 275
 reason = "the facade is re-export-only and its width is pinned by api/eqiora-facade-v1.json; one bounded ParameterGeometryRegeneration Plan/Result pair exposes the accepted application owner without a second transaction or geometry contract. The existing bounded exact-cylinder, mixed-boundary elasticity, and fixed-reference FSI Result values remain application compositions shared by Studio and installed Python"
 removal = "fold the regeneration pair into a general accepted parametric-CAD edit result only when it preserves exact transaction, complete-impact, and selection-retention evidence; withdraw any bounded physics Result when no application client consumes its path; otherwise lower the ceiling with the next facade name withdrawn"
 
@@ -390,23 +390,15 @@ removal = "fold the regeneration pair into a general accepted parametric-CAD edi
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 158
+ceiling = 143
 reason = """
-151 predate the predicate and are not yet triaged. One is deliberate: the
-geometry-definition envelope, its explicit decoder-budget type, and the two v7
-envelopes, added as architecture changes under the authored-geometry epic. The
-validated content, canonical bytes and digest derivation live below this crate;
-the wrapper owns only artifact admission and ArtifactDigest projection. A wire
-generation costs exactly two names, its Model envelope and its transaction
-envelope, and cannot cost fewer: selection is explicit, so each generation is a
-distinct type a caller names. Model and transaction v8 therefore add exactly
-two names for direct Parameter-backed Cartesian coordinates while v1-v7 remain
-explicit and frozen. CircularHoleChordalRealizationEnvelopeV1 is one closed
-public owner for durable exact-source replay across process boundaries; keeping
-the wire, admission, and replay on that owner costs one name and avoids a
-generic approximate-geometry abstraction.
+The current Model and ModelTransaction envelopes own the single admitted wire
+epoch; validated content, canonical bytes, and digest derivation remain below
+that boundary. CircularHoleChordalRealizationEnvelopeV1 is one closed public
+owner for durable exact-source replay across process boundaries while common
+CAD/mesh publication remains incomplete.
 """
-removal = "withdraw the circular-hole binding and lower by one when common CAD/mesh publication replaces it; withdraw both v8 envelopes only when that exact compatibility generation leaves the support window; independently, fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
+removal = "withdraw the circular-hole binding and lower by one when common CAD/mesh publication replaces it; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
 
 [[public_surface]]
 crate = "eqiora-assembly"

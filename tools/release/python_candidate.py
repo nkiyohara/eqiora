@@ -28,7 +28,7 @@ PYPROJECT = ROOT / "pyproject.toml"
 MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v2"
 EXACT_CYLINDER_DEMO = Path("examples/python/exact_cylinder_stokes.py")
 EXACT_CYLINDER_REPOSITORY_MODEL = Path(
-    "examples/steady-flow-past-cylinder.model-v7.json"
+    "examples/steady-flow-past-cylinder.model.json"
 )
 MIXED_BOUNDARY_ELASTICITY_DEMO = Path(
     "examples/python/mixed_boundary_elasticity.py"
@@ -492,7 +492,6 @@ def inspect_wheel(
         required = (
             "eqiora/__init__.py",
             "eqiora/__init__.pyi",
-            "eqiora/compatibility.pyi",
             "eqiora/diff.pyi",
             "eqiora/fsi.pyi",
             "eqiora/jax.pyi",
@@ -500,6 +499,7 @@ def inspect_wheel(
             "eqiora/solid.pyi",
             "eqiora/torch.pyi",
             "eqiora/py.typed",
+            "eqiora/examples/steady-flow-past-cylinder.model.json",
             "eqiora/examples/mixed-boundary-elasticity.eqi",
             "eqiora/examples/fixed-reference-fsi.eqi",
             f"{dist_info}licenses/LICENSE",

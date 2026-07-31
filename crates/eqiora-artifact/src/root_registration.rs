@@ -14,7 +14,7 @@ use ulid::Ulid;
 
 use crate::time::TimeLoweringEnvelopeV1;
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, ModelEnvelopeV1, TimeDecoderLimits, check_json_limits,
+    ArtifactDigest, CANONICAL_ENCODING, ModelEnvelope, TimeDecoderLimits, check_json_limits,
     invalid_artifact,
 };
 
@@ -42,7 +42,7 @@ impl RootRegistrationEnvelopeV1 {
     /// Returns `EQ0901` for linkage drift, unsupported guard symbols, a
     /// non-scalar guard, no Event Activation, or a non-explicit lowering.
     pub fn new(
-        model: &ModelEnvelopeV1,
+        model: &ModelEnvelope,
         program: &KernelProgram,
         lowering: &TimeLoweringEnvelopeV1,
     ) -> Result<Self, Diagnostic> {
@@ -181,7 +181,7 @@ impl RootRegistrationEnvelopeV1 {
     /// canonical Event partition drift.
     pub fn validate_against(
         &self,
-        model: &ModelEnvelopeV1,
+        model: &ModelEnvelope,
         program: &KernelProgram,
         lowering: &TimeLoweringEnvelopeV1,
     ) -> Result<(), Diagnostic> {
@@ -301,7 +301,7 @@ fn discover_root_registration(
 }
 
 fn validate_model_program(
-    model: &ModelEnvelopeV1,
+    model: &ModelEnvelope,
     program: &KernelProgram,
 ) -> Result<(), Diagnostic> {
     if model.model()? != program.model() || model.source_revision() != program.revision().0 {

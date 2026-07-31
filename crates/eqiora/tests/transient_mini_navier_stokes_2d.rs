@@ -10,7 +10,6 @@ use eqiora::assembly::{
     REFERENCE_ASSEMBLY_BACKEND,
 };
 use eqiora::backends::faer::FaerLinearSolver;
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{
     MeshEntity, MeshGeometry, MeshQualityGate, MeshTopology, SimplicialMesh, simplex_centroid_rule,
     simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
@@ -220,9 +219,8 @@ fn backward_euler_has_first_order_fixed_mesh_time_refinement() {
 fn transient_admission_fails_closed_on_near_misses() {
     let fixture = fixture(3);
 
-    let document = ExactModelCodec::V5
-        .compile("transient-foreign-mesh.eqi", SOURCE)
-        .unwrap();
+    let document =
+        eqiora::api::ModelDocument::compile("transient-foreign-mesh.eqi", SOURCE).unwrap();
     let foreign_mesh = SimplicialMeshEnvelopeV1::from_mesh(&unit_square_triangles(4)).unwrap();
     let foreign_reference = TransientNavierStokesReference2d::prepare(
         document.program(),
@@ -526,8 +524,7 @@ fn canonical_flow_falsifiers_are_part_of_registered_evidence() {
 }
 
 fn assert_canonical_flow_rejected(source: &str) {
-    let document = ExactModelCodec::V5
-        .compile("transient-falsifier.eqi", source)
+    let document = eqiora::api::ModelDocument::compile("transient-falsifier.eqi", source)
         .expect("near-miss remains a valid typed Model");
     assert!(
         lower_transient_incompressible_navier_stokes_cartesian_2d(document.program()).is_err(),
@@ -588,13 +585,11 @@ fn canonical_advance_with_policy(
     nonlinear_relative_tolerance: f64,
     nonlinear_absolute_tolerance: f64,
 ) -> Result<ResolvedTransientNavierStokesTrajectory2d, eqiora::Diagnostic> {
-    let document = ExactModelCodec::V5
-        .compile(
-            "verify/fluid/fixed-domain-transient-navier-stokes-2d/models/direct.eqi",
-            SOURCE,
-        )
-        .unwrap();
-    assert_eq!(document.exact_codec(), ExactModelCodec::V5);
+    let document = eqiora::api::ModelDocument::compile(
+        "verify/fluid/fixed-domain-transient-navier-stokes-2d/models/direct.eqi",
+        SOURCE,
+    )
+    .unwrap();
     let mesh = SimplicialMeshEnvelopeV1::from_mesh(&fixture.mesh).unwrap();
     let reference = TransientNavierStokesReference2d::prepare(
         document.program(),

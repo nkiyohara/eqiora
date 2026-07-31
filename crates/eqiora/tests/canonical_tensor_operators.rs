@@ -1,8 +1,4 @@
-use eqiora::artifact::{
-    ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3, ModelEnvelopeV4, ModelTransactionEnvelopeV1,
-    ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3, ModelTransactionEnvelopeV4,
-};
-use eqiora::compatibility::ExactModelCodec;
+use eqiora::artifact::{ModelEnvelope, ModelTransactionEnvelope};
 use eqiora::compiler::{CompiledModel, ModelSymbols, compile};
 use eqiora::entity::kinds;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
@@ -43,25 +39,22 @@ fn typed<I: Entity>(symbols: &ModelSymbols, name: &str) -> Id<I> {
 }
 
 #[test]
-fn source_meaning_crosses_only_the_explicit_closed_v4_wire() {
+fn source_meaning_crosses_the_closed_current_wire() {
     let compiled = compile_one("elastic-relation.eqi", ELASTIC_RELATION);
     let transaction = compiled.transaction();
 
-    assert!(ModelTransactionEnvelopeV1::from_transaction(transaction).is_err());
-    assert!(ModelTransactionEnvelopeV2::from_transaction(transaction).is_err());
-    assert!(ModelTransactionEnvelopeV3::from_transaction(transaction).is_err());
-    let transaction_v4 =
-        ModelTransactionEnvelopeV4::from_transaction(transaction).expect("explicit v4 transaction");
-    let transaction_bytes = transaction_v4.canonical_json().unwrap();
+    let transaction =
+        ModelTransactionEnvelope::from_transaction(transaction).expect("current transaction");
+    let transaction_bytes = transaction.canonical_json().unwrap();
     let replayed_transaction =
-        ModelTransactionEnvelopeV4::from_json(&transaction_bytes, Default::default())
-            .expect("bounded v4 transaction decode")
+        ModelTransactionEnvelope::from_json(&transaction_bytes, Default::default())
+            .expect("bounded current transaction decode")
             .to_transaction()
-            .expect("typed v4 transaction reconstruction");
-    assert_eq!(replayed_transaction.ops(), transaction.ops());
+            .expect("typed current transaction reconstruction");
+    assert_eq!(replayed_transaction.ops(), compiled.transaction().ops());
     assert_eq!(
         replayed_transaction.preconditions(),
-        transaction.preconditions()
+        compiled.transaction().preconditions()
     );
 
     let balance = typed::<kinds::Relation>(compiled.symbols(), "balance");
@@ -91,43 +84,29 @@ fn source_meaning_crosses_only_the_explicit_closed_v4_wire() {
         1
     );
 
-    assert!(ModelEnvelopeV1::from_program(&program).is_err());
-    assert!(ModelEnvelopeV2::from_program(&program).is_err());
-    assert!(ModelEnvelopeV3::from_program(&program).is_err());
-    let model_v4 = ModelEnvelopeV4::from_program(&program).expect("explicit v4 Model");
-    let model_bytes = model_v4.canonical_json().unwrap();
+    let model = ModelEnvelope::from_program(&program).expect("current Model");
+    let model_bytes = model.canonical_json().unwrap();
     let model_text = String::from_utf8_lossy(&model_bytes);
-    assert!(model_text.contains("eqiora.model-envelope/v4"));
+    assert!(model_text.contains("eqiora.model-envelope/v8"));
     assert!(model_text.contains("symmetric-part"));
     assert!(model_text.contains("isotropic-lift"));
-    let replayed_model = ModelEnvelopeV4::from_json(&model_bytes, Default::default())
-        .expect("bounded v4 Model decode");
+    let replayed_model = ModelEnvelope::from_json(&model_bytes, Default::default())
+        .expect("bounded current Model decode");
     assert_eq!(replayed_model.canonical_json().unwrap(), model_bytes);
-    assert_eq!(replayed_model.digest().unwrap(), model_v4.digest().unwrap());
+    assert_eq!(replayed_model.digest().unwrap(), model.digest().unwrap());
     assert_eq!(replayed_model.to_program().unwrap(), program);
-    assert!(ModelEnvelopeV3::from_json(&model_bytes, Default::default()).is_err());
 
-    let mut forged_v3: serde_json::Value = serde_json::from_slice(&model_bytes).unwrap();
-    forged_v3["schema"] = serde_json::Value::String("eqiora.model-envelope/v3".to_owned());
-    assert!(
-        ModelEnvelopeV3::from_json(&serde_json::to_vec(&forged_v3).unwrap(), Default::default(),)
-            .is_err()
-    );
-
-    let document = ExactModelCodec::V4
-        .compile("elastic-relation.eqi", ELASTIC_RELATION)
-        .expect("public facade must preserve the explicit v4 choice");
+    let document = eqiora::api::ModelDocument::compile("elastic-relation.eqi", ELASTIC_RELATION)
+        .expect("public facade must preserve the current wire");
     let document_bytes = document.canonical_json().unwrap();
-    assert!(String::from_utf8_lossy(&document_bytes).contains("eqiora.model-envelope/v4"));
+    assert!(String::from_utf8_lossy(&document_bytes).contains("eqiora.model-envelope/v8"));
     assert_eq!(
-        ExactModelCodec::V4
-            .replay(&document_bytes)
+        eqiora::api::ModelDocument::replay(&document_bytes)
             .unwrap()
             .canonical_json()
             .unwrap(),
         document_bytes
     );
-    assert!(ExactModelCodec::V3.replay(&document_bytes).is_err());
 }
 
 #[test]

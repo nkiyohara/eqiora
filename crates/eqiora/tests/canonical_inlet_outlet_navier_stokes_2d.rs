@@ -6,7 +6,6 @@ use eqiora::api::TransientNavierStokesReference2d;
 use eqiora::artifact::SimplicialMeshEnvelopeV1;
 use eqiora::assembly::{AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork};
 use eqiora::backends::faer::FaerLinearSolver;
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{
     MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh, simplex_centroid_rule,
     triangle_duffy_gauss_legendre,
@@ -352,9 +351,7 @@ impl AssemblyBackend for RejectUnexpectedAssembly {
 }
 
 fn compile(name: &str, source: &str) -> eqiora::api::ModelDocument {
-    ExactModelCodec::V5
-        .compile(name, source)
-        .expect("transient source compiles")
+    eqiora::api::ModelDocument::compile(name, source).expect("transient source compiles")
 }
 
 fn zero_traction_relation(name: &str, boundary: &str) -> String {

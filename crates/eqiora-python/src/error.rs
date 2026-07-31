@@ -4,7 +4,7 @@ use std::cell::Cell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Once;
 
-use eqiora::control::{ControlDiagnosticSourceV1, ControlDiagnosticV1, ControlSeverityV1};
+use eqiora::control::{ControlDiagnosticSourceV2, ControlDiagnosticV2, ControlSeverityV2};
 use eqiora::{Diagnostic, Severity};
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
@@ -207,16 +207,16 @@ impl From<&Diagnostic> for PyDiagnostic {
     }
 }
 
-impl From<&ControlDiagnosticV1> for PyDiagnostic {
-    fn from(diagnostic: &ControlDiagnosticV1) -> Self {
+impl From<&ControlDiagnosticV2> for PyDiagnostic {
+    fn from(diagnostic: &ControlDiagnosticV2) -> Self {
         let severity = match diagnostic.severity() {
-            ControlSeverityV1::Error => "error",
-            ControlSeverityV1::Warning => "warning",
-            ControlSeverityV1::Note => "note",
+            ControlSeverityV2::Error => "error",
+            ControlSeverityV2::Warning => "warning",
+            ControlSeverityV2::Note => "note",
         };
         let source = match diagnostic.source() {
-            ControlDiagnosticSourceV1::Control => "control",
-            ControlDiagnosticSourceV1::Kernel => "kernel",
+            ControlDiagnosticSourceV2::Control => "control",
+            ControlDiagnosticSourceV2::Kernel => "kernel",
         };
         Self {
             source: source.to_owned(),
@@ -278,11 +278,11 @@ pub(crate) fn internal_diagnostic_error(py: Python<'_>, diagnostics: &[Diagnosti
 
 pub(crate) fn control_diagnostic_error(
     py: Python<'_>,
-    diagnostics: &[ControlDiagnosticV1],
+    diagnostics: &[ControlDiagnosticV2],
 ) -> PyErr {
     let projected: Vec<_> = diagnostics.iter().map(PyDiagnostic::from).collect();
     if diagnostics.iter().any(|diagnostic| {
-        diagnostic.source() == ControlDiagnosticSourceV1::Control && diagnostic.code() == "EQ0901"
+        diagnostic.source() == ControlDiagnosticSourceV2::Control && diagnostic.code() == "EQ0901"
     }) {
         structured_diagnostic_error_as(py, ErrorCategory::Validation, projected)
     } else {

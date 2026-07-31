@@ -4,7 +4,8 @@ The registered integration target must prove all of the following:
 
 - N-ary and chained fragments compile to equal Model identities and graph
   transactions;
-- their admitted Model v2 canonical bytes and semantic digests are identical;
+- their admitted current Model canonical bytes and semantic digests are
+  identical;
 - both forms emit exactly one three-member canonical Connection;
 - the hierarchy-free N-ary and chained fixtures each emit one exact
   three-member Connection through the direct flat lowering path;

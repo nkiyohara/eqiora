@@ -1,6 +1,6 @@
 # RFC 0083: One current Model artifact epoch before 1.0
 
-- Status: Accepted contract; implementation pending
+- Status: Implemented
 - Authors: Eqiora contributors
 - Created: 2026-07-31
 - Depends on: [RFC 0037](0037-version-neutral-model-artifact-reference.md),
@@ -57,8 +57,8 @@ The implementation retains exactly these persisted identities:
 | Model digest domain | the existing v8 Model schema domain |
 | Transaction digest domain | the existing v8 Transaction schema domain |
 
-The producer-owned reference fixture in
-`crates/eqiora-artifact/tests/model_v8_wire.rs` currently observes:
+The independently accepted current-owner fixture in
+`crates/eqiora-artifact/tests/current_model_wire_oracle.rs` observes:
 
 | Fixture output | Exact value |
 | --- | --- |
@@ -67,14 +67,11 @@ The producer-owned reference fixture in
 | Transaction canonical byte length | `2646` |
 | Transaction SHA-256 | `132168803ac8882f0f35187215d3f2ce44817d03921d6ad95b73a9cac62aa102` |
 
-These candidate values commit the current producer's exact ordering, but the
-producer fixture is not an independent oracle. Before implementation, another
-provider lineage must independently freeze the complete canonical Model and
-Transaction JSON for the same public fixture, reproduce both hashes, and
-commit old-schema specimens used only as a negative rejection corpus. A
-semantically equivalent fixture with different local order is not byte
-evidence. The implementation writer may not author, tune, or relax that
-oracle.
+These values are independently frozen complete canonical Model and Transaction
+JSON for the public fixture. Old-schema specimens remain beside them only as a
+negative rejection corpus. A semantically equivalent fixture with different
+local order is not byte evidence; the implementation does not author, tune, or
+relax this oracle.
 
 The same independent lane must re-encode and freeze the shipped
 `steady-flow-past-cylinder` Model as current v8. It owns the new complete

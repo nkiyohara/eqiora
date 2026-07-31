@@ -1,110 +1,47 @@
-//! One Kernel node on the Model wire, and the generation that admits it.
-//!
-//! A generation is named rather than compared, so adding one is an edit per
-//! capability instead of a search for inline version lists.
+//! One Kernel node on the current Model wire.
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use eqiora_schema::kernel::{
-    ActivationDef, AxisBounds, BoundaryPhysicalConnector, CartesianCoordinateSource, ConnectionDef,
-    DomainDef, DomainKind, FieldDef, GeometryDigest, KernelNode, ParameterDef, PortDef,
-    PortPayload, RelationDef, RepresentationDef, ValueFrame,
+    ActivationDef, BoundaryPhysicalConnector, ConnectionDef, DomainDef, DomainKind, FieldDef,
+    GeometryDigest, KernelNode, ParameterDef, PortDef, PortPayload, RelationDef, RepresentationDef,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::invalid_artifact;
+use crate::{ArtifactDigest, invalid_artifact};
 
 use super::*;
 use super::{expression::*, primitive::*, vocabulary::*};
 
 impl WireNode {
-    pub(crate) fn encode_v1(node: &KernelNode) -> Result<Self, Diagnostic> {
-        Self::encode(node, WireVersion::V1)
-    }
-
-    pub(crate) fn encode_v2(node: &KernelNode) -> Result<Self, Diagnostic> {
-        Self::encode(node, WireVersion::V2)
-    }
-
-    pub(crate) fn encode_v3(node: &KernelNode) -> Result<Self, Diagnostic> {
-        Self::encode(node, WireVersion::V3)
-    }
-
-    pub(crate) fn encode_v4(node: &KernelNode) -> Result<Self, Diagnostic> {
-        Self::encode(node, WireVersion::V4)
-    }
-
-    pub(crate) fn encode_v5(node: &KernelNode) -> Result<Self, Diagnostic> {
-        Self::encode(node, WireVersion::V5)
-    }
-
-    pub(crate) fn encode_v7(node: &KernelNode) -> Result<Self, Diagnostic> {
-        Self::encode(node, WireVersion::V7)
-    }
-
-    pub(crate) fn encode_v8(node: &KernelNode) -> Result<Self, Diagnostic> {
-        Self::encode(node, WireVersion::V8)
-    }
-
-    pub(crate) fn encode_v6(node: &KernelNode) -> Result<Self, Diagnostic> {
-        Self::encode(node, WireVersion::V6)
-    }
-
-    pub(crate) fn encode(node: &KernelNode, version: WireVersion) -> Result<Self, Diagnostic> {
+    pub(crate) fn encode(node: &KernelNode) -> Result<Self, Diagnostic> {
         let definition = match node {
             KernelNode::Domain(value) => WireNodeDefinition::Domain {
-                domain: WireDomainKind::encode(value.kind(), version)?,
+                domain: WireDomainKind::encode(value.kind())?,
             },
             KernelNode::Representation(value) => WireNodeDefinition::Representation {
                 representation: WireRepresentationKind::encode(value.kind())?,
             },
-            KernelNode::Field(value) if version.supports_shaped_fields() => {
-                WireNodeDefinition::ShapedField {
-                    dimension: WireDimension::encode(value.dimension()),
-                    shape: WireValueShape::encode(value.shape()),
-                    frame: WireValueFrame::encode(value.frame()),
-                    initial: value.initial().map(WireQuantity::encode),
-                }
-            }
-            KernelNode::Field(value)
-                if value.shape().is_scalar() && value.frame() == ValueFrame::Invariant =>
-            {
-                WireNodeDefinition::Field {
-                    dimension: WireDimension::encode(value.dimension()),
-                    initial: value.initial().map(WireQuantity::encode),
-                }
-            }
-            KernelNode::Field(_) => {
-                return Err(invalid_artifact("shaped Field requires model wire v3"));
-            }
+            KernelNode::Field(value) => WireNodeDefinition::ShapedField {
+                dimension: WireDimension::encode(value.dimension()),
+                shape: WireValueShape::encode(value.shape()),
+                frame: WireValueFrame::encode(value.frame()),
+                initial: value.initial().map(WireQuantity::encode),
+            },
             KernelNode::Parameter(value) => WireNodeDefinition::Parameter {
                 value: WireQuantity::encode(value.value()),
             },
             KernelNode::Port(value) => match value.payload() {
-                PortPayload::ScalarPhysical { domain } if version.supports_scalar_physical() => {
-                    WireNodeDefinition::ScalarPhysicalPort {
-                        domain: WireId::from_raw(domain.erase()),
-                    }
-                }
-                PortPayload::ScalarPhysical { .. } => {
-                    return Err(invalid_artifact(
-                        "scalar physical Port requires model wire v2",
-                    ));
-                }
+                PortPayload::ScalarPhysical { domain } => WireNodeDefinition::ScalarPhysicalPort {
+                    domain: WireId::from_raw(domain.erase()),
+                },
                 PortPayload::BoundaryPhysical {
                     connector,
                     boundary,
-                } if version.supports_boundary_physical() => {
-                    WireNodeDefinition::BoundaryPhysicalPort {
-                        connector: WireId::from_raw(connector.erase()),
-                        boundary: WireId::from_raw(boundary.erase()),
-                    }
-                }
-                PortPayload::BoundaryPhysical { .. } => {
-                    return Err(invalid_artifact(
-                        "field-valued boundary physical Port requires model wire v3",
-                    ));
-                }
+                } => WireNodeDefinition::BoundaryPhysicalPort {
+                    connector: WireId::from_raw(connector.erase()),
+                    boundary: WireId::from_raw(boundary.erase()),
+                },
                 payload => WireNodeDefinition::Port {
                     port: WirePortKind::encode(payload)?,
                     dimension: WireDimension::encode(
@@ -112,25 +49,25 @@ impl WireNode {
                             .signal_contract()
                             .map(|(_, dimension)| dimension)
                             .or_else(|| value.marker_dimension())
-                            .ok_or_else(|| invalid_artifact("Port payload has no v1 dimension"))?,
+                            .ok_or_else(|| invalid_artifact("Port payload has no dimension"))?,
                     ),
                 },
             },
             KernelNode::Relation(value) => WireNodeDefinition::Relation {
-                residuals: WireExpression::encode(value.residuals(), version)?,
+                residuals: WireExpression::encode(value.residuals())?,
             },
             KernelNode::Activation(value) => WireNodeDefinition::Activation {
-                activation: WireActivationKind::encode(value.kind(), version)?,
+                activation: WireActivationKind::encode(value.kind())?,
             },
             KernelNode::Connection(value) => WireNodeDefinition::Connection {
-                connection: WireConnectionKind::encode(value.semantics(), version)?,
+                connection: WireConnectionKind::encode(value.semantics())?,
             },
             KernelNode::ClockDomain(value) => WireNodeDefinition::ClockDomain {
                 clock: WireClockKind::encode(value.kind())?,
             },
             _ => {
                 return Err(invalid_artifact(
-                    "kernel node variant is newer than wire v1",
+                    "kernel node variant is newer than the current Model wire",
                 ));
             }
         };
@@ -247,135 +184,34 @@ impl WireNode {
         }
     }
 
-    pub(crate) fn validate_v5_features(&self) -> Result<(), Diagnostic> {
+    pub(crate) fn validate_pure_operator_features(&self) -> Result<(), Diagnostic> {
         match &self.definition {
-            WireNodeDefinition::Relation { residuals } => residuals.validate_v5_features(),
-            WireNodeDefinition::Activation { activation } => activation.validate_v5_features(),
-            _ => Ok(()),
-        }
-    }
-
-    pub(crate) fn canonicalize_v5_definitions(&mut self) -> Result<(), Diagnostic> {
-        match &mut self.definition {
-            WireNodeDefinition::Relation { residuals } => residuals.canonicalize_v5_definitions(),
+            WireNodeDefinition::Relation { residuals } => {
+                residuals.validate_pure_operator_features()
+            }
             WireNodeDefinition::Activation { activation } => {
-                activation.canonicalize_v5_definitions()
+                activation.validate_pure_operator_features()
             }
             _ => Ok(()),
         }
     }
 
-    pub(crate) fn ensure_v1(&self) -> Result<(), Diagnostic> {
-        self.reject_coordinate_sources_before_v8()?;
-        match &self.definition {
-            WireNodeDefinition::Domain {
-                domain: WireDomainKind::ScalarPhysical { .. },
+    pub(crate) fn canonicalize_pure_operator_definitions(&mut self) -> Result<(), Diagnostic> {
+        match &mut self.definition {
+            WireNodeDefinition::Relation { residuals } => {
+                residuals.canonicalize_pure_operator_definitions()
             }
-            | WireNodeDefinition::ScalarPhysicalPort { .. }
-            | WireNodeDefinition::Domain {
-                domain: WireDomainKind::BoundaryPhysical { .. },
+            WireNodeDefinition::Activation { activation } => {
+                activation.canonicalize_pure_operator_definitions()
             }
-            | WireNodeDefinition::ShapedField { .. }
-            | WireNodeDefinition::BoundaryPhysicalPort { .. }
-            | WireNodeDefinition::Connection {
-                connection: WireConnectionKind::SpatialPeriodic,
-            } => Err(invalid_artifact(
-                "model wire v1 cannot contain physical interface semantics or shaped Fields",
-            )),
-            WireNodeDefinition::Relation { residuals } => residuals.ensure_v1(),
-            WireNodeDefinition::Activation { activation } => activation.ensure_v1(),
             _ => Ok(()),
         }
     }
 
-    pub(crate) fn ensure_v2(&self) -> Result<(), Diagnostic> {
-        self.reject_coordinate_sources_before_v8()?;
-        match &self.definition {
-            WireNodeDefinition::Domain {
-                domain: WireDomainKind::BoundaryPhysical { .. },
-            }
-            | WireNodeDefinition::ShapedField { .. }
-            | WireNodeDefinition::BoundaryPhysicalPort { .. }
-            | WireNodeDefinition::Connection {
-                connection: WireConnectionKind::SpatialPeriodic,
-            } => Err(invalid_artifact(
-                "model wire v2 cannot contain boundary physical semantics or shaped Fields",
-            )),
-            WireNodeDefinition::Relation { residuals } => residuals.ensure_v2(),
-            WireNodeDefinition::Activation { activation } => activation.ensure_v2(),
-            _ => Ok(()),
-        }
-    }
-
-    pub(crate) fn ensure_v3(&self) -> Result<(), Diagnostic> {
-        self.reject_coordinate_sources_before_v8()?;
+    pub(crate) fn ensure_current(&self) -> Result<(), Diagnostic> {
         match &self.definition {
             WireNodeDefinition::Field { .. } => Err(invalid_artifact(
-                "model wire v3 requires the single shaped Field representation",
-            )),
-            WireNodeDefinition::Connection {
-                connection: WireConnectionKind::SpatialPeriodic,
-            } => Err(invalid_artifact(
-                "spatial-periodic Connection semantics require model wire v6",
-            )),
-            WireNodeDefinition::Relation { residuals } => residuals.ensure_v3(),
-            WireNodeDefinition::Activation { activation } => activation.ensure_v3(),
-            _ => Ok(()),
-        }
-    }
-
-    pub(crate) fn ensure_v4(&self) -> Result<(), Diagnostic> {
-        self.reject_coordinate_sources_before_v8()?;
-        match &self.definition {
-            WireNodeDefinition::Field { .. } => Err(invalid_artifact(
-                "model wire v4 requires the single shaped Field representation",
-            )),
-            WireNodeDefinition::Connection {
-                connection: WireConnectionKind::SpatialPeriodic,
-            } => Err(invalid_artifact(
-                "spatial-periodic Connection semantics require model wire v6",
-            )),
-            WireNodeDefinition::Relation { residuals } => residuals.ensure_v4(),
-            WireNodeDefinition::Activation { activation } => activation.ensure_v4(),
-            _ => Ok(()),
-        }
-    }
-
-    pub(crate) fn ensure_v5(&self) -> Result<(), Diagnostic> {
-        self.reject_coordinate_sources_before_v8()?;
-        match &self.definition {
-            WireNodeDefinition::Field { .. } => Err(invalid_artifact(
-                "model wire v5 requires the single shaped Field representation",
-            )),
-            WireNodeDefinition::Connection {
-                connection: WireConnectionKind::SpatialPeriodic,
-            } => Err(invalid_artifact(
-                "spatial-periodic Connection semantics require model wire v6",
-            )),
-            _ => Ok(()),
-        }
-    }
-
-    pub(crate) fn ensure_v7(&self) -> Result<(), Diagnostic> {
-        // V7 inherits the whole v6 grammar and adds only the geometry Domain
-        // kinds, so it admits exactly what v6 admits and more.
-        self.ensure_v6()
-    }
-
-    pub(crate) fn ensure_v6(&self) -> Result<(), Diagnostic> {
-        self.reject_coordinate_sources_before_v8()?;
-        match &self.definition {
-            WireNodeDefinition::Field { .. } => Err(invalid_artifact(
-                "model wire v6 requires the single shaped Field representation",
-            )),
-            _ => Ok(()),
-        }
-    }
-
-    pub(crate) fn ensure_v8(&self) -> Result<(), Diagnostic> {
-        match &self.definition {
-            WireNodeDefinition::Field { .. } => Err(invalid_artifact(
-                "model wire v8 requires the single shaped Field representation",
+                "the current Model contract requires the single shaped Field representation",
             )),
             WireNodeDefinition::Domain {
                 domain: WireDomainKind::CartesianBox { .. },
@@ -383,21 +219,6 @@ impl WireNode {
                 "model wire v8 requires Cartesian coordinate-source definitions",
             )),
             _ => Ok(()),
-        }
-    }
-
-    fn reject_coordinate_sources_before_v8(&self) -> Result<(), Diagnostic> {
-        if matches!(
-            &self.definition,
-            WireNodeDefinition::Domain {
-                domain: WireDomainKind::CartesianBoxSources { .. },
-            }
-        ) {
-            Err(invalid_artifact(
-                "Cartesian coordinate sources require model wire v8",
-            ))
-        } else {
-            Ok(())
         }
     }
 
@@ -431,64 +252,6 @@ impl WireNode {
                 .collect(),
             _ => Vec::new(),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum WireVersion {
-    V1,
-    V2,
-    V3,
-    V4,
-    V5,
-    V6,
-    V7,
-    V8,
-}
-
-impl WireVersion {
-    pub(crate) const fn supports_scalar_physical(self) -> bool {
-        matches!(
-            self,
-            Self::V2 | Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7 | Self::V8
-        )
-    }
-
-    pub(crate) const fn supports_boundary_physical(self) -> bool {
-        matches!(
-            self,
-            Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7 | Self::V8
-        )
-    }
-
-    pub(crate) const fn supports_shaped_fields(self) -> bool {
-        matches!(
-            self,
-            Self::V3 | Self::V4 | Self::V5 | Self::V6 | Self::V7 | Self::V8
-        )
-    }
-
-    /// Whether a Domain may name an authored geometry rather than describe a
-    /// box. Only the newest generation may, because an older decoder shown a
-    /// geometry reference would have to guess at a shape it cannot read.
-    pub(crate) const fn supports_geometry_region(self) -> bool {
-        matches!(self, Self::V7 | Self::V8)
-    }
-
-    pub(crate) const fn supports_coordinate_sources(self) -> bool {
-        matches!(self, Self::V8)
-    }
-
-    pub(crate) const fn supports_spatial_periodic(self) -> bool {
-        matches!(self, Self::V6 | Self::V7 | Self::V8)
-    }
-
-    pub(crate) const fn supports_tensor_operators(self) -> bool {
-        matches!(self, Self::V4 | Self::V5 | Self::V6 | Self::V7 | Self::V8)
-    }
-
-    pub(crate) const fn supports_pure_operators(self) -> bool {
-        matches!(self, Self::V5 | Self::V6 | Self::V7 | Self::V8)
     }
 }
 
@@ -574,37 +337,15 @@ pub(crate) enum WireDomainKind {
 }
 
 impl WireDomainKind {
-    pub(crate) fn encode(value: &DomainKind, version: WireVersion) -> Result<Self, Diagnostic> {
+    pub(crate) fn encode(value: &DomainKind) -> Result<Self, Diagnostic> {
         Ok(match value {
             DomainKind::Abstract => Self::Abstract,
-            DomainKind::CartesianBox { coordinates } if version.supports_coordinate_sources() => {
-                Self::CartesianBoxSources {
-                    coordinates: coordinates
-                        .iter()
-                        .copied()
-                        .map(WireCartesianAxisDefinition::encode)
-                        .collect(),
-                }
-            }
-            DomainKind::CartesianBox { coordinates } => Self::CartesianBox {
-                bounds: coordinates
+            DomainKind::CartesianBox { coordinates } => Self::CartesianBoxSources {
+                coordinates: coordinates
                     .iter()
                     .copied()
-                    .map(|coordinate| {
-                        let (
-                            CartesianCoordinateSource::Fixed(lower),
-                            CartesianCoordinateSource::Fixed(upper),
-                        ) = (coordinate.lower(), coordinate.upper())
-                        else {
-                            return Err(invalid_artifact(
-                                "Cartesian coordinate sources require model wire v8",
-                            ));
-                        };
-                        AxisBounds::new(lower, upper)
-                            .map(WireAxisBounds::encode)
-                            .map_err(|error| invalid_artifact(error.message()))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
+                    .map(WireCartesianAxisDefinition::encode)
+                    .collect(),
             },
             DomainKind::CartesianBoundary { axis, side } => Self::CartesianBoundary {
                 axis: *axis,
@@ -613,31 +354,27 @@ impl WireDomainKind {
             DomainKind::GeometryRegion {
                 geometry,
                 entity_set,
-            } if version.supports_geometry_region() => Self::GeometryRegion {
+            } => Self::GeometryRegion {
                 geometry: encode_geometry_digest(*geometry),
                 entity_set: entity_set.clone(),
             },
-            DomainKind::GeometryBoundary { entity_set } if version.supports_geometry_region() => {
-                Self::GeometryBoundary {
-                    entity_set: entity_set.clone(),
-                }
-            }
+            DomainKind::GeometryBoundary { entity_set } => Self::GeometryBoundary {
+                entity_set: entity_set.clone(),
+            },
             DomainKind::ScalarPhysical {
                 across_dimension,
                 through_dimension,
-            } if version.supports_scalar_physical() => Self::ScalarPhysical {
+            } => Self::ScalarPhysical {
                 across_dimension: WireDimension::encode(*across_dimension),
                 through_dimension: WireDimension::encode(*through_dimension),
             },
-            DomainKind::BoundaryPhysical { connector } if version.supports_boundary_physical() => {
-                Self::BoundaryPhysical {
-                    trace_dimension: WireDimension::encode(connector.trace_dimension()),
-                    flux_dimension: WireDimension::encode(connector.flux_dimension()),
-                    shape: WireValueShape::encode(connector.shape()),
-                    frame: WireValueFrame::encode(connector.frame()),
-                    pairing: WireBoundaryPairing::encode(connector.pairing()),
-                }
-            }
+            DomainKind::BoundaryPhysical { connector } => Self::BoundaryPhysical {
+                trace_dimension: WireDimension::encode(connector.trace_dimension()),
+                flux_dimension: WireDimension::encode(connector.flux_dimension()),
+                shape: WireValueShape::encode(connector.shape()),
+                frame: WireValueFrame::encode(connector.frame()),
+                pairing: WireBoundaryPairing::encode(connector.pairing()),
+            },
             _ => {
                 return Err(invalid_artifact(
                     "the model contains a Domain kind unsupported by this model wire",

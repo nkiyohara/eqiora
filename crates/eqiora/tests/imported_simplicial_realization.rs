@@ -1,7 +1,7 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::artifact::{
-    LayoutArtifacts, MeshDecoderLimits, ModelEnvelopeV1, RealizationEnvelopeV1,
+    LayoutArtifacts, MeshDecoderLimits, ModelEnvelope, RealizationEnvelopeV1,
     SimplicialMeshEnvelopeV1,
 };
 use eqiora::compiler::compile;
@@ -31,7 +31,7 @@ const SOURCE: &str =
 #[test]
 fn imported_mesh_identity_round_trips_from_realization_to_assembly_evidence() {
     let program = compile_program();
-    let model_artifact = ModelEnvelopeV1::from_program(&program).unwrap();
+    let model_artifact = ModelEnvelope::from_program(&program).unwrap();
     let mesh_artifact = SimplicialMeshEnvelopeV1::from_mesh(&cross_mesh()).unwrap();
     let mesh_bytes = mesh_artifact.canonical_json().unwrap();
     let mesh_artifact =
@@ -185,7 +185,7 @@ fn assert_same_numerical_report(serial: &SolveReport, threaded: &SolveReport) {
 #[test]
 fn imported_mesh_capability_identity_and_dimension_mismatches_fail_closed() {
     let program = compile_program();
-    let model_artifact = ModelEnvelopeV1::from_program(&program).unwrap();
+    let model_artifact = ModelEnvelope::from_program(&program).unwrap();
     let mesh_artifact = SimplicialMeshEnvelopeV1::from_mesh(&cross_mesh()).unwrap();
     let reference = mesh_artifact.artifact_reference().unwrap();
     let request = imported_request(&program, reference);

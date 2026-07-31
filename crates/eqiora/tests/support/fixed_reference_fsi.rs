@@ -3,10 +3,9 @@ use std::num::NonZeroUsize;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     ExecutionProvenanceV1, ExecutionTopologyV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelopeV4, RealizationEnvelopeV3,
+    GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV3,
     RunManifestV2, SimplicialMeshEnvelopeV1,
 };
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{CellId, FacetId, MeshQualityGate, SimplicialMesh};
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
@@ -61,7 +60,7 @@ const PRESSURE: DimExponents = DimExponents {
 };
 
 pub(crate) struct SpatialContext {
-    pub(crate) model: ModelEnvelopeV4,
+    pub(crate) model: ModelEnvelope,
     pub(crate) mesh: SimplicialMesh,
     pub(crate) mesh_artifact: SimplicialMeshEnvelopeV1,
     pub(crate) geometry: GeometryIdentityEnvelopeV1,
@@ -115,8 +114,7 @@ pub(crate) struct ExecutionWitness {
 }
 
 pub(crate) fn direct_document() -> ModelDocument {
-    ExactModelCodec::V4
-        .compile("direct.eqi", DIRECT)
+    eqiora::api::ModelDocument::compile("direct.eqi", DIRECT)
         .expect("direct inertial-fluid/dynamic-solid Model compiles")
 }
 
@@ -131,7 +129,7 @@ pub(crate) fn spatial_context(
     program: &eqiora::sem::KernelProgram,
     canonical: &FixedReferenceFsiCartesianModel2d,
 ) -> SpatialContext {
-    let model = ModelEnvelopeV4::from_program(program).expect("canonical FSI Model v4");
+    let model = ModelEnvelope::from_program(program).expect("canonical current FSI Model");
     let mesh = physical_mesh();
     let mesh_artifact = SimplicialMeshEnvelopeV1::from_mesh(&mesh).expect("exact mesh artifact");
     let fluid = canonical
@@ -497,7 +495,7 @@ pub(crate) fn packaged_document() -> PackagedModelDocument {
     for release in [&mechanics, &fluid, &inertial, &solid, &root] {
         store.insert(release).expect("install exact package");
     }
-    PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V4)
+    PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile exact FSI package graph offline")
 }
 

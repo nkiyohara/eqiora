@@ -2,8 +2,9 @@
 
 This case registers one immutable application composition. Native Studio
 decodes the checked exact rectangle-minus-circle geometry and canonical Model
-v7 example, replays them through a fresh graph store, realizes the accepted
-source-owned 50-chord affine mesh, resolves the existing coherent-SI MINI/P1
+example from the sole current artifact epoch, replays them through a fresh
+graph store, realizes the accepted source-owned 50-chord affine mesh, resolves
+the existing coherent-SI MINI/P1
 Stokes plan, and executes it with the accepted Faer SparseLU tuple. It then
 creates a Model- and Realization-bound Run, authored pressure snapshot, and
 unstructured P1 application projection before publishing anything to Studio's

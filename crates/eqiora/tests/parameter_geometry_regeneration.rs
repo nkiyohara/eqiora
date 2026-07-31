@@ -3,10 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
-    GeometryRevisionAssociationEnvelopeV1, ModelDecoderLimits, ModelEnvelopeV8,
-    ModelTransactionEnvelopeV8, SimplicialMeshEnvelopeV1,
+    GeometryRevisionAssociationEnvelopeV1, ModelDecoderLimits, ModelEnvelope,
+    ModelTransactionEnvelope, SimplicialMeshEnvelopeV1,
 };
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::geometry::BodyAssociationCandidate;
 use eqiora::graph::{EdgeKind, Op, Precondition};
 use eqiora::kernel::{AxisBounds, BoundarySide, DomainKind, KernelNode};
@@ -107,7 +106,7 @@ fn one_value_transaction_regenerates_every_endpoint_and_retains_selections() {
     );
     assert_ne!(plan.expected_child_digest(), base_digest);
 
-    let transaction = ModelTransactionEnvelopeV8::from_json(
+    let transaction = ModelTransactionEnvelope::from_json(
         &plan.transaction_json().unwrap(),
         ModelDecoderLimits::default(),
     )
@@ -251,7 +250,6 @@ fn plan_is_canonical_and_invalid_requests_fail_before_mutation() {
         plan.expected_child_digest(),
         distinct.expected_child_digest()
     );
-    assert_eq!(plan.exact_codec(), ExactModelCodec::CURRENT);
     assert_eq!(
         plan.transaction_json().unwrap(),
         traversal_plan.transaction_json().unwrap()
@@ -317,9 +315,7 @@ fn plan_is_canonical_and_invalid_requests_fail_before_mutation() {
             .preview_parameter_geometry_regeneration(invalid.aliases()["ordinary_length"], 2.0)
             .is_err()
     );
-    let legacy = ExactModelCodec::V7
-        .compile("legacy-fixed.eqi", INVALID_TARGETS)
-        .unwrap();
+    let legacy = eqiora::api::ModelDocument::compile("legacy-fixed.eqi", INVALID_TARGETS).unwrap();
     assert!(
         legacy
             .preview_parameter_geometry_regeneration(legacy.aliases()["ordinary_length"], 2.0)
@@ -409,9 +405,7 @@ fn replay_with_reversed_declaration_arrays(document: &ModelDocument) -> ModelDoc
     for field in ["nodes", "values", "edges", "boundary"] {
         wire[field].as_array_mut().unwrap().reverse();
     }
-    ExactModelCodec::CURRENT
-        .replay(&serde_json::to_vec(&wire).unwrap())
-        .unwrap()
+    eqiora::api::ModelDocument::replay(&serde_json::to_vec(&wire).unwrap()).unwrap()
 }
 
 fn assert_oracle(document: &ModelDocument, expected: &OracleState) {
@@ -423,8 +417,8 @@ fn assert_oracle(document: &ModelDocument, expected: &OracleState) {
     assert_eq!(box_volume(document), expected.volume_m3);
 }
 
-fn model_artifact(document: &ModelDocument) -> ModelEnvelopeV8 {
-    ModelEnvelopeV8::from_json(
+fn model_artifact(document: &ModelDocument) -> ModelEnvelope {
+    ModelEnvelope::from_json(
         &document.canonical_json().unwrap(),
         ModelDecoderLimits::default(),
     )

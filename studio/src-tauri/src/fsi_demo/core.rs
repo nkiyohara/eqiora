@@ -1,7 +1,6 @@
 //! Closed transport projection over one accepted two-step FSI composition.
 
-use eqiora::api::FixedReferenceFsiResult2d;
-use eqiora::compatibility::ExactModelCodec;
+use eqiora::api::{FixedReferenceFsiResult2d, ModelDocument};
 use eqiora::meshing::{MeshEntity, MeshTopology};
 use eqiora::solver::{ConvergenceReason, REFERENCE_LINEAR_SOLVER};
 use serde::Serialize;
@@ -186,9 +185,8 @@ struct EvidenceAttribution {
 }
 
 pub(super) fn prepare_demo() -> Result<FsiDemoResult, String> {
-    let document = ExactModelCodec::V4
-        .compile("fixed-reference-fsi.eqi", MODEL_SOURCE)
-        .map_err(diagnostics)?;
+    let document =
+        ModelDocument::compile("fixed-reference-fsi.eqi", MODEL_SOURCE).map_err(diagnostics)?;
     let accepted = FixedReferenceFsiResult2d::solve_reference(&document, &REFERENCE_LINEAR_SOLVER)
         .map_err(error)?;
     let [step_case_id, trajectory_case_id] = accepted.scientific_case_ids();

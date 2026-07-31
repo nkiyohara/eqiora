@@ -1,8 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora::api::ModelDocument;
-use eqiora::artifact::ModelEnvelopeV4;
-use eqiora::compatibility::ExactModelCodec;
+use eqiora::artifact::ModelEnvelope;
 use eqiora::diagnostic::codes;
 use eqiora::kernel::BoundarySide;
 use eqiora::language::{ComponentItem, DomainSyntax, Item};
@@ -177,9 +176,8 @@ fn compile_locked(
     let mut store = InMemoryPackageStore::default();
     store.insert(component).expect("insert component release");
     store.insert(root).expect("insert root release");
-    let packaged =
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V4)
-            .expect("compile exact packaged Stokes Model");
+    let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect("compile exact packaged Stokes Model");
     packaged
         .compilation()
         .validate_against(&resolution)
@@ -188,8 +186,7 @@ fn compile_locked(
 }
 
 fn direct_document(source: &str) -> ModelDocument {
-    ExactModelCodec::V4
-        .compile("direct.eqi", source)
+    eqiora::api::ModelDocument::compile("direct.eqi", source)
         .expect("direct Stokes source compiles")
 }
 
@@ -298,8 +295,9 @@ fn first_json_difference(
 
 fn identity_normalized_program(packaged: &ModelDocument, direct: &ModelDocument) -> KernelProgram {
     let packaged_envelope =
-        ModelEnvelopeV4::from_program(packaged.program()).expect("packaged Model v4");
-    let direct_envelope = ModelEnvelopeV4::from_program(direct.program()).expect("direct Model v4");
+        ModelEnvelope::from_program(packaged.program()).expect("packaged current Model");
+    let direct_envelope =
+        ModelEnvelope::from_program(direct.program()).expect("direct current Model");
     let mut packaged_value: serde_json::Value = serde_json::from_slice(
         &packaged_envelope
             .canonical_json()
@@ -357,11 +355,11 @@ fn identity_normalized_program(packaged: &ModelDocument, direct: &ModelDocument)
     );
 
     rewrite_model_ulids(&mut packaged_value, &identities);
-    let rewritten = ModelEnvelopeV4::from_json(
+    let rewritten = ModelEnvelope::from_json(
         &serde_json::to_vec(&packaged_value).expect("normalized Model JSON"),
         Default::default(),
     )
-    .expect("normalized Model v4");
+    .expect("normalized current Model");
     rewritten
         .to_program()
         .expect("normalized Model reconstructs exactly")
@@ -512,7 +510,7 @@ fn assert_lowering_rejects(source: &str) {
 }
 
 fn assert_model_or_lowering_rejects(source: &str) {
-    match ExactModelCodec::V4.compile("near-miss.eqi", source) {
+    match eqiora::api::ModelDocument::compile("near-miss.eqi", source) {
         Err(diagnostics) => assert!(!diagnostics.is_empty()),
         Ok(document) => {
             let diagnostic = lower_steady_incompressible_stokes_cartesian_2d(document.program())
@@ -792,13 +790,9 @@ fn exact_offline_release_resolution_compilation_and_model_replay() {
     replay_store
         .insert(&root_replay)
         .expect("install replayed root");
-    let recompiled = PackagedModelDocument::compile_locked(
-        &replay_store,
-        &resolution_replay,
-        "Main",
-        ExactModelCodec::V4,
-    )
-    .expect("offline recompile from replayed exact releases");
+    let recompiled =
+        PackagedModelDocument::compile_locked(&replay_store, &resolution_replay, "Main")
+            .expect("offline recompile from replayed exact releases");
     assert_eq!(
         recompiled
             .compilation()
@@ -806,7 +800,10 @@ fn exact_offline_release_resolution_compilation_and_model_replay() {
             .expect("recompiled record"),
         compilation_bytes
     );
-    let model_bytes = packaged.model().canonical_json().expect("Model v4 bytes");
+    let model_bytes = packaged
+        .model()
+        .canonical_json()
+        .expect("current Model bytes");
     assert_eq!(
         recompiled
             .model()
@@ -814,9 +811,8 @@ fn exact_offline_release_resolution_compilation_and_model_replay() {
             .expect("recompiled Model"),
         model_bytes
     );
-    let model_replay = ExactModelCodec::V4
-        .replay(&model_bytes)
-        .expect("Model v4 replay");
+    let model_replay =
+        eqiora::api::ModelDocument::replay(&model_bytes).expect("current Model replay");
     assert_eq!(
         model_replay.canonical_json().expect("replayed Model"),
         model_bytes

@@ -11,6 +11,7 @@ capabilities = [
   "unchanged-fixed-reference-fsi-physical-finish",
   "normalized-cpu-cuda-field-conformance",
   "coupled-realization-v3-and-run-v2-replay",
+  "historical-model-bundle-current-semantic-bridge",
 ]
 
 [problem]
@@ -49,6 +50,10 @@ replicated_algebra = true
 cuda_minres = true
 fast_device_reduction = true
 portable_selected_device_observation = true
+recorded_model_bundle_is_historical = true
+current_semantic_model_bridge = true
+current_run_observed = false
+automatic_model_migration = false
 hardware_attestation = false
 reproducible_device_reduction = false
 gpu_assembly = false

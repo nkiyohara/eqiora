@@ -1,6 +1,6 @@
 id = "interfaces.control-plane-compile-check"
 status = "verified"
-scope = "client-neutral-bounded-compile-check-control-v1"
+scope = "client-neutral-bounded-compile-check-control-v2"
 reference_kind = "shared-wire-fixtures-and-ordinary-compiler-admission"
 
 capabilities = [
@@ -11,11 +11,11 @@ capabilities = [
   "control-data-plane-separation",
 ]
 
-conformance_kits = ["control-compile-check-v1"]
+conformance_kits = ["control-compile-check-v2"]
 
 [claim_boundary]
 compile_check = true
-model_wires = ["v1", "v2", "v3", "v4", "v5", "v6", "v7"]
+model_owner = "current"
 preview = false
 execute = false
 cancel = false

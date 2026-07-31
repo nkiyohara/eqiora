@@ -12,7 +12,7 @@
 //! historical generation is still callable.
 
 use eqiora_artifact::{
-    CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelopeV8, ModelTransactionEnvelopeV8,
+    CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelope, ModelTransactionEnvelope,
     ReplayableCanonicalModelArtifact,
 };
 use eqiora_core::entity::kinds;
@@ -44,8 +44,9 @@ const CYLINDER_JSON: &[u8] =
     include_bytes!("../../../examples/steady-flow-past-cylinder.model.json");
 /// Retained only to prove that the re-encoded resource carries the identical
 /// semantic Model. The historical resource itself is not decoded here.
-const CYLINDER_V7_JSON: &[u8] =
-    include_bytes!("../../../examples/steady-flow-past-cylinder.model-v7.json");
+const CYLINDER_V7_JSON: &[u8] = include_bytes!(
+    "../../../verify/artifacts/current-model-canonical-identity/expected/historical/steady-flow-past-cylinder.model-v7.json"
+);
 
 const MODEL_BYTES: usize = 2_347;
 const MODEL_RAW_SHA256: &str = "7e179d0d90f8789b9818eae7b5696e10c33a9350a34205d2e7cfd56b938aa427";
@@ -239,8 +240,8 @@ fn coordinates_of(wire: &mut Value) -> &mut Vec<Value> {
         .unwrap()
 }
 
-fn decode_model(wire: &Value) -> ModelEnvelopeV8 {
-    ModelEnvelopeV8::from_json(
+fn decode_model(wire: &Value) -> ModelEnvelope {
+    ModelEnvelope::from_json(
         &serde_json::to_vec(wire).unwrap(),
         ModelDecoderLimits::default(),
     )
@@ -253,7 +254,7 @@ fn current_model_bytes_equal_the_independently_frozen_oracle() {
     assert_eq!(frozen_bytes.len(), MODEL_BYTES);
     assert_eq!(raw_sha256(frozen_bytes), MODEL_RAW_SHA256);
 
-    let envelope = ModelEnvelopeV8::from_program(&fixture().program).unwrap();
+    let envelope = ModelEnvelope::from_program(&fixture().program).unwrap();
     let produced = envelope.canonical_json().unwrap();
     assert_eq!(
         produced, frozen_bytes,
@@ -261,7 +262,7 @@ fn current_model_bytes_equal_the_independently_frozen_oracle() {
     );
     assert_eq!(envelope.digest().unwrap().as_str(), MODEL_DIGEST);
 
-    let decoded = ModelEnvelopeV8::from_json(frozen_bytes, ModelDecoderLimits::default()).unwrap();
+    let decoded = ModelEnvelope::from_json(frozen_bytes, ModelDecoderLimits::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), frozen_bytes);
     assert_eq!(decoded.digest().unwrap().as_str(), MODEL_DIGEST);
     assert_eq!(decoded.to_program().unwrap(), fixture().program);
@@ -312,7 +313,7 @@ fn current_model_axis_and_role_permutations_change_identity() {
         let swapped = serde_json::to_vec(&roles).unwrap();
         // A fail-closed rejection is equally a role-sensitive outcome, so only
         // an accepted swap has an identity left to compare.
-        if let Ok(decoded) = ModelEnvelopeV8::from_json(&swapped, ModelDecoderLimits::default()) {
+        if let Ok(decoded) = ModelEnvelope::from_json(&swapped, ModelDecoderLimits::default()) {
             decoded_swaps += 1;
             assert_ne!(
                 decoded.canonical_json().unwrap(),
@@ -336,7 +337,7 @@ fn current_transaction_bytes_equal_the_independently_frozen_oracle() {
     assert_eq!(raw_sha256(frozen_bytes), TRANSACTION_RAW_SHA256);
 
     let fixture = fixture();
-    let envelope = ModelTransactionEnvelopeV8::from_transaction(&fixture.transaction).unwrap();
+    let envelope = ModelTransactionEnvelope::from_transaction(&fixture.transaction).unwrap();
     assert_eq!(
         envelope.canonical_json().unwrap(),
         frozen_bytes,
@@ -345,7 +346,7 @@ fn current_transaction_bytes_equal_the_independently_frozen_oracle() {
     assert_eq!(envelope.digest().unwrap().as_str(), TRANSACTION_DIGEST);
 
     let decoded =
-        ModelTransactionEnvelopeV8::from_json(frozen_bytes, ModelDecoderLimits::default()).unwrap();
+        ModelTransactionEnvelope::from_json(frozen_bytes, ModelDecoderLimits::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), frozen_bytes);
     assert_eq!(decoded.digest().unwrap().as_str(), TRANSACTION_DIGEST);
 
@@ -361,9 +362,9 @@ fn current_transaction_bytes_equal_the_independently_frozen_oracle() {
 #[test]
 fn current_transaction_operation_reversal_produces_a_distinct_artifact() {
     let fixture = fixture();
-    let forward = ModelTransactionEnvelopeV8::from_transaction(&fixture.transaction).unwrap();
+    let forward = ModelTransactionEnvelope::from_transaction(&fixture.transaction).unwrap();
     let reverse =
-        ModelTransactionEnvelopeV8::from_transaction(&reordered(&fixture.transaction)).unwrap();
+        ModelTransactionEnvelope::from_transaction(&reordered(&fixture.transaction)).unwrap();
     assert_ne!(
         forward.canonical_json().unwrap(),
         reverse.canonical_json().unwrap()
@@ -379,7 +380,7 @@ fn current_transaction_operation_reversal_produces_a_distinct_artifact() {
 fn historical_model_and_transaction_specimens_reject_through_the_current_decoder() {
     for (version, specimen) in HISTORICAL_MODELS {
         let specimen = frozen(specimen);
-        let error = ModelEnvelopeV8::from_json(specimen, ModelDecoderLimits::default())
+        let error = ModelEnvelope::from_json(specimen, ModelDecoderLimits::default())
             .expect_err("historical Model bytes must not enter the current decoder");
         assert!(
             error.message().contains("eqiora.model-envelope/v8"),
@@ -389,7 +390,7 @@ fn historical_model_and_transaction_specimens_reject_through_the_current_decoder
     }
     for (version, specimen) in HISTORICAL_TRANSACTIONS {
         let specimen = frozen(specimen);
-        let error = ModelTransactionEnvelopeV8::from_json(specimen, ModelDecoderLimits::default())
+        let error = ModelTransactionEnvelope::from_json(specimen, ModelDecoderLimits::default())
             .expect_err("historical Transaction bytes must not enter the current decoder");
         assert!(
             error
@@ -409,7 +410,7 @@ fn schema_substitution_alone_cannot_admit_a_historical_specimen() {
             &historical_schema("model", version),
             MODEL_SCHEMA,
         );
-        let error = ModelEnvelopeV8::from_json(&forged, ModelDecoderLimits::default())
+        let error = ModelEnvelope::from_json(&forged, ModelDecoderLimits::default())
             .expect_err("relabelling a historical Model must not make its meaning current");
         assert!(
             error.message().contains("model wire v8"),
@@ -423,7 +424,7 @@ fn schema_substitution_alone_cannot_admit_a_historical_specimen() {
             &historical_schema("model-transaction", version),
             TRANSACTION_SCHEMA,
         );
-        let error = ModelTransactionEnvelopeV8::from_json(&forged, ModelDecoderLimits::default())
+        let error = ModelTransactionEnvelope::from_json(&forged, ModelDecoderLimits::default())
             .expect_err("relabelling a historical Transaction must not make its meaning current");
         assert!(
             error.message().contains("model wire v8"),
@@ -439,7 +440,7 @@ fn current_cylinder_resource_round_trips_with_a_new_artifact_identity() {
     assert_eq!(frozen_bytes.len(), CYLINDER_BYTES);
     assert_eq!(raw_sha256(frozen_bytes), CYLINDER_RAW_SHA256);
 
-    let decoded = ModelEnvelopeV8::from_json(frozen_bytes, ModelDecoderLimits::default()).unwrap();
+    let decoded = ModelEnvelope::from_json(frozen_bytes, ModelDecoderLimits::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), frozen_bytes);
     assert_eq!(decoded.digest().unwrap().as_str(), CYLINDER_DIGEST);
     assert_ne!(
@@ -474,7 +475,7 @@ fn current_cylinder_resource_round_trips_with_a_new_artifact_identity() {
         MODEL_SCHEMA,
     );
     let historical_content =
-        ModelEnvelopeV8::from_json(&relabelled, ModelDecoderLimits::default()).unwrap();
+        ModelEnvelope::from_json(&relabelled, ModelDecoderLimits::default()).unwrap();
     assert_eq!(historical_content.canonical_json().unwrap(), frozen_bytes);
 
     let (replayed, replayed_model) = decoded.to_transaction().unwrap();

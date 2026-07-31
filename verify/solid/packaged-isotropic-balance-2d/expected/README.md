@@ -11,7 +11,7 @@ requires:
 - exact alias identity between each root Lamé Parameter and its Component
   binding occurrence;
 - a complete identity bijection under which the packaged and existing
-  explicit-flat Model v4 structures agree after relation-expression
+  explicit-flat current Model structures agree after relation-expression
   implementations are projected out;
 - identical method-neutral bounds, Lamé coefficients, conservative load
   evaluation, Q1 algebraic solutions, componentwise equilibrium, and
@@ -23,7 +23,7 @@ requires:
   declaration, binding, and input-file order;
 - unchanged numerical acceptance after replacing the provider package name;
   and
-- replayable exact package compilation, Model v4, Realization v1, Run v2, and
+- replayable exact package compilation, current Model, Realization v1, Run v2, and
   package-execution-binding lineage.
 
 No assertion may select a lowerer, Realization, solver, or expected numerical

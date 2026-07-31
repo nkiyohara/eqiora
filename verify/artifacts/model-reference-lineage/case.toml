@@ -1,31 +1,29 @@
 id = "artifacts.model-reference-lineage"
 status = "verified"
-scope = "version-neutral-typed-model-artifact-reference"
-reference_kind = "explicit-wire-round-trip-and-cross-domain-rejection"
+scope = "current-model-typed-artifact-reference-lineage"
+reference_kind = "current-owner-round-trip-and-realization-run-linkage"
 
 capabilities = [
   "sealed-model-artifact-reference",
-  "single-artifact-owned-historical-envelope-dispatch",
   "opaque-accepted-model-artifact",
-  "public-exact-model-codec-caller-policy",
-  "model-wire-v1-v2-v3-realization-linkage",
-  "model-wire-v1-through-v7-exact-dispatch",
+  "current-model-artifact-owner-replay",
+  "current-model-multi-vocabulary-realization-linkage",
   "unchanged-realization-v1-wire",
   "run-v2-content-lineage",
   "wire-domain-digest-preservation",
-  "cross-wire-substitution-fail-closed",
 ]
 
 [problem]
-models = "explicit Model v1 spatial, v2 scalar-physical, and v3 field-boundary artifacts plus one semantic program encoded through every v1-v7 historical-envelope dispatch entry"
-lineage = "selected Model artifact -> Realization v1 -> Run v2"
+models = "current spatial, scalar-physical, and field-boundary Models plus one native current Model replayed through the artifact owner"
+lineage = "current Model artifact -> Realization v1 -> Run v2"
 encoding = "eqiora.canonical-json/v1"
-generation_selection = "public ExactModelCodec caller policy -> artifact-owned historical-envelope dispatch"
+model_owner = "current ModelDocument and AcceptedModelArtifact"
 
 [claim_boundary]
-wire_autodetection = false
+historical_generation_callable = false
+historical_wire_autodetection = false
 schema_upgrade = false
-cross_schema_digest_equivalence = false
+automatic_migration = false
 model_execution = false
 numerical_acceptance = false
 physical_result_storage = false

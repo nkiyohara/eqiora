@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use eqiora_artifact::{
     CanonicalModelArtifact, FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1,
     GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1, LayoutArtifacts,
-    MeshDecoderLimits, ModelEnvelopeV4, RealizationEnvelopeV1, SimplicialMeshEnvelopeV1,
+    MeshDecoderLimits, ModelEnvelope, RealizationEnvelopeV1, SimplicialMeshEnvelopeV1,
 };
 use eqiora_compiler::compile;
 use eqiora_core::entity::kinds;
@@ -301,7 +301,7 @@ fn state_rejects_stale_shape_and_a_path_that_inverts_between_valid_endpoints() {
 }
 
 struct Fixture {
-    model: ModelEnvelopeV4,
+    model: ModelEnvelope,
     mesh: SimplicialMeshEnvelopeV1,
     geometry: GeometryIdentityEnvelopeV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
@@ -312,7 +312,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         let program = program();
-        let model = ModelEnvelopeV4::from_program(&program).unwrap();
+        let model = ModelEnvelope::from_program(&program).unwrap();
         let mesh = SimplicialMeshEnvelopeV1::from_mesh(&reference_mesh()).unwrap();
         let mut bodies = program
             .nodes()
@@ -449,7 +449,7 @@ fn reference_mesh() -> SimplicialMesh {
 
 #[allow(clippy::too_many_arguments)]
 fn driver_snapshot(
-    model: &ModelEnvelopeV4,
+    model: &ModelEnvelope,
     realization: &RealizationEnvelopeV1,
     geometry: &GeometryIdentityEnvelopeV1,
     correspondence: &GeometryMeshCorrespondenceEnvelopeV1,

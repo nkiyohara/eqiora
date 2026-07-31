@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use eqiora_artifact::{ModelEnvelopeV2, ModelTransactionEnvelopeV2};
+use eqiora_artifact::{ModelEnvelope, ModelTransactionEnvelope};
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId, RawId};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
@@ -217,9 +217,9 @@ fn relation_ids(program: &eqiora_sem::ComposedResidualSystem) -> BTreeSet<RawId>
 fn bridge_closure_is_canonical_and_parameter_sharing_does_not_join_subsystems() {
     let ids = ids();
     let forward_transaction = closure_transaction(ids, true, false);
-    let wire = ModelTransactionEnvelopeV2::from_transaction(&forward_transaction).unwrap();
+    let wire = ModelTransactionEnvelope::from_transaction(&forward_transaction).unwrap();
     let decoded =
-        ModelTransactionEnvelopeV2::from_json(&wire.canonical_json().unwrap(), Default::default())
+        ModelTransactionEnvelope::from_json(&wire.canonical_json().unwrap(), Default::default())
             .unwrap();
     let forward = program_from_transaction(decoded.to_transaction().unwrap(), ids.model);
     let reversed = program_from_transaction(closure_transaction(ids, true, true), ids.model);
@@ -277,21 +277,21 @@ fn bridge_closure_is_canonical_and_parameter_sharing_does_not_join_subsystems() 
             .unwrap()
     );
     assert_eq!(
-        ModelEnvelopeV2::from_program(&forward)
+        ModelEnvelope::from_program(&forward)
             .unwrap()
             .canonical_json()
             .unwrap(),
-        ModelEnvelopeV2::from_program(&reversed)
+        ModelEnvelope::from_program(&reversed)
             .unwrap()
             .canonical_json()
             .unwrap()
     );
     assert_ne!(
-        ModelEnvelopeV2::from_program(&forward)
+        ModelEnvelope::from_program(&forward)
             .unwrap()
             .digest()
             .unwrap(),
-        ModelEnvelopeV2::from_program(&without_unrelated)
+        ModelEnvelope::from_program(&without_unrelated)
             .unwrap()
             .digest()
             .unwrap()

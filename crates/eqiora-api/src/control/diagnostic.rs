@@ -3,22 +3,27 @@ use core::fmt;
 use eqiora_core::{Diagnostic, Severity};
 use serde::{Deserialize, Serialize};
 
-/// Stable source family for a v1 control-plane diagnostic.
+use super::{
+    MAX_CONTROL_DIAGNOSTIC_MESSAGE_BYTES_V2, MAX_CONTROL_GRAPH_PATH_SEGMENTS_V2,
+    MAX_CONTROL_TEXT_MEMBER_BYTES_V2,
+};
+
+/// Stable source family for a v2 control-plane diagnostic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum ControlDiagnosticSourceV1 {
-    /// The request failed the versioned control contract.
+pub enum ControlDiagnosticSourceV2 {
+    /// The request failed the control contract.
     Control,
-    /// The ordinary Eqiora compiler, semantic validator, or artifact boundary
-    /// rejected an otherwise valid control request.
+    /// The ordinary compiler, semantic validator, or artifact boundary
+    /// rejected an admitted request.
     Kernel,
 }
 
-/// Stable severity spelling carried over the control wire.
+/// Stable severity spelling carried over the v2 control wire.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum ControlSeverityV1 {
-    /// The command did not produce a model.
+pub enum ControlSeverityV2 {
+    /// The command did not produce a Model.
     Error,
     /// The command produced a result with an attached warning.
     Warning,
@@ -26,16 +31,16 @@ pub enum ControlSeverityV1 {
     Note,
 }
 
-/// Source byte range attached to a control-plane diagnostic.
+/// Source byte range attached to a v2 control-plane diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ControlSourceSpanV1 {
+pub struct ControlSourceSpanV2 {
     file: String,
     start: u32,
     end: u32,
 }
 
-impl ControlSourceSpanV1 {
+impl ControlSourceSpanV2 {
     /// Workspace-relative source filename.
     #[must_use]
     pub fn file(&self) -> &str {
@@ -55,18 +60,15 @@ impl ControlSourceSpanV1 {
     }
 }
 
-/// Bounded machine-applicable suggestion carried by compile/check v1.
-///
-/// The present kernel exposes a summary-only patch. Later protocol versions
-/// may add explicit edits without changing this immutable v1 shape.
+/// Bounded summary-only suggestion carried by compile/check v2.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ControlPatchV1 {
+pub struct ControlPatchV2 {
     summary: String,
 }
 
-impl ControlPatchV1 {
-    /// Human-readable one-line patch summary.
+impl ControlPatchV2 {
+    /// Human-readable patch summary.
     #[must_use]
     pub fn summary(&self) -> &str {
         &self.summary
@@ -76,26 +78,26 @@ impl ControlPatchV1 {
 /// Transport-neutral projection of one structured Eqiora diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ControlDiagnosticV1 {
-    source: ControlDiagnosticSourceV1,
-    severity: ControlSeverityV1,
+pub struct ControlDiagnosticV2 {
+    source: ControlDiagnosticSourceV2,
+    severity: ControlSeverityV2,
     code: String,
     message: String,
     graph_path: Option<Box<[String]>>,
-    span: Option<Box<ControlSourceSpanV1>>,
-    patch: Option<Box<ControlPatchV1>>,
+    span: Option<Box<ControlSourceSpanV2>>,
+    patch: Option<Box<ControlPatchV2>>,
 }
 
-impl ControlDiagnosticV1 {
+impl ControlDiagnosticV2 {
     /// Subsystem that admitted the diagnostic.
     #[must_use]
-    pub const fn source(&self) -> ControlDiagnosticSourceV1 {
+    pub const fn source(&self) -> ControlDiagnosticSourceV2 {
         self.source
     }
 
     /// Stable severity.
     #[must_use]
-    pub const fn severity(&self) -> ControlSeverityV1 {
+    pub const fn severity(&self) -> ControlSeverityV2 {
         self.severity
     }
 
@@ -119,13 +121,13 @@ impl ControlDiagnosticV1 {
 
     /// Source byte range, when one is available.
     #[must_use]
-    pub fn span(&self) -> Option<&ControlSourceSpanV1> {
+    pub fn span(&self) -> Option<&ControlSourceSpanV2> {
         self.span.as_deref()
     }
 
     /// Machine-applicable suggestion, when one is available.
     #[must_use]
-    pub fn patch(&self) -> Option<&ControlPatchV1> {
+    pub fn patch(&self) -> Option<&ControlPatchV2> {
         self.patch.as_deref()
     }
 
@@ -137,54 +139,18 @@ impl ControlDiagnosticV1 {
         Self::control("EQ0001", message)
     }
 
-    fn control(code: &str, message: impl Into<String>) -> Self {
-        Self {
-            source: ControlDiagnosticSourceV1::Control,
-            severity: ControlSeverityV1::Error,
-            code: code.to_owned(),
-            message: message.into(),
-            graph_path: None,
-            span: None,
-            patch: None,
-        }
+    pub(crate) fn diagnostics_overflow() -> Self {
+        Self::invalid_request("compile/check diagnostics exceed the control v2 response limits")
     }
 
-    pub(crate) fn validate(&self) -> Result<(), Self> {
-        let valid_code = self.code.len() == 6
-            && self.code.as_bytes()[..2].iter().all(u8::is_ascii_uppercase)
-            && self.code.as_bytes()[2..].iter().all(u8::is_ascii_digit);
-        let valid_path = self
-            .graph_path
-            .as_deref()
-            .is_none_or(|path| path.iter().all(|segment| !segment.is_empty()));
-        let valid_span = self.span.as_deref().is_none_or(|span| {
-            !span.file.is_empty()
-                && !span.file.chars().any(char::is_control)
-                && span.end >= span.start
-        });
-        let valid_patch = self
-            .patch
-            .as_deref()
-            .is_none_or(|patch| !patch.summary.is_empty());
-        if valid_code && !self.message.is_empty() && valid_path && valid_span && valid_patch {
-            Ok(())
-        } else {
-            Err(Self::invalid_request(
-                "compile/check response contains an invalid structured diagnostic",
-            ))
-        }
-    }
-}
-
-impl From<Diagnostic> for ControlDiagnosticV1 {
-    fn from(diagnostic: Diagnostic) -> Self {
+    pub(crate) fn from_kernel(diagnostic: Diagnostic) -> Result<Self, ()> {
         let severity = match diagnostic.severity() {
-            Severity::Error => ControlSeverityV1::Error,
-            Severity::Warning => ControlSeverityV1::Warning,
-            Severity::Note => ControlSeverityV1::Note,
+            Severity::Error => ControlSeverityV2::Error,
+            Severity::Warning => ControlSeverityV2::Warning,
+            Severity::Note => ControlSeverityV2::Note,
         };
-        Self {
-            source: ControlDiagnosticSourceV1::Kernel,
+        let value = Self {
+            source: ControlDiagnosticSourceV2::Kernel,
             severity,
             code: diagnostic.code().to_string(),
             message: diagnostic.message().to_owned(),
@@ -192,23 +158,71 @@ impl From<Diagnostic> for ControlDiagnosticV1 {
                 .graph_path()
                 .map(|path| path.segments().to_vec().into_boxed_slice()),
             span: diagnostic.source_span().map(|span| {
-                Box::new(ControlSourceSpanV1 {
+                Box::new(ControlSourceSpanV2 {
                     file: span.file.clone(),
                     start: span.start,
                     end: span.end,
                 })
             }),
             patch: diagnostic.suggestion().map(|patch| {
-                Box::new(ControlPatchV1 {
+                Box::new(ControlPatchV2 {
                     summary: patch.summary.clone(),
                 })
             }),
+        };
+        value.validate().map_err(|_| ())?;
+        Ok(value)
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), Self> {
+        let valid_code = self.code.len() == 6
+            && self.code.as_bytes()[..2].iter().all(u8::is_ascii_uppercase)
+            && self.code.as_bytes()[2..].iter().all(u8::is_ascii_digit);
+        let valid_message =
+            bounded_nonempty(&self.message, MAX_CONTROL_DIAGNOSTIC_MESSAGE_BYTES_V2);
+        let valid_path = self.graph_path.as_deref().is_none_or(|path| {
+            path.len() <= MAX_CONTROL_GRAPH_PATH_SEGMENTS_V2
+                && path
+                    .iter()
+                    .all(|segment| bounded_nonempty(segment, MAX_CONTROL_TEXT_MEMBER_BYTES_V2))
+        });
+        let valid_span = self.span.as_deref().is_none_or(|span| {
+            span.file.chars().count() <= MAX_CONTROL_TEXT_MEMBER_BYTES_V2
+                && span.file.len() <= MAX_CONTROL_TEXT_MEMBER_BYTES_V2
+                && span.end >= span.start
+        });
+        let valid_patch = self
+            .patch
+            .as_deref()
+            .is_none_or(|patch| bounded_nonempty(&patch.summary, MAX_CONTROL_TEXT_MEMBER_BYTES_V2));
+        if valid_code && valid_message && valid_path && valid_span && valid_patch {
+            Ok(())
+        } else {
+            Err(Self::invalid_request(
+                "compile/check response contains an invalid structured diagnostic",
+            ))
+        }
+    }
+
+    fn control(code: &str, message: impl Into<String>) -> Self {
+        Self {
+            source: ControlDiagnosticSourceV2::Control,
+            severity: ControlSeverityV2::Error,
+            code: code.to_owned(),
+            message: message.into(),
+            graph_path: None,
+            span: None,
+            patch: None,
         }
     }
 }
 
-impl fmt::Display for ControlDiagnosticV1 {
+impl fmt::Display for ControlDiagnosticV2 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "{}: {}", self.code, self.message)
     }
+}
+
+fn bounded_nonempty(value: &str, maximum: usize) -> bool {
+    !value.is_empty() && value.chars().count() <= maximum && value.len() <= maximum
 }

@@ -4,7 +4,7 @@
 mod canonical;
 
 use eqiora::artifact::{
-    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1, RunManifestV2,
+    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV1, RunManifestV2,
 };
 use eqiora::backends::cuda::{
     CUDA_ADAPTER_VERSION, CUDA_BINDING_TOOLKIT, CUDA_LINEAR_EXECUTION_PROVIDER,
@@ -79,7 +79,7 @@ fn canonical_plane_poisson_runs_through_q1_and_tpfa_on_cuda() {
         .unwrap();
 
     let program = canonical::compile_program().unwrap();
-    let model_artifact = ModelEnvelopeV1::from_program(&program).unwrap();
+    let model_artifact = ModelEnvelope::from_program(&program).unwrap();
     let capabilities = canonical::exact_capabilities(
         CudaLinearSolver::capabilities(),
         TargetCapabilities::none().with_cuda_device(device_ordinal),

@@ -23,15 +23,15 @@ PYTHON_DEMO = REPOSITORY_ROOT / "examples" / "python" / "exact_cylinder_stokes.p
 PACKAGED_MODEL = (
     importlib.resources.files("eqiora")
     .joinpath("examples")
-    .joinpath("steady-flow-past-cylinder.model-v7.json")
+    .joinpath("steady-flow-past-cylinder.model.json")
 )
 
 SOURCE_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
 MESH_DIGEST = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
-MODEL_DIGEST = "668fa55e5ab1a46d0b7523e4e3162442ccd7698697c4308604cf4fe9269249de"
+MODEL_DIGEST = "8bc5155bc1b64ed37f7a2ac010a966e1619091a118e6cf7806dbdf9621977146"
 MODEL_RESOURCE_BYTES = 16_798
 MODEL_RESOURCE_SHA256 = (
-    "b6c7be43520070084bf1a0f20a15772a69f4375dce168424341509189ddf5d1f"
+    "5c5c7924d6efe624a4b4df5f03f2fab03e423fc2ebafb658ba8ad050a7496387"
 )
 SEMANTIC_REVISION = 1
 REALIZATION_REVISION = 133
@@ -82,7 +82,7 @@ RUN_FIELDS = (
 )
 
 
-def model_v7_bytes() -> bytes:
+def model_bytes() -> bytes:
     encoded = PACKAGED_MODEL.read_bytes()
     assert len(encoded) == MODEL_RESOURCE_BYTES
     assert hashlib.sha256(encoded).hexdigest() == MODEL_RESOURCE_SHA256
@@ -105,7 +105,7 @@ def semantic_model_digest(encoded: bytes) -> str:
         )
     }
     canonical = json.dumps(content, separators=(",", ":"), ensure_ascii=False).encode()
-    return hashlib.sha256(b"eqiora.model-envelope/v7\0" + canonical).hexdigest()
+    return hashlib.sha256(b"eqiora.model-envelope/v8\0" + canonical).hexdigest()
 
 
 def model_result_ids(encoded: bytes) -> tuple[str, str]:
@@ -130,18 +130,21 @@ def model_result_ids(encoded: bytes) -> tuple[str, str]:
                 continue
             identifier = source["symbol"]["id"]["ulid"]
             dimension = fields[identifier]["dimension"]
-            if tuple(
-                dimension[key]
-                for key in (
-                    "mass",
-                    "length",
-                    "time",
-                    "current",
-                    "temperature",
-                    "amount",
-                    "luminous_intensity",
+            if (
+                tuple(
+                    dimension[key]
+                    for key in (
+                        "mass",
+                        "length",
+                        "time",
+                        "current",
+                        "temperature",
+                        "amount",
+                        "luminous_intensity",
+                    )
                 )
-            ) == PRESSURE_DIMENSION:
+                == PRESSURE_DIMENSION
+            ):
                 pressure_fields.add(identifier)
     support_domains = {
         node["id"]["ulid"]
@@ -195,7 +198,7 @@ def mesh(
 
 def solve(source: Any, realized: Any, *, model: bytes | None = None) -> Any:
     return eqiora.fluid.solve_exact_cylinder_stokes(
-        model_v7=model_v7_bytes() if model is None else model,
+        model=model_bytes() if model is None else model,
         geometry=source,
         mesh=realized,
     )
@@ -241,7 +244,7 @@ def assert_error(
 
 
 def test_model_oracle_is_independent_of_source_revision_provenance() -> None:
-    encoded = model_v7_bytes()
+    encoded = model_bytes()
     assert semantic_model_digest(encoded) == MODEL_DIGEST
 
     changed_revision = json.loads(encoded)
@@ -265,7 +268,7 @@ def test_complete_result_replays_binding_run_and_frozen_observations(
     assert realized.source_digest == SOURCE_DIGEST
     assert result.mesh_digest == realized.mesh_digest == MESH_DIGEST
     assert result.pressure_dimension == PRESSURE_DIMENSION
-    pressure_field_id, support_domain_id = model_result_ids(model_v7_bytes())
+    pressure_field_id, support_domain_id = model_result_ids(model_bytes())
     assert result.pressure_field_id == pressure_field_id
     assert result.support_domain_id == support_domain_id
     assert result.bounds == ((0.0, 2.2), (0.0, 0.41))
@@ -295,9 +298,7 @@ def test_complete_result_replays_binding_run_and_frozen_observations(
     assert isinstance(binding_bytes, bytes)
     binding = json.loads(binding_bytes)
     assert tuple(binding) == BINDING_FIELDS
-    assert binding["schema"] == (
-        "eqiora.circular-hole-chordal-realization-envelope/v1"
-    )
+    assert binding["schema"] == ("eqiora.circular-hole-chordal-realization-envelope/v1")
     assert binding["source_geometry_sha256"] == result.exact_source_digest
     assert binding["realized_geometry_sha256"] == result.realized_geometry_digest
     assert binding["mesh_sha256"] == result.mesh_digest
@@ -313,9 +314,10 @@ def test_complete_result_replays_binding_run_and_frozen_observations(
     assert binding["required_minimum_mean_ratio"] == 1.0e-5
     assert binding["circle_area_deficit_m2"] > 0.0
     assert binding["circle_perimeter_deficit_m"] > 0.0
-    assert hashlib.sha256(
-        binding["schema"].encode() + b"\0" + binding_bytes
-    ).hexdigest() == result.chordal_realization_digest
+    assert (
+        hashlib.sha256(binding["schema"].encode() + b"\0" + binding_bytes).hexdigest()
+        == result.chordal_realization_digest
+    )
 
     run_bytes = result.run_manifest_json
     assert isinstance(run_bytes, bytes)
@@ -331,9 +333,10 @@ def test_complete_result_replays_binding_run_and_frozen_observations(
     assert run["execution"]["reduction"] == result.solve.reduction == "fast"
     assert run["execution"]["topology"] == {"kind": "host", "workers": 1}
     assert run["execution"]["libraries"]["faer"] == "0.24.4"
-    assert hashlib.sha256(
-        run["schema"].encode() + b"\0" + run_bytes
-    ).hexdigest() == result.run_digest
+    assert (
+        hashlib.sha256(run["schema"].encode() + b"\0" + run_bytes).hexdigest()
+        == result.run_digest
+    )
 
     mesh_document = json.loads(realized.mesh_canonical_json)
     coordinates = result.coordinates
@@ -417,13 +420,12 @@ def test_complete_result_replays_binding_run_and_frozen_observations(
     assert math.isfinite(continuity) and 0.0 <= continuity <= weak_bound
 
     assert repr(result) == (
-        "CircularHoleSteadyStokesResult("
-        f"run_digest={result.run_digest!r})"
+        f"CircularHoleSteadyStokesResult(run_digest={result.run_digest!r})"
     )
     with pytest.raises(AttributeError):
         result.run_digest = "0" * 64
 
-    pretty_model = json.dumps(json.loads(model_v7_bytes()), indent=2).encode()
+    pretty_model = json.dumps(json.loads(model_bytes()), indent=2).encode()
     replay = solve(source, realized, model=pretty_model)
     assert replay == result
     assert hash(replay) == hash(result)
@@ -474,7 +476,7 @@ def test_model_and_exact_source_ownership_faults_fail_closed(
         code="EQ0901",
     )
 
-    changed_revision = json.loads(model_v7_bytes())
+    changed_revision = json.loads(model_bytes())
     changed_revision["source_revision"] = 2
     revision_bytes = json.dumps(changed_revision, separators=(",", ":")).encode()
     assert semantic_model_digest(revision_bytes) == MODEL_DIGEST
@@ -529,7 +531,7 @@ def test_model_and_exact_source_ownership_faults_fail_closed(
 
     with pytest.raises(TypeError):
         eqiora.fluid.solve_exact_cylinder_stokes(
-            model_v7=model_v7_bytes(),
+            model=model_bytes(),
             geometry=object(),
             mesh=realized,
         )
@@ -563,15 +565,15 @@ import importlib.resources
 import sys
 import eqiora
 
-model_v7 = (
+model = (
     importlib.resources.files("eqiora")
     .joinpath("examples")
-    .joinpath("steady-flow-past-cylinder.model-v7.json")
+    .joinpath("steady-flow-past-cylinder.model.json")
     .read_bytes()
 )
-assert len(model_v7) == {MODEL_RESOURCE_BYTES}
-assert hashlib.sha256(model_v7).hexdigest() == {MODEL_RESOURCE_SHA256!r}
-assert model_v7.endswith(b"\\n")
+assert len(model) == {MODEL_RESOURCE_BYTES}
+assert hashlib.sha256(model).hexdigest() == {MODEL_RESOURCE_SHA256!r}
+assert model.endswith(b"\\n")
 geometry = eqiora.geometry.RectangleWithCircularHole(
     bounds=((0.0, 2.2), (0.0, 0.41)),
     circle_center=(0.2, 0.2),
@@ -592,7 +594,7 @@ mesh = eqiora.meshing.circular_hole_chordal(
 )
 assert "numpy" not in sys.modules
 result = eqiora.fluid.solve_exact_cylinder_stokes(
-    model_v7=model_v7,
+    model=model,
     geometry=geometry,
     mesh=mesh,
 )
@@ -639,7 +641,7 @@ def test_checked_in_python_demo_runs_with_packaged_model_resource(
     if not PYTHON_DEMO.is_file():
         pytest.skip("consumer tree does not carry the checked-in Python example")
 
-    model_v7_bytes()
+    model_bytes()
     completed = subprocess.run(
         [sys.executable, "-I", str(PYTHON_DEMO)],
         cwd=REPOSITORY_ROOT,

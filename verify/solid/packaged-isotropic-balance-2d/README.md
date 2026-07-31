@@ -32,7 +32,7 @@ the first component. Its algebraic solution, integrated force, and boundary
 reaction must also agree exactly with the existing explicit-flat fixture, so
 zero resultant cannot conceal a package-boundary wiring error.
 
-The accepted execution retains exact package-compilation, Model v4,
+The accepted execution retains exact package-compilation, current Model,
 Realization v1, Run v2, and package-execution-binding lineage.
 
 Run:

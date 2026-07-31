@@ -2,7 +2,7 @@
 
 use eqiora::Diagnostic;
 use eqiora::api::{CircularHoleSteadyStokesResult2d, UnstructuredP1ScalarFieldProjection2d};
-use eqiora::artifact::ModelEnvelopeV7;
+use eqiora::artifact::ModelEnvelope;
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::diagnostic::codes;
 use eqiora::geometry::{
@@ -19,7 +19,7 @@ use super::{AppState, BridgeEnvelope, PROTOCOL, studio_error};
 const DEMO_PROTOCOL: &str = "eqiora.studio.cylinder-stokes-demo/v1";
 const EXAMPLE_ID: &str = "steady-flow-past-cylinder";
 const GEOMETRY: &[u8] = include_bytes!("../../../examples/steady-flow-past-cylinder.geometry.json");
-const MODEL: &[u8] = include_bytes!("../../../examples/steady-flow-past-cylinder.model-v7.json");
+const MODEL: &[u8] = include_bytes!("../../../examples/steady-flow-past-cylinder.model.json");
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -149,7 +149,7 @@ fn prepare_demo() -> Result<PreparedCylinderDemo, Diagnostic> {
         embedded_json(GEOMETRY),
         CanonicalGeometryLimits::default(),
     )?;
-    let model = ModelEnvelopeV7::from_json(embedded_json(MODEL), Default::default())?;
+    let model = ModelEnvelope::from_json(embedded_json(MODEL), Default::default())?;
     let owner =
         CircularHoleChordalMeshV1::from_exact(&source, 1.0e-4, 50, MeshQualityGate::new(1.0e-5)?)?;
     let result = CircularHoleSteadyStokesResult2d::solve_reference(

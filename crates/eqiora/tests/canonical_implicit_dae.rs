@@ -1,6 +1,6 @@
 use eqiora::artifact::{
     ArtifactDigest, GeneralImplicitTimeLoweringEnvelopeV1, ImplicitTimeInitialDataEnvelopeV1,
-    ImplicitTimeRunManifestV1, ModelEnvelopeV1, TimeDecoderLimits,
+    ImplicitTimeRunManifestV1, ModelEnvelope, TimeDecoderLimits,
 };
 use eqiora::diagnostic::codes;
 use eqiora::entity::kinds;
@@ -35,7 +35,7 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
         codes::INVALID_TIME_LOWERING
     );
     let system = GeneralImplicitProgram::lower(&cpu, relation).expect("general residual proof");
-    let model = ModelEnvelopeV1::from_program(&kernel).unwrap();
+    let model = ModelEnvelope::from_program(&kernel).unwrap();
     let lowering =
         GeneralImplicitTimeLoweringEnvelopeV1::from_proof(&model, &kernel, system.lowering_proof())
             .unwrap();
@@ -296,7 +296,7 @@ fn nonlinear_derivative_relation_retains_an_explicit_branch_choice() {
         system.lowering_proof().variable_kinds(),
         [DaeVariableKind::Differential]
     );
-    let model = ModelEnvelopeV1::from_program(&kernel).unwrap();
+    let model = ModelEnvelope::from_program(&kernel).unwrap();
     let lowering =
         GeneralImplicitTimeLoweringEnvelopeV1::from_proof(&model, &kernel, system.lowering_proof())
             .unwrap();

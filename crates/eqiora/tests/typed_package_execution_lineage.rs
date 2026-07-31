@@ -5,7 +5,6 @@ use eqiora::artifact::{
     ArtifactDigest, ExecutionProvenanceV1, ExecutionTopologyV1, RealizationEnvelopeV1,
     RunManifestV2,
 };
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleRoleV1, InMemoryPackageStore,
     ModelPackageIdentityV1, PackageCompilationRecordV1, PackageExecutionBindingError,
@@ -119,9 +118,8 @@ fn accepted_run(
 fn exact_package_compilation_composes_with_typed_realization_and_run_v2() {
     let release = package_release(README, false);
     let (store, resolution, identity) = install(&release);
-    let packaged =
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V1)
-            .expect("locked package compilation");
+    let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect("locked package compilation");
     let (realization, run) = accepted_run(&packaged, ScalarEllipticMethod::FiniteElement, 8);
     let realization_bytes = realization.canonical_json().expect("Realization JSON");
     let run_bytes = run.canonical_json().expect("Run JSON");
@@ -149,9 +147,7 @@ fn exact_package_compilation_composes_with_typed_realization_and_run_v2() {
         .validate_against(&resolution)
         .expect("compilation replay");
     let model_bytes = packaged.model().canonical_json().expect("Model JSON");
-    let replayed_model = ExactModelCodec::V1
-        .replay(&model_bytes)
-        .expect("decoded Model");
+    let replayed_model = eqiora::api::ModelDocument::replay(&model_bytes).expect("decoded Model");
     assert_eq!(replayed_model.canonical_json().unwrap(), model_bytes);
     assert_eq!(replayed_model.digest(), packaged.model().digest());
 
@@ -182,13 +178,9 @@ fn exact_package_compilation_composes_with_typed_realization_and_run_v2() {
         permuted_release.canonical_json().expect("permuted JSON")
     );
     let (permuted_store, permuted_resolution, _) = install(&permuted_release);
-    let permuted = PackagedModelDocument::compile_locked(
-        &permuted_store,
-        &permuted_resolution,
-        "Main",
-        ExactModelCodec::V1,
-    )
-    .expect("permuted compilation");
+    let permuted =
+        PackagedModelDocument::compile_locked(&permuted_store, &permuted_resolution, "Main")
+            .expect("permuted compilation");
     let (permuted_realization, permuted_run) =
         accepted_run(&permuted, ScalarEllipticMethod::FiniteElement, 8);
     let permuted_binding = permuted
@@ -214,13 +206,9 @@ fn exact_package_compilation_composes_with_typed_realization_and_run_v2() {
         release.source_digest().expect("source")
     );
     let (changed_store, changed_resolution, _) = install(&changed_release);
-    let changed = PackagedModelDocument::compile_locked(
-        &changed_store,
-        &changed_resolution,
-        "Main",
-        ExactModelCodec::V1,
-    )
-    .expect("changed-source compilation");
+    let changed =
+        PackagedModelDocument::compile_locked(&changed_store, &changed_resolution, "Main")
+            .expect("changed-source compilation");
     assert_eq!(changed.model().digest(), packaged.model().digest());
     assert_ne!(changed.compilation(), packaged.compilation());
     let (changed_realization, changed_run) =

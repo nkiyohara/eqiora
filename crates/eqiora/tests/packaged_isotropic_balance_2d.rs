@@ -4,10 +4,9 @@ use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
-    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV4,
+    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
     RealizationEnvelopeV1, RunManifestV2,
 };
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::language::{ComponentItem, DomainSyntax, Item};
 use eqiora::meshing::QuadratureRule;
 use eqiora::package::{
@@ -212,9 +211,8 @@ fn compile_locked(
     let mut store = InMemoryPackageStore::default();
     store.insert(component).expect("insert component release");
     store.insert(root).expect("insert root release");
-    let packaged =
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V4)
-            .expect("compile exact packaged elasticity Model");
+    let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect("compile exact packaged elasticity Model");
     packaged
         .compilation()
         .validate_against(&resolution)
@@ -345,14 +343,12 @@ fn assert_root_boundary() {
 }
 
 fn explicit_document() -> ModelDocument {
-    ExactModelCodec::V4
-        .compile("explicit-manufactured.eqi", EXPLICIT_MANUFACTURED)
+    eqiora::api::ModelDocument::compile("explicit-manufactured.eqi", EXPLICIT_MANUFACTURED)
         .expect("existing explicit-flat elasticity Model")
 }
 
 fn explicit_linear_load_document() -> ModelDocument {
-    ExactModelCodec::V4
-        .compile("explicit-linear-load.eqi", EXPLICIT_LINEAR_LOAD)
+    eqiora::api::ModelDocument::compile("explicit-linear-load.eqi", EXPLICIT_LINEAR_LOAD)
         .expect("existing explicit-flat nonzero-load Model")
 }
 
@@ -456,9 +452,9 @@ fn assert_identity_normalized_flat_structure(packaged: &ModelDocument, explicit:
     );
 
     let packaged_envelope =
-        ModelEnvelopeV4::from_program(packaged.program()).expect("packaged Model v4 envelope");
+        ModelEnvelope::from_program(packaged.program()).expect("packaged current Model envelope");
     let explicit_envelope =
-        ModelEnvelopeV4::from_program(explicit.program()).expect("explicit Model v4 envelope");
+        ModelEnvelope::from_program(explicit.program()).expect("explicit current Model envelope");
     let mut packaged_value: serde_json::Value = serde_json::from_slice(
         &packaged_envelope
             .canonical_json()
@@ -522,11 +518,11 @@ fn assert_identity_normalized_flat_structure(packaged: &ModelDocument, explicit:
     );
 
     rewrite_model_ulids(&mut packaged_value, &identities);
-    let normalized = ModelEnvelopeV4::from_json(
+    let normalized = ModelEnvelope::from_json(
         &serde_json::to_vec(&packaged_value).expect("normalized Model JSON"),
         Default::default(),
     )
-    .expect("normalized Model v4");
+    .expect("normalized current Model");
     let mut packaged_value: serde_json::Value = serde_json::from_slice(
         &normalized
             .canonical_json()
@@ -926,10 +922,11 @@ fn package_compilation_realization_and_run_v2_form_one_exact_lineage() {
         .validate_against(&resolution)
         .expect("replayed exact resolution");
 
-    let model_bytes = packaged.model().canonical_json().expect("Model v4 JSON");
-    let model = ExactModelCodec::V4
-        .replay(&model_bytes)
-        .expect("replayed Model v4");
+    let model_bytes = packaged
+        .model()
+        .canonical_json()
+        .expect("current Model JSON");
+    let model = eqiora::api::ModelDocument::replay(&model_bytes).expect("replayed current Model");
     assert_eq!(model.canonical_json().expect("replayed Model"), model_bytes);
 
     let realization_bytes = realization.canonical_json().expect("Realization v1 JSON");

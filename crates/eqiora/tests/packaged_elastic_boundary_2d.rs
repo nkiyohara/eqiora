@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 
 use eqiora::api::ModelDocument;
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::entity::kinds;
 use eqiora::graph::EdgeKind;
 use eqiora::kernel::{
@@ -171,7 +170,7 @@ fn compile_locked(dependency: &PackageReleaseV1, root: &PackageReleaseV1) -> Pac
     let mut store = InMemoryPackageStore::default();
     store.insert(dependency).expect("insert dependency release");
     store.insert(root).expect("insert root release");
-    PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V4)
+    PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile exact packaged elasticity boundary")
 }
 

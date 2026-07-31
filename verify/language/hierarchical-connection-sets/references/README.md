@@ -5,7 +5,7 @@ The semantic oracle is the equivalence-relation contract in
 fragments are normalized before canonical Connection identity is sealed,
 while source-origin indices remain a provenance witness.
 
-The artifact oracle is exact Model v2 canonical-byte and digest equality; a
+The artifact oracle is exact current Model canonical-byte and digest equality; a
 matching graph shape or numerical result alone is not accepted as evidence of
 canonical equivalence.
 

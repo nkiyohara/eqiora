@@ -34,6 +34,15 @@ exact commit, reconstructs both method paths, and accepts the recorded
 selected-device execution. The case is therefore `verified` for this bounded
 observation, without turning one device run into a general CUDA support claim.
 
+The recorded Model, Realization, and Run remain one immutable historical
+bundle: the Model uses the retired v1 schema and the downstream artifacts keep
+its historical digest. The current decoder never reads or relabels those Model
+bytes. A separately precommitted current Model bridge has the same independently
+derived generation-v2 structural fingerprint and supplies the semantic program
+for host reconstruction. Current Realization and Run lineage is derived
+separately and deliberately differs from the recorded lineage; no current Run
+is claimed as a device observation.
+
 The collector writes a new directory atomically. Its environment schema records
 only the clean source commit, release profile, non-identifying runtime context,
 the single Eqiora device ordinal, device name and capabilities, memory size,

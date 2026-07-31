@@ -4,8 +4,9 @@ This case registers one bounded, immutable application composition over the
 already verified `fsi.fixed-reference-monolithic-step-2d` direct Model and the
 already verified `artifacts.fixed-reference-fsi-spatial-trajectory` lineage.
 Native Studio compiles the exact checked-in
-`verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi` source as
-`ExactModelCodec::V4`, reconstructs the exact 9-vertex, 8-affine-triangle
+`verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi` source
+through `ModelDocument::compile` as the current Model, reconstructs the exact
+9-vertex, 8-affine-triangle
 conforming mesh whose fluid body is `[0 m, 1 m] x [0 m, 1 m]`, whose solid body
 is `[1 m, 2 m] x [0 m, 1 m]`, and whose complete interface lies at `x = 1 m`,
 and resolves the existing fieldwise coupled plan at `dt = 0.05 s` with
@@ -59,7 +60,8 @@ browser fail-closed path passed without changing its claim, thresholds, or
 falsifiers, so the integrator promoted it to `verified` and registered the
 existing spatial-trajectory test as executable evidence.
 
-The claim is exactly one checked-in direct Model, one reconstructed mesh, one
+The claim is exactly one checked-in direct source compiled by the current
+Model owner, one reconstructed mesh, one
 frozen fieldwise plan and solver tuple, one prestrained initial state, two
 accepted steps, and one in-memory trajectory presentation. It does not claim a
 moving mesh or ALE, advection, remeshing, partitioned coupling, any other

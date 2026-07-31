@@ -6,7 +6,6 @@
 //! UI-specific ergonomics around these owned Rust values.
 
 mod cad;
-mod codec;
 pub mod control;
 mod differentiation;
 mod elasticity;
@@ -26,8 +25,6 @@ mod transient_fluid;
 mod value_edit;
 
 pub use cad::*;
-pub use codec::ExactModelCodec;
-pub(crate) use codec::VersionedModelTransactionEnvelope;
 pub use differentiation::*;
 pub use elasticity::MixedBoundaryElasticityResult2d;
 pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
@@ -56,19 +53,15 @@ pub use value_edit::{ValueEditPlan, ValueEditResult};
 use std::collections::BTreeMap;
 
 use eqiora_artifact::{
-    AcceptedModelArtifact, CanonicalModelArtifact, ModelArtifactGeneration, ModelArtifactReference,
-    ModelDecoderLimits, ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2,
-    ModelTransactionEnvelopeV3, ModelTransactionEnvelopeV4, ModelTransactionEnvelopeV5,
-    ModelTransactionEnvelopeV6, ModelTransactionEnvelopeV7, ModelTransactionEnvelopeV8,
-    ReplayableCanonicalModelArtifact,
+    AcceptedModelArtifact, CanonicalModelArtifact, ModelArtifactReference, ModelDecoderLimits,
+    ModelTransactionEnvelope, ReplayableCanonicalModelArtifact,
 };
 use eqiora_compiler::{CompiledModel, ModelSymbols};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, RawId};
-use eqiora_graph::{GraphStore, InMemoryGraphStore, Revision, Transaction};
+use eqiora_graph::{GraphStore, InMemoryGraphStore, Revision};
 use eqiora_lang::ModelDraft;
 use eqiora_sem::KernelProgram;
-use serde::{Deserialize, Serialize};
 
 /// One immutable, validated canonical model revision plus non-semantic source
 /// aliases used by client presentation layers.
@@ -76,7 +69,6 @@ use serde::{Deserialize, Serialize};
 pub struct ModelDocument {
     program: KernelProgram,
     artifact: AcceptedModelArtifact,
-    exact_codec: ExactModelCodec,
     aliases: BTreeMap<String, RawId>,
     store: InMemoryGraphStore,
 }
@@ -85,7 +77,6 @@ impl PartialEq for ModelDocument {
     fn eq(&self, other: &Self) -> bool {
         self.program == other.program
             && self.artifact == other.artifact
-            && self.exact_codec == other.exact_codec
             && self.aliases == other.aliases
     }
 }
@@ -93,21 +84,10 @@ impl PartialEq for ModelDocument {
 impl ModelDocument {
     /// Compile exactly one source model with the current semantic vocabulary.
     ///
-    /// The current profile selects its artifact codec internally. Callers that
-    /// reproduce a historical artifact must use [`ExactModelCodec::compile`].
-    ///
     /// # Errors
     /// Returns all compiler/semantic diagnostics, or one artifact diagnostic,
     /// when no unique valid model revision can be constructed.
     pub fn compile(filename: &str, source: &str) -> Result<Self, Vec<Diagnostic>> {
-        ExactModelCodec::CURRENT.compile(filename, source)
-    }
-
-    fn compile_for_codec(
-        filename: &str,
-        source: &str,
-        exact_codec: ExactModelCodec,
-    ) -> Result<Self, Vec<Diagnostic>> {
         let mut compiled = eqiora_compiler::compile(filename, source)?;
         if compiled.len() != 1 {
             return Err(vec![Diagnostic::error(
@@ -118,7 +98,7 @@ impl ModelDocument {
                 ),
             )]);
         }
-        Self::accept_compiled(compiled.remove(0), exact_codec)
+        Self::accept_compiled(compiled.remove(0))
     }
 
     /// Define exactly one model from immutable client-neutral declarations
@@ -132,37 +112,35 @@ impl ModelDocument {
     /// Returns graph-path compiler/semantic diagnostics, or one artifact
     /// diagnostic, when no valid model revision can be constructed.
     pub fn define(draft: &ModelDraft) -> Result<Self, Vec<Diagnostic>> {
-        ExactModelCodec::CURRENT.define(draft)
+        Self::accept_compiled(eqiora_compiler::lower_draft(draft)?)
     }
 
-    fn define_for_codec(
-        draft: &ModelDraft,
-        exact_codec: ExactModelCodec,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        Self::accept_compiled(eqiora_compiler::lower_draft(draft)?, exact_codec)
-    }
-
-    pub(crate) fn accept_compiled(
-        compiled: CompiledModel,
-        exact_codec: ExactModelCodec,
-    ) -> Result<Self, Vec<Diagnostic>> {
+    pub(crate) fn accept_compiled(compiled: CompiledModel) -> Result<Self, Vec<Diagnostic>> {
         let aliases = aliases(compiled.symbols());
         let model = compiled.model();
 
         // Every source/UI/language client crosses the same bounded,
         // versioned transaction representation before graph mutation.
-        let transaction = exact_codec
-            .replay_transaction(compiled.transaction())
+        let transaction = ModelTransactionEnvelope::from_transaction(compiled.transaction())
+            .and_then(|envelope| envelope.to_transaction())
             .map_err(single_diagnostic)?;
 
         let mut store = InMemoryGraphStore::new();
         store.commit(transaction)?;
         let program = KernelProgram::from_snapshot(&store.snapshot(), model)?;
-        Self::from_store(store, program, aliases, exact_codec)
+        Self::from_store(store, program, aliases)
     }
 
-    fn replay_codec(data: &[u8], exact_codec: ExactModelCodec) -> Result<Self, Vec<Diagnostic>> {
-        let artifact = exact_codec.decode_model(data).map_err(single_diagnostic)?;
+    /// Replay one artifact through the single current Model contract.
+    ///
+    /// Historical schemas reject before semantic use; this path never sniffs,
+    /// retries, or migrates bytes.
+    ///
+    /// # Errors
+    /// Returns decoder, graph, or whole-Model validation diagnostics.
+    pub fn replay(data: &[u8]) -> Result<Self, Vec<Diagnostic>> {
+        let artifact = AcceptedModelArtifact::from_json(data, ModelDecoderLimits::default())
+            .map_err(single_diagnostic)?;
         let (transaction, model) = artifact.to_transaction()?;
         let store = InMemoryGraphStore::restore_snapshot(
             transaction,
@@ -172,7 +150,6 @@ impl ModelDocument {
         Ok(Self {
             program,
             artifact,
-            exact_codec,
             aliases: BTreeMap::new(),
             store,
         })
@@ -182,23 +159,18 @@ impl ModelDocument {
         store: InMemoryGraphStore,
         program: KernelProgram,
         aliases: BTreeMap<String, RawId>,
-        exact_codec: ExactModelCodec,
     ) -> Result<Self, Vec<Diagnostic>> {
         let program = KernelProgram::from_snapshot(&store.snapshot(), program.model())?;
-        let artifact = exact_codec
-            .encode_program(&program)
-            .map_err(single_diagnostic)?;
+        let artifact = AcceptedModelArtifact::from_program(&program).map_err(single_diagnostic)?;
         // Reconstruct once more from the public artifact so client behavior
         // cannot accidentally depend on an in-memory compiler-only state.
         let bytes = artifact.canonical_json().map_err(single_diagnostic)?;
-        let artifact = exact_codec
-            .decode_model(&bytes)
+        let artifact = AcceptedModelArtifact::from_json(&bytes, ModelDecoderLimits::default())
             .map_err(single_diagnostic)?;
         artifact.replay_model().map_err(single_diagnostic)?;
         Ok(Self {
             program,
             artifact,
-            exact_codec,
             aliases,
             store,
         })
@@ -210,17 +182,7 @@ impl ModelDocument {
         &self.program
     }
 
-    /// Exact artifact codec retained by this immutable document.
-    #[must_use]
-    pub const fn exact_codec(&self) -> ExactModelCodec {
-        self.exact_codec
-    }
-
-    /// Version-neutral typed identity of the explicitly selected Model
-    /// artifact.
-    ///
-    /// The digest remains domain-separated by [`Self::exact_codec`]; this
-    /// method does not auto-detect, upgrade, or erase the selected wire.
+    /// Typed identity of the current Model artifact.
     ///
     /// # Errors
     /// Returns an artifact diagnostic only if validated envelope state cannot
@@ -293,7 +255,7 @@ fn single_diagnostic(diagnostic: Diagnostic) -> Vec<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ExactModelCodec, ModelDocument, ReferenceAcceptance, ReferenceExecutionPlacement,
+        ModelDocument, ReferenceAcceptance, ReferenceExecutionPlacement,
         ReferenceIntegrationMethod, ReferenceNonlinearMethod, ReferenceRunDirective,
         ReferenceRunObserver, ReferenceRunOutcome, ReferenceRunPlan, ReferenceRunProgress,
     };
@@ -314,18 +276,16 @@ model decay {
     #[test]
     fn one_application_path_closes_compile_wire_artifact_and_run() {
         let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
-        assert_eq!(document.exact_codec(), ExactModelCodec::CURRENT);
         let bytes = document.canonical_json().unwrap();
         let digest = document.digest().unwrap();
-        let reconstructed = ExactModelCodec::CURRENT.replay(&bytes).unwrap();
+        let reconstructed = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
         assert_eq!(reconstructed.digest().unwrap(), digest);
 
         let mut zero_revision: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         zero_revision["source_revision"] = serde_json::Value::from(0);
-        let diagnostics = ExactModelCodec::CURRENT
-            .replay(&serde_json::to_vec(&zero_revision).unwrap())
-            .unwrap_err();
+        let diagnostics =
+            ModelDocument::replay(&serde_json::to_vec(&zero_revision).unwrap()).unwrap_err();
         assert_eq!(diagnostics[0].code().0, "EQ0901");
 
         let result = document.run_reference(0.2, 0.1).unwrap();
@@ -378,48 +338,8 @@ model decay {
         let draft = ModelDraft::new("decay", [state.into(), rate.into(), flow.into()]).unwrap();
 
         let native = ModelDocument::define(&draft).unwrap();
-        let explicit_v1 = ExactModelCodec::V1.define(&draft).unwrap();
-        let explicit_v2 = ExactModelCodec::V2.define(&draft).unwrap();
-        let explicit_v3 = ExactModelCodec::V3.define(&draft).unwrap();
-        let explicit_v4 = ExactModelCodec::V4.define(&draft).unwrap();
-        let explicit_v5 = ExactModelCodec::V5.define(&draft).unwrap();
-        let explicit_v6 = ExactModelCodec::V6.define(&draft).unwrap();
-        assert_eq!(native.exact_codec(), ExactModelCodec::CURRENT);
-        assert_eq!(explicit_v1.exact_codec(), ExactModelCodec::V1);
-        assert_eq!(explicit_v2.exact_codec(), ExactModelCodec::V2);
-        assert_eq!(explicit_v3.exact_codec(), ExactModelCodec::V3);
-        assert_eq!(explicit_v4.exact_codec(), ExactModelCodec::V4);
-        assert_eq!(explicit_v5.exact_codec(), ExactModelCodec::V5);
-        assert_eq!(explicit_v6.exact_codec(), ExactModelCodec::V6);
-        assert!(ExactModelCodec::V2.supports_scalar_physical());
-        assert!(ExactModelCodec::V3.supports_scalar_physical());
-        assert!(!ExactModelCodec::V2.supports_boundary_physical());
-        assert!(ExactModelCodec::V3.supports_boundary_physical());
-        assert!(ExactModelCodec::V4.supports_scalar_physical());
-        assert!(ExactModelCodec::V4.supports_boundary_physical());
-        assert!(!ExactModelCodec::V3.supports_tensor_operators());
-        assert!(ExactModelCodec::V4.supports_tensor_operators());
-        assert!(ExactModelCodec::V5.supports_tensor_operators());
-        assert!(ExactModelCodec::V6.supports_tensor_operators());
-        assert!(!ExactModelCodec::V4.supports_pure_operators());
-        assert!(ExactModelCodec::V5.supports_pure_operators());
-        assert!(ExactModelCodec::V6.supports_pure_operators());
-        assert!(!ExactModelCodec::V5.supports_spatial_periodic());
-        assert!(ExactModelCodec::V6.supports_spatial_periodic());
-        assert!(
-            String::from_utf8_lossy(&explicit_v2.canonical_json().unwrap())
-                .contains("eqiora.model-envelope/v2")
-        );
-        assert!(
-            String::from_utf8_lossy(&explicit_v3.canonical_json().unwrap())
-                .contains("eqiora.model-envelope/v3")
-        );
-        assert!(
-            String::from_utf8_lossy(&explicit_v4.canonical_json().unwrap())
-                .contains("eqiora.model-envelope/v4")
-        );
         let bytes = native.canonical_json().unwrap();
-        let reconstructed = ExactModelCodec::CURRENT.replay(&bytes).unwrap();
+        let reconstructed = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
         assert_eq!(native.aliases().len(), 3);
 
@@ -437,7 +357,7 @@ model decay {
     }
 
     #[test]
-    fn current_v8_authoring_retains_the_v4_tensor_vocabulary() {
+    fn current_authoring_retains_tensor_vocabulary() {
         let source = r#"
 model elastic_relation {
   domain body = box(0, 1, 0, 1);
@@ -453,23 +373,17 @@ model elastic_relation {
   }
 }
 "#;
-        assert!(ExactModelCodec::V3.compile("elastic.eqi", source).is_err());
-
         let document = ModelDocument::compile("elastic.eqi", source).unwrap();
-        let exact_v4 = ExactModelCodec::V4.compile("elastic.eqi", source).unwrap();
         let bytes = document.canonical_json().unwrap();
-        assert_eq!(document.exact_codec(), ExactModelCodec::CURRENT);
-        assert_eq!(exact_v4.exact_codec(), ExactModelCodec::V4);
         assert!(String::from_utf8_lossy(&bytes).contains("symmetric-part"));
         assert!(String::from_utf8_lossy(&bytes).contains("isotropic-lift"));
-        assert!(ExactModelCodec::V4.replay(&bytes).is_err());
-        let replay = ExactModelCodec::CURRENT.replay(&bytes).unwrap();
+        let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), document.digest().unwrap());
     }
 
     #[test]
-    fn current_v8_closes_generic_pure_operators_while_exact_v4_rejects_them() {
+    fn current_authoring_closes_generic_pure_operators() {
         let source = r#"
 public pure operator dyadic(left: spatial[1], right: spatial[1]) -> spatial[2]
   = component(left, 0) * component(right, 1);
@@ -484,19 +398,12 @@ model pure_relation {
 }
 "#;
         let current = ModelDocument::compile("pure-relation.eqi", source).unwrap();
-        assert_eq!(current.exact_codec(), ExactModelCodec::CURRENT);
-        assert!(
-            ExactModelCodec::V4
-                .compile("pure-relation.eqi", source)
-                .is_err()
-        );
 
         let bytes = current.canonical_json().unwrap();
         let json = String::from_utf8_lossy(&bytes);
         assert!(json.contains("pure-operator-application"));
         assert!(json.contains("eqiora.model-envelope/v8"));
-        assert!(ExactModelCodec::V4.replay(&bytes).is_err());
-        let replay = ExactModelCodec::CURRENT.replay(&bytes).unwrap();
+        let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);
         assert_eq!(replay.digest().unwrap(), current.digest().unwrap());
     }
@@ -516,99 +423,82 @@ model pure_relation {
     }
 
     #[test]
-    fn value_edit_retains_current_v8_and_explicit_v1_codec_provenance() {
-        for codec in [ExactModelCodec::CURRENT, ExactModelCodec::V1] {
-            let document = codec.compile("decay.eqi", SOURCE).unwrap();
-            let base_digest = document.digest().unwrap();
-            let rate = document.aliases()["rate"];
-            let relation = document.aliases()["flow"];
+    fn value_edit_retains_current_transaction_and_artifact_lineage() {
+        let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
+        let base_digest = document.digest().unwrap();
+        let rate = document.aliases()["rate"];
+        let relation = document.aliases()["flow"];
 
-            let plan = document.preview_value_edit(rate, 2.0).unwrap();
-            assert_eq!(plan.base_digest(), base_digest);
-            assert_eq!(plan.base_revision().0, 1);
-            assert_eq!(plan.target(), rate);
-            assert_eq!(plan.before().value(), 1.0);
-            assert_eq!(plan.after().value(), 2.0);
-            assert_eq!(plan.before().dim(), plan.after().dim());
-            assert_eq!(plan.exact_codec(), codec);
-            assert!(plan.key().starts_with("eqiora.value-edit-plan/v1:"));
-            assert!(
-                String::from_utf8(plan.transaction_json().unwrap())
-                    .unwrap()
-                    .contains(&format!(
-                        "eqiora.model-transaction-envelope/{}",
-                        codec.as_str()
-                    ))
-            );
+        let plan = document.preview_value_edit(rate, 2.0).unwrap();
+        assert_eq!(plan.base_digest(), base_digest);
+        assert_eq!(plan.base_revision().0, 1);
+        assert_eq!(plan.target(), rate);
+        assert_eq!(plan.before().value(), 1.0);
+        assert_eq!(plan.after().value(), 2.0);
+        assert_eq!(plan.before().dim(), plan.after().dim());
+        assert!(plan.key().starts_with("eqiora.value-edit-plan/v1:"));
+        assert!(
+            String::from_utf8(plan.transaction_json().unwrap())
+                .unwrap()
+                .contains("eqiora.model-transaction-envelope/v8")
+        );
 
-            let result = document.commit_value_edit(plan.clone()).unwrap();
-            assert_eq!(result.plan(), &plan);
-            assert_eq!(result.result_revision().0, 2);
-            assert_ne!(result.result_digest(), base_digest);
-            assert_eq!(result.document().exact_codec(), codec);
-            assert_eq!(document.program().revision().0, 1);
-            assert_eq!(document.program().value(rate).unwrap().value(), 1.0);
-            assert_eq!(
-                result.document().program().value(rate).unwrap().value(),
-                2.0
-            );
-
-            let public_artifact_replay = result.document().artifact.replay_model().unwrap();
-            assert_eq!(public_artifact_replay.program().revision().0, 2);
-            assert_eq!(
-                public_artifact_replay
-                    .artifact_reference()
-                    .semantic_revision()
-                    .get(),
-                2
-            );
-
-            let child_bytes = result.document().canonical_json().unwrap();
-            let replayed_child = codec.replay(&child_bytes).unwrap();
-            assert_eq!(replayed_child.program().revision().0, 2);
-            let grandchild_plan = replayed_child.preview_value_edit(rate, 3.0).unwrap();
-            assert_eq!(grandchild_plan.base_revision().0, 2);
-            let grandchild = replayed_child.commit_value_edit(grandchild_plan).unwrap();
-            assert_eq!(grandchild.result_revision().0, 3);
-            assert_eq!(
-                grandchild.document().program().value(rate).unwrap().value(),
-                3.0
-            );
-
-            assert_eq!(
-                result.document().commit_value_edit(plan).unwrap_err()[0]
-                    .code()
-                    .0,
-                "EQ0106"
-            );
-            assert_eq!(
-                document.preview_value_edit(rate, 1.0).unwrap_err().code().0,
-                "EQ0105"
-            );
-            assert_eq!(
-                document
-                    .preview_value_edit(rate, f64::NAN)
-                    .unwrap_err()
-                    .code()
-                    .0,
-                "EQ0105"
-            );
-            assert_eq!(
-                document
-                    .preview_value_edit(relation, 2.0)
-                    .unwrap_err()
-                    .code()
-                    .0,
-                "EQ0105"
-            );
-        }
-
-        let v1 = ExactModelCodec::V1.compile("decay.eqi", SOURCE).unwrap();
-        let v1_plan = v1.preview_value_edit(v1.aliases()["rate"], 2.0).unwrap();
-        let current = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
+        let result = document.commit_value_edit(plan.clone()).unwrap();
+        assert_eq!(result.plan(), &plan);
+        assert_eq!(result.result_revision().0, 2);
+        assert_ne!(result.result_digest(), base_digest);
+        assert_eq!(document.program().revision().0, 1);
+        assert_eq!(document.program().value(rate).unwrap().value(), 1.0);
         assert_eq!(
-            current.commit_value_edit(v1_plan).unwrap_err()[0].code().0,
+            result.document().program().value(rate).unwrap().value(),
+            2.0
+        );
+
+        let public_artifact_replay = result.document().artifact.replay_model().unwrap();
+        assert_eq!(public_artifact_replay.program().revision().0, 2);
+        assert_eq!(
+            public_artifact_replay
+                .artifact_reference()
+                .semantic_revision()
+                .get(),
+            2
+        );
+
+        let child_bytes = result.document().canonical_json().unwrap();
+        let replayed_child = ModelDocument::replay(&child_bytes).unwrap();
+        let grandchild_plan = replayed_child.preview_value_edit(rate, 3.0).unwrap();
+        let grandchild = replayed_child.commit_value_edit(grandchild_plan).unwrap();
+        assert_eq!(grandchild.result_revision().0, 3);
+        assert_eq!(
+            grandchild.document().program().value(rate).unwrap().value(),
+            3.0
+        );
+
+        assert_eq!(
+            result.document().commit_value_edit(plan).unwrap_err()[0]
+                .code()
+                .0,
             "EQ0106"
+        );
+        assert_eq!(
+            document.preview_value_edit(rate, 1.0).unwrap_err().code().0,
+            "EQ0105"
+        );
+        assert_eq!(
+            document
+                .preview_value_edit(rate, f64::NAN)
+                .unwrap_err()
+                .code()
+                .0,
+            "EQ0105"
+        );
+        assert_eq!(
+            document
+                .preview_value_edit(relation, 2.0)
+                .unwrap_err()
+                .code()
+                .0,
+            "EQ0105"
         );
     }
 

@@ -3,7 +3,7 @@ use std::num::{NonZeroU16, NonZeroUsize};
 use eqiora_artifact::{
     CanonicalModelArtifact, FieldDecoderLimits, FieldSnapshotEnvelopeV1,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1,
-    LayoutArtifacts, ModelEnvelopeV4, RealizationEnvelopeV4, RealizationEnvelopeV5,
+    LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV4, RealizationEnvelopeV5,
     SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2, SpatialTrajectoryEnvelopeV2,
     SpatialTrajectorySegmentEnvelopeV2, TrajectoryDecoderLimits, ValidatedMovingSpatialContextV2,
 };
@@ -290,7 +290,7 @@ fn dimension_explicit_v5_replays_the_unchanged_moving_publication_contract() {
 }
 
 struct Resources {
-    model: ModelEnvelopeV4,
+    model: ModelEnvelope,
     mesh: SimplicialMeshEnvelopeV1,
     geometry: GeometryIdentityEnvelopeV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
@@ -301,7 +301,7 @@ struct Resources {
 
 impl Resources {
     fn new() -> Self {
-        let model = ModelEnvelopeV4::from_json(MODEL, Default::default()).unwrap();
+        let model = ModelEnvelope::from_json(MODEL, Default::default()).unwrap();
         let mesh = SimplicialMeshEnvelopeV1::from_mesh(&reference_mesh()).unwrap();
         let ids = Ids::new();
         let geometry =
@@ -337,7 +337,7 @@ impl Resources {
         }
     }
 
-    fn context(&self) -> ValidatedMovingSpatialContextV2<'_, ModelEnvelopeV4> {
+    fn context(&self) -> ValidatedMovingSpatialContextV2<'_, ModelEnvelope> {
         ValidatedMovingSpatialContextV2::new(
             &self.model,
             &self.realization,
@@ -350,7 +350,7 @@ impl Resources {
 
     fn context_v5(
         &self,
-    ) -> ValidatedMovingSpatialContextV2<'_, ModelEnvelopeV4, RealizationEnvelopeV5> {
+    ) -> ValidatedMovingSpatialContextV2<'_, ModelEnvelope, RealizationEnvelopeV5> {
         ValidatedMovingSpatialContextV2::new(
             &self.model,
             &self.realization_v5,

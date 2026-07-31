@@ -24,7 +24,7 @@ conformance_kits = ["hierarchical-conserving-connection-sets-v1"]
 [canonical_contract]
 nary_and_chain_model_identity_equal = true
 nary_and_chain_transaction_equal = true
-nary_and_chain_model_v2_bytes_equal = true
+nary_and_chain_current_model_bytes_equal = true
 nary_and_chain_model_digest_equal = true
 chain_connection_origins = 2
 wrapper_canonical_connections = 1

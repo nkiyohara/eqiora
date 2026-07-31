@@ -1,21 +1,22 @@
-# Current authoring and exact codec conformance
+# Current authoring and replay conformance
 
-This case separates the ordinary authoring profile from immutable artifact
-history. Rust `ModelDocument::compile` and `define`, Python `compile` and
-`Model.define`, and Studio's authoring request all select the same current
-semantic vocabulary without accepting a codec argument from the user.
+This case fixes one current-only authoring profile. Rust
+`ModelDocument::compile` and `define`, Python `compile` and `Model.define`, and
+Studio's authoring request all select the same current semantic vocabulary
+without accepting a wire or codec argument from the user.
 
 The shared `expected/profile.json` fixture fixes the cross-client mapping for
-this revision. It is a conformance input, not a promise that `current` will
-remain Model v8. Exact compatibility operations continue to name v1 through
-v8, replay only the selected codec, preserve the artifact schema and digest,
-and reject unknown or mismatched generations without fallback. Quantitative
-edits retain that exact transaction codec and reconstruct a child Model in the
-same generation, including ordinary current-v8 Studio authoring. The current
-fixture contains a generic content-addressed pure operator, so exact v4 rejects
-it instead of silently dropping its definition table.
+this revision: the current Model and Transaction schemas are v8. It is a
+conformance input, not a promise that the `current` profile will always use
+those schema identifiers. Source authoring, native definition, a quantitative
+edit, current artifact replay, and control-v2 compilation all traverse the one
+current owner and preserve their typed identity relations.
 
-The registered Rust test owns the ordinary/exact boundary and falsifiers.
+Historical v1--v7 bytes are negative specimens only in
+`artifacts.current-model-canonical-identity`. No historical codec selector,
+decoder, fallback, or silent migration is part of this case.
+
+The registered Rust test owns the current-authoring/replay boundary.
 Installed-wheel Python and native/TypeScript Studio tests consume the same
 fixture as companion client-adapter checks.
 

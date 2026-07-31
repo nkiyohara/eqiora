@@ -16,8 +16,10 @@ div(u) = 0.
 requires both operands to be the exact current velocity and requires inertia
 and conservative flux to share one density tape. A relative or ALE velocity,
 an advective-form shortcut, a different but equal-valued density Parameter,
-or any unconsumed model node fails closed. Model wire v5 is the first wire that
-can preserve this meaning; older wires remain unchanged and reject it.
+or any unconsumed model node fails closed. The one current Model owner
+preserves this meaning without a caller-selected generation. Historical v1--v7
+bytes remain rejection-only specimens in
+`artifacts.current-model-canonical-identity`.
 
 ## One realization, not a second meaning
 

@@ -1,7 +1,7 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
-    CanonicalModelArtifact, CanonicalRealizationArtifact, LayoutArtifacts, ModelEnvelopeV4,
+    CanonicalModelArtifact, CanonicalRealizationArtifact, LayoutArtifacts, ModelEnvelope,
     RealizationDecoderLimits, RealizationEnvelopeV4, RealizationEnvelopeV5,
     SimplicialMeshEnvelopeV1,
 };
@@ -338,7 +338,7 @@ fn realization_v4_rejects_unknown_fields_layout_drift_and_resource_excess() {
 }
 
 struct Fixture {
-    model: ModelEnvelopeV4,
+    model: ModelEnvelope,
     mesh: SimplicialMeshEnvelopeV1,
     resolved: ResolvedFixedTopologyAleCoupledRealization,
 }
@@ -353,7 +353,7 @@ impl Fixture {
     }
 
     fn with_dimension(dimension: usize) -> Self {
-        let model = ModelEnvelopeV4::from_json(MODEL, Default::default()).unwrap();
+        let model = ModelEnvelope::from_json(MODEL, Default::default()).unwrap();
         let (points, cells, quadrature) = match dimension {
             2 => (
                 vec![vec![0.0, 0.0], vec![1.0, 0.0], vec![0.0, 1.0]],

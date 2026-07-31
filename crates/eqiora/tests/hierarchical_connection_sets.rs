@@ -1,5 +1,5 @@
 use eqiora::Span;
-use eqiora::artifact::ModelEnvelopeV2;
+use eqiora::artifact::ModelEnvelope;
 use eqiora::compiler::connection_sets::{
     ConnectionFragment, ConnectionSetError, ConnectionSetLimits, normalize_connection_sets,
 };
@@ -89,7 +89,7 @@ fn sole_connection_set(
 
 fn canonical_program(compiled: CompiledModel) -> Vec<u8> {
     let program = admit(compiled);
-    ModelEnvelopeV2::from_program(&program)
+    ModelEnvelope::from_program(&program)
         .unwrap()
         .canonical_json()
         .unwrap()
@@ -171,8 +171,8 @@ fn nary_and_chained_fragments_have_one_canonical_model() {
         2
     );
 
-    let nary_artifact = ModelEnvelopeV2::from_program(&nary_program).unwrap();
-    let chain_artifact = ModelEnvelopeV2::from_program(&chain_program).unwrap();
+    let nary_artifact = ModelEnvelope::from_program(&nary_program).unwrap();
+    let chain_artifact = ModelEnvelope::from_program(&chain_program).unwrap();
     assert_eq!(
         nary_artifact.canonical_json().unwrap(),
         chain_artifact.canonical_json().unwrap()

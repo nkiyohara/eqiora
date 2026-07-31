@@ -10,7 +10,7 @@ second model implementation.
 ```text
 selected immutable document + finite coherent-SI scalar
                          ↓ native preview
-eqiora.model-transaction-envelope/<document codec>
+current ModelTransactionEnvelope
   RevisionIs(base) + ValueEquals(target, before) + SetValue(after)
                          ↓ exact value-edit plan key
 native reconstruction + atomic graph commit
@@ -23,12 +23,12 @@ bounded UI revision navigation
 The editable vocabulary is intentionally one revision-local scalar on a
 `Field` or `Parameter`. The replacement retains the canonical physical
 dimension. `ValueEditPlan` owns base digest, base revision, stable target,
-before/after quantities, exact transaction codec and digest, and a
+before/after quantities, exact current transaction digest, and a
 domain-separated preview-to-commit key. `ModelDocument::commit_value_edit`
-canonicalizes and decodes the stored transaction again through the base
-document's exact codec, checks its digest, clones the base graph store,
-performs one atomic commit, rebuilds the typed kernel program, and returns a
-child using that same codec. The base document remains usable and unchanged.
+canonicalizes and decodes the stored transaction again through the current
+Transaction owner, checks its digest, clones the base graph store, performs one
+atomic commit, rebuilds the typed kernel program, and returns a current child.
+The base document remains usable and unchanged.
 
 Studio bridge v5 treats both directions as untrusted. Zod validates every
 frontend response; Rust checks protocol, document cache membership, target,
@@ -53,7 +53,8 @@ inventing source text.
 - a stale base revision or changed previous value fails its optimistic
   precondition instead of being replayed onto newer state;
 - a forged plan key or transaction identity fails before mutation;
-- a transaction codec different from its base document fails before mutation;
+- a historical or otherwise unsupported Transaction schema fails before
+  mutation;
 - commit returns revision 2 for the first child while the base remains
   revision 1 and retains its previous value;
 - an obsolete asynchronous preview cannot replace a newer input, selection,

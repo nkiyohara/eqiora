@@ -143,7 +143,7 @@ multi-package commit, directory-entry crash durability, or staging garbage
 collection.
 The compilation sidecar binds the resulting Model digest to the exact root,
 resolution digest, source bundles, and toolchain versions. It does not modify
-Model v1/v2 bytes.
+the current Model bytes.
 
 Package execution lineage is a second, optional identity edge.
 `PackageRunBindingV1` binds that package-compilation digest and shared Model
@@ -174,21 +174,24 @@ and accumulates whole-model diagnostics. It requires a topology closed under
 semantic edges, exact agreement between expression symbols and `DependsOn`
 edges, dimensionally valid expressions, one Activation per Relation,
 unambiguous periodic clocks, valid signal Connection nets, structurally valid
-v1 conserving markers, and nominal scalar physical Connection networks. The
-reference interpreter and all compiler paths accept only this validated form;
+legacy-shaped conserving markers, and nominal scalar physical Connection
+networks. The reference interpreter and all compiler paths accept only this
+validated form;
 they never read a live mutable graph.
 
-The v1 `ConservingMarker` remains structural-only. Its saved scalar dimension
-continues to type an unqualified `Port(marker)` expression so fixed v1 models
-remain valid `KernelProgram`s, but marker networks are excluded from physical
-composition and the reference interpreter rejects their execution. [RFC
+The retained `ConservingMarker` remains structural-only. Its saved scalar
+dimension continues to type an unqualified `Port(marker)` expression so
+already represented programs remain valid `KernelProgram`s, but marker
+networks are excluded from physical composition and the reference interpreter
+rejects their execution. [RFC
 0024](../rfcs/0024-scalar-conserving-connection-semantics.md) separately defines
 nominal scalar physical Domains and Ports, explicit `Across` and `Through`
 symbols, one closed-subsystem closure, and deterministic N-ary junction
 residuals. `KernelProgram` validates that boundary and materializes the same
-immutable `ComposedResidualSystem` for later execution. Explicit model and
-transaction v2 wires carry those values; v1 bytes, digests, and meaning remain
-unchanged and reject v2-only values. Source exposes the same contract through
+immutable `ComposedResidualSystem` for later execution. The current Model and
+Transaction wires carry those values. Historical Model bytes are no longer
+runtime inputs and are not reinterpreted. Source exposes the same contract
+through
 `scalar_physical(across = ..., through = ...)`, `conserving on`, and explicit
 `across(...)` / `through(...)` accessors.
 
@@ -197,7 +200,7 @@ fragments, not additional Kernel Connections. That path first validates exact
 nominal compatibility, retains definition-local public boundary partitions
 without inventing occurrences, then normalizes the selected hierarchical
 occurrence tree into pairwise-disjoint maximal sets. Each set emits one
-ordinary flat N-ary Kernel Connection. Signal Connections and structural v1
+ordinary flat N-ary Kernel Connection. Signal Connections and structural-only
 conserving markers do not enter this union and retain their existing
 duplicate-use rules. Relation ownership is checked independently from
 topological membership, so idempotent physical reconnection cannot hide a
@@ -235,10 +238,10 @@ binding names one of those quantities, the exact catalog projection, one
 closed Run v1 or Run v2 digest, and one output digest already present in that
 Run. It is value-free and remains outside the Run output set, avoiding a
 digest cycle. The registered scalar package case closes this binding through
-Run v1. A sealed, generation-neutral Model artifact reference now lets
-explicitly selected Model v2/v3 artifacts enter the unchanged Realization v1
-and Run v2 identity chain while preserving their exact wire-domain digest. The
-registered projection cases do not yet use that chain: the field package case
+Run v1. A sealed Model artifact reference lets the validated current Model
+enter the unchanged Realization v1 and Run v2 identity chain while preserving
+its exact wire-domain digest. The registered projection cases do not yet use
+that chain: the field package case
 proves exact catalog identity and boundary-support replay, not execution or
 field result storage. Values, sampling, mesh identity, and transfer remain
 separate result/Realization contracts. [RFC
@@ -301,7 +304,7 @@ without widening RFC 0040. The exact
 support, displacement and load-potential Field slots, `mu` and `lambda`, and
 the isotropic balance Relation. The root package owns the body, four boundary
 Domains, both Fields, load definition, and four homogeneous displacement-trace
-Relations. Occurrence expansion feeds the ordinary flat Model v4 to the
+Relations. Occurrence expansion feeds the ordinary flat current Model to the
 unchanged name-independent elasticity lowerer; package and Component names are
 not dispatch keys. The registered
 [`solid.packaged-isotropic-balance-2d`](../verify/solid/packaged-isotropic-balance-2d/README.md)
@@ -309,7 +312,7 @@ case proves a complete verification-private identity bijection to the existing
 explicit-flat Model meaning, exact alias/declaration/binding/file-order
 invariance, equal lowered coefficients and solutions, Q1 L2/H1 convergence,
 and a nonzero affine-potential force/reaction balance. It then replays exact
-package compilation, Model v4, Realization v1, Run v2, and
+package compilation, the current Model, Realization v1, Run v2, and
 `PackageExecutionBindingV1`. This is not a boundary-partition or traction Port,
 an FSI interface, or a general package executor.
 
@@ -460,9 +463,9 @@ Domain; its parent and outward orientation are derived from the unique
 share the same nominal Connector and coincident Cartesian point set. It means
 pointwise trace continuity plus parent-outward flux balance. The shared pure
 typing pass creates one opaque componentwise residual proof, which Operator IR
-then scalarizes in deterministic root/component order. Model and transaction
-wire v3 carry this vocabulary explicitly, and wire v4 inherits it; v1 and v2
-remain fixed and reject it. The bounded exact-package 2D `[2]` claim is
+then scalarizes in deterministic root/component order. The current Model and
+Transaction contract carries this vocabulary explicitly. The bounded
+exact-package 2D `[2]` claim is
 registered by
 [`packages.field-valued-boundary-interface`](../verify/packages/field-valued-boundary-interface/README.md)
 and [RFC 0035](../rfcs/0035-field-valued-boundary-interfaces.md). Its exact
@@ -478,15 +481,13 @@ uncommitted projection until that semantic admission. Pointwise component
 scalarization implements
 the exact direct/transposed coordinate rule for `symmetric_part(T)` and the
 diagonal rule for `isotropic_lift(s)`; it does not pretend to discretize the
-surrounding `grad` or `div`. Explicit Model and Transaction wire v4 inherit the
-closed v3 grammar and add only these two expression variants. V3 remains
-closed, callers must select v4 explicitly, and a separate artifact regression
-freezes the pre-v4 v3 bytes and digest. The registered
+surrounding `grad` or `div`. The current Model and Transaction contract carries
+these two expression variants. The registered
 [`language.canonical-tensor-operators`](../verify/language/canonical-tensor-operators/README.md)
 case proves canonical source lowering, semantic typing, pointwise
-scalarization, legacy rejection, and exact v4 artifact replay. It does not
-claim elasticity physics, numerical
-realization, or solve. [RFC 0038](../rfcs/0038-canonical-tensor-structure-operators.md)
+scalarization, invalid-expression rejection, and current artifact replay. It
+does not claim elasticity physics, numerical realization, or solve. [RFC
+0038](../rfcs/0038-canonical-tensor-structure-operators.md)
 defines the bounded contract.
 
 One deliberately closed elasticity projection now proves that this canonical
@@ -503,23 +504,26 @@ potential tape supplies `grad(q)` by coordinate JVP, including the complete
 load used for physical reaction recovery. The registered
 [`solid.isotropic-elasticity-2d`](../verify/solid/isotropic-elasticity-2d/README.md)
 case proves rigid/shear/dilatation behavior, an exact affine patch,
-manufactured L2/H1 convergence, componentwise equilibrium, and Model-v4 to
-Realization-v1/Run-v2 lineage. This explicit-flat case is not itself a material
-package or an FSI interface; the separate packaged application above reuses
-the same lowerer and preserves the remaining RFC 0039 nonclaims. [RFC
+manufactured L2/H1 convergence, componentwise equilibrium, and
+current-Model-to-Realization-v1/Run-v2 lineage. This explicit-flat case is not
+itself a material package or an FSI interface; the separate packaged
+application above reuses the same lowerer and preserves the remaining RFC 0039
+nonclaims. [RFC
 0039](../rfcs/0039-canonical-isotropic-elasticity-2d.md) records the bounded
 projection contract.
 
-The public `ModelDocument::compile` and `define` operations author with the
-current supported semantic vocabulary; they do not accept an artifact
-generation. Exact historical work is deliberately outside that ordinary
-surface under `eqiora::compatibility`: an `ExactModelCodec` owns explicit
-`compile`, `define`, and `replay` operations for v1 through v4. Replay never
-sniffs bytes or retries another codec. The stored envelope remains private
-while canonical bytes, digest, and exact codec are version-neutral
-observations. The bounded value-edit and scalar-elliptic application workflows
-expose their remaining v1 dependency as a checked capability boundary rather
-than changing codec silently.
+The public `ModelDocument::compile`, `define`, and `replay` operations own the
+single current Model contract and accept no artifact-generation selector.
+Source callers use `compile`, client-neutral `ModelDraft` callers use `define`,
+and persisted current bytes use `replay`; all three converge before artifact
+acceptance.
+Canonical bytes expose the persisted `eqiora.model-envelope/v8` schema as an
+output fact; the suffix is not a selectable authoring profile. Historical
+Model v1--v7 bytes reject, and replay never sniffs, retries, or migrates them.
+The bounded value-edit and scalar-elliptic application workflows retain exact
+current artifact identity as a checked capability boundary. [RFC
+0083](../rfcs/0083-current-model-artifact-epoch.md) owns this pre-1.0 epoch
+reset and its compatibility nonclaims.
 
 For the admitted static affine slice, each retained Relation DAG and generated
 junction DAG lowers through `ScalarOperatorIr::bind_affine`. Known Parameters
@@ -539,8 +543,8 @@ reference interpreter and rejects models outside its admitted class.
 The separate
 [`hybrid.packaged-dc-motor-controller`](../verify/hybrid/packaged-dc-motor-controller/README.md)
 reference slice resolves three exact ordinary packages and flattens them into
-one Model-v2 network spanning electrical and rotational conserving domains, a
-causal speed signal, and one exact 10 ms periodic controller. Its host-serial
+one current Model network spanning electrical and rotational conserving
+domains, a causal speed signal, and one exact 10 ms periodic controller. Its host-serial
 `f64` interpreter solves a 23-by-23 consistency system, applies the phase-zero
 tick atomically, restores physical consistency, and advances continuous
 relations with backward Euler and bounded dense Newton while holding the
@@ -556,11 +560,11 @@ real-time scheduling, or dynamic-plugin support.
 The flat electrical case also closes the client-neutral authoring path. Its
 immutable Domain, Port, Relation, and N-ary Connection handles are validated by
 draft-local identity, projected into the existing typed AST vocabulary, and
-sent through the same lowerer. The application facade then requires an explicit
-v2 selection, replays the matching transaction wire, commits atomically,
-reconstructs the v2 model artifact, and produces the same analytic physical
-solution as the source-authored model. Native construction is an authoring
-surface, not a second semantics implementation.
+sent through the same lowerer. The application facade passes the draft through
+the current Transaction wire, commits atomically, reconstructs the current
+Model artifact, and produces the same analytic physical solution as the
+source-authored model. Native construction is an authoring surface, not a
+second semantics implementation.
 
 The executable-kernel v0 reference path evaluates scalar expression DAGs,
 uses backward Euler for continuous Relations, and solves each active square
@@ -709,12 +713,12 @@ Draft closure checks only exact handle membership; dimension, shape, frame,
 support, operator applicability, and residual rules remain owned by the same
 identity-parametric Semantic Kernel typing used for source models.
 The native path uses a client-neutral immutable `ModelDraft`; it neither
-manufactures source text nor assigns graph IDs before draft closure. Ordinary
-Python `compile` and `Model.define` select the same current profile as Rust and
-Studio without a codec argument. Exact v1--v8 compile, define, and replay live
-under `eqiora.compatibility`; those operations require a codec and never sniff
-or retry. Both paths cross the selected bounded transaction envelope, commit
-atomically, and reconstruct the matching immutable model envelope. The data
+manufactures source text nor assigns graph IDs before draft closure. Python
+`compile`, `Model.define`, and `replay` use the same current contract as Rust
+and Studio without a generation argument. Historical Model bytes reject; replay
+does not sniff, retry, or migrate them. Both authoring paths cross the current
+bounded Transaction envelope, commit atomically, and reconstruct the immutable
+current Model envelope. The data
 plane groups the reference trajectory by
 Field so multirate/event samples retain their own time axes, keeps owned host
 `f64` vectors lazy until a read-only NumPy projection is requested, and makes
@@ -1144,12 +1148,12 @@ identity without admitting a CAD-kernel object or entity-enumeration index.
 Concrete Truck objects, STEP parsing, and B-rep/modeling execution remain in
 `eqiora-cad-truck`; no concrete CAD kernel is part of the L2 boundary.
 
-Geometry consumes RFC 0037's sealed replayable Model contract rather than a
-concrete latest wire. Explicit Model v1--v8 codecs produce exact artifact
-identity and a validated immutable Kernel Program together; an identity-only
-reference cannot stand in for content. Thus a future Model codec extends one
-owned replay boundary without changing geometry consumers, while equal meaning
-in different wire domains remains non-substitutable.
+Geometry consumes RFC 0037's sealed replayable current Model contract rather
+than interpreting its persisted wire. Replay produces exact artifact identity
+and a validated immutable Kernel Program together; an identity-only reference
+cannot stand in for content. A future incompatible Model meaning requires a
+new schema and compatibility decision while geometry continues to consume this
+owned replay boundary.
 
 Body cell sets form a total disjoint mesh partition. Each parent's complete
 relative frontier is partitioned by its boundary Domains. Two distinct
@@ -1473,31 +1477,30 @@ changing such a policy does not manufacture a data-format version. Artifact
 and protocol versions independently govern persisted bytes and external
 exchange.
 
-`ModelEnvelopeV1` through `ModelEnvelopeV7`
-serialize their explicitly selected Semantic Model contracts through wire
-DTOs, then reconstruct through typed constructors, one graph transaction, and
-`KernelProgram` validation. Canonical JSON order and schema-domain-separated
-SHA-256 digests are deterministic; source revision is retained as provenance
-but excluded from semantic content identity. Every JSON decoder first applies
-one syntax-only byte/depth preflight. Model and transaction generations then
-apply their shared family-owned node, edge, expression, view, and operation
-budgets before graph mutation. Semantic limits do not live in one universal
+The unversioned public `ModelEnvelope` and `ModelTransactionEnvelope` own the
+single current runtime contract while retaining the persisted v8 schema
+identifiers and digest domains. They serialize the current Semantic Model
+through wire DTOs, then reconstruct through typed constructors, one graph
+transaction, and `KernelProgram` validation. Canonical JSON order and
+schema-domain-separated SHA-256 digests are deterministic; source revision is
+retained as provenance but excluded from semantic content identity. Each JSON
+decoder first applies one syntax-only byte/depth preflight, then the shared
+family-owned node, edge, expression, view, and operation budgets before graph
+mutation. Model v1--v7 schemas reject without sniffing, retry, or migration.
+Semantic limits do not live in one universal
 bag: mesh, geometry, field, Realization, remesh, physical-exposure,
 distributed, resolved-array/import, trajectory/storage, time, and ML Dataset
 decoders each receive only their owning family's budgets. An artifact that
 embeds another family composes that family's named semantic budget explicitly;
 changing one family cannot alter another family's admission policy.
 
-The sealed `CanonicalModelArtifact` boundary projects any of those validated
-envelopes to one `ModelArtifactReference`: exact wire-domain digest, typed
-Model identity, and semantic revision. `RealizationEnvelopeV1` consumes that
-reference without changing its existing fields or bytes. Equal meaning in
-another Model wire domain remains a different artifact and fails exact replay.
-The compatibility API selects and decodes exact Model codecs explicitly; the
-reference does not detect or upgrade schemas. The registered evidence
-constructs coherent Realization v1 and Run v2 lineage for v1/v2/v3 Models but
-does not lower or execute the physical Models; v4--v7 participation in the sealed
-reference contract does not by itself widen that registered lineage claim. [RFC
+The sealed `CanonicalModelArtifact` boundary projects the validated current
+envelope to one `ModelArtifactReference`: exact wire-domain digest, typed Model
+identity, and semantic revision. `RealizationEnvelopeV1` consumes that
+reference without changing its existing fields or bytes. The reference does
+not detect or upgrade schemas. The registered evidence constructs coherent
+current Model, Realization v1, and Run v2 lineage but does not lower or execute
+the physical Model. [RFC
 0037](../rfcs/0037-version-neutral-model-artifact-reference.md) and
 [`artifacts.model-reference-lineage`](../verify/artifacts/model-reference-lineage/README.md)
 define this bounded claim.
@@ -1507,9 +1510,9 @@ while correctly producing different exact Model identities. For that narrower
 comparison purpose, `eqiora-artifact` projects the validated `KernelProgram`
 to a generation-tagged `StructuralSemanticFingerprint`. The projection removes
 Model and entity occurrence ULIDs, source presentation, package identity, and
-artifact codec while retaining distinct vertices, nominal references, current
-values, expression structure, semantic edges, physical connections, and Model
-boundary membership. Exact partition refinement plus bounded
+exact artifact identity while retaining distinct vertices, nominal references,
+current values, expression structure, semantic edges, physical connections,
+and Model boundary membership. Exact partition refinement plus bounded
 individualization selects one canonical labelling; unknown meaning or exhausted
 limits fail closed. Equal digests are confirmed against private canonical
 bytes by the comparison API. This fingerprint is not accepted anywhere that
@@ -1718,12 +1721,12 @@ owned result arrays do not become unbounded DOM state.
 
 Bridge v5 also retains the first canonical model-edit path without adding UI
 semantics. A finite coherent-SI scalar replacement for a `Field` or
-`Parameter` becomes the exact `eqiora.model-transaction-envelope/v1` through
-`v4` selected by its immutable document, containing both `RevisionIs` and
-typed `ValueEquals` preconditions. Preview exposes codec provenance and its
-domain-separated identity; exact-key commit reconstructs and atomically
-replays it through that same codec, returning a same-codec child document and
-typed result lineage while leaving the base unchanged. The frontend
+`Parameter` becomes the current `eqiora.model-transaction-envelope/v8`,
+containing both `RevisionIs` and typed `ValueEquals` preconditions. Preview
+exposes the transaction's domain-separated identity; exact-key commit
+reconstructs and atomically replays it through the same current owner,
+returning a current child document and typed result lineage while leaving the
+base unchanged. The frontend
 navigates a bounded sequence of those documents for undo/redo rather than
 applying inverse patches. Source remains an explicitly labelled basis for the
 lineage; recompilation starts a new lineage because lossless source rewriting

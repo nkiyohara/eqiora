@@ -17,7 +17,7 @@ canonical 2D Poisson revision
   -> immutable complete-host-output receipt over one nine-step DAG
   -> method-native reconstruction
   -> analytic + balance + reference-CPU comparison
-  -> ModelEnvelopeV1 + RealizationEnvelopeV1 + RunManifestV2
+  -> current ModelEnvelope + RealizationEnvelopeV1 + RunManifestV2
 ```
 
 The call site intersects three independently owned capability sources:
@@ -75,6 +75,13 @@ source-identity observation drives complete bijective alpha-renaming of named
 declarations and relation activations. Every node/reference ULID must be mapped
 exactly once before normalized Model bytes/digest, then Realization and Run
 bytes/digests, are compared exactly.
+
+The recorded bundle's Model v1 bytes remain immutable historical evidence.
+The current runtime does not decode or relabel them. Replay verifies their raw
+hash and recorded artifact digest, then uses the separately committed current
+Model bridge for semantic comparison and for newly reconstructed Realization
+and Run lineage. The bridge changes only the Model artifact epoch; the CUDA
+solution, residual, balance, transfer, fence, and receipt oracles are unchanged.
 
 The physical collector obtains each `WaitedCompletion` only by successfully
 waiting a real CUDA event. Host replay cannot repeat that physical fact: it

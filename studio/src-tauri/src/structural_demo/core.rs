@@ -1,7 +1,6 @@
 //! Studio projection of the shared accepted structural result.
 
-use eqiora::api::MixedBoundaryElasticityResult2d;
-use eqiora::compatibility::ExactModelCodec;
+use eqiora::api::{MixedBoundaryElasticityResult2d, ModelDocument};
 use eqiora::solver::{ConvergenceReason, REFERENCE_LINEAR_SOLVER};
 use serde::Serialize;
 
@@ -102,8 +101,7 @@ struct EvidenceAttribution {
 }
 
 pub(super) fn prepare_demo() -> Result<StructuralDemoResult, String> {
-    let document = ExactModelCodec::V4
-        .compile("mixed-boundary-elasticity.eqi", MODEL_SOURCE)
+    let document = ModelDocument::compile("mixed-boundary-elasticity.eqi", MODEL_SOURCE)
         .map_err(diagnostics)?;
     let result =
         MixedBoundaryElasticityResult2d::solve_reference(&document, &REFERENCE_LINEAR_SOLVER)

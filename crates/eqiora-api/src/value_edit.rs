@@ -9,7 +9,7 @@ use eqiora_core::{Diagnostic, DynQuantity, EntityKind, RawId};
 use eqiora_graph::{EdgeKind, GraphStore, Op, Precondition, Revision, Transaction};
 use eqiora_schema::kernel::KernelNode;
 
-use crate::{ExactModelCodec, ModelDocument, VersionedModelTransactionEnvelope, single_diagnostic};
+use crate::{ModelDocument, ModelTransactionEnvelope, single_diagnostic};
 
 /// One exact, optimistic-concurrency-checked quantitative Model edit.
 ///
@@ -23,7 +23,7 @@ pub struct ValueEditPlan {
     target: RawId,
     before: DynQuantity,
     after: DynQuantity,
-    transaction: VersionedModelTransactionEnvelope,
+    transaction: ModelTransactionEnvelope,
     transaction_digest: String,
 }
 
@@ -71,12 +71,6 @@ impl ValueEditPlan {
     #[must_use]
     pub fn transaction_digest(&self) -> &str {
         &self.transaction_digest
-    }
-
-    /// Exact transaction codec retained by this immutable plan.
-    #[must_use]
-    pub const fn exact_codec(&self) -> ExactModelCodec {
-        self.transaction.exact_codec()
     }
 
     /// Canonical bytes of the shared Model-transaction envelope.
@@ -214,8 +208,7 @@ impl ModelDocument {
         &self,
         plan: ValueEditPlan,
     ) -> Result<ValueEditResult, Vec<Diagnostic>> {
-        if plan.exact_codec() != self.exact_codec()
-            || plan.base_digest != self.digest().map_err(single_diagnostic)?
+        if plan.base_digest != self.digest().map_err(single_diagnostic)?
             || plan.base_revision != self.store.revision()
         {
             return Err(single_diagnostic(Diagnostic::error(
@@ -242,7 +235,7 @@ impl ModelDocument {
         before: DynQuantity,
         after: DynQuantity,
         label: String,
-    ) -> Result<(VersionedModelTransactionEnvelope, String), Diagnostic> {
+    ) -> Result<(ModelTransactionEnvelope, String), Diagnostic> {
         let mut transaction = Transaction::new(label);
         transaction
             .require(Precondition::RevisionIs(self.store.revision()))
@@ -254,23 +247,24 @@ impl ModelDocument {
                 target,
                 value: after,
             });
-        let transaction = self.exact_codec().encode_transaction(&transaction)?;
-        let transaction_digest = transaction.digest()?;
+        let transaction = ModelTransactionEnvelope::from_transaction(&transaction)?;
+        let transaction_digest = transaction.digest()?.to_string();
         Ok((transaction, transaction_digest))
     }
 
     pub(crate) fn replay_model_transaction(
         &self,
-        transaction: &VersionedModelTransactionEnvelope,
+        transaction: &ModelTransactionEnvelope,
         transaction_digest: &str,
         identity_error: &'static str,
     ) -> Result<ModelDocument, Vec<Diagnostic>> {
         let bytes = transaction.canonical_json().map_err(single_diagnostic)?;
-        let replay = self
-            .exact_codec()
-            .decode_transaction(&bytes)
-            .map_err(single_diagnostic)?;
-        if replay.digest().map_err(single_diagnostic)? != transaction_digest {
+        let replay = ModelTransactionEnvelope::from_json(
+            &bytes,
+            eqiora_artifact::ModelDecoderLimits::default(),
+        )
+        .map_err(single_diagnostic)?;
+        if replay.digest().map_err(single_diagnostic)?.to_string() != transaction_digest {
             return Err(single_diagnostic(Diagnostic::error(
                 codes::INVALID_ARTIFACT,
                 identity_error,
@@ -281,7 +275,7 @@ impl ModelDocument {
         store.commit(replay.to_transaction().map_err(single_diagnostic)?)?;
         let program =
             eqiora_sem::KernelProgram::from_snapshot(&store.snapshot(), self.program.model())?;
-        ModelDocument::from_store(store, program, self.aliases.clone(), self.exact_codec())
+        ModelDocument::from_store(store, program, self.aliases.clone())
     }
 
     pub(crate) fn value_edit_label(&self, target: RawId) -> String {

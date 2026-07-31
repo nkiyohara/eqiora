@@ -6,7 +6,7 @@ adapter:
 
 - `fluid.exact-circular-hole-stokes-2d` owns the dual-independent pressure,
   flux, force, balance, solver, and residual observations;
-- `model.model-envelope-v7-canonical-identity` owns semantic Model identity;
+- `artifacts.current-model-canonical-identity` owns semantic Model identity;
 - `interfaces.python-exact-circular-hole-geometry` owns the exact source;
 - `interfaces.python-circular-hole-chordal-mesh` owns the source-bound inner
   mesh; and

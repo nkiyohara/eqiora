@@ -100,10 +100,10 @@ profile_a_and_b_matrices_are_identical = true
 profile_a_and_b_right_hand_sides_are_distinct = true
 
 [artifact_replay]
-model_v4 = "canonical bytes and digest"
+current_model = "canonical bytes and digest through the current owner"
 realization_v2 = "byte-identical decode and re-encode with domain-separated digest"
 mesh = "digest, intrinsic dimension, and imported-plan binding"
-run_v2 = "unchanged schema linked to exact Model, Realization, layout, target, and reduction"
+run_v2 = "unchanged schema linked to current Model, Realization, layout, target, and reduction"
 run_manifest_is_execution_attestation = false
 
 [tolerances]

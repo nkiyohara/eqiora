@@ -3,7 +3,8 @@
 The registered integration target must satisfy all of the following:
 
 - the canonical and permuted fixtures compile to one complete model with
-  identical deterministic entity IDs, Model v2 canonical bytes, and digest;
+  identical deterministic entity IDs, current Model canonical bytes, and
+  digest;
 - the two instances of `Resistor` have distinct IDs, while each instance keeps
   the same IDs across formatting, declaration-order, and file-name changes;
 - the flattened model contains one nominal scalar physical Domain, three root
@@ -14,8 +15,8 @@ The registered integration target must satisfy all of the following:
   instance, and binding spans, and changing only source location changes that
   sidecar without changing model identity;
 - the complete expanded hierarchy and the separately authored explicit flat
-  fixture have byte-identical canonical Model v2 artifacts and equal semantic
-  digests after one total, bijective ID normalization; Activation and
+  fixture have byte-identical canonical current Model artifacts and equal
+  semantic digests after one total, bijective ID normalization; Activation and
   Connection correspondences must be derived from graph structure rather than
   omitted from the comparison;
 - the selected physical closure is a square 14-by-14 general CSR problem whose

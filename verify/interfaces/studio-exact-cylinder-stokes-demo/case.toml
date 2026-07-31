@@ -12,7 +12,8 @@ capabilities = [
 
 [canonical_contract]
 example_id = "steady-flow-past-cylinder"
-model_source = "examples/steady-flow-past-cylinder.model-v7.json"
+model_source = "examples/steady-flow-past-cylinder.model.json"
+model_owner = "artifacts.current-model-canonical-identity"
 exact_geometry_source = "examples/steady-flow-past-cylinder.geometry.json"
 realization = "source-owned 50-chord 104-triangle affine mesh at maximum boundary error 1e-4 m"
 physics = "steady coherent-SI MINI/P1 Stokes"

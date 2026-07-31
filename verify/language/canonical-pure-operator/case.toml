@@ -1,14 +1,14 @@
 id = "language.canonical-pure-operator"
 status = "verified"
-scope = "source-declared-content-addressed-pure-operator-and-explicit-wire-v5"
-reference_kind = "direct-and-exact-package-identity-artifact-replay-and-component-scalarization"
+scope = "source-declared-content-addressed-pure-operator-and-current-artifact-replay"
+reference_kind = "direct-and-exact-package-identity-current-artifact-replay-and-component-scalarization"
 
 capabilities = [
   "bounded-source-declared-pure-operator",
   "content-addressed-generic-application",
   "exact-package-qualified-pure-operator",
   "alias-file-formal-and-declaration-order-invariance",
-  "explicit-model-and-transaction-wire-v5",
+  "current-model-and-transaction-replay",
   "deterministic-dyadic-component-scalarization",
   "closed-feature-digest-and-resource-falsifiers",
 ]
@@ -18,16 +18,16 @@ conformance_kits = ["canonical-pure-operator-v1"]
 definition = "capture-free typed component calculus identified by SHA-256 of name-free canonical content"
 application = "one expression-local definition digest plus ordered prior expression arguments"
 source_lookup = "one exact local or direct-package public declaration; no overload set"
-model_wire = "eqiora.model-envelope/v5"
-transaction_wire = "eqiora.model-transaction-envelope/v5"
-legacy_wire_v4_closed = true
+model_owner = "current"
+transaction_owner = "current"
 
 [claim_boundary]
 source_declared_public_operator = true
 exact_package_qualified_lookup = true
 name_free_definition_and_model_identity = true
 pointwise_component_scalarization = true
-model_and_transaction_v5_roundtrip = true
+current_model_and_transaction_roundtrip = true
+historical_generation_callable = false
 dedicated_dyadic_kernel_node = false
 general_tensor_or_weak_form_language = false
 floating_point_reassociation = false

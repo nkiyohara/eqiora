@@ -1,6 +1,6 @@
 id = "language.canonical-tensor-operators"
 status = "verified"
-scope = "canonical-volume-tensor-structure-operators-and-explicit-wire-v4"
+scope = "canonical-volume-tensor-structure-operators-and-current-artifact-replay"
 reference_kind = "typed-semantics-component-scalarization-and-artifact-roundtrip"
 
 capabilities = [
@@ -8,8 +8,7 @@ capabilities = [
   "supported-invariant-scalar-isotropic-lift",
   "canonical-source-lowering-and-identity-parametric-semantic-typing",
   "deterministic-pointwise-tensor-component-scalarization",
-  "explicit-model-and-transaction-wire-v4",
-  "legacy-wire-closure",
+  "current-model-and-transaction-replay",
 ]
 conformance_kits = ["canonical-tensor-structure-operators-v1"]
 
@@ -18,15 +17,15 @@ symmetric_part_input = "exact spatial Cartesian [d,d] tensor on a Cartesian volu
 symmetric_part_output = "same dimension, shape, frame, and support"
 isotropic_lift_input = "invariant scalar on a Cartesian volume"
 isotropic_lift_output = "same dimension and support; spatial Cartesian [d,d]"
-model_wire = "eqiora.model-envelope/v4"
-transaction_wire = "eqiora.model-transaction-envelope/v4"
-legacy_wire_v3_closed = true
+model_owner = "current"
+transaction_owner = "current"
 
 [claim_boundary]
 canonical_source_lowering = true
 identity_parametric_semantic_typing = true
 pointwise_component_scalarization = true
-model_and_transaction_v4_roundtrip = true
+current_model_and_transaction_roundtrip = true
+historical_generation_callable = false
 elasticity_specific_kernel_node = false
 elasticity_package_or_material_library = false
 spatial_discretization_or_assembly = false

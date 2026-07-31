@@ -1,5 +1,4 @@
 use eqiora::api::{ModelDocument, SemanticFingerprintGeneration, StructuralSemanticFingerprint};
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{
     ActivationDef, ExprDagBuilder, FieldDef, PortDef, RelationDef, SignalDirection, SymbolRef,
@@ -28,7 +27,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
     .unwrap();
     let native = ModelDocument::define(&native_decay(false)).unwrap();
     let reordered_native = ModelDocument::define(&native_decay(true)).unwrap();
-    let exact_v1 = ExactModelCodec::V1.compile("decay-v1.eqi", DECAY).unwrap();
+    let exact_v1 = eqiora::api::ModelDocument::compile("decay-v1.eqi", DECAY).unwrap();
 
     for equivalent in [
         &independently_compiled,
@@ -50,9 +49,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
     assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V2);
     assert_eq!(fingerprint.digest().len(), 64);
 
-    let replay = ExactModelCodec::CURRENT
-        .replay(&source.canonical_json().unwrap())
-        .unwrap();
+    let replay = eqiora::api::ModelDocument::replay(&source.canonical_json().unwrap()).unwrap();
     assert_eq!(
         replay.artifact_reference().unwrap(),
         source.artifact_reference().unwrap()

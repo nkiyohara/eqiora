@@ -19,6 +19,7 @@ capabilities = [
   "method-native-reconstruction",
   "reference-cpu-conformance-tolerance",
   "complete-source-identity-alpha-renaming",
+  "historical-model-bundle-current-semantic-bridge",
 ]
 
 [problem]
@@ -38,6 +39,10 @@ maximum_relative_balance = 2e-11
 [claim_boundary]
 physical_execution_in_ordinary_ci = false
 portable_committed_device_evidence = true
+recorded_model_bundle_is_historical = true
+current_semantic_model_bridge = true
+current_run_observed = false
+automatic_model_migration = false
 hardware_attestation = false
 general_cuda_capability = false
 durable_solution_artifact = false

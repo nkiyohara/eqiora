@@ -81,23 +81,15 @@ pub mod api {
     };
 }
 
-/// Exact historical artifact codecs and replay selection.
-///
-/// Ordinary authoring belongs to [`api`] and never requires this namespace.
-pub mod compatibility {
-    pub use eqiora_api::ExactModelCodec;
-}
-
 /// Versioned, transport-neutral commands and diagnostics for thin clients.
 pub mod control {
     pub use eqiora_api::control::{
-        COMPILE_COMMAND_V1, COMPILE_FEATURE_V1, COMPILE_V1_SCHEMA_JSON, CONTROL_PROTOCOL_V1,
-        CompileControlExecutionV1, CompileFeatureV1, CompileModelDescriptorV1, CompileOutcomeV1,
-        CompileRequestV1, CompileResponseV1, ControlDiagnosticSourceV1, ControlDiagnosticV1,
-        ControlPatchV1, ControlSeverityV1, ControlSourceSpanV1, MAX_COMPILE_FILENAME_BYTES_V1,
-        MAX_COMPILE_REQUEST_BYTES_V1, MAX_COMPILE_REQUIRED_FEATURES_V1,
-        MAX_COMPILE_RESPONSE_BYTES_V1, MAX_COMPILE_SOURCE_BYTES_V1,
-        MAX_CONTROL_REQUEST_ID_BYTES_V1, execute_compile_v1, generated_compile_v1_schema_json,
+        COMPILE_COMMAND_V1, COMPILE_V2_SCHEMA_JSON, CONTROL_PROTOCOL_V2, CompileControlExecutionV2,
+        CompileModelDescriptorV2, CompileOutcomeV2, CompileRequestV2, CompileResponseV2,
+        ControlDiagnosticSourceV2, ControlDiagnosticV2, ControlPatchV2, ControlSeverityV2,
+        ControlSourceSpanV2, MAX_COMPILE_FILENAME_BYTES_V2, MAX_COMPILE_REQUEST_BYTES_V2,
+        MAX_COMPILE_RESPONSE_BYTES_V2, MAX_COMPILE_SOURCE_BYTES_V2,
+        MAX_CONTROL_REQUEST_ID_BYTES_V2, execute_compile_v2, generated_compile_v2_schema_json,
     };
 }
 

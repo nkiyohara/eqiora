@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
     DistributedLayoutEnvelopeV1, DistributedTransportV1, ExecutionProvenanceV1,
-    ExecutionTopologyV1, LayoutArtifacts, LinearSystemEnvelopeV1, ModelEnvelopeV1,
+    ExecutionTopologyV1, LayoutArtifacts, LinearSystemEnvelopeV1, ModelEnvelope,
     PartitionEnvelopeV1, RealizationEnvelopeV1, RunManifestV2, validate_distributed_content_dag,
 };
 use eqiora_compiler::compile;
@@ -54,7 +54,7 @@ impl CompleteCsrStorage for Tridiagonal {
 }
 
 struct ContentDagFixture {
-    model: ModelEnvelopeV1,
+    model: ModelEnvelope,
     realization: RealizationEnvelopeV1,
     run: RunManifestV2,
     system: LinearSystemEnvelopeV1,
@@ -168,7 +168,7 @@ fn content_dag_rejects_run_partition_count_drift() {
     assert!(fixture.validate().is_err());
 }
 
-fn model() -> ModelEnvelopeV1 {
+fn model() -> ModelEnvelope {
     let mut compiled = compile("poisson.eqi", POISSON).unwrap();
     let compiled = compiled.remove(0);
     let model = compiled.model();
@@ -176,7 +176,7 @@ fn model() -> ModelEnvelopeV1 {
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    ModelEnvelopeV1::from_program(&program).unwrap()
+    ModelEnvelope::from_program(&program).unwrap()
 }
 
 fn system(right_hand_side: [f64; 3]) -> LinearSystemEnvelopeV1 {
@@ -199,7 +199,7 @@ fn partition() -> PartitionEnvelopeV1 {
 }
 
 fn realization(
-    model: &ModelEnvelopeV1,
+    model: &ModelEnvelope,
     layout: &DistributedLayoutEnvelopeV1,
     partition: &PartitionEnvelopeV1,
 ) -> RealizationEnvelopeV1 {
@@ -275,8 +275,8 @@ fn mutate_realization(
         .unwrap()
 }
 
-fn mutate_model(model: &ModelEnvelopeV1, mutate: impl FnOnce(&mut Value)) -> ModelEnvelopeV1 {
+fn mutate_model(model: &ModelEnvelope, mutate: impl FnOnce(&mut Value)) -> ModelEnvelope {
     let mut wire: Value = serde_json::from_slice(&model.canonical_json().unwrap()).unwrap();
     mutate(&mut wire);
-    ModelEnvelopeV1::from_json(&serde_json::to_vec(&wire).unwrap(), Default::default()).unwrap()
+    ModelEnvelope::from_json(&serde_json::to_vec(&wire).unwrap(), Default::default()).unwrap()
 }

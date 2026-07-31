@@ -68,8 +68,10 @@ shared application service → canonical model / owned run result
 
 The Studio bridge remains `eqiora.studio.bridge/v5`; that version owns the
 WebView DTO shape and is independent of the canonical Model wire. Compile/check
-ordinary authoring selects the shared current Model wire v8, while the closed
-control decoder continues to admit explicit v1--v8 requests and responses.
+ordinary authoring uses the shared current Model owner, while the closed
+control-v2 decoder admits no generation selector and rejects retired v1
+requests and fields before compilation. A response may report the persisted
+current schema as an output fact; it is not caller policy.
 Extending the Model wire alone does not advance the bridge protocol.
 
 The protocol modules under `src/` validate every value crossing the WebView
@@ -174,11 +176,12 @@ remain outside the payload. Browser preview fails explicitly.
 
 The structural command is likewise a presentation composition over
 `solid.mixed-boundary-elasticity-2d`. Rust compiles the exact checked-in direct
-Model v4, resolves the frozen generated Cartesian continuous-Q1 plan through
-the public facade, and executes the reference host-serial CG path. Its closed
-response contains ordered mesh connectivity, the existing solver-owned
-two-component displacement field, constrained reaction, integrated body force,
-solve/assembly evidence, and exact Model/Realization/output-less-Run lineage.
+source through the current Model API, resolves the frozen generated Cartesian
+continuous-Q1 plan through the public facade, and executes the reference
+host-serial CG path. Its closed response contains ordered mesh connectivity,
+the existing solver-owned two-component displacement field, constrained
+reaction, integrated body force, solve/assembly evidence, and exact
+Model/Realization/output-less-Run lineage.
 React applies only the labelled display transform `x + scale * u`; it derives
 no stress, strain, traction, analytic reference, or validation quantity.
 Browser preview fails explicitly.

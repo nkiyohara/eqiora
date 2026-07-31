@@ -5,7 +5,6 @@ use eqiora::assembly::{
     AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork, LinearSystem,
     REFERENCE_ASSEMBLY_BACKEND,
 };
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::diagnostic::codes;
 use eqiora::kernel::BoundarySide;
 use eqiora::meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule};
@@ -108,7 +107,7 @@ fn compile_packaged_as(
     let mut store = InMemoryPackageStore::default();
     store.insert(dependency).expect("insert dependency");
     store.insert(&root).expect("insert root");
-    PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V4)
+    PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile exact packaged pair")
 }
 
@@ -283,8 +282,7 @@ fn recovered_interface_traction(
 
 #[test]
 fn direct_two_body_model_lowers_to_one_exact_conforming_interface() {
-    let document = ExactModelCodec::V4
-        .compile("direct.eqi", DIRECT_SOURCE)
+    let document = eqiora::api::ModelDocument::compile("direct.eqi", DIRECT_SOURCE)
         .expect("direct conforming pair compiles");
     let pair = lower_conforming_isotropic_elasticity_cartesian_pair_2d(document.program())
         .expect("direct pair lowers");
@@ -334,8 +332,7 @@ fn direct_two_body_model_lowers_to_one_exact_conforming_interface() {
 #[test]
 fn direct_and_packaged_pairs_share_one_monolithic_q1_system_and_interface_oracle() {
     let direct_source = permuted_direct_source();
-    let direct = ExactModelCodec::V4
-        .compile("permuted-direct.eqi", &direct_source)
+    let direct = eqiora::api::ModelDocument::compile("permuted-direct.eqi", &direct_source)
         .expect("permuted direct conforming pair compiles");
     let dependency = elasticity_package();
     let packaged_source = PACKAGED_SOURCE.replace("solid.", "mechanics.");
@@ -512,8 +509,7 @@ fn pair_rejects_same_side_and_non_binary_interface_connections() {
             "right_boundary.mechanical[boundary = right_x_lower];",
             "right_boundary.mechanical[boundary = right_x_upper];",
         );
-    let same_side = ExactModelCodec::V4
-        .compile("same-side.eqi", &same_side)
+    let same_side = eqiora::api::ModelDocument::compile("same-side.eqi", &same_side)
         .expect("coincident same-side model remains semantically well typed");
     let diagnostic =
         lower_conforming_isotropic_elasticity_cartesian_pair_2d(same_side.program()).unwrap_err();
@@ -529,8 +525,7 @@ fn pair_rejects_same_side_and_non_binary_interface_connections() {
             "connect conserving left_boundary.mechanical[boundary = left_x_upper],\n    right_boundary.mechanical[boundary = right_x_lower];",
             "connect conserving left_boundary.mechanical[boundary = left_x_upper],\n    right_boundary.mechanical[boundary = right_x_lower],\n    interface_terminal.mechanical;",
         );
-    let three_port = ExactModelCodec::V4
-        .compile("three-port.eqi", &three_port)
+    let three_port = eqiora::api::ModelDocument::compile("three-port.eqi", &three_port)
         .expect("three-Port conserving junction remains kernel-valid");
     let diagnostic =
         lower_conforming_isotropic_elasticity_cartesian_pair_2d(three_port.program()).unwrap_err();
@@ -544,8 +539,7 @@ fn pure_natural_pair_fails_the_coupled_realization_gate() {
         "instance fixed: FixedDisplacement2d(",
         "instance fixed: ZeroTraction2d(",
     );
-    let document = ExactModelCodec::V4
-        .compile("unanchored.eqi", &source)
+    let document = eqiora::api::ModelDocument::compile("unanchored.eqi", &source)
         .expect("pure-natural pair remains valid model meaning");
     let diagnostic =
         finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly(
@@ -560,8 +554,7 @@ fn pure_natural_pair_fails_the_coupled_realization_gate() {
 
 #[test]
 fn reduced_integration_fails_before_an_spd_system_is_declared() {
-    let document = ExactModelCodec::V4
-        .compile("direct.eqi", DIRECT_SOURCE)
+    let document = eqiora::api::ModelDocument::compile("direct.eqi", DIRECT_SOURCE)
         .expect("direct conforming pair compiles");
     let diagnostic =
         finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly(
@@ -587,8 +580,7 @@ fn additional_live_port_relation_fails_before_pair_realization() {
             "connect conserving left_boundary.mechanical[boundary = left_x_upper],\n    right_boundary.mechanical[boundary = right_x_lower],\n    interface_terminal.mechanical;",
         );
     assert_ne!(source, DIRECT_SOURCE);
-    let document = ExactModelCodec::V4
-        .compile("additional-live-relation.eqi", &source)
+    let document = eqiora::api::ModelDocument::compile("additional-live-relation.eqi", &source)
         .expect("a third typed terminal Relation remains valid semantic meaning");
     let diagnostic =
         lower_conforming_isotropic_elasticity_cartesian_pair_2d(document.program()).unwrap_err();
@@ -611,8 +603,7 @@ fn constrained_interface_endpoint_is_not_mislabeled_as_coupling_equilibrium() {
             "connect conserving left_boundary.mechanical[boundary = left_y_lower],\n    left_y_lower_free.mechanical;",
             "connect conserving left_boundary.mechanical[boundary = left_y_lower],\n    fixed.mechanical;",
         );
-    let document = ExactModelCodec::V4
-        .compile("interface-endpoint-support.eqi", &source)
+    let document = eqiora::api::ModelDocument::compile("interface-endpoint-support.eqi", &source)
         .expect("supported interface endpoint remains valid model meaning");
     let (_, problem) =
         finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly(

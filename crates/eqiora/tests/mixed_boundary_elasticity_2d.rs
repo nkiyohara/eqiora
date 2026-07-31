@@ -5,7 +5,6 @@ use eqiora::assembly::{
     AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork, LinearSystem,
     REFERENCE_ASSEMBLY_BACKEND,
 };
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::diagnostic::codes;
 use eqiora::kernel::{BoundarySide, DomainKind, KernelNode};
 use eqiora::meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule};
@@ -173,7 +172,7 @@ fn compile_packaged(dependency: &PackageReleaseV1, source: &str) -> PackagedMode
     let mut store = InMemoryPackageStore::default();
     store.insert(dependency).expect("insert dependency release");
     store.insert(&root).expect("insert root release");
-    PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V4)
+    PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("compile exact packaged mixed-boundary model")
 }
 
@@ -381,8 +380,7 @@ fn recovered_traction_resultants(
 
 #[test]
 fn direct_and_packaged_boundaries_finalize_to_one_q1_problem_and_convergence_oracle() {
-    let direct = ExactModelCodec::V4
-        .compile("direct.eqi", DIRECT_SOURCE)
+    let direct = eqiora::api::ModelDocument::compile("direct.eqi", DIRECT_SOURCE)
         .expect("direct mixed-boundary model compiles");
     let dependency = elasticity_package();
     let packaged = compile_packaged(&dependency, PACKAGED_SOURCE);
@@ -619,12 +617,11 @@ fn boundary_normalization_rejects_near_miss_semantics() {
     additional_direct_relation.push_str(
         "  relation conflicting_trace continuous on x_upper {\n    trace(displacement) = 0;\n  }\n}\n",
     );
-    let direct = ExactModelCodec::V4
-        .compile(
-            "additional-direct-relation.eqi",
-            &additional_direct_relation,
-        )
-        .expect("near-miss direct model is valid semantic input");
+    let direct = eqiora::api::ModelDocument::compile(
+        "additional-direct-relation.eqi",
+        &additional_direct_relation,
+    )
+    .expect("near-miss direct model is valid semantic input");
     let diagnostic = lower_isotropic_elasticity_cartesian_2d(direct.program())
         .expect_err("a recognized direct law cannot hide an additional Relation");
     assert!(
@@ -637,8 +634,7 @@ fn boundary_normalization_rejects_near_miss_semantics() {
         "  domain x_lower = boundary(body, axis = 0, side = lower);",
         "  domain x_lower = boundary(body, axis = 0, side = lower);\n  domain x_lower_peer = boundary(body, axis = 0, side = lower);",
     );
-    let direct = ExactModelCodec::V4
-        .compile("duplicate-boundary.eqi", &duplicate_boundary)
+    let direct = eqiora::api::ModelDocument::compile("duplicate-boundary.eqi", &duplicate_boundary)
         .expect("duplicate geometric side remains distinguishable semantic identity");
     let diagnostic = lower_isotropic_elasticity_cartesian_2d(direct.program())
         .expect_err("the Cartesian side inventory must be a bijection");

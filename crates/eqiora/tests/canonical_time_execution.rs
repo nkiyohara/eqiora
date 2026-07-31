@@ -1,7 +1,7 @@
 #![cfg(feature = "diffsol")]
 
 use eqiora::artifact::{
-    ArtifactDigest, ModelEnvelopeV1, RootRegistrationEnvelopeV1, TimeDecoderLimits,
+    ArtifactDigest, ModelEnvelope, RootRegistrationEnvelopeV1, TimeDecoderLimits,
     TimeLoweringEnvelopeV1, TimeRunManifestV1,
 };
 use eqiora::backends::diffsol::DiffsolTimeBackend;
@@ -267,7 +267,7 @@ fn canonical_event_registration_drives_proposal_reset_saltation_and_restart() {
     let fixture = canonical_bouncing_ball();
     let cpu = CpuProgram::lower(&fixture.kernel).expect("scalar Operator IR");
     let system = FirstOrderProgram::lower(&cpu, fixture.flow).expect("proven explicit ODE");
-    let model = ModelEnvelopeV1::from_program(&fixture.kernel).unwrap();
+    let model = ModelEnvelope::from_program(&fixture.kernel).unwrap();
     let lowering =
         TimeLoweringEnvelopeV1::from_proof(&model, &fixture.kernel, system.lowering_proof())
             .unwrap();
@@ -940,7 +940,7 @@ fn assert_lowering_artifact_round_trip(
     program: &eqiora::sem::KernelProgram,
     system: &FirstOrderProgram,
 ) -> TimeLoweringEnvelopeV1 {
-    let model = ModelEnvelopeV1::from_program(program).unwrap();
+    let model = ModelEnvelope::from_program(program).unwrap();
     let envelope =
         TimeLoweringEnvelopeV1::from_proof(&model, program, system.lowering_proof()).unwrap();
     let bytes = envelope.canonical_json().unwrap();

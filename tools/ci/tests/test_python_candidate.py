@@ -148,7 +148,6 @@ typed candidate
                 for name in (
                     "eqiora/__init__.py",
                     "eqiora/__init__.pyi",
-                    "eqiora/compatibility.pyi",
                     "eqiora/diff.pyi",
                     "eqiora/fsi.pyi",
                     "eqiora/jax.pyi",
@@ -156,6 +155,7 @@ typed candidate
                     "eqiora/solid.pyi",
                     "eqiora/torch.pyi",
                     "eqiora/py.typed",
+                    "eqiora/examples/steady-flow-past-cylinder.model.json",
                     "eqiora/examples/mixed-boundary-elasticity.eqi",
                     "eqiora/examples/fixed-reference-fsi.eqi",
                     "eqiora/_eqiora.cpython-313-x86_64-linux-gnu.so",
@@ -210,7 +210,6 @@ invalid candidate
                 for name in (
                     "eqiora/__init__.py",
                     "eqiora/__init__.pyi",
-                    "eqiora/compatibility.pyi",
                     "eqiora/diff.pyi",
                     "eqiora/fsi.pyi",
                     "eqiora/jax.pyi",
@@ -218,6 +217,7 @@ invalid candidate
                     "eqiora/solid.pyi",
                     "eqiora/torch.pyi",
                     "eqiora/py.typed",
+                    "eqiora/examples/steady-flow-past-cylinder.model.json",
                     "eqiora/examples/mixed-boundary-elasticity.eqi",
                     "eqiora/examples/fixed-reference-fsi.eqi",
                     "eqiora/_eqiora.cpython-313-x86_64-linux-gnu.so",

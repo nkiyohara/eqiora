@@ -2,8 +2,7 @@ use std::collections::BTreeSet;
 
 use eqiora_artifact::{
     GeometryAssociationArtifactError, GeometryDecoderLimits, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, GeometryRevisionAssociationEnvelopeV1, ModelEnvelopeV1,
-    ModelEnvelopeV2, ModelEnvelopeV3, ModelEnvelopeV4, ModelEnvelopeV5,
+    GeometryMeshCorrespondenceEnvelopeV1, GeometryRevisionAssociationEnvelopeV1, ModelEnvelope,
     ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1,
 };
 use eqiora_compiler::compile;
@@ -42,54 +41,28 @@ model Main {
 "#;
 
 #[test]
-fn geometry_replays_every_explicit_model_wire_without_erasing_identity() {
+fn geometry_replays_the_current_model_without_erasing_identity() {
     let (program, bodies) = replayable_geometry_program();
     let mesh = mesh(2.0);
-    let v1 = ModelEnvelopeV1::from_program(&program).unwrap();
-    let v2 = ModelEnvelopeV2::from_program(&program).unwrap();
-    let v3 = ModelEnvelopeV3::from_program(&program).unwrap();
-    let v4 = ModelEnvelopeV4::from_program(&program).unwrap();
-    let v5 = ModelEnvelopeV5::from_program(&program).unwrap();
+    let model = ModelEnvelope::from_program(&program).unwrap();
+    let bytes = model.canonical_json().unwrap();
+    let replayed = ModelEnvelope::from_json(&bytes, Default::default()).unwrap();
+    assert_eq!(replayed.canonical_json().unwrap(), bytes);
 
-    let v1 = ModelEnvelopeV1::from_json(&v1.canonical_json().unwrap(), Default::default()).unwrap();
-    let v2 = ModelEnvelopeV2::from_json(&v2.canonical_json().unwrap(), Default::default()).unwrap();
-    let v3 = ModelEnvelopeV3::from_json(&v3.canonical_json().unwrap(), Default::default()).unwrap();
-    let v4 = ModelEnvelopeV4::from_json(&v4.canonical_json().unwrap(), Default::default()).unwrap();
-    let v5 = ModelEnvelopeV5::from_json(&v5.canonical_json().unwrap(), Default::default()).unwrap();
-
-    let first = replay_geometry(&v1, bodies, &mesh);
-    let second = replay_geometry(&v2, bodies, &mesh);
-    let third = replay_geometry(&v3, bodies, &mesh);
-    let fourth = replay_geometry(&v4, bodies, &mesh);
-    let fifth = replay_geometry(&v5, bodies, &mesh);
-    for candidate in [&second, &third, &fourth, &fifth] {
-        assert_eq!(first.0.bodies(), candidate.0.bodies());
-        assert_eq!(first.0.boundaries(), candidate.0.boundaries());
-        for body in bodies {
-            assert_eq!(first.1.body_cells(body), candidate.1.body_cells(body));
-        }
+    let (geometry, correspondence) = replay_geometry(&replayed, bodies, &mesh);
+    assert_eq!(geometry.model_artifact(), replayed.digest().unwrap());
+    assert_eq!(geometry.bodies().len(), 2);
+    assert_eq!(geometry.boundaries().len(), 8);
+    for body in bodies {
+        assert!(!correspondence.body_cells(body).unwrap().is_empty());
     }
-
-    let model_digests = [
-        first.0.model_artifact(),
-        second.0.model_artifact(),
-        third.0.model_artifact(),
-        fourth.0.model_artifact(),
-        fifth.0.model_artifact(),
-    ]
-    .into_iter()
-    .collect::<BTreeSet<_>>();
-    assert_eq!(model_digests.len(), 5, "wire-domain identity remains exact");
-    assert!(first.0.validate_against(&v2).is_err());
-    assert!(second.0.validate_against(&v3).is_err());
-    assert!(third.0.validate_against(&v4).is_err());
-    assert!(fourth.0.validate_against(&v5).is_err());
+    geometry.validate_against(&model).unwrap();
 }
 
 #[test]
 fn geometry_tolerance_owns_cartesian_classification_meaning() {
     let (program, bodies) = replayable_geometry_program();
-    let model = ModelEnvelopeV1::from_program(&program).unwrap();
+    let model = ModelEnvelope::from_program(&program).unwrap();
     let tight = GeometryIdentityEnvelopeV1::new(&model, bodies, 1.0e-9).unwrap();
     let loose = GeometryIdentityEnvelopeV1::new(&model, bodies, 1.0e-6).unwrap();
     assert_eq!(tight.bodies(), loose.bodies());
@@ -576,7 +549,7 @@ fn assert_retention_rejection(
 }
 
 struct Fixture {
-    model: ModelEnvelopeV4,
+    model: ModelEnvelope,
     program: KernelProgram,
     mesh: SimplicialMeshEnvelopeV1,
     bodies: [Id<kinds::Domain>; 2],
@@ -589,7 +562,7 @@ fn fixture(source: &str, right_upper: f64) -> Fixture {
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model_id).unwrap();
-    let model = ModelEnvelopeV4::from_program(&program).unwrap();
+    let model = ModelEnvelope::from_program(&program).unwrap();
     let mut bodies = program
         .nodes()
         .filter_map(|node| match node {

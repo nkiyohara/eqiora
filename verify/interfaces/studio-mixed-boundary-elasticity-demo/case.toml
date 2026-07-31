@@ -13,7 +13,7 @@ capabilities = [
 [canonical_contract]
 example_id = "mixed-boundary-linear-elasticity"
 model_source = "verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi"
-model_codec = "exact Model v4"
+model_owner = "sole current Model contract"
 realization = "generated 16-by-16 Cartesian continuous Q1 two-component field"
 quadrature = "Gauss-Legendre 2 points per axis"
 solver = "reference conjugate-gradient, identity, reproducible, f64, rtol 1e-12, atol 1e-14"

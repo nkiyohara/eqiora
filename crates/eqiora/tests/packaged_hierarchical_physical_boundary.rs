@@ -6,7 +6,6 @@ use eqiora::artifact::{
     PhysicalExposureDecoderLimits, PhysicalExposureObservationBindingV1,
     PhysicalExposureProjectionV1, PhysicalExposureQuantityV1, RunManifestV1,
 };
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::compiler::identity::{
     DeclarationPath, ElaborationKey, IdentityNamespace, InstancePath,
 };
@@ -118,9 +117,8 @@ fn compile_locked(
     let mut store = InMemoryPackageStore::default();
     store.insert(components).expect("insert component package");
     store.insert(root).expect("insert root package");
-    let packaged =
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V2)
-            .expect("compile exact package graph");
+    let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect("compile exact package graph");
     packaged
         .compilation()
         .validate_against(&resolution)
@@ -690,9 +688,8 @@ fn unclosed_imported_boundary_fails_before_model_exposure() {
     let mut store = InMemoryPackageStore::default();
     store.insert(&components).expect("insert component package");
     store.insert(&root).expect("insert root package");
-    let error =
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V2)
-            .expect_err("an unclosed imported boundary cannot expose a compiled Model");
+    let error = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect_err("an unclosed imported boundary cannot expose a compiled Model");
     let diagnostics = match error {
         eqiora::package::PackageCompilationError::Diagnostics(diagnostics) => diagnostics,
         other => panic!("expected typed source diagnostics, received {other}"),

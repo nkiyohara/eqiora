@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use eqiora::Id;
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::entity::kinds;
 use eqiora::graph::EdgeKind;
 use eqiora::kernel::KernelNode;
@@ -165,7 +164,7 @@ fn compile_from_memory(
     for release in releases {
         store.insert(release).expect("insert exact release");
     }
-    PackagedModelDocument::compile_locked(&store, resolution, "Main", ExactModelCodec::V2)
+    PackagedModelDocument::compile_locked(&store, resolution, "Main")
         .expect("compile exact package graph")
 }
 
@@ -231,9 +230,8 @@ fn transitive_composed_component_installs_flattens_and_solves() {
     drop(installer);
 
     let store = DirectoryPackageStore::open_ambient(&directory.0).expect("open installed store");
-    let packaged =
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V2)
-            .expect("compile installed transitive closure");
+    let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect("compile installed transitive closure");
     packaged
         .compilation()
         .validate_against(&resolution)

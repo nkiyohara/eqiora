@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
 
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::diagnostic::codes;
 use eqiora::graph::EdgeKind;
 use eqiora::kernel::BoundarySide;
@@ -64,8 +63,7 @@ fn direct_and_exact_package_models_have_equal_dynamic_solid_meaning() {
     );
     let solid = public_solid_release(&mechanics);
 
-    let direct = ExactModelCodec::V4
-        .compile("direct.eqi", DIRECT)
+    let direct = eqiora::api::ModelDocument::compile("direct.eqi", DIRECT)
         .expect("direct first-order solid Model compiles");
     let reordered_source = alias_and_permute_boundaries_and_connections(PACKAGED);
     let canonical_root = prepare_root_release(&solid, &mechanics, "solid", "mechanics", PACKAGED)
@@ -293,8 +291,7 @@ fn dynamic_projection_normalizes_each_exact_global_residual_sign() {
     assert!(
         reversed_momentum.contains("grad(load_potential)\n      - (density * derivative(velocity)")
     );
-    let canonical = ExactModelCodec::V4
-        .compile("canonical.eqi", DIRECT)
+    let canonical = eqiora::api::ModelDocument::compile("canonical.eqi", DIRECT)
         .expect("canonical residuals compile");
     let expected = observe(canonical.program());
     for (filename, source) in [
@@ -302,8 +299,7 @@ fn dynamic_projection_normalizes_each_exact_global_residual_sign() {
         ("negated-kinematics.eqi", negated_kinematics),
         ("reversed-momentum.eqi", reversed_momentum),
     ] {
-        let equivalent = ExactModelCodec::V4
-            .compile(filename, &source)
+        let equivalent = eqiora::api::ModelDocument::compile(filename, &source)
             .expect("one globally sign-reversed dynamic residual compiles");
         assert_eq!(expected, observe(equivalent.program()));
     }
@@ -516,8 +512,7 @@ fn observe(program: &KernelProgram) -> Observation {
 }
 
 fn assert_lowering_rejects(source: &str, message_fragment: &str) {
-    let document = ExactModelCodec::V4
-        .compile("near-miss.eqi", source)
+    let document = eqiora::api::ModelDocument::compile("near-miss.eqi", source)
         .expect("near miss remains valid Model meaning");
     let diagnostic = lower_isotropic_elastodynamics_cartesian_2d(document.program())
         .expect_err("near miss must not enter dynamic-solid lowering");
@@ -529,7 +524,7 @@ fn assert_lowering_rejects(source: &str, message_fragment: &str) {
 }
 
 fn assert_dimension_or_lowering_rejects(source: &str, context: &str) {
-    match ExactModelCodec::V4.compile("near-miss.eqi", source) {
+    match eqiora::api::ModelDocument::compile("near-miss.eqi", source) {
         Err(diagnostics) => assert!(
             diagnostics.iter().any(|diagnostic| {
                 matches!(
@@ -548,8 +543,7 @@ fn assert_dimension_or_lowering_rejects(source: &str, context: &str) {
 }
 
 fn assert_typed_source_rejects(source: &str, message_fragment: &str) {
-    let diagnostics = ExactModelCodec::V4
-        .compile("near-miss.eqi", source)
+    let diagnostics = eqiora::api::ModelDocument::compile("near-miss.eqi", source)
         .expect_err("ill-typed source near miss must fail before lowering");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -658,7 +652,7 @@ fn compile_prepared_root(
     store.insert(mechanics).expect("install mechanics package");
     store.insert(solid).expect("install solid package");
     store.insert(root).expect("install verification root");
-    PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V4)
+    PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("exact package graph compiles offline")
 }
 

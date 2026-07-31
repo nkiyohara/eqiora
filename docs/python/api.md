@@ -312,8 +312,6 @@ class Array:
 @final
 class Revision:
     @property
-    def exact_codec(self) -> compatibility.ExactModelCodec: ...
-    @property
     def model_id(self) -> str: ...
     @property
     def digest(self) -> str: ...
@@ -404,8 +402,6 @@ class Model:
     def field_ids(self) -> list[str]: ...
     @property
     def parameter_ids(self) -> list[str]: ...
-    @property
-    def exact_codec(self) -> compatibility.ExactModelCodec: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```
@@ -947,6 +943,12 @@ def grad(value: _ExpressionLike) -> Expression: ...
 def preview_realization(model: Model, request: ScalarElliptic) -> Realization: ...
 ```
 
+### `eqiora.replay`
+
+```python
+def replay(data: bytes) -> Model: ...
+```
+
 ### `eqiora.run`
 
 ```python
@@ -977,45 +979,6 @@ def through(port: ConservingPort) -> Expression: ...
 
 ```python
 def trace(value: _ExpressionLike) -> Expression: ...
-```
-
-## `eqiora.compatibility`
-
-Source: [`bindings/python/python/eqiora/compatibility.pyi`](https://github.com/nkiyohara/eqiora/blob/main/bindings/python/python/eqiora/compatibility.pyi)
-
-### `eqiora.compatibility.ExactModelCodec`
-
-```python
-@final
-class ExactModelCodec:
-    V1: ClassVar[ExactModelCodec]
-    V2: ClassVar[ExactModelCodec]
-    V3: ClassVar[ExactModelCodec]
-    V4: ClassVar[ExactModelCodec]
-    V5: ClassVar[ExactModelCodec]
-    V6: ClassVar[ExactModelCodec]
-    V7: ClassVar[ExactModelCodec]
-    V8: ClassVar[ExactModelCodec]
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-```
-
-### `eqiora.compatibility.compile_exact`
-
-```python
-def compile_exact(source: str, *, filename: str='<memory>', codec: ExactModelCodec) -> Model: ...
-```
-
-### `eqiora.compatibility.define_exact`
-
-```python
-def define_exact(name: str, *declarations: _ModelDeclaration, codec: ExactModelCodec) -> Model: ...
-```
-
-### `eqiora.compatibility.replay_exact`
-
-```python
-def replay_exact(data: bytes, *, codec: ExactModelCodec) -> Model: ...
 ```
 
 ## `eqiora.geometry`
@@ -1185,7 +1148,7 @@ class CircularHoleSteadyStokesResult:
 ### `eqiora.fluid.solve_exact_cylinder_stokes`
 
 ```python
-def solve_exact_cylinder_stokes(*, model_v7: bytes, geometry: RectangleWithCircularHole, mesh: CircularHoleChordalMesh) -> CircularHoleSteadyStokesResult: ...
+def solve_exact_cylinder_stokes(*, model: bytes, geometry: RectangleWithCircularHole, mesh: CircularHoleChordalMesh) -> CircularHoleSteadyStokesResult: ...
 ```
 
 ## `eqiora.fsi`

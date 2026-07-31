@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
     ArtifactDigest, DistributedTransportV1, ExecutionProvenanceV1, ExecutionTopologyV1,
-    JsonDecoderLimits, LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1, RunManifestV2,
+    JsonDecoderLimits, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV1, RunManifestV2,
 };
 use eqiora_compiler::compile;
 use eqiora_core::OntologyId;
@@ -474,7 +474,7 @@ fn digest(byte: u8) -> ArtifactDigest {
     ArtifactDigest::from_hex(format!("{byte:02x}").repeat(32)).unwrap()
 }
 
-fn model_fixture() -> (ModelEnvelopeV1, OntologyId<Model>) {
+fn model_fixture() -> (ModelEnvelope, OntologyId<Model>) {
     let mut compiled = compile("poisson.eqi", POISSON).unwrap();
     let compiled = compiled.remove(0);
     let model = compiled.model();
@@ -482,5 +482,5 @@ fn model_fixture() -> (ModelEnvelopeV1, OntologyId<Model>) {
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    (ModelEnvelopeV1::from_program(&program).unwrap(), model)
+    (ModelEnvelope::from_program(&program).unwrap(), model)
 }

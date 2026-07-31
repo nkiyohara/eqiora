@@ -11,7 +11,7 @@ and continuous-balance checks does the application boundary construct
 
 ```text
 exact package release + resolution
-  -> PackageCompilationRecordV1 + ModelEnvelopeV1
+  -> PackageCompilationRecordV1 + current ModelEnvelope
   -> RealizationEnvelopeV1
   -> accepted host-serial Q1 execution
   -> RunManifestV2

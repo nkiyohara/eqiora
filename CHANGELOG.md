@@ -25,6 +25,15 @@ are recorded here.
 
 ### Changed
 
+- Reset the pre-release Model artifact epoch to one current contract. Rust's
+  generation-selecting codec API and `eqiora::compatibility`, Python
+  `eqiora.compatibility`, Model/Transaction v1--v7 runtime support, and
+  control-v1 dispatch were removed. Their ordinary replacements are Rust
+  `ModelDocument::{compile, define, replay}`, unversioned current Model and
+  Transaction artifact owners, Python `eqiora.compile`, `Model.define`, and
+  `eqiora.replay`, plus `eqiora.control/v2`. Old Model/Transaction bytes and
+  control-v1 requests reject; no automatic migration is provided.
+
 - The pre-release `eqiora::numerics` facade no longer re-exports
   `SteadyStokesGeometryBinding2d` or
   `solve_resolved_steady_stokes_geometry_mini_2d`. Application consumers use

@@ -1,184 +1,62 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{
-    CONTROL_PROTOCOL_V1, ControlDiagnosticV1, MAX_COMPILE_FILENAME_BYTES_V1,
-    MAX_COMPILE_REQUEST_BYTES_V1, MAX_COMPILE_REQUIRED_FEATURES_V1, MAX_COMPILE_SOURCE_BYTES_V1,
-    MAX_CONTROL_REQUEST_ID_BYTES_V1,
+    CONTROL_PROTOCOL_V2, ControlDiagnosticV2, MAX_COMPILE_FILENAME_BYTES_V2,
+    MAX_COMPILE_REQUEST_BYTES_V2, MAX_COMPILE_SOURCE_BYTES_V2,
+    MAX_CONTROL_DISPATCH_IDENTITY_BYTES_V2, MAX_CONTROL_REQUEST_ID_BYTES_V2,
 };
-use crate::ExactModelCodec;
 
-/// Exact command identity of the bounded compile/check slice.
+/// Exact command identity of the bounded compile/check operation.
 pub const COMPILE_COMMAND_V1: &str = "model.compile-check/v1";
 
-/// Required feature identity for compile/check semantics.
-pub const COMPILE_FEATURE_V1: &str = "model.compile-check/v1";
-
-/// Closed required-feature vocabulary for compile/check v1.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum CompileFeatureV1 {
-    /// The exact compile/check command semantics.
-    #[serde(rename = "model.compile-check/v1")]
-    CompileCheck,
-    /// Model and transaction wire v1.
-    #[serde(rename = "model-wire/v1")]
-    ModelSchemaGeneration1,
-    /// Model and transaction wire v2.
-    #[serde(rename = "model-wire/v2")]
-    ModelSchemaGeneration2,
-    /// Model and transaction wire v3.
-    #[serde(rename = "model-wire/v3")]
-    ModelSchemaGeneration3,
-    /// Model and transaction wire v4.
-    #[serde(rename = "model-wire/v4")]
-    ModelSchemaGeneration4,
-    /// Model and transaction wire v5.
-    #[serde(rename = "model-wire/v5")]
-    ModelSchemaGeneration5,
-    /// Model and transaction wire v6.
-    #[serde(rename = "model-wire/v6")]
-    ModelSchemaGeneration6,
-    /// Model and transaction wire v7.
-    #[serde(rename = "model-wire/v7")]
-    ModelSchemaGeneration7,
-    /// Model and transaction wire v8.
-    #[serde(rename = "model-wire/v8")]
-    ModelSchemaGeneration8,
-}
-
-impl CompileFeatureV1 {
-    /// Exact negotiated feature identity.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::CompileCheck => COMPILE_FEATURE_V1,
-            Self::ModelSchemaGeneration1 => "model-wire/v1",
-            Self::ModelSchemaGeneration2 => "model-wire/v2",
-            Self::ModelSchemaGeneration3 => "model-wire/v3",
-            Self::ModelSchemaGeneration4 => "model-wire/v4",
-            Self::ModelSchemaGeneration5 => "model-wire/v5",
-            Self::ModelSchemaGeneration6 => "model-wire/v6",
-            Self::ModelSchemaGeneration7 => "model-wire/v7",
-            Self::ModelSchemaGeneration8 => "model-wire/v8",
-        }
-    }
-
-    pub(super) fn parse(value: &str) -> Result<Self, ControlDiagnosticV1> {
-        match value {
-            COMPILE_FEATURE_V1 => Ok(Self::CompileCheck),
-            "model-wire/v1" => Ok(Self::ModelSchemaGeneration1),
-            "model-wire/v2" => Ok(Self::ModelSchemaGeneration2),
-            "model-wire/v3" => Ok(Self::ModelSchemaGeneration3),
-            "model-wire/v4" => Ok(Self::ModelSchemaGeneration4),
-            "model-wire/v5" => Ok(Self::ModelSchemaGeneration5),
-            "model-wire/v6" => Ok(Self::ModelSchemaGeneration6),
-            "model-wire/v7" => Ok(Self::ModelSchemaGeneration7),
-            "model-wire/v8" => Ok(Self::ModelSchemaGeneration8),
-            _ => Err(ControlDiagnosticV1::unsupported(format!(
-                "required control feature `{value}` is not supported by compile/check v1"
-            ))),
-        }
-    }
-}
-
-/// Validated, normalized compile/check request.
-///
-/// Decoding rejects unknown fields and versions before compilation. Required
-/// features are sorted and deduplicated, then checked against the explicitly
-/// selected Model wire.
+/// Validated compile/check request for the sole current Model contract.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompileRequestV1 {
+pub struct CompileRequestV2 {
     request_id: String,
-    required_features: Vec<CompileFeatureV1>,
-    model_codec: ExactModelCodec,
     filename: String,
     source: String,
 }
 
-impl CompileRequestV1 {
-    /// Construct an ordinary authoring request for the current vocabulary.
+impl CompileRequestV2 {
+    /// Construct an ordinary current compile/check request.
     ///
     /// # Errors
     /// Returns a structured control diagnostic for an invalid request ID,
     /// filename, or source bound.
-    pub fn new_current(
+    pub fn new(
         request_id: impl Into<String>,
         filename: impl Into<String>,
         source: impl Into<String>,
-    ) -> Result<Self, ControlDiagnosticV1> {
-        Self::new_exact(request_id, ExactModelCodec::CURRENT, filename, source)
+    ) -> Result<Self, ControlDiagnosticV2> {
+        Self::validate_parts(request_id.into(), filename.into(), source.into())
     }
 
-    /// Construct a compatibility request with one exact artifact codec.
+    /// Decode one bounded request through protocol dispatch and the closed v2
+    /// DTO.
     ///
     /// # Errors
-    /// Returns a structured control diagnostic for an invalid request ID,
-    /// filename, or source bound.
-    pub fn new_exact(
-        request_id: impl Into<String>,
-        model_codec: ExactModelCodec,
-        filename: impl Into<String>,
-        source: impl Into<String>,
-    ) -> Result<Self, ControlDiagnosticV1> {
-        Self::validate_parts(
-            request_id.into(),
-            vec![CompileFeatureV1::CompileCheck, feature_for(model_codec)],
-            model_codec,
-            filename.into(),
-            source.into(),
-        )
+    /// Returns a standalone diagnostic before compilation. Dispatch does not
+    /// retry or reinterpret the request under another protocol.
+    pub fn from_json(bytes: &[u8]) -> Result<Self, ControlDiagnosticV2> {
+        dispatch_compile_v2(bytes)
     }
 
-    /// Decode one bounded JSON request using this exact protocol generation.
-    ///
-    /// No protocol sniffing or fallback occurs. Unknown fields, protocol,
-    /// command, Model wire, and feature identities fail before compilation.
+    /// Canonical compact JSON in frozen member order.
     ///
     /// # Errors
-    /// Returns a structured control diagnostic without constructing or
-    /// mutating a [`crate::ModelDocument`].
-    pub fn from_json(bytes: &[u8]) -> Result<Self, ControlDiagnosticV1> {
-        if bytes.len() > MAX_COMPILE_REQUEST_BYTES_V1 {
-            return Err(ControlDiagnosticV1::invalid_request(format!(
-                "compile/check request exceeds {MAX_COMPILE_REQUEST_BYTES_V1} encoded bytes"
-            )));
-        }
-        let wire: WireCompileRequestV1 = serde_json::from_slice(bytes).map_err(|error| {
-            ControlDiagnosticV1::invalid_request(format!(
-                "invalid compile/check v1 request JSON: {error}"
-            ))
-        })?;
-        Self::try_from_wire(wire)
-    }
-
-    /// Canonical compact JSON with normalized required features.
-    ///
-    /// # Errors
-    /// Returns a structured control diagnostic only if serialization of this
-    /// validated in-memory value unexpectedly fails.
-    pub fn canonical_json(&self) -> Result<Vec<u8>, ControlDiagnosticV1> {
+    /// Returns a diagnostic only if serialization unexpectedly fails.
+    pub fn canonical_json(&self) -> Result<Vec<u8>, ControlDiagnosticV2> {
         serde_json::to_vec(self).map_err(|error| {
-            ControlDiagnosticV1::invalid_request(format!(
-                "cannot encode compile/check v1 request: {error}"
+            ControlDiagnosticV2::invalid_request(format!(
+                "cannot encode compile/check v2 request: {error}"
             ))
         })
     }
 
-    /// Opaque caller-chosen identity echoed exactly by the response.
+    /// Opaque caller-chosen identity echoed exactly by an admitted response.
     #[must_use]
     pub fn request_id(&self) -> &str {
         &self.request_id
-    }
-
-    /// Sorted, duplicate-free required feature set.
-    #[must_use]
-    pub fn required_features(&self) -> &[CompileFeatureV1] {
-        &self.required_features
-    }
-
-    /// Explicit immutable Model and transaction wire generation.
-    #[must_use]
-    pub const fn model_codec(&self) -> ExactModelCodec {
-        self.model_codec
     }
 
     /// Source filename used by compiler diagnostics.
@@ -193,84 +71,51 @@ impl CompileRequestV1 {
         &self.source
     }
 
-    fn try_from_wire(wire: WireCompileRequestV1) -> Result<Self, ControlDiagnosticV1> {
-        if wire.protocol != CONTROL_PROTOCOL_V1 {
-            return Err(ControlDiagnosticV1::unsupported(format!(
-                "unsupported control protocol `{}`; expected `{CONTROL_PROTOCOL_V1}`",
-                wire.protocol
-            )));
-        }
-        if wire.command != COMPILE_COMMAND_V1 {
-            return Err(ControlDiagnosticV1::unsupported(format!(
-                "unsupported control command `{}`; expected `{COMPILE_COMMAND_V1}`",
-                wire.command
-            )));
-        }
-        let model_codec = parse_model_codec(&wire.model_wire)?;
-        if wire.required_features.len() > MAX_COMPILE_REQUIRED_FEATURES_V1 {
-            return Err(ControlDiagnosticV1::invalid_request(format!(
-                "compile/check v1 admits at most {MAX_COMPILE_REQUIRED_FEATURES_V1} required feature entries before normalization"
-            )));
-        }
-        let required_features = wire
-            .required_features
-            .iter()
-            .map(|feature| CompileFeatureV1::parse(feature))
-            .collect::<Result<Vec<_>, _>>()?;
-        Self::validate_parts(
-            wire.request_id,
-            required_features,
-            model_codec,
-            wire.filename,
-            wire.source,
-        )
+    fn try_from_wire(wire: WireCompileRequestV2) -> Result<Self, ControlDiagnosticV2> {
+        debug_assert_eq!(wire.protocol, CONTROL_PROTOCOL_V2);
+        debug_assert_eq!(wire.command, COMPILE_COMMAND_V1);
+        Self::validate_parts(wire.request_id, wire.filename, wire.source)
     }
 
     fn validate_parts(
         request_id: String,
-        mut required_features: Vec<CompileFeatureV1>,
-        model_codec: ExactModelCodec,
         filename: String,
         source: String,
-    ) -> Result<Self, ControlDiagnosticV1> {
+    ) -> Result<Self, ControlDiagnosticV2> {
         validate_request_id(&request_id)?;
         if filename.is_empty()
-            || filename.len() > MAX_COMPILE_FILENAME_BYTES_V1
+            || filename.chars().count() > MAX_COMPILE_FILENAME_BYTES_V2
+            || filename.len() > MAX_COMPILE_FILENAME_BYTES_V2
             || filename.chars().any(char::is_control)
         {
-            return Err(ControlDiagnosticV1::invalid_request(format!(
-                "source filename must contain 1 to {MAX_COMPILE_FILENAME_BYTES_V1} non-control UTF-8 bytes"
+            return Err(ControlDiagnosticV2::invalid_request(format!(
+                "source filename must contain 1 to {MAX_COMPILE_FILENAME_BYTES_V2} non-control UTF-8 bytes"
             )));
         }
-        if source.len() > MAX_COMPILE_SOURCE_BYTES_V1 {
-            return Err(ControlDiagnosticV1::invalid_request(format!(
-                "source exceeds the {MAX_COMPILE_SOURCE_BYTES_V1}-byte compile/check v1 limit"
+        if source.chars().count() > MAX_COMPILE_SOURCE_BYTES_V2
+            || source.len() > MAX_COMPILE_SOURCE_BYTES_V2
+        {
+            return Err(ControlDiagnosticV2::invalid_request(format!(
+                "source exceeds the {MAX_COMPILE_SOURCE_BYTES_V2}-byte compile/check v2 limit"
             )));
         }
-
-        normalize_and_validate_features(&mut required_features, model_codec)?;
-
         Ok(Self {
             request_id,
-            required_features,
-            model_codec,
             filename,
             source,
         })
     }
 }
 
-impl Serialize for CompileRequestV1 {
+impl Serialize for CompileRequestV2 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        WireCompileRequestRefV1 {
-            protocol: CONTROL_PROTOCOL_V1,
+        WireCompileRequestRefV2 {
+            protocol: CONTROL_PROTOCOL_V2,
             command: COMPILE_COMMAND_V1,
             request_id: &self.request_id,
-            required_features: &self.required_features,
-            model_wire: self.model_codec,
             filename: &self.filename,
             source: &self.source,
         }
@@ -278,97 +123,107 @@ impl Serialize for CompileRequestV1 {
     }
 }
 
-impl<'de> Deserialize<'de> for CompileRequestV1 {
+impl<'de> Deserialize<'de> for CompileRequestV2 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let wire = WireCompileRequestV1::deserialize(deserializer)?;
+        let wire = WireCompileRequestV2::deserialize(deserializer)?;
+        if wire.protocol != CONTROL_PROTOCOL_V2 || wire.command != COMPILE_COMMAND_V1 {
+            return Err(serde::de::Error::custom(
+                "compile/check request has the wrong protocol or command",
+            ));
+        }
         Self::try_from_wire(wire).map_err(serde::de::Error::custom)
     }
 }
 
+/// Dispatch a bounded JSON request without protocol sniffing or fallback.
+///
+/// # Errors
+/// Returns a standalone control diagnostic for request-size, JSON, dispatch,
+/// or closed-DTO admission failure.
+fn dispatch_compile_v2(bytes: &[u8]) -> Result<CompileRequestV2, ControlDiagnosticV2> {
+    if bytes.len() > MAX_COMPILE_REQUEST_BYTES_V2 {
+        return Err(ControlDiagnosticV2::invalid_request(format!(
+            "compile/check request exceeds {MAX_COMPILE_REQUEST_BYTES_V2} encoded bytes"
+        )));
+    }
+    let prelude: WireDispatchPrelude = serde_json::from_slice(bytes).map_err(|error| {
+        ControlDiagnosticV2::invalid_request(format!(
+            "invalid compile/check v2 request JSON: {error}"
+        ))
+    })?;
+    validate_dispatch_identity("protocol", &prelude.protocol)?;
+    validate_dispatch_identity("command", &prelude.command)?;
+    if prelude.protocol != CONTROL_PROTOCOL_V2 {
+        return Err(ControlDiagnosticV2::unsupported(format!(
+            "unsupported control protocol `{}`; expected `{CONTROL_PROTOCOL_V2}`",
+            prelude.protocol
+        )));
+    }
+    if prelude.command != COMPILE_COMMAND_V1 {
+        return Err(ControlDiagnosticV2::unsupported(format!(
+            "unsupported control command `{}`; expected `{COMPILE_COMMAND_V1}`",
+            prelude.command
+        )));
+    }
+    let wire: WireCompileRequestV2 = serde_json::from_slice(bytes).map_err(|error| {
+        ControlDiagnosticV2::invalid_request(format!(
+            "invalid compile/check v2 request JSON: {error}"
+        ))
+    })?;
+    CompileRequestV2::try_from_wire(wire)
+}
+
+#[derive(Deserialize)]
+struct WireDispatchPrelude {
+    protocol: String,
+    command: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct WireCompileRequestV1 {
+struct WireCompileRequestV2 {
     protocol: String,
     command: String,
     request_id: String,
-    required_features: Vec<String>,
-    model_wire: String,
     filename: String,
     source: String,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct WireCompileRequestRefV1<'a> {
+struct WireCompileRequestRefV2<'a> {
     protocol: &'static str,
     command: &'static str,
     request_id: &'a str,
-    required_features: &'a [CompileFeatureV1],
-    model_wire: ExactModelCodec,
     filename: &'a str,
     source: &'a str,
 }
 
-pub(super) fn validate_request_id(request_id: &str) -> Result<(), ControlDiagnosticV1> {
+pub(super) fn validate_request_id(request_id: &str) -> Result<(), ControlDiagnosticV2> {
     if request_id.is_empty()
-        || request_id.len() > MAX_CONTROL_REQUEST_ID_BYTES_V1
+        || request_id.chars().count() > MAX_CONTROL_REQUEST_ID_BYTES_V2
+        || request_id.len() > MAX_CONTROL_REQUEST_ID_BYTES_V2
         || !request_id
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
     {
-        return Err(ControlDiagnosticV1::invalid_request(format!(
-            "request ID must contain 1 to {MAX_CONTROL_REQUEST_ID_BYTES_V1} ASCII letters, digits, period, colon, underscore, or hyphen"
+        return Err(ControlDiagnosticV2::invalid_request(format!(
+            "request ID must contain 1 to {MAX_CONTROL_REQUEST_ID_BYTES_V2} ASCII letters, digits, period, colon, underscore, or hyphen"
         )));
     }
     Ok(())
 }
 
-pub(super) fn normalize_and_validate_features(
-    required_features: &mut Vec<CompileFeatureV1>,
-    model_codec: ExactModelCodec,
-) -> Result<(), ControlDiagnosticV1> {
-    required_features.sort_unstable();
-    required_features.dedup();
-    let exact = [CompileFeatureV1::CompileCheck, feature_for(model_codec)];
-    if required_features.as_slice() != exact {
-        return Err(ControlDiagnosticV1::unsupported(format!(
-            "compile/check v1 requires exactly `{}` and `{}` for Model wire `{}`",
-            CompileFeatureV1::CompileCheck.as_str(),
-            feature_for(model_codec).as_str(),
-            model_codec.as_str(),
+fn validate_dispatch_identity(name: &str, value: &str) -> Result<(), ControlDiagnosticV2> {
+    if value.chars().count() > MAX_CONTROL_DISPATCH_IDENTITY_BYTES_V2
+        || value.len() > MAX_CONTROL_DISPATCH_IDENTITY_BYTES_V2
+    {
+        return Err(ControlDiagnosticV2::invalid_request(format!(
+            "control {name} exceeds the dispatch identity limit"
         )));
     }
     Ok(())
-}
-
-pub(super) const fn feature_for(model_codec: ExactModelCodec) -> CompileFeatureV1 {
-    match model_codec {
-        ExactModelCodec::V1 => CompileFeatureV1::ModelSchemaGeneration1,
-        ExactModelCodec::V2 => CompileFeatureV1::ModelSchemaGeneration2,
-        ExactModelCodec::V3 => CompileFeatureV1::ModelSchemaGeneration3,
-        ExactModelCodec::V4 => CompileFeatureV1::ModelSchemaGeneration4,
-        ExactModelCodec::V5 => CompileFeatureV1::ModelSchemaGeneration5,
-        ExactModelCodec::V6 => CompileFeatureV1::ModelSchemaGeneration6,
-        ExactModelCodec::V7 => CompileFeatureV1::ModelSchemaGeneration7,
-        ExactModelCodec::V8 => CompileFeatureV1::ModelSchemaGeneration8,
-    }
-}
-
-pub(super) fn parse_model_codec(value: &str) -> Result<ExactModelCodec, ControlDiagnosticV1> {
-    match value {
-        "v1" => Ok(ExactModelCodec::V1),
-        "v2" => Ok(ExactModelCodec::V2),
-        "v3" => Ok(ExactModelCodec::V3),
-        "v4" => Ok(ExactModelCodec::V4),
-        "v5" => Ok(ExactModelCodec::V5),
-        "v6" => Ok(ExactModelCodec::V6),
-        "v7" => Ok(ExactModelCodec::V7),
-        "v8" => Ok(ExactModelCodec::V8),
-        _ => Err(ControlDiagnosticV1::unsupported(format!(
-            "unsupported Model wire `{value}` for compile/check v1"
-        ))),
-    }
 }

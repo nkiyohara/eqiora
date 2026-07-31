@@ -9,7 +9,6 @@ use eqiora::assembly::{
     AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan,
     AssemblyResult, AssemblyWork, LocalContribution, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
 };
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::compiler::compile;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::meshing::QuadratureRule;
@@ -229,7 +228,7 @@ fn compile_package() -> PackagedModelDocument {
     .unwrap();
     let release = prepare_package_release_v1(sources, &[]).unwrap();
     let (store, resolution) = install(&release);
-    PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V1).unwrap()
+    PackagedModelDocument::compile_locked(&store, &resolution, "Main").unwrap()
 }
 
 fn install(release: &PackageReleaseV1) -> (InMemoryPackageStore, ResolutionRecordV1) {

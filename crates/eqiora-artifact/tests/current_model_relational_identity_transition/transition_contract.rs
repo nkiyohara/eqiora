@@ -1014,9 +1014,11 @@ fn the_repository_is_in_exactly_one_frozen_transition_state() {
             "the sweep must not report its own executor `{path}`"
         );
     }
-    if let Err(reason) = classify_transition(&contract, &observed) {
-        panic!("the working tree is neither wholly before nor wholly after the reset: {reason}");
-    }
+    assert_eq!(
+        classify_transition(&contract, &observed),
+        Ok(TransitionState::PostReset),
+        "the working tree must be the complete post-reset state"
+    );
 
     // The same walk collects the declared product-source scopes, so the token
     // contract is wired to the real tree and not only to synthetic content.
@@ -1039,20 +1041,14 @@ fn the_repository_is_in_exactly_one_frozen_transition_state() {
         "scoped product source collapsed"
     );
 
-    // And the contract is deliberately not applied here. This checkout is
-    // pre-reset and carries most of what the reset removes; refusing it would
-    // refuse the state this case ships in. What it carries is not "all of it",
-    // so the exact presence and absence is frozen and checked below rather than
-    // asserted as a slogan.
     assert!(
-        scan_forbidden_tokens(&contract.forbidden, &observed.content).is_err(),
-        "the pre-reset tree must still carry the tokens the reset removes; if it does not, \
-         this contract is checking nothing"
+        scan_forbidden_tokens(&contract.forbidden, &observed.content).is_ok(),
+        "the complete post-reset product source must contain no forbidden token"
     );
 }
 
 #[test]
-fn the_pre_reset_tree_carries_exactly_the_frozen_forbidden_tokens() {
+fn pre_reset_occurrence_remains_frozen_and_post_reset_is_clean() {
     let contract = TransitionContract::from_classification();
     let observed = Observed::from_repository(&contract, &repository_root());
     let classification = classification();
@@ -1080,19 +1076,27 @@ fn the_pre_reset_tree_carries_exactly_the_frozen_forbidden_tokens() {
             scope.name
         );
         assert_eq!(
-            record["present"].as_u64().unwrap() as usize,
-            present.len(),
-            "{} tokens present in the pre-reset tree",
+            present,
+            Vec::<String>::new(),
+            "{} tokens surviving in the post-reset tree",
             scope.name
         );
         assert_eq!(
-            frozen_list(record, "absent"),
             absent,
-            "{} tokens absent from the pre-reset tree",
+            scope.forbidden.clone(),
+            "{} forbidden tokens absent from the post-reset tree",
             scope.name
         );
-        present_total += present.len();
-        absent_total += absent.len();
+        let frozen_absent = frozen_list(record, "absent");
+        let frozen_present = record["present"].as_u64().unwrap() as usize;
+        assert_eq!(
+            frozen_present + frozen_absent.len(),
+            scope.forbidden.len(),
+            "{} pre-reset occurrence partition",
+            scope.name
+        );
+        present_total += frozen_present;
+        absent_total += frozen_absent.len();
     }
 
     // 86 of 90 Rust tokens, all six Python and all six control tokens. The four

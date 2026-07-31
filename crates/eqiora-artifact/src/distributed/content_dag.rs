@@ -5,7 +5,7 @@ use eqiora_solver::ScalarType;
 
 use super::{DistributedLayoutEnvelopeV1, LinearSystemEnvelopeV1, PartitionEnvelopeV1};
 use crate::{
-    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1, RunManifestV2,
+    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV1, RunManifestV2,
     invalid_artifact,
 };
 
@@ -32,7 +32,7 @@ use crate::{
 /// execution partition count, target, worker count, or reduction policy is
 /// inconsistent.
 pub fn validate_distributed_content_dag(
-    model: &ModelEnvelopeV1,
+    model: &ModelEnvelope,
     realization: &RealizationEnvelopeV1,
     run: &RunManifestV2,
     system: &LinearSystemEnvelopeV1,
