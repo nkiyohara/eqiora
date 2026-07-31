@@ -30,6 +30,12 @@ EXACT_CYLINDER_DEMO = Path("examples/python/exact_cylinder_stokes.py")
 EXACT_CYLINDER_REPOSITORY_MODEL = Path(
     "examples/steady-flow-past-cylinder.model-v7.json"
 )
+MIXED_BOUNDARY_ELASTICITY_DEMO = Path(
+    "examples/python/mixed_boundary_elasticity.py"
+)
+MIXED_BOUNDARY_REPOSITORY_SOURCE = Path(
+    "verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi"
+)
 PYTHON_TEST_FIXTURES = (
     Path("verify/interfaces/control-plane-compile-check"),
     Path("verify/interfaces/current-authoring-profile"),
@@ -486,8 +492,10 @@ def inspect_wheel(
             "eqiora/diff.pyi",
             "eqiora/jax.pyi",
             "eqiora/matplotlib.pyi",
+            "eqiora/solid.pyi",
             "eqiora/torch.pyi",
             "eqiora/py.typed",
+            "eqiora/examples/mixed-boundary-elasticity.eqi",
             f"{dist_info}licenses/LICENSE",
             f"{dist_info}licenses/NOTICE",
         )
@@ -671,6 +679,33 @@ def prepare_exact_cylinder_demo_consumer(
     return destination
 
 
+def prepare_mixed_boundary_elasticity_demo_consumer(
+    extracted: Path,
+    run_root: Path,
+) -> Path:
+    """Copy the checked-in structural demo without repository source data."""
+
+    source = extracted / MIXED_BOUNDARY_ELASTICITY_DEMO
+    if not source.is_file():
+        raise CandidateError(
+            "source distribution omits checked-in demo "
+            f"{MIXED_BOUNDARY_ELASTICITY_DEMO}"
+        )
+    repository_source = run_root / MIXED_BOUNDARY_REPOSITORY_SOURCE
+    if repository_source.exists():
+        raise CandidateError(
+            "mixed-boundary consumer tree unexpectedly carries the repository source"
+        )
+    destination = run_root / MIXED_BOUNDARY_ELASTICITY_DEMO
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
+    if repository_source.exists():  # pragma: no cover - copy2 cannot create it
+        raise CandidateError(
+            "mixed-boundary demo copy introduced the repository source"
+        )
+    return destination
+
+
 def assert_matplotlib_is_optional(python: Path, run_root: Path) -> None:
     """Require the base wheel to explain its absent Matplotlib adapter."""
 
@@ -741,6 +776,7 @@ def run_base_profile(
     run_root.mkdir()
     tests, typecheck = prepare_base_consumer_tree(extracted, run_root)
     prepare_exact_cylinder_demo_consumer(extracted, run_root)
+    prepare_mixed_boundary_elasticity_demo_consumer(extracted, run_root)
     assert_installed_origin(
         python,
         wheel,
@@ -774,6 +810,7 @@ def run_base_profile(
         f"cp{python_version.replace('.', '')}:installed-wheel",
         f"cp{python_version.replace('.', '')}:base-and-numpy",
         f"cp{python_version.replace('.', '')}:packaged-exact-cylinder-model-demo",
+        f"cp{python_version.replace('.', '')}:packaged-mixed-boundary-elasticity-demo",
         f"cp{python_version.replace('.', '')}:async-and-cancellation",
         f"cp{python_version.replace('.', '')}:strict-base-typing",
         f"cp{python_version.replace('.', '')}:public-smoke-base",
@@ -838,6 +875,10 @@ def run_optional_profile(
     demo = None
     if name == "matplotlib":
         demo = prepare_exact_cylinder_demo_consumer(extracted, run_root)
+        structural_demo = prepare_mixed_boundary_elasticity_demo_consumer(
+            extracted,
+            run_root,
+        )
     checked_run(
         [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
         cwd=run_root,
@@ -863,6 +904,27 @@ def run_optional_profile(
             raise CandidateError(
                 "installed exact-cylinder Matplotlib demo did not write a PNG"
             )
+        structural_destination = run_root / "mixed-boundary-displacement.png"
+        checked_run(
+            [
+                str(python),
+                "-I",
+                str(structural_demo),
+                "--displacement-png",
+                str(structural_destination),
+                "--scale",
+                "1",
+            ],
+            cwd=run_root,
+            extra_environment=environment_variables,
+        )
+        if (
+            not structural_destination.is_file()
+            or not structural_destination.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+        ):
+            raise CandidateError(
+                "installed mixed-boundary Matplotlib demo did not write a PNG"
+            )
     else:
         run_public_smoke(
             python=python,
@@ -872,15 +934,16 @@ def run_optional_profile(
             profile=name,
         )
     compact = config.extras_interpreter.replace(".", "")
-    verification = (
-        "packaged-exact-cylinder-pressure-demo"
-        if name == "matplotlib"
-        else f"public-smoke-{name}"
-    )
-    return [
+    checks = [
         f"cp{compact}:{name}",
-        f"cp{compact}:{verification}",
+        f"cp{compact}:public-smoke-{name}",
     ]
+    if name == "matplotlib":
+        checks[1:] = [
+            f"cp{compact}:packaged-exact-cylinder-pressure-demo",
+            f"cp{compact}:packaged-mixed-boundary-displacement-demo",
+        ]
+    return checks
 
 
 def run_numpy_floor_profile(

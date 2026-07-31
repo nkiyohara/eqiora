@@ -62,9 +62,28 @@ def accepted_result() -> eqiora.fluid.CircularHoleSteadyStokesResult:
     )
 
 
+def accepted_structural_result() -> eqiora.solid.MixedBoundaryElasticityResult:
+    source = (
+        files(eqiora)
+        .joinpath("examples", "mixed-boundary-elasticity.eqi")
+        .read_text(encoding="utf-8")
+    )
+    model = eqiora.compatibility.compile_exact(
+        source,
+        filename="mixed-boundary-elasticity.eqi",
+        codec=eqiora.compatibility.ExactModelCodec.V4,
+    )
+    return eqiora.solid.solve_mixed_boundary_elasticity(model)
+
+
 @pytest.fixture(scope="module")
 def result() -> eqiora.fluid.CircularHoleSteadyStokesResult:
     return accepted_result()
+
+
+@pytest.fixture(scope="module")
+def structural_result() -> eqiora.solid.MixedBoundaryElasticityResult:
+    return accepted_structural_result()
 
 
 def test_plot_passes_the_accepted_p1_field_unchanged_to_matplotlib(
@@ -206,4 +225,120 @@ def test_foreign_inputs_fail_before_rendering(
         match="CircularHoleSteadyStokesResult",
     ):
         eqplot.plot_pressure(object())  # type: ignore[arg-type]
+    assert not rendered
+
+
+def test_displacement_plot_rejects_foreign_inputs_before_rendering(
+    result: eqiora.fluid.CircularHoleSteadyStokesResult,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rendered = False
+
+    def reject_render(*args: Any, **kwargs: Any) -> Any:
+        nonlocal rendered
+        rendered = True
+        raise AssertionError("foreign input reached Matplotlib")
+
+    monkeypatch.setattr(Axes, "add_collection", reject_render)
+    for foreign in (object(), result):
+        with pytest.raises(
+            TypeError,
+            match="MixedBoundaryElasticityResult",
+        ):
+            eqplot.plot_displacement(foreign)  # type: ignore[arg-type]
+    assert not rendered
+
+
+@pytest.mark.parametrize("scale", [0.0, 2.0])
+def test_displacement_plot_preserves_canonical_edges_and_explicit_scale(
+    structural_result: eqiora.solid.MixedBoundaryElasticityResult,
+    scale: float,
+) -> None:
+    import matplotlib.pyplot as pyplot
+
+    coordinates = structural_result.coordinates.copy()
+    displacement = structural_result.displacement.copy()
+    cells = structural_result.cells.copy()
+    edges = sorted(
+        {
+            tuple(sorted((int(cell[first]), int(cell[second]))))
+            for cell in cells
+            for first, second in ((0, 1), (1, 3), (3, 2), (2, 0))
+        }
+    )
+    assert len(edges) == 544
+    expected_original = coordinates[edges]
+    expected_deformed = (coordinates + scale * displacement)[edges]
+
+    registered_figures = pyplot.get_fignums()
+    figure = eqplot.plot_displacement(structural_result, scale=scale)
+    assert pyplot.get_fignums() == registered_figures
+    assert len(figure.axes) == 1
+    axes = figure.axes[0]
+    original, deformed = axes.collections
+    np.testing.assert_array_equal(original.get_segments(), expected_original)
+    np.testing.assert_array_equal(deformed.get_segments(), expected_deformed)
+    assert original.get_label() == "Original mesh"
+    assert deformed.get_label() == f"Displaced mesh (scale = {scale:g})"
+    assert f"scale {scale:g}" in axes.get_title()
+    assert axes.get_xlabel() == "x [m]"
+    assert axes.get_ylabel() == "y [m]"
+    assert axes.get_aspect() == 1.0
+    assert axes.get_xlim()[0] <= min(
+        coordinates[:, 0].min(),
+        expected_deformed[..., 0].min(),
+    )
+    assert axes.get_xlim()[1] >= max(
+        coordinates[:, 0].max(),
+        expected_deformed[..., 0].max(),
+    )
+    assert axes.get_ylim()[0] <= min(
+        coordinates[:, 1].min(),
+        expected_deformed[..., 1].min(),
+    )
+    assert axes.get_ylim()[1] >= max(
+        coordinates[:, 1].max(),
+        expected_deformed[..., 1].max(),
+    )
+    assert not structural_result.coordinates.flags.writeable
+    assert not structural_result.cells.flags.writeable
+    assert not structural_result.displacement.flags.writeable
+
+
+def test_structural_figure_is_headless_caller_owned_and_nonblank(
+    tmp_path: Path,
+) -> None:
+    result = accepted_structural_result()
+    figure = eqplot.plot_displacement(result, scale=1.0)
+    del result
+    gc.collect()
+
+    encoded = io.BytesIO()
+    figure.savefig(encoded, format="png")
+    payload = encoded.getvalue()
+    destination = tmp_path / "displacement.png"
+    figure.savefig(destination)
+    assert payload.startswith(b"\x89PNG\r\n\x1a\n")
+    assert destination.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    encoded.seek(0)
+    pixels = image.imread(encoded, format="png")
+    assert np.ptp(pixels[..., :3]) > 0.0
+
+
+@pytest.mark.parametrize("scale", [-1.0, float("inf"), float("nan")])
+def test_displacement_plot_rejects_invalid_scale_before_rendering(
+    structural_result: eqiora.solid.MixedBoundaryElasticityResult,
+    scale: float,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rendered = False
+
+    def reject_render(*args: Any, **kwargs: Any) -> Any:
+        nonlocal rendered
+        rendered = True
+        raise AssertionError("invalid scale reached Matplotlib")
+
+    monkeypatch.setattr(Axes, "add_collection", reject_render)
+    with pytest.raises(ValueError, match="finite and nonnegative"):
+        eqplot.plot_displacement(structural_result, scale=scale)
     assert not rendered

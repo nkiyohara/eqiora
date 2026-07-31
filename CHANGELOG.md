@@ -12,6 +12,11 @@ are recorded here.
   exact-cylinder P1 pressure Result as a caller-owned, headless-saveable
   Matplotlib Figure without making Matplotlib a base dependency.
 
+- Added `eqiora.solid.solve_mixed_boundary_elasticity(...)` and a packaged
+  Python example for the accepted exact-v4 structural case. Studio and Python
+  now consume one Rust-owned Model-to-Run result, and the optional Matplotlib
+  adapter can render its original and explicitly scaled displacement meshes.
+
 ### Changed
 
 - The pre-release `eqiora::numerics` facade no longer re-exports

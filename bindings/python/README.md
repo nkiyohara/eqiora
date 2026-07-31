@@ -115,6 +115,19 @@ uses the Result's explicit triangle connectivity, vertex-associated P1
 pressure, and full pressure range in pascals. It is not a generic Field plot,
 animation, media-publication, or visual-validation claim.
 
+The accepted mixed-boundary structural workflow is likewise an ordinary
+Python file:
+
+```console
+python examples/python/mixed_boundary_elasticity.py \
+  --displacement-png mixed-boundary-displacement.png --scale 1
+```
+
+It compiles the package's exact-v4 source explicitly, executes the shared
+Rust application result, and renders original and scaled-deformed canonical
+Q1 edges. It is one bounded verified case, not a general structural solver or
+deformation viewer.
+
 ## Structured diagnostics
 
 Failures expose stable categories and structured diagnostics:

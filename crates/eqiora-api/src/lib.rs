@@ -9,6 +9,7 @@ mod cad;
 mod codec;
 pub mod control;
 mod differentiation;
+mod elasticity;
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 mod external_data;
 mod geometry_edit;
@@ -25,6 +26,7 @@ pub use cad::*;
 pub use codec::ExactModelCodec;
 pub(crate) use codec::VersionedModelTransactionEnvelope;
 pub use differentiation::*;
+pub use elasticity::MixedBoundaryElasticityResult2d;
 pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;

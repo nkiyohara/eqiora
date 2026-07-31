@@ -160,6 +160,44 @@ still does not claim raw-array or general Field plotting, contours, velocity,
 interactive behavior, animation, deterministic image bytes, media admission,
 or validation from visual similarity.
 
+## Mixed-boundary structural demo
+
+The installed package also carries the accepted exact-v4 mixed-boundary
+elasticity source. Python compiles it explicitly and passes the immutable
+Model into the same Rust-owned application result used by Studio:
+
+```python
+from importlib.resources import files
+
+source = (
+    files(eqiora)
+    .joinpath("examples", "mixed-boundary-elasticity.eqi")
+    .read_text()
+)
+model = eqiora.compatibility.compile_exact(
+    source,
+    filename="mixed-boundary-elasticity.eqi",
+    codec=eqiora.compatibility.ExactModelCodec.V4,
+)
+result = eqiora.solid.solve_mixed_boundary_elasticity(model)
+```
+
+`result.coordinates`, `result.cells`, and `result.displacement` are
+memoized, read-only NumPy matrices in one canonical Q1 order. Model,
+Realization, Run, solver, assembly, reaction, and body-force evidence remains
+owned by Rust. Stress, strain, traction recovery, analytic error, other
+meshes, and general structural solving are not implied.
+
+The optional still displays original and explicitly scaled deformed edges:
+
+```python
+figure = eqplot.plot_displacement(result, scale=1.0)
+figure.savefig("mixed-boundary-displacement.png")
+```
+
+The complete runnable workflow is
+[`examples/python/mixed_boundary_elasticity.py`](../../examples/python/mixed_boundary_elasticity.py).
+
 ## Conserving connections
 
 Scalar conserving connections use nominal physical-domain identity:

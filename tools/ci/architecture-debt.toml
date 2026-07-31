@@ -384,15 +384,15 @@ removal = "split report projection from the execution runner"
 
 [[public_surface]]
 crate = "eqiora"
-ceiling = 285
-reason = "the facade is re-export-only and its width is already pinned by api/eqiora-facade-v1.json; 26 of these items are cross-crate globs this predicate cannot see through. UnstructuredP1ScalarFieldProjection2d and CircularHoleSteadyStokesResult2d are the two bounded application values shared by Studio and installed Python, replacing two direct geometry-backed Stokes composition exports. Five named fixed-reference FSI owner contracts complete the already-exported 2D finalization seam so an application client can construct one accepted step through the facade alone; repeated steps reuse the same contracts"
-removal = "withdraw the exact-cylinder Result and P1 projection if both Studio and Python cease to consume those typed application boundaries; withdraw the five fixed-reference FSI composition exports if the planned fixed-reference FSI application slice is abandoned or later subsumed; otherwise lower the ceiling with the next facade name withdrawn"
+ceiling = 286
+reason = "the facade is re-export-only and its width is already pinned by api/eqiora-facade-v1.json; 26 of these items are cross-crate globs this predicate cannot see through. The exact-cylinder and mixed-boundary elasticity Result values are bounded application compositions shared by Studio and installed Python; the scalar projection remains the exact-cylinder pressure view. Five named fixed-reference FSI owner contracts complete the already-exported 2D finalization seam so an application client can construct one accepted step through the facade alone"
+removal = "withdraw either bounded Result when both Studio and Python cease to consume its typed boundary; replace both application Results with one accepted general spatial Result only when its scientific and lineage contract exists; withdraw the fixed-reference FSI composition exports if that planned slice is abandoned; otherwise lower the ceiling with the next facade name withdrawn"
 
 [[public_surface]]
 crate = "eqiora-api"
-ceiling = 128
-reason = "UnstructuredP1ScalarFieldProjection2d owns the bounded pressure view while CircularHoleSteadyStokesResult2d owns the complete exact-cylinder Model-to-Run composition shared by Studio and installed Python. Both are application values rather than durable artifacts or generic solver infrastructure, and the slice costs one new public name"
-removal = "withdraw CircularHoleSteadyStokesResult2d when no application client consumes the exact-cylinder path; withdraw UnstructuredP1ScalarFieldProjection2d when no client consumes the bounded scalar projection"
+ceiling = 129
+reason = "UnstructuredP1ScalarFieldProjection2d owns the bounded pressure view; CircularHoleSteadyStokesResult2d and MixedBoundaryElasticityResult2d each own one complete Model-to-Run composition shared by Studio and installed Python. They are application values rather than durable artifacts or generic solver infrastructure; the elasticity slice costs exactly one public name to remove duplicated composition from two clients"
+removal = "withdraw either bounded Result when no application client consumes its path; replace both with one accepted general spatial Result only when that contract can preserve their scientific and lineage evidence; withdraw the scalar projection when no client consumes the bounded pressure view"
 
 [[public_surface]]
 crate = "eqiora-artifact"
