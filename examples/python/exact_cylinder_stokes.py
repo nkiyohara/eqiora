@@ -59,15 +59,10 @@ def main() -> None:
     print("cylinder force on fluid", result.cylinder_force_on_fluid, "N/m")
     print("net flux", result.net_flux, "m^2/s")
     if arguments.pressure_png is not None:
-        import matplotlib.pyplot as pyplot
-
         import eqiora.matplotlib as eqplot
 
         figure = eqplot.plot_pressure(result)
-        try:
-            figure.savefig(arguments.pressure_png, dpi=180)
-        finally:
-            pyplot.close(figure)
+        figure.savefig(arguments.pressure_png, dpi=180)
         print("pressure still", arguments.pressure_png)
 
 

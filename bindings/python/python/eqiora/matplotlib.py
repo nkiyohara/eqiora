@@ -1,7 +1,6 @@
 """Matplotlib presentation adapters for accepted Eqiora results."""
 
 try:
-    import matplotlib.pyplot as _pyplot
     from matplotlib.figure import Figure
 except ImportError as error:  # pragma: no cover - exercised without the extra
     raise ImportError(
@@ -12,6 +11,9 @@ except ImportError as error:  # pragma: no cover - exercised without the extra
 from .fluid import CircularHoleSteadyStokesResult
 
 __all__ = ["plot_pressure"]
+
+_FIELD_RECT = (0.065, 0.23, 0.82, 0.58)
+_COLORBAR_RECT = (0.91, 0.14, 0.025, 0.75)
 
 
 def plot_pressure(result: CircularHoleSteadyStokesResult, /) -> Figure:
@@ -26,11 +28,11 @@ def plot_pressure(result: CircularHoleSteadyStokesResult, /) -> Figure:
     triangles = result.triangles
     pressure = result.pressure.numpy(copy=False)
 
-    figure, axes = _pyplot.subplots(
+    figure = Figure(
         figsize=(10.0, 3.0),
-        layout="constrained",
         facecolor="#ffffff",
     )
+    axes = figure.add_axes(_FIELD_RECT)
     axes.set_facecolor("#f8fafc")
     field = axes.tripcolor(
         coordinates[:, 0],
@@ -57,6 +59,7 @@ def plot_pressure(result: CircularHoleSteadyStokesResult, /) -> Figure:
     axes.set_xlabel("x [m]")
     axes.set_ylabel("y [m]")
     axes.set_title("Steady Stokes pressure")
-    colorbar = figure.colorbar(field, ax=axes, pad=0.025)
+    colorbar_axes = figure.add_axes(_COLORBAR_RECT)
+    colorbar = figure.colorbar(field, cax=colorbar_axes)
     colorbar.set_label("Pressure [Pa]")
     return figure

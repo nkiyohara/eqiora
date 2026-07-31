@@ -401,10 +401,11 @@ class PythonPackageGateTests(unittest.TestCase):
         self.assertTrue(command[-1].endswith("bindings/python/tests/test_jax.py"))
 
     def test_matplotlib_gate_installs_the_extra_and_exact_renderer(self) -> None:
-        command = matplotlib_uv_gate_command("uv", "/usr/bin/python3")
+        command = matplotlib_uv_gate_command("uv")
 
         self.assertEqual(command[command.index("--extra") + 1], "matplotlib")
         self.assertIn("matplotlib==3.11.1", command)
+        self.assertEqual(command[command.index("--python") + 1], "3.13")
         self.assertTrue(
             command[-1].endswith("bindings/python/tests/test_matplotlib.py")
         )

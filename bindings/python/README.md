@@ -97,8 +97,7 @@ Python CAD or Boolean implementation. Its matching meshing operation is one
 Rust-owned, error-controlled chordal reference path, not a generic or
 production mesher. The returned wrapper binds its exact source only within the
 live process; durable generated-realization replay, geometry-backed Model
-binding, solve, Result, and visualization remain separately verified
-capabilities.
+binding, solve, Result, and visualization are separate capabilities.
 
 The accepted exact-cylinder Result can be presented as one bounded pressure
 still:

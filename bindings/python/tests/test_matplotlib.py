@@ -19,12 +19,12 @@ matplotlib = pytest.importorskip("matplotlib")
 matplotlib.use("Agg", force=True)
 
 import matplotlib.image as image  # noqa: E402
-import matplotlib.pyplot as pyplot  # noqa: E402
 from matplotlib.axes import Axes  # noqa: E402
 
 import eqiora.matplotlib as eqplot  # noqa: E402
 
 
+assert "matplotlib.pyplot" not in sys.modules
 EXPECTED_MATPLOTLIB_VERSION = os.environ.get("EQIORA_TEST_MATPLOTLIB_VERSION")
 if EXPECTED_MATPLOTLIB_VERSION is not None:
     assert matplotlib.__version__ == EXPECTED_MATPLOTLIB_VERSION
@@ -70,6 +70,8 @@ def test_plot_passes_the_accepted_p1_field_unchanged_to_matplotlib(
     result: eqiora.fluid.CircularHoleSteadyStokesResult,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import matplotlib.pyplot as pyplot
+
     expected_coordinates = result.coordinates.copy()
     expected_triangles = result.triangles.copy()
     expected_pressure = result.pressure.numpy(copy=True)
@@ -92,9 +94,11 @@ def test_plot_passes_the_accepted_p1_field_unchanged_to_matplotlib(
         return artist
 
     monkeypatch.setattr(Axes, "tripcolor", capture)
+    registered_figures = pyplot.get_fignums()
     figure = eqplot.plot_pressure(result)
     axes = figure.axes[0]
 
+    assert pyplot.get_fignums() == registered_figures
     np.testing.assert_array_equal(observed["x"], expected_coordinates[:, 0])
     np.testing.assert_array_equal(observed["y"], expected_coordinates[:, 1])
     np.testing.assert_array_equal(observed["triangles"], expected_triangles)
@@ -131,8 +135,6 @@ def test_plot_passes_the_accepted_p1_field_unchanged_to_matplotlib(
     assert not result.coordinates.flags.writeable
     assert not result.triangles.flags.writeable
 
-    pyplot.close(figure)
-
 
 def test_headless_figure_is_caller_saveable_and_nonblank(
     result: eqiora.fluid.CircularHoleSteadyStokesResult,
@@ -160,7 +162,15 @@ def test_headless_figure_is_caller_saveable_and_nonblank(
     if pixels.shape[2] == 4:
         assert np.any(pixels[..., 3] > 0.0)
 
-    pyplot.close(figure)
+    high_resolution = io.BytesIO()
+    figure.savefig(high_resolution, format="png", dpi=180)
+    high_resolution_payload = high_resolution.getvalue()
+    high_resolution_width, high_resolution_height = struct.unpack(
+        ">II",
+        high_resolution_payload[16:24],
+    )
+    assert high_resolution_width > width
+    assert high_resolution_height > height
 
 
 def test_foreign_inputs_fail_before_rendering(

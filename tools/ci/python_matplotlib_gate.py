@@ -13,13 +13,13 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PACKAGE = ROOT
 TEST = ROOT / "bindings/python/tests/test_matplotlib.py"
 _PROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 _DISTRIBUTION = _PROJECT["tool"]["eqiora-distribution"]
 MATURIN = _PROJECT["build-system"]["requires"][0]
 PYTEST = _DISTRIBUTION["pytest"]
 MATPLOTLIB = _DISTRIBUTION["tested-matplotlib"]
+PYTHON = _DISTRIBUTION["extras-python"]
 
 
 def venv_python(environment: Path) -> Path:
@@ -45,14 +45,14 @@ def run(argv: list[str], *, cwd: Path = ROOT) -> None:
     subprocess.run(argv, cwd=cwd, env=environment, check=True)
 
 
-def uv_gate_command(uv: str, python: str) -> list[str]:
+def uv_gate_command(uv: str) -> list[str]:
     """Install the optional extra and exact verified renderer release."""
 
     return [
         uv,
         "run",
         "--directory",
-        str(PACKAGE),
+        str(ROOT),
         "--isolated",
         "--no-editable",
         "--reinstall-package",
@@ -64,7 +64,7 @@ def uv_gate_command(uv: str, python: str) -> list[str]:
         "--with",
         MATPLOTLIB,
         "--python",
-        python,
+        PYTHON,
         "python",
         "-m",
         "pytest",
@@ -76,11 +76,16 @@ def uv_gate_command(uv: str, python: str) -> list[str]:
 def main() -> int:
     try:
         if uv := shutil.which("uv"):
-            run(uv_gate_command(uv, sys.executable))
+            run(uv_gate_command(uv))
             return 0
+        interpreter = shutil.which("python3.13")
+        if interpreter is None:
+            raise RuntimeError(
+                "the Matplotlib evidence gate requires CPython 3.13 or uv"
+            )
         with tempfile.TemporaryDirectory(prefix="eqiora-matplotlib-gate-") as directory:
             environment = Path(directory)
-            run([sys.executable, "-m", "venv", str(environment)])
+            run([interpreter, "-m", "venv", str(environment)])
             python = str(venv_python(environment))
             run(
                 [
@@ -102,10 +107,10 @@ def main() -> int:
                     "--no-build-isolation",
                     ".[matplotlib]",
                 ],
-                cwd=PACKAGE,
+                cwd=ROOT,
             )
-            run([python, "-m", "pytest", "-q", str(TEST)], cwd=PACKAGE)
-    except (OSError, subprocess.CalledProcessError) as error:
+            run([python, "-m", "pytest", "-q", str(TEST)], cwd=ROOT)
+    except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
         print(f"Python Matplotlib gate failed: {error}", file=sys.stderr)
         return 2
     return 0
