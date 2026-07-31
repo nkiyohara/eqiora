@@ -97,6 +97,14 @@ and emits `DeprecationWarning` with the replacement. Immediate removal is
 reserved for security, data-integrity, or scientifically incorrect behavior
 that cannot be retained safely.
 
+[RFC 0083](../../rfcs/0083-current-model-artifact-epoch.md) authorizes one
+additional exception: the bounded pre-1.0 Model and Model Transaction
+compatibility epoch reset. It names every removed surface, freezes the retained
+persisted contract and its exact rejection behavior, requires migration of
+every live consumer, and requires the break in release notes. This one-time
+exception cannot reinterpret an old identifier, silently migrate bytes, or
+authorize unrelated removals.
+
 Persisted Eqiora artifact codecs and versioned control contracts follow their
 own compatibility rules. A Python package version never authorizes silent
 migration, wire sniffing, or reinterpretation of those bytes.
