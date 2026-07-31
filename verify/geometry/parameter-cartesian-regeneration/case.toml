@@ -1,0 +1,55 @@
+id = "geometry.parameter-cartesian-regeneration"
+status = "verified"
+scope = "one-root-length-parameter-two-endpoints-one-3d-cartesian-domain-one-value-transaction"
+reference_kind = "dual-independent-analytic-and-symbolic-coordinate-oracle"
+
+capabilities = [
+  "atomic-parameter-cartesian-regeneration",
+  "complete-canonical-geometry-impact",
+  "identity-preserving-geometry-revision-association",
+]
+
+conformance_kits = ["parameter-cartesian-regeneration-v1"]
+
+[problem]
+base = "one current-v8 Model with one root length Parameter driving x-upper and y-lower"
+operation = "change the Parameter atomically from 2 m to 3.5 m through one ordinary SetValue transaction"
+oracle = "independent exact bounds, coupled-width checksums, and 56.25 m^3 target volume"
+
+[canonical_contract]
+mutation = "RevisionIs plus ValueEquals plus exactly one Parameter SetValue"
+resolved_impact = "complete canonical x-axis and y-axis differences"
+retained_identity = "Domain definitions, node IDs, boundary roles, Model membership, and every edge"
+changed_identity = "exact Model digest and Geometry Identity digest"
+selection_retention = "explicit total one-to-one geometry-revision association"
+
+[falsifiers]
+ordinary_value_edit = "reject the geometry-driving Parameter"
+partial_application = "x-only successor differs in bounds, checksum, volume, structural fingerprint, and digest"
+non_finite_no_op_or_invalid_interval = "reject before a plan is returned"
+missing_wrong_kind_non_length_or_unreferenced_target = "reject with a structured diagnostic"
+same_revision_foreign_model_digest = "reject before mutation"
+stale_child_revision = "reject before mutation"
+signed_zero = "positive and negative zero produce equal plans and byte-identical transactions"
+definition_or_topology_rewrite = "transaction contains no Domain operation or edge operation"
+caller_permutation = "reversed exact-wire declaration arrays reproduce equal plans, transactions, children, and digests"
+
+[claim_boundary]
+current_model_wire_v8 = true
+one_parameter = true
+one_cartesian_domain = true
+dimensions = 3
+referenced_endpoints = 2
+ordinary_set_value_transaction = true
+python = false
+studio = false
+cad_kernel = false
+mesh_regeneration = false
+multiple_parameters = false
+multiple_domains = false
+source_rewriting = false
+shape_sensitivity = false
+
+[evidence]
+package = "eqiora"
+test = "parameter_geometry_regeneration"

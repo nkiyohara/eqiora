@@ -1,0 +1,23 @@
+{
+  "schema": "eqiora.verify.parameter-cartesian-regeneration-oracle/v1",
+  "before": {
+    "parameterM": 2.0,
+    "boundsM": [[-1.0, 2.0], [2.0, 6.0], [0.5, 5.5]],
+    "widthSumXYM": 7.0,
+    "widthDifferenceXYM": -1.0,
+    "volumeM3": 60.0
+  },
+  "after": {
+    "parameterM": 3.5,
+    "boundsM": [[-1.0, 3.5], [3.5, 6.0], [0.5, 5.5]],
+    "widthSumXYM": 7.0,
+    "widthDifferenceXYM": 2.0,
+    "volumeM3": 56.25
+  },
+  "partialXOnly": {
+    "boundsM": [[-1.0, 3.5], [2.0, 6.0], [0.5, 5.5]],
+    "widthSumXYM": 8.5,
+    "widthDifferenceXYM": 0.5,
+    "volumeM3": 90.0
+  }
+}

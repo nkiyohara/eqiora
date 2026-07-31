@@ -16,12 +16,14 @@ mod fixed_reference_fsi;
 mod geometry_edit;
 mod ml_dataset;
 pub mod package;
+mod parameter_regeneration;
 mod reference_run;
 mod remeshing_trajectory;
 mod spatial;
 mod spatial_data;
 mod steady_stokes;
 mod transient_fluid;
+mod value_edit;
 
 pub use cad::*;
 pub use codec::ExactModelCodec;
@@ -34,6 +36,9 @@ pub use external_data::*;
 pub use fixed_reference_fsi::FixedReferenceFsiResult2d;
 pub use geometry_edit::{CartesianDomainEditPlan, CartesianDomainEditResult};
 pub use ml_dataset::*;
+pub use parameter_regeneration::{
+    ParameterGeometryRegenerationPlan, ParameterGeometryRegenerationResult,
+};
 pub use reference_run::*;
 pub use remeshing_trajectory::RemeshingTrajectoryReplayInputV1;
 #[cfg(feature = "hdf5")]
@@ -46,6 +51,7 @@ pub use spatial::*;
 pub use spatial_data::*;
 pub use steady_stokes::CircularHoleSteadyStokesResult2d;
 pub use transient_fluid::*;
+pub use value_edit::{ValueEditPlan, ValueEditResult};
 
 use std::collections::BTreeMap;
 
@@ -58,131 +64,11 @@ use eqiora_artifact::{
 };
 use eqiora_compiler::{CompiledModel, ModelSymbols};
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DynQuantity, EntityKind, RawId};
-use eqiora_graph::{
-    EdgeKind, GraphStore, InMemoryGraphStore, Op, Precondition, Revision, Transaction,
-};
+use eqiora_core::{Diagnostic, RawId};
+use eqiora_graph::{GraphStore, InMemoryGraphStore, Revision, Transaction};
 use eqiora_lang::ModelDraft;
-use eqiora_schema::kernel::KernelNode;
 use eqiora_sem::KernelProgram;
 use serde::{Deserialize, Serialize};
-
-/// One exact, optimistic-concurrency-checked quantitative model edit.
-///
-/// The plan owns the same versioned transaction wire used by language and
-/// binding clients. Presentation adapters may show its before/after values and
-/// replay key, but cannot bypass graph validation or silently retarget it.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ValueEditPlan {
-    base_digest: String,
-    base_revision: Revision,
-    target: RawId,
-    before: DynQuantity,
-    after: DynQuantity,
-    transaction: VersionedModelTransactionEnvelope,
-    transaction_digest: String,
-}
-
-impl ValueEditPlan {
-    /// Versioned exact key over the base artifact and transaction wire.
-    #[must_use]
-    pub fn key(&self) -> String {
-        format!(
-            "eqiora.value-edit-plan/v1:{}:{}",
-            self.base_digest, self.transaction_digest
-        )
-    }
-
-    /// Canonical model content identity against which the edit was prepared.
-    #[must_use]
-    pub fn base_digest(&self) -> &str {
-        &self.base_digest
-    }
-
-    /// Graph revision required by the edit transaction.
-    #[must_use]
-    pub const fn base_revision(&self) -> Revision {
-        self.base_revision
-    }
-
-    /// Stable Field or Parameter identity targeted by the edit.
-    #[must_use]
-    pub const fn target(&self) -> RawId {
-        self.target
-    }
-
-    /// Value required by the optimistic precondition.
-    #[must_use]
-    pub const fn before(&self) -> DynQuantity {
-        self.before
-    }
-
-    /// Replacement value in coherent SI units with unchanged dimension.
-    #[must_use]
-    pub const fn after(&self) -> DynQuantity {
-        self.after
-    }
-
-    /// Domain-separated identity of the exact ordered transaction wire.
-    #[must_use]
-    pub fn transaction_digest(&self) -> &str {
-        &self.transaction_digest
-    }
-
-    /// Exact transaction codec retained by this immutable plan.
-    #[must_use]
-    pub const fn exact_codec(&self) -> ExactModelCodec {
-        self.transaction.exact_codec()
-    }
-
-    /// Canonical bytes of the shared model-transaction envelope.
-    ///
-    /// # Errors
-    /// Returns an artifact diagnostic if serialization unexpectedly fails.
-    pub fn transaction_json(&self) -> Result<Vec<u8>, Diagnostic> {
-        self.transaction.canonical_json()
-    }
-}
-
-/// One accepted value edit and the immutable child model it produced.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ValueEditResult {
-    plan: ValueEditPlan,
-    document: ModelDocument,
-    result_digest: String,
-}
-
-impl ValueEditResult {
-    /// Exact plan committed by the graph store.
-    #[must_use]
-    pub const fn plan(&self) -> &ValueEditPlan {
-        &self.plan
-    }
-
-    /// Canonical child model identity.
-    #[must_use]
-    pub fn result_digest(&self) -> &str {
-        &self.result_digest
-    }
-
-    /// Child graph revision produced by the atomic commit.
-    #[must_use]
-    pub fn result_revision(&self) -> Revision {
-        self.document.program.revision()
-    }
-
-    /// Borrow the immutable child model.
-    #[must_use]
-    pub const fn document(&self) -> &ModelDocument {
-        &self.document
-    }
-
-    /// Transfer ownership of the child model to a cache or binding.
-    #[must_use]
-    pub fn into_document(self) -> ModelDocument {
-        self.document
-    }
-}
 
 /// One immutable, validated canonical model revision plus non-semantic source
 /// aliases used by client presentation layers.
@@ -390,145 +276,6 @@ impl ModelDocument {
     /// canonicalization limits, or unequal projections with a colliding hash.
     pub fn structurally_equivalent(&self, other: &Self) -> Result<bool, Diagnostic> {
         eqiora_artifact::structurally_equivalent(&self.program, &other.program)
-    }
-
-    /// Resolve one finite Field/Parameter value change into the shared,
-    /// versioned model-transaction wire without mutating this document.
-    ///
-    /// The transaction requires both the current graph revision and the exact
-    /// current quantity. A no-op, non-finite value, missing target, or target
-    /// outside the quantitative node vocabulary is rejected before commit.
-    ///
-    /// # Errors
-    /// Returns a structured graph or artifact diagnostic when the edit cannot
-    /// be represented exactly.
-    pub fn preview_value_edit(
-        &self,
-        target: RawId,
-        new_value_si: f64,
-    ) -> Result<ValueEditPlan, Diagnostic> {
-        if !new_value_si.is_finite() {
-            return Err(Diagnostic::error(
-                codes::INVALID_OPERATION,
-                "model value edits require one finite coherent-SI scalar",
-            ));
-        }
-        let Some(node) = self.program.node(target) else {
-            return Err(Diagnostic::error(
-                codes::NODE_NOT_FOUND,
-                format!("value-edit target {target} is outside this model revision"),
-            ));
-        };
-        if !matches!(node.id().kind(), EntityKind::Field | EntityKind::Parameter) {
-            return Err(Diagnostic::error(
-                codes::INVALID_OPERATION,
-                format!("value edits are not valid for {:?}", node.id().kind()),
-            ));
-        }
-        if matches!(node.id().kind(), EntityKind::Parameter)
-            && self.program.edges().iter().any(|edge| {
-                edge.kind() == EdgeKind::DependsOn
-                    && edge.to() == target
-                    && matches!(self.program.node(edge.from()), Some(KernelNode::Domain(_)))
-            })
-        {
-            return Err(Diagnostic::error(
-                codes::INVALID_OPERATION,
-                "value edit cannot target a Cartesian coordinate Parameter; use the geometry regeneration owner",
-            ));
-        }
-        let Some(before) = self.program.value(target) else {
-            return Err(Diagnostic::error(
-                codes::INVALID_OPERATION,
-                format!("value-edit target {target} has no revision-local scalar value"),
-            ));
-        };
-        let after = DynQuantity::new(new_value_si, before.dim());
-        if before == after {
-            return Err(Diagnostic::error(
-                codes::INVALID_OPERATION,
-                "value edit would not change canonical model content",
-            ));
-        }
-
-        let label = self
-            .aliases
-            .iter()
-            .find_map(|(name, &id)| (id == target).then_some(name.as_str()))
-            .map_or_else(
-                || format!("set model value {target}"),
-                |name| format!("set model value {name}"),
-            );
-        let base_revision = self.store.revision();
-        let mut transaction = Transaction::new(label);
-        transaction
-            .require(Precondition::RevisionIs(base_revision))
-            .require(Precondition::ValueEquals {
-                target,
-                expected: before,
-            })
-            .push(Op::SetValue {
-                target,
-                value: after,
-            });
-        let transaction = self.exact_codec().encode_transaction(&transaction)?;
-        let transaction_digest = transaction.digest()?;
-        Ok(ValueEditPlan {
-            base_digest: self.digest()?,
-            base_revision,
-            target,
-            before,
-            after,
-            transaction,
-            transaction_digest,
-        })
-    }
-
-    /// Replay and atomically commit one exact value-edit plan, returning a new
-    /// immutable document while leaving this base document unchanged.
-    ///
-    /// # Errors
-    /// Returns structured diagnostics if model identity, transaction identity,
-    /// optimistic preconditions, graph invariants, or artifact replay differ
-    /// from the accepted preview.
-    pub fn commit_value_edit(
-        &self,
-        plan: ValueEditPlan,
-    ) -> Result<ValueEditResult, Vec<Diagnostic>> {
-        if plan.exact_codec() != self.exact_codec()
-            || plan.base_digest != self.digest().map_err(single_diagnostic)?
-            || plan.base_revision != self.store.revision()
-        {
-            return Err(vec![Diagnostic::error(
-                codes::PRECONDITION_FAILED,
-                "value-edit plan no longer matches the selected model revision",
-            )]);
-        }
-        let bytes = plan
-            .transaction
-            .canonical_json()
-            .map_err(single_diagnostic)?;
-        let replay = self
-            .exact_codec()
-            .decode_transaction(&bytes)
-            .map_err(single_diagnostic)?;
-        if replay.digest().map_err(single_diagnostic)? != plan.transaction_digest {
-            return Err(vec![Diagnostic::error(
-                codes::INVALID_ARTIFACT,
-                "value-edit transaction identity changed during replay",
-            )]);
-        }
-
-        let mut store = self.store.clone();
-        store.commit(replay.to_transaction().map_err(single_diagnostic)?)?;
-        let program = KernelProgram::from_snapshot(&store.snapshot(), self.program.model())?;
-        let document = Self::from_store(store, program, self.aliases.clone(), self.exact_codec())?;
-        let result_digest = document.digest().map_err(single_diagnostic)?;
-        Ok(ValueEditResult {
-            plan,
-            document,
-            result_digest,
-        })
     }
 }
 

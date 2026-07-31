@@ -107,6 +107,8 @@
         { "name": "MlDatasetSampleSplitV1", "from": "eqiora_api::MlDatasetSampleSplitV1" },
         { "name": "ModelFieldRef", "from": "eqiora_api::ModelFieldRef" },
         { "name": "ModelParameterRef", "from": "eqiora_api::ModelParameterRef" },
+        { "name": "ParameterGeometryRegenerationPlan", "from": "eqiora_api::ParameterGeometryRegenerationPlan" },
+        { "name": "ParameterGeometryRegenerationResult", "from": "eqiora_api::ParameterGeometryRegenerationResult" },
         { "name": "REFERENCE_EXECUTION_ADAPTER", "from": "eqiora_api::REFERENCE_EXECUTION_ADAPTER" },
         { "name": "ReferenceAcceptance", "from": "eqiora_api::ReferenceAcceptance" },
         { "name": "ReferenceExecutionPlacement", "from": "eqiora_api::ReferenceExecutionPlacement" },
