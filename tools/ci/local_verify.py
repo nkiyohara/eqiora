@@ -286,6 +286,16 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
     if surfaces["studio"]:
         commands.extend(
             [
+                command(
+                    "Studio native formatting",
+                    "cargo",
+                    "+stable",
+                    "fmt",
+                    "--manifest-path",
+                    "studio/src-tauri/Cargo.toml",
+                    "--",
+                    "--check",
+                ),
                 command("Studio quality", "npm", "run", "check", cwd="studio"),
                 command("Studio unit tests", "npm", "test", cwd="studio"),
                 command("Studio build", "npm", "run", "build", cwd="studio"),

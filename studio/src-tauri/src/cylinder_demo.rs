@@ -1,8 +1,7 @@
 //! One immutable exact-cylinder example composed from accepted public seams.
 
-use eqiora::api::{
-    CircularHoleSteadyStokesResult2d, UnstructuredP1ScalarFieldProjection2d,
-};
+use eqiora::Diagnostic;
+use eqiora::api::{CircularHoleSteadyStokesResult2d, UnstructuredP1ScalarFieldProjection2d};
 use eqiora::artifact::ModelEnvelopeV7;
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::diagnostic::codes;
@@ -11,7 +10,6 @@ use eqiora::geometry::{
 };
 use eqiora::meshing::MeshQualityGate;
 use eqiora::solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy};
-use eqiora::Diagnostic;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -167,9 +165,7 @@ fn embedded_json(bytes: &[u8]) -> &[u8] {
     bytes.strip_suffix(b"\n").unwrap_or(bytes)
 }
 
-fn evidence(
-    result: &CircularHoleSteadyStokesResult2d,
-) -> Result<PreparedCylinderDemo, Diagnostic> {
+fn evidence(result: &CircularHoleSteadyStokesResult2d) -> Result<PreparedCylinderDemo, Diagnostic> {
     let solution = result.solution();
     let constrained = solution.boundary_reaction();
     let body = solution.integrated_body_force();

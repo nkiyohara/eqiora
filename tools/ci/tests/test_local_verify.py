@@ -91,6 +91,21 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(studio.argv[0:2], ("cargo", "+1.89.0"))
         self.assertIn("studio/src-tauri/Cargo.toml", studio.argv)
         self.assertIn("--all-targets", studio.argv)
+        studio_format = next(
+            item for item in plan.commands if item.label == "Studio native formatting"
+        )
+        self.assertEqual(
+            studio_format.argv,
+            (
+                "cargo",
+                "+stable",
+                "fmt",
+                "--manifest-path",
+                "studio/src-tauri/Cargo.toml",
+                "--",
+                "--check",
+            ),
+        )
 
     def test_fast_plan_keeps_direct_package_and_explicit_case(self) -> None:
         plan = build_plan(
@@ -148,6 +163,7 @@ class PlanTests(unittest.TestCase):
         self.assertIn("Root dependency policy", labels)
         self.assertIn("Studio dependency policy", labels)
         self.assertIn("Python isolated wheel and tests", labels)
+        self.assertIn("Studio native formatting", labels)
         self.assertIn("Studio unit tests", labels)
         studio_e2e = next(
             item for item in plan.commands if item.label == "Studio interaction tests"
