@@ -33,6 +33,7 @@ def venv_python(environment: Path) -> Path:
 def run(argv: list[str], *, cwd: Path = ROOT) -> None:
     environment = os.environ.copy()
     environment.pop("DISPLAY", None)
+    environment.pop("PYTHONPATH", None)
     environment.update(
         {
             "EQIORA_TEST_MATPLOTLIB_VERSION": MATPLOTLIB.removeprefix("matplotlib=="),
