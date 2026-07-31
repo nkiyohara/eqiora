@@ -1,0 +1,64 @@
+id = "artifacts.current-model-canonical-identity"
+status = "verified"
+scope = "one-current-model-artifact-epoch"
+reference_kind = "independently-frozen-full-byte-oracle-and-historical-rejection-corpus"
+
+capabilities = [
+  "current-model-canonical-bytes",
+  "current-model-transaction-canonical-bytes",
+  "independent-raw-and-schema-domain-digests",
+  "input-permutation-canonicalization",
+  "semantic-axis-and-role-order-preservation",
+  "transaction-operation-order-identity",
+  "historical-model-and-transaction-rejection-corpus",
+  "schema-substitution-fail-closed",
+  "reencoded-cylinder-model-resource-identity",
+  "semantic-identity-preserved-across-artifact-identity-change",
+]
+
+[problem]
+fixture = "one root length Parameter driving two endpoints of one 3D Cartesian Domain, recorded by exactly one Domain --DependsOn--> Parameter edge"
+encoding = "eqiora.canonical-json/v1"
+model_schema = "eqiora.model-envelope/v8"
+transaction_schema = "eqiora.model-transaction-envelope/v8"
+oracle_route = "canonical JSON re-encoded by hand from the frozen public fixture and the wire contract; SHA-256 and the schema-NUL-bytes artifact digest computed with Python hashlib; production encoding compared to the result"
+negative_corpus = "literal valid Model and Transaction specimens for schemas v1 through v7"
+resource = "examples/steady-flow-past-cylinder.model.json"
+
+[frozen]
+model_bytes = 2347
+model_sha256 = "7e179d0d90f8789b9818eae7b5696e10c33a9350a34205d2e7cfd56b938aa427"
+model_digest = "e410295337a3a51a271f272e03ae7d7a4b8e7df1b04faf76645bb1e18567e4b3"
+transaction_bytes = 2646
+transaction_sha256 = "5ceeef06b286e3edba6f7978c42c227a3c78db2f1d80de7d9b917ec23f8afc47"
+transaction_digest = "132168803ac8882f0f35187215d3f2ce44817d03921d6ad95b73a9cac62aa102"
+cylinder_bytes = 16797
+cylinder_sha256 = "672016cb80683fb1448adab79d7c8f6a2fdda22f92c6df2d82b684bd5e65e099"
+cylinder_digest = "8bc5155bc1b64ed37f7a2ac010a966e1619091a118e6cf7806dbdf9621977146"
+cylinder_superseded_v7_digest = "668fa55e5ab1a46d0b7523e4e3162442ccd7698697c4308604cf4fe9269249de"
+cylinder_model_ulid = "01KYQFNFX85DKM2SE5FR6H4WPJ"
+cylinder_source_revision = 1
+
+[claim_boundary]
+wire_autodetection = false
+schema_upgrade = false
+automatic_migration = false
+cross_schema_digest_equivalence = false
+historical_generation_callable = false
+historical_vocabulary_survey = false
+model_execution = false
+numerical_acceptance = false
+geometry_admission = false
+
+[falsifiers]
+mutated_oracle_byte = "changing one frozen canonical byte fails byte equality and the independent raw hash"
+input_permutation = "reversing nodes, values, and edges must re-canonicalize to the identical bytes and digest"
+axis_permutation = "reversing the coordinate list must change bytes and digest"
+role_permutation = "swapping lower and upper inside an axis must change identity or be refused"
+operation_reversal = "reversing transaction operations must change bytes and digest"
+historical_bytes = "each v1-v7 Model and Transaction specimen must be refused by the current decoder"
+schema_substitution = "relabelling a historical specimen with the current schema must still be refused on meaning"
+
+[evidence]
+package = "eqiora-artifact"
+test = "current_model_wire_oracle"
