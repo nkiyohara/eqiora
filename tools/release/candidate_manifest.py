@@ -37,6 +37,7 @@ def _base_checks() -> frozenset[str]:
                 f"cp{python}:installed-wheel",
                 f"cp{python}:base-and-numpy",
                 f"cp{python}:packaged-mixed-boundary-elasticity-demo",
+                f"cp{python}:packaged-fixed-reference-fsi-demo",
                 f"cp{python}:async-and-cancellation",
                 f"cp{python}:public-smoke-base",
                 f"cp{python}:matplotlib-free-base",
@@ -53,6 +54,7 @@ PROFILE_CHECKS = {
             "cp313:matplotlib",
             "cp313:packaged-exact-cylinder-pressure-demo",
             "cp313:packaged-mixed-boundary-displacement-demo",
+            "cp313:packaged-fixed-reference-fsi-still",
         }
     ),
     "torch": frozenset({"cp313:torch", "cp313:public-smoke-torch"}),

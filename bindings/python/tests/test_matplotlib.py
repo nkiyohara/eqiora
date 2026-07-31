@@ -76,6 +76,20 @@ def accepted_structural_result() -> eqiora.solid.MixedBoundaryElasticityResult:
     return eqiora.solid.solve_mixed_boundary_elasticity(model)
 
 
+def accepted_fsi_result() -> eqiora.fsi.FixedReferenceFsiResult:
+    source = (
+        files(eqiora)
+        .joinpath("examples", "fixed-reference-fsi.eqi")
+        .read_text(encoding="utf-8")
+    )
+    model = eqiora.compatibility.compile_exact(
+        source,
+        filename="fixed-reference-fsi.eqi",
+        codec=eqiora.compatibility.ExactModelCodec.V4,
+    )
+    return eqiora.fsi.solve_fixed_reference_fsi(model)
+
+
 @pytest.fixture(scope="module")
 def result() -> eqiora.fluid.CircularHoleSteadyStokesResult:
     return accepted_result()
@@ -84,6 +98,11 @@ def result() -> eqiora.fluid.CircularHoleSteadyStokesResult:
 @pytest.fixture(scope="module")
 def structural_result() -> eqiora.solid.MixedBoundaryElasticityResult:
     return accepted_structural_result()
+
+
+@pytest.fixture(scope="module")
+def fsi_result() -> eqiora.fsi.FixedReferenceFsiResult:
+    return accepted_fsi_result()
 
 
 def test_plot_passes_the_accepted_p1_field_unchanged_to_matplotlib(
@@ -341,4 +360,137 @@ def test_displacement_plot_rejects_invalid_scale_before_rendering(
     monkeypatch.setattr(Axes, "add_collection", reject_render)
     with pytest.raises(ValueError, match="finite and nonnegative"):
         eqplot.plot_displacement(structural_result, scale=scale)
+    assert not rendered
+
+
+def test_fsi_plot_preserves_partition_fields_and_explicit_scale(
+    fsi_result: eqiora.fsi.FixedReferenceFsiResult,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import matplotlib.pyplot as pyplot
+
+    selected = fsi_result.step(1)
+    coordinates = fsi_result.coordinates.copy()
+    cells = fsi_result.cells.copy()
+    fluid_triangles = cells[fsi_result.fluid_cells]
+    solid_triangles = cells[fsi_result.solid_cells]
+    solid_edges = sorted(
+        {
+            tuple(sorted((int(cell[first]), int(cell[second]))))
+            for cell in solid_triangles
+            for first, second in ((0, 1), (1, 2), (2, 0))
+        }
+    )
+    expected_deformed = (
+        coordinates + 2.0 * selected.displacement
+    )[solid_edges]
+    pressure_by_vertex = dict(
+        zip(
+            selected.pressure_vertices.tolist(),
+            selected.pressure.tolist(),
+            strict=True,
+        )
+    )
+    expected_pressure = np.array(
+        [
+            np.mean([pressure_by_vertex[int(vertex)] for vertex in triangle])
+            for triangle in fluid_triangles
+        ]
+    )
+    observed: dict[str, Any] = {}
+    original_poly = eqplot.PolyCollection
+    original_quiver = Axes.quiver
+
+    def capture_poly(vertices: Any, *args: Any, **kwargs: Any) -> Any:
+        observed["fluid_vertices"] = np.asarray(vertices).copy()
+        observed["fluid_pressure"] = np.asarray(kwargs["array"]).copy()
+        return original_poly(vertices, *args, **kwargs)
+
+    def capture_quiver(axes: Axes, *args: Any, **kwargs: Any) -> Any:
+        observed["quiver"] = tuple(np.asarray(value).copy() for value in args[:4])
+        return original_quiver(axes, *args, **kwargs)
+
+    monkeypatch.setattr(eqplot, "PolyCollection", capture_poly)
+    monkeypatch.setattr(Axes, "quiver", capture_quiver)
+    registered_figures = pyplot.get_fignums()
+    figure = eqplot.plot_fixed_reference_fsi(
+        fsi_result,
+        step=1,
+        displacement_scale=2.0,
+    )
+    assert pyplot.get_fignums() == registered_figures
+    axes = figure.axes[0]
+    reference, deformed, interface = axes.collections[1:4]
+
+    np.testing.assert_array_equal(
+        observed["fluid_vertices"],
+        coordinates[fluid_triangles],
+    )
+    np.testing.assert_array_equal(observed["fluid_pressure"], expected_pressure)
+    np.testing.assert_array_equal(
+        reference.get_segments(),
+        coordinates[solid_edges],
+    )
+    np.testing.assert_array_equal(deformed.get_segments(), expected_deformed)
+    np.testing.assert_array_equal(
+        interface.get_segments(),
+        coordinates[fsi_result.interface_facets],
+    )
+    x, y, horizontal, vertical = observed["quiver"]
+    np.testing.assert_array_equal(x, coordinates[:, 0])
+    np.testing.assert_array_equal(y, coordinates[:, 1])
+    np.testing.assert_array_equal(horizontal, selected.velocity[:, 0])
+    np.testing.assert_array_equal(vertical, selected.velocity[:, 1])
+    assert "step 1" in axes.get_title()
+    assert "t = 0.05 s" in axes.get_title()
+    assert "displacement scale 2" in axes.get_title()
+    assert "Solid displacement (scale = 2)" in axes.get_legend_handles_labels()[1]
+    assert "Velocity [m/s] (auto-scaled arrows)" in axes.get_legend_handles_labels()[1]
+    assert axes.get_xlabel() == "x [m]"
+    assert axes.get_ylabel() == "y [m]"
+    assert axes.get_aspect() == 1.0
+    assert figure.axes[1].get_ylabel() == "Fluid pressure [Pa]"
+
+
+def test_fsi_figure_is_headless_caller_owned_and_nonblank(tmp_path: Path) -> None:
+    result = accepted_fsi_result()
+    figure = eqplot.plot_fixed_reference_fsi(result)
+    del result
+    gc.collect()
+
+    encoded = io.BytesIO()
+    figure.savefig(encoded, format="png")
+    payload = encoded.getvalue()
+    destination = tmp_path / "fsi.png"
+    figure.savefig(destination)
+    assert payload.startswith(b"\x89PNG\r\n\x1a\n")
+    assert destination.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    encoded.seek(0)
+    pixels = image.imread(encoded, format="png")
+    assert np.ptp(pixels[..., :3]) > 0.0
+
+
+def test_fsi_plot_rejects_foreign_input_and_invalid_selection_before_rendering(
+    fsi_result: eqiora.fsi.FixedReferenceFsiResult,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rendered = False
+
+    def reject_render(*args: Any, **kwargs: Any) -> Any:
+        nonlocal rendered
+        rendered = True
+        raise AssertionError("invalid FSI input reached Matplotlib")
+
+    monkeypatch.setattr(Axes, "add_collection", reject_render)
+    with pytest.raises(TypeError, match="FixedReferenceFsiResult"):
+        eqplot.plot_fixed_reference_fsi(object())  # type: ignore[arg-type]
+    for step in (0, 3, True):
+        with pytest.raises(ValueError, match="step must be 1 or 2"):
+            eqplot.plot_fixed_reference_fsi(fsi_result, step=step)
+    for scale in (-1.0, float("inf"), float("nan")):
+        with pytest.raises(ValueError, match="finite and nonnegative"):
+            eqplot.plot_fixed_reference_fsi(
+                fsi_result,
+                displacement_scale=scale,
+            )
     assert not rendered

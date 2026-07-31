@@ -36,6 +36,10 @@ MIXED_BOUNDARY_ELASTICITY_DEMO = Path(
 MIXED_BOUNDARY_REPOSITORY_SOURCE = Path(
     "verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi"
 )
+FIXED_REFERENCE_FSI_DEMO = Path("examples/python/fixed_reference_fsi.py")
+FIXED_REFERENCE_FSI_REPOSITORY_SOURCE = Path(
+    "verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi"
+)
 PYTHON_TEST_FIXTURES = (
     Path("verify/interfaces/control-plane-compile-check"),
     Path("verify/interfaces/current-authoring-profile"),
@@ -490,12 +494,14 @@ def inspect_wheel(
             "eqiora/__init__.pyi",
             "eqiora/compatibility.pyi",
             "eqiora/diff.pyi",
+            "eqiora/fsi.pyi",
             "eqiora/jax.pyi",
             "eqiora/matplotlib.pyi",
             "eqiora/solid.pyi",
             "eqiora/torch.pyi",
             "eqiora/py.typed",
             "eqiora/examples/mixed-boundary-elasticity.eqi",
+            "eqiora/examples/fixed-reference-fsi.eqi",
             f"{dist_info}licenses/LICENSE",
             f"{dist_info}licenses/NOTICE",
         )
@@ -626,6 +632,8 @@ assert eqiora.__version__ == expected_version
 files = {str(path) for path in distribution.files or ()}
 assert "eqiora/py.typed" in files
 assert "eqiora/__init__.pyi" in files
+assert "eqiora/fsi.pyi" in files
+assert "eqiora/examples/fixed-reference-fsi.eqi" in files
 assert not any(
     name in __import__("sys").modules
     for name in ("torch", "jax", "jaxlib", "matplotlib")
@@ -706,6 +714,33 @@ def prepare_mixed_boundary_elasticity_demo_consumer(
     return destination
 
 
+def prepare_fixed_reference_fsi_demo_consumer(
+    extracted: Path,
+    run_root: Path,
+) -> Path:
+    """Copy the checked-in FSI demo without its repository source data."""
+
+    source = extracted / FIXED_REFERENCE_FSI_DEMO
+    if not source.is_file():
+        raise CandidateError(
+            f"source distribution omits checked-in demo {FIXED_REFERENCE_FSI_DEMO}"
+        )
+    repository_source = run_root / FIXED_REFERENCE_FSI_REPOSITORY_SOURCE
+    if repository_source.exists():
+        raise CandidateError(
+            "fixed-reference FSI consumer tree unexpectedly carries the "
+            "repository source"
+        )
+    destination = run_root / FIXED_REFERENCE_FSI_DEMO
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
+    if repository_source.exists():  # pragma: no cover - copy2 cannot create it
+        raise CandidateError(
+            "fixed-reference FSI demo copy introduced the repository source"
+        )
+    return destination
+
+
 def assert_matplotlib_is_optional(python: Path, run_root: Path) -> None:
     """Require the base wheel to explain its absent Matplotlib adapter."""
 
@@ -777,6 +812,7 @@ def run_base_profile(
     tests, typecheck = prepare_base_consumer_tree(extracted, run_root)
     prepare_exact_cylinder_demo_consumer(extracted, run_root)
     prepare_mixed_boundary_elasticity_demo_consumer(extracted, run_root)
+    prepare_fixed_reference_fsi_demo_consumer(extracted, run_root)
     assert_installed_origin(
         python,
         wheel,
@@ -811,6 +847,7 @@ def run_base_profile(
         f"cp{python_version.replace('.', '')}:base-and-numpy",
         f"cp{python_version.replace('.', '')}:packaged-exact-cylinder-model-demo",
         f"cp{python_version.replace('.', '')}:packaged-mixed-boundary-elasticity-demo",
+        f"cp{python_version.replace('.', '')}:packaged-fixed-reference-fsi-demo",
         f"cp{python_version.replace('.', '')}:async-and-cancellation",
         f"cp{python_version.replace('.', '')}:strict-base-typing",
         f"cp{python_version.replace('.', '')}:public-smoke-base",
@@ -879,6 +916,7 @@ def run_optional_profile(
             extracted,
             run_root,
         )
+        fsi_demo = prepare_fixed_reference_fsi_demo_consumer(extracted, run_root)
     checked_run(
         [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
         cwd=run_root,
@@ -925,6 +963,28 @@ def run_optional_profile(
             raise CandidateError(
                 "installed mixed-boundary Matplotlib demo did not write a PNG"
             )
+        fsi_destination = run_root / "fixed-reference-fsi.png"
+        checked_run(
+            [
+                str(python),
+                "-I",
+                str(fsi_demo),
+                "--fsi-png",
+                str(fsi_destination),
+                "--step",
+                "2",
+                "--displacement-scale",
+                "12",
+            ],
+            cwd=run_root,
+            extra_environment=environment_variables,
+        )
+        if not fsi_destination.is_file() or not fsi_destination.read_bytes().startswith(
+            b"\x89PNG\r\n\x1a\n"
+        ):
+            raise CandidateError(
+                "installed fixed-reference FSI Matplotlib demo did not write a PNG"
+            )
     else:
         run_public_smoke(
             python=python,
@@ -942,6 +1002,7 @@ def run_optional_profile(
         checks[1:] = [
             f"cp{compact}:packaged-exact-cylinder-pressure-demo",
             f"cp{compact}:packaged-mixed-boundary-displacement-demo",
+            f"cp{compact}:packaged-fixed-reference-fsi-still",
         ]
     return checks
 

@@ -1,20 +1,13 @@
 //! Closed transport projection over one accepted two-step FSI composition.
 
+use eqiora::api::FixedReferenceFsiResult2d;
+use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{MeshEntity, MeshTopology};
-use eqiora::numerics::ResolvedFixedReferenceFsiSolution2d;
-use eqiora::solver::ConvergenceReason;
+use eqiora::solver::{ConvergenceReason, REFERENCE_LINEAR_SOLVER};
 use serde::Serialize;
-
-use super::composition::{AcceptedComposition, compose};
 
 const DEMO_PROTOCOL: &str = "eqiora.studio.fixed-reference-fsi-demo/v1";
 const EXAMPLE_ID: &str = "fixed-reference-monolithic-fsi-step";
-const STEP_CASE_ID: &str = "fsi.fixed-reference-monolithic-step-2d";
-const TRAJECTORY_CASE_ID: &str = "artifacts.fixed-reference-fsi-spatial-trajectory";
-const STEP_CASE: &str =
-    include_str!("../../../../verify/fsi/fixed-reference-monolithic-step-2d/case.toml");
-const TRAJECTORY_CASE: &str =
-    include_str!("../../../../verify/artifacts/fixed-reference-fsi-spatial-trajectory/case.toml");
 const MODEL_SOURCE: &str =
     include_str!("../../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi");
 
@@ -193,16 +186,15 @@ struct EvidenceAttribution {
 }
 
 pub(super) fn prepare_demo() -> Result<FsiDemoResult, String> {
-    validate_scientific_case(STEP_CASE, STEP_CASE_ID)?;
-    validate_scientific_case(TRAJECTORY_CASE, TRAJECTORY_CASE_ID)?;
-    let accepted = compose(MODEL_SOURCE)?;
+    let document = ExactModelCodec::V4
+        .compile("fixed-reference-fsi.eqi", MODEL_SOURCE)
+        .map_err(diagnostics)?;
+    let accepted = FixedReferenceFsiResult2d::solve_reference(&document, &REFERENCE_LINEAR_SOLVER)
+        .map_err(error)?;
+    let [step_case_id, trajectory_case_id] = accepted.scientific_case_ids();
     let mesh = project_mesh(&accepted)?;
-    let steps = vec![
-        project_step(1, 0.05, &accepted.first),
-        project_step(2, 0.10, &accepted.second),
-    ];
-    let plan = accepted
-        .second
+    let steps = vec![project_step(&accepted, 0), project_step(&accepted, 1)];
+    let plan = accepted.solutions()[1]
         .numerical_evidence()
         .solve_report()
         .solver_plan();
@@ -229,43 +221,42 @@ pub(super) fn prepare_demo() -> Result<FsiDemoResult, String> {
             absolute_tolerance: plan.absolute_tolerance(),
         },
         lineage: LineageEvidence {
-            model_digest: accepted.spatial.model.digest().map_err(error)?.to_string(),
-            geometry_digest: accepted
-                .spatial
-                .geometry
-                .digest()
-                .map_err(error)?
-                .to_string(),
+            model_digest: accepted.model().digest().map_err(error)?.to_string(),
+            geometry_digest: accepted.geometry().digest().map_err(error)?.to_string(),
             correspondence_digest: accepted
-                .spatial
-                .correspondence
+                .correspondence()
                 .digest()
                 .map_err(error)?
                 .to_string(),
             mesh_digest: accepted
-                .spatial
-                .mesh_artifact
+                .mesh_artifact()
                 .digest()
                 .map_err(error)?
                 .to_string(),
-            realization_digest: accepted.realization.digest().map_err(error)?.to_string(),
-            run_digest: accepted.run.digest().map_err(error)?.to_string(),
-            state_digests: vec![
-                accepted.first_state.digest().map_err(error)?.to_string(),
-                accepted.second_state.digest().map_err(error)?.to_string(),
-            ],
-            trajectory_digest: accepted.trajectory.digest().map_err(error)?.to_string(),
-            semantic_revision: accepted.document.program().revision().0,
-            realization_revision: accepted.second.realization_revision().get(),
-            run_output_artifacts: accepted.run.outputs().len(),
+            realization_digest: accepted.realization().digest().map_err(error)?.to_string(),
+            run_digest: accepted.run().digest().map_err(error)?.to_string(),
+            state_digests: accepted
+                .states()
+                .iter()
+                .map(|state| {
+                    state
+                        .digest()
+                        .map(|digest| digest.to_string())
+                        .map_err(error)
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            trajectory_digest: accepted.trajectory().digest().map_err(error)?.to_string(),
+            semantic_revision: accepted.semantic_revision(),
+            realization_revision: accepted.realization_revision(),
+            run_output_artifacts: accepted.run().outputs().len(),
         },
         evidence: vec![
             EvidenceAttribution {
-                case_id: STEP_CASE_ID,
+                case_id: step_case_id,
                 status: "verified",
             },
             EvidenceAttribution {
-                case_id: TRAJECTORY_CASE_ID,
+                case_id: trajectory_case_id,
                 status: "verified",
             },
         ],
@@ -274,8 +265,8 @@ pub(super) fn prepare_demo() -> Result<FsiDemoResult, String> {
     Ok(result)
 }
 
-fn project_mesh(accepted: &AcceptedComposition) -> Result<MeshProjection, String> {
-    let mesh = &accepted.spatial.mesh;
+fn project_mesh(accepted: &FixedReferenceFsiResult2d) -> Result<MeshProjection, String> {
+    let mesh = accepted.mesh();
     let vertices = mesh
         .vertices()
         .iter()
@@ -303,16 +294,14 @@ fn project_mesh(accepted: &AcceptedComposition) -> Result<MeshProjection, String
             let vertices = <[usize; 3]>::try_from(vertices)
                 .map_err(|_| format!("FSI mesh cell {index} is not triangular"))?;
             let region = if accepted
-                .spatial
-                .partition
+                .partition()
                 .fluid_cells()
                 .binary_search(&cell)
                 .is_ok()
             {
                 Region::Fluid
             } else if accepted
-                .spatial
-                .partition
+                .partition()
                 .solid_cells()
                 .binary_search(&cell)
                 .is_ok()
@@ -329,8 +318,7 @@ fn project_mesh(accepted: &AcceptedComposition) -> Result<MeshProjection, String
         })
         .collect::<Result<Vec<_>, String>>()?;
     let interface_facets = accepted
-        .spatial
-        .partition
+        .partition()
         .interface_facets()
         .iter()
         .copied()
@@ -355,18 +343,16 @@ fn project_mesh(accepted: &AcceptedComposition) -> Result<MeshProjection, String
     })
 }
 
-fn project_step(
-    step: u64,
-    time_s: f64,
-    solution: &ResolvedFixedReferenceFsiSolution2d,
-) -> StepProjection {
+fn project_step(accepted: &FixedReferenceFsiResult2d, position: usize) -> StepProjection {
+    let solution = &accepted.solutions()[position];
+    let state = &accepted.states()[position];
     let numerical = solution.numerical_evidence();
     let energy = numerical.energy_balance();
     let report = numerical.solve_report();
     let assembly = numerical.assembly_report();
     StepProjection {
-        step,
-        time_s,
+        step: state.step(),
+        time_s: state.time_s(),
         velocity: VectorFieldProjection {
             unit: "m/s",
             values: solution.vertex_velocity_coefficients().to_vec(),
@@ -548,48 +534,21 @@ fn convergence_reason(reason: ConvergenceReason) -> &'static str {
     }
 }
 
-fn validate_scientific_case(manifest: &str, case_id: &str) -> Result<(), String> {
-    let expected_id = format!("id = \"{case_id}\"");
-    let exact_line = |key: &str| {
-        manifest
-            .lines()
-            .find(|line| line.starts_with(key))
-            .map(str::trim)
-    };
-    if exact_line("id") != Some(expected_id.as_str())
-        || exact_line("status") != Some("status = \"verified\"")
-    {
-        return Err(format!(
-            "registered scientific case `{case_id}` is missing or no longer verified"
-        ));
-    }
-    Ok(())
-}
-
 fn error(error: eqiora::Diagnostic) -> String {
     error.to_string()
+}
+
+fn diagnostics(diagnostics: Vec<eqiora::Diagnostic>) -> String {
+    diagnostics
+        .into_iter()
+        .map(|diagnostic| diagnostic.to_string())
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn scientific_case_references_fail_closed_when_stale() {
-        for (manifest, case_id) in [
-            (STEP_CASE, STEP_CASE_ID),
-            (TRAJECTORY_CASE, TRAJECTORY_CASE_ID),
-        ] {
-            assert!(validate_scientific_case(manifest, case_id).is_ok());
-            assert!(
-                validate_scientific_case(
-                    &manifest.replace("status = \"verified\"", "status = \"candidate\""),
-                    case_id,
-                )
-                .is_err()
-            );
-        }
-    }
 
     #[test]
     fn demo_projects_two_solver_owned_fsi_steps() {

@@ -1,0 +1,269 @@
+from __future__ import annotations
+
+import gc
+import hashlib
+import json
+import subprocess
+import sys
+from importlib.resources import files
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+import eqiora
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+PYTHON_DEMO = REPOSITORY_ROOT / "examples" / "python" / "fixed_reference_fsi.py"
+MODEL_RESOURCE = files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi")
+MODEL_SHA256 = "f4da68623779af8795653468a57c1957cc3595ef2c3e6c8c9c76688b4778a362"
+EXPECTED_CELLS = np.array(
+    [
+        [0, 1, 3],
+        [0, 3, 2],
+        [2, 3, 5],
+        [2, 5, 4],
+        [1, 6, 7],
+        [1, 7, 3],
+        [3, 7, 8],
+        [3, 8, 5],
+    ],
+    dtype=np.uint32,
+)
+
+
+def accepted_model() -> eqiora.Model:
+    source = MODEL_RESOURCE.read_text(encoding="utf-8")
+    assert hashlib.sha256(source.encode()).hexdigest() == MODEL_SHA256
+    return eqiora.compatibility.compile_exact(
+        source,
+        filename="fixed-reference-fsi.eqi",
+        codec=eqiora.compatibility.ExactModelCodec.V4,
+    )
+
+
+@pytest.fixture(scope="module")
+def accepted() -> tuple[eqiora.Model, eqiora.fsi.FixedReferenceFsiResult]:
+    model = accepted_model()
+    return model, eqiora.fsi.solve_fixed_reference_fsi(model)
+
+
+def test_result_retains_complete_relational_lineage(
+    accepted: tuple[eqiora.Model, eqiora.fsi.FixedReferenceFsiResult],
+) -> None:
+    model, result = accepted
+    assert isinstance(result, eqiora.fsi.FixedReferenceFsiResult)
+    assert result.model_digest == model.revision.digest
+    assert result.semantic_revision == model.revision.number == 1
+    assert result.realization_revision == 1
+    assert result.case_ids == (
+        "fsi.fixed-reference-monolithic-step-2d",
+        "artifacts.fixed-reference-fsi-spatial-trajectory",
+    )
+    assert len(result.state_digests) == 2
+    assert all(len(digest) == 64 for digest in result.state_digests)
+    assert len(result.trajectory_digest) == 64
+
+    run = json.loads(result.run_manifest_json)
+    assert run["model_sha256"] == result.model_digest
+    assert run["realization_sha256"] == result.realization_digest
+    assert run["output_sha256"] == [result.trajectory_digest]
+    assert len(result.run_digest) == 64
+    assert all(
+        len(digest) == 64
+        for digest in (
+            result.geometry_digest,
+            result.correspondence_digest,
+            result.mesh_digest,
+            result.realization_digest,
+        )
+    )
+
+
+def test_partition_and_ordered_step_arrays_are_complete_and_immutable(
+    accepted: tuple[eqiora.Model, eqiora.fsi.FixedReferenceFsiResult],
+) -> None:
+    _, result = accepted
+    assert result.coordinates is result.coordinates
+    assert result.cells is result.cells
+    assert result.fluid_cells is result.fluid_cells
+    assert result.solid_cells is result.solid_cells
+    assert result.interface_facets is result.interface_facets
+    assert result.coordinates.shape == (9, 2)
+    assert result.cells.shape == (8, 3)
+    np.testing.assert_array_equal(result.cells, EXPECTED_CELLS)
+    np.testing.assert_array_equal(result.fluid_cells, [0, 1, 2, 3])
+    np.testing.assert_array_equal(result.solid_cells, [4, 5, 6, 7])
+    np.testing.assert_array_equal(result.interface_facets, [[1, 3], [3, 5]])
+
+    assert tuple(step.ordinal for step in result.steps) == (1, 2)
+    assert tuple(step.time_s for step in result.steps) == (0.05, 0.10)
+    assert result.step(1) is result.steps[0]
+    assert result.step(2) is result.steps[1]
+    with pytest.raises(IndexError):
+        result.step(0)
+    with pytest.raises(IndexError):
+        result.step(3)
+
+    for step in result.steps:
+        arrays = (
+            step.velocity,
+            step.bubble_velocity,
+            step.pressure_vertices,
+            step.pressure,
+            step.displacement,
+            step.interface_vertices,
+            step.fluid_action,
+            step.solid_action,
+            step.action_imbalance,
+        )
+        assert step.velocity is step.velocity
+        assert step.bubble_velocity is step.bubble_velocity
+        assert step.pressure_vertices is step.pressure_vertices
+        assert step.pressure is step.pressure
+        assert step.displacement is step.displacement
+        assert step.interface_vertices is step.interface_vertices
+        assert step.fluid_action is step.fluid_action
+        assert step.solid_action is step.solid_action
+        assert step.action_imbalance is step.action_imbalance
+        assert step.velocity.shape == (9, 2)
+        assert step.bubble_velocity.shape == (4, 2)
+        assert step.pressure_vertices.shape == (6,)
+        assert step.pressure.shape == (6,)
+        assert step.displacement.shape == (9, 2)
+        assert step.interface_vertices.shape == (1,)
+        assert step.fluid_action.shape == (1, 2)
+        assert step.solid_action.shape == (1, 2)
+        assert step.action_imbalance.shape == (1, 2)
+        np.testing.assert_array_equal(step.pressure_vertices, [0, 1, 2, 3, 4, 5])
+        np.testing.assert_array_equal(step.interface_vertices, [3])
+        np.testing.assert_array_equal(step.displacement[[0, 2, 4]], 0.0)
+        np.testing.assert_array_equal(
+            step.fluid_action + step.solid_action,
+            step.action_imbalance,
+        )
+        assert all(array.flags.c_contiguous for array in arrays)
+        assert all(not array.flags.writeable for array in arrays)
+        assert all(np.isfinite(array).all() for array in arrays)
+        assert step.solve.algorithm == "minimum-residual"
+        assert step.solve.preconditioner == "identity"
+        assert step.solve.reduction == "reproducible"
+        assert step.solve.true_residual_norm <= step.solve.residual_target
+        assert step.assembly_packets > 0
+        assert step.assembly_targets > 0
+        assert np.isfinite(
+            [
+                step.energy_defect_j_per_m,
+                step.numerical_residual_norm,
+                step.continuity_residual_norm,
+                step.kinematic_residual_norm,
+                step.interface_velocity_jump_norm,
+                step.interface_action_imbalance_n_per_m,
+            ]
+        ).all()
+
+    assert not np.array_equal(
+        result.steps[0].displacement,
+        result.steps[1].displacement,
+    )
+
+
+def test_independent_compilations_share_meaning_without_sharing_storage() -> None:
+    first_model = accepted_model()
+    second_model = accepted_model()
+    assert first_model is not second_model
+    assert first_model.structurally_equivalent(second_model)
+    assert first_model.structural_fingerprint == second_model.structural_fingerprint
+
+    first = eqiora.fsi.solve_fixed_reference_fsi(first_model)
+    second = eqiora.fsi.solve_fixed_reference_fsi(second_model)
+    assert first is not second
+    for left, right in zip(first.steps, second.steps, strict=True):
+        np.testing.assert_array_equal(left.velocity, right.velocity)
+        np.testing.assert_array_equal(left.pressure, right.pressure)
+        np.testing.assert_array_equal(left.displacement, right.displacement)
+        assert not np.shares_memory(left.velocity, right.velocity)
+        assert not np.shares_memory(left.pressure, right.pressure)
+
+
+def test_array_owners_survive_result_and_step_deletion() -> None:
+    result = eqiora.fsi.solve_fixed_reference_fsi(accepted_model())
+    step = result.step(2)
+    arrays = (
+        result.coordinates,
+        result.cells,
+        step.velocity,
+        step.pressure,
+        step.displacement,
+    )
+    del step
+    del result
+    gc.collect()
+    assert all(array.size > 0 and not array.flags.writeable for array in arrays)
+
+
+def test_foreign_exact_v4_meaning_is_rejected_before_execution() -> None:
+    source = MODEL_RESOURCE.read_text(encoding="utf-8").replace(
+        "parameter fluid_density: kg / m ^ 3 = 2;",
+        "parameter fluid_density: kg / m ^ 3 = 4;",
+    )
+    foreign = eqiora.compatibility.compile_exact(
+        source,
+        filename="foreign-fsi.eqi",
+        codec=eqiora.compatibility.ExactModelCodec.V4,
+    )
+    with pytest.raises(eqiora.ValidationError) as caught:
+        eqiora.fsi.solve_fixed_reference_fsi(foreign)
+    assert any(diagnostic.code == "EQ0807" for diagnostic in caught.value.diagnostics)
+
+
+def test_numpy_import_is_lazy_until_projection(tmp_path: Path) -> None:
+    script = tmp_path / "lazy_fsi_projection.py"
+    script.write_text(
+        """
+import sys
+from importlib.resources import files
+import eqiora
+
+assert "numpy" not in sys.modules
+source = files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi").read_text()
+model = eqiora.compatibility.compile_exact(
+    source,
+    filename="fixed-reference-fsi.eqi",
+    codec=eqiora.compatibility.ExactModelCodec.V4,
+)
+result = eqiora.fsi.solve_fixed_reference_fsi(model)
+assert "numpy" not in sys.modules
+_ = result.coordinates
+assert "numpy" in sys.modules
+""",
+        encoding="utf-8",
+    )
+    completed = subprocess.run(
+        [sys.executable, "-I", str(script)],
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def test_checked_in_python_demo_runs_with_packaged_model_resource() -> None:
+    if not PYTHON_DEMO.is_file():
+        pytest.skip("consumer tree does not carry the checked-in Python example")
+    completed = subprocess.run(
+        [sys.executable, "-I", str(PYTHON_DEMO)],
+        cwd=REPOSITORY_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert completed.stderr == ""
+    lines = completed.stdout.splitlines()
+    assert len(lines) == 4
+    assert all(len(line) == 64 for line in lines[:2])
+    assert lines[2].startswith("step 1 at 0.05 s LinearSolveSummary(")
+    assert lines[3].startswith("step 2 at 0.1 s LinearSolveSummary(")

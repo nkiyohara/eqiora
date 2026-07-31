@@ -1,6 +1,5 @@
 //! Presentation-only command for the verified fixed-reference FSI example.
 
-mod composition;
 mod core;
 
 use serde::Deserialize;

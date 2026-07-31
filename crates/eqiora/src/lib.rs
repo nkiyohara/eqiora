@@ -39,12 +39,12 @@ pub mod api {
         DifferentiableEvaluation, DifferentiableJvp, DifferentiableParameterPoint,
         DifferentiablePrimal, DifferentiableProgram, DifferentiableProgramIdentity,
         DifferentiableScalarType, DifferentiableVjp, DifferentiationEvidence, DifferentiationMode,
-        FixedReferenceFsiSnapshotSetV1, LinearizationState, MAX_SCALAR_ELLIPTIC_ENTITY_COUNT,
-        MixedBoundaryElasticityResult2d, MlDatasetArtifactsV1, MlDatasetBlockArrayV1,
-        MlDatasetDerivationPlanV1, MlDatasetDescriptorRoleV1, MlDatasetFieldSelectionV1,
-        MlDatasetMaterializationLimitsV1, MlDatasetMaterializationV1, MlDatasetSampleArraysV1,
-        MlDatasetSampleSelectionV1, MlDatasetSampleSplitV1, ModelDocument, ModelFieldRef,
-        ModelParameterRef, REFERENCE_EXECUTION_ADAPTER, ReferenceAcceptance,
+        FixedReferenceFsiResult2d, FixedReferenceFsiSnapshotSetV1, LinearizationState,
+        MAX_SCALAR_ELLIPTIC_ENTITY_COUNT, MixedBoundaryElasticityResult2d, MlDatasetArtifactsV1,
+        MlDatasetBlockArrayV1, MlDatasetDerivationPlanV1, MlDatasetDescriptorRoleV1,
+        MlDatasetFieldSelectionV1, MlDatasetMaterializationLimitsV1, MlDatasetMaterializationV1,
+        MlDatasetSampleArraysV1, MlDatasetSampleSelectionV1, MlDatasetSampleSplitV1, ModelDocument,
+        ModelFieldRef, ModelParameterRef, REFERENCE_EXECUTION_ADAPTER, ReferenceAcceptance,
         ReferenceExecutionPlacement, ReferenceIntegrationMethod, ReferenceNonlinearMethod,
         ReferenceRunCancellation, ReferenceRunDirective, ReferenceRunEvidence,
         ReferenceRunObserver, ReferenceRunOutcome, ReferenceRunPlan, ReferenceRunProgress,
@@ -175,13 +175,6 @@ pub mod numerics {
         SteadyIncompressibleStokesCartesianModel2d, SteadyStokesMiniSolution2d,
         finalize_resolved_steady_stokes_mini_2d, lower_steady_incompressible_stokes_cartesian_2d,
         solve_resolved_steady_stokes_mini_2d,
-    };
-    pub use eqiora_numerics::fsi::{
-        FinalizedResolvedFixedReferenceFsiStep2d, FixedReferenceFsiCartesianModel2d,
-        FixedReferenceFsiPartition2d, FixedReferenceFsiScaleProfile2d, FixedReferenceFsiState2d,
-        ResolvedFixedReferenceFsiSolution2d, finalize_resolved_fixed_reference_fsi_step_2d,
-        fixed_reference_fsi_plan_2d, fixed_reference_fsi_requirements_2d,
-        lower_fixed_reference_fsi_cartesian_2d,
     };
     pub use eqiora_numerics::scalar::{
         FinalizedScalarEllipticCartesianProblem, ResolvedScalarEllipticCartesianSolution,

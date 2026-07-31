@@ -1,6 +1,6 @@
 """Python ergonomics over Eqiora's canonical Rust implementation."""
 
-from . import compatibility, fluid, geometry, meshing, solid
+from . import compatibility, fluid, fsi, geometry, meshing, solid
 
 from ._eqiora import (
     __version__,
@@ -141,6 +141,7 @@ __all__ = [
     "compatibility",
     "diff",
     "fluid",
+    "fsi",
     "geometry",
     "meshing",
     "solid",
