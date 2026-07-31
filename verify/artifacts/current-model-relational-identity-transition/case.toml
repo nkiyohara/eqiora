@@ -18,6 +18,8 @@ capabilities = [
   "historical-recorded-execution-semantic-bridge",
   "retained-family-golden-opacity",
   "complete-spatial-trajectory-segment-root-lineage",
+  "current-model-input-consumer-migration",
+  "model-decoder-free-retained-golden-acceptance",
 ]
 
 [problem]
@@ -38,8 +40,13 @@ historical_bundle_downstream_members_unchanged = 6
 distributed_cases_without_a_checked_in_bundle = 4
 retained_family_goldens = 4
 classified_candidate_paths = 338
-explicitly_classified_candidate_paths = 109
-inventory_remainder_paths = 229
+explicitly_classified_candidate_paths = 110
+inventory_remainder_paths = 228
+model_input_consumers = 1
+model_input_consumer_artifacts = 3
+model_input_consumer_identity_literals = 3
+model_input_consumer_identity_substitutions = 16
+retained_family_goldens_with_a_post_reset_route = 1
 retired_paths = 44
 retired_paths_inside_the_inventory = 34
 retired_paths_outside_the_inventory = 10
@@ -71,6 +78,10 @@ poisson_cuda_fingerprint = "eqiora.structural-semantic-fingerprint/v2:40dcf9d459
 fsi_cuda_historical_digest = "16d7bfb39746ccfda33c07ac3f054b42827ee5dd65380c553b93f7c3751d26ba"
 fsi_cuda_current_digest = "490d39abd32b1515c77a4454cbebba8ed2c229e5b1825364345736187afb1423"
 fsi_cuda_fingerprint = "eqiora.structural-semantic-fingerprint/v2:f119284aa8ae835ba45d3d407f132d2b009b5c15930e20d3a26214901a3700b6"
+moving_spatial_state_1_replacement = "40f51f912abc9b74ae7521594b9f1be049c238b408867bb65f4d4fa414c7db38"
+moving_spatial_segment_1_replacement = "e6f04b579279e51f8e5512dd1ffb2e22a1941608c936de5da1bfe646ec8a4d50"
+moving_spatial_root_1_replacement = "8b2ee5f2acbf398b7f5f9f34accdc9090f79612194b31b5000e1188cd7bcb0b3"
+realization_v4_relabelled_raw_sha256 = "4507e957522c8cdb49cdc83f71814d8d6b2553726cc4cbff420f0fbe25f5286e"
 
 [claim_boundary]
 identity_only_delta = true
@@ -95,6 +106,12 @@ post_reset_repository_state_observed = false
 preserved_path_content_checked = false
 all_102_forbidden_tokens_present_before_the_reset = false
 maximal_synthetic_post_reset_signal_set_is_the_observed_one = false
+moving_spatial_model_input_migrates_to_the_current_owner = true
+retained_golden_bytes_change = false
+retained_golden_accepted_without_a_model_decoder = true
+spatial_or_realization_wire_schema_change = false
+consumer_test_content_owned_here = false
+moving_spatial_producer_fixture_reconstructed_here = false
 
 [falsifiers]
 mutated_model_byte = "changing one byte of any precommitted current Model must break its raw hash, its re-derived RFC 0008 domain digest, and current-decoder round-trip"
@@ -125,6 +142,14 @@ foreign_digest_record_drift = "the control-v2 lane's fixtureDigests must hold ex
 over_forbidden_current_name = "forbidding eqiora.control/v1, the persisted eqiora.model-envelope/v8 and eqiora.model-transaction-envelope/v8 schemas, or model.compile-check/v1 must be refused; the released bytes keep their names and the v2 decoder may name the protocol it rejects"
 substituted_promotion_bytes = "a promoted target whose bytes differ from its frozen staged source digest must be refused, including an equivalent rewrite and a live path left at its pre-reset content"
 equivalent_json_respelling = "key reordering, whitespace drift, or an equivalent numeric respelling outside the same-length identity substitutions must be refused byte-for-byte"
+remainder_absorbs_an_identity_bearing_consumer = "a candidate that freezes a Model-derived identity literal must be refused as a remainder member; the remainder says a path migrates in place carrying no literal, which moving_spatial_v2_wire.rs disproves by freezing three"
+moving_spatial_omitted_migration = "leaving the moving-spatial consumer on its pre-reset Model input must be refused; the current Model owner rejects those historical v4 bytes, so an omitted migration cannot even be built"
+moving_spatial_partial_substitution = "substituting a proper nonempty subset of the 16-entry identity table must be refused for every artifact that carries the omitted identity; one omitted identity is refused exactly like fifteen"
+moving_spatial_regenerated_model_input = "a replacement built over any current Model other than the precommitted bridge Model must be refused, however current that Model is; a regenerated but unregistered Model digest changes every downstream identity"
+moving_spatial_widened_consumer_delta = "a replacement whose byte length, leaf set, leaf order, or any non-identity leaf differs from the committed pre-reset artifact must be refused; only 64-character lowercase hex identities in the table may move"
+retained_golden_decoded_through_the_current_model_owner = "an implementation that hands the opaque historical Model bytes to the current Model owner must fail; those bytes are rejected by schema, and a reset that needs them admitted has relabelled the golden rather than retained it"
+retained_golden_reconstructed_from_a_current_model = "re-encoding the Realization v4 golden over any current Model must be refused; the reconstruction embeds a different model_sha256 and cannot reproduce the frozen 8,333 bytes"
+retained_golden_relabelled = "swapping the golden's opaque Model reference for the current bridge digest must be refused by bytes alone; the relabelled artifact still decodes and still validates against the current Model, so no in-family identity check can see it"
 
 [evidence]
 package = "eqiora-artifact"

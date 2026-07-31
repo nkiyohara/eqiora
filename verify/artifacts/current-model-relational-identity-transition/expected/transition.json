@@ -815,5 +815,282 @@
         }
       ]
     }
+  ],
+  "model_input_consumers": [
+    {
+      "name": "moving-spatial-v2-wire",
+      "consumer": "crates/eqiora-artifact/tests/moving_spatial_v2_wire.rs",
+      "class": "deterministic-current-model-bytes",
+      "rfc_0083_consumer_row": "spatial authored-field/context projections",
+      "rfc_0083_required_migration": "change only their Model input to the current typed owner; retain the spatial artifact schemas and replay rules",
+      "retained_family_schemas": [
+        "eqiora.spatial-state-envelope/v2",
+        "eqiora.spatial-trajectory-segment/v2",
+        "eqiora.spatial-trajectory/v2"
+      ],
+      "pre_reset_model_input": "verify/fsi/fixed-reference-cuda-solve-2d/artifacts/model.json",
+      "pre_reset_model_schema": "eqiora.model-envelope/v4",
+      "pre_reset_model_digest": "16d7bfb39746ccfda33c07ac3f054b42827ee5dd65380c553b93f7c3751d26ba",
+      "pre_reset_model_decoder": "ModelEnvelopeV4::from_json",
+      "current_model_input": "verify/artifacts/current-model-relational-identity-transition/expected/bridge/fixed-reference-cuda-solve-2d/current-model.json",
+      "current_model_input_case_relative": "expected/bridge/fixed-reference-cuda-solve-2d/current-model.json",
+      "current_model_bridge": "fixed-reference-cuda-solve-2d",
+      "current_model_schema": "eqiora.model-envelope/v8",
+      "current_model_digest": "490d39abd32b1515c77a4454cbebba8ed2c229e5b1825364345736187afb1423",
+      "model_ulid": "6GHJ7J4GVC2G81JV2ZZHSHNS20",
+      "source_revision": 1,
+      "immutable": {
+        "mesh_digest": "1d6c30768420a59912d08e96bd75db563f9b981317f015d7ec8d8e89873e8df0",
+        "note": "the reference mesh, its coordinates, the shear schedule, the Field inventory, the ULIDs, the snapshot seeds, the solver plan, and every decoder-limit and rejection assertion in the consumer are immutable inputs; only Model-derived identities move"
+      },
+      "downstream_current_identities": {
+        "geometry_identity_digest": "d6de0c758bf15199cac89f35fc51df174383a77a251d06d33b6532b84c7888de",
+        "correspondence_digest": "1ab40d40512e86a988fe5fb08a6fcf9d028fd3e7076cea59a38b24bf4dfc210e",
+        "realization_v4_digest": "fb64adce25c48da9c2b233829855ade46a28051057b9020f1ad2bd2863f5d80b"
+      },
+      "identity_substitutions": {
+        "16d7bfb39746ccfda33c07ac3f054b42827ee5dd65380c553b93f7c3751d26ba": "490d39abd32b1515c77a4454cbebba8ed2c229e5b1825364345736187afb1423",
+        "17c1c063819c18955321e1bec331804531969f018e9ebeaa00f50565f8258acb": "fb64adce25c48da9c2b233829855ade46a28051057b9020f1ad2bd2863f5d80b",
+        "3d5f3efbdd4d277c04e9fddc916d1aa3a662b5c7ad7f9f056a071e9242c48815": "d6de0c758bf15199cac89f35fc51df174383a77a251d06d33b6532b84c7888de",
+        "4e74f17ac4fbcaaee4a8cd80e83f1194d1a247dc7bd753e943b0d5a9948cf04e": "1ab40d40512e86a988fe5fb08a6fcf9d028fd3e7076cea59a38b24bf4dfc210e",
+        "fd2e8398bc1ad73ccf05059a80923956021028040aa914d9881707e459a6b1d1": "8704ece6fab530e6f134db8e6a8466894a8b259b3ad4166365d4a7db13bda2a2",
+        "065ef6f5b3079fd7f98575ee12c36f950eda36cdff9d2abd15c8f3434eb9d329": "b80bfd160478d99eb41425b071eba13759f2eb54410167282f1a7aa71add687a",
+        "479bbc0544c99c6a4be848b5c45ea4485eb5cd1db08dea353ba373d7188447db": "e3dfbe57031c0dd0ed15ac30c002145057568044790ee325773ec76e2c869d38",
+        "43e78ecb521cc3ebc618ec3e92bc64f31dd9ee9ca0a497381cdec6c465ce0b52": "6d90dbbef867a1e6a3f49488cd75f3d36924b1c05c85152dc422f44223ce1470",
+        "ac2e3951c480b180cc32b633e3c13caaed082cf3b52676d037a4099ab0b691e6": "d15a4babe9b182571389e3642396ff961d614f992d208f38c2f66a1014a38be3",
+        "de7a2a692586b6ac4d8214c0b11e9875a623c4b95f681209dce6371b7e076278": "d4521e36f9791389ec1c929b1c3db6920577c9444d2eb6ce808a4a14a2e355b9",
+        "2cb018c9b3159f4e825bbaf1fcdc46098632841dbb399d616f08a51f28b218aa": "40f51f912abc9b74ae7521594b9f1be049c238b408867bb65f4d4fa414c7db38",
+        "6e5977308ce04dd89738f07da23052cdcc459f8fcfd144cd321af81691e5f45e": "2166cc646cb55c3d15a6c44e059506ab607772ef9f23c41c8f730054b9064f7f",
+        "d7a219a91f2ec682dbdac7a59344bda12d808cd871530a8a4253500765f7912a": "ffb91ade750508534452a66f06ab113b7e2c96faf6e06cc4cdcfd073ce5b016e",
+        "6c7cc0dbad6981a9cfa76c35b9eccb377c1e513cdaae0a4fe21afddefa1a5ba9": "c949d004189b305e5b338fe9899a6034f1a80d48cd0d6d052575c9f0cca6d017",
+        "7288bbbc87db9aa9da3db8526714b678e060bde3dee0a7d62c82f24d087ce0cc": "d2c2b446004971546fd5bdf4f82795fbcb0403907f973aff890c7b745ac62749",
+        "806b8b3d73e335dc01d2229045dbd5b81f226080f08ee5567df3fd2808630e92": "e6f04b579279e51f8e5512dd1ffb2e22a1941608c936de5da1bfe646ec8a4d50"
+      },
+      "identity_substitution_count": 16,
+      "frozen_literals": [
+        {
+          "artifact": "spatial-state-1",
+          "site": "state_1.digest()",
+          "pre_reset": "2cb018c9b3159f4e825bbaf1fcdc46098632841dbb399d616f08a51f28b218aa",
+          "replacement": "40f51f912abc9b74ae7521594b9f1be049c238b408867bb65f4d4fa414c7db38"
+        },
+        {
+          "artifact": "trajectory-segment-1",
+          "site": "decoded_segment.digest()",
+          "pre_reset": "806b8b3d73e335dc01d2229045dbd5b81f226080f08ee5567df3fd2808630e92",
+          "replacement": "e6f04b579279e51f8e5512dd1ffb2e22a1941608c936de5da1bfe646ec8a4d50"
+        },
+        {
+          "artifact": "trajectory-root-1",
+          "site": "decoded_root.digest()",
+          "pre_reset": "8a9f5359f507ad7b8c120c83d71719fc7765d969fef3fb92a5a88ef80e3c72a8",
+          "replacement": "8b2ee5f2acbf398b7f5f9f34accdc9090f79612194b31b5000e1188cd7bcb0b3"
+        }
+      ],
+      "artifacts": [
+        {
+          "name": "spatial-state-1",
+          "schema": "eqiora.spatial-state-envelope/v2",
+          "canonical_bytes": 1637,
+          "pre_reset_path": "expected/consumer/moving-spatial-v2-wire/pre-reset/spatial-state-1.json",
+          "pre_reset_raw_sha256": "65880a5a140cc067b7fbeecf05cf10b376b8b1305124c777536105e9a412187b",
+          "pre_reset_digest": "2cb018c9b3159f4e825bbaf1fcdc46098632841dbb399d616f08a51f28b218aa",
+          "replacement_path": "expected/consumer/moving-spatial-v2-wire/replacement/spatial-state-1.json",
+          "replacement_raw_sha256": "2b261b93bcdfef14ea4dc4e556bbda52c0be95bd474fbc2012272ca711ffb0a5",
+          "replacement_digest": "40f51f912abc9b74ae7521594b9f1be049c238b408867bb65f4d4fa414c7db38",
+          "substituted_pointers": [
+            "/fields[0]/snapshot_sha256",
+            "/fields[1]/snapshot_sha256",
+            "/fields[2]/snapshot_sha256",
+            "/fields[3]/snapshot_sha256",
+            "/geometry_state/driver_snapshot_sha256",
+            "/geometry_state/geometry_state_sha256",
+            "/geometry_state/predecessor_geometry_state_sha256",
+            "/reference/correspondence_sha256",
+            "/reference/model_sha256",
+            "/reference/realization_sha256",
+            "/reference/reference_geometry_sha256"
+          ],
+          "unchanged_leaves": 14,
+          "references": [
+            {
+              "path": "/reference/model_sha256",
+              "target": "current_model_digest"
+            },
+            {
+              "path": "/reference/realization_sha256",
+              "target": "realization_v4_digest"
+            },
+            {
+              "path": "/reference/reference_geometry_sha256",
+              "target": "geometry_identity_digest"
+            },
+            {
+              "path": "/reference/correspondence_sha256",
+              "target": "correspondence_digest"
+            }
+          ]
+        },
+        {
+          "name": "trajectory-segment-1",
+          "schema": "eqiora.spatial-trajectory-segment/v2",
+          "canonical_bytes": 1572,
+          "pre_reset_path": "expected/consumer/moving-spatial-v2-wire/pre-reset/trajectory-segment-1.json",
+          "pre_reset_raw_sha256": "4182905b9989d8601e0b6eaa3cdc2f375eccd951b80b7adf7f1da3bd26dca398",
+          "pre_reset_digest": "806b8b3d73e335dc01d2229045dbd5b81f226080f08ee5567df3fd2808630e92",
+          "replacement_path": "expected/consumer/moving-spatial-v2-wire/replacement/trajectory-segment-1.json",
+          "replacement_raw_sha256": "0d1a2cb31ef1232c76468d9f4ea54fb5ca2558cbbf155eb2c97c50a92b938c98",
+          "replacement_digest": "e6f04b579279e51f8e5512dd1ffb2e22a1941608c936de5da1bfe646ec8a4d50",
+          "substituted_pointers": [
+            "/reference/correspondence_sha256",
+            "/reference/model_sha256",
+            "/reference/realization_sha256",
+            "/reference/reference_geometry_sha256",
+            "/states[0]/geometry_state_sha256",
+            "/states[0]/predecessor_geometry_state_sha256",
+            "/states[0]/state_sha256",
+            "/states[1]/geometry_state_sha256",
+            "/states[1]/predecessor_geometry_state_sha256",
+            "/states[1]/state_sha256"
+          ],
+          "unchanged_leaves": 16,
+          "references": [
+            {
+              "path": "/reference/model_sha256",
+              "target": "current_model_digest"
+            },
+            {
+              "path": "/reference/realization_sha256",
+              "target": "realization_v4_digest"
+            },
+            {
+              "path": "/reference/reference_geometry_sha256",
+              "target": "geometry_identity_digest"
+            },
+            {
+              "path": "/reference/correspondence_sha256",
+              "target": "correspondence_digest"
+            },
+            {
+              "path": "/states[0]/state_sha256",
+              "target": "artifact:spatial-state-1"
+            }
+          ]
+        },
+        {
+          "name": "trajectory-root-1",
+          "schema": "eqiora.spatial-trajectory/v2",
+          "canonical_bytes": 1937,
+          "pre_reset_path": "expected/consumer/moving-spatial-v2-wire/pre-reset/trajectory-root-1.json",
+          "pre_reset_raw_sha256": "d0bfcd8be98f9c40361ecb3eb6bed89947c2af6745acea4f82ccefacc77e7119",
+          "pre_reset_digest": "8a9f5359f507ad7b8c120c83d71719fc7765d969fef3fb92a5a88ef80e3c72a8",
+          "replacement_path": "expected/consumer/moving-spatial-v2-wire/replacement/trajectory-root-1.json",
+          "replacement_raw_sha256": "f636d1f90be05bd5ef9db82c20c0d7a7d4ea3cf8b012f90054d777bf71f85e0d",
+          "replacement_digest": "8b2ee5f2acbf398b7f5f9f34accdc9090f79612194b31b5000e1188cd7bcb0b3",
+          "substituted_pointers": [
+            "/previous_root_sha256",
+            "/reference/correspondence_sha256",
+            "/reference/model_sha256",
+            "/reference/realization_sha256",
+            "/reference/reference_geometry_sha256",
+            "/segments[0]/first_geometry_state_sha256",
+            "/segments[0]/last_geometry_state_sha256",
+            "/segments[0]/segment_sha256",
+            "/segments[1]/first_geometry_predecessor_sha256",
+            "/segments[1]/first_geometry_state_sha256",
+            "/segments[1]/last_geometry_state_sha256",
+            "/segments[1]/segment_sha256"
+          ],
+          "unchanged_leaves": 24,
+          "references": [
+            {
+              "path": "/reference/model_sha256",
+              "target": "current_model_digest"
+            },
+            {
+              "path": "/reference/realization_sha256",
+              "target": "realization_v4_digest"
+            },
+            {
+              "path": "/reference/reference_geometry_sha256",
+              "target": "geometry_identity_digest"
+            },
+            {
+              "path": "/reference/correspondence_sha256",
+              "target": "correspondence_digest"
+            },
+            {
+              "path": "/segments[1]/segment_sha256",
+              "target": "artifact:trajectory-segment-1"
+            }
+          ]
+        }
+      ],
+      "handoff": {
+        "operations": [
+          "replace the `MODEL` include target `verify/fsi/fixed-reference-cuda-solve-2d/artifacts/model.json` with `verify/artifacts/current-model-relational-identity-transition/expected/bridge/fixed-reference-cuda-solve-2d/current-model.json`, stripping one optional trailing line feed before decoding",
+          "replace the `ModelEnvelopeV4` import and the `Resources::model` field type with the unversioned current Model owner, and decode with its `from_json`",
+          "replace the two `ValidatedMovingSpatialContextV2` type parameters `ModelEnvelopeV4` with that same current owner",
+          "substitute the three frozen digest literals, each occurring exactly once, by `frozen_literals[].pre_reset` -> `frozen_literals[].replacement`"
+        ],
+        "forbidden": [
+          "decoding the pre-reset Model input through the current Model owner: the current decoder rejects `eqiora.model-envelope/v4` bytes",
+          "selecting or regenerating any Model other than `current_model_input`",
+          "changing any assertion, seed, coordinate, limit, or rejection case in the consumer",
+          "substituting a proper nonempty subset of `frozen_literals`"
+        ],
+        "unchanged_literals": [
+          "the three geometry-driver, cross-wire, and decoder-limit assertions carry no identity literal and are untouched"
+        ]
+      }
+    }
+  ],
+  "retained_family_goldens": [
+    {
+      "name": "realization-v4",
+      "consumer": "crates/eqiora-artifact/tests/realization_v4_wire.rs",
+      "case": "artifacts.realization-run-wire",
+      "class": "retained-separate-family-golden",
+      "family": "eqiora.realization-envelope/v4",
+      "golden_bytes": "expected/retained/realization-v4.json",
+      "canonical_bytes": 8333,
+      "raw_sha256": "ba9efbdbca265dea0fdf9b1476ea2cae876eb2c97b4ac6f332f3755d866b5d9e",
+      "artifact_digest": "b5bbe49235f75163bf764f37cb2a1168c4471271cd85c5b09f5d5e411ce52c7f",
+      "encoding": "eqiora.canonical-json/v1",
+      "model_ulid": "6GHJ7J4GVC2G81JV2ZZHSHNS20",
+      "semantic_revision": 1,
+      "opaque_model_reference": {
+        "pointer": "/model_sha256",
+        "value": "16d7bfb39746ccfda33c07ac3f054b42827ee5dd65380c553b93f7c3751d26ba",
+        "bytes": "verify/fsi/fixed-reference-cuda-solve-2d/artifacts/model.json",
+        "schema": "eqiora.model-envelope/v4",
+        "raw_sha256": "0b5c3dc013f8711bdf94ea8c6ef0a07841a91f2f31a3d6062982728db665fd8f"
+      },
+      "post_reset_acceptance": {
+        "decoder": "RealizationEnvelopeV4::from_json",
+        "route": "decode the committed golden bytes with the retained Realization family decoder, re-encode canonically, and compare the exact bytes and the RFC 0008 artifact digest; no Model artifact is decoded, constructed, or referenced by value",
+        "model_decoder_calls": 0
+      },
+      "forbidden": {
+        "current_model_decoder_on_opaque_bytes": "the current Model owner must reject the pre-reset Model bytes; an implementation that keeps decoding them fails closed rather than silently admitting a historical schema",
+        "relabelled_model_reference": "490d39abd32b1515c77a4454cbebba8ed2c229e5b1825364345736187afb1423",
+        "relabelled_raw_sha256": "4507e957522c8cdb49cdc83f71814d8d6b2553726cc4cbff420f0fbe25f5286e",
+        "reconstruct_from_a_current_model": "rebuilding the golden through `from_resolved` over any current Model necessarily embeds a different `model_sha256` and cannot reproduce `raw_sha256`"
+      },
+      "handoff": {
+        "operations": [
+          "add `const GOLDEN: &[u8] = include_bytes!(\"<case>/expected/retained/realization-v4.json\")` and make `realization_v4_golden_digest_and_roundtrip_are_frozen` hash and round-trip those bytes instead of `Fixture::new().envelope().canonical_json()`",
+          "replace the `MODEL` include target `verify/fsi/fixed-reference-cuda-solve-2d/artifacts/model.json` with `verify/artifacts/current-model-relational-identity-transition/expected/bridge/fixed-reference-cuda-solve-2d/current-model.json` and decode it with the unversioned current Model owner, so the surviving constructive tests keep an ordinary current-owner path"
+        ],
+        "forbidden": [
+          "keeping `ModelEnvelopeV4::from_json` or any other retired Model decoder",
+          "decoding the opaque historical Model bytes through the current Model owner",
+          "re-encoding the golden against a current Model, or changing the frozen `raw_sha256`"
+        ],
+        "unchanged_literals": [
+          "`ba9efbdbca265dea0fdf9b1476ea2cae876eb2c97b4ac6f332f3755d866b5d9e` is retained exactly; this amendment adds no replacement for it"
+        ]
+      }
+    }
   ]
 }

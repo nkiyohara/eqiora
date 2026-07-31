@@ -405,6 +405,233 @@ def check_retained_realization_v4() -> None:
     )
 
 
+def check_retained_family_golden(entry: dict) -> None:
+    """The post-reset route for one retained separate-family golden.
+
+    `realization_v4_wire.rs` reconstructs its golden today by decoding the
+    historical fixed-reference CUDA Model and re-encoding a Realization over it.
+    The reset removes that decoder, and the two obvious repairs are both wrong:
+    admitting those bytes through the current Model owner, and rebuilding the
+    golden over a current Model. This route freezes the third one -- the bytes
+    are the evidence, and the Model reference inside them is an opaque string --
+    without ever parsing the referenced Model.
+    """
+    print(f"Retained family golden {entry['name']}")
+    raw = committed(CASE / entry["golden_bytes"])
+    check("canonical byte length", len(raw), entry["canonical_bytes"])
+    check("raw sha256", hashlib.sha256(raw).hexdigest(), entry["raw_sha256"])
+    check(
+        "RFC 0008 artifact digest",
+        domain_digest(entry["family"], raw),
+        entry["artifact_digest"],
+    )
+    wire = json.loads(raw)
+    check("schema", wire["schema"], entry["family"])
+    check("encoding", wire["encoding"], entry["encoding"])
+    check("Model ULID", wire["model_ulid"], entry["model_ulid"])
+    check("semantic revision", wire["semantic_revision"], entry["semantic_revision"])
+
+    opaque = entry["opaque_model_reference"]
+    check(
+        "opaque Model reference",
+        resolve(wire, opaque["pointer"]),
+        opaque["value"],
+    )
+    # Read from the referenced bytes' own text, never decoded: this route has no
+    # Model decoder either, which is the property the reset has to preserve.
+    referenced = committed(ROOT / opaque["bytes"])
+    check(
+        "referenced raw sha256",
+        hashlib.sha256(referenced).hexdigest(),
+        opaque["raw_sha256"],
+    )
+    check("referenced schema", json.loads(referenced)["schema"], opaque["schema"])
+    check(
+        "the reference is opaque, so it is not the current Model schema",
+        opaque["schema"] != MODEL_SCHEMA,
+        True,
+    )
+    check(
+        "the golden decodes without a Model decoder",
+        entry["post_reset_acceptance"]["model_decoder_calls"],
+        0,
+    )
+
+    # Relabelling: internally consistent, externally a different artifact. Only
+    # the frozen bytes refuse it, which is why they are frozen.
+    relabelled = raw.replace(
+        opaque["value"].encode("ascii"),
+        entry["forbidden"]["relabelled_model_reference"].encode("ascii"),
+    )
+    check("a relabelled golden keeps its byte length", len(relabelled), len(raw))
+    check(
+        "a relabelled golden carries its frozen bytes",
+        hashlib.sha256(relabelled).hexdigest(),
+        entry["forbidden"]["relabelled_raw_sha256"],
+    )
+    check(
+        "a relabelled golden is a different artifact",
+        domain_digest(entry["family"], relabelled) != entry["artifact_digest"],
+        True,
+    )
+
+
+def check_model_input_consumer(entry: dict) -> None:
+    """The identity-only delta of one consumer whose Model *input* moves.
+
+    `moving_spatial_v2_wire.rs` builds its SpatialState, segment, and prefix root
+    at run time and freezes three digests of what it built. Both states of all
+    three artifacts are committed, so this is a comparison and not a claim: the
+    replacement must be the pre-reset bytes with the frozen identity table
+    applied, and every other byte must be untouched.
+    """
+    print(f"Model-input consumer {entry['name']}")
+    table = entry["identity_substitutions"]
+    check("substitution count", len(table), entry["identity_substitution_count"])
+    check(
+        "the Model edge is the precommitted current Model",
+        table.get(entry["pre_reset_model_digest"]),
+        entry["current_model_digest"],
+    )
+    identity = re.compile(r"\A[0-9a-f]{64}\Z")
+    check(
+        "every side is one 64-character lowercase hex identity",
+        all(identity.match(old) and identity.match(new) for old, new in table.items()),
+        True,
+    )
+    check(
+        "no replacement is itself superseded, so the table is order-free",
+        set(table) & set(table.values()),
+        set(),
+    )
+    current = committed(ROOT / entry["current_model_input"])
+    check(
+        "current Model input raw sha256",
+        hashlib.sha256(current).hexdigest(),
+        committed_raw_sha256(entry),
+    )
+    check(
+        "current Model input digest",
+        artifact_digest(current),
+        entry["current_model_digest"],
+    )
+    check(
+        "current Model schema",
+        json.loads(current)["schema"],
+        entry["current_model_schema"],
+    )
+    check(
+        "Model ULID survives the input change",
+        json.loads(current)["model_ulid"],
+        entry["model_ulid"],
+    )
+
+    replayed: dict[str, str] = {}
+    for artifact in entry["artifacts"]:
+        name, schema = artifact["name"], artifact["schema"]
+        pre = committed(CASE / artifact["pre_reset_path"])
+        new = committed(CASE / artifact["replacement_path"])
+        check(f"{name} canonical byte length", len(pre), artifact["canonical_bytes"])
+        check(f"{name} replacement is byte-length identical", len(new), len(pre))
+        check(
+            f"{name} pre-reset raw sha256",
+            hashlib.sha256(pre).hexdigest(),
+            artifact["pre_reset_raw_sha256"],
+        )
+        check(
+            f"{name} replacement raw sha256",
+            hashlib.sha256(new).hexdigest(),
+            artifact["replacement_raw_sha256"],
+        )
+        check(
+            f"{name} pre-reset digest",
+            domain_digest(schema, pre),
+            artifact["pre_reset_digest"],
+        )
+        check(
+            f"{name} replacement digest",
+            domain_digest(schema, new),
+            artifact["replacement_digest"],
+        )
+
+        before, after = dict(flatten(json.loads(pre))), dict(flatten(json.loads(new)))
+        check(f"{name} keeps its exact leaf set", sorted(before), sorted(after))
+        changed = {path for path in before if before[path] != after[path]}
+        check(
+            f"{name} substituted pointers",
+            sorted(changed),
+            artifact["substituted_pointers"],
+        )
+        check(
+            f"{name} every changed leaf is in the table",
+            all(table.get(before[path]) == after[path] for path in changed),
+            True,
+        )
+        check(
+            f"{name} unchanged leaves",
+            len(before) - len(changed),
+            artifact["unchanged_leaves"],
+        )
+        check(f"{name} reconstructs from the table alone", substitute(pre, table), new)
+        check(
+            f"{name} carries no superseded identity",
+            [old for old in table if old.encode("ascii") in new],
+            [],
+        )
+        replayed[name] = artifact["replacement_digest"]
+
+    for artifact in entry["artifacts"]:
+        wire = json.loads(committed(CASE / artifact["replacement_path"]))
+        for edge in artifact["references"]:
+            target = edge["target"]
+            if target.startswith("artifact:"):
+                expected = replayed[target.removeprefix("artifact:")]
+            elif target == "current_model_digest":
+                expected = entry["current_model_digest"]
+            else:
+                expected = entry["downstream_current_identities"][target]
+            check(
+                f"{artifact['name']}{edge['path']} -> {target}",
+                resolve(wire, edge["path"]),
+                expected,
+            )
+
+    frozen_literals = entry["frozen_literals"]
+    check(
+        "one frozen literal per artifact", len(frozen_literals), len(entry["artifacts"])
+    )
+    for literal, artifact in zip(frozen_literals, entry["artifacts"]):
+        check(
+            f"{literal['artifact']} literal is its pre-reset identity",
+            literal["pre_reset"],
+            artifact["pre_reset_digest"],
+        )
+        check(
+            f"{literal['artifact']} replacement is its post-reset identity",
+            literal["replacement"],
+            artifact["replacement_digest"],
+        )
+
+
+def committed_raw_sha256(entry: dict) -> str:
+    """The current Model input's raw hash, read out of the bridge that owns it."""
+    transition = json.loads(committed(CASE / "expected/transition.json"))
+    bridge = next(
+        item
+        for item in transition["bridge"]
+        if item["name"] == entry["current_model_bridge"]
+    )
+    return bridge["current_raw_sha256"]
+
+
+def substitute(source: bytes, table: dict[str, str]) -> bytes:
+    """Apply a length-preserving identity table, so no offset can move."""
+    out = source
+    for old, new in table.items():
+        out = out.replace(old.encode("ascii"), new.encode("ascii"))
+    return out
+
+
 # The candidate sweep, reimplemented here rather than shared with the Rust
 # oracle: the frozen inventory is only independent evidence if a second route
 # reproduces it. Keep these tokens identical to the ones `classification.json`
@@ -1460,6 +1687,12 @@ def main() -> int:
         print()
     check_retained_realization_v4()
     print()
+    for entry in transition["retained_family_goldens"]:
+        check_retained_family_golden(entry)
+        print()
+    for entry in transition["model_input_consumers"]:
+        check_model_input_consumer(entry)
+        print()
     check_search_exclusions()
     print()
     check_transition_contract()
