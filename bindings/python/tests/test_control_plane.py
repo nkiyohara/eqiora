@@ -1,7 +1,6 @@
 import subprocess
 import sys
 from importlib import metadata
-from pathlib import Path
 
 import pytest
 
@@ -16,15 +15,7 @@ model decay {
 }
 """
 
-HISTORICAL_MODEL = (
-    Path(__file__).resolve().parents[3]
-    / "verify"
-    / "artifacts"
-    / "current-model-canonical-identity"
-    / "expected"
-    / "historical"
-    / "model-v7.json"
-)
+HISTORICAL_MODEL = b'{"schema":"eqiora.model-envelope/v7"}'
 
 
 def test_distribution_version_is_native_and_matches_installed_metadata() -> None:
@@ -78,7 +69,7 @@ def test_current_only_surface_rejects_retired_selectors_and_model_wire() -> None
         assert not hasattr(eqiora, retired)
 
     with pytest.raises(eqiora.CompatibilityError) as caught:
-        eqiora.replay(HISTORICAL_MODEL.read_bytes())
+        eqiora.replay(HISTORICAL_MODEL)
     assert [diagnostic.code for diagnostic in caught.value.diagnostics] == ["EQ0901"]
 
 
