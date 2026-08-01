@@ -103,11 +103,11 @@ print(mesh.selection_entity_count("cylinder"))
 The graph and its exact planar section have distinct identities. The section
 reproduces the accepted direct convenience value byte-for-byte; depth and CAD
 tolerances cannot leak into its independently classified 2D meaning. This is
-not a generic section or Python Boolean implementation. Its matching meshing operation is one
-Rust-owned, error-controlled chordal reference path, not a generic or
-production mesher. The returned wrapper binds its exact source only within the
-live process; durable generated-realization replay, geometry-backed Model
-binding, solve, Result, and visualization are separate capabilities.
+not a generic section or Python Boolean implementation. Its matching meshing
+operation is one Rust-owned, error-controlled chordal reference path, not a
+generic or production mesher. The returned wrapper binds its exact source only
+within the live process; durable generated-realization replay, geometry-backed
+Model binding, solve, Result, and visualization are separate capabilities.
 
 The accepted exact-cylinder Result can be presented as one bounded pressure
 still:
