@@ -18,6 +18,8 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use sha2::{Digest, Sha256};
 
+use crate::CadAuthoredGraphV1;
+
 /// Raw SHA-256 of the complete STEP byte stream consumed by a CAD adapter.
 ///
 /// This is deliberately distinct from a canonical artifact digest. It has no
@@ -176,7 +178,7 @@ impl ConstrainedRectangleV1 {
         0
     }
 
-    fn extruded_box(self, depth_m: f64) -> Result<AxisAlignedBox3, Diagnostic> {
+    pub(crate) fn extruded_box(self, depth_m: f64) -> Result<AxisAlignedBox3, Diagnostic> {
         if !depth_m.is_finite() || depth_m <= 0.0 {
             return Err(invalid_cad(
                 "CAD extrusion depth must be finite and positive in metres",
@@ -202,10 +204,8 @@ pub struct CadBoxDesignV1 {
     source: StepSourceDigest,
     source_length_unit: StepLengthUnitV1,
     imported_stock: AxisAlignedBox3,
-    sketch: ConstrainedRectangleV1,
-    extrusion_depth_m: f64,
+    authoring: CadAuthoredGraphV1,
     source_uncertainty_m: f64,
-    modeling_tolerance_m: f64,
     output: AxisAlignedBox3,
 }
 
@@ -230,28 +230,20 @@ impl CadBoxDesignV1 {
         source_uncertainty_m: f64,
         modeling_tolerance_m: f64,
     ) -> Result<Self, Diagnostic> {
-        for (label, value) in [
-            ("STEP source uncertainty", source_uncertainty_m),
-            ("CAD modeling tolerance", modeling_tolerance_m),
-        ] {
-            if !value.is_finite() || value <= 0.0 {
-                return Err(invalid_cad(format!(
-                    "{label} must be finite and positive in metres"
-                )));
-            }
+        if !source_uncertainty_m.is_finite() || source_uncertainty_m <= 0.0 {
+            return Err(invalid_cad(
+                "STEP source uncertainty must be finite and positive in metres",
+            ));
         }
-        let extrusion_depth_m = canonical_zero(extrusion_depth_m);
-        let extrusion = sketch.extruded_box(extrusion_depth_m)?;
-        let output = imported_stock.intersection(extrusion)?;
+        let authoring = CadAuthoredGraphV1::new(sketch, extrusion_depth_m, modeling_tolerance_m)?;
+        let output = imported_stock.intersection(authoring.output())?;
         Ok(Self {
             target_body,
             source,
             source_length_unit,
             imported_stock,
-            sketch,
-            extrusion_depth_m,
+            authoring,
             source_uncertainty_m: canonical_zero(source_uncertainty_m),
-            modeling_tolerance_m: canonical_zero(modeling_tolerance_m),
             output,
         })
     }
@@ -283,13 +275,13 @@ impl CadBoxDesignV1 {
     /// Fully constrained rectangle feature.
     #[must_use]
     pub const fn sketch(&self) -> ConstrainedRectangleV1 {
-        self.sketch
+        self.authoring.sketch()
     }
 
     /// Positive-z extrusion depth in metres.
     #[must_use]
     pub const fn extrusion_depth_m(&self) -> f64 {
-        self.extrusion_depth_m
+        self.authoring.extrusion_depth_m()
     }
 
     /// Declared uncertainty of the STEP source in metres.
@@ -301,7 +293,14 @@ impl CadBoxDesignV1 {
     /// CAD modeling/boolean tolerance in metres.
     #[must_use]
     pub const fn modeling_tolerance_m(&self) -> f64 {
-        self.modeling_tolerance_m
+        self.authoring.requested_modeling_tolerance_m()
+    }
+
+    /// Provider-neutral graph that solely owns rectangle, face, and extrusion
+    /// meaning beneath this temporary bounded convenience surface.
+    #[must_use]
+    pub const fn authoring_graph(&self) -> &CadAuthoredGraphV1 {
+        &self.authoring
     }
 
     /// Exact mathematical result of the closed intersection program.
@@ -406,7 +405,7 @@ impl CadBoxRealizationV1 {
         extruded_tool: CadBoxObservationV1,
         intersection: CadBoxObservationV1,
     ) -> Result<Self, Diagnostic> {
-        let expected_tool = design.sketch.extruded_box(design.extrusion_depth_m)?;
+        let expected_tool = design.authoring.output();
         if imported_stock.bounds != design.imported_stock
             || extruded_tool.bounds != expected_tool
             || intersection.bounds != design.output

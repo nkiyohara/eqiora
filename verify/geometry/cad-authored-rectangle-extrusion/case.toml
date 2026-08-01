@@ -1,0 +1,64 @@
+id = "geometry.cad-authored-rectangle-extrusion"
+status = "verified"
+scope = "one-provider-neutral-rectangle-face-positive-z-extrusion-authored-graph"
+reference_kind = "dual-independent-analytic-and-oriented-polyhedral-oracle"
+
+capabilities = [
+  "immutable-authored-cad-operation-graph",
+  "exact-rectangle-face-extrusion-geometry",
+  "provenance-owned-persistent-face-selection",
+  "domain-separated-canonical-graph-identity",
+  "identity-only-requested-modeling-tolerance",
+]
+
+[problem]
+operations = "XY sketch plane -> constrained axis-aligned rectangle -> one closed face -> positive-z extrusion"
+witness = "x [-2,3] m, y [-1,2] m, z0 0.5 m, depth 4 m"
+tolerance = "requested graph-global 1e-9 m, retained in identity and absent from analytic geometry"
+selection = "start/end caps and four lateral faces derived only from authored profile provenance"
+
+[oracle]
+analytic = "exact extents, volume, face planes, centroids, areas, normals, and total surface area"
+independent_route = "outward-oriented face cycles, edge incidence, Euler relation, and signed-tetrahedral volume"
+canonical_bytes = 731
+sha256 = "919545f70118840c04da9715829deb2da947460a51311ebabec6a34038c66f36"
+
+[acceptance]
+bounds_m = "[-2,3] x [-1,2] x [0.5,4.5]"
+vertices_edges_faces = "8/12/6"
+closed_shells_bodies = "1/1"
+volume_m3 = 60
+surface_area_m2 = 94
+repair = "none"
+
+[falsifiers]
+invalid_scalar_or_interval = "reject-with-EQ0901"
+wrong_dependency_direction_or_repair = "reject-with-EQ0901"
+missing_duplicate_or_wrong_selection_provenance = "reject-with-EQ0901"
+swapped_or_reversed_face = "fail-exact-centroid-area-normal-cycle-oracle"
+foreign_graph_handle = "reject-before-face-lookup"
+tolerance_change = "equal-geometry-different-identity-and-handle-rejection"
+depth_change = "different-geometry-different-identity-and-handle-rejection"
+tolerance_as_offset = "fail-exact-geometry-oracle"
+signed_zero = "one-canonical-identity"
+object_member_order = "equal-graph-canonical-bytes-and-identity"
+unknown_or_duplicate_wire_member = "reject-with-EQ0901"
+
+[claim_boundary]
+provider_neutral_authored_graph = true
+one_construction_closed_rectangle_profile = true
+one_closed_face = true
+one_positive_z_extrusion = true
+durable_graph_bound_provenance_handles = true
+general_constraint_solver = false
+arbitrary_profile_or_operation_dag = false
+step_import_or_boolean = false
+circle_or_curved_geometry = false
+mesh_or_solver = false
+python_or_studio_projection = false
+healing_or_topology_rebinding = false
+provider_registry_or_public_brep = false
+
+[evidence]
+package = "eqiora-geometry"
+test = "cad_authored_rectangle_extrusion"

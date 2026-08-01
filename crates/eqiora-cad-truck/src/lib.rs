@@ -87,7 +87,7 @@ impl CadKernelAdapter for TruckCadAdapterV1 {
         validate_imported_box(&shell, design)?;
 
         let imported_stock = accepted_observation(design.imported_stock())?;
-        let tool_bounds = extruded_tool_bounds(design)?;
+        let tool_bounds = design.authoring_graph().output();
         let tool = truck_box(tool_bounds);
         validate_truck_box(&tool, tool_bounds, design.modeling_tolerance_m())?;
         let extruded_tool = accepted_observation(tool_bounds)?;
@@ -285,18 +285,6 @@ fn validate_imported_box(
         ));
     }
     Ok(())
-}
-
-fn extruded_tool_bounds(design: &CadBoxDesignV1) -> Result<AxisAlignedBox3, Diagnostic> {
-    let sketch = design.sketch();
-    AxisAlignedBox3::new([
-        sketch.x_bounds_m(),
-        sketch.y_bounds_m(),
-        (
-            sketch.plane_z_m(),
-            sketch.plane_z_m() + design.extrusion_depth_m(),
-        ),
-    ])
 }
 
 fn truck_box(bounds: AxisAlignedBox3) -> Solid {
