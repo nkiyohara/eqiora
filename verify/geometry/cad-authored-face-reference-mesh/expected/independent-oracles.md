@@ -43,13 +43,38 @@ immediate predecessor `0x1.2db2eaabf5c7fp+1` selects four. With the other axis
 fixed at `L = 3` and two intervals, the resulting counts are `V/T = 12/12` and
 `15/16` respectively.
 
-For `L = 8.375` (`0x1.0c00000000000p+3`) and target
-`1.692005512124953` (`0x1.b12745f33a78cp+0`), the actual binary64 values are:
+## Post-review realized-coordinate addendum
 
-- `hypot(L/6, L/6) = 0x1.f9587c466ee22p+0`;
-- `hypot(L/7, L/7) = 0x1.b12745f33a78bp+0`.
+The first complete-diff review found an oracle gap rather than an implementation
+value mismatch: `L/n` can round down while the final generated coordinate is
+snapped to the exact endpoint `L`. The maximum realized interval can therefore
+exceed the nominal spacing. Opus 5 and Fable 5 independently re-derived the
+repair using distinct bit-level and exact-rational/enumeration routes before the
+implementation was changed.
 
-Thus seven is the least accepted count, while both common
-`ceil(L * sqrt(2) / h)` evaluation orderings produce eight. The implementation
-must use the estimate only as a starting point and correct against the frozen
-predicate.
+Both routes freeze the same per-axis rule. Compute `s = L/n`; generate
+`x_i = i*s` for `i<n` and `x_n = L`; measure every generated binary64 gap and
+let `D(n)` be their maximum. The least accepted count satisfies
+`D(n).hypot(D(n)) <= h`. The old nominal count is a lower bound; under the
+50,000-division cap the realized answer is that count or its successor, so at
+most two O(n) coordinate scans are required.
+
+For `L = 3` and `h = 0x1.3651a0eb63341p-1`, nominal n=7 uses
+`s = 0x1.b6db6db6db6dbp-2`, but endpoint snapping produces
+`D(7) = 0x1.b6db6db6db6e0p-2` and realized diagonal
+`0x1.3651a0eb63345p-1 > h`. The least repaired count is eight. A 3 m square then
+has `V/T/E = 81/128/208`, 32 boundary and 176 interior edges, and maximum edge
+`0x1.0f876ccdf6cd9p-1` (0.5303300858899106 m).
+
+The replacement estimate falsifier is `L = 4.875`
+(`0x1.3800000000000p+2`), `h = 0x1.f844a57e8134bp-1`. Both common nominal
+estimates give seven. At n=7, nominal spacing is
+`0x1.6492492492492p-1`, maximum generated spacing is
+`0x1.6492492492498p-1`, and the realized diagonal
+`0x1.f844a57e81353p-1` rejects. At n=8 the exact spacing
+`0x1.3800000000000p-1` gives diagonal `0x1.b93c10ceb10e1p-1` and accepts.
+
+The primary, start-cap, and length-5 one-ulp witnesses are unchanged. The old
+`L = 8.375`, `h = 0x1.b12745f33a78cp+0` witness changes from nominal n=7 to
+realized n=8 and is no longer an estimate falsifier; it must remain a regression
+check for endpoint-aware correction rather than evidence for n=7.

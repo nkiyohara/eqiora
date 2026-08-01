@@ -10,8 +10,10 @@ selected three-dimensional face.
 The case was frozen as `specified` before implementation. Its two oracle routes
 were derived independently without reading production mesh code and agreed
 before the implementation lane began. The complete frozen results are in
-[`expected/independent-oracles.md`](expected/independent-oracles.md); the case is
-now `verified` by the registered facade evidence.
+[`expected/independent-oracles.md`](expected/independent-oracles.md). A
+post-review mutant temporarily returned the case to `specified`; it advances to
+`verified` only after the registered facade evidence implements the amended
+realized-coordinate predicate.
 
 ## Contract boundary
 
@@ -23,10 +25,13 @@ wall reject because they do not expose a rectangular face cycle.
 
 The geometry-classification tolerance is fixed independently at `5e-10 m`. It
 is not reused as a sizing tolerance. Per-axis subdivision uses the least
-positive integer `n` for which the actual binary64 predicate
-`(L / n).hypot(L / n) <= h` holds. The caller's triangle budget and all scalar,
-handle, face-classification, and checked-arithmetic validation occur before mesh
-allocation.
+positive integer `n` for which the generated binary64 coordinates satisfy the
+actual edge predicate. With `s = L/n`, coordinates are `x_i = i*s` for `i<n`
+and `x_n = L`; if `D` is the maximum adjacent realized gap, admission is
+`D.hypot(D) <= h`. This retains the exact endpoint without certifying only a
+nominal spacing that rounding did not generate. The caller's triangle budget
+and all scalar, handle, face-classification, and checked-arithmetic validation
+occur before mesh allocation.
 
 ## Primary witness
 
@@ -45,10 +50,21 @@ array, connectivity, or handle.
 
 Two adjacent binary64 targets at the length-5 subdivision boundary freeze the
 actual comparator: `0x1.2db2eaabf5c80p+1` accepts three intervals and its
-predecessor `0x1.2db2eaabf5c7fp+1` requires four. A separate
-`L = 8.375`, `h = 1.692005512124953` witness kills implementations that return
-the common ceiling estimate without correction: both estimate orderings give
-eight, while the frozen predicate's least acceptable answer is seven.
+predecessor `0x1.2db2eaabf5c7fp+1` requires four.
+
+A post-review witness freezes endpoint rounding itself. For a 3 m square at
+`h = 0x1.3651a0eb63341p-1`, nominal n=7 appears to meet equality, but snapping
+the endpoint to 3 m makes the maximum gap five ulps wider and its diagonal four
+ulps larger than `h`. The repaired rule therefore selects n=8 and produces
+81 vertices, 128 triangles, 208 edges, 32 boundary edges, and 176 interior
+edges.
+
+A separate `L = 4.875`, `h = 0x1.f844a57e8134bp-1` witness kills
+implementations that return either common ceiling estimate: both estimates give
+seven, while realized n=7 has a gap six ulps above nominal and rejects; exact
+n=8 spacing accepts. The earlier 8.375 witness was deliberately retired because
+the realized-coordinate rule correctly changes its answer from seven to eight,
+making it agree with the estimates rather than falsify them.
 
 A 23-triangle budget rejects the primary witness before allocation, while 24
 accepts it. A quality threshold of `0.98` rejects because the generated value

@@ -1,5 +1,5 @@
 id = "geometry.cad-authored-face-reference-mesh"
-status = "verified"
+status = "specified"
 scope = "one-source-bound-rectangular-authored-face-realized-as-one-planar-reference-mesh"
 reference_kind = "dual-independent-analytic-and-exact-rational-enumeration-oracle"
 
@@ -17,7 +17,7 @@ geometry_classification_tolerance_m = 5e-10
 target_edge_length_m = 2.0
 minimum_cell_quality = 0.95
 maximum_triangles = 24
-sizing_rule = "least integer n >= 1 per axis satisfying binary64 (L / n).hypot(L / n) <= h"
+sizing_rule = "least integer n >= 1 per axis satisfying binary64 D(n).hypot(D(n)) <= h, where s = L/n, x_i = i*s for i<n, x_n = L, and D is the maximum realized adjacent gap"
 indexing_rule = "k = j * (nu + 1) + i, u-fast"
 cell_rule = "for a,b,c,d at each grid square emit (b,c,a), then (d,a,c)"
 
@@ -83,20 +83,42 @@ vertices_below = 15
 triangles_below = 16
 
 [estimate_mutant_witness]
-length_m = 8.375
-length_hex = "0x1.0c00000000000p+3"
-target_m = 1.692005512124953
-target_hex = "0x1.b12745f33a78cp+0"
-corrected_intervals = 7
-naive_ceiling_estimate = 8
-alternate_naive_ceiling_estimate = 8
+length_m = 4.875
+length_hex = "0x1.3800000000000p+2"
+target_m = 0.9848987309384055
+target_hex = "0x1.f844a57e8134bp-1"
+nominal_ceiling_estimate = 7
+alternate_nominal_ceiling_estimate = 7
+repaired_intervals = 8
+n7_nominal_spacing_hex = "0x1.6492492492492p-1"
+n7_maximum_realized_spacing_hex = "0x1.6492492492498p-1"
+n7_realized_diagonal_hex = "0x1.f844a57e81353p-1"
+n8_spacing_hex = "0x1.3800000000000p-1"
+n8_realized_diagonal_hex = "0x1.b93c10ceb10e1p-1"
+
+[endpoint_snapping_witness]
+length_m = 3.0
+target_m = 0.6060915267313264
+target_hex = "0x1.3651a0eb63341p-1"
+nominal_intervals = 7
+n7_nominal_spacing_hex = "0x1.b6db6db6db6dbp-2"
+n7_maximum_realized_spacing_hex = "0x1.b6db6db6db6e0p-2"
+n7_realized_diagonal_hex = "0x1.3651a0eb63345p-1"
+repaired_intervals = 8
+vertices = 81
+triangles = 128
+edges = 208
+boundary_edges = 32
+interior_edges = 176
+n8_maximum_edge_m = 0.5303300858899106
+n8_maximum_edge_hex = "0x1.0f876ccdf6cd9p-1"
 
 [acceptance]
 validate_handle_before_revealing_face = true
 classification_tolerance_is_not_a_sizing_tolerance = true
 all_input_validation_precedes_mesh_allocation = true
 lift_is_exact_origin_plus_intrinsic_coordinates = true
-target_predicate_is_binary64_hypot = true
+target_predicate_measures_generated_binary64_coordinates = true
 selected_interval_count_is_minimal = true
 quality_gate_is_strictly_below = true
 triangle_budget_uses_checked_arithmetic_before_allocation = true
@@ -110,9 +132,10 @@ nonfinite_or_nonpositive_target = "reject before interval selection or allocatio
 maximum_triangles_below_two_or_above_100000 = "reject before allocation"
 maximum_triangles_23 = "reject the 24-triangle primary witness before allocation"
 minimum_quality_0_98 = "reject because 40/41 is strictly below the requested gate"
-strict_comparator_mutant = "one-ulp target pair changes the length-5 interval count from 3 to 4"
+strict_comparator_mutant = "one-ulp target pair changes the length-5 realized interval count from 3 to 4"
 classification_tolerance_leakage = "one-ulp target pair remains governed only by the sizing predicate"
-ceil_estimate_as_answer = "length 8.375 and target 1.692005512124953 require corrected n=7, not estimate n=8"
+endpoint_snap_escapes_nominal_bound = "length 3 and the nominal n=7 equality target reject after the generated endpoint makes one realized gap five ulps wider; n=8 accepts"
+ceil_estimate_as_answer = "length 4.875 and target 0.9848987309384055 give both nominal estimates n=7, but realized coordinates reject 7 and accept 8"
 orientation_or_diagonal_flip = "fail frozen first/last cells, outward normal, and start/end-cap distinction"
 
 [claim_boundary]
@@ -131,7 +154,3 @@ adaptive_anisotropic_or_boundary_layer_mesh = false
 production_unstructured_mesher = false
 wire_schema_or_persisted_mesh_policy = false
 python_studio_solver_or_demo = false
-
-[evidence]
-package = "eqiora"
-test = "cad_authored_face_reference_mesh"
