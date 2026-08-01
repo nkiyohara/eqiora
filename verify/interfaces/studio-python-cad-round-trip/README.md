@@ -13,6 +13,13 @@ includes canonical graph bytes and digest, ordered graph-bound face handles,
 all public exact observations, and the complete analytic build receipt. The
 native Studio renderer must separately equal these source files byte for byte.
 
+The final native replay statement is compositional rather than a second
+subprocess transport: the installed test returns the exact accepted 731- and
+1292-byte canonical wires, the renderer tests replay requests made from those
+same owner bytes, and `interfaces.studio-cad-authored-graph` already compares
+the resulting native projection with the independently constructed owner field
+for field. No digest-only equality is used to bridge those checks.
+
 Scalar spelling is also frozen. It uses Rust's shortest round-trip debug form
 for finite canonical `f64` values, while retaining `.0` on integer-valued
 floats. Exponents have no `+` sign or zero padding (`1e-9`, not `1e-09`). This

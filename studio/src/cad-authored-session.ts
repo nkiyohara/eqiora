@@ -267,7 +267,8 @@ export class CadAuthoredSession {
   readonly #observer: CadAuthoredSessionObserver;
   #buildGeneration = 0;
   #selectionGeneration = 0;
-  #exportGeneration = 0;
+  #renderGeneration = 0;
+  #saveGeneration = 0;
   #state: CadAuthoredSessionState = IDLE_STATE;
 
   constructor(bridge: CadAuthoredBridge, observer: CadAuthoredSessionObserver = () => {}) {
@@ -282,7 +283,8 @@ export class CadAuthoredSession {
   clear(): void {
     this.#buildGeneration += 1;
     this.#selectionGeneration += 1;
-    this.#exportGeneration += 1;
+    this.#renderGeneration += 1;
+    this.#saveGeneration += 1;
     this.#transition(IDLE_STATE);
   }
 
@@ -292,7 +294,8 @@ export class CadAuthoredSession {
     this.#selectionGeneration += 1;
     // Rebuilding discards the previous graph's export state entirely; an
     // in-flight render or save response for it can no longer publish.
-    this.#exportGeneration += 1;
+    this.#renderGeneration += 1;
+    this.#saveGeneration += 1;
     this.#transition({
       build: { kind: "building" },
       selection: { kind: "idle" },
@@ -395,10 +398,10 @@ export class CadAuthoredSession {
   async renderPython(): Promise<CadAuthoredSessionState> {
     const request = this.#currentExportRequest();
     if (request === null) return this.#state;
-    const generation = ++this.#exportGeneration;
+    const generation = ++this.#renderGeneration;
     this.#transitionExport({ preview: { kind: "rendering" } });
     const response = await this.#bridge.renderPython(request);
-    if (!this.#exportResponseIsCurrent(generation, request.graphDigest)) {
+    if (generation !== this.#renderGeneration || !this.#exportGraphIsCurrent(request.graphDigest)) {
       return this.#state;
     }
     if (response.result === null || response.result.graphDigest !== request.graphDigest) {
@@ -425,10 +428,10 @@ export class CadAuthoredSession {
   async savePython(): Promise<CadAuthoredSessionState> {
     const request = this.#currentExportRequest();
     if (request === null) return this.#state;
-    const generation = ++this.#exportGeneration;
+    const generation = ++this.#saveGeneration;
     this.#transitionExport({ save: { kind: "saving" } });
     const response = await this.#bridge.savePython(request);
-    if (!this.#exportResponseIsCurrent(generation, request.graphDigest)) {
+    if (generation !== this.#saveGeneration || !this.#exportGraphIsCurrent(request.graphDigest)) {
       return this.#state;
     }
     if (response.result === null || response.result.graphDigest !== request.graphDigest) {
@@ -462,9 +465,8 @@ export class CadAuthoredSession {
     };
   }
 
-  /** A response publishes only for the generation and graph it was bound to. */
-  #exportResponseIsCurrent(generation: number, graphDigest: string): boolean {
-    if (generation !== this.#exportGeneration) return false;
+  /** A response publishes only while its exact graph remains current. */
+  #exportGraphIsCurrent(graphDigest: string): boolean {
     const current = this.#state.build;
     return current.kind === "ready" && current.projection.graphDigest === graphDigest;
   }

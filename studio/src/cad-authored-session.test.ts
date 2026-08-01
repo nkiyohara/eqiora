@@ -441,6 +441,19 @@ describe("authored-CAD session Python render binding", () => {
     expect(session.state.export.preview).toEqual({ kind: "ready", render: renderFor(V2_DIGEST) });
     expect(renders).toBe(2);
   });
+
+  it("lets independent render and save calls finish without stranding either state", async () => {
+    const session = new CadAuthoredSession(
+      exportBridge({
+        renderPython: async (request) => envelope(renderFor(request.graphDigest)),
+        savePython: async (request) => envelope(saveOutcomeFor(request.graphDigest, "saved")),
+      }),
+    );
+    await session.build(V2_BUILD_REQUEST);
+    await Promise.all([session.renderPython(), session.savePython()]);
+    expect(session.state.export.preview).toEqual({ kind: "ready", render: renderFor(V2_DIGEST) });
+    expect(session.state.export.save).toEqual({ kind: "saved", graphDigest: V2_DIGEST });
+  });
 });
 
 describe("authored-CAD session export staleness", () => {
