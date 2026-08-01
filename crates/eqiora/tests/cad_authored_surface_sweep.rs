@@ -179,12 +179,19 @@ fn dual_oracle_end_cap_freezes_layers_topology_quality_and_correspondence() {
     assert_eq!(realization.maximum_tetrahedra(), 144);
 
     let mesh = realization.mesh();
-    assert_eq!(mesh.vertices().len(), 60);
-    assert_eq!(mesh.entity_count(1), Some(255));
-    assert_eq!(mesh.entity_count(2), Some(340));
-    assert_eq!(mesh.cells().len(), 144);
+    let vertex_count = mesh.vertices().len();
+    let edge_count = mesh.entity_count(1).expect("edges must be reported");
+    let facet_count = mesh.entity_count(2).expect("facets must be reported");
+    let cell_count = mesh.cells().len();
+    assert_eq!(vertex_count, 60);
+    assert_eq!(edge_count, 255);
+    assert_eq!(facet_count, 340);
+    assert_eq!(cell_count, 144);
     assert_eq!(boundary_facet_count(mesh), 104);
-    assert_eq!(60_i64 - 255 + 340 - 144, 1);
+    assert_eq!(
+        vertex_count as i64 - edge_count as i64 + facet_count as i64 - cell_count as i64,
+        1
+    );
     let minimum = BigRational::new(5.into(), 4.into());
     assert_exact_coverage(mesh, &minimum);
     let determinant_histogram = mesh

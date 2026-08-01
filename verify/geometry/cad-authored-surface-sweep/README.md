@@ -10,16 +10,14 @@ inward orientation, the layer count, the source-relative growth rate, the
 binary64 layer offsets, the caller maximum tetrahedra, the reused
 `SimplicialMesh` quality gate/report, and the volume mesh.
 
-The case is frozen as `specified`: implementation has not begun. Its two oracle
-routes were derived independently from the frozen public claim, without reading
-production mesh code, and agreed before any implementation lane started. The
-complete frozen results are in
+The case is registered as `verified`. Its two oracle routes were derived
+independently from the frozen public claim, without reading production mesh
+code, and agreed before any implementation lane started. The complete frozen
+results are in
 [`expected/independent-oracles.md`](expected/independent-oracles.md). The
-implementation slice must bind the planned evidence target named in
-`case.toml` (`[planned_evidence]`: `package = "eqiora"`,
-`test = "cad_authored_surface_sweep"`), promoting it to `[evidence]` without
-changing any frozen value; an implementer who believes a frozen value is wrong
-stops and returns the proof.
+registered target in `case.toml` binds those values to
+`package = "eqiora"`, `test = "cad_authored_surface_sweep"`; the implementation
+did not change a frozen value.
 
 ## Contract boundary
 
@@ -218,14 +216,9 @@ evidence, not a reason to generalize the bounded-face rule now.
 ## Run
 
 ```bash
-# Future evidence binding once the implementation slice lands.
 cargo test -p eqiora --test cad_authored_surface_sweep
 cargo run -p eqiora-verify -- run --case geometry.cad-authored-surface-sweep
 ```
 
-While the case is `specified`, the runner reports it as not-runnable ("case
-status does not declare executable evidence") with a passing exit, so this
-evidence package cannot wedge the affected gate. These commands become the
-registered target when the implementation slice adds the `[evidence]` table.
-The case returns to review, not to relaxation, if any frozen value cannot be
-reproduced.
+Both commands execute the registered evidence. The case returns to review, not
+to relaxation, if any frozen value cannot be reproduced.
