@@ -165,6 +165,7 @@ fn embedded_json(bytes: &[u8]) -> &[u8] {
 
 fn evidence(result: &CircularHoleSteadyStokesResult2d) -> Result<PreparedCylinderDemo, Diagnostic> {
     let solution = result.solution();
+    let chordal = result.chordal_realization();
     let constrained = solution.boundary_reaction();
     let body = solution.integrated_body_force();
     let traction = solution.integrated_boundary_traction();
@@ -182,10 +183,11 @@ fn evidence(result: &CircularHoleSteadyStokesResult2d) -> Result<PreparedCylinde
         geometry: GeometryEvidence {
             exact_source_digest: encode_digest(result.source().digest_bytes()),
             realized_geometry_digest: result.realized_geometry().digest()?.to_string(),
-            requested_max_boundary_error_m: result.owner().requested_max_boundary_error_m(),
-            boundary_evaluation_allowance_m: result.owner().boundary_evaluation_allowance_m(),
-            boundary_error_bound_m: result.owner().boundary_error_bound_m(),
-            circle_segments: result.owner().circle_segments(),
+            requested_max_boundary_error_m: chordal.requested_max_boundary_error_m(),
+            boundary_evaluation_allowance_m: chordal.boundary_evaluation_allowance_m(),
+            boundary_error_bound_m: chordal.boundary_error_bound_m(),
+            circle_segments: usize::try_from(chordal.circle_segments())
+                .map_err(|_| missing_evidence("local chordal segment count"))?,
         },
         cylinder_reaction: CylinderReactionEvidence {
             convention: "constraint-force-on-fluid",
