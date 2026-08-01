@@ -121,9 +121,10 @@ claimed cross-platform: the acceptance gates `0.23` (accept) and `0.24`
 ## Lateral-pair references
 
 The frozen decimals `0.18766537853334692` (x pair) and `0.35661030621548570`
-(y pair) are the correctly rounded binary64 values of the exact expressions
-`432*5^(2/3)/6731` and `27*30^(2/3)/731`. They are frozen as approximate
-("about") deliberately: the 4/3 m grid spacing is not dyadic, so the accepted
+(y pair) are the correctly rounded binary64 values of the ideal-real
+expressions `432*5^(2/3)/6731` and `27*30^(2/3)/731`, carried in
+`minimum_quality_ideal_real`. They are frozen as approximate ("about")
+deliberately: the 4/3 m grid spacing is not dyadic, so the accepted
 source coordinates are the predecessor capability's realized binary64
 coordinates (`x_i = i*s` with the endpoint snapped), and the production
 minimum quality may sit a few ulps from the ideal-real reference. Only the
@@ -175,3 +176,125 @@ The analytic lane (Fable 5) and the clean-room enumeration lane (Opus 5)
 derived all of the above separately and agreed exactly — every count,
 inventory, determinant, offset list, ordered cell, exact quality, multiplicity,
 binary64 value, and rejection boundary — before this package was frozen.
+
+## Post-freeze exact-reapplication addendum
+
+This addendum is authored by the independent evidence lane, not by the
+implementer. It adds no capability claim, relaxes no gate, adds no tolerance,
+and changes no number: the one manifest amendment it makes renames two lateral
+fields whose names claimed *exact* for a value the generated arithmetic never
+reaches, and preserves those numbers verbatim under `ideal_real` names. It
+answers one open question — whether the exact rational determinant sums
+telescope on the lateral faces as they do on the caps — and disposes of an
+observed binary64 reduction value.
+
+Everything below is produced by
+[`exact_reapplication.py`](exact_reapplication.py), a clean-room script written
+from the frozen public rules only. It imports nothing from the repository,
+reads no production output, no fixture, and no implementation source, and uses
+only the Python standard library:
+
+```bash
+python3 verify/geometry/cad-authored-surface-sweep/expected/exact_reapplication.py
+```
+
+It re-derives, without consulting any value except the frozen public claim: all
+six face frames from the box and the admitted outward face cycles; the surface
+interval counts at target edge 2 m; the endpoint-snapped coordinates; the
+layers-2, growth-3 offsets; the global-label staircase split; and the
+orientation fix. It then asserts, on every one of the six faces, the surface and
+volume counts, the offset list and its exact endpoints, the edge, facet,
+boundary, and interior counts, the per-face bounded-membership inventory, Euler
+characteristic 1, strict positivity of every exact determinant, the exact
+determinant sum `360/1` and exact volume `60/1 m³`, and the realized minimum
+determinant — plus the cap frames and planes, the cap determinant histogram, and
+the frozen first and last six oriented cells. It fails on any deviation and
+exits 0 today.
+
+### The acceptance-arithmetic rule
+
+Acceptance reinterprets every generated f64 coordinate exactly as the dyadic
+rational it already is (`Fraction.from_float` here, `BigRational` in the
+registered Rust evidence), and evaluates determinants, sums, and volumes in
+exact rational arithmetic from there. Consequently:
+
+- **no f64 determinant expansion and no f64 cell reduction is an acceptance
+  oracle**, and
+- **no observed f64 reduction value is frozen as a product golden constant.**
+
+The registered Rust evidence may wire this rule with exact `BigRational`
+arithmetic. Nothing here licenses a floating tolerance, a relaxed
+correspondence, a changed quality gate, a volume-report capability, or a
+cross-platform mesh-byte claim; none of those is claimed.
+
+### The lateral question, answered
+
+The exact rational determinant sums **do** telescope to `360/1` on all six
+faces, so the exact volume is `60/1 m³` on all six. This is derived per face and
+asserted against the exact box volume, never assumed from the cap values.
+
+The reason is structural rather than arithmetic luck. On each axis the first
+generated coordinate is exactly the lower bound and the last is exactly the
+upper bound, by the endpoint-snap rule for the surface and by the exact-endpoint
+rule for the layer offsets. The exact rational gaps therefore telescope to the
+exact axis extent whatever the interior coordinates round to. The rectangle
+split is exact in ℚ, and the three-tetrahedron split of a translational prism
+partitions it exactly, so the exact coverage is `5 × 3 × 4 = 60 m³` on every
+face. Interior rounding redistributes the determinants; it cannot change their
+sum. Every exact determinant is strictly positive, every boundary facet
+classifies into exactly one bounded face, no facet has multiplicity above two,
+and every frozen count and inventory reproduces.
+
+### Minimum-determinant disposition, and the field amendment
+
+A per-cell ideal-real determinant is reachable in exact arithmetic only where
+both source axes divide their length exactly in binary64. The script derives
+that condition per axis rather than assuming it:
+
+- **z pair** — both axes divide exactly (`5/4` and `1`). `5/4` is realized and
+  the cap multiset is exactly `5/4 ×72` and `15/4 ×72`.
+- **x and y pairs** — the length-4 axis at three intervals uses `fl(4/3)`, which
+  is below `4/3`. The realized exact minima are `5/3 - 5/(3·2^54)` and
+  `5/4 - 5/2^56`. Each lateral face has **four** distinct exact determinants,
+  not two, because the third realized gap (`4 - 2·fl(4/3)`) differs from the
+  first two.
+
+Those numbers were originally recorded beside rows named
+`minimum_determinant_exact_m3` that held the ideal-real values `5/3` and `5/4`.
+A field named *exact* holding a value the generated arithmetic never reaches is
+a trap for the implementation lane, so the lateral witnesses now carry the
+realized dyadic value in `minimum_determinant_exact_m3`, keep the old numbers
+verbatim in `minimum_determinant_ideal_real_m3`, and rename their
+`minimum_quality_exact` to `minimum_quality_ideal_real` for the same reason. No
+value was changed, relaxed, or widened, and no tolerance was introduced; the z
+pair, whose rows are realized, is untouched. The consequence for the
+implementation lane is now the plain reading: assert
+`minimum_determinant_exact_m3` in exact rational arithmetic and it holds on all
+six faces, or assert the telescoped sum — never a relaxed tolerance.
+
+### The naive quotient fold — NON-GATING, and not a constant
+
+The naive left fold of `fl(det/6)` in binary64 over a cap cell sequence moves
+under reassociation of the same terms: emission, ascending, and descending order
+disagree, while compensated summation returns exactly `60.0`. A quantity that
+changes under reassociation cannot be an acceptance oracle for a mesh whose
+coverage is order-independent, and the exact rational `60/1` is that
+order-independent quantity.
+
+The fold is deterministic on any IEEE-754 platform — only correctly rounded
+multiply, subtract, divide, and add are involved, and no libm function — so
+reproducibility is not the issue; order dependence is. Both independent repair
+lanes classified it as a non-claiming test defect: not an implementation defect
+and not a reason for a tolerance. The script prints the fold values so the
+observation is not rediscovered as a bug, and asserts none of them. No fold
+value is frozen as a constant in `case.toml`, in this document, or in the
+script.
+
+### Environment
+
+`exact_reapplication.py` uses exact rational arithmetic for every asserted
+value, so no asserted value depends on the platform. The sizing predicate is
+taken both through `math.hypot` and through an exact `2D² ≤ h²` test and the two
+are required to agree, so no interval count depends on libm bits. The NON-GATING
+fold line is the only binary64 arithmetic reported. Run on CPython 3.12, x86-64
+Linux. Cross-platform mesh-byte identity remains unclaimed.

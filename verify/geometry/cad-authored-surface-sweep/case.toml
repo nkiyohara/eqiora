@@ -71,6 +71,7 @@ determinant_thin_exact_m3 = "5/4"
 determinant_thick_exact_m3 = "15/4"
 determinant_multiplicity_each = 72
 minimum_determinant_exact_m3 = "5/4"
+minimum_determinant_reaches_ideal_real = true
 boundary_facets_x_lower = 12
 boundary_facets_x_upper = 12
 boundary_facets_y_lower = 16
@@ -143,8 +144,11 @@ boundary_facets_y_upper = 12
 boundary_facets_z_lower = 12
 boundary_facets_z_upper = 12
 volume_m3 = 60.0
-minimum_determinant_exact_m3 = "5/3"
-minimum_quality_exact = "432*5^(2/3)/6731"
+minimum_determinant_exact_m3 = "30023997515803305/18014398509481984"
+minimum_determinant_exact_form = "5/3 - 5/(3*2^54)"
+minimum_determinant_ideal_real_m3 = "5/3"
+minimum_determinant_note = "the ideal-real row is not realized: the length-4 axis at three intervals uses fl(4/3), so the exact row is the realized dyadic value beside it"
+minimum_quality_ideal_real = "432*5^(2/3)/6731"
 minimum_quality_f64_about = 0.18766537853334692
 
 [y_pair_witness]
@@ -164,8 +168,11 @@ boundary_facets_y_upper = 24
 boundary_facets_z_lower = 16
 boundary_facets_z_upper = 16
 volume_m3 = 60.0
-minimum_determinant_exact_m3 = "5/4"
-minimum_quality_exact = "27*30^(2/3)/731"
+minimum_determinant_exact_m3 = "90071992547409915/72057594037927936"
+minimum_determinant_exact_form = "5/4 - 5/2^56"
+minimum_determinant_ideal_real_m3 = "5/4"
+minimum_determinant_note = "the ideal-real row is not realized: the length-4 axis at three intervals uses fl(4/3), so the exact row is the realized dyadic value beside it"
+minimum_quality_ideal_real = "27*30^(2/3)/731"
 minimum_quality_f64_about = 0.35661030621548570
 
 [z_pair_witness]
@@ -228,6 +235,65 @@ local_refinement = false
 production_unstructured_mesher = false
 solver_python_studio_or_demo = false
 cross_platform_mesh_byte_identity = false
+
+[exact_reapplication]
+role = "post-freeze independent-oracle addendum; adds no capability claim, changes no frozen value, relaxes no gate"
+author = "independent evidence lane, not the implementer"
+script = "expected/exact_reapplication.py"
+route = "clean-room exact rational reapplication of the frozen public surface and sweep rules only; no repository import, no production output, no fixture, no implementation source"
+derived_independently = "all six face frames from the box and the outward face cycles, surface interval counts at target edge 2 m, endpoint-snapped coordinates, layers 2 / growth 3 offsets, global-label staircase split, and positive orientation"
+acceptance_arithmetic_rule = "acceptance reinterprets every generated f64 coordinate exactly as the dyadic rational it already is; determinants, sums, and volumes are then evaluated in exact rational arithmetic"
+no_f64_reduction_is_an_oracle = "no f64 determinant expansion and no f64 cell reduction is an acceptance oracle"
+no_observed_reduction_is_a_constant = "no observed f64 reduction value is frozen as a product golden constant"
+registered_evidence_binding = "the registered Rust evidence may wire this rule with exact BigRational arithmetic"
+exact_determinant_sum = "360/1"
+exact_volume_m3 = "60/1"
+telescoping_result = "verified on all six faces: the exact rational determinant sum is 360/1 and the exact volume is 60/1 m^3 on every face"
+telescoping_reason = "the endpoint-snapped structured surface and the exact-endpoint layer offsets telescope per axis, so the exact coverage equals the exact box volume whatever the interior coordinates round to"
+determinant_sum_is_order_invariant = true
+permutations_checked = "reversal, and index -> 37 * index mod cell count"
+positive_orientation = "every exact rational determinant is strictly positive on all six faces"
+boundary_membership = "bounded face membership; every boundary facet classified into exactly one of the six bounded faces"
+emission_order_caveat = "the frozen claim does not fix u-outer versus v-outer square emission; no value in this addendum depends on the choice, so none is stated under a convention the claim leaves open"
+
+[exact_reapplication.minimum_determinant_disposition]
+finding = "a per-cell ideal-real determinant is reachable in exact arithmetic only where both source axes divide their length exactly in binary64"
+z_pair = "both axes divide exactly; 5/4 is realized and the cap multiset is exactly 5/4 x72 and 15/4 x72"
+x_and_y_pairs = "the length-4 axis at three intervals uses fl(4/3), so the realized exact minima are 5/3 - 5/(3*2^54) and 5/4 - 5/2^56"
+lateral_multiset_size = "four distinct exact determinants per lateral face, not two, because the third realized gap on the length-4 axis differs from the first two"
+field_amendment = "the lateral witnesses now carry minimum_determinant_exact_m3 as the realized dyadic value and minimum_determinant_ideal_real_m3 as the preserved reference, so no field named exact holds an unrealized value; minimum_quality_exact on those witnesses is likewise renamed minimum_quality_ideal_real"
+consequence = "assert the realized values or the telescoped sum, never a relaxed tolerance"
+
+[exact_reapplication.non_gating_f64_fold_note]
+status = "NON-GATING explanation only. No value below is frozen as a constant and nothing here gates the script or the case."
+subject = "the naive left fold of fl(det/6) in binary64 over a cap cell sequence"
+finding = "the fold moves under reassociation of the same terms - emission, ascending, and descending order disagree, while compensated summation returns 60.0 - so it cannot be an acceptance oracle; the exact rational 60/1 is the order-independent quantity"
+classification = "both independent repair lanes classified it as a non-claiming test defect: not an implementation defect and not a reason for a tolerance"
+reproducibility = "deterministic on any IEEE-754 platform, since only correctly rounded multiply, subtract, divide, and add are involved; order dependence is the issue, not reproducibility. The script reports the values and asserts none of them."
+
+[exact_reapplication.face_frames]
+x_lower = "origin (-2, -1, 0.5), u=+z, v=+y, outward=-x, inward=+x; source u 3 by v 3; layer planes -2, -0.75, 3"
+x_upper = "origin (3, -1, 0.5), u=+y, v=+z, outward=+x, inward=-x; source u 3 by v 3; layer planes 3, 1.75, -2"
+y_lower = "origin (-2, -1, 0.5), u=+x, v=+z, outward=-y, inward=+y; source u 4 by v 3; layer planes -1, -0.25, 2"
+y_upper = "origin (-2, 2, 0.5), u=+z, v=+x, outward=+y, inward=-y; source u 3 by v 4; layer planes 2, 1.25, -1"
+z_lower = "origin (-2, -1, 0.5), u=+y, v=+x, outward=-z, inward=+z; source u 3 by v 4; layer planes 0.5, 1.5, 4.5; the frozen start cap"
+z_upper = "origin (-2, -1, 4.5), u=+x, v=+y, outward=+z, inward=-z; source u 4 by v 3; layer planes 4.5, 3.5, 0.5; the frozen primary end cap"
+
+[exact_reapplication.determinant_multiset]
+both_faces_of_a_pair = "identical multisets through distinct source, inward, and mesh identities; exact sum 360/1 and exact volume 60/1 m^3 on each of the six"
+z_pair = ["5/4 x72", "15/4 x72"]
+x_pair = [
+  "30023997515803305/18014398509481984 x36",
+  "15011998757901655/9007199254740992 x18",
+  "90071992547409915/18014398509481984 x36",
+  "45035996273704965/9007199254740992 x18",
+]
+y_pair = [
+  "90071992547409915/72057594037927936 x48",
+  "45035996273704965/36028797018963968 x24",
+  "270215977642229745/72057594037927936 x48",
+  "135107988821114895/36028797018963968 x24",
+]
 
 [planned_evidence]
 package = "eqiora"

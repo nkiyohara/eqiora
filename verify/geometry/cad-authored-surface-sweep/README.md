@@ -96,19 +96,77 @@ identity.
 At surface target edge 2 m, two layers, growth 3, quality gate `0.18`, and
 maximum 144, every face of the same box sweeps to a full-body mesh:
 
-| pair | source grid | offsets | V/E/F/T | boundary | min det | exact min quality |
-| ---- | ----------- | ------- | ------- | -------- | ------- | ----------------- |
-| x    | y3 x z3     | 0, 1.25, 5 | 48/197/258/108 | 84 | 5/3 | `432*5^(2/3)/6731` |
-| y    | x4 x z3     | 0, 0.75, 3 | 60/255/340/144 | 104 | 5/4 | `27*30^(2/3)/731` |
-| z    | x4 x y3     | 0, 1, 4    | 60/255/340/144 | 104 | 5/4 | `2*30^(2/3)/83` |
+| pair | source grid | offsets | V/E/F/T | boundary | min det, realized exact | min quality |
+| ---- | ----------- | ------- | ------- | -------- | ----------------------- | ----------- |
+| x    | y3 x z3     | 0, 1.25, 5 | 48/197/258/108 | 84 | `5/3 - 5/(3·2^54)` | `432*5^(2/3)/6731` ideal-real |
+| y    | x4 x z3     | 0, 0.75, 3 | 60/255/340/144 | 104 | `5/4 - 5/2^56` | `27*30^(2/3)/731` ideal-real |
+| z    | x4 x y3     | 0, 1, 4    | 60/255/340/144 | 104 | `5/4` reached exactly | `2*30^(2/3)/83` exact |
 
 Per-face boundary inventories are frozen in `case.toml`. Opposite faces give
-the same counts through distinct source, inward, and mesh identities. The
-lateral-pair f64 quality values (`about 0.18766537853334692` and
-`about 0.35661030621548570`) are the correctly rounded values of the exact
-expressions, frozen as approximate because the 4/3 m grid spacing is not
-dyadic, unlike the primary witness whose every coordinate, determinant, and
-Frobenius sum is exact in binary64.
+the same counts through distinct source, inward, and mesh identities. Every
+coordinate, determinant, and Frobenius sum of the z pair is exact in binary64;
+the lateral pairs' 4/3 m grid spacing is not dyadic, so their quality
+expressions and the ideal-real determinants `5/3` and `5/4` are references
+rather than realized values. Their f64 quality values
+(`about 0.18766537853334692` and `about 0.35661030621548570`) are the correctly
+rounded values of those expressions and stay frozen as approximate; only the
+wide `0.18` gate is claim-bearing for them.
+
+## Exact reapplication across all six faces
+
+A post-freeze independent-oracle addendum resolves how acceptance reads the
+generated coordinates, and answers whether the lateral faces cover the box as
+exactly as the caps do. It adds no capability claim, changes no frozen value,
+and relaxes no gate. The clean-room script
+[`expected/exact_reapplication.py`](expected/exact_reapplication.py) re-derives
+all six face frames, surface counts, endpoint-snapped coordinates, offsets,
+splits, and orientations from the frozen public rules alone — no repository
+import, no production output, no fixture — and fails on any deviation:
+
+```bash
+python3 verify/geometry/cad-authored-surface-sweep/expected/exact_reapplication.py
+```
+
+**Acceptance reinterprets every generated f64 coordinate exactly as the dyadic
+rational it already is, and evaluates determinants, sums, and volumes in exact
+rational arithmetic from there. No f64 determinant expansion and no f64 cell
+reduction is an acceptance oracle, and no observed f64 reduction value is
+frozen as a product golden constant.** The registered Rust evidence may wire
+this rule with exact `BigRational` arithmetic.
+
+Under that rule the exact determinant sums telescope to `360` and the exact
+volume is `60 m³` on **all six** faces, laterals included. The endpoint-snap
+rule puts the first and last coordinate of every axis exactly on the box
+bounds, so the exact gaps telescope to the exact extent whatever the interior
+coordinates round to; interior rounding redistributes determinants without
+changing their sum. Every exact determinant is strictly positive, every
+boundary facet classifies into exactly one bounded face, and every frozen count
+and inventory reproduces.
+
+Two dispositions follow, both recorded in
+[`expected/independent-oracles.md`](expected/independent-oracles.md) with the
+per-face summaries in `case.toml`:
+
+- **The lateral ideal-real determinants are not realized values, and the
+  fields now say so.** Where a source axis does not divide exactly in
+  binary64 — the length-4 axis at three intervals uses `fl(4/3)` — the realized
+  exact minima are `5/3 - 5/(3·2^54)` and `5/4 - 5/2^56`, and each lateral face
+  carries four distinct exact determinants rather than two. The z pair reaches
+  `5/4` exactly. The lateral witnesses therefore carry the realized dyadic value
+  in `minimum_determinant_exact_m3` and keep the old numbers verbatim in
+  `minimum_determinant_ideal_real_m3`; their `minimum_quality_exact` is likewise
+  renamed `minimum_quality_ideal_real`. No number was changed, relaxed, or
+  widened — only fields named *exact* that held an unrealized value were
+  renamed, so an exact-rational assertion against them now succeeds rather than
+  failing. Assert the realized values or the telescoped sum, never a tolerance.
+- **The naive `fl(det/6)` fold is a NON-GATING observation, not a constant.**
+  Its value moves under reassociation of the same terms — emission, ascending,
+  and descending order disagree, compensated summation returns exactly `60` —
+  so it cannot be an acceptance oracle, and the exact rational `60` is the
+  order-independent quantity. Both independent repair lanes classified it as a
+  non-claiming test defect, neither an implementation defect nor a reason for a
+  tolerance. The script reports the values and asserts none of them; no fold
+  value is frozen anywhere in this package.
 
 ## Falsifiers
 
