@@ -230,7 +230,7 @@ impl CadAuthoredFaceMesh {
     /// exceed the nominal generator parameter by rounding ulps because the
     /// final coordinate is snapped to the exact authored endpoint.
     #[must_use]
-    pub const fn u_spacing_m(&self) -> f64 {
+    pub const fn u_maximum_realized_gap_m(&self) -> f64 {
         self.u_maximum_realized_gap_m
     }
 
@@ -240,7 +240,7 @@ impl CadAuthoredFaceMesh {
     /// exceed the nominal generator parameter by rounding ulps because the
     /// final coordinate is snapped to the exact authored endpoint.
     #[must_use]
-    pub const fn v_spacing_m(&self) -> f64 {
+    pub const fn v_maximum_realized_gap_m(&self) -> f64 {
         self.v_maximum_realized_gap_m
     }
 
