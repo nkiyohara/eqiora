@@ -5,13 +5,11 @@ to one complete scalar physical Semantic Model and satisfy all of the
 following:
 
 - reversing definition and connection insertion while retaining the same
-  typed IDs leaves canonical Model v2 bytes, digest, and composed junction
+  typed IDs leaves canonical current Model bytes, digest, and composed junction
   residuals unchanged;
-- Model v2 bytes round-trip to the exact original bytes and digest, while the
-  older Model v1 encoder rejects the physical payload;
-- the public native facade rejects its exact-v1 default for the physical draft,
-  succeeds only with explicit v2 selection, and matches source-authored values
-  by semantic Port name despite independently minted graph IDs;
+- current Model bytes round-trip to the exact original bytes and digest;
+- the public native facade uses the current owner and matches source-authored
+  values by semantic Port name despite independently minted graph IDs;
 - structural affine admission produces one square 14-by-14 general CSR system
   in canonical unknown and residual order;
 - source and fresh-ID native systems both submit the exact analytic vector to

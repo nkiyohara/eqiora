@@ -5,7 +5,7 @@ use eqiora::api::{
     ScalarEllipticRunResult,
 };
 use eqiora::artifact::{ArtifactDigest, ExecutionProvenanceV1, RunManifestV2};
-use eqiora::control::{CompileOutcomeV1, CompileRequestV1, execute_compile_v1};
+use eqiora::control::{CompileOutcomeV2, CompileRequestV2, execute_compile_v2};
 use eqiora::diagnostic::codes;
 use eqiora::realization::RealizationRevision;
 use serde::Deserialize;
@@ -55,12 +55,11 @@ fn proposal(bytes: &[u8]) -> ProposedEdit {
 
 fn compile_base() -> ModelDocument {
     let request =
-        CompileRequestV1::new_current("verify.agent-authored-model-change", "poisson.eqi", SOURCE)
-            .unwrap();
-    let (response, document) = execute_compile_v1(&request).into_parts();
+        CompileRequestV2::new("verify.agent-authored-model-change", "poisson.eqi", SOURCE).unwrap();
+    let (response, document) = execute_compile_v2(&request).into_parts();
     assert!(matches!(
         response.outcome(),
-        CompileOutcomeV1::Accepted { .. }
+        CompileOutcomeV2::Accepted { .. }
     ));
     document.expect("accepted compilation must expose one immutable Model")
 }
@@ -167,11 +166,7 @@ fn offline_agent_proposal_uses_the_ordinary_exact_edit_and_execution_path() {
     assert!(accepted.solve().true_residual_norm() <= accepted.solve().residual_target());
 
     let child_bytes = agent_change.document().canonical_json().unwrap();
-    let replayed_child = agent_change
-        .document()
-        .exact_codec()
-        .replay(&child_bytes)
-        .unwrap();
+    let replayed_child = ModelDocument::replay(&child_bytes).unwrap();
     assert_eq!(replayed_child.canonical_json().unwrap(), child_bytes);
     assert_eq!(
         replayed_child.digest().unwrap(),

@@ -38,12 +38,11 @@ const GENERATION_V3: u16 = 3;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum SemanticFingerprintGeneration {
-    /// Closed projection of the Semantic Kernel vocabulary through Model wire v6.
+    /// Closed projection before geometry-backed Domain identity was admitted.
     V1,
-    /// Closed projection through Model wire v7, including geometry-backed Domains.
+    /// Closed projection including geometry-backed Domains.
     V2,
-    /// Closed projection through Model wire v8, including direct Cartesian
-    /// coordinate sources.
+    /// Closed projection including direct Cartesian coordinate sources.
     V3,
 }
 

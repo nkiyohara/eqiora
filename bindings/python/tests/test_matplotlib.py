@@ -50,13 +50,13 @@ def accepted_result() -> eqiora.fluid.CircularHoleSteadyStokesResult:
         required_minimum_mean_ratio=1e-5,
         max_segments=50,
     )
-    model_v7 = (
+    model = (
         files(eqiora)
-        .joinpath("examples", "steady-flow-past-cylinder.model-v7.json")
+        .joinpath("examples", "steady-flow-past-cylinder.model.json")
         .read_bytes()
     )
     return eqiora.fluid.solve_exact_cylinder_stokes(
-        model_v7=model_v7,
+        model=model,
         geometry=geometry,
         mesh=mesh,
     )
@@ -68,10 +68,9 @@ def accepted_structural_result() -> eqiora.solid.MixedBoundaryElasticityResult:
         .joinpath("examples", "mixed-boundary-elasticity.eqi")
         .read_text(encoding="utf-8")
     )
-    model = eqiora.compatibility.compile_exact(
+    model = eqiora.compile(
         source,
         filename="mixed-boundary-elasticity.eqi",
-        codec=eqiora.compatibility.ExactModelCodec.V4,
     )
     return eqiora.solid.solve_mixed_boundary_elasticity(model)
 
@@ -82,10 +81,9 @@ def accepted_fsi_result() -> eqiora.fsi.FixedReferenceFsiResult:
         .joinpath("examples", "fixed-reference-fsi.eqi")
         .read_text(encoding="utf-8")
     )
-    model = eqiora.compatibility.compile_exact(
+    model = eqiora.compile(
         source,
         filename="fixed-reference-fsi.eqi",
-        codec=eqiora.compatibility.ExactModelCodec.V4,
     )
     return eqiora.fsi.solve_fixed_reference_fsi(model)
 
@@ -381,9 +379,7 @@ def test_fsi_plot_preserves_partition_fields_and_explicit_scale(
             for first, second in ((0, 1), (1, 2), (2, 0))
         }
     )
-    expected_deformed = (
-        coordinates + 2.0 * selected.displacement
-    )[solid_edges]
+    expected_deformed = (coordinates + 2.0 * selected.displacement)[solid_edges]
     pressure_by_vertex = dict(
         zip(
             selected.pressure_vertices.tolist(),

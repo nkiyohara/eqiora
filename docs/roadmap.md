@@ -86,7 +86,7 @@ those two parent paths, not another physical semantics.
   enters the unchanged target ALE finalizer.
 - One accepted remeshing-aware trajectory projects to a complete XDMF 3
   temporal collection and HDF5 file image, and to a separate derived Dataset.
-- One current-v8 Model with one three-dimensional Cartesian body can replace a
+- One current Model with one three-dimensional Cartesian body can replace a
   non-empty canonical set of axis intervals through one ordinary immutable
   transaction while retaining body, boundary, membership, and incidence
   identities.
@@ -282,7 +282,7 @@ The next product wavefront is dependency-ordered rather than calendar-ordered:
 Geometry and CAD
   atomic axis-keyed Cartesian Domain edit and identity-preserving regeneration  closed
     -> direct Parameter-driven Cartesian coordinates (RFC 0078 accepted)
-      -> exact Model/Transaction v8 semantic replay                         closed
+      -> current Model/Transaction semantic replay                          closed
         -> atomic Parameter-driven geometry regeneration                    closed
           -> one current-only pre-1.0 Model/Transaction artifact epoch
              (parallel prerequisite for Python and Studio projections)

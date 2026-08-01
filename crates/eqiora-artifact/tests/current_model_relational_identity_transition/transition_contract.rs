@@ -1014,9 +1014,11 @@ fn the_repository_is_in_exactly_one_frozen_transition_state() {
             "the sweep must not report its own executor `{path}`"
         );
     }
-    if let Err(reason) = classify_transition(&contract, &observed) {
-        panic!("the working tree is neither wholly before nor wholly after the reset: {reason}");
-    }
+    assert_eq!(
+        classify_transition(&contract, &observed),
+        Ok(TransitionState::PostReset),
+        "the working tree must be the complete post-reset state"
+    );
 
     // The same walk collects the declared product-source scopes, so the token
     // contract is wired to the real tree and not only to synthetic content.
@@ -1039,25 +1041,27 @@ fn the_repository_is_in_exactly_one_frozen_transition_state() {
         "scoped product source collapsed"
     );
 
-    // And the contract is deliberately not applied here. This checkout is
-    // pre-reset and carries most of what the reset removes; refusing it would
-    // refuse the state this case ships in. What it carries is not "all of it",
-    // so the exact presence and absence is frozen and checked below rather than
-    // asserted as a slogan.
-    assert!(
-        scan_forbidden_tokens(&contract.forbidden, &observed.content).is_err(),
-        "the pre-reset tree must still carry the tokens the reset removes; if it does not, \
-         this contract is checking nothing"
+    assert_eq!(
+        scan_forbidden_tokens(&contract.forbidden, &observed.content),
+        Ok(()),
+        "the complete post-reset product source must spell no forbidden token"
     );
 }
 
+/// The observed tree spells none of the 102, and the frozen record still says
+/// there was something to remove.
+///
+/// The 98/4 partition was measured before the reset, over a tree this checkout
+/// no longer is, and re-measuring it here is not available. So it is read as the
+/// frozen record it is: checked against the token list the live scan consumes,
+/// and against this case's own declared totals — never against itself as though
+/// it were a second tree scan.
 #[test]
-fn the_pre_reset_tree_carries_exactly_the_frozen_forbidden_tokens() {
+fn pre_reset_occurrence_remains_frozen_and_post_reset_is_clean() {
     let contract = TransitionContract::from_classification();
     let observed = Observed::from_repository(&contract, &repository_root());
     let classification = classification();
-    let declared = &classification["search"]["forbidden_product_tokens"];
-    let occurrence = &declared["pre_reset_occurrence"];
+    let occurrence = &classification["search"]["forbidden_product_tokens"]["pre_reset_occurrence"];
     assert_eq!(occurrence["measured_state"], "pre_reset");
 
     let records = occurrence["scopes"]
@@ -1065,14 +1069,26 @@ fn the_pre_reset_tree_carries_exactly_the_frozen_forbidden_tokens() {
         .expect("the presence contract must record every declared scope");
     assert_eq!(records.len(), contract.forbidden.len());
 
-    let mut present_total = 0;
-    let mut absent_total = 0;
+    let mut recorded_present = 0;
+    let mut prospective = Vec::new();
     for scope in &contract.forbidden {
         let record = records
             .iter()
             .find(|record| record["name"] == scope.name.as_str())
             .unwrap_or_else(|| panic!("scope `{}` must record its occurrence", scope.name));
-        let (present, absent) = scope.occurrence(&observed.content);
+        let (present, _) = scope.occurrence(&observed.content);
+        assert_eq!(
+            present,
+            Vec::<String>::new(),
+            "{} tokens surviving in the observed post-reset tree",
+            scope.name
+        );
+
+        // The record is held against the token list the scan above consumes: it
+        // must count that list, partition it, and name as prospective only
+        // tokens the scope really forbids.
+        let recorded = record["present"].as_u64().unwrap() as usize;
+        let absent = frozen_list(record, "absent");
         assert_eq!(
             record["declared"].as_u64().unwrap() as usize,
             scope.forbidden.len(),
@@ -1080,48 +1096,31 @@ fn the_pre_reset_tree_carries_exactly_the_frozen_forbidden_tokens() {
             scope.name
         );
         assert_eq!(
-            record["present"].as_u64().unwrap() as usize,
-            present.len(),
-            "{} tokens present in the pre-reset tree",
+            recorded + absent.len(),
+            scope.forbidden.len(),
+            "{} record must partition the tokens the scan forbids",
             scope.name
         );
-        assert_eq!(
-            frozen_list(record, "absent"),
-            absent,
-            "{} tokens absent from the pre-reset tree",
-            scope.name
-        );
-        present_total += present.len();
-        absent_total += absent.len();
+        for token in &absent {
+            assert!(
+                scope.forbidden.contains(token),
+                "{} records `{token}` as prospective without forbidding it",
+                scope.name
+            );
+        }
+        recorded_present += recorded;
+        prospective.extend(absent);
     }
 
     // 86 of 90 Rust tokens, all six Python and all six control tokens. The four
     // that are missing are prospective post-reset guards: they name the
     // per-generation entry points a renamed historical v2 branch would most
     // plausibly reappear under while the reset is being written. Forbidding
-    // them after the reset costs nothing; claiming they occur today would be
+    // them after the reset costs nothing; claiming they were observed would be
     // false, so this case does not.
-    assert_eq!(present_total, 98);
-    assert_eq!(absent_total, 4);
+    assert_eq!(recorded_present, 98);
     assert_eq!(
-        occurrence["present_token_count"].as_u64().unwrap() as usize,
-        present_total
-    );
-    assert_eq!(
-        occurrence["prospective_token_count"].as_u64().unwrap() as usize,
-        absent_total
-    );
-    assert_eq!(
-        present_total + absent_total,
-        declared["forbidden_token_count"].as_u64().unwrap() as usize,
-        "every declared token is either present today or a prospective guard"
-    );
-    let rust = records
-        .iter()
-        .find(|record| record["name"] == "rust-product-source")
-        .unwrap();
-    assert_eq!(
-        frozen_list(rust, "absent"),
+        prospective,
         [
             "from_program_v2",
             "from_json_v2",
@@ -1129,6 +1128,8 @@ fn the_pre_reset_tree_carries_exactly_the_frozen_forbidden_tokens() {
             "digest_v2"
         ]
     );
+    assert_eq!(occurrence["present_token_count"].as_u64().unwrap(), 98);
+    assert_eq!(occurrence["prospective_token_count"].as_u64().unwrap(), 4);
 }
 
 #[test]

@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use eqiora::api::package::PackageCompilationError;
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::package::{
     DirectoryPackageInstaller, DirectoryPackageStore, PackageInstallDisposition,
     PackageInstallError, PackageInstallReceipt, PackageReleaseV1, PackageStageCleanup,
@@ -79,7 +78,6 @@ fn explicit_store_rejects_missing_substituted_malformed_and_oversize_entries() {
             &store,
             &resolution,
             "Main",
-            ExactModelCodec::V2,
         ),
         Err(PackageCompilationError::Resolution(
             ResolutionError::MissingBundle(digest)
@@ -89,23 +87,17 @@ fn explicit_store_rejects_missing_substituted_malformed_and_oversize_entries() {
     fs::write(entry_path(&directory.0, library_digest), ROOT_RELEASE)
         .expect("write digest-substituted library");
     fs::write(entry_path(&directory.0, root_digest), ROOT_RELEASE).expect("write root release");
-    assert!(
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V2,)
-            .is_err()
-    );
+    assert!(PackagedModelDocument::compile_locked(&store, &resolution, "Main").is_err());
 
     fs::write(entry_path(&directory.0, library_digest), b"{not-json")
         .expect("write malformed library");
-    assert!(
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V2,)
-            .is_err()
-    );
+    assert!(PackagedModelDocument::compile_locked(&store, &resolution, "Main").is_err());
 
     fs::write(entry_path(&directory.0, library_digest), LIBRARY_RELEASE)
         .expect("write exact library");
     fs::write(directory.0.join("unrelated.json"), b"untrusted decoy")
         .expect("write unrelated entry");
-    PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V2)
+    PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("unrelated entry cannot affect exact replay");
     assert!(matches!(
         store.load_exact(library_digest, LIBRARY_RELEASE.len() - 1),
@@ -141,8 +133,7 @@ fn exact_replay_does_not_require_directory_enumeration() {
     fs::set_permissions(&directory.0, execute_only).expect("remove directory-listing permission");
 
     let enumeration = fs::read_dir(&directory.0);
-    let compiled =
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V2);
+    let compiled = PackagedModelDocument::compile_locked(&store, &resolution, "Main");
 
     fs::set_permissions(&directory.0, original_permissions)
         .expect("restore test-directory permissions");
@@ -216,7 +207,6 @@ fn atomic_installer_publishes_the_exact_locked_restart() {
             &store,
             &resolution,
             "Main",
-            ExactModelCodec::V2,
         ),
         Err(PackageCompilationError::Resolution(
             ResolutionError::SourceDigestMismatch { expected, actual }

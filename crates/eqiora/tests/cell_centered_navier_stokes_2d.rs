@@ -1,7 +1,6 @@
 use std::f64::consts::PI;
 use std::num::NonZeroUsize;
 
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{MeshEntity, MeshTopology};
 use eqiora::realization::{
     DiscretizationMethod, MeshKind, NonlinearSolvePlan, RealizationCapabilities,
@@ -116,15 +115,12 @@ fn run_case(
     steps: usize,
     transform: InitialTransform,
 ) -> ResolvedCellCenteredNavierStokesTrajectory2d {
-    let document = ExactModelCodec::V5
-        .compile(
-            "verify/fluid/fixed-domain-transient-navier-stokes-2d/models/direct.eqi",
-            SOURCE,
-        )
-        .unwrap();
-    let replay = ExactModelCodec::V5
-        .replay(&document.canonical_json().unwrap())
-        .unwrap();
+    let document = eqiora::api::ModelDocument::compile(
+        "verify/fluid/fixed-domain-transient-navier-stokes-2d/models/direct.eqi",
+        SOURCE,
+    )
+    .unwrap();
+    let replay = eqiora::api::ModelDocument::replay(&document.canonical_json().unwrap()).unwrap();
     assert_eq!(replay.digest().unwrap(), document.digest().unwrap());
     assert_eq!(replay.program().model(), document.program().model());
     assert_eq!(replay.program().revision(), document.program().revision());

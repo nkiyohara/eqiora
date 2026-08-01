@@ -7,11 +7,11 @@ import {
   spatialResultMatchesRequest,
 } from "./bridge-contract";
 import {
-  type CompileRequestV1,
-  type ControlDiagnosticV1,
-  compileRequestV1Schema,
+  type CompileRequestV2,
+  type ControlDiagnosticV2,
+  compileRequestV2Schema,
   compileResponseMatchesRequest,
-  compileResponseV1Schema,
+  compileResponseV2Schema,
 } from "./control-protocol";
 import type { CylinderDemoRequest, CylinderDemoResult } from "./cylinder-demo-protocol";
 import type { DcMotorDemoRequest, DcMotorDemoResult } from "./dc-motor-demo-protocol";
@@ -76,10 +76,10 @@ export type StudioExample = "decay" | "spatial" | "cad";
 
 export interface StudioBridge {
   readonly mode: BridgeMode;
-  compile(request: CompileRequestV1): Promise<BridgeEnvelope<DocumentProjection>>;
+  compile(request: CompileRequestV2): Promise<BridgeEnvelope<DocumentProjection>>;
   loadReadOnlyExample(
     example: StudioExample,
-    request: CompileRequestV1,
+    request: CompileRequestV2,
   ): Promise<BridgeEnvelope<DocumentProjection>>;
   previewValueEdit(request: ValueEditPreviewRequest): Promise<BridgeEnvelope<ValueEditPlan>>;
   commitValueEdit(request: ValueEditCommitRequest): Promise<BridgeEnvelope<ValueEditResult>>;
@@ -104,13 +104,13 @@ export interface StudioBridge {
 const compileCommandEnvelopeSchema = z
   .object({
     protocol: z.literal(BRIDGE_PROTOCOL),
-    control: compileResponseV1Schema.nullable(),
+    control: compileResponseV2Schema.nullable(),
     projection: documentProjectionSchema.nullable(),
     diagnostics: z.array(diagnosticSchema).max(10_000),
   })
   .strict();
 
-function studioDiagnostic(diagnostic: ControlDiagnosticV1): StudioDiagnostic {
+function studioDiagnostic(diagnostic: ControlDiagnosticV2): StudioDiagnostic {
   return {
     source: diagnostic.source,
     severity: diagnostic.severity,
@@ -133,14 +133,14 @@ function exampleSource(example: StudioExample): string {
   }
 }
 
-function exampleRequestMatchesSource(example: StudioExample, request: CompileRequestV1): boolean {
+function exampleRequestMatchesSource(example: StudioExample, request: CompileRequestV2): boolean {
   return request.source === exampleSource(example);
 }
 
 async function nativeCompile(
-  request: CompileRequestV1,
+  request: CompileRequestV2,
 ): Promise<BridgeEnvelope<DocumentProjection>> {
-  const checked = checkedRequest(compileRequestV1Schema, request, "Compile/check");
+  const checked = checkedRequest(compileRequestV2Schema, request, "Compile/check");
   if (!checked.ok) {
     return checked.failure;
   }
@@ -762,7 +762,7 @@ function previewSpatialPlan(request: SpatialRealizationPreviewRequest): SpatialR
 const previewBridge: StudioBridge = {
   mode: "preview",
   async compile(request) {
-    const checked = checkedRequest(compileRequestV1Schema, request, "Compile/check");
+    const checked = checkedRequest(compileRequestV2Schema, request, "Compile/check");
     if (!checked.ok) {
       return checked.failure;
     }
@@ -784,7 +784,7 @@ const previewBridge: StudioBridge = {
     };
   },
   async loadReadOnlyExample(example, request) {
-    const checked = checkedRequest(compileRequestV1Schema, request, "Read-only example");
+    const checked = checkedRequest(compileRequestV2Schema, request, "Read-only example");
     if (!checked.ok) {
       return checked.failure;
     }

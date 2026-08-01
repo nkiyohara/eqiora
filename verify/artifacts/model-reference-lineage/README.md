@@ -1,31 +1,29 @@
 # Typed Model artifact reference lineage
 
-This case projects explicitly selected Model v1, v2, and v3 artifacts to one
-sealed typed identity contract, then feeds each reference to the unchanged
+This case compiles three Models in the current artifact epoch, spanning the
+spatial, scalar-physical, and field-boundary vocabularies, projects each to one
+sealed typed identity contract, and feeds each reference to the unchanged
 Realization v1 and Run v2 artifact chain:
 
 ```text
-explicit Model v1 | v2 | v3
-          -> typed artifact reference
-          -> Realization v1
-          -> Run v2
+current Model
+  -> typed artifact reference
+  -> Realization v1
+  -> Run v2
 ```
 
-Every selected Model is decoded again through its public, explicit
-`ExactModelCodec` selection before the Realization link is replayed. A second
-test exercises the artifact owner's single historical-envelope dispatch
-registration point by encoding and decoding the same semantic graph through
-every v1-v7 generation. Every wrong-generation decode fails, and matching
-Model identity and revision cannot replace the exact domain-separated artifact
-digest.
+Every Model is replayed through the public current-only `ModelDocument` path
+before the Realization link is checked. A second test exercises the artifact
+owner directly: it encodes and decodes one current Model, replays its immutable
+Kernel Program, and proves that the resulting typed reference still validates
+the existing Realization.
 
 This is identity-lineage evidence. The scalar-physical and field-boundary
 Models are not lowered or executed, and no numerical or physical result is
-accepted. Generation-neutral CAD and Geometry consumers do not retain
-historical Model envelopes or dispatch on their generations. The artifact
-registry does not own the public caller policy: adding a generation also
-requires an explicit `ExactModelCodec` update. The contract performs no wire
-detection, fallback, or schema upgrade.
+accepted. Realization and Run retain one typed current reference rather than
+an artifact generation selector. The contract performs no historical wire
+detection, fallback, schema upgrade, or migration; v1--v7 bytes are negative
+specimens owned by the current canonical-identity case.
 
 Run:
 
@@ -34,4 +32,5 @@ cargo test -p eqiora --test model_artifact_reference_lineage
 cargo run -p eqiora-verify -- run --case artifacts.model-reference-lineage
 ```
 
-See [RFC 0037](../../../rfcs/0037-version-neutral-model-artifact-reference.md).
+See [RFC 0037](../../../rfcs/0037-version-neutral-model-artifact-reference.md)
+and [RFC 0083](../../../rfcs/0083-current-model-artifact-epoch.md).

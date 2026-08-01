@@ -13,11 +13,14 @@ reduction policy: the CPU oracle uses reproducible identity-preconditioned
 MINRES, while the CUDA path uses the adapter-native `Fast` policy with the
 same symmetric-indefinite operator and identity preconditioner.
 
-After a selected-device run, the replay reconstructs the exact Model and
-`RealizationEnvelopeV3`, verifies `RunManifestV2` provenance and linkage, and
-independently reapplies the finalized CSR on the serial host to accept the
-recorded coefficients. Those coefficients then enter the sole pre-existing
-FSI physical finish. An independently solved CPU oracle must agree under
+After a selected-device run, replay preserves the historical Model,
+`RealizationEnvelopeV3`, and `RunManifestV2` bytes as one linked observation.
+The retired Model schema is not decoded or relabelled. A separately frozen
+current Model bridge supplies the same program under an independently matched
+generation-v2 structural fingerprint, after which replay independently
+reapplies the finalized CSR on the serial host to accept the recorded
+coefficients. Those coefficients then enter the sole pre-existing FSI physical
+finish. An independently solved CPU oracle must agree under
 `2e-10 + 2e-10 max(|a|, |b|)` for dimensionless algebraic coefficients and,
 after exact Field identity/support/order checks, for velocity divided by `U`,
 pressure by `P`, and displacement by `L`.
@@ -45,12 +48,13 @@ The observation's leaves are not all of one kind, and they do not all age the
 same way. The selected-device leaves — the recorded coefficients, both content
 identities, the solver report, the generic receipt, the device and library
 environment, and the FSI physical finish — belong to that collection, as do
-the Model, Realization, and Run artifacts beside it. The replay never repeats
-the device solve: it rebuilds those identities, the admission receipt, the
-physical finish, and the canonical artifact bytes on the host from the
-current tree, requires each to equal the recorded leaf, re-accepts the
-recorded coefficients through an independent serial-host residual, and
-rejects any observation whose source commit is not the registered one. That
+the historical Model, Realization, and Run artifacts beside it. The replay
+never repeats the device solve: it checks that historical lineage without
+rewriting it, builds separate current-epoch lineage from the bridge, rebuilds
+the admission receipt and physical finish on the host from the current tree,
+re-accepts the recorded coefficients through an independent serial-host
+residual, and rejects any observation whose source commit is not the registered
+one. No current Run is claimed as observed. That
 is what keeps the pinned source honest for the device result, and it is why
 a change to the reference solver cannot move any of these leaves. A second
 run on the same device is not claimed to reproduce them.

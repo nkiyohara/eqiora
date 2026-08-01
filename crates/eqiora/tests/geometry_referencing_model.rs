@@ -1,9 +1,5 @@
 use eqiora::api::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
-use eqiora::artifact::{
-    ModelDecoderLimits, ModelEnvelopeV6, ModelEnvelopeV7, ModelTransactionEnvelopeV6,
-    ModelTransactionEnvelopeV7,
-};
-use eqiora::compatibility::ExactModelCodec;
+use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope, ModelTransactionEnvelope};
 use eqiora::diagnostic::codes;
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{
@@ -78,11 +74,11 @@ enum BoundaryParent {
 
 struct Fixture {
     program: KernelProgram,
-    transaction: ModelTransactionEnvelopeV7,
+    transaction: ModelTransactionEnvelope,
 }
 
 #[test]
-fn geometry_domains_validate_and_round_trip_only_through_exact_v7() {
+fn geometry_domains_validate_and_round_trip_through_the_current_wire() {
     let ids = FixtureIds::fresh();
     let region_only = build_fixture(
         ids,
@@ -95,10 +91,10 @@ fn geometry_domains_validate_and_round_trip_only_through_exact_v7() {
     assert_eq!(region_only.program.nodes().count(), 5);
 
     let fixture = build_fixture(ids, GeometryMeaning::default());
-    let model = ModelEnvelopeV7::from_program(&fixture.program).unwrap();
+    let model = ModelEnvelope::from_program(&fixture.program).unwrap();
     let model_bytes = model.canonical_json().unwrap();
     let model_digest = model.digest().unwrap();
-    let replayed = ModelEnvelopeV7::from_json(&model_bytes, ModelDecoderLimits::default()).unwrap();
+    let replayed = ModelEnvelope::from_json(&model_bytes, ModelDecoderLimits::default()).unwrap();
     assert_eq!(replayed.canonical_json().unwrap(), model_bytes);
     assert_eq!(replayed.digest().unwrap(), model_digest);
     let replayed_program = replayed.to_program().unwrap();
@@ -111,32 +107,16 @@ fn geometry_domains_validate_and_round_trip_only_through_exact_v7() {
     let transaction_bytes = fixture.transaction.canonical_json().unwrap();
     let transaction_digest = fixture.transaction.digest().unwrap();
     let replayed_transaction =
-        ModelTransactionEnvelopeV7::from_json(&transaction_bytes, ModelDecoderLimits::default())
+        ModelTransactionEnvelope::from_json(&transaction_bytes, ModelDecoderLimits::default())
             .unwrap();
-    let reencoded_transaction = ModelTransactionEnvelopeV7::from_transaction(
-        &replayed_transaction.to_transaction().unwrap(),
-    )
-    .unwrap();
+    let reencoded_transaction =
+        ModelTransactionEnvelope::from_transaction(&replayed_transaction.to_transaction().unwrap())
+            .unwrap();
     assert_eq!(
         reencoded_transaction.canonical_json().unwrap(),
         transaction_bytes
     );
     assert_eq!(reencoded_transaction.digest().unwrap(), transaction_digest);
-
-    assert!(ModelEnvelopeV6::from_program(&fixture.program).is_err());
-    assert!(ModelEnvelopeV6::from_json(&model_bytes, ModelDecoderLimits::default()).is_err());
-    assert!(
-        ModelTransactionEnvelopeV6::from_json(&transaction_bytes, ModelDecoderLimits::default())
-            .is_err()
-    );
-
-    let current = ExactModelCodec::CURRENT;
-    assert_eq!(current, ExactModelCodec::V8);
-    assert!(current.supports_scalar_physical());
-    assert!(current.supports_boundary_physical());
-    assert!(current.supports_tensor_operators());
-    assert!(current.supports_pure_operators());
-    assert!(current.supports_spatial_periodic());
 
     let mut malformed: Value = serde_json::from_slice(&model_bytes).unwrap();
     let original = "11".repeat(32);
@@ -144,7 +124,7 @@ fn geometry_domains_validate_and_round_trip_only_through_exact_v7() {
         replace_exact_string(&mut malformed, &original, "not-a-digest"),
         2
     );
-    let error = ModelEnvelopeV7::from_json(
+    let error = ModelEnvelope::from_json(
         &serde_json::to_vec(&malformed).unwrap(),
         ModelDecoderLimits::default(),
     )
@@ -156,7 +136,7 @@ fn geometry_domains_validate_and_round_trip_only_through_exact_v7() {
 fn geometry_identity_names_and_topology_are_fingerprint_meaning() {
     let ids = FixtureIds::fresh();
     let baseline = build_fixture(ids, GeometryMeaning::default());
-    let baseline_model = ModelEnvelopeV7::from_program(&baseline.program).unwrap();
+    let baseline_model = ModelEnvelope::from_program(&baseline.program).unwrap();
     let baseline_fingerprint =
         StructuralSemanticFingerprint::from_program(&baseline.program).unwrap();
     assert_eq!(
@@ -213,7 +193,7 @@ fn geometry_identity_names_and_topology_are_fingerprint_meaning() {
     let fresh = build_fixture(FixtureIds::fresh(), GeometryMeaning::default());
     assert_ne!(
         baseline_model.digest().unwrap(),
-        ModelEnvelopeV7::from_program(&fresh.program)
+        ModelEnvelope::from_program(&fresh.program)
             .unwrap()
             .digest()
             .unwrap()
@@ -279,7 +259,7 @@ fn geometry_parent_rules_and_spatial_support_fail_closed() {
 
 fn build_fixture(ids: FixtureIds, meaning: GeometryMeaning<'_>) -> Fixture {
     let transaction = build_transaction(ids, meaning, ExtraMeaning::None, false);
-    let encoded = ModelTransactionEnvelopeV7::from_transaction(&transaction).unwrap();
+    let encoded = ModelTransactionEnvelope::from_transaction(&transaction).unwrap();
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), ids.model).unwrap();
@@ -512,13 +492,13 @@ fn assert_invalid_kernel(transaction: Transaction, model: OntologyId<Model>) {
 }
 
 fn assert_distinct_model_and_fingerprint(
-    baseline_model: &ModelEnvelopeV7,
+    baseline_model: &ModelEnvelope,
     baseline_fingerprint: &StructuralSemanticFingerprint,
     changed: &Fixture,
 ) {
     assert_ne!(
         baseline_model.digest().unwrap(),
-        ModelEnvelopeV7::from_program(&changed.program)
+        ModelEnvelope::from_program(&changed.program)
             .unwrap()
             .digest()
             .unwrap()

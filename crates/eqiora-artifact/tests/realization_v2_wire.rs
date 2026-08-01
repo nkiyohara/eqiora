@@ -1,7 +1,7 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
-    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV4,
+    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
     RealizationDecoderLimits, RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora_compiler::compile;
@@ -240,7 +240,7 @@ fn run_v2_accepts_fieldwise_v2_and_rejects_reduction_or_topology_drift() {
 }
 
 struct Fixture {
-    model: ModelEnvelopeV4,
+    model: ModelEnvelope,
     program: KernelProgram,
     mesh: SimplicialMeshEnvelopeV1,
     requirements: FieldwiseRealizationRequirements,
@@ -250,7 +250,7 @@ struct Fixture {
 
 fn fixture(reduction: ReductionPolicy) -> Fixture {
     let program = program_fixture();
-    let model = ModelEnvelopeV4::from_program(&program).unwrap();
+    let model = ModelEnvelope::from_program(&program).unwrap();
     let (domain, velocity, pressure) = semantic_ids(&program);
     let mesh = mesh_fixture();
     let execution = RealizationRequirements::new(

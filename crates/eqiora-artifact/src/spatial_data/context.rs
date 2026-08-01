@@ -12,7 +12,7 @@ use eqiora_sem::KernelProgram;
 
 use crate::{
     CanonicalModelArtifact, GeometryDefinitionV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference, ModelEnvelopeV7,
+    GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference, ModelEnvelope,
     RealizationEnvelopeV2, RealizationEnvelopeV3, ReplayableCanonicalModelArtifact,
     ReplayedCanonicalModel, SimplicialMeshEnvelopeV1, invalid_artifact,
 };
@@ -127,7 +127,7 @@ pub(super) struct ValidatedCircularHoleFieldwiseContext<'a> {
 impl<'a> ValidatedCircularHoleFieldwiseContext<'a> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
-        model: &ModelEnvelopeV7,
+        model: &ModelEnvelope,
         realization: &'a RealizationEnvelopeV2,
         source: &CanonicalCircularHoleGeometryV1,
         owner: &CircularHoleChordalMeshV1,
@@ -153,7 +153,7 @@ impl<'a> ValidatedCircularHoleFieldwiseContext<'a> {
             || SemanticRevision::new(program.revision().0) != model_reference.semantic_revision()
         {
             return Err(invalid_artifact(
-                "authored Model v7 identity or revision differs after exact-geometry replay",
+                "authored Model identity or revision differs after exact-geometry replay",
             ));
         }
         realization.validate_model_artifact(model)?;
@@ -267,7 +267,7 @@ impl<'a> ValidatedCircularHoleFieldwiseContext<'a> {
 
 fn authored_replay_error(action: &str, diagnostics: Vec<Diagnostic>) -> Diagnostic {
     invalid_artifact(format!(
-        "cannot {action} authored Model v7: {}",
+        "cannot {action} authored Model: {}",
         diagnostics
             .iter()
             .map(Diagnostic::message)

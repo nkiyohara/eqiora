@@ -1,11 +1,11 @@
 id = "geometry.model-references-a-geometry"
 status = "verified"
-scope = "graph-authored-v7-geometry-reference-and-structural-fingerprint-v2"
+scope = "graph-authored-current-model-geometry-reference-and-structural-fingerprint-v2"
 reference_kind = "independent-topology-and-identity-falsifiers"
 
 capabilities = [
   "geometry-region-and-boundary-model-validation",
-  "exact-model-and-transaction-v7-round-trip",
+  "current-model-and-transaction-round-trip",
   "geometry-aware-structural-fingerprint-v2",
   "pre-admission-spatial-support-rejection",
 ]
@@ -16,8 +16,9 @@ identity = "full geometry digest, region entity-set names, boundary entity-set n
 generation = "eqiora.structural-semantic-fingerprint/v2"
 
 [claim_boundary]
-model_wire_v7 = true
-transaction_wire_v7 = true
+model_owner = "current"
+current_model_and_transaction_replay = true
+historical_generation_callable = false
 geometry_region_validation = true
 geometry_boundary_validation = true
 artifact_admission = false

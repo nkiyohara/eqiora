@@ -8,7 +8,7 @@ use super::context::ValidatedCircularHoleFieldwiseContext;
 use super::field::FieldSnapshotEnvelopeV1;
 use crate::{
     DiscreteFieldEnvelopeV1, GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1,
-    ModelEnvelopeV7, RealizationEnvelopeV2, SimplicialMeshEnvelopeV1, invalid_artifact,
+    ModelEnvelope, RealizationEnvelopeV2, SimplicialMeshEnvelopeV1, invalid_artifact,
 };
 
 impl FieldSnapshotEnvelopeV1 {
@@ -23,7 +23,7 @@ impl FieldSnapshotEnvelopeV1 {
     /// correspondence, mesh, Realization, Field, support, or block drift.
     #[allow(clippy::too_many_arguments)]
     pub fn new_authored_fieldwise(
-        model: &ModelEnvelopeV7,
+        model: &ModelEnvelope,
         realization: &RealizationEnvelopeV2,
         source: &CanonicalCircularHoleGeometryV1,
         owner: &CircularHoleChordalMeshV1,
@@ -54,7 +54,7 @@ impl FieldSnapshotEnvelopeV1 {
     #[allow(clippy::too_many_arguments)]
     pub fn validate_against_authored_fieldwise(
         &self,
-        model: &ModelEnvelopeV7,
+        model: &ModelEnvelope,
         realization: &RealizationEnvelopeV2,
         source: &CanonicalCircularHoleGeometryV1,
         owner: &CircularHoleChordalMeshV1,

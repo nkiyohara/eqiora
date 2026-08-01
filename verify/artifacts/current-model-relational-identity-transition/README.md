@@ -52,8 +52,8 @@ by hand.
 **44, 304 and 13 are not one partition of 338.** What partitions the inventory
 is 34 + 304: the retired paths that are inventory members, plus the preserved
 ones. The other ten retired paths carry no Model signal and were never members.
-The 13 required paths are post-reset additions and replacements: twelve do not
-exist yet, and the thirteenth,
+The 13 required paths are post-reset additions and replacements: twelve did not
+exist before the reset, and the thirteenth,
 `verify/interfaces/control-plane-compile-check/expected/contract.json`, is the
 one existing inventory member whose bytes the reset replaces in place.
 
@@ -85,12 +85,10 @@ case does not own the current encoding, `artifacts.current-model-canonical-ident
 does. They must also not exist before the reset, or the repository is mid-flight
 rather than pre-reset.
 
-One consequence for the implementer: the registered test root in this case
-imports `ModelEnvelopeV8` from `eqiora_artifact`. After the reset that name is
-gone, and
-rewiring the import to the unversioned current owner is a mechanical change the
-implementation makes. Rewiring a name is not authoring an oracle; changing any
-expected value, tolerance, or set in this case still is not available.
+The registered test root originally imported the version-named current owner.
+The implementation rewires only that import to the unversioned current owner.
+Rewiring a name is not authoring an oracle; changing any expected value,
+tolerance, or frozen set in this case remains unavailable.
 
 ### The superseded cylinder becomes oracle input, not a product example
 
@@ -108,7 +106,7 @@ not move.
 That is why invariant evidence and promoted evidence are separate lists. A
 single `preserved_evidence` list holding both would make the pre state demand a
 path the reset removes, or the post state demand one it never creates; splitting
-them keeps the real pre state and the synthetic post state each exact.
+them keeps the frozen pre state and the observed post state each exact.
 
 **A proper nonempty subset missing is a partial transition and fails.** One
 retired path removed is refused exactly like forty; one retired compatibility
@@ -136,7 +134,7 @@ are also frozen independently by the control-v2 lane's own `fixtureDigests`;
 this case consumes and re-derives them rather than authoring them.
 
 Three of the promoted paths carry a Model search signal, and the two
-unversioned wire owners will carry one as soon as they exist. The post-reset
+unversioned wire owners carry one. The post-reset
 predicate admits the 13 required paths on top of the preserved inventory, and
 those five are the ones expected to be found by the sweep. An implementation
 that needs another new signal-bearing path, or that cannot retire a listed one,
@@ -377,17 +375,14 @@ owner.
 The token contract bounds tokens, not behaviour: a file that spells no forbidden
 token may still hold a historical branch under another name, and a scope that is
 empty after the reset passes vacuously. It says nothing about any path outside
-its three declared scopes, and it is never applied to the pre-reset tree — this
-checkout carries 98 of the 102 tokens by construction, and the registered test
-freezes exactly which 98 rather than refusing the tree.
+its three declared scopes. The independently recorded pre-reset occurrence
+freezes exactly which 98 of the 102 tokens existed before implementation; the
+observed post-reset checkout must contain none of them.
 
-The post-reset state is exercised against synthetic path sets rather than an
-observed repository, because no repository is in that state yet. The checkout
-this case ships with is pre-reset, and the same predicate classifies it. The
-synthetic post-reset state is the *maximal* one, in which every preserved path
-still matches the sweep; it is one complete valid post-reset state, not the
-exact signal set a real reset must produce. A preserved path migrated in place
-may stop matching, which is admissible and which the predicate allows by
+The registered test now requires the observed repository to be the complete
+post-reset state. Synthetic exact-pre-reset, maximal-post-reset, and partial
+states remain falsifiers for the same predicate. A preserved path migrated in
+place may stop matching, which is admissible and which the predicate allows by
 containment rather than equality.
 
 The sweep reads checked-in content. Building the Python extension copies example
@@ -445,19 +440,40 @@ current encoder before the reset existed, and the observed bytes were then
 committed bytes alone — canonical JSON re-rendered from the wire contract, the
 RFC 0008 schema-domain preimage rebuilt by hand, SHA-256 taken with `hashlib`,
 and each artifact-reference edge read out of the downstream bytes. See
-[`references/`](references/README.md). The implementation may wire these values;
-it may not regenerate or select them.
+[`references/`](references/README.md). The implementation installs these exact
+values; it may not regenerate or select them.
 
 ## Identity-only containment
 
-Each replacement fixture is the committed fixture with exactly its precommitted
-identity pointers substituted. All five replacements are byte-length-identical
-to the fixtures they replace, as are the three moving-spatial consumer artifacts
-above. The registered test reconstructs each replacement
-as same-length substitutions of unique 64-byte identity literals and compares
-the raw bytes exactly; JSON key order, whitespace, number spelling, and every
-non-identity byte are therefore immutable. That containment, not the digests
-themselves, is the claim.
+Each of the five deterministic fixtures is installed as **exactly its
+precommitted replacement**. The registered test compares the installed raw bytes
+against the frozen replacement byte for byte, so JSON key order, whitespace,
+number spelling, and every non-identity byte are immutable. What the installed
+bytes still show is then checked against the independently recorded identities:
+the identity pointers are exactly the pointers a superseded identity is recorded
+for, each one carries the identity re-derived from the bytes of the artifact it
+names, and every superseded identity is the same length as the identity that
+replaced it, is gone from its own pointer, and appears at no leaf of the
+installed document.
+
+The **leaf-level** delta is not claimed for those five. Before the reset the
+superseded fixture was the file in the tree; the reset overwrote it and this case
+commits no copy, so the two documents can no longer be compared. Rebuilding the
+superseded bytes out of the replacement and the frozen identity map would only
+prove the inverse of a substitution performed one line earlier. Byte-exact
+installation of an independently precommitted replacement stands in its place,
+and it is a claim about the installed bytes rather than about the delta.
+
+The moving-spatial consumer commits **both** states, so there the identity-only
+delta stays observable and is proved as one: the replacement is byte-length
+identical, keeps the same leaf set in the same order, changes exactly the frozen
+pointer set, moves each changed leaf only to the value the frozen identity table
+gives it, leaves every other leaf byte-identical, and is reconstructed from the
+pre-reset bytes by applying that table alone.
+
+Those two claims — byte-exact installation retaining no superseded identity, and
+the observed leaf-level substitution — not the digests themselves, are what this
+case asserts here.
 
 ## The historical bridge is exact evidence, not prose
 

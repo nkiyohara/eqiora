@@ -14,7 +14,6 @@ from typing import (
 import numpy as np
 import numpy.typing as npt
 
-from . import compatibility as compatibility
 from . import fluid as fluid
 from . import fsi as fsi
 from . import geometry as geometry
@@ -294,8 +293,6 @@ class Array:
 @final
 class Revision:
     @property
-    def exact_codec(self) -> compatibility.ExactModelCodec: ...
-    @property
     def model_id(self) -> str: ...
     @property
     def digest(self) -> str: ...
@@ -369,8 +366,6 @@ class Model:
     def field_ids(self) -> list[str]: ...
     @property
     def parameter_ids(self) -> list[str]: ...
-    @property
-    def exact_codec(self) -> compatibility.ExactModelCodec: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -803,6 +798,7 @@ def derivative(field: Field) -> Expression: ...
 def div(value: _ExpressionLike) -> Expression: ...
 def grad(value: _ExpressionLike) -> Expression: ...
 def preview_realization(model: Model, request: ScalarElliptic) -> Realization: ...
+def replay(data: bytes) -> Model: ...
 @overload
 def run(
     model: Model,
@@ -890,11 +886,11 @@ __all__ = [
     "div",
     "grad",
     "preview_realization",
+    "replay",
     "run",
     "submit",
     "through",
     "trace",
-    "compatibility",
     "diff",
     "fluid",
     "fsi",

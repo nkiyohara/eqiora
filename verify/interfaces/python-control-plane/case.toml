@@ -1,12 +1,12 @@
 id = "interfaces.python-control-plane"
 status = "verified"
 scope = "python-opaque-model-revision-value-edit-and-structured-failure-boundary"
-reference_kind = "in-process-pyo3-module-and-public-rust-facade-replay"
+reference_kind = "in-process-pyo3-module-and-current-public-rust-facade-replay"
 
 capabilities = [
   "python-opaque-model-identity",
   "python-immutable-revision-identity",
-  "python-exact-artifact-replay",
+  "python-current-model-artifact-replay",
   "python-optimistic-value-edit",
   "python-structured-failure-taxonomy",
   "python-panic-containment",
@@ -14,9 +14,9 @@ capabilities = [
 ]
 
 [claim_boundary]
-current_model_wire = "v8"
+model_owner = "current"
 source_compile = true
-exact_artifact_replay = true
+current_artifact_replay = true
 immutable_revision = true
 scalar_value_edit = true
 atomic_child_commit = true
@@ -30,6 +30,8 @@ cancellation = false
 progress = false
 array_exchange = false
 framework_integration = false
+caller_selects_wire_or_codec = false
+historical_generation_callable = false
 
 [evidence]
 package = "eqiora-python"

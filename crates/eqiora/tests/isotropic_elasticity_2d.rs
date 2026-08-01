@@ -6,7 +6,6 @@ use eqiora::artifact::{
     RunManifestV2,
 };
 use eqiora::assembly::{AssemblyMap, CooAssembler, DofId, LocalContribution, LocalUnknown};
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::compiler::compile;
 use eqiora::diagnostic::codes;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
@@ -362,12 +361,11 @@ fn canonical_nonzero_potential_has_componentwise_force_and_reaction_balance() {
 }
 
 #[test]
-fn model_v4_realization_v1_and_run_v2_replay_exact_lineage() {
-    let document = ExactModelCodec::V4
-        .compile("manufactured.eqi", MANUFACTURED)
-        .expect("tensor Model requires explicit v4");
+fn current_model_realization_v1_and_run_v2_replay_exact_lineage() {
+    let document = eqiora::api::ModelDocument::compile("manufactured.eqi", MANUFACTURED)
+        .expect("tensor Model uses the current wire");
     let model_bytes = document.canonical_json().unwrap();
-    let model_replay = ExactModelCodec::V4.replay(&model_bytes).unwrap();
+    let model_replay = eqiora::api::ModelDocument::replay(&model_bytes).unwrap();
     assert_eq!(model_replay.canonical_json().unwrap(), model_bytes);
     let model_reference = document.artifact_reference().unwrap();
 
@@ -441,15 +439,14 @@ fn model_v4_realization_v1_and_run_v2_replay_exact_lineage() {
     .unwrap();
     assert!(realization_digest_drift.validate_against(&fine).is_err());
 
-    let changed = ExactModelCodec::V4
-        .compile(
-            "manufactured.eqi",
-            &MANUFACTURED.replace(
-                "parameter mu: kg / (m * s ^ 2) = 3;",
-                "parameter mu: kg / (m * s ^ 2) = 4;",
-            ),
-        )
-        .unwrap();
+    let changed = eqiora::api::ModelDocument::compile(
+        "manufactured.eqi",
+        &MANUFACTURED.replace(
+            "parameter mu: kg / (m * s ^ 2) = 3;",
+            "parameter mu: kg / (m * s ^ 2) = 4;",
+        ),
+    )
+    .unwrap();
     assert!(
         fine.validate_model_artifact(&changed.artifact_reference().unwrap())
             .is_err()

@@ -7,7 +7,7 @@ and 4 Ω resistors, and an explicit ground Relation. The high junction has
 three Ports and the ground junction has four.
 
 The source compiles to a complete Semantic Model and round-trips through the
-explicit `eqiora.model-envelope/v2` wire. The selected closed subsystem is
+current Model owner. The selected closed subsystem is
 then admitted structurally as `R(w) = A w + c`, captured once as a general
 canonical CSR system, and submitted to faer BiCGSTAB with identity
 preconditioning on one host worker. The exact analytic vector is expressed in
@@ -20,7 +20,7 @@ BiCGSTAB convergence from an arbitrary initial guess.
 The analytic checks require 12 V at the high junction, 6 A and 3 A into the
 positive resistor terminals, −9 A at the source positive terminal, zero at
 ground, and zero signed through sum at both junctions. The test also checks
-canonical unknown/root ordering, exact v2 artifact reconstruction, and
+canonical unknown/root ordering, exact current-artifact reconstruction, and
 fail-closed solver admission without fallback. Its registered semantic
 residual bound is the solver plan's `1e-12 * ||b|| = 1.2e-11` target; every
 reported physical value is also compared with the analytic solution to
@@ -28,10 +28,11 @@ reported physical value is also compared with the analytic solution to
 
 The native authoring path uses draft-local Domain and Port identity, including
 multi-root Relations and borrowed N-ary Connection membership. Ordinary native
-authoring must select the current semantic profile, while this historical
-conformance case separately crosses an explicitly selected v2 transaction/model
-boundary without fallback, reconstructs exact canonical v2 bytes and digest,
-and matches the source-authored analytic values port by port.
+authoring and source compilation both use the current semantic profile and
+current Model/Transaction owner. Each reconstructs its canonical bytes and
+digest without fallback and matches the source-authored analytic values port
+by port. Historical v1--v7 bytes remain rejection-only specimens in
+`artifacts.current-model-canonical-identity`.
 Source and native CSR systems each reaccept the exact analytic vector through
 the same faer request and original semantic DAGs. Repeating unconstrained
 Krylov solves for fresh, identity-permuted drafts would test BiCGSTAB

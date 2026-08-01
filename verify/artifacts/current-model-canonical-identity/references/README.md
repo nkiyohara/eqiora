@@ -8,8 +8,8 @@ literal in `../expected/`. It reads nothing from the Rust producer at run time.
    timestamp `1700000008000`, randomness `1..5`, the three coordinate axes, the
    Parameter value `2.0 m`, and the authored operation order.
 2. Read the wire contract from the serde shapes in
-   `crates/eqiora-artifact/src/model.rs`, `model/`, `model_v2.rs`,
-   `model_transaction.rs`, and `model_transaction_v2.rs`: field names and
+   `crates/eqiora-artifact/src/model.rs`, `model/`, `model_wire.rs`,
+   `model_transaction.rs`, and `model_transaction_wire.rs`: field names and
    declaration order, `kind`/`op`/`source`/`condition` tag names, kebab-case
    variants, `(kind, ULID)` node and edge ordering, and the fields the digest
    covers.
@@ -34,8 +34,9 @@ and `e410295337…`.
 The cylinder route is cross-checked against evidence that already existed: the
 same digest construction applied to the superseded v7 resource yields
 `668fa55e5ab1a46d0b7523e4e3162442ccd7698697c4308604cf4fe9269249de`, which is the
-value already committed in
-`verify/interfaces/python-exact-cylinder-stokes-result/case.toml`.
+superseded artifact identity retained by
+`verify/artifacts/current-model-canonical-identity/case.toml` as a historical
+cross-check, not an active decoder claim.
 
 ## Provenance of the negative corpus
 

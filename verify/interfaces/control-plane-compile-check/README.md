@@ -1,17 +1,35 @@
 # Compile/check control-plane verification
 
 This case fixes one small application contract across Rust, Studio, and
-Python. A closed `eqiora.control/v1` request selects the exact
-`model.compile-check/v1` command, required features, and immutable Model wire.
-The authoritative Rust dispatcher then uses the ordinary compiler,
-transaction commit, and Model artifact path.
+Python. A closed `eqiora.control/v2` request selects the
+`model.compile-check/v1` command and supplies only its request identity,
+filename, and source. The authoritative Rust dispatcher then uses the ordinary
+compiler, transaction commit, and current Model artifact path; callers cannot
+select a Model wire or feature list.
 
 The shared fixtures prove three distinct boundaries:
 
-- accepted source produces only a typed Model identity descriptor;
+- accepted source produces only a typed current-Model identity descriptor,
+  linked to the document from that same execution;
 - syntactically rejected source produces a kernel diagnostic and no Model;
-- an unsupported protocol is rejected by the control boundary before its
-  deliberately invalid source can reach the compiler.
+- retired or unsupported protocol and command identities are rejected by the
+  bounded dispatch prelude before DTO admission or compilation;
+- retired `modelWire` and `requiredFeatures` members are rejected by the
+  closed v2 DTO; and
+- request and diagnostic resource bounds fail closed without reflecting
+  oversized caller content or publishing partial diagnostics.
+
+Compiling the accepted source twice through control and once through
+`ModelDocument::compile` intentionally produces distinct occurrence identity
+and artifact digests. The independently registered structural fingerprint is
+equal across all three compilations, while each accepted response is checked
+only against the document returned by its own execution.
+
+`historicalCopies.copiedFrom` records pre-reset provenance, not a live
+dependency; its byte-for-byte relation is a frozen pre-reset record. The
+transition oracle independently proves that each promoted target carries its
+staged source's frozen bytes. This case re-hashes the retained v1 request and
+schema and never dispatches or packages the historical schema.
 
 Client adapters may choose native function calls, Tauri invocation, or Python
 objects, but they consume this meaning rather than recreating it. Responses

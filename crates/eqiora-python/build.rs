@@ -3,7 +3,7 @@ use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 
-const EXACT_CYLINDER_MODEL: &str = "../../examples/steady-flow-past-cylinder.model-v7.json";
+const EXACT_CYLINDER_MODEL: &str = "../../examples/steady-flow-past-cylinder.model.json";
 const MIXED_BOUNDARY_ELASTICITY_MODEL: &str =
     "../../verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi";
 const FIXED_REFERENCE_FSI_MODEL: &str =
@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
     fs::copy(
         manifest_dir.join(EXACT_CYLINDER_MODEL),
-        output_dir.join("steady-flow-past-cylinder.model-v7.json"),
+        output_dir.join("steady-flow-past-cylinder.model.json"),
     )?;
     fs::copy(
         manifest_dir.join(MIXED_BOUNDARY_ELASTICITY_MODEL),

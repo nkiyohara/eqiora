@@ -8,7 +8,7 @@ use std::num::{NonZeroU64, NonZeroUsize};
 use std::path::{Path, PathBuf};
 
 use eqiora::artifact::{
-    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV4, RealizationEnvelopeV3, RunManifestV2,
+    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV3, RunManifestV2,
 };
 use eqiora::backends::cuda::{
     CUDA_LINEAR_EXECUTION, CUDA_LINEAR_EXECUTION_PROVIDER, CUDA_LINEAR_SOLVER_PROVIDER,
@@ -43,6 +43,10 @@ use support::fixed_reference_fsi::{execution_context, prestrained_state, spatial
 mod support;
 
 const REGISTERED_SOURCE_COMMIT: &str = "5696f62ed84eba5457e2ff99f40fd2080c808d69";
+const CURRENT_MODEL_BRIDGE: &[u8] = include_bytes!(
+    "../../../verify/artifacts/current-model-relational-identity-transition/expected/bridge/\
+     fixed-reference-cuda-solve-2d/current-model.json"
+);
 
 #[test]
 fn observation_decoder_is_closed_and_bounded() {
@@ -86,15 +90,20 @@ fn replay_committed_observation() -> Result<(), String> {
         return Err("source commit differs from the registered public source".to_owned());
     }
 
-    let model_bytes = read_bounded(&root.join("artifacts/model.json"), MAX_ARTIFACT_BYTES)?;
-    let model = ModelEnvelopeV4::from_json(&model_bytes, Default::default())
+    let historical_model_bytes =
+        read_bounded(&root.join("artifacts/model.json"), MAX_ARTIFACT_BYTES)?;
+    if ModelEnvelope::from_json(&historical_model_bytes, Default::default()).is_ok() {
+        return Err("the current decoder admitted the historical CUDA Model".to_owned());
+    }
+    let current_model_bytes = CURRENT_MODEL_BRIDGE.strip_suffix(b"\n").unwrap();
+    let model = ModelEnvelope::from_json(current_model_bytes, Default::default())
         .map_err(|diagnostic| diagnostic.to_string())?;
     require_equal_bytes(
-        "decoded Model canonical bytes",
+        "decoded current bridge Model canonical bytes",
         &model
             .canonical_json()
             .map_err(|diagnostic| diagnostic.to_string())?,
-        &model_bytes,
+        current_model_bytes,
     )?;
     let program = model
         .to_program()
@@ -112,9 +121,9 @@ fn replay_committed_observation() -> Result<(), String> {
     let recorded_realization =
         RealizationEnvelopeV3::from_json(&realization_bytes, Default::default())
             .map_err(|diagnostic| diagnostic.to_string())?;
-    recorded_realization
-        .validate_model_artifact(&model)
-        .map_err(|diagnostic| diagnostic.to_string())?;
+    if recorded_realization.validate_model_artifact(&model).is_ok() {
+        return Err("historical Realization was relabelled to the current Model".to_owned());
+    }
     recorded_realization
         .validate_mesh_artifact(&spatial.mesh_artifact)
         .map_err(|diagnostic| diagnostic.to_string())?;
@@ -122,28 +131,34 @@ fn replay_committed_observation() -> Result<(), String> {
     let fresh_realization =
         RealizationEnvelopeV3::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
             .map_err(|diagnostic| diagnostic.to_string())?;
-    require_equal_bytes(
-        "fresh and recorded coupled Realization canonical bytes",
-        &fresh_realization
-            .canonical_json()
-            .map_err(|diagnostic| diagnostic.to_string())?,
-        &realization_bytes,
-    )?;
+    fresh_realization
+        .validate_model_artifact(&model)
+        .map_err(|diagnostic| diagnostic.to_string())?;
+    if fresh_realization
+        .canonical_json()
+        .map_err(|diagnostic| diagnostic.to_string())?
+        == realization_bytes
+    {
+        return Err("current Realization relabelled the historical Model lineage".to_owned());
+    }
 
     let run_bytes = read_bounded(&root.join("artifacts/cuda-run.json"), MAX_ARTIFACT_BYTES)?;
     let recorded_run = RunManifestV2::from_json(&run_bytes, Default::default())
         .map_err(|diagnostic| diagnostic.to_string())?;
     recorded_run
-        .validate_against(&fresh_realization)
+        .validate_against(&recorded_realization)
         .map_err(|diagnostic| diagnostic.to_string())?;
     let fresh_run = run_from_observation(&fresh_realization, &observed)?;
-    require_equal_bytes(
-        "fresh and recorded Run canonical bytes",
-        &fresh_run
-            .canonical_json()
-            .map_err(|diagnostic| diagnostic.to_string())?,
-        &run_bytes,
-    )?;
+    fresh_run
+        .validate_against(&fresh_realization)
+        .map_err(|diagnostic| diagnostic.to_string())?;
+    if fresh_run
+        .canonical_json()
+        .map_err(|diagnostic| diagnostic.to_string())?
+        == run_bytes
+    {
+        return Err("current Run relabelled the historical Model lineage".to_owned());
+    }
     if !recorded_run.outputs().is_empty() {
         return Err("the bounded observation cannot imply a durable result artifact".to_owned());
     }

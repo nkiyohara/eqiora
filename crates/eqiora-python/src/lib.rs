@@ -21,11 +21,11 @@ mod steady_stokes;
 use std::collections::BTreeMap;
 
 use eqiora::DimExponents;
-use eqiora::compatibility::ExactModelCodec;
-use eqiora::control::{CompileOutcomeV1, CompileRequestV1, execute_compile_v1};
+use eqiora::api::ModelDocument;
+use eqiora::control::{CompileOutcomeV2, CompileRequestV2, execute_compile_v2};
 use pyo3::exceptions::{PyKeyError, PyRuntimeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyModule, PyTuple};
+use pyo3::types::{PyList, PyModule};
 
 use array::PyArrayBuffer;
 pub(crate) use error::diagnostic_error;
@@ -71,71 +71,6 @@ fn python_distribution_version(cargo_version: &str) -> Option<String> {
         _ => return None,
     };
     Some(format!("{release}{marker}{serial}"))
-}
-
-/// Canonical model and transaction wire selected before an operation begins.
-#[pyclass(
-    name = "ExactModelCodec",
-    module = "eqiora._eqiora",
-    frozen,
-    eq,
-    hash,
-    from_py_object
-)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum PyExactModelCodec {
-    /// Original scalar model vocabulary.
-    V1,
-    /// Scalar physical Domains, Ports, and across/through symbols.
-    V2,
-    /// Shaped Fields and field-valued boundary interfaces.
-    V3,
-    /// Canonical tensor operators.
-    V4,
-    /// Content-addressed canonical pure operators.
-    V5,
-    /// Spatial-periodic boundary Connections.
-    V6,
-    /// Domains that name an authored geometry by digest and entity set.
-    V7,
-    /// Direct fixed-or-Parameter Cartesian coordinate sources.
-    V8,
-}
-
-impl From<PyExactModelCodec> for ExactModelCodec {
-    fn from(value: PyExactModelCodec) -> Self {
-        match value {
-            PyExactModelCodec::V1 => Self::V1,
-            PyExactModelCodec::V2 => Self::V2,
-            PyExactModelCodec::V3 => Self::V3,
-            PyExactModelCodec::V4 => Self::V4,
-            PyExactModelCodec::V5 => Self::V5,
-            PyExactModelCodec::V6 => Self::V6,
-            PyExactModelCodec::V7 => Self::V7,
-            PyExactModelCodec::V8 => Self::V8,
-        }
-    }
-}
-
-impl TryFrom<ExactModelCodec> for PyExactModelCodec {
-    type Error = eqiora::Diagnostic;
-
-    fn try_from(value: ExactModelCodec) -> Result<Self, Self::Error> {
-        match value {
-            ExactModelCodec::V1 => Ok(Self::V1),
-            ExactModelCodec::V2 => Ok(Self::V2),
-            ExactModelCodec::V3 => Ok(Self::V3),
-            ExactModelCodec::V4 => Ok(Self::V4),
-            ExactModelCodec::V5 => Ok(Self::V5),
-            ExactModelCodec::V6 => Ok(Self::V6),
-            ExactModelCodec::V7 => Ok(Self::V7),
-            ExactModelCodec::V8 => Ok(Self::V8),
-            _ => Err(eqiora::Diagnostic::error(
-                eqiora::diagnostic::codes::NOT_IMPLEMENTED,
-                "model uses a codec unsupported by this Python SDK",
-            )),
-        }
-    }
 }
 
 /// One read-only, field-local sampled series in SI units.
@@ -307,65 +242,28 @@ impl PyRunResult {
 fn compile(py: Python<'_>, source: &str, filename: &str) -> PyResult<PyModel> {
     panic_boundary(py, || {
         let request =
-            CompileRequestV1::new_current("python.compile", filename.to_owned(), source.to_owned())
+            CompileRequestV2::new("python.compile", filename.to_owned(), source.to_owned())
                 .map_err(|diagnostic| control_diagnostic_error(py, &[diagnostic]))?;
         execute_compile_request(py, request)
     })
 }
 
-/// Compile through one exact compatibility codec.
+/// Replay one canonical artifact through the current Model contract.
 #[pyfunction]
-#[pyo3(signature = (source, *, filename="<memory>", codec))]
-fn compile_exact(
-    py: Python<'_>,
-    source: &str,
-    filename: &str,
-    codec: PyExactModelCodec,
-) -> PyResult<PyModel> {
-    panic_boundary(py, || {
-        let request = CompileRequestV1::new_exact(
-            "python.compile-exact",
-            codec.into(),
-            filename.to_owned(),
-            source.to_owned(),
-        )
-        .map_err(|diagnostic| control_diagnostic_error(py, &[diagnostic]))?;
-        execute_compile_request(py, request)
-    })
-}
-
-/// Define native declarations through one exact compatibility codec.
-#[pyfunction]
-#[pyo3(signature = (name, *declarations, codec))]
-fn define_exact(
-    py: Python<'_>,
-    name: String,
-    declarations: &Bound<'_, PyTuple>,
-    codec: PyExactModelCodec,
-) -> PyResult<PyModel> {
-    panic_boundary(py, || {
-        modeling::define_model_exact(py, name, declarations, codec.into())
-            .and_then(|document| PyModel::from_document(py, document))
-    })
-}
-
-/// Replay one canonical envelope through one exact compatibility codec.
-#[pyfunction]
-#[pyo3(signature = (data, *, codec))]
-fn replay_exact(py: Python<'_>, data: &[u8], codec: PyExactModelCodec) -> PyResult<PyModel> {
+fn replay(py: Python<'_>, data: &[u8]) -> PyResult<PyModel> {
     panic_boundary(py, || {
         let data = data.to_vec();
-        py.detach(move || ExactModelCodec::from(codec).replay(&data))
+        py.detach(move || ModelDocument::replay(&data))
             .map_err(|diagnostics| compatibility_error(py, &diagnostics))
             .and_then(|document| PyModel::from_document(py, document))
     })
 }
 
-fn execute_compile_request(py: Python<'_>, request: CompileRequestV1) -> PyResult<PyModel> {
-    let execution = py.detach(move || execute_compile_v1(&request));
+fn execute_compile_request(py: Python<'_>, request: CompileRequestV2) -> PyResult<PyModel> {
+    let execution = py.detach(move || execute_compile_v2(&request));
     let (response, document) = execution.into_parts();
     match response.outcome() {
-        CompileOutcomeV1::Accepted { .. } => document
+        CompileOutcomeV2::Accepted { .. } => document
             .map(|document| PyModel::from_document(py, document))
             .transpose()?
             .ok_or_else(|| {
@@ -374,7 +272,7 @@ fn execute_compile_request(py: Python<'_>, request: CompileRequestV1) -> PyResul
                     "compile/check accepted a model without returning its immutable document",
                 )
             }),
-        CompileOutcomeV1::Rejected { diagnostics } => {
+        CompileOutcomeV2::Rejected { diagnostics } => {
             Err(control_diagnostic_error(py, diagnostics))
         }
     }
@@ -431,7 +329,6 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     })?;
     module.add("__version__", version)?;
     error::register(module)?;
-    module.add_class::<PyExactModelCodec>()?;
     model::register(module)?;
     array::register(module)?;
     differentiation::register(module)?;
@@ -447,9 +344,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     realization::register(module)?;
     steady_stokes::register(module)?;
     module.add_function(wrap_pyfunction!(compile, module)?)?;
-    module.add_function(wrap_pyfunction!(compile_exact, module)?)?;
-    module.add_function(wrap_pyfunction!(define_exact, module)?)?;
-    module.add_function(wrap_pyfunction!(replay_exact, module)?)?;
+    module.add_function(wrap_pyfunction!(replay, module)?)?;
     Ok(())
 }
 
@@ -457,7 +352,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use eqiora::api::ModelDocument;
 
-    use super::{ExactModelCodec, PyExactModelCodec, python_distribution_version};
+    use super::python_distribution_version;
 
     const SOURCE: &str = r#"
 model decay {
@@ -502,54 +397,12 @@ model decay {
     }
 
     #[test]
-    fn python_codec_conversion_is_exact_for_every_supported_generation() {
-        for (python, rust) in [
-            (PyExactModelCodec::V1, ExactModelCodec::V1),
-            (PyExactModelCodec::V2, ExactModelCodec::V2),
-            (PyExactModelCodec::V3, ExactModelCodec::V3),
-            (PyExactModelCodec::V4, ExactModelCodec::V4),
-            (PyExactModelCodec::V5, ExactModelCodec::V5),
-            (PyExactModelCodec::V6, ExactModelCodec::V6),
-            (PyExactModelCodec::V7, ExactModelCodec::V7),
-            (PyExactModelCodec::V8, ExactModelCodec::V8),
-        ] {
-            assert_eq!(ExactModelCodec::from(python), rust);
-            assert_eq!(PyExactModelCodec::try_from(rust).unwrap(), python);
-        }
-    }
-
-    #[test]
-    fn ordinary_python_authoring_observes_the_current_codec() {
+    fn ordinary_python_authoring_and_replay_use_the_current_contract() {
         let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
-        assert_eq!(document.exact_codec(), ExactModelCodec::CURRENT);
-        assert_eq!(
-            PyExactModelCodec::try_from(document.exact_codec()).unwrap(),
-            PyExactModelCodec::V8
-        );
-        assert!(
-            String::from_utf8(document.canonical_json().unwrap())
-                .unwrap()
-                .contains("eqiora.model-envelope/v8")
-        );
-    }
-
-    #[test]
-    fn explicit_python_compatibility_keeps_v1_through_v8_separate() {
-        for (python, schema) in [
-            (PyExactModelCodec::V1, "eqiora.model-envelope/v1"),
-            (PyExactModelCodec::V2, "eqiora.model-envelope/v2"),
-            (PyExactModelCodec::V3, "eqiora.model-envelope/v3"),
-            (PyExactModelCodec::V4, "eqiora.model-envelope/v4"),
-            (PyExactModelCodec::V5, "eqiora.model-envelope/v5"),
-            (PyExactModelCodec::V6, "eqiora.model-envelope/v6"),
-            (PyExactModelCodec::V7, "eqiora.model-envelope/v7"),
-            (PyExactModelCodec::V8, "eqiora.model-envelope/v8"),
-        ] {
-            let codec = ExactModelCodec::from(python);
-            let document = codec.compile("decay.eqi", SOURCE).unwrap();
-            let bytes = document.canonical_json().unwrap();
-            assert!(String::from_utf8_lossy(&bytes).contains(schema));
-            assert_eq!(codec.replay(&bytes).unwrap().exact_codec(), codec);
-        }
+        let bytes = document.canonical_json().unwrap();
+        assert!(String::from_utf8_lossy(&bytes).contains("eqiora.model-envelope/v8"));
+        let replayed = ModelDocument::replay(&bytes).unwrap();
+        assert_eq!(replayed.canonical_json().unwrap(), bytes);
+        assert_eq!(replayed.digest().unwrap(), document.digest().unwrap());
     }
 }

@@ -1,12 +1,10 @@
-use std::{collections::BTreeSet, num::NonZeroUsize};
+use std::num::NonZeroUsize;
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     AcceptedModelArtifact, CanonicalModelArtifact, ExecutionProvenanceV1, ExecutionTopologyV1,
-    LayoutArtifacts, ModelArtifactGeneration, RealizationEnvelopeV1,
-    ReplayableCanonicalModelArtifact, RunManifestV2,
+    LayoutArtifacts, RealizationEnvelopeV1, ReplayableCanonicalModelArtifact, RunManifestV2,
 };
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::realization::{
     DefaultPolicyVersion, RealizationCapabilities, RealizationRequest, RealizationRequirements,
     SemanticRevision, VectorLayoutKind, resolve,
@@ -140,30 +138,24 @@ fn resolved_realization(
 }
 
 #[test]
-fn realization_and_run_lineage_accept_the_three_selected_model_generations() {
-    let v1 = ExactModelCodec::V1
-        .compile("poisson.eqi", POISSON)
-        .expect("v1 spatial Model");
-    let v2 = ExactModelCodec::V2
-        .compile("scalar-physical.eqi", SCALAR_PHYSICAL)
-        .expect("v2 scalar-physical Model");
-    let v3 = ExactModelCodec::V3
-        .compile("field-boundary.eqi", FIELD_BOUNDARY)
-        .expect("v3 field-boundary Model");
+fn realization_and_run_lineage_accept_current_models_across_vocabularies() {
+    let spatial = ModelDocument::compile("poisson.eqi", POISSON).expect("spatial Model");
+    let scalar_physical = ModelDocument::compile("scalar-physical.eqi", SCALAR_PHYSICAL)
+        .expect("scalar-physical Model");
+    let field_boundary =
+        ModelDocument::compile("field-boundary.eqi", FIELD_BOUNDARY).expect("field-boundary Model");
 
-    let (v1_realization, v1_run) = resolved_realization(&v1, 1);
-    let (v2_realization, v2_run) = resolved_realization(&v2, 1);
-    let (v3_realization, v3_run) = resolved_realization(&v3, 2);
+    let (spatial_realization, spatial_run) = resolved_realization(&spatial, 1);
+    let (scalar_realization, scalar_run) = resolved_realization(&scalar_physical, 1);
+    let (boundary_realization, boundary_run) = resolved_realization(&field_boundary, 2);
 
     for (model, realization, run) in [
-        (&v1, &v1_realization, &v1_run),
-        (&v2, &v2_realization, &v2_run),
-        (&v3, &v3_realization, &v3_run),
+        (&spatial, &spatial_realization, &spatial_run),
+        (&scalar_physical, &scalar_realization, &scalar_run),
+        (&field_boundary, &boundary_realization, &boundary_run),
     ] {
-        let replay = model
-            .exact_codec()
-            .replay(&model.canonical_json().expect("canonical Model"))
-            .expect("explicit selected-wire replay");
+        let replay = ModelDocument::replay(&model.canonical_json().expect("canonical Model"))
+            .expect("current Model replay");
         realization
             .validate_model_artifact(&replay.artifact_reference().unwrap())
             .expect("replayed Model identity");
@@ -173,7 +165,7 @@ fn realization_and_run_lineage_accept_the_three_selected_model_generations() {
 }
 
 #[test]
-fn artifact_owner_dispatches_every_exact_generation_and_rejects_cross_generation_bytes() {
+fn artifact_owner_replays_the_current_model_and_preserves_lineage() {
     let state = DraftField::new("x", DimExponents::DIMENSIONLESS, 1.0);
     let rate = DraftParameter::new(
         "rate",
@@ -188,58 +180,18 @@ fn artifact_owner_dispatches_every_exact_generation_and_rejects_cross_generation
         [DraftExpression::derivative(&state) + rate.expression() * state.expression()],
     );
     let draft = ModelDraft::new("decay", [state.into(), rate.into(), flow.into()]).unwrap();
-    let model = ExactModelCodec::V1.define(&draft).expect("v1 Model");
+    let model = ModelDocument::define(&draft).expect("current Model");
     let (realization, _) = resolved_realization(&model, 1);
-    let mut artifacts = Vec::new();
-    let mut digests = BTreeSet::new();
-
-    for &generation in ModelArtifactGeneration::ALL {
-        let artifact = AcceptedModelArtifact::from_program(generation, model.program())
-            .expect("owner-registered generation encodes the Model");
-        assert_eq!(artifact.generation(), generation);
-        let bytes = artifact.canonical_json().expect("canonical Model bytes");
-        let decoded = AcceptedModelArtifact::from_json(generation, &bytes, Default::default())
-            .expect("explicit owner-selected generation decodes its bytes");
-        assert_eq!(decoded, artifact);
-        assert_eq!(
-            decoded.replay_model().unwrap().program(),
-            model.program(),
-            "every registered generation replays the same semantic program"
-        );
-
-        for &foreign_generation in ModelArtifactGeneration::ALL {
-            if foreign_generation != generation {
-                assert!(
-                    AcceptedModelArtifact::from_json(
-                        foreign_generation,
-                        &bytes,
-                        Default::default(),
-                    )
-                    .is_err(),
-                    "wrong-generation bytes must fail closed"
-                );
-            }
-        }
-
-        let reference = decoded.artifact_reference().unwrap();
-        assert!(digests.insert(reference.artifact().clone()));
-        artifacts.push((generation, reference));
-    }
-
-    assert_eq!(artifacts.len(), ModelArtifactGeneration::ALL.len());
-    assert_eq!(digests.len(), ModelArtifactGeneration::ALL.len());
-    let (_, v1_reference) = &artifacts[0];
+    let artifact = AcceptedModelArtifact::from_program(model.program())
+        .expect("current owner encodes the Model");
+    let bytes = artifact.canonical_json().expect("canonical Model bytes");
+    let decoded = AcceptedModelArtifact::from_json(&bytes, Default::default())
+        .expect("current owner decodes its bytes");
+    assert_eq!(decoded, artifact);
+    assert_eq!(decoded.replay_model().unwrap().program(), model.program());
+    let reference = decoded.artifact_reference().unwrap();
     realization
-        .validate_model_artifact(v1_reference)
-        .expect("the realization retains the exact v1 artifact");
-    for (_, reference) in &artifacts[1..] {
-        assert_eq!(v1_reference.model(), reference.model());
-        assert_eq!(
-            v1_reference.semantic_revision(),
-            reference.semantic_revision()
-        );
-        assert_ne!(v1_reference.artifact(), reference.artifact());
-        assert!(realization.validate_model_artifact(reference).is_err());
-        assert!(v1_reference.validate_artifact(reference).is_err());
-    }
+        .validate_model_artifact(&reference)
+        .expect("the realization retains the current artifact");
+    reference.validate_artifact(&decoded).unwrap();
 }

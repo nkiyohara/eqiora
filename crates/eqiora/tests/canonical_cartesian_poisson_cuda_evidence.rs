@@ -8,7 +8,7 @@ use std::num::{NonZeroU64, NonZeroUsize};
 use std::path::{Path, PathBuf};
 
 use eqiora::artifact::{
-    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV1, RealizationEnvelopeV1, RunManifestV2,
+    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV1, RunManifestV2,
 };
 use eqiora::device::{
     BufferId, Completion, DeviceBufferDescriptor, DeviceCapability, DeviceDescriptor,
@@ -61,6 +61,10 @@ const RECORDED_CUDA_EXECUTION_PROVIDER: ExecutionProvider = ExecutionProvider::n
     ExecutionId::new(CUDA_LINEAR_EXECUTION),
     RECORDED_CUDA_ADAPTER_VERSION,
     RECORDED_CUDA_EXECUTION_LIBRARIES,
+);
+const CURRENT_MODEL_BRIDGE: &[u8] = include_bytes!(
+    "../../../verify/artifacts/current-model-relational-identity-transition/expected/bridge/\
+     canonical-cartesian-poisson-cuda/current-model.json"
 );
 
 #[derive(Debug, Clone, Deserialize)]
@@ -295,7 +299,7 @@ fn observation_decoder_is_closed_and_bounded_before_committed_replay() {
 #[test]
 fn fresh_compiler_ids_alpha_normalize_to_exact_model_bytes() {
     let (recorded_program, recorded_identity) = canonical::compile_program_with_identity().unwrap();
-    let recorded_model = ModelEnvelopeV1::from_program(&recorded_program).unwrap();
+    let recorded_model = ModelEnvelope::from_program(&recorded_program).unwrap();
     let recorded_identity = SourceIdentityObservation {
         schema: SOURCE_IDENTITY_SCHEMA.to_owned(),
         raw_compiler_model_ulid: recorded_identity.model_ulid,
@@ -312,7 +316,7 @@ fn fresh_compiler_ids_alpha_normalize_to_exact_model_bytes() {
     validate_source_identity(&recorded_identity).unwrap();
 
     let (fresh_program, fresh_identity) = canonical::compile_program_with_identity().unwrap();
-    let fresh_model = ModelEnvelopeV1::from_program(&fresh_program).unwrap();
+    let fresh_model = ModelEnvelope::from_program(&fresh_program).unwrap();
     assert_ne!(
         fresh_model.canonical_json().unwrap(),
         recorded_model.canonical_json().unwrap(),
@@ -362,10 +366,19 @@ fn committed_canonical_cuda_observation_replays_on_the_host() {
     validate_source_identity(&recorded_identity).unwrap();
 
     let (raw_program, fresh_identity) = canonical::compile_program_with_identity().unwrap();
-    let fresh_raw_model = ModelEnvelopeV1::from_program(&raw_program).unwrap();
-    let model_bytes = read_bounded(&root.join("artifacts/model.json"), MAX_ARTIFACT_BYTES).unwrap();
-    let recorded_model = ModelEnvelopeV1::from_json(&model_bytes, Default::default()).unwrap();
-    assert_eq!(recorded_model.canonical_json().unwrap(), model_bytes);
+    let fresh_raw_model = ModelEnvelope::from_program(&raw_program).unwrap();
+    let historical_model_bytes =
+        read_bounded(&root.join("artifacts/model.json"), MAX_ARTIFACT_BYTES).unwrap();
+    assert!(
+        ModelEnvelope::from_json(&historical_model_bytes, Default::default()).is_err(),
+        "the current decoder must not relabel the recorded historical Model"
+    );
+    let current_model_bytes = CURRENT_MODEL_BRIDGE.strip_suffix(b"\n").unwrap();
+    let recorded_model = ModelEnvelope::from_json(current_model_bytes, Default::default()).unwrap();
+    assert_eq!(
+        recorded_model.canonical_json().unwrap(),
+        current_model_bytes
+    );
     let normalized_model = normalize_compiled_model(
         &fresh_raw_model,
         &fresh_identity,
@@ -373,7 +386,10 @@ fn committed_canonical_cuda_observation_replays_on_the_host() {
         &recorded_identity,
     )
     .unwrap();
-    assert_eq!(normalized_model.canonical_json().unwrap(), model_bytes);
+    assert_eq!(
+        normalized_model.canonical_json().unwrap(),
+        current_model_bytes
+    );
     assert_eq!(
         normalized_model.digest().unwrap(),
         recorded_model.digest().unwrap()
@@ -417,7 +433,7 @@ fn committed_canonical_cuda_observation_replays_on_the_host() {
 fn replay_method(
     root: &Path,
     program: &eqiora::sem::KernelProgram,
-    model: &ModelEnvelopeV1,
+    model: &ModelEnvelope,
     capabilities: &eqiora::realization::RealizationCapabilities,
     environment: &EnvironmentObservation,
     observation: &MethodObservation,
@@ -438,13 +454,13 @@ fn replay_method(
     let recorded_realization =
         RealizationEnvelopeV1::from_json(&realization_bytes, Default::default())
             .map_err(|diagnostic| diagnostic.to_string())?;
-    require_equal_bytes(
-        "fresh and recorded Realization canonical bytes",
-        &fresh_realization
-            .canonical_json()
-            .map_err(|diagnostic| diagnostic.to_string())?,
-        &realization_bytes,
-    )?;
+    if fresh_realization
+        .canonical_json()
+        .map_err(|diagnostic| diagnostic.to_string())?
+        == realization_bytes
+    {
+        return Err("current Realization relabelled the historical Model lineage".to_owned());
+    }
     require_equal_bytes(
         "decoded Realization canonical bytes",
         &recorded_realization
@@ -455,11 +471,11 @@ fn replay_method(
     if fresh_realization
         .digest()
         .map_err(|diagnostic| diagnostic.to_string())?
-        != recorded_realization
+        == recorded_realization
             .digest()
             .map_err(|diagnostic| diagnostic.to_string())?
     {
-        return Err("fresh and recorded Realization digests differ".to_owned());
+        return Err("current and historical Realization digests must differ".to_owned());
     }
 
     let run_bytes = read_bounded(
@@ -469,7 +485,7 @@ fn replay_method(
     let recorded_run = RunManifestV2::from_json(&run_bytes, Default::default())
         .map_err(|diagnostic| diagnostic.to_string())?;
     recorded_run
-        .validate_against(&fresh_realization)
+        .validate_against(&recorded_realization)
         .map_err(|diagnostic| diagnostic.to_string())?;
     require_equal_bytes(
         "decoded Run canonical bytes",
@@ -479,13 +495,16 @@ fn replay_method(
         &run_bytes,
     )?;
     let fresh_run = run_from_environment(&fresh_realization, environment)?;
-    require_equal_bytes(
-        "fresh and recorded Run canonical bytes",
-        &fresh_run
-            .canonical_json()
-            .map_err(|diagnostic| diagnostic.to_string())?,
-        &run_bytes,
-    )?;
+    fresh_run
+        .validate_against(&fresh_realization)
+        .map_err(|diagnostic| diagnostic.to_string())?;
+    if fresh_run
+        .canonical_json()
+        .map_err(|diagnostic| diagnostic.to_string())?
+        == run_bytes
+    {
+        return Err("current Run relabelled the historical Model lineage".to_owned());
+    }
     if !recorded_run.outputs().is_empty() {
         return Err("the observation must not imply a durable product output artifact".to_owned());
     }
@@ -690,11 +709,11 @@ fn validate_source_identity(identity: &SourceIdentityObservation) -> Result<(), 
 }
 
 fn normalize_compiled_model(
-    fresh: &ModelEnvelopeV1,
+    fresh: &ModelEnvelope,
     fresh_identity: &canonical::SourceIdentity,
-    recorded: &ModelEnvelopeV1,
+    recorded: &ModelEnvelope,
     recorded_identity: &SourceIdentityObservation,
-) -> Result<ModelEnvelopeV1, String> {
+) -> Result<ModelEnvelope, String> {
     let fresh_bytes = fresh
         .canonical_json()
         .map_err(|diagnostic| diagnostic.to_string())?;
@@ -762,7 +781,7 @@ fn normalize_compiled_model(
     }
     rewrite_model_ulids(&mut fresh_value, &mapping)?;
     let normalized_bytes = serde_json::to_vec(&fresh_value).map_err(|error| error.to_string())?;
-    ModelEnvelopeV1::from_json(&normalized_bytes, Default::default())
+    ModelEnvelope::from_json(&normalized_bytes, Default::default())
         .map_err(|diagnostic| diagnostic.to_string())
 }
 
@@ -1481,9 +1500,9 @@ fn falsify_closed_decoders(environment: &[u8], source_identity: &[u8], solutions
 }
 
 fn falsify_alpha_normalization(
-    fresh: &ModelEnvelopeV1,
+    fresh: &ModelEnvelope,
     fresh_identity: &canonical::SourceIdentity,
-    recorded: &ModelEnvelopeV1,
+    recorded: &ModelEnvelope,
     recorded_identity: &SourceIdentityObservation,
 ) {
     let mut duplicate = recorded_identity.clone();

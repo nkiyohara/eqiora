@@ -11,7 +11,6 @@ use eqiora::{Diagnostic, EntityKind, RawId};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyModule};
 
-use crate::PyExactModelCodec;
 use crate::error::{diagnostic_error, internal_diagnostic_error, panic_boundary, validation_error};
 
 /// Exact identity of one immutable canonical Model artifact.
@@ -25,7 +24,6 @@ use crate::error::{diagnostic_error, internal_diagnostic_error, panic_boundary, 
 )]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PyRevision {
-    exact_codec: PyExactModelCodec,
     model_id: String,
     digest: String,
     number: u64,
@@ -47,7 +45,7 @@ pub(crate) struct PyStructuralSemanticFingerprint {
 
 #[pymethods]
 impl PyStructuralSemanticFingerprint {
-    /// Exact compatibility generation of the structural projection.
+    /// Exact generation of the structural projection.
     #[getter]
     fn generation(&self) -> &'static str {
         self.value.generation().as_str()
@@ -70,12 +68,6 @@ impl PyStructuralSemanticFingerprint {
 
 #[pymethods]
 impl PyRevision {
-    /// Exact Model artifact codec selected before construction.
-    #[getter]
-    const fn exact_codec(&self) -> PyExactModelCodec {
-        self.exact_codec
-    }
-
     /// Canonical typed Model ontology identity.
     #[getter]
     fn model_id(&self) -> &str {
@@ -96,8 +88,8 @@ impl PyRevision {
 
     fn __repr__(&self) -> String {
         format!(
-            "Revision(model_id={:?}, number={}, digest={:?}, codec={:?})",
-            self.model_id, self.number, self.digest, self.exact_codec
+            "Revision(model_id={:?}, number={}, digest={:?})",
+            self.model_id, self.number, self.digest
         )
     }
 }
@@ -283,13 +275,8 @@ impl PyModel {
         let reference = document
             .artifact_reference()
             .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
-        let exact_codec = document
-            .exact_codec()
-            .try_into()
-            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
         Ok(Self {
             revision: PyRevision {
-                exact_codec,
                 model_id: reference.model().ulid().to_string(),
                 digest: reference.artifact().to_string(),
                 number: reference.semantic_revision().get(),
@@ -442,12 +429,6 @@ impl PyModel {
         })
     }
 
-    /// Canonical wire selected before this immutable document was built.
-    #[getter]
-    const fn exact_codec(&self) -> PyExactModelCodec {
-        self.revision.exact_codec
-    }
-
     /// Prepare an exact-base scalar value edit without mutating this Model.
     fn preview_value_edit(
         &self,
@@ -495,11 +476,8 @@ impl PyModel {
 
     fn __repr__(&self) -> String {
         format!(
-            "Model(model_id={:?}, revision={}, digest={:?}, codec={:?})",
-            self.revision.model_id,
-            self.revision.number,
-            self.revision.digest,
-            self.revision.exact_codec
+            "Model(model_id={:?}, revision={}, digest={:?})",
+            self.revision.model_id, self.revision.number, self.revision.digest
         )
     }
 }

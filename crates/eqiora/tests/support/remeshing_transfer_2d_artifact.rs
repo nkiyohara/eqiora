@@ -5,7 +5,7 @@ use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, FieldTransferReceiptV1,
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
     GeometryRevisionAssociationEnvelopeV1, GeometryStateEnvelopeV1, GeometryStateEnvelopeV2,
-    LayoutArtifacts, MeshRevisionOverlapEnvelopeV1, MlDatasetDecoderLimits, ModelEnvelopeV5,
+    LayoutArtifacts, MeshRevisionOverlapEnvelopeV1, MlDatasetDecoderLimits, ModelEnvelope,
     RealizationEnvelopeV4, RemeshDecoderLimits, RemeshFieldRoleV1, RemeshIntegrationChartV1,
     RemeshNormalizationWitnessV1, RemeshProjectionActionV1, RemeshProjectionEvidenceEnvelopeV1,
     RemeshTransferEvidenceV1, RemeshTransferLawV1, RemeshTransferReceiptEnvelopeV1,
@@ -37,7 +37,7 @@ pub(super) fn assert_artifact_vertical_slice(
     projection: &AcceptedAleFsiRemeshProjection2d,
     transfer_plan: AleFsiRemeshTransferPlan2d,
 ) {
-    let model = ModelEnvelopeV5::from_program(case.document.program()).unwrap();
+    let model = ModelEnvelope::from_program(case.document.program()).unwrap();
     let geometry = GeometryIdentityEnvelopeV1::new(
         &model,
         [fluid_domain(&case.canonical), solid_domain(&case.canonical)],
@@ -743,7 +743,7 @@ pub(super) fn assert_artifact_vertical_slice(
 
 fn assert_ml_dataset_vertical_slice(
     canonical: &AleFsiCartesianModel2d,
-    replay: &eqiora::api::RemeshingTrajectoryReplayInputV1<'_, ModelEnvelopeV5>,
+    replay: &eqiora::api::RemeshingTrajectoryReplayInputV1<'_, ModelEnvelope>,
     source_snapshots: &[MovingSnapshotSet],
     target_snapshots: &[MovingSnapshotSet],
     source_partition: &FixedReferenceFsiPartition2d,
@@ -1075,13 +1075,13 @@ fn assert_close(actual: f64, expected: f64, relative_tolerance: f64) {
 
 #[allow(clippy::too_many_arguments)]
 fn assert_artifact_falsifiers(
-    model: &ModelEnvelopeV5,
+    model: &ModelEnvelope,
     geometry: &GeometryIdentityEnvelopeV1,
     target_correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
     target_realization: &RealizationEnvelopeV4,
     case: &Case,
-    source_context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelopeV5>,
-    target_context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelopeV5>,
+    source_context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
+    target_context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
     source_root: &SpatialTrajectoryEnvelopeV2,
     source_segment: &SpatialTrajectorySegmentEnvelopeV2,
     source_states: &[SpatialStateEnvelopeV2],
@@ -1344,7 +1344,7 @@ fn moving_snapshots(
     model: &AleFsiCartesianModel2d,
     mesh: &SimplicialMeshEnvelopeV1,
     partition: &FixedReferenceFsiPartition2d,
-    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelopeV5>,
+    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
     state: &AleFsiState2d,
 ) -> MovingSnapshotSet {
     let vector = DiscreteFieldShape::Vector {

@@ -1,212 +1,12 @@
-//! Versioned wire contract for Semantic Model edit transactions.
+//! Shared wire vocabulary for the current Semantic Model transaction.
 
 use eqiora_core::{Diagnostic, EntityKind, GraphClass, OntologyId, RawId};
-use eqiora_graph::{EdgeKind, Op, Precondition, Revision, Transaction};
+use eqiora_graph::{EdgeKind, Op, Precondition, Revision};
 use eqiora_schema::{Model, ModelView};
 use serde::{Deserialize, Serialize};
 
-use crate::model::{
-    WireEdgeKind, WireId, WireNode, WireQuantity, checked_count_sum, parse_ulid,
-    require_decoder_count,
-};
-use crate::{
-    ArtifactDigest, ModelDecoderLimits, check_json_limits, invalid_artifact, validate_text,
-};
-
-const TRANSACTION_SCHEMA: &str = "eqiora.model-transaction-envelope/v1";
-const CANONICAL_ENCODING: &str = "eqiora.canonical-json/v1";
-
-/// Versioned serialization of one ordered Semantic Model edit transaction.
-///
-/// This is intentionally narrower than a Graph Federation [`Transaction`]. It
-/// admits Semantic Kernel mutations and the standard [`ModelView`] schema,
-/// but rejects infrastructure graph nodes and other ontology schemas whose
-/// validators cannot be reconstructed without a versioned schema registry.
-///
-/// The envelope is the identity of an ordered edit, not a complete Semantic
-/// Model admission proof. References inside an edit may resolve against the
-/// selected store revision or a later operation. After an atomic commit,
-/// callers must construct a `KernelProgram` before exposing the candidate as a
-/// valid Semantic Model.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ModelTransactionEnvelopeV1 {
-    wire: WireModelTransactionEnvelopeV1,
-}
-
-impl ModelTransactionEnvelopeV1 {
-    /// Encode an ordered model transaction without changing operation order.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` if an operation lies outside the Semantic Model wire
-    /// scope, uses a newer kernel variant, or exceeds decoder limits.
-    pub fn from_transaction(transaction: &Transaction) -> Result<Self, Diagnostic> {
-        let ops = transaction
-            .ops()
-            .iter()
-            .map(WireModelOp::encode_v1)
-            .collect::<Result<Vec<_>, _>>()?;
-        let preconditions = transaction
-            .preconditions()
-            .iter()
-            .map(WireModelPrecondition::encode)
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut envelope = Self {
-            wire: WireModelTransactionEnvelopeV1 {
-                schema: TRANSACTION_SCHEMA.to_owned(),
-                encoding: CANONICAL_ENCODING.to_owned(),
-                label: transaction.label().to_owned(),
-                ops,
-                preconditions,
-            },
-        };
-        envelope.canonicalize_and_validate(ModelDecoderLimits::default())?;
-        Ok(envelope)
-    }
-
-    /// Decode and validate the local edit grammar without mutating a graph
-    /// store.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` for malformed, oversized, unknown-version, or
-    /// out-of-scope transaction data.
-    pub fn from_json(bytes: &[u8], limits: ModelDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
-        let wire = serde_json::from_slice(bytes).map_err(|error| {
-            invalid_artifact(format!("invalid model transaction envelope JSON: {error}"))
-        })?;
-        let mut envelope = Self { wire };
-        envelope.canonicalize_and_validate(limits)?;
-        Ok(envelope)
-    }
-
-    /// Deterministic compact JSON preserving semantic operation order.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` if serialization unexpectedly fails.
-    pub fn canonical_json(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&self.wire).map_err(|error| {
-            invalid_artifact(format!(
-                "cannot serialize model transaction envelope: {error}"
-            ))
-        })
-    }
-
-    /// Domain-separated SHA-256 identity of the exact ordered transaction.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` if canonical serialization unexpectedly fails.
-    pub fn digest(&self) -> Result<ArtifactDigest, Diagnostic> {
-        Ok(ArtifactDigest::compute(
-            TRANSACTION_SCHEMA.as_bytes(),
-            &self.canonical_json()?,
-        ))
-    }
-
-    /// Reconstruct the locally typed in-memory transaction.
-    ///
-    /// This method does not commit. The caller chooses a graph revision and
-    /// obtains the store's ordinary atomic validation and provenance behavior.
-    /// Store-dependent semantic references are admitted only when the
-    /// resulting snapshot is reconstructed as a `KernelProgram`.
-    ///
-    /// # Errors
-    /// Returns `EQ0901` if locally valid wire data cannot be reconstructed.
-    pub fn to_transaction(&self) -> Result<Transaction, Diagnostic> {
-        let mut transaction = Transaction::new(&self.wire.label);
-        for precondition in &self.wire.preconditions {
-            transaction.require(precondition.decode()?);
-        }
-        for op in &self.wire.ops {
-            transaction.push(op.decode()?);
-        }
-        Ok(transaction)
-    }
-
-    fn canonicalize_and_validate(&mut self, limits: ModelDecoderLimits) -> Result<(), Diagnostic> {
-        if self.wire.schema != TRANSACTION_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
-            return Err(invalid_artifact(
-                "unsupported model-transaction schema or canonical encoding",
-            ));
-        }
-        validate_text("transaction label", &self.wire.label)?;
-        if self.wire.ops.is_empty() || self.wire.ops.len() > limits.max_transaction_ops {
-            return Err(invalid_artifact(format!(
-                "model transaction requires 1..={} operations, found {}",
-                limits.max_transaction_ops,
-                self.wire.ops.len()
-            )));
-        }
-        if self.wire.preconditions.len() > limits.max_transaction_preconditions {
-            return Err(invalid_artifact(format!(
-                "model transaction has {} preconditions, exceeding the {} precondition limit",
-                self.wire.preconditions.len(),
-                limits.max_transaction_preconditions
-            )));
-        }
-        for op in &mut self.wire.ops {
-            op.canonicalize_sets()?;
-        }
-        let expression_nodes = self.wire.ops.iter().try_fold(0_usize, |count, op| {
-            count
-                .checked_add(op.expression_node_count())
-                .ok_or_else(|| invalid_artifact("expression-node count overflows usize"))
-        })?;
-        if expression_nodes > limits.max_expression_nodes {
-            return Err(invalid_artifact(format!(
-                "model transaction has {expression_nodes} expression nodes, exceeding the {} node limit",
-                limits.max_expression_nodes
-            )));
-        }
-        let expression_roots = checked_count_sum(
-            self.wire.ops.iter().map(WireModelOp::expression_root_count),
-            "model transaction expression-root count",
-        )?;
-        require_decoder_count(
-            "model transaction expression roots",
-            expression_roots,
-            limits.max_expression_roots,
-        )?;
-        let view_members = checked_count_sum(
-            self.wire.ops.iter().map(|op| op.model_view_counts().0),
-            "model transaction view-member count",
-        )?;
-        require_decoder_count(
-            "model transaction view members",
-            view_members,
-            limits.max_model_view_members,
-        )?;
-        let boundaries = checked_count_sum(
-            self.wire.ops.iter().map(|op| op.model_view_counts().1),
-            "model transaction boundary count",
-        )?;
-        require_decoder_count(
-            "model transaction boundary Ports",
-            boundaries,
-            limits.max_model_boundary,
-        )?;
-
-        // Reconstruct every local value now. Store-dependent invariants are
-        // deliberately checked only by the later atomic graph commit.
-        for precondition in &self.wire.preconditions {
-            precondition.decode()?;
-        }
-        for op in &self.wire.ops {
-            op.ensure_v1()?;
-            op.decode()?;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireModelTransactionEnvelopeV1 {
-    schema: String,
-    encoding: String,
-    label: String,
-    ops: Vec<WireModelOp>,
-    preconditions: Vec<WireModelPrecondition>,
-}
+use crate::model::{WireEdgeKind, WireId, WireNode, WireQuantity, parse_ulid};
+use crate::{ModelDecoderLimits, invalid_artifact};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "kebab-case", deny_unknown_fields)]
@@ -235,51 +35,10 @@ pub(crate) enum WireModelOp {
 }
 
 impl WireModelOp {
-    fn encode_v1(op: &Op) -> Result<Self, Diagnostic> {
-        Self::encode(op, ModelOperationWireVersion::V1)
-    }
-
-    pub(crate) fn encode_v2(op: &Op) -> Result<Self, Diagnostic> {
-        Self::encode(op, ModelOperationWireVersion::V2)
-    }
-
-    pub(crate) fn encode_v3(op: &Op) -> Result<Self, Diagnostic> {
-        Self::encode(op, ModelOperationWireVersion::V3)
-    }
-
-    pub(crate) fn encode_v4(op: &Op) -> Result<Self, Diagnostic> {
-        Self::encode(op, ModelOperationWireVersion::V4)
-    }
-
-    pub(crate) fn encode_v5(op: &Op) -> Result<Self, Diagnostic> {
-        Self::encode(op, ModelOperationWireVersion::V5)
-    }
-
-    pub(crate) fn encode_v7(op: &Op) -> Result<Self, Diagnostic> {
-        Self::encode(op, ModelOperationWireVersion::V7)
-    }
-
-    pub(crate) fn encode_v8(op: &Op) -> Result<Self, Diagnostic> {
-        Self::encode(op, ModelOperationWireVersion::V8)
-    }
-
-    pub(crate) fn encode_v6(op: &Op) -> Result<Self, Diagnostic> {
-        Self::encode(op, ModelOperationWireVersion::V6)
-    }
-
-    fn encode(op: &Op, version: ModelOperationWireVersion) -> Result<Self, Diagnostic> {
+    pub(crate) fn encode(op: &Op) -> Result<Self, Diagnostic> {
         match op {
             Op::DefineKernelNode { node } => Ok(Self::DefineKernelNode {
-                node: match version {
-                    ModelOperationWireVersion::V1 => WireNode::encode_v1(node)?,
-                    ModelOperationWireVersion::V2 => WireNode::encode_v2(node)?,
-                    ModelOperationWireVersion::V3 => WireNode::encode_v3(node)?,
-                    ModelOperationWireVersion::V4 => WireNode::encode_v4(node)?,
-                    ModelOperationWireVersion::V5 => WireNode::encode_v5(node)?,
-                    ModelOperationWireVersion::V6 => WireNode::encode_v6(node)?,
-                    ModelOperationWireVersion::V7 => WireNode::encode_v7(node)?,
-                    ModelOperationWireVersion::V8 => WireNode::encode_v8(node)?,
-                },
+                node: WireNode::encode(node)?,
             }),
             Op::SetValue { target, value } => {
                 require_semantic_id(*target, "SetValue target")?;
@@ -291,9 +50,9 @@ impl WireModelOp {
             Op::Connect { from, to, edge } => {
                 require_semantic_id(*from, "Connect source")?;
                 require_semantic_id(*to, "Connect target")?;
-                if !operation_edge_permitted(version, *edge, from.kind(), to.kind()) {
+                if !operation_edge_permitted(*edge, from.kind(), to.kind()) {
                     return Err(invalid_artifact(
-                        "model transaction edge is unsupported by this wire generation",
+                        "model transaction edge is unsupported by the current Model contract",
                     ));
                 }
                 Ok(Self::Connect {
@@ -334,7 +93,7 @@ impl WireModelOp {
                 "infrastructure node {kind:?} cannot enter a Semantic Model transaction"
             ))),
             _ => Err(invalid_artifact(
-                "operation is newer than the supported model transaction wire vocabulary",
+                "operation is unsupported by the current Model transaction vocabulary",
             )),
         }
     }
@@ -402,16 +161,16 @@ impl WireModelOp {
         }
     }
 
-    pub(crate) fn validate_v5_features(&self) -> Result<(), Diagnostic> {
+    pub(crate) fn validate_pure_operator_features(&self) -> Result<(), Diagnostic> {
         match self {
-            Self::DefineKernelNode { node } => node.validate_v5_features(),
+            Self::DefineKernelNode { node } => node.validate_pure_operator_features(),
             _ => Ok(()),
         }
     }
 
-    pub(crate) fn canonicalize_v5_definitions(&mut self) -> Result<(), Diagnostic> {
+    pub(crate) fn canonicalize_pure_operator_definitions(&mut self) -> Result<(), Diagnostic> {
         match self {
-            Self::DefineKernelNode { node } => node.canonicalize_v5_definitions(),
+            Self::DefineKernelNode { node } => node.canonicalize_pure_operator_definitions(),
             _ => Ok(()),
         }
     }
@@ -423,81 +182,11 @@ impl WireModelOp {
         }
     }
 
-    fn ensure_v1(&self) -> Result<(), Diagnostic> {
-        self.reject_coordinate_dependency_before_v8()?;
+    pub(crate) fn ensure_current(&self) -> Result<(), Diagnostic> {
         match self {
-            Self::DefineKernelNode { node } => node.ensure_v1(),
+            Self::DefineKernelNode { node } => node.ensure_current(),
             _ => Ok(()),
         }
-    }
-
-    pub(crate) fn ensure_v2(&self) -> Result<(), Diagnostic> {
-        self.reject_coordinate_dependency_before_v8()?;
-        match self {
-            Self::DefineKernelNode { node } => node.ensure_v2(),
-            _ => Ok(()),
-        }
-    }
-
-    pub(crate) fn ensure_v3(&self) -> Result<(), Diagnostic> {
-        self.reject_coordinate_dependency_before_v8()?;
-        match self {
-            Self::DefineKernelNode { node } => node.ensure_v3(),
-            _ => Ok(()),
-        }
-    }
-
-    pub(crate) fn ensure_v4(&self) -> Result<(), Diagnostic> {
-        self.reject_coordinate_dependency_before_v8()?;
-        match self {
-            Self::DefineKernelNode { node } => node.ensure_v4(),
-            _ => Ok(()),
-        }
-    }
-
-    pub(crate) fn ensure_v5(&self) -> Result<(), Diagnostic> {
-        self.reject_coordinate_dependency_before_v8()?;
-        match self {
-            Self::DefineKernelNode { node } => node.ensure_v5(),
-            _ => Ok(()),
-        }
-    }
-
-    pub(crate) fn ensure_v7(&self) -> Result<(), Diagnostic> {
-        // V7 inherits the whole v6 operation grammar and adds only the geometry
-        // Domain kinds, so it admits exactly what v6 admits and more.
-        self.ensure_v6()
-    }
-
-    pub(crate) fn ensure_v6(&self) -> Result<(), Diagnostic> {
-        self.reject_coordinate_dependency_before_v8()?;
-        match self {
-            Self::DefineKernelNode { node } => node.ensure_v6(),
-            _ => Ok(()),
-        }
-    }
-
-    pub(crate) fn ensure_v8(&self) -> Result<(), Diagnostic> {
-        match self {
-            Self::DefineKernelNode { node } => node.ensure_v8(),
-            _ => Ok(()),
-        }
-    }
-
-    fn reject_coordinate_dependency_before_v8(&self) -> Result<(), Diagnostic> {
-        if let Self::Connect { from, to, edge } = self {
-            let from = from.decode_raw()?;
-            let to = to.decode_raw()?;
-            if edge.decode() == EdgeKind::DependsOn
-                && from.kind() == EntityKind::Domain
-                && to.kind() == EntityKind::Parameter
-            {
-                return Err(invalid_artifact(
-                    "Domain-to-Parameter dependency requires model transaction wire v8",
-                ));
-            }
-        }
-        Ok(())
     }
 
     pub(crate) fn ensure_value_shape_limits(
@@ -521,29 +210,8 @@ impl WireModelOp {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ModelOperationWireVersion {
-    V1,
-    V2,
-    V3,
-    V4,
-    V5,
-    V6,
-    V7,
-    V8,
-}
-
-fn operation_edge_permitted(
-    version: ModelOperationWireVersion,
-    edge: EdgeKind,
-    from: EntityKind,
-    to: EntityKind,
-) -> bool {
+fn operation_edge_permitted(edge: EdgeKind, from: EntityKind, to: EntityKind) -> bool {
     edge.permits(from, to)
-        && (matches!(version, ModelOperationWireVersion::V8)
-            || !(edge == EdgeKind::DependsOn
-                && from == EntityKind::Domain
-                && to == EntityKind::Parameter))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -679,175 +347,5 @@ fn reject_duplicates<T: PartialEq>(values: &[T], label: &str) -> Result<(), Diag
         )))
     } else {
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use eqiora_compiler::compile;
-    use eqiora_core::diagnostic::codes;
-    use eqiora_core::entity::kinds;
-    use eqiora_core::{DimExponents, DynQuantity, Id};
-    use eqiora_graph::{GraphStore, InMemoryGraphStore};
-    use eqiora_sem::KernelProgram;
-
-    const POISSON: &str =
-        include_str!("../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi");
-
-    #[test]
-    fn compiler_transaction_round_trips_and_commits() {
-        let mut compiled = compile("poisson.eqi", POISSON).unwrap();
-        let compiled = compiled.remove(0);
-        let model = compiled.model();
-        let envelope = ModelTransactionEnvelopeV1::from_transaction(compiled.transaction())
-            .expect("compiler emits an admitted model transaction");
-        let bytes = envelope.canonical_json().unwrap();
-        let digest = envelope.digest().unwrap();
-        let decoded =
-            ModelTransactionEnvelopeV1::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
-        assert_eq!(decoded.canonical_json().unwrap(), bytes);
-        assert_eq!(decoded.digest().unwrap(), digest);
-
-        let transaction = decoded.to_transaction().unwrap();
-        assert_eq!(transaction.ops(), compiled.transaction().ops());
-        assert_eq!(
-            transaction.preconditions(),
-            compiled.transaction().preconditions()
-        );
-        let mut store = InMemoryGraphStore::new();
-        store.commit(transaction).unwrap();
-        KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    }
-
-    #[test]
-    fn model_view_sets_are_canonicalized_and_duplicates_rejected() {
-        let mut compiled = compile("poisson.eqi", POISSON).unwrap();
-        let compiled = compiled.remove(0);
-        let canonical = ModelTransactionEnvelopeV1::from_transaction(compiled.transaction())
-            .unwrap()
-            .canonical_json()
-            .unwrap();
-        let mut reordered: serde_json::Value = serde_json::from_slice(&canonical).unwrap();
-        let view = reordered["ops"]
-            .as_array_mut()
-            .unwrap()
-            .iter_mut()
-            .find(|op| op["op"] == "define-model-view")
-            .unwrap();
-        view["view"]["members"].as_array_mut().unwrap().reverse();
-        let reordered = serde_json::to_vec(&reordered).unwrap();
-        assert_eq!(
-            ModelTransactionEnvelopeV1::from_json(&reordered, ModelDecoderLimits::default())
-                .unwrap()
-                .canonical_json()
-                .unwrap(),
-            canonical
-        );
-
-        let mut duplicate: serde_json::Value = serde_json::from_slice(&canonical).unwrap();
-        let view = duplicate["ops"]
-            .as_array_mut()
-            .unwrap()
-            .iter_mut()
-            .find(|op| op["op"] == "define-model-view")
-            .unwrap();
-        let member = view["view"]["members"][0].clone();
-        view["view"]["members"].as_array_mut().unwrap().push(member);
-        assert_eq!(
-            ModelTransactionEnvelopeV1::from_json(
-                &serde_json::to_vec(&duplicate).unwrap(),
-                ModelDecoderLimits::default(),
-            )
-            .unwrap_err()
-            .code(),
-            codes::INVALID_ARTIFACT
-        );
-    }
-
-    #[test]
-    fn preconditions_and_operation_order_survive_round_trip() {
-        let field = Id::<kinds::Field>::new();
-        let value = DynQuantity::new(2.0, DimExponents::DIMENSIONLESS);
-        let mut transaction = Transaction::new("ordered edit");
-        transaction
-            .require(Precondition::RevisionIs(Revision(4)))
-            .require(Precondition::ValueEquals {
-                target: field.erase(),
-                expected: value,
-            })
-            .push(Op::SetValue {
-                target: field.erase(),
-                value,
-            })
-            .push(Op::RemoveNode { id: field.erase() });
-
-        let envelope = ModelTransactionEnvelopeV1::from_transaction(&transaction).unwrap();
-        let decoded = envelope.to_transaction().unwrap();
-        assert_eq!(decoded.ops(), transaction.ops());
-        assert_eq!(decoded.preconditions(), transaction.preconditions());
-    }
-
-    #[test]
-    fn infrastructure_and_unknown_ontology_are_rejected() {
-        let mut infrastructure = Transaction::new("not a model edit");
-        infrastructure.push(Op::AddNode {
-            kind: EntityKind::Target,
-            id: Id::<kinds::Target>::new().erase(),
-        });
-        assert_eq!(
-            ModelTransactionEnvelopeV1::from_transaction(&infrastructure)
-                .unwrap_err()
-                .code(),
-            codes::INVALID_ARTIFACT
-        );
-
-        let relation = Id::<kinds::Relation>::new().erase();
-        let coupling = eqiora_schema::CouplingView::new(OntologyId::new(), [relation], []).unwrap();
-        let mut other_ontology = Transaction::new("not a model view");
-        other_ontology.push(Op::DefineOntologyView {
-            view: coupling.into(),
-        });
-        assert_eq!(
-            ModelTransactionEnvelopeV1::from_transaction(&other_ontology)
-                .unwrap_err()
-                .code(),
-            codes::INVALID_ARTIFACT
-        );
-    }
-
-    #[test]
-    fn operation_expression_and_json_limits_fail_closed() {
-        let mut compiled = compile("poisson.eqi", POISSON).unwrap();
-        let compiled = compiled.remove(0);
-        let bytes = ModelTransactionEnvelopeV1::from_transaction(compiled.transaction())
-            .unwrap()
-            .canonical_json()
-            .unwrap();
-
-        for limits in [
-            ModelDecoderLimits {
-                max_transaction_ops: 1,
-                ..ModelDecoderLimits::default()
-            },
-            ModelDecoderLimits {
-                max_expression_nodes: 1,
-                ..ModelDecoderLimits::default()
-            },
-            ModelDecoderLimits {
-                json: crate::JsonDecoderLimits {
-                    max_bytes: bytes.len() - 1,
-                    ..Default::default()
-                },
-                ..ModelDecoderLimits::default()
-            },
-        ] {
-            assert_eq!(
-                ModelTransactionEnvelopeV1::from_json(&bytes, limits)
-                    .unwrap_err()
-                    .code(),
-                codes::INVALID_ARTIFACT
-            );
-        }
     }
 }

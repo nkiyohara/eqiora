@@ -123,10 +123,10 @@ python examples/python/mixed_boundary_elasticity.py \
   --displacement-png mixed-boundary-displacement.png --scale 1
 ```
 
-It compiles the package's exact-v4 source explicitly, executes the shared
-Rust application result, and renders original and scaled-deformed canonical
-Q1 edges. It is one bounded verified case, not a general structural solver or
-deformation viewer.
+It compiles the packaged source through the single current Model API, executes
+the shared Rust application result, and renders original and scaled-deformed
+canonical Q1 edges. It is one bounded verified case, not a general structural
+solver or deformation viewer.
 
 The accepted fixed-reference FSI workflow follows the same rule and performs
 both coupled time steps inside the shared Rust application service:

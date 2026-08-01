@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
-    GeometryRevisionAssociationEnvelopeV1, ModelDecoderLimits, ModelEnvelopeV8,
-    ModelTransactionEnvelopeV8, SimplicialMeshEnvelopeV1,
+    GeometryRevisionAssociationEnvelopeV1, ModelDecoderLimits, ModelEnvelope,
+    ModelTransactionEnvelope, SimplicialMeshEnvelopeV1,
 };
 use eqiora::geometry::BodyAssociationCandidate;
 use eqiora::graph::{EdgeKind, Op, Precondition};
@@ -64,10 +64,6 @@ fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associ
     let partial_mutant = base
         .preview_cartesian_domain_edit(body, [(0, axis_bounds(-0.6, 0.6))])
         .unwrap();
-    assert_eq!(
-        base.exact_codec(),
-        eqiora::compatibility::ExactModelCodec::CURRENT
-    );
     assert_eq!(plan.base_digest(), base_digest);
     assert_eq!(plan.target(), body);
     assert_eq!(
@@ -91,7 +87,7 @@ fn exact_cartesian_edit_matches_an_independent_model_and_retains_geometry_associ
         plan.expected_child_digest(),
         distinct.expected_child_digest()
     );
-    let ordinary_transaction = ModelTransactionEnvelopeV8::from_json(
+    let ordinary_transaction = ModelTransactionEnvelope::from_json(
         &plan.transaction_json().unwrap(),
         ModelDecoderLimits::default(),
     )
@@ -353,15 +349,6 @@ fn invalid_stale_and_foreign_edits_fail_before_mutation() {
 
 #[test]
 fn unsupported_profile_dimension_and_body_multiplicity_fail_closed() {
-    let v5 = eqiora::compatibility::ExactModelCodec::V5
-        .compile("v5.eqi", BASE)
-        .unwrap();
-    let v5_body = domain(&v5, "body");
-    assert!(
-        v5.preview_cartesian_domain_edit(v5_body, [(0, axis_bounds(-0.6, 0.6))])
-            .is_err()
-    );
-
     let plane = ModelDocument::compile("plane.eqi", TWO_DIMENSIONAL).unwrap();
     let plane_body = domain(&plane, "body");
     assert!(
@@ -408,7 +395,7 @@ fn geometry_identity_rejects_a_missing_boundary_of_mutant() {
     });
     assert_eq!(edges.len() + 1, original_edge_count);
 
-    let edge_only_mutant = ModelEnvelopeV8::from_json(
+    let edge_only_mutant = ModelEnvelope::from_json(
         &serde_json::to_vec(&edge_only_wire).unwrap(),
         ModelDecoderLimits::default(),
     )
@@ -432,7 +419,7 @@ fn geometry_identity_rejects_a_missing_boundary_of_mutant() {
         .as_array_mut()
         .unwrap()
         .retain(|node| node["id"]["ulid"] != boundary.ulid().to_string());
-    let missing_role_mutant = ModelEnvelopeV8::from_json(
+    let missing_role_mutant = ModelEnvelope::from_json(
         &serde_json::to_vec(&missing_role_wire).unwrap(),
         ModelDecoderLimits::default(),
     )
@@ -449,8 +436,8 @@ fn geometry_identity_rejects_a_missing_boundary_of_mutant() {
     );
 }
 
-fn model_artifact(document: &ModelDocument) -> ModelEnvelopeV8 {
-    ModelEnvelopeV8::from_json(
+fn model_artifact(document: &ModelDocument) -> ModelEnvelope {
+    ModelEnvelope::from_json(
         &document.canonical_json().unwrap(),
         ModelDecoderLimits::default(),
     )

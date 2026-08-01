@@ -1,6 +1,5 @@
 //! Exact checked-in package closure for the DC-drive presentation.
 
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleRoleV1, InMemoryPackageStore,
     NormalizedRelativePath, PackageReleaseV1, PackagedModelDocument, ResolutionRecordV1,
@@ -61,9 +60,8 @@ impl PreparedPackages {
         for release in [&electrical, &drive, &root] {
             store.insert(release).map_err(|error| error.to_string())?;
         }
-        let document =
-            PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V2)
-                .map_err(|error| error.to_string())?;
+        let document = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+            .map_err(|error| error.to_string())?;
         Ok(Self {
             document,
             resolution,

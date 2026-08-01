@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use eqiora::artifact::{
     DistributedLayoutEnvelopeV1, DistributedTransportV1, ExecutionProvenanceV1,
     ExecutionTopologyV1, JsonDecoderLimits, LayoutArtifacts, LinearSystemEnvelopeV1,
-    ModelDecoderLimits, ModelEnvelopeV1, MpiThreadSupportV1, PartitionEnvelopeV1,
+    ModelDecoderLimits, ModelEnvelope, MpiThreadSupportV1, PartitionEnvelopeV1,
     RealizationEnvelopeV1, RunManifestV2, validate_distributed_content_dag,
 };
 use eqiora::backends::mpi::{
@@ -61,11 +61,11 @@ fn canonical_cartesian_poisson_mpi_runs_on_one_two_and_four_ranks() {
     let program =
         canonical::compile_program_from_source("canonical-cartesian-poisson-mpi.eqi", SOURCE)
             .unwrap();
-    let model = ModelEnvelopeV1::from_program(&program).unwrap();
+    let model = ModelEnvelope::from_program(&program).unwrap();
     let model_bytes = model.canonical_json().unwrap();
     let limits = ModelDecoderLimits::default();
     assert!(model_bytes.len() <= limits.json.max_bytes);
-    let decoded = ModelEnvelopeV1::from_json(&model_bytes, limits).unwrap();
+    let decoded = ModelEnvelope::from_json(&model_bytes, limits).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), model_bytes);
     let shared_model = SharedModelFile::create(&model_bytes);
 
@@ -86,7 +86,7 @@ fn canonical_cartesian_poisson_mpi_child() {
         Path::new(&model_path),
         JsonDecoderLimits::default().max_bytes,
     );
-    let model = ModelEnvelopeV1::from_json(&model_bytes, Default::default()).unwrap();
+    let model = ModelEnvelope::from_json(&model_bytes, Default::default()).unwrap();
     assert_eq!(model.canonical_json().unwrap(), model_bytes);
     let program = model
         .to_program()
@@ -117,7 +117,7 @@ fn canonical_cartesian_poisson_mpi_child() {
 #[derive(Clone, Copy)]
 struct CanonicalMpiContext<'a> {
     program: &'a KernelProgram,
-    model: &'a ModelEnvelopeV1,
+    model: &'a ModelEnvelope,
     capabilities: &'a RealizationCapabilities,
 }
 
@@ -438,7 +438,7 @@ fn require_semantic_replay(
 }
 
 fn assert_content_linkage_does_not_claim_semantic_derivation(
-    model: &ModelEnvelopeV1,
+    model: &ModelEnvelope,
     resolved: &eqiora::realization::ResolvedRealization,
     execution: &ExecutionProvenanceV1,
     original: &LinearSystemEnvelopeV1,
@@ -568,9 +568,9 @@ const fn artifact_thread_support(value: MpiThreadSupport) -> MpiThreadSupportV1 
     }
 }
 
-fn round_trip_model(value: &ModelEnvelopeV1) -> ModelEnvelopeV1 {
+fn round_trip_model(value: &ModelEnvelope) -> ModelEnvelope {
     let bytes = value.canonical_json().unwrap();
-    let decoded = ModelEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
+    let decoded = ModelEnvelope::from_json(&bytes, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
     assert_eq!(decoded.digest().unwrap(), value.digest().unwrap());
     decoded
@@ -622,7 +622,7 @@ struct SharedModelFile {
 
 impl SharedModelFile {
     fn create(bytes: &[u8]) -> Self {
-        let digest = ModelEnvelopeV1::from_json(bytes, Default::default())
+        let digest = ModelEnvelope::from_json(bytes, Default::default())
             .unwrap()
             .digest()
             .unwrap();

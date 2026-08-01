@@ -5,13 +5,12 @@ use std::num::{NonZeroU16, NonZeroU32, NonZeroUsize};
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1, LayoutArtifacts,
-    ModelEnvelopeV5, RealizationEnvelopeV4, SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2,
+    GeometryMeshCorrespondenceEnvelopeV1, GeometryStateEnvelopeV1, LayoutArtifacts, ModelEnvelope,
+    RealizationEnvelopeV4, SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV2,
     SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2,
     ValidatedMovingSpatialContextV2,
 };
 use eqiora::backends::faer::FaerLinearSolver;
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{
     CellId, DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape, FacetId,
     FixedTopologyGeometryAction2d, MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh,
@@ -73,9 +72,9 @@ const DIRECT_SOURCE: &str =
 
 #[test]
 fn faer_closes_moving_fsi_evidence_and_first_order_refinement() {
-    let semantic = ExactModelCodec::V5
-        .compile("fixed-topology-ale-fsi-direct.eqi", DIRECT_SOURCE)
-        .unwrap();
+    let semantic =
+        eqiora::api::ModelDocument::compile("fixed-topology-ale-fsi-direct.eqi", DIRECT_SOURCE)
+            .unwrap();
     let canonical = lower_ale_fsi_cartesian_2d(semantic.program()).unwrap();
     assert_eq!(canonical.fluid().bounds(), &[[0.0, 1.0], [0.0, 1.0]]);
     assert_eq!(canonical.solid().bounds(), &[[1.0, 2.0], [0.0, 1.0]]);
@@ -313,7 +312,7 @@ fn assert_moving_artifact_dag_replays(
     trajectory: &AleFsiTrajectory2d,
     time_step: f64,
 ) {
-    let model = ModelEnvelopeV5::from_program(fixture.document.program()).unwrap();
+    let model = ModelEnvelope::from_program(fixture.document.program()).unwrap();
     assert_eq!(
         model.canonical_json().unwrap(),
         fixture.document.canonical_json().unwrap()
@@ -458,7 +457,7 @@ fn assert_moving_artifact_dag_replays(
 
 fn moving_snapshots(
     fixture: &Fixture,
-    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelopeV5>,
+    context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
     state: &AleFsiState2d,
 ) -> MovingSnapshotSet {
     let vector = DiscreteFieldShape::Vector {

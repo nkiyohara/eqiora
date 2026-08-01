@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::invalid_artifact;
 
 use super::*;
-use super::{node::*, primitive::*, vocabulary::*};
+use super::{primitive::*, vocabulary::*};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -28,21 +28,17 @@ pub(crate) struct WireExpression {
 }
 
 impl WireExpression {
-    pub(crate) fn encode(expression: &ExprDag, version: WireVersion) -> Result<Self, Diagnostic> {
+    pub(crate) fn encode(expression: &ExprDag) -> Result<Self, Diagnostic> {
         Ok(Self {
-            definitions: if version.supports_pure_operators() {
-                expression
-                    .definitions()
-                    .values()
-                    .map(WirePureOperatorDefinition::encode)
-                    .collect()
-            } else {
-                Vec::new()
-            },
+            definitions: expression
+                .definitions()
+                .values()
+                .map(WirePureOperatorDefinition::encode)
+                .collect(),
             nodes: expression
                 .nodes()
                 .iter()
-                .map(|node| WireExpressionNode::encode(node, version))
+                .map(WireExpressionNode::encode)
                 .collect::<Result<Vec<_>, _>>()?,
             roots: expression.roots().iter().map(|root| root.index()).collect(),
         })
@@ -115,14 +111,14 @@ impl WireExpression {
         })
     }
 
-    pub(crate) fn validate_v5_features(&self) -> Result<(), Diagnostic> {
+    pub(crate) fn validate_pure_operator_features(&self) -> Result<(), Diagnostic> {
         for definition in &self.definitions {
             definition.validate_features()?;
         }
         Ok(())
     }
 
-    pub(crate) fn canonicalize_v5_definitions(&mut self) -> Result<(), Diagnostic> {
+    pub(crate) fn canonicalize_pure_operator_definitions(&mut self) -> Result<(), Diagnostic> {
         for definition in &self.definitions {
             definition.rebuild_and_validate_digest()?;
         }
@@ -158,82 +154,6 @@ impl WireExpression {
         Ok(definitions)
     }
 
-    pub(crate) fn ensure_v1(&self) -> Result<(), Diagnostic> {
-        if self.nodes.iter().any(|node| {
-            matches!(
-                node,
-                WireExpressionNode::Symbol {
-                    symbol: WireSymbol::Across { .. }
-                        | WireSymbol::Through { .. }
-                        | WireSymbol::PortTrace { .. }
-                        | WireSymbol::PortFlux { .. }
-                } | WireExpressionNode::SymmetricPart { .. }
-                    | WireExpressionNode::IsotropicLift { .. }
-                    | WireExpressionNode::PureOperatorApplication { .. }
-            )
-        }) || !self.definitions.is_empty()
-        {
-            Err(invalid_artifact(
-                "model wire v1 cannot contain physical interface symbols or tensor operators",
-            ))
-        } else {
-            Ok(())
-        }
-    }
-
-    pub(crate) fn ensure_v2(&self) -> Result<(), Diagnostic> {
-        if self.nodes.iter().any(|node| {
-            matches!(
-                node,
-                WireExpressionNode::Symbol {
-                    symbol: WireSymbol::PortTrace { .. } | WireSymbol::PortFlux { .. }
-                } | WireExpressionNode::SymmetricPart { .. }
-                    | WireExpressionNode::IsotropicLift { .. }
-                    | WireExpressionNode::PureOperatorApplication { .. }
-            )
-        }) || !self.definitions.is_empty()
-        {
-            Err(invalid_artifact(
-                "model wire v2 cannot contain boundary symbols or tensor operators",
-            ))
-        } else {
-            Ok(())
-        }
-    }
-
-    pub(crate) fn ensure_v3(&self) -> Result<(), Diagnostic> {
-        if self.nodes.iter().any(|node| {
-            matches!(
-                node,
-                WireExpressionNode::SymmetricPart { .. }
-                    | WireExpressionNode::IsotropicLift { .. }
-                    | WireExpressionNode::PureOperatorApplication { .. }
-            )
-        }) || !self.definitions.is_empty()
-        {
-            Err(invalid_artifact(
-                "model wire v3 cannot contain tensor operators introduced by model wire v4",
-            ))
-        } else {
-            Ok(())
-        }
-    }
-
-    pub(crate) fn ensure_v4(&self) -> Result<(), Diagnostic> {
-        if !self.definitions.is_empty()
-            || self
-                .nodes
-                .iter()
-                .any(|node| matches!(node, WireExpressionNode::PureOperatorApplication { .. }))
-        {
-            Err(invalid_artifact(
-                "model wire v4 cannot contain pure-operator definitions or generic applications",
-            ))
-        } else {
-            Ok(())
-        }
-    }
-
     pub(crate) fn semantic_references(&self) -> Vec<&WireId> {
         self.nodes
             .iter()
@@ -245,7 +165,7 @@ impl WireExpression {
     }
 }
 
-/// Aggregate resource counters for the v5 pure-operator wire extension.
+/// Aggregate resource counters for the current pure-operator vocabulary.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct PureOperatorWireCounts {
     pub(crate) definitions: usize,
@@ -374,13 +294,13 @@ pub(crate) enum WireExpressionNode {
 }
 
 impl WireExpressionNode {
-    pub(crate) fn encode(node: &ExprNode, version: WireVersion) -> Result<Self, Diagnostic> {
+    pub(crate) fn encode(node: &ExprNode) -> Result<Self, Diagnostic> {
         Ok(match node {
             ExprNode::Constant(value) => Self::Constant {
                 value: WireQuantity::encode(*value),
             },
             ExprNode::Symbol(symbol) => Self::Symbol {
-                symbol: WireSymbol::encode(*symbol, version)?,
+                symbol: WireSymbol::encode(*symbol)?,
             },
             ExprNode::Neg(value) => Self::Neg {
                 value: value.index(),
@@ -422,26 +342,20 @@ impl WireExpressionNode {
             ExprNode::NormalComponent(value) => Self::NormalComponent {
                 value: value.index(),
             },
-            ExprNode::SymmetricPart(value) if version.supports_tensor_operators() => {
-                Self::SymmetricPart {
-                    value: value.index(),
-                }
-            }
-            ExprNode::IsotropicLift(value) if version.supports_tensor_operators() => {
-                Self::IsotropicLift {
-                    value: value.index(),
-                }
-            }
-            ExprNode::PureOperatorApplication(application) if version.supports_pure_operators() => {
-                Self::PureOperatorApplication {
-                    definition: application.definition().to_string(),
-                    arguments: application
-                        .arguments()
-                        .iter()
-                        .map(|argument| argument.index())
-                        .collect(),
-                }
-            }
+            ExprNode::SymmetricPart(value) => Self::SymmetricPart {
+                value: value.index(),
+            },
+            ExprNode::IsotropicLift(value) => Self::IsotropicLift {
+                value: value.index(),
+            },
+            ExprNode::PureOperatorApplication(application) => Self::PureOperatorApplication {
+                definition: application.definition().to_string(),
+                arguments: application
+                    .arguments()
+                    .iter()
+                    .map(|argument| argument.index())
+                    .collect(),
+            },
             _ => {
                 return Err(invalid_artifact(
                     "expression node is newer than the supported model wire vocabulary",
@@ -532,7 +446,7 @@ pub(crate) enum WireSymbol {
 }
 
 impl WireSymbol {
-    pub(crate) fn encode(value: SymbolRef, version: WireVersion) -> Result<Self, Diagnostic> {
+    pub(crate) fn encode(value: SymbolRef) -> Result<Self, Diagnostic> {
         match value {
             SymbolRef::Field(id) => Ok(Self::Field {
                 id: WireId::from_raw(id.erase()),
@@ -552,18 +466,16 @@ impl WireSymbol {
             SymbolRef::Port(id) => Ok(Self::Port {
                 id: WireId::from_raw(id.erase()),
             }),
-            SymbolRef::Across(id) if version.supports_scalar_physical() => Ok(Self::Across {
+            SymbolRef::Across(id) => Ok(Self::Across {
                 id: WireId::from_raw(id.erase()),
             }),
-            SymbolRef::Through(id) if version.supports_scalar_physical() => Ok(Self::Through {
+            SymbolRef::Through(id) => Ok(Self::Through {
                 id: WireId::from_raw(id.erase()),
             }),
-            SymbolRef::PortTrace(id) if version.supports_boundary_physical() => {
-                Ok(Self::PortTrace {
-                    id: WireId::from_raw(id.erase()),
-                })
-            }
-            SymbolRef::PortFlux(id) if version.supports_boundary_physical() => Ok(Self::PortFlux {
+            SymbolRef::PortTrace(id) => Ok(Self::PortTrace {
+                id: WireId::from_raw(id.erase()),
+            }),
+            SymbolRef::PortFlux(id) => Ok(Self::PortFlux {
                 id: WireId::from_raw(id.erase()),
             }),
             SymbolRef::Time => Ok(Self::Time),
@@ -617,7 +529,7 @@ impl WireUnaryMath {
         match value {
             UnaryMathFunction::Sin => Ok(Self::Sin),
             _ => Err(invalid_artifact(
-                "unary math function is newer than model wire v1",
+                "unary math function is unsupported by the current Model contract",
             )),
         }
     }

@@ -31,7 +31,7 @@
       { "name": "kinds", "from": "eqiora_core::entity::kinds" },
       { "name": "quantity", "from": "eqiora_core::quantity" }
     ],
-    "stable_modules": ["api", "compatibility", "control", "numerics"],
+    "stable_modules": ["api", "control", "numerics"],
     "transitional_modules": [
       "artifact",
       "assembly",
@@ -168,40 +168,28 @@
       ]
     },
     {
-      "path": "eqiora::compatibility",
-      "source_module": "compatibility",
-      "stable_exports": [
-        { "name": "ExactModelCodec", "from": "eqiora_api::ExactModelCodec" }
-      ],
-      "transitional_exports": []
-    },
-    {
       "path": "eqiora::control",
       "source_module": "control",
       "stable_exports": [
         { "name": "COMPILE_COMMAND_V1", "from": "eqiora_api::control::COMPILE_COMMAND_V1" },
-        { "name": "COMPILE_FEATURE_V1", "from": "eqiora_api::control::COMPILE_FEATURE_V1" },
-        { "name": "COMPILE_V1_SCHEMA_JSON", "from": "eqiora_api::control::COMPILE_V1_SCHEMA_JSON" },
-        { "name": "CONTROL_PROTOCOL_V1", "from": "eqiora_api::control::CONTROL_PROTOCOL_V1" },
-        { "name": "CompileControlExecutionV1", "from": "eqiora_api::control::CompileControlExecutionV1" },
-        { "name": "CompileFeatureV1", "from": "eqiora_api::control::CompileFeatureV1" },
-        { "name": "CompileModelDescriptorV1", "from": "eqiora_api::control::CompileModelDescriptorV1" },
-        { "name": "CompileOutcomeV1", "from": "eqiora_api::control::CompileOutcomeV1" },
-        { "name": "CompileRequestV1", "from": "eqiora_api::control::CompileRequestV1" },
-        { "name": "CompileResponseV1", "from": "eqiora_api::control::CompileResponseV1" },
-        { "name": "ControlDiagnosticSourceV1", "from": "eqiora_api::control::ControlDiagnosticSourceV1" },
-        { "name": "ControlDiagnosticV1", "from": "eqiora_api::control::ControlDiagnosticV1" },
-        { "name": "ControlPatchV1", "from": "eqiora_api::control::ControlPatchV1" },
-        { "name": "ControlSeverityV1", "from": "eqiora_api::control::ControlSeverityV1" },
-        { "name": "ControlSourceSpanV1", "from": "eqiora_api::control::ControlSourceSpanV1" },
-        { "name": "MAX_COMPILE_FILENAME_BYTES_V1", "from": "eqiora_api::control::MAX_COMPILE_FILENAME_BYTES_V1" },
-        { "name": "MAX_COMPILE_REQUEST_BYTES_V1", "from": "eqiora_api::control::MAX_COMPILE_REQUEST_BYTES_V1" },
-        { "name": "MAX_COMPILE_REQUIRED_FEATURES_V1", "from": "eqiora_api::control::MAX_COMPILE_REQUIRED_FEATURES_V1" },
-        { "name": "MAX_COMPILE_RESPONSE_BYTES_V1", "from": "eqiora_api::control::MAX_COMPILE_RESPONSE_BYTES_V1" },
-        { "name": "MAX_COMPILE_SOURCE_BYTES_V1", "from": "eqiora_api::control::MAX_COMPILE_SOURCE_BYTES_V1" },
-        { "name": "MAX_CONTROL_REQUEST_ID_BYTES_V1", "from": "eqiora_api::control::MAX_CONTROL_REQUEST_ID_BYTES_V1" },
-        { "name": "execute_compile_v1", "from": "eqiora_api::control::execute_compile_v1" },
-        { "name": "generated_compile_v1_schema_json", "from": "eqiora_api::control::generated_compile_v1_schema_json" }
+        { "name": "COMPILE_V2_SCHEMA_JSON", "from": "eqiora_api::control::COMPILE_V2_SCHEMA_JSON" },
+        { "name": "CONTROL_PROTOCOL_V2", "from": "eqiora_api::control::CONTROL_PROTOCOL_V2" },
+        { "name": "CompileControlExecutionV2", "from": "eqiora_api::control::CompileControlExecutionV2" },
+        { "name": "CompileModelDescriptorV2", "from": "eqiora_api::control::CompileModelDescriptorV2" },
+        { "name": "CompileOutcomeV2", "from": "eqiora_api::control::CompileOutcomeV2" },
+        { "name": "CompileRequestV2", "from": "eqiora_api::control::CompileRequestV2" },
+        { "name": "CompileResponseV2", "from": "eqiora_api::control::CompileResponseV2" },
+        { "name": "ControlDiagnosticSourceV2", "from": "eqiora_api::control::ControlDiagnosticSourceV2" },
+        { "name": "ControlDiagnosticV2", "from": "eqiora_api::control::ControlDiagnosticV2" },
+        { "name": "ControlPatchV2", "from": "eqiora_api::control::ControlPatchV2" },
+        { "name": "ControlSeverityV2", "from": "eqiora_api::control::ControlSeverityV2" },
+        { "name": "ControlSourceSpanV2", "from": "eqiora_api::control::ControlSourceSpanV2" },
+        { "name": "MAX_COMPILE_FILENAME_BYTES_V2", "from": "eqiora_api::control::MAX_COMPILE_FILENAME_BYTES_V2" },
+        { "name": "MAX_COMPILE_REQUEST_BYTES_V2", "from": "eqiora_api::control::MAX_COMPILE_REQUEST_BYTES_V2" },
+        { "name": "MAX_COMPILE_RESPONSE_BYTES_V2", "from": "eqiora_api::control::MAX_COMPILE_RESPONSE_BYTES_V2" },
+        { "name": "MAX_COMPILE_SOURCE_BYTES_V2", "from": "eqiora_api::control::MAX_COMPILE_SOURCE_BYTES_V2" },
+        { "name": "MAX_CONTROL_REQUEST_ID_BYTES_V2", "from": "eqiora_api::control::MAX_CONTROL_REQUEST_ID_BYTES_V2" },
+        { "name": "execute_compile_v2", "from": "eqiora_api::control::execute_compile_v2" }
       ],
       "transitional_exports": []
     },

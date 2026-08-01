@@ -1,11 +1,5 @@
 use eqiora::api::{ModelDocument, SemanticFingerprintGeneration, StructuralSemanticFingerprint};
-use eqiora::artifact::{
-    ModelDecoderLimits, ModelEnvelopeV1, ModelEnvelopeV7, ModelEnvelopeV8,
-    ModelTransactionEnvelopeV1, ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3,
-    ModelTransactionEnvelopeV4, ModelTransactionEnvelopeV5, ModelTransactionEnvelopeV6,
-    ModelTransactionEnvelopeV7, ModelTransactionEnvelopeV8,
-};
-use eqiora::compatibility::ExactModelCodec;
+use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope, ModelTransactionEnvelope};
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Precondition, Transaction};
 use eqiora::kernel::{
     AxisBounds, CartesianAxisDefinition, CartesianCoordinateSource, DomainDef, DomainKind,
@@ -90,8 +84,8 @@ fn declaration_permutations_preserve_structure_without_relabelling_exact_occurre
     let (base_transaction, base_program) = compiled_parts(SOURCE);
     let (permuted_transaction, permuted_program) = compiled_parts(PERMUTED);
 
-    let base_model = ModelEnvelopeV8::from_program(&base_program).unwrap();
-    let permuted_model = ModelEnvelopeV8::from_program(&permuted_program).unwrap();
+    let base_model = ModelEnvelope::from_program(&base_program).unwrap();
+    let permuted_model = ModelEnvelope::from_program(&permuted_program).unwrap();
     assert_eq!(
         StructuralSemanticFingerprint::from_program(&base_program).unwrap(),
         StructuralSemanticFingerprint::from_program(&permuted_program).unwrap()
@@ -110,71 +104,30 @@ fn declaration_permutations_preserve_structure_without_relabelling_exact_occurre
         .collect::<std::collections::BTreeSet<_>>();
     assert!(base_ids.is_disjoint(&permuted_ids));
 
-    let base_edit = ModelTransactionEnvelopeV8::from_transaction(&base_transaction).unwrap();
-    let permuted_edit =
-        ModelTransactionEnvelopeV8::from_transaction(&permuted_transaction).unwrap();
+    let base_edit = ModelTransactionEnvelope::from_transaction(&base_transaction).unwrap();
+    let permuted_edit = ModelTransactionEnvelope::from_transaction(&permuted_transaction).unwrap();
     assert_ne!(base_edit.digest().unwrap(), permuted_edit.digest().unwrap());
 
     let model_bytes = base_model.canonical_json().unwrap();
-    let replayed = ModelEnvelopeV8::from_json(&model_bytes, ModelDecoderLimits::default()).unwrap();
+    let replayed = ModelEnvelope::from_json(&model_bytes, ModelDecoderLimits::default()).unwrap();
     assert_eq!(replayed.to_program().unwrap(), base_program);
     let transaction_bytes = base_edit.canonical_json().unwrap();
     let replayed =
-        ModelTransactionEnvelopeV8::from_json(&transaction_bytes, ModelDecoderLimits::default())
+        ModelTransactionEnvelope::from_json(&transaction_bytes, ModelDecoderLimits::default())
             .unwrap();
     let replayed = replayed.to_transaction().unwrap();
     assert_eq!(replayed.label(), base_transaction.label());
     assert_eq!(replayed.preconditions(), base_transaction.preconditions());
     assert_eq!(replayed.ops(), base_transaction.ops());
 
-    assert!(ModelEnvelopeV7::from_program(&base_program).is_err());
-    assert!(ModelTransactionEnvelopeV7::from_transaction(&base_transaction).is_err());
-    assert!(ModelEnvelopeV7::from_json(&model_bytes, ModelDecoderLimits::default()).is_err());
-    assert!(
-        ModelTransactionEnvelopeV7::from_json(&transaction_bytes, ModelDecoderLimits::default())
-            .is_err()
-    );
-
     let mut malformed: serde_json::Value = serde_json::from_slice(&model_bytes).unwrap();
     assert!(replace_parameter_source_with_unknown(&mut malformed));
     assert!(
-        ModelEnvelopeV8::from_json(
+        ModelEnvelope::from_json(
             &serde_json::to_vec(&malformed).unwrap(),
             ModelDecoderLimits::default()
         )
         .is_err()
-    );
-}
-
-#[test]
-fn old_codecs_reject_parameter_sources_while_fixed_v7_and_v8_remain_equivalent() {
-    for codec in [
-        ExactModelCodec::V1,
-        ExactModelCodec::V2,
-        ExactModelCodec::V3,
-        ExactModelCodec::V4,
-        ExactModelCodec::V5,
-        ExactModelCodec::V6,
-        ExactModelCodec::V7,
-    ] {
-        assert!(
-            codec.compile("parameter-box.eqi", SOURCE).is_err(),
-            "{} admitted a v8 coordinate source",
-            codec.as_str()
-        );
-    }
-
-    let fixed = SOURCE.replace("box(-1, extent, extent, 6", "box(-1, 2, 2, 6");
-    let v7 = ExactModelCodec::V7.compile("fixed-v7.eqi", &fixed).unwrap();
-    let v8 = ExactModelCodec::V8.compile("fixed-v8.eqi", &fixed).unwrap();
-    assert!(v7.structurally_equivalent(&v8).unwrap());
-    assert_eq!(
-        v7.program()
-            .resolved_cartesian_bounds(domain(&v7, "body"))
-            .unwrap(),
-        v8.program()
-            .resolved_cartesian_bounds(domain(&v8, "body"))
-            .unwrap()
     );
 }
 
@@ -234,72 +187,24 @@ fn closed_language_and_whole_model_invariants_fail_before_exposure() {
 }
 
 #[test]
-fn every_historical_wire_rejects_a_domain_parameter_dependency_edge() {
+fn current_wire_defers_cross_node_recipe_checks_to_whole_model_replay() {
     let fixed = SOURCE.replace("box(-1, extent, extent, 6", "box(-1, 2, 2, 6");
-    for codec in [
-        ExactModelCodec::V1,
-        ExactModelCodec::V2,
-        ExactModelCodec::V3,
-        ExactModelCodec::V4,
-        ExactModelCodec::V5,
-        ExactModelCodec::V6,
-        ExactModelCodec::V7,
-    ] {
-        let document = codec.compile("fixed-with-parameter.eqi", &fixed).unwrap();
-        let body = domain(&document, "body");
-        let parameter: Id<kinds::Parameter> = document.aliases()["extent"].downcast().unwrap();
-        let mut wire: serde_json::Value =
-            serde_json::from_slice(&document.canonical_json().unwrap()).unwrap();
-        wire["edges"]
-            .as_array_mut()
-            .unwrap()
-            .push(serde_json::json!({
-                "from": {"kind": "domain", "ulid": body.ulid().to_string()},
-                "to": {"kind": "parameter", "ulid": parameter.ulid().to_string()},
-                "kind": "depends-on"
-            }));
-        let bytes = serde_json::to_vec(&wire).unwrap();
-        assert!(
-            codec.replay(&bytes).is_err(),
-            "{} admitted Domain DependsOn Parameter",
-            codec.as_str()
-        );
-        if matches!(codec, ExactModelCodec::V1) {
-            assert!(ModelEnvelopeV1::from_json(&bytes, ModelDecoderLimits::default()).is_err());
-        }
-    }
-
-    let (transaction, _, symbols) = compiled(SOURCE);
-    let body: Id<kinds::Domain> = symbols.get("body").unwrap().downcast().unwrap();
-    let mut fixed_dependency = Transaction::new(transaction.label());
-    for op in transaction.ops() {
-        match op {
-            Op::DefineKernelNode { node } if node.id() == body.erase() => {
-                fixed_dependency.push(Op::DefineKernelNode {
-                    node: DomainDef::cartesian_box(
-                        body,
-                        vec![
-                            axis_bounds(-1.0, 2.0),
-                            axis_bounds(2.0, 6.0),
-                            axis_bounds(0.5, 5.5),
-                        ],
-                    )
-                    .unwrap()
-                    .into(),
-                });
-            }
-            _ => {
-                fixed_dependency.push(op.clone());
-            }
-        }
-    }
-    assert!(ModelTransactionEnvelopeV1::from_transaction(&fixed_dependency).is_err());
-    assert!(ModelTransactionEnvelopeV2::from_transaction(&fixed_dependency).is_err());
-    assert!(ModelTransactionEnvelopeV3::from_transaction(&fixed_dependency).is_err());
-    assert!(ModelTransactionEnvelopeV4::from_transaction(&fixed_dependency).is_err());
-    assert!(ModelTransactionEnvelopeV5::from_transaction(&fixed_dependency).is_err());
-    assert!(ModelTransactionEnvelopeV6::from_transaction(&fixed_dependency).is_err());
-    assert!(ModelTransactionEnvelopeV7::from_transaction(&fixed_dependency).is_err());
+    let document = ModelDocument::compile("fixed-with-parameter.eqi", &fixed).unwrap();
+    let body = domain(&document, "body");
+    let parameter: Id<kinds::Parameter> = document.aliases()["extent"].downcast().unwrap();
+    let mut wire: serde_json::Value =
+        serde_json::from_slice(&document.canonical_json().unwrap()).unwrap();
+    wire["edges"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "from": {"kind": "domain", "ulid": body.ulid().to_string()},
+            "to": {"kind": "parameter", "ulid": parameter.ulid().to_string()},
+            "kind": "depends-on"
+        }));
+    let bytes = serde_json::to_vec(&wire).unwrap();
+    let admitted = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
+    assert!(admitted.to_program().is_err());
 }
 
 #[test]
@@ -634,15 +539,15 @@ fn axis_bounds(lower: f64, upper: f64) -> AxisBounds {
 }
 
 fn v8_wire(program: &KernelProgram) -> serde_json::Value {
-    let bytes = ModelEnvelopeV8::from_program(program)
+    let bytes = ModelEnvelope::from_program(program)
         .unwrap()
         .canonical_json()
         .unwrap();
     serde_json::from_slice(&bytes).unwrap()
 }
 
-fn decode_v8(wire: &serde_json::Value) -> Result<ModelEnvelopeV8, Diagnostic> {
-    ModelEnvelopeV8::from_json(
+fn decode_v8(wire: &serde_json::Value) -> Result<ModelEnvelope, Diagnostic> {
+    ModelEnvelope::from_json(
         &serde_json::to_vec(wire).unwrap(),
         ModelDecoderLimits::default(),
     )

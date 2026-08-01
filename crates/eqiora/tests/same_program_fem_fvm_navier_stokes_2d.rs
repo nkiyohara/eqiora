@@ -5,7 +5,6 @@ use std::num::NonZeroUsize;
 use eqiora::api::TransientNavierStokesReference2d;
 use eqiora::artifact::SimplicialMeshEnvelopeV1;
 use eqiora::backends::faer::FaerLinearSolver;
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{MeshQualityGate, MeshTopology, SimplicialMesh};
 use eqiora::realization::{
     DiscretizationMethod, MeshKind, NonlinearSolvePlan, RealizationCapabilities,
@@ -61,12 +60,11 @@ const TIME: DimExponents = DimExponents {
 
 #[test]
 fn one_borrowed_program_drives_fem_and_fvm_to_the_same_affine_pressure_equilibrium() {
-    let document = ExactModelCodec::V5
-        .compile(
-            "verify/fluid/same-program-fem-fvm-navier-stokes-2d/models/hydrostatic.eqi",
-            SOURCE,
-        )
-        .unwrap();
+    let document = eqiora::api::ModelDocument::compile(
+        "verify/fluid/same-program-fem-fvm-navier-stokes-2d/models/hydrostatic.eqi",
+        SOURCE,
+    )
+    .unwrap();
     let program = document.program();
     let model = lower_transient_incompressible_navier_stokes_cartesian_2d(program).unwrap();
     assert_eq!(

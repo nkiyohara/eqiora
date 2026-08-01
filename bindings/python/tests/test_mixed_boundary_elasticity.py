@@ -15,9 +15,7 @@ import eqiora
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-PYTHON_DEMO = (
-    REPOSITORY_ROOT / "examples" / "python" / "mixed_boundary_elasticity.py"
-)
+PYTHON_DEMO = REPOSITORY_ROOT / "examples" / "python" / "mixed_boundary_elasticity.py"
 MODEL_RESOURCE = files(eqiora).joinpath(
     "examples",
     "mixed-boundary-elasticity.eqi",
@@ -28,10 +26,9 @@ MODEL_SHA256 = "dd3497c4b412a4171a7bfd18be5963074a093823c11ef2032907335f4779acb5
 def accepted_model() -> eqiora.Model:
     source = MODEL_RESOURCE.read_text(encoding="utf-8")
     assert hashlib.sha256(source.encode()).hexdigest() == MODEL_SHA256
-    return eqiora.compatibility.compile_exact(
+    return eqiora.compile(
         source,
         filename="mixed-boundary-elasticity.eqi",
-        codec=eqiora.compatibility.ExactModelCodec.V4,
     )
 
 
@@ -130,15 +127,14 @@ def test_array_owners_survive_result_deletion_and_solves_do_not_share_storage() 
     assert all(array.size > 0 and not array.flags.writeable for array in first_arrays)
 
 
-def test_foreign_exact_v4_model_is_rejected_before_execution() -> None:
+def test_foreign_current_model_is_rejected_before_execution() -> None:
     source = MODEL_RESOURCE.read_text(encoding="utf-8").replace(
         "parameter mu: kg / (m * s ^ 2) = 3;",
         "parameter mu: kg / (m * s ^ 2) = 4;",
     )
-    foreign = eqiora.compatibility.compile_exact(
+    foreign = eqiora.compile(
         source,
         filename="foreign-elasticity.eqi",
-        codec=eqiora.compatibility.ExactModelCodec.V4,
     )
     with pytest.raises(eqiora.ValidationError) as caught:
         eqiora.solid.solve_mixed_boundary_elasticity(foreign)
@@ -177,10 +173,9 @@ assert "numpy" not in sys.modules
 source = files(eqiora).joinpath(
     "examples", "mixed-boundary-elasticity.eqi"
 ).read_text()
-model = eqiora.compatibility.compile_exact(
+model = eqiora.compile(
     source,
     filename="mixed-boundary-elasticity.eqi",
-    codec=eqiora.compatibility.ExactModelCodec.V4,
 )
 result = eqiora.solid.solve_mixed_boundary_elasticity(model)
 assert "numpy" not in sys.modules

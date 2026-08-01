@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroUsize;
 
-use eqiora::artifact::ModelEnvelopeV2;
+use eqiora::artifact::ModelEnvelope;
 use eqiora::compiler::{ModelSymbols, compile};
 use eqiora::entity::kinds;
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore};
@@ -156,8 +156,8 @@ fn assert_identical_semantics_after_identity_normalization(
     hierarchy: &(KernelProgram, ModelSymbols),
     explicit: &(KernelProgram, ModelSymbols),
 ) {
-    let hierarchy_envelope = ModelEnvelopeV2::from_program(&hierarchy.0).unwrap();
-    let explicit_envelope = ModelEnvelopeV2::from_program(&explicit.0).unwrap();
+    let hierarchy_envelope = ModelEnvelope::from_program(&hierarchy.0).unwrap();
+    let explicit_envelope = ModelEnvelope::from_program(&explicit.0).unwrap();
     let mut hierarchy_value: serde_json::Value =
         serde_json::from_slice(&hierarchy_envelope.canonical_json().unwrap()).unwrap();
     let explicit_value: serde_json::Value =
@@ -237,7 +237,7 @@ fn assert_identical_semantics_after_identity_normalization(
     );
 
     rewrite_model_ulids(&mut hierarchy_value, &identities);
-    let normalized = ModelEnvelopeV2::from_json(
+    let normalized = ModelEnvelope::from_json(
         &serde_json::to_vec(&hierarchy_value).unwrap(),
         Default::default(),
     )
@@ -453,11 +453,11 @@ fn nested_components_lower_to_one_flat_kernel_and_solve_the_analytic_dc_case() {
     relation_roots.sort_unstable();
     assert_eq!(relation_roots, [1, 2, 2, 2]);
 
-    let envelope = ModelEnvelopeV2::from_program(&program).unwrap();
+    let envelope = ModelEnvelope::from_program(&program).unwrap();
     let bytes = envelope.canonical_json().unwrap();
     let digest = envelope.digest().unwrap();
-    let decoded = ModelEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
-    let reconstructed = ModelEnvelopeV2::from_program(&decoded.to_program().unwrap()).unwrap();
+    let decoded = ModelEnvelope::from_json(&bytes, Default::default()).unwrap();
+    let reconstructed = ModelEnvelope::from_program(&decoded.to_program().unwrap()).unwrap();
     assert_eq!(reconstructed.canonical_json().unwrap(), bytes);
     assert_eq!(reconstructed.digest().unwrap(), digest);
 
@@ -485,8 +485,8 @@ fn semantic_permutation_preserves_exact_ids_transaction_and_model_bytes() {
 
     let (first_program, _) = admit(first);
     let (second_program, _) = admit(second);
-    let first_model = ModelEnvelopeV2::from_program(&first_program).unwrap();
-    let second_model = ModelEnvelopeV2::from_program(&second_program).unwrap();
+    let first_model = ModelEnvelope::from_program(&first_program).unwrap();
+    let second_model = ModelEnvelope::from_program(&second_program).unwrap();
     assert_eq!(
         first_model.canonical_json().unwrap(),
         second_model.canonical_json().unwrap()

@@ -10,11 +10,9 @@ The registered integration target must prove all of the following:
 - symmetric component scalarization reads `(i,j)` and `(j,i)` with equal
   weight, while isotropic scalarization reads its scalar exactly on diagonal
   components and emits dimensioned zero off diagonal;
-- explicit Model v4 and Transaction v4 replay with identical canonical bytes
-  and domain-separated digests; and
-- every legacy encoder rejects the new nodes, and v3 rejects v4 and a forged
-  v3 tag.
+- the current Model and Transaction replay with identical canonical bytes and
+  domain-separated digests through the one current owner.
 
 No numerical field, stress, residual norm, convergence rate, or solver output
-is expected from this case. Exact preservation of the pre-v4 v3 writer is
-owned by the separate `eqiora-artifact` `legacy_v3_golden` regression.
+is expected from this case. Historical Model and Transaction bytes remain
+negative specimens in `artifacts.current-model-canonical-identity`.

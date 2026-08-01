@@ -3,7 +3,6 @@
 use eqiora::Id;
 use eqiora::api::{CadBoxIntentV1, CadSemanticEntityKindV1, ModelDocument};
 use eqiora::artifact::{CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1, JsonDecoderLimits};
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::entity::kinds;
 use eqiora::geometry::truck::TruckCadAdapterV1;
 use eqiora::geometry::{AxisAlignedBox3, ConstrainedRectangleV1, StepLengthUnitV1};
@@ -147,12 +146,8 @@ fn cad_selection_is_semantic_content_bound_and_retained_only_by_explicit_associa
 #[test]
 fn cad_replay_and_association_are_version_erased_without_losing_exact_identity() {
     let adapter = TruckCadAdapterV1;
-    let source = ExactModelCodec::V4.compile("base-v4.eqi", BASE).unwrap();
-    let target = ExactModelCodec::V6
-        .compile("regenerated-v6.eqi", REGENERATED)
-        .unwrap();
-    assert_eq!(source.exact_codec(), ExactModelCodec::V4);
-    assert_eq!(target.exact_codec(), ExactModelCodec::V6);
+    let source = eqiora::api::ModelDocument::compile("base-v4.eqi", BASE).unwrap();
+    let target = eqiora::api::ModelDocument::compile("regenerated-v6.eqi", REGENERATED).unwrap();
     let source_plan = source
         .preview_cad_box(
             intent(&source, [(-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5)]),
@@ -259,7 +254,7 @@ fn cad_adapter_and_policy_falsifiers_fail_closed() {
 }
 
 fn document(filename: &str, source: &str) -> ModelDocument {
-    ExactModelCodec::V4.compile(filename, source).unwrap()
+    eqiora::api::ModelDocument::compile(filename, source).unwrap()
 }
 
 fn domain(document: &ModelDocument, name: &str) -> Id<kinds::Domain> {

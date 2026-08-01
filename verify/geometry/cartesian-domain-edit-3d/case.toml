@@ -1,6 +1,6 @@
 id = "geometry.cartesian-domain-edit-3d"
 status = "verified"
-scope = "current-v8-one-body-two-axis-topology-preserving-cartesian-edit"
+scope = "current-model-one-body-two-axis-topology-preserving-cartesian-edit"
 reference_kind = "independently-compiled-target-and-geometry-identity-replay"
 
 capabilities = [
@@ -10,12 +10,12 @@ capabilities = [
 ]
 
 [problem]
-base = "one current-v8 Model with one 3D Cartesian body and six oriented boundaries"
+base = "one current Model with one 3D Cartesian body and six oriented boundaries"
 edit = "atomically replace x [-0.5, 0.5] with [-0.6, 0.6] and z [-0.5, 0.5] with [-0.75, 0.75]"
 oracle = "separately compiled target fixture, unchanged y interval, and independently evaluated 1.8 m^3 volume"
 
 [canonical_contract]
-mutation = "ordinary versioned Model transaction over one immutable base revision"
+mutation = "ordinary current Model transaction over one immutable base revision"
 retained_identity = "body and boundary Domain IDs, Cartesian roles, Model membership, and all body incidence"
 changed_identity = "exact Model digest and Geometry Identity digest"
 selection_retention = "explicit total one-to-one geometry-revision association"
@@ -32,14 +32,14 @@ stale_child_revision = "reject before mutation"
 no_op_interval = "reject"
 out_of_axis = "reject"
 boundary_as_body_target = "reject"
-older_model_codec = "reject"
 two_dimensional_body = "reject"
 multiple_cartesian_bodies = "reject"
 non_finite_or_reversed_axis_bounds = "reject at typed AxisBounds construction"
 missing_boundary_of_edge = "edge-only replay fails; a replayable missing-role mutant is rejected by Geometry Identity"
 
 [claim_boundary]
-current_model_wire_v8 = true
+model_owner = "current"
+historical_generation_callable = false
 one_cartesian_body = true
 three_dimensions = true
 non_empty_axis_keyed_edit_set = true

@@ -1,7 +1,7 @@
 use eqiora::artifact::{
     GeneralImplicitTimeLoweringEnvelopeV1, ImplicitTimeCheckpointEnvelopeV1,
     ImplicitTimeInitialDataEnvelopeV1, ImplicitTimeRestartManifestV1, ImplicitTimeRunManifestV1,
-    ModelEnvelopeV1, TimeDecoderLimits,
+    ModelEnvelope, TimeDecoderLimits,
 };
 use eqiora::diagnostic::codes;
 use eqiora::runtime::{CpuProgram, GeneralImplicitProgram};
@@ -25,7 +25,7 @@ fn accepted_checkpoint_links_parent_and_restarted_implicit_runs_without_a_digest
         [fixture.differential, fixture.algebraic]
     );
     assert_eq!(system.parameter_fields(), [fixture.rate]);
-    let model = ModelEnvelopeV1::from_program(&fixture.kernel).unwrap();
+    let model = ModelEnvelope::from_program(&fixture.kernel).unwrap();
     let lowering = GeneralImplicitTimeLoweringEnvelopeV1::from_proof(
         &model,
         &fixture.kernel,

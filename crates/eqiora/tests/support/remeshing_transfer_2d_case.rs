@@ -3,7 +3,6 @@ use std::num::{NonZeroU16, NonZeroUsize};
 use eqiora::api::ModelDocument;
 use eqiora::artifact::SimplicialMeshEnvelopeV1;
 use eqiora::backends::faer::FaerLinearSolver;
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{
     CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology, SimplicialMesh,
     triangle_duffy_gauss_legendre,
@@ -83,9 +82,9 @@ pub(super) struct Case {
 
 impl Case {
     pub(super) fn new() -> Self {
-        let document = ExactModelCodec::V5
-            .compile("remeshing-transfer-2d.eqi", DIRECT_SOURCE)
-            .unwrap();
+        let document =
+            eqiora::api::ModelDocument::compile("remeshing-transfer-2d.eqi", DIRECT_SOURCE)
+                .unwrap();
         let canonical = lower_ale_fsi_cartesian_2d(document.program()).unwrap();
         let source_mesh = two_domain_mesh(false);
         let target_mesh = two_domain_mesh(true);

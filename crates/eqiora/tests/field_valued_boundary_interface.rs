@@ -1,9 +1,7 @@
 use eqiora::artifact::{
-    ArtifactDigest, ModelEnvelopeV1, ModelEnvelopeV2, ModelEnvelopeV3, ModelTransactionEnvelopeV1,
-    ModelTransactionEnvelopeV2, ModelTransactionEnvelopeV3, PhysicalExposureCatalogEnvelopeV1,
+    ArtifactDigest, ModelEnvelope, ModelTransactionEnvelope, PhysicalExposureCatalogEnvelopeV1,
     PhysicalExposureContractV1, PhysicalExposureProjectionV1,
 };
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::entity::kinds;
 use eqiora::graph::EdgeKind;
 use eqiora::ir::ComponentScalarization;
@@ -103,8 +101,7 @@ fn compile_locked(
     let mut store = InMemoryPackageStore::default();
     store.insert(components).expect("insert component release");
     store.insert(root).expect("insert root release");
-    let packaged =
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V3)?;
+    let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")?;
     packaged
         .compilation()
         .validate_against(&resolution)
@@ -229,8 +226,8 @@ fn packaged_field_valued_boundary_interface() {
     let canonical_model = coupled
         .model()
         .canonical_json()
-        .expect("canonical v3 Model");
-    let canonical_digest = coupled.model().digest().expect("canonical v3 digest");
+        .expect("canonical current Model");
+    let canonical_digest = coupled.model().digest().expect("canonical current digest");
     for equivalent in [&permuted, &short_alias] {
         assert_eq!(
             canonical_model,
@@ -338,33 +335,30 @@ fn packaged_field_valued_boundary_interface() {
         [0.0, 0.0, 0.0, 0.0]
     );
 
-    let v3 = ModelEnvelopeV3::from_program(program).expect("complete Model v3 envelope");
-    let v3_bytes = v3.canonical_json().expect("canonical Model v3 bytes");
-    let decoded = ModelEnvelopeV3::from_json(&v3_bytes, Default::default())
-        .expect("decode complete Model v3 envelope");
-    let replayed_program = decoded.to_program().expect("replay complete Model v3");
+    let model = ModelEnvelope::from_program(program).expect("complete current Model envelope");
+    let model_bytes = model
+        .canonical_json()
+        .expect("canonical current Model bytes");
+    let decoded = ModelEnvelope::from_json(&model_bytes, Default::default())
+        .expect("decode complete current Model envelope");
+    let replayed_program = decoded.to_program().expect("replay complete current Model");
     let replayed =
-        ModelEnvelopeV3::from_program(&replayed_program).expect("re-encode complete Model v3");
-    assert_eq!(replayed.canonical_json().unwrap(), v3_bytes);
-    assert_eq!(replayed.digest().unwrap(), v3.digest().unwrap());
-    let document = ExactModelCodec::V3
-        .replay(&v3_bytes)
-        .expect("public document reconstructs with explicit v3");
-    assert_eq!(document.canonical_json().unwrap(), v3_bytes);
+        ModelEnvelope::from_program(&replayed_program).expect("re-encode complete current Model");
+    assert_eq!(replayed.canonical_json().unwrap(), model_bytes);
+    assert_eq!(replayed.digest().unwrap(), model.digest().unwrap());
+    let document = eqiora::api::ModelDocument::replay(&model_bytes)
+        .expect("public document reconstructs the current Model");
+    assert_eq!(document.canonical_json().unwrap(), model_bytes);
     assert_eq!(document.digest().unwrap(), canonical_digest);
 
-    assert!(ModelEnvelopeV1::from_program(program).is_err());
-    assert!(ModelEnvelopeV2::from_program(program).is_err());
-    let (transaction, _) = v3
+    let (transaction, _) = model
         .to_transaction()
         .expect("reconstruct complete transaction");
-    assert!(ModelTransactionEnvelopeV1::from_transaction(&transaction).is_err());
-    assert!(ModelTransactionEnvelopeV2::from_transaction(&transaction).is_err());
-    let transaction_v3 =
-        ModelTransactionEnvelopeV3::from_transaction(&transaction).expect("transaction v3");
-    let transaction_bytes = transaction_v3.canonical_json().unwrap();
+    let transaction_envelope =
+        ModelTransactionEnvelope::from_transaction(&transaction).expect("current transaction");
+    let transaction_bytes = transaction_envelope.canonical_json().unwrap();
     assert_eq!(
-        ModelTransactionEnvelopeV3::from_json(&transaction_bytes, Default::default())
+        ModelTransactionEnvelope::from_json(&transaction_bytes, Default::default())
             .unwrap()
             .to_transaction()
             .unwrap()

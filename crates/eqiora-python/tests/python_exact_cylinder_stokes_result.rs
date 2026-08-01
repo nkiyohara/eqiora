@@ -11,13 +11,13 @@ fn python_exact_cylinder_stokes_result_crosses_the_native_boundary() -> PyResult
     Python::attach(|py| {
         let module = public_module(py)?;
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../examples/steady-flow-past-cylinder.model-v7.json");
+            .join("../../examples/steady-flow-past-cylinder.model.json");
         let encoded = fs::read(path)?;
         assert_eq!(encoded.last(), Some(&b'\n'));
 
         let locals = PyDict::new(py);
         locals.set_item("eqiora", module)?;
-        locals.set_item("model_v7", PyBytes::new(py, &encoded[..encoded.len() - 1]))?;
+        locals.set_item("model", PyBytes::new(py, &encoded[..encoded.len() - 1]))?;
         py.run(
             c_str!(
                 r#"
@@ -25,7 +25,7 @@ import hashlib
 import json
 import sys
 
-MODEL_DIGEST = "668fa55e5ab1a46d0b7523e4e3162442ccd7698697c4308604cf4fe9269249de"
+MODEL_DIGEST = "8bc5155bc1b64ed37f7a2ac010a966e1619091a118e6cf7806dbdf9621977146"
 SOURCE_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
 MESH_DIGEST = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
 
@@ -57,7 +57,7 @@ source = geometry()
 realized = mesh(source)
 assert "numpy" not in sys.modules
 result = eqiora.fluid.solve_exact_cylinder_stokes(
-    model_v7=model_v7,
+    model=model,
     geometry=source,
     mesh=realized,
 )
@@ -98,7 +98,7 @@ assert result.pressure.numpy(copy=False).shape == (104,)
 
 try:
     eqiora.fluid.solve_exact_cylinder_stokes(
-        model_v7=b'{"schema":',
+        model=b'{"schema":',
         geometry=source,
         mesh=realized,
     )
@@ -106,12 +106,12 @@ except eqiora.CompatibilityError as error:
     assert error.category == "compatibility"
     assert any(item.code == "EQ0901" for item in error.diagnostics)
 else:
-    raise AssertionError("malformed Model v7 crossed the native boundary")
+    raise AssertionError("malformed current Model crossed the native boundary")
 
 foreign = geometry(tolerance=1e-10)
 try:
     eqiora.fluid.solve_exact_cylinder_stokes(
-        model_v7=model_v7,
+        model=model,
         geometry=foreign,
         mesh=realized,
     )

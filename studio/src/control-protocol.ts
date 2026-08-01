@@ -1,103 +1,111 @@
 import { z } from "zod";
-import compileV1SchemaDocument from "../../schemas/control/compile-v1.schema.json";
+import compileV2SchemaDocument from "../../schemas/control/compile-v2.schema.json";
 
-export const CONTROL_PROTOCOL_V1 = "eqiora.control/v1" as const;
+export const CONTROL_PROTOCOL_V2 = "eqiora.control/v2" as const;
 export const COMPILE_COMMAND_V1 = "model.compile-check/v1" as const;
-export const CURRENT_AUTHORING_MODEL_WIRE = "v8" as const;
-export const STUDIO_REQUIRED_COMPILE_FEATURES = [
-  COMPILE_COMMAND_V1,
-  `model-wire/${CURRENT_AUTHORING_MODEL_WIRE}`,
-] as const;
+export const CURRENT_MODEL_SCHEMA = "eqiora.model-envelope/v8" as const;
+export const CURRENT_MODEL_TRANSACTION_SCHEMA = "eqiora.model-transaction-envelope/v8" as const;
 
-const MAX_FILENAME_UTF8_BYTES =
-  compileV1SchemaDocument.$defs.request.properties.filename["x-eqiora-maxUtf8Bytes"];
-const MAX_SOURCE_UTF8_BYTES =
-  compileV1SchemaDocument.$defs.request.properties.source["x-eqiora-maxUtf8Bytes"];
+const requestDefinition = compileV2SchemaDocument.$defs.request;
+const diagnosticDefinition = compileV2SchemaDocument.$defs.diagnostic;
+const sourceSpanDefinition = compileV2SchemaDocument.$defs.sourceSpan;
+const patchDefinition = compileV2SchemaDocument.$defs.patch;
+const rejectedOutcomeDefinition = compileV2SchemaDocument.$defs.rejectedOutcome;
+const graphPathArrayDefinition = z
+  .object({
+    maxItems: z.number().int(),
+    items: z.object({
+      maxLength: z.number().int(),
+      "x-eqiora-maxUtf8Bytes": z.number().int(),
+    }),
+  })
+  .parse(diagnosticDefinition.properties.graphPath.oneOf[0]);
+
+const MAX_ENCODED_BYTES = requestDefinition["x-eqiora-maxEncodedUtf8Bytes"];
+const MAX_FILENAME_CHARACTERS = requestDefinition.properties.filename.maxLength;
+const MAX_FILENAME_UTF8_BYTES = requestDefinition.properties.filename["x-eqiora-maxUtf8Bytes"];
+const MAX_SOURCE_CHARACTERS = requestDefinition.properties.source.maxLength;
+const MAX_SOURCE_UTF8_BYTES = requestDefinition.properties.source["x-eqiora-maxUtf8Bytes"];
+const MAX_DIAGNOSTIC_MESSAGE_CHARACTERS = diagnosticDefinition.properties.message.maxLength;
+const MAX_DIAGNOSTIC_MESSAGE_UTF8_BYTES =
+  diagnosticDefinition.properties.message["x-eqiora-maxUtf8Bytes"];
+const MAX_GRAPH_PATH_SEGMENTS = graphPathArrayDefinition.maxItems;
+const MAX_TEXT_MEMBER_CHARACTERS = graphPathArrayDefinition.items.maxLength;
+const MAX_TEXT_MEMBER_UTF8_BYTES = graphPathArrayDefinition.items["x-eqiora-maxUtf8Bytes"];
+const MAX_DIAGNOSTICS = rejectedOutcomeDefinition.properties.diagnostics.maxItems;
+const utf8 = new TextEncoder();
+
+function characterCount(value: string): number {
+  return [...value].length;
+}
+
+function utf8Bytes(value: string): number {
+  return utf8.encode(value).length;
+}
+
+function boundedText(
+  minimumCharacters: number,
+  maximumCharacters: number,
+  maximumUtf8Bytes: number,
+) {
+  return z
+    .string()
+    .refine(
+      (value) =>
+        characterCount(value) >= minimumCharacters &&
+        characterCount(value) <= maximumCharacters &&
+        utf8Bytes(value) <= maximumUtf8Bytes,
+    );
+}
+
+function characterBoundedText(minimumCharacters: number, maximumCharacters: number) {
+  return z.string().refine((value) => {
+    const characters = characterCount(value);
+    return characters >= minimumCharacters && characters <= maximumCharacters;
+  });
+}
+
+function encodedBytes(value: unknown): number {
+  return utf8Bytes(JSON.stringify(value));
+}
 
 const requestIdSchema = z
   .string()
   .min(1)
   .max(128)
   .regex(/^[A-Za-z0-9._:-]+$/);
-const modelWireSchema = z.enum(["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"]);
-const featureSchema = z.enum([
-  COMPILE_COMMAND_V1,
-  "model-wire/v1",
-  "model-wire/v2",
-  "model-wire/v3",
-  "model-wire/v4",
-  "model-wire/v5",
-  "model-wire/v6",
-  "model-wire/v7",
-  "model-wire/v8",
-]);
-const requiredFeaturesSchema = z.array(featureSchema).max(16);
-const utf8 = new TextEncoder();
 
-function utf8Bytes(value: string): number {
-  return utf8.encode(value).length;
-}
+const filenameSchema = boundedText(1, MAX_FILENAME_CHARACTERS, MAX_FILENAME_UTF8_BYTES).refine(
+  (filename) => !/\p{Cc}/u.test(filename),
+  { message: "Filename cannot contain control characters." },
+);
 
-const filenameSchema = z
-  .string()
-  .refine(
-    (filename) => utf8Bytes(filename) >= 1 && utf8Bytes(filename) <= MAX_FILENAME_UTF8_BYTES,
-    {
-      message: "Filename must contain 1 to 4096 UTF-8 bytes.",
-    },
-  )
-  .refine((filename) => !/\p{Cc}/u.test(filename), {
-    message: "Filename cannot contain control characters.",
-  });
+const sourceSchema = boundedText(0, MAX_SOURCE_CHARACTERS, MAX_SOURCE_UTF8_BYTES);
 
-const sourceSchema = z.string().refine((source) => utf8Bytes(source) <= MAX_SOURCE_UTF8_BYTES, {
-  message: "Source exceeds the 8 MiB UTF-8 compile/check limit.",
-});
-
-function requestFeaturesMatchWire(
-  features: readonly string[],
-  wire: z.infer<typeof modelWireSchema>,
-) {
-  const normalized = new Set(features);
-  return (
-    normalized.size === 2 &&
-    normalized.has(COMPILE_COMMAND_V1) &&
-    normalized.has(`model-wire/${wire}`)
-  );
-}
-
-function responseFeaturesMatchWire(
-  features: readonly string[],
-  wire: z.infer<typeof modelWireSchema>,
-) {
-  return (
-    features.length === 2 &&
-    features[0] === COMPILE_COMMAND_V1 &&
-    features[1] === `model-wire/${wire}`
-  );
-}
-
-export const compileRequestV1Schema = z
+export const compileRequestV2Schema = z
   .object({
-    protocol: z.literal(CONTROL_PROTOCOL_V1),
+    protocol: z.literal(CONTROL_PROTOCOL_V2),
     command: z.literal(COMPILE_COMMAND_V1),
     requestId: requestIdSchema,
-    requiredFeatures: requiredFeaturesSchema,
-    modelWire: modelWireSchema,
     filename: filenameSchema,
     source: sourceSchema,
   })
   .strict()
-  .refine((request) => requestFeaturesMatchWire(request.requiredFeatures, request.modelWire), {
-    message: "Required compile/check features must exactly match the selected Model wire.",
-    path: ["requiredFeatures"],
+  .refine((request) => encodedBytes(request) <= MAX_ENCODED_BYTES, {
+    message: "Compile/check request exceeds the encoded UTF-8 limit.",
   });
 
-export type CompileRequestV1 = z.infer<typeof compileRequestV1Schema>;
+export type CompileRequestV2 = z.infer<typeof compileRequestV2Schema>;
 
-const controlSourceSpanV1Schema = z
+const sourceSpanFileSchema = boundedText(
+  0,
+  sourceSpanDefinition.properties.file.maxLength,
+  sourceSpanDefinition.properties.file["x-eqiora-maxUtf8Bytes"],
+);
+
+const controlSourceSpanV2Schema = z
   .object({
-    file: filenameSchema,
+    file: sourceSpanFileSchema,
     start: z.number().int().min(0).max(4_294_967_295),
     end: z.number().int().min(0).max(4_294_967_295),
   })
@@ -106,113 +114,99 @@ const controlSourceSpanV1Schema = z
     message: "Source span end must not precede its start.",
   });
 
-export const controlDiagnosticV1Schema = z
+const graphPathSegmentSchema = boundedText(
+  1,
+  MAX_TEXT_MEMBER_CHARACTERS,
+  MAX_TEXT_MEMBER_UTF8_BYTES,
+);
+
+const patchSummarySchema = boundedText(
+  1,
+  patchDefinition.properties.summary.maxLength,
+  patchDefinition.properties.summary["x-eqiora-maxUtf8Bytes"],
+);
+
+export const controlDiagnosticV2Schema = z
   .object({
     source: z.enum(["control", "kernel"]),
     severity: z.enum(["error", "warning", "note"]),
     code: z.string().regex(/^[A-Z]{2}[0-9]{4}$/),
-    message: z.string().min(1),
-    graphPath: z.array(z.string()).nullable(),
-    span: controlSourceSpanV1Schema.nullable(),
-    patch: z
-      .object({ summary: z.string().min(1) })
-      .strict()
-      .nullable(),
+    message: boundedText(1, MAX_DIAGNOSTIC_MESSAGE_CHARACTERS, MAX_DIAGNOSTIC_MESSAGE_UTF8_BYTES),
+    graphPath: z.array(graphPathSegmentSchema).max(MAX_GRAPH_PATH_SEGMENTS).nullable(),
+    span: controlSourceSpanV2Schema.nullable(),
+    patch: z.object({ summary: patchSummarySchema }).strict().nullable(),
   })
   .strict();
 
-export type ControlDiagnosticV1 = z.infer<typeof controlDiagnosticV1Schema>;
+export type ControlDiagnosticV2 = z.infer<typeof controlDiagnosticV2Schema>;
 
-const compileModelDescriptorV1Schema = z
+const compileModelDescriptorV2Schema = z
   .object({
-    wire: modelWireSchema,
-    schema: z.enum([
-      "eqiora.model-envelope/v1",
-      "eqiora.model-envelope/v2",
-      "eqiora.model-envelope/v3",
-      "eqiora.model-envelope/v4",
-      "eqiora.model-envelope/v5",
-      "eqiora.model-envelope/v6",
-      "eqiora.model-envelope/v7",
-      "eqiora.model-envelope/v8",
-    ]),
+    schema: z.literal(CURRENT_MODEL_SCHEMA),
+    transactionSchema: z.literal(CURRENT_MODEL_TRANSACTION_SCHEMA),
     digest: z.string().regex(/^[0-9a-f]{64}$/),
-    modelId: z.string().min(1).max(128),
+    modelId: characterBoundedText(1, 128),
     semanticRevision: z.number().int().nonnegative(),
   })
-  .strict()
-  .refine((model) => model.schema === `eqiora.model-envelope/${model.wire}`, {
-    message: "Accepted Model schema and wire differ.",
-    path: ["schema"],
-  });
+  .strict();
 
-const compileOutcomeV1Schema = z.discriminatedUnion("status", [
-  z.object({ status: z.literal("accepted"), model: compileModelDescriptorV1Schema }).strict(),
+const compileOutcomeV2Schema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("accepted"), model: compileModelDescriptorV2Schema }).strict(),
   z
     .object({
       status: z.literal("rejected"),
-      diagnostics: z.array(controlDiagnosticV1Schema).min(1),
+      diagnostics: z.array(controlDiagnosticV2Schema).min(1).max(MAX_DIAGNOSTICS),
     })
     .strict(),
 ]);
 
-export const compileResponseV1Schema = z
+export const compileResponseV2Schema = z
   .object({
-    protocol: z.literal(CONTROL_PROTOCOL_V1),
+    protocol: z.literal(CONTROL_PROTOCOL_V2),
     command: z.literal(COMPILE_COMMAND_V1),
     requestId: requestIdSchema,
-    requiredFeatures: requiredFeaturesSchema,
-    modelWire: modelWireSchema,
-    outcome: compileOutcomeV1Schema,
+    outcome: compileOutcomeV2Schema,
   })
   .strict()
-  .refine((response) => responseFeaturesMatchWire(response.requiredFeatures, response.modelWire), {
-    message: "Response features must exactly match the selected Model wire.",
-    path: ["requiredFeatures"],
+  .refine((response) => encodedBytes(response) <= MAX_ENCODED_BYTES, {
+    message: "Compile/check response exceeds the encoded UTF-8 limit.",
   });
 
-export type CompileResponseV1 = z.infer<typeof compileResponseV1Schema>;
+export type CompileResponseV2 = z.infer<typeof compileResponseV2Schema>;
 
 export function studioCompileRequest(requestId: string, filename: string, source: string) {
-  return compileRequestV1Schema.parse({
-    protocol: CONTROL_PROTOCOL_V1,
+  return compileRequestV2Schema.parse({
+    protocol: CONTROL_PROTOCOL_V2,
     command: COMPILE_COMMAND_V1,
     requestId,
-    requiredFeatures: STUDIO_REQUIRED_COMPILE_FEATURES,
-    modelWire: CURRENT_AUTHORING_MODEL_WIRE,
     filename,
     source,
   });
 }
 
 export function compileResponseMatchesRequest(
-  request: CompileRequestV1,
-  response: CompileResponseV1,
+  request: CompileRequestV2,
+  response: CompileResponseV2,
 ): boolean {
   return (
     response.protocol === request.protocol &&
     response.command === request.command &&
-    response.requestId === request.requestId &&
-    response.modelWire === request.modelWire &&
-    responseFeaturesMatchWire(response.requiredFeatures, request.modelWire)
+    response.requestId === request.requestId
   );
 }
 
 // The committed JSON Schema is the language-neutral source of this wire. This
-// narrow assertion makes accidental replacement or opening of the schema fail
-// at Studio startup; unit tests bind its complete request/response field sets.
+// assertion rejects accidental replacement or opening of either top-level DTO.
 const schemaIdentity = z
   .object({
-    $id: z.literal("urn:eqiora:schema:control:compile-v1"),
+    $id: z.literal("urn:eqiora:schema:control:compile-v2"),
     $defs: z.object({
-      modelWire: z.object({ enum: z.array(z.string()) }).passthrough(),
       request: z.object({ additionalProperties: z.literal(false) }).passthrough(),
-      requiredFeatures: z
-        .object({ items: z.object({ enum: z.array(z.string()) }).passthrough() })
-        .passthrough(),
       response: z.object({ additionalProperties: z.literal(false) }).passthrough(),
+      model: z.object({ additionalProperties: z.literal(false) }).passthrough(),
+      diagnostic: z.object({ additionalProperties: z.literal(false) }).passthrough(),
     }),
   })
   .passthrough();
 
-export const COMPILE_V1_SCHEMA_DOCUMENT = schemaIdentity.parse(compileV1SchemaDocument);
+export const COMPILE_V2_SCHEMA_DOCUMENT = schemaIdentity.parse(compileV2SchemaDocument);

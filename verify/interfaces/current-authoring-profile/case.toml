@@ -1,13 +1,13 @@
 id = "interfaces.current-authoring-profile"
 status = "verified"
-scope = "current-authoring-selection-and-exact-v1-v8-replay"
-reference_kind = "shared-rust-python-studio-profile-and-exact-codec-falsifiers"
+scope = "current-only-authoring-edit-and-artifact-replay"
+reference_kind = "shared-rust-python-studio-profile-and-current-owner-replay"
 
 capabilities = [
   "current-semantic-authoring-profile",
   "cross-client-current-profile",
-  "explicit-exact-model-codecs",
-  "fail-closed-model-codec-selection",
+  "current-model-artifact-replay",
+  "current-model-transaction-edit",
 ]
 
 conformance_kits = ["current-authoring-profile-v1"]
@@ -16,9 +16,13 @@ conformance_kits = ["current-authoring-profile-v1"]
 rust_compile_define_current = true
 python_compile_define_current = true
 studio_compile_current = true
-exact_model_wires = ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"]
-value_edit_retains_exact_codec = true
-automatic_decode = false
+model_owner = "current"
+model_schema = "eqiora.model-envelope/v8"
+transaction_schema = "eqiora.model-transaction-envelope/v8"
+current_artifact_replay = true
+value_edit_retains_current_owner = true
+caller_selects_wire_or_codec = false
+historical_generation_callable = false
 fallback_decode = false
 silent_migration = false
 profile_stability_1_0 = false

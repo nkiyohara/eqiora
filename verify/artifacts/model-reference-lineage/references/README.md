@@ -1,10 +1,10 @@
 # Reference provenance
 
-The reference is the validated `ModelDocument` produced by an explicitly
-selected `ExactModelCodec`. `ModelEnvelopeV1`, `ModelEnvelopeV2`, and
-`ModelEnvelopeV3` independently derive the sealed identity projection from
-their validated state. Realization and Run linkage is then checked against the
-same selected artifact after explicit-wire canonical replay.
+The reference is the validated current `ModelDocument` produced by ordinary
+source compilation or native definition. `ModelDocument` and the current
+`AcceptedModelArtifact` independently expose the same sealed identity
+projection from validated state. Realization and Run linkage is then checked
+against that artifact after current canonical replay.
 
 The executable authority is the `eqiora` integration test
 `model_artifact_reference_lineage`; this directory adds no alternate identity

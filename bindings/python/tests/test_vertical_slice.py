@@ -28,48 +28,18 @@ def load_control_fixture(relative_path: str) -> dict[str, object]:
     return json.loads((CONTROL_FIXTURES / relative_path).read_text(encoding="utf-8"))
 
 
-def python_model_codec(wire: object) -> eqiora.compatibility.ExactModelCodec:
-    if wire == "v1":
-        return eqiora.compatibility.ExactModelCodec.V1
-    if wire == "v2":
-        return eqiora.compatibility.ExactModelCodec.V2
-    if wire == "v3":
-        return eqiora.compatibility.ExactModelCodec.V3
-    if wire == "v4":
-        return eqiora.compatibility.ExactModelCodec.V4
-    if wire == "v5":
-        return eqiora.compatibility.ExactModelCodec.V5
-    if wire == "v6":
-        return eqiora.compatibility.ExactModelCodec.V6
-    if wire == "v7":
-        return eqiora.compatibility.ExactModelCodec.V7
-    if wire == "v8":
-        return eqiora.compatibility.ExactModelCodec.V8
-    raise AssertionError(f"Python test fixture selects unsupported Model wire: {wire!r}")
-
-
-CURRENT_CODEC = python_model_codec(
-    json.loads(CURRENT_PROFILE_FIXTURE.read_text(encoding="utf-8"))["modelWire"]
-)
-
-
-def test_python_authoring_selects_the_registered_current_profile() -> None:
+def test_python_authoring_and_replay_use_the_registered_current_profile() -> None:
     profile = json.loads(CURRENT_PROFILE_FIXTURE.read_text(encoding="utf-8"))
     model = eqiora.compile(SOURCE, filename="current.eqi")
-    assert model.exact_codec == python_model_codec(profile["modelWire"])
     assert json.loads(model.to_json())["schema"] == profile["modelSchema"]
 
     state = eqiora.Field("x", initial=1.0)
     hold = eqiora.Relation("hold", residual=eqiora.derivative(state))
     native = eqiora.Model.define("hold", state, hold)
-    assert native.exact_codec == model.exact_codec
-
-    for wire in profile["exactCodecs"]:
-        codec = python_model_codec(wire)
-        exact = eqiora.compatibility.compile_exact(SOURCE, codec=codec)
-        replay = eqiora.compatibility.replay_exact(exact.to_json(), codec=codec)
-        assert replay.exact_codec == codec
-        assert replay.digest == exact.digest
+    assert json.loads(native.to_json())["schema"] == profile["modelSchema"]
+    replayed = eqiora.replay(model.to_json())
+    assert replayed.to_json() == model.to_json()
+    assert replayed.digest == model.digest
 
 
 SOURCE = """
@@ -119,12 +89,7 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
     model = eqiora.compile(SOURCE, filename="decay.eqi")
     artifact = model.to_json()
     assert len(model.digest) == 64
-    assert model.exact_codec == CURRENT_CODEC
-
-    reconstructed = eqiora.compatibility.replay_exact(
-        artifact,
-        codec=CURRENT_CODEC,
-    )
+    reconstructed = eqiora.replay(artifact)
     assert reconstructed.to_json() == artifact
     assert reconstructed.digest == model.digest
 
@@ -187,32 +152,29 @@ def test_shared_compile_check_fixtures_cross_the_python_adapter() -> None:
 
     accepted_expectation = contract["accepted"]
     assert isinstance(accepted_expectation, dict)
-    accepted = load_control_fixture(
-        f"models/{accepted_expectation['request']}"
-    )
+    accepted = load_control_fixture(f"models/{accepted_expectation['request']}")
     assert accepted["requestId"] == accepted_expectation["requestId"]
-    assert accepted["modelWire"] == accepted_expectation["modelWire"]
     assert accepted_expectation["outcome"] == "accepted"
-    model = eqiora.compatibility.compile_exact(
+    model = eqiora.compile(
         accepted["source"],
         filename=accepted["filename"],
-        codec=python_model_codec(accepted["modelWire"]),
     )
     artifact = json.loads(model.to_json())
     assert artifact["schema"] == accepted_expectation["modelSchema"]
 
-    rejected_expectation = contract["rejectedSource"]
-    assert isinstance(rejected_expectation, dict)
-    rejected = load_control_fixture(
-        f"models/{rejected_expectation['request']}"
+    rejected_expectation = next(
+        rejection
+        for rejection in contract["rejections"]
+        if rejection["name"] == "rejected-source"
     )
+    assert isinstance(rejected_expectation, dict)
+    rejected = load_control_fixture(f"models/{rejected_expectation['request']}")
     assert rejected["requestId"] == rejected_expectation["requestId"]
     assert rejected_expectation["outcome"] == "rejected"
     with pytest.raises(eqiora.EqioraError) as caught:
-        eqiora.compatibility.compile_exact(
+        eqiora.compile(
             rejected["source"],
             filename=rejected["filename"],
-            codec=python_model_codec(rejected["modelWire"]),
         )
     assert [diagnostic.code for diagnostic in caught.value.diagnostics] == [
         rejected_expectation["diagnosticCode"]
@@ -235,7 +197,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
     )
 
     model = eqiora.Model.define("decay", state, rate, flow)
-    assert model.exact_codec == CURRENT_CODEC
+    assert json.loads(model.to_json())["schema"] == "eqiora.model-envelope/v8"
     result = eqiora.run(model, end_time=0.2, max_step=0.1)
 
     assert model.revision.number == 1
@@ -428,27 +390,14 @@ def physical_pair() -> tuple[
     return electrical, left, right, component, net
 
 
-def test_native_physical_declarations_use_current_and_retain_exact_replay() -> None:
+def test_native_physical_declarations_use_current_and_retain_replay() -> None:
     declarations = physical_pair()
 
     model = eqiora.Model.define("physical_pair", *declarations)
     artifact = model.to_json()
-    assert model.exact_codec == CURRENT_CODEC
-
-    reconstructed = eqiora.compatibility.replay_exact(
-        artifact,
-        codec=CURRENT_CODEC,
-    )
-    assert reconstructed.exact_codec == CURRENT_CODEC
+    reconstructed = eqiora.replay(artifact)
     assert reconstructed.to_json() == artifact
     assert reconstructed.digest == model.digest
-
-    exact_v2 = eqiora.compatibility.define_exact(
-        "physical_pair",
-        *declarations,
-        codec=eqiora.compatibility.ExactModelCodec.V2,
-    )
-    assert exact_v2.exact_codec == eqiora.compatibility.ExactModelCodec.V2
 
     source = eqiora.compile(PHYSICAL_SOURCE, filename="physical-source.eqi")
     assert source.digest != model.digest
@@ -461,11 +410,7 @@ def test_physical_source_compile_uses_current_without_user_codec_selection() -> 
         PHYSICAL_SOURCE,
         filename="physical_pair.eqi",
     )
-    assert model.exact_codec == CURRENT_CODEC
-    restored = eqiora.compatibility.replay_exact(
-        model.to_json(),
-        codec=CURRENT_CODEC,
-    )
+    restored = eqiora.replay(model.to_json())
     assert restored.digest == model.digest
 
 

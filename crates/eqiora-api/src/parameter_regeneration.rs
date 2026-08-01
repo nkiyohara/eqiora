@@ -15,7 +15,7 @@ use eqiora_schema::kernel::{AxisBounds, CartesianCoordinateSource, DomainKind, K
 use sha2::{Digest, Sha256};
 
 use crate::geometry_edit::canonical_axis_differences;
-use crate::{ExactModelCodec, ModelDocument, VersionedModelTransactionEnvelope, single_diagnostic};
+use crate::{ModelDocument, ModelTransactionEnvelope, single_diagnostic};
 
 const PARAMETER_GEOMETRY_REGENERATION_PLAN: &[u8] =
     b"eqiora.parameter-geometry-regeneration-plan/v1";
@@ -31,7 +31,7 @@ pub struct ParameterGeometryRegenerationPlan {
     after: DynQuantity,
     domain: Id<kinds::Domain>,
     edits: Vec<(usize, AxisBounds, AxisBounds)>,
-    transaction: VersionedModelTransactionEnvelope,
+    transaction: ModelTransactionEnvelope,
     transaction_digest: String,
     expected_child_digest: String,
 }
@@ -95,12 +95,6 @@ impl ParameterGeometryRegenerationPlan {
     #[must_use]
     pub fn expected_child_digest(&self) -> &str {
         &self.expected_child_digest
-    }
-
-    /// Exact transaction codec retained by this immutable plan.
-    #[must_use]
-    pub const fn exact_codec(&self) -> ExactModelCodec {
-        self.transaction.exact_codec()
     }
 
     /// Canonical bytes of the ordinary Model-transaction envelope.
@@ -170,11 +164,6 @@ impl ModelDocument {
         target: RawId,
         new_value_si: f64,
     ) -> Result<ParameterGeometryRegenerationPlan, Vec<Diagnostic>> {
-        if self.exact_codec() != ExactModelCodec::CURRENT {
-            return Err(single_diagnostic(invalid_regeneration(
-                "Parameter geometry regeneration v1 requires the current Model wire",
-            )));
-        }
         if !new_value_si.is_finite() {
             return Err(single_diagnostic(invalid_regeneration(
                 "Parameter geometry regeneration requires one finite coherent-SI scalar",
@@ -288,8 +277,7 @@ impl ModelDocument {
         &self,
         plan: ParameterGeometryRegenerationPlan,
     ) -> Result<ParameterGeometryRegenerationResult, Vec<Diagnostic>> {
-        if plan.exact_codec() != self.exact_codec()
-            || plan.base_digest != self.digest().map_err(single_diagnostic)?
+        if plan.base_digest != self.digest().map_err(single_diagnostic)?
             || plan.base_revision != self.store.revision()
         {
             return Err(single_diagnostic(Diagnostic::error(

@@ -4,9 +4,10 @@
 //! artifact embeds the Model reference. This test owns the classification's
 //! executable half: it proves that every precommitted current Model reproduces
 //! its frozen identity through the current owner, that every downstream
-//! identity is re-derivable from committed bytes alone, that each replacement
-//! fixture differs from the fixture it replaces at exactly its identity
-//! pointers, that the recorded accelerator bundles are bridged rather than
+//! identity is re-derivable from committed bytes alone, that each deterministic
+//! consumer installs its precommitted replacement byte for byte and retains no
+//! superseded identity, that the moving-spatial consumer's delta is identity
+//! only, that the recorded accelerator bundles are bridged rather than
 //! relabelled, and that every classified path carries exactly one fate.
 //!
 //! Every literal lives under the registered case, never inside this crate. The
@@ -27,7 +28,7 @@
 //! spell the tokens it searches for; see `ORACLE_FILES` there.
 
 use eqiora_artifact::{
-    CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelopeV8, RealizationEnvelopeV4,
+    CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelope, RealizationEnvelopeV4,
     ReplayableCanonicalModelArtifact, SemanticFingerprintGeneration, SpatialStateEnvelopeV2,
     SpatialTrajectoryEnvelopeV2, SpatialTrajectorySegmentEnvelopeV2, StructuralSemanticFingerprint,
 };
@@ -564,7 +565,7 @@ fn every_precommitted_current_model_reproduces_its_frozen_identity() {
 
         // Derivation two: the current owner, which must agree and must also
         // round-trip these exact bytes and replay the same program.
-        let decoded = ModelEnvelopeV8::from_json(bytes, ModelDecoderLimits::default())
+        let decoded = ModelEnvelope::from_json(bytes, ModelDecoderLimits::default())
             .unwrap_or_else(|error| panic!("{} must decode: {}", fixture.name, error.message()));
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
         assert_eq!(decoded.digest().unwrap().as_str(), digest);
@@ -648,82 +649,94 @@ fn every_downstream_identity_and_reference_edge_derives_from_bytes() {
     );
 }
 
+/// Each deterministic consumer holds exactly the precommitted replacement, and
+/// every identity in it is one derived from bytes above.
+///
+/// Before the reset the superseded fixture was the file in the tree, and this
+/// test compared the two documents leaf by leaf. The reset overwrote it and this
+/// case commits no copy of it, so that comparison is no longer available:
+/// rebuilding the superseded bytes out of the replacement and substituting back
+/// would only prove the inverse of a substitution performed one line earlier.
+/// The leaf-level delta is therefore not claimed here — the moving-spatial
+/// consumer, which commits both states, is where it stays observable. What the
+/// installed bytes still show is checked instead.
 #[test]
-fn every_replacement_changes_exactly_its_identity_pointers() {
+fn every_installed_consumer_carries_its_precommitted_replacement_identities() {
     let transition = transition();
 
     for fixture in &DETERMINISTIC {
         let expected = entry(&transition, "deterministic", fixture.name);
-        let committed_bytes = frozen(fixture.committed);
-        let replacement_bytes = frozen(fixture.replacement);
-        let committed: Value = serde_json::from_slice(committed_bytes).unwrap();
-        let replacement: Value = serde_json::from_slice(replacement_bytes).unwrap();
+        // The included slices themselves, not their newline-normalized forms:
+        // stripping a trailing newline off both sides before comparing would let
+        // exactly that byte drift under a claim that no byte may.
+        assert_eq!(
+            fixture.committed, fixture.replacement,
+            "{} must install the precommitted replacement byte for byte: key order, \
+             whitespace, number spelling, trailing newline, and every non-identity \
+             byte included",
+            fixture.name
+        );
 
-        let mut pointers = vec![expected["model_pointer"].as_str().unwrap().to_owned()];
-        pointers.extend(
-            expected["edges"]
-                .as_array()
-                .unwrap()
+        // Normalized only for JSON parsing and the semantic checks below.
+        let installed = frozen(fixture.committed);
+        let document: Value = serde_json::from_slice(installed).unwrap();
+
+        // Each identity pointer against the identity re-derived from the bytes
+        // of the artifact it names — the Model through the RFC 0008 domain, each
+        // edge through its own canonical bytes, both derived by the two tests
+        // above and only consumed here.
+        let mut identities = vec![(
+            expected["model_pointer"].as_str().unwrap().to_owned(),
+            expected["model_digest"].as_str().unwrap().to_owned(),
+        )];
+        identities.extend(expected["edges"].as_array().unwrap().iter().map(|edge| {
+            (
+                edge["pointer"].as_str().unwrap().to_owned(),
+                edge["digest"].as_str().unwrap().to_owned(),
+            )
+        }));
+        assert_eq!(
+            identities
                 .iter()
-                .map(|edge| edge["pointer"].as_str().unwrap().to_owned()),
-        );
-
-        let before = flatten(&committed);
-        let after = flatten(&replacement);
-        assert_eq!(
-            before.iter().map(|(path, _)| path).collect::<Vec<_>>(),
-            after.iter().map(|(path, _)| path).collect::<Vec<_>>(),
-            "{} replacement must not add, drop, or reorder a leaf",
+                .map(|(pointer, _)| pointer.clone())
+                .collect::<BTreeSet<_>>(),
+            expected["superseded"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect::<BTreeSet<_>>(),
+            "{} must record one superseded identity for exactly its identity pointers",
             fixture.name
         );
 
-        let mut changed = before
-            .iter()
-            .zip(&after)
-            .filter(|((_, old), (_, new))| old != new)
-            .map(|((path, _), _)| path.clone())
-            .collect::<Vec<_>>();
-        changed.sort();
-        let mut permitted = pointers.clone();
-        permitted.sort();
-        assert_eq!(
-            changed, permitted,
-            "{} delta must be exactly its identity pointers: arrays, coordinates, \
-             times, tolerances, source and package identities are immutable",
-            fixture.name
-        );
-
-        // This is stronger than semantic JSON equality: the committed target
-        // may change only by replacing each unique 64-byte identity literal
-        // with its precommitted same-length successor. Key order, whitespace,
-        // number spelling, and every non-identity byte must remain untouched.
-        let mut exact_replacement = committed_bytes.to_vec();
-        for pointer in &pointers {
-            replace_exact_once(
-                &mut exact_replacement,
-                expected["superseded"][pointer].as_str().unwrap(),
-                resolve(&replacement, pointer).as_str().unwrap(),
+        let leaves = flatten(&document);
+        for (pointer, digest) in &identities {
+            assert_eq!(
+                resolve(&document, pointer),
+                digest.as_str(),
+                "{} {pointer} must carry the identity derived from its own bytes",
+                fixture.name
             );
-        }
-        assert_eq!(
-            exact_replacement, replacement_bytes,
-            "{} replacement must be a byte-exact identity substitution",
-            fixture.name
-        );
 
-        // Every superseded identity must be retired, and none may reappear
-        // anywhere else in the replacement.
-        for pointer in &pointers {
+            // And the superseded identity is retired: gone from its pointer,
+            // gone from every other leaf, and the same 64 bytes wide, which is
+            // what makes the recorded move a substitution rather than a rewrite.
             let superseded = expected["superseded"][pointer].as_str().unwrap();
-            assert_eq!(resolve(&committed, pointer), superseded);
+            assert_eq!(
+                superseded.len(),
+                digest.len(),
+                "{} {pointer} must move to a same-length identity",
+                fixture.name
+            );
             assert_ne!(
-                resolve(&replacement, pointer),
+                resolve(&document, pointer),
                 superseded,
                 "{} {pointer} must not keep its superseded identity",
                 fixture.name
             );
             assert!(
-                after.iter().all(|(_, value)| value != superseded),
+                leaves.iter().all(|(_, value)| value != superseded),
                 "{} must not retain superseded identity {superseded}",
                 fixture.name
             );
@@ -761,7 +774,7 @@ fn recorded_accelerator_bundles_are_bridged_and_never_relabelled() {
         assert_eq!(raw_sha256(current), expected["current_raw_sha256"]);
         let current_digest = expected["current_artifact_digest"].as_str().unwrap();
         assert_eq!(model_digest_from_bytes(current), current_digest);
-        let decoded = ModelEnvelopeV8::from_json(current, ModelDecoderLimits::default()).unwrap();
+        let decoded = ModelEnvelope::from_json(current, ModelDecoderLimits::default()).unwrap();
         assert_eq!(decoded.canonical_json().unwrap(), current);
         assert_eq!(decoded.digest().unwrap().as_str(), current_digest);
         assert_ne!(
@@ -901,7 +914,7 @@ fn the_retained_realization_v4_golden_is_accepted_without_any_model_decoder() {
         opaque["schema"]
     );
     assert!(
-        ModelEnvelopeV8::from_json(historical, ModelDecoderLimits::default()).is_err(),
+        ModelEnvelope::from_json(historical, ModelDecoderLimits::default()).is_err(),
         "the current Model owner must reject the opaque historical bytes: {}",
         expected["forbidden"]["current_model_decoder_on_opaque_bytes"]
     );
@@ -909,7 +922,7 @@ fn the_retained_realization_v4_golden_is_accepted_without_any_model_decoder() {
     // And the current Model of the same semantic program is not this golden's
     // Model, however equivalent the program is.
     let current =
-        ModelEnvelopeV8::from_json(frozen(BRIDGES[1].current), ModelDecoderLimits::default())
+        ModelEnvelope::from_json(frozen(BRIDGES[1].current), ModelDecoderLimits::default())
             .unwrap();
     assert!(
         golden.validate_model_artifact(&current).is_err(),
@@ -956,7 +969,7 @@ fn relabelling_the_retained_realization_v4_golden_to_a_current_model_is_refused(
     // The relabelled golden decodes and validates. That is the point: identity
     // checks inside the family cannot see this, so the freeze must be on bytes.
     let current =
-        ModelEnvelopeV8::from_json(frozen(BRIDGES[1].current), ModelDecoderLimits::default())
+        ModelEnvelope::from_json(frozen(BRIDGES[1].current), ModelDecoderLimits::default())
             .unwrap();
     let decoded = RealizationEnvelopeV4::from_json(&relabelled, Default::default()).unwrap();
     assert!(
@@ -1085,7 +1098,7 @@ fn the_moving_spatial_replacement_replays_through_the_retained_spatial_wires() {
 
         // The Model input the reset moves to, through the current owner only.
         let model =
-            ModelEnvelopeV8::from_json(frozen(BRIDGES[1].current), ModelDecoderLimits::default())
+            ModelEnvelope::from_json(frozen(BRIDGES[1].current), ModelDecoderLimits::default())
                 .expect("the precommitted current Model input decodes through the current owner");
         assert_eq!(model.digest().unwrap().as_str(), current_model);
         assert_eq!(
@@ -1093,11 +1106,8 @@ fn the_moving_spatial_replacement_replays_through_the_retained_spatial_wires() {
             expected["model_ulid"]
         );
         assert!(
-            ModelEnvelopeV8::from_json(
-                frozen(BRIDGES[1].historical),
-                ModelDecoderLimits::default()
-            )
-            .is_err(),
+            ModelEnvelope::from_json(frozen(BRIDGES[1].historical), ModelDecoderLimits::default())
+                .is_err(),
             "the pre-reset Model input is rejected by the current owner, which is why it moves"
         );
 
@@ -1293,7 +1303,7 @@ fn a_mutated_oracle_byte_or_severed_edge_is_refused() {
     let original_digest = model_digest_from_bytes(bytes);
     let mutated_digest = model_digest_from_bytes(&mutated);
     assert_ne!(mutated_digest, original_digest);
-    let decoded = ModelEnvelopeV8::from_json(&mutated, ModelDecoderLimits::default())
+    let decoded = ModelEnvelope::from_json(&mutated, ModelDecoderLimits::default())
         .expect("the valid-JSON mutant must remain admissible to exercise identity drift");
     assert_eq!(decoded.canonical_json().unwrap(), mutated);
     assert_eq!(decoded.digest().unwrap().as_str(), mutated_digest);

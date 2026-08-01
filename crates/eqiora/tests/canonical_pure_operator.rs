@@ -1,8 +1,4 @@
-use eqiora::artifact::{
-    ModelDecoderLimits, ModelEnvelopeV4, ModelEnvelopeV5, ModelTransactionEnvelopeV4,
-    ModelTransactionEnvelopeV5,
-};
-use eqiora::compatibility::ExactModelCodec;
+use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope, ModelTransactionEnvelope};
 use eqiora::compiler::{CompiledModel, compile};
 use eqiora::entity::kinds;
 use eqiora::ir::ComponentScalarization;
@@ -90,7 +86,7 @@ fn compile_locked(operators: &PackageReleaseV1, root: &PackageReleaseV1) -> Pack
     let mut store = InMemoryPackageStore::default();
     store.insert(operators).expect("insert operator release");
     store.insert(root).expect("insert root release");
-    PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V5)
+    PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("locked V5 package compilation")
 }
 
@@ -147,12 +143,11 @@ fn first_expression_mut(value: &mut Value) -> Option<&mut Map<String, Value>> {
 
 #[test]
 fn direct_and_exact_package_variants_share_name_free_meaning() {
-    let direct = ExactModelCodec::V5
-        .compile("direct.eqi", DIRECT)
-        .expect("direct V5 model");
-    let direct_permuted = ExactModelCodec::V5
-        .compile("elsewhere/permuted.eqi", DIRECT_PERMUTED)
-        .expect("permuted direct V5 model");
+    let direct =
+        eqiora::api::ModelDocument::compile("direct.eqi", DIRECT).expect("direct V5 model");
+    let direct_permuted =
+        eqiora::api::ModelDocument::compile("elsewhere/permuted.eqi", DIRECT_PERMUTED)
+            .expect("permuted direct V5 model");
     assert_eq!(
         direct.canonical_json().unwrap(),
         direct_permuted.canonical_json().unwrap(),
@@ -223,45 +218,38 @@ fn direct_and_exact_package_variants_share_name_free_meaning() {
 }
 
 #[test]
-fn v5_model_and_transaction_replay_exactly_while_v4_remains_closed() {
+fn current_model_and_transaction_replay_exactly() {
     let compiled = compile_one("direct.eqi", DIRECT);
-    assert!(ModelTransactionEnvelopeV4::from_transaction(compiled.transaction()).is_err());
-    let transaction = ModelTransactionEnvelopeV5::from_transaction(compiled.transaction()).unwrap();
+    let transaction = ModelTransactionEnvelope::from_transaction(compiled.transaction()).unwrap();
     let transaction_bytes = transaction.canonical_json().unwrap();
     let replayed =
-        ModelTransactionEnvelopeV5::from_json(&transaction_bytes, Default::default()).unwrap();
+        ModelTransactionEnvelope::from_json(&transaction_bytes, Default::default()).unwrap();
     assert_eq!(replayed.canonical_json().unwrap(), transaction_bytes);
     assert_eq!(
         replayed.to_transaction().unwrap().ops(),
         compiled.transaction().ops()
     );
 
-    let document = ExactModelCodec::V5
-        .compile("direct.eqi", DIRECT)
-        .expect("admitted V5 model");
-    assert!(ModelEnvelopeV4::from_program(document.program()).is_err());
-    assert!(ExactModelCodec::V4.compile("direct.eqi", DIRECT).is_err());
-    let model = ModelEnvelopeV5::from_program(document.program()).unwrap();
+    let document =
+        eqiora::api::ModelDocument::compile("direct.eqi", DIRECT).expect("admitted current model");
+    let model = ModelEnvelope::from_program(document.program()).unwrap();
     let model_bytes = model.canonical_json().unwrap();
-    let replayed = ModelEnvelopeV5::from_json(&model_bytes, Default::default()).unwrap();
+    let replayed = ModelEnvelope::from_json(&model_bytes, Default::default()).unwrap();
     assert_eq!(replayed.canonical_json().unwrap(), model_bytes);
     assert_eq!(replayed.to_program().unwrap(), *document.program());
     assert_eq!(
-        ExactModelCodec::V5
-            .replay(&model_bytes)
+        eqiora::api::ModelDocument::replay(&model_bytes)
             .unwrap()
             .canonical_json()
             .unwrap(),
         model_bytes
     );
-    assert!(ModelEnvelopeV4::from_json(&model_bytes, Default::default()).is_err());
 }
 
 #[test]
 fn compiled_definition_scalarizes_as_the_exact_dyadic_map() {
-    let document = ExactModelCodec::V5
-        .compile("direct.eqi", DIRECT)
-        .expect("direct V5 model");
+    let document =
+        eqiora::api::ModelDocument::compile("direct.eqi", DIRECT).expect("direct V5 model");
     let definition = pure_definition(document.program());
     let left = Id::<kinds::Field>::new();
     let right = Id::<kinds::Field>::new();
@@ -311,11 +299,10 @@ fn compiled_definition_scalarizes_as_the_exact_dyadic_map() {
 }
 
 #[test]
-fn v5_unknown_feature_digest_and_resource_limit_fail_closed() {
-    let document = ExactModelCodec::V5
-        .compile("direct.eqi", DIRECT)
-        .expect("direct V5 model");
-    let bytes = ModelEnvelopeV5::from_program(document.program())
+fn current_wire_unknown_feature_digest_and_resource_limit_fail_closed() {
+    let document =
+        eqiora::api::ModelDocument::compile("direct.eqi", DIRECT).expect("direct current model");
+    let bytes = ModelEnvelope::from_program(document.program())
         .unwrap()
         .canonical_json()
         .unwrap();
@@ -324,7 +311,7 @@ fn v5_unknown_feature_digest_and_resource_limit_fail_closed() {
     let mut unknown_feature = original.clone();
     first_expression_mut(&mut unknown_feature).unwrap()["definitions"][0]["required_features"][0] =
         Value::String("eqiora.unknown-pure-calculus/v9".to_owned());
-    let diagnostic = ModelEnvelopeV5::from_json(
+    let diagnostic = ModelEnvelope::from_json(
         &serde_json::to_vec(&unknown_feature).unwrap(),
         Default::default(),
     )
@@ -339,14 +326,14 @@ fn v5_unknown_feature_digest_and_resource_limit_fail_closed() {
     let replacement = if digest.starts_with('0') { '1' } else { '0' };
     first_expression_mut(&mut mismatched_digest).unwrap()["definitions"][0]["digest"] =
         Value::String(format!("{replacement}{}", &digest[1..]));
-    let diagnostic = ModelEnvelopeV5::from_json(
+    let diagnostic = ModelEnvelope::from_json(
         &serde_json::to_vec(&mismatched_digest).unwrap(),
         Default::default(),
     )
     .unwrap_err();
     assert!(diagnostic.message().contains("digest mismatch"));
 
-    let diagnostic = ModelEnvelopeV5::from_json(
+    let diagnostic = ModelEnvelope::from_json(
         &bytes,
         ModelDecoderLimits {
             max_pure_operator_definitions: 0,

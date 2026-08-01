@@ -12,7 +12,7 @@ compilation remains this case's own entry path.
 
 The `nary.eqi` and `chain.eqi` fixtures describe the same three-terminal net
 as one N-ary declaration and as two overlapping binary declarations. The
-evidence requires equal Model identity, transaction operations, Model v2
+evidence requires equal Model identity, transaction operations, current Model
 canonical bytes, and semantic digest. It also requires one final Connection
 with three members. The chain retains both declaration origins in provenance,
 showing that traversal-local witnesses do not enter semantic identity.
@@ -48,9 +48,9 @@ the whole occurrence subtree would fail this case.
 The executable permutation matrix varies declaration order, N-ary member
 order, binary fragment order, and binary member order across 84 compilations.
 Every form must retain the same model identity, symbols, transaction, and
-canonical Model v2 bytes. Duplicate fragments are topology-idempotent while
-retaining both source origins; a duplicate member inside one fragment remains
-an error.
+canonical current Model bytes. Duplicate fragments are topology-idempotent
+while retaining both source origins; a duplicate member inside one fragment
+remains an error.
 
 The invalid fixtures require source-representable missing membership,
 multiple Relation ownership, an entirely ownerless physical set, and an

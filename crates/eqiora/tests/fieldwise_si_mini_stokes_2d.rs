@@ -1,10 +1,9 @@
 use std::num::NonZeroUsize;
 
 use eqiora::artifact::{
-    ArtifactDigest, ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV4,
+    ArtifactDigest, ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
     RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::meshing::{MeshQualityGate, SimplicialMesh, triangle_duffy_gauss_legendre};
 use eqiora::package::{
     AuthorManifestV1, AuthorPackageSourcesV1, BundleEntryV1, BundleRoleV1, DependencyRequirementV1,
@@ -74,8 +73,7 @@ struct Observation {
 
 #[test]
 fn direct_and_packaged_models_share_one_fieldwise_si_mini_realization() {
-    let direct = ExactModelCodec::V4
-        .compile("direct.eqi", DIRECT)
+    let direct = eqiora::api::ModelDocument::compile("direct.eqi", DIRECT)
         .expect("direct physical Stokes Model compiles");
     let packaged = packaged_document();
     let mesh =
@@ -98,12 +96,12 @@ fn direct_and_packaged_models_share_one_fieldwise_si_mini_realization() {
 
 #[test]
 fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
-    let document = ExactModelCodec::V4.compile("direct.eqi", DIRECT).unwrap();
+    let document = eqiora::api::ModelDocument::compile("direct.eqi", DIRECT).unwrap();
     let program = document.program();
     let mesh = SimplicialMeshEnvelopeV1::from_mesh(&physical_mesh()).unwrap();
     let mesh_reference = mesh.artifact_reference().unwrap();
     let (lowered, resolved) = resolve_exact(program, mesh_reference, profile_a(), 7);
-    let model = ModelEnvelopeV4::from_program(program).unwrap();
+    let model = ModelEnvelope::from_program(program).unwrap();
     let realization =
         RealizationEnvelopeV2::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)
             .unwrap();
@@ -354,7 +352,7 @@ fn equation_aware_adapter_rejects_generic_plan_artifact_and_mesh_drift() {
         "field velocity on body as space: m / s shape spatial_vector;",
         "field velocity on body as space: 1 shape spatial_vector;",
     );
-    match ExactModelCodec::V4.compile("wrong-shape.eqi", &wrong_shape) {
+    match eqiora::api::ModelDocument::compile("wrong-shape.eqi", &wrong_shape) {
         Err(diagnostics) => assert!(!diagnostics.is_empty()),
         Ok(document) => {
             assert!(lower_steady_incompressible_stokes_cartesian_2d(document.program()).is_err())
@@ -372,10 +370,10 @@ fn observe(
     let solver = reference_solver();
     let (lowered, resolved) = resolve_exact(program, mesh_reference, scales, realization_revision);
 
-    let model = ModelEnvelopeV4::from_program(program).expect("canonical Model v4");
+    let model = ModelEnvelope::from_program(program).expect("canonical current Model");
     let model_bytes = model.canonical_json().expect("Model bytes");
     let model_replay =
-        ModelEnvelopeV4::from_json(&model_bytes, Default::default()).expect("Model v4 replay");
+        ModelEnvelope::from_json(&model_bytes, Default::default()).expect("current Model replay");
     assert_eq!(model_replay.canonical_json().unwrap(), model_bytes);
     assert_eq!(model_replay.digest().unwrap(), model.digest().unwrap());
     let realization =
@@ -796,7 +794,7 @@ fn packaged_document() -> PackagedModelDocument {
     let mut store = InMemoryPackageStore::default();
     store.insert(&component).expect("install fluid package");
     store.insert(&root).expect("install verification root");
-    PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V4)
+    PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("exact package compiles offline")
 }
 

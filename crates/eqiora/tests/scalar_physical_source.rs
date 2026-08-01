@@ -1,4 +1,4 @@
-use eqiora::artifact::ModelEnvelopeV2;
+use eqiora::artifact::ModelEnvelope;
 use eqiora::compiler::compile;
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore};
 use eqiora::kernel::{DomainKind, ExprNode, KernelNode, PortPayload, SymbolRef};
@@ -25,7 +25,7 @@ model physical_pair {
 "#;
 
 #[test]
-fn source_constructs_one_nominal_v2_physical_program() {
+fn source_constructs_one_nominal_current_physical_program() {
     let mut compiled = compile("physical_pair.eqi", SOURCE).expect("typed physical source");
     let compiled = compiled.pop().expect("one model");
     let domain = compiled.symbols().get("electrical").expect("Domain ID");
@@ -108,7 +108,7 @@ fn source_constructs_one_nominal_v2_physical_program() {
         }
     }
 
-    let envelope = ModelEnvelopeV2::from_program(&program).expect("physical model needs v2");
+    let envelope = ModelEnvelope::from_program(&program).expect("physical model needs v2");
     let restored = envelope.to_program().expect("v2 round trip validates");
     assert_eq!(restored.nodes().count(), program.nodes().count());
     assert_eq!(restored.edges(), program.edges());

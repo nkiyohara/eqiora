@@ -87,7 +87,7 @@ class CircularHoleSteadyStokesResult:
 
 def solve_exact_cylinder_stokes(
     *,
-    model_v7: bytes,
+    model: bytes,
     geometry: RectangleWithCircularHole,
     mesh: CircularHoleChordalMesh,
 ) -> CircularHoleSteadyStokesResult: ...

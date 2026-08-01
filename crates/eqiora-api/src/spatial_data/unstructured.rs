@@ -6,7 +6,7 @@
 
 use eqiora_artifact::{
     ArtifactDigest, CanonicalModelArtifact, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1,
-    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, ModelEnvelopeV7,
+    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, ModelEnvelope,
     RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1, ValidatedFixedSpatialContextV1,
 };
 use eqiora_core::entity::kinds;
@@ -101,7 +101,7 @@ impl UnstructuredP1ScalarFieldProjection2d {
     /// unsupported dimension, resource excess, or inconsistent mesh/values.
     #[allow(clippy::too_many_arguments)]
     pub fn from_authored_fieldwise_snapshot(
-        model: &ModelEnvelopeV7,
+        model: &ModelEnvelope,
         realization: &RealizationEnvelopeV2,
         source: &CanonicalCircularHoleGeometryV1,
         owner: &CircularHoleChordalMeshV1,

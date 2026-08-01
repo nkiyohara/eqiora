@@ -1,7 +1,7 @@
 use std::process::Command;
 
 use eqiora::api::StructuralSemanticFingerprint;
-use eqiora::artifact::ModelEnvelopeV7;
+use eqiora::artifact::ModelEnvelope;
 use eqiora::diagnostic::codes;
 use eqiora::geometry::{
     CanonicalCircularHoleGeometryV1, CanonicalGeometryLimits, CanonicalGeometryRef,
@@ -977,9 +977,9 @@ fn declaration_only_geometry_still_participates_in_bundle_closure_and_identity()
     .expect("declaration entity set is proven");
     assert_ne!(admitted, artifact_free);
 
-    let admitted_model = ModelEnvelopeV7::from_program(&admitted).expect("v7 Model");
+    let admitted_model = ModelEnvelope::from_program(&admitted).expect("current Model");
     let artifact_free_model =
-        ModelEnvelopeV7::from_program(&artifact_free).expect("artifact-free v7 Model");
+        ModelEnvelope::from_program(&artifact_free).expect("artifact-free current Model");
     assert_eq!(
         admitted_model
             .canonical_json()

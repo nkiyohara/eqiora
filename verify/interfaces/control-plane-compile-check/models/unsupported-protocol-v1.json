@@ -1,9 +1,0 @@
-{
-  "protocol": "eqiora.control/v2",
-  "command": "model.compile-check/v1",
-  "requestId": "shared-unsupported-protocol-v1",
-  "requiredFeatures": ["model.compile-check/v1", "model-wire/v1"],
-  "modelWire": "v1",
-  "filename": "unread.eqi",
-  "source": "this source must never reach the compiler"
-}

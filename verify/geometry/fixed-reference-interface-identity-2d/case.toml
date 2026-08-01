@@ -9,7 +9,7 @@ capabilities = [
   "parent-outward-orientation-derived-from-incidence",
   "content-bound-two-body-interface-witness",
   "explicit-total-one-to-one-revision-retention",
-  "explicit-model-v1-v5-replayable-geometry-boundary",
+  "current-model-replayable-geometry-boundary",
   "geometry-owned-coherent-si-classification-tolerance",
 ]
 
@@ -32,7 +32,7 @@ interface_membership = "the two distinct interface Boundaries map to one equal c
 orientation = "derived OutwardFrom(parent) from oriented incidence"
 caller_supplied_normal_sign = false
 selected_body_and_association_candidate_order_is_nonsemantic = true
-model_replay = "sealed explicit Model v1-v5 replay with exact wire-domain digest retained"
+model_replay = "sealed current Model replay with exact artifact digest retained"
 classification_tolerance = "geometry-producer-owned coherent-SI precision, content-bound into Geometry Identity"
 
 [revision_retention]
@@ -51,7 +51,7 @@ partial_unequal_or_noncoincident_interface_membership = "reject"
 equal_facing_interface_outward_orientation = "reject"
 coincident_shadow_boundary_identity = "reject"
 incomplete_one_to_many_many_to_one_or_ambiguous_revision_lineage = "reject"
-cross_wire_model_substitution = "reject"
+foreign_model_substitution = "reject"
 tighter_geometry_precision_rejects_displaced_interface = "reject"
 
 [claim_boundary]

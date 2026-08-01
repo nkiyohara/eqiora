@@ -20,8 +20,8 @@ provenance sidecar rather than affecting semantic identity.
 The canonical and permuted fixtures have the same typed declarations,
 bindings, residual order, and connection sets. They deliberately vary
 component order, member order, instance order, binding order, and Connection
-member order. Compilation must produce identical graph
-IDs, Model v2 bytes, and digest while retaining source-specific provenance.
+member order. Compilation must produce identical graph IDs, current Model
+bytes, and digest while retaining source-specific provenance.
 The two resistor instances must remain distinct from one another and stable
 between the fixtures.
 
@@ -31,10 +31,10 @@ the same three root Parameters used by the leaf Relations. The test
 defines a complete one-to-one correspondence for all named entities, derives
 generated Activation identities from their Relation edges and Connection
 identities from their normalized member sets, and requires that this mapping
-cover every ID in both Model v2 artifacts. Rewriting only those IDs must then
-produce byte-identical canonical Model v2 artifacts and identical semantic
-digests. This is the bounded semantic-equivalence claim; equal numerical
-answers alone are not used as its proof.
+cover every ID in both current Model artifacts. Rewriting only those IDs must
+then produce byte-identical canonical current Model artifacts and identical
+semantic digests. This is the bounded semantic-equivalence claim; equal
+numerical answers alone are not used as its proof.
 
 This explicit-flat comparison is also the circuit oracle for the
 `hierarchical-conserving-connection-sets-v1` conformance kit. It proves that a

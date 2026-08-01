@@ -9,7 +9,7 @@ use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
     ExecutionProvenanceV1, ExecutionTopologyV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelopeV4, RealizationEnvelopeV3,
+    GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV3,
     RunManifestV2, SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV1, SpatialTrajectoryEnvelopeV1,
     SpatialTrajectorySegmentEnvelopeV1, ValidatedFixedSpatialContextV1,
 };
@@ -32,7 +32,7 @@ use eqiora_solver::{
     ReductionPolicy, SERIAL_EXECUTION_PROVIDER, ScalarType, SolverPlan,
 };
 
-use crate::{ExactModelCodec, ModelDocument, snapshot_fixed_reference_fsi_solution_v1};
+use crate::{ModelDocument, snapshot_fixed_reference_fsi_solution_v1};
 
 const REFERENCE_SOURCE: &str =
     include_str!("../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi");
@@ -71,7 +71,7 @@ const PRESSURE: DimExponents = DimExponents {
 };
 
 struct SpatialContext {
-    model: ModelEnvelopeV4,
+    model: ModelEnvelope,
     mesh: SimplicialMesh,
     mesh_artifact: SimplicialMeshEnvelopeV1,
     geometry: GeometryIdentityEnvelopeV1,
@@ -94,7 +94,7 @@ struct ExecutionContext {
 /// clients cannot create a second composition authority.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FixedReferenceFsiResult2d {
-    model: ModelEnvelopeV4,
+    model: ModelEnvelope,
     mesh: SimplicialMesh,
     mesh_artifact: SimplicialMeshEnvelopeV1,
     geometry: GeometryIdentityEnvelopeV1,
@@ -110,7 +110,7 @@ pub struct FixedReferenceFsiResult2d {
 impl FixedReferenceFsiResult2d {
     /// Execute the accepted two-step fixed-reference FSI configuration.
     ///
-    /// Admission compares the caller's exact V4 Model structurally with the
+    /// Admission compares the caller's current Model structurally with the
     /// registered direct source while retaining the caller's exact artifact
     /// identity. Structural admission does not add a digest-equality claim.
     ///
@@ -204,9 +204,9 @@ impl FixedReferenceFsiResult2d {
         Ok(result)
     }
 
-    /// Exact caller-owned V4 Model used by this execution.
+    /// Exact caller-owned current Model used by this execution.
     #[must_use]
-    pub const fn model(&self) -> &ModelEnvelopeV4 {
+    pub const fn model(&self) -> &ModelEnvelope {
         &self.model
     }
 
@@ -379,13 +379,12 @@ impl FixedReferenceFsiResult2d {
 }
 
 fn require_accepted_model(document: &ModelDocument) -> Result<(), Diagnostic> {
-    if document.exact_codec() != ExactModelCodec::V4 || document.program().revision().0 != 1 {
+    if document.program().revision().0 != 1 {
         return Err(invalid(
-            "fixed-reference FSI requires the accepted exact V4 Model at semantic revision 1",
+            "fixed-reference FSI requires the accepted Model at semantic revision 1",
         ));
     }
-    let reference = ExactModelCodec::V4
-        .compile("fixed-reference-fsi.eqi", REFERENCE_SOURCE)
+    let reference = ModelDocument::compile("fixed-reference-fsi.eqi", REFERENCE_SOURCE)
         .map_err(first_diagnostic)?;
     if !document.structurally_equivalent(&reference)? {
         return Err(invalid(
@@ -399,7 +398,7 @@ fn spatial_context(
     program: &eqiora_sem::KernelProgram,
     canonical: &FixedReferenceFsiCartesianModel2d,
 ) -> Result<SpatialContext, Diagnostic> {
-    let model = ModelEnvelopeV4::from_program(program)?;
+    let model = ModelEnvelope::from_program(program)?;
     let mesh = physical_mesh()?;
     let mesh_artifact = SimplicialMeshEnvelopeV1::from_mesh(&mesh)?;
     let fluid = canonical
@@ -675,8 +674,7 @@ mod tests {
 
     #[test]
     fn shared_result_closes_two_step_trajectory_and_rejects_foreign_meaning() {
-        let document = ExactModelCodec::V4
-            .compile("fixed-reference-fsi.eqi", REFERENCE_SOURCE)
+        let document = ModelDocument::compile("fixed-reference-fsi.eqi", REFERENCE_SOURCE)
             .expect("accepted reference source");
         let result =
             FixedReferenceFsiResult2d::solve_reference(&document, &REFERENCE_LINEAR_SOLVER)
@@ -697,8 +695,7 @@ mod tests {
             "parameter fluid_density: kg / m ^ 3 = 4;",
             1,
         );
-        let foreign = ExactModelCodec::V4
-            .compile("foreign-fsi.eqi", &foreign_source)
+        let foreign = ModelDocument::compile("foreign-fsi.eqi", &foreign_source)
             .expect("shape-compatible foreign source");
         let error = FixedReferenceFsiResult2d::solve_reference(&foreign, &REFERENCE_LINEAR_SOLVER)
             .expect_err("foreign physical meaning must fail before realization");

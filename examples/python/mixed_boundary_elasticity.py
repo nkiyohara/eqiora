@@ -13,10 +13,9 @@ def solve() -> eqiora.solid.MixedBoundaryElasticityResult:
         .joinpath("examples", "mixed-boundary-elasticity.eqi")
         .read_text(encoding="utf-8")
     )
-    model = eqiora.compatibility.compile_exact(
+    model = eqiora.compile(
         source,
         filename="mixed-boundary-elasticity.eqi",
-        codec=eqiora.compatibility.ExactModelCodec.V4,
     )
     return eqiora.solid.solve_mixed_boundary_elasticity(model)
 

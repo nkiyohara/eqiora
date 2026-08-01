@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use eqiora::artifact::ModelEnvelopeV3;
+use eqiora::artifact::ModelEnvelope;
 use eqiora::compiler::{CompiledModel, ModelSymbols, compile};
 use eqiora::entity::kinds;
 use eqiora::graph::{GraphStore, InMemoryGraphStore, Op};
@@ -135,7 +135,7 @@ pub(super) fn admit(compiled: CompiledModel) -> KernelProgram {
 }
 
 pub(super) fn canonical_program(compiled: CompiledModel) -> Vec<u8> {
-    ModelEnvelopeV3::from_program(&admit(compiled))
+    ModelEnvelope::from_program(&admit(compiled))
         .expect("canonical model envelope")
         .canonical_json()
         .expect("canonical model bytes")

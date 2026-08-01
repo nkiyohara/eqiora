@@ -13,7 +13,7 @@ capabilities = [
 [canonical_contract]
 example_id = "fixed-reference-monolithic-fsi-step"
 model_source = "verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi"
-model_codec = "exact Model v4"
+model_owner = "sole current Model contract"
 mesh = "reconstructed exact 9-vertex 8-affine-triangle conforming two-body mesh"
 fluid_domain = "[0 m, 1 m] x [0 m, 1 m]"
 solid_domain = "[1 m, 2 m] x [0 m, 1 m]"

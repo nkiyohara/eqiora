@@ -36,10 +36,9 @@ EXPECTED_CELLS = np.array(
 def accepted_model() -> eqiora.Model:
     source = MODEL_RESOURCE.read_text(encoding="utf-8")
     assert hashlib.sha256(source.encode()).hexdigest() == MODEL_SHA256
-    return eqiora.compatibility.compile_exact(
+    return eqiora.compile(
         source,
         filename="fixed-reference-fsi.eqi",
-        codec=eqiora.compatibility.ExactModelCodec.V4,
     )
 
 
@@ -203,15 +202,14 @@ def test_array_owners_survive_result_and_step_deletion() -> None:
     assert all(array.size > 0 and not array.flags.writeable for array in arrays)
 
 
-def test_foreign_exact_v4_meaning_is_rejected_before_execution() -> None:
+def test_foreign_current_meaning_is_rejected_before_execution() -> None:
     source = MODEL_RESOURCE.read_text(encoding="utf-8").replace(
         "parameter fluid_density: kg / m ^ 3 = 2;",
         "parameter fluid_density: kg / m ^ 3 = 4;",
     )
-    foreign = eqiora.compatibility.compile_exact(
+    foreign = eqiora.compile(
         source,
         filename="foreign-fsi.eqi",
-        codec=eqiora.compatibility.ExactModelCodec.V4,
     )
     with pytest.raises(eqiora.ValidationError) as caught:
         eqiora.fsi.solve_fixed_reference_fsi(foreign)
@@ -228,10 +226,9 @@ import eqiora
 
 assert "numpy" not in sys.modules
 source = files(eqiora).joinpath("examples", "fixed-reference-fsi.eqi").read_text()
-model = eqiora.compatibility.compile_exact(
+model = eqiora.compile(
     source,
     filename="fixed-reference-fsi.eqi",
-    codec=eqiora.compatibility.ExactModelCodec.V4,
 )
 result = eqiora.fsi.solve_fixed_reference_fsi(model)
 assert "numpy" not in sys.modules

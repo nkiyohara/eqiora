@@ -91,19 +91,19 @@ visualization surface.
 
 ## Exact-cylinder steady Stokes result
 
-The first fluid application consumes the accepted geometry-bound Model v7
+The first fluid application consumes the accepted geometry-bound current Model
 artifact explicitly and returns one immutable result:
 
 ```python
 from importlib.resources import files
 
-model_v7 = (
+model = (
     files(eqiora)
-    .joinpath("examples", "steady-flow-past-cylinder.model-v7.json")
+    .joinpath("examples", "steady-flow-past-cylinder.model.json")
     .read_bytes()
 )
 result = eqiora.fluid.solve_exact_cylinder_stokes(
-    model_v7=model_v7,
+    model=model,
     geometry=geometry,
     mesh=mesh,
 )
@@ -162,9 +162,9 @@ or validation from visual similarity.
 
 ## Mixed-boundary structural demo
 
-The installed package also carries the accepted exact-v4 mixed-boundary
-elasticity source. Python compiles it explicitly and passes the immutable
-Model into the same Rust-owned application result used by Studio:
+The installed package also carries the accepted mixed-boundary elasticity
+source. Python compiles it through the current Model path and passes the
+immutable Model into the same Rust-owned application result used by Studio:
 
 ```python
 from importlib.resources import files
@@ -174,10 +174,9 @@ source = (
     .joinpath("examples", "mixed-boundary-elasticity.eqi")
     .read_text()
 )
-model = eqiora.compatibility.compile_exact(
+model = eqiora.compile(
     source,
     filename="mixed-boundary-elasticity.eqi",
-    codec=eqiora.compatibility.ExactModelCodec.V4,
 )
 result = eqiora.solid.solve_mixed_boundary_elasticity(model)
 ```
@@ -200,8 +199,8 @@ The complete runnable workflow is
 
 ## Fixed-reference FSI demo
 
-The installed package carries the accepted exact-v4 two-body FSI source.
-Python compiles it explicitly; the shared Rust application service owns the
+The installed package carries the accepted two-body FSI source. Python compiles
+it through the current Model path; the shared Rust application service owns the
 fixed mesh, coupled Realization, both consecutive monolithic steps, spatial
 states, trajectory, and final Run:
 
@@ -211,10 +210,9 @@ source = (
     .joinpath("examples", "fixed-reference-fsi.eqi")
     .read_text()
 )
-model = eqiora.compatibility.compile_exact(
+model = eqiora.compile(
     source,
     filename="fixed-reference-fsi.eqi",
-    codec=eqiora.compatibility.ExactModelCodec.V4,
 )
 result = eqiora.fsi.solve_fixed_reference_fsi(model)
 
@@ -363,7 +361,7 @@ including eliminated essential-boundary values. TPFA finite volumes return
 primary cell-centred values. Both use canonical row-major flattening with the
 last physical axis varying fastest.
 
-## Exact revisions and compatibility
+## Exact revisions and current replay
 
 `Model` owns one immutable canonical artifact. Previewing an edit never
 mutates it, and committing a valid edit returns a child:
@@ -378,21 +376,18 @@ assert base.digest == edit.base_digest
 ```
 
 Commit checks the edit's exact base digest and graph revision atomically.
-Stale or foreign plans produce no partial child. Ordinary authoring and edits
-retain the current artifact profile; historical codecs are explicit:
+Stale or foreign plans produce no partial child. Ordinary authoring, edits,
+and replay all use the single current artifact contract:
 
 ```python
-legacy = eqiora.compatibility.compile_exact(
-    "model legacy { field x: 1 = 1; }",
-    codec=eqiora.compatibility.ExactModelCodec.V2,
-)
-replayed = eqiora.compatibility.replay_exact(
-    legacy.to_json(),
-    codec=eqiora.compatibility.ExactModelCodec.V2,
-)
+replayed = eqiora.replay(child.to_json())
+assert replayed == child
 ```
 
-Exact operations never sniff, fall back, or silently migrate a generation.
+The canonical bytes still expose the persisted
+`eqiora.model-envelope/v8` schema, but callers do not select that suffix.
+Model v1--v7 bytes reject; replay never sniffs, retries, or silently migrates
+an older artifact.
 
 Independent definitions allocate fresh canonical occurrence identities, so
 exact equality and digest equality are intentionally stronger than structural

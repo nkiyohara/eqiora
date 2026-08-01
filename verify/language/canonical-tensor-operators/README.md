@@ -24,19 +24,13 @@ both direct and transposed inputs, while an isotropic lift reads the scalar only
 on the diagonal and emits a dimensioned zero elsewhere. Nonsquare extent,
 wrong frame, boundary/no support, and shaped/global-scalar misuse fail closed.
 
-The accepted Relation and its ordered transaction cross only explicit wire
-v4:
-
-```text
-eqiora.model-envelope/v4
-eqiora.model-transaction-envelope/v4
-```
+The accepted Relation and its ordered transaction cross the one current Model
+and Transaction owner.
 
 Canonical bytes, domain-separated digests, and typed replay must agree exactly.
-V1, v2, and v3 reject the new expression nodes; relabeling a v4 payload as v3
-does not admit it. The separate `eqiora-artifact` `legacy_v3_golden` regression
-freezes the pre-v4 v3 byte count and digest without expanding this case's
-evidence target.
+Historical v1--v7 bytes are rejection-only specimens owned by
+`artifacts.current-model-canonical-identity`; no historical generation remains
+callable from this case.
 
 Run:
 

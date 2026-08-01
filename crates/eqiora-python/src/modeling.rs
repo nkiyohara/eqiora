@@ -2,7 +2,6 @@
 
 use eqiora::DimExponents;
 use eqiora::api::ModelDocument;
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::language::{
     DraftBoundarySide, DraftConservingConnection, DraftConservingPort, DraftDeclaration,
     DraftExpression, DraftField, DraftParameter, DraftPhysicalDomain, DraftRelation,
@@ -813,17 +812,6 @@ pub(crate) fn define_model(
 ) -> PyResult<ModelDocument> {
     let draft = model_draft(py, name, declarations)?;
     py.detach(move || ModelDocument::define(&draft))
-        .map_err(|diagnostics| diagnostic_error(py, &diagnostics))
-}
-
-pub(crate) fn define_model_exact(
-    py: Python<'_>,
-    name: String,
-    declarations: &Bound<'_, PyTuple>,
-    codec: ExactModelCodec,
-) -> PyResult<ModelDocument> {
-    let draft = model_draft(py, name, declarations)?;
-    py.detach(move || codec.define(&draft))
         .map_err(|diagnostics| diagnostic_error(py, &diagnostics))
 }
 

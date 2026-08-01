@@ -21,10 +21,6 @@ OUTPUT = ROOT / "docs/python/api.md"
 GITHUB_BLOB = "https://github.com/nkiyohara/eqiora/blob/main"
 MODULES = (
     ("eqiora", Path("bindings/python/python/eqiora/__init__.pyi")),
-    (
-        "eqiora.compatibility",
-        Path("bindings/python/python/eqiora/compatibility.pyi"),
-    ),
     ("eqiora.geometry", Path("bindings/python/python/eqiora/geometry.pyi")),
     ("eqiora.meshing", Path("bindings/python/python/eqiora/meshing.pyi")),
     ("eqiora.fluid", Path("bindings/python/python/eqiora/fluid.pyi")),

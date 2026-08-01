@@ -26,13 +26,13 @@ def solve() -> eqiora.fluid.CircularHoleSteadyStokesResult:
         required_minimum_mean_ratio=1e-5,
         max_segments=50,
     )
-    model_v7 = (
+    model = (
         files(eqiora)
-        .joinpath("examples", "steady-flow-past-cylinder.model-v7.json")
+        .joinpath("examples", "steady-flow-past-cylinder.model.json")
         .read_bytes()
     )
     return eqiora.fluid.solve_exact_cylinder_stokes(
-        model_v7=model_v7,
+        model=model,
         geometry=geometry,
         mesh=mesh,
     )

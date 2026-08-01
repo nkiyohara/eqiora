@@ -305,7 +305,11 @@ def main() -> int:
     )
 
     print("Cylinder resource")
-    historical = committed(ROOT / "examples/steady-flow-past-cylinder.model-v7.json")
+    historical = committed(
+        ROOT
+        / "verify/artifacts/current-model-canonical-identity/expected/historical"
+        / "steady-flow-past-cylinder.model-v7.json"
+    )
     current = committed(ROOT / "examples/steady-flow-past-cylinder.model.json")
     old, new = '"schema":"eqiora.model-envelope/v7"', f'"schema":"{MODEL_SCHEMA}"'
     if historical.count(old.encode()) != 1:

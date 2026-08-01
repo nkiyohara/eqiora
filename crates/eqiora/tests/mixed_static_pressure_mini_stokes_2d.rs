@@ -1,7 +1,6 @@
 use std::num::NonZeroUsize;
 
 use eqiora::artifact::SimplicialMeshEnvelopeV1;
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::kernel::BoundarySide;
 use eqiora::meshing::{MeshQualityGate, SimplicialMesh};
 use eqiora::package::{
@@ -79,8 +78,7 @@ fn direct_and_exact_packages_share_one_boundary_determined_pressure_path() {
     let mechanics = public_mechanics_release();
     let fluid = public_fluid_release(&mechanics);
     let loads = public_loads_release(&mechanics);
-    let direct = ExactModelCodec::V4
-        .compile("direct.eqi", DIRECT)
+    let direct = eqiora::api::ModelDocument::compile("direct.eqi", DIRECT)
         .expect("direct mixed-boundary Stokes Model compiles");
     let packaged = compile_root(
         &fluid,
@@ -133,8 +131,7 @@ fn direct_and_exact_packages_share_one_boundary_determined_pressure_path() {
 
 #[test]
 fn congruent_profiles_change_scaled_rhs_but_reconstruct_the_same_physics() {
-    let direct = ExactModelCodec::V4
-        .compile("direct.eqi", DIRECT)
+    let direct = eqiora::api::ModelDocument::compile("direct.eqi", DIRECT)
         .expect("direct mixed-boundary Stokes Model compiles");
     let mesh = SimplicialMeshEnvelopeV1::from_mesh(&physical_mesh()).expect("physical mesh");
     let first = observe(direct.program(), &mesh, profile_a(), 10);
@@ -171,8 +168,7 @@ fn all_pressure_and_coordinate_varying_pressure_fail_before_local_assembly() {
             "relation y_upper_value continuous on y_upper { trace(velocity) = 0; }",
             "relation y_upper_value continuous on y_upper { normal(2 * dynamic_viscosity * symmetric_part(grad(velocity)) - isotropic_lift(pressure)) + normal(isotropic_lift(ambient_pressure)) = 0; }",
         );
-    let all_pressure = ExactModelCodec::V4
-        .compile("all-pressure.eqi", &all_pressure)
+    let all_pressure = eqiora::api::ModelDocument::compile("all-pressure.eqi", &all_pressure)
         .expect("pure pressure closure is valid Model meaning");
     let lowered = lower_steady_incompressible_stokes_cartesian_2d(all_pressure.program())
         .expect("pure pressure closure lowers before realization admission");
@@ -189,8 +185,7 @@ fn all_pressure_and_coordinate_varying_pressure_fail_before_local_assembly() {
         "ambient_pressure - ambient_pressure_value = 0;",
         "ambient_pressure - (ambient_pressure_value + force_gradient * coordinate(0)) = 0;",
     );
-    let varying = ExactModelCodec::V4
-        .compile("varying-pressure.eqi", &varying)
+    let varying = eqiora::api::ModelDocument::compile("varying-pressure.eqi", &varying)
         .expect("coordinate-varying pressure is valid Model meaning");
     let lowered = lower_steady_incompressible_stokes_cartesian_2d(varying.program())
         .expect("coordinate-varying pressure tape lowers");
@@ -494,7 +489,7 @@ fn compile_root(
     for release in [&root, fluid, mechanics, loads] {
         store.insert(release).expect("install exact package");
     }
-    PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V4)
+    PackagedModelDocument::compile_locked(&store, &resolution, "Main")
         .expect("exact four-release chain compiles offline")
 }
 

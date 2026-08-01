@@ -19,7 +19,7 @@ use super::{
     PackageCompilationError, PackageExecutionBindingError, PackageRunBindingError,
     compilation_namespaces, compiler_input, verify_semantic_content,
 };
-use crate::{ExactModelCodec, ModelDocument};
+use crate::ModelDocument;
 
 const COMPILER_IDENTITY: &str = "Eqiora.Compiler";
 const CONTRACT_VERSION_V1: u32 = 1;
@@ -50,7 +50,6 @@ impl PackagedModelDocument {
         store: &impl PackageStore,
         resolution: &ResolutionRecordV1,
         entry_model: &str,
-        exact_codec: ExactModelCodec,
     ) -> Result<Self, PackageCompilationError> {
         let resolved = ExactResolver.resolve(resolution, store)?;
         let namespaces = compilation_namespaces(&resolved)?;
@@ -67,7 +66,7 @@ impl PackagedModelDocument {
             )])
         })?;
         let physical_exposures = compiled.physical_exposures().clone();
-        let model = ModelDocument::accept_compiled(compiled, exact_codec)?;
+        let model = ModelDocument::accept_compiled(compiled)?;
         let model_digest = CanonicalModelDigest::parse(&model.digest()?)?;
         let toolchain = CompilationToolchainV1::new(
             QualifiedName::parse(COMPILER_IDENTITY)?,

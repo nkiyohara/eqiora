@@ -1,5 +1,4 @@
 use eqiora::artifact::{ArtifactDigest, RunManifestV1};
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::compiler::{
     ResolvedAlias, ResolvedHierarchyInput, ResolvedSourceUnit, analyze_resolved_hierarchy,
 };
@@ -314,9 +313,8 @@ fn packaged_model_from_releases(
         ],
     )
     .expect("exact resolution");
-    let packaged =
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V2)
-            .expect("locked package compilation");
+    let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect("locked package compilation");
     PackageFixture {
         packaged,
         resolution,

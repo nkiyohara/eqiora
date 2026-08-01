@@ -2,9 +2,9 @@
 
 This case registers one bounded application composition over the already
 verified `solid.mixed-boundary-elasticity-2d` direct Model. Native Studio
-compiles the exact checked-in Model v4 source, resolves a generated 16-by-16
-Cartesian continuous-Q1 plan through the public Eqiora facade, and executes
-the accepted host-serial `f64` conjugate-gradient path.
+compiles the exact checked-in source through the current Model owner, resolves
+a generated 16-by-16 Cartesian continuous-Q1 plan through the public Eqiora
+facade, and executes the accepted host-serial `f64` conjugate-gradient path.
 
 The closed WebView response contains the 289 ordered mesh vertices, 256
 quadrilateral cells, solver-owned two-component displacement values,

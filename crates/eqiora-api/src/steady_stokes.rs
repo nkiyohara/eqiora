@@ -10,7 +10,7 @@ use std::num::NonZeroUsize;
 use eqiora_artifact::{
     CircularHoleChordalRealizationEnvelopeV1, DiscreteFieldEnvelopeV1, ExecutionProvenanceV1,
     ExecutionTopologyV1, FieldSnapshotEnvelopeV1, GeometryDefinitionV1,
-    GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelopeV7, RealizationEnvelopeV2,
+    GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV2,
     RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora_core::diagnostic::codes;
@@ -36,7 +36,7 @@ use eqiora_solver::{
 use crate::UnstructuredP1ScalarFieldProjection2d;
 
 const ACCEPTED_MODEL_DIGEST: &str =
-    "668fa55e5ab1a46d0b7523e4e3162442ccd7698697c4308604cf4fe9269249de";
+    "8bc5155bc1b64ed37f7a2ac010a966e1619091a118e6cf7806dbdf9621977146";
 const ACCEPTED_SOURCE_DIGEST: &str =
     "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9";
 const ACCEPTED_MESH_DIGEST: &str =
@@ -70,7 +70,7 @@ const PRESSURE: DimExponents = DimExponents {
 /// coefficients in the exact canonical mesh-vertex order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CircularHoleSteadyStokesResult2d {
-    model: ModelEnvelopeV7,
+    model: ModelEnvelope,
     source: CanonicalCircularHoleGeometryV1,
     owner: CircularHoleChordalMeshV1,
     chordal_realization: CircularHoleChordalRealizationEnvelopeV1,
@@ -103,7 +103,7 @@ impl CircularHoleSteadyStokesResult2d {
     /// drift, unsupported backend policy, solve failure, incomplete balance
     /// evidence, or any invalid artifact in the resulting lineage.
     pub fn solve_reference(
-        model: &ModelEnvelopeV7,
+        model: &ModelEnvelope,
         source: &CanonicalCircularHoleGeometryV1,
         owner: &CircularHoleChordalMeshV1,
         backend: &dyn LinearSolverBackend,
@@ -276,7 +276,7 @@ impl CircularHoleSteadyStokesResult2d {
 
     /// Accepted canonical Model.
     #[must_use]
-    pub const fn model(&self) -> &ModelEnvelopeV7 {
+    pub const fn model(&self) -> &ModelEnvelope {
         &self.model
     }
 
@@ -390,7 +390,7 @@ impl CircularHoleSteadyStokesResult2d {
 }
 
 fn require_accepted_inputs(
-    model: &ModelEnvelopeV7,
+    model: &ModelEnvelope,
     source: &CanonicalCircularHoleGeometryV1,
     owner: &CircularHoleChordalMeshV1,
 ) -> Result<(), Diagnostic> {
@@ -402,7 +402,7 @@ fn require_accepted_inputs(
     }
     if model.digest()?.to_string() != ACCEPTED_MODEL_DIGEST {
         return Err(invalid_reference_input(
-            "exact-cylinder reference operation requires the accepted canonical Model v7 artifact",
+            "exact-cylinder reference operation requires the accepted canonical current Model artifact",
         ));
     }
     if encode_digest(&source.digest_bytes()) != ACCEPTED_SOURCE_DIGEST {
@@ -433,7 +433,7 @@ fn require_accepted_inputs(
 }
 
 fn replay_program(
-    model: &ModelEnvelopeV7,
+    model: &ModelEnvelope,
     source: &CanonicalCircularHoleGeometryV1,
 ) -> Result<KernelProgram, Diagnostic> {
     let (transaction, model_id) = model.to_transaction().map_err(first_diagnostic)?;

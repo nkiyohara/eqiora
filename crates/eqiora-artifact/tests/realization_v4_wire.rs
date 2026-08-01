@@ -1,7 +1,7 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
-    CanonicalModelArtifact, CanonicalRealizationArtifact, LayoutArtifacts, ModelEnvelopeV4,
+    CanonicalModelArtifact, CanonicalRealizationArtifact, LayoutArtifacts, ModelEnvelope,
     RealizationDecoderLimits, RealizationEnvelopeV4, RealizationEnvelopeV5,
     SimplicialMeshEnvelopeV1,
 };
@@ -29,8 +29,12 @@ use eqiora_solver::{
 use sha2::{Digest, Sha256};
 use ulid::Ulid;
 
-const MODEL: &[u8] =
-    include_bytes!("../../../verify/fsi/fixed-reference-cuda-solve-2d/artifacts/model.json");
+const MODEL: &[u8] = include_bytes!(
+    "../../../verify/artifacts/current-model-relational-identity-transition/expected/bridge/fixed-reference-cuda-solve-2d/current-model.json"
+);
+const GOLDEN: &[u8] = include_bytes!(
+    "../../../verify/artifacts/current-model-relational-identity-transition/expected/retained/realization-v4.json"
+);
 type JsonMutation = (&'static str, Box<dyn Fn(&mut serde_json::Value)>);
 
 #[test]
@@ -83,13 +87,13 @@ fn realization_v4_round_trips_the_complete_ale_graph_and_typed_identity() {
 fn realization_v4_golden_digest_and_roundtrip_are_frozen() {
     const EXPECTED_SHA256: &str =
         "ba9efbdbca265dea0fdf9b1476ea2cae876eb2c97b4ac6f332f3755d866b5d9e";
-    let actual = Fixture::new().envelope().canonical_json().unwrap();
-    let sha256 = Sha256::digest(&actual)
+    let actual = GOLDEN.strip_suffix(b"\n").unwrap_or(GOLDEN);
+    let sha256 = Sha256::digest(actual)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     assert_eq!(sha256, EXPECTED_SHA256);
-    let decoded = RealizationEnvelopeV4::from_json(&actual, Default::default()).unwrap();
+    let decoded = RealizationEnvelopeV4::from_json(actual, Default::default()).unwrap();
     assert_eq!(decoded.canonical_json().unwrap(), actual);
 }
 
@@ -338,7 +342,7 @@ fn realization_v4_rejects_unknown_fields_layout_drift_and_resource_excess() {
 }
 
 struct Fixture {
-    model: ModelEnvelopeV4,
+    model: ModelEnvelope,
     mesh: SimplicialMeshEnvelopeV1,
     resolved: ResolvedFixedTopologyAleCoupledRealization,
 }
@@ -353,7 +357,11 @@ impl Fixture {
     }
 
     fn with_dimension(dimension: usize) -> Self {
-        let model = ModelEnvelopeV4::from_json(MODEL, Default::default()).unwrap();
+        let model = ModelEnvelope::from_json(
+            MODEL.strip_suffix(b"\n").unwrap_or(MODEL),
+            Default::default(),
+        )
+        .unwrap();
         let (points, cells, quadrature) = match dimension {
             2 => (
                 vec![vec![0.0, 0.0], vec![1.0, 0.0], vec![0.0, 1.0]],

@@ -1,7 +1,8 @@
 # Field-wise coherent-SI MINI Stokes bridge
 
 This case joins two previously separate claims without adding a fluid-specific
-shortcut. Both a direct-flat Model and an ordinary exact-package Model lower to
+shortcut. Both a direct-flat Model and an ordinary exact-package compilation
+through the current Model owner lower to
 the same package-neutral two-dimensional Stokes roles. Those exact Domain and
 Field identities then select a field-wise Realization: `(P1+bubble)^2` for
 velocity, P1 for pressure, retained canonical data for the force potential,
@@ -49,7 +50,7 @@ are validated before assembly. Both fixtures follow the same ordinary path:
 
 ```text
 source / exact package
-  -> canonical Model v4
+  -> current canonical Model
   -> package-neutral Stokes lowering
   -> exact Field-wise Realization v2
   -> direct dimensionless MINI assembly
@@ -62,7 +63,7 @@ Realization v2 must decode and re-encode byte-for-byte and reproduce its
 domain-separated digest. Run-manifest v2 retains its existing identity and
 provenance meaning; its presence is not execution attestation.
 
-After the v2 compatibility resolver succeeds, the same exact Domain, velocity
+After the Realization v2 resolver succeeds, the same exact Domain, velocity
 and pressure Fields, spaces, gauge constraint, symmetric-congruence scales,
 solver, and host requirement project into one connected typed portable
 Realization DAG. The finalizer consumes that graph; projection leaves the

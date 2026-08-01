@@ -1,4 +1,3 @@
-use eqiora::compatibility::ExactModelCodec;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyDictMethods, PyModule, PyModuleMethods};
 use std::process::Command;
@@ -84,9 +83,8 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
         let base_model_id = base.getattr("model_id")?.extract::<String>()?;
         let base_revision = revision_number(&base)?;
 
-        let replayed = ExactModelCodec::CURRENT
-            .replay(&base_bytes)
-            .expect("Python-produced current-v8 artifact must replay through the Rust facade");
+        let replayed = eqiora::api::ModelDocument::replay(&base_bytes)
+            .expect("Python-produced current Model must replay through the Rust facade");
         let replayed_reference = replayed
             .artifact_reference()
             .expect("the validated replay must retain a typed Model reference");
@@ -129,18 +127,16 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
         assert_eq!(revision_number(&child)?, base_revision + 1);
         assert_ne!(child.getattr("digest")?.extract::<String>()?, base_digest);
         let child_bytes = model_bytes(&child)?;
-        let child_replay = ExactModelCodec::CURRENT.replay(&child_bytes).unwrap();
+        let child_replay = eqiora::api::ModelDocument::replay(&child_bytes).unwrap();
         assert_eq!(child_replay.canonical_json().unwrap(), child_bytes);
         assert_eq!(
             child_replay.digest().unwrap(),
             child.getattr("digest")?.extract::<String>()?
         );
 
-        let replay_kwargs = PyDict::new(py);
-        replay_kwargs.set_item("codec", module.getattr("ExactModelCodec")?.getattr("V8")?)?;
         let replayed_child = module
-            .getattr("replay_exact")?
-            .call((PyBytes::new(py, &child_bytes),), Some(&replay_kwargs))?;
+            .getattr("replay")?
+            .call1((PyBytes::new(py, &child_bytes),))?;
         let parameter_id = replayed_child
             .getattr("parameter_ids")?
             .get_item(0)?
@@ -176,9 +172,9 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
         )?;
 
         let malformed = module
-            .getattr("replay_exact")?
-            .call((PyBytes::new(py, b"{}"),), Some(&replay_kwargs))
-            .expect_err("malformed exact wire must fail closed");
+            .getattr("replay")?
+            .call1((PyBytes::new(py, b"{}"),))
+            .expect_err("malformed current Model wire must fail closed");
         assert_exception(
             module,
             py,

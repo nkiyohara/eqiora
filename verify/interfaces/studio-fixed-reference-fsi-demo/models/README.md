@@ -3,10 +3,11 @@
 This interface case adds no model fixture whose bytes could drift. The native
 composition embeds the exact repository-owned source at
 `verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi` and compiles
-it explicitly with `ExactModelCodec::V4`. It does not copy the fluid momentum,
-incompressibility, solid kinematic, solid momentum, or conserving
-velocity/traction interface Relations into the application, and it does not
-substitute the packaged authoring variant beside that direct source.
+it through the ordinary current `ModelDocument::compile` path. It does not copy
+the fluid momentum, incompressibility, solid kinematic, solid momentum, or
+conserving velocity/traction interface Relations into the application, and it
+does not substitute the packaged authoring variant beside that direct source.
+No historical Model codec or generation selector is part of the application.
 
 The mesh is not a second authored input. Studio reconstructs the exact
 9-vertex, 8-affine-triangle two-body mesh and takes its fluid cells, solid

@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::time::{canonical_time_operator, parse_ulid, validate_model_program};
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, ModelEnvelopeV1, TimeDecoderLimits, check_json_limits,
+    ArtifactDigest, CANONICAL_ENCODING, ModelEnvelope, TimeDecoderLimits, check_json_limits,
     invalid_artifact, validate_text,
 };
 
@@ -41,7 +41,7 @@ impl GeneralImplicitTimeLoweringEnvelopeV1 {
     /// Relation, state-order/partition drift, or a Relation that has a valid
     /// constant first-order projection.
     pub fn from_proof(
-        model: &ModelEnvelopeV1,
+        model: &ModelEnvelope,
         program: &KernelProgram,
         proof: &GeneralImplicitLoweringProof,
     ) -> Result<Self, Diagnostic> {
@@ -173,7 +173,7 @@ impl GeneralImplicitTimeLoweringEnvelopeV1 {
     /// drift.
     pub fn validate_against(
         &self,
-        model: &ModelEnvelopeV1,
+        model: &ModelEnvelope,
         program: &KernelProgram,
     ) -> Result<(), Diagnostic> {
         validate_model_program(model, program)?;

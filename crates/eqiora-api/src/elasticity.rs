@@ -7,7 +7,7 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
-    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelopeV4,
+    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
     RealizationEnvelopeV1, RunManifestV2,
 };
 use eqiora_core::diagnostic::codes;
@@ -28,7 +28,7 @@ use eqiora_solver::{
     ReductionPolicy, SERIAL_EXECUTION_PROVIDER, ScalarType, SolverPlan,
 };
 
-use crate::{ExactModelCodec, ModelDocument};
+use crate::ModelDocument;
 
 const REFERENCE_SOURCE: &str =
     include_str!("../../../verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi");
@@ -52,7 +52,7 @@ const DISPLACEMENT_DIMENSION: DimExponents = DimExponents {
 /// native solution evidence, and canonical Q1 projection consumed by clients.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MixedBoundaryElasticityResult2d {
-    model: ModelEnvelopeV4,
+    model: ModelEnvelope,
     realization: RealizationEnvelopeV1,
     run: RunManifestV2,
     vertices_m: Vec<[f64; 2]>,
@@ -65,7 +65,7 @@ pub struct MixedBoundaryElasticityResult2d {
 impl MixedBoundaryElasticityResult2d {
     /// Execute the one accepted mixed-boundary reference configuration.
     ///
-    /// The caller supplies an exact V4 Model explicitly. Admission compares
+    /// The caller supplies the current Model artifact explicitly. Admission compares
     /// its alpha-normalized graph with the independently registered reference
     /// source, while exact artifact identity remains attached to this run.
     ///
@@ -124,7 +124,7 @@ impl MixedBoundaryElasticityResult2d {
         validate_solve_report(&solution, backend_provider)?;
 
         let (vertices_m, cells, displacements_m) = project_solution(&solution)?;
-        let model = ModelEnvelopeV4::from_program(document.program())?;
+        let model = ModelEnvelope::from_program(document.program())?;
         let realization =
             RealizationEnvelopeV1::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)?;
         let execution = ExecutionProvenanceV1::from_provider_releases(
@@ -151,9 +151,9 @@ impl MixedBoundaryElasticityResult2d {
         })
     }
 
-    /// Exact V4 Model used by this execution.
+    /// Exact current Model used by this execution.
     #[must_use]
-    pub const fn model(&self) -> &ModelEnvelopeV4 {
+    pub const fn model(&self) -> &ModelEnvelope {
         &self.model
     }
 
@@ -231,13 +231,12 @@ impl MixedBoundaryElasticityResult2d {
 }
 
 fn require_accepted_model(document: &ModelDocument) -> Result<(), Diagnostic> {
-    if document.exact_codec() != ExactModelCodec::V4 || document.program().revision().0 != 1 {
+    if document.program().revision().0 != 1 {
         return Err(invalid(
-            "mixed-boundary elasticity requires the accepted exact V4 Model at semantic revision 1",
+            "mixed-boundary elasticity requires the accepted Model at semantic revision 1",
         ));
     }
-    let reference = ExactModelCodec::V4
-        .compile("mixed-boundary-elasticity.eqi", REFERENCE_SOURCE)
+    let reference = ModelDocument::compile("mixed-boundary-elasticity.eqi", REFERENCE_SOURCE)
         .map_err(first_diagnostic)?;
     if !document.structurally_equivalent(&reference)? {
         return Err(invalid(
@@ -455,8 +454,7 @@ mod tests {
 
     #[test]
     fn shared_result_closes_lineage_and_rejects_alias_free_replay() {
-        let document = ExactModelCodec::V4
-            .compile("mixed-boundary-elasticity.eqi", REFERENCE_SOURCE)
+        let document = ModelDocument::compile("mixed-boundary-elasticity.eqi", REFERENCE_SOURCE)
             .expect("accepted reference source");
         let result =
             MixedBoundaryElasticityResult2d::solve_reference(&document, &REFERENCE_LINEAR_SOLVER)
@@ -470,9 +468,8 @@ mod tests {
                 <= result.solution().solve_report().residual_target()
         );
 
-        let replay = ExactModelCodec::V4
-            .replay(&document.canonical_json().expect("canonical exact-v4 Model"))
-            .expect("exact-v4 replay");
+        let replay = ModelDocument::replay(&document.canonical_json().expect("canonical Model"))
+            .expect("current Model replay");
         let error =
             MixedBoundaryElasticityResult2d::solve_reference(&replay, &REFERENCE_LINEAR_SOLVER)
                 .expect_err(

@@ -12,15 +12,21 @@ source commit. It is accepted only when all of these close together:
 - the unchanged FSI finish accepts its incompressibility, kinematics,
   interface action, and energy evidence;
 - the independent CPU oracle agrees in the declared normalized tolerance; and
-- canonical Model, coupled Realization v3, and Run v2 bytes and digests replay.
+- the recorded historical Model, coupled Realization v3, and Run v2 bytes and
+  digests remain linked and unchanged;
+- a separately frozen current Model has the same independently derived
+  generation-v2 structural fingerprint, while its newly derived Realization
+  and Run lineage is not claimed as the recorded device observation.
 
 The bounded device and library values identify one selected-device run. They
 do not include host identity or private paths, and they do not establish a
 portable hardware-compatibility claim.
 
 Those closures are not all of one kind. The recorded coefficients, identities,
-report, receipt, environment, physical finish, and canonical artifact bytes are
-fixed by the pinned collection and must replay unchanged. The CPU-oracle
+report, receipt, environment, physical finish, and historical canonical
+artifact bytes are fixed by the pinned collection and must remain unchanged.
+The current Model bridge is a separate semantic relation, never a relabelling.
+The CPU-oracle
 closure is different: its `conformance` figures are the expected values of a
 comparison the replay performs live, re-solving the oracle from the current
 tree, so a change to the reference solver moves them without any device,

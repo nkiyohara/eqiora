@@ -1,5 +1,4 @@
 use super::*;
-use crate::ExactModelCodec;
 use eqiora_artifact::{ArtifactDigest, RunManifestV1};
 use eqiora_package::{
     AuthorManifestV1, BundleEntryV1, DependencyRequirementV1, ExactVersion, InMemoryPackageStore,
@@ -92,9 +91,8 @@ model Main {
             .any(|node| node.source_digest() == root_source)
     );
 
-    let packaged =
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V1)
-            .expect("locked compilation");
+    let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect("locked compilation");
 
     packaged
         .compilation()
@@ -387,9 +385,8 @@ fn semantic_mismatch_fails_before_model_admission() {
     store.insert(&release).expect("store release");
     let resolution = ResolutionRecordV1::from_exact_releases(&release, &[]).expect("resolution");
 
-    let error =
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V1)
-            .expect_err("false semantic claim must fail");
+    let error = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect_err("false semantic claim must fail");
     match error {
         PackageCompilationError::SemanticContentMismatch {
             package,

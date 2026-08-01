@@ -2,7 +2,6 @@ use std::num::NonZeroUsize;
 
 use eqiora::EntityKind;
 use eqiora::api::{ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod};
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::kernel::KernelNode;
 use eqiora::realization::RealizationRevision;
 use pyo3::ffi::c_str;
@@ -466,7 +465,7 @@ fn replay_python_model(locals: &Bound<'_, PyDict>, name: &str) -> eqiora::api::M
         .unwrap()
         .extract()
         .unwrap();
-    let document = ExactModelCodec::CURRENT.replay(&bytes).unwrap();
+    let document = eqiora::api::ModelDocument::replay(&bytes).unwrap();
     assert_eq!(document.canonical_json().unwrap(), bytes);
     document
 }

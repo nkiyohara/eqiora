@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
 
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::compiler::source_identity::{LocalSourceIdentity, LocalSourceIdentityLimits};
 use eqiora::compiler::{CompiledModel, compile};
 use eqiora::entity::kinds;
@@ -279,9 +278,8 @@ fn compile_locked(components: &PackageReleaseV1, root: &PackageReleaseV1) -> Pac
     let mut store = InMemoryPackageStore::default();
     store.insert(components).expect("insert component release");
     store.insert(root).expect("insert root release");
-    let packaged =
-        PackagedModelDocument::compile_locked(&store, &resolution, "Main", ExactModelCodec::V3)
-            .expect("compile exact package occurrence");
+    let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect("compile exact package occurrence");
     packaged
         .compilation()
         .validate_against(&resolution)
@@ -377,9 +375,8 @@ fn nested_slots_disappear_into_exact_field_and_support_identity() {
         assert!(has_edge(&program, EdgeKind::DependsOn, relation, field));
     }
 
-    let document = ExactModelCodec::V3
-        .compile("nested-fields.eqi", LOCAL_NESTED)
-        .expect("Field slots cross the unchanged Model v3 wire");
+    let document = eqiora::api::ModelDocument::compile("nested-fields.eqi", LOCAL_NESTED)
+        .expect("Field slots cross the current Model wire");
     let wire = String::from_utf8(document.canonical_json().expect("canonical Model wire"))
         .expect("canonical JSON is UTF-8");
     assert!(!wire.contains("field_slot"));
@@ -763,12 +760,7 @@ fn invalid_exact_package_binding_never_exposes_a_packaged_model() {
                 let mut store = InMemoryPackageStore::default();
                 store.insert(&components).expect("insert component release");
                 store.insert(&root).expect("insert root release");
-                match PackagedModelDocument::compile_locked(
-                    &store,
-                    &resolution,
-                    "Main",
-                    ExactModelCodec::V3,
-                ) {
+                match PackagedModelDocument::compile_locked(&store, &resolution, "Main") {
                     Err(PackageCompilationError::Diagnostics(diagnostics)) => diagnostics,
                     Err(error) => panic!("unexpected locked compilation failure: {error}"),
                     Ok(_) => panic!("invalid exact package exposed a packaged Model"),

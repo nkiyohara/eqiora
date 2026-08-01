@@ -70,8 +70,8 @@ Before elaboration, the application boundary parses every exact model source,
 resolves package-local and direct imported declarations, and reconstructs the
 compiler-owned canonical declaration set. It must equal each release's
 semantic content exactly. Only then may the root `Main` model flatten through
-the ordinary component hierarchy and cross the existing Model v2 transaction
-and artifact boundary.
+the ordinary component hierarchy and cross the current Model and Transaction
+owner.
 
 The accepted compilation record binds the canonical Model digest to the root
 identity, exact resolution digest, both source-bundle digests, and explicit
@@ -88,9 +88,9 @@ and an accepted original-DAG residual norm.
 
 Only after those analytic values, the original-DAG residual, and the
 package-qualified source provenance are accepted does the case construct an
-output-less `RunManifestV1`. The Run binds the canonical Model v2 digest and
-semantic revision to the faer executor and exact execution, initial-guess, and
-solver settings. A separate
+output-less `RunManifestV1`. The Run binds the canonical current Model digest
+and semantic revision to the faer executor and exact execution, initial-guess,
+and solver settings. A separate
 `PackageRunBindingV1` binds that canonical Run identity to the accepted package
 compilation record; the case round-trips the binding through its closed wire
 format and replays it against the original resolution, Model, and Run.
@@ -121,4 +121,4 @@ plugins, execution-provider packages, Python or Studio package workflows
 (loading, authoring, or preparation), a broad component library, transients,
 hybrid control, MPI, CUDA, or a durable
 public diagnostic-provenance wire. It also does not claim a typed Realization
-for Model v2, Run v2, or a general numerical-result artifact.
+for the current Model, Run v2, or a general numerical-result artifact.

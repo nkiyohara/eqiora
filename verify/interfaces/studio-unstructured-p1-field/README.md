@@ -3,10 +3,10 @@
 This case registers one closed application projection for a coherent-SI scalar
 P1 Field on a bounded two-dimensional affine-triangle mesh. One positive
 fixture remains the fixed-reference FSI pressure snapshot. A second admits the
-same snapshot and projection values through an in-process Model v7/field-wise
+same snapshot and projection values through an in-process current Model/field-wise
 Realization v2 lineage only when the exact circular-hole source, its opaque
 chordal owner, authored region, correspondence, and complete imported mesh
-replay together. `eqiora-api` replays the exact Model, semantic revision,
+replay together. `eqiora-api` replays the current Model, semantic revision,
 Realization plan, geometry/correspondence/mesh lineage, Field, Domain, logical
 snapshot, and vertex coefficient block before it copies any renderer-ready
 data. The logical snapshot digest must also be a registered output of the exact

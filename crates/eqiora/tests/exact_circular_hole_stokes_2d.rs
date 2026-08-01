@@ -5,10 +5,9 @@ use std::num::NonZeroUsize;
 use eqiora::api::UnstructuredP1ScalarFieldProjection2d;
 use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1, FieldSnapshotEnvelopeV1,
-    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelopeV7,
+    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope,
     RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::geometry::{
     CanonicalCircularHoleGeometryV1, CanonicalGeometryLimits, CanonicalGeometryRef,
     CircularHoleChordalMeshV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
@@ -43,7 +42,7 @@ const SOURCE: &str = include_str!("../../../examples/steady-flow-past-cylinder.e
 const EXAMPLE_GEOMETRY: &[u8] =
     include_bytes!("../../../examples/steady-flow-past-cylinder.geometry.json");
 const EXAMPLE_MODEL: &[u8] =
-    include_bytes!("../../../examples/steady-flow-past-cylinder.model-v7.json");
+    include_bytes!("../../../examples/steady-flow-past-cylinder.model.json");
 
 const LENGTH: DimExponents = DimExponents {
     length: 1,
@@ -217,7 +216,7 @@ mod falsifiers;
 
 struct ExecutedWitness {
     solution: SteadyStokesMiniSolution2d,
-    model: ModelEnvelopeV7,
+    model: ModelEnvelope,
     realization: RealizationEnvelopeV2,
     source: CanonicalCircularHoleGeometryV1,
     owner: CircularHoleChordalMeshV1,
@@ -236,7 +235,7 @@ fn execute_witness(relative_tolerance: f64) -> Result<ExecutedWitness, Diagnosti
         CanonicalGeometryLimits::default(),
     )?;
     assert_eq!(source, exact_source());
-    let model = ModelEnvelopeV7::from_json(embedded_json(EXAMPLE_MODEL), Default::default())?;
+    let model = ModelEnvelope::from_json(embedded_json(EXAMPLE_MODEL), Default::default())?;
     let program = replay_example_program(&model, &source)?;
     execute_program_witness(source, program, model, relative_tolerance)
 }
@@ -251,14 +250,14 @@ fn execute_source_witness(
     relative_tolerance: f64,
 ) -> Result<ExecutedWitness, Diagnostic> {
     let program = geometry_program_from_text(&source, model_source);
-    let model = ModelEnvelopeV7::from_program(&program)?;
+    let model = ModelEnvelope::from_program(&program)?;
     execute_program_witness(source, program, model, relative_tolerance)
 }
 
 fn execute_program_witness(
     source: CanonicalCircularHoleGeometryV1,
     program: KernelProgram,
-    model: ModelEnvelopeV7,
+    model: ModelEnvelope,
     relative_tolerance: f64,
 ) -> Result<ExecutedWitness, Diagnostic> {
     let owner = frozen_owner(&source);
@@ -351,7 +350,7 @@ fn execute_program_witness(
 }
 
 fn replay_example_program(
-    model: &ModelEnvelopeV7,
+    model: &ModelEnvelope,
     source: &CanonicalCircularHoleGeometryV1,
 ) -> Result<KernelProgram, Diagnostic> {
     let (transaction, model_id) = model.to_transaction().map_err(|diagnostics| {
@@ -434,7 +433,7 @@ fn assert_same_example_solution(
 #[allow(clippy::too_many_arguments)]
 fn assert_studio_pressure_projection(
     solution: &SteadyStokesMiniSolution2d,
-    model: &ModelEnvelopeV7,
+    model: &ModelEnvelope,
     realization: &RealizationEnvelopeV2,
     source: &CanonicalCircularHoleGeometryV1,
     owner: &CircularHoleChordalMeshV1,
@@ -909,9 +908,9 @@ fn geometry_program_from_text(
     source: &CanonicalCircularHoleGeometryV1,
     model_source: &str,
 ) -> KernelProgram {
-    let cartesian = ExactModelCodec::V5
-        .compile("exact-circular-hole-stokes-2d.eqi", model_source)
-        .expect("Cartesian authoring scaffold compiles");
+    let cartesian =
+        eqiora::api::ModelDocument::compile("exact-circular-hole-stokes-2d.eqi", model_source)
+            .expect("Cartesian authoring scaffold compiles");
     let program = cartesian.program();
     let body = program
         .nodes()

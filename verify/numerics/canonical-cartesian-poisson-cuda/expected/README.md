@@ -18,8 +18,12 @@ identifiers, and process text are forbidden.
 The replay contract separates compiler-v0 fresh IDs from stable evidence
 identity. `source-identity.json` binds lexical source declarations to the raw
 collected Model and supplies the target of a complete, bijective
-alpha-renaming. Exact Model/Realization/Run bytes and digests are compared only
-after that normalization; incomplete or surplus correspondences fail closed.
+alpha-renaming. The recorded Model, Realization, and Run retain their exact
+historical bytes and digests. A separately frozen current Model is normalized
+to the same named program and must match the historical Model's independently
+recorded generation-v2 structural fingerprint; incomplete or surplus
+correspondences fail closed. Newly reconstructed current Realization and Run
+lineage must not be presented as the recorded device artifacts.
 
 The physical collector records input-ready, solve-visible, and
 solution-visible completion only after successful waits on actual CUDA events.

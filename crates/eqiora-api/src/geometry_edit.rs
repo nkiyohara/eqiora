@@ -16,7 +16,7 @@ use eqiora_schema::kernel::{
 };
 use sha2::{Digest, Sha256};
 
-use crate::{ExactModelCodec, ModelDocument, VersionedModelTransactionEnvelope, single_diagnostic};
+use crate::{ModelDocument, ModelTransactionEnvelope, single_diagnostic};
 
 const CARTESIAN_DOMAIN_EDIT_PLAN: &[u8] = b"eqiora.cartesian-domain-edit-plan/v1";
 
@@ -32,7 +32,7 @@ pub struct CartesianDomainEditPlan {
     base_revision: Revision,
     target: Id<kinds::Domain>,
     edits: Vec<(usize, AxisBounds, AxisBounds)>,
-    transaction: VersionedModelTransactionEnvelope,
+    transaction: ModelTransactionEnvelope,
     transaction_digest: String,
     expected_child_digest: String,
 }
@@ -78,12 +78,6 @@ impl CartesianDomainEditPlan {
     #[must_use]
     pub fn expected_child_digest(&self) -> &str {
         &self.expected_child_digest
-    }
-
-    /// Exact transaction codec retained by this immutable plan.
-    #[must_use]
-    pub const fn exact_codec(&self) -> ExactModelCodec {
-        self.transaction.exact_codec()
     }
 
     /// Canonical bytes of the shared Model transaction envelope.
@@ -155,12 +149,6 @@ impl ModelDocument {
     where
         I: IntoIterator<Item = (usize, AxisBounds)>,
     {
-        if self.exact_codec() != ExactModelCodec::CURRENT {
-            return Err(single_diagnostic(invalid_edit(
-                "Cartesian Domain edit v1 requires the current Model wire",
-            )));
-        }
-
         let body_count = self
             .program
             .nodes()
@@ -278,11 +266,9 @@ impl ModelDocument {
             });
         }
 
-        let transaction = self
-            .exact_codec()
-            .encode_transaction(&transaction)
-            .map_err(single_diagnostic)?;
-        let transaction_digest = transaction.digest().map_err(single_diagnostic)?;
+        let transaction =
+            ModelTransactionEnvelope::from_transaction(&transaction).map_err(single_diagnostic)?;
+        let transaction_digest = transaction.digest().map_err(single_diagnostic)?.to_string();
         let child = replay_edit(self, &transaction, &transaction_digest)?;
         let base_digest = self.digest().map_err(single_diagnostic)?;
         let expected_child_digest = child.digest().map_err(single_diagnostic)?;
@@ -312,8 +298,7 @@ impl ModelDocument {
         &self,
         plan: CartesianDomainEditPlan,
     ) -> Result<CartesianDomainEditResult, Vec<Diagnostic>> {
-        if plan.exact_codec() != self.exact_codec()
-            || plan.base_digest != self.digest().map_err(single_diagnostic)?
+        if plan.base_digest != self.digest().map_err(single_diagnostic)?
             || plan.base_revision != self.store.revision()
         {
             return Err(single_diagnostic(Diagnostic::error(
@@ -337,7 +322,7 @@ impl ModelDocument {
 
 fn replay_edit(
     base: &ModelDocument,
-    transaction: &VersionedModelTransactionEnvelope,
+    transaction: &ModelTransactionEnvelope,
     transaction_digest: &str,
 ) -> Result<ModelDocument, Vec<Diagnostic>> {
     base.replay_model_transaction(
@@ -449,7 +434,6 @@ model Pair {
         assert_eq!(plan.target(), body);
         assert_eq!(plan.edits(), &[(0, axis_bounds(-0.5, 0.5), replacement)]);
         assert_ne!(plan.base_digest(), plan.expected_child_digest());
-        assert_eq!(plan.exact_codec(), ExactModelCodec::CURRENT);
         assert_eq!(plan, repeated);
         assert_eq!(plan.key(), repeated.key());
         assert_eq!(plan.transaction_digest(), repeated.transaction_digest());
@@ -463,12 +447,13 @@ model Pair {
             plan.expected_child_digest(),
             distinct.expected_child_digest()
         );
-        let replay = plan
-            .exact_codec()
-            .decode_transaction(&plan.transaction_json().unwrap())
-            .unwrap();
+        let replay = ModelTransactionEnvelope::from_json(
+            &plan.transaction_json().unwrap(),
+            eqiora_artifact::ModelDecoderLimits::default(),
+        )
+        .unwrap();
         assert_eq!(replay, plan.transaction);
-        assert_eq!(replay.digest().unwrap(), plan.transaction_digest());
+        assert_eq!(replay.digest().unwrap().as_str(), plan.transaction_digest());
 
         let result = base.commit_cartesian_domain_edit(plan).unwrap();
         let child = result.document();
@@ -545,14 +530,7 @@ model Pair {
     }
 
     #[test]
-    fn unsupported_codec_dimension_and_body_multiplicity_fail_closed() {
-        let v5 = ExactModelCodec::V5.compile("v5.eqi", BASE).unwrap();
-        let v5_body = domain(&v5, "body");
-        assert!(
-            v5.preview_cartesian_domain_edit(v5_body, [(0, axis_bounds(-0.6, 0.6))])
-                .is_err()
-        );
-
+    fn unsupported_dimension_and_body_multiplicity_fail_closed() {
         let plane = ModelDocument::compile("plane.eqi", TWO_DIMENSIONAL).unwrap();
         let plane_body = domain(&plane, "body");
         assert!(

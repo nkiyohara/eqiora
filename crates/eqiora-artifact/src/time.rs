@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, JsonDecoderLimits, ModelEnvelopeV1, check_json_limits,
+    ArtifactDigest, CANONICAL_ENCODING, JsonDecoderLimits, ModelEnvelope, check_json_limits,
     invalid_artifact, validate_text,
 };
 
@@ -72,7 +72,7 @@ impl TimeLoweringEnvelopeV1 {
     /// order differs, or the exact Operator-IR derivative Jacobian does not
     /// match the witness.
     pub fn from_proof(
-        model: &ModelEnvelopeV1,
+        model: &ModelEnvelope,
         program: &KernelProgram,
         proof: &TimeLoweringProof,
     ) -> Result<Self, Diagnostic> {
@@ -189,7 +189,7 @@ impl TimeLoweringEnvelopeV1 {
     /// Returns `EQ0901` for any linkage or structural-proof drift.
     pub fn validate_against(
         &self,
-        model: &ModelEnvelopeV1,
+        model: &ModelEnvelope,
         program: &KernelProgram,
     ) -> Result<(), Diagnostic> {
         validate_model_program(model, program)?;
@@ -438,7 +438,7 @@ impl TimeRunManifestV1 {
 }
 
 pub(crate) fn validate_model_program(
-    model: &ModelEnvelopeV1,
+    model: &ModelEnvelope,
     program: &KernelProgram,
 ) -> Result<(), Diagnostic> {
     if model.model()? != program.model() || model.source_revision() != program.revision().0 {

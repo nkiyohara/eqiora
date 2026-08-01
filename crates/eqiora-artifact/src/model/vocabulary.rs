@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::invalid_artifact;
 
 use super::*;
-use super::{expression::*, node::*, primitive::*};
+use super::{expression::*, primitive::*};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -108,13 +108,6 @@ pub(crate) struct WireAxisBounds {
 }
 
 impl WireAxisBounds {
-    pub(crate) fn encode(value: AxisBounds) -> Self {
-        Self {
-            lower: WireQuantity::encode(value.lower()),
-            upper: WireQuantity::encode(value.upper()),
-        }
-    }
-
     pub(crate) fn decode(&self) -> Result<AxisBounds, Diagnostic> {
         AxisBounds::new(self.lower.decode()?, self.upper.decode()?)
             .map_err(|error| invalid_artifact(error.message()))
@@ -224,7 +217,7 @@ impl WireRepresentationKind {
             RepresentationKind::Abstract => Ok(Self::Abstract),
             RepresentationKind::Continuum => Ok(Self::Continuum),
             _ => Err(invalid_artifact(
-                "representation kind is newer than model wire v1",
+                "representation kind is unsupported by the current Model contract",
             )),
         }
     }
@@ -296,16 +289,16 @@ pub(crate) enum WireActivationKind {
 }
 
 impl WireActivationKind {
-    pub(crate) fn encode(value: &ActivationKind, version: WireVersion) -> Result<Self, Diagnostic> {
+    pub(crate) fn encode(value: &ActivationKind) -> Result<Self, Diagnostic> {
         match value {
             ActivationKind::Continuous => Ok(Self::Continuous),
             ActivationKind::Periodic => Ok(Self::Periodic),
             ActivationKind::Event { guard, direction } => Ok(Self::Event {
-                guard: WireExpression::encode(guard, version)?,
+                guard: WireExpression::encode(guard)?,
                 direction: WireEventDirection::encode(*direction),
             }),
             ActivationKind::Guard { guard } => Ok(Self::Guard {
-                guard: WireExpression::encode(guard, version)?,
+                guard: WireExpression::encode(guard)?,
             }),
             _ => Err(invalid_artifact(
                 "Activation kind is newer than the supported model wire vocabulary",
@@ -348,46 +341,20 @@ impl WireActivationKind {
         }
     }
 
-    pub(crate) fn validate_v5_features(&self) -> Result<(), Diagnostic> {
-        match self {
-            Self::Event { guard, .. } | Self::Guard { guard } => guard.validate_v5_features(),
-            Self::Continuous | Self::Periodic => Ok(()),
-        }
-    }
-
-    pub(crate) fn canonicalize_v5_definitions(&mut self) -> Result<(), Diagnostic> {
+    pub(crate) fn validate_pure_operator_features(&self) -> Result<(), Diagnostic> {
         match self {
             Self::Event { guard, .. } | Self::Guard { guard } => {
-                guard.canonicalize_v5_definitions()
+                guard.validate_pure_operator_features()
             }
             Self::Continuous | Self::Periodic => Ok(()),
         }
     }
 
-    pub(crate) fn ensure_v1(&self) -> Result<(), Diagnostic> {
+    pub(crate) fn canonicalize_pure_operator_definitions(&mut self) -> Result<(), Diagnostic> {
         match self {
-            Self::Event { guard, .. } | Self::Guard { guard } => guard.ensure_v1(),
-            Self::Continuous | Self::Periodic => Ok(()),
-        }
-    }
-
-    pub(crate) fn ensure_v2(&self) -> Result<(), Diagnostic> {
-        match self {
-            Self::Event { guard, .. } | Self::Guard { guard } => guard.ensure_v2(),
-            Self::Continuous | Self::Periodic => Ok(()),
-        }
-    }
-
-    pub(crate) fn ensure_v3(&self) -> Result<(), Diagnostic> {
-        match self {
-            Self::Event { guard, .. } | Self::Guard { guard } => guard.ensure_v3(),
-            Self::Continuous | Self::Periodic => Ok(()),
-        }
-    }
-
-    pub(crate) fn ensure_v4(&self) -> Result<(), Diagnostic> {
-        match self {
-            Self::Event { guard, .. } | Self::Guard { guard } => guard.ensure_v4(),
+            Self::Event { guard, .. } | Self::Guard { guard } => {
+                guard.canonicalize_pure_operator_definitions()
+            }
             Self::Continuous | Self::Periodic => Ok(()),
         }
     }
@@ -435,21 +402,13 @@ pub(crate) enum WireConnectionKind {
 }
 
 impl WireConnectionKind {
-    pub(crate) fn encode(
-        value: ConnectionSemantics,
-        version: WireVersion,
-    ) -> Result<Self, Diagnostic> {
+    pub(crate) fn encode(value: ConnectionSemantics) -> Result<Self, Diagnostic> {
         match value {
             ConnectionSemantics::Signal => Ok(Self::Signal),
             ConnectionSemantics::Conserving => Ok(Self::Conserving),
-            ConnectionSemantics::SpatialPeriodic if version.supports_spatial_periodic() => {
-                Ok(Self::SpatialPeriodic)
-            }
-            ConnectionSemantics::SpatialPeriodic => Err(invalid_artifact(
-                "spatial-periodic Connection semantics require model wire v6",
-            )),
+            ConnectionSemantics::SpatialPeriodic => Ok(Self::SpatialPeriodic),
             _ => Err(invalid_artifact(
-                "connection semantics are newer than model wire v1",
+                "connection semantics are newer than the current Model wire",
             )),
         }
     }
@@ -485,7 +444,9 @@ impl WireClockKind {
             }),
             ClockKind::Aperiodic => Ok(Self::Aperiodic),
             ClockKind::Inherited => Ok(Self::Inherited),
-            _ => Err(invalid_artifact("clock kind is newer than model wire v1")),
+            _ => Err(invalid_artifact(
+                "clock kind is unsupported by the current Model contract",
+            )),
         }
     }
 

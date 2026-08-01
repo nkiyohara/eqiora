@@ -3,10 +3,9 @@ use std::num::{NonZeroU16, NonZeroUsize};
 use eqiora::api::UnstructuredP1ScalarFieldProjection2d;
 use eqiora::artifact::{
     DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1, FieldSnapshotEnvelopeV1,
-    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelopeV7,
+    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope,
     RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::geometry::{
     CanonicalCircularHoleGeometryV1, CanonicalGeometryRef, CircularHoleChordalMeshV1,
     FACE_DIMENSION, NamedEntitySet,
@@ -52,7 +51,7 @@ const PRESSURE: DimExponents = DimExponents {
 };
 
 struct AcceptedAuthoredField {
-    model: ModelEnvelopeV7,
+    model: ModelEnvelope,
     realization: RealizationEnvelopeV2,
     source: CanonicalCircularHoleGeometryV1,
     owner: CircularHoleChordalMeshV1,
@@ -87,7 +86,7 @@ impl AcceptedAuthoredField {
 
 #[derive(Clone, Copy)]
 struct AuthoredProjectionInputs<'a> {
-    model: &'a ModelEnvelopeV7,
+    model: &'a ModelEnvelope,
     realization: &'a RealizationEnvelopeV2,
     source: &'a CanonicalCircularHoleGeometryV1,
     owner: &'a CircularHoleChordalMeshV1,
@@ -265,7 +264,7 @@ fn foreign_and_same_named_authored_resources_reject_before_array_publication() {
 fn accepted_authored_field(center: [f64; 2]) -> AcceptedAuthoredField {
     let source = exact_source(center);
     let program = geometry_program(&source);
-    let model = ModelEnvelopeV7::from_program(&program).expect("Model v7");
+    let model = ModelEnvelope::from_program(&program).expect("current Model");
     let owner = CircularHoleChordalMeshV1::from_exact(
         &source,
         2.0e-3,
@@ -443,8 +442,7 @@ fn exact_source(center: [f64; 2]) -> CanonicalCircularHoleGeometryV1 {
 }
 
 fn geometry_program(source: &CanonicalCircularHoleGeometryV1) -> KernelProgram {
-    let cartesian = ExactModelCodec::V5
-        .compile("authored-p1-projection.eqi", SOURCE)
+    let cartesian = eqiora::api::ModelDocument::compile("authored-p1-projection.eqi", SOURCE)
         .expect("Cartesian scaffold");
     let program = cartesian.program();
     let body = program

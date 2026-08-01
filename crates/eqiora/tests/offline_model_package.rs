@@ -11,7 +11,6 @@ mod store_input;
 
 use eqiora::Id;
 use eqiora::artifact::{ArtifactDigest, RunManifestV1};
-use eqiora::compatibility::ExactModelCodec;
 use eqiora::entity::kinds;
 use eqiora::graph::EdgeKind;
 use eqiora::kernel::KernelNode;
@@ -421,9 +420,8 @@ fn assert_exact_package_evidence(store: &impl PackageStore, resolution: &Resolut
     let library_source = library_node.source_digest();
     let root_source = root_node.source_digest();
 
-    let packaged =
-        PackagedModelDocument::compile_locked(store, resolution, "Main", ExactModelCodec::V2)
-            .expect("locked package compilation");
+    let packaged = PackagedModelDocument::compile_locked(store, resolution, "Main")
+        .expect("locked package compilation");
     packaged
         .compilation()
         .validate_against(resolution)
