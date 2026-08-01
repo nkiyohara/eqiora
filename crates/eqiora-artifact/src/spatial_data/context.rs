@@ -2,16 +2,16 @@
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
-use eqiora_geometry::{CanonicalGeometryRef, CanonicalGeometryV1, CircularHoleChordalMeshV1};
+use eqiora_geometry::CanonicalGeometryRef;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_realization::{RepresentedPhysicalField, SemanticRevision};
 use eqiora_schema::kernel::{DomainKind, KernelNode};
 use eqiora_sem::KernelProgram;
 
 use crate::{
-    CanonicalModelArtifact, GeometryDefinitionV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference, ModelEnvelope,
-    RealizationEnvelopeV2, RealizationEnvelopeV3, ReplayableCanonicalModelArtifact,
+    AcceptedCircularHoleChordalRealizationV1, CanonicalModelArtifact, GeometryDefinitionV1,
+    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference,
+    ModelEnvelope, RealizationEnvelopeV2, RealizationEnvelopeV3, ReplayableCanonicalModelArtifact,
     ReplayedCanonicalModel, SimplicialMeshEnvelopeV1, invalid_artifact,
 };
 
@@ -108,8 +108,8 @@ impl<'a> ValidatedFixedSpatialContextV1<'a> {
 /// Private proof of the one accepted exact-circle field-wise lineage.
 ///
 /// This stays narrower than a general authored-geometry context. The opaque
-/// chordal owner is required until a durable exact-source realization binding
-/// exists, and its exact region must cover the complete imported mesh.
+/// accepted artifact owner replays the exact-source realization binding, and
+/// its exact region must cover the complete imported mesh.
 #[derive(Debug)]
 pub(super) struct ValidatedCircularHoleFieldwiseContext<'a> {
     model_reference: ModelArtifactReference,
@@ -123,16 +123,16 @@ pub(super) struct ValidatedCircularHoleFieldwiseContext<'a> {
 }
 
 impl<'a> ValidatedCircularHoleFieldwiseContext<'a> {
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         model: &ModelEnvelope,
         realization: &'a RealizationEnvelopeV2,
-        source: &CanonicalGeometryV1,
-        owner: &CircularHoleChordalMeshV1,
-        geometry: &'a GeometryDefinitionV1,
-        correspondence: &'a GeometryMeshCorrespondenceEnvelopeV1,
-        mesh: &'a SimplicialMeshEnvelopeV1,
+        accepted: &'a AcceptedCircularHoleChordalRealizationV1,
     ) -> Result<Self, Diagnostic> {
+        accepted.revalidate()?;
+        let source = accepted.source();
+        let geometry = accepted.realized_geometry();
+        let correspondence = accepted.correspondence();
+        let mesh = accepted.mesh();
         let model_reference = model.artifact_reference()?;
         let (transaction, model_id) = model
             .to_transaction()
@@ -156,18 +156,6 @@ impl<'a> ValidatedCircularHoleFieldwiseContext<'a> {
         }
         realization.validate_model_artifact(model)?;
         realization.validate_mesh_artifact(mesh)?;
-        if owner.source().digest_bytes() != source.digest_bytes() {
-            return Err(invalid_artifact(
-                "circular-hole mesh owner belongs to another exact source revision",
-            ));
-        }
-        if geometry != &GeometryDefinitionV1::from_region(owner.region())
-            || mesh != &SimplicialMeshEnvelopeV1::from_mesh(owner.mesh())?
-        {
-            return Err(invalid_artifact(
-                "authored field-wise geometry or mesh differs from its exact-source owner",
-            ));
-        }
         correspondence.validate_against_region(geometry, mesh)?;
 
         let domain = realization.plan()?.spatial().domain();

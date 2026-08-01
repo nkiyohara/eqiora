@@ -79,7 +79,7 @@ the only frozen identity here is a deliberately synthetic encoding witness.
 | k2 | construction | never accept a caller-supplied raw field tuple |
 | p | admission | decode the binding envelope under its closed canonical vocabulary and budgets; require the four resources to have passed their separately owned bounded decoders before replay |
 | a | validation | resolve the exact source; its digest must equal `source_geometry_sha256` |
-| b | validation | regenerate the chordal owner from that source, the stored request, stored `circle_segments` as a maximum, and stored `required_minimum_mean_ratio` |
+| b | validation | regenerate the private chordal reference from that source, the stored request, stored `circle_segments` as a maximum, and stored `required_minimum_mean_ratio` |
 | c | validation | exact-compare every regenerated observation against its stored scalar |
 | d | validation | require the supplied realized geometry to equal the regenerated region |
 | e | validation | replay the Model-free `authored-planar-region-v1` correspondence against the supplied realized geometry and mesh |
@@ -97,7 +97,7 @@ replay checks.
 | `envelope_digest` | envelope canonical digest | — |
 | `decoder_admission` | binding-envelope decoder admission | p |
 | `source_semantics` | semantic source type/digest | a |
-| `owner_replay` | deterministic owner replay | b, c |
+| `owner_replay` | deterministic private-reference replay (stable detector key) | b, c |
 | `region_equality` | realized-region equality | d |
 | `authored_correspondence` | Model-free authored-region correspondence replay | e |
 | `resource_digest` | bound resource digest | f |

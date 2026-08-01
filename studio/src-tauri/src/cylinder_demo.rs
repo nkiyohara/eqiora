@@ -2,10 +2,10 @@
 
 use eqiora::Diagnostic;
 use eqiora::api::{CircularHoleSteadyStokesResult2d, UnstructuredP1ScalarFieldProjection2d};
-use eqiora::artifact::ModelEnvelope;
+use eqiora::artifact::{AcceptedCircularHoleChordalRealizationV1, ModelEnvelope};
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::diagnostic::codes;
-use eqiora::geometry::{CanonicalGeometryLimits, CanonicalGeometryV1, CircularHoleChordalMeshV1};
+use eqiora::geometry::{CanonicalGeometryLimits, CanonicalGeometryV1};
 use eqiora::meshing::MeshQualityGate;
 use eqiora::solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy};
 use serde::{Deserialize, Serialize};
@@ -148,14 +148,14 @@ fn prepare_demo() -> Result<PreparedCylinderDemo, Diagnostic> {
         CanonicalGeometryLimits::default(),
     )?;
     let model = ModelEnvelope::from_json(embedded_json(MODEL), Default::default())?;
-    let owner =
-        CircularHoleChordalMeshV1::from_exact(&source, 1.0e-4, 50, MeshQualityGate::new(1.0e-5)?)?;
-    let result = CircularHoleSteadyStokesResult2d::solve_reference(
-        &model,
+    let accepted = AcceptedCircularHoleChordalRealizationV1::from_reference(
         &source,
-        &owner,
-        &FaerLinearSolver,
+        1.0e-4,
+        50,
+        MeshQualityGate::new(1.0e-5)?,
     )?;
+    let result =
+        CircularHoleSteadyStokesResult2d::solve_reference(&model, &accepted, &FaerLinearSolver)?;
     evidence(&result)
 }
 

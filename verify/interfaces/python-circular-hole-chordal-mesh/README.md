@@ -6,10 +6,10 @@ This case freezes one deliberately limited installed-Python adapter:
 `max_boundary_error`, `required_minimum_mean_ratio`, and `max_segments`. It
 returns one immutable `eqiora.meshing.CircularHoleChordalMesh`.
 
-The Python object is a same-process owner. It retains the exact source, the
-opaque RFC 0082 chordal owner, the accepted inner
-`SimplicialMeshEnvelopeV1`, and the Rust-derived authored-region
-correspondence. Python does not select the chord count, sample the circle,
+The Python object is a same-process view of the accepted RFC 0082 artifact
+owner. That owner retains the exact source, pure binding envelope, accepted
+inner `SimplicialMeshEnvelopeV1`, Rust-derived authored-region correspondence,
+and private regenerated reference. Python does not select the chord count, sample the circle,
 construct connectivity, compute quality, encode an artifact, derive a digest,
 or infer selection membership from coordinates.
 
@@ -18,11 +18,11 @@ or infer selection membership from coordinates.
 The non-implementing evidence lane froze the API shape, claim boundary, and
 falsifiers before the public Python implementation existed. The first oracle
 revision's exact artifact values were wrong: it reconstructed the accepted
-fluid fixture's local cell order instead of replaying the public owner. The
+fluid fixture's local cell order instead of replaying the deterministic Rust producer. The
 installed-package gate exposed that provenance mismatch.
 
 Before acceptance, the independent evidence owner corrected the values below
-by replaying the pre-existing public Rust producer, without reading or changing
+by replaying the pre-existing deterministic Rust producer, without reading or changing
 the new Python implementation and without consuming its output. The producer's
 inputs come from the already accepted
 [`geometry.circular-hole-chordal-reference-mesh`](../../geometry/circular-hole-chordal-reference-mesh/README.md)
@@ -31,14 +31,14 @@ adapter must expose:
 
 ```text
 CanonicalGeometryV1
-  -> CircularHoleChordalMeshV1::from_exact(..., 1e-4, 50, MeshQualityGate(1e-5))
-  -> SimplicialMeshEnvelopeV1::from_mesh(owner.mesh())
+  -> AcceptedCircularHoleChordalRealizationV1::from_reference(..., 1e-4, 50, MeshQualityGate(1e-5))
+  -> accepted.mesh()
 ```
 
 The accepted fluid `mesh.json` remains an independent topology witness, not a
-substitute serialization for the public owner. Its existing conformance check
+substitute serialization for the accepted artifact owner. Its existing conformance check
 matches coordinates within the RFC allowance and compares unordered cell
-vertex sets. It deliberately does not freeze the owner's local cell rotations.
+vertex sets. It deliberately does not freeze the private reference's local cell rotations.
 
 The resulting inner mesh artifact has:
 
@@ -106,7 +106,7 @@ value. Rebuilding from fixture order produces the superseded
 `minimum_mean_ratio=0.0064272786692910235`, 4,843 bytes, and mesh digest
 `c0d57813a0ca56aade9b286d1f4fff7df217ff130ac176515be5ef174b07847b`.
 Those values describe a different in-memory ordering and are now an explicit
-falsifier for bypassing the public owner.
+falsifier for bypassing the accepted producer.
 
 This was not consumption of `falsifier-wrong-diagonal.json`. That file declares
 `role=wrong-contract-falsifier`, fails the mapped unordered-cell-set comparison,

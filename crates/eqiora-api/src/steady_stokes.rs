@@ -8,14 +8,14 @@
 use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
-    CircularHoleChordalRealizationEnvelopeV1, DiscreteFieldEnvelopeV1, ExecutionProvenanceV1,
-    ExecutionTopologyV1, FieldSnapshotEnvelopeV1, GeometryDefinitionV1,
-    GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV2,
-    RunManifestV2, SimplicialMeshEnvelopeV1,
+    AcceptedCircularHoleChordalRealizationV1, CircularHoleChordalRealizationEnvelopeV1,
+    DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1, FieldSnapshotEnvelopeV1,
+    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope,
+    RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
-use eqiora_geometry::{CanonicalGeometryV1, CircularHoleChordalMeshV1};
+use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_meshing::{DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape};
 use eqiora_numerics::fluid::{
@@ -71,12 +71,7 @@ const PRESSURE: DimExponents = DimExponents {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CircularHoleSteadyStokesResult2d {
     model: ModelEnvelope,
-    source: CanonicalGeometryV1,
-    owner: CircularHoleChordalMeshV1,
-    chordal_realization: CircularHoleChordalRealizationEnvelopeV1,
-    realized_geometry: GeometryDefinitionV1,
-    mesh: SimplicialMeshEnvelopeV1,
-    correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+    accepted: AcceptedCircularHoleChordalRealizationV1,
     realization: RealizationEnvelopeV2,
     pressure_block: DiscreteFieldEnvelopeV1,
     snapshot: FieldSnapshotEnvelopeV1,
@@ -104,11 +99,12 @@ impl CircularHoleSteadyStokesResult2d {
     /// evidence, or any invalid artifact in the resulting lineage.
     pub fn solve_reference(
         model: &ModelEnvelope,
-        source: &CanonicalGeometryV1,
-        owner: &CircularHoleChordalMeshV1,
+        accepted: &AcceptedCircularHoleChordalRealizationV1,
         backend: &dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
-        require_accepted_inputs(model, source, owner)?;
+        require_accepted_inputs(model, accepted)?;
+        let source = accepted.source();
+        let mesh = accepted.mesh();
         let program = replay_program(model, source)?;
         if program.revision().0 != ACCEPTED_SEMANTIC_REVISION {
             return Err(invalid_reference_input(format!(
@@ -117,27 +113,7 @@ impl CircularHoleSteadyStokesResult2d {
             )));
         }
 
-        let realized_geometry = GeometryDefinitionV1::from_region(owner.region());
-        let mesh = SimplicialMeshEnvelopeV1::from_mesh(owner.mesh())?;
-        let correspondence =
-            GeometryMeshCorrespondenceEnvelopeV1::from_region(&realized_geometry, &mesh)?;
-        let chordal_realization = CircularHoleChordalRealizationEnvelopeV1::capture(
-            source,
-            owner,
-            &realized_geometry,
-            &mesh,
-            &correspondence,
-        )?;
-        chordal_realization.replay_against(source, &realized_geometry, &mesh, &correspondence)?;
-
-        let binding = SteadyStokesGeometryBinding2d::new(
-            &program,
-            source.clone(),
-            owner.clone(),
-            realized_geometry.clone(),
-            mesh.clone(),
-            correspondence.clone(),
-        )?;
+        let binding = SteadyStokesGeometryBinding2d::new(&program, accepted.clone())?;
         let solver_plan = reference_solver_plan()?;
         let plan = binding.mini_plan(
             mesh.artifact_reference()?,
@@ -193,15 +169,11 @@ impl CircularHoleSteadyStokesResult2d {
             DiscreteFieldShape::Scalar,
             solution.pressure().vertex_values().to_vec(),
         )?;
-        let pressure_block = DiscreteFieldEnvelopeV1::from_payload(&mesh, &pressure_payload)?;
+        let pressure_block = DiscreteFieldEnvelopeV1::from_payload(mesh, &pressure_payload)?;
         let snapshot = FieldSnapshotEnvelopeV1::new_authored_fieldwise(
             model,
             &realization,
-            source,
-            owner,
-            &realized_geometry,
-            &correspondence,
-            &mesh,
+            accepted,
             solution.pressure_field(),
             std::slice::from_ref(&pressure_block),
         )?;
@@ -219,11 +191,7 @@ impl CircularHoleSteadyStokesResult2d {
             UnstructuredP1ScalarFieldProjection2d::from_authored_fieldwise_snapshot(
                 model,
                 &realization,
-                source,
-                owner,
-                &realized_geometry,
-                &correspondence,
-                &mesh,
+                accepted,
                 &run,
                 &snapshot,
                 &pressure_block,
@@ -254,12 +222,7 @@ impl CircularHoleSteadyStokesResult2d {
 
         Ok(Self {
             model: model.clone(),
-            source: source.clone(),
-            owner: owner.clone(),
-            chordal_realization,
-            realized_geometry,
-            mesh,
-            correspondence,
+            accepted: accepted.clone(),
             realization,
             pressure_block,
             snapshot,
@@ -283,37 +246,31 @@ impl CircularHoleSteadyStokesResult2d {
     /// Exact circular-hole source.
     #[must_use]
     pub const fn source(&self) -> &CanonicalGeometryV1 {
-        &self.source
-    }
-
-    /// Source-owned chordal realization.
-    #[must_use]
-    pub const fn owner(&self) -> &CircularHoleChordalMeshV1 {
-        &self.owner
+        self.accepted.source()
     }
 
     /// Durable exact-source-to-chordal-resource binding.
     #[must_use]
     pub const fn chordal_realization(&self) -> &CircularHoleChordalRealizationEnvelopeV1 {
-        &self.chordal_realization
+        self.accepted.envelope()
     }
 
     /// Realized straight-edged geometry artifact.
     #[must_use]
     pub const fn realized_geometry(&self) -> &GeometryDefinitionV1 {
-        &self.realized_geometry
+        self.accepted.realized_geometry()
     }
 
     /// Accepted affine-triangle mesh artifact.
     #[must_use]
     pub const fn mesh(&self) -> &SimplicialMeshEnvelopeV1 {
-        &self.mesh
+        self.accepted.mesh()
     }
 
     /// Authored geometry-to-mesh correspondence.
     #[must_use]
     pub const fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1 {
-        &self.correspondence
+        self.accepted.correspondence()
     }
 
     /// Exact field-wise Realization.
@@ -391,9 +348,10 @@ impl CircularHoleSteadyStokesResult2d {
 
 fn require_accepted_inputs(
     model: &ModelEnvelope,
-    source: &CanonicalGeometryV1,
-    owner: &CircularHoleChordalMeshV1,
+    accepted: &AcceptedCircularHoleChordalRealizationV1,
 ) -> Result<(), Diagnostic> {
+    accepted.revalidate()?;
+    let source = accepted.source();
     if model.source_revision() != ACCEPTED_SEMANTIC_REVISION {
         return Err(invalid_reference_input(format!(
             "exact-cylinder reference Model must retain source revision \
@@ -410,21 +368,16 @@ fn require_accepted_inputs(
             "exact-cylinder reference operation requires the accepted exact geometry source",
         ));
     }
-    if owner.source().digest_bytes() != source.digest_bytes() {
-        return Err(invalid_reference_input(
-            "exact-cylinder chordal mesh belongs to another exact geometry source",
-        ));
-    }
-    if owner.requested_max_boundary_error_m().to_bits() != ACCEPTED_MAX_BOUNDARY_ERROR_M.to_bits()
-        || owner.mesh().quality_gate().minimum_mean_ratio().to_bits()
+    if accepted.requested_max_boundary_error_m().to_bits()
+        != ACCEPTED_MAX_BOUNDARY_ERROR_M.to_bits()
+        || accepted.envelope().required_minimum_mean_ratio().to_bits()
             != ACCEPTED_MINIMUM_MEAN_RATIO.to_bits()
     {
         return Err(invalid_reference_input(
             "exact-cylinder reference operation requires the accepted chordal realization policy",
         ));
     }
-    let mesh = SimplicialMeshEnvelopeV1::from_mesh(owner.mesh())?;
-    if mesh.digest()?.to_string() != ACCEPTED_MESH_DIGEST {
+    if accepted.mesh().digest()?.to_string() != ACCEPTED_MESH_DIGEST {
         return Err(invalid_reference_input(
             "exact-cylinder reference operation requires the accepted chordal mesh policy",
         ));

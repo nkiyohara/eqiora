@@ -390,15 +390,18 @@ removal = "fold the regeneration pair into a general accepted parametric-CAD edi
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 143
+ceiling = 144
 reason = """
 The current Model and ModelTransaction envelopes own the single admitted wire
 epoch; validated content, canonical bytes, and digest derivation remain below
 that boundary. CircularHoleChordalRealizationEnvelopeV1 is one closed public
-owner for durable exact-source replay across process boundaries while common
-CAD/mesh publication remains incomplete.
+wire for durable exact-source replay across process boundaries while common
+CAD/mesh publication remains incomplete. Its accepted type-state owner keeps
+decoded wire separate from admitted source, Geometry, Mesh, correspondence,
+and private deterministic-reference state; without it every consumer would
+thread and independently re-associate that five-value invariant.
 """
-removal = "withdraw the circular-hole binding and lower by one when common CAD/mesh publication replaces it; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
+removal = "withdraw the circular-hole wire and accepted type-state owner, then lower by two when common CAD/Mesh publication replaces both without losing the frozen scientific replay evidence; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
 
 [[public_surface]]
 crate = "eqiora-assembly"
@@ -458,7 +461,7 @@ ceiling = 22
 
 [[public_surface]]
 crate = "eqiora-geometry"
-ceiling = 39
+ceiling = 38
 reason = """
 Raised from 23 as an architecture change, not as drift. The seven added names
 are the authored-region vocabulary: a canonical straight-edged planar region,
@@ -473,10 +476,6 @@ cannot be constructed from those facts and exposes no geometry content. The
 common canonical owner privately retains an exact circular hole as
 rectangle bounds plus centre/radius identity, without putting mesh refinement
 into the artifact or reopening either closed wire.
-One source-bound chordal owner now keeps that exact source reference beside
-the requested and accepted approximation evidence, named region, and accepted
-mesh. Solver and Studio are its two downstream consumers; returning a loose
-tuple would let both lose or reconstruct the source-binding invariant.
 Four names now form the common provider-neutral authored CAD boundary: one
 opaque graph owner over closed private wire versions, one graph-bound durable
 face handle, one accepted build receipt, and one no-wire face surface
@@ -493,7 +492,7 @@ accepted tetrahedral mesh as one invariant. A loose tuple would let a consumer
 substitute a foreign target or forget the direction and grading that produced
 the mesh; no request schema, artifact variant, or provider registry was added.
 """
-removal = "lower when the common geometry boundary can absorb the specialized chordal public owner without changing its source-bound error evidence; lower again if the owned geometry value can replace the separate borrowed semantic reference without exposing content or caller-authored facts; lower if a second volume-meshing consumer proves that the no-wire sweep owner can become a private implementation behind an existing generic accepted Mesh/Realization boundary without losing its source and target binding"
+removal = "lower if the owned geometry value can replace the separate borrowed semantic reference without exposing content or caller-authored facts; lower if a second volume-meshing consumer proves that the no-wire sweep owner can become a private implementation behind an existing generic accepted Mesh/Realization boundary without losing its source and target binding"
 
 [[public_surface]]
 crate = "eqiora-graph"
