@@ -1,6 +1,8 @@
 # Studio authored-CAD to Python round trip
 
-This case freezes the exact readable Python source for the two already accepted
+This case freezes the exact readable Python source under
+[`bindings/python/tests/fixtures/studio_python_cad_round_trip`](../../../bindings/python/tests/fixtures/studio_python_cad_round_trip)
+for the two already accepted
 authored-CAD histories: one rectangle extrusion and its optional one circular
 through-cut successor. The programs call only the installed public
 `eqiora.geometry.CadAuthoredGraph` surface and leave the reconstructed graph in

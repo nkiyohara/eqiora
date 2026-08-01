@@ -13,7 +13,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[3]
-FIXTURES = ROOT / "verify/interfaces/studio-python-cad-round-trip/models"
+FIXTURES = Path(__file__).with_name("fixtures") / "studio_python_cad_round_trip"
 V1_DIGEST = "919545f70118840c04da9715829deb2da947460a51311ebabec6a34038c66f36"
 V2_DIGEST = "00acb9494fc7dea8f1f2500d1316cb3315130a965a24179b3eb1b10345058b47"
 

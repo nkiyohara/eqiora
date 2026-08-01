@@ -43,7 +43,6 @@ FIXED_REFERENCE_FSI_REPOSITORY_SOURCE = Path(
 PYTHON_TEST_FIXTURES = (
     Path("verify/interfaces/control-plane-compile-check"),
     Path("verify/interfaces/current-authoring-profile"),
-    Path("verify/interfaces/studio-python-cad-round-trip"),
     # The packaged-Poisson consumer test compiles the shipped package source
     # itself, so reading it is the claim rather than an implementation detail.
     Path("packages/org.example.poisson"),

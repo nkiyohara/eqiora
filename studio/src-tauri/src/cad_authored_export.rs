@@ -2,7 +2,7 @@
 //!
 //! One deterministic renderer projects an accepted authored graph into the
 //! closed readable Python program frozen at
-//! `verify/interfaces/studio-python-cad-round-trip/models/`. The export is
+//! `bindings/python/tests/fixtures/studio_python_cad_round_trip/`. The export is
 //! derived only from the replayed native graph — never from form strings or
 //! client state — so equal graphs render byte-identical source. Requests carry
 //! neither a filesystem path nor Python source; saving writes only through the
@@ -219,10 +219,10 @@ mod tests {
     // The two precommitted oracle programs; consumed byte-for-byte, never
     // edited or re-derived here.
     const V1_FIXTURE: &str = include_str!(
-        "../../../verify/interfaces/studio-python-cad-round-trip/models/rectangle_extrusion.py"
+        "../../../bindings/python/tests/fixtures/studio_python_cad_round_trip/rectangle_extrusion.py"
     );
     const V2_FIXTURE: &str = include_str!(
-        "../../../verify/interfaces/studio-python-cad-round-trip/models/circular_through_cut.py"
+        "../../../bindings/python/tests/fixtures/studio_python_cad_round_trip/circular_through_cut.py"
     );
     const HOSTILE_CORPUS: &str =
         include_str!("../../../verify/interfaces/studio-python-cad-round-trip/models/hostile.json");
