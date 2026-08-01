@@ -53,7 +53,11 @@ def circular_cut():
 program = Path(sys.argv[1])
 expected = rectangle() if sys.argv[2] == "v1" else circular_cut()
 namespace = runpy.run_path(str(program))
-assert set(namespace) >= {"authored_graph", "_expected_graph_digest"}
+assert {name for name in namespace if not name.startswith("__")} == {
+    "eqiora",
+    "authored_graph",
+    "_expected_graph_digest",
+}
 actual = namespace["authored_graph"]
 
 assert type(actual) is eqiora.geometry.CadAuthoredGraph
@@ -120,17 +124,18 @@ print(
 
 
 CASES = (
-    ("rectangle_extrusion.py", "v1", V1_DIGEST),
-    ("circular_through_cut.py", "v2", V2_DIGEST),
+    ("rectangle_extrusion.py", "v1", V1_DIGEST, 731),
+    ("circular_through_cut.py", "v2", V2_DIGEST, 1292),
 )
 
 
-@pytest.mark.parametrize(("filename", "history", "digest"), CASES)
+@pytest.mark.parametrize(("filename", "history", "digest", "canonical_size"), CASES)
 def test_frozen_studio_export_executes_through_only_the_installed_public_api(
     tmp_path: Path,
     filename: str,
     history: str,
     digest: str,
+    canonical_size: int,
 ) -> None:
     source_path = FIXTURES / filename
     source = source_path.read_bytes()
@@ -148,6 +153,7 @@ def test_frozen_studio_export_executes_through_only_the_installed_public_api(
     assert text.count(".circular_through_cut(") == (history == "v2")
     assert "authored_graph =" in text
     assert digest in text
+    assert str(ROOT) not in text
     for forbidden in (
         "decode_canonical",
         "_eqiora",
@@ -182,6 +188,6 @@ def test_frozen_studio_export_executes_through_only_the_installed_public_api(
     assert completed.stderr == ""
     result = json.loads(completed.stdout)
     assert result["digest"] == digest
-    assert bytes.fromhex(result["canonical_hex"])
+    assert len(bytes.fromhex(result["canonical_hex"])) == canonical_size
     installed_module = Path(result["module_file"]).resolve()
     assert installed_module != ROOT and ROOT not in installed_module.parents

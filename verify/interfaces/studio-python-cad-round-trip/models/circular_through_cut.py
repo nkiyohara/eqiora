@@ -15,8 +15,8 @@ authored_graph = authored_graph.circular_through_cut(
     boolean_tolerance=1e-9,
 )
 
-_expected_graph_digest = "00acb9494fc7dea8f1f2500d1316cb3315130a965a24179b3eb1b10345058b47"
+_expected_graph_digest = (
+    "00acb9494fc7dea8f1f2500d1316cb3315130a965a24179b3eb1b10345058b47"
+)
 if authored_graph.graph_digest != _expected_graph_digest:
-    raise RuntimeError(
-        "Eqiora authored CAD graph digest mismatch after reconstruction"
-    )
+    raise RuntimeError("Eqiora authored CAD graph digest mismatch after reconstruction")

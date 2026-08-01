@@ -13,6 +13,17 @@ includes canonical graph bytes and digest, ordered graph-bound face handles,
 all public exact observations, and the complete analytic build receipt. The
 native Studio renderer must separately equal these source files byte for byte.
 
+Scalar spelling is also frozen. It uses Rust's shortest round-trip debug form
+for finite canonical `f64` values, while retaining `.0` on integer-valued
+floats. Exponents have no `+` sign or zero padding (`1e-9`, not `1e-09`). This
+is an Eqiora source convention expressed in valid Python syntax, not Python's
+`repr` convention. The fixtures are formatter-canonical and must remain so.
+
+[`models/hostile.json`](models/hostile.json) precommits the request, response,
+staleness, cancellation, and write-error mutants before production code exists.
+The implementation may wire those cases to its closed DTOs but may neither
+remove a mutant nor weaken its expected disposition.
+
 The graph and scientific authorities remain
 [`geometry.cad-authored-rectangle-extrusion`](../../geometry/cad-authored-rectangle-extrusion/README.md)
 and

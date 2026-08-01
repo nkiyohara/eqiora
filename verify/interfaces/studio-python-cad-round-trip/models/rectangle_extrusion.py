@@ -10,8 +10,8 @@ authored_graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
     modeling_tolerance=1e-9,
 )
 
-_expected_graph_digest = "919545f70118840c04da9715829deb2da947460a51311ebabec6a34038c66f36"
+_expected_graph_digest = (
+    "919545f70118840c04da9715829deb2da947460a51311ebabec6a34038c66f36"
+)
 if authored_graph.graph_digest != _expected_graph_digest:
-    raise RuntimeError(
-        "Eqiora authored CAD graph digest mismatch after reconstruction"
-    )
+    raise RuntimeError("Eqiora authored CAD graph digest mismatch after reconstruction")
