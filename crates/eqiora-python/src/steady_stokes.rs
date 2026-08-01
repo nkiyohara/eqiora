@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 use eqiora::api::CircularHoleSteadyStokesResult2d;
 use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
 use eqiora::backends::faer::FaerLinearSolver;
-use eqiora::geometry::{CanonicalGeometryV1, CircularHoleChordalMeshV1};
+use eqiora::geometry::CanonicalGeometryV1;
 use numpy::PyArray2;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule};
@@ -147,10 +147,12 @@ impl PyCircularHoleSteadyStokesResult {
         let semantic_revision = projection.semantic_revision();
         let realization_revision = result.realization().realization_revision().get();
         let exact_source_digest = digest_to_hex(&result.source().digest_bytes());
-        let requested_max_boundary_error = result.owner().requested_max_boundary_error_m();
-        let boundary_evaluation_allowance = result.owner().boundary_evaluation_allowance_m();
-        let boundary_error_bound = result.owner().boundary_error_bound_m();
-        let circle_segments = result.owner().circle_segments();
+        let chordal = result.chordal_realization();
+        let requested_max_boundary_error = chordal.requested_max_boundary_error_m();
+        let boundary_evaluation_allowance = chordal.boundary_evaluation_allowance_m();
+        let boundary_error_bound = chordal.boundary_error_bound_m();
+        let circle_segments = usize::try_from(chordal.circle_segments())
+            .expect("accepted chordal segment count fits local usize");
         let cylinder_force_on_fluid = tuple2(result.cylinder_force_on_fluid());
         let inlet_flux = result.inlet_flux();
         let outlet_flux = result.outlet_flux();
@@ -425,7 +427,7 @@ pub(crate) fn solve_exact_cylinder_stokes(
         let model = model.to_vec();
         let source: CanonicalGeometryV1 = geometry.geometry().clone();
         let mesh_source: CanonicalGeometryV1 = mesh.source().clone();
-        let owner: CircularHoleChordalMeshV1 = mesh.owner().clone();
+        let accepted = mesh.accepted().clone();
         let native = py.detach(move || {
             if source != mesh_source {
                 return Err(eqiora::Diagnostic::error(
@@ -434,12 +436,7 @@ pub(crate) fn solve_exact_cylinder_stokes(
                 ));
             }
             let model = ModelEnvelope::from_json(&model, ModelDecoderLimits::default())?;
-            CircularHoleSteadyStokesResult2d::solve_reference(
-                &model,
-                &source,
-                &owner,
-                &FaerLinearSolver,
-            )
+            CircularHoleSteadyStokesResult2d::solve_reference(&model, &accepted, &FaerLinearSolver)
         });
         native
             .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))

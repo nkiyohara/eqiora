@@ -3,13 +3,10 @@ use std::f64::consts::PI;
 use std::path::Path;
 use std::process::Command;
 
-use eqiora::artifact::{
-    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, SimplicialMeshEnvelopeV1,
-};
+use eqiora::artifact::AcceptedCircularHoleChordalRealizationV1;
 use eqiora::diagnostic::codes;
 use eqiora::geometry::{
-    CanonicalGeometryV1, CircularHoleChordalMeshV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
-    VERTEX_DIMENSION,
+    CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet, VERTEX_DIMENSION,
 };
 use eqiora::meshing::{MeshEntity, MeshQualityGate, MeshTopology};
 use sha2::{Digest, Sha256};
@@ -63,8 +60,8 @@ fn quality_gate() -> MeshQualityGate {
     MeshQualityGate::new(MINIMUM_QUALITY).unwrap()
 }
 
-fn realize(source: &CanonicalGeometryV1) -> CircularHoleChordalMeshV1 {
-    CircularHoleChordalMeshV1::from_exact(
+fn realize(source: &CanonicalGeometryV1) -> AcceptedCircularHoleChordalRealizationV1 {
+    AcceptedCircularHoleChordalRealizationV1::from_reference(
         source,
         MAX_BOUNDARY_ERROR_M,
         MAX_SEGMENTS,
@@ -77,8 +74,9 @@ fn realize(source: &CanonicalGeometryV1) -> CircularHoleChordalMeshV1 {
 fn straight_geometry_is_not_an_exact_circle_source() {
     let exact = dfg_source();
     let chordal = realize(&exact);
-    let straight = CanonicalGeometryV1::from_region(chordal.region()).unwrap();
-    let error = CircularHoleChordalMeshV1::from_exact(
+    let chordal_region = chordal.realized_geometry().region().unwrap();
+    let straight = CanonicalGeometryV1::from_region(&chordal_region).unwrap();
+    let error = AcceptedCircularHoleChordalRealizationV1::from_reference(
         &straight,
         MAX_BOUNDARY_ERROR_M,
         MAX_SEGMENTS,
@@ -144,15 +142,17 @@ fn independent_oracle_and_dfg_reference_path_agree() {
     );
     assert_eq!(realization.requested_max_boundary_error_m(), 1.0e-4);
     assert_eq!(realization.circle_segments(), 50);
-    assert_eq!(realization.region().vertices().len(), 104);
-    assert_eq!(realization.region().faces().len(), 1);
-    assert_eq!(realization.region().faces()[0].outer().len(), 54);
-    assert_eq!(realization.region().faces()[0].holes()[0].len(), 50);
-    assert_eq!(realization.region().edge_count(), 104);
-    assert_eq!(realization.mesh().vertices().len(), 104);
-    assert_eq!(realization.mesh().cells().len(), 104);
-    assert_eq!(realization.mesh().entity_count(1), Some(208));
-    assert!(realization.mesh().quality_report().minimum_mean_ratio() >= MINIMUM_QUALITY);
+    let region = realization.realized_geometry().region().unwrap();
+    let mesh = realization.mesh().mesh();
+    assert_eq!(region.vertices().len(), 104);
+    assert_eq!(region.faces().len(), 1);
+    assert_eq!(region.faces()[0].outer().len(), 54);
+    assert_eq!(region.faces()[0].holes()[0].len(), 50);
+    assert_eq!(region.edge_count(), 104);
+    assert_eq!(mesh.vertices().len(), 104);
+    assert_eq!(mesh.cells().len(), 104);
+    assert_eq!(mesh.entity_count(1), Some(208));
+    assert!(mesh.quality_report().minimum_mean_ratio() >= MINIMUM_QUALITY);
 
     let allowance_m: f64 = 6.252_776_074_688_882e-14;
     let area_allowance_m2: f64 = 1.964_367_538_078_461_7e-14;
@@ -177,47 +177,13 @@ fn independent_oracle_and_dfg_reference_path_agree() {
         allowance_m,
     );
 
-    assert_eq!(
-        realization
-            .region()
-            .entity_set("inlet")
-            .unwrap()
-            .members()
-            .len(),
-        14
-    );
-    assert_eq!(
-        realization
-            .region()
-            .entity_set("outlet")
-            .unwrap()
-            .members()
-            .len(),
-        2
-    );
-    assert_eq!(
-        realization
-            .region()
-            .entity_set("walls")
-            .unwrap()
-            .members()
-            .len(),
-        38
-    );
-    assert_eq!(
-        realization
-            .region()
-            .entity_set("cylinder")
-            .unwrap()
-            .members()
-            .len(),
-        50
-    );
+    assert_eq!(region.entity_set("inlet").unwrap().members().len(), 14);
+    assert_eq!(region.entity_set("outlet").unwrap().members().len(), 2);
+    assert_eq!(region.entity_set("walls").unwrap().members().len(), 38);
+    assert_eq!(region.entity_set("cylinder").unwrap().members().len(), 50);
 
-    let geometry = GeometryDefinitionV1::from_region(realization.region());
-    let mesh = SimplicialMeshEnvelopeV1::from_mesh(realization.mesh()).unwrap();
-    let correspondence =
-        GeometryMeshCorrespondenceEnvelopeV1::from_region(&geometry, &mesh).unwrap();
+    let geometry = realization.realized_geometry();
+    let correspondence = realization.correspondence();
     let mut owned_boundary = BTreeSet::<MeshEntity>::new();
     for (name, count) in [
         ("inlet", 14),
@@ -226,12 +192,12 @@ fn independent_oracle_and_dfg_reference_path_agree() {
         ("cylinder", 50),
     ] {
         let members = correspondence
-            .region_entity_set_entities(&geometry, name)
+            .region_entity_set_entities(geometry, name)
             .unwrap();
         assert_eq!(members.len(), count);
         for member in members {
             assert_eq!(member.dimension(), 1);
-            assert_eq!(realization.mesh().is_boundary_entity(member), Some(true));
+            assert_eq!(mesh.is_boundary_entity(member), Some(true));
             assert!(
                 owned_boundary.insert(member),
                 "boundary facet {member:?} has more than one physical owner"
@@ -239,18 +205,13 @@ fn independent_oracle_and_dfg_reference_path_agree() {
         }
     }
     assert_eq!(owned_boundary.len(), 104);
-    let boundary_count = (0..realization.mesh().entity_count(1).unwrap())
-        .filter(|&index| {
-            realization
-                .mesh()
-                .is_boundary_entity(MeshEntity::new(1, index))
-                == Some(true)
-        })
+    let boundary_count = (0..mesh.entity_count(1).unwrap())
+        .filter(|&index| mesh.is_boundary_entity(MeshEntity::new(1, index)) == Some(true))
         .count();
     assert_eq!(boundary_count, owned_boundary.len());
     assert_eq!(
         correspondence
-            .region_entity_set_entities(&geometry, "fluid")
+            .region_entity_set_entities(geometry, "fluid")
             .unwrap()
             .len(),
         104
@@ -263,6 +224,7 @@ fn entity_propagation_source_binding_and_failure_paths_are_closed() {
     let dfg_realization = realize(&dfg);
     let mapped = entity_mapping_source();
     let mapped_realization = realize(&mapped);
+    let mapped_region = mapped_realization.realized_geometry().region().unwrap();
     assert_ne!(dfg.digest_bytes(), mapped.digest_bytes());
     assert_ne!(dfg_realization.source(), mapped_realization.source());
 
@@ -276,22 +238,13 @@ fn entity_propagation_source_binding_and_failure_paths_are_closed() {
         ("face", 1),
     ] {
         assert_eq!(
-            mapped_realization
-                .region()
-                .entity_set(name)
-                .unwrap()
-                .members()
-                .len(),
+            mapped_region.entity_set(name).unwrap().members().len(),
             count,
             "source set {name} changed meaning while expanding to chords"
         );
     }
     assert_eq!(
-        mapped_realization
-            .region()
-            .entity_set("corners")
-            .unwrap()
-            .dimension(),
+        mapped_region.entity_set("corners").unwrap().dimension(),
         VERTEX_DIMENSION
     );
 
@@ -305,7 +258,7 @@ fn entity_propagation_source_binding_and_failure_paths_are_closed() {
         allowance,
         below_allowance,
     ] {
-        let error = CircularHoleChordalMeshV1::from_exact(
+        let error = AcceptedCircularHoleChordalRealizationV1::from_reference(
             &dfg,
             invalid_error,
             MAX_SEGMENTS,
@@ -315,7 +268,7 @@ fn entity_propagation_source_binding_and_failure_paths_are_closed() {
         assert_eq!(error.code(), codes::INVALID_ARTIFACT);
     }
     for max_segments in [7, 49, 100_001] {
-        let error = CircularHoleChordalMeshV1::from_exact(
+        let error = AcceptedCircularHoleChordalRealizationV1::from_reference(
             &dfg,
             MAX_BOUNDARY_ERROR_M,
             max_segments,
@@ -326,17 +279,30 @@ fn entity_propagation_source_binding_and_failure_paths_are_closed() {
     }
 
     let too_strict = MeshQualityGate::new(
-        0.5 * (1.0 + dfg_realization.mesh().quality_report().minimum_mean_ratio()),
+        0.5 * (1.0
+            + dfg_realization
+                .mesh()
+                .mesh()
+                .quality_report()
+                .minimum_mean_ratio()),
     )
     .unwrap();
-    let error =
-        CircularHoleChordalMeshV1::from_exact(&dfg, MAX_BOUNDARY_ERROR_M, MAX_SEGMENTS, too_strict)
-            .unwrap_err();
+    let error = AcceptedCircularHoleChordalRealizationV1::from_reference(
+        &dfg,
+        MAX_BOUNDARY_ERROR_M,
+        MAX_SEGMENTS,
+        too_strict,
+    )
+    .unwrap_err();
     assert_eq!(error.code(), codes::INVALID_MESH);
 
-    let coarse =
-        CircularHoleChordalMeshV1::from_exact(&dfg, 0.2, 8, MeshQualityGate::new(1.0e-8).unwrap())
-            .unwrap();
+    let coarse = AcceptedCircularHoleChordalRealizationV1::from_reference(
+        &dfg,
+        0.2,
+        8,
+        MeshQualityGate::new(1.0e-8).unwrap(),
+    )
+    .unwrap();
     assert_eq!(coarse.circle_segments(), 8);
 }
 
@@ -365,7 +331,7 @@ fn boundary_area_and_perimeter_converge_independently_at_second_order() {
     let mut area = Vec::new();
     let mut perimeter = Vec::new();
     for segments in [8, 16, 32, 64] {
-        let realization = CircularHoleChordalMeshV1::from_exact(
+        let realization = AcceptedCircularHoleChordalRealizationV1::from_reference(
             &source,
             request_selecting(segments, allowance_m),
             segments,

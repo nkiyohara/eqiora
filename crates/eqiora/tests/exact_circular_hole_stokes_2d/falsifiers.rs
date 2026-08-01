@@ -17,21 +17,10 @@ fn sparse_lu_fails_closed_at_the_superseded_residual_target() {
 fn geometry_binding_rejects_a_foreign_exact_source_revision() {
     let source = exact_source();
     let owner = frozen_owner(&source);
-    let geometry = GeometryDefinitionV1::from_region(owner.region());
-    let mesh = SimplicialMeshEnvelopeV1::from_mesh(owner.mesh()).expect("mesh artifact");
-    let correspondence = GeometryMeshCorrespondenceEnvelopeV1::from_region(&geometry, &mesh)
-        .expect("correspondence");
     let foreign = circular_source([0.21, 0.2], [0, 1], vec![2, 3], 4);
     let program = geometry_program_from_text(&foreign, SOURCE);
-    let error = SteadyStokesGeometryBinding2d::new(
-        &program,
-        foreign,
-        owner,
-        geometry,
-        mesh,
-        correspondence,
-    )
-    .expect_err("foreign source revision must reject before assembly");
+    let error = SteadyStokesGeometryBinding2d::new(&program, owner)
+        .expect_err("foreign source revision must reject before assembly");
     assert!(error.message().contains("another exact source revision"));
 }
 
@@ -39,31 +28,21 @@ fn geometry_binding_rejects_a_foreign_exact_source_revision() {
 fn geometry_binding_rejects_a_stale_mesh_correspondence() {
     let source = exact_source();
     let fine = frozen_owner(&source);
-    let fine_geometry = GeometryDefinitionV1::from_region(fine.region());
-    let fine_mesh = SimplicialMeshEnvelopeV1::from_mesh(fine.mesh()).expect("fine mesh artifact");
+    let fine_geometry = fine.realized_geometry().clone();
+    let fine_mesh = fine.mesh().clone();
     let stale = GeometryMeshCorrespondenceEnvelopeV1::from_region(&fine_geometry, &fine_mesh)
         .expect("fine correspondence");
 
-    let coarse = CircularHoleChordalMeshV1::from_exact(
+    let coarse = AcceptedCircularHoleChordalRealizationV1::from_reference(
         &source,
         0.2,
         8,
         MeshQualityGate::new(1.0e-8).expect("coarse quality gate"),
     )
     .expect("coarse owner");
-    let coarse_geometry = GeometryDefinitionV1::from_region(coarse.region());
-    let coarse_mesh =
-        SimplicialMeshEnvelopeV1::from_mesh(coarse.mesh()).expect("coarse mesh artifact");
-    let program = geometry_program_from_text(&source, SOURCE);
-    let error = SteadyStokesGeometryBinding2d::new(
-        &program,
-        source,
-        coarse,
-        coarse_geometry,
-        coarse_mesh,
-        stale,
-    )
-    .expect_err("stale correspondence must reject before assembly");
+    let error = coarse
+        .bind_conforming_mesh(coarse.mesh(), &stale)
+        .expect_err("stale correspondence must reject before assembly");
     assert!(
         error.message().contains("correspondence")
             || error.message().contains("artifact reference")
@@ -153,9 +132,9 @@ fn a_traction_cylinder_cannot_be_named_as_a_constrained_reaction_surface() {
 fn geometric_observation_selectors_ignore_vertex_and_cell_indices() {
     let source = exact_source();
     let owner = frozen_owner(&source);
-    let mesh = owner.mesh();
-    let geometry = GeometryDefinitionV1::from_region(owner.region());
-    let envelope = SimplicialMeshEnvelopeV1::from_mesh(mesh).expect("mesh artifact");
+    let mesh = owner.mesh().mesh();
+    let geometry = owner.realized_geometry().clone();
+    let envelope = owner.mesh().clone();
     let correspondence = GeometryMeshCorrespondenceEnvelopeV1::from_region(&geometry, &envelope)
         .expect("correspondence");
     let cylinder_facets = correspondence

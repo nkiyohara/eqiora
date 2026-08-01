@@ -29,9 +29,9 @@ The public byte property is named `mesh_canonical_json` because it encodes only
 the inner `SimplicialMeshEnvelopeV1`; its raw SHA-256 must not be substituted
 for the domain-separated `mesh_digest`.
 
-These values are the direct public
-`CircularHoleChordalMeshV1::from_exact` to
-`SimplicialMeshEnvelopeV1::from_mesh(owner.mesh())` projection. Reconstructing
+These values are the direct
+`AcceptedCircularHoleChordalRealizationV1::from_reference` to
+`accepted.mesh()` projection. Reconstructing
 from the accepted fluid fixture's cyclically rotated local cell order is an
 explicit negative route: it yields a different quality observation and
 artifact identity even though its mapped unordered cell sets agree.

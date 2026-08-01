@@ -9,13 +9,11 @@ use std::f64::consts::{PI, TAU};
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
-
-use crate::circular_hole::CircularHoleGeometry;
-use crate::{
+use eqiora_geometry::{
     CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, GeometryRevisionReference, NamedEntitySet,
     PlanarFace, PlanarRegion, VERTEX_DIMENSION,
 };
+use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
 
 const MINIMUM_SEGMENTS: usize = 8;
 const MAXIMUM_REFERENCE_SEGMENTS: usize = 100_000;
@@ -27,15 +25,8 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_ARTIFACT, message)
 }
 
-/// One exact-source-bound, error-controlled chordal reference mesh.
-///
-/// Construction is the only safe way to bind the generated straight-edged
-/// region and affine-triangle mesh to the exact circular-hole source. This
-/// value has no durable wire. Its fixed radial-fan topology is intended for
-/// conformance and bounded demonstrations; passing its quality gate is not a
-/// production mesh-quality claim.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CircularHoleChordalMeshV1 {
+pub(super) struct ChordalReference {
     source: GeometryRevisionReference,
     requested_max_boundary_error_m: f64,
     boundary_evaluation_allowance_m: f64,
@@ -47,7 +38,7 @@ pub struct CircularHoleChordalMeshV1 {
     mesh: SimplicialMesh,
 }
 
-impl CircularHoleChordalMeshV1 {
+impl ChordalReference {
     /// Derive one bounded chordal region and affine-triangle reference mesh.
     ///
     /// The circle uses a regular inscribed loop with phase
@@ -67,17 +58,15 @@ impl CircularHoleChordalMeshV1 {
     /// a boundary bound that cannot be met within the work limit. Mesh
     /// topology and quality failures retain the `SimplicialMesh` `EQ0803`
     /// diagnostic.
-    pub fn from_exact(
+    pub(super) fn from_exact(
         source: &CanonicalGeometryV1,
         requested_max_boundary_error_m: f64,
         max_segments: usize,
         quality_gate: MeshQualityGate,
     ) -> Result<Self, Diagnostic> {
-        let exact = source.circular_hole().ok_or_else(|| {
-            invalid("chordal circular-hole realization requires exact circular-hole geometry")
-        })?;
+        let exact = ChordalSource::from_exact(source)?;
         validate_work_limit(max_segments)?;
-        let evaluation_allowance_m = evaluation_allowance_m(exact)?;
+        let evaluation_allowance_m = evaluation_allowance_m(&exact)?;
         if !requested_max_boundary_error_m.is_finite()
             || requested_max_boundary_error_m <= evaluation_allowance_m
         {
@@ -92,7 +81,7 @@ impl CircularHoleChordalMeshV1 {
         let mut circle_segments = stable_segment_count(radius_m, effective_error_m, max_segments)?;
 
         let (circle, measurements) = loop {
-            let circle = sample_circle(exact, circle_segments)?;
+            let circle = sample_circle(&exact, circle_segments)?;
             validate_circle_loop(exact.circle_center(), &circle)?;
             let measurements = measure_circle(exact.circle_center(), radius_m, &circle)?;
             let accepted_bound = measurements.boundary_deviation_m + evaluation_allowance_m;
@@ -115,8 +104,8 @@ impl CircularHoleChordalMeshV1 {
 
         let boundary_error_bound_m = measurements.boundary_deviation_m + evaluation_allowance_m;
         let (vertices, cells, unnamed_region) =
-            build_reference_topology(exact, circle_segments, circle)?;
-        let region = attach_source_entity_sets(exact, &unnamed_region)?;
+            build_reference_topology(&exact, circle_segments, circle)?;
+        let region = attach_source_entity_sets(&exact, &unnamed_region)?;
         let mesh = SimplicialMesh::new(
             2,
             vertices
@@ -142,43 +131,43 @@ impl CircularHoleChordalMeshV1 {
 
     /// Exact circular-hole geometry revision that this mesh realizes.
     #[must_use]
-    pub const fn source(&self) -> GeometryRevisionReference {
+    pub(super) const fn source(&self) -> GeometryRevisionReference {
         self.source
     }
 
     /// Caller-requested maximum symmetric circular-boundary error in metres.
     #[must_use]
-    pub const fn requested_max_boundary_error_m(&self) -> f64 {
+    pub(super) const fn requested_max_boundary_error_m(&self) -> f64 {
         self.requested_max_boundary_error_m
     }
 
     /// Precommitted scale-aware binary64 evaluation allowance in metres.
     #[must_use]
-    pub const fn boundary_evaluation_allowance_m(&self) -> f64 {
+    pub(super) const fn boundary_evaluation_allowance_m(&self) -> f64 {
         self.boundary_evaluation_allowance_m
     }
 
     /// Accepted measured circular-boundary error bound in metres.
     #[must_use]
-    pub const fn boundary_error_bound_m(&self) -> f64 {
+    pub(super) const fn boundary_error_bound_m(&self) -> f64 {
         self.boundary_error_bound_m
     }
 
     /// Number of straight segments realizing the circular boundary.
     #[must_use]
-    pub const fn circle_segments(&self) -> usize {
+    pub(super) const fn circle_segments(&self) -> usize {
         self.circle_segments
     }
 
     /// Measured exact-circle minus chordal-loop area in square metres.
     #[must_use]
-    pub const fn circle_area_deficit_m2(&self) -> f64 {
+    pub(super) const fn circle_area_deficit_m2(&self) -> f64 {
         self.circle_area_deficit_m2
     }
 
     /// Measured exact-circle minus chordal-loop perimeter in metres.
     #[must_use]
-    pub const fn circle_perimeter_deficit_m(&self) -> f64 {
+    pub(super) const fn circle_perimeter_deficit_m(&self) -> f64 {
         self.circle_perimeter_deficit_m
     }
 
@@ -188,14 +177,64 @@ impl CircularHoleChordalMeshV1 {
     /// mesh's author-order vertex indices; use geometry/mesh correspondence
     /// rather than equating those index spaces.
     #[must_use]
-    pub const fn region(&self) -> &PlanarRegion {
+    pub(super) const fn region(&self) -> &PlanarRegion {
         &self.region
     }
 
     /// Validated affine-triangle reference mesh.
     #[must_use]
-    pub const fn mesh(&self) -> &SimplicialMesh {
+    pub(super) const fn mesh(&self) -> &SimplicialMesh {
         &self.mesh
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct ChordalSource {
+    bounds: [[f64; 2]; 2],
+    circle_center: [f64; 2],
+    circle_radius_m: f64,
+    tolerance_m: f64,
+    entity_sets: Vec<NamedEntitySet>,
+}
+
+impl ChordalSource {
+    fn from_exact(source: &CanonicalGeometryV1) -> Result<Self, Diagnostic> {
+        let bounds = source.circular_hole_bounds().ok_or_else(|| {
+            invalid("chordal circular-hole realization requires exact circular-hole geometry")
+        })?;
+        let circle_center = source.circular_hole_center().ok_or_else(|| {
+            invalid("chordal circular-hole realization requires exact circular-hole geometry")
+        })?;
+        let circle_radius_m = source.circular_hole_radius_m().ok_or_else(|| {
+            invalid("chordal circular-hole realization requires exact circular-hole geometry")
+        })?;
+        Ok(Self {
+            bounds: *bounds,
+            circle_center,
+            circle_radius_m,
+            tolerance_m: source.tolerance_m(),
+            entity_sets: source.entity_sets().to_vec(),
+        })
+    }
+
+    const fn bounds(&self) -> [[f64; 2]; 2] {
+        self.bounds
+    }
+
+    const fn circle_center(&self) -> [f64; 2] {
+        self.circle_center
+    }
+
+    const fn circle_radius_m(&self) -> f64 {
+        self.circle_radius_m
+    }
+
+    const fn tolerance_m(&self) -> f64 {
+        self.tolerance_m
+    }
+
+    fn entity_sets(&self) -> &[NamedEntitySet] {
+        &self.entity_sets
     }
 }
 
@@ -215,7 +254,7 @@ fn validate_work_limit(max_segments: usize) -> Result<(), Diagnostic> {
     Ok(())
 }
 
-fn evaluation_allowance_m(source: &CircularHoleGeometry) -> Result<f64, Diagnostic> {
+fn evaluation_allowance_m(source: &ChordalSource) -> Result<f64, Diagnostic> {
     let scale_m = source
         .bounds()
         .iter()
@@ -296,10 +335,7 @@ fn stable_sagitta_m(radius_m: f64, segments: u64) -> f64 {
     2.0 * radius_m * sine * sine
 }
 
-fn sample_circle(
-    source: &CircularHoleGeometry,
-    segments: usize,
-) -> Result<Vec<[f64; 2]>, Diagnostic> {
+fn sample_circle(source: &ChordalSource, segments: usize) -> Result<Vec<[f64; 2]>, Diagnostic> {
     let center = source.circle_center();
     let radius_m = source.circle_radius_m();
     let mut vertices = Vec::with_capacity(segments);
@@ -408,7 +444,7 @@ fn measure_circle(
 }
 
 fn build_reference_topology(
-    source: &CircularHoleGeometry,
+    source: &ChordalSource,
     segments: usize,
     circle: Vec<[f64; 2]>,
 ) -> Result<ReferenceTopologyBuild, Diagnostic> {
@@ -493,10 +529,7 @@ fn build_reference_topology(
     Ok((vertices, cells, unnamed_region))
 }
 
-fn ray_rectangle_intersection(
-    source: &CircularHoleGeometry,
-    theta: f64,
-) -> Result<[f64; 2], Diagnostic> {
+fn ray_rectangle_intersection(source: &ChordalSource, theta: f64) -> Result<[f64; 2], Diagnostic> {
     let center = source.circle_center();
     let bounds = source.bounds();
     let direction = [theta.cos(), theta.sin()];
@@ -532,7 +565,7 @@ fn ray_rectangle_intersection(
 }
 
 fn attach_source_entity_sets(
-    source: &CircularHoleGeometry,
+    source: &ChordalSource,
     unnamed: &PlanarRegion,
 ) -> Result<PlanarRegion, Diagnostic> {
     let corners = exact_rectangle_corners(source);
@@ -609,7 +642,7 @@ fn attach_source_entity_sets(
     )
 }
 
-fn exact_rectangle_corners(source: &CircularHoleGeometry) -> [[f64; 2]; 4] {
+fn exact_rectangle_corners(source: &ChordalSource) -> [[f64; 2]; 4] {
     let bounds = source.bounds();
     [
         [bounds[0][0], bounds[1][0]],
@@ -619,7 +652,7 @@ fn exact_rectangle_corners(source: &CircularHoleGeometry) -> [[f64; 2]; 4] {
     ]
 }
 
-fn rectangle_side(source: &CircularHoleGeometry, start: [f64; 2], end: [f64; 2]) -> Option<usize> {
+fn rectangle_side(source: &ChordalSource, start: [f64; 2], end: [f64; 2]) -> Option<usize> {
     let bounds = source.bounds();
     if start[0] == bounds[0][0] && end[0] == bounds[0][0] {
         Some(0)

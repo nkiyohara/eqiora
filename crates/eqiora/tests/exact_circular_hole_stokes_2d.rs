@@ -4,13 +4,13 @@ use std::num::NonZeroUsize;
 
 use eqiora::api::UnstructuredP1ScalarFieldProjection2d;
 use eqiora::artifact::{
-    DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1, FieldSnapshotEnvelopeV1,
-    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope,
-    RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
+    AcceptedCircularHoleChordalRealizationV1, DiscreteFieldEnvelopeV1, ExecutionProvenanceV1,
+    ExecutionTopologyV1, FieldSnapshotEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
+    LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV2, RunManifestV2,
 };
 use eqiora::geometry::{
-    CanonicalGeometryLimits, CanonicalGeometryRef, CanonicalGeometryV1, CircularHoleChordalMeshV1,
-    EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
+    CanonicalGeometryLimits, CanonicalGeometryRef, CanonicalGeometryV1, EDGE_DIMENSION,
+    FACE_DIMENSION, NamedEntitySet,
 };
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{BoundarySide, DomainDef, DomainKind, KernelNode};
@@ -70,15 +70,12 @@ fn exact_geometry_model_executes_the_frozen_reference_tuple() {
         solution,
         model,
         realization,
-        source,
         owner,
-        geometry,
-        correspondence,
-        mesh,
         inlet_facets,
         outlet_facets,
         wall_facets,
         cylinder_facets,
+        ..
     } = witness;
     let physical_mesh = solution.velocity().mesh();
     let oracle = frozen_oracle();
@@ -199,16 +196,7 @@ fn exact_geometry_model_executes_the_frozen_reference_tuple() {
             * (1.0 + dimensionless.continuity_residual_norm() + report.residual_target());
     assert!(dimensionless.continuity_residual_norm() <= weak_bound);
 
-    assert_studio_pressure_projection(
-        &solution,
-        &model,
-        &realization,
-        &source,
-        &owner,
-        &geometry,
-        &correspondence,
-        &mesh,
-    );
+    assert_studio_pressure_projection(&solution, &model, &realization, &owner);
 }
 
 #[path = "exact_circular_hole_stokes_2d/falsifiers.rs"]
@@ -218,11 +206,7 @@ struct ExecutedWitness {
     solution: SteadyStokesMiniSolution2d,
     model: ModelEnvelope,
     realization: RealizationEnvelopeV2,
-    source: CanonicalGeometryV1,
-    owner: CircularHoleChordalMeshV1,
-    geometry: GeometryDefinitionV1,
-    correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-    mesh: SimplicialMeshEnvelopeV1,
+    owner: AcceptedCircularHoleChordalRealizationV1,
     inlet_facets: Vec<MeshEntity>,
     outlet_facets: Vec<MeshEntity>,
     wall_facets: Vec<MeshEntity>,
@@ -262,8 +246,8 @@ fn execute_program_witness(
 ) -> Result<ExecutedWitness, Diagnostic> {
     let owner = frozen_owner(&source);
     assert_frozen_mesh_inventory(&owner);
-    let geometry = GeometryDefinitionV1::from_region(owner.region());
-    let mesh = SimplicialMeshEnvelopeV1::from_mesh(owner.mesh()).expect("mesh artifact");
+    let geometry = owner.realized_geometry().clone();
+    let mesh = owner.mesh().clone();
     let mesh_reference = mesh.artifact_reference().expect("mesh identity");
     let correspondence = GeometryMeshCorrespondenceEnvelopeV1::from_region(&geometry, &mesh)
         .expect("correspondence");
@@ -279,14 +263,7 @@ fn execute_program_witness(
     let cylinder_facets = correspondence
         .region_entity_set_entities(&geometry, "cylinder")
         .expect("cylinder facets");
-    let binding = SteadyStokesGeometryBinding2d::new(
-        &program,
-        source.clone(),
-        owner.clone(),
-        geometry.clone(),
-        mesh.clone(),
-        correspondence.clone(),
-    )?;
+    let binding = SteadyStokesGeometryBinding2d::new(&program, owner.clone())?;
     let scales = IncompressibleFlowScaleProfile2d::new(
         DynQuantity::new(0.41, LENGTH),
         DynQuantity::new(0.3, VELOCITY),
@@ -337,11 +314,7 @@ fn execute_program_witness(
         solution,
         model,
         realization,
-        source,
         owner,
-        geometry,
-        correspondence,
-        mesh,
         inlet_facets,
         outlet_facets,
         wall_facets,
@@ -430,17 +403,13 @@ fn assert_same_example_solution(
     );
 }
 
-#[allow(clippy::too_many_arguments)]
 fn assert_studio_pressure_projection(
     solution: &SteadyStokesMiniSolution2d,
     model: &ModelEnvelope,
     realization: &RealizationEnvelopeV2,
-    source: &CanonicalGeometryV1,
-    owner: &CircularHoleChordalMeshV1,
-    geometry: &GeometryDefinitionV1,
-    correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
-    mesh: &SimplicialMeshEnvelopeV1,
+    owner: &AcceptedCircularHoleChordalRealizationV1,
 ) {
+    let mesh = owner.mesh();
     let payload = DiscreteFieldPayload::new(
         mesh.mesh(),
         DiscreteFieldAssociation::Vertex,
@@ -453,11 +422,7 @@ fn assert_studio_pressure_projection(
     let snapshot = FieldSnapshotEnvelopeV1::new_authored_fieldwise(
         model,
         realization,
-        source,
         owner,
-        geometry,
-        correspondence,
-        mesh,
         solution.pressure_field(),
         std::slice::from_ref(&block),
     )
@@ -478,11 +443,7 @@ fn assert_studio_pressure_projection(
     let projection = UnstructuredP1ScalarFieldProjection2d::from_authored_fieldwise_snapshot(
         model,
         realization,
-        source,
         owner,
-        geometry,
-        correspondence,
-        mesh,
         &run,
         &snapshot,
         &block,
@@ -596,12 +557,12 @@ fn assert_frozen_boundary_partition(
     assert_eq!(partition.len(), 104);
 }
 
-fn assert_frozen_mesh_inventory(owner: &CircularHoleChordalMeshV1) {
+fn assert_frozen_mesh_inventory(owner: &AcceptedCircularHoleChordalRealizationV1) {
     let frozen: FrozenMesh = serde_json::from_str(include_str!(
         "../../../verify/fluid/exact-circular-hole-stokes-2d/mesh/mesh.json"
     ))
     .expect("frozen oracle mesh parses");
-    let mesh = owner.mesh();
+    let mesh = owner.mesh().mesh();
     assert_eq!(mesh.vertices().len(), frozen.vertices_m.len());
     assert_eq!(mesh.cells().len(), frozen.cells.len());
     let coordinate_tolerance = owner.boundary_evaluation_allowance_m();
@@ -894,8 +855,8 @@ fn circular_source(
     .expect("frozen exact source")
 }
 
-fn frozen_owner(source: &CanonicalGeometryV1) -> CircularHoleChordalMeshV1 {
-    CircularHoleChordalMeshV1::from_exact(
+fn frozen_owner(source: &CanonicalGeometryV1) -> AcceptedCircularHoleChordalRealizationV1 {
+    AcceptedCircularHoleChordalRealizationV1::from_reference(
         source,
         1.0e-4,
         50,
