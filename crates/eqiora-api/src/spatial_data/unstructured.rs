@@ -11,7 +11,7 @@ use eqiora_artifact::{
 };
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id};
-use eqiora_geometry::{CanonicalCircularHoleGeometryV1, CircularHoleChordalMeshV1};
+use eqiora_geometry::{CanonicalGeometryV1, CircularHoleChordalMeshV1};
 use eqiora_meshing::{DiscreteFieldAssociation, DiscreteFieldShape};
 
 const MAX_APPLICATION_P1_VERTICES: usize = 250_000;
@@ -103,7 +103,7 @@ impl UnstructuredP1ScalarFieldProjection2d {
     pub fn from_authored_fieldwise_snapshot(
         model: &ModelEnvelope,
         realization: &RealizationEnvelopeV2,
-        source: &CanonicalCircularHoleGeometryV1,
+        source: &CanonicalGeometryV1,
         owner: &CircularHoleChordalMeshV1,
         geometry: &GeometryDefinitionV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,

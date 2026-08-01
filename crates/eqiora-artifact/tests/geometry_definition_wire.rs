@@ -2,7 +2,9 @@ use std::path::Path;
 use std::process::Command;
 
 use eqiora_artifact::{GeometryDefinitionDecoderLimits, GeometryDefinitionV1, JsonDecoderLimits};
-use eqiora_geometry::{EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion};
+use eqiora_geometry::{
+    CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion,
+};
 
 const EXPECTED_JSON: &str = r#"{"schema":"eqiora.geometry-definition-envelope/v1","encoding":"eqiora.canonical-json/v1","kind":"straight-edged-planar-v1","length-unit":"metre","tolerance-m":0.0625,"vertices":[[0.0,0.0],[0.0,1.0],[0.25,0.25],[0.25,0.75],[0.75,0.25],[0.75,0.75],[1.0,0.0],[1.0,1.0]],"faces":[{"outer":[0,6,7,1],"holes":[[2,3,5,4]]}],"entity-sets":[{"name":"exterior","dimension":1,"members":[0,1,2,3]},{"name":"hole","dimension":1,"members":[4,5,6,7]},{"name":"fluid","dimension":2,"members":[0]}]}"#;
 const EXPECTED_DIGEST: &str = "e6f8e17ac215ef37ca3c9de07b9979e34f13412a5de11dc9240ea1def8130030";
@@ -93,6 +95,26 @@ fn independent_oracle_and_external_round_trip_are_exact() {
             .as_str(),
         EXPECTED_DIGEST
     );
+}
+
+#[test]
+fn straight_artifact_decoder_rejects_the_legacy_circular_wire() {
+    let circular = CanonicalGeometryV1::from_circular_hole(
+        [[0.0, 2.2], [0.0, 0.41]],
+        [0.2, 0.2],
+        0.05,
+        vec![
+            NamedEntitySet::new("inlet", EDGE_DIMENSION, vec![0]),
+            NamedEntitySet::new("outlet", EDGE_DIMENSION, vec![1]),
+            NamedEntitySet::new("walls", EDGE_DIMENSION, vec![2, 3]),
+            NamedEntitySet::new("cylinder", EDGE_DIMENSION, vec![4]),
+            NamedEntitySet::new("fluid", FACE_DIMENSION, vec![0]),
+        ],
+        1.0e-12,
+    )
+    .unwrap();
+    assert_eq!(circular.canonical_bytes().len(), 511);
+    assert!(GeometryDefinitionV1::from_json(circular.canonical_bytes(), limits()).is_err());
 }
 
 #[test]

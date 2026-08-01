@@ -8,8 +8,8 @@ use eqiora::artifact::{
 };
 use eqiora::diagnostic::codes;
 use eqiora::geometry::{
-    CanonicalCircularHoleGeometryV1, CircularHoleChordalMeshV1, EDGE_DIMENSION, FACE_DIMENSION,
-    NamedEntitySet, VERTEX_DIMENSION,
+    CanonicalGeometryV1, CircularHoleChordalMeshV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
+    VERTEX_DIMENSION,
 };
 use eqiora::meshing::{MeshEntity, MeshQualityGate, MeshTopology};
 use sha2::{Digest, Sha256};
@@ -23,8 +23,8 @@ const MAX_SEGMENTS: usize = 50;
 const MINIMUM_QUALITY: f64 = 1.0e-5;
 const ORACLE_SHA256: &str = "0bdbbec6f9ff9c532ba5f30c856d1cd3b25e64949e4b11abf5fa3823e6a25742";
 
-fn dfg_source() -> CanonicalCircularHoleGeometryV1 {
-    CanonicalCircularHoleGeometryV1::new(
+fn dfg_source() -> CanonicalGeometryV1 {
+    CanonicalGeometryV1::from_circular_hole(
         BOUNDS,
         CENTER,
         RADIUS_M,
@@ -40,8 +40,8 @@ fn dfg_source() -> CanonicalCircularHoleGeometryV1 {
     .unwrap()
 }
 
-fn entity_mapping_source() -> CanonicalCircularHoleGeometryV1 {
-    CanonicalCircularHoleGeometryV1::new(
+fn entity_mapping_source() -> CanonicalGeometryV1 {
+    CanonicalGeometryV1::from_circular_hole(
         BOUNDS,
         CENTER,
         RADIUS_M,
@@ -63,7 +63,7 @@ fn quality_gate() -> MeshQualityGate {
     MeshQualityGate::new(MINIMUM_QUALITY).unwrap()
 }
 
-fn realize(source: &CanonicalCircularHoleGeometryV1) -> CircularHoleChordalMeshV1 {
+fn realize(source: &CanonicalGeometryV1) -> CircularHoleChordalMeshV1 {
     CircularHoleChordalMeshV1::from_exact(
         source,
         MAX_BOUNDARY_ERROR_M,
@@ -71,6 +71,21 @@ fn realize(source: &CanonicalCircularHoleGeometryV1) -> CircularHoleChordalMeshV
         quality_gate(),
     )
     .unwrap()
+}
+
+#[test]
+fn straight_geometry_is_not_an_exact_circle_source() {
+    let exact = dfg_source();
+    let chordal = realize(&exact);
+    let straight = CanonicalGeometryV1::from_region(chordal.region()).unwrap();
+    let error = CircularHoleChordalMeshV1::from_exact(
+        &straight,
+        MAX_BOUNDARY_ERROR_M,
+        MAX_SEGMENTS,
+        quality_gate(),
+    )
+    .expect_err("straight geometry cannot enter the circular realization");
+    assert_eq!(error.code(), codes::INVALID_ARTIFACT);
 }
 
 fn oracle_path() -> std::path::PathBuf {

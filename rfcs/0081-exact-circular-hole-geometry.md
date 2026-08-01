@@ -10,10 +10,11 @@
 
 ## Summary
 
-One sibling canonical geometry family owns an axis-aligned rectangle with one
-strictly interior exact circular hole. Rectangle bounds, circle centre and
-radius, classification tolerance, and named exact entity sets determine its
-canonical bytes and content identity. Numerical refinement does not.
+One private kind of the common canonical geometry owner retains an
+axis-aligned rectangle with one strictly interior exact circular hole.
+Rectangle bounds, circle centre and radius, classification tolerance, and
+named exact entity sets determine its canonical bytes and content identity.
+Numerical refinement does not.
 
 The existing kind-erased geometry reference admits this family into the
 Semantic Model without adding a semantic geometry-kind switch. Chordal mesh
@@ -35,7 +36,7 @@ distinct capabilities closed.
 
 ## Exact geometry
 
-`CanonicalCircularHoleGeometryV1` privately owns:
+`CanonicalGeometryV1` privately owns:
 
 - two `[lower, upper]` axis bounds in metres;
 - one circle centre `[x, y]` and positive radius in metres;
@@ -68,7 +69,7 @@ and radius are stored directly rather than reconstructed from sampled points.
 
 ## Wire and identity
 
-The sibling schema and domain separator are:
+The separate closed schema and domain separator are:
 
 ```text
 eqiora.planar-circular-hole-envelope/v1
@@ -172,11 +173,9 @@ kind-erased semantic bundle behavior.
 ## Compatibility and architecture
 
 No existing wire, digest, Model v7 byte, structural fingerprint, or semantic
-diagnostic changes. The geometry public surface rises by one for the opaque
-canonical family. This is a reviewed architecture change; its deletion
-condition is to fold sibling canonical owners into one equally non-forgeable
-kind-erased owned value without exposing geometry bytes or caller-authored
-facts.
+diagnostic changes. The original exact-circle owner was subsequently folded
+into the equally non-forgeable common opaque canonical owner, removing that
+public type while preserving this wire and its kind-specific replay entry.
 
 ## Nonclaims
 

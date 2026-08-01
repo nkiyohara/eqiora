@@ -7,8 +7,8 @@ use eqiora::artifact::{
     RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora::geometry::{
-    CanonicalCircularHoleGeometryV1, CanonicalGeometryRef, CircularHoleChordalMeshV1,
-    FACE_DIMENSION, NamedEntitySet,
+    CanonicalGeometryRef, CanonicalGeometryV1, CircularHoleChordalMeshV1, FACE_DIMENSION,
+    NamedEntitySet,
 };
 use eqiora::graph::{GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{DomainDef, DomainKind, KernelNode};
@@ -53,7 +53,7 @@ const PRESSURE: DimExponents = DimExponents {
 struct AcceptedAuthoredField {
     model: ModelEnvelope,
     realization: RealizationEnvelopeV2,
-    source: CanonicalCircularHoleGeometryV1,
+    source: CanonicalGeometryV1,
     owner: CircularHoleChordalMeshV1,
     geometry: GeometryDefinitionV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
@@ -88,7 +88,7 @@ impl AcceptedAuthoredField {
 struct AuthoredProjectionInputs<'a> {
     model: &'a ModelEnvelope,
     realization: &'a RealizationEnvelopeV2,
-    source: &'a CanonicalCircularHoleGeometryV1,
+    source: &'a CanonicalGeometryV1,
     owner: &'a CircularHoleChordalMeshV1,
     geometry: &'a GeometryDefinitionV1,
     correspondence: &'a GeometryMeshCorrespondenceEnvelopeV1,
@@ -430,8 +430,8 @@ fn scale(dimension: DimExponents) -> PositivePhysicalScale {
     PositivePhysicalScale::new(DynQuantity::new(1.0, dimension)).unwrap()
 }
 
-fn exact_source(center: [f64; 2]) -> CanonicalCircularHoleGeometryV1 {
-    CanonicalCircularHoleGeometryV1::new(
+fn exact_source(center: [f64; 2]) -> CanonicalGeometryV1 {
+    CanonicalGeometryV1::from_circular_hole(
         [[0.0, 2.2], [0.0, 0.41]],
         center,
         0.05,
@@ -441,7 +441,7 @@ fn exact_source(center: [f64; 2]) -> CanonicalCircularHoleGeometryV1 {
     .expect("exact circular-hole source")
 }
 
-fn geometry_program(source: &CanonicalCircularHoleGeometryV1) -> KernelProgram {
+fn geometry_program(source: &CanonicalGeometryV1) -> KernelProgram {
     let cartesian = eqiora::api::ModelDocument::compile("authored-p1-projection.eqi", SOURCE)
         .expect("Cartesian scaffold");
     let program = cartesian.program();

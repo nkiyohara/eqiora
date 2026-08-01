@@ -1,9 +1,10 @@
-//! Canonical identity of one authored straight-edged planar geometry.
+//! Canonical identity of the admitted authored planar geometries.
 //!
 //! Geometry owns the content and its identity. Artifact crates may wrap this
 //! value in their own reference types, but no caller can supply a digest or an
-//! entity catalog independently of the validated region from which both are
-//! derived.
+//! entity catalog independently of the validated exact content from which
+//! both are derived. The accepted straight and circular wires remain separate,
+//! closed replay contracts behind one opaque public owner.
 
 use core::fmt;
 
@@ -12,9 +13,8 @@ use eqiora_core::diagnostic::codes;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{
-    CanonicalCircularHoleGeometryV1, EDGE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion,
-};
+use crate::circular_hole::CircularHoleGeometry;
+use crate::{EDGE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion};
 
 const GEOMETRY_DEFINITION_SCHEMA: &str = "eqiora.geometry-definition-envelope/v1";
 pub(crate) const CANONICAL_ENCODING: &str = "eqiora.canonical-json/v1";
@@ -58,14 +58,22 @@ impl Default for CanonicalGeometryLimits {
 
 /// Opaque canonical content and identity of one planar geometry revision.
 ///
-/// This value can only be derived from a validated [`PlanarRegion`] or from
-/// bounded canonical bytes that revalidate to exactly those same bytes. It has
+/// This value can only be derived from one admitted exact kind or from its
+/// kind-specific bounded canonical replay. It has no public kind catalogue and
 /// no constructor accepting a caller-provided digest or entity-set facts.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CanonicalGeometryV1 {
-    region: PlanarRegion,
-    bytes: Vec<u8>,
-    digest: [u8; 32],
+    kind: CanonicalGeometryKind,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum CanonicalGeometryKind {
+    StraightEdgedPlanarV1 {
+        region: PlanarRegion,
+        bytes: Vec<u8>,
+        digest: [u8; 32],
+    },
+    CircularHolePlanarV1(CircularHoleGeometry),
 }
 
 /// Borrowed, kind-erased semantic facts from one canonical geometry.
@@ -75,28 +83,12 @@ pub struct CanonicalGeometryV1 {
 /// from caller-supplied digest and dimension facts.
 #[derive(Clone, Copy, PartialEq)]
 pub struct CanonicalGeometryRef<'a> {
-    kind: CanonicalGeometryKindRef<'a>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum CanonicalGeometryKindRef<'a> {
-    StraightEdgedPlanarV1(&'a CanonicalGeometryV1),
-    CircularHolePlanarV1(&'a CanonicalCircularHoleGeometryV1),
+    geometry: &'a CanonicalGeometryV1,
 }
 
 impl<'a> From<&'a CanonicalGeometryV1> for CanonicalGeometryRef<'a> {
     fn from(geometry: &'a CanonicalGeometryV1) -> Self {
-        Self {
-            kind: CanonicalGeometryKindRef::StraightEdgedPlanarV1(geometry),
-        }
-    }
-}
-
-impl<'a> From<&'a CanonicalCircularHoleGeometryV1> for CanonicalGeometryRef<'a> {
-    fn from(geometry: &'a CanonicalCircularHoleGeometryV1) -> Self {
-        Self {
-            kind: CanonicalGeometryKindRef::CircularHolePlanarV1(geometry),
-        }
+        Self { geometry }
     }
 }
 
@@ -115,42 +107,33 @@ impl CanonicalGeometryRef<'_> {
     /// Complete domain-separated content identity.
     #[must_use]
     pub const fn digest_bytes(self) -> [u8; 32] {
-        match self.kind {
-            CanonicalGeometryKindRef::StraightEdgedPlanarV1(geometry) => geometry.digest_bytes(),
-            CanonicalGeometryKindRef::CircularHolePlanarV1(geometry) => geometry.digest_bytes(),
-        }
+        self.geometry.digest_bytes()
     }
 
     /// Dimension of the physical coordinate embedding.
     #[must_use]
     pub const fn ambient_dimension(self) -> usize {
-        match self.kind {
-            CanonicalGeometryKindRef::StraightEdgedPlanarV1(_)
-            | CanonicalGeometryKindRef::CircularHolePlanarV1(_) => 2,
+        match &self.geometry.kind {
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. }
+            | CanonicalGeometryKind::CircularHolePlanarV1(_) => 2,
         }
     }
 
     /// Highest topological dimension represented by the geometry.
     #[must_use]
     pub const fn topological_dimension(self) -> usize {
-        match self.kind {
-            CanonicalGeometryKindRef::StraightEdgedPlanarV1(_)
-            | CanonicalGeometryKindRef::CircularHolePlanarV1(_) => 2,
+        match &self.geometry.kind {
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. }
+            | CanonicalGeometryKind::CircularHolePlanarV1(_) => 2,
         }
     }
 
     /// Topological dimension of one exact entity-set name.
     #[must_use]
     pub fn entity_set_dimension(self, name: &str) -> Option<usize> {
-        match self.kind {
-            CanonicalGeometryKindRef::StraightEdgedPlanarV1(geometry) => geometry
-                .region()
-                .entity_set(name)
-                .map(NamedEntitySet::dimension),
-            CanonicalGeometryKindRef::CircularHolePlanarV1(geometry) => {
-                geometry.entity_set(name).map(NamedEntitySet::dimension)
-            }
-        }
+        self.geometry
+            .entity_set(name)
+            .map(NamedEntitySet::dimension)
     }
 
     /// Exact constant parent-outward normal of one supported boundary set.
@@ -161,10 +144,8 @@ impl CanonicalGeometryRef<'_> {
     /// callers must not infer a catalogue from entity indices themselves.
     #[must_use]
     pub fn constant_parent_outward_normal(self, name: &str) -> Option<[f64; 2]> {
-        let CanonicalGeometryKindRef::CircularHolePlanarV1(geometry) = self.kind else {
-            return None;
-        };
-        let set = geometry.entity_set(name)?;
+        self.geometry.circular_hole()?;
+        let set = self.geometry.entity_set(name)?;
         if set.dimension() != EDGE_DIMENSION {
             return None;
         }
@@ -192,9 +173,11 @@ impl CanonicalGeometryV1 {
             ))
         })?;
         Ok(Self {
-            region: region.clone(),
-            digest: digest_with_schema(GEOMETRY_DEFINITION_SCHEMA, &bytes),
-            bytes,
+            kind: CanonicalGeometryKind::StraightEdgedPlanarV1 {
+                region: region.clone(),
+                digest: digest_with_schema(GEOMETRY_DEFINITION_SCHEMA, &bytes),
+                bytes,
+            },
         })
     }
 
@@ -224,7 +207,7 @@ impl CanonicalGeometryV1 {
         wire.check_limits(limits)?;
         let region = wire.into_region()?;
         let canonical = Self::from_region(&region)?;
-        if canonical.bytes != bytes {
+        if canonical.canonical_bytes() != bytes {
             return Err(invalid(
                 "geometry definition JSON is not the canonical encoding of its content",
             ));
@@ -232,22 +215,172 @@ impl CanonicalGeometryV1 {
         Ok(canonical)
     }
 
-    /// Validated canonical region content.
+    /// Construct one exact axis-aligned rectangle-minus-circle geometry.
+    ///
+    /// This preserves the accepted circular-hole wire and digest while the
+    /// public owner remains independent of that one shape family.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for invalid exact geometry or entity-set meaning.
+    pub fn from_circular_hole(
+        bounds: [[f64; 2]; 2],
+        circle_center: [f64; 2],
+        circle_radius_m: f64,
+        entity_sets: Vec<NamedEntitySet>,
+        tolerance_m: f64,
+    ) -> Result<Self, Diagnostic> {
+        CircularHoleGeometry::new(
+            bounds,
+            circle_center,
+            circle_radius_m,
+            entity_sets,
+            tolerance_m,
+        )
+        .map(|geometry| Self {
+            kind: CanonicalGeometryKind::CircularHolePlanarV1(geometry),
+        })
+    }
+
+    /// Construct one exact rectangle-minus-circle geometry from semantic roles.
+    ///
+    /// Equal boundary names group their fixed roles into one entity set.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for invalid exact geometry, tolerance, or role meaning.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_circular_hole_named_roles(
+        bounds: [[f64; 2]; 2],
+        circle_center: [f64; 2],
+        circle_radius_m: f64,
+        tolerance_m: f64,
+        region: &str,
+        x_lower: &str,
+        x_upper: &str,
+        y_lower: &str,
+        y_upper: &str,
+        hole: &str,
+    ) -> Result<Self, Diagnostic> {
+        CircularHoleGeometry::from_named_roles(
+            bounds,
+            circle_center,
+            circle_radius_m,
+            tolerance_m,
+            region,
+            x_lower,
+            x_upper,
+            y_lower,
+            y_upper,
+            hole,
+        )
+        .map(|geometry| Self {
+            kind: CanonicalGeometryKind::CircularHolePlanarV1(geometry),
+        })
+    }
+
+    /// Decode the accepted circular-hole wire without widening the straight decoder.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for malformed, unknown, excessive, invalid, or
+    /// noncanonical circular-hole bytes.
+    pub fn decode_circular_hole_canonical(
+        bytes: &[u8],
+        limits: CanonicalGeometryLimits,
+    ) -> Result<Self, Diagnostic> {
+        CircularHoleGeometry::decode_canonical(bytes, limits).map(|geometry| Self {
+            kind: CanonicalGeometryKind::CircularHolePlanarV1(geometry),
+        })
+    }
+
+    /// Validated straight-edged region content, if this kind has one.
+    ///
+    /// An exact curved geometry never fabricates its numerical chordal
+    /// realization as exact region meaning.
     #[must_use]
-    pub const fn region(&self) -> &PlanarRegion {
-        &self.region
+    pub const fn region(&self) -> Option<&PlanarRegion> {
+        match &self.kind {
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } => Some(region),
+            CanonicalGeometryKind::CircularHolePlanarV1(_) => None,
+        }
+    }
+
+    /// Exact axis-aligned bounds for the admitted circular-hole kind.
+    #[must_use]
+    pub const fn circular_hole_bounds(&self) -> Option<&[[f64; 2]; 2]> {
+        match &self.kind {
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
+            CanonicalGeometryKind::CircularHolePlanarV1(geometry) => Some(geometry.bounds()),
+        }
+    }
+
+    /// Exact circle centre for the admitted circular-hole kind.
+    #[must_use]
+    pub const fn circular_hole_center(&self) -> Option<[f64; 2]> {
+        match &self.kind {
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
+            CanonicalGeometryKind::CircularHolePlanarV1(geometry) => Some(geometry.circle_center()),
+        }
+    }
+
+    /// Exact circle radius for the admitted circular-hole kind.
+    #[must_use]
+    pub const fn circular_hole_radius_m(&self) -> Option<f64> {
+        match &self.kind {
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
+            CanonicalGeometryKind::CircularHolePlanarV1(geometry) => {
+                Some(geometry.circle_radius_m())
+            }
+        }
+    }
+
+    /// Producer classification precision in metres.
+    #[must_use]
+    pub const fn tolerance_m(&self) -> f64 {
+        match &self.kind {
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } => region.tolerance_m(),
+            CanonicalGeometryKind::CircularHolePlanarV1(geometry) => geometry.tolerance_m(),
+        }
+    }
+
+    /// Canonically ordered named exact entity sets.
+    #[must_use]
+    pub fn entity_sets(&self) -> &[NamedEntitySet] {
+        match &self.kind {
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } => region.entity_sets(),
+            CanonicalGeometryKind::CircularHolePlanarV1(geometry) => geometry.entity_sets(),
+        }
+    }
+
+    /// One exact named entity set.
+    #[must_use]
+    pub fn entity_set(&self, name: &str) -> Option<&NamedEntitySet> {
+        self.entity_sets()
+            .iter()
+            .find(|candidate| candidate.name() == name)
     }
 
     /// Exact compact canonical JSON bytes.
     #[must_use]
     pub fn canonical_bytes(&self) -> &[u8] {
-        &self.bytes
+        match &self.kind {
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { bytes, .. } => bytes,
+            CanonicalGeometryKind::CircularHolePlanarV1(geometry) => geometry.canonical_bytes(),
+        }
     }
 
     /// Complete domain-separated SHA-256 identity bytes.
     #[must_use]
     pub const fn digest_bytes(&self) -> [u8; 32] {
-        self.digest
+        match &self.kind {
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { digest, .. } => *digest,
+            CanonicalGeometryKind::CircularHolePlanarV1(geometry) => geometry.digest_bytes(),
+        }
+    }
+
+    pub(crate) const fn circular_hole(&self) -> Option<&CircularHoleGeometry> {
+        match &self.kind {
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
+            CanonicalGeometryKind::CircularHolePlanarV1(geometry) => Some(geometry),
+        }
     }
 }
 

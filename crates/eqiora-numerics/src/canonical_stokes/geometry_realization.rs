@@ -8,7 +8,7 @@ use eqiora_artifact::{
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_geometry::{CanonicalCircularHoleGeometryV1, CircularHoleChordalMeshV1};
+use eqiora_geometry::{CanonicalGeometryV1, CircularHoleChordalMeshV1};
 use eqiora_meshing::{MeshEntity, MeshTopology, SimplicialMesh};
 use eqiora_realization::{
     FieldwiseRealizationPlan, FieldwiseRealizationRequirements, MeshArtifactReference,
@@ -42,13 +42,13 @@ struct GeometryBoundary2d {
 /// Replay-validated exact-circle to affine-mesh binding for steady Stokes.
 ///
 /// This value is deliberately narrower than a geometry framework. It accepts
-/// the one bounded circular-hole owner, its ordinary region and mesh artifacts,
-/// and the authored-region correspondence. Named sets are resolved once
-/// through that correspondence and never recovered from coordinates.
+/// the circular kind of the common exact owner, its ordinary region and mesh
+/// artifacts, and the authored-region correspondence. Named sets are resolved
+/// once through that correspondence and never recovered from coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SteadyStokesGeometryBinding2d {
     model: SteadyIncompressibleStokesModel2d,
-    source: CanonicalCircularHoleGeometryV1,
+    source: CanonicalGeometryV1,
     owner: CircularHoleChordalMeshV1,
     geometry: GeometryDefinitionV1,
     mesh: SimplicialMeshEnvelopeV1,
@@ -64,7 +64,7 @@ impl SteadyStokesGeometryBinding2d {
     /// fluid-cell inventory drift before any Stokes assembly can begin.
     pub fn new(
         program: &KernelProgram,
-        source: CanonicalCircularHoleGeometryV1,
+        source: CanonicalGeometryV1,
         owner: CircularHoleChordalMeshV1,
         geometry: GeometryDefinitionV1,
         mesh: SimplicialMeshEnvelopeV1,

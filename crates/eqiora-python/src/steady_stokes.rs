@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 use eqiora::api::CircularHoleSteadyStokesResult2d;
 use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
 use eqiora::backends::faer::FaerLinearSolver;
-use eqiora::geometry::{CanonicalCircularHoleGeometryV1, CircularHoleChordalMeshV1};
+use eqiora::geometry::{CanonicalGeometryV1, CircularHoleChordalMeshV1};
 use numpy::PyArray2;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule};
@@ -423,8 +423,8 @@ pub(crate) fn solve_exact_cylinder_stokes(
 ) -> PyResult<PyCircularHoleSteadyStokesResult> {
     panic_boundary(py, || {
         let model = model.to_vec();
-        let source: CanonicalCircularHoleGeometryV1 = geometry.geometry().clone();
-        let mesh_source: CanonicalCircularHoleGeometryV1 = mesh.source().clone();
+        let source: CanonicalGeometryV1 = geometry.geometry().clone();
+        let mesh_source: CanonicalGeometryV1 = mesh.source().clone();
         let owner: CircularHoleChordalMeshV1 = mesh.owner().clone();
         let native = py.detach(move || {
             if source != mesh_source {

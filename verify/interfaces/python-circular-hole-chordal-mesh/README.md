@@ -30,7 +30,7 @@ case. The expected artifact is derived through the exact public Rust chain the
 adapter must expose:
 
 ```text
-CanonicalCircularHoleGeometryV1
+CanonicalGeometryV1
   -> CircularHoleChordalMeshV1::from_exact(..., 1e-4, 50, MeshQualityGate(1e-5))
   -> SimplicialMeshEnvelopeV1::from_mesh(owner.mesh())
 ```

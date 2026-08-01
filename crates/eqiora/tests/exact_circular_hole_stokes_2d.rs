@@ -9,8 +9,8 @@ use eqiora::artifact::{
     RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora::geometry::{
-    CanonicalCircularHoleGeometryV1, CanonicalGeometryLimits, CanonicalGeometryRef,
-    CircularHoleChordalMeshV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
+    CanonicalGeometryLimits, CanonicalGeometryRef, CanonicalGeometryV1, CircularHoleChordalMeshV1,
+    EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
 };
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{BoundarySide, DomainDef, DomainKind, KernelNode};
@@ -218,7 +218,7 @@ struct ExecutedWitness {
     solution: SteadyStokesMiniSolution2d,
     model: ModelEnvelope,
     realization: RealizationEnvelopeV2,
-    source: CanonicalCircularHoleGeometryV1,
+    source: CanonicalGeometryV1,
     owner: CircularHoleChordalMeshV1,
     geometry: GeometryDefinitionV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
@@ -230,7 +230,7 @@ struct ExecutedWitness {
 }
 
 fn execute_witness(relative_tolerance: f64) -> Result<ExecutedWitness, Diagnostic> {
-    let source = CanonicalCircularHoleGeometryV1::decode_canonical(
+    let source = CanonicalGeometryV1::decode_circular_hole_canonical(
         embedded_json(EXAMPLE_GEOMETRY),
         CanonicalGeometryLimits::default(),
     )?;
@@ -245,7 +245,7 @@ fn embedded_json(bytes: &[u8]) -> &[u8] {
 }
 
 fn execute_source_witness(
-    source: CanonicalCircularHoleGeometryV1,
+    source: CanonicalGeometryV1,
     model_source: &str,
     relative_tolerance: f64,
 ) -> Result<ExecutedWitness, Diagnostic> {
@@ -255,7 +255,7 @@ fn execute_source_witness(
 }
 
 fn execute_program_witness(
-    source: CanonicalCircularHoleGeometryV1,
+    source: CanonicalGeometryV1,
     program: KernelProgram,
     model: ModelEnvelope,
     relative_tolerance: f64,
@@ -351,7 +351,7 @@ fn execute_program_witness(
 
 fn replay_example_program(
     model: &ModelEnvelope,
-    source: &CanonicalCircularHoleGeometryV1,
+    source: &CanonicalGeometryV1,
 ) -> Result<KernelProgram, Diagnostic> {
     let (transaction, model_id) = model.to_transaction().map_err(|diagnostics| {
         diagnostics
@@ -435,7 +435,7 @@ fn assert_studio_pressure_projection(
     solution: &SteadyStokesMiniSolution2d,
     model: &ModelEnvelope,
     realization: &RealizationEnvelopeV2,
-    source: &CanonicalCircularHoleGeometryV1,
+    source: &CanonicalGeometryV1,
     owner: &CircularHoleChordalMeshV1,
     geometry: &GeometryDefinitionV1,
     correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
@@ -868,7 +868,7 @@ fn assert_close(actual: f64, expected: f64, tolerance: f64) {
     );
 }
 
-fn exact_source() -> CanonicalCircularHoleGeometryV1 {
+fn exact_source() -> CanonicalGeometryV1 {
     circular_source([0.2, 0.2], [0, 1], vec![2, 3], 4)
 }
 
@@ -877,8 +877,8 @@ fn circular_source(
     [inlet, outlet]: [usize; 2],
     walls: Vec<usize>,
     cylinder: usize,
-) -> CanonicalCircularHoleGeometryV1 {
-    CanonicalCircularHoleGeometryV1::new(
+) -> CanonicalGeometryV1 {
+    CanonicalGeometryV1::from_circular_hole(
         [[0.0, 2.2], [0.0, 0.41]],
         circle_center,
         0.05,
@@ -894,7 +894,7 @@ fn circular_source(
     .expect("frozen exact source")
 }
 
-fn frozen_owner(source: &CanonicalCircularHoleGeometryV1) -> CircularHoleChordalMeshV1 {
+fn frozen_owner(source: &CanonicalGeometryV1) -> CircularHoleChordalMeshV1 {
     CircularHoleChordalMeshV1::from_exact(
         source,
         1.0e-4,
@@ -904,10 +904,7 @@ fn frozen_owner(source: &CanonicalCircularHoleGeometryV1) -> CircularHoleChordal
     .expect("frozen chordal owner")
 }
 
-fn geometry_program_from_text(
-    source: &CanonicalCircularHoleGeometryV1,
-    model_source: &str,
-) -> KernelProgram {
+fn geometry_program_from_text(source: &CanonicalGeometryV1, model_source: &str) -> KernelProgram {
     let cartesian =
         eqiora::api::ModelDocument::compile("exact-circular-hole-stokes-2d.eqi", model_source)
             .expect("Cartesian authoring scaffold compiles");

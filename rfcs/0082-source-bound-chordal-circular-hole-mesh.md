@@ -39,7 +39,7 @@ contracts.
 ## Owned realization
 
 `CircularHoleChordalMeshV1` is constructible only from a validated
-`CanonicalCircularHoleGeometryV1`. It privately owns:
+`CanonicalGeometryV1`. It privately owns:
 
 - the exact source `GeometryRevisionReference`, derived from source digest;
 - requested maximum circular-boundary error;

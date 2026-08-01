@@ -2,9 +2,7 @@
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
-use eqiora_geometry::{
-    CanonicalCircularHoleGeometryV1, CanonicalGeometryRef, CircularHoleChordalMeshV1,
-};
+use eqiora_geometry::{CanonicalGeometryRef, CanonicalGeometryV1, CircularHoleChordalMeshV1};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_realization::{RepresentedPhysicalField, SemanticRevision};
 use eqiora_schema::kernel::{DomainKind, KernelNode};
@@ -129,7 +127,7 @@ impl<'a> ValidatedCircularHoleFieldwiseContext<'a> {
     pub(super) fn new(
         model: &ModelEnvelope,
         realization: &'a RealizationEnvelopeV2,
-        source: &CanonicalCircularHoleGeometryV1,
+        source: &CanonicalGeometryV1,
         owner: &CircularHoleChordalMeshV1,
         geometry: &'a GeometryDefinitionV1,
         correspondence: &'a GeometryMeshCorrespondenceEnvelopeV1,

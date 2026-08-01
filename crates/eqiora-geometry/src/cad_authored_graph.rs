@@ -14,10 +14,7 @@ use crate::cad_authored_build::CadAuthoredBuild;
 use crate::cad_authored_cut::{CircularThroughCut, GRAPH_SCHEMA_V2, decode_v2, encode_v2};
 use crate::cad_authored_selection::{CadAuthoredFaceHandle, FaceKey, WireFaceSelectionV1};
 use crate::canonical::{CANONICAL_ENCODING, WireLengthUnit, digest_with_schema};
-use crate::{
-    AxisAlignedBox3, CadRepairDispositionV1, CanonicalCircularHoleGeometryV1,
-    ConstrainedRectangleV1,
-};
+use crate::{AxisAlignedBox3, CadRepairDispositionV1, CanonicalGeometryV1, ConstrainedRectangleV1};
 
 const GRAPH_SCHEMA_V1: &str = "eqiora.cad-authored-operation-graph-envelope/v1";
 const MAX_GRAPH_BYTES: usize = 4_096;
@@ -147,7 +144,7 @@ impl CadAuthoredGraph {
         y_lower: &str,
         y_upper: &str,
         hole: &str,
-    ) -> Result<CanonicalCircularHoleGeometryV1, Diagnostic> {
+    ) -> Result<CanonicalGeometryV1, Diagnostic> {
         let GraphKind::CircularThroughCut(cut) = self.kind else {
             return Err(invalid(
                 "an exact planar circular section requires the admitted through-cut history",
@@ -155,7 +152,7 @@ impl CadAuthoredGraph {
         };
         let (x_lower_m, x_upper_m) = self.core.sketch.x_bounds_m();
         let (y_lower_m, y_upper_m) = self.core.sketch.y_bounds_m();
-        CanonicalCircularHoleGeometryV1::from_named_roles(
+        CanonicalGeometryV1::from_circular_hole_named_roles(
             [[x_lower_m, x_upper_m], [y_lower_m, y_upper_m]],
             cut.center_m(),
             cut.radius_m(),

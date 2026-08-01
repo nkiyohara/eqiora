@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::{Diagnostic, DimExponents, RawId, ValueShape};
-use eqiora_geometry::CanonicalCircularHoleGeometryV1;
+use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::EdgeKind;
 use eqiora_schema::kernel::{DomainKind, ExprNode, KernelNode, SymbolRef, ValueFrame};
 use eqiora_sem::KernelProgram;
@@ -104,13 +104,19 @@ pub fn lower_steady_incompressible_stokes_cartesian_2d(
 /// admitted Model before numerical realization.
 pub(super) fn lower_steady_incompressible_stokes_geometry_2d(
     program: &KernelProgram,
-    geometry: &CanonicalCircularHoleGeometryV1,
+    geometry: &CanonicalGeometryV1,
 ) -> Result<SteadyIncompressibleStokesModel2d, Diagnostic> {
     let (domain, boundaries) = unique_circular_hole_domain(program, geometry)?;
+    let bounds = geometry.circular_hole_bounds().ok_or_else(|| {
+        lowering_error(
+            domain,
+            "geometry-backed steady Stokes requires exact circular-hole geometry",
+        )
+    })?;
     lower_steady_incompressible_stokes_2d_on(
         program,
         domain,
-        *geometry.bounds(),
+        *bounds,
         BoundarySource2d::Named(boundaries),
         Some(geometry.digest_bytes()),
     )
@@ -445,7 +451,7 @@ fn lower_boundary_projection(
 
 fn unique_circular_hole_domain(
     program: &KernelProgram,
-    geometry: &CanonicalCircularHoleGeometryV1,
+    geometry: &CanonicalGeometryV1,
 ) -> Result<(RawId, BTreeMap<String, RawId>), Diagnostic> {
     let regions = program
         .nodes()

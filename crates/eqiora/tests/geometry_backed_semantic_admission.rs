@@ -4,9 +4,8 @@ use eqiora::api::StructuralSemanticFingerprint;
 use eqiora::artifact::ModelEnvelope;
 use eqiora::diagnostic::codes;
 use eqiora::geometry::{
-    CanonicalCircularHoleGeometryV1, CanonicalGeometryLimits, CanonicalGeometryRef,
-    CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion,
-    VERTEX_DIMENSION,
+    CanonicalGeometryLimits, CanonicalGeometryRef, CanonicalGeometryV1, EDGE_DIMENSION,
+    FACE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion, VERTEX_DIMENSION,
 };
 use eqiora::graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::typing::SpatialSupport;
@@ -92,11 +91,11 @@ fn circular_hole_with(
     radius: f64,
     sets: Vec<NamedEntitySet>,
     tolerance: f64,
-) -> Result<CanonicalCircularHoleGeometryV1, Diagnostic> {
-    CanonicalCircularHoleGeometryV1::new(bounds, center, radius, sets, tolerance)
+) -> Result<CanonicalGeometryV1, Diagnostic> {
+    CanonicalGeometryV1::from_circular_hole(bounds, center, radius, sets, tolerance)
 }
 
-fn circular_hole_witness() -> CanonicalCircularHoleGeometryV1 {
+fn circular_hole_witness() -> CanonicalGeometryV1 {
     circular_hole_with(
         [[0.0, 2.2], [0.0, 0.41]],
         [0.2, 0.2],
@@ -459,7 +458,7 @@ fn independent_exact_circular_hole_identity_enters_the_same_admission_seam() {
     let (store, model, ids) = positive_model(geometry.digest_bytes(), "fluid", "cylinder", 2);
     let program =
         KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[geometry_ref])
-            .expect("the sibling family enters unchanged semantic admission");
+            .expect("the circular kind enters unchanged semantic admission");
     let typed = program
         .typed_relation_residual(ids.relation)
         .expect("derived support survives without retaining geometry");
@@ -641,9 +640,34 @@ fn exact_circular_hole_external_admission_and_falsifiers_are_registered_evidence
     let geometry = circular_hole_witness();
     let bytes = geometry.canonical_bytes();
     let defaults = CanonicalGeometryLimits::default();
-    let decoded = CanonicalCircularHoleGeometryV1::decode_canonical(bytes, defaults)
+    let decoded = CanonicalGeometryV1::decode_circular_hole_canonical(bytes, defaults)
         .expect("canonical bytes reconstruct exactly");
     assert_eq!(decoded, geometry);
+    assert!(
+        geometry.region().is_none(),
+        "exact circular meaning must not fabricate a chordal PlanarRegion"
+    );
+    assert_eq!(
+        geometry.circular_hole_bounds(),
+        Some(&[[0.0, 2.2], [0.0, 0.41]])
+    );
+    assert_eq!(geometry.circular_hole_center(), Some([0.2, 0.2]));
+    assert_eq!(geometry.circular_hole_radius_m(), Some(0.05));
+
+    let straight = square_with_hole();
+    assert!(straight.region().is_some());
+    assert_eq!(straight.circular_hole_bounds(), None);
+    assert_eq!(straight.circular_hole_center(), None);
+    assert_eq!(straight.circular_hole_radius_m(), None);
+    assert!(
+        CanonicalGeometryV1::decode_canonical(bytes, defaults).is_err(),
+        "the straight decoder must remain closed to the circular wire"
+    );
+    assert!(
+        CanonicalGeometryV1::decode_circular_hole_canonical(straight.canonical_bytes(), defaults,)
+            .is_err(),
+        "the circular decoder must remain closed to the straight wire"
+    );
 
     let positive_zero = circular_hole_witness();
     let negative_zero = circular_hole_with(
@@ -711,7 +735,7 @@ fn exact_circular_hole_external_admission_and_falsifiers_are_registered_evidence
         },
     ] {
         assert!(
-            CanonicalCircularHoleGeometryV1::decode_canonical(bytes, limits).is_err(),
+            CanonicalGeometryV1::decode_circular_hole_canonical(bytes, limits).is_err(),
             "every applicable decoder budget must fail closed"
         );
     }
@@ -746,7 +770,7 @@ fn exact_circular_hole_external_admission_and_falsifiers_are_registered_evidence
     ];
     for falsifier in wire_falsifiers {
         assert!(
-            CanonicalCircularHoleGeometryV1::decode_canonical(falsifier.as_bytes(), defaults,)
+            CanonicalGeometryV1::decode_circular_hole_canonical(falsifier.as_bytes(), defaults,)
                 .is_err(),
             "malformed, unknown, or noncanonical wire spelling must fail closed"
         );
@@ -1272,7 +1296,7 @@ fn admitted_geometry_boundary_support_accepts_relation_scope_only() {
         straight_model,
         &[CanonicalGeometryRef::from(&straight)],
     )
-    .expect("the sibling straight-edged family admits the same Relation scope");
+    .expect("the straight-edged kind admits the same Relation scope");
     straight_program
         .typed_relation_residual(straight_ids.relation)
         .expect("straight-edged derived support remains available to typing");
