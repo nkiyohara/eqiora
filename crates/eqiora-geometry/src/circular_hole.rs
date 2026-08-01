@@ -5,6 +5,8 @@
 //! this value or its identity. A later Realization may therefore replace
 //! affine chords with curved elements without changing the Model's geometry.
 
+use std::collections::BTreeMap;
+
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use serde::{Deserialize, Serialize};
@@ -46,6 +48,52 @@ pub struct CanonicalCircularHoleGeometryV1 {
 }
 
 impl CanonicalCircularHoleGeometryV1 {
+    /// Construct one exact rectangle-minus-circle geometry from semantic roles.
+    ///
+    /// Equal boundary names group their fixed roles into one entity set. This
+    /// keeps role-to-entity wiring in the exact Geometry owner rather than in a
+    /// language adapter or application demo.
+    ///
+    /// # Errors
+    /// Returns the same diagnostics as [`Self::new`] after grouping the five
+    /// boundary roles and the one full-dimensional region role.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_named_roles(
+        bounds: [[f64; 2]; 2],
+        circle_center: [f64; 2],
+        circle_radius_m: f64,
+        tolerance_m: f64,
+        region: &str,
+        x_lower: &str,
+        x_upper: &str,
+        y_lower: &str,
+        y_upper: &str,
+        hole: &str,
+    ) -> Result<Self, Diagnostic> {
+        let mut boundaries = BTreeMap::<String, Vec<usize>>::new();
+        for (name, entity) in [
+            (x_lower, 0),
+            (x_upper, 1),
+            (y_lower, 2),
+            (y_upper, 3),
+            (hole, 4),
+        ] {
+            boundaries.entry(name.to_owned()).or_default().push(entity);
+        }
+        let mut entity_sets = boundaries
+            .into_iter()
+            .map(|(name, members)| NamedEntitySet::new(name, crate::EDGE_DIMENSION, members))
+            .collect::<Vec<_>>();
+        entity_sets.push(NamedEntitySet::new(region, crate::FACE_DIMENSION, vec![0]));
+        Self::new(
+            bounds,
+            circle_center,
+            circle_radius_m,
+            entity_sets,
+            tolerance_m,
+        )
+    }
+
     /// Validate and canonicalize one exact circular-hole geometry.
     ///
     /// `bounds[axis]` is `[lower, upper]` in metres. The closed circle must

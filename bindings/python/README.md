@@ -67,14 +67,22 @@ typed lowering, atomic commit, execution, and artifact identity remain in
 Rust. Spatial authoring and the bounded FEM/FVM realization path are described
 in [Modeling and realization](https://eqiora.org/python/modeling/).
 
-The first exact-geometry authoring surface is similarly narrow and native:
+The accepted exact-cylinder path now begins at the shared authored-CAD graph:
 
 ```python
-geometry = eqiora.geometry.RectangleWithCircularHole(
-    bounds=((0.0, 2.2), (0.0, 0.41)),
-    circle_center=(0.2, 0.2),
-    circle_radius=0.05,
-    tolerance=1e-12,
+graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+    x_bounds=(0.0, 2.2),
+    y_bounds=(0.0, 0.41),
+    plane_z=0.0,
+    depth=1.0,
+    modeling_tolerance=1e-10,
+).circular_through_cut(
+    center=(0.2, 0.2),
+    radius=0.05,
+    boolean_tolerance=1e-10,
+)
+geometry = graph.planar_circular_section(
+    classification_tolerance=1e-12,
     region="fluid",
     x_lower="inlet",
     x_upper="outlet",
@@ -92,12 +100,14 @@ print(geometry.digest, mesh.mesh_digest)
 print(mesh.selection_entity_count("cylinder"))
 ```
 
-This is one exact axis-aligned rectangle with one circular hole, not a generic
-Python CAD or Boolean implementation. Its matching meshing operation is one
-Rust-owned, error-controlled chordal reference path, not a generic or
-production mesher. The returned wrapper binds its exact source only within the
-live process; durable generated-realization replay, geometry-backed Model
-binding, solve, Result, and visualization are separate capabilities.
+The graph and its exact planar section have distinct identities. The section
+reproduces the accepted direct convenience value byte-for-byte; depth and CAD
+tolerances cannot leak into its independently classified 2D meaning. This is
+not a generic section or Python Boolean implementation. Its matching meshing
+operation is one Rust-owned, error-controlled chordal reference path, not a
+generic or production mesher. The returned wrapper binds its exact source only
+within the live process; durable generated-realization replay, geometry-backed
+Model binding, solve, Result, and visualization are separate capabilities.
 
 The accepted exact-cylinder Result can be presented as one bounded pressure
 still:
