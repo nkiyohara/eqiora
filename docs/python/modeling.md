@@ -26,19 +26,27 @@ A relation receives an explicit zero-valued residual. Symbolic equality and
 Python truth testing are not modeling syntax. Declarations and expressions
 are frozen; validation and artifact creation happen atomically in Rust.
 
-## Exact geometry authoring
+## Authored CAD to exact geometry
 
-The first geometry constructor is intentionally one closed analytic family,
-not a Python Boolean algebra:
+The first accepted path projects one closed authored-CAD history into its exact
+transverse Geometry. Python does not implement the operations:
 
 ```python
 import eqiora
 
-geometry = eqiora.geometry.RectangleWithCircularHole(
-    bounds=((0.0, 2.2), (0.0, 0.41)),
-    circle_center=(0.2, 0.2),
-    circle_radius=0.05,
-    tolerance=1e-12,
+graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+    x_bounds=(0.0, 2.2),
+    y_bounds=(0.0, 0.41),
+    plane_z=0.0,
+    depth=1.0,
+    modeling_tolerance=1e-10,
+).circular_through_cut(
+    center=(0.2, 0.2),
+    radius=0.05,
+    boolean_tolerance=1e-10,
+)
+geometry = graph.planar_circular_section(
+    classification_tolerance=1e-12,
     region="fluid",
     x_lower="inlet",
     x_upper="outlet",
@@ -52,11 +60,14 @@ assert geometry.selection_dimension("cylinder") == 1
 print(geometry.digest)
 ```
 
-Rust owns validation, canonical ordering, bytes, and identity. The circle
-remains centre-and-radius geometry; chord count, mesh size, and approximation
-tolerance cannot enter this constructor. Generic primitives and Boolean
-operations, multiple holes, selection handles, Model binding, solve, Result,
-and visualization remain separate slices.
+Rust owns validation, canonical ordering, bytes, and both distinct identities.
+The 3D graph retains its explicit depth and CAD tolerances; none enter the
+derived 2D Geometry, whose classification tolerance is supplied separately.
+The circle remains centre-and-radius geometry, so chord count, mesh size, and
+approximation tolerance cannot enter it. General operations or sections,
+multiple holes, Model binding, solve, Result, and visualization remain separate
+slices. The direct `RectangleWithCircularHole` convenience remains available
+and constructs the same exact Geometry owner.
 
 ## Bounded chordal reference mesh
 

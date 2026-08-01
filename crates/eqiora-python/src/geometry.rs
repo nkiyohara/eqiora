@@ -1,14 +1,11 @@
 //! Bounded Python authoring over Rust-owned exact geometry meaning.
 
-use std::collections::BTreeMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use eqiora::Diagnostic;
 use eqiora::diagnostic::codes;
-use eqiora::geometry::{
-    CanonicalCircularHoleGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
-};
+use eqiora::geometry::{CanonicalCircularHoleGeometryV1, NamedEntitySet};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule, PyTuple};
 
@@ -61,28 +58,17 @@ impl PyRectangleWithCircularHole {
         y_upper: String,
         hole: String,
     ) -> PyResult<Self> {
-        let mut boundaries = BTreeMap::<String, Vec<usize>>::new();
-        for (name, entity) in [
-            (x_lower, 0),
-            (x_upper, 1),
-            (y_lower, 2),
-            (y_upper, 3),
-            (hole, 4),
-        ] {
-            boundaries.entry(name).or_default().push(entity);
-        }
-        let mut entity_sets = boundaries
-            .into_iter()
-            .map(|(name, members)| NamedEntitySet::new(name, EDGE_DIMENSION, members))
-            .collect::<Vec<_>>();
-        entity_sets.push(NamedEntitySet::new(region, FACE_DIMENSION, vec![0]));
-
-        let geometry = CanonicalCircularHoleGeometryV1::new(
+        let geometry = CanonicalCircularHoleGeometryV1::from_named_roles(
             bounds,
             circle_center,
             circle_radius,
-            entity_sets,
             tolerance,
+            &region,
+            &x_lower,
+            &x_upper,
+            &y_lower,
+            &y_upper,
+            &hole,
         )
         .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
         Ok(Self { geometry })
@@ -171,6 +157,10 @@ impl PyRectangleWithCircularHole {
 }
 
 impl PyRectangleWithCircularHole {
+    pub(crate) const fn from_geometry(geometry: CanonicalCircularHoleGeometryV1) -> Self {
+        Self { geometry }
+    }
+
     pub(crate) const fn geometry(&self) -> &CanonicalCircularHoleGeometryV1 {
         &self.geometry
     }

@@ -8,11 +8,19 @@ import eqiora
 
 
 def solve() -> eqiora.fluid.CircularHoleSteadyStokesResult:
-    geometry = eqiora.geometry.RectangleWithCircularHole(
-        bounds=((0.0, 2.2), (0.0, 0.41)),
-        circle_center=(0.2, 0.2),
-        circle_radius=0.05,
-        tolerance=1e-12,
+    graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+        x_bounds=(0.0, 2.2),
+        y_bounds=(0.0, 0.41),
+        plane_z=0.0,
+        depth=1.0,
+        modeling_tolerance=1e-10,
+    ).circular_through_cut(
+        center=(0.2, 0.2),
+        radius=0.05,
+        boolean_tolerance=1e-10,
+    )
+    geometry = graph.planar_circular_section(
+        classification_tolerance=1e-12,
         region="fluid",
         x_lower="inlet",
         x_upper="outlet",
