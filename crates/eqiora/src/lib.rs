@@ -89,7 +89,7 @@ pub mod control {
         ControlDiagnosticSourceV2, ControlDiagnosticV2, ControlPatchV2, ControlSeverityV2,
         ControlSourceSpanV2, MAX_COMPILE_FILENAME_BYTES_V2, MAX_COMPILE_REQUEST_BYTES_V2,
         MAX_COMPILE_RESPONSE_BYTES_V2, MAX_COMPILE_SOURCE_BYTES_V2,
-        MAX_CONTROL_REQUEST_ID_BYTES_V2, execute_compile_v2, generated_compile_v2_schema_json,
+        MAX_CONTROL_REQUEST_ID_BYTES_V2, execute_compile_v2,
     };
 }
 

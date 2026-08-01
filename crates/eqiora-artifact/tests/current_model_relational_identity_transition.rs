@@ -4,9 +4,10 @@
 //! artifact embeds the Model reference. This test owns the classification's
 //! executable half: it proves that every precommitted current Model reproduces
 //! its frozen identity through the current owner, that every downstream
-//! identity is re-derivable from committed bytes alone, that each replacement
-//! fixture differs from the fixture it replaces at exactly its identity
-//! pointers, that the recorded accelerator bundles are bridged rather than
+//! identity is re-derivable from committed bytes alone, that each deterministic
+//! consumer installs its precommitted replacement byte for byte and retains no
+//! superseded identity, that the moving-spatial consumer's delta is identity
+//! only, that the recorded accelerator bundles are bridged rather than
 //! relabelled, and that every classified path carries exactly one fate.
 //!
 //! Every literal lives under the registered case, never inside this crate. The
@@ -648,98 +649,95 @@ fn every_downstream_identity_and_reference_edge_derives_from_bytes() {
     );
 }
 
+/// Each deterministic consumer holds exactly the precommitted replacement, and
+/// every identity in it is one derived from bytes above.
+///
+/// Before the reset the superseded fixture was the file in the tree, and this
+/// test compared the two documents leaf by leaf. The reset overwrote it and this
+/// case commits no copy of it, so that comparison is no longer available:
+/// rebuilding the superseded bytes out of the replacement and substituting back
+/// would only prove the inverse of a substitution performed one line earlier.
+/// The leaf-level delta is therefore not claimed here — the moving-spatial
+/// consumer, which commits both states, is where it stays observable. What the
+/// installed bytes still show is checked instead.
 #[test]
-fn every_replacement_changes_exactly_its_identity_pointers() {
+fn every_installed_consumer_carries_its_precommitted_replacement_identities() {
     let transition = transition();
 
     for fixture in &DETERMINISTIC {
         let expected = entry(&transition, "deterministic", fixture.name);
-        let committed_bytes = frozen(fixture.committed);
-        let replacement_bytes = frozen(fixture.replacement);
-        let replacement: Value = serde_json::from_slice(replacement_bytes).unwrap();
+        // The included slices themselves, not their newline-normalized forms:
+        // stripping a trailing newline off both sides before comparing would let
+        // exactly that byte drift under a claim that no byte may.
+        assert_eq!(
+            fixture.committed,
+            fixture.replacement,
+            "{} must install the precommitted replacement byte for byte: key order, \
+             whitespace, number spelling, trailing newline, and every non-identity \
+             byte included",
+            fixture.name
+        );
 
-        let mut pointers = vec![expected["model_pointer"].as_str().unwrap().to_owned()];
-        pointers.extend(
-            expected["edges"]
-                .as_array()
-                .unwrap()
+        // Normalized only for JSON parsing and the semantic checks below.
+        let installed = frozen(fixture.committed);
+        let document: Value = serde_json::from_slice(installed).unwrap();
+
+        // Each identity pointer against the identity re-derived from the bytes
+        // of the artifact it names — the Model through the RFC 0008 domain, each
+        // edge through its own canonical bytes, both derived by the two tests
+        // above and only consumed here.
+        let mut identities = vec![(
+            expected["model_pointer"].as_str().unwrap().to_owned(),
+            expected["model_digest"].as_str().unwrap().to_owned(),
+        )];
+        identities.extend(expected["edges"].as_array().unwrap().iter().map(|edge| {
+            (
+                edge["pointer"].as_str().unwrap().to_owned(),
+                edge["digest"].as_str().unwrap().to_owned(),
+            )
+        }));
+        assert_eq!(
+            identities
                 .iter()
-                .map(|edge| edge["pointer"].as_str().unwrap().to_owned()),
-        );
-
-        assert_eq!(
-            committed_bytes, replacement_bytes,
-            "{} consumer must install the exact precommitted replacement",
+                .map(|(pointer, _)| pointer.clone())
+                .collect::<BTreeSet<_>>(),
+            expected["superseded"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect::<BTreeSet<_>>(),
+            "{} must record one superseded identity for exactly its identity pointers",
             fixture.name
         );
 
-        // Reconstruct the superseded fixture from the independently frozen
-        // identity map. The old consumer bytes retire with the reset; the
-        // relation, not a second live copy, is what remains evidence.
-        let mut superseded_bytes = replacement_bytes.to_vec();
-        for pointer in &pointers {
-            replace_exact_once(
-                &mut superseded_bytes,
-                resolve(&replacement, pointer).as_str().unwrap(),
-                expected["superseded"][pointer].as_str().unwrap(),
+        let leaves = flatten(&document);
+        for (pointer, digest) in &identities {
+            assert_eq!(
+                resolve(&document, pointer),
+                digest.as_str(),
+                "{} {pointer} must carry the identity derived from its own bytes",
+                fixture.name
             );
-        }
-        let superseded: Value = serde_json::from_slice(&superseded_bytes).unwrap();
-        let before = flatten(&superseded);
-        let after = flatten(&replacement);
-        assert_eq!(
-            before.iter().map(|(path, _)| path).collect::<Vec<_>>(),
-            after.iter().map(|(path, _)| path).collect::<Vec<_>>(),
-            "{} replacement must not add, drop, or reorder a leaf",
-            fixture.name
-        );
 
-        let mut changed = before
-            .iter()
-            .zip(&after)
-            .filter(|((_, old), (_, new))| old != new)
-            .map(|((path, _), _)| path.clone())
-            .collect::<Vec<_>>();
-        changed.sort();
-        let mut permitted = pointers.clone();
-        permitted.sort();
-        assert_eq!(
-            changed, permitted,
-            "{} delta must be exactly its identity pointers: arrays, coordinates, \
-             times, tolerances, source and package identities are immutable",
-            fixture.name
-        );
-
-        // This is stronger than semantic JSON equality: the committed target
-        // may change only by replacing each unique 64-byte identity literal
-        // with its precommitted same-length successor. Key order, whitespace,
-        // number spelling, and every non-identity byte must remain untouched.
-        let mut exact_replacement = superseded_bytes;
-        for pointer in &pointers {
-            replace_exact_once(
-                &mut exact_replacement,
-                expected["superseded"][pointer].as_str().unwrap(),
-                resolve(&replacement, pointer).as_str().unwrap(),
-            );
-        }
-        assert_eq!(
-            exact_replacement, replacement_bytes,
-            "{} replacement must be a byte-exact identity substitution",
-            fixture.name
-        );
-
-        // Every superseded identity must be retired, and none may reappear
-        // anywhere else in the replacement.
-        for pointer in &pointers {
+            // And the superseded identity is retired: gone from its pointer,
+            // gone from every other leaf, and the same 64 bytes wide, which is
+            // what makes the recorded move a substitution rather than a rewrite.
             let superseded = expected["superseded"][pointer].as_str().unwrap();
+            assert_eq!(
+                superseded.len(),
+                digest.len(),
+                "{} {pointer} must move to a same-length identity",
+                fixture.name
+            );
             assert_ne!(
-                resolve(&replacement, pointer),
+                resolve(&document, pointer),
                 superseded,
                 "{} {pointer} must not keep its superseded identity",
                 fixture.name
             );
             assert!(
-                after.iter().all(|(_, value)| value != superseded),
+                leaves.iter().all(|(_, value)| value != superseded),
                 "{} must not retain superseded identity {superseded}",
                 fixture.name
             );

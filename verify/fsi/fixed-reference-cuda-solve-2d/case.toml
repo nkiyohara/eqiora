@@ -10,7 +10,7 @@ capabilities = [
   "independent-serial-host-true-residual-reacceptance",
   "unchanged-fixed-reference-fsi-physical-finish",
   "normalized-cpu-cuda-field-conformance",
-  "coupled-realization-v3-and-run-v2-replay",
+  "coupled-realization-v3-and-run-v2-decode-and-linkage",
   "historical-model-bundle-current-semantic-bridge",
 ]
 

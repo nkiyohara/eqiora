@@ -20,7 +20,7 @@ pub use diagnostic::{
     ControlDiagnosticSourceV2, ControlDiagnosticV2, ControlPatchV2, ControlSeverityV2,
     ControlSourceSpanV2,
 };
-pub use schema::{COMPILE_V2_SCHEMA_JSON, generated_compile_v2_schema_json};
+pub use schema::COMPILE_V2_SCHEMA_JSON;
 
 /// Exact protocol identity for the current bounded control-plane slice.
 pub const CONTROL_PROTOCOL_V2: &str = "eqiora.control/v2";

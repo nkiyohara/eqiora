@@ -25,6 +25,12 @@ and artifact digests. The independently registered structural fingerprint is
 equal across all three compilations, while each accepted response is checked
 only against the document returned by its own execution.
 
+`historicalCopies.copiedFrom` records pre-reset provenance, not a live
+dependency; its byte-for-byte relation is a frozen pre-reset record. The
+transition oracle independently proves that each promoted target carries its
+staged source's frozen bytes. This case re-hashes the retained v1 request and
+schema and never dispatches or packages the historical schema.
+
 Client adapters may choose native function calls, Tauri invocation, or Python
 objects, but they consume this meaning rather than recreating it. Responses
 must not contain source, meshes, Fields, or trajectories. Preview, execution,

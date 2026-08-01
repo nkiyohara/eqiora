@@ -91,20 +91,60 @@ fn rejected_execution_has_kernel_diagnostics_and_no_document() {
 
 #[test]
 fn committed_schema_is_the_independent_promoted_oracle() {
-    assert_eq!(
-        generated_compile_v2_schema_json().unwrap(),
-        COMPILE_V2_SCHEMA_JSON
-    );
     let schema: Value = serde_json::from_str(COMPILE_V2_SCHEMA_JSON).unwrap();
+    let definitions = &schema["$defs"];
     assert_eq!(
         schema["$schema"],
         "https://json-schema.org/draft/2020-12/schema"
     );
-    assert_eq!(schema["$defs"]["request"]["additionalProperties"], false);
-    assert_eq!(schema["$defs"]["response"]["additionalProperties"], false);
+    assert_eq!(definitions["request"]["additionalProperties"], false);
+    assert_eq!(definitions["response"]["additionalProperties"], false);
+    assert_eq!(definitions["diagnostic"]["additionalProperties"], false);
     assert_eq!(
-        schema["$defs"]["request"]["x-eqiora-maxEncodedUtf8Bytes"],
+        definitions["request"]["x-eqiora-maxEncodedUtf8Bytes"],
         MAX_COMPILE_REQUEST_BYTES_V2
+    );
+    assert_eq!(
+        definitions["response"]["x-eqiora-maxEncodedUtf8Bytes"],
+        MAX_COMPILE_RESPONSE_BYTES_V2
+    );
+    for key in ["maxLength", "x-eqiora-maxUtf8Bytes"] {
+        assert_eq!(
+            definitions["request"]["properties"]["source"][key],
+            MAX_COMPILE_SOURCE_BYTES_V2
+        );
+        assert_eq!(
+            definitions["request"]["properties"]["filename"][key],
+            MAX_COMPILE_FILENAME_BYTES_V2
+        );
+        assert_eq!(
+            definitions["diagnostic"]["properties"]["message"][key],
+            MAX_CONTROL_DIAGNOSTIC_MESSAGE_BYTES_V2
+        );
+        assert_eq!(
+            definitions["diagnostic"]["properties"]["graphPath"]["oneOf"][0]["items"][key],
+            MAX_CONTROL_TEXT_MEMBER_BYTES_V2
+        );
+        assert_eq!(
+            definitions["sourceSpan"]["properties"]["file"][key],
+            MAX_CONTROL_TEXT_MEMBER_BYTES_V2
+        );
+        assert_eq!(
+            definitions["patch"]["properties"]["summary"][key],
+            MAX_CONTROL_TEXT_MEMBER_BYTES_V2
+        );
+    }
+    assert_eq!(
+        definitions["requestId"]["maxLength"],
+        MAX_CONTROL_REQUEST_ID_BYTES_V2
+    );
+    assert_eq!(
+        definitions["rejectedOutcome"]["properties"]["diagnostics"]["maxItems"],
+        MAX_CONTROL_DIAGNOSTICS_V2
+    );
+    assert_eq!(
+        definitions["diagnostic"]["properties"]["graphPath"]["oneOf"][0]["maxItems"],
+        MAX_CONTROL_GRAPH_PATH_SEGMENTS_V2
     );
 }
 
@@ -119,6 +159,22 @@ fn bounded_dispatch_identity_never_echoes_oversized_content() {
     let diagnostic = CompileRequestV2::from_json(request.as_bytes()).unwrap_err();
     assert_eq!(diagnostic.code(), "EQ0901");
     assert!(!diagnostic.message().contains(marker));
+}
+
+#[test]
+fn request_encoder_enforces_the_same_encoded_byte_bound_as_dispatch() {
+    let request = CompileRequestV2::new(
+        "compile-1",
+        "escaped.eqi",
+        "\"".repeat(MAX_COMPILE_SOURCE_BYTES_V2),
+    )
+    .unwrap();
+    let diagnostic = request.canonical_json().unwrap_err();
+    assert_eq!(diagnostic.code(), "EQ0901");
+    assert_eq!(
+        diagnostic.message(),
+        format!("compile/check request exceeds {MAX_COMPILE_REQUEST_BYTES_V2} encoded bytes")
+    );
 }
 
 #[test]

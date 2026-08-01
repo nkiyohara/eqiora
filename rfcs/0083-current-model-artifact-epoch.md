@@ -169,20 +169,18 @@ Artifact history and scientific evidence are different things.
 - Keep the v8 exact Model/Transaction fixture above and current malformed,
   bounded-decoder, canonical-order, replay, and wrong-schema rejection tests.
 
-`artifacts.model-reference-lineage` and
-`interfaces.current-authoring-profile` currently contain historical
-compatibility claims. `interfaces.control-plane-compile-check` is a control-v1
-case and must be replaced by a control-v2 conformance kit rather than silently
-narrowed. `interfaces.python-control-plane` retains exact-codec references that
-must move to the current owner.
+Before the reset, `artifacts.model-reference-lineage` and
+`interfaces.current-authoring-profile` contained historical compatibility
+claims, `interfaces.control-plane-compile-check` was a control-v1 case, and
+`interfaces.python-control-plane` retained exact-codec references. The reset
+moved each to the current owner and promoted the control-v2 conformance kit
+without silently narrowing its claims.
 
 Unknown-protocol falsifiers in Rust unit/integration tests, Studio tests, and
-registered control fixtures currently use the future spelling
-`eqiora.control/v2`. Before v2 becomes valid, every such falsifier moves to a
-deliberately invalid non-version spelling such as
-`eqiora.control/unknown-test`. The replacement control-v2 conformance kit
-retains that invalid-spelling rejection; losing unknown-protocol coverage is
-not an allowed migration.
+registered control fixtures used the then-future spelling `eqiora.control/v2`.
+Promotion moved them to the deliberately invalid non-version spelling
+`eqiora.control/unknown-test`; the live control-v2 conformance kit retains that
+invalid-spelling rejection.
 
 The packaged cylinder resource is an oracle input, not merely producer output.
 `interfaces.python-exact-cylinder-stokes-result` and
@@ -379,8 +377,8 @@ The independent oracle owns these exact input witnesses:
   the complete source below;
 - rejected source: request ID `shared-rejected-source-v2`, filename
   `empty.eqi`, and an empty source;
-- retired protocol: `oracle/v2/models/retired-v1.json`, the previous accepted
-  v1 request preserved byte-for-byte;
+- retired protocol: `verify/interfaces/control-plane-compile-check/models/retired-v1.json`,
+  the previous accepted v1 request preserved byte-for-byte;
 - unknown protocol: the accepted v2 witness with protocol changed to
   `eqiora.control/unknown-test`;
 - forbidden selection: the accepted v2 witness plus `modelWire: "v8"`;
@@ -440,16 +438,14 @@ for every rejection, whether the exact message or only nonemptiness is frozen,
 the generated resource boundaries, and the forbidden response fields
 `source`, `mesh`, `fields`, and `trajectory`.
 
-The oracle copies the previous accepted v1 request byte-for-byte to
-`verify/interfaces/control-plane-compile-check/oracle/v2/models/retired-v1.json`
-and the previous v1 schema byte-for-byte to
-`verify/interfaces/control-plane-compile-check/oracle/v2/expected/historical/compile-v1.schema.json`.
-The current v1 paths remain live until the atomic implementation lands. In that
-implementation the copies become the retired-protocol evidence, the live
-`schemas/control/compile-v1.schema.json` is deleted, and the previous v1
-rejected-source and unsupported-protocol specimens and v1 expected contract
-are deleted as compatibility-only. Historical copies are not generated,
-registered, packaged, or dispatched.
+The promoted case retains the previous accepted v1 request byte-for-byte at
+`verify/interfaces/control-plane-compile-check/models/retired-v1.json` and the
+previous v1 schema byte-for-byte at
+`verify/interfaces/control-plane-compile-check/expected/historical/compile-v1.schema.json`.
+The reset deleted the former live v1 schema, the v1 rejected-source and
+unsupported-protocol specimens, and the v1 expected contract as
+compatibility-only. Historical copies are not generated, registered, packaged,
+or dispatched.
 
 The case ID remains `interfaces.control-plane-compile-check`, with scope
 `client-neutral-bounded-compile-check-control-v2`, reference kind
@@ -461,16 +457,12 @@ retained. All five existing capability entries carry forward. In
 `fail-closed-control-negotiation`, negotiation now means closed protocol and
 command admission; it does not imply a feature list.
 
-The control-oracle writer may write only
-`verify/interfaces/control-plane-compile-check/oracle/v2/**`. It does not edit
-the live schema directory, v1 fixtures, case manifest, implementation,
-capability matrix, or registries. Its v2 schema is staged at
-`oracle/v2/schema/compile-v2.schema.json`; the existing v1 case and all current
-projection-drift consumers therefore remain unchanged, and the oracle lane
-must leave `local_verify.py affected` green. The atomic implementation later
-promotes the schema to `schemas/control/compile-v2.schema.json` and the frozen
-v2 fixtures byte-for-byte into the live case, then returns the
-manifest/registry delta to its integrator.
+The independent control-oracle lane wrote only the former staging tree
+`verify/interfaces/control-plane-compile-check/oracle/v2/**`; it did not edit
+the live schema, v1 fixtures, manifest, implementation, capability matrix, or
+registries. The atomic implementation promoted that frozen schema to
+`schemas/control/compile-v2.schema.json` and the frozen v2 fixtures byte-for-byte
+into the live case, then removed the staging tree.
 
 ### Relational identity transition
 
@@ -583,9 +575,9 @@ writable allowlist is only
 together with its private support module under
 `crates/eqiora-artifact/tests/current_model_relational_identity_transition/`.
 Candidate replacement bytes and target paths live under that oracle case;
-the oracle does not edit target consumer cases, capability matrix, roadmap,
-crate roots, or registries. It returns those registration deltas to the
-integrator, and the implementation later wires only the precommitted values.
+the oracle did not edit target consumer cases, capability matrix, roadmap,
+crate roots, or registries. It returned those registration deltas to the
+integrator, and the implementation wired only the precommitted values.
 For every classified fixture, the oracle also returns any required claim-
 wording delta. The implementation writer updates prose colocated with its
 owned test, while the integrator alone edits case manifests and the capability

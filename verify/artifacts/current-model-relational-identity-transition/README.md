@@ -445,15 +445,35 @@ values; it may not regenerate or select them.
 
 ## Identity-only containment
 
-Each installed replacement fixture differs from its reconstructed superseded
-fixture at exactly the precommitted identity pointers. All five fixture
-replacements and the three moving-spatial consumer artifacts are
-byte-length-identical to what they replace. The registered test reconstructs the
-superseded bytes from the independently frozen identity map, reapplies the
-same-length substitutions of unique 64-byte literals, and compares the installed
-raw bytes exactly; JSON key order, whitespace, number spelling, and every
-non-identity byte are therefore immutable. That containment, not the digests
-themselves, is the claim.
+Each of the five deterministic fixtures is installed as **exactly its
+precommitted replacement**. The registered test compares the installed raw bytes
+against the frozen replacement byte for byte, so JSON key order, whitespace,
+number spelling, and every non-identity byte are immutable. What the installed
+bytes still show is then checked against the independently recorded identities:
+the identity pointers are exactly the pointers a superseded identity is recorded
+for, each one carries the identity re-derived from the bytes of the artifact it
+names, and every superseded identity is the same length as the identity that
+replaced it, is gone from its own pointer, and appears at no leaf of the
+installed document.
+
+The **leaf-level** delta is not claimed for those five. Before the reset the
+superseded fixture was the file in the tree; the reset overwrote it and this case
+commits no copy, so the two documents can no longer be compared. Rebuilding the
+superseded bytes out of the replacement and the frozen identity map would only
+prove the inverse of a substitution performed one line earlier. Byte-exact
+installation of an independently precommitted replacement stands in its place,
+and it is a claim about the installed bytes rather than about the delta.
+
+The moving-spatial consumer commits **both** states, so there the identity-only
+delta stays observable and is proved as one: the replacement is byte-length
+identical, keeps the same leaf set in the same order, changes exactly the frozen
+pointer set, moves each changed leaf only to the value the frozen identity table
+gives it, leaves every other leaf byte-identical, and is reconstructed from the
+pre-reset bytes by applying that table alone.
+
+Those two claims — byte-exact installation retaining no superseded identity, and
+the observed leaf-level substitution — not the digests themselves, are what this
+case asserts here.
 
 ## The historical bridge is exact evidence, not prose
 

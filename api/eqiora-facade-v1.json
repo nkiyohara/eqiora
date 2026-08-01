@@ -189,8 +189,7 @@
         { "name": "MAX_COMPILE_RESPONSE_BYTES_V2", "from": "eqiora_api::control::MAX_COMPILE_RESPONSE_BYTES_V2" },
         { "name": "MAX_COMPILE_SOURCE_BYTES_V2", "from": "eqiora_api::control::MAX_COMPILE_SOURCE_BYTES_V2" },
         { "name": "MAX_CONTROL_REQUEST_ID_BYTES_V2", "from": "eqiora_api::control::MAX_CONTROL_REQUEST_ID_BYTES_V2" },
-        { "name": "execute_compile_v2", "from": "eqiora_api::control::execute_compile_v2" },
-        { "name": "generated_compile_v2_schema_json", "from": "eqiora_api::control::generated_compile_v2_schema_json" }
+        { "name": "execute_compile_v2", "from": "eqiora_api::control::execute_compile_v2" }
       ],
       "transitional_exports": []
     },

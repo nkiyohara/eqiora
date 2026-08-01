@@ -378,13 +378,13 @@ removal = "split report projection from the execution runner"
 
 [[public_surface]]
 crate = "eqiora"
-ceiling = 275
+ceiling = 274
 reason = "the facade is re-export-only and its width is pinned by api/eqiora-facade-v1.json; one bounded ParameterGeometryRegeneration Plan/Result pair exposes the accepted application owner without a second transaction or geometry contract. The existing bounded exact-cylinder, mixed-boundary elasticity, and fixed-reference FSI Result values remain application compositions shared by Studio and installed Python"
 removal = "fold the regeneration pair into a general accepted parametric-CAD edit result only when it preserves exact transaction, complete-impact, and selection-retention evidence; withdraw any bounded physics Result when no application client consumes its path; otherwise lower the ceiling with the next facade name withdrawn"
 
 [[public_surface]]
 crate = "eqiora-api"
-ceiling = 132
+ceiling = 131
 reason = "ParameterGeometryRegenerationPlan and ParameterGeometryRegenerationResult are the smallest public owner for one exact Parameter value transaction plus its complete resolved Cartesian impact and immutable child; they add no wire, operation, trait, or client geometry state. The existing bounded physics Results and scalar projection remain application values rather than generic solver infrastructure"
 removal = "fold the regeneration pair into a general accepted parametric-CAD edit result only when it preserves exact transaction, complete-impact, and selection-retention evidence; replace the bounded physics Results with one accepted general spatial Result only when their scientific and lineage evidence survives; withdraw the scalar projection when no client consumes it"
 

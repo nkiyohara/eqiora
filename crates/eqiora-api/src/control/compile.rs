@@ -44,13 +44,20 @@ impl CompileRequestV2 {
     /// Canonical compact JSON in frozen member order.
     ///
     /// # Errors
-    /// Returns a diagnostic only if serialization unexpectedly fails.
+    /// Returns a diagnostic if serialization unexpectedly fails or the
+    /// encoded request exceeds the control-plane resource bound.
     pub fn canonical_json(&self) -> Result<Vec<u8>, ControlDiagnosticV2> {
-        serde_json::to_vec(self).map_err(|error| {
+        let bytes = serde_json::to_vec(self).map_err(|error| {
             ControlDiagnosticV2::invalid_request(format!(
                 "cannot encode compile/check v2 request: {error}"
             ))
-        })
+        })?;
+        if bytes.len() > MAX_COMPILE_REQUEST_BYTES_V2 {
+            return Err(ControlDiagnosticV2::invalid_request(format!(
+                "compile/check request exceeds {MAX_COMPILE_REQUEST_BYTES_V2} encoded bytes"
+            )));
+        }
+        Ok(bytes)
     }
 
     /// Opaque caller-chosen identity echoed exactly by an admitted response.
