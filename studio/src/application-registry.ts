@@ -21,6 +21,7 @@ const ALL_WORKFLOWS = [
   "structural-elasticity",
   "fixed-reference-fsi",
   "cad-box",
+  "cad-authored",
 ] as const;
 const EVIDENCE_WORKFLOWS = [
   "relations",
@@ -115,6 +116,15 @@ export const COMMAND_REGISTRY = [
     description: "command.workspace.geometry.description",
     shortcut: null,
     focusTarget: "cad-viewport",
+    workflows: ALL_WORKFLOWS,
+  },
+  {
+    id: "workspace.cad-authoring",
+    group: "view",
+    label: "command.workspace.cad-authoring.label",
+    description: "command.workspace.cad-authoring.description",
+    shortcut: null,
+    focusTarget: "cad-authored-workspace",
     workflows: ALL_WORKFLOWS,
   },
   {
@@ -367,6 +377,19 @@ export const WORKFLOW_REGISTRY = [
         kind: "domain-table",
         focusTarget: "cad-domain-table",
       },
+    },
+  },
+  {
+    id: "cad-authored",
+    workspace: "cad-authoring",
+    label: "workflow.cad-authored.label",
+    description: "workflow.cad-authored.description",
+    primaryFocus: "cad-authored-workspace",
+    projection: {
+      kind: "bounded-authored-cad-history",
+      maximumOperations: 8,
+      maximumFaces: 7,
+      canonicalBytes: "opaque-native-owner-replay",
     },
   },
 ] as const satisfies readonly WorkflowDefinition[];

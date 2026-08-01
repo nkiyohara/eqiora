@@ -5,6 +5,7 @@
 //! execution remain in the public `eqiora` facade.
 
 mod cad;
+mod cad_authored;
 mod compile;
 mod cylinder_demo;
 mod dc_motor_demo;
@@ -1049,6 +1050,26 @@ fn select_cad_entity(
 }
 
 #[tauri::command]
+fn build_cad_authored_graph(
+    request: cad_authored::CadAuthoredBuildRequestDto,
+) -> BridgeEnvelope<cad_authored::CadAuthoredProjectionDto> {
+    match cad_authored::build_graph(&request) {
+        Ok(projection) => BridgeEnvelope::success(projection),
+        Err(diagnostic) => BridgeEnvelope::failure(vec![diagnostic.into()]),
+    }
+}
+
+#[tauri::command]
+fn resolve_cad_authored_face(
+    request: cad_authored::CadAuthoredSelectionRequestDto,
+) -> BridgeEnvelope<cad_authored::CadAuthoredSelectionDto> {
+    match cad_authored::resolve_selection(&request) {
+        Ok(selection) => BridgeEnvelope::success(selection),
+        Err(diagnostic) => BridgeEnvelope::failure(vec![diagnostic.into()]),
+    }
+}
+
+#[tauri::command]
 fn preview_reference_run(
     request: RunPreviewRequest,
     state: State<'_, AppState>,
@@ -1944,6 +1965,8 @@ pub fn run() {
             compile_model,
             preview_cad_box,
             select_cad_entity,
+            build_cad_authored_graph,
+            resolve_cad_authored_face,
             preview_value_edit,
             commit_value_edit,
             preview_reference_run,

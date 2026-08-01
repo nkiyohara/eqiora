@@ -12,6 +12,7 @@ import {
   type WorkspaceId,
 } from "./application";
 import { type StudioExample, studioBridge } from "./bridge";
+import { CadAuthoredWorkspace } from "./cad-authored-workspace";
 import { useCadSession } from "./cad-session";
 import { CadWorkspace } from "./cad-workspace";
 import { type CommandAvailability, CommandPalette } from "./command-palette";
@@ -714,19 +715,21 @@ export function App() {
       runBlock,
       runActivity,
       selectedEntity:
-        application.activeWorkflow === "cad-box"
-          ? cadSelectionState.accepted !== null
-          : application.activeWorkflow === "cylinder-stokes"
-            ? cylinderState.kind === "ready"
-            : application.activeWorkflow === "packaged-dc-drive"
-              ? dcMotorState.kind === "ready"
-              : application.activeWorkflow === "structural-elasticity"
-                ? structuralState.kind === "ready"
-                : application.activeWorkflow === "fixed-reference-fsi"
-                  ? fsiState.kind === "ready"
-                  : activeWorkspace === "field"
-                    ? scalarFieldState.kind === "ready"
-                    : selectedNode !== null,
+        application.activeWorkflow === "cad-authored"
+          ? false
+          : application.activeWorkflow === "cad-box"
+            ? cadSelectionState.accepted !== null
+            : application.activeWorkflow === "cylinder-stokes"
+              ? cylinderState.kind === "ready"
+              : application.activeWorkflow === "packaged-dc-drive"
+                ? dcMotorState.kind === "ready"
+                : application.activeWorkflow === "structural-elasticity"
+                  ? structuralState.kind === "ready"
+                  : application.activeWorkflow === "fixed-reference-fsi"
+                    ? fsiState.kind === "ready"
+                    : activeWorkspace === "field"
+                      ? scalarFieldState.kind === "ready"
+                      : selectedNode !== null,
       evidenceAvailable:
         application.activeWorkflow === "scalar-elliptic"
           ? spatialResult !== null
@@ -921,6 +924,10 @@ export function App() {
           return;
         case "workspace.geometry":
           setRequestedWorkspace("geometry");
+          focusCommandTarget(command);
+          return;
+        case "workspace.cad-authoring":
+          setRequestedWorkspace("cad-authoring");
           focusCommandTarget(command);
           return;
         case "workspace.field":
@@ -1142,6 +1149,14 @@ export function App() {
                   {formatMessage("workflow.cad.label")}
                 </button>
               ) : null}
+              <button
+                aria-current={activeWorkspace === "cad-authoring" ? "page" : undefined}
+                disabled={!commandAvailability["workspace.cad-authoring"].enabled}
+                onClick={() => executeCommand("workspace.cad-authoring")}
+                type="button"
+              >
+                {formatMessage("workflow.cad-authored.label")}
+              </button>
             </nav>
           </div>
           <div className="app-bar__actions">
@@ -1207,6 +1222,15 @@ export function App() {
         {fsiState.kind === "failed" ? (
           <DemoFailureBanner message={fsiState.message} onRetry={() => void openFsiDemo()} />
         ) : null}
+
+        <main
+          className="cad-authored-workspace-shell"
+          hidden={activeWorkspace !== "cad-authoring"}
+          id={activeWorkspace === "cad-authoring" ? "workspace" : undefined}
+          tabIndex={-1}
+        >
+          <CadAuthoredWorkspace />
+        </main>
 
         <main
           className="trajectory-workspace-shell"
