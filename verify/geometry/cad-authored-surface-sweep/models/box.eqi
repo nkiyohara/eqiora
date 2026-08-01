@@ -1,0 +1,13 @@
+model Main {
+  domain body = box(-2, 3, -1, 2, 0.5, 4.5);
+  domain x_lower = boundary(body, axis = 0, side = lower);
+  domain x_upper = boundary(body, axis = 0, side = upper);
+  domain y_lower = boundary(body, axis = 1, side = lower);
+  domain y_upper = boundary(body, axis = 1, side = upper);
+  domain z_lower = boundary(body, axis = 2, side = lower);
+  domain z_upper = boundary(body, axis = 2, side = upper);
+
+  representation scalar_space = continuum;
+  field witness on body as scalar_space: 1 = 0;
+  relation retain_body continuous on body { witness = 0; }
+}

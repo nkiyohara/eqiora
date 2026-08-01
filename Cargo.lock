@@ -668,6 +668,7 @@ dependencies = [
  "eqiora-spatial-distribution",
  "eqiora-time",
  "mpi",
+ "num-rational",
  "quick-xml",
  "rustix",
  "serde",
