@@ -7,10 +7,11 @@ The result keeps the exact source geometry and correspondence beside one
 intrinsic two-dimensional triangular mesh and its exact affine lift into the
 selected three-dimensional face.
 
-The case is intentionally `specified` before implementation. Its two oracle
-routes were derived independently without reading production mesh code and
-agreed before the implementation lane began. The complete frozen results are in
-[`expected/independent-oracles.md`](expected/independent-oracles.md).
+The case was frozen as `specified` before implementation. Its two oracle routes
+were derived independently without reading production mesh code and agreed
+before the implementation lane began. The complete frozen results are in
+[`expected/independent-oracles.md`](expected/independent-oracles.md); the case is
+now `verified` by the registered facade evidence.
 
 ## Contract boundary
 
@@ -61,3 +62,16 @@ No volume mesh, per-face override hierarchy, persisted policy wire, annular or
 cylindrical surface mesh, curved element, exact arc realization, adaptive,
 anisotropic, boundary-layer, or production unstructured mesher, Python or
 Studio surface, solver integration, or demo is claimed by this case.
+
+## Run
+
+```bash
+cargo test -p eqiora --test cad_authored_face_reference_mesh
+cargo run -p eqiora-verify -- run --case geometry.cad-authored-face-reference-mesh
+```
+
+The evidence composes the source-bound owner through the existing Geometry,
+Mesh, and complete region-correspondence envelopes. It exercises both cap
+orientations, all supported and unsupported v2 face classes, exact topology and
+quality values, sizing-boundary mutants, stale/foreign handles, work budgets,
+quality rejection, and independent Geometry-versus-Mesh policy identity.

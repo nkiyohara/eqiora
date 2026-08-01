@@ -458,7 +458,7 @@ ceiling = 22
 
 [[public_surface]]
 crate = "eqiora-geometry"
-ceiling = 38
+ceiling = 39
 reason = """
 Raised from 23 as an architecture change, not as drift. The seven added names
 are the authored-region vocabulary: a canonical straight-edged planar region,
@@ -477,13 +477,16 @@ One source-bound chordal owner now keeps that exact source reference beside
 the requested and accepted approximation evidence, named region, and accepted
 mesh. Solver and Studio are its two downstream consumers; returning a loose
 tuple would let both lose or reconstruct the source-binding invariant.
-Three names now form the common provider-neutral authored CAD boundary: one
+Four names now form the common provider-neutral authored CAD boundary: one
 opaque graph owner over closed private wire versions, one graph-bound durable
-face handle, and one accepted build receipt. The graph binds stable provenance
-keys directly into handles, so Python, Studio, and Rust no longer reimplement
-or publicly construct an intermediate selection token. The existing bounded
-CAD path consumes the rectangle/extrusion history; the first circular
-through-cut consumes the same owner with no circular-cut public type.
+face handle, one accepted build receipt, and one no-wire face surface
+realization. The graph binds stable provenance keys directly into handles, so
+Python, Studio, and Rust do not reimplement or publicly construct an
+intermediate selection token. The face realization combines one exact source
+handle with existing Geometry and Mesh owners without adding a policy schema,
+request type, frame type, or artifact variant. The existing bounded CAD path
+consumes the rectangle/extrusion history; the first circular through-cut
+consumes the same owner with no circular-cut public type.
 """
 removal = "lower when the common graph owner can absorb the specialized exact-circle and chordal public owners without changing their accepted wires, digests, or source-bound error evidence; lower again if the owned geometry value can replace the separate borrowed semantic reference without exposing content or caller-authored facts"
 

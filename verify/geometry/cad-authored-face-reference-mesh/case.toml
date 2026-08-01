@@ -1,5 +1,5 @@
 id = "geometry.cad-authored-face-reference-mesh"
-status = "specified"
+status = "verified"
 scope = "one-source-bound-rectangular-authored-face-realized-as-one-planar-reference-mesh"
 reference_kind = "dual-independent-analytic-and-exact-rational-enumeration-oracle"
 
@@ -131,3 +131,7 @@ adaptive_anisotropic_or_boundary_layer_mesh = false
 production_unstructured_mesher = false
 wire_schema_or_persisted_mesh_policy = false
 python_studio_solver_or_demo = false
+
+[evidence]
+package = "eqiora"
+test = "cad_authored_face_reference_mesh"

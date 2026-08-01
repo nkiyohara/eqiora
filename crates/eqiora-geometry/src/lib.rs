@@ -20,6 +20,7 @@ mod association;
 mod cad;
 mod cad_authored_build;
 mod cad_authored_cut;
+mod cad_authored_face_mesh;
 mod cad_authored_graph;
 mod cad_authored_selection;
 mod canonical;
@@ -39,6 +40,7 @@ pub use cad::{
     StepLengthUnitV1, StepSourceDigest,
 };
 pub use cad_authored_build::CadAuthoredBuild;
+pub use cad_authored_face_mesh::CadAuthoredFaceMesh;
 pub use cad_authored_graph::CadAuthoredGraph;
 pub use cad_authored_selection::CadAuthoredFaceHandle;
 pub use canonical::{CanonicalGeometryLimits, CanonicalGeometryRef, CanonicalGeometryV1};
