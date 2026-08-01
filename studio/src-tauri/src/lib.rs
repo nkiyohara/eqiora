@@ -6,6 +6,7 @@
 
 mod cad;
 mod cad_authored;
+mod cad_authored_export;
 mod compile;
 mod cylinder_demo;
 mod dc_motor_demo;
@@ -43,7 +44,8 @@ use eqiora::solver::{
 };
 use eqiora::{Diagnostic, RawId, Severity};
 use serde::{Deserialize, Serialize};
-use tauri::{State, ipc::Channel};
+use tauri::{AppHandle, State, ipc::Channel};
+use tauri_plugin_dialog::DialogExt;
 
 use lifecycle::{CancellationStatus, CoalescingObserver, RunRegistry};
 use scalar_field::{ScalarFieldCache, open_scalar_field_view, read_scalar_field_chunk};
@@ -1070,6 +1072,49 @@ fn resolve_cad_authored_face(
 }
 
 #[tauri::command]
+fn render_cad_authored_python(
+    request: cad_authored_export::CadAuthoredExportRequestDto,
+) -> BridgeEnvelope<cad_authored_export::CadAuthoredExportRenderDto> {
+    match cad_authored_export::render_export(&request) {
+        Ok(rendering) => BridgeEnvelope::success(rendering),
+        Err(diagnostic) => BridgeEnvelope::failure(vec![diagnostic.into()]),
+    }
+}
+
+/// Validate and render before exposing the native dialog. The client sends
+/// neither source nor a path; only the dialog-selected filesystem path ever
+/// reaches the private write helper.
+#[tauri::command]
+async fn save_cad_authored_python(
+    request: cad_authored_export::CadAuthoredExportRequestDto,
+    app: AppHandle,
+) -> BridgeEnvelope<cad_authored_export::CadAuthoredExportSaveDto> {
+    if let Err(diagnostic) = cad_authored_export::render_export(&request) {
+        return BridgeEnvelope::failure(vec![diagnostic.into()]);
+    }
+    let (filter_name, extensions) = cad_authored_export::CAD_AUTHORED_EXPORT_DIALOG_FILTER;
+    let dialog_path = app
+        .dialog()
+        .file()
+        .set_file_name(cad_authored_export::CAD_AUTHORED_EXPORT_FILE_NAME)
+        .add_filter(filter_name, extensions)
+        .blocking_save_file();
+    let dialog_path = match dialog_path.map(|path| path.into_path()).transpose() {
+        Ok(path) => path,
+        Err(_) => {
+            return BridgeEnvelope::failure(vec![studio_error(
+                "ST0003",
+                "the native save dialog returned a non-filesystem location",
+            )]);
+        }
+    };
+    match cad_authored_export::save_export(&request, dialog_path.as_deref()) {
+        Ok(outcome) => BridgeEnvelope::success(outcome),
+        Err(diagnostic) => BridgeEnvelope::failure(vec![diagnostic.into()]),
+    }
+}
+
+#[tauri::command]
 fn preview_reference_run(
     request: RunPreviewRequest,
     state: State<'_, AppState>,
@@ -1960,6 +2005,7 @@ pub fn run() {
     use compile::compile_model;
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             compile_model,
@@ -1967,6 +2013,8 @@ pub fn run() {
             select_cad_entity,
             build_cad_authored_graph,
             resolve_cad_authored_face,
+            render_cad_authored_python,
+            save_cad_authored_python,
             preview_value_edit,
             commit_value_edit,
             preview_reference_run,

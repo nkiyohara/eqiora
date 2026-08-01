@@ -474,9 +474,12 @@ function boundedSourceRejection(source: string): string | null {
   if (new TextEncoder().encode(source).length > CAD_AUTHORED_EXPORT_MAX_SOURCE_BYTES) {
     return "Generated Python source exceeds its bounded size.";
   }
+  if (source.startsWith("\ufeff")) return "Generated Python source contains a UTF-8 BOM.";
   if (source.includes("\u0000")) return "Generated Python source contains a NUL byte.";
   if (source.includes("\r")) return "Generated Python source contains a CR line ending.";
-  if (!source.endsWith("\n")) return "Generated Python source must end with one LF newline.";
+  if (!source.endsWith("\n") || source.endsWith("\n\n")) {
+    return "Generated Python source must end with exactly one LF newline.";
+  }
   for (const line of source.split("\n")) {
     if ((line.startsWith("import ") || line.startsWith("from ")) && line !== "import eqiora") {
       return "Generated Python source may import only the public eqiora package.";

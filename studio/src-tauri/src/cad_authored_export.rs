@@ -224,6 +224,8 @@ mod tests {
     const V2_FIXTURE: &str = include_str!(
         "../../../verify/interfaces/studio-python-cad-round-trip/models/circular_through_cut.py"
     );
+    const HOSTILE_CORPUS: &str =
+        include_str!("../../../verify/interfaces/studio-python-cad-round-trip/models/hostile.json");
 
     // Frozen witness scalars and digests copied verbatim from the accepted
     // cases `crates/eqiora-geometry/tests/cad_authored_rectangle_extrusion.rs`
@@ -262,6 +264,25 @@ mod tests {
 
     fn v2_request() -> CadAuthoredExportRequestDto {
         request_for(&v2_owner(), V2_DIGEST_HEX)
+    }
+
+    fn hostile_corpus() -> serde_json::Value {
+        serde_json::from_str(HOSTILE_CORPUS).unwrap()
+    }
+
+    fn corpus_string<'a>(mutant: &'a serde_json::Value, field: &str) -> &'a str {
+        mutant[field]
+            .as_str()
+            .unwrap_or_else(|| panic!("corpus mutant omitted string field {field}"))
+    }
+
+    fn corpus_usize(mutant: &serde_json::Value, field: &str) -> usize {
+        usize::try_from(
+            mutant[field]
+                .as_u64()
+                .unwrap_or_else(|| panic!("corpus mutant omitted integer field {field}")),
+        )
+        .unwrap()
     }
 
     /// Caller-owned scratch path; exact write tests never open a dialog.
@@ -378,13 +399,37 @@ mod tests {
         });
         assert!(serde_json::from_value::<CadAuthoredExportRequestDto>(base.clone()).is_ok());
 
-        for (field, value) in [
-            ("unknown", serde_json::json!(true)),
-            ("path", serde_json::json!("/tmp/forbidden.py")),
-            ("sourceUtf8", serde_json::json!("import os\n")),
-        ] {
+        let corpus = hostile_corpus();
+        let mutants = corpus["bridgeRequestMutants"].as_array().unwrap();
+        let ids: Vec<_> = mutants
+            .iter()
+            .map(|mutant| corpus_string(mutant, "id"))
+            .collect();
+        assert_eq!(
+            ids,
+            [
+                "unknown-protocol",
+                "unknown-field",
+                "client-path",
+                "client-source",
+                "odd-graph-hex",
+                "uppercase-graph-hex",
+                "oversized-graph-hex",
+                "unknown-canonical-wire",
+                "duplicate-canonical-field",
+                "oversized-canonical-wire",
+                "stale-digest",
+                "cross-version-substitution",
+                "tolerance-only-substitution",
+            ]
+        );
+        for mutant in mutants
+            .iter()
+            .filter(|mutant| mutant["mutation"] == "add-json-field")
+        {
+            let field = corpus_string(mutant, "field");
             let mut widened = base.clone();
-            widened[field] = value;
+            widened[field] = mutant["value"].clone();
             assert!(
                 serde_json::from_value::<CadAuthoredExportRequestDto>(widened).is_err(),
                 "field {field} must reject",
@@ -396,77 +441,63 @@ mod tests {
     /// before source or a save write is exposed.
     #[test]
     fn every_replay_request_mutant_rejects_before_source_or_write() {
-        let v1_wire = String::from_utf8(v1_owner().canonical_bytes().to_vec()).unwrap();
-        let duplicate_wire = v1_wire.replacen(
-            "\"length_unit\":",
-            "\"length_unit\":\"metre\",\"length_unit\":",
-            1,
-        );
-        assert_ne!(duplicate_wire, v1_wire, "the mutation must alter the wire");
-
-        let tolerance_only = {
-            let sketch = ConstrainedRectangleV1::new((-2.0, 3.0), (-1.0, 2.0), 0.5).unwrap();
-            CadAuthoredGraph::new(sketch, 4.0, 2.0e-9).unwrap()
-        };
-
-        let mutants: [(&str, CadAuthoredExportRequestDto); 11] = [
-            ("unknown-protocol", {
-                let mut request = v1_request();
-                request.protocol = "eqiora.studio.cad-authored-python-export/v2".to_owned();
-                request
-            }),
-            ("odd-graph-hex", {
-                let mut request = v1_request();
-                request.canonical_graph_hex = "a".to_owned();
-                request
-            }),
-            ("uppercase-graph-hex", {
-                let mut request = v1_request();
-                request.canonical_graph_hex = "AA".to_owned();
-                request
-            }),
-            ("oversized-graph-hex", {
-                let mut request = v1_request();
-                request.canonical_graph_hex = "ab".repeat(2_049);
-                request
-            }),
-            ("unknown-canonical-wire", {
-                let mut request = v1_request();
-                request.canonical_graph_hex = hex(b"{\"schema\":\"unknown\"}");
-                request
-            }),
-            ("duplicate-canonical-field", {
-                let mut request = v1_request();
-                request.canonical_graph_hex = hex(duplicate_wire.as_bytes());
-                request
-            }),
-            ("oversized-canonical-wire", {
-                let mut request = v1_request();
-                request.canonical_graph_hex = hex(&[b'x'; 4_097]);
-                request
-            }),
-            ("stale-digest", {
-                let mut request = v1_request();
-                request.graph_digest.replace_range(0..1, "0");
-                request
-            }),
-            ("cross-version-substitution", {
-                let mut request = v2_request();
-                request.graph_digest = V1_DIGEST_HEX.to_owned();
-                request
-            }),
-            (
-                "tolerance-only-substitution",
-                request_for(&tolerance_only, V1_DIGEST_HEX),
-            ),
-            ("stale-digest-v2", {
-                let mut request = v2_request();
-                request.graph_digest.replace_range(0..1, "1");
-                request
-            }),
-        ];
-
-        for (id, request) in mutants {
+        let corpus = hostile_corpus();
+        let mutants = corpus["bridgeRequestMutants"].as_array().unwrap();
+        for mutant in mutants
+            .iter()
+            .filter(|mutant| mutant["mutation"] != "add-json-field")
+        {
+            let id = corpus_string(mutant, "id");
+            let mutation = corpus_string(mutant, "mutation");
+            let mut request = v1_request();
+            match mutation {
+                "replace-protocol" => {
+                    request.protocol = corpus_string(mutant, "value").to_owned();
+                }
+                "replace-canonical-graph-hex" => {
+                    request.canonical_graph_hex = corpus_string(mutant, "value").to_owned();
+                }
+                "replace-canonical-graph-hex-repeat" => {
+                    request.canonical_graph_hex =
+                        corpus_string(mutant, "value").repeat(corpus_usize(mutant, "repeat"));
+                }
+                "replace-decoded-canonical-wire" => {
+                    request.canonical_graph_hex = hex(corpus_string(mutant, "value").as_bytes());
+                }
+                "replace-decoded-canonical-substring" => {
+                    let wire = String::from_utf8(v1_owner().canonical_bytes().to_vec()).unwrap();
+                    let changed = wire.replacen(
+                        corpus_string(mutant, "needle"),
+                        corpus_string(mutant, "value"),
+                        1,
+                    );
+                    assert_ne!(changed, wire, "mutant {id} must alter the wire");
+                    request.canonical_graph_hex = hex(changed.as_bytes());
+                }
+                "replace-decoded-canonical-wire-repeat" => {
+                    let wire =
+                        corpus_string(mutant, "value").repeat(corpus_usize(mutant, "repeat"));
+                    request.canonical_graph_hex = hex(wire.as_bytes());
+                }
+                "replace-digest-first-nibble" => {
+                    request
+                        .graph_digest
+                        .replace_range(0..1, corpus_string(mutant, "value"));
+                }
+                "replace-canonical-graph-with-v2-keep-v1-digest" => {
+                    request = v2_request();
+                    request.graph_digest = V1_DIGEST_HEX.to_owned();
+                }
+                "construct-v1-with-modeling-tolerance-keep-v1-digest" => {
+                    let sketch =
+                        ConstrainedRectangleV1::new((-2.0, 3.0), (-1.0, 2.0), 0.5).unwrap();
+                    let graph =
+                        CadAuthoredGraph::new(sketch, 4.0, mutant["value"].as_f64().unwrap())
+                            .unwrap();
+                    request = request_for(&graph, V1_DIGEST_HEX);
+                }
+                _ => panic!("unsupported bridge corpus mutation {mutation}"),
+            }
             assert!(render_export(&request).is_err(), "mutant {id} must reject");
             let path = scratch_path(&format!("mutant-{id}.py"));
             assert!(
@@ -481,6 +512,15 @@ mod tests {
     /// a normal outcome; `write-error` is a bounded diagnostic, never `saved`.
     #[test]
     fn cancelled_dialog_writes_nothing_and_write_errors_never_report_saved() {
+        let corpus = hostile_corpus();
+        let save_mutants = corpus["saveMutants"].as_array().unwrap();
+        assert_eq!(
+            save_mutants
+                .iter()
+                .map(|mutant| corpus_string(mutant, "id"))
+                .collect::<Vec<_>>(),
+            ["dialog-cancelled", "write-error"]
+        );
         let cancelled = save_export(&v1_request(), None).unwrap();
         assert_eq!(cancelled.status, CadAuthoredExportSaveStatus::Cancelled);
         assert_eq!(cancelled.graph_digest, V1_DIGEST_HEX);

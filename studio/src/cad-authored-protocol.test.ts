@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import hostileCorpus from "../../verify/interfaces/studio-python-cad-round-trip/models/hostile.json";
 import {
   CAD_AUTHORED_EXPORT_FILE_NAME,
   CAD_AUTHORED_EXPORT_PROTOCOL,
@@ -487,18 +488,108 @@ describe("authored-CAD Python export wire", () => {
     sourceUtf8: source,
   };
 
+  type HostileMutation = Readonly<{
+    id: string;
+    mutation: string;
+    value?: unknown;
+    field?: string;
+    repeat?: number;
+    needle?: string;
+  }>;
+  const bridgeMutants = hostileCorpus.bridgeRequestMutants as readonly HostileMutation[];
+  const renderMutants = hostileCorpus.renderResponseMutants as readonly HostileMutation[];
+
+  function requiredString(value: unknown, id: string): string {
+    if (typeof value !== "string") throw new Error(`corpus mutant ${id} omitted a string value`);
+    return value;
+  }
+
+  function mutateClientRequest(mutant: HostileMutation): unknown {
+    if (mutant.mutation === "replace-protocol") {
+      return { ...request, protocol: requiredString(mutant.value, mutant.id) };
+    }
+    if (mutant.mutation === "add-json-field") {
+      if (mutant.field === undefined) throw new Error(`corpus mutant ${mutant.id} omitted a field`);
+      return { ...request, [mutant.field]: mutant.value };
+    }
+    if (mutant.mutation === "replace-canonical-graph-hex") {
+      return { ...request, canonicalGraphHex: requiredString(mutant.value, mutant.id) };
+    }
+    if (mutant.mutation === "replace-canonical-graph-hex-repeat") {
+      if (mutant.repeat === undefined) {
+        throw new Error(`corpus mutant ${mutant.id} omitted a repeat count`);
+      }
+      return {
+        ...request,
+        canonicalGraphHex: requiredString(mutant.value, mutant.id).repeat(mutant.repeat),
+      };
+    }
+    return null;
+  }
+
+  function mutateRender(mutant: HostileMutation): unknown {
+    switch (mutant.mutation) {
+      case "replace-protocol":
+        return { ...render, protocol: requiredString(mutant.value, mutant.id) };
+      case "replace-digest-first-nibble":
+        return {
+          ...render,
+          graphDigest: `${requiredString(mutant.value, mutant.id)}${render.graphDigest.slice(1)}`,
+        };
+      case "replace-suggested-filename":
+        return { ...render, suggestedFileName: requiredString(mutant.value, mutant.id) };
+      case "replace-source-repeat":
+        if (mutant.repeat === undefined) {
+          throw new Error(`corpus mutant ${mutant.id} omitted a repeat count`);
+        }
+        return {
+          ...render,
+          sourceUtf8: requiredString(mutant.value, mutant.id).repeat(mutant.repeat),
+        };
+      case "prepend-source":
+        return { ...render, sourceUtf8: `${requiredString(mutant.value, mutant.id)}${source}` };
+      case "append-source":
+        return { ...render, sourceUtf8: `${source}${requiredString(mutant.value, mutant.id)}` };
+      case "replace-source-substring":
+        if (mutant.needle === undefined) {
+          throw new Error(`corpus mutant ${mutant.id} omitted a replacement needle`);
+        }
+        return {
+          ...render,
+          sourceUtf8: source.replace(mutant.needle, requiredString(mutant.value, mutant.id)),
+        };
+      case "remove-final-source-newline":
+        return { ...render, sourceUtf8: source.slice(0, -1) };
+      default:
+        throw new Error(`unsupported render corpus mutation ${mutant.mutation}`);
+    }
+  }
+
+  it("matches the exact precommitted corpus wire", () => {
+    expect(hostileCorpus.schema).toBe("eqiora.studio.cad-authored-python-export-hostiles/v1");
+    expect(hostileCorpus.protocol).toBe(CAD_AUTHORED_EXPORT_PROTOCOL);
+    expect(hostileCorpus.requestFields).toEqual(Object.keys(request));
+    expect(hostileCorpus.renderResponseFields).toEqual(Object.keys(render));
+    expect(hostileCorpus.saveResponseFields).toEqual(["protocol", "graphDigest", "status"]);
+    expect(hostileCorpus.suggestedFileName).toBe(CAD_AUTHORED_EXPORT_FILE_NAME);
+  });
+
   it("accepts the one closed request and rejects each widened or malformed one", () => {
     expect(cadAuthoredExportRequestSchema.safeParse(request).success).toBe(true);
 
-    const rejects: [string, unknown][] = [
-      ["unknown-protocol", { ...request, protocol: "eqiora.studio.cad-authored-python-export/v2" }],
-      ["unknown-field", { ...request, unknown: true }],
-      ["client-path", { ...request, path: "/tmp/forbidden.py" }],
-      ["client-source", { ...request, sourceUtf8: "import os\n" }],
-      ["odd-graph-hex", { ...request, canonicalGraphHex: "a" }],
-      ["uppercase-graph-hex", { ...request, canonicalGraphHex: "AA" }],
-    ];
-    for (const [id, payload] of rejects) {
+    const clientMutants = bridgeMutants
+      .map((mutant) => [mutant.id, mutateClientRequest(mutant)] as const)
+      .filter((entry): entry is readonly [string, object] => entry[1] !== null);
+    expect(clientMutants.map(([id]) => id)).toEqual([
+      "unknown-protocol",
+      "unknown-field",
+      "client-path",
+      "client-source",
+      "odd-graph-hex",
+      "uppercase-graph-hex",
+      "oversized-graph-hex",
+    ]);
+    for (const [id, payload] of clientMutants) {
       expect(cadAuthoredExportRequestSchema.safeParse(payload).success, `mutant ${id}`).toBe(false);
     }
   });
@@ -508,29 +599,15 @@ describe("authored-CAD Python export wire", () => {
   });
 
   it("rejects each hostile render response before preview publication", () => {
-    const rejects: [string, unknown][] = [
-      ["wrong-protocol", { ...render, protocol: "eqiora.studio.cad-authored-python-export/v2" }],
-      ["wrong-filename", { ...render, suggestedFileName: "other.py" }],
-      ["oversized-source", { ...render, sourceUtf8: "x".repeat(4097) }],
-      ["nul-source", { ...render, sourceUtf8: `${source}\u0000` }],
-      ["cr-source", { ...render, sourceUtf8: source.replace("\n", "\r\n") }],
-      ["missing-final-newline", { ...render, sourceUtf8: source.slice(0, -1) }],
-      [
-        "private-import",
-        { ...render, sourceUtf8: source.replace("import eqiora\n", "import eqiora._eqiora\n") },
-      ],
-      [
-        "canonical-blob",
-        {
-          ...render,
-          sourceUtf8: `${source}authored_graph = eqiora.geometry.CadAuthoredGraph.decode_canonical(b"x")\n`,
-        },
-      ],
-      ["widened-operation", { ...render, sourceUtf8: `${source}import os\n` }],
-    ];
+    const rejects = renderMutants
+      .filter(({ id }) => id !== "wrong-digest")
+      .map((mutant) => [mutant.id, mutateRender(mutant)] as const);
     for (const [id, payload] of rejects) {
       expect(cadAuthoredExportRenderSchema.safeParse(payload).success, `mutant ${id}`).toBe(false);
     }
+    const wrongDigest = renderMutants.find(({ id }) => id === "wrong-digest");
+    if (wrongDigest === undefined) throw new Error("corpus omitted wrong-digest");
+    expect(cadAuthoredExportRenderSchema.safeParse(mutateRender(wrongDigest)).success).toBe(true);
   });
 
   it("keeps the save outcome closed to saved and cancelled", () => {

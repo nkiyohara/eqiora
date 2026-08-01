@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import hostileCorpus from "../../verify/interfaces/studio-python-cad-round-trip/models/hostile.json";
 import { protocolFailure } from "./bridge-contract";
 import {
   CAD_AUTHORED_EXPORT_FILE_NAME,
@@ -337,6 +338,39 @@ function exportBridge(options: ExportBridgeOptions): CadAuthoredBridge {
 }
 
 describe("authored-CAD session Python render binding", () => {
+  it("covers the complete precommitted session and save mutant inventory", () => {
+    expect(hostileCorpus.sessionMutants).toEqual([
+      {
+        id: "stale-render-after-rebuild",
+        start: "v1",
+        current: "v2",
+        response: "v1-render-success",
+        expect: "discard-stale",
+      },
+      {
+        id: "stale-save-after-rebuild",
+        start: "v1",
+        current: "v2",
+        response: "v1-save-success",
+        expect: "discard-stale",
+      },
+    ]);
+    expect(hostileCorpus.saveMutants).toEqual([
+      {
+        id: "dialog-cancelled",
+        base: "v1",
+        dialog: "cancelled",
+        expectedWrites: 0,
+        expect: "cancelled",
+      },
+      {
+        id: "write-error",
+        base: "v1",
+        writer: "returns-error",
+        expect: "bounded-write-error-not-saved",
+      },
+    ]);
+  });
   it("sends the exact digest-bound opaque request and publishes the native render", async () => {
     const projection = cutProjection();
     const requests: CadAuthoredExportRequest[] = [];

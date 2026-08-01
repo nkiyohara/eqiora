@@ -1,5 +1,5 @@
 id = "interfaces.studio-python-cad-round-trip"
-status = "implemented"
+status = "verified"
 scope = "deterministic-studio-python-projection-of-two-frozen-authored-cad-histories"
 reference_kind = "exact-precommitted-generated-programs-over-existing-native-cad-oracles"
 
@@ -27,7 +27,7 @@ isolated_installed_interpreter_outside_repository = true
 exact_canonical_graph_bytes_and_digest = true
 ordered_graph_bound_face_handles_and_observations = true
 complete_analytic_build_receipt = true
-native_studio_renderer_equals_frozen_source = false
+native_studio_renderer_equals_frozen_source = true
 precommitted_hostile_corpus = true
 
 [falsifiers]
