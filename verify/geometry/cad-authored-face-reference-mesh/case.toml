@@ -113,6 +113,42 @@ interior_edges = 176
 n8_maximum_edge_m = 0.5303300858899106
 n8_maximum_edge_hex = "0x1.0f876ccdf6cd9p-1"
 
+[dual_axis_snapping_witness]
+u_length_m = 17.5
+u_length_hex = "0x1.1800000000000p+4"
+v_length_m = 10.5
+v_length_hex = "0x1.5000000000000p+3"
+target_m = 0.9899494936611665
+target_hex = "0x1.fadaa8f7eed51p-1"
+shared_nominal_spacing_hex = "0x1.6666666666666p-1"
+u_nominal_intervals = 25
+u_n25_maximum_realized_spacing_hex = "0x1.6666666666680p-1"
+u_n25_realized_diagonal_hex = "0x1.fadaa8f7eed76p-1"
+u_repaired_intervals = 26
+u_n26_maximum_realized_spacing_hex = "0x1.589d89d89d8a0p-1"
+v_nominal_intervals = 15
+v_n15_maximum_realized_spacing_hex = "0x1.6666666666670p-1"
+v_n15_realized_diagonal_hex = "0x1.fadaa8f7eed5fp-1"
+v_repaired_intervals = 16
+v_n16_exact_spacing_hex = "0x1.5000000000000p-1"
+require_unequal_maximum_realized_gaps = true
+vertices = 459
+triangles = 832
+edges = 1290
+boundary_edges = 84
+interior_edges = 1206
+maximum_mesh_edge_hex = "0x1.e14e6a48457e0p-1"
+
+[retained_regression_witness]
+length_m = 8.375
+length_hex = "0x1.0c00000000000p+3"
+target_m = 1.692005512124953
+target_hex = "0x1.b12745f33a78cp+0"
+nominal_intervals = 7
+n7_maximum_realized_spacing_hex = "0x1.324924924924cp+0"
+repaired_intervals = 8
+role = "regression check for endpoint-aware correction; both ceiling estimates also give eight, so it is not an estimate falsifier"
+
 [acceptance]
 validate_handle_before_revealing_face = true
 classification_tolerance_is_not_a_sizing_tolerance = true
@@ -136,6 +172,7 @@ strict_comparator_mutant = "one-ulp target pair changes the length-5 realized in
 classification_tolerance_leakage = "one-ulp target pair remains governed only by the sizing predicate"
 endpoint_snap_escapes_nominal_bound = "length 3 and the nominal n=7 equality target reject after the generated endpoint makes one realized gap five ulps wider; n=8 accepts"
 ceil_estimate_as_answer = "length 4.875 and target 0.9848987309384055 give ceil(sqrt(2)*L/h)=7 and ceil(L/(h/sqrt(2)))=7, but realized coordinates reject 7 and accept 8"
+dual_axis_endpoint_snap = "17.5 x 10.5 rectangle at the shared nominal-equality target rejects both nominal counts 25 and 15 on realized gaps of unequal width and accepts 26 by 16"
 orientation_or_diagonal_flip = "fail frozen first/last cells, outward normal, and start/end-cap distinction"
 
 [claim_boundary]
@@ -154,6 +191,7 @@ adaptive_anisotropic_or_boundary_layer_mesh = false
 production_unstructured_mesher = false
 wire_schema_or_persisted_mesh_policy = false
 python_studio_solver_or_demo = false
+cross_platform_mesh_byte_identity = false
 
 [evidence]
 package = "eqiora"

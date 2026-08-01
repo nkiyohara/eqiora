@@ -589,3 +589,98 @@ fn cross(left: [f64; 3], right: [f64; 3]) -> [f64; 3] {
 fn norm(vector: [f64; 3]) -> f64 {
     vector[0].hypot(vector[1]).hypot(vector[2])
 }
+
+#[cfg(test)]
+mod face_frame_invariants {
+    use super::*;
+
+    const TOLERANCE_M: f64 = 5.0e-10;
+    const NORMAL: [f64; 3] = [0.0, 0.0, 1.0];
+
+    fn rectangle() -> [[f64; 3]; 4] {
+        [
+            [-2.0, -1.0, 4.5],
+            [3.0, -1.0, 4.5],
+            [3.0, 2.0, 4.5],
+            [-2.0, 2.0, 4.5],
+        ]
+    }
+
+    #[test]
+    fn frame_binds_exact_origin_unit_axes_and_lengths() {
+        let frame = FaceFrame::from_cycle(rectangle(), NORMAL, TOLERANCE_M).unwrap();
+        assert_eq!(frame.origin_m, [-2.0, -1.0, 4.5]);
+        assert_eq!(frame.u_hat, [1.0, 0.0, 0.0]);
+        assert_eq!(frame.v_hat, [0.0, 1.0, 0.0]);
+        assert_eq!((frame.u_length_m, frame.v_length_m), (5.0, 3.0));
+    }
+
+    #[test]
+    fn one_ulp_opposite_corner_defect_rejects() {
+        let mut cycle = rectangle();
+        cycle[2][0] = f64::from_bits(cycle[2][0].to_bits() + 1);
+        let error = FaceFrame::from_cycle(cycle, NORMAL, TOLERANCE_M)
+            .err()
+            .unwrap();
+        assert_eq!(error.code(), codes::INVALID_ARTIFACT);
+    }
+
+    #[test]
+    fn sheared_axes_reject_at_exact_zero_orthogonality() {
+        let shear = 2.0_f64.powi(-30);
+        let cycle = [
+            [0.0, 0.0, 0.0],
+            [4.0, 0.0, 0.0],
+            [4.0 + shear, 2.0, 0.0],
+            [shear, 2.0, 0.0],
+        ];
+        let error = FaceFrame::from_cycle(cycle, NORMAL, TOLERANCE_M)
+            .err()
+            .unwrap();
+        assert_eq!(error.code(), codes::INVALID_ARTIFACT);
+    }
+
+    #[test]
+    fn one_ulp_outward_normal_defect_rejects() {
+        let reversed = FaceFrame::from_cycle(rectangle(), [0.0, 0.0, -1.0], TOLERANCE_M)
+            .err()
+            .unwrap();
+        assert_eq!(reversed.code(), codes::INVALID_ARTIFACT);
+        let skewed = FaceFrame::from_cycle(
+            rectangle(),
+            [0.0, 0.0, f64::from_bits(1.0_f64.to_bits() + 1)],
+            TOLERANCE_M,
+        )
+        .err()
+        .unwrap();
+        assert_eq!(skewed.code(), codes::INVALID_ARTIFACT);
+    }
+
+    #[test]
+    fn axis_length_equal_to_the_classification_tolerance_rejects() {
+        let cycle = [
+            [0.0, 0.0, 0.0],
+            [TOLERANCE_M, 0.0, 0.0],
+            [TOLERANCE_M, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ];
+        let error = FaceFrame::from_cycle(cycle, NORMAL, TOLERANCE_M)
+            .err()
+            .unwrap();
+        assert_eq!(error.code(), codes::INVALID_ARTIFACT);
+    }
+
+    #[test]
+    fn nonfinite_cycle_or_normal_coordinates_reject() {
+        let mut cycle = rectangle();
+        cycle[1][0] = f64::NAN;
+        let error = FaceFrame::from_cycle(cycle, NORMAL, TOLERANCE_M)
+            .err()
+            .unwrap();
+        assert_eq!(error.code(), codes::INVALID_ARTIFACT);
+        let error = FaceFrame::from_cycle(rectangle(), [0.0, 0.0, f64::INFINITY], TOLERANCE_M)
+            .err()
+            .unwrap();
+        assert_eq!(error.code(), codes::INVALID_ARTIFACT);
+    }
+}

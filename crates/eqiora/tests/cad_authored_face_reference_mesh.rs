@@ -261,29 +261,6 @@ fn binary64_minimality_boundaries_and_estimate_correction_are_exact() {
         (15, 16)
     );
 
-    let mutant_graph = CadAuthoredGraph::new(
-        ConstrainedRectangleV1::new((0.0, 8.375), (0.0, 1.0), 0.0).unwrap(),
-        1.0,
-        1.0e-9,
-    )
-    .unwrap();
-    let corrected = realize(
-        &mutant_graph,
-        "end-cap",
-        GEOMETRY_TOLERANCE_M,
-        f64::from_bits(0x3ffb_1274_5f33_a78c),
-        16,
-        0.5,
-    );
-    assert_eq!((corrected.u_divisions(), corrected.v_divisions()), (8, 1));
-    let length = 8.375;
-    let target = f64::from_bits(0x3ffb_1274_5f33_a78c);
-    assert!((length / 6.0_f64).hypot(length / 6.0_f64) > target);
-    assert!((length / 7.0_f64).hypot(length / 7.0_f64) <= target);
-    let n7_gap = maximum_realized_axis_gap(length, 7);
-    assert_eq!(n7_gap.to_bits(), 0x3ff3_2492_4924_924c);
-    assert!(n7_gap.hypot(n7_gap) > target);
-
     let replacement_length = 4.875;
     let replacement_target = f64::from_bits(0x3fef_844a_57e8_134b);
     assert_eq!(
@@ -330,6 +307,94 @@ fn binary64_minimality_boundaries_and_estimate_correction_are_exact() {
         maximum_mesh_edge(&replacement).to_bits(),
         0x3feb_93c1_0ceb_10e1
     );
+    assert!(maximum_mesh_edge(&replacement) <= replacement_target);
+}
+
+#[test]
+fn retained_regression_witness_corrects_nominal_seven_to_eight() {
+    let length = 8.375_f64;
+    let target = f64::from_bits(0x3ffb_1274_5f33_a78c);
+    assert!((length / 6.0_f64).hypot(length / 6.0_f64) > target);
+    assert!((length / 7.0_f64).hypot(length / 7.0_f64) <= target);
+    let n7_gap = maximum_realized_axis_gap(length, 7);
+    assert_eq!(n7_gap.to_bits(), 0x3ff3_2492_4924_924c);
+    assert!(n7_gap.hypot(n7_gap) > target);
+    let n8_gap = maximum_realized_axis_gap(length, 8);
+    assert!(n8_gap.hypot(n8_gap) <= target);
+
+    let graph = CadAuthoredGraph::new(
+        ConstrainedRectangleV1::new((0.0, length), (0.0, 1.0), 0.0).unwrap(),
+        1.0,
+        1.0e-9,
+    )
+    .unwrap();
+    let corrected = realize(&graph, "end-cap", GEOMETRY_TOLERANCE_M, target, 16, 0.5);
+    assert_eq!((corrected.u_divisions(), corrected.v_divisions()), (8, 1));
+}
+
+#[test]
+fn both_axes_of_a_non_square_face_snap_independently_before_acceptance() {
+    let u_length = 17.5_f64;
+    let v_length = 10.5_f64;
+    let target = f64::from_bits(0x3fef_adaa_8f7e_ed51);
+    assert_eq!((u_length / 25.0).to_bits(), 0x3fe6_6666_6666_6666);
+    assert_eq!((v_length / 15.0).to_bits(), 0x3fe6_6666_6666_6666);
+    let nominal = u_length / 25.0;
+    assert_eq!(nominal.hypot(nominal), target);
+
+    let u_gap = maximum_realized_axis_gap(u_length, 25);
+    let v_gap = maximum_realized_axis_gap(v_length, 15);
+    assert_eq!(u_gap.to_bits(), 0x3fe6_6666_6666_6680);
+    assert_eq!(v_gap.to_bits(), 0x3fe6_6666_6666_6670);
+    assert_ne!(u_gap, v_gap);
+    assert_eq!(u_gap.hypot(u_gap).to_bits(), 0x3fef_adaa_8f7e_ed76);
+    assert_eq!(v_gap.hypot(v_gap).to_bits(), 0x3fef_adaa_8f7e_ed5f);
+    assert!(u_gap.hypot(u_gap) > target);
+    assert!(v_gap.hypot(v_gap) > target);
+
+    let u_accepted_gap = maximum_realized_axis_gap(u_length, 26);
+    let v_accepted_gap = maximum_realized_axis_gap(v_length, 16);
+    assert_eq!(u_accepted_gap.to_bits(), 0x3fe5_89d8_9d89_d8a0);
+    assert_eq!(v_accepted_gap.to_bits(), 0x3fe5_0000_0000_0000);
+    assert_ne!(u_accepted_gap, v_accepted_gap);
+    assert!(u_accepted_gap.hypot(u_accepted_gap) <= target);
+    assert!(v_accepted_gap.hypot(v_accepted_gap) <= target);
+
+    let graph = CadAuthoredGraph::new(
+        ConstrainedRectangleV1::new((0.0, u_length), (0.0, v_length), 0.0).unwrap(),
+        1.0,
+        1.0e-9,
+    )
+    .unwrap();
+    let realization = realize(&graph, "end-cap", GEOMETRY_TOLERANCE_M, target, 1000, 0.5);
+    assert_eq!(
+        (realization.u_divisions(), realization.v_divisions()),
+        (26, 16)
+    );
+    assert_eq!(
+        (
+            realization.mesh().vertices().len(),
+            realization.mesh().cells().len()
+        ),
+        (459, 832)
+    );
+    let edge_count = realization.mesh().entity_count(1).unwrap();
+    assert_eq!(edge_count, 1290);
+    let boundary_edges = (0..edge_count)
+        .filter(|&index| {
+            realization
+                .mesh()
+                .is_boundary_entity(MeshEntity::new(1, index))
+                == Some(true)
+        })
+        .count();
+    assert_eq!(boundary_edges, 84);
+    assert_eq!(edge_count - boundary_edges, 1206);
+    assert_eq!(
+        maximum_mesh_edge(&realization).to_bits(),
+        0x3fee_14e6_a484_57e0
+    );
+    assert!(maximum_mesh_edge(&realization) <= target);
 }
 
 #[test]

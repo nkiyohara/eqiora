@@ -62,10 +62,20 @@ edges.
 A separate `L = 4.875`, `h = 0x1.f844a57e8134bp-1` witness kills
 implementations that return either `ceil(sqrt(2)*L/h)` or
 `ceil(L/(h/sqrt(2)))`: both give seven, while realized n=7 has a gap six ulps
-above nominal and rejects; exact n=8 spacing accepts. The earlier 8.375 witness
-was deliberately retired because the realized-coordinate rule correctly
-changes its answer from seven to eight, making it agree with the estimates
-rather than falsify them.
+above nominal and rejects; exact n=8 spacing accepts, and the realized maximum
+mesh edge stays at or below the target. The earlier 8.375 witness is retained
+by name as `retained_regression_witness`: the realized-coordinate rule
+correctly changes its answer from seven to eight, the same count both ceiling
+estimates give, so it guards endpoint-aware correction instead of falsifying
+estimates.
+
+A non-square `17.5 m` by `10.5 m` witness exercises endpoint snapping on both
+axes at once. Both nominal spacings round to the same binary64 `0.7 m`, whose
+diagonal is exactly the target `0x1.fadaa8f7eed51p-1`; snapping widens the u
+gap by 26 ulps and the v gap by 10 ulps, so the nominal 25-by-15 grid rejects
+on both axes with unequal maximum realized gaps and the least accepted grid is
+26 by 16, with 459 vertices, 832 triangles, 1290 edges, and its widest cell
+diagonal at or below the target.
 
 A 23-triangle budget rejects the primary witness before allocation, while 24
 accepts it. A quality threshold of `0.98` rejects because the generated value
@@ -79,6 +89,11 @@ No volume mesh, per-face override hierarchy, persisted policy wire, annular or
 cylindrical surface mesh, curved element, exact arc realization, adaptive,
 anisotropic, boundary-layer, or production unstructured mesher, Python or
 Studio surface, solver integration, or demo is claimed by this case.
+
+The bit-exact `hypot` witnesses are x86-64 Linux/glibc evidence: Rust
+`f64::hypot` resolves to glibc's libm there. Every frozen diagonal equals the
+correctly rounded binary64 result, so any correctly rounded libm reproduces
+them, but cross-platform mesh-byte identity is not claimed.
 
 ## Run
 
