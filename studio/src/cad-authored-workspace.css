@@ -408,6 +408,82 @@
   color: var(--text);
 }
 
+.cad-authored-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.cad-authored-export-actions button {
+  padding: 8px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.cad-authored-export-actions button:not(:disabled):hover {
+  border-color: var(--mint);
+}
+
+.cad-authored-export-actions button:disabled {
+  opacity: 0.55;
+}
+
+.cad-authored-export-binding {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.cad-authored-export-binding code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+}
+
+.cad-authored-export-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cad-authored-export-filename {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.cad-authored-export-source {
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  max-height: 340px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  color: var(--text);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  user-select: text;
+  white-space: pre;
+}
+
+.cad-authored-export-source:focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 1px;
+}
+
+.cad-authored-export-outcome {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
 .cad-authored-claims p {
   margin: 0;
   padding-top: 12px;
