@@ -434,3 +434,89 @@ export const cadAuthoredSelectionResultSchema = z
   .strict();
 
 export type CadAuthoredSelectionResult = z.infer<typeof cadAuthoredSelectionResultSchema>;
+
+/**
+ * Closed Python-export sub-protocol, independently versioned beside the
+ * authored-CAD projection protocol. The client validates the bounded native
+ * rendering and displays it; it never generates, reformats, hashes, repairs,
+ * or semantically interprets Python. Field names, mutations, and dispositions
+ * are frozen by the hostile corpus at
+ * `verify/interfaces/studio-python-cad-round-trip/models/hostile.json`.
+ */
+export const CAD_AUTHORED_EXPORT_PROTOCOL = "eqiora.studio.cad-authored-python-export/v1" as const;
+/** The one suggested filename; there is no filename template or selector. */
+export const CAD_AUTHORED_EXPORT_FILE_NAME = "eqiora_authored_cad.py" as const;
+/** The generated projection for the two admitted histories stays bounded. */
+export const CAD_AUTHORED_EXPORT_MAX_SOURCE_BYTES = 4_096;
+
+/**
+ * The one closed export request: opaque canonical graph bytes plus the exact
+ * digest they must replay to. A request carries neither a filesystem path nor
+ * Python source; the native side replays, renders, and (for saves) writes
+ * only through its own dialog-chosen path.
+ */
+export const cadAuthoredExportRequestSchema = z
+  .object({
+    protocol: z.literal(CAD_AUTHORED_EXPORT_PROTOCOL),
+    canonicalGraphHex: graphHexSchema,
+    graphDigest: digestSchema,
+  })
+  .strict();
+
+export type CadAuthoredExportRequest = z.infer<typeof cadAuthoredExportRequestSchema>;
+
+/**
+ * Bounded structural rejection of a source projection, per the corpus: size,
+ * NUL, CR, final newline, non-public imports, and canonical-blob replay are
+ * closed string checks — never Python parsing or regeneration.
+ */
+function boundedSourceRejection(source: string): string | null {
+  if (new TextEncoder().encode(source).length > CAD_AUTHORED_EXPORT_MAX_SOURCE_BYTES) {
+    return "Generated Python source exceeds its bounded size.";
+  }
+  if (source.includes("\u0000")) return "Generated Python source contains a NUL byte.";
+  if (source.includes("\r")) return "Generated Python source contains a CR line ending.";
+  if (!source.endsWith("\n")) return "Generated Python source must end with one LF newline.";
+  for (const line of source.split("\n")) {
+    if ((line.startsWith("import ") || line.startsWith("from ")) && line !== "import eqiora") {
+      return "Generated Python source may import only the public eqiora package.";
+    }
+  }
+  if (source.includes("decode_canonical")) {
+    return "Generated Python source may not replay a canonical wire blob.";
+  }
+  return null;
+}
+
+const sourceUtf8Schema = z.string().superRefine((source, context) => {
+  const rejection = boundedSourceRejection(source);
+  if (rejection !== null) {
+    context.addIssue({ code: "custom", message: rejection });
+  }
+});
+
+/** The exact closed render response: nothing more than the corpus fields. */
+export const cadAuthoredExportRenderSchema = z
+  .object({
+    protocol: z.literal(CAD_AUTHORED_EXPORT_PROTOCOL),
+    graphDigest: digestSchema,
+    suggestedFileName: z.literal(CAD_AUTHORED_EXPORT_FILE_NAME),
+    sourceUtf8: sourceUtf8Schema,
+  })
+  .strict();
+
+export type CadAuthoredExportRender = z.infer<typeof cadAuthoredExportRenderSchema>;
+
+/**
+ * The exact closed save response. Cancellation is a normal explicit outcome;
+ * a write error arrives as a diagnostic, never as a third status.
+ */
+export const cadAuthoredExportSaveSchema = z
+  .object({
+    protocol: z.literal(CAD_AUTHORED_EXPORT_PROTOCOL),
+    graphDigest: digestSchema,
+    status: z.enum(["saved", "cancelled"]),
+  })
+  .strict();
+
+export type CadAuthoredExportSave = z.infer<typeof cadAuthoredExportSaveSchema>;

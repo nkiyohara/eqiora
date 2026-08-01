@@ -1,12 +1,19 @@
 import { invoke } from "@tauri-apps/api/core";
 import { protocolFailure } from "./bridge-contract";
 import {
+  CAD_AUTHORED_EXPORT_PROTOCOL,
   CAD_AUTHORED_PROTOCOL,
   type CadAuthoredBuildRequest,
+  type CadAuthoredExportRender,
+  type CadAuthoredExportRequest,
+  type CadAuthoredExportSave,
   type CadAuthoredProjection,
   type CadAuthoredSelectionRequest,
   type CadAuthoredSelectionResult,
   cadAuthoredBuildRequestSchema,
+  cadAuthoredExportRenderSchema,
+  cadAuthoredExportRequestSchema,
+  cadAuthoredExportSaveSchema,
   cadAuthoredProjectionSchema,
   cadAuthoredSelectionRequestSchema,
   cadAuthoredSelectionResultSchema,
@@ -16,13 +23,17 @@ import { type BridgeEnvelope, bridgeEnvelopeSchema, type StudioDiagnostic } from
 /** Native command names for the later thin Tauri wrappers. */
 export const CAD_AUTHORED_BUILD_COMMAND = "build_cad_authored_graph";
 export const CAD_AUTHORED_RESOLVE_COMMAND = "resolve_cad_authored_face";
+export const CAD_AUTHORED_RENDER_PYTHON_COMMAND = "render_cad_authored_python";
+export const CAD_AUTHORED_SAVE_PYTHON_COMMAND = "save_cad_authored_python";
 
-/** Transport boundary: exactly two closed native calls, both replayable. */
+/** Transport boundary: exactly four closed native calls, all replayable. */
 export interface CadAuthoredBridge {
   build(request: CadAuthoredBuildRequest): Promise<BridgeEnvelope<CadAuthoredProjection>>;
   resolve(
     request: CadAuthoredSelectionRequest,
   ): Promise<BridgeEnvelope<CadAuthoredSelectionResult>>;
+  renderPython(request: CadAuthoredExportRequest): Promise<BridgeEnvelope<CadAuthoredExportRender>>;
+  savePython(request: CadAuthoredExportRequest): Promise<BridgeEnvelope<CadAuthoredExportSave>>;
 }
 
 async function checkedInvoke<T>(
@@ -120,11 +131,49 @@ const nativeCadAuthoredBridge: CadAuthoredBridge = {
       ? protocolFailure("Native authored-CAD selection differs from the exact request.")
       : response;
   },
+
+  async renderPython(request) {
+    const checked = cadAuthoredExportRequestSchema.safeParse(request);
+    if (!checked.success) {
+      return protocolFailure("Authored-CAD Python export request is not canonical.");
+    }
+    const response = await checkedInvoke<CadAuthoredExportRender>(
+      CAD_AUTHORED_RENDER_PYTHON_COMMAND,
+      { request: checked.data },
+      bridgeEnvelopeSchema(cadAuthoredExportRenderSchema),
+    );
+    return response.result !== null && response.result.graphDigest !== checked.data.graphDigest
+      ? protocolFailure("Native Python rendering is bound to a different graph identity.")
+      : response;
+  },
+
+  async savePython(request) {
+    const checked = cadAuthoredExportRequestSchema.safeParse(request);
+    if (!checked.success) {
+      return protocolFailure("Authored-CAD Python export request is not canonical.");
+    }
+    const response = await checkedInvoke<CadAuthoredExportSave>(
+      CAD_AUTHORED_SAVE_PYTHON_COMMAND,
+      { request: checked.data },
+      bridgeEnvelopeSchema(cadAuthoredExportSaveSchema),
+    );
+    return response.result !== null && response.result.graphDigest !== checked.data.graphDigest
+      ? protocolFailure("Native Python save outcome is bound to a different graph identity.")
+      : response;
+  },
 };
 
 const PREVIEW_REFUSAL =
   "The authored-CAD owner replay is available only in native Studio; " +
   "browser preview does not fabricate canonical bytes or graph identities.";
+
+/**
+ * Browser preview refuses to fabricate Python source or a saved file: only
+ * the native owner replay may produce either.
+ */
+const EXPORT_PREVIEW_REFUSAL =
+  "The authored-CAD Python export is available only in native Studio; " +
+  "browser preview does not fabricate Python source or a saved file.";
 
 const previewCadAuthoredBridge: CadAuthoredBridge = {
   async build() {
@@ -134,6 +183,14 @@ const previewCadAuthoredBridge: CadAuthoredBridge = {
   async resolve() {
     await Promise.resolve();
     return protocolFailure(PREVIEW_REFUSAL);
+  },
+  async renderPython() {
+    await Promise.resolve();
+    return protocolFailure(EXPORT_PREVIEW_REFUSAL);
+  },
+  async savePython() {
+    await Promise.resolve();
+    return protocolFailure(EXPORT_PREVIEW_REFUSAL);
   },
 };
 
@@ -158,16 +215,42 @@ export type CadAuthoredSelectionState =
   | Readonly<{ kind: "selected"; selection: CadAuthoredSelectionResult }>
   | Readonly<{ kind: "failed"; message: string }>;
 
+export type CadAuthoredExportPreviewState =
+  | Readonly<{ kind: "idle" }>
+  | Readonly<{ kind: "rendering" }>
+  | Readonly<{ kind: "ready"; render: CadAuthoredExportRender }>
+  | Readonly<{ kind: "failed"; message: string }>;
+
+export type CadAuthoredExportSaveState =
+  | Readonly<{ kind: "idle" }>
+  | Readonly<{ kind: "saving" }>
+  | Readonly<{ kind: "saved"; graphDigest: string }>
+  | Readonly<{ kind: "cancelled" }>
+  | Readonly<{ kind: "failed"; message: string }>;
+
+/** Preview and save outcomes for the current accepted graph only. */
+export type CadAuthoredExportState = Readonly<{
+  preview: CadAuthoredExportPreviewState;
+  save: CadAuthoredExportSaveState;
+}>;
+
 export type CadAuthoredSessionState = Readonly<{
   build: CadAuthoredBuildState;
   selection: CadAuthoredSelectionState;
+  export: CadAuthoredExportState;
 }>;
 
 export type CadAuthoredSessionObserver = (state: CadAuthoredSessionState) => void;
 
+const IDLE_EXPORT_STATE: CadAuthoredExportState = {
+  preview: { kind: "idle" },
+  save: { kind: "idle" },
+};
+
 const IDLE_STATE: CadAuthoredSessionState = {
   build: { kind: "idle" },
   selection: { kind: "idle" },
+  export: IDLE_EXPORT_STATE,
 };
 
 /**
@@ -184,6 +267,7 @@ export class CadAuthoredSession {
   readonly #observer: CadAuthoredSessionObserver;
   #buildGeneration = 0;
   #selectionGeneration = 0;
+  #exportGeneration = 0;
   #state: CadAuthoredSessionState = IDLE_STATE;
 
   constructor(bridge: CadAuthoredBridge, observer: CadAuthoredSessionObserver = () => {}) {
@@ -198,6 +282,7 @@ export class CadAuthoredSession {
   clear(): void {
     this.#buildGeneration += 1;
     this.#selectionGeneration += 1;
+    this.#exportGeneration += 1;
     this.#transition(IDLE_STATE);
   }
 
@@ -205,13 +290,21 @@ export class CadAuthoredSession {
   async build(request: CadAuthoredBuildRequest): Promise<CadAuthoredSessionState> {
     const generation = ++this.#buildGeneration;
     this.#selectionGeneration += 1;
-    this.#transition({ build: { kind: "building" }, selection: { kind: "idle" } });
+    // Rebuilding discards the previous graph's export state entirely; an
+    // in-flight render or save response for it can no longer publish.
+    this.#exportGeneration += 1;
+    this.#transition({
+      build: { kind: "building" },
+      selection: { kind: "idle" },
+      export: IDLE_EXPORT_STATE,
+    });
     const response = await this.#bridge.build(request);
     if (generation !== this.#buildGeneration) return this.#state;
     if (response.result !== null) {
       this.#transition({
         build: { kind: "ready", projection: response.result },
         selection: { kind: "idle" },
+        export: IDLE_EXPORT_STATE,
       });
       return this.#state;
     }
@@ -225,6 +318,7 @@ export class CadAuthoredSession {
         diagnostics: response.diagnostics,
       },
       selection: { kind: "idle" },
+      export: IDLE_EXPORT_STATE,
     });
     return this.#state;
   }
@@ -247,11 +341,16 @@ export class CadAuthoredSession {
           kind: "failed",
           message: "The requested face handle is absent from this authored graph.",
         },
+        export: this.#state.export,
       });
       return this.#state;
     }
     const generation = ++this.#selectionGeneration;
-    this.#transition({ build, selection: { kind: "resolving", handleHex } });
+    this.#transition({
+      build,
+      selection: { kind: "resolving", handleHex },
+      export: this.#state.export,
+    });
     const response = await this.#bridge.resolve({
       protocol: CAD_AUTHORED_PROTOCOL,
       graphDigest: projection.graphDigest,
@@ -276,14 +375,102 @@ export class CadAuthoredSession {
             "The native owner did not replay this face selection.",
           ),
         },
+        export: this.#state.export,
       });
       return this.#state;
     }
     this.#transition({
       build: current,
       selection: { kind: "selected", selection: response.result },
+      export: this.#state.export,
     });
     return this.#state;
+  }
+
+  /**
+   * Ask the native owner to render the current accepted graph as Python.
+   * The request carries only the opaque canonical bytes and exact digest;
+   * a response for a superseded graph or generation is discarded.
+   */
+  async renderPython(): Promise<CadAuthoredSessionState> {
+    const request = this.#currentExportRequest();
+    if (request === null) return this.#state;
+    const generation = ++this.#exportGeneration;
+    this.#transitionExport({ preview: { kind: "rendering" } });
+    const response = await this.#bridge.renderPython(request);
+    if (!this.#exportResponseIsCurrent(generation, request.graphDigest)) {
+      return this.#state;
+    }
+    if (response.result === null || response.result.graphDigest !== request.graphDigest) {
+      this.#transitionExport({
+        preview: {
+          kind: "failed",
+          message: firstError(
+            response.diagnostics,
+            "The native owner did not render this authored graph as Python.",
+          ),
+        },
+      });
+      return this.#state;
+    }
+    this.#transitionExport({ preview: { kind: "ready", render: response.result } });
+    return this.#state;
+  }
+
+  /**
+   * Ask the native save boundary to write the current accepted graph's
+   * rendering through its own dialog. Cancellation is a normal outcome;
+   * a stale outcome cannot replace the current graph's export state.
+   */
+  async savePython(): Promise<CadAuthoredSessionState> {
+    const request = this.#currentExportRequest();
+    if (request === null) return this.#state;
+    const generation = ++this.#exportGeneration;
+    this.#transitionExport({ save: { kind: "saving" } });
+    const response = await this.#bridge.savePython(request);
+    if (!this.#exportResponseIsCurrent(generation, request.graphDigest)) {
+      return this.#state;
+    }
+    if (response.result === null || response.result.graphDigest !== request.graphDigest) {
+      this.#transitionExport({
+        save: {
+          kind: "failed",
+          message: firstError(
+            response.diagnostics,
+            "The native owner did not save the exported Python file.",
+          ),
+        },
+      });
+      return this.#state;
+    }
+    this.#transitionExport(
+      response.result.status === "saved"
+        ? { save: { kind: "saved", graphDigest: response.result.graphDigest } }
+        : { save: { kind: "cancelled" } },
+    );
+    return this.#state;
+  }
+
+  /** The exact digest-bound request for the current accepted projection. */
+  #currentExportRequest(): CadAuthoredExportRequest | null {
+    const build = this.#state.build;
+    if (build.kind !== "ready") return null;
+    return {
+      protocol: CAD_AUTHORED_EXPORT_PROTOCOL,
+      canonicalGraphHex: build.projection.canonicalGraphHex,
+      graphDigest: build.projection.graphDigest,
+    };
+  }
+
+  /** A response publishes only for the generation and graph it was bound to. */
+  #exportResponseIsCurrent(generation: number, graphDigest: string): boolean {
+    if (generation !== this.#exportGeneration) return false;
+    const current = this.#state.build;
+    return current.kind === "ready" && current.projection.graphDigest === graphDigest;
+  }
+
+  #transitionExport(patch: Partial<CadAuthoredExportState>): void {
+    this.#transition({ ...this.#state, export: { ...this.#state.export, ...patch } });
   }
 
   #transition(state: CadAuthoredSessionState): void {

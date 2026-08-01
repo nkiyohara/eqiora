@@ -1,5 +1,6 @@
 import { type FormEvent, useId, useRef, useState } from "react";
 import {
+  CAD_AUTHORED_EXPORT_FILE_NAME,
   type CadAuthoredBuildReceipt,
   type CadAuthoredBuildRequest,
   type CadAuthoredFace,
@@ -12,6 +13,7 @@ import {
 } from "./cad-authored-protocol";
 import {
   type CadAuthoredBridge,
+  type CadAuthoredExportState,
   CadAuthoredSession,
   type CadAuthoredSessionState,
   cadAuthoredBridge,
@@ -161,6 +163,7 @@ export function CadAuthoredWorkspace({ bridge = cadAuthoredBridge }: CadAuthored
   const [state, setState] = useState<CadAuthoredSessionState>({
     build: { kind: "idle" },
     selection: { kind: "idle" },
+    export: { preview: { kind: "idle" }, save: { kind: "idle" } },
   });
   const sessionRef = useRef<CadAuthoredSession | null>(null);
   sessionRef.current ??= new CadAuthoredSession(bridge, setState);
@@ -189,6 +192,8 @@ export function CadAuthoredWorkspace({ bridge = cadAuthoredBridge }: CadAuthored
         : null;
   const selectionPending = state.selection.kind === "resolving";
   const requestSelection = (handleHex: string) => void session.select(handleHex);
+  const requestPythonPreview = () => void session.renderPython();
+  const requestPythonSave = () => void session.savePython();
 
   return (
     <section className="cad-authored-workspace" aria-labelledby="cad-authored-heading">
@@ -255,6 +260,12 @@ export function CadAuthoredWorkspace({ bridge = cadAuthoredBridge }: CadAuthored
               />
             </div>
           </div>
+          <CadAuthoredExportPanel
+            graphDigest={projection.graphDigest}
+            onPreview={requestPythonPreview}
+            onSave={requestPythonSave}
+            state={state.export}
+          />
         </div>
       )}
 
@@ -626,6 +637,95 @@ export function CadAuthoredSelectionInspector({
         </p>
       ) : null}
     </aside>
+  );
+}
+
+interface CadAuthoredExportPanelProps {
+  readonly state: CadAuthoredExportState;
+  readonly graphDigest: string;
+  readonly onPreview: () => void;
+  readonly onSave: () => void;
+}
+
+/**
+ * Preview and save actions for the accepted graph's Python export. Both are
+ * available only once a projection is accepted; the source shown is always
+ * the native rendering bound to the exact current graph digest, and this
+ * component never generates, edits, or reinterprets it.
+ */
+export function CadAuthoredExportPanel({
+  state,
+  graphDigest,
+  onPreview,
+  onSave,
+}: CadAuthoredExportPanelProps) {
+  const busy = state.preview.kind === "rendering" || state.save.kind === "saving";
+  return (
+    <section aria-labelledby="cad-authored-export-heading" className="cad-authored-panel">
+      <div className="cad-authored-panel-heading">
+        <span className="eyebrow">Native Python projection</span>
+        <h3 id="cad-authored-export-heading">Python export</h3>
+        {busy ? (
+          <span className="state-pill state-pill--warm" role="status">
+            {state.save.kind === "saving" ? "Saving" : "Rendering"}
+          </span>
+        ) : null}
+      </div>
+      <div className="cad-authored-export-actions">
+        <button disabled={busy} onClick={onPreview} type="button">
+          Preview Python
+        </button>
+        <button disabled={busy} onClick={onSave} type="button">
+          Save Python file…
+        </button>
+        <span className="cad-authored-export-binding">
+          Bound to graph <code title={graphDigest}>{graphDigest.slice(0, 16)}</code>
+        </span>
+      </div>
+      {state.preview.kind === "failed" ? (
+        <p className="cad-authored-error" role="alert">
+          {state.preview.message}
+        </p>
+      ) : null}
+      {state.preview.kind === "ready" ? (
+        <div className="cad-authored-export-preview">
+          <p className="cad-authored-export-filename">
+            <code>{state.preview.render.suggestedFileName}</code>
+          </p>
+          {/* biome-ignore-start lint/a11y/useSemanticElements: the source must stay a <pre> so it reads and selects as plain text. */}
+          {/* biome-ignore-start lint/a11y/noNoninteractiveTabindex: a scrollable region must be keyboard-focusable to be readable. */}
+          <pre
+            aria-label={`Generated Python source ${CAD_AUTHORED_EXPORT_FILE_NAME}`}
+            className="cad-authored-export-source"
+            role="region"
+            tabIndex={0}
+          >
+            <code>{state.preview.render.sourceUtf8}</code>
+          </pre>
+          {/* biome-ignore-end lint/a11y/noNoninteractiveTabindex: a scrollable region must be keyboard-focusable to be readable. */}
+          {/* biome-ignore-end lint/a11y/useSemanticElements: the source must stay a <pre> so it reads and selects as plain text. */}
+        </div>
+      ) : null}
+      {state.save.kind === "saved" ? (
+        <p className="cad-authored-export-outcome" role="status">
+          Saved the exported Python file through the native dialog.
+        </p>
+      ) : null}
+      {state.save.kind === "cancelled" ? (
+        <p className="cad-authored-export-outcome" role="status">
+          Save cancelled — nothing was written.
+        </p>
+      ) : null}
+      {state.save.kind === "failed" ? (
+        <p className="cad-authored-error" role="alert">
+          {state.save.message}
+        </p>
+      ) : null}
+      <p className="cad-authored-note">
+        The program is rendered natively from the accepted graph — never from form text — and
+        running it with the installed eqiora wheel reconstructs the same authored graph identity.
+      </p>
+    </section>
   );
 }
 

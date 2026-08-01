@@ -277,13 +277,7 @@ pub(super) fn resolve_selection(
     if request.protocol != CAD_AUTHORED_PROTOCOL {
         return Err(invalid("unsupported Studio authored-CAD payload protocol"));
     }
-    let graph_bytes = decode_bounded_hex(
-        &request.canonical_graph_hex,
-        MAX_GRAPH_HEX_DIGITS,
-        "authored-CAD canonical graph",
-    )?;
-    let graph = CadAuthoredGraph::decode_canonical(&graph_bytes)?;
-    let digest_hex = encode_hex(&graph.digest_bytes());
+    let (graph, digest_hex) = replay_canonical_graph(&request.canonical_graph_hex)?;
     if request.graph_digest != digest_hex {
         return Err(invalid(
             "authored-CAD selection references a stale or foreign graph identity",
@@ -306,6 +300,23 @@ pub(super) fn resolve_selection(
         centroid_m: graph.rectangular_face_centroid_m(&handle)?,
         outward_unit_normal: graph.planar_face_outward_normal(&handle)?,
     })
+}
+
+/// Replay one opaque bounded canonical-graph payload through the owner and
+/// return the graph with its lowercase-hex authored-graph digest. Shared by
+/// selection replay and the Python-export adapter; digest-binding comparison
+/// stays with each caller.
+pub(super) fn replay_canonical_graph(
+    canonical_graph_hex: &str,
+) -> Result<(CadAuthoredGraph, String), Diagnostic> {
+    let graph_bytes = decode_bounded_hex(
+        canonical_graph_hex,
+        MAX_GRAPH_HEX_DIGITS,
+        "authored-CAD canonical graph",
+    )?;
+    let graph = CadAuthoredGraph::decode_canonical(&graph_bytes)?;
+    let digest_hex = encode_hex(&graph.digest_bytes());
+    Ok((graph, digest_hex))
 }
 
 fn project_graph(graph: &CadAuthoredGraph) -> Result<CadAuthoredProjectionDto, Diagnostic> {
