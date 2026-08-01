@@ -618,10 +618,7 @@ mod tests {
     ) {
         assert_eq!(projected.len(), handles.len());
         for (dto, handle) in projected.iter().zip(handles) {
-            assert_eq!(
-                dto.provenance_key,
-                owner.resolve_face(handle).unwrap().provenance_key()
-            );
+            assert_eq!(dto.provenance_key, owner.resolve_face(handle).unwrap());
             assert_eq!(dto.handle_hex, encode_hex(handle.canonical_bytes()));
         }
     }
