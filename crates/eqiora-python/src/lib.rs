@@ -4,6 +4,7 @@
 //! semantics. It depends only on the public Rust facade.
 
 mod array;
+mod cad_authored;
 mod differentiation;
 mod elasticity;
 mod error;
@@ -331,6 +332,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     error::register(module)?;
     model::register(module)?;
     array::register(module)?;
+    cad_authored::register(module)?;
     differentiation::register(module)?;
     elasticity::register(module)?;
     jax_ffi::register_module(module)?;
