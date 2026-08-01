@@ -40,8 +40,8 @@ pub struct CadAuthoredFaceMesh {
     v_length_m: f64,
     u_divisions: usize,
     v_divisions: usize,
-    u_spacing_m: f64,
-    v_spacing_m: f64,
+    u_maximum_realized_gap_m: f64,
+    v_maximum_realized_gap_m: f64,
     region: PlanarRegion,
     mesh: SimplicialMesh,
 }
@@ -52,8 +52,10 @@ impl CadAuthoredFaceMesh {
     /// Per-axis subdivision is the least positive integer `n` whose generated
     /// endpoint-snapped binary64 coordinates have maximum adjacent gap `D`
     /// satisfying `D.hypot(D) <= target`. The Geometry classification
-    /// tolerance is used only to admit the continuous rectangular face and
-    /// becomes part of the intrinsic region identity; it never changes sizing.
+    /// tolerance rejects degenerate face axes and becomes part of the intrinsic
+    /// region identity; it never changes sizing. This reference path admits
+    /// only the current provider's exactly closed, exactly orthogonal rectangle
+    /// cycles. Approximate or arbitrarily rotated CAD frames remain unsupported.
     ///
     /// # Errors
     /// Returns `EQ0901` before topology allocation for a stale or foreign
@@ -101,16 +103,6 @@ impl CadAuthoredFaceMesh {
         let u_divisions = u_sizing.divisions;
         let v_divisions = v_sizing.divisions;
         let counts = ResolvedCounts::new(u_divisions, v_divisions, maximum_triangles)?;
-        if u_sizing
-            .maximum_realized_spacing_m
-            .hypot(v_sizing.maximum_realized_spacing_m)
-            > target_maximum_edge_length_m
-        {
-            return Err(invalid(
-                "authored face realized diagonal exceeds the target edge length",
-            ));
-        }
-
         let region = PlanarRegion::new(
             vec![
                 [0.0, 0.0],
@@ -147,8 +139,8 @@ impl CadAuthoredFaceMesh {
             v_length_m: frame.v_length_m,
             u_divisions,
             v_divisions,
-            u_spacing_m: u_sizing.nominal_spacing_m,
-            v_spacing_m: v_sizing.nominal_spacing_m,
+            u_maximum_realized_gap_m: u_sizing.maximum_realized_spacing_m,
+            v_maximum_realized_gap_m: v_sizing.maximum_realized_spacing_m,
             region,
             mesh,
         })
@@ -232,24 +224,24 @@ impl CadAuthoredFaceMesh {
         self.v_divisions
     }
 
-    /// Nominal generator spacing `u_length / u_divisions`, in metres.
+    /// Maximum realized adjacent `u`-coordinate gap, in metres.
     ///
-    /// Generated coordinates retain the exact endpoint, so individual
-    /// binary64 gaps are measured separately during sizing and can differ by
-    /// rounding ulps.
+    /// This is the measured spacing used by the acceptance predicate. It can
+    /// exceed the nominal generator parameter by rounding ulps because the
+    /// final coordinate is snapped to the exact authored endpoint.
     #[must_use]
     pub const fn u_spacing_m(&self) -> f64 {
-        self.u_spacing_m
+        self.u_maximum_realized_gap_m
     }
 
-    /// Nominal generator spacing `v_length / v_divisions`, in metres.
+    /// Maximum realized adjacent `v`-coordinate gap, in metres.
     ///
-    /// Generated coordinates retain the exact endpoint, so individual
-    /// binary64 gaps are measured separately during sizing and can differ by
-    /// rounding ulps.
+    /// This is the measured spacing used by the acceptance predicate. It can
+    /// exceed the nominal generator parameter by rounding ulps because the
+    /// final coordinate is snapped to the exact authored endpoint.
     #[must_use]
     pub const fn v_spacing_m(&self) -> f64 {
-        self.v_spacing_m
+        self.v_maximum_realized_gap_m
     }
 
     /// Lift an intrinsic point to the exact retained 3D face placement.
@@ -366,14 +358,14 @@ impl ResolvedCounts {
             .checked_add(1)
             .and_then(|u| v_divisions.checked_add(1).and_then(|v| u.checked_mul(v)))
             .ok_or_else(|| invalid("authored face vertex count overflows usize"))?;
-        u_divisions
+        let _frontier_entries = u_divisions
             .checked_add(v_divisions)
             .and_then(|sum| sum.checked_mul(2))
             .ok_or_else(|| invalid("authored face frontier count overflows usize"))?;
-        vertices
+        let _coordinate_scalars = vertices
             .checked_mul(2)
             .ok_or_else(|| invalid("authored face coordinate count overflows usize"))?;
-        triangles
+        let _connectivity_indices = triangles
             .checked_mul(3)
             .ok_or_else(|| invalid("authored face connectivity count overflows usize"))?;
         Ok(Self {
@@ -468,11 +460,6 @@ fn least_nominal_divisions(
                 "authored face target edge length requires more than {maximum} divisions on one axis",
             )));
         }
-    }
-    if candidate > 1 && nominal_satisfies_target(length_m, target_m, candidate - 1) {
-        return Err(invalid(
-            "authored face division correction did not produce the least accepted count",
-        ));
     }
     Ok(candidate)
 }
