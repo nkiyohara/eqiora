@@ -1,15 +1,8 @@
-//! Closed provenance selection over one authored CAD graph, and the durable
-//! handle that binds it to exactly one graph identity.
+//! Provider-neutral authored-face provenance and graph-bound durable handles.
 //!
-//! A selection names *how the face was authored* — the profile it caps or the
-//! authored rectangle edge it was swept from. It is never an output coordinate,
-//! a nearest-geometry match, or a provider-local face index, so no selection
-//! survives a change of authored meaning by accident.
-//!
-//! A handle carries the exact authored-graph digest beside that selection. It
-//! encodes to bounded canonical JSON so it can cross a process boundary, and
-//! every lookup rejects a digest mismatch before it resolves anything. There is
-//! deliberately no weaker same-shape or nearest-geometry rebinding.
+//! The public values are deliberately opaque.  Closed v1 and v2 wire
+//! vocabularies remain private, so later Rust callers do not spread exhaustive
+//! branching over persisted schema variants.
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -17,93 +10,156 @@ use serde::{Deserialize, Serialize};
 
 use crate::canonical::CANONICAL_ENCODING;
 
-const FACE_HANDLE_SCHEMA: &str = "eqiora.cad-authored-face-handle-envelope/v1";
-
-/// Bytes accepted by the handle decoder. The canonical form is fixed-shape, so
-/// this bounds the parser rather than expressing a policy.
+const HANDLE_SCHEMA_V1: &str = "eqiora.cad-authored-face-handle-envelope/v1";
+const HANDLE_SCHEMA_V2: &str = "eqiora.cad-authored-face-handle-envelope/v2";
 const MAX_HANDLE_BYTES: usize = 512;
-
 const HEX_DIGITS: [u8; 16] = *b"0123456789abcdef";
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_ARTIFACT, message)
 }
 
-/// One of exactly six faces an authored rectangle extrusion can produce.
-///
-/// Every variant is authored provenance: the cap grown from the authored
-/// profile, the cap grown from the translated profile, or the lateral face
-/// swept from one authored rectangle edge.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum CadAuthoredFaceSelectionV1 {
-    /// Cap closing the authored profile at the sketch plane.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+enum FaceKey {
     StartCap,
-    /// Cap closing the translated profile at the end of the extrusion.
     EndCap,
-    /// Lateral face swept from the authored x-lower profile edge.
     ProfileXLower,
-    /// Lateral face swept from the authored x-upper profile edge.
     ProfileXUpper,
-    /// Lateral face swept from the authored y-lower profile edge.
     ProfileYLower,
-    /// Lateral face swept from the authored y-upper profile edge.
     ProfileYUpper,
+    CutWall,
 }
 
-impl CadAuthoredFaceSelectionV1 {
-    /// Every admitted selection, in canonical order.
-    pub const ALL: [Self; 6] = [
-        Self::StartCap,
-        Self::EndCap,
-        Self::ProfileXLower,
-        Self::ProfileXUpper,
-        Self::ProfileYLower,
-        Self::ProfileYUpper,
+/// Opaque authored provenance for one face.
+///
+/// Associated constructors name semantic feature provenance.  This is not a
+/// public exhaustive operation enum and never contains a provider-local face
+/// number or a coordinate query.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct CadAuthoredFaceSelection(FaceKey);
+
+impl CadAuthoredFaceSelection {
+    /// Cap at the original sketch plane.
+    #[must_use]
+    pub const fn start_cap() -> Self {
+        Self(FaceKey::StartCap)
+    }
+
+    /// Cap at the positive-z extrusion end.
+    #[must_use]
+    pub const fn end_cap() -> Self {
+        Self(FaceKey::EndCap)
+    }
+
+    /// Lateral face swept from the x-lower rectangle edge.
+    #[must_use]
+    pub const fn profile_x_lower() -> Self {
+        Self(FaceKey::ProfileXLower)
+    }
+
+    /// Lateral face swept from the x-upper rectangle edge.
+    #[must_use]
+    pub const fn profile_x_upper() -> Self {
+        Self(FaceKey::ProfileXUpper)
+    }
+
+    /// Lateral face swept from the y-lower rectangle edge.
+    #[must_use]
+    pub const fn profile_y_lower() -> Self {
+        Self(FaceKey::ProfileYLower)
+    }
+
+    /// Lateral face swept from the y-upper rectangle edge.
+    #[must_use]
+    pub const fn profile_y_upper() -> Self {
+        Self(FaceKey::ProfileYUpper)
+    }
+
+    /// Cylindrical wall created by the admitted circular through-cut.
+    #[must_use]
+    pub const fn cut_wall() -> Self {
+        Self(FaceKey::CutWall)
+    }
+
+    /// Stable authored-provenance spelling.
+    #[must_use]
+    pub const fn provenance_key(self) -> &'static str {
+        match self.0 {
+            FaceKey::StartCap => "start-cap",
+            FaceKey::EndCap => "end-cap",
+            FaceKey::ProfileXLower => "profile-x-lower",
+            FaceKey::ProfileXUpper => "profile-x-upper",
+            FaceKey::ProfileYLower => "profile-y-lower",
+            FaceKey::ProfileYUpper => "profile-y-upper",
+            FaceKey::CutWall => "cut-wall",
+        }
+    }
+
+    pub(crate) const V1_ALL: [Self; 6] = [
+        Self::start_cap(),
+        Self::end_cap(),
+        Self::profile_x_lower(),
+        Self::profile_x_upper(),
+        Self::profile_y_lower(),
+        Self::profile_y_upper(),
+    ];
+
+    pub(crate) const V2_ALL: [Self; 7] = [
+        Self::start_cap(),
+        Self::end_cap(),
+        Self::profile_x_lower(),
+        Self::profile_x_upper(),
+        Self::profile_y_lower(),
+        Self::profile_y_upper(),
+        Self::cut_wall(),
     ];
 }
 
-/// Durable selection bound to one exact authored-graph identity.
+/// Durable face selection bound to one exact authored-graph digest.
 ///
-/// The digest cannot be chosen beside a graph: the only in-process constructor
-/// is [`crate::CadAuthoredGraphV1::face_handle`]. A handle decoded from bytes
-/// may name any digest, which is exactly why every lookup compares that digest
-/// with the graph before resolving a face.
+/// The owner decodes both frozen handle schemas while preserving their exact
+/// canonical bytes.  Resolution always checks the graph digest and admitted
+/// selection inventory before returning the selection.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct CadAuthoredFaceHandleV1 {
+pub struct CadAuthoredFaceHandle {
     graph_digest: [u8; 32],
-    selection: CadAuthoredFaceSelectionV1,
+    selection: CadAuthoredFaceSelection,
+    version: HandleVersion,
     bytes: Vec<u8>,
 }
 
-impl CadAuthoredFaceHandleV1 {
-    /// Decode one bounded canonical face handle.
-    ///
-    /// Object member order is nonsemantic; duplicate and unknown members, an
-    /// unsupported schema or encoding, and a digest that is not exactly 64
-    /// lowercase hexadecimal digits all reject.
+impl CadAuthoredFaceHandle {
+    /// Decode either closed handle wire through its exact schema vocabulary.
     ///
     /// # Errors
     /// Returns `EQ0901` for excess bytes, malformed or unknown wire data, or a
-    /// digest outside the closed hexadecimal vocabulary.
+    /// digest outside 64 lowercase hexadecimal digits.
     pub fn decode_canonical(bytes: &[u8]) -> Result<Self, Diagnostic> {
         if bytes.len() > MAX_HANDLE_BYTES {
             return Err(invalid(format!(
                 "CAD face handle has {} bytes, exceeding the {MAX_HANDLE_BYTES} byte decoder limit",
-                bytes.len(),
+                bytes.len()
             )));
         }
-        let wire: WireFaceHandleV1 = serde_json::from_slice(bytes)
-            .map_err(|error| invalid(format!("invalid CAD face handle JSON: {error}")))?;
-        if wire.schema != FACE_HANDLE_SCHEMA || wire.encoding != CANONICAL_ENCODING {
-            return Err(invalid("unsupported CAD face handle schema or encoding"));
+        if let Ok(wire) = serde_json::from_slice::<WireFaceHandleV1>(bytes)
+            && wire.schema == HANDLE_SCHEMA_V1
+            && wire.encoding == CANONICAL_ENCODING
+        {
+            return Self::bind_v1(
+                decode_digest(&wire.graph_digest_sha256)?,
+                wire.selection.into(),
+            );
         }
-        let Some(graph_digest) = decode_hex(&wire.graph_digest_sha256) else {
-            return Err(invalid(
-                "CAD face handle digest must be 64 lowercase hexadecimal digits",
-            ));
-        };
-        Self::bind(graph_digest, wire.selection)
+        if let Ok(wire) = serde_json::from_slice::<WireFaceHandleV2>(bytes)
+            && wire.schema == HANDLE_SCHEMA_V2
+            && wire.encoding == CANONICAL_ENCODING
+        {
+            return Self::bind_v2(
+                decode_digest(&wire.graph_digest_sha256)?,
+                wire.selection.into(),
+            );
+        }
+        Err(invalid("unsupported or malformed CAD face handle wire"))
     }
 
     /// Exact authored-graph digest this handle is bound to.
@@ -112,9 +168,9 @@ impl CadAuthoredFaceHandleV1 {
         self.graph_digest
     }
 
-    /// Closed authored provenance selected by this handle.
+    /// Opaque authored provenance selected by this handle.
     #[must_use]
-    pub const fn selection(&self) -> CadAuthoredFaceSelectionV1 {
+    pub const fn selection(&self) -> CadAuthoredFaceSelection {
         self.selection
     }
 
@@ -124,24 +180,58 @@ impl CadAuthoredFaceHandleV1 {
         &self.bytes
     }
 
-    pub(crate) fn bind(
+    pub(crate) fn bind_v1(
         graph_digest: [u8; 32],
-        selection: CadAuthoredFaceSelectionV1,
+        selection: CadAuthoredFaceSelection,
     ) -> Result<Self, Diagnostic> {
+        let selection = WireFaceSelectionV1::try_from(selection)?;
         let wire = WireFaceHandleV1 {
-            schema: FACE_HANDLE_SCHEMA.to_owned(),
+            schema: HANDLE_SCHEMA_V1.to_owned(),
             encoding: CANONICAL_ENCODING.to_owned(),
             graph_digest_sha256: encode_hex(graph_digest),
             selection,
         };
-        let bytes = serde_json::to_vec(&wire)
+        Self::from_wire(graph_digest, selection.into(), HandleVersion::V1, &wire)
+    }
+
+    pub(crate) fn bind_v2(
+        graph_digest: [u8; 32],
+        selection: CadAuthoredFaceSelection,
+    ) -> Result<Self, Diagnostic> {
+        let selection = WireFaceSelectionV2::from(selection);
+        let wire = WireFaceHandleV2 {
+            schema: HANDLE_SCHEMA_V2.to_owned(),
+            encoding: CANONICAL_ENCODING.to_owned(),
+            graph_digest_sha256: encode_hex(graph_digest),
+            selection,
+        };
+        Self::from_wire(graph_digest, selection.into(), HandleVersion::V2, &wire)
+    }
+
+    fn from_wire<T: Serialize>(
+        graph_digest: [u8; 32],
+        selection: CadAuthoredFaceSelection,
+        version: HandleVersion,
+        wire: &T,
+    ) -> Result<Self, Diagnostic> {
+        let bytes = serde_json::to_vec(wire)
             .map_err(|error| invalid(format!("cannot serialize CAD face handle: {error}")))?;
         Ok(Self {
             graph_digest,
             selection,
+            version,
             bytes,
         })
     }
+
+    pub(crate) const fn is_v1(&self) -> bool {
+        matches!(self.version, HandleVersion::V1)
+    }
+}
+
+fn decode_digest(text: &str) -> Result<[u8; 32], Diagnostic> {
+    decode_hex(text)
+        .ok_or_else(|| invalid("CAD face handle digest must be 64 lowercase hexadecimal digits"))
 }
 
 fn encode_hex(digest: [u8; 32]) -> String {
@@ -173,105 +263,106 @@ const fn decode_hex_digit(byte: u8) -> Option<u8> {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum HandleVersion {
+    V1,
+    V2,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WireFaceHandleV1 {
     schema: String,
     encoding: String,
     graph_digest_sha256: String,
-    selection: CadAuthoredFaceSelectionV1,
+    selection: WireFaceSelectionV1,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WireFaceHandleV2 {
+    schema: String,
+    encoding: String,
+    graph_digest_sha256: String,
+    selection: WireFaceSelectionV2,
+}
 
-    const DIGEST: [u8; 32] = [
-        0x00, 0x0f, 0x10, 0xff, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b,
-        0x0c, 0x0d, 0x0e, 0x1a, 0x2b, 0x3c, 0x4d, 0x5e, 0x6f, 0x70, 0x81, 0x92, 0xa3, 0xb4, 0xc5,
-        0xd6, 0xe7,
-    ];
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum WireFaceSelectionV1 {
+    StartCap,
+    EndCap,
+    ProfileXLower,
+    ProfileXUpper,
+    ProfileYLower,
+    ProfileYUpper,
+}
 
-    #[test]
-    fn hexadecimal_round_trips_and_rejects_other_spellings() {
-        let text = encode_hex(DIGEST);
-        assert_eq!(text.len(), 64);
-        assert_eq!(decode_hex(&text), Some(DIGEST));
-        assert_eq!(decode_hex(&text.to_uppercase()), None);
-        assert_eq!(decode_hex(&text[..63]), None);
-        assert_eq!(decode_hex(&format!("{text}0")), None);
-    }
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum WireFaceSelectionV2 {
+    StartCap,
+    EndCap,
+    ProfileXLower,
+    ProfileXUpper,
+    ProfileYLower,
+    ProfileYUpper,
+    CutWall,
+}
 
-    #[test]
-    fn every_selection_has_one_distinct_canonical_spelling() {
-        let spellings = CadAuthoredFaceSelectionV1::ALL
-            .map(|selection| serde_json::to_string(&selection).expect("closed enum"));
-        assert_eq!(
-            spellings,
-            [
-                "\"start-cap\"",
-                "\"end-cap\"",
-                "\"profile-x-lower\"",
-                "\"profile-x-upper\"",
-                "\"profile-y-lower\"",
-                "\"profile-y-upper\"",
-            ]
-            .map(str::to_owned)
-        );
-    }
+impl TryFrom<CadAuthoredFaceSelection> for WireFaceSelectionV1 {
+    type Error = Diagnostic;
 
-    #[test]
-    fn handle_bytes_replay_across_a_process_boundary() {
-        for selection in CadAuthoredFaceSelectionV1::ALL {
-            let handle = CadAuthoredFaceHandleV1::bind(DIGEST, selection).expect("bound handle");
-            let decoded = CadAuthoredFaceHandleV1::decode_canonical(handle.canonical_bytes())
-                .expect("canonical handle bytes replay");
-            assert_eq!(decoded, handle);
-            assert_eq!(decoded.graph_digest_bytes(), DIGEST);
-            assert_eq!(decoded.selection(), selection);
+    fn try_from(value: CadAuthoredFaceSelection) -> Result<Self, Self::Error> {
+        match value.0 {
+            FaceKey::StartCap => Ok(Self::StartCap),
+            FaceKey::EndCap => Ok(Self::EndCap),
+            FaceKey::ProfileXLower => Ok(Self::ProfileXLower),
+            FaceKey::ProfileXUpper => Ok(Self::ProfileXUpper),
+            FaceKey::ProfileYLower => Ok(Self::ProfileYLower),
+            FaceKey::ProfileYUpper => Ok(Self::ProfileYUpper),
+            FaceKey::CutWall => Err(invalid("cut-wall selection is not admitted by graph v1")),
         }
     }
+}
 
-    #[test]
-    fn handle_wire_fails_closed() {
-        let handle =
-            CadAuthoredFaceHandleV1::bind(DIGEST, CadAuthoredFaceSelectionV1::StartCap).unwrap();
-        let canonical = String::from_utf8(handle.canonical_bytes().to_vec()).expect("UTF-8");
-        for mutant in [
-            canonical.replace("\"selection\":", "\"unknown\":0,\"selection\":"),
-            canonical.replace(
-                "\"selection\":",
-                "\"selection\":\"start-cap\",\"selection\":",
-            ),
-            canonical.replace("\"start-cap\"", "\"top\""),
-            canonical.replace(FACE_HANDLE_SCHEMA, "eqiora.cad-authored-face-handle/v2"),
-            canonical.replace(CANONICAL_ENCODING, "eqiora.other-json/v1"),
-            canonical.replace(&encode_hex(DIGEST), &encode_hex(DIGEST).to_uppercase()),
-            canonical.replace("\"graph_digest_sha256\":", "\"graph_digest\":"),
-        ] {
-            assert!(
-                CadAuthoredFaceHandleV1::decode_canonical(mutant.as_bytes()).is_err(),
-                "handle mutant must reject: {mutant}"
-            );
+impl From<WireFaceSelectionV1> for CadAuthoredFaceSelection {
+    fn from(value: WireFaceSelectionV1) -> Self {
+        match value {
+            WireFaceSelectionV1::StartCap => Self::start_cap(),
+            WireFaceSelectionV1::EndCap => Self::end_cap(),
+            WireFaceSelectionV1::ProfileXLower => Self::profile_x_lower(),
+            WireFaceSelectionV1::ProfileXUpper => Self::profile_x_upper(),
+            WireFaceSelectionV1::ProfileYLower => Self::profile_y_lower(),
+            WireFaceSelectionV1::ProfileYUpper => Self::profile_y_upper(),
         }
-        assert!(
-            CadAuthoredFaceHandleV1::decode_canonical(&vec![b'{'; MAX_HANDLE_BYTES + 1]).is_err()
-        );
     }
+}
 
-    #[test]
-    fn member_order_is_nonsemantic_for_a_handle() {
-        let handle =
-            CadAuthoredFaceHandleV1::bind(DIGEST, CadAuthoredFaceSelectionV1::ProfileYUpper)
-                .unwrap();
-        let permuted = format!(
-            "{{\"selection\":\"profile-y-upper\",\"graph_digest_sha256\":\"{}\",\
-             \"encoding\":\"{CANONICAL_ENCODING}\",\"schema\":\"{FACE_HANDLE_SCHEMA}\"}}",
-            encode_hex(DIGEST)
-        );
-        let decoded = CadAuthoredFaceHandleV1::decode_canonical(permuted.as_bytes())
-            .expect("member order is nonsemantic");
-        assert_eq!(decoded, handle);
-        assert_eq!(decoded.canonical_bytes(), handle.canonical_bytes());
+impl From<CadAuthoredFaceSelection> for WireFaceSelectionV2 {
+    fn from(value: CadAuthoredFaceSelection) -> Self {
+        match value.0 {
+            FaceKey::StartCap => Self::StartCap,
+            FaceKey::EndCap => Self::EndCap,
+            FaceKey::ProfileXLower => Self::ProfileXLower,
+            FaceKey::ProfileXUpper => Self::ProfileXUpper,
+            FaceKey::ProfileYLower => Self::ProfileYLower,
+            FaceKey::ProfileYUpper => Self::ProfileYUpper,
+            FaceKey::CutWall => Self::CutWall,
+        }
+    }
+}
+
+impl From<WireFaceSelectionV2> for CadAuthoredFaceSelection {
+    fn from(value: WireFaceSelectionV2) -> Self {
+        match value {
+            WireFaceSelectionV2::StartCap => Self::start_cap(),
+            WireFaceSelectionV2::EndCap => Self::end_cap(),
+            WireFaceSelectionV2::ProfileXLower => Self::profile_x_lower(),
+            WireFaceSelectionV2::ProfileXUpper => Self::profile_x_upper(),
+            WireFaceSelectionV2::ProfileYLower => Self::profile_y_lower(),
+            WireFaceSelectionV2::ProfileYUpper => Self::profile_y_upper(),
+            WireFaceSelectionV2::CutWall => Self::cut_wall(),
+        }
     }
 }

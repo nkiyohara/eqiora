@@ -1,9 +1,10 @@
 use eqiora_geometry::{
-    CadAuthoredFaceSelectionV1, CadAuthoredGraphV1, CadRepairDispositionV1, ConstrainedRectangleV1,
+    CadAuthoredFaceHandle, CadAuthoredFaceSelection, CadAuthoredGraph, CadRepairDispositionV1,
+    ConstrainedRectangleV1,
 };
 
-fn graph(depth_m: f64, tolerance_m: f64) -> CadAuthoredGraphV1 {
-    CadAuthoredGraphV1::new(
+fn graph(depth_m: f64, tolerance_m: f64) -> CadAuthoredGraph {
+    CadAuthoredGraph::new(
         ConstrainedRectangleV1::new((-2.0, 3.0), (-1.0, 2.0), 0.5).unwrap(),
         depth_m,
         tolerance_m,
@@ -30,13 +31,14 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
         graph.output().bounds_m(),
         [(-2.0, 3.0), (-1.0, 2.0), (0.5, 4.5)]
     );
-    assert_eq!(graph.vertex_count(), 8);
-    assert_eq!(graph.edge_count(), 12);
+    assert_eq!(graph.vertex_count(), Some(8));
+    assert_eq!(graph.edge_count(), Some(12));
     assert_eq!(graph.face_count(), 6);
     assert_eq!(graph.closed_shell_count(), 1);
     assert_eq!(graph.body_count(), 1);
     assert_eq!(
-        graph.vertex_count() as isize - graph.edge_count() as isize + graph.face_count() as isize,
+        graph.vertex_count().unwrap() as isize - graph.edge_count().unwrap() as isize
+            + graph.face_count() as isize,
         2
     );
     assert_eq!(graph.volume_m3(), 60.0);
@@ -45,7 +47,7 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
 
     let expected = [
         (
-            CadAuthoredFaceSelectionV1::StartCap,
+            CadAuthoredFaceSelection::start_cap(),
             [0.5, 0.5, 0.5],
             15.0,
             [0.0, 0.0, -1.0],
@@ -57,7 +59,7 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
             ],
         ),
         (
-            CadAuthoredFaceSelectionV1::EndCap,
+            CadAuthoredFaceSelection::end_cap(),
             [0.5, 0.5, 4.5],
             15.0,
             [0.0, 0.0, 1.0],
@@ -69,7 +71,7 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
             ],
         ),
         (
-            CadAuthoredFaceSelectionV1::ProfileXLower,
+            CadAuthoredFaceSelection::profile_x_lower(),
             [-2.0, 0.5, 2.5],
             12.0,
             [-1.0, 0.0, 0.0],
@@ -81,7 +83,7 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
             ],
         ),
         (
-            CadAuthoredFaceSelectionV1::ProfileXUpper,
+            CadAuthoredFaceSelection::profile_x_upper(),
             [3.0, 0.5, 2.5],
             12.0,
             [1.0, 0.0, 0.0],
@@ -93,7 +95,7 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
             ],
         ),
         (
-            CadAuthoredFaceSelectionV1::ProfileYLower,
+            CadAuthoredFaceSelection::profile_y_lower(),
             [0.5, -1.0, 2.5],
             20.0,
             [0.0, -1.0, 0.0],
@@ -105,7 +107,7 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
             ],
         ),
         (
-            CadAuthoredFaceSelectionV1::ProfileYUpper,
+            CadAuthoredFaceSelection::profile_y_upper(),
             [0.5, 2.0, 2.5],
             20.0,
             [0.0, 1.0, 0.0],
@@ -121,18 +123,25 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
     for (selection, centroid, area, normal, vertices) in expected {
         let handle = graph.face_handle(selection).unwrap();
         let replayed_handle =
-            eqiora_geometry::CadAuthoredFaceHandleV1::decode_canonical(handle.canonical_bytes())
-                .unwrap();
+            CadAuthoredFaceHandle::decode_canonical(handle.canonical_bytes()).unwrap();
         assert_eq!(replayed_handle, handle);
-        let face = graph.resolve_face(&replayed_handle).unwrap();
-        assert_eq!(face.selection(), selection);
-        assert_eq!(face.centroid_m(), centroid);
-        assert_eq!(face.area_m2(), area);
-        assert_eq!(face.outward_normal(), normal);
-        assert_eq!(face.vertices_m(), vertices);
+        assert_eq!(graph.resolve_face(&replayed_handle).unwrap(), selection);
+        assert_eq!(
+            graph.rectangular_face_centroid_m(&replayed_handle).unwrap(),
+            Some(centroid)
+        );
+        assert_eq!(graph.face_area_m2(&replayed_handle).unwrap(), area);
+        assert_eq!(
+            graph.planar_face_outward_normal(&replayed_handle).unwrap(),
+            Some(normal)
+        );
+        assert_eq!(
+            graph.rectangular_face_vertices_m(&replayed_handle).unwrap(),
+            Some(vertices)
+        );
     }
 
-    let replayed = CadAuthoredGraphV1::decode_canonical(graph.canonical_bytes()).unwrap();
+    let replayed = CadAuthoredGraph::decode_canonical(graph.canonical_bytes()).unwrap();
     assert_eq!(replayed, graph);
 }
 
@@ -142,7 +151,7 @@ fn tolerance_changes_identity_not_geometry_and_handles_never_rebind() {
     let changed_tolerance = graph(4.0, 2.0e-9);
     let changed_depth = graph(5.0, 1.0e-9);
     let handle = first
-        .face_handle(CadAuthoredFaceSelectionV1::ProfileXLower)
+        .face_handle(CadAuthoredFaceSelection::profile_x_lower())
         .unwrap();
 
     assert_eq!(first.output(), changed_tolerance.output());
@@ -161,7 +170,7 @@ fn tolerance_changes_identity_not_geometry_and_handles_never_rebind() {
 fn member_order_is_nonsemantic_but_wire_vocabulary_is_closed() {
     let expected = graph(4.0, 1.0e-9);
     let permuted = br#"{"selections":["start-cap","end-cap","profile-x-lower","profile-x-upper","profile-y-lower","profile-y-upper"],"extrusion":{"repair":"none","depth_m":4.0,"face":"profile-face","kind":"positive-z","id":"positive-z-extrusion"},"face":{"region_count":1,"profile":"rectangle-profile","kind":"one-closed-loop-face","id":"profile-face"},"profile":{"y_bounds_m":[-1.0,2.0],"x_bounds_m":[-2.0,3.0],"constraint":"closed-by-construction","sketch_plane":"sketch-plane","kind":"axis-aligned-rectangle","id":"rectangle-profile"},"sketch_plane":{"z_m":0.5,"kind":"xy","id":"sketch-plane"},"requested_modeling_tolerance_m":1e-9,"length_unit":"metre","encoding":"eqiora.canonical-json/v1","schema":"eqiora.cad-authored-operation-graph-envelope/v1"}"#;
-    let decoded = CadAuthoredGraphV1::decode_canonical(permuted).unwrap();
+    let decoded = CadAuthoredGraph::decode_canonical(permuted).unwrap();
     assert_eq!(decoded, expected);
     assert_eq!(decoded.canonical_bytes(), expected.canonical_bytes());
 
@@ -185,7 +194,7 @@ fn member_order_is_nonsemantic_but_wire_vocabulary_is_closed() {
         canonical.replace("\"repair\":\"none\"", "\"repair\":\"healed\""),
     ] {
         assert!(
-            CadAuthoredGraphV1::decode_canonical(mutant.as_bytes()).is_err(),
+            CadAuthoredGraph::decode_canonical(mutant.as_bytes()).is_err(),
             "wire mutant must reject: {mutant}"
         );
     }
@@ -202,13 +211,13 @@ fn invalid_scalars_and_signed_zero_fail_or_canonicalize_as_contract_requires() {
         (1.0, -1.0),
         (1.0, f64::INFINITY),
     ] {
-        assert!(CadAuthoredGraphV1::new(sketch(), depth, tolerance).is_err());
+        assert!(CadAuthoredGraph::new(sketch(), depth, tolerance).is_err());
     }
     assert!(ConstrainedRectangleV1::new((1.0, 1.0), (0.0, 1.0), 0.0).is_err());
     assert!(ConstrainedRectangleV1::new((0.0, 1.0), (2.0, 1.0), 0.0).is_err());
 
-    let positive = CadAuthoredGraphV1::new(sketch(), 1.0, 1.0e-9).unwrap();
-    let negative = CadAuthoredGraphV1::new(
+    let positive = CadAuthoredGraph::new(sketch(), 1.0, 1.0e-9).unwrap();
+    let negative = CadAuthoredGraph::new(
         ConstrainedRectangleV1::new((-0.0, 1.0), (-0.0, 1.0), -0.0).unwrap(),
         1.0,
         1.0e-9,
