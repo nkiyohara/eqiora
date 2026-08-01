@@ -11,9 +11,9 @@ The case was frozen as `specified` before implementation. Its two oracle routes
 were derived independently without reading production mesh code and agreed
 before the implementation lane began. The complete frozen results are in
 [`expected/independent-oracles.md`](expected/independent-oracles.md). A
-post-review mutant temporarily returned the case to `specified`; it advances to
-`verified` only after the registered facade evidence implements the amended
-realized-coordinate predicate.
+post-review mutant temporarily returned the case to `specified`; the registered
+facade evidence now implements the amended realized-coordinate predicate and
+the case is again `verified`.
 
 ## Contract boundary
 
@@ -60,11 +60,12 @@ ulps larger than `h`. The repaired rule therefore selects n=8 and produces
 edges.
 
 A separate `L = 4.875`, `h = 0x1.f844a57e8134bp-1` witness kills
-implementations that return either common ceiling estimate: both estimates give
-seven, while realized n=7 has a gap six ulps above nominal and rejects; exact
-n=8 spacing accepts. The earlier 8.375 witness was deliberately retired because
-the realized-coordinate rule correctly changes its answer from seven to eight,
-making it agree with the estimates rather than falsify them.
+implementations that return either `ceil(sqrt(2)*L/h)` or
+`ceil(L/(h/sqrt(2)))`: both give seven, while realized n=7 has a gap six ulps
+above nominal and rejects; exact n=8 spacing accepts. The earlier 8.375 witness
+was deliberately retired because the realized-coordinate rule correctly
+changes its answer from seven to eight, making it agree with the estimates
+rather than falsify them.
 
 A 23-triangle budget rejects the primary witness before allocation, while 24
 accepts it. A quality threshold of `0.98` rejects because the generated value

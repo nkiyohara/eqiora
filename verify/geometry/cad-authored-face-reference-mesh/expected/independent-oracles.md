@@ -67,8 +67,9 @@ has `V/T/E = 81/128/208`, 32 boundary and 176 interior edges, and maximum edge
 `0x1.0f876ccdf6cd9p-1` (0.5303300858899106 m).
 
 The replacement estimate falsifier is `L = 4.875`
-(`0x1.3800000000000p+2`), `h = 0x1.f844a57e8134bp-1`. Both common nominal
-estimates give seven. At n=7, nominal spacing is
+(`0x1.3800000000000p+2`), `h = 0x1.f844a57e8134bp-1`.
+`ceil(sqrt(2)*L/h)` and `ceil(L/(h/sqrt(2)))` both give seven. At n=7,
+nominal spacing is
 `0x1.6492492492492p-1`, maximum generated spacing is
 `0x1.6492492492498p-1`, and the realized diagonal
 `0x1.f844a57e81353p-1` rejects. At n=8 the exact spacing

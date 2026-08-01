@@ -49,11 +49,11 @@ pub struct CadAuthoredFaceMesh {
 impl CadAuthoredFaceMesh {
     /// Realize one admitted rectangular face under a bounded local request.
     ///
-    /// Per-axis subdivision is the least positive integer `n` satisfying the
-    /// binary64 predicate `(length / n).hypot(length / n) <= target`. The
-    /// Geometry classification tolerance is used only to admit the continuous
-    /// rectangular face and becomes part of the intrinsic region identity; it
-    /// never changes sizing.
+    /// Per-axis subdivision is the least positive integer `n` whose generated
+    /// endpoint-snapped binary64 coordinates have maximum adjacent gap `D`
+    /// satisfying `D.hypot(D) <= target`. The Geometry classification
+    /// tolerance is used only to admit the continuous rectangular face and
+    /// becomes part of the intrinsic region identity; it never changes sizing.
     ///
     /// # Errors
     /// Returns `EQ0901` before topology allocation for a stale or foreign
@@ -88,25 +88,27 @@ impl CadAuthoredFaceMesh {
         )?;
 
         let maximum_axis_divisions = maximum_triangles / 2;
-        let u_divisions = least_divisions(
+        let u_sizing = least_divisions(
             frame.u_length_m,
             target_maximum_edge_length_m,
             maximum_axis_divisions,
         )?;
-        let v_divisions = least_divisions(
+        let v_sizing = least_divisions(
             frame.v_length_m,
             target_maximum_edge_length_m,
             maximum_axis_divisions,
         )?;
+        let u_divisions = u_sizing.divisions;
+        let v_divisions = v_sizing.divisions;
         let counts = ResolvedCounts::new(u_divisions, v_divisions, maximum_triangles)?;
-        let u_spacing_m = frame.u_length_m / u_divisions as f64;
-        let v_spacing_m = frame.v_length_m / v_divisions as f64;
-        if !u_spacing_m.is_finite()
-            || u_spacing_m <= 0.0
-            || !v_spacing_m.is_finite()
-            || v_spacing_m <= 0.0
+        if u_sizing
+            .maximum_realized_spacing_m
+            .hypot(v_sizing.maximum_realized_spacing_m)
+            > target_maximum_edge_length_m
         {
-            return Err(invalid("authored face mesh spacings are unrepresentable"));
+            return Err(invalid(
+                "authored face realized diagonal exceeds the target edge length",
+            ));
         }
 
         let region = PlanarRegion::new(
@@ -125,8 +127,8 @@ impl CadAuthoredFaceMesh {
             frame.v_length_m,
             u_divisions,
             v_divisions,
-            u_spacing_m,
-            v_spacing_m,
+            u_sizing.nominal_spacing_m,
+            v_sizing.nominal_spacing_m,
             counts,
         )?;
         let mesh = SimplicialMesh::new(2, topology.vertices, topology.cells, quality_gate)?;
@@ -145,8 +147,8 @@ impl CadAuthoredFaceMesh {
             v_length_m: frame.v_length_m,
             u_divisions,
             v_divisions,
-            u_spacing_m,
-            v_spacing_m,
+            u_spacing_m: u_sizing.nominal_spacing_m,
+            v_spacing_m: v_sizing.nominal_spacing_m,
             region,
             mesh,
         })
@@ -230,13 +232,21 @@ impl CadAuthoredFaceMesh {
         self.v_divisions
     }
 
-    /// Accepted uniform spacing along intrinsic `u`, in metres.
+    /// Nominal generator spacing `u_length / u_divisions`, in metres.
+    ///
+    /// Generated coordinates retain the exact endpoint, so individual
+    /// binary64 gaps are measured separately during sizing and can differ by
+    /// rounding ulps.
     #[must_use]
     pub const fn u_spacing_m(&self) -> f64 {
         self.u_spacing_m
     }
 
-    /// Accepted uniform spacing along intrinsic `v`, in metres.
+    /// Nominal generator spacing `v_length / v_divisions`, in metres.
+    ///
+    /// Generated coordinates retain the exact endpoint, so individual
+    /// binary64 gaps are measured separately during sizing and can differ by
+    /// rounding ulps.
     #[must_use]
     pub const fn v_spacing_m(&self) -> f64 {
         self.v_spacing_m
@@ -246,10 +256,7 @@ impl CadAuthoredFaceMesh {
     #[must_use]
     pub fn lift_intrinsic_point_m(&self, point_m: [f64; 2]) -> [f64; 3] {
         core::array::from_fn(|axis| {
-            point_m[1].mul_add(
-                self.v_hat[axis],
-                point_m[0].mul_add(self.u_hat[axis], self.origin_m[axis]),
-            )
+            self.origin_m[axis] + point_m[0] * self.u_hat[axis] + point_m[1] * self.v_hat[axis]
         })
     }
 
@@ -303,19 +310,10 @@ impl FaceFrame {
         }
         let u_hat = scale(u, 1.0 / u_length_m);
         let v_hat = scale(v, 1.0 / v_length_m);
-        let minimum_length_m = u_length_m.min(v_length_m);
         let expected_opposite = add(cycle[0], add(u, v));
-        let orthogonality_error_m = dot(u_hat, v_hat).abs() * minimum_length_m;
-        let orientation_error_m =
-            norm(subtract(cross(u_hat, v_hat), parent_outward_normal)) * minimum_length_m;
-        let normal_error_m = (norm(parent_outward_normal) - 1.0).abs() * minimum_length_m;
-        if norm(subtract(cycle[2], expected_opposite)) > tolerance_m
-            || !orthogonality_error_m.is_finite()
-            || orthogonality_error_m > tolerance_m
-            || !orientation_error_m.is_finite()
-            || orientation_error_m > tolerance_m
-            || !normal_error_m.is_finite()
-            || normal_error_m > tolerance_m
+        if cycle[2] != expected_opposite
+            || dot(u_hat, v_hat) != 0.0
+            || cross(u_hat, v_hat) != parent_outward_normal
         {
             return Err(invalid(
                 "authored face cycle is not a rectangle aligned with its parent-outward normal",
@@ -340,6 +338,13 @@ struct ResolvedCounts {
 struct BuiltTopology {
     vertices: Vec<Vec<f64>>,
     cells: Vec<Vec<usize>>,
+}
+
+#[derive(Clone, Copy)]
+struct AxisSizing {
+    divisions: usize,
+    nominal_spacing_m: f64,
+    maximum_realized_spacing_m: f64,
 }
 
 impl ResolvedCounts {
@@ -408,8 +413,36 @@ fn validate_request(
     Ok(())
 }
 
-fn least_divisions(length_m: f64, target_m: f64, maximum: usize) -> Result<usize, Diagnostic> {
-    if maximum == 0 || !satisfies_target(length_m, target_m, maximum) {
+fn least_divisions(length_m: f64, target_m: f64, maximum: usize) -> Result<AxisSizing, Diagnostic> {
+    let nominal = least_nominal_divisions(length_m, target_m, maximum)?;
+    let sizing = measure_axis_sizing(length_m, nominal)?;
+    if realized_axis_satisfies_target(sizing, target_m) {
+        return Ok(sizing);
+    }
+
+    let corrected = nominal
+        .checked_add(1)
+        .ok_or_else(|| invalid("authored face realized division correction overflows usize"))?;
+    if corrected > maximum {
+        return Err(invalid(format!(
+            "authored face target edge length requires more than {maximum} divisions on one axis",
+        )));
+    }
+    let sizing = measure_axis_sizing(length_m, corrected)?;
+    if !realized_axis_satisfies_target(sizing, target_m) {
+        return Err(invalid(
+            "authored face realized-coordinate correction exceeded its bounded successor proof",
+        ));
+    }
+    Ok(sizing)
+}
+
+fn least_nominal_divisions(
+    length_m: f64,
+    target_m: f64,
+    maximum: usize,
+) -> Result<usize, Diagnostic> {
+    if maximum == 0 || !nominal_satisfies_target(length_m, target_m, maximum) {
         return Err(invalid(format!(
             "authored face target edge length requires more than {maximum} divisions on one axis",
         )));
@@ -423,10 +456,10 @@ fn least_divisions(length_m: f64, target_m: f64, maximum: usize) -> Result<usize
     } else {
         estimate as usize
     };
-    while candidate > 1 && satisfies_target(length_m, target_m, candidate - 1) {
+    while candidate > 1 && nominal_satisfies_target(length_m, target_m, candidate - 1) {
         candidate -= 1;
     }
-    while !satisfies_target(length_m, target_m, candidate) {
+    while !nominal_satisfies_target(length_m, target_m, candidate) {
         candidate = candidate
             .checked_add(1)
             .ok_or_else(|| invalid("authored face division correction overflows usize"))?;
@@ -436,7 +469,7 @@ fn least_divisions(length_m: f64, target_m: f64, maximum: usize) -> Result<usize
             )));
         }
     }
-    if candidate > 1 && satisfies_target(length_m, target_m, candidate - 1) {
+    if candidate > 1 && nominal_satisfies_target(length_m, target_m, candidate - 1) {
         return Err(invalid(
             "authored face division correction did not produce the least accepted count",
         ));
@@ -444,9 +477,41 @@ fn least_divisions(length_m: f64, target_m: f64, maximum: usize) -> Result<usize
     Ok(candidate)
 }
 
-fn satisfies_target(length_m: f64, target_m: f64, divisions: usize) -> bool {
+fn nominal_satisfies_target(length_m: f64, target_m: f64, divisions: usize) -> bool {
     let spacing_m = length_m / divisions as f64;
     spacing_m.hypot(spacing_m) <= target_m
+}
+
+fn measure_axis_sizing(length_m: f64, divisions: usize) -> Result<AxisSizing, Diagnostic> {
+    let nominal_spacing_m = length_m / divisions as f64;
+    if !nominal_spacing_m.is_finite() || nominal_spacing_m <= 0.0 {
+        return Err(invalid("authored face mesh spacing is unrepresentable"));
+    }
+    let mut previous = 0.0;
+    let mut maximum_realized_spacing_m = 0.0_f64;
+    for index in 1..=divisions {
+        let coordinate = axis_coordinate(index, divisions, nominal_spacing_m, length_m)?;
+        let realized_spacing_m = coordinate - previous;
+        if !realized_spacing_m.is_finite() || realized_spacing_m <= 0.0 {
+            return Err(invalid(
+                "authored face mesh coordinate distribution is not strictly increasing",
+            ));
+        }
+        maximum_realized_spacing_m = maximum_realized_spacing_m.max(realized_spacing_m);
+        previous = coordinate;
+    }
+    Ok(AxisSizing {
+        divisions,
+        nominal_spacing_m,
+        maximum_realized_spacing_m,
+    })
+}
+
+fn realized_axis_satisfies_target(sizing: AxisSizing, target_m: f64) -> bool {
+    sizing
+        .maximum_realized_spacing_m
+        .hypot(sizing.maximum_realized_spacing_m)
+        <= target_m
 }
 
 fn build_topology(

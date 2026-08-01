@@ -1,5 +1,5 @@
 id = "geometry.cad-authored-face-reference-mesh"
-status = "specified"
+status = "verified"
 scope = "one-source-bound-rectangular-authored-face-realized-as-one-planar-reference-mesh"
 reference_kind = "dual-independent-analytic-and-exact-rational-enumeration-oracle"
 
@@ -87,8 +87,8 @@ length_m = 4.875
 length_hex = "0x1.3800000000000p+2"
 target_m = 0.9848987309384055
 target_hex = "0x1.f844a57e8134bp-1"
-nominal_ceiling_estimate = 7
-alternate_nominal_ceiling_estimate = 7
+scale_then_divide_ceiling_estimate = 7
+divide_by_scaled_target_ceiling_estimate = 7
 repaired_intervals = 8
 n7_nominal_spacing_hex = "0x1.6492492492492p-1"
 n7_maximum_realized_spacing_hex = "0x1.6492492492498p-1"
@@ -135,7 +135,7 @@ minimum_quality_0_98 = "reject because 40/41 is strictly below the requested gat
 strict_comparator_mutant = "one-ulp target pair changes the length-5 realized interval count from 3 to 4"
 classification_tolerance_leakage = "one-ulp target pair remains governed only by the sizing predicate"
 endpoint_snap_escapes_nominal_bound = "length 3 and the nominal n=7 equality target reject after the generated endpoint makes one realized gap five ulps wider; n=8 accepts"
-ceil_estimate_as_answer = "length 4.875 and target 0.9848987309384055 give both nominal estimates n=7, but realized coordinates reject 7 and accept 8"
+ceil_estimate_as_answer = "length 4.875 and target 0.9848987309384055 give ceil(sqrt(2)*L/h)=7 and ceil(L/(h/sqrt(2)))=7, but realized coordinates reject 7 and accept 8"
 orientation_or_diagonal_flip = "fail frozen first/last cells, outward normal, and start/end-cap distinction"
 
 [claim_boundary]
@@ -154,3 +154,7 @@ adaptive_anisotropic_or_boundary_layer_mesh = false
 production_unstructured_mesher = false
 wire_schema_or_persisted_mesh_policy = false
 python_studio_solver_or_demo = false
+
+[evidence]
+package = "eqiora"
+test = "cad_authored_face_reference_mesh"
