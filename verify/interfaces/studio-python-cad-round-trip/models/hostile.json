@@ -61,7 +61,7 @@
       "base": "v1",
       "mutation": "replace-canonical-graph-hex-repeat",
       "value": "ab",
-      "repeat": 2049,
+      "repeat": 4097,
       "expect": "reject-request"
     },
     {
