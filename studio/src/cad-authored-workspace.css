@@ -1,5 +1,7 @@
 .cad-authored-workspace-shell {
   display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  flex: 1;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
