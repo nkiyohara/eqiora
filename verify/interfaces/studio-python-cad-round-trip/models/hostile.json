@@ -110,6 +110,13 @@
   ],
   "renderResponseMutants": [
     {
+      "id": "bom-source",
+      "base": "v1",
+      "mutation": "prepend-source",
+      "value": "\ufeff",
+      "expect": "reject-response"
+    },
+    {
       "id": "wrong-protocol",
       "base": "v1",
       "mutation": "replace-protocol",
@@ -157,6 +164,13 @@
       "id": "missing-final-newline",
       "base": "v1",
       "mutation": "remove-final-source-newline",
+      "expect": "reject-response"
+    },
+    {
+      "id": "extra-final-newline",
+      "base": "v1",
+      "mutation": "append-source",
+      "value": "\n",
       "expect": "reject-response"
     },
     {
