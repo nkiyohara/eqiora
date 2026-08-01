@@ -18,7 +18,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use sha2::{Digest, Sha256};
 
-use crate::CadAuthoredGraphV1;
+use crate::CadAuthoredGraph;
 
 /// Raw SHA-256 of the complete STEP byte stream consumed by a CAD adapter.
 ///
@@ -204,7 +204,7 @@ pub struct CadBoxDesignV1 {
     source: StepSourceDigest,
     source_length_unit: StepLengthUnitV1,
     imported_stock: AxisAlignedBox3,
-    authoring: CadAuthoredGraphV1,
+    authoring: CadAuthoredGraph,
     source_uncertainty_m: f64,
     output: AxisAlignedBox3,
 }
@@ -235,7 +235,7 @@ impl CadBoxDesignV1 {
                 "STEP source uncertainty must be finite and positive in metres",
             ));
         }
-        let authoring = CadAuthoredGraphV1::new(sketch, extrusion_depth_m, modeling_tolerance_m)?;
+        let authoring = CadAuthoredGraph::new(sketch, extrusion_depth_m, modeling_tolerance_m)?;
         let output = imported_stock.intersection(authoring.output())?;
         Ok(Self {
             target_body,
@@ -299,7 +299,7 @@ impl CadBoxDesignV1 {
     /// Provider-neutral graph that solely owns rectangle, face, and extrusion
     /// meaning beneath this temporary bounded convenience surface.
     #[must_use]
-    pub const fn authoring_graph(&self) -> &CadAuthoredGraphV1 {
+    pub const fn authoring_graph(&self) -> &CadAuthoredGraph {
         &self.authoring
     }
 

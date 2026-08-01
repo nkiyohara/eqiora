@@ -1,0 +1,72 @@
+id = "geometry.cad-authored-circular-through-cut"
+status = "verified"
+scope = "one-provider-neutral-rectangle-extrusion-with-one-exact-circular-through-cut"
+reference_kind = "dual-independent-analytic-and-high-precision-symbolic-oracle"
+
+capabilities = [
+  "immutable-authored-cad-circular-through-cut",
+  "exact-planar-and-cylindrical-face-observations",
+  "requested-and-effective-boolean-tolerance-receipt",
+  "complete-retained-created-deleted-topology-lineage",
+  "common-version-neutral-authored-graph-owner",
+]
+
+[problem]
+operations = "XY rectangle -> closed face -> positive-z extrusion -> end-cap circle -> through-all negative-z difference"
+witness = "x [-0.04,0.04] m, y [-0.025,0.025] m, z0 0 m, depth 0.02 m, centre [0.02,0] m, radius 0.008 m"
+base_modeling_tolerance = "1e-10 m, identity-only"
+boolean_tolerance = "requested 1e-9 m, effective 1e-9 m, strict signed-inward-clearance admission only"
+provider_profile = "eqiora.cad.analytic-circular-through-cut-v1"
+repair = "none"
+
+[oracle]
+analytic_route = "closed-form inclusion/exclusion, boundary provenance, and topology conservation"
+independent_route = "96-digit Decimal Machin-pi evaluation, seven-face sum, wire digest, signed-clearance and tolerance-policy mutants"
+canonical_bytes = 1292
+sha256 = "00acb9494fc7dea8f1f2500d1316cb3315130a965a24179b3eb1b10345058b47"
+f64_relative_tolerance = 4e-15
+
+[expected]
+volume_m3 = 7.597876140340507e-5
+cap_area_m2 = 0.0037989380701702533
+profile_x_lateral_area_m2 = 0.001
+profile_y_lateral_area_m2 = 0.0016
+cut_wall_area_m2 = 0.001005309649148734
+surface_area_m2 = 0.01380318578948924
+bodies_shells_faces_genus = "1/1/7/1"
+face_boundary_cycles = "2,2,1,1,1,1,2 in canonical selection order"
+lineage = "retained-unchanged 4, retained-modified 2, created 1, deleted/split/merged 0"
+
+[falsifiers]
+unsigned_side_distance = "outside-centre witness rejects by signed inward clearance"
+wrong_side_reduction = "asymmetric near-side witness rejects min-to-max-or-mean substitution"
+non_strict_clearance = "exact equality with the requested tolerance rejects"
+boolean_tolerance_clamp = "base 1e-10/requested 1e-11 receipt reports effective 1e-11"
+missing_hole_volume = "fail independent volume oracle"
+missing_cap_hole = "fail both per-cap and total-surface oracles"
+missing_or_half_cut_wall = "fail cut-wall and total-surface oracles"
+swapped_lateral_provenance = "fail per-face area oracle even though total area is unchanged"
+incomplete_or_wrong_lineage = "reject build observation before accepted receipt"
+foreign_stale_or_mutated_handle = "reject before face lookup"
+v1_wire_or_digest_drift = "fail existing frozen rectangle-extrusion evidence"
+unknown_duplicate_or_wrong_dependency = "reject-with-EQ0901"
+
+[claim_boundary]
+one_rectangle_extrusion_predecessor = true
+one_strictly_interior_circular_through_cut = true
+exact_analytic_profile = true
+complete_face_lineage = true
+requested_effective_boolean_tolerance_receipt = true
+provider_neutral_graph_identity = true
+edge_or_vertex_count = false
+general_operation_dag_or_public_feature_enum = false
+multiple_or_blind_holes = false
+union_intersection_fillet_or_healing = false
+truck_or_production_cad_kernel_boolean = false
+per_entity_tolerance_propagation = false
+geometry_classification_mesh_or_renderer_tolerance = false
+mesh_solver_python_or_studio = false
+
+[evidence]
+package = "eqiora-geometry"
+test = "cad_authored_circular_through_cut"
