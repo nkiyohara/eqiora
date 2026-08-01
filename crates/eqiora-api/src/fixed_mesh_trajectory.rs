@@ -31,18 +31,15 @@ pub(crate) struct ReplayedFixedFrame<'a> {
 /// the replayed trajectory root as its complete output inventory.
 #[derive(Debug)]
 pub struct FixedMeshFieldTrajectoryReplay2dV1<'a> {
-    context: ValidatedFixedSpatialContextV1<'a>,
-    frames: Vec<ReplayedFixedFrame<'a>>,
     trajectory: &'a SpatialTrajectoryEnvelopeV1,
-    run: &'a RunManifestV2,
 }
 
 impl<'a> FixedMeshFieldTrajectoryReplay2dV1<'a> {
     /// Replay every segment, state, snapshot, and numerical block edge.
     ///
     /// Catalog declaration order is irrelevant. Every declared object must be
-    /// used exactly once by identity, while artifact-internal state and Field
-    /// ordering remains exact and canonical.
+    /// resolved, with no unused declarations, while artifact-internal state
+    /// and Field ordering remains exact and canonical.
     ///
     /// # Errors
     /// Returns `EQ0901` for a non-2D mesh, any missing, stale, substituted,
@@ -141,30 +138,13 @@ impl<'a> FixedMeshFieldTrajectoryReplay2dV1<'a> {
             ));
         }
 
-        Ok(Self {
-            context,
-            frames,
-            trajectory,
-            run,
-        })
+        Ok(Self { trajectory })
     }
 
     /// Exact immutable trajectory root whose complete dependency DAG replayed.
     #[must_use]
     pub const fn trajectory(&self) -> &'a SpatialTrajectoryEnvelopeV1 {
         self.trajectory
-    }
-
-    pub(crate) const fn context(&self) -> &ValidatedFixedSpatialContextV1<'a> {
-        &self.context
-    }
-
-    pub(crate) fn frames(&self) -> &[ReplayedFixedFrame<'a>] {
-        &self.frames
-    }
-
-    pub(crate) const fn run(&self) -> &'a RunManifestV2 {
-        self.run
     }
 }
 

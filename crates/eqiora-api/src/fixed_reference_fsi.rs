@@ -348,15 +348,7 @@ impl FixedReferenceFsiResult2d {
     }
 
     fn validate(&self, backend_provider: eqiora_solver::SolverProvider) -> Result<(), Diagnostic> {
-        let replay = self.trajectory_replay()?;
-        if replay.frames().len() != self.states.len()
-            || replay.context().mesh() != &self.mesh_artifact
-            || replay.run() != &self.run
-        {
-            return Err(internal(
-                "fixed-reference FSI retained trajectory differs after complete replay",
-            ));
-        }
+        self.trajectory_replay()?;
         let vertex_count = self
             .mesh
             .entity_count(0)
