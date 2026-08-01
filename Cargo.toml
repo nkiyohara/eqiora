@@ -86,7 +86,7 @@ libloading = "=0.8.9"
 # `proc-macro2/span-locations` is only there to turn a matched AST node back
 # into the `file:line` a violation report has to name.
 syn = { version = "=2.0.119", default-features = false, features = ["full", "parsing"] }
-proc-macro2 = { version = "=1.0.106", default-features = false, features = ["span-locations"] }
+proc-macro2 = { version = "=1.0.107", default-features = false, features = ["span-locations"] }
 
 # Internal crates (see docs/architecture.md#dependency-layers and `cargo xtask check-layers`)
 eqiora = { version = "0.1.0-alpha.1", path = "crates/eqiora" }
