@@ -4,10 +4,9 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use eqiora::Diagnostic;
-use eqiora::diagnostic::codes;
 use eqiora::geometry::{
-    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredFaceSelection, CadAuthoredGraph,
-    CadRepairDispositionV1, ConstrainedRectangleV1,
+    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1,
+    ConstrainedRectangleV1,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule, PyTuple};
@@ -184,22 +183,21 @@ impl PyCadAuthoredGraph {
     /// Provenance keys in the owner's canonical order.
     #[getter]
     fn selection_names(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        let handles = self
+            .graph
+            .face_handles()
+            .map_err(|diagnostic| native_error(py, diagnostic))?;
         Ok(PyTuple::new(
             py,
-            self.graph
-                .selection_inventory()
-                .iter()
-                .map(|selection| selection.provenance_key()),
+            handles.iter().map(CadAuthoredFaceHandle::provenance_key),
         )?
         .unbind())
     }
 
     /// Create an opaque handle bound to this exact graph identity.
     fn face_handle(&self, py: Python<'_>, name: &str) -> PyResult<PyCadAuthoredFaceHandle> {
-        let selection = selection_from_name(&self.graph, name)
-            .ok_or_else(|| native_error(py, unknown_selection(name)))?;
         self.graph
-            .face_handle(selection)
+            .face_handle(name)
             .map(|handle| PyCadAuthoredFaceHandle { handle })
             .map_err(|diagnostic| native_error(py, diagnostic))
     }
@@ -212,7 +210,6 @@ impl PyCadAuthoredGraph {
     ) -> PyResult<&'static str> {
         self.graph
             .resolve_face(&handle.handle)
-            .map(CadAuthoredFaceSelection::provenance_key)
             .map_err(|diagnostic| native_error(py, diagnostic))
     }
 
@@ -290,7 +287,7 @@ impl PyCadAuthoredGraph {
         format!(
             "CadAuthoredGraph(graph_digest={:?}, selections={}, cut={})",
             self.graph_digest(),
-            self.graph.selection_inventory().len(),
+            self.graph.face_count(),
             self.graph.cut_radius_m().is_some(),
         )
     }
@@ -330,7 +327,7 @@ impl PyCadAuthoredFaceHandle {
 
     #[getter]
     fn provenance_key(&self) -> &'static str {
-        self.handle.selection().provenance_key()
+        self.handle.provenance_key()
     }
 
     fn __hash__(&self) -> u64 {
@@ -453,21 +450,6 @@ fn handle_tuple(py: Python<'_>, handles: &[CadAuthoredFaceHandle]) -> PyResult<P
         .map(|handle| Py::new(py, PyCadAuthoredFaceHandle { handle }))
         .collect::<PyResult<Vec<_>>>()?;
     Ok(PyTuple::new(py, projected)?.unbind())
-}
-
-fn selection_from_name(graph: &CadAuthoredGraph, name: &str) -> Option<CadAuthoredFaceSelection> {
-    graph
-        .selection_inventory()
-        .iter()
-        .find(|selection| selection.provenance_key() == name)
-        .cloned()
-}
-
-fn unknown_selection(name: &str) -> Diagnostic {
-    Diagnostic::error(
-        codes::INVALID_ARTIFACT,
-        format!("authored CAD graph has no provenance selection named {name:?}"),
-    )
 }
 
 fn native_error(py: Python<'_>, diagnostic: Diagnostic) -> PyErr {

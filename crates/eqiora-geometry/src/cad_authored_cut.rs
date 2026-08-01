@@ -5,7 +5,7 @@ use eqiora_core::diagnostic::codes;
 use serde::{Deserialize, Serialize};
 
 use crate::ConstrainedRectangleV1;
-use crate::cad_authored_selection::{CadAuthoredFaceSelection, WireFaceSelectionV2};
+use crate::cad_authored_selection::{FaceKey, WireFaceSelectionV2};
 use crate::canonical::{CANONICAL_ENCODING, WireLengthUnit};
 
 pub(crate) const GRAPH_SCHEMA_V2: &str = "eqiora.cad-authored-operation-graph-envelope/v2";
@@ -220,16 +220,12 @@ impl WireCadAuthoredGraphV2 {
                 requested_tolerance_m: cut.requested_tolerance_m(),
                 repair: WireRepairDisposition::None,
             },
-            selections: CadAuthoredFaceSelection::V2_ALL
-                .map(WireFaceSelectionV2::from)
-                .to_vec(),
+            selections: FaceKey::V2_ALL.map(WireFaceSelectionV2::from).to_vec(),
         }
     }
 
     fn check_contract(&self) -> Result<(), Diagnostic> {
-        let expected_selections = CadAuthoredFaceSelection::V2_ALL
-            .map(WireFaceSelectionV2::from)
-            .to_vec();
+        let expected_selections = FaceKey::V2_ALL.map(WireFaceSelectionV2::from).to_vec();
         if self.schema != GRAPH_SCHEMA_V2
             || self.encoding != CANONICAL_ENCODING
             || self.length_unit != WireLengthUnit::Metre

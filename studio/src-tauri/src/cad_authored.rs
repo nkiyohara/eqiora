@@ -12,8 +12,8 @@
 use eqiora::Diagnostic;
 use eqiora::diagnostic::codes;
 use eqiora::geometry::{
-    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredFaceSelection, CadAuthoredGraph,
-    CadRepairDispositionV1, ConstrainedRectangleV1,
+    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1,
+    ConstrainedRectangleV1,
 };
 use serde::{Deserialize, Serialize};
 
@@ -293,7 +293,7 @@ pub(super) fn resolve_selection(
     Ok(CadAuthoredSelectionDto {
         protocol: CAD_AUTHORED_PROTOCOL,
         graph_digest: digest_hex,
-        provenance_key: selection.provenance_key(),
+        provenance_key: selection,
         handle_hex: encode_hex(handle.canonical_bytes()),
         area_m2: graph.face_area_m2(&handle)?,
         boundary_loop_count: graph.face_boundary_loop_count(&handle)?,
@@ -322,10 +322,9 @@ pub(super) fn replay_canonical_graph(
 fn project_graph(graph: &CadAuthoredGraph) -> Result<CadAuthoredProjectionDto, Diagnostic> {
     let build = graph.build_analytic()?;
     let faces = graph
-        .selection_inventory()
+        .face_handles()?
         .iter()
-        .copied()
-        .map(|selection| project_face(graph, selection))
+        .map(|handle| project_face(graph, handle))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(CadAuthoredProjectionDto {
         protocol: CAD_AUTHORED_PROTOCOL,
@@ -419,17 +418,16 @@ fn project_history(graph: &CadAuthoredGraph) -> Vec<CadAuthoredOperationDto> {
 
 fn project_face(
     graph: &CadAuthoredGraph,
-    selection: CadAuthoredFaceSelection,
+    handle: &CadAuthoredFaceHandle,
 ) -> Result<CadAuthoredFaceDto, Diagnostic> {
-    let handle = graph.face_handle(selection)?;
     Ok(CadAuthoredFaceDto {
-        provenance_key: selection.provenance_key(),
+        provenance_key: handle.provenance_key(),
         handle_hex: encode_hex(handle.canonical_bytes()),
-        area_m2: graph.face_area_m2(&handle)?,
-        boundary_loop_count: graph.face_boundary_loop_count(&handle)?,
-        centroid_m: graph.rectangular_face_centroid_m(&handle)?,
-        outward_unit_normal: graph.planar_face_outward_normal(&handle)?,
-        vertices_m: graph.rectangular_face_vertices_m(&handle)?,
+        area_m2: graph.face_area_m2(handle)?,
+        boundary_loop_count: graph.face_boundary_loop_count(handle)?,
+        centroid_m: graph.rectangular_face_centroid_m(handle)?,
+        outward_unit_normal: graph.planar_face_outward_normal(handle)?,
+        vertices_m: graph.rectangular_face_vertices_m(handle)?,
     })
 }
 
@@ -466,7 +464,7 @@ fn project_lineage(
         .iter()
         .map(|handle| {
             Ok(CadAuthoredLineageHandleDto {
-                provenance_key: graph.resolve_face(handle)?.provenance_key(),
+                provenance_key: graph.resolve_face(handle)?,
                 handle_hex: encode_hex(handle.canonical_bytes()),
             })
         })
@@ -620,10 +618,7 @@ mod tests {
     ) {
         assert_eq!(projected.len(), handles.len());
         for (dto, handle) in projected.iter().zip(handles) {
-            assert_eq!(
-                dto.provenance_key,
-                owner.resolve_face(handle).unwrap().provenance_key()
-            );
+            assert_eq!(dto.provenance_key, owner.resolve_face(handle).unwrap());
             assert_eq!(dto.handle_hex, encode_hex(handle.canonical_bytes()));
         }
     }
@@ -668,28 +663,27 @@ mod tests {
         assert_eq!(observations.volume_m3, owner.volume_m3());
         assert_eq!(observations.surface_area_m2, owner.surface_area_m2());
 
-        let inventory = owner.selection_inventory();
-        assert_eq!(projection.faces.len(), inventory.len());
-        for (face, selection) in projection.faces.iter().zip(inventory.iter().copied()) {
-            let handle = owner.face_handle(selection).unwrap();
-            assert_eq!(face.provenance_key, selection.provenance_key());
+        let handles = owner.face_handles().unwrap();
+        assert_eq!(projection.faces.len(), handles.len());
+        for (face, handle) in projection.faces.iter().zip(&handles) {
+            assert_eq!(face.provenance_key, handle.provenance_key());
             assert_eq!(face.handle_hex, encode_hex(handle.canonical_bytes()));
-            assert_eq!(face.area_m2, owner.face_area_m2(&handle).unwrap());
+            assert_eq!(face.area_m2, owner.face_area_m2(handle).unwrap());
             assert_eq!(
                 face.boundary_loop_count,
-                owner.face_boundary_loop_count(&handle).unwrap()
+                owner.face_boundary_loop_count(handle).unwrap()
             );
             assert_eq!(
                 face.centroid_m,
-                owner.rectangular_face_centroid_m(&handle).unwrap()
+                owner.rectangular_face_centroid_m(handle).unwrap()
             );
             assert_eq!(
                 face.outward_unit_normal,
-                owner.planar_face_outward_normal(&handle).unwrap()
+                owner.planar_face_outward_normal(handle).unwrap()
             );
             assert_eq!(
                 face.vertices_m,
-                owner.rectangular_face_vertices_m(&handle).unwrap()
+                owner.rectangular_face_vertices_m(handle).unwrap()
             );
         }
 

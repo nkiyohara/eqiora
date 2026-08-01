@@ -1,8 +1,8 @@
 //! Provider-neutral authored-face provenance and graph-bound durable handles.
 //!
-//! The public values are deliberately opaque.  Closed v1 and v2 wire
-//! vocabularies remain private, so later Rust callers do not spread exhaustive
-//! branching over persisted schema variants.
+//! The public handle is deliberately opaque. Closed v1 and v2 wire
+//! vocabularies and the exhaustive face key remain private, so later Rust
+//! callers do not spread branching over persisted schema variants.
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -20,7 +20,7 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-enum FaceKey {
+pub(crate) enum FaceKey {
     StartCap,
     EndCap,
     ProfileXLower,
@@ -30,69 +30,66 @@ enum FaceKey {
     CutWall,
 }
 
-/// Opaque authored provenance for one face.
-///
-/// Associated constructors name semantic feature provenance.  This is not a
-/// public exhaustive operation enum and never contains a provider-local face
-/// number or a coordinate query.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct CadAuthoredFaceSelection(FaceKey);
-
-impl CadAuthoredFaceSelection {
-    /// Cap at the original sketch plane.
-    #[must_use]
-    pub const fn start_cap() -> Self {
-        Self(FaceKey::StartCap)
+impl FaceKey {
+    pub(crate) const fn start_cap() -> Self {
+        Self::StartCap
     }
 
     /// Cap at the positive-z extrusion end.
     #[must_use]
-    pub const fn end_cap() -> Self {
-        Self(FaceKey::EndCap)
+    pub(crate) const fn end_cap() -> Self {
+        Self::EndCap
     }
 
     /// Lateral face swept from the x-lower rectangle edge.
     #[must_use]
-    pub const fn profile_x_lower() -> Self {
-        Self(FaceKey::ProfileXLower)
+    pub(crate) const fn profile_x_lower() -> Self {
+        Self::ProfileXLower
     }
 
     /// Lateral face swept from the x-upper rectangle edge.
     #[must_use]
-    pub const fn profile_x_upper() -> Self {
-        Self(FaceKey::ProfileXUpper)
+    pub(crate) const fn profile_x_upper() -> Self {
+        Self::ProfileXUpper
     }
 
     /// Lateral face swept from the y-lower rectangle edge.
     #[must_use]
-    pub const fn profile_y_lower() -> Self {
-        Self(FaceKey::ProfileYLower)
+    pub(crate) const fn profile_y_lower() -> Self {
+        Self::ProfileYLower
     }
 
     /// Lateral face swept from the y-upper rectangle edge.
     #[must_use]
-    pub const fn profile_y_upper() -> Self {
-        Self(FaceKey::ProfileYUpper)
+    pub(crate) const fn profile_y_upper() -> Self {
+        Self::ProfileYUpper
     }
 
     /// Cylindrical wall created by the admitted circular through-cut.
     #[must_use]
-    pub const fn cut_wall() -> Self {
-        Self(FaceKey::CutWall)
+    pub(crate) const fn cut_wall() -> Self {
+        Self::CutWall
     }
 
     /// Stable authored-provenance spelling.
     #[must_use]
-    pub const fn provenance_key(self) -> &'static str {
-        match self.0 {
-            FaceKey::StartCap => "start-cap",
-            FaceKey::EndCap => "end-cap",
-            FaceKey::ProfileXLower => "profile-x-lower",
-            FaceKey::ProfileXUpper => "profile-x-upper",
-            FaceKey::ProfileYLower => "profile-y-lower",
-            FaceKey::ProfileYUpper => "profile-y-upper",
-            FaceKey::CutWall => "cut-wall",
+    pub(crate) const fn provenance_key(self) -> &'static str {
+        match self {
+            Self::StartCap => "start-cap",
+            Self::EndCap => "end-cap",
+            Self::ProfileXLower => "profile-x-lower",
+            Self::ProfileXUpper => "profile-x-upper",
+            Self::ProfileYLower => "profile-y-lower",
+            Self::ProfileYUpper => "profile-y-upper",
+            Self::CutWall => "cut-wall",
         }
+    }
+
+    pub(crate) fn from_provenance_key(value: &str) -> Option<Self> {
+        Self::V2_ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.provenance_key() == value)
     }
 
     pub(crate) const V1_ALL: [Self; 6] = [
@@ -123,7 +120,7 @@ impl CadAuthoredFaceSelection {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct CadAuthoredFaceHandle {
     graph_digest: [u8; 32],
-    selection: CadAuthoredFaceSelection,
+    selection: FaceKey,
     version: HandleVersion,
     bytes: Vec<u8>,
 }
@@ -168,10 +165,10 @@ impl CadAuthoredFaceHandle {
         self.graph_digest
     }
 
-    /// Opaque authored provenance selected by this handle.
+    /// Stable authored provenance selected by this graph-bound handle.
     #[must_use]
-    pub const fn selection(&self) -> CadAuthoredFaceSelection {
-        self.selection
+    pub const fn provenance_key(&self) -> &'static str {
+        self.selection.provenance_key()
     }
 
     /// Exact compact canonical JSON bytes.
@@ -180,10 +177,7 @@ impl CadAuthoredFaceHandle {
         &self.bytes
     }
 
-    pub(crate) fn bind_v1(
-        graph_digest: [u8; 32],
-        selection: CadAuthoredFaceSelection,
-    ) -> Result<Self, Diagnostic> {
+    pub(crate) fn bind_v1(graph_digest: [u8; 32], selection: FaceKey) -> Result<Self, Diagnostic> {
         let selection = WireFaceSelectionV1::try_from(selection)?;
         let wire = WireFaceHandleV1 {
             schema: HANDLE_SCHEMA_V1.to_owned(),
@@ -194,10 +188,7 @@ impl CadAuthoredFaceHandle {
         Self::from_wire(graph_digest, selection.into(), HandleVersion::V1, &wire)
     }
 
-    pub(crate) fn bind_v2(
-        graph_digest: [u8; 32],
-        selection: CadAuthoredFaceSelection,
-    ) -> Result<Self, Diagnostic> {
+    pub(crate) fn bind_v2(graph_digest: [u8; 32], selection: FaceKey) -> Result<Self, Diagnostic> {
         let selection = WireFaceSelectionV2::from(selection);
         let wire = WireFaceHandleV2 {
             schema: HANDLE_SCHEMA_V2.to_owned(),
@@ -210,7 +201,7 @@ impl CadAuthoredFaceHandle {
 
     fn from_wire<T: Serialize>(
         graph_digest: [u8; 32],
-        selection: CadAuthoredFaceSelection,
+        selection: FaceKey,
         version: HandleVersion,
         wire: &T,
     ) -> Result<Self, Diagnostic> {
@@ -226,6 +217,10 @@ impl CadAuthoredFaceHandle {
 
     pub(crate) const fn is_v1(&self) -> bool {
         matches!(self.version, HandleVersion::V1)
+    }
+
+    pub(crate) const fn face_key(&self) -> FaceKey {
+        self.selection
     }
 }
 
@@ -310,11 +305,11 @@ pub(crate) enum WireFaceSelectionV2 {
     CutWall,
 }
 
-impl TryFrom<CadAuthoredFaceSelection> for WireFaceSelectionV1 {
+impl TryFrom<FaceKey> for WireFaceSelectionV1 {
     type Error = Diagnostic;
 
-    fn try_from(value: CadAuthoredFaceSelection) -> Result<Self, Self::Error> {
-        match value.0 {
+    fn try_from(value: FaceKey) -> Result<Self, Self::Error> {
+        match value {
             FaceKey::StartCap => Ok(Self::StartCap),
             FaceKey::EndCap => Ok(Self::EndCap),
             FaceKey::ProfileXLower => Ok(Self::ProfileXLower),
@@ -326,7 +321,7 @@ impl TryFrom<CadAuthoredFaceSelection> for WireFaceSelectionV1 {
     }
 }
 
-impl From<WireFaceSelectionV1> for CadAuthoredFaceSelection {
+impl From<WireFaceSelectionV1> for FaceKey {
     fn from(value: WireFaceSelectionV1) -> Self {
         match value {
             WireFaceSelectionV1::StartCap => Self::start_cap(),
@@ -339,9 +334,9 @@ impl From<WireFaceSelectionV1> for CadAuthoredFaceSelection {
     }
 }
 
-impl From<CadAuthoredFaceSelection> for WireFaceSelectionV2 {
-    fn from(value: CadAuthoredFaceSelection) -> Self {
-        match value.0 {
+impl From<FaceKey> for WireFaceSelectionV2 {
+    fn from(value: FaceKey) -> Self {
+        match value {
             FaceKey::StartCap => Self::StartCap,
             FaceKey::EndCap => Self::EndCap,
             FaceKey::ProfileXLower => Self::ProfileXLower,
@@ -353,7 +348,7 @@ impl From<CadAuthoredFaceSelection> for WireFaceSelectionV2 {
     }
 }
 
-impl From<WireFaceSelectionV2> for CadAuthoredFaceSelection {
+impl From<WireFaceSelectionV2> for FaceKey {
     fn from(value: WireFaceSelectionV2) -> Self {
         match value {
             WireFaceSelectionV2::StartCap => Self::start_cap(),

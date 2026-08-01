@@ -12,9 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::cad_authored_build::CadAuthoredBuild;
 use crate::cad_authored_cut::{CircularThroughCut, GRAPH_SCHEMA_V2, decode_v2, encode_v2};
-use crate::cad_authored_selection::{
-    CadAuthoredFaceHandle, CadAuthoredFaceSelection, WireFaceSelectionV1,
-};
+use crate::cad_authored_selection::{CadAuthoredFaceHandle, FaceKey, WireFaceSelectionV1};
 use crate::canonical::{CANONICAL_ENCODING, WireLengthUnit, digest_with_schema};
 use crate::{AxisAlignedBox3, CadRepairDispositionV1, ConstrainedRectangleV1};
 
@@ -323,71 +321,93 @@ impl CadAuthoredGraph {
     /// Exact analytic total surface area in square metres.
     #[must_use]
     pub fn surface_area_m2(&self) -> f64 {
-        self.selection_inventory()
+        self.face_inventory()
             .iter()
             .copied()
             .map(|selection| self.face_area_for(selection))
             .sum()
     }
 
-    /// Every admitted face provenance in canonical order.
-    #[must_use]
-    pub fn selection_inventory(&self) -> &'static [CadAuthoredFaceSelection] {
+    fn face_inventory(&self) -> &'static [FaceKey] {
         match self.kind {
-            GraphKind::RectangleExtrusion => &CadAuthoredFaceSelection::V1_ALL,
-            GraphKind::CircularThroughCut(_) => &CadAuthoredFaceSelection::V2_ALL,
+            GraphKind::RectangleExtrusion => &FaceKey::V1_ALL,
+            GraphKind::CircularThroughCut(_) => &FaceKey::V2_ALL,
         }
     }
 
-    /// Bind one admitted selection to this exact graph identity.
+    /// Every admitted graph-bound face handle in canonical provenance order.
     ///
     /// # Errors
-    /// Returns `EQ0901` for a selection outside this graph's closed inventory
-    /// or an unexpected canonical handle serialization failure.
-    pub fn face_handle(
+    /// Returns `EQ0901` only for an unexpected canonical handle serialization
+    /// failure.
+    pub fn face_handles(&self) -> Result<Vec<CadAuthoredFaceHandle>, Diagnostic> {
+        self.face_inventory()
+            .iter()
+            .copied()
+            .map(|face| self.face_handle_for(face))
+            .collect()
+    }
+
+    /// Bind one stable provenance key to this exact graph identity.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for an unknown or inadmissible provenance key or an
+    /// unexpected canonical handle serialization failure.
+    pub fn face_handle(&self, provenance_key: &str) -> Result<CadAuthoredFaceHandle, Diagnostic> {
+        let face = FaceKey::from_provenance_key(provenance_key)
+            .filter(|candidate| self.face_inventory().contains(candidate))
+            .ok_or_else(|| {
+                invalid(format!(
+                    "authored CAD graph has no provenance selection named {provenance_key:?}",
+                ))
+            })?;
+        self.face_handle_for(face)
+    }
+
+    pub(crate) fn face_handle_for(
         &self,
-        selection: CadAuthoredFaceSelection,
+        face: FaceKey,
     ) -> Result<CadAuthoredFaceHandle, Diagnostic> {
-        if !self.selection_inventory().contains(&selection) {
-            return Err(invalid(
-                "face selection is not admitted by this authored graph",
-            ));
+        if !self.face_inventory().contains(&face) {
+            return Err(invalid("face is not admitted by this authored graph"));
         }
         match self.kind {
-            GraphKind::RectangleExtrusion => CadAuthoredFaceHandle::bind_v1(self.digest, selection),
-            GraphKind::CircularThroughCut(_) => {
-                CadAuthoredFaceHandle::bind_v2(self.digest, selection)
-            }
+            GraphKind::RectangleExtrusion => CadAuthoredFaceHandle::bind_v1(self.digest, face),
+            GraphKind::CircularThroughCut(_) => CadAuthoredFaceHandle::bind_v2(self.digest, face),
         }
     }
 
-    /// Validate and resolve one graph-bound handle to authored provenance.
+    /// Validate one graph-bound handle, then reveal its stable provenance key.
     ///
     /// # Errors
     /// Returns `EQ0901` before lookup for any foreign/stale graph digest or
-    /// handle schema, then rejects a selection outside this graph inventory.
-    pub fn resolve_face(
+    /// handle schema, then rejects a face outside this graph inventory.
+    pub fn resolve_face(&self, handle: &CadAuthoredFaceHandle) -> Result<&'static str, Diagnostic> {
+        Ok(self.resolve_face_key(handle)?.provenance_key())
+    }
+
+    pub(crate) fn resolve_face_key(
         &self,
         handle: &CadAuthoredFaceHandle,
-    ) -> Result<CadAuthoredFaceSelection, Diagnostic> {
+    ) -> Result<FaceKey, Diagnostic> {
         let expected_v1 = matches!(self.kind, GraphKind::RectangleExtrusion);
         if handle.graph_digest_bytes() != self.digest || handle.is_v1() != expected_v1 {
             return Err(invalid(
                 "CAD face handle belongs to a foreign authored graph identity or wire variant",
             ));
         }
-        let selection = handle.selection();
-        if !self.selection_inventory().contains(&selection) {
+        let face = handle.face_key();
+        if !self.face_inventory().contains(&face) {
             return Err(invalid(
                 "CAD face handle selection is absent from this graph",
             ));
         }
-        Ok(selection)
+        Ok(face)
     }
 
     /// Exact face area after validating the graph-bound handle.
     pub fn face_area_m2(&self, handle: &CadAuthoredFaceHandle) -> Result<f64, Diagnostic> {
-        Ok(self.face_area_for(self.resolve_face(handle)?))
+        Ok(self.face_area_for(self.resolve_face_key(handle)?))
     }
 
     /// Exact number of analytic boundary loops on the selected face.
@@ -395,12 +415,12 @@ impl CadAuthoredGraph {
         &self,
         handle: &CadAuthoredFaceHandle,
     ) -> Result<usize, Diagnostic> {
-        let selection = self.resolve_face(handle)?;
+        let selection = self.resolve_face_key(handle)?;
         Ok(match self.kind {
             GraphKind::CircularThroughCut(_)
-                if selection == CadAuthoredFaceSelection::start_cap()
-                    || selection == CadAuthoredFaceSelection::end_cap()
-                    || selection == CadAuthoredFaceSelection::cut_wall() =>
+                if selection == FaceKey::start_cap()
+                    || selection == FaceKey::end_cap()
+                    || selection == FaceKey::cut_wall() =>
             {
                 2
             }
@@ -413,7 +433,7 @@ impl CadAuthoredGraph {
         &self,
         handle: &CadAuthoredFaceHandle,
     ) -> Result<Option<[[f64; 3]; 4]>, Diagnostic> {
-        let selection = self.resolve_face(handle)?;
+        let selection = self.resolve_face_key(handle)?;
         Ok(self.rectangular_face_cycle(selection))
     }
 
@@ -430,8 +450,8 @@ impl CadAuthoredGraph {
         &self,
         handle: &CadAuthoredFaceHandle,
     ) -> Result<Option<[f64; 3]>, Diagnostic> {
-        let selection = self.resolve_face(handle)?;
-        Ok(if selection == CadAuthoredFaceSelection::cut_wall() {
+        let selection = self.resolve_face_key(handle)?;
+        Ok(if selection == FaceKey::cut_wall() {
             None
         } else {
             Some(planar_normal(selection))
@@ -446,28 +466,22 @@ impl CadAuthoredGraph {
         CadAuthoredBuild::from_graph(self)
     }
 
-    fn face_area_for(&self, selection: CadAuthoredFaceSelection) -> f64 {
+    fn face_area_for(&self, selection: FaceKey) -> f64 {
         let [(x0, x1), (y0, y1), (z0, z1)] = self.core.bounds.bounds_m();
         let width = x1 - x0;
         let height = y1 - y0;
         let depth = z1 - z0;
-        if selection == CadAuthoredFaceSelection::start_cap()
-            || selection == CadAuthoredFaceSelection::end_cap()
-        {
+        if selection == FaceKey::start_cap() || selection == FaceKey::end_cap() {
             let outer = width * height;
             return match self.kind {
                 GraphKind::RectangleExtrusion => outer,
                 GraphKind::CircularThroughCut(cut) => outer - PI * cut.radius_m().powi(2),
             };
         }
-        if selection == CadAuthoredFaceSelection::profile_x_lower()
-            || selection == CadAuthoredFaceSelection::profile_x_upper()
-        {
+        if selection == FaceKey::profile_x_lower() || selection == FaceKey::profile_x_upper() {
             return height * depth;
         }
-        if selection == CadAuthoredFaceSelection::profile_y_lower()
-            || selection == CadAuthoredFaceSelection::profile_y_upper()
-        {
+        if selection == FaceKey::profile_y_lower() || selection == FaceKey::profile_y_upper() {
             return width * depth;
         }
         match self.kind {
@@ -476,24 +490,24 @@ impl CadAuthoredGraph {
         }
     }
 
-    fn rectangular_face_cycle(&self, selection: CadAuthoredFaceSelection) -> Option<[[f64; 3]; 4]> {
+    fn rectangular_face_cycle(&self, selection: FaceKey) -> Option<[[f64; 3]; 4]> {
         if matches!(self.kind, GraphKind::CircularThroughCut(_))
-            && (selection == CadAuthoredFaceSelection::start_cap()
-                || selection == CadAuthoredFaceSelection::end_cap()
-                || selection == CadAuthoredFaceSelection::cut_wall())
+            && (selection == FaceKey::start_cap()
+                || selection == FaceKey::end_cap()
+                || selection == FaceKey::cut_wall())
         {
             return None;
         }
         let [a, b, c, d, upper_a, upper_b, upper_c, upper_d] = self.vertices_m();
-        Some(if selection == CadAuthoredFaceSelection::start_cap() {
+        Some(if selection == FaceKey::start_cap() {
             [a, d, c, b]
-        } else if selection == CadAuthoredFaceSelection::end_cap() {
+        } else if selection == FaceKey::end_cap() {
             [upper_a, upper_b, upper_c, upper_d]
-        } else if selection == CadAuthoredFaceSelection::profile_x_lower() {
+        } else if selection == FaceKey::profile_x_lower() {
             [a, upper_a, upper_d, d]
-        } else if selection == CadAuthoredFaceSelection::profile_x_upper() {
+        } else if selection == FaceKey::profile_x_upper() {
             [b, c, upper_c, upper_b]
-        } else if selection == CadAuthoredFaceSelection::profile_y_lower() {
+        } else if selection == FaceKey::profile_y_lower() {
             [a, b, upper_b, upper_a]
         } else {
             [d, upper_d, upper_c, c]
@@ -546,16 +560,16 @@ fn centroid(vertices: [[f64; 3]; 4]) -> [f64; 3] {
     })
 }
 
-fn planar_normal(selection: CadAuthoredFaceSelection) -> [f64; 3] {
-    if selection == CadAuthoredFaceSelection::start_cap() {
+fn planar_normal(selection: FaceKey) -> [f64; 3] {
+    if selection == FaceKey::start_cap() {
         [0.0, 0.0, -1.0]
-    } else if selection == CadAuthoredFaceSelection::end_cap() {
+    } else if selection == FaceKey::end_cap() {
         [0.0, 0.0, 1.0]
-    } else if selection == CadAuthoredFaceSelection::profile_x_lower() {
+    } else if selection == FaceKey::profile_x_lower() {
         [-1.0, 0.0, 0.0]
-    } else if selection == CadAuthoredFaceSelection::profile_x_upper() {
+    } else if selection == FaceKey::profile_x_upper() {
         [1.0, 0.0, 0.0]
-    } else if selection == CadAuthoredFaceSelection::profile_y_lower() {
+    } else if selection == FaceKey::profile_y_lower() {
         [0.0, -1.0, 0.0]
     } else {
         [0.0, 1.0, 0.0]
@@ -613,7 +627,7 @@ impl WireCadAuthoredGraphV1 {
                 depth_m: core.extrusion_depth_m,
                 repair: WireRepairDisposition::None,
             },
-            selections: CadAuthoredFaceSelection::V1_ALL
+            selections: FaceKey::V1_ALL
                 .map(|selection| {
                     WireFaceSelectionV1::try_from(selection).expect("v1 inventory is closed")
                 })
@@ -622,7 +636,7 @@ impl WireCadAuthoredGraphV1 {
     }
 
     fn check_contract(&self) -> Result<(), Diagnostic> {
-        let expected = CadAuthoredFaceSelection::V1_ALL
+        let expected = FaceKey::V1_ALL
             .map(|selection| WireFaceSelectionV1::try_from(selection).expect("closed v1"));
         if self.schema != GRAPH_SCHEMA_V1
             || self.encoding != CANONICAL_ENCODING

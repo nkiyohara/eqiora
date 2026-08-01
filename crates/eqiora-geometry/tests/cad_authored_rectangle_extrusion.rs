@@ -1,6 +1,5 @@
 use eqiora_geometry::{
-    CadAuthoredFaceHandle, CadAuthoredFaceSelection, CadAuthoredGraph, CadRepairDispositionV1,
-    ConstrainedRectangleV1,
+    CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1, ConstrainedRectangleV1,
 };
 
 fn graph(depth_m: f64, tolerance_m: f64) -> CadAuthoredGraph {
@@ -47,7 +46,7 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
 
     let expected = [
         (
-            CadAuthoredFaceSelection::start_cap(),
+            "start-cap",
             [0.5, 0.5, 0.5],
             15.0,
             [0.0, 0.0, -1.0],
@@ -59,7 +58,7 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
             ],
         ),
         (
-            CadAuthoredFaceSelection::end_cap(),
+            "end-cap",
             [0.5, 0.5, 4.5],
             15.0,
             [0.0, 0.0, 1.0],
@@ -71,7 +70,7 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
             ],
         ),
         (
-            CadAuthoredFaceSelection::profile_x_lower(),
+            "profile-x-lower",
             [-2.0, 0.5, 2.5],
             12.0,
             [-1.0, 0.0, 0.0],
@@ -83,7 +82,7 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
             ],
         ),
         (
-            CadAuthoredFaceSelection::profile_x_upper(),
+            "profile-x-upper",
             [3.0, 0.5, 2.5],
             12.0,
             [1.0, 0.0, 0.0],
@@ -95,7 +94,7 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
             ],
         ),
         (
-            CadAuthoredFaceSelection::profile_y_lower(),
+            "profile-y-lower",
             [0.5, -1.0, 2.5],
             20.0,
             [0.0, -1.0, 0.0],
@@ -107,7 +106,7 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
             ],
         ),
         (
-            CadAuthoredFaceSelection::profile_y_upper(),
+            "profile-y-upper",
             [0.5, 2.0, 2.5],
             20.0,
             [0.0, 1.0, 0.0],
@@ -120,12 +119,31 @@ fn dual_oracle_witness_closes_exact_polyhedron_and_provenance_faces() {
         ),
     ];
 
-    for (selection, centroid, area, normal, vertices) in expected {
-        let handle = graph.face_handle(selection).unwrap();
+    assert_eq!(
+        graph
+            .face_handles()
+            .unwrap()
+            .iter()
+            .map(CadAuthoredFaceHandle::provenance_key)
+            .collect::<Vec<_>>(),
+        expected
+            .iter()
+            .map(|(provenance_key, ..)| *provenance_key)
+            .collect::<Vec<_>>()
+    );
+    assert!(graph.face_handle("cut-wall").is_err());
+    assert!(graph.face_handle("unknown").is_err());
+
+    for (provenance_key, centroid, area, normal, vertices) in expected {
+        let handle = graph.face_handle(provenance_key).unwrap();
         let replayed_handle =
             CadAuthoredFaceHandle::decode_canonical(handle.canonical_bytes()).unwrap();
         assert_eq!(replayed_handle, handle);
-        assert_eq!(graph.resolve_face(&replayed_handle).unwrap(), selection);
+        assert_eq!(handle.provenance_key(), provenance_key);
+        assert_eq!(
+            graph.resolve_face(&replayed_handle).unwrap(),
+            provenance_key
+        );
         assert_eq!(
             graph.rectangular_face_centroid_m(&replayed_handle).unwrap(),
             Some(centroid)
@@ -150,9 +168,7 @@ fn tolerance_changes_identity_not_geometry_and_handles_never_rebind() {
     let first = graph(4.0, 1.0e-9);
     let changed_tolerance = graph(4.0, 2.0e-9);
     let changed_depth = graph(5.0, 1.0e-9);
-    let handle = first
-        .face_handle(CadAuthoredFaceSelection::profile_x_lower())
-        .unwrap();
+    let handle = first.face_handle("profile-x-lower").unwrap();
 
     assert_eq!(first.output(), changed_tolerance.output());
     assert_eq!(first.vertices_m(), changed_tolerance.vertices_m());

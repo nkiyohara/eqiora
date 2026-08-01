@@ -1,6 +1,5 @@
 use eqiora_geometry::{
-    CadAuthoredFaceHandle, CadAuthoredFaceSelection, CadAuthoredGraph, CadRepairDispositionV1,
-    ConstrainedRectangleV1,
+    CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1, ConstrainedRectangleV1,
 };
 
 const WIRE: &str = r#"{"schema":"eqiora.cad-authored-operation-graph-envelope/v2","encoding":"eqiora.canonical-json/v1","length_unit":"metre","requested_modeling_tolerance_m":1e-10,"sketch_plane":{"id":"sketch-plane","kind":"xy","z_m":0.0},"profile":{"id":"rectangle-profile","kind":"axis-aligned-rectangle","sketch_plane":"sketch-plane","constraint":"closed-by-construction","x_bounds_m":[-0.04,0.04],"y_bounds_m":[-0.025,0.025]},"face":{"id":"profile-face","kind":"one-closed-loop-face","profile":"rectangle-profile","region_count":1},"extrusion":{"id":"positive-z-extrusion","kind":"positive-z","face":"profile-face","depth_m":0.02,"repair":"none"},"cut_sketch_plane":{"id":"cut-sketch-plane","kind":"on-face","face":"end-cap"},"cut_profile":{"id":"circle-profile","kind":"circle","sketch_plane":"cut-sketch-plane","constraint":"closed-by-construction","center_m":[0.02,0.0],"radius_m":0.008},"cut_face":{"id":"cut-profile-face","kind":"one-closed-loop-face","profile":"circle-profile","region_count":1},"cut":{"id":"circular-through-cut","kind":"difference-through-all-negative-z","target":"positive-z-extrusion","tool_face":"cut-profile-face","requested_tolerance_m":1e-9,"repair":"none"},"selections":["start-cap","end-cap","profile-x-lower","profile-x-upper","profile-y-lower","profile-y-upper","cut-wall"]}"#;
@@ -37,7 +36,7 @@ fn close(actual: f64, expected: f64) {
 fn keys(handles: &[CadAuthoredFaceHandle]) -> Vec<&'static str> {
     handles
         .iter()
-        .map(|handle| handle.selection().provenance_key())
+        .map(CadAuthoredFaceHandle::provenance_key)
         .collect()
 }
 
@@ -57,41 +56,40 @@ fn independent_oracles_freeze_wire_geometry_and_face_observations() {
     assert_eq!(graph.closed_shell_count(), 1);
     assert_eq!(graph.body_count(), 1);
     assert_eq!(graph.genus(), 1);
+    assert_eq!(
+        keys(&graph.face_handles().unwrap()),
+        [
+            "start-cap",
+            "end-cap",
+            "profile-x-lower",
+            "profile-x-upper",
+            "profile-y-lower",
+            "profile-y-upper",
+            "cut-wall",
+        ]
+    );
 
     close(graph.volume_m3(), 7.597_876_140_340_507e-5);
     close(graph.surface_area_m2(), 0.013_803_185_789_489_24);
 
-    for (selection, area, loops) in [
-        (
-            CadAuthoredFaceSelection::start_cap(),
-            0.003_798_938_070_170_253_3,
-            2,
-        ),
-        (
-            CadAuthoredFaceSelection::end_cap(),
-            0.003_798_938_070_170_253_3,
-            2,
-        ),
-        (CadAuthoredFaceSelection::profile_x_lower(), 0.001, 1),
-        (CadAuthoredFaceSelection::profile_x_upper(), 0.001, 1),
-        (CadAuthoredFaceSelection::profile_y_lower(), 0.0016, 1),
-        (CadAuthoredFaceSelection::profile_y_upper(), 0.0016, 1),
-        (
-            CadAuthoredFaceSelection::cut_wall(),
-            0.001_005_309_649_148_734,
-            2,
-        ),
+    for (provenance_key, area, loops) in [
+        ("start-cap", 0.003_798_938_070_170_253_3, 2),
+        ("end-cap", 0.003_798_938_070_170_253_3, 2),
+        ("profile-x-lower", 0.001, 1),
+        ("profile-x-upper", 0.001, 1),
+        ("profile-y-lower", 0.0016, 1),
+        ("profile-y-upper", 0.0016, 1),
+        ("cut-wall", 0.001_005_309_649_148_734, 2),
     ] {
-        let handle = graph.face_handle(selection).unwrap();
+        let handle = graph.face_handle(provenance_key).unwrap();
         let replayed = CadAuthoredFaceHandle::decode_canonical(handle.canonical_bytes()).unwrap();
-        assert_eq!(graph.resolve_face(&replayed).unwrap(), selection);
+        assert_eq!(handle.provenance_key(), provenance_key);
+        assert_eq!(graph.resolve_face(&replayed).unwrap(), provenance_key);
         close(graph.face_area_m2(&replayed).unwrap(), area);
         assert_eq!(graph.face_boundary_loop_count(&replayed).unwrap(), loops);
     }
 
-    let cut_wall = graph
-        .face_handle(CadAuthoredFaceSelection::cut_wall())
-        .unwrap();
+    let cut_wall = graph.face_handle("cut-wall").unwrap();
     assert_eq!(graph.rectangular_face_vertices_m(&cut_wall).unwrap(), None);
     assert_eq!(graph.planar_face_outward_normal(&cut_wall).unwrap(), None);
 }
@@ -222,17 +220,13 @@ fn wire_and_handles_fail_closed_without_rebinding() {
     }
 
     let base_graph = base(1.0e-10);
-    let old_handle = base_graph
-        .face_handle(CadAuthoredFaceSelection::end_cap())
-        .unwrap();
+    let old_handle = base_graph.face_handle("end-cap").unwrap();
     assert!(graph.resolve_face(&old_handle).is_err());
 
     let changed = base(1.0e-10)
         .circular_through_cut([0.02, 0.0], 0.008, 2.0e-9)
         .unwrap();
-    let handle = graph
-        .face_handle(CadAuthoredFaceSelection::cut_wall())
-        .unwrap();
+    let handle = graph.face_handle("cut-wall").unwrap();
     assert!(changed.resolve_face(&handle).is_err());
 
     let handle_wire = String::from_utf8(handle.canonical_bytes().to_vec()).unwrap();

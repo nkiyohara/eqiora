@@ -1,0 +1,202 @@
+id = "geometry.cad-authored-face-reference-mesh"
+status = "verified"
+scope = "one-source-bound-rectangular-authored-face-realized-as-one-planar-reference-mesh"
+reference_kind = "dual-independent-analytic-and-exact-rational-enumeration-oracle"
+
+capabilities = [
+  "graph-bound-authored-face-surface-realization",
+  "axiswise-target-edge-length-selection",
+  "exact-planar-frame-lift",
+  "source-bound-geometry-mesh-correspondence",
+]
+
+[problem]
+source = "one admitted rectangular face handle on one immutable authored CAD graph"
+witness = "rectangle x [-2,3] m, y [-1,2] m, z0 0.5 m, depth 4 m; select end-cap"
+geometry_classification_tolerance_m = 5e-10
+target_edge_length_m = 2.0
+minimum_cell_quality = 0.95
+maximum_triangles = 24
+sizing_rule = "least integer n >= 1 per axis satisfying binary64 D(n).hypot(D(n)) <= h, where s = L/n, x_i = i*s for i<n, x_n = L, and D is the maximum realized adjacent gap"
+indexing_rule = "k = j * (nu + 1) + i, u-fast"
+cell_rule = "for a,b,c,d at each grid square emit (b,c,a), then (d,a,c)"
+
+[oracle]
+analytic_route = "closed-form structured-grid topology, orientation, area, perimeter, and quality derivation"
+independent_route = "exact Fraction coordinate enumeration with undirected-edge multiplicities and determinant areas"
+agreement = "all frozen witness values and all rejection boundaries agree before implementation"
+
+[expected]
+origin_m = [-2.0, -1.0, 4.5]
+u_hat = [1.0, 0.0, 0.0]
+v_hat = [0.0, 1.0, 0.0]
+normal_hat = [0.0, 0.0, 1.0]
+u_length_m = 5.0
+v_length_m = 3.0
+u_intervals = 4
+v_intervals = 3
+u_maximum_realized_gap_m = 1.25
+v_maximum_realized_gap_m = 1.0
+vertices = 20
+triangles = 24
+edges = 43
+boundary_edges = 14
+interior_edges = 29
+euler_characteristic = 1
+corner_indices = [0, 4, 19, 15]
+first_cell_0 = [1, 6, 0]
+first_cell_1 = [5, 0, 6]
+last_cell_0 = [14, 19, 13]
+last_cell_1 = [18, 13, 19]
+triangle_area_m2 = 0.625
+total_area_m2 = 15.0
+boundary_perimeter_m = 16.0
+signed_double_area_scale_m2 = 1.25
+minimum_quality_exact = "40/41"
+minimum_quality_f64 = 0.975609756097561
+maximum_edge_length_exact_m = "sqrt(41)/4"
+
+[secondary_witness]
+selection = "start-cap"
+origin_m = [-2.0, -1.0, 0.5]
+u_hat = [0.0, 1.0, 0.0]
+v_hat = [1.0, 0.0, 0.0]
+normal_hat = [0.0, 0.0, -1.0]
+u_intervals = 3
+v_intervals = 4
+corner_indices = [0, 3, 19, 16]
+require_distinct_coordinates_connectivity_and_handle = true
+
+[f64_boundary_witness]
+length_m = 5.0
+target_at_m = 2.3570226039551585
+target_at_hex = "0x1.2db2eaabf5c80p+1"
+target_below_m = 2.357022603955158
+target_below_hex = "0x1.2db2eaabf5c7fp+1"
+intervals_at = 3
+intervals_below = 4
+other_axis_length_m = 3.0
+other_axis_intervals = 2
+vertices_at = 12
+triangles_at = 12
+vertices_below = 15
+triangles_below = 16
+
+[estimate_mutant_witness]
+length_m = 4.875
+length_hex = "0x1.3800000000000p+2"
+target_m = 0.9848987309384055
+target_hex = "0x1.f844a57e8134bp-1"
+scale_then_divide_ceiling_estimate = 7
+divide_by_scaled_target_ceiling_estimate = 7
+repaired_intervals = 8
+n7_nominal_spacing_hex = "0x1.6492492492492p-1"
+n7_maximum_realized_spacing_hex = "0x1.6492492492498p-1"
+n7_realized_diagonal_hex = "0x1.f844a57e81353p-1"
+n8_spacing_hex = "0x1.3800000000000p-1"
+n8_realized_diagonal_hex = "0x1.b93c10ceb10e1p-1"
+
+[endpoint_snapping_witness]
+length_m = 3.0
+target_m = 0.6060915267313264
+target_hex = "0x1.3651a0eb63341p-1"
+nominal_intervals = 7
+n7_nominal_spacing_hex = "0x1.b6db6db6db6dbp-2"
+n7_maximum_realized_spacing_hex = "0x1.b6db6db6db6e0p-2"
+n7_realized_diagonal_hex = "0x1.3651a0eb63345p-1"
+repaired_intervals = 8
+vertices = 81
+triangles = 128
+edges = 208
+boundary_edges = 32
+interior_edges = 176
+n8_maximum_edge_m = 0.5303300858899106
+n8_maximum_edge_hex = "0x1.0f876ccdf6cd9p-1"
+
+[dual_axis_snapping_witness]
+u_length_m = 17.5
+u_length_hex = "0x1.1800000000000p+4"
+v_length_m = 10.5
+v_length_hex = "0x1.5000000000000p+3"
+target_m = 0.9899494936611665
+target_hex = "0x1.fadaa8f7eed51p-1"
+shared_nominal_spacing_hex = "0x1.6666666666666p-1"
+u_nominal_intervals = 25
+u_n25_maximum_realized_spacing_hex = "0x1.6666666666680p-1"
+u_n25_realized_diagonal_hex = "0x1.fadaa8f7eed76p-1"
+u_repaired_intervals = 26
+u_n26_maximum_realized_spacing_hex = "0x1.589d89d89d8a0p-1"
+v_nominal_intervals = 15
+v_n15_maximum_realized_spacing_hex = "0x1.6666666666670p-1"
+v_n15_realized_diagonal_hex = "0x1.fadaa8f7eed5fp-1"
+v_repaired_intervals = 16
+v_n16_exact_spacing_hex = "0x1.5000000000000p-1"
+require_unequal_maximum_realized_gaps = true
+vertices = 459
+triangles = 832
+edges = 1290
+boundary_edges = 84
+interior_edges = 1206
+maximum_mesh_edge_hex = "0x1.e14e6a48457e0p-1"
+
+[retained_regression_witness]
+length_m = 8.375
+length_hex = "0x1.0c00000000000p+3"
+target_m = 1.692005512124953
+target_hex = "0x1.b12745f33a78cp+0"
+nominal_intervals = 7
+n7_maximum_realized_spacing_hex = "0x1.324924924924cp+0"
+repaired_intervals = 8
+role = "regression check for endpoint-aware correction; both ceiling estimates also give eight, so it is not an estimate falsifier"
+
+[acceptance]
+validate_handle_before_revealing_face = true
+classification_tolerance_is_not_a_sizing_tolerance = true
+all_input_validation_precedes_mesh_allocation = true
+lift_is_exact_origin_plus_intrinsic_coordinates = true
+target_predicate_measures_generated_binary64_coordinates = true
+selected_interval_count_is_minimal = true
+quality_gate_is_strictly_below = true
+triangle_budget_uses_checked_arithmetic_before_allocation = true
+source_geometry_and_correspondence_are_retained = true
+
+[falsifiers]
+foreign_or_stale_handle = "reject before face lookup or provenance disclosure"
+unknown_face_provenance = "reject during graph-bound handle construction"
+annular_cap_or_cut_wall = "reject because no rectangular face cycle exists"
+nonfinite_or_nonpositive_target = "reject before interval selection or allocation"
+maximum_triangles_below_two_or_above_100000 = "reject before allocation"
+maximum_triangles_23 = "reject the 24-triangle primary witness before allocation"
+minimum_quality_0_98 = "reject because 40/41 is strictly below the requested gate"
+strict_comparator_mutant = "one-ulp target pair changes the length-5 realized interval count from 3 to 4"
+classification_tolerance_leakage = "one-ulp target pair remains governed only by the sizing predicate"
+endpoint_snap_escapes_nominal_bound = "length 3 and the nominal n=7 equality target reject after the generated endpoint makes one realized gap five ulps wider; n=8 accepts"
+ceil_estimate_as_answer = "length 4.875 and target 0.9848987309384055 give ceil(sqrt(2)*L/h)=7 and ceil(L/(h/sqrt(2)))=7, but realized coordinates reject 7 and accept 8"
+dual_axis_endpoint_snap = "17.5 x 10.5 rectangle at the shared nominal-equality target rejects both nominal counts 25 and 15 on realized gaps of unequal width and accepts 26 by 16"
+orientation_or_diagonal_flip = "fail frozen first/last cells, outward normal, and start/end-cap distinction"
+fine_target_exceeds_axis_division_bound = "the primary graph end-cap with target 0.01 m and a 24-triangle budget rejects EQ0901 before allocation: maximum_axis_divisions is 24/2 = 12 while the realized predicate needs 708 u- and 425 v-divisions"
+exact_frame_admission_defects = "one-ulp opposite-corner defect, exact-zero-orthogonality shear, reversed or one-ulp outward normal, tolerance-equal axis length, and non-finite frame inputs each reject EQ0901; these falsifiers run as eqiora-geometry cfg(test) unit tests, outside this case's registered facade evidence target"
+
+[claim_boundary]
+one_graph_bound_face = true
+rectangular_planar_face_only = true
+exact_provider_rectangle_cycle_only = true
+approximate_or_rotated_cad_frame = false
+ambient_dimension = 3
+intrinsic_topological_dimension = 2
+straight_edged_affine_triangles = true
+one_uniform_target_edge_length = true
+source_bound_geometry_and_correspondence = true
+body_volume_mesh = false
+per_face_override_or_body_base_policy = false
+annular_cap_or_cylindrical_wall = false
+curved_elements_or_exact_arc_mesh = false
+adaptive_anisotropic_or_boundary_layer_mesh = false
+production_unstructured_mesher = false
+wire_schema_or_persisted_mesh_policy = false
+python_studio_solver_or_demo = false
+cross_platform_mesh_byte_identity = false
+
+[evidence]
+package = "eqiora"
+test = "cad_authored_face_reference_mesh"
