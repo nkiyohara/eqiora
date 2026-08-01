@@ -670,8 +670,7 @@ fn every_installed_consumer_carries_its_precommitted_replacement_identities() {
         // stripping a trailing newline off both sides before comparing would let
         // exactly that byte drift under a claim that no byte may.
         assert_eq!(
-            fixture.committed,
-            fixture.replacement,
+            fixture.committed, fixture.replacement,
             "{} must install the precommitted replacement byte for byte: key order, \
              whitespace, number spelling, trailing newline, and every non-identity \
              byte included",
