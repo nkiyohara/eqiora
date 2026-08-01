@@ -101,7 +101,10 @@ fn dual_oracle_end_cap_freezes_frame_topology_geometry_and_quality() {
         (4, 3)
     );
     assert_eq!(
-        (realization.u_spacing_m(), realization.v_spacing_m()),
+        (
+            realization.u_maximum_realized_gap_m(),
+            realization.v_maximum_realized_gap_m()
+        ),
         (1.25, 1.0)
     );
     assert_eq!(
@@ -271,6 +274,7 @@ fn binary64_minimality_boundaries_and_estimate_correction_are_exact() {
         (replacement_length / (replacement_target / std::f64::consts::SQRT_2)).ceil(),
         7.0
     );
+    assert_eq!((replacement_length / 7.0).to_bits(), 0x3fe6_4924_9249_2492);
     let n7_gap = maximum_realized_axis_gap(replacement_length, 7);
     assert_eq!(n7_gap.to_bits(), 0x3fe6_4924_9249_2498);
     assert_eq!(n7_gap.hypot(n7_gap).to_bits(), 0x3fef_844a_57e8_1353);
@@ -567,6 +571,18 @@ fn source_policy_budget_and_quality_falsifiers_fail_closed() {
         CadAuthoredFaceMesh::from_face(&cut, &face, GEOMETRY_TOLERANCE_M, 100.0, 2, quality(0.05))
             .unwrap();
     }
+}
+
+#[test]
+fn fine_target_exceeds_the_axis_division_bound_before_allocation() {
+    let graph = graph();
+    let face = graph.face_handle("end-cap").unwrap();
+    let error =
+        CadAuthoredFaceMesh::from_face(&graph, &face, GEOMETRY_TOLERANCE_M, 0.01, 24, quality(0.5))
+            .unwrap_err();
+    assert_eq!(error.code(), codes::INVALID_ARTIFACT);
+    assert_eq!(error.code().0, "EQ0901");
+    assert!(error.message().contains("more than 12 divisions"));
 }
 
 #[test]

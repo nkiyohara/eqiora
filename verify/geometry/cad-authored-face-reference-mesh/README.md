@@ -90,6 +90,14 @@ cylindrical surface mesh, curved element, exact arc realization, adaptive,
 anisotropic, boundary-layer, or production unstructured mesher, Python or
 Studio surface, solver integration, or demo is claimed by this case.
 
+This slice admits only the current provider's rectangle face cycles, which are
+exactly closed, exactly orthogonal, and exactly normalized in binary64.
+Approximate or arbitrarily rotated CAD frames — cycles whose corners, axis
+orthogonality, or unit axes hold only to a tolerance — are not claimed; the
+exact-frame admission defects that reject them are exercised as
+`eqiora-geometry` `cfg(test)` unit falsifiers, outside this case's registered
+facade evidence target.
+
 The bit-exact `hypot` witnesses are x86-64 Linux/glibc evidence: Rust
 `f64::hypot` resolves to glibc's libm there. Every frozen diagonal equals the
 correctly rounded binary64 result, so any correctly rounded libm reproduces

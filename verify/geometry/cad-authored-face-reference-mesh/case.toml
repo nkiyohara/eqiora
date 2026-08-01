@@ -35,8 +35,8 @@ u_length_m = 5.0
 v_length_m = 3.0
 u_intervals = 4
 v_intervals = 3
-u_spacing_m = 1.25
-v_spacing_m = 1.0
+u_maximum_realized_gap_m = 1.25
+v_maximum_realized_gap_m = 1.0
 vertices = 20
 triangles = 24
 edges = 43
@@ -174,10 +174,14 @@ endpoint_snap_escapes_nominal_bound = "length 3 and the nominal n=7 equality tar
 ceil_estimate_as_answer = "length 4.875 and target 0.9848987309384055 give ceil(sqrt(2)*L/h)=7 and ceil(L/(h/sqrt(2)))=7, but realized coordinates reject 7 and accept 8"
 dual_axis_endpoint_snap = "17.5 x 10.5 rectangle at the shared nominal-equality target rejects both nominal counts 25 and 15 on realized gaps of unequal width and accepts 26 by 16"
 orientation_or_diagonal_flip = "fail frozen first/last cells, outward normal, and start/end-cap distinction"
+fine_target_exceeds_axis_division_bound = "the primary graph end-cap with target 0.01 m and a 24-triangle budget rejects EQ0901 before allocation: maximum_axis_divisions is 24/2 = 12 while the realized predicate needs 708 u- and 425 v-divisions"
+exact_frame_admission_defects = "one-ulp opposite-corner defect, exact-zero-orthogonality shear, reversed or one-ulp outward normal, tolerance-equal axis length, and non-finite frame inputs each reject EQ0901; these falsifiers run as eqiora-geometry cfg(test) unit tests, outside this case's registered facade evidence target"
 
 [claim_boundary]
 one_graph_bound_face = true
 rectangular_planar_face_only = true
+exact_provider_rectangle_cycle_only = true
+approximate_or_rotated_cad_frame = false
 ambient_dimension = 3
 intrinsic_topological_dimension = 2
 straight_edged_affine_triangles = true
