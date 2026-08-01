@@ -405,27 +405,25 @@ fn dimensional_physical_and_immutable_prefix_drift_fail_closed() {
     } else {
         "vertex".into()
     };
-    let changed_block = DiscreteFieldEnvelopeV1::from_json(
+    substituted_blocks[0] = DiscreteFieldEnvelopeV1::from_json(
         &serde_json::to_vec(&block_json).unwrap(),
         Default::default(),
+    )
+    .expect("a locally valid block-association substitution remains untrusted");
+    assert!(
+        replay(
+            &catalog,
+            result.mesh_artifact(),
+            result.trajectory(),
+            &catalog.segments,
+            result.states(),
+            &catalog.snapshots,
+            &substituted_blocks,
+            result.run(),
+        )
+        .is_err(),
+        "block association and exact content identity are both closed"
     );
-    if let Ok(changed_block) = changed_block {
-        substituted_blocks[0] = changed_block;
-        assert!(
-            replay(
-                &catalog,
-                result.mesh_artifact(),
-                result.trajectory(),
-                &catalog.segments,
-                result.states(),
-                &catalog.snapshots,
-                &substituted_blocks,
-                result.run(),
-            )
-            .is_err(),
-            "block association and exact content identity are both closed"
-        );
-    }
 }
 
 fn accepted_catalog() -> AcceptedCatalog {
