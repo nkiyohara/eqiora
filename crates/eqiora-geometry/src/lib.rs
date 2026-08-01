@@ -40,7 +40,7 @@ pub use cad::{
 };
 pub use cad_authored_build::CadAuthoredBuild;
 pub use cad_authored_graph::CadAuthoredGraph;
-pub use cad_authored_selection::{CadAuthoredFaceHandle, CadAuthoredFaceSelection};
+pub use cad_authored_selection::CadAuthoredFaceHandle;
 pub use canonical::{CanonicalGeometryLimits, CanonicalGeometryRef, CanonicalGeometryV1};
 pub use circular_hole::CanonicalCircularHoleGeometryV1;
 pub use circular_hole_chordal::CircularHoleChordalMeshV1;

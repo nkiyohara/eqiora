@@ -3,9 +3,8 @@
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
-use crate::{
-    CadAuthoredFaceHandle, CadAuthoredFaceSelection, CadAuthoredGraph, CadRepairDispositionV1,
-};
+use crate::cad_authored_selection::FaceKey;
+use crate::{CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1};
 
 const RECTANGLE_PROFILE: &str = "eqiora.cad.analytic-rectangle-extrusion-v1";
 const CIRCULAR_CUT_PROFILE: &str = "eqiora.cad.analytic-circular-through-cut-v1";
@@ -24,12 +23,12 @@ struct BuildObservation {
     maximum_area_discrepancy_m2: f64,
     maximum_volume_discrepancy_m3: f64,
     repair: CadRepairDispositionV1,
-    retained_unchanged: Vec<CadAuthoredFaceSelection>,
-    retained_modified: Vec<CadAuthoredFaceSelection>,
-    created: Vec<CadAuthoredFaceSelection>,
-    deleted: Vec<CadAuthoredFaceSelection>,
-    split: Vec<CadAuthoredFaceSelection>,
-    merged: Vec<CadAuthoredFaceSelection>,
+    retained_unchanged: Vec<FaceKey>,
+    retained_modified: Vec<FaceKey>,
+    created: Vec<FaceKey>,
+    deleted: Vec<FaceKey>,
+    split: Vec<FaceKey>,
+    merged: Vec<FaceKey>,
 }
 
 /// Complete accepted receipt from one bounded authored-CAD analytic build.
@@ -100,16 +99,13 @@ impl CadAuthoredBuild {
                 maximum_volume_discrepancy_m3: 0.0,
                 repair: CadRepairDispositionV1::None,
                 retained_unchanged: vec![
-                    CadAuthoredFaceSelection::profile_x_lower(),
-                    CadAuthoredFaceSelection::profile_x_upper(),
-                    CadAuthoredFaceSelection::profile_y_lower(),
-                    CadAuthoredFaceSelection::profile_y_upper(),
+                    FaceKey::profile_x_lower(),
+                    FaceKey::profile_x_upper(),
+                    FaceKey::profile_y_lower(),
+                    FaceKey::profile_y_upper(),
                 ],
-                retained_modified: vec![
-                    CadAuthoredFaceSelection::start_cap(),
-                    CadAuthoredFaceSelection::end_cap(),
-                ],
-                created: vec![CadAuthoredFaceSelection::cut_wall()],
+                retained_modified: vec![FaceKey::start_cap(), FaceKey::end_cap()],
+                created: vec![FaceKey::cut_wall()],
                 deleted: Vec::new(),
                 split: Vec::new(),
                 merged: Vec::new(),
@@ -126,7 +122,7 @@ impl CadAuthoredBuild {
                 repair: CadRepairDispositionV1::None,
                 retained_unchanged: Vec::new(),
                 retained_modified: Vec::new(),
-                created: graph.selection_inventory().to_vec(),
+                created: FaceKey::V1_ALL.to_vec(),
                 deleted: Vec::new(),
                 split: Vec::new(),
                 merged: Vec::new(),
@@ -227,12 +223,12 @@ impl CadAuthoredBuild {
 
 fn bind(
     graph: &CadAuthoredGraph,
-    selections: &[CadAuthoredFaceSelection],
+    selections: &[FaceKey],
 ) -> Result<Vec<CadAuthoredFaceHandle>, Diagnostic> {
     selections
         .iter()
         .copied()
-        .map(|selection| graph.face_handle(selection))
+        .map(|selection| graph.face_handle_for(selection))
         .collect()
 }
 
