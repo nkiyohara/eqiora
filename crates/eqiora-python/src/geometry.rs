@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 
 use eqiora::Diagnostic;
 use eqiora::diagnostic::codes;
-use eqiora::geometry::{CanonicalCircularHoleGeometryV1, NamedEntitySet};
+use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule, PyTuple};
 
@@ -25,7 +25,7 @@ pub(crate) fn digest_to_hex(bytes: &[u8; 32]) -> String {
 )]
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PyRectangleWithCircularHole {
-    geometry: CanonicalCircularHoleGeometryV1,
+    geometry: CanonicalGeometryV1,
 }
 
 #[pymethods]
@@ -58,7 +58,7 @@ impl PyRectangleWithCircularHole {
         y_upper: String,
         hole: String,
     ) -> PyResult<Self> {
-        let geometry = CanonicalCircularHoleGeometryV1::from_named_roles(
+        let geometry = CanonicalGeometryV1::from_circular_hole_named_roles(
             bounds,
             circle_center,
             circle_radius,
@@ -77,20 +77,28 @@ impl PyRectangleWithCircularHole {
     /// Exact Cartesian bounds, x axis then y axis, in metres.
     #[getter]
     fn bounds(&self) -> ((f64, f64), (f64, f64)) {
-        let [[x_lower, x_upper], [y_lower, y_upper]] = *self.geometry.bounds();
+        let [[x_lower, x_upper], [y_lower, y_upper]] = *self
+            .geometry
+            .circular_hole_bounds()
+            .expect("RectangleWithCircularHole always owns circular-hole geometry");
         ((x_lower, x_upper), (y_lower, y_upper))
     }
 
     /// Exact circle centre in metres.
     #[getter]
     fn circle_center(&self) -> (f64, f64) {
-        self.geometry.circle_center().into()
+        self.geometry
+            .circular_hole_center()
+            .expect("RectangleWithCircularHole always owns circular-hole geometry")
+            .into()
     }
 
     /// Exact circle radius in metres.
     #[getter]
     fn circle_radius(&self) -> f64 {
-        self.geometry.circle_radius_m()
+        self.geometry
+            .circular_hole_radius_m()
+            .expect("RectangleWithCircularHole always owns circular-hole geometry")
     }
 
     /// Producer classification tolerance in metres.
@@ -157,11 +165,11 @@ impl PyRectangleWithCircularHole {
 }
 
 impl PyRectangleWithCircularHole {
-    pub(crate) const fn from_geometry(geometry: CanonicalCircularHoleGeometryV1) -> Self {
+    pub(crate) const fn from_geometry(geometry: CanonicalGeometryV1) -> Self {
         Self { geometry }
     }
 
-    pub(crate) const fn geometry(&self) -> &CanonicalCircularHoleGeometryV1 {
+    pub(crate) const fn geometry(&self) -> &CanonicalGeometryV1 {
         &self.geometry
     }
 }

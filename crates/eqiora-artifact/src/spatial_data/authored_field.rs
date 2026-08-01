@@ -2,7 +2,7 @@
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
-use eqiora_geometry::{CanonicalCircularHoleGeometryV1, CircularHoleChordalMeshV1};
+use eqiora_geometry::{CanonicalGeometryV1, CircularHoleChordalMeshV1};
 
 use super::context::ValidatedCircularHoleFieldwiseContext;
 use super::field::FieldSnapshotEnvelopeV1;
@@ -25,7 +25,7 @@ impl FieldSnapshotEnvelopeV1 {
     pub fn new_authored_fieldwise(
         model: &ModelEnvelope,
         realization: &RealizationEnvelopeV2,
-        source: &CanonicalCircularHoleGeometryV1,
+        source: &CanonicalGeometryV1,
         owner: &CircularHoleChordalMeshV1,
         geometry: &GeometryDefinitionV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
@@ -56,7 +56,7 @@ impl FieldSnapshotEnvelopeV1 {
         &self,
         model: &ModelEnvelope,
         realization: &RealizationEnvelopeV2,
-        source: &CanonicalCircularHoleGeometryV1,
+        source: &CanonicalGeometryV1,
         owner: &CircularHoleChordalMeshV1,
         geometry: &GeometryDefinitionV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,

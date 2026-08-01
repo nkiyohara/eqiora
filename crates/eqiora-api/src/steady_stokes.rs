@@ -15,7 +15,7 @@ use eqiora_artifact::{
 };
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
-use eqiora_geometry::{CanonicalCircularHoleGeometryV1, CircularHoleChordalMeshV1};
+use eqiora_geometry::{CanonicalGeometryV1, CircularHoleChordalMeshV1};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_meshing::{DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape};
 use eqiora_numerics::fluid::{
@@ -71,7 +71,7 @@ const PRESSURE: DimExponents = DimExponents {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CircularHoleSteadyStokesResult2d {
     model: ModelEnvelope,
-    source: CanonicalCircularHoleGeometryV1,
+    source: CanonicalGeometryV1,
     owner: CircularHoleChordalMeshV1,
     chordal_realization: CircularHoleChordalRealizationEnvelopeV1,
     realized_geometry: GeometryDefinitionV1,
@@ -104,7 +104,7 @@ impl CircularHoleSteadyStokesResult2d {
     /// evidence, or any invalid artifact in the resulting lineage.
     pub fn solve_reference(
         model: &ModelEnvelope,
-        source: &CanonicalCircularHoleGeometryV1,
+        source: &CanonicalGeometryV1,
         owner: &CircularHoleChordalMeshV1,
         backend: &dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
@@ -282,7 +282,7 @@ impl CircularHoleSteadyStokesResult2d {
 
     /// Exact circular-hole source.
     #[must_use]
-    pub const fn source(&self) -> &CanonicalCircularHoleGeometryV1 {
+    pub const fn source(&self) -> &CanonicalGeometryV1 {
         &self.source
     }
 
@@ -391,7 +391,7 @@ impl CircularHoleSteadyStokesResult2d {
 
 fn require_accepted_inputs(
     model: &ModelEnvelope,
-    source: &CanonicalCircularHoleGeometryV1,
+    source: &CanonicalGeometryV1,
     owner: &CircularHoleChordalMeshV1,
 ) -> Result<(), Diagnostic> {
     if model.source_revision() != ACCEPTED_SEMANTIC_REVISION {
@@ -434,7 +434,7 @@ fn require_accepted_inputs(
 
 fn replay_program(
     model: &ModelEnvelope,
-    source: &CanonicalCircularHoleGeometryV1,
+    source: &CanonicalGeometryV1,
 ) -> Result<KernelProgram, Diagnostic> {
     let (transaction, model_id) = model.to_transaction().map_err(first_diagnostic)?;
     let mut store = InMemoryGraphStore::new();

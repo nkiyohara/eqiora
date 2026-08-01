@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use eqiora::geometry::{CanonicalCircularHoleGeometryV1, CanonicalGeometryLimits, NamedEntitySet};
+use eqiora::geometry::{CanonicalGeometryLimits, CanonicalGeometryV1, NamedEntitySet};
 use pyo3::ffi::c_str;
 use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyBytes, PyDict, PyDictMethods, PyModule};
@@ -16,7 +16,7 @@ fn python_exact_circular_hole_geometry_replays_rust_owned_identity() -> PyResult
         let reference = fs::read(fixture)?;
         assert_eq!(reference.last(), Some(&b'\n'));
         let expected = &reference[..reference.len() - 1];
-        let expected_oriented = CanonicalCircularHoleGeometryV1::new(
+        let expected_oriented = CanonicalGeometryV1::from_circular_hole(
             [[0.0, 2.2], [0.0, 0.41]],
             [0.2, 0.2],
             0.05,
@@ -40,7 +40,7 @@ fn python_exact_circular_hole_geometry_replays_rust_owned_identity() -> PyResult
             expected_oriented_digest,
             "51ece8fa2d8709d932b0c758d59c187e4fd572f73217c31dcbe407f8d873be7f"
         );
-        let expected_off_axis = CanonicalCircularHoleGeometryV1::new(
+        let expected_off_axis = CanonicalGeometryV1::from_circular_hole(
             [[0.0, 2.2], [0.0, 0.41]],
             [0.3, 0.2],
             0.05,
@@ -163,7 +163,7 @@ python_digest = geometry.digest
             .get_item("python_digest")?
             .expect("Python geometry must expose its digest")
             .extract::<String>()?;
-        let replayed = CanonicalCircularHoleGeometryV1::decode_canonical(
+        let replayed = CanonicalGeometryV1::decode_circular_hole_canonical(
             &canonical_json,
             CanonicalGeometryLimits::default(),
         )

@@ -5,7 +5,7 @@
 //! authored-region correspondence remain owned by their existing contracts.
 
 use eqiora_core::Diagnostic;
-use eqiora_geometry::{CanonicalCircularHoleGeometryV1, CircularHoleChordalMeshV1};
+use eqiora_geometry::{CanonicalGeometryV1, CircularHoleChordalMeshV1};
 use eqiora_meshing::MeshQualityGate;
 use serde::{Deserialize, Serialize};
 
@@ -47,7 +47,7 @@ impl CircularHoleChordalRealizationEnvelopeV1 {
     /// resource digest matches, and a fresh owner replay reproduces all
     /// retained observations exactly.
     pub fn capture(
-        source: &CanonicalCircularHoleGeometryV1,
+        source: &CanonicalGeometryV1,
         owner: &CircularHoleChordalMeshV1,
         realized_geometry: &GeometryDefinitionV1,
         mesh: &SimplicialMeshEnvelopeV1,
@@ -154,7 +154,7 @@ impl CircularHoleChordalRealizationEnvelopeV1 {
     /// correspondence replay failure, or any bound resource digest mismatch.
     pub fn replay_against(
         &self,
-        source: &CanonicalCircularHoleGeometryV1,
+        source: &CanonicalGeometryV1,
         realized_geometry: &GeometryDefinitionV1,
         mesh: &SimplicialMeshEnvelopeV1,
         correspondence: &GeometryMeshCorrespondenceEnvelopeV1,

@@ -5,9 +5,7 @@ use eqiora::api::{CircularHoleSteadyStokesResult2d, UnstructuredP1ScalarFieldPro
 use eqiora::artifact::ModelEnvelope;
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::diagnostic::codes;
-use eqiora::geometry::{
-    CanonicalCircularHoleGeometryV1, CanonicalGeometryLimits, CircularHoleChordalMeshV1,
-};
+use eqiora::geometry::{CanonicalGeometryLimits, CanonicalGeometryV1, CircularHoleChordalMeshV1};
 use eqiora::meshing::MeshQualityGate;
 use eqiora::solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy};
 use serde::{Deserialize, Serialize};
@@ -145,7 +143,7 @@ pub(super) async fn run_cylinder_demo(
 }
 
 fn prepare_demo() -> Result<PreparedCylinderDemo, Diagnostic> {
-    let source = CanonicalCircularHoleGeometryV1::decode_canonical(
+    let source = CanonicalGeometryV1::decode_circular_hole_canonical(
         embedded_json(GEOMETRY),
         CanonicalGeometryLimits::default(),
     )?;

@@ -6,8 +6,8 @@ use eqiora_artifact::{
     GeometryMeshCorrespondenceEnvelopeV1, JsonDecoderLimits, SimplicialMeshEnvelopeV1,
 };
 use eqiora_geometry::{
-    CanonicalCircularHoleGeometryV1, CircularHoleChordalMeshV1, EDGE_DIMENSION, FACE_DIMENSION,
-    NamedEntitySet, PlanarRegion,
+    CanonicalGeometryV1, CircularHoleChordalMeshV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet,
+    PlanarRegion,
 };
 use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
 use sha2::{Digest, Sha256};
@@ -39,15 +39,15 @@ const FIELD_ORDER: [&str; 13] = [
 ];
 
 struct Resources {
-    source: CanonicalCircularHoleGeometryV1,
+    source: CanonicalGeometryV1,
     owner: CircularHoleChordalMeshV1,
     geometry: GeometryDefinitionV1,
     mesh: SimplicialMeshEnvelopeV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
 }
 
-fn source(center: [f64; 2]) -> CanonicalCircularHoleGeometryV1 {
-    CanonicalCircularHoleGeometryV1::new(
+fn source(center: [f64; 2]) -> CanonicalGeometryV1 {
+    CanonicalGeometryV1::from_circular_hole(
         BOUNDS,
         center,
         RADIUS_M,

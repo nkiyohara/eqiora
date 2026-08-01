@@ -3,9 +3,7 @@
 use eqiora::artifact::{
     GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, SimplicialMeshEnvelopeV1,
 };
-use eqiora::geometry::{
-    CanonicalCircularHoleGeometryV1, CircularHoleChordalMeshV1, NamedEntitySet,
-};
+use eqiora::geometry::{CanonicalGeometryV1, CircularHoleChordalMeshV1, NamedEntitySet};
 use eqiora::meshing::MeshQualityGate;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule, PyTuple};
@@ -25,7 +23,7 @@ use crate::panic_boundary;
     skip_from_py_object
 )]
 pub(crate) struct PyCircularHoleChordalMesh {
-    source: CanonicalCircularHoleGeometryV1,
+    source: CanonicalGeometryV1,
     realization: CircularHoleChordalMeshV1,
     geometry_artifact: GeometryDefinitionV1,
     mesh_artifact: SimplicialMeshEnvelopeV1,
@@ -150,7 +148,7 @@ impl PyCircularHoleChordalMesh {
 }
 
 impl PyCircularHoleChordalMesh {
-    pub(crate) const fn source(&self) -> &CanonicalCircularHoleGeometryV1 {
+    pub(crate) const fn source(&self) -> &CanonicalGeometryV1 {
         &self.source
     }
 
