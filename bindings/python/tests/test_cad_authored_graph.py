@@ -60,6 +60,9 @@ V2_WIRE = (
 )
 V2_DIGEST = "00acb9494fc7dea8f1f2500d1316cb3315130a965a24179b3eb1b10345058b47"
 RELATIVE_TOLERANCE = 4e-15
+DISTINCT_Y_SECTION_DIGEST = (
+    "51ece8fa2d8709d932b0c758d59c187e4fd572f73217c31dcbe407f8d873be7f"
+)
 
 
 def rectangle(*, tolerance: float = 1e-9, depth: float = 4.0):
@@ -83,6 +86,34 @@ def cut(*, boolean_tolerance: float = 1e-9):
         center=(0.02, 0.0),
         radius=0.008,
         boolean_tolerance=boolean_tolerance,
+    )
+
+
+def dfg_cut(
+    *, plane_z: float = 0.0, depth: float = 1.0, modeling_tolerance: float = 1e-10
+):
+    return eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+        x_bounds=(0.0, 2.2),
+        y_bounds=(0.0, 0.41),
+        plane_z=plane_z,
+        depth=depth,
+        modeling_tolerance=modeling_tolerance,
+    ).circular_through_cut(
+        center=(0.2, 0.2),
+        radius=0.05,
+        boolean_tolerance=1e-10,
+    )
+
+
+def dfg_section(graph, *, y_lower: str = "walls", y_upper: str = "walls"):
+    return graph.planar_circular_section(
+        classification_tolerance=1e-12,
+        region="fluid",
+        x_lower="inlet",
+        x_upper="outlet",
+        y_lower=y_lower,
+        y_upper=y_upper,
+        hole="cylinder",
     )
 
 
@@ -355,6 +386,38 @@ def test_invalid_cut_inputs_are_structured_validation(arguments: dict[str, objec
         cut_graph.circular_through_cut(**(complete | arguments))
     assert caught.value.category == "validation"
     assert caught.value.diagnostics
+
+
+def test_planar_section_preserves_distinct_y_roles_and_ignores_nonplanar_facts() -> None:
+    oriented = dfg_section(dfg_cut(), y_lower="floor", y_upper="ceiling")
+    assert oriented.digest == DISTINCT_Y_SECTION_DIGEST
+    assert oriented.selection_names == (
+        "ceiling",
+        "cylinder",
+        "floor",
+        "inlet",
+        "outlet",
+        "fluid",
+    )
+
+    same_section = dfg_section(
+        dfg_cut(plane_z=4.0, depth=3.0, modeling_tolerance=2e-10),
+        y_lower="floor",
+        y_upper="ceiling",
+    )
+    assert same_section.canonical_json == oriented.canonical_json
+    assert same_section.digest == oriented.digest
+
+    with pytest.raises(eqiora.ValidationError):
+        rectangle().planar_circular_section(
+            classification_tolerance=1e-12,
+            region="fluid",
+            x_lower="inlet",
+            x_upper="outlet",
+            y_lower="floor",
+            y_upper="ceiling",
+            hole="cylinder",
+        )
 
 
 def test_runtime_surface_and_installed_stub_name_the_same_bounded_api() -> None:
