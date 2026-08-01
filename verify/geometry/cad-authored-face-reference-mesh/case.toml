@@ -1,0 +1,133 @@
+id = "geometry.cad-authored-face-reference-mesh"
+status = "specified"
+scope = "one-source-bound-rectangular-authored-face-realized-as-one-planar-reference-mesh"
+reference_kind = "dual-independent-analytic-and-exact-rational-enumeration-oracle"
+
+capabilities = [
+  "graph-bound-authored-face-surface-realization",
+  "axiswise-target-edge-length-selection",
+  "exact-planar-frame-lift",
+  "source-bound-geometry-mesh-correspondence",
+]
+
+[problem]
+source = "one admitted rectangular face handle on one immutable authored CAD graph"
+witness = "rectangle x [-2,3] m, y [-1,2] m, z0 0.5 m, depth 4 m; select end-cap"
+geometry_classification_tolerance_m = 5e-10
+target_edge_length_m = 2.0
+minimum_cell_quality = 0.95
+maximum_triangles = 24
+sizing_rule = "least integer n >= 1 per axis satisfying binary64 (L / n).hypot(L / n) <= h"
+indexing_rule = "k = j * (nu + 1) + i, u-fast"
+cell_rule = "for a,b,c,d at each grid square emit (b,c,a), then (d,a,c)"
+
+[oracle]
+analytic_route = "closed-form structured-grid topology, orientation, area, perimeter, and quality derivation"
+independent_route = "exact Fraction coordinate enumeration with undirected-edge multiplicities and determinant areas"
+agreement = "all frozen witness values and all rejection boundaries agree before implementation"
+
+[expected]
+origin_m = [-2.0, -1.0, 4.5]
+u_hat = [1.0, 0.0, 0.0]
+v_hat = [0.0, 1.0, 0.0]
+normal_hat = [0.0, 0.0, 1.0]
+u_length_m = 5.0
+v_length_m = 3.0
+u_intervals = 4
+v_intervals = 3
+u_spacing_m = 1.25
+v_spacing_m = 1.0
+vertices = 20
+triangles = 24
+edges = 43
+boundary_edges = 14
+interior_edges = 29
+euler_characteristic = 1
+corner_indices = [0, 4, 19, 15]
+first_cell_0 = [1, 6, 0]
+first_cell_1 = [5, 0, 6]
+last_cell_0 = [14, 19, 13]
+last_cell_1 = [18, 13, 19]
+triangle_area_m2 = 0.625
+total_area_m2 = 15.0
+boundary_perimeter_m = 16.0
+signed_double_area_scale_m2 = 1.25
+minimum_quality_exact = "40/41"
+minimum_quality_f64 = 0.975609756097561
+maximum_edge_length_exact_m = "sqrt(41)/4"
+
+[secondary_witness]
+selection = "start-cap"
+origin_m = [-2.0, -1.0, 0.5]
+u_hat = [0.0, 1.0, 0.0]
+v_hat = [1.0, 0.0, 0.0]
+normal_hat = [0.0, 0.0, -1.0]
+u_intervals = 3
+v_intervals = 4
+corner_indices = [0, 3, 19, 16]
+require_distinct_coordinates_connectivity_and_handle = true
+
+[f64_boundary_witness]
+length_m = 5.0
+target_at_m = 2.3570226039551585
+target_at_hex = "0x1.2db2eaabf5c80p+1"
+target_below_m = 2.357022603955158
+target_below_hex = "0x1.2db2eaabf5c7fp+1"
+intervals_at = 3
+intervals_below = 4
+other_axis_length_m = 3.0
+other_axis_intervals = 2
+vertices_at = 12
+triangles_at = 12
+vertices_below = 15
+triangles_below = 16
+
+[estimate_mutant_witness]
+length_m = 8.375
+length_hex = "0x1.0c00000000000p+3"
+target_m = 1.692005512124953
+target_hex = "0x1.b12745f33a78cp+0"
+corrected_intervals = 7
+naive_ceiling_estimate = 8
+alternate_naive_ceiling_estimate = 8
+
+[acceptance]
+validate_handle_before_revealing_face = true
+classification_tolerance_is_not_a_sizing_tolerance = true
+all_input_validation_precedes_mesh_allocation = true
+lift_is_exact_origin_plus_intrinsic_coordinates = true
+target_predicate_is_binary64_hypot = true
+selected_interval_count_is_minimal = true
+quality_gate_is_strictly_below = true
+triangle_budget_uses_checked_arithmetic_before_allocation = true
+source_geometry_and_correspondence_are_retained = true
+
+[falsifiers]
+foreign_or_stale_handle = "reject before face lookup or provenance disclosure"
+unknown_face_provenance = "reject during graph-bound handle construction"
+annular_cap_or_cut_wall = "reject because no rectangular face cycle exists"
+nonfinite_or_nonpositive_target = "reject before interval selection or allocation"
+maximum_triangles_below_two_or_above_100000 = "reject before allocation"
+maximum_triangles_23 = "reject the 24-triangle primary witness before allocation"
+minimum_quality_0_98 = "reject because 40/41 is strictly below the requested gate"
+strict_comparator_mutant = "one-ulp target pair changes the length-5 interval count from 3 to 4"
+classification_tolerance_leakage = "one-ulp target pair remains governed only by the sizing predicate"
+ceil_estimate_as_answer = "length 8.375 and target 1.692005512124953 require corrected n=7, not estimate n=8"
+orientation_or_diagonal_flip = "fail frozen first/last cells, outward normal, and start/end-cap distinction"
+
+[claim_boundary]
+one_graph_bound_face = true
+rectangular_planar_face_only = true
+ambient_dimension = 3
+intrinsic_topological_dimension = 2
+straight_edged_affine_triangles = true
+one_uniform_target_edge_length = true
+source_bound_geometry_and_correspondence = true
+body_volume_mesh = false
+per_face_override_or_body_base_policy = false
+annular_cap_or_cylindrical_wall = false
+curved_elements_or_exact_arc_mesh = false
+adaptive_anisotropic_or_boundary_layer_mesh = false
+production_unstructured_mesher = false
+wire_schema_or_persisted_mesh_policy = false
+python_studio_solver_or_demo = false
