@@ -1,5 +1,5 @@
 id = "geometry.cad-authored-surface-sweep"
-status = "specified"
+status = "verified"
 scope = "one-accepted-authored-face-surface-swept-inward-through-one-uncut-body-into-one-conforming-positively-oriented-tetrahedral-volume-mesh"
 reference_kind = "dual-independent-analytic-and-clean-room-enumeration-oracle"
 
@@ -295,7 +295,6 @@ y_pair = [
   "135107988821114895/36028797018963968 x24",
 ]
 
-[planned_evidence]
+[evidence]
 package = "eqiora"
 test = "cad_authored_surface_sweep"
-promotion = "the implementation slice adds the [evidence] table with exactly these names once the registered integration-test target exists, and only then promotes the case to verified; a specified case carries no [evidence] table because the manifest inventory check resolves evidence targets against existing test binaries"
