@@ -95,6 +95,9 @@ export const ENGLISH_MESSAGES = {
   "command.workspace.geometry.description":
     "Show the geometry workspace for the accepted bounded CAD plan.",
   "command.workspace.geometry.label": "Show geometry workspace",
+  "command.workspace.cad-authoring.description":
+    "Open the bounded authored-CAD history inspector and native replay controls.",
+  "command.workspace.cad-authoring.label": "Show authored CAD workspace",
   "command.workspace.field.description":
     "Open the bounded field view for one accepted 2D scalar result.",
   "command.workspace.field.label": "Show field workspace",
@@ -113,6 +116,9 @@ export const ENGLISH_MESSAGES = {
   "workflow.cad.description":
     "Inspect the exact bounded CAD plan through semantic geometry and Domain selection.",
   "workflow.cad.label": "Geometry",
+  "workflow.cad-authored.description":
+    "Author and inspect the two accepted CAD histories through native owner replay.",
+  "workflow.cad-authored.label": "Authored CAD",
   "workflow.cylinder.description":
     "Inspect one exact-circle, error-controlled affine Stokes solve and its accepted pressure P1 field.",
   "workflow.cylinder.label": "Cylinder Stokes",

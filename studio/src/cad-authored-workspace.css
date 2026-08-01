@@ -1,3 +1,14 @@
+.cad-authored-workspace-shell {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cad-authored-workspace-shell[hidden] {
+  display: none;
+}
+
 .cad-authored-workspace {
   display: flex;
   flex-direction: column;

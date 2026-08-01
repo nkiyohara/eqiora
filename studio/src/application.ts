@@ -26,8 +26,16 @@ export type WorkflowId =
   | "packaged-dc-drive"
   | "structural-elasticity"
   | "fixed-reference-fsi"
-  | "cad-box";
-export type WorkspaceId = "relations" | "field" | "trajectory" | "structure" | "fsi" | "geometry";
+  | "cad-box"
+  | "cad-authored";
+export type WorkspaceId =
+  | "relations"
+  | "field"
+  | "trajectory"
+  | "structure"
+  | "fsi"
+  | "geometry"
+  | "cad-authoring";
 
 export type CommandId =
   | "model.compile"
@@ -43,6 +51,7 @@ export type CommandId =
   | "workspace.structure"
   | "workspace.fsi"
   | "workspace.geometry"
+  | "workspace.cad-authoring"
   | "example.cylinder"
   | "example.dc-drive"
   | "example.structural"
@@ -70,7 +79,8 @@ export type FocusTarget =
   | "fsi-viewport"
   | "fsi-vertex-table"
   | "cad-viewport"
-  | "cad-domain-table";
+  | "cad-domain-table"
+  | "cad-authored-workspace";
 
 export type ElementFocusTarget = Exclude<FocusTarget, "source-editor" | "relation-view">;
 
@@ -127,6 +137,8 @@ export function resolveElementFocusId(
       return "cad-viewport";
     case "cad-domain-table":
       return "cad-domain-table";
+    case "cad-authored-workspace":
+      return "workspace";
     case "field-viewport":
       return activeWorkflow === "cylinder-stokes"
         ? "unstructured-field-viewport"
@@ -223,6 +235,12 @@ export type ProjectionContract =
       acceptedSteps: 2;
       components: 2;
       semanticAlternative: Extract<SemanticAlternative, { kind: "fsi-vertex-table" }>;
+    }>
+  | Readonly<{
+      kind: "bounded-authored-cad-history";
+      maximumOperations: 8;
+      maximumFaces: 7;
+      canonicalBytes: "opaque-native-owner-replay";
     }>;
 
 type RelationsWorkflowDefinition = Readonly<{
@@ -288,6 +306,15 @@ type CadWorkflowDefinition = Readonly<{
   projection: Extract<ProjectionContract, { kind: "bounded-cad-triangle-view" }>;
 }>;
 
+type CadAuthoredWorkflowDefinition = Readonly<{
+  id: "cad-authored";
+  workspace: "cad-authoring";
+  label: "workflow.cad-authored.label";
+  description: "workflow.cad-authored.description";
+  primaryFocus: "cad-authored-workspace";
+  projection: Extract<ProjectionContract, { kind: "bounded-authored-cad-history" }>;
+}>;
+
 export type WorkflowDefinition =
   | RelationsWorkflowDefinition
   | ScalarEllipticWorkflowDefinition
@@ -295,7 +322,8 @@ export type WorkflowDefinition =
   | DcMotorWorkflowDefinition
   | StructuralWorkflowDefinition
   | FsiWorkflowDefinition
-  | CadWorkflowDefinition;
+  | CadWorkflowDefinition
+  | CadAuthoredWorkflowDefinition;
 
 export type AcceptedApplicationProjection = Pick<DocumentProjection, "digest" | "workflows">;
 
@@ -343,6 +371,9 @@ function resolveAvailability(
   workflow: WorkflowDefinition,
   inputs: ApplicationInputs,
 ): WorkflowAvailability {
+  if (workflow.id === "cad-authored") {
+    return { kind: "available", reason: null };
+  }
   if (workflow.id === "cylinder-stokes") {
     switch (inputs.cylinderStatus) {
       case "running":
@@ -473,19 +504,21 @@ export function resolveApplication(
       : requestedWorkspace;
   const spatial = workflows.find((workflow) => workflow.definition.id === "scalar-elliptic");
   const activeWorkflow: WorkflowId =
-    workspace === "geometry"
-      ? "cad-box"
-      : workspace === "field"
-        ? (inputs.fieldWorkflow ?? "relations")
-        : workspace === "trajectory"
-          ? "packaged-dc-drive"
-          : workspace === "structure"
-            ? "structural-elasticity"
-            : workspace === "fsi"
-              ? "fixed-reference-fsi"
-              : spatial?.availability.kind === "available"
-                ? "scalar-elliptic"
-                : "relations";
+    workspace === "cad-authoring"
+      ? "cad-authored"
+      : workspace === "geometry"
+        ? "cad-box"
+        : workspace === "field"
+          ? (inputs.fieldWorkflow ?? "relations")
+          : workspace === "trajectory"
+            ? "packaged-dc-drive"
+            : workspace === "structure"
+              ? "structural-elasticity"
+              : workspace === "fsi"
+                ? "fixed-reference-fsi"
+                : spatial?.availability.kind === "available"
+                  ? "scalar-elliptic"
+                  : "relations";
   return {
     requestedWorkspace,
     workspace,
@@ -651,6 +684,7 @@ export function resolveCommandAvailability(facts: CommandFacts): CommandAvailabi
     ),
     "workspace.fsi": commandState(facts.fsiAvailable, "command.reason.fsi-result-unavailable"),
     "workspace.geometry": commandState(cadEnabled, cadReason),
+    "workspace.cad-authoring": { enabled: true, reason: null },
     "example.cylinder": commandState(!facts.cylinderRunning, "command.reason.cylinder-running"),
     "example.dc-drive": commandState(!facts.dcMotorRunning, "command.reason.dc-drive-running"),
     "example.structural": commandState(

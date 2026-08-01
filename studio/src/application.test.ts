@@ -120,6 +120,7 @@ describe("typed Studio application registry", () => {
       "structural-elasticity",
       "fixed-reference-fsi",
       "cad-box",
+      "cad-authored",
     ]);
     expect(new Set(WORKFLOW_REGISTRY.map((workflow) => workflow.id)).size).toBe(
       WORKFLOW_REGISTRY.length,
@@ -134,6 +135,7 @@ describe("typed Studio application registry", () => {
       "view.reflow",
       "workspace.relations",
       "workspace.geometry",
+      "workspace.cad-authoring",
       "workspace.field",
       "workspace.trajectory",
       "workspace.structure",
@@ -154,8 +156,9 @@ describe("typed Studio application registry", () => {
     );
   });
 
-  it("declares a bounded projection and semantic alternative for every workflow", () => {
-    const [relations, spatial, cylinder, dcDrive, structural, fsi, cad] = WORKFLOW_REGISTRY;
+  it("declares one bounded projection contract for every workflow", () => {
+    const [relations, spatial, cylinder, dcDrive, structural, fsi, cad, cadAuthored] =
+      WORKFLOW_REGISTRY;
 
     expect(relations.projection).toEqual({
       kind: "semantic-relation-graph",
@@ -227,6 +230,12 @@ describe("typed Studio application registry", () => {
         focusTarget: "cad-domain-table",
       },
     });
+    expect(cadAuthored.projection).toEqual({
+      kind: "bounded-authored-cad-history",
+      maximumOperations: 8,
+      maximumFaces: 7,
+      canonicalBytes: "opaque-native-owner-replay",
+    });
   });
 
   it("derives applicability from accepted projection and exact workflow evidence", () => {
@@ -244,6 +253,7 @@ describe("typed Studio application registry", () => {
       { kind: "unavailable", reason: "workflow.reason.structural-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.fsi-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.compile-first" },
+      { kind: "available", reason: null },
     ]);
 
     const unavailable = resolved(false, {
@@ -258,6 +268,7 @@ describe("typed Studio application registry", () => {
       { kind: "unavailable", reason: "workflow.reason.structural-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.fsi-unavailable" },
       { kind: "unavailable", reason: "workflow.reason.cad-unavailable" },
+      { kind: "available", reason: null },
     ]);
 
     const accepted = resolved(
@@ -357,6 +368,16 @@ describe("typed Studio application registry", () => {
       fellBack: false,
     });
 
+    const authored = resolveApplication(
+      applicationInputs({ acceptedProjection: null }),
+      "cad-authoring",
+    );
+    expect(authored).toMatchObject({
+      workspace: "cad-authoring",
+      activeWorkflow: "cad-authored",
+      fellBack: false,
+    });
+
     const scalarField = resolveApplication(
       applicationInputs({ fieldWorkflow: "scalar-elliptic" }),
       "field",
@@ -433,6 +454,7 @@ describe("typed Studio application registry", () => {
       enabled: false,
       reason: "workflow.reason.cad-unavailable",
     });
+    expect(availability["workspace.cad-authoring"]).toEqual({ enabled: true, reason: null });
     expect(availability["workspace.field"]).toEqual({
       enabled: false,
       reason: "command.reason.field-result-unavailable",
@@ -507,6 +529,7 @@ describe("typed Studio application registry", () => {
     const structural = workflows[4]?.commands.map((command) => command.id);
     const fsi = workflows[5]?.commands.map((command) => command.id);
     const cad = workflows[6]?.commands.map((command) => command.id);
+    const cadAuthored = workflows[7]?.commands.map((command) => command.id);
 
     expect(relations).toContain("run.cancel");
     expect(spatial).toContain("run.cancel");
@@ -524,6 +547,7 @@ describe("typed Studio application registry", () => {
       "history.redo",
       "workspace.relations",
       "workspace.geometry",
+      "workspace.cad-authoring",
       "workspace.field",
       "workspace.trajectory",
       "workspace.structure",
@@ -536,6 +560,7 @@ describe("typed Studio application registry", () => {
       "example.cad",
       "focus.inspector",
     ]);
+    expect(cadAuthored).toEqual(cad);
 
     expect(
       COMMAND_REGISTRY.filter((command) => command.id.startsWith("focus.")).every(
@@ -548,6 +573,12 @@ describe("typed Studio application registry", () => {
     expect(
       COMMAND_REGISTRY.find((command) => command.id === "workspace.geometry")?.focusTarget,
     ).toBe("cad-viewport");
+    expect(
+      COMMAND_REGISTRY.find((command) => command.id === "workspace.cad-authoring")?.focusTarget,
+    ).toBe("cad-authored-workspace");
+    expect(resolveElementFocusId("cad-authored-workspace", "cad-authored", "cad-authoring")).toBe(
+      "workspace",
+    );
   });
 
   it("routes evidence focus to the visible workflow-owned element", () => {
@@ -587,9 +618,13 @@ describe("typed Studio application registry", () => {
     for (const workflow of resolveApplicationWorkflows(
       applicationInputs({ acceptedProjection: null }),
     )) {
-      expect(workflow.availability.reason).not.toBeNull();
-      if (workflow.availability.reason !== null) {
-        expect(formatMessage(workflow.availability.reason)).not.toHaveLength(0);
+      if (workflow.definition.id === "cad-authored") {
+        expect(workflow.availability).toEqual({ kind: "available", reason: null });
+      } else {
+        expect(workflow.availability.reason).not.toBeNull();
+        if (workflow.availability.reason !== null) {
+          expect(formatMessage(workflow.availability.reason)).not.toHaveLength(0);
+        }
       }
     }
   });
