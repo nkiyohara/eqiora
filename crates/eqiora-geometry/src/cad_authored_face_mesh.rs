@@ -358,16 +358,6 @@ impl ResolvedCounts {
             .checked_add(1)
             .and_then(|u| v_divisions.checked_add(1).and_then(|v| u.checked_mul(v)))
             .ok_or_else(|| invalid("authored face vertex count overflows usize"))?;
-        let _frontier_entries = u_divisions
-            .checked_add(v_divisions)
-            .and_then(|sum| sum.checked_mul(2))
-            .ok_or_else(|| invalid("authored face frontier count overflows usize"))?;
-        let _coordinate_scalars = vertices
-            .checked_mul(2)
-            .ok_or_else(|| invalid("authored face coordinate count overflows usize"))?;
-        let _connectivity_indices = triangles
-            .checked_mul(3)
-            .ok_or_else(|| invalid("authored face connectivity count overflows usize"))?;
         Ok(Self {
             vertices,
             triangles,
@@ -434,7 +424,7 @@ fn least_nominal_divisions(
     target_m: f64,
     maximum: usize,
 ) -> Result<usize, Diagnostic> {
-    if maximum == 0 || !nominal_satisfies_target(length_m, target_m, maximum) {
+    if !nominal_satisfies_target(length_m, target_m, maximum) {
         return Err(invalid(format!(
             "authored face target edge length requires more than {maximum} divisions on one axis",
         )));
