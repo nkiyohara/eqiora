@@ -18,6 +18,8 @@
 
 mod association;
 mod cad;
+mod cad_authored_graph;
+mod cad_authored_selection;
 mod canonical;
 mod circular_hole;
 mod circular_hole_chordal;
@@ -34,6 +36,8 @@ pub use cad::{
     CadBoxRealizationV1, CadKernelAdapter, CadRepairDispositionV1, ConstrainedRectangleV1,
     StepLengthUnitV1, StepSourceDigest,
 };
+pub use cad_authored_graph::{CadAuthoredGraphV1, CadAuthoredPlanarFaceV1};
+pub use cad_authored_selection::{CadAuthoredFaceHandleV1, CadAuthoredFaceSelectionV1};
 pub use canonical::{CanonicalGeometryLimits, CanonicalGeometryRef, CanonicalGeometryV1};
 pub use circular_hole::CanonicalCircularHoleGeometryV1;
 pub use circular_hole_chordal::CircularHoleChordalMeshV1;
