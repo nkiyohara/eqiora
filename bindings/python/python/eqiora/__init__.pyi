@@ -898,4 +898,5 @@ __all__ = [
     "geometry",
     "meshing",
     "solid",
+    "trajectory",
 ]
