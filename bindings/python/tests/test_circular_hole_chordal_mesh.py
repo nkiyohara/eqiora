@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import json
 import math
 import subprocess
 import sys
-import gc
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-import pytest
 import numpy as np
+import pytest
 
 import eqiora
 
@@ -227,7 +227,7 @@ def test_standard_mesh_replays_the_frozen_rfc_and_inner_artifact() -> None:
         rel_tol=0.0,
         abs_tol=BOUNDARY_EVALUATION_ALLOWANCE,
     )
-    assert plan.minimum_mean_ratio == MINIMUM_MEAN_RATIO
+    assert plan.achieved_minimum_mean_ratio == MINIMUM_MEAN_RATIO
     assert mesh.minimum_mean_ratio == MINIMUM_MEAN_RATIO
 
     canonical = mesh.canonical_bytes
@@ -244,8 +244,14 @@ def test_standard_mesh_replays_the_frozen_rfc_and_inner_artifact() -> None:
     assert mesh.cells.shape == (104, 3)
     assert mesh.coordinates.dtype == np.float64
     assert mesh.cells.dtype == np.uint32
-    assert not mesh.coordinates.flags.writeable
-    assert not mesh.cells.flags.writeable
+    for view in (mesh.coordinates, mesh.cells):
+        assert view.flags.c_contiguous and view.flags.aligned
+        assert not view.flags.owndata
+        assert not view.flags.writeable
+        with pytest.raises(ValueError):
+            view.setflags(write=True)
+        with pytest.raises(ValueError):
+            view.flat[0] = 0
 
     document = json.loads(canonical)
     assert document["schema"] == MESH_SCHEMA.decode()

@@ -137,9 +137,9 @@ impl PyMeshPlan {
         self.accepted.boundary_evaluation_allowance_m()
     }
 
-    /// Measured minimum mean ratio over the resolved mesh.
+    /// Measured minimum mean ratio achieved by the resolved mesh.
     #[getter]
-    fn minimum_mean_ratio(&self) -> f64 {
+    fn achieved_minimum_mean_ratio(&self) -> f64 {
         self.accepted
             .mesh()
             .mesh()
