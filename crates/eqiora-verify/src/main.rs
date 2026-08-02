@@ -62,9 +62,9 @@ enum Command {
     Verify,
     /// List validated cases in deterministic ID order.
     List {
-        /// Limit the report to one exact case ID.
+        /// Limit the report to these exact case IDs.
         #[arg(long)]
-        case: Option<String>,
+        case: Vec<String>,
     },
     /// Project validated case manifests into a capability-to-evidence index.
     Index {
@@ -74,15 +74,15 @@ enum Command {
     },
     /// Validate manifests, evidence artifacts, and typed targets without running them.
     Check {
-        /// Limit validation output to one exact case ID.
+        /// Limit validation output to these exact case IDs.
         #[arg(long)]
-        case: Option<String>,
+        case: Vec<String>,
     },
     /// Run structured evidence targets without invoking a shell.
     Run {
-        /// Limit execution to one exact case ID.
+        /// Limit execution to these exact case IDs.
         #[arg(long)]
-        case: Option<String>,
+        case: Vec<String>,
         /// Maximum number of evidence targets executing at once.
         #[arg(
             long,
@@ -130,7 +130,7 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             };
         }
-        Command::Verify => Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast),
+        Command::Verify => Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast),
         Command::List { case } => Request::new(CommandKind::List, case, ExecutionPolicy::FailFast),
         Command::Check { case } => {
             Request::new(CommandKind::Check, case, ExecutionPolicy::FailFast)
@@ -191,4 +191,37 @@ fn parse_jobs(value: &str) -> Result<usize, String> {
         .parse::<std::num::NonZeroUsize>()
         .map(std::num::NonZeroUsize::get)
         .map_err(|_| "jobs must be a positive integer".to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn case_selector_is_repeatable() {
+        let cli = Cli::try_parse_from([
+            "eqiora-verify",
+            "run",
+            "--case",
+            "z.case",
+            "--case",
+            "a.case",
+            "--case",
+            "z.case",
+        ])
+        .unwrap();
+        let Command::Run { case, .. } = cli.command else {
+            panic!("fixture selects run");
+        };
+        assert_eq!(case, ["z.case", "a.case", "z.case"]);
+        let request = Request::new(CommandKind::Run, case, ExecutionPolicy::FailFast);
+        assert_eq!(
+            request,
+            Request::new(
+                CommandKind::Run,
+                vec!["a.case".to_owned(), "z.case".to_owned()],
+                ExecutionPolicy::FailFast,
+            )
+        );
+    }
 }

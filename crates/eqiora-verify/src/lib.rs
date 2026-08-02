@@ -5,13 +5,9 @@
 //! select an arbitrary process.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::env;
-use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::{Arc, Mutex, mpsc};
+use std::path::Path;
+use std::sync::{Mutex, mpsc};
 use std::thread;
-use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 
@@ -20,8 +16,10 @@ pub use manifest::PythonEvidenceRunner;
 use manifest::{CaseContract, load_repository};
 #[cfg(test)]
 use manifest::{CaseManifest, load_repository_with_targets};
+mod runner;
+pub use runner::SystemEvidenceRunner;
 
-const REPORT_SCHEMA: &str = "eqiora.verification-report/v5";
+const REPORT_SCHEMA: &str = "eqiora.verification-report/v6";
 const CAPABILITY_INDEX_SCHEMA: &str = "eqiora.capability-evidence-index/v3";
 
 /// Deterministic capability-to-evidence projection derived from validated cases.
@@ -116,7 +114,7 @@ pub enum ExecutionPolicy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Request {
     command: CommandKind,
-    case: Option<String>,
+    cases: Vec<String>,
     policy: ExecutionPolicy,
     environment: Option<EvidenceEnvironment>,
     runner_kind: Option<RunnerKind>,
@@ -126,10 +124,12 @@ pub struct Request {
 impl Request {
     /// Construct a verification request.
     #[must_use]
-    pub fn new(command: CommandKind, case: Option<String>, policy: ExecutionPolicy) -> Self {
+    pub fn new(command: CommandKind, mut cases: Vec<String>, policy: ExecutionPolicy) -> Self {
+        cases.sort();
+        cases.dedup();
         Self {
             command,
-            case,
+            cases,
             policy,
             environment: None,
             runner_kind: None,
@@ -168,8 +168,8 @@ pub struct VerificationReport {
     pub command: CommandKind,
     /// Failure policy used for execution.
     pub policy: ExecutionPolicy,
-    /// Exact case filter, when present.
-    pub selected_case: Option<String>,
+    /// Exact case filters, in canonical order.
+    pub selected_cases: Vec<String>,
     /// Exact evidence environment filter, when present.
     pub selected_environment: Option<EvidenceEnvironment>,
     /// Exact evidence runner-kind filter, when present.
@@ -404,6 +404,86 @@ impl EvidenceTarget {
     }
 }
 
+/// Exact behavior-affecting identity of one process started by the runner.
+///
+/// Case-owned artifacts and descriptive metadata intentionally remain outside
+/// this key: they are validated before selection but do not alter the process.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum ExecutionKey {
+    Cargo {
+        package: String,
+        test: String,
+        features: Vec<String>,
+        environment: String,
+    },
+    PythonInstalledWheel {
+        runner: String,
+        script: String,
+        environment: String,
+    },
+}
+
+impl ExecutionKey {
+    fn from_target(target: &EvidenceTarget) -> Self {
+        match target {
+            EvidenceTarget::Cargo(target) => Self::Cargo {
+                package: target.package.clone(),
+                test: target.test.clone(),
+                features: normalized_features(&target.features),
+                environment: target.environment.as_str().to_owned(),
+            },
+            EvidenceTarget::PythonInstalledWheel(target) => Self::PythonInstalledWheel {
+                runner: target.runner.as_str().to_owned(),
+                script: target.script.clone(),
+                environment: target.environment.as_str().to_owned(),
+            },
+        }
+    }
+
+    fn label(&self) -> String {
+        fn component(value: &str) -> String {
+            format!("{}:{value}", value.len())
+        }
+
+        match self {
+            Self::Cargo {
+                package,
+                test,
+                features,
+                environment,
+            } => format!(
+                "cargo package={} test={} features={}:[{}] environment={}",
+                component(package),
+                component(test),
+                features.len(),
+                features
+                    .iter()
+                    .map(|feature| component(feature))
+                    .collect::<Vec<_>>()
+                    .join(","),
+                component(environment),
+            ),
+            Self::PythonInstalledWheel {
+                runner,
+                script,
+                environment,
+            } => format!(
+                "python-installed-wheel runner={} script={} environment={}",
+                component(runner),
+                component(script),
+                component(environment),
+            ),
+        }
+    }
+}
+
+fn normalized_features(features: &[String]) -> Vec<String> {
+    let mut normalized = features.to_vec();
+    normalized.sort();
+    normalized.dedup();
+    normalized
+}
+
 /// A workspace Cargo integration-test evidence target.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -476,342 +556,6 @@ pub trait EvidenceRunner: Sync {
     fn run(&self, root: &Path, target: &EvidenceTarget) -> EvidenceOutput;
 }
 
-/// Shell-free runner for the closed set of system evidence targets.
-#[derive(Debug, Clone)]
-pub struct SystemEvidenceRunner {
-    cargo: OsString,
-    python: OsString,
-    prepared: Arc<Mutex<Vec<PreparedCargoTarget>>>,
-}
-
-#[derive(Debug, Clone)]
-struct PreparedCargoTarget {
-    target: EvidenceTarget,
-    executable: PathBuf,
-    build_stderr: String,
-}
-
-impl SystemEvidenceRunner {
-    /// Use `CARGO` and `PYTHON` when set, otherwise `cargo` and `python3`.
-    #[must_use]
-    pub fn from_environment() -> Self {
-        Self {
-            cargo: env::var_os("CARGO").unwrap_or_else(|| OsString::from("cargo")),
-            python: env::var_os("PYTHON").unwrap_or_else(|| OsString::from("python3")),
-            prepared: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-
-    fn cargo_build_command(&self, root: &Path, targets: &[EvidenceTarget]) -> Command {
-        let Some(EvidenceTarget::Cargo(first)) = targets.first() else {
-            panic!("Cargo build group must contain a Cargo evidence target");
-        };
-        let key = CargoBuildGroup::from_target(first);
-        let tests = targets
-            .iter()
-            .map(|target| match target {
-                EvidenceTarget::Cargo(target) => target.test.as_str(),
-                EvidenceTarget::PythonInstalledWheel(_) => {
-                    panic!("Cargo build group must contain only Cargo evidence targets")
-                }
-            })
-            .collect::<BTreeSet<_>>();
-        let mut command = Command::new(&self.cargo);
-        command.args([
-            "test",
-            "--locked",
-            "-p",
-            &key.package,
-            "--no-run",
-            "--message-format=json",
-        ]);
-        for test in tests {
-            command.args(["--test", test]);
-        }
-        if !key.features.is_empty() {
-            command.arg("--features").arg(key.features.join(","));
-        }
-        command.current_dir(root);
-        command
-    }
-
-    fn command(&self, root: &Path, target: &EvidenceTarget) -> Result<Command, String> {
-        let mut command = match target {
-            EvidenceTarget::Cargo(target) => {
-                let prepared = self.prepared.lock().unwrap();
-                let executable = prepared
-                    .iter()
-                    .find(|prepared| prepared.target == EvidenceTarget::Cargo(target.clone()))
-                    .map(|prepared| prepared.executable.clone())
-                    .ok_or_else(|| {
-                        format!(
-                            "Cargo evidence target `{}/{}` has no prepared executable",
-                            target.package, target.test
-                        )
-                    })?;
-                let mut command = Command::new(executable);
-                if target.environment == EvidenceEnvironment::PhysicalMpiCuda {
-                    command.arg("--ignored");
-                }
-                command
-            }
-            EvidenceTarget::PythonInstalledWheel(target) => {
-                let mut command = Command::new(&self.python);
-                command.arg(&target.script);
-                command
-            }
-        };
-        command.current_dir(root);
-        Ok(command)
-    }
-
-    fn record_executables(
-        &self,
-        targets: &[EvidenceTarget],
-        stdout: &[u8],
-        stderr: &[u8],
-    ) -> Result<(), String> {
-        let expected = targets
-            .iter()
-            .map(|target| match target {
-                EvidenceTarget::Cargo(target) => target.test.clone(),
-                EvidenceTarget::PythonInstalledWheel(_) => {
-                    panic!("Cargo build group must contain only Cargo evidence targets")
-                }
-            })
-            .collect::<BTreeSet<_>>();
-        let mut executables = BTreeMap::new();
-        let mut target_diagnostics = BTreeMap::<String, String>::new();
-        let mut shared_diagnostics = String::new();
-        for line in String::from_utf8_lossy(stdout).lines() {
-            let Ok(message) = serde_json::from_str::<serde_json::Value>(line) else {
-                continue;
-            };
-            if message["reason"] == "compiler-message" {
-                let Some(rendered) = message["message"]["rendered"].as_str() else {
-                    continue;
-                };
-                let Some(name) = message["target"]["name"].as_str() else {
-                    append_stderr(&mut shared_diagnostics, rendered);
-                    continue;
-                };
-                if expected.contains(name) {
-                    append_stderr(
-                        target_diagnostics.entry(name.to_owned()).or_default(),
-                        rendered,
-                    );
-                } else {
-                    append_stderr(&mut shared_diagnostics, rendered);
-                }
-                continue;
-            }
-            if message["reason"] != "compiler-artifact" {
-                continue;
-            }
-            let is_test = message["target"]["kind"]
-                .as_array()
-                .is_some_and(|kinds| kinds.iter().any(|kind| kind == "test"));
-            if !is_test {
-                continue;
-            }
-            let Some(name) = message["target"]["name"].as_str() else {
-                continue;
-            };
-            let Some(executable) = message["executable"].as_str() else {
-                continue;
-            };
-            if expected.contains(name) {
-                executables.insert(name.to_owned(), PathBuf::from(executable));
-            }
-        }
-        let missing = expected
-            .iter()
-            .filter(|test| !executables.contains_key(*test))
-            .cloned()
-            .collect::<Vec<_>>();
-        if !missing.is_empty() {
-            return Err(format!(
-                "Cargo did not report an executable for test target(s): {}",
-                missing.join(", ")
-            ));
-        }
-        let cargo_stderr = cargo_stderr_without_progress(&String::from_utf8_lossy(stderr));
-
-        let mut prepared = self.prepared.lock().unwrap();
-        for target in targets {
-            let EvidenceTarget::Cargo(target_details) = target else {
-                unreachable!("Cargo group was checked above");
-            };
-            let executable = executables
-                .get(&target_details.test)
-                .expect("all expected executables were checked")
-                .clone();
-            let mut build_stderr = shared_diagnostics.clone();
-            if let Some(diagnostics) = target_diagnostics.get(&target_details.test) {
-                append_stderr(&mut build_stderr, diagnostics);
-            }
-            append_stderr(&mut build_stderr, &cargo_stderr);
-            if let Some(existing) = prepared
-                .iter_mut()
-                .find(|prepared_target| prepared_target.target == *target)
-            {
-                existing.executable = executable;
-                existing.build_stderr = build_stderr;
-            } else {
-                prepared.push(PreparedCargoTarget {
-                    target: target.clone(),
-                    executable,
-                    build_stderr,
-                });
-            }
-        }
-        Ok(())
-    }
-
-    fn prepared_build_stderr(&self, target: &EvidenceTarget) -> String {
-        self.prepared
-            .lock()
-            .unwrap()
-            .iter()
-            .find(|prepared| prepared.target == *target)
-            .map_or_else(String::new, |prepared| prepared.build_stderr.clone())
-    }
-
-    fn completed_stderr(
-        &self,
-        target: &EvidenceTarget,
-        child_stderr: &[u8],
-        succeeded: bool,
-    ) -> String {
-        let mut stderr = self.prepared_build_stderr(target);
-        append_stderr(&mut stderr, &String::from_utf8_lossy(child_stderr));
-        if !succeeded && let EvidenceTarget::Cargo(target) = target {
-            append_stderr(
-                &mut stderr,
-                &format!(
-                    "error: test failed, to rerun pass `-p {} --test {}`\n",
-                    target.package, target.test
-                ),
-            );
-        }
-        stderr
-    }
-}
-
-impl EvidenceRunner for SystemEvidenceRunner {
-    fn build_cargo_group(&self, root: &Path, targets: &[EvidenceTarget]) -> Option<EvidenceOutput> {
-        let output = match self.cargo_build_command(root, targets).output() {
-            Ok(output) => output,
-            Err(error) => {
-                return Some(EvidenceOutput {
-                    duration_ms: None,
-                    exit_code: None,
-                    stdout: String::new(),
-                    stderr: String::new(),
-                    start_error: Some(format!("cannot start Cargo evidence build: {error}")),
-                });
-            }
-        };
-        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-        if !output.status.success() {
-            return Some(EvidenceOutput {
-                duration_ms: None,
-                exit_code: output.status.code(),
-                stdout,
-                stderr,
-                start_error: None,
-            });
-        }
-        if let Err(error) = self.record_executables(targets, &output.stdout, &output.stderr) {
-            return Some(EvidenceOutput {
-                duration_ms: None,
-                exit_code: output.status.code(),
-                stdout,
-                stderr,
-                start_error: Some(error),
-            });
-        }
-        None
-    }
-
-    fn run(&self, root: &Path, target: &EvidenceTarget) -> EvidenceOutput {
-        let mut command = match self.command(root, target) {
-            Ok(command) => command,
-            Err(error) => {
-                return EvidenceOutput {
-                    duration_ms: None,
-                    exit_code: None,
-                    stdout: String::new(),
-                    stderr: String::new(),
-                    start_error: Some(error),
-                };
-            }
-        };
-        let started = Instant::now();
-        match command.output() {
-            Ok(output) => {
-                let stderr = self.completed_stderr(target, &output.stderr, output.status.success());
-                EvidenceOutput {
-                    duration_ms: Some(
-                        u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
-                    ),
-                    exit_code: output.status.code(),
-                    stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-                    stderr,
-                    start_error: None,
-                }
-            }
-            Err(error) => EvidenceOutput {
-                duration_ms: None,
-                exit_code: None,
-                stdout: String::new(),
-                stderr: String::new(),
-                start_error: Some(format!("cannot start evidence target: {error}")),
-            },
-        }
-    }
-}
-
-fn append_stderr(stderr: &mut String, addition: &str) {
-    if addition.is_empty() {
-        return;
-    }
-    if !stderr.is_empty() && !stderr.ends_with('\n') {
-        stderr.push('\n');
-    }
-    stderr.push_str(addition);
-}
-
-fn cargo_stderr_without_progress(stderr: &str) -> String {
-    let mut retained = stderr
-        .lines()
-        .filter(|line| {
-            let line = line.trim_start();
-            ![
-                "Blocking waiting for file lock",
-                "Checking ",
-                "Compiling ",
-                "Downloaded ",
-                "Downloading ",
-                "Finished ",
-                "Fresh ",
-                "Locking ",
-                "Running ",
-                "Updating ",
-                "Waiting ",
-            ]
-            .iter()
-            .any(|prefix| line.starts_with(prefix))
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-    if !retained.is_empty() && stderr.ends_with('\n') {
-        retained.push('\n');
-    }
-    retained
-}
-
 /// Discover, validate, select, and optionally run repository cases.
 #[must_use]
 pub fn execute(root: &Path, request: &Request, runner: &dyn EvidenceRunner) -> VerificationReport {
@@ -819,7 +563,7 @@ pub fn execute(root: &Path, request: &Request, runner: &dyn EvidenceRunner) -> V
         schema: REPORT_SCHEMA,
         command: request.command,
         policy: request.policy,
-        selected_case: request.case.clone(),
+        selected_cases: request.cases.clone(),
         selected_environment: request.environment,
         selected_runner_kind: request.runner_kind,
         success: false,
@@ -833,7 +577,7 @@ pub fn execute(root: &Path, request: &Request, runner: &dyn EvidenceRunner) -> V
             return report;
         }
     };
-    let selected = match select_cases(contracts, request.case.as_deref()) {
+    let selected = match select_cases(contracts, &request.cases) {
         Ok(selected) => selected,
         Err(error) => {
             report.errors.push(error);
@@ -933,6 +677,7 @@ fn execute_selected(
 ) -> Vec<CaseReport> {
     let mut cases = Vec::with_capacity(selected.len());
     let mut targets = Vec::<EvidenceTarget>::new();
+    let mut target_indices = BTreeMap::<ExecutionKey, usize>::new();
     for contract in &selected {
         let mut case = CaseReport::from_contract(contract);
         match request.command {
@@ -985,7 +730,10 @@ fn execute_selected(
                     .evidence
                     .as_ref()
                     .expect("executable contracts were validated with evidence");
-                if !targets.contains(target) {
+                let key = ExecutionKey::from_target(target);
+                if let std::collections::btree_map::Entry::Vacant(entry) = target_indices.entry(key)
+                {
+                    entry.insert(targets.len());
                     targets.push(target.clone());
                 }
             }
@@ -1039,10 +787,10 @@ fn execute_selected(
             .evidence
             .as_ref()
             .expect("selected executable cases were validated with evidence");
-        let index = targets
-            .iter()
-            .position(|candidate| candidate == target)
-            .expect("selected target was indexed");
+        let key = ExecutionKey::from_target(target);
+        let index = *target_indices
+            .get(&key)
+            .expect("selected execution key was indexed");
         match &completed[index] {
             Some(TargetCompletion::Executed(output)) => {
                 project_evidence_output(case, output);
@@ -1067,12 +815,9 @@ struct CargoBuildGroup {
 
 impl CargoBuildGroup {
     fn from_target(target: &CargoEvidenceTarget) -> Self {
-        let mut features = target.features.clone();
-        features.sort();
-        features.dedup();
         Self {
             package: target.package.clone(),
-            features,
+            features: normalized_features(&target.features),
         }
     }
 
@@ -1200,20 +945,34 @@ impl CaseReport {
 
 fn select_cases(
     contracts: Vec<CaseContract>,
-    selected: Option<&str>,
+    selected: &[String],
 ) -> Result<Vec<CaseContract>, String> {
-    let Some(selected) = selected else {
+    if selected.is_empty() {
         return Ok(contracts);
-    };
-    let mut matching = contracts
-        .into_iter()
-        .filter(|contract| contract.id == selected)
-        .collect::<Vec<_>>();
-    if matching.is_empty() {
-        Err(format!("unknown verification case ID `{selected}`"))
-    } else {
-        Ok(std::mem::take(&mut matching))
     }
+    let known = contracts
+        .iter()
+        .map(|contract| contract.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let unknown = selected
+        .iter()
+        .filter(|case| !known.contains(case.as_str()))
+        .collect::<Vec<_>>();
+    if !unknown.is_empty() {
+        return Err(format!(
+            "unknown verification case ID(s): {}",
+            unknown
+                .iter()
+                .map(|case| format!("`{case}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    let selected = selected.iter().map(String::as_str).collect::<BTreeSet<_>>();
+    Ok(contracts
+        .into_iter()
+        .filter(|contract| selected.contains(contract.id.as_str()))
+        .collect())
 }
 
 #[cfg(test)]
