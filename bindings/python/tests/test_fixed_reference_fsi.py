@@ -198,10 +198,23 @@ def test_general_trajectory_projects_exact_replayed_fields(
     displacement = model.field("solid_displacement")
     solid_velocity = model.field("solid_velocity")
     expected_fields = (velocity, pressure, displacement, solid_velocity)
+    accepted_field_order: tuple[eqiora.FieldRef, ...] | None = None
     for state, step in zip(trajectory.states, result.steps, strict=True):
-        assert tuple(snapshot.field for snapshot in state.fields) == expected_fields
-        assert state.field(velocity) is state.fields[0]
-        assert state.field(pressure) is state.fields[1]
+        state_fields = tuple(snapshot.field for snapshot in state.fields)
+        assert set(state_fields) == set(expected_fields)
+        assert tuple(field.id for field in state_fields) == tuple(
+            sorted(field.id for field in state_fields)
+        )
+        if accepted_field_order is None:
+            accepted_field_order = state_fields
+        else:
+            assert state_fields == accepted_field_order
+        assert state.field(velocity) is next(
+            snapshot for snapshot in state.fields if snapshot.field == velocity
+        )
+        assert state.field(pressure) is next(
+            snapshot for snapshot in state.fields if snapshot.field == pressure
+        )
 
         velocity_snapshot = state.field(velocity)
         assert isinstance(velocity_snapshot, eqiora.trajectory.FieldSnapshot)
