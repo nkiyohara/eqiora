@@ -23,9 +23,13 @@ geometry = eqplot.plot_deformed_field(
 The first admitted consumer is the exact fixed-mesh affine-triangle 2D FSI
 trajectory. Both adapters take a `Trajectory` — not an application result — and
 select their field by exact Model-bound `FieldRef` identity through
-`trajectory.state(step).field(field)`. A field id string is never an authority,
-so a `FieldRef` carrying the same id from a structurally equivalent but
-different exact Model is rejected before a Figure exists.
+`trajectory.state(step).field(field)`. Exact identity is the
+`(Model artifact, field)` pair, and two fixtures close it from both sides: an
+independent compilation of one source is structurally equivalent yet allocates
+fresh semantic field ids, and a committed value edit keeps every semantic field
+id while changing only the exact Model artifact. Neither structural
+equivalence nor a field id string is an authority, so a `FieldRef` from either
+Model is rejected before a Figure exists.
 
 `plot_fixed_reference_fsi` is withdrawn by this slice with no alias, shim, or
 deprecation path.

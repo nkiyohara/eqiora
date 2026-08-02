@@ -5,10 +5,15 @@ installed workflow from the packaged `fixed-reference-fsi.eqi` Model resource
 and consumes the common `Trajectory` reached through
 `eqiora.fsi.solve_fixed_reference_fsi(model).trajectory`.
 
-The foreign-identity falsifier compiles the same packaged source once more with
-its model name changed, which yields a structurally equivalent Model with a
-different exact digest and identically named fields. No second physical model
-is introduced.
+The identity falsifiers derive two Models from that same packaged source, and
+neither introduces a second physical model. Compiling it once more with its
+model name changed yields a structurally equivalent Model with a different
+exact digest, identically named fields, and — because independent compilation
+allocates fresh semantic field ids — a disjoint field-id inventory. Committing
+one value edit on the accepted Model yields the complementary fixture: every
+semantic field id preserved inside a different exact Model artifact. That
+revised Model is never solved, plotted, or compared against any expected value,
+so the edited magnitude carries no scientific meaning here.
 
 The sole scientific, lineage, and support authorities remain
 `interfaces.python-fixed-mesh-trajectory`,

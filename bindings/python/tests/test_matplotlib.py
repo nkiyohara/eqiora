@@ -137,12 +137,28 @@ def accepted_fsi_model() -> eqiora.Model:
 
 
 def foreign_fsi_model() -> eqiora.Model:
-    """Compile a structurally equivalent Model with a different exact digest."""
+    """Compile a structurally equivalent Model with a different exact digest.
+
+    Independent compilation allocates fresh semantic field ids, so this fixture
+    shows that structural equivalence alone never admits a `FieldRef`.
+    """
 
     return eqiora.compile(
         fsi_source().replace("model Main {", "model IndependentMain {"),
         filename="independent-fixed-reference-fsi.eqi",
     )
+
+
+def revised_fsi_model(model: eqiora.Model) -> eqiora.Model:
+    """Commit a value edit: every semantic field id kept, a new exact Model.
+
+    This is the identical-id carrier that an independent compilation cannot
+    supply, so it shows that a field id string never admits a `FieldRef`
+    either. The revised Model is never solved and never plotted, so no
+    scientific value, extremum, or tolerance depends on the edited magnitude.
+    """
+
+    return model.commit(model.preview_value_edit("fluid_density", 3.0))
 
 
 def accepted_fsi_trajectory() -> tuple[
@@ -698,10 +714,32 @@ def test_stills_reject_foreign_identity_and_contract_violations_before_a_figure(
     displacement = model.field("solid_displacement")
     solid_velocity = model.field("solid_velocity")
     fluid_velocity = model.field("fluid_velocity")
+    # Exact identity is the (Model artifact, field) pair, so two fixtures close
+    # it from both sides. An independent compilation of one source is
+    # structurally equivalent but allocates fresh semantic field ids, so
+    # structure is never an authority. A committed value edit keeps every
+    # semantic field id and changes only the exact Model artifact, so an id
+    # string is never an authority either.
     foreign = foreign_fsi_model()
+    revised = revised_fsi_model(model)
     assert model.structurally_equivalent(foreign)
     assert model.digest != foreign.digest
-    assert foreign.field("fluid_pressure").id == pressure.id
+    assert model.digest != revised.digest
+    assert trajectory.model_digest == model.digest == pressure.model_digest
+    assert set(model.field_ids).isdisjoint(foreign.field_ids)
+    for name, accepted_field in (
+        ("fluid_pressure", pressure),
+        ("solid_displacement", displacement),
+    ):
+        assert foreign.field(name).id != accepted_field.id
+        assert foreign.field(name).model_digest == foreign.digest
+        assert revised.field(name).id == accepted_field.id
+        assert revised.field(name).id in model.field_ids
+        assert revised.field(name).model_digest == revised.digest
+        assert foreign.field(name) != accepted_field
+        assert revised.field(name) != accepted_field
+        assert model.field(name) == accepted_field
+        assert hash(model.field(name)) == hash(accepted_field)
 
     # Only the SI length dimension separates solid_velocity from the admitted
     # deformation field, so rejecting it cannot be a shape check in disguise.
@@ -719,18 +757,19 @@ def test_stills_reject_foreign_identity_and_contract_violations_before_a_figure(
             eqplot.plot_scalar_field(foreign_input, step=1, field=pressure)
         with pytest.raises(TypeError, match="Trajectory"):
             eqplot.plot_deformed_field(foreign_input, step=1, field=displacement)
-    with pytest.raises(ValueError, match="different exact Model"):
-        eqplot.plot_scalar_field(
-            trajectory,
-            step=1,
-            field=foreign.field("fluid_pressure"),
-        )
-    with pytest.raises(ValueError, match="different exact Model"):
-        eqplot.plot_deformed_field(
-            trajectory,
-            step=1,
-            field=foreign.field("solid_displacement"),
-        )
+    for other in (foreign, revised):
+        with pytest.raises(ValueError, match="different exact Model"):
+            eqplot.plot_scalar_field(
+                trajectory,
+                step=1,
+                field=other.field("fluid_pressure"),
+            )
+        with pytest.raises(ValueError, match="different exact Model"):
+            eqplot.plot_deformed_field(
+                trajectory,
+                step=1,
+                field=other.field("solid_displacement"),
+            )
     with pytest.raises(KeyError):
         eqplot.plot_scalar_field(
             trajectory,
