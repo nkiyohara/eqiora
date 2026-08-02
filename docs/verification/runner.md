@@ -26,13 +26,16 @@ cargo run -p eqiora-verify -- index --capability convergence
 cargo run -p eqiora-verify -- check
 cargo run -p eqiora-verify -- check --case solid.axial-bar
 
-# Run all or one case. Fail-fast is the default.
+# Run all or any exact set of cases. Fail-fast is the default.
 cargo run -p eqiora-verify -- run
 cargo run -p eqiora-verify -- run --jobs 1
 cargo run -p eqiora-verify -- run --case numerics.poisson-fem-fvm
 cargo run -p eqiora-verify -- run --case numerics.cartesian-poisson-fem-fvm
 cargo run -p eqiora-verify -- run --case numerics.cartesian-poisson-3d-fem-fvm
 cargo run -p eqiora-verify -- run --case time.general-implicit-dae
+cargo run -p eqiora-verify -- run \
+  --case numerics.poisson-fem-fvm \
+  --case time.general-implicit-dae
 cargo run -p eqiora-verify -- run --keep-going
 
 # Validate the complete repository, then execute one environment/runner-kind
@@ -52,9 +55,13 @@ capability entry; unknown manifest extensions cannot impersonate this typed
 field.
 
 `--format json` is global and may appear before or after the subcommand. JSON
-stdout contains exactly one `eqiora.verification-report/v5` object for
+stdout contains exactly one `eqiora.verification-report/v6` object for
 `list`, `check`, and `run`, or one
-`eqiora.capability-evidence-index/v3` object for `index`. Version 5 adds the
+`eqiora.capability-evidence-index/v3` object for `index`. Version 6 replaces
+the singular `selected_case` with the canonically sorted, deduplicated
+`selected_cases` array. `--case` is repeatable; an empty array selects the
+complete registry, duplicate selectors are harmless, and every unknown ID is
+reported in sorted order before evidence starts. Version 5 added the
 optional `selected_runner_kind` report field and the closed `cargo` /
 `python-installed-wheel` selector. It is orthogonal to
 `selected_environment`; when both are present, a target must match both.
@@ -150,8 +157,15 @@ All Cargo groups are built before test execution. A group build failure is
 reported against every case whose target belongs to that exact group and names
 the group; it is not treated as a test failure for fail-fast scheduling, so
 targets from successfully built groups still run. A test-binary failure is
-attributed only to cases declaring that exact target. Cases sharing a target
-reuse its one captured result as before.
+attributed only to cases selecting that exact execution key. The private key
+contains every per-target process input: Cargo runner, package,
+integration-test name, normalized feature set and environment; or Python
+runner, script and environment. A case-relative `table` and claim metadata are
+validated but excluded because neither changes the process. Cases sharing a
+key reuse its one captured result, duration and streams while retaining
+distinct case reports. Invocation-wide repository, tool, inherited
+environment, source-tree, toolchain and dependency state are not cross-run
+cache claims: this reuse exists only within one runner invocation.
 
 Cargo evidence for `physical-mpi-cuda` is ignored by generic Cargo suites.
 Selecting that typed environment makes the runner pass the fixed test-harness

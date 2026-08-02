@@ -350,13 +350,6 @@ ceiling = 1583
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
-[[file_lines]]
-path = "crates/eqiora-verify/src/lib.rs"
-ceiling = 1220
-reason = "report projection and the execution runner still share one root; manifest discovery and validation no longer do"
-removal = "split report projection from the execution runner"
-
-
 # Public surface, in AST-reachable public items per crate. Counted by walking
 # from `src/lib.rs` through `pub mod`, and into any private module a `pub use`
 # re-exports. A glob over another crate cannot be resolved from one crate's AST
