@@ -834,7 +834,10 @@ pub(crate) fn preview_realization(
     request: &PyScalarElliptic,
 ) -> PyResult<PyRealization> {
     panic_boundary(py, || {
-        let document = model.document().clone();
+        let document = model
+            .document()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+            .clone();
         let intent = request.intent();
         let plan = py
             .detach(move || {

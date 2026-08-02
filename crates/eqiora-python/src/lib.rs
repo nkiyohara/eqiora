@@ -24,6 +24,7 @@ use std::collections::BTreeMap;
 
 use eqiora::DimExponents;
 use eqiora::api::ModelDocument;
+use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
 use eqiora::control::{CompileOutcomeV2, CompileRequestV2, execute_compile_v2};
 use pyo3::exceptions::{PyKeyError, PyRuntimeError};
 use pyo3::prelude::*;
@@ -255,10 +256,28 @@ fn compile(py: Python<'_>, source: &str, filename: &str) -> PyResult<PyModel> {
 fn replay(py: Python<'_>, data: &[u8]) -> PyResult<PyModel> {
     panic_boundary(py, || {
         let data = data.to_vec();
-        py.detach(move || ModelDocument::replay(&data))
+        let replayed = py.detach(move || {
+            let artifact = ModelEnvelope::from_json(&data, ModelDecoderLimits::default())
+                .map_err(|diagnostic| vec![diagnostic])?;
+            match ModelDocument::replay(&data) {
+                Ok(document) => Ok((Some(document), artifact)),
+                Err(diagnostics) if needs_geometry_admission(&diagnostics) => Ok((None, artifact)),
+                Err(diagnostics) => Err(diagnostics),
+            }
+        });
+        replayed
             .map_err(|diagnostics| compatibility_error(py, &diagnostics))
-            .and_then(|document| PyModel::from_document(py, document))
+            .and_then(|(document, artifact)| match document {
+                Some(document) => PyModel::from_document(py, document),
+                None => PyModel::from_artifact(py, artifact),
+            })
     })
+}
+
+fn needs_geometry_admission(diagnostics: &[eqiora::Diagnostic]) -> bool {
+    diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.message().contains("requires artifact admission"))
 }
 
 fn execute_compile_request(py: Python<'_>, request: CompileRequestV2) -> PyResult<PyModel> {

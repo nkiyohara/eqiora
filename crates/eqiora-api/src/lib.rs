@@ -48,7 +48,9 @@ pub use remeshing_trajectory::{
 };
 pub use spatial::*;
 pub use spatial_data::*;
-pub use steady_stokes::CircularHoleSteadyStokesResult2d;
+pub use steady_stokes::{
+    CircularHoleSteadyStokesResult2d, ResolvedSteadyStokesPlan2d, SteadyStokesIntent2d,
+};
 pub use transient_fluid::*;
 pub use value_edit::{ValueEditPlan, ValueEditResult};
 

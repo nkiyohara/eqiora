@@ -138,6 +138,8 @@
         { "name": "ScalarFieldLocation", "from": "eqiora_api::ScalarFieldLocation" },
         { "name": "ScalarFieldSummary", "from": "eqiora_api::ScalarFieldSummary" },
         { "name": "CircularHoleSteadyStokesResult2d", "from": "eqiora_api::CircularHoleSteadyStokesResult2d" },
+        { "name": "ResolvedSteadyStokesPlan2d", "from": "eqiora_api::ResolvedSteadyStokesPlan2d" },
+        { "name": "SteadyStokesIntent2d", "from": "eqiora_api::SteadyStokesIntent2d" },
         { "name": "FixedMeshFieldTrajectoryReplay2dV1", "from": "eqiora_api::FixedMeshFieldTrajectoryReplay2dV1" },
         { "name": "FixedReferenceFsiResult2d", "from": "eqiora_api::FixedReferenceFsiResult2d" },
         { "name": "MixedBoundaryElasticityResult2d", "from": "eqiora_api::MixedBoundaryElasticityResult2d" },

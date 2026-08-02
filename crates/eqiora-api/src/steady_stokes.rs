@@ -1,11 +1,10 @@
-//! One accepted exact-cylinder steady-Stokes application result.
+//! One accepted steady-Stokes intent, resolved plan, and application result.
 //!
 //! This module owns the complete composition shared by Studio and Python. It
-//! deliberately exposes one narrow application value instead of a generic
-//! solver service: the accepted Model, scale profile, numerical policy, and
-//! Realization revision remain one indivisible reference configuration.
+//! separates inspectable intent and resolution from execution while retaining
+//! the narrow accepted Model, mesh, and scientific reference configuration.
 
-use std::num::NonZeroUsize;
+use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
     AcceptedCircularHoleChordalRealizationV1, CircularHoleChordalRealizationEnvelopeV1,
@@ -24,13 +23,14 @@ use eqiora_numerics::fluid::{
 };
 use eqiora_realization::{
     DiscretizationMethod, FieldwiseRealizationRequest, MeshKind, RealizationCapabilities,
-    RealizationRevision, SemanticRevision, SpatialDimensionSupport, TargetCapabilities,
-    VectorLayoutKind, resolve_fieldwise,
+    RealizationRevision, ResolvedFieldwiseRealization, SemanticRevision, Space, SpaceFamily,
+    SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind, resolve_fieldwise,
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, LinearSolverBackend, ReductionPolicy,
-    SERIAL_EXECUTION_PROVIDER, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
+    ExecutionProvider, LinearOperatorProperties, LinearSolver, LinearSolverBackend,
+    ReductionPolicy, SERIAL_EXECUTION_PROVIDER, ScalarType, SolverCapabilities, SolverCapability,
+    SolverPlan, SolverProvider,
 };
 
 use crate::UnstructuredP1ScalarFieldProjection2d;
@@ -62,6 +62,199 @@ const PRESSURE: DimExponents = DimExponents {
     ..DimExponents::DIMENSIONLESS
 };
 
+/// Typed, inspectable request for a steady two-dimensional Stokes solve.
+///
+/// Construction validates physical scales and numerical controls. Resolution
+/// remains responsible for deciding whether a concrete application path can
+/// implement the requested tuple without fallback.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SteadyStokesIntent2d {
+    scales: IncompressibleFlowScaleProfile2d,
+    solver: SolverPlan,
+}
+
+impl SteadyStokesIntent2d {
+    /// Construct a complete request with no hidden numerical defaults.
+    ///
+    /// # Errors
+    /// Returns `EQ0807` for non-positive/non-finite scales or tolerances.
+    pub fn new(
+        length_scale_m: f64,
+        velocity_scale_m_per_s: f64,
+        pressure_scale_pa: f64,
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: NonZeroUsize,
+    ) -> Result<Self, Diagnostic> {
+        if !relative_tolerance.is_finite()
+            || !absolute_tolerance.is_finite()
+            || relative_tolerance <= 0.0
+            || absolute_tolerance <= 0.0
+        {
+            return Err(invalid_reference_input(
+                "steady-Stokes tolerances must be finite and strictly positive",
+            ));
+        }
+        let scales = IncompressibleFlowScaleProfile2d::new(
+            DynQuantity::new(length_scale_m, LENGTH),
+            DynQuantity::new(velocity_scale_m_per_s, VELOCITY),
+            DynQuantity::new(pressure_scale_pa, PRESSURE),
+        )?;
+        let solver = SolverPlan::new(
+            LinearSolver::SparseLu,
+            relative_tolerance,
+            absolute_tolerance,
+            maximum_iterations,
+        )?
+        .with_reduction(ReductionPolicy::Fast);
+        Ok(Self { scales, solver })
+    }
+
+    /// Characteristic physical scales used by realization and execution.
+    #[must_use]
+    pub const fn scales(self) -> IncompressibleFlowScaleProfile2d {
+        self.scales
+    }
+
+    /// Complete linear-solver policy requested by the caller.
+    #[must_use]
+    pub const fn solver(self) -> SolverPlan {
+        self.solver
+    }
+}
+
+/// Immutable result of resolving a steady-Stokes intent before execution.
+///
+/// This is an owned in-process plan, not a new durable wire format. Its
+/// canonical bytes and digest are those of the existing field-wise
+/// [`RealizationEnvelopeV2`]. Execution replays the retained inputs and
+/// revalidates the exact backend release and capability inventory.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResolvedSteadyStokesPlan2d {
+    model: ModelEnvelope,
+    accepted: AcceptedCircularHoleChordalRealizationV1,
+    intent: SteadyStokesIntent2d,
+    resolved: ResolvedFieldwiseRealization,
+    realization: RealizationEnvelopeV2,
+    velocity_space: Space,
+    pressure_space: Space,
+    solver_provider: SolverProvider,
+    solver_capabilities: SolverCapabilities,
+}
+
+impl ResolvedSteadyStokesPlan2d {
+    /// Resolve one typed request against exact Model, mesh, and backend inputs.
+    ///
+    /// # Errors
+    /// Returns a structured diagnostic for foreign lineage, unsupported intent
+    /// or backend policy, or invalid field-wise realization.
+    pub fn resolve(
+        model: &ModelEnvelope,
+        intent: SteadyStokesIntent2d,
+        accepted: &AcceptedCircularHoleChordalRealizationV1,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<Self, Diagnostic> {
+        require_supported_intent(intent)?;
+        let solver_provider = backend.provider();
+        let solver_capabilities = backend.capabilities();
+        let (_, _, resolved, realization) = resolve_application(model, accepted, intent, backend)?;
+        if backend.provider() != solver_provider || backend.capabilities() != solver_capabilities {
+            return Err(internal_failure(
+                "linear solver provider identity or capabilities changed during resolution",
+            ));
+        }
+        let (velocity_space, pressure_space) = resolved_mini_spaces(&resolved)?;
+        Ok(Self {
+            model: model.clone(),
+            accepted: accepted.clone(),
+            intent,
+            resolved,
+            realization,
+            velocity_space,
+            pressure_space,
+            solver_provider,
+            solver_capabilities,
+        })
+    }
+
+    /// Execute exactly this resolved occurrence through the admitted backend.
+    ///
+    /// # Errors
+    /// Revalidates every retained input and returns a structured diagnostic for
+    /// lineage, provider, realization, solve, or output-evidence drift.
+    pub fn execute(
+        &self,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CircularHoleSteadyStokesResult2d, Diagnostic> {
+        if backend.provider() != self.solver_provider
+            || backend.capabilities() != self.solver_capabilities
+        {
+            return Err(invalid_reference_input(
+                "resolved steady-Stokes Plan requires the admitted solver provider release and capabilities",
+            ));
+        }
+        let (program, binding, resolved, realization) =
+            resolve_application(&self.model, &self.accepted, self.intent, backend)?;
+        if resolved != self.resolved || realization != self.realization {
+            return Err(internal_failure(
+                "steady-Stokes Realization changed between resolution and execution",
+            ));
+        }
+        let solution =
+            solve_resolved_steady_stokes_geometry_mini_2d(&program, &resolved, &binding, backend)?;
+        if backend.provider() != self.solver_provider
+            || backend.capabilities() != self.solver_capabilities
+        {
+            return Err(internal_failure(
+                "linear solver provider identity or capabilities changed during execution",
+            ));
+        }
+        CircularHoleSteadyStokesResult2d::from_execution(self, solution)
+    }
+
+    /// Accepted canonical Model.
+    #[must_use]
+    pub const fn model(&self) -> &ModelEnvelope {
+        &self.model
+    }
+
+    /// Complete caller intent consumed by this Plan.
+    #[must_use]
+    pub const fn intent(&self) -> SteadyStokesIntent2d {
+        self.intent
+    }
+
+    /// Existing durable field-wise Realization artifact.
+    #[must_use]
+    pub const fn realization(&self) -> &RealizationEnvelopeV2 {
+        &self.realization
+    }
+
+    /// Resolved velocity basis.
+    #[must_use]
+    pub const fn velocity_space(&self) -> Space {
+        self.velocity_space
+    }
+
+    /// Resolved pressure basis.
+    #[must_use]
+    pub const fn pressure_space(&self) -> Space {
+        self.pressure_space
+    }
+
+    /// Solver provider release admitted during resolution.
+    #[must_use]
+    pub const fn solver_provider(&self) -> SolverProvider {
+        self.solver_provider
+    }
+
+    /// Host execution adapter used by this bounded Plan.
+    #[must_use]
+    pub const fn execution_provider(&self) -> ExecutionProvider {
+        SERIAL_EXECUTION_PROVIDER
+    }
+}
+
 /// Complete accepted lineage for the exact-cylinder steady MINI/P1 Stokes case.
 ///
 /// This is an immutable in-process application value, not a durable Result
@@ -86,83 +279,14 @@ pub struct CircularHoleSteadyStokesResult2d {
 }
 
 impl CircularHoleSteadyStokesResult2d {
-    /// Execute the single accepted exact-cylinder reference configuration.
-    ///
-    /// The caller supplies the canonical Model explicitly; this operation
-    /// accepts only the independently frozen Model, exact source, and chordal
-    /// mesh identities. Scale, solver, reduction, execution topology, and
-    /// Realization revision are owned here and cannot diverge between clients.
-    ///
-    /// # Errors
-    /// Returns a structured diagnostic for foreign inputs, replay or binding
-    /// drift, unsupported backend policy, solve failure, incomplete balance
-    /// evidence, or any invalid artifact in the resulting lineage.
-    pub fn solve_reference(
-        model: &ModelEnvelope,
-        accepted: &AcceptedCircularHoleChordalRealizationV1,
-        backend: &dyn LinearSolverBackend,
+    fn from_execution(
+        plan: &ResolvedSteadyStokesPlan2d,
+        solution: SteadyStokesMiniSolution2d,
     ) -> Result<Self, Diagnostic> {
-        require_accepted_inputs(model, accepted)?;
-        let source = accepted.source();
+        let model = &plan.model;
+        let accepted = &plan.accepted;
+        let realization = &plan.realization;
         let mesh = accepted.mesh();
-        let program = replay_program(model, source)?;
-        if program.revision().0 != ACCEPTED_SEMANTIC_REVISION {
-            return Err(invalid_reference_input(format!(
-                "exact-cylinder reference Model must replay semantic revision \
-                 {ACCEPTED_SEMANTIC_REVISION}"
-            )));
-        }
-
-        let binding = SteadyStokesGeometryBinding2d::new(&program, accepted.clone())?;
-        let solver_plan = reference_solver_plan()?;
-        let plan = binding.mini_plan(
-            mesh.artifact_reference()?,
-            reference_scale_profile()?,
-            solver_plan,
-        )?;
-
-        let backend_provider = backend.provider();
-        let backend_capabilities = backend.capabilities();
-        backend_capabilities.require_problem(
-            solver_plan,
-            ScalarType::F64,
-            LinearOperatorProperties::SymmetricIndefinite,
-        )?;
-        let selected_solver = SolverCapabilities::exact([SolverCapability {
-            algorithm: solver_plan.algorithm(),
-            operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-            preconditioner: solver_plan.preconditioner(),
-            reduction: solver_plan.reduction(),
-            scalar_type: ScalarType::F64,
-        }])?;
-        let capabilities = reference_capabilities(selected_solver)?;
-        let resolved = resolve_fieldwise(
-            &FieldwiseRealizationRequest::explicit(
-                program.model(),
-                SemanticRevision::new(program.revision().0),
-                RealizationRevision::new(APPLICATION_REALIZATION_REVISION),
-                plan,
-            ),
-            binding.fieldwise_requirements(),
-            &capabilities,
-        )?;
-        let realization =
-            RealizationEnvelopeV2::from_resolved(model, &resolved, LayoutArtifacts::Replicated)?;
-        if realization.realization_revision().get() != APPLICATION_REALIZATION_REVISION {
-            return Err(internal_failure(
-                "exact-cylinder application Realization revision changed during resolution",
-            ));
-        }
-
-        let solution =
-            solve_resolved_steady_stokes_geometry_mini_2d(&program, &resolved, &binding, backend)?;
-        if backend.provider() != backend_provider || backend.capabilities() != backend_capabilities
-        {
-            return Err(internal_failure(
-                "linear solver provider identity or capabilities changed during execution",
-            ));
-        }
-
         let pressure_payload = DiscreteFieldPayload::new(
             mesh.mesh(),
             DiscreteFieldAssociation::Vertex,
@@ -172,25 +296,25 @@ impl CircularHoleSteadyStokesResult2d {
         let pressure_block = DiscreteFieldEnvelopeV1::from_payload(mesh, &pressure_payload)?;
         let snapshot = FieldSnapshotEnvelopeV1::new_authored_fieldwise(
             model,
-            &realization,
+            realization,
             accepted,
             solution.pressure_field(),
             std::slice::from_ref(&pressure_block),
         )?;
         let execution = ExecutionProvenanceV1::from_provider_releases(
-            backend_provider,
-            SERIAL_EXECUTION_PROVIDER,
+            plan.solver_provider,
+            plan.execution_provider(),
             ExecutionTopologyV1::Host {
                 workers: NonZeroUsize::MIN,
             },
-            solver_plan.reduction(),
+            plan.intent.solver().reduction(),
             std::iter::empty::<(&str, &str)>(),
         )?;
-        let run = RunManifestV2::new(&realization, execution)?.with_output(snapshot.digest()?);
+        let run = RunManifestV2::new(realization, execution)?.with_output(snapshot.digest()?);
         let pressure_projection =
             UnstructuredP1ScalarFieldProjection2d::from_authored_fieldwise_snapshot(
                 model,
-                &realization,
+                realization,
                 accepted,
                 &run,
                 &snapshot,
@@ -223,7 +347,7 @@ impl CircularHoleSteadyStokesResult2d {
         Ok(Self {
             model: model.clone(),
             accepted: accepted.clone(),
-            realization,
+            realization: realization.clone(),
             pressure_block,
             snapshot,
             run,
@@ -385,6 +509,105 @@ fn require_accepted_inputs(
     Ok(())
 }
 
+fn require_supported_intent(intent: SteadyStokesIntent2d) -> Result<(), Diagnostic> {
+    if intent == reference_intent()? {
+        Ok(())
+    } else {
+        Err(Diagnostic::error(
+            codes::NOT_IMPLEMENTED,
+            "the accepted steady-Stokes application does not implement this intent without fallback",
+        ))
+    }
+}
+
+fn resolve_application(
+    model: &ModelEnvelope,
+    accepted: &AcceptedCircularHoleChordalRealizationV1,
+    intent: SteadyStokesIntent2d,
+    backend: &dyn LinearSolverBackend,
+) -> Result<
+    (
+        KernelProgram,
+        SteadyStokesGeometryBinding2d,
+        ResolvedFieldwiseRealization,
+        RealizationEnvelopeV2,
+    ),
+    Diagnostic,
+> {
+    require_supported_intent(intent)?;
+    require_accepted_inputs(model, accepted)?;
+    let program = replay_program(model, accepted.source())?;
+    if program.revision().0 != ACCEPTED_SEMANTIC_REVISION {
+        return Err(invalid_reference_input(format!(
+            "exact-cylinder reference Model must replay semantic revision \
+             {ACCEPTED_SEMANTIC_REVISION}"
+        )));
+    }
+
+    let binding = SteadyStokesGeometryBinding2d::new(&program, accepted.clone())?;
+    let solver = intent.solver();
+    let fieldwise = binding.mini_plan(
+        accepted.mesh().artifact_reference()?,
+        intent.scales(),
+        solver,
+    )?;
+    backend.capabilities().require_problem(
+        solver,
+        ScalarType::F64,
+        LinearOperatorProperties::SymmetricIndefinite,
+    )?;
+    let selected_solver = SolverCapabilities::exact([SolverCapability {
+        algorithm: solver.algorithm(),
+        operator_properties: LinearOperatorProperties::SymmetricIndefinite,
+        preconditioner: solver.preconditioner(),
+        reduction: solver.reduction(),
+        scalar_type: ScalarType::F64,
+    }])?;
+    let capabilities = reference_capabilities(selected_solver)?;
+    let resolved = resolve_fieldwise(
+        &FieldwiseRealizationRequest::explicit(
+            program.model(),
+            SemanticRevision::new(program.revision().0),
+            RealizationRevision::new(APPLICATION_REALIZATION_REVISION),
+            fieldwise,
+        ),
+        binding.fieldwise_requirements(),
+        &capabilities,
+    )?;
+    let realization =
+        RealizationEnvelopeV2::from_resolved(model, &resolved, LayoutArtifacts::Replicated)?;
+    if realization.realization_revision().get() != APPLICATION_REALIZATION_REVISION {
+        return Err(internal_failure(
+            "steady-Stokes application Realization revision changed during resolution",
+        ));
+    }
+    Ok((program, binding, resolved, realization))
+}
+
+fn resolved_mini_spaces(
+    resolved: &ResolvedFieldwiseRealization,
+) -> Result<(Space, Space), Diagnostic> {
+    let mut velocity = None;
+    let mut pressure = None;
+    for binding in resolved.plan().spatial().field_spaces() {
+        match binding.space().family() {
+            SpaceFamily::SimplexP1Bubble if velocity.replace(binding.space()).is_none() => {}
+            SpaceFamily::ContinuousLagrange { order }
+                if order == NonZeroU16::MIN && pressure.replace(binding.space()).is_none() => {}
+            _ => {
+                return Err(internal_failure(
+                    "resolved steady-Stokes Plan does not contain exactly one MINI velocity and one P1 pressure space",
+                ));
+            }
+        }
+    }
+    velocity.zip(pressure).ok_or_else(|| {
+        internal_failure(
+            "resolved steady-Stokes Plan is missing its MINI velocity or P1 pressure space",
+        )
+    })
+}
+
 fn replay_program(
     model: &ModelEnvelope,
     source: &CanonicalGeometryV1,
@@ -402,22 +625,15 @@ fn first_diagnostic(diagnostics: Vec<Diagnostic>) -> Diagnostic {
     })
 }
 
-fn reference_scale_profile() -> Result<IncompressibleFlowScaleProfile2d, Diagnostic> {
-    IncompressibleFlowScaleProfile2d::new(
-        DynQuantity::new(0.41, LENGTH),
-        DynQuantity::new(0.3, VELOCITY),
-        DynQuantity::new(0.001 * 0.3 / 0.41, PRESSURE),
-    )
-}
-
-fn reference_solver_plan() -> Result<SolverPlan, Diagnostic> {
-    SolverPlan::new(
-        LinearSolver::SparseLu,
+fn reference_intent() -> Result<SteadyStokesIntent2d, Diagnostic> {
+    SteadyStokesIntent2d::new(
+        0.41,
+        0.3,
+        0.001 * 0.3 / 0.41,
         1.0e-6,
         1.0e-13,
         NonZeroUsize::new(10_000).expect("nonzero reference constant"),
     )
-    .map(|plan| plan.with_reduction(ReductionPolicy::Fast))
 }
 
 fn reference_capabilities(

@@ -99,16 +99,22 @@ def accepted_result() -> eqiora.fluid.CircularHoleSteadyStokesResult:
     )
     plan = eqiora.meshing.resolve(geometry, request)
     mesh = eqiora.meshing.generate(geometry, plan=plan)
-    model = (
+    model_bytes = (
         files(eqiora)
         .joinpath("examples", "steady-flow-past-cylinder.model.json")
         .read_bytes()
     )
-    return eqiora.fluid.solve_exact_cylinder_stokes(
-        model=model,
-        geometry=geometry,
-        mesh=mesh,
+    model = eqiora.replay(model_bytes)
+    intent = eqiora.fluid.SteadyStokes(
+        length_scale_m=0.41,
+        velocity_scale_m_per_s=0.3,
+        pressure_scale_pa=0.001 * 0.3 / 0.41,
+        relative_tolerance=1e-6,
+        absolute_tolerance=1e-13,
+        maximum_iterations=10_000,
     )
+    plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
+    return eqiora.run(model, plan=plan)
 
 
 def accepted_structural_result() -> eqiora.solid.MixedBoundaryElasticityResult:

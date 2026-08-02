@@ -1,7 +1,7 @@
 //! Immutable accepted Mesh publication and NumPy projections.
 
 use eqiora::artifact::AcceptedCircularHoleChordalRealizationV1;
-use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet};
+use eqiora::geometry::NamedEntitySet;
 use numpy::PyArray2;
 use pyo3::exceptions::PyOverflowError;
 use pyo3::prelude::*;
@@ -181,10 +181,6 @@ impl PyMesh {
             coordinates: ReadOnlyMatrix::new(vertex_count, dimension, coordinates),
             cells: ReadOnlyMatrix::new(cell_count, cell_width, cells),
         })
-    }
-
-    pub(crate) const fn source(&self) -> &CanonicalGeometryV1 {
-        self.accepted.source()
     }
 
     pub(crate) const fn accepted(&self) -> &AcceptedCircularHoleChordalRealizationV1 {

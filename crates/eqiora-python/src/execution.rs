@@ -8,9 +8,9 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 
 use eqiora::api::{
-    ReferenceRunCancellation, ReferenceRunPlan, ReferenceRunProgress, ReferenceRunResult,
-    ScalarEllipticExecutionEnvironment, ScalarEllipticRunCancellation, ScalarEllipticRunProgress,
-    ScalarEllipticRunResult,
+    CircularHoleSteadyStokesResult2d, ReferenceRunCancellation, ReferenceRunPlan,
+    ReferenceRunProgress, ReferenceRunResult, ScalarEllipticExecutionEnvironment,
+    ScalarEllipticRunCancellation, ScalarEllipticRunProgress, ScalarEllipticRunResult,
 };
 use eqiora::diagnostic::codes;
 use eqiora::{Diagnostic, GraphPath};
@@ -22,6 +22,7 @@ use crate::error::{
     internal_diagnostic_error, internal_error, panic_boundary,
 };
 use crate::realization::{PyRealization, PyScalarEllipticResult};
+use crate::steady_stokes::{PyCircularHoleSteadyStokesResult, PySteadyStokesPlan};
 use crate::{PyModel, result_into_python};
 
 pub(crate) use evidence::RunIdentity;
@@ -63,6 +64,7 @@ impl NativeRunProgress {
 enum NativeRunOutput {
     Reference(ReferenceRunResult),
     ScalarElliptic(Box<ScalarEllipticRunResult>),
+    SteadyStokes(Box<CircularHoleSteadyStokesResult2d>),
 }
 
 #[derive(Debug, Clone)]
@@ -466,7 +468,10 @@ impl PyRun {
     ) -> PyResult<Self> {
         let plan = ReferenceRunPlan::new(end_time, max_step)
             .map_err(|diagnostic| execution_error(py, &[diagnostic]))?;
-        let document = model.document().clone();
+        let document = model
+            .document()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+            .clone();
         let identity = RunIdentity::from_reference(&document, &plan)
             .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
         Self::spawn(
@@ -482,7 +487,10 @@ impl PyRun {
         model: &PyModel,
         realization: &PyRealization,
     ) -> PyResult<Self> {
-        let document = model.document().clone();
+        let document = model
+            .document()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+            .clone();
         let plan = realization.plan().clone();
         let identity = RunIdentity::from_scalar_elliptic(&document, &plan)
             .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
@@ -507,6 +515,21 @@ impl PyRun {
                 environment: ScalarEllipticExecutionEnvironment::host_serial(),
             },
             "eqiora-scalar-elliptic-run",
+        )
+        .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
+    }
+
+    fn submit_steady_stokes(
+        py: Python<'_>,
+        model: &PyModel,
+        plan: &PySteadyStokesPlan,
+    ) -> PyResult<Self> {
+        let identity = RunIdentity::from_steady_stokes(model.artifact(), plan.native())
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
+        Self::spawn(
+            identity,
+            NativeRunJob::SteadyStokes(Box::new(plan.native().clone())),
+            "eqiora-steady-stokes-run",
         )
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
     }
@@ -683,6 +706,11 @@ fn materialize_result(
         NativeRunOutput::ScalarElliptic(result) => PyScalarEllipticResult::from_result(py, *result)
             .and_then(|result| Py::new(py, result))
             .map(Py::into_any),
+        NativeRunOutput::SteadyStokes(result) => {
+            PyCircularHoleSteadyStokesResult::from_native(py, *result)
+                .and_then(|result| Py::new(py, result))
+                .map(Py::into_any)
+        }
     }
 }
 
@@ -708,6 +736,15 @@ pub(crate) fn submit_realization(
     panic_boundary(py, || PyRun::submit_scalar_elliptic(py, model, realization))
 }
 
+#[pyfunction]
+pub(crate) fn submit_steady_stokes(
+    py: Python<'_>,
+    model: &PyModel,
+    plan: &PySteadyStokesPlan,
+) -> PyResult<PyRun> {
+    panic_boundary(py, || PyRun::submit_steady_stokes(py, model, plan))
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyRunStatus>()?;
     module.add_class::<PyRunProgress>()?;
@@ -717,6 +754,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyRun>()?;
     module.add_function(wrap_pyfunction!(submit, module)?)?;
     module.add_function(wrap_pyfunction!(submit_realization, module)?)?;
+    module.add_function(wrap_pyfunction!(submit_steady_stokes, module)?)?;
     Ok(())
 }
 

@@ -371,15 +371,15 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[public_surface]]
 crate = "eqiora"
-ceiling = 275
-reason = "the facade is re-export-only and its width is pinned by api/eqiora-facade-v1.json; FixedMeshFieldTrajectoryReplay2dV1 is one borrowed, non-serializable acceptance proof over the existing artifact DAG, closes exact Run output inventory, and is the dependency boundary for the next private media consumer without adding a result wire or universal trait. The ParameterGeometryRegeneration pair and bounded physics Results remain application compositions shared by Studio and installed Python"
-removal = "replace bounded fixed-reference trajectory access with this accepted general spatial replay once every scientific lineage and client survives, then withdraw the obsolete bounded Result name; fold the regeneration pair into a general accepted parametric-CAD edit result only when it preserves exact transaction, complete-impact, and selection-retention evidence; otherwise lower the ceiling with the next facade name withdrawn"
+ceiling = 277
+reason = "the facade is re-export-only and its width is pinned by api/eqiora-facade-v1.json. Issue 319 replaces a hidden one-call solve with separate typed SteadyStokesIntent2d and ResolvedSteadyStokesPlan2d values shared by Studio and installed Python; the Plan exposes the existing Realization before execution and adds no wire, provider registry, or generic solver service. FixedMeshFieldTrajectoryReplay2dV1, the ParameterGeometryRegeneration pair, and bounded physics Results remain application compositions"
+removal = "withdraw CircularHoleSteadyStokesResult2d when the accepted pressure snapshot reaches the common spatial Result, then lower this ceiling in that slice; replace bounded fixed-reference trajectory access with the accepted general spatial replay once every lineage and client survives; fold the regeneration pair into a general accepted parametric-CAD edit result only when it preserves exact transaction, complete-impact, and selection-retention evidence"
 
 [[public_surface]]
 crate = "eqiora-api"
-ceiling = 132
-reason = "FixedMeshFieldTrajectoryReplay2dV1 is the smallest borrowed acceptance proof that completely resolves the existing fixed-step V1 artifact DAG and exact Run output for the next private media consumer; it adds no wire, trait, alternate result identity, or scientific meaning. ParameterGeometryRegenerationPlan/Result and the bounded physics Results remain application owners rather than generic solver infrastructure"
-removal = "replace bounded fixed-reference trajectory access with this accepted general spatial replay once every scientific lineage and client survives, then withdraw the obsolete bounded Result name; fold the regeneration pair into a general accepted parametric-CAD edit result only when it preserves exact transaction, complete-impact, and selection-retention evidence; withdraw the scalar projection when no client consumes it"
+ceiling = 134
+reason = "Issue 319 replaces a hidden one-call solve with separate typed SteadyStokesIntent2d and ResolvedSteadyStokesPlan2d values shared by Studio and installed Python; the owned Plan exposes and revalidates the existing field-wise Realization and exact backend release before execution without a new wire, trait, or generic solver service. FixedMeshFieldTrajectoryReplay2dV1, ParameterGeometryRegenerationPlan/Result, and the bounded physics Results remain application owners"
+removal = "withdraw CircularHoleSteadyStokesResult2d when the accepted pressure snapshot reaches the common spatial Result, then lower this ceiling in that slice; replace bounded fixed-reference trajectory access with the accepted general spatial replay once every lineage and client survives; fold the regeneration pair only when a general accepted parametric-CAD edit preserves its exact evidence"
 
 [[public_surface]]
 crate = "eqiora-artifact"

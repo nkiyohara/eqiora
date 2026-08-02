@@ -564,7 +564,10 @@ pub(crate) fn compile_differentiable(
             let parameter = item.extract::<PyRef<'_, PyModelParameterRef>>()?;
             selected.push(parameter.value.clone());
         }
-        let document = model.document().clone();
+        let document = model
+            .document()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+            .clone();
         let realization = realization.plan().clone();
         let output = output.value.clone();
         let value = py

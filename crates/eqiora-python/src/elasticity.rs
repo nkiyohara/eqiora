@@ -245,7 +245,10 @@ pub(crate) fn solve_mixed_boundary_elasticity(
     model: &PyModel,
 ) -> PyResult<PyMixedBoundaryElasticityResult> {
     panic_boundary(py, || {
-        let document = model.document().clone();
+        let document = model
+            .document()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+            .clone();
         let result = py.detach(move || {
             MixedBoundaryElasticityResult2d::solve_reference(&document, &REFERENCE_LINEAR_SOLVER)
         });

@@ -747,7 +747,12 @@ class ScalarEllipticRunCancellation:
     @property
     def plan_key(self) -> str: ...
 
-_RunResultT = TypeVar("_RunResultT", Result, ScalarEllipticResult)
+_RunResultT = TypeVar(
+    "_RunResultT",
+    Result,
+    ScalarEllipticResult,
+    fluid.CircularHoleSteadyStokesResult,
+)
 
 class Run(Generic[_RunResultT]):
     def __init__(self, native: Never) -> None: ...
@@ -811,6 +816,12 @@ def run(
 @overload
 def run(model: Model, *, realization: Realization) -> ScalarEllipticResult: ...
 @overload
+def run(
+    model: Model,
+    *,
+    plan: fluid.SteadyStokesPlan,
+) -> fluid.CircularHoleSteadyStokesResult: ...
+@overload
 def submit(
     model: Model,
     *,
@@ -820,6 +831,12 @@ def submit(
 ) -> Run[Result]: ...
 @overload
 def submit(model: Model, *, realization: Realization) -> Run[ScalarEllipticResult]: ...
+@overload
+def submit(
+    model: Model,
+    *,
+    plan: fluid.SteadyStokesPlan,
+) -> Run[fluid.CircularHoleSteadyStokesResult]: ...
 def through(port: ConservingPort) -> Expression: ...
 def trace(value: _ExpressionLike) -> Expression: ...
 

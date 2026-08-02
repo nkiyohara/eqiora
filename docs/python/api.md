@@ -1301,10 +1301,39 @@ class CircularHoleSteadyStokesResult:
     def __repr__(self) -> str: ...
 ```
 
-### `eqiora.fluid.solve_exact_cylinder_stokes`
+### `eqiora.fluid.SteadyStokes`
 
 ```python
-def solve_exact_cylinder_stokes(*, model: bytes, geometry: Geometry, mesh: Mesh) -> CircularHoleSteadyStokesResult: ...
+@final
+class SteadyStokes:
+    def __new__(
+        cls,
+        *,
+        length_scale_m: float,
+        velocity_scale_m_per_s: float,
+        pressure_scale_pa: float,
+        relative_tolerance: float,
+        absolute_tolerance: float,
+        maximum_iterations: int,
+    ) -> SteadyStokes: ...
+```
+
+### `eqiora.fluid.SteadyStokesPlan`
+
+`SteadyStokesPlan` is immutable and exposes exact Model, geometry, mesh,
+Realization, space, scale, solver, backend, and placement properties before
+submission. Its `canonical_bytes` are the existing Realization envelope.
+
+### `eqiora.fluid.resolve`
+
+```python
+def resolve(
+    model: Model,
+    intent: SteadyStokes,
+    /,
+    *,
+    mesh: Mesh,
+) -> SteadyStokesPlan: ...
 ```
 
 ## `eqiora.trajectory`

@@ -1,7 +1,12 @@
 //! One immutable exact-cylinder example composed from accepted public seams.
 
+use std::num::NonZeroUsize;
+
 use eqiora::Diagnostic;
-use eqiora::api::{CircularHoleSteadyStokesResult2d, UnstructuredP1ScalarFieldProjection2d};
+use eqiora::api::{
+    CircularHoleSteadyStokesResult2d, ResolvedSteadyStokesPlan2d, SteadyStokesIntent2d,
+    UnstructuredP1ScalarFieldProjection2d,
+};
 use eqiora::artifact::{AcceptedCircularHoleChordalRealizationV1, ModelEnvelope};
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::diagnostic::codes;
@@ -154,8 +159,17 @@ fn prepare_demo() -> Result<PreparedCylinderDemo, Diagnostic> {
         50,
         MeshQualityGate::new(1.0e-5)?,
     )?;
-    let result =
-        CircularHoleSteadyStokesResult2d::solve_reference(&model, &accepted, &FaerLinearSolver)?;
+    let intent = SteadyStokesIntent2d::new(
+        0.41,
+        0.3,
+        0.001 * 0.3 / 0.41,
+        1.0e-6,
+        1.0e-13,
+        NonZeroUsize::new(10_000).expect("nonzero accepted iteration limit"),
+    )?;
+    let plan =
+        ResolvedSteadyStokesPlan2d::resolve(&model, intent, &accepted, &FaerLinearSolver)?;
+    let result = plan.execute(&FaerLinearSolver)?;
     evidence(&result)
 }
 
