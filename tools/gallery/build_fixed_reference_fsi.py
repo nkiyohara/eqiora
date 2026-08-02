@@ -10,10 +10,10 @@ import platform
 import shutil
 import subprocess
 import sys
-from importlib.resources import files
 from importlib.metadata import distribution
+from importlib.resources import files
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import numpy as np
 
@@ -89,7 +89,7 @@ def build(
     result = eqiora.fsi.solve_fixed_reference_fsi(model)
     data = _scene_data(result)
     profile = scene.make_profile(data)
-    encoder = _encoder_identity(output_directory)
+    encoder = _encoder_identity()
 
     poster_path = output_directory / record.OUTPUT_CONTRACTS["poster"][0]
     reduced_path = output_directory / record.OUTPUT_CONTRACTS[
@@ -320,8 +320,7 @@ def _render_frames(
     return digests
 
 
-def _encoder_identity(output_directory: Path) -> dict[str, object]:
-    del output_directory
+def _encoder_identity() -> dict[str, object]:
     ffmpeg_name = shutil.which("ffmpeg")
     ffprobe_name = shutil.which("ffprobe")
     if ffmpeg_name is None or ffprobe_name is None:
@@ -338,7 +337,11 @@ def _encoder_identity(output_directory: Path) -> dict[str, object]:
     ).stdout.splitlines()
     first = next((line for line in version if line.startswith("ffmpeg version ")), "")
     configuration = next(
-        (line.removeprefix("configuration: ") for line in version if line.startswith("configuration: ")),
+        (
+            line.removeprefix("configuration: ")
+            for line in version
+            if line.startswith("configuration: ")
+        ),
         "",
     )
     encoders = subprocess.run(
@@ -606,8 +609,8 @@ def _environment(eqiora: Any, matplotlib: Any) -> dict[str, object]:
 def _outputs(
     directory: Path,
     *,
-    webm_probe: MappingLike,
-    mp4_probe: MappingLike,
+    webm_probe: Mapping[str, object],
+    mp4_probe: Mapping[str, object],
 ) -> tuple[dict[str, object], dict[str, record.FileFact]]:
     probes = {"film_modern": webm_probe, "film_fallback": mp4_probe}
     values: dict[str, object] = {}
@@ -652,7 +655,9 @@ def _build_revision() -> str:
         stdout=subprocess.PIPE,
         env=_subprocess_environment(),
     ).stdout.strip()
-    if len(revision) != 40 or any(character not in "0123456789abcdef" for character in revision):
+    if len(revision) != 40 or any(
+        character not in "0123456789abcdef" for character in revision
+    ):
         raise BuildError("gallery build revision is not a full lowercase Git identity")
     return revision
 
@@ -676,10 +681,6 @@ class _FramesDirectory:
         if not self.keep:
             shutil.rmtree(self.path)
         return None
-
-
-MappingLike = dict[str, object]
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

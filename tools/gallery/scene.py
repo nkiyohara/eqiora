@@ -217,12 +217,11 @@ def render_reduced_motion_still(
     figure = Figure(figsize=(12.8, 7.2), dpi=100, facecolor="#ffffff")
     FigureCanvasAgg(figure)
     axes = [
-        figure.add_axes((0.055, 0.19, 0.39, 0.66)),
-        figure.add_axes((0.475, 0.19, 0.39, 0.66)),
+        figure.add_axes((0.055, 0.18, 0.39, 0.55)),
+        figure.add_axes((0.475, 0.18, 0.39, 0.55)),
     ]
     for panel, step in zip(axes, data.steps, strict=True):
         _draw_panel(
-            figure,
             panel,
             data,
             profile,
@@ -236,7 +235,7 @@ def render_reduced_motion_still(
             fontsize=11,
             color="#0f172a",
         )
-    colorbar_axes = figure.add_axes((0.89, 0.23, 0.018, 0.56))
+    colorbar_axes = figure.add_axes((0.89, 0.20, 0.018, 0.51))
     scalar = ScalarMappable(
         norm=Normalize(
             vmin=-profile.pressure_display_bound_pa,
@@ -248,11 +247,22 @@ def render_reduced_motion_still(
     colorbar.set_label("Fluid pressure [Pa] — fixed display scale", fontsize=10)
     figure.text(
         0.055,
-        0.925,
+        0.84,
         "Reduced-motion comparison • solid displacement ×12 (presentation)",
         fontsize=15,
         weight="bold",
         color="#0f172a",
+        va="top",
+    )
+    figure.text(
+        0.46,
+        0.115,
+        "Dashed: reference geometry • solid orange: displaced ×12 • "
+        "cyan: conforming interface",
+        ha="center",
+        va="center",
+        fontsize=9,
+        color="#334155",
     )
     _decorate_figure(figure, data)
     figure.savefig(destination, format="png", dpi=100, metadata=PNG_METADATA)
@@ -427,7 +437,6 @@ def _render_single(
     FigureCanvasAgg(figure)
     axes = figure.add_axes(FIELD_RECT)
     _draw_panel(
-        figure,
         axes,
         data,
         profile,
@@ -475,7 +484,6 @@ def _render_single(
 
 
 def _draw_panel(
-    figure: Any,
     axes: Any,
     data: SceneData,
     profile: SceneProfile,
