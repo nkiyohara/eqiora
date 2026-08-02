@@ -349,6 +349,10 @@ impl PySteadyStokesPlan {
         let mut hasher = DefaultHasher::new();
         self.realization_digest.hash(&mut hasher);
         self.solver_backend().hash(&mut hasher);
+        self.native
+            .solver_provider()
+            .implementation_version()
+            .hash(&mut hasher);
         hasher.finish() as isize
     }
 

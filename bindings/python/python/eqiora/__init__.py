@@ -160,7 +160,7 @@ def run(
     end_time=_MISSING,
     max_step=_MISSING,
     realization: Realization | None = None,
-    plan: fluid.SteadyStokesPlan | None = None,
+    plan=_MISSING,
 ):
     """Execute through the same native lifecycle returned by :func:`submit`."""
 
@@ -190,7 +190,7 @@ def _submit_native(
     has_end_time = end_time is not _MISSING
     has_max_step = max_step is not _MISSING
 
-    if plan is not None:
+    if plan is not _MISSING:
         if realization is not None or has_end_time or has_max_step:
             raise TypeError(
                 f"{operation} accepts plan alone; realization, end_time, and "
@@ -293,7 +293,7 @@ def submit(
     end_time=_MISSING,
     max_step=_MISSING,
     realization: Realization | None = None,
-    plan: fluid.SteadyStokesPlan | None = None,
+    plan=_MISSING,
 ) -> Run:
     """Submit exactly one accepted temporal or spatial request shape."""
 

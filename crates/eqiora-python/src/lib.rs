@@ -26,6 +26,7 @@ use eqiora::DimExponents;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
 use eqiora::control::{CompileOutcomeV2, CompileRequestV2, execute_compile_v2};
+use eqiora::diagnostic::codes;
 use pyo3::exceptions::{PyKeyError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
@@ -275,9 +276,11 @@ fn replay(py: Python<'_>, data: &[u8]) -> PyResult<PyModel> {
 }
 
 fn needs_geometry_admission(diagnostics: &[eqiora::Diagnostic]) -> bool {
-    diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.message().contains("requires artifact admission"))
+    !diagnostics.is_empty()
+        && diagnostics.iter().all(|diagnostic| {
+            diagnostic.code() == codes::INVALID_KERNEL_DEFINITION
+                && diagnostic.message().contains("requires artifact admission")
+        })
 }
 
 fn execute_compile_request(py: Python<'_>, request: CompileRequestV2) -> PyResult<PyModel> {
@@ -373,9 +376,11 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod tests {
+    use eqiora::Diagnostic;
     use eqiora::api::ModelDocument;
+    use eqiora::diagnostic::codes;
 
-    use super::python_distribution_version;
+    use super::{needs_geometry_admission, python_distribution_version};
 
     const SOURCE: &str = r#"
 model decay {
@@ -427,5 +432,27 @@ model decay {
         let replayed = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replayed.canonical_json().unwrap(), bytes);
         assert_eq!(replayed.digest().unwrap(), document.digest().unwrap());
+    }
+
+    #[test]
+    fn deferred_geometry_admission_never_hides_an_independent_replay_error() {
+        let admission = Diagnostic::error(
+            codes::INVALID_KERNEL_DEFINITION,
+            "Field spatial support from a geometry Domain requires artifact admission",
+        );
+        let independent = Diagnostic::error(
+            codes::INVALID_KERNEL_DEFINITION,
+            "an independent semantic invariant failed",
+        );
+        let wrong_code = Diagnostic::error(
+            codes::INVALID_ARTIFACT,
+            "serialized bytes require artifact admission",
+        );
+
+        assert!(needs_geometry_admission(std::slice::from_ref(&admission)));
+        assert!(!needs_geometry_admission(&[]));
+        let mixed_semantic_failures = [admission.clone(), independent];
+        assert!(!needs_geometry_admission(&mixed_semantic_failures));
+        assert!(!needs_geometry_admission(&[admission, wrong_code]));
     }
 }
