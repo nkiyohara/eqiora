@@ -190,6 +190,16 @@ impl Hash for PyModelFieldRef {
     }
 }
 
+impl PyModelFieldRef {
+    pub(crate) fn exact_model_digest(&self) -> &str {
+        &self.model_digest
+    }
+
+    pub(crate) fn exact_id(&self) -> &str {
+        &self.id
+    }
+}
+
 #[pymethods]
 impl PyModelFieldRef {
     /// Exact canonical Model artifact digest.
@@ -287,6 +297,22 @@ impl PyModel {
 
     pub(crate) fn document(&self) -> &ModelDocument {
         &self.document
+    }
+
+    pub(crate) fn field_ref_from_id(
+        &self,
+        py: Python<'_>,
+        field: eqiora::Id<eqiora::kinds::Field>,
+    ) -> PyResult<PyModelFieldRef> {
+        let value = self
+            .document
+            .field_ref(&field.ulid().to_string())
+            .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
+        Ok(PyModelFieldRef {
+            model_digest: value.model().artifact().to_string(),
+            id: value.id().ulid().to_string(),
+            value,
+        })
     }
 
     fn resolve_edit_target(&self, target: &str) -> Result<RawId, Diagnostic> {

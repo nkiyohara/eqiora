@@ -6,6 +6,7 @@ import numpy.typing as npt
 import eqiora
 from eqiora.solid import MixedBoundaryElasticityResult
 from eqiora.fsi import FixedReferenceFsiResult, FixedReferenceFsiStep
+from eqiora.trajectory import FieldSnapshot, Trajectory, TrajectoryState
 
 
 def check_native_modeling() -> None:
@@ -91,5 +92,12 @@ def check_fsi_result(model: eqiora.Model) -> None:
     assert_type(result, FixedReferenceFsiResult)
     assert_type(result.coordinates, npt.NDArray[np.float64])
     assert_type(result.cells, npt.NDArray[np.uint32])
+    assert_type(result.trajectory, Trajectory)
+    assert_type(result.trajectory.states, tuple[TrajectoryState, ...])
+    assert_type(result.trajectory.state(1).fields, tuple[FieldSnapshot, ...])
+    assert_type(
+        result.trajectory.state(1).field(model.field(model.field_ids[0])),
+        FieldSnapshot,
+    )
     assert_type(result.steps, tuple[FixedReferenceFsiStep, FixedReferenceFsiStep])
     assert_type(result.step(1).pressure, npt.NDArray[np.float64])

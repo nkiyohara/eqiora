@@ -168,6 +168,119 @@ def test_partition_and_ordered_step_arrays_are_complete_and_immutable(
     )
 
 
+def test_general_trajectory_projects_exact_replayed_fields(
+    accepted: tuple[eqiora.Model, eqiora.fsi.FixedReferenceFsiResult],
+) -> None:
+    model, result = accepted
+    trajectory = result.trajectory
+    assert isinstance(trajectory, eqiora.trajectory.Trajectory)
+    assert result.trajectory is trajectory
+    assert trajectory.digest == result.trajectory_digest
+    assert trajectory.model_digest == result.model_digest
+    assert trajectory.geometry_digest == result.geometry_digest
+    assert trajectory.correspondence_digest == result.correspondence_digest
+    assert trajectory.mesh_digest == result.mesh_digest
+    assert trajectory.realization_digest == result.realization_digest
+    assert trajectory.run_digest == result.run_digest
+    assert trajectory.dimension == 2
+    assert trajectory.coordinates is result.coordinates
+    assert trajectory.cells is result.cells
+    assert tuple(state.step for state in trajectory.states) == (1, 2)
+    assert tuple(state.time_s for state in trajectory.states) == (0.05, 0.10)
+    assert tuple(state.digest for state in trajectory.states) == result.state_digests
+    assert trajectory.state(1) is trajectory.states[0]
+    assert trajectory.state(2) is trajectory.states[1]
+    with pytest.raises(IndexError):
+        trajectory.state(0)
+
+    velocity = model.field("fluid_velocity")
+    pressure = model.field("fluid_pressure")
+    displacement = model.field("solid_displacement")
+    solid_velocity = model.field("solid_velocity")
+    expected_fields = (velocity, pressure, displacement, solid_velocity)
+    for state, step in zip(trajectory.states, result.steps, strict=True):
+        assert tuple(snapshot.field for snapshot in state.fields) == expected_fields
+        assert state.field(velocity) is state.fields[0]
+        assert state.field(pressure) is state.fields[1]
+
+        velocity_snapshot = state.field(velocity)
+        assert isinstance(velocity_snapshot, eqiora.trajectory.FieldSnapshot)
+        assert velocity_snapshot.value_shape == (2,)
+        assert velocity_snapshot.dimension == (0, 1, -1, 0, 0, 0, 0)
+        assert velocity_snapshot.frame == "spatial-cartesian"
+        assert velocity_snapshot.associations == ("vertex", "cell")
+        assert tuple(role for role, _ in velocity_snapshot.block_digests) == (
+            "vertex",
+            "cell",
+        )
+        assert velocity_snapshot.values("vertex") is velocity_snapshot.values(
+            "vertex"
+        )
+        np.testing.assert_array_equal(
+            velocity_snapshot.values("vertex"),
+            step.velocity,
+        )
+        np.testing.assert_array_equal(
+            velocity_snapshot.values("cell"),
+            step.bubble_velocity,
+        )
+
+        pressure_snapshot = state.field(pressure)
+        assert pressure_snapshot.value_shape == ()
+        assert pressure_snapshot.dimension == (1, -1, -2, 0, 0, 0, 0)
+        assert pressure_snapshot.frame == "invariant"
+        assert pressure_snapshot.associations == ("vertex",)
+        pressure_block = pressure_snapshot.values("vertex")
+        assert pressure_block.shape == (9,)
+        np.testing.assert_array_equal(
+            pressure_block[step.pressure_vertices],
+            step.pressure,
+        )
+        np.testing.assert_array_equal(pressure_block[[6, 7, 8]], 0.0)
+
+        displacement_snapshot = state.field(displacement)
+        np.testing.assert_array_equal(
+            displacement_snapshot.values("vertex"),
+            step.displacement,
+        )
+        assert state.field(solid_velocity).associations == ("vertex",)
+
+
+def test_general_trajectory_rejects_foreign_fields_and_mutation(
+    accepted: tuple[eqiora.Model, eqiora.fsi.FixedReferenceFsiResult],
+) -> None:
+    model, result = accepted
+    state = result.trajectory.state(1)
+    with pytest.raises(KeyError):
+        state.field(model.field("fluid_load_potential"))
+
+    source = MODEL_RESOURCE.read_text(encoding="utf-8").replace(
+        "model Main {",
+        "model IndependentMain {",
+    )
+    independent = eqiora.compile(source, filename="independent-fixed-reference-fsi.eqi")
+    assert model.structurally_equivalent(independent)
+    assert model.digest != independent.digest
+    with pytest.raises(ValueError, match="different exact Model"):
+        state.field(independent.field("fluid_velocity"))
+
+    arrays = (
+        result.trajectory.coordinates,
+        result.trajectory.cells,
+        state.field(model.field("fluid_velocity")).values("vertex"),
+        state.field(model.field("fluid_velocity")).values("cell"),
+    )
+    for array in arrays:
+        assert array.flags.writeable is False
+        with pytest.raises(ValueError):
+            array.flat[0] = array.flat[0]
+        with pytest.raises(ValueError):
+            array.setflags(write=True)
+        assert np.asarray(array).view().flags.writeable is False
+    with pytest.raises(KeyError):
+        state.field(model.field("fluid_pressure")).values("cell")
+
+
 def test_independent_compilations_share_meaning_without_sharing_storage() -> None:
     first_model = accepted_model()
     second_model = accepted_model()

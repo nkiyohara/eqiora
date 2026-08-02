@@ -1,0 +1,77 @@
+id = "interfaces.python-fixed-mesh-trajectory"
+status = "verified"
+scope = "installed-python-general-projection-of-one-accepted-fixed-mesh-affine-triangle-2d-field-trajectory"
+reference_kind = "adapter-projection-of-completely-replayed-durable-trajectory"
+
+capabilities = [
+  "python-accepted-trajectory-lineage",
+  "python-ordered-spatial-states-and-semantic-fields",
+  "python-association-explicit-read-only-field-blocks",
+]
+
+[problem]
+source = "the complete fixed-mesh 2D V1 trajectory replay accepted by artifacts.general-fixed-mesh-field-trajectory-2d"
+proving_consumer = "eqiora.fsi.FixedReferenceFsiResult.trajectory"
+projection = "eqiora.trajectory.Trajectory, TrajectoryState, and FieldSnapshot"
+mesh = "one immutable affine-triangle 2D mesh shared by every accepted state"
+fields = "complete semantic Field inventory with exact support, coherent-SI dimension, shape, frame, and Vertex/Cell coefficient associations"
+
+[oracle]
+contract = "GitHub Issue 297, frozen before implementation from independent Fable 5 review"
+trajectory_case = "artifacts.general-fixed-mesh-field-trajectory-2d"
+fsi_case = "interfaces.python-fixed-reference-fsi-demo"
+identity = "projection identities equal the exact accepted artifact lineage; the projection assigns no new durable identity"
+ordering = "state, Field, and block occurrences follow accepted artifact edges and are never rebuilt from digest-keyed catalogs"
+legacy_views = "existing FSI velocity, bubble velocity, pressure, and displacement arrays equal their exact trajectory coefficient blocks"
+thresholds = "none; this adapter introduces no scientific expected value or tolerance"
+
+[acceptance]
+projection_requires_complete_replay = true
+lineage_is_relationally_exact = true
+accepted_state_order_is_preserved = true
+complete_field_inventory_is_preserved = true
+physical_metadata_is_artifact_owned = true
+p1_bubble_blocks_remain_separate = true
+subdomain_blocks_remain_full_mesh_zero_extended = true
+model_bound_field_selection_is_exact = true
+numpy_arrays_are_memoized_and_irreversibly_read_only = true
+existing_fsi_mesh_arrays_delegate_to_the_projection = true
+no_scientific_oracle_change = true
+
+[falsifiers]
+invalid_artifact_dag = "cannot produce the replay proof and therefore cannot produce the Python projection"
+digest_map_reordering = "projected state, Field, or block occurrence order differs from accepted edges"
+foreign_model_field = "FieldRef from a different exact Model digest is accepted"
+missing_field = "same-Model Field outside the accepted Realization inventory is accepted"
+collapsed_p1_bubble = "Vertex and Cell blocks are combined, reordered, or silently interpolated"
+support_compression = "whole-mesh zero-extended coefficient content is gathered or scattered by the general projection"
+legacy_array_drift = "application-specific FSI arrays differ from their exact general trajectory blocks"
+mutable_array = "assignment, writeability re-enable, or an ordinary NumPy view permits mutation"
+reprojection = "repeated access rebuilds Python owners or complete arrays"
+
+[claim_boundary]
+fixed_mesh = true
+intrinsic_dimension = 2
+affine_triangles = true
+artifact_family = "fixed-step spatial trajectory V1"
+accepted_states_at_least = 2
+general_type_name = true
+general_2d_or_3d_admission = false
+moving_mesh_or_remeshing = false
+single_state_spatial_result = false
+field_names = false
+basis_beyond_association_and_shape = false
+derived_quantities_or_interpolation = false
+balances_or_acceptance_ontology = false
+renderer_or_animation = false
+durable_projection_schema = false
+
+[precommitment]
+precommitted = true
+authored_before_implementation_by_a_nonimplementing_agent = true
+oracle_owner = "GitHub Issue 297 and the referenced registered cases; the implementer may wire but not relax them"
+base_revision = "6973fc438cd0a43f1c1ed5c6e01b87ef61d7be97"
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_distribution_gate.py"

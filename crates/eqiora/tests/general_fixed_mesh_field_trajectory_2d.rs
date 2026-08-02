@@ -156,6 +156,49 @@ fn complete_product_trajectory_replays_independently_of_catalog_order() {
         replay.trajectory().digest().unwrap(),
         result.trajectory().digest().unwrap()
     );
+    assert_eq!(
+        replay
+            .states()
+            .map(SpatialStateEnvelopeV1::digest)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap(),
+        result
+            .states()
+            .iter()
+            .map(SpatialStateEnvelopeV1::digest)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+    );
+    for state_index in 0..result.states().len() {
+        let fields = replay
+            .fields(state_index)
+            .expect("every accepted state retains its exact Field edges")
+            .collect::<Vec<_>>();
+        assert_eq!(
+            fields
+                .iter()
+                .map(|snapshot| snapshot.field())
+                .collect::<Vec<_>>(),
+            expected_fields
+        );
+        for (field_index, snapshot) in fields.iter().enumerate() {
+            assert_eq!(
+                replay
+                    .blocks(state_index, field_index)
+                    .expect("every accepted snapshot retains its exact block edges")
+                    .map(DiscreteFieldEnvelopeV1::digest)
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap(),
+                snapshot
+                    .block_artifacts()
+                    .into_iter()
+                    .map(|(_, digest)| digest)
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+    assert!(replay.fields(result.states().len()).is_none());
+    assert!(replay.blocks(0, expected_fields.len()).is_none());
 }
 
 #[test]
