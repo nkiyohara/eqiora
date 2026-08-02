@@ -31,7 +31,7 @@ EXPECTED_CELLS = np.array(
     ],
     dtype=np.uint32,
 )
-# Issue #302 frozen dual-oracle support membership, wired verbatim.
+# Frozen dual-oracle support membership, wired verbatim from registered evidence.
 EXPECTED_SUPPORT = {
     ("fluid_velocity", "vertex"): [0, 1, 2, 3, 4, 5],
     ("fluid_velocity", "cell"): [0, 1, 2, 3],

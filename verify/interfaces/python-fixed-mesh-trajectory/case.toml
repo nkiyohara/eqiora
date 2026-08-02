@@ -88,7 +88,7 @@ base_revision = "6973fc438cd0a43f1c1ed5c6e01b87ef61d7be97"
 [precommitment.issue_302_extension]
 precommitted = true
 authored_before_implementation_by_a_nonimplementing_agent = true
-oracle_owner = "Issue #302 and its independently frozen installed-Python oracle"
+oracle_owner = "the independently frozen installed-Python oracle at base_revision; the implementer may wire but not relax it"
 base_revision = "0a79f4db470bb23ba2dfc9293b6153d66b016f7a"
 wiring_only_by_implementer = true
 
