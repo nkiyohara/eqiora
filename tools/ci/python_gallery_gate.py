@@ -41,7 +41,9 @@ def venv_python(environment: Path) -> Path:
     return environment / "bin" / "python"
 
 
-def child_environment(*, mplconfig: Path, inner: bool = False) -> dict[str, str]:
+def child_environment(
+    *, mplconfig: Path, inner: bool = False, uv_cache: Path | None = None
+) -> dict[str, str]:
     """Return the exact headless producer environment."""
 
     environment = os.environ.copy()
@@ -51,6 +53,8 @@ def child_environment(*, mplconfig: Path, inner: bool = False) -> dict[str, str]
     environment["MPLCONFIGDIR"] = str(mplconfig)
     environment["PIP_DISABLE_PIP_VERSION_CHECK"] = "1"
     environment["PYTHONNOUSERSITE"] = "1"
+    if uv_cache is not None:
+        environment["UV_CACHE_DIR"] = str(uv_cache)
     if inner:
         environment[INNER] = "1"
     else:
@@ -182,10 +186,17 @@ def main() -> int:
                 inner_gate(mplconfig=mplconfig)
                 return 0
             if uv := shutil.which("uv"):
-                run(
-                    uv_gate_command(uv),
-                    environment=child_environment(mplconfig=mplconfig, inner=True),
-                )
+                with tempfile.TemporaryDirectory(
+                    prefix="eqiora-gallery-uv-cache-"
+                ) as cache_directory:
+                    run(
+                        uv_gate_command(uv),
+                        environment=child_environment(
+                            mplconfig=mplconfig,
+                            inner=True,
+                            uv_cache=Path(cache_directory),
+                        ),
+                    )
                 return 0
             with tempfile.TemporaryDirectory(
                 prefix="eqiora-gallery-venv-"

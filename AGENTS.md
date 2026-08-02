@@ -172,10 +172,9 @@ check-architecture` numbers down. Raising a ceiling or adding a debt entry is an
 architecture change, permitted but reviewed as one, and it carries a reason and
 a deletion condition.
 
-Developer convenience stays outside the product architecture. Prefer the
-smallest conventional local tool, keep maintainer-specific hosts and paths out
-of the repository, and do not add a protocol or durable contract for a build,
-cache, synchronization, or editor-host workaround.
+Developer convenience stays outside product architecture. Prefer the smallest conventional
+local tool, keep maintainer-specific hosts and paths out of the repository, and do not add a
+protocol or durable contract for a build, cache, synchronization, or editor-host workaround.
 
 ## Gates
 
@@ -188,9 +187,10 @@ Pass every semantically affected registered case explicitly with `--case`.
 Automatic Cargo closure is conservative assistance, not claim ownership. An
 evidence package is an executor, not semantic ownership.
 
-Both tiers use default features. Optional MPI, CUDA, Diffsol, or other backend
-code is not covered by a passing default gate: it requires its own evidence case
-or a matching environment-specific check.
+Both tiers use default features. Optional MPI, CUDA, Diffsol, or other backend code is
+not covered by a passing default gate: it requires its own case or environment-specific check.
+Hosted media evidence installs native tools explicitly, and a long concurrent `uv run`
+owns a target-private cache; a binary or uncontended cache on one host proves neither.
 
 If a pull request supplies an implementation-agent configuration identifier,
 validate it before merging with `python3 tools/ci/check_implementation_agent.py

@@ -144,7 +144,11 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertIn('["uv"]', python_evidence)
         self.assertIn("python -m pip install --only-binary=:all:", python_evidence)
         self.assertIn("uv --version", python_evidence)
-        self.assertNotIn("apt-get", python_evidence)
+        self.assertIn(
+            "sudo apt-get install --no-install-recommends --yes ffmpeg",
+            python_evidence,
+        )
+        self.assertIn("ffprobe -version", python_evidence)
         self.assertNotIn("openmpi", python_evidence)
         self.assertIn(
             "eqiora-verify -- run --environment host-cpu "

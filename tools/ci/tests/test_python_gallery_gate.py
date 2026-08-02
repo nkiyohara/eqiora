@@ -38,7 +38,9 @@ class PythonGalleryGateTests(unittest.TestCase):
                 }
             )
             environment = python_gallery_gate.child_environment(
-                mplconfig=Path("/tmp/gallery-mpl"), inner=True
+                mplconfig=Path("/tmp/gallery-mpl"),
+                inner=True,
+                uv_cache=Path("/tmp/gallery-uv-cache"),
             )
         finally:
             for key, value in previous.items():
@@ -53,6 +55,7 @@ class PythonGalleryGateTests(unittest.TestCase):
         self.assertEqual(environment["TZ"], "UTC")
         self.assertEqual(environment["LC_ALL"], "C")
         self.assertEqual(environment["PYTHONHASHSEED"], "0")
+        self.assertEqual(environment["UV_CACHE_DIR"], "/tmp/gallery-uv-cache")
         self.assertEqual(environment[python_gallery_gate.INNER], "1")
 
 
