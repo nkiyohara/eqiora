@@ -17,7 +17,7 @@ mesh = "one immutable affine-triangle 2D mesh shared by every accepted state"
 fields = "complete semantic Field inventory with exact support, coherent-SI dimension, shape, frame, and Vertex/Cell coefficient associations"
 
 [oracle]
-contract = "GitHub Issue 297, frozen before implementation from independent Fable 5 review"
+contract = "this manifest, its case READMEs, and the registered trajectory and FSI evidence, frozen before implementation by independent cross-provider review"
 trajectory_case = "artifacts.general-fixed-mesh-field-trajectory-2d"
 fsi_case = "interfaces.python-fixed-reference-fsi-demo"
 identity = "projection identities equal the exact accepted artifact lineage; the projection assigns no new durable identity"
@@ -69,7 +69,7 @@ durable_projection_schema = false
 [precommitment]
 precommitted = true
 authored_before_implementation_by_a_nonimplementing_agent = true
-oracle_owner = "GitHub Issue 297 and the referenced registered cases; the implementer may wire but not relax them"
+oracle_owner = "this manifest, its case READMEs, and the referenced registered cases; the implementer may wire but not relax them"
 base_revision = "6973fc438cd0a43f1c1ed5c6e01b87ef61d7be97"
 
 [evidence]
