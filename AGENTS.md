@@ -172,9 +172,9 @@ check-architecture` numbers down. Raising a ceiling or adding a debt entry is an
 architecture change, permitted but reviewed as one, and it carries a reason and
 a deletion condition.
 
-Developer convenience stays outside product architecture. Prefer the smallest conventional
-local tool, keep maintainer-specific hosts and paths out of the repository, and do not add a
-protocol or durable contract for a build, cache, synchronization, or editor-host workaround.
+Prefer the smallest conventional local tool. Put large build, candidate, and worktree scratch under
+home-backed `TMPDIR`, never OS `/tmp`. Keep maintainer-specific hosts/paths out of the repository.
+Add no protocol or durable contract to work around build, cache, sync, or editor-host limits.
 
 ## Gates
 
