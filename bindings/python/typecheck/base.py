@@ -99,5 +99,11 @@ def check_fsi_result(model: eqiora.Model) -> None:
         result.trajectory.state(1).field(model.field(model.field_ids[0])),
         FieldSnapshot,
     )
+    assert_type(
+        result.trajectory.state(1)
+        .field(model.field(model.field_ids[0]))
+        .support_indices("vertex"),
+        npt.NDArray[np.uint32],
+    )
     assert_type(result.steps, tuple[FixedReferenceFsiStep, FixedReferenceFsiStep])
     assert_type(result.step(1).pressure, npt.NDArray[np.float64])

@@ -2,13 +2,14 @@
 
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 use eqiora::DimExponents;
 use eqiora::api::FixedMeshFieldTrajectoryReplay2dV1;
 use eqiora::artifact::{ArtifactDigest, RunManifestV2, SimplicialMeshEnvelopeV1};
 use eqiora::kernel::ValueFrame;
 use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldShape};
-use numpy::PyArray2;
+use numpy::{PyArray1, PyArray2};
 use pyo3::exceptions::{PyIndexError, PyKeyError, PyOverflowError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyModule, PyTuple};
@@ -35,6 +36,7 @@ struct ProjectedBlock {
     association: &'static str,
     digest: String,
     values: ProjectedValues,
+    support_indices: Arc<ReadOnlyVector<u32>>,
 }
 
 /// One exact semantic Field observation in an accepted trajectory state.
@@ -141,6 +143,17 @@ impl PyFieldSnapshot {
             .find(|block| block.association == association)
             .ok_or_else(|| PyKeyError::new_err(association.to_owned()))?
             .values
+            .numpy(py)
+    }
+
+    /// Read-only exact global mesh-entity indices in the Field support.
+    #[pyo3(signature = (association, /))]
+    fn support_indices(&self, py: Python<'_>, association: &str) -> PyResult<Py<PyArray1<u32>>> {
+        self.blocks
+            .iter()
+            .find(|block| block.association == association)
+            .ok_or_else(|| PyKeyError::new_err(association.to_owned()))?
+            .support_indices
             .numpy(py)
     }
 
@@ -426,6 +439,8 @@ impl PyTrajectory {
 
         let all_states = std::iter::once(first).chain(accepted_states);
         let mut field_refs = BTreeMap::<String, Py<PyModelFieldRef>>::new();
+        let mut support_arrays =
+            BTreeMap::<(String, &'static str), Arc<ReadOnlyVector<u32>>>::new();
         let mut states = Vec::with_capacity(all_states.size_hint().0);
         let mut state_lookup = BTreeMap::new();
         for (state_index, state) in all_states.enumerate() {
@@ -449,6 +464,36 @@ impl PyTrajectory {
                 })?;
                 let mut blocks = Vec::with_capacity(exact_blocks.len());
                 for block in exact_blocks {
+                    let association = block.association();
+                    let association_name = association_name(association);
+                    let support_key = (
+                        snapshot.support_domain().ulid().to_string(),
+                        association_name,
+                    );
+                    let support_indices = match support_arrays.get(&support_key) {
+                        Some(indices) => Arc::clone(indices),
+                        None => {
+                            let native = replay
+                                .support_indices(state_index, field_index, association)
+                                .ok_or_else(|| {
+                                    PyRuntimeError::new_err(
+                                        "accepted replay omitted one Field support membership",
+                                    )
+                                })?
+                                .iter()
+                                .map(|&index| {
+                                    u32::try_from(index).map_err(|_| {
+                                        PyOverflowError::new_err(
+                                            "Field support index exceeds Python uint32",
+                                        )
+                                    })
+                                })
+                                .collect::<PyResult<Vec<_>>>()?;
+                            let indices = Arc::new(ReadOnlyVector::new(native));
+                            support_arrays.insert(support_key, Arc::clone(&indices));
+                            indices
+                        }
+                    };
                     let entity_count = block
                         .entity_count()
                         .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
@@ -471,9 +516,10 @@ impl PyTrajectory {
                         }
                     };
                     blocks.push(ProjectedBlock {
-                        association: association_name(block.association()),
+                        association: association_name,
                         digest: artifact_digest(py, block.digest())?,
                         values,
+                        support_indices,
                     });
                 }
                 let value_shape = snapshot

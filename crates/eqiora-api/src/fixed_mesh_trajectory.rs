@@ -1,6 +1,6 @@
 //! Complete replay of one durable fixed-mesh two-dimensional Field trajectory.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use eqiora_artifact::{
     ArtifactDigest, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1,
@@ -9,7 +9,10 @@ use eqiora_artifact::{
     SpatialTrajectorySegmentEnvelopeV1, ValidatedFixedSpatialContextV1,
 };
 use eqiora_core::Diagnostic;
+use eqiora_core::Id;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::entity::kinds;
+use eqiora_meshing::DiscreteFieldAssociation;
 
 #[derive(Debug)]
 pub(crate) struct ReplayedFixedField<'a> {
@@ -33,6 +36,29 @@ pub(crate) struct ReplayedFixedFrame<'a> {
 pub struct FixedMeshFieldTrajectoryReplay2dV1<'a> {
     trajectory: &'a SpatialTrajectoryEnvelopeV1,
     frames: Vec<ReplayedFixedFrame<'a>>,
+    supports: HashMap<Id<kinds::Domain>, ReplayedFixedSupports>,
+}
+
+#[derive(Debug, Default)]
+struct ReplayedFixedSupports {
+    vertices: Option<Vec<usize>>,
+    cells: Option<Vec<usize>>,
+}
+
+impl ReplayedFixedSupports {
+    fn get(&self, association: DiscreteFieldAssociation) -> Option<&[usize]> {
+        match association {
+            DiscreteFieldAssociation::Vertex => self.vertices.as_deref(),
+            DiscreteFieldAssociation::Cell => self.cells.as_deref(),
+        }
+    }
+
+    fn insert(&mut self, association: DiscreteFieldAssociation, indices: Vec<usize>) {
+        match association {
+            DiscreteFieldAssociation::Vertex => self.vertices = Some(indices),
+            DiscreteFieldAssociation::Cell => self.cells = Some(indices),
+        }
+    }
 }
 
 impl<'a> FixedMeshFieldTrajectoryReplay2dV1<'a> {
@@ -132,6 +158,26 @@ impl<'a> FixedMeshFieldTrajectoryReplay2dV1<'a> {
 
         validate_segments(&context, &ordered_segments, &frames)?;
         validate_frames(&context, &frames)?;
+        let mut supports = HashMap::<Id<kinds::Domain>, ReplayedFixedSupports>::new();
+        for frame in &frames {
+            for field in &frame.fields {
+                let domain = field.snapshot.support_domain();
+                let domain_supports = supports.entry(domain).or_default();
+                for block in &field.blocks {
+                    let association = block.association();
+                    if domain_supports.get(association).is_none() {
+                        domain_supports.insert(
+                            association,
+                            field.snapshot.active_entities_against(
+                                &context,
+                                field.blocks.iter().copied(),
+                                association,
+                            )?,
+                        );
+                    }
+                }
+            }
+        }
         run.validate_against(realization)?;
         if run.outputs() != vec![trajectory.digest()?] {
             return Err(replay_error(
@@ -139,7 +185,11 @@ impl<'a> FixedMeshFieldTrajectoryReplay2dV1<'a> {
             ));
         }
 
-        Ok(Self { trajectory, frames })
+        Ok(Self {
+            trajectory,
+            frames,
+            supports,
+        })
     }
 
     /// Exact immutable trajectory root whose complete dependency DAG replayed.
@@ -188,6 +238,32 @@ impl<'a> FixedMeshFieldTrajectoryReplay2dV1<'a> {
             .fields
             .get(field_index)
             .map(|field| field.blocks.iter().copied())
+    }
+
+    /// Exact global canonical mesh-entity support for one Field association.
+    ///
+    /// State and Field indices address the accepted edge order exposed by
+    /// [`Self::states`] and [`Self::fields`]. Returns `None` when either index
+    /// is outside the accepted trajectory or the association is absent from
+    /// that exact Field snapshot.
+    #[must_use]
+    pub fn support_indices(
+        &self,
+        state_index: usize,
+        field_index: usize,
+        association: DiscreteFieldAssociation,
+    ) -> Option<&[usize]> {
+        let field = self.frames.get(state_index)?.fields.get(field_index)?;
+        if !field
+            .blocks
+            .iter()
+            .any(|block| block.association() == association)
+        {
+            return None;
+        }
+        self.supports
+            .get(&field.snapshot.support_domain())?
+            .get(association)
     }
 }
 
