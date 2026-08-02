@@ -5,13 +5,12 @@
 //! not reinterpret a Field snapshot or retain borrowed artifact state.
 
 use eqiora_artifact::{
-    ArtifactDigest, CanonicalModelArtifact, DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1,
-    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, ModelEnvelope,
-    RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1, ValidatedFixedSpatialContextV1,
+    AcceptedCircularHoleChordalRealizationV1, ArtifactDigest, CanonicalModelArtifact,
+    DiscreteFieldEnvelopeV1, FieldSnapshotEnvelopeV1, ModelEnvelope, RealizationEnvelopeV2,
+    RunManifestV2, SimplicialMeshEnvelopeV1, ValidatedFixedSpatialContextV1,
 };
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id};
-use eqiora_geometry::{CanonicalCircularHoleGeometryV1, CircularHoleChordalMeshV1};
 use eqiora_meshing::{DiscreteFieldAssociation, DiscreteFieldShape};
 
 const MAX_APPLICATION_P1_VERTICES: usize = 250_000;
@@ -92,22 +91,17 @@ impl UnstructuredP1ScalarFieldProjection2d {
 
     /// Validate and materialize one exact circular-hole authored P1 snapshot.
     ///
-    /// The Model, exact source, source-owned chordal mesh, authored
-    /// correspondence, field-wise V2 Realization, Run, snapshot and block are
-    /// reaccepted before the unchanged bounded projection is copied.
+    /// The Model, accepted exact-source chordal artifact, field-wise V2
+    /// Realization, Run, snapshot and block are reaccepted before the unchanged
+    /// bounded projection is copied.
     ///
     /// # Errors
     /// Returns `EQ0901` for foreign or stale lineage, a non-P1-scalar Field,
     /// unsupported dimension, resource excess, or inconsistent mesh/values.
-    #[allow(clippy::too_many_arguments)]
     pub fn from_authored_fieldwise_snapshot(
         model: &ModelEnvelope,
         realization: &RealizationEnvelopeV2,
-        source: &CanonicalCircularHoleGeometryV1,
-        owner: &CircularHoleChordalMeshV1,
-        geometry: &GeometryDefinitionV1,
-        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
-        mesh: &SimplicialMeshEnvelopeV1,
+        accepted: &AcceptedCircularHoleChordalRealizationV1,
         run: &RunManifestV2,
         snapshot: &FieldSnapshotEnvelopeV1,
         block: &DiscreteFieldEnvelopeV1,
@@ -116,11 +110,7 @@ impl UnstructuredP1ScalarFieldProjection2d {
         snapshot.validate_against_authored_fieldwise(
             model,
             realization,
-            source,
-            owner,
-            geometry,
-            correspondence,
-            mesh,
+            accepted,
             std::slice::from_ref(block),
         )?;
         let snapshot_artifact = snapshot.digest()?;
@@ -131,7 +121,7 @@ impl UnstructuredP1ScalarFieldProjection2d {
         }
         let model = model.artifact_reference()?;
         Self::materialize(
-            mesh,
+            accepted.mesh(),
             snapshot,
             block,
             ProjectionLineage {

@@ -1,5 +1,6 @@
 /target
 /dist
+/build/gallery/
 /experiments/**/target/
 /bindings/python/.venv
 /bindings/python/dist

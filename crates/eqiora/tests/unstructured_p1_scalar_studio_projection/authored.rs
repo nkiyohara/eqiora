@@ -2,14 +2,11 @@ use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::api::UnstructuredP1ScalarFieldProjection2d;
 use eqiora::artifact::{
-    DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1, FieldSnapshotEnvelopeV1,
-    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope,
+    AcceptedCircularHoleChordalRealizationV1, DiscreteFieldEnvelopeV1, ExecutionProvenanceV1,
+    ExecutionTopologyV1, FieldSnapshotEnvelopeV1, LayoutArtifacts, ModelEnvelope,
     RealizationEnvelopeV2, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
-use eqiora::geometry::{
-    CanonicalCircularHoleGeometryV1, CanonicalGeometryRef, CircularHoleChordalMeshV1,
-    FACE_DIMENSION, NamedEntitySet,
-};
+use eqiora::geometry::{CanonicalGeometryRef, CanonicalGeometryV1, FACE_DIMENSION, NamedEntitySet};
 use eqiora::graph::{GraphStore, InMemoryGraphStore, Op, Transaction};
 use eqiora::kernel::{DomainDef, DomainKind, KernelNode};
 use eqiora::meshing::{
@@ -53,11 +50,7 @@ const PRESSURE: DimExponents = DimExponents {
 struct AcceptedAuthoredField {
     model: ModelEnvelope,
     realization: RealizationEnvelopeV2,
-    source: CanonicalCircularHoleGeometryV1,
-    owner: CircularHoleChordalMeshV1,
-    geometry: GeometryDefinitionV1,
-    correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-    mesh: SimplicialMeshEnvelopeV1,
+    accepted: AcceptedCircularHoleChordalRealizationV1,
     run: RunManifestV2,
     snapshot: FieldSnapshotEnvelopeV1,
     block: DiscreteFieldEnvelopeV1,
@@ -68,11 +61,7 @@ impl AcceptedAuthoredField {
         AuthoredProjectionInputs {
             model: &self.model,
             realization: &self.realization,
-            source: &self.source,
-            owner: &self.owner,
-            geometry: &self.geometry,
-            correspondence: &self.correspondence,
-            mesh: &self.mesh,
+            accepted: &self.accepted,
             run: &self.run,
             snapshot: &self.snapshot,
             block: &self.block,
@@ -88,11 +77,7 @@ impl AcceptedAuthoredField {
 struct AuthoredProjectionInputs<'a> {
     model: &'a ModelEnvelope,
     realization: &'a RealizationEnvelopeV2,
-    source: &'a CanonicalCircularHoleGeometryV1,
-    owner: &'a CircularHoleChordalMeshV1,
-    geometry: &'a GeometryDefinitionV1,
-    correspondence: &'a GeometryMeshCorrespondenceEnvelopeV1,
-    mesh: &'a SimplicialMeshEnvelopeV1,
+    accepted: &'a AcceptedCircularHoleChordalRealizationV1,
     run: &'a RunManifestV2,
     snapshot: &'a FieldSnapshotEnvelopeV1,
     block: &'a DiscreteFieldEnvelopeV1,
@@ -103,11 +88,7 @@ impl AuthoredProjectionInputs<'_> {
         UnstructuredP1ScalarFieldProjection2d::from_authored_fieldwise_snapshot(
             self.model,
             self.realization,
-            self.source,
-            self.owner,
-            self.geometry,
-            self.correspondence,
-            self.mesh,
+            self.accepted,
             self.run,
             self.snapshot,
             self.block,
@@ -135,18 +116,21 @@ fn exact_circle_authored_fieldwise_snapshot_projects_through_the_existing_value(
         projection.snapshot_artifact(),
         &accepted.snapshot.digest().unwrap()
     );
-    assert_eq!(projection.mesh_artifact(), &accepted.mesh.digest().unwrap());
+    assert_eq!(
+        projection.mesh_artifact(),
+        &accepted.accepted.mesh().digest().unwrap()
+    );
     assert_eq!(
         accepted.snapshot.geometry_artifact(),
-        accepted.geometry.digest().unwrap()
+        accepted.accepted.realized_geometry().digest().unwrap()
     );
     assert_eq!(
         projection.vertices_m().len(),
-        accepted.mesh.mesh().vertices().len()
+        accepted.accepted.mesh().mesh().vertices().len()
     );
     assert_eq!(
         projection.triangles().len(),
-        accepted.mesh.mesh().cells().len()
+        accepted.accepted.mesh().mesh().cells().len()
     );
     assert_eq!(projection.values(), accepted.block.values());
 }
@@ -160,11 +144,7 @@ fn foreign_and_same_named_authored_resources_reject_before_array_publication() {
         FieldSnapshotEnvelopeV1::new_authored_fieldwise(
             &accepted.model,
             &accepted.realization,
-            &accepted.source,
-            &accepted.owner,
-            &accepted.geometry,
-            &accepted.correspondence,
-            &accepted.mesh,
+            &accepted.accepted,
             eqiora::Id::new(),
             std::slice::from_ref(&accepted.block),
         )
@@ -194,37 +174,9 @@ fn foreign_and_same_named_authored_resources_reject_before_array_publication() {
         },
     );
     rejects(
-        "foreign exact source",
+        "foreign accepted source and resources",
         AuthoredProjectionInputs {
-            source: &foreign.source,
-            ..accepted_inputs
-        },
-    );
-    rejects(
-        "foreign chordal owner",
-        AuthoredProjectionInputs {
-            owner: &foreign.owner,
-            ..accepted_inputs
-        },
-    );
-    rejects(
-        "same-named foreign polygon",
-        AuthoredProjectionInputs {
-            geometry: &foreign.geometry,
-            ..accepted_inputs
-        },
-    );
-    rejects(
-        "foreign correspondence",
-        AuthoredProjectionInputs {
-            correspondence: &foreign.correspondence,
-            ..accepted_inputs
-        },
-    );
-    rejects(
-        "foreign mesh",
-        AuthoredProjectionInputs {
-            mesh: &foreign.mesh,
+            accepted: &foreign.accepted,
             ..accepted_inputs
         },
     );
@@ -265,17 +217,14 @@ fn accepted_authored_field(center: [f64; 2]) -> AcceptedAuthoredField {
     let source = exact_source(center);
     let program = geometry_program(&source);
     let model = ModelEnvelope::from_program(&program).expect("current Model");
-    let owner = CircularHoleChordalMeshV1::from_exact(
+    let accepted = AcceptedCircularHoleChordalRealizationV1::from_reference(
         &source,
         2.0e-3,
         16,
         MeshQualityGate::new(1.0e-5).unwrap(),
     )
     .expect("bounded chordal owner");
-    let geometry = GeometryDefinitionV1::from_region(owner.region());
-    let mesh = SimplicialMeshEnvelopeV1::from_mesh(owner.mesh()).expect("mesh artifact");
-    let correspondence =
-        GeometryMeshCorrespondenceEnvelopeV1::from_region(&geometry, &mesh).unwrap();
+    let mesh = accepted.mesh().clone();
     let domain = program
         .nodes()
         .find_map(|node| match node {
@@ -336,11 +285,7 @@ fn accepted_authored_field(center: [f64; 2]) -> AcceptedAuthoredField {
     let snapshot = FieldSnapshotEnvelopeV1::new_authored_fieldwise(
         &model,
         &realization,
-        &source,
-        &owner,
-        &geometry,
-        &correspondence,
-        &mesh,
+        &accepted,
         field,
         std::slice::from_ref(&block),
     )
@@ -364,11 +309,7 @@ fn accepted_authored_field(center: [f64; 2]) -> AcceptedAuthoredField {
     AcceptedAuthoredField {
         model,
         realization,
-        source,
-        owner,
-        geometry,
-        correspondence,
-        mesh,
+        accepted,
         run,
         snapshot,
         block,
@@ -430,8 +371,8 @@ fn scale(dimension: DimExponents) -> PositivePhysicalScale {
     PositivePhysicalScale::new(DynQuantity::new(1.0, dimension)).unwrap()
 }
 
-fn exact_source(center: [f64; 2]) -> CanonicalCircularHoleGeometryV1 {
-    CanonicalCircularHoleGeometryV1::new(
+fn exact_source(center: [f64; 2]) -> CanonicalGeometryV1 {
+    CanonicalGeometryV1::from_circular_hole(
         [[0.0, 2.2], [0.0, 0.41]],
         center,
         0.05,
@@ -441,7 +382,7 @@ fn exact_source(center: [f64; 2]) -> CanonicalCircularHoleGeometryV1 {
     .expect("exact circular-hole source")
 }
 
-fn geometry_program(source: &CanonicalCircularHoleGeometryV1) -> KernelProgram {
+fn geometry_program(source: &CanonicalGeometryV1) -> KernelProgram {
     let cartesian = eqiora::api::ModelDocument::compile("authored-p1-projection.eqi", SOURCE)
         .expect("Cartesian scaffold");
     let program = cartesian.program();

@@ -1,4 +1,4 @@
-"""Public Python contract for one exact rectangle-with-circular-hole geometry."""
+"""Public Python contract for one exact Geometry projected from authored CAD."""
 
 from __future__ import annotations
 
@@ -90,11 +90,19 @@ EXPECTED_DEMO_STDOUT = [
 ISOLATED_GEOMETRY_PROGRAM = """
 import eqiora
 
-geometry = eqiora.geometry.RectangleWithCircularHole(
-    bounds=((0.0, 2.2), (0.0, 0.41)),
-    circle_center=(0.2, 0.2),
-    circle_radius=0.05,
-    tolerance=1e-12,
+graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+    x_bounds=(0.0, 2.2),
+    y_bounds=(0.0, 0.41),
+    plane_z=0.0,
+    depth=1.0,
+    modeling_tolerance=1e-10,
+).circular_through_cut(
+    center=(0.2, 0.2),
+    radius=0.05,
+    boolean_tolerance=1e-10,
+)
+geometry = graph.planar_circular_section(
+    classification_tolerance=1e-12,
     region="fluid",
     x_lower="inlet",
     x_upper="outlet",
@@ -110,7 +118,31 @@ for selection in geometry.selection_names:
 
 def geometry(**overrides: object) -> object:
     arguments = STANDARD_ARGUMENTS | overrides
-    return eqiora.geometry.RectangleWithCircularHole(**arguments)
+    unknown = set(arguments) - set(STANDARD_ARGUMENTS)
+    if unknown:
+        unexpected = min(unknown)
+        raise TypeError(f"unsupported Geometry authoring argument: {unexpected}")
+    (x_bounds, y_bounds) = arguments["bounds"]
+    graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+        x_bounds=x_bounds,
+        y_bounds=y_bounds,
+        plane_z=0.0,
+        depth=1.0,
+        modeling_tolerance=1e-10,
+    ).circular_through_cut(
+        center=arguments["circle_center"],
+        radius=arguments["circle_radius"],
+        boolean_tolerance=1e-10,
+    )
+    return graph.planar_circular_section(
+        classification_tolerance=arguments["tolerance"],
+        region=arguments["region"],
+        x_lower=arguments["x_lower"],
+        x_upper=arguments["x_upper"],
+        y_lower=arguments["y_lower"],
+        y_upper=arguments["y_upper"],
+        hole=arguments["hole"],
+    )
 
 
 def assert_structured_validation(**overrides: object) -> None:
@@ -129,14 +161,14 @@ def test_standard_geometry_replays_the_frozen_exact_identity() -> None:
     authored = geometry()
     assert type(authored).__module__ == "eqiora._eqiora"
     assert len(STANDARD_CANONICAL_JSON) == 511
-    assert authored.canonical_json == STANDARD_CANONICAL_JSON
+    assert type(authored).__name__ == "Geometry"
+    assert authored.dimension == 2
+    assert authored.canonical_bytes == STANDARD_CANONICAL_JSON
     assert authored.digest == STANDARD_DIGEST
-    assert isinstance(authored.canonical_json, bytes)
+    assert isinstance(authored.canonical_bytes, bytes)
     assert re.fullmatch(r"[0-9a-f]{64}", authored.digest)
     assert authored.bounds == ((0.0, 2.2), (0.0, 0.41))
-    assert authored.circle_center == (0.2, 0.2)
-    assert authored.circle_radius == 0.05
-    assert authored.tolerance == 1e-12
+    assert authored.classification_tolerance == 1e-12
 
     if CANONICAL_EXAMPLE.is_file():
         assert CANONICAL_EXAMPLE.read_bytes() == STANDARD_CANONICAL_JSON + b"\n"
@@ -174,7 +206,7 @@ def test_distinct_y_roles_pin_lower_and_upper_canonical_members() -> None:
     oriented = geometry(y_lower="floor", y_upper="ceiling")
 
     assert len(DISTINCT_Y_CANONICAL_JSON) == 556
-    assert oriented.canonical_json == DISTINCT_Y_CANONICAL_JSON
+    assert oriented.canonical_bytes == DISTINCT_Y_CANONICAL_JSON
     assert oriented.digest == DISTINCT_Y_DIGEST
     assert oriented.selection_names == (
         "ceiling",
@@ -186,12 +218,11 @@ def test_distinct_y_roles_pin_lower_and_upper_canonical_members() -> None:
     )
 
 
-def test_off_axis_center_pins_constructor_and_getter_coordinate_order() -> None:
+def test_off_axis_center_pins_authored_section_coordinate_order() -> None:
     off_axis = geometry(circle_center=(0.3, 0.2))
 
     assert len(OFF_AXIS_CANONICAL_JSON) == 511
-    assert off_axis.circle_center == (0.3, 0.2)
-    assert off_axis.canonical_json == OFF_AXIS_CANONICAL_JSON
+    assert off_axis.canonical_bytes == OFF_AXIS_CANONICAL_JSON
     assert off_axis.digest == OFF_AXIS_DIGEST
 
 
@@ -207,7 +238,7 @@ def test_identity_is_exact_hashable_and_normalizes_signed_zero() -> None:
     assert first == second == negative_zero
     assert hash(first) == hash(second) == hash(negative_zero)
     assert first.digest == negative_zero.digest
-    assert first.canonical_json == negative_zero.canonical_json
+    assert first.canonical_bytes == negative_zero.canonical_bytes
     assert swapped_roles != first
     assert swapped_roles.digest != first.digest
     assert changed_tolerance != first
@@ -218,7 +249,7 @@ def test_geometry_value_and_public_collections_are_immutable() -> None:
     authored = geometry()
 
     with pytest.raises(AttributeError):
-        authored.tolerance = 1e-6
+        authored.classification_tolerance = 1e-6
     with pytest.raises(AttributeError):
         authored.bounds = ((0.0, 1.0), (0.0, 1.0))
     with pytest.raises(TypeError):
@@ -285,6 +316,10 @@ def test_constructor_has_no_numerical_realization_policy(
 
 
 def test_bounded_geometry_module_does_not_claim_generic_cad_or_handles() -> None:
+    assert not hasattr(eqiora.geometry, "RectangleWithCircularHole")
+    with pytest.raises(TypeError):
+        eqiora.geometry.Geometry()
+
     for unsupported_type in (
         "Rectangle",
         "Circle",

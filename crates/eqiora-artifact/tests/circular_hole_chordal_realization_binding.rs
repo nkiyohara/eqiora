@@ -2,12 +2,12 @@ use std::path::Path;
 use std::process::Command;
 
 use eqiora_artifact::{
-    ArtifactDigest, CircularHoleChordalRealizationEnvelopeV1, GeometryDefinitionV1,
+    AcceptedCircularHoleChordalRealizationV1, ArtifactDigest,
+    CircularHoleChordalRealizationEnvelopeV1, GeometryDefinitionV1,
     GeometryMeshCorrespondenceEnvelopeV1, JsonDecoderLimits, SimplicialMeshEnvelopeV1,
 };
 use eqiora_geometry::{
-    CanonicalCircularHoleGeometryV1, CircularHoleChordalMeshV1, EDGE_DIMENSION, FACE_DIMENSION,
-    NamedEntitySet, PlanarRegion,
+    CanonicalGeometryV1, EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet, PlanarRegion,
 };
 use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
 use sha2::{Digest, Sha256};
@@ -39,15 +39,15 @@ const FIELD_ORDER: [&str; 13] = [
 ];
 
 struct Resources {
-    source: CanonicalCircularHoleGeometryV1,
-    owner: CircularHoleChordalMeshV1,
+    source: CanonicalGeometryV1,
+    owner: AcceptedCircularHoleChordalRealizationV1,
     geometry: GeometryDefinitionV1,
     mesh: SimplicialMeshEnvelopeV1,
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
 }
 
-fn source(center: [f64; 2]) -> CanonicalCircularHoleGeometryV1 {
-    CanonicalCircularHoleGeometryV1::new(
+fn source(center: [f64; 2]) -> CanonicalGeometryV1 {
+    CanonicalGeometryV1::from_circular_hole(
         BOUNDS,
         center,
         RADIUS_M,
@@ -65,16 +65,15 @@ fn source(center: [f64; 2]) -> CanonicalCircularHoleGeometryV1 {
 
 fn resources(required_minimum_mean_ratio: f64) -> Resources {
     let source = source(CENTER);
-    let owner = CircularHoleChordalMeshV1::from_exact(
+    let owner = AcceptedCircularHoleChordalRealizationV1::from_reference(
         &source,
         MAX_BOUNDARY_ERROR_M,
         MAX_SEGMENTS,
         MeshQualityGate::new(required_minimum_mean_ratio).unwrap(),
     )
     .expect("source-owned chordal reference realization");
-    let geometry = GeometryDefinitionV1::from_region(owner.region());
-    let mesh = SimplicialMeshEnvelopeV1::from_mesh(owner.mesh())
-        .expect("accepted reference mesh artifact");
+    let geometry = owner.realized_geometry().clone();
+    let mesh = owner.mesh().clone();
     let correspondence = GeometryMeshCorrespondenceEnvelopeV1::from_region(&geometry, &mesh)
         .expect("Model-free authored-region correspondence");
     Resources {
@@ -87,20 +86,13 @@ fn resources(required_minimum_mean_ratio: f64) -> Resources {
 }
 
 fn capture(resources: &Resources) -> CircularHoleChordalRealizationEnvelopeV1 {
-    CircularHoleChordalRealizationEnvelopeV1::capture(
-        &resources.source,
-        &resources.owner,
-        &resources.geometry,
-        &resources.mesh,
-        &resources.correspondence,
-    )
-    .expect("validated resources produce one binding")
+    resources.owner.envelope().clone()
 }
 
 fn replay(
     binding: &CircularHoleChordalRealizationEnvelopeV1,
     resources: &Resources,
-) -> CircularHoleChordalMeshV1 {
+) -> AcceptedCircularHoleChordalRealizationV1 {
     binding
         .replay_against(
             &resources.source,
@@ -449,22 +441,25 @@ fn replay_rejects_mutated_fields_and_substituted_resources() {
             )
             .is_err()
     );
+    let perturbed_owner = AcceptedCircularHoleChordalRealizationV1::from_reference(
+        &perturbed_source,
+        MAX_BOUNDARY_ERROR_M,
+        MAX_SEGMENTS,
+        MeshQualityGate::new(REQUIRED_MINIMUM_MEAN_RATIO).unwrap(),
+    )
+    .unwrap();
     assert!(
-        CircularHoleChordalRealizationEnvelopeV1::capture(
-            &perturbed_source,
-            &resources.owner,
-            &resources.geometry,
-            &resources.mesh,
-            &resources.correspondence,
-        )
-        .is_err()
+        perturbed_owner
+            .bind_conforming_mesh(&resources.mesh, &resources.correspondence)
+            .is_err()
     );
 
+    let reference_region = resources.geometry.region().unwrap();
     let changed_region = PlanarRegion::new(
-        resources.owner.region().vertices().to_vec(),
-        resources.owner.region().faces().to_vec(),
-        resources.owner.region().entity_sets().to_vec(),
-        resources.owner.region().tolerance_m() * 2.0,
+        reference_region.vertices().to_vec(),
+        reference_region.faces().to_vec(),
+        reference_region.entity_sets().to_vec(),
+        reference_region.tolerance_m() * 2.0,
     )
     .unwrap();
     let changed_geometry = GeometryDefinitionV1::from_region(&changed_region);
@@ -500,13 +495,14 @@ fn conforming_renumbering_and_policy_plateau_are_separately_bound() {
     let resources = resources(REQUIRED_MINIMUM_MEAN_RATIO);
     let original = capture(&resources);
 
-    let mut reversed_cells = resources.owner.mesh().cells().to_vec();
+    let reference_mesh = resources.mesh.mesh();
+    let mut reversed_cells = reference_mesh.cells().to_vec();
     reversed_cells.reverse();
     let renumbered = SimplicialMesh::new(
         2,
-        resources.owner.mesh().vertices().to_vec(),
+        reference_mesh.vertices().to_vec(),
         reversed_cells,
-        resources.owner.mesh().quality_gate(),
+        reference_mesh.quality_gate(),
     )
     .expect("renumbered cells remain a conforming accepted mesh");
     let renumbered_mesh = SimplicialMeshEnvelopeV1::from_mesh(&renumbered).unwrap();
@@ -524,60 +520,46 @@ fn conforming_renumbering_and_policy_plateau_are_separately_bound() {
             )
             .is_err()
     );
-    let separately_bound = CircularHoleChordalRealizationEnvelopeV1::capture(
-        &resources.source,
-        &resources.owner,
-        &resources.geometry,
-        &renumbered_mesh,
-        &renumbered_correspondence,
-    )
-    .expect("a conforming renumbering is valid only under its own binding");
-    separately_bound
-        .replay_against(
-            &resources.source,
-            &resources.geometry,
-            &renumbered_mesh,
-            &renumbered_correspondence,
-        )
-        .unwrap();
+    let separately_bound = resources
+        .owner
+        .bind_conforming_mesh(&renumbered_mesh, &renumbered_correspondence)
+        .expect("a conforming renumbering is valid only under its own binding");
+    separately_bound.revalidate().unwrap();
     assert_ne!(
-        separately_bound.digest().unwrap(),
+        separately_bound.envelope().digest().unwrap(),
         original.digest().unwrap()
     );
-    assert_ne!(separately_bound.mesh_artifact(), original.mesh_artifact());
+    assert_ne!(
+        separately_bound.envelope().mesh_artifact(),
+        original.mesh_artifact()
+    );
 
-    let relaxed_owner = CircularHoleChordalMeshV1::from_exact(
+    let relaxed_owner = AcceptedCircularHoleChordalRealizationV1::from_reference(
         &resources.source,
         MAX_BOUNDARY_ERROR_M,
         MAX_SEGMENTS,
         MeshQualityGate::new(REQUIRED_MINIMUM_MEAN_RATIO / 2.0).unwrap(),
     )
     .expect("the lower required threshold remains on the same policy plateau");
-    assert_eq!(relaxed_owner.region(), resources.owner.region());
+    assert_eq!(
+        relaxed_owner.realized_geometry(),
+        resources.owner.realized_geometry()
+    );
     assert_eq!(
         relaxed_owner.boundary_error_bound_m().to_bits(),
         resources.owner.boundary_error_bound_m().to_bits()
     );
-    let plateau = CircularHoleChordalRealizationEnvelopeV1::capture(
-        &resources.source,
-        &relaxed_owner,
-        &resources.geometry,
-        &resources.mesh,
-        &resources.correspondence,
-    )
-    .expect("a plateau-preserving policy defines a distinct valid binding");
-    plateau
-        .replay_against(
-            &resources.source,
-            &resources.geometry,
-            &resources.mesh,
-            &resources.correspondence,
-        )
-        .unwrap();
-    assert_ne!(plateau.digest().unwrap(), original.digest().unwrap());
-    assert_eq!(plateau.mesh_artifact(), original.mesh_artifact());
+    let plateau = relaxed_owner
+        .bind_conforming_mesh(&resources.mesh, &resources.correspondence)
+        .expect("a plateau-preserving policy defines a distinct valid binding");
+    plateau.revalidate().unwrap();
+    assert_ne!(
+        plateau.envelope().digest().unwrap(),
+        original.digest().unwrap()
+    );
+    assert_eq!(plateau.envelope().mesh_artifact(), original.mesh_artifact());
     assert_eq!(
-        plateau.required_minimum_mean_ratio(),
+        plateau.envelope().required_minimum_mean_ratio(),
         REQUIRED_MINIMUM_MEAN_RATIO / 2.0
     );
 

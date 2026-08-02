@@ -2,12 +2,10 @@
 
 use eqiora::Diagnostic;
 use eqiora::api::{CircularHoleSteadyStokesResult2d, UnstructuredP1ScalarFieldProjection2d};
-use eqiora::artifact::ModelEnvelope;
+use eqiora::artifact::{AcceptedCircularHoleChordalRealizationV1, ModelEnvelope};
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::diagnostic::codes;
-use eqiora::geometry::{
-    CanonicalCircularHoleGeometryV1, CanonicalGeometryLimits, CircularHoleChordalMeshV1,
-};
+use eqiora::geometry::{CanonicalGeometryLimits, CanonicalGeometryV1};
 use eqiora::meshing::MeshQualityGate;
 use eqiora::solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy};
 use serde::{Deserialize, Serialize};
@@ -145,19 +143,19 @@ pub(super) async fn run_cylinder_demo(
 }
 
 fn prepare_demo() -> Result<PreparedCylinderDemo, Diagnostic> {
-    let source = CanonicalCircularHoleGeometryV1::decode_canonical(
+    let source = CanonicalGeometryV1::decode_circular_hole_canonical(
         embedded_json(GEOMETRY),
         CanonicalGeometryLimits::default(),
     )?;
     let model = ModelEnvelope::from_json(embedded_json(MODEL), Default::default())?;
-    let owner =
-        CircularHoleChordalMeshV1::from_exact(&source, 1.0e-4, 50, MeshQualityGate::new(1.0e-5)?)?;
-    let result = CircularHoleSteadyStokesResult2d::solve_reference(
-        &model,
+    let accepted = AcceptedCircularHoleChordalRealizationV1::from_reference(
         &source,
-        &owner,
-        &FaerLinearSolver,
+        1.0e-4,
+        50,
+        MeshQualityGate::new(1.0e-5)?,
     )?;
+    let result =
+        CircularHoleSteadyStokesResult2d::solve_reference(&model, &accepted, &FaerLinearSolver)?;
     evidence(&result)
 }
 
@@ -167,6 +165,7 @@ fn embedded_json(bytes: &[u8]) -> &[u8] {
 
 fn evidence(result: &CircularHoleSteadyStokesResult2d) -> Result<PreparedCylinderDemo, Diagnostic> {
     let solution = result.solution();
+    let chordal = result.chordal_realization();
     let constrained = solution.boundary_reaction();
     let body = solution.integrated_body_force();
     let traction = solution.integrated_boundary_traction();
@@ -184,10 +183,11 @@ fn evidence(result: &CircularHoleSteadyStokesResult2d) -> Result<PreparedCylinde
         geometry: GeometryEvidence {
             exact_source_digest: encode_digest(result.source().digest_bytes()),
             realized_geometry_digest: result.realized_geometry().digest()?.to_string(),
-            requested_max_boundary_error_m: result.owner().requested_max_boundary_error_m(),
-            boundary_evaluation_allowance_m: result.owner().boundary_evaluation_allowance_m(),
-            boundary_error_bound_m: result.owner().boundary_error_bound_m(),
-            circle_segments: result.owner().circle_segments(),
+            requested_max_boundary_error_m: chordal.requested_max_boundary_error_m(),
+            boundary_evaluation_allowance_m: chordal.boundary_evaluation_allowance_m(),
+            boundary_error_bound_m: chordal.boundary_error_bound_m(),
+            circle_segments: usize::try_from(chordal.circle_segments())
+                .map_err(|_| missing_evidence("local chordal segment count"))?,
         },
         cylinder_reaction: CylinderReactionEvidence {
             convention: "constraint-force-on-fluid",

@@ -350,13 +350,6 @@ ceiling = 1583
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
-[[file_lines]]
-path = "crates/eqiora-verify/src/lib.rs"
-ceiling = 1220
-reason = "report projection and the execution runner still share one root; manifest discovery and validation no longer do"
-removal = "split report projection from the execution runner"
-
-
 # Public surface, in AST-reachable public items per crate. Counted by walking
 # from `src/lib.rs` through `pub mod`, and into any private module a `pub use`
 # re-exports. A glob over another crate cannot be resolved from one crate's AST
@@ -378,27 +371,30 @@ removal = "split report projection from the execution runner"
 
 [[public_surface]]
 crate = "eqiora"
-ceiling = 274
-reason = "the facade is re-export-only and its width is pinned by api/eqiora-facade-v1.json; one bounded ParameterGeometryRegeneration Plan/Result pair exposes the accepted application owner without a second transaction or geometry contract. The existing bounded exact-cylinder, mixed-boundary elasticity, and fixed-reference FSI Result values remain application compositions shared by Studio and installed Python"
-removal = "fold the regeneration pair into a general accepted parametric-CAD edit result only when it preserves exact transaction, complete-impact, and selection-retention evidence; withdraw any bounded physics Result when no application client consumes its path; otherwise lower the ceiling with the next facade name withdrawn"
+ceiling = 275
+reason = "the facade is re-export-only and its width is pinned by api/eqiora-facade-v1.json; FixedMeshFieldTrajectoryReplay2dV1 is one borrowed, non-serializable acceptance proof over the existing artifact DAG, closes exact Run output inventory, and is the dependency boundary for the next private media consumer without adding a result wire or universal trait. The ParameterGeometryRegeneration pair and bounded physics Results remain application compositions shared by Studio and installed Python"
+removal = "replace bounded fixed-reference trajectory access with this accepted general spatial replay once every scientific lineage and client survives, then withdraw the obsolete bounded Result name; fold the regeneration pair into a general accepted parametric-CAD edit result only when it preserves exact transaction, complete-impact, and selection-retention evidence; otherwise lower the ceiling with the next facade name withdrawn"
 
 [[public_surface]]
 crate = "eqiora-api"
-ceiling = 131
-reason = "ParameterGeometryRegenerationPlan and ParameterGeometryRegenerationResult are the smallest public owner for one exact Parameter value transaction plus its complete resolved Cartesian impact and immutable child; they add no wire, operation, trait, or client geometry state. The existing bounded physics Results and scalar projection remain application values rather than generic solver infrastructure"
-removal = "fold the regeneration pair into a general accepted parametric-CAD edit result only when it preserves exact transaction, complete-impact, and selection-retention evidence; replace the bounded physics Results with one accepted general spatial Result only when their scientific and lineage evidence survives; withdraw the scalar projection when no client consumes it"
+ceiling = 132
+reason = "FixedMeshFieldTrajectoryReplay2dV1 is the smallest borrowed acceptance proof that completely resolves the existing fixed-step V1 artifact DAG and exact Run output for the next private media consumer; it adds no wire, trait, alternate result identity, or scientific meaning. ParameterGeometryRegenerationPlan/Result and the bounded physics Results remain application owners rather than generic solver infrastructure"
+removal = "replace bounded fixed-reference trajectory access with this accepted general spatial replay once every scientific lineage and client survives, then withdraw the obsolete bounded Result name; fold the regeneration pair into a general accepted parametric-CAD edit result only when it preserves exact transaction, complete-impact, and selection-retention evidence; withdraw the scalar projection when no client consumes it"
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 143
+ceiling = 144
 reason = """
 The current Model and ModelTransaction envelopes own the single admitted wire
 epoch; validated content, canonical bytes, and digest derivation remain below
 that boundary. CircularHoleChordalRealizationEnvelopeV1 is one closed public
-owner for durable exact-source replay across process boundaries while common
-CAD/mesh publication remains incomplete.
+wire for durable exact-source replay across process boundaries while common
+CAD/mesh publication remains incomplete. Its accepted type-state owner keeps
+decoded wire separate from admitted source, Geometry, Mesh, correspondence,
+and private deterministic-reference state; without it every consumer would
+thread and independently re-associate that five-value invariant.
 """
-removal = "withdraw the circular-hole binding and lower by one when common CAD/mesh publication replaces it; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
+removal = "withdraw the circular-hole wire and accepted type-state owner, then lower by two when common CAD/Mesh publication replaces both without losing the frozen scientific replay evidence; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
 
 [[public_surface]]
 crate = "eqiora-assembly"
@@ -458,7 +454,7 @@ ceiling = 22
 
 [[public_surface]]
 crate = "eqiora-geometry"
-ceiling = 40
+ceiling = 38
 reason = """
 Raised from 23 as an architecture change, not as drift. The seven added names
 are the authored-region vocabulary: a canonical straight-edged planar region,
@@ -469,14 +465,10 @@ opaque canonical geometry value and its mandatory wire-work budget. Together
 they let a Model eventually own a shape that is not a box without accepting
 caller-supplied digest/fact pairs. One borrowed, kind-erased reference now
 projects only derived digest and dimension facts into semantic admission; it
-cannot be constructed from those facts and exposes no geometry content. One
-additional opaque canonical owner retains an exact circular hole as
+cannot be constructed from those facts and exposes no geometry content. The
+common canonical owner privately retains an exact circular hole as
 rectangle bounds plus centre/radius identity, without putting mesh refinement
-into the artifact or reopening the closed straight-edged v1 wire.
-One source-bound chordal owner now keeps that exact source reference beside
-the requested and accepted approximation evidence, named region, and accepted
-mesh. Solver and Studio are its two downstream consumers; returning a loose
-tuple would let both lose or reconstruct the source-binding invariant.
+into the artifact or reopening either closed wire.
 Four names now form the common provider-neutral authored CAD boundary: one
 opaque graph owner over closed private wire versions, one graph-bound durable
 face handle, one accepted build receipt, and one no-wire face surface
@@ -493,7 +485,7 @@ accepted tetrahedral mesh as one invariant. A loose tuple would let a consumer
 substitute a foreign target or forget the direction and grading that produced
 the mesh; no request schema, artifact variant, or provider registry was added.
 """
-removal = "lower when the common graph owner can absorb the specialized exact-circle and chordal public owners without changing their accepted wires, digests, or source-bound error evidence; lower again if the owned geometry value can replace the separate borrowed semantic reference without exposing content or caller-authored facts; lower if a second volume-meshing consumer proves that the no-wire sweep owner can become a private implementation behind an existing generic accepted Mesh/Realization boundary without losing its source and target binding"
+removal = "lower if the owned geometry value can replace the separate borrowed semantic reference without exposing content or caller-authored facts; lower if a second volume-meshing consumer proves that the no-wire sweep owner can become a private implementation behind an existing generic accepted Mesh/Realization boundary without losing its source and target binding"
 
 [[public_surface]]
 crate = "eqiora-graph"

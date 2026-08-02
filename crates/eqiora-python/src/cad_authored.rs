@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule, PyTuple};
 
 use crate::error::validation_error;
-use crate::geometry::digest_to_hex;
+use crate::geometry::{PyGeometry, digest_to_hex};
 
 /// One immutable native-owned authored-CAD operation graph.
 #[pyclass(
@@ -74,6 +74,43 @@ impl PyCadAuthoredGraph {
         self.graph
             .circular_through_cut(center, radius, boolean_tolerance)
             .map(|graph| Self { graph })
+            .map_err(|diagnostic| native_error(py, diagnostic))
+    }
+
+    /// Derive the exact rectangle-minus-circle section of this through-cut.
+    #[pyo3(signature = (
+        *,
+        classification_tolerance,
+        region,
+        x_lower,
+        x_upper,
+        y_lower,
+        y_upper,
+        hole
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn planar_circular_section(
+        &self,
+        py: Python<'_>,
+        classification_tolerance: f64,
+        region: &str,
+        x_lower: &str,
+        x_upper: &str,
+        y_lower: &str,
+        y_upper: &str,
+        hole: &str,
+    ) -> PyResult<PyGeometry> {
+        self.graph
+            .planar_circular_section(
+                classification_tolerance,
+                region,
+                x_lower,
+                x_upper,
+                y_lower,
+                y_upper,
+                hole,
+            )
+            .map(PyGeometry::from_geometry)
             .map_err(|diagnostic| native_error(py, diagnostic))
     }
 

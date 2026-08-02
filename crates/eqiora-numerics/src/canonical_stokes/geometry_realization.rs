@@ -2,18 +2,16 @@
 
 use std::collections::BTreeMap;
 
-use eqiora_artifact::{
-    GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1, SimplicialMeshEnvelopeV1,
-};
+use eqiora_artifact::AcceptedCircularHoleChordalRealizationV1;
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_geometry::{CanonicalCircularHoleGeometryV1, CircularHoleChordalMeshV1};
 use eqiora_meshing::{MeshEntity, MeshTopology, SimplicialMesh};
 use eqiora_realization::{
     FieldwiseRealizationPlan, FieldwiseRealizationRequirements, MeshArtifactReference,
     ResolvedFieldwiseRealization,
 };
+use eqiora_schema::kernel::{DomainKind, KernelNode};
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearSolverBackend, SolverPlan};
 
@@ -42,17 +40,13 @@ struct GeometryBoundary2d {
 /// Replay-validated exact-circle to affine-mesh binding for steady Stokes.
 ///
 /// This value is deliberately narrower than a geometry framework. It accepts
-/// the one bounded circular-hole owner, its ordinary region and mesh artifacts,
-/// and the authored-region correspondence. Named sets are resolved once
-/// through that correspondence and never recovered from coordinates.
+/// the circular kind of the common exact owner, its ordinary region and mesh
+/// artifacts, and the authored-region correspondence. Named sets are resolved
+/// once through that correspondence and never recovered from coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SteadyStokesGeometryBinding2d {
     model: SteadyIncompressibleStokesModel2d,
-    source: CanonicalCircularHoleGeometryV1,
-    owner: CircularHoleChordalMeshV1,
-    geometry: GeometryDefinitionV1,
-    mesh: SimplicialMeshEnvelopeV1,
-    correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+    accepted: AcceptedCircularHoleChordalRealizationV1,
     entity_sets: BTreeMap<String, Vec<MeshEntity>>,
 }
 
@@ -64,35 +58,23 @@ impl SteadyStokesGeometryBinding2d {
     /// fluid-cell inventory drift before any Stokes assembly can begin.
     pub fn new(
         program: &KernelProgram,
-        source: CanonicalCircularHoleGeometryV1,
-        owner: CircularHoleChordalMeshV1,
-        geometry: GeometryDefinitionV1,
-        mesh: SimplicialMeshEnvelopeV1,
-        correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+        accepted: AcceptedCircularHoleChordalRealizationV1,
     ) -> Result<Self, Diagnostic> {
-        if owner.source().digest_bytes() != source.digest_bytes() {
-            return Err(invalid(
-                "circular-hole chordal owner belongs to another exact source revision",
-            ));
+        accepted.revalidate()?;
+        let source = accepted.source();
+        let geometry = accepted.realized_geometry();
+        let mesh = accepted.mesh();
+        let correspondence = accepted.correspondence();
+        if unique_geometry_source_digest(program)
+            .is_some_and(|digest| digest != source.digest_bytes())
+        {
+            return Err(invalid("Model belongs to another exact source revision"));
         }
-        let expected_geometry = GeometryDefinitionV1::from_region(owner.region());
-        if geometry != expected_geometry {
-            return Err(invalid(
-                "geometry artifact differs from the chordal owner's authored region",
-            ));
-        }
-        let expected_mesh = SimplicialMeshEnvelopeV1::from_mesh(owner.mesh())?;
-        if mesh != expected_mesh {
-            return Err(invalid(
-                "mesh artifact differs from the chordal owner's exact mesh inventory",
-            ));
-        }
-        correspondence.validate_against_region(&geometry, &mesh)?;
         let mut entity_sets = BTreeMap::new();
         for name in REQUIRED_BOUNDARY_SETS.into_iter().chain(["fluid"]) {
             entity_sets.insert(
                 name.to_owned(),
-                correspondence.region_entity_set_entities(&geometry, name)?,
+                correspondence.region_entity_set_entities(geometry, name)?,
             );
         }
         let expected_cells = (0..mesh.mesh().entity_count(DIMENSION).expect("2D mesh cells"))
@@ -103,19 +85,15 @@ impl SteadyStokesGeometryBinding2d {
                 "the exact `fluid` entity set does not realize every mesh cell exactly once",
             ));
         }
-        let model = lower_steady_incompressible_stokes_geometry_2d(program, &source)?;
-        if model.geometry_source_digest() != Some(owner.source().digest_bytes()) {
+        let model = lower_steady_incompressible_stokes_geometry_2d(program, source)?;
+        if model.geometry_source_digest() != Some(source.digest_bytes()) {
             return Err(invalid(
-                "Model GeometryRegion digest differs from the chordal owner's exact source revision",
+                "Model GeometryRegion digest differs from the accepted exact source revision",
             ));
         }
         Ok(Self {
             model,
-            source,
-            owner,
-            geometry,
-            mesh,
-            correspondence,
+            accepted,
             entity_sets,
         })
     }
@@ -147,13 +125,25 @@ impl SteadyStokesGeometryBinding2d {
     }
 
     fn mesh_reference(&self) -> Result<MeshArtifactReference, Diagnostic> {
-        self.mesh.artifact_reference()
+        self.accepted.mesh().artifact_reference()
     }
+}
+
+fn unique_geometry_source_digest(program: &KernelProgram) -> Option<[u8; 32]> {
+    let mut digests = program.nodes().filter_map(|node| match node {
+        KernelNode::Domain(domain) => match domain.kind() {
+            DomainKind::GeometryRegion { geometry, .. } => Some(geometry.bytes()),
+            _ => None,
+        },
+        _ => None,
+    });
+    let digest = digests.next()?;
+    digests.next().is_none().then_some(digest)
 }
 
 /// Solve the exact geometry-backed steady Stokes model through reference paths.
 ///
-/// The Model source digest, chordal owner, artifacts and correspondence are
+/// The Model source digest and accepted artifact resources are
 /// all reaccepted before assembly. The returned named `cylinder` reaction uses
 /// the existing constrained-residual convention: force on the fluid. Retained
 /// inlet and outlet fluxes use the physical parent-outward convention.
@@ -170,20 +160,10 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
 ) -> Result<SteadyStokesMiniSolution2d, Diagnostic> {
     // Replay at the use site so a future decoded binding cannot bypass the
     // source/region/mesh relationship established by `new`.
-    if binding.owner.source().digest_bytes() != binding.source.digest_bytes()
-        || binding.geometry != GeometryDefinitionV1::from_region(binding.owner.region())
-        || binding.mesh != SimplicialMeshEnvelopeV1::from_mesh(binding.owner.mesh())?
-    {
-        return Err(invalid(
-            "steady Stokes geometry binding no longer replays to its exact owner",
-        ));
-    }
-    binding
-        .correspondence
-        .validate_against_region(&binding.geometry, &binding.mesh)?;
-    let model = lower_steady_incompressible_stokes_geometry_2d(program, &binding.source)?;
+    binding.accepted.revalidate()?;
+    let model = lower_steady_incompressible_stokes_geometry_2d(program, binding.accepted.source())?;
     if model != binding.model
-        || model.geometry_source_digest() != Some(binding.owner.source().digest_bytes())
+        || model.geometry_source_digest() != Some(binding.accepted.source().digest_bytes())
     {
         return Err(invalid(
             "Model meaning or GeometryRegion digest differs from the source-bound Stokes binding",
@@ -191,8 +171,11 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
     }
     let mesh_reference = binding.mesh_reference()?;
     let scales = resolved_stokes_scales(program, resolved, mesh_reference, &model)?;
-    let normalized =
-        normalize_geometry_mesh(model.bounds(), binding.mesh.mesh(), scales.length_value())?;
+    let normalized = normalize_geometry_mesh(
+        model.bounds(),
+        binding.accepted.mesh().mesh(),
+        scales.length_value(),
+    )?;
     let geometry_boundary = geometry_boundary(&model, binding, &normalized, scales)?;
     let lookup = normalized
         .vertices()
@@ -217,7 +200,7 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
         resolved,
         mesh_reference,
         &model,
-        binding.mesh.mesh(),
+        binding.accepted.mesh().mesh(),
         &normalized,
         &geometry_boundary.boundary,
         scales,
@@ -230,7 +213,7 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
         .into_iter()
         .map(|name| {
             boundary_flux(
-                binding.mesh.mesh(),
+                binding.accepted.mesh().mesh(),
                 solution.velocity().vertex_values(),
                 binding.entities(name)?,
             )
@@ -332,7 +315,7 @@ fn geometry_boundary(
 ) -> Result<GeometryBoundary2d, Diagnostic> {
     let mut facet_owners = BTreeMap::new();
     let mut fixed_velocity = vec![None; normalized.vertices().len()];
-    let physical = binding.mesh.mesh();
+    let physical = binding.accepted.mesh().mesh();
     for (key, entry) in model.boundary_entries() {
         let StokesBoundaryKey2d::NamedEntitySet(name) = key else {
             return Err(invalid(
@@ -361,7 +344,7 @@ fn geometry_boundary(
         let outward = match entry.disposition {
             PhysicalBoundaryDisposition::TraceZero => None,
             PhysicalBoundaryDisposition::Prescribed(_) => Some(
-                eqiora_geometry::CanonicalGeometryRef::from(&binding.source)
+                eqiora_geometry::CanonicalGeometryRef::from(binding.accepted.source())
                     .constant_parent_outward_normal(name)
                     .ok_or_else(|| {
                         invalid(format!(

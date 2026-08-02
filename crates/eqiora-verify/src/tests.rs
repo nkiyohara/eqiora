@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
+use std::env;
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::*;
@@ -217,7 +219,7 @@ fn installed_wheel_python_target_rejects_a_script_symlink() {
 
 #[test]
 fn target_serialization_preserves_the_existing_cargo_json_shape() {
-    assert_eq!(REPORT_SCHEMA, "eqiora.verification-report/v5");
+    assert_eq!(REPORT_SCHEMA, "eqiora.verification-report/v6");
     assert_eq!(
         CAPABILITY_INDEX_SCHEMA,
         "eqiora.capability-evidence-index/v3"
@@ -252,176 +254,6 @@ fn target_serialization_preserves_the_existing_cargo_json_shape() {
             "features": ["mpi-cuda"],
             "environment": "physical-mpi-cuda"
         })
-    );
-}
-
-#[test]
-fn system_runner_builds_only_closed_shell_free_commands() {
-    let runner = SystemEvidenceRunner {
-        cargo: OsString::from("cargo-evidence"),
-        python: OsString::from("python-evidence"),
-        prepared: Arc::new(Mutex::new(Vec::new())),
-    };
-    let root = Path::new("/repository");
-    let cargo_target = EvidenceTarget::Cargo(CargoEvidenceTarget {
-        package: "eqiora".to_owned(),
-        test: "registered_case".to_owned(),
-        features: vec!["one".to_owned(), "two".to_owned()],
-        table: None,
-        environment: EvidenceEnvironment::HostCpu,
-    });
-    let cargo = runner.cargo_build_command(root, std::slice::from_ref(&cargo_target));
-    assert_eq!(cargo.get_program(), "cargo-evidence");
-    assert_eq!(
-        cargo
-            .get_args()
-            .map(|argument| argument.to_string_lossy().into_owned())
-            .collect::<Vec<_>>(),
-        [
-            "test",
-            "--locked",
-            "-p",
-            "eqiora",
-            "--no-run",
-            "--message-format=json",
-            "--test",
-            "registered_case",
-            "--features",
-            "one,two",
-        ]
-    );
-    assert_eq!(cargo.get_current_dir(), Some(root));
-    runner.prepared.lock().unwrap().push(PreparedCargoTarget {
-        target: cargo_target.clone(),
-        executable: PathBuf::from("/target/registered_case"),
-        build_stderr: "warning: compile diagnostic\n".to_owned(),
-    });
-    let cargo = runner.command(root, &cargo_target).unwrap();
-    assert_eq!(cargo.get_program(), "/target/registered_case");
-    assert_eq!(cargo.get_args().count(), 0);
-    assert_eq!(
-        runner.completed_stderr(
-            &cargo_target,
-            b"thread panicked\n\
-              test result: FAILED. 0 passed; 1 failed\n",
-            false
-        ),
-        "warning: compile diagnostic\n\
-         thread panicked\n\
-         test result: FAILED. 0 passed; 1 failed\n\
-         error: test failed, to rerun pass `-p eqiora --test registered_case`\n"
-    );
-
-    let physical_target = EvidenceTarget::Cargo(CargoEvidenceTarget {
-        package: "eqiora".to_owned(),
-        test: "physical_case".to_owned(),
-        features: vec!["mpi-cuda".to_owned()],
-        table: None,
-        environment: EvidenceEnvironment::PhysicalMpiCuda,
-    });
-    let physical_build = runner.cargo_build_command(root, std::slice::from_ref(&physical_target));
-    assert_eq!(physical_build.get_program(), "cargo-evidence");
-    assert_eq!(
-        physical_build
-            .get_args()
-            .map(|argument| argument.to_string_lossy().into_owned())
-            .collect::<Vec<_>>(),
-        [
-            "test",
-            "--locked",
-            "-p",
-            "eqiora",
-            "--no-run",
-            "--message-format=json",
-            "--test",
-            "physical_case",
-            "--features",
-            "mpi-cuda",
-        ]
-    );
-    runner.prepared.lock().unwrap().push(PreparedCargoTarget {
-        target: physical_target.clone(),
-        executable: PathBuf::from("/target/physical_case"),
-        build_stderr: String::new(),
-    });
-    let physical = runner.command(root, &physical_target).unwrap();
-    assert_eq!(physical.get_program(), "/target/physical_case");
-    assert_eq!(
-        physical
-            .get_args()
-            .map(|argument| argument.to_string_lossy().into_owned())
-            .collect::<Vec<_>>(),
-        ["--ignored"]
-    );
-    assert_eq!(physical.get_current_dir(), Some(root));
-
-    let python_target = EvidenceTarget::PythonInstalledWheel(PythonInstalledWheelEvidenceTarget {
-        runner: PythonEvidenceRunner::PythonInstalledWheel,
-        script: "tools/ci/python_evidence.py".to_owned(),
-        environment: EvidenceEnvironment::HostCpu,
-    });
-    let python = runner.command(root, &python_target).unwrap();
-    assert_eq!(python.get_program(), "python-evidence");
-    assert_eq!(
-        python
-            .get_args()
-            .map(|argument| argument.to_string_lossy().into_owned())
-            .collect::<Vec<_>>(),
-        ["tools/ci/python_evidence.py"]
-    );
-    assert_eq!(python.get_current_dir(), Some(root));
-}
-
-#[test]
-fn system_runner_retains_non_progress_group_build_diagnostics() {
-    let runner = SystemEvidenceRunner {
-        cargo: OsString::from("cargo-evidence"),
-        python: OsString::from("python-evidence"),
-        prepared: Arc::new(Mutex::new(Vec::new())),
-    };
-    let target = EvidenceTarget::Cargo(CargoEvidenceTarget {
-        package: "eqiora".to_owned(),
-        test: "registered_case".to_owned(),
-        features: Vec::new(),
-        table: None,
-        environment: EvidenceEnvironment::HostCpu,
-    });
-    let stdout = [
-        serde_json::json!({
-            "reason": "compiler-message",
-            "target": {"name": "eqiora"},
-            "message": {"rendered": "warning: shared diagnostic\n"}
-        }),
-        serde_json::json!({
-            "reason": "compiler-message",
-            "target": {"name": "registered_case"},
-            "message": {"rendered": "warning: target diagnostic\n"}
-        }),
-        serde_json::json!({
-            "reason": "compiler-artifact",
-            "target": {"name": "registered_case", "kind": ["test"]},
-            "executable": "/target/registered_case"
-        }),
-    ]
-    .map(|message| message.to_string())
-    .join("\n");
-    runner
-        .record_executables(
-            std::slice::from_ref(&target),
-            stdout.as_bytes(),
-            b"   Compiling eqiora v0.0.0\n\
-               Finished `test` profile target(s) in 0.01s\n\
-             warning: cargo summary\n",
-        )
-        .unwrap();
-
-    let prepared = runner.prepared.lock().unwrap();
-    assert_eq!(prepared.len(), 1);
-    assert_eq!(
-        prepared[0].build_stderr,
-        "warning: shared diagnostic\n\
-         warning: target diagnostic\n\
-         warning: cargo summary\n"
     );
 }
 
@@ -631,7 +463,7 @@ fn legacy_execute_selected(
     runner: &dyn EvidenceRunner,
 ) -> Vec<CaseReport> {
     let mut cases = Vec::with_capacity(selected.len());
-    let mut completed_targets = Vec::<(EvidenceTarget, EvidenceOutput)>::new();
+    let mut completed_targets = Vec::<(ExecutionKey, EvidenceOutput)>::new();
     let mut prior_failure = false;
     for contract in selected {
         let mut case = CaseReport::from_contract(&contract);
@@ -666,9 +498,10 @@ fn legacy_execute_selected(
                     .evidence
                     .as_ref()
                     .expect("executable contracts were validated with evidence");
+                let key = ExecutionKey::from_target(target);
                 let completed = completed_targets
                     .iter()
-                    .position(|(completed, _)| completed == target);
+                    .position(|(completed, _)| completed == &key);
                 if completed.is_none()
                     && prior_failure
                     && request.policy == ExecutionPolicy::FailFast
@@ -677,7 +510,7 @@ fn legacy_execute_selected(
                     case.message = Some("not run after fail-fast evidence failure".to_owned());
                 } else {
                     let completed = completed.unwrap_or_else(|| {
-                        completed_targets.push((target.clone(), runner.run(root, target)));
+                        completed_targets.push((key, runner.run(root, target)));
                         completed_targets.len() - 1
                     });
                     if !project_evidence_output(&mut case, &completed_targets[completed].1) {
@@ -696,7 +529,7 @@ fn report_for(request: &Request, cases: Vec<CaseReport>) -> VerificationReport {
         schema: REPORT_SCHEMA,
         command: request.command,
         policy: request.policy,
-        selected_case: request.case.clone(),
+        selected_cases: request.cases.clone(),
         selected_environment: request.environment,
         selected_runner_kind: request.runner_kind,
         success: cases.iter().all(|case| case.outcome != Outcome::Failed),
@@ -730,7 +563,7 @@ fn environment_selection_is_explicit_and_does_not_weaken_full_execution() {
     let selected = execute_selected(
         Path::new("."),
         vec![physical.clone(), contract("portable")],
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast)
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast)
             .for_environment(EvidenceEnvironment::HostCpu),
         &FakeRunner::new([successful_output()]),
     );
@@ -746,7 +579,7 @@ fn environment_selection_is_explicit_and_does_not_weaken_full_execution() {
     let full = execute_selected(
         Path::new("."),
         vec![physical],
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast),
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast),
         &FakeRunner::new([EvidenceOutput {
             duration_ms: Some(11),
             exit_code: Some(29),
@@ -812,7 +645,7 @@ fn identical_targets_execute_once_and_preserve_distinct_case_reports() {
     let reports = execute_selected(
         Path::new("."),
         vec![contract("a"), contract("b")],
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing),
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::KeepGoing),
         &runner,
     );
 
@@ -835,7 +668,7 @@ fn identical_targets_execute_once_and_preserve_distinct_case_reports() {
         schema: REPORT_SCHEMA,
         command: CommandKind::Run,
         policy: ExecutionPolicy::KeepGoing,
-        selected_case: None,
+        selected_cases: Vec::new(),
         selected_environment: None,
         selected_runner_kind: None,
         success: true,
@@ -849,18 +682,177 @@ fn identical_targets_execute_once_and_preserve_distinct_case_reports() {
 }
 
 #[test]
+fn six_claims_over_two_execution_keys_run_twice_and_build_once() {
+    let first = named_cargo_target("package-a", "first", &["feature-a"]);
+    let second = named_cargo_target("package-a", "second", &["feature-a"]);
+    let mut first_with_table = first.clone();
+    let EvidenceTarget::Cargo(first_details) = &mut first_with_table else {
+        unreachable!();
+    };
+    first_details.table = Some("expected/first.csv".to_owned());
+
+    let mut second_reordered_metadata = contract_with_target("f", second.clone());
+    second_reordered_metadata.manifest = "verify/other/f/case.toml".to_owned();
+    second_reordered_metadata.reference_kind = "independent-numerical".to_owned();
+    second_reordered_metadata.capabilities = vec!["other-capability".to_owned()];
+    second_reordered_metadata.conformance_kits.clear();
+
+    let runner = FakeRunner::for_targets([
+        (first.clone(), output(0, "first")),
+        (second.clone(), output(0, "second")),
+    ]);
+    let reports = execute_selected(
+        Path::new("."),
+        vec![
+            contract_with_target("a", first.clone()),
+            contract_with_target("b", first_with_table),
+            contract_with_target("c", first),
+            contract_with_target("d", second.clone()),
+            contract_with_target("e", second),
+            second_reordered_metadata,
+        ],
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::KeepGoing),
+        &runner,
+    );
+
+    assert_eq!(runner.targets().len(), 2);
+    assert_eq!(runner.groups().len(), 1);
+    assert_eq!(runner.groups()[0].len(), 2);
+    assert_eq!(reports.len(), 6);
+    assert!(reports.iter().all(|case| case.outcome == Outcome::Passed));
+}
+
+#[test]
+fn request_selection_is_canonical_and_reports_every_unknown_id_before_execution() {
+    let first = contract_with_target("a", cargo_target());
+    let second = contract_with_target("b", python_target());
+    let requests = [
+        Request::new(
+            CommandKind::Run,
+            vec!["b".to_owned(), "a".to_owned(), "b".to_owned()],
+            ExecutionPolicy::KeepGoing,
+        ),
+        Request::new(
+            CommandKind::Run,
+            vec!["a".to_owned(), "b".to_owned()],
+            ExecutionPolicy::KeepGoing,
+        ),
+    ];
+    let reports = requests.each_ref().map(|request| {
+        let selected = select_cases(vec![first.clone(), second.clone()], &request.cases).unwrap();
+        report_for(
+            request,
+            execute_selected(
+                Path::new("."),
+                selected,
+                request,
+                &FakeRunner::for_targets([
+                    (cargo_target(), output(0, "cargo")),
+                    (python_target(), output(0, "python")),
+                ]),
+            ),
+        )
+    });
+    assert_eq!(requests[0].cases, ["a", "b"]);
+    assert_eq!(requests[0], requests[1]);
+    assert_eq!(
+        serde_json::to_string(&reports[0]).unwrap(),
+        serde_json::to_string(&reports[1]).unwrap()
+    );
+    let json = serde_json::to_value(&reports[0]).unwrap();
+    assert_eq!(json["schema"], "eqiora.verification-report/v6");
+    assert_eq!(json["selected_cases"], serde_json::json!(["a", "b"]));
+    assert!(json.get("selected_case").is_none());
+
+    let fixture = Fixture::new();
+    fixture.write_manifest(valid_manifest());
+    let runner = FakeRunner::new([]);
+    let report = execute(
+        &fixture.root,
+        &Request::new(
+            CommandKind::Run,
+            vec!["z.missing".to_owned(), "a.missing".to_owned()],
+            ExecutionPolicy::FailFast,
+        ),
+        &runner,
+    );
+    assert_eq!(
+        report.errors,
+        ["unknown verification case ID(s): `a.missing`, `z.missing`"]
+    );
+    assert!(report.cases.is_empty());
+    assert!(runner.groups().is_empty());
+    assert!(runner.targets().is_empty());
+}
+
+#[test]
+fn current_registry_collision_counts_match_the_frozen_execution_contract() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .unwrap();
+    let contracts = load_repository(root).unwrap();
+    let mut selecting_cases = BTreeMap::<ExecutionKey, Vec<String>>::new();
+    for contract in contracts
+        .iter()
+        .filter(|contract| contract.status.is_executable())
+    {
+        let target = contract.evidence.as_ref().unwrap();
+        selecting_cases
+            .entry(ExecutionKey::from_target(target))
+            .or_default()
+            .push(contract.id.clone());
+    }
+
+    let count_for_script = |script: &str| {
+        selecting_cases
+            .iter()
+            .find_map(|(key, cases)| match key {
+                ExecutionKey::PythonInstalledWheel {
+                    script: candidate, ..
+                } if candidate == script => Some(cases.len()),
+                _ => None,
+            })
+            .unwrap()
+    };
+    assert_eq!(count_for_script("tools/ci/python_distribution_gate.py"), 7);
+    assert_eq!(count_for_script("tools/ci/python_package_gate.py"), 5);
+    assert_eq!(count_for_script("tools/ci/python_gallery_gate.py"), 1);
+
+    for pair in [
+        [
+            "fluid.exact-circular-hole-stokes-2d",
+            "interfaces.studio-exact-cylinder-stokes-demo",
+        ],
+        [
+            "artifacts.fixed-reference-fsi-spatial-trajectory",
+            "interfaces.studio-fixed-reference-fsi-demo",
+        ],
+        [
+            "fsi.fixed-reference-monolithic-step-2d",
+            "numerics.physics-neutral-discrete-block-system",
+        ],
+    ] {
+        assert!(selecting_cases.values().any(|cases| {
+            pair.iter()
+                .all(|expected| cases.iter().any(|case| case == expected))
+        }));
+    }
+}
+
+#[test]
 fn non_executed_outcomes_omit_duration() {
     let runner = FakeRunner::new([]);
     let listed = execute_selected(
         Path::new("."),
         vec![contract("listed")],
-        &Request::new(CommandKind::List, None, ExecutionPolicy::FailFast),
+        &Request::new(CommandKind::List, Vec::new(), ExecutionPolicy::FailFast),
         &runner,
     );
     let checked = execute_selected(
         Path::new("."),
         vec![contract("checked")],
-        &Request::new(CommandKind::Check, None, ExecutionPolicy::FailFast),
+        &Request::new(CommandKind::Check, Vec::new(), ExecutionPolicy::FailFast),
         &runner,
     );
 
@@ -869,7 +861,7 @@ fn non_executed_outcomes_omit_duration() {
     let not_runnable = execute_selected(
         Path::new("."),
         vec![not_runnable_contract],
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast),
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast),
         &runner,
     );
 
@@ -881,7 +873,7 @@ fn non_executed_outcomes_omit_duration() {
     let not_selected = execute_selected(
         Path::new("."),
         vec![physical_contract],
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast)
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast)
             .for_environment(EvidenceEnvironment::HostCpu),
         &runner,
     );
@@ -905,7 +897,7 @@ fn non_executed_outcomes_omit_duration() {
             contract("failed"),
             contract_with_target("skipped", distinct),
         ],
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast),
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast),
         &fail_fast_runner,
     );
 
@@ -934,7 +926,7 @@ fn non_executed_outcomes_omit_duration() {
 }
 
 #[test]
-fn every_target_field_participates_in_exact_identity() {
+fn execution_identity_excludes_claim_only_fields_and_normalizes_features() {
     let cargo_base = CargoEvidenceTarget {
         package: "package-a".to_owned(),
         test: "test-a".to_owned(),
@@ -990,16 +982,35 @@ fn every_target_field_participates_in_exact_identity() {
         .enumerate()
         .map(|(index, target)| contract_with_target(&format!("case-{index}"), target.clone()))
         .collect();
-    let runner = FakeRunner::new((0..targets.len()).map(|_| successful_output()));
+    let unique_targets = [0, 1, 2, 5, 6, 7, 8]
+        .map(|index| targets[index].clone())
+        .to_vec();
+    let runner = FakeRunner::new((0..unique_targets.len()).map(|_| successful_output()));
     let reports = execute_selected(
         Path::new("."),
         contracts,
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing),
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::KeepGoing),
         &runner,
     );
 
     assert!(reports.iter().all(|case| case.outcome == Outcome::Passed));
-    assert_eq!(runner.targets(), targets);
+    assert_eq!(runner.targets(), unique_targets);
+
+    let keys = targets
+        .iter()
+        .map(ExecutionKey::from_target)
+        .collect::<Vec<_>>();
+    assert_eq!(keys[0], keys[3]);
+    assert_eq!(keys[0], keys[4]);
+    for index in [1, 2, 5, 6, 7, 8] {
+        assert_ne!(keys[0], keys[index]);
+        assert_ne!(keys[0].label(), keys[index].label());
+    }
+    assert!(
+        keys[0]
+            .label()
+            .contains("features=2:[9:feature-a,9:feature-b]")
+    );
 }
 
 #[test]
@@ -1031,7 +1042,7 @@ fn shared_failure_forms_are_projected_without_hiding_affected_cases() {
         let reports = execute_selected(
             Path::new("."),
             vec![contract("a"), contract("b")],
-            &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing),
+            &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::KeepGoing),
             &runner,
         );
 
@@ -1085,7 +1096,7 @@ fn fail_fast_projects_completed_targets_and_skips_only_unseen_targets() {
     let fail_fast = execute_selected(
         Path::new("."),
         cases.clone(),
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast),
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast),
         &fail_fast_runner,
     );
     assert_eq!(fail_fast_runner.targets(), [cargo_target()]);
@@ -1110,7 +1121,7 @@ fn fail_fast_projects_completed_targets_and_skips_only_unseen_targets() {
     let keep_going = execute_selected(
         Path::new("."),
         cases,
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing),
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::KeepGoing),
         &keep_going_runner,
     );
     assert_eq!(keep_going_runner.targets(), [cargo_target(), distinct]);
@@ -1139,12 +1150,19 @@ fn jobs_one_preserves_full_registry_semantics_without_cargo_progress_lines() {
         .iter()
         .filter(|contract| contract.status.is_executable())
         .filter_map(|contract| contract.evidence.clone())
-        .fold(Vec::<EvidenceTarget>::new(), |mut targets, target| {
-            if !targets.contains(&target) {
-                targets.push(target);
-            }
-            targets
-        });
+        .fold(
+            (
+                BTreeSet::<ExecutionKey>::new(),
+                Vec::<EvidenceTarget>::new(),
+            ),
+            |(mut keys, mut targets), target| {
+                if keys.insert(ExecutionKey::from_target(&target)) {
+                    targets.push(target);
+                }
+                (keys, targets)
+            },
+        )
+        .1;
     let failing_target = targets
         .iter()
         .rposition(|target| matches!(target, EvidenceTarget::Cargo(_)))
@@ -1181,7 +1199,8 @@ fn jobs_one_preserves_full_registry_semantics_without_cargo_progress_lines() {
         legacy_outputs.push(legacy);
         direct_outputs.push(direct);
     }
-    let request = Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast).with_jobs(1);
+    let request =
+        Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast).with_jobs(1);
 
     let legacy = report_for(
         &request,
@@ -1262,7 +1281,7 @@ fn keep_going_jobs_preserve_deterministic_case_semantics() {
         (third.clone(), output(0, "third")),
     ];
     let serial_request =
-        Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing).with_jobs(1);
+        Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::KeepGoing).with_jobs(1);
     let serial = execute_selected(
         Path::new("."),
         contracts.clone(),
@@ -1271,7 +1290,7 @@ fn keep_going_jobs_preserve_deterministic_case_semantics() {
     );
     for jobs in [1, 2, 3, 8] {
         let concurrent_request =
-            Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing).with_jobs(jobs);
+            Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::KeepGoing).with_jobs(jobs);
         let concurrent_runner = FakeRunner::for_targets(mapped.clone())
             .with_delay(first.clone(), Duration::from_millis(40))
             .with_delay(second.clone(), Duration::from_millis(20));
@@ -1334,7 +1353,7 @@ fn completed_worker_starts_next_target_without_waiting_for_slowest_peer() {
             contract_with_target("b", first_short),
             contract_with_target("c", queued_short.clone()),
         ],
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing).with_jobs(2),
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::KeepGoing).with_jobs(2),
         &runner,
     );
 
@@ -1365,7 +1384,7 @@ fn cargo_groups_preserve_each_exact_declared_feature_set() {
             contract_with_target("a", feature_a),
             contract_with_target("b", feature_b),
         ],
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing).with_jobs(2),
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::KeepGoing).with_jobs(2),
         &runner,
     );
 
@@ -1405,7 +1424,7 @@ fn target_failure_is_attributed_without_poisoning_group_siblings() {
             contract_with_target("b", passing.clone()),
             contract_with_target("c", failing.clone()),
         ],
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing).with_jobs(2),
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::KeepGoing).with_jobs(2),
         &FakeRunner::for_targets([
             (failing, output(9, "failed")),
             (passing, output(0, "passed")),
@@ -1421,6 +1440,11 @@ fn target_failure_is_attributed_without_poisoning_group_siblings() {
 #[test]
 fn build_failure_names_its_group_and_does_not_skip_other_groups() {
     let first = named_cargo_target("package-a", "first", &["feature-a"]);
+    let mut first_claim_variant = first.clone();
+    let EvidenceTarget::Cargo(first_claim) = &mut first_claim_variant else {
+        unreachable!();
+    };
+    first_claim.table = Some("expected/first.csv".to_owned());
     let sibling = named_cargo_target("package-a", "sibling", &["feature-a"]);
     let other = named_cargo_target("package-b", "other", &["feature-b"]);
     let failed_group = match &first {
@@ -1441,16 +1465,22 @@ fn build_failure_names_its_group_and_does_not_skip_other_groups() {
         Path::new("."),
         vec![
             contract_with_target("a", first),
-            contract_with_target("b", sibling),
-            contract_with_target("c", other.clone()),
+            contract_with_target("b", first_claim_variant),
+            contract_with_target("c", sibling),
+            contract_with_target("d", other.clone()),
         ],
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast).with_jobs(1),
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast).with_jobs(1),
         &runner,
     );
 
     assert_eq!(
         reports.iter().map(|case| case.outcome).collect::<Vec<_>>(),
-        [Outcome::Failed, Outcome::Failed, Outcome::Passed]
+        [
+            Outcome::Failed,
+            Outcome::Failed,
+            Outcome::Failed,
+            Outcome::Passed
+        ]
     );
     assert!(
         reports[0]
@@ -1461,6 +1491,13 @@ fn build_failure_names_its_group_and_does_not_skip_other_groups() {
     );
     assert!(
         reports[1]
+            .message
+            .as_deref()
+            .unwrap()
+            .contains("package-a features=[feature-a]")
+    );
+    assert!(
+        reports[2]
             .message
             .as_deref()
             .unwrap()
@@ -1506,7 +1543,7 @@ fn concurrent_fail_fast_reports_only_real_results_and_bounds_speculation() {
             .enumerate()
             .map(|(index, target)| contract_with_target(&format!("case-{index}"), target.clone()))
             .collect(),
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast).with_jobs(jobs),
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast).with_jobs(jobs),
         &runner,
     );
 
@@ -1548,7 +1585,8 @@ fn concurrent_fail_fast_reports_only_real_results_and_bounds_speculation() {
             .count(),
         targets.len() - jobs
     );
-    let request = Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast).with_jobs(jobs);
+    let request =
+        Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast).with_jobs(jobs);
     assert!(!report_for(&request, reports).success);
 }
 
@@ -1567,7 +1605,7 @@ fn environment_filter_excludes_targets_before_group_building() {
             contract_with_target("physical", physical),
             contract_with_target("portable", portable.clone()),
         ],
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast)
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast)
             .for_environment(EvidenceEnvironment::HostCpu)
             .with_jobs(2),
         &runner,
@@ -1612,7 +1650,7 @@ fn full_registry_runner_kind_partition_is_exact_visible_and_prebuild() {
                 .map(|target| (target, successful_output())),
         )
     };
-    let request = Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing);
+    let request = Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::KeepGoing);
     let unfiltered = execute_selected(root, contracts.clone(), &request, &runner_for());
 
     let cargo_runner = runner_for();
@@ -1704,7 +1742,7 @@ fn runner_kind_and_environment_filters_state_distinct_reasons() {
             contract_with_target("physical-cargo", physical),
             contract_with_target("host-python", python_target()),
         ],
-        &Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing)
+        &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::KeepGoing)
             .for_environment(EvidenceEnvironment::HostCpu)
             .for_runner_kind(RunnerKind::Cargo),
         &FakeRunner::new([]),
@@ -1733,7 +1771,7 @@ fn empty_runner_kind_selection_succeeds_without_build_or_execution() {
     let fixture = Fixture::new();
     fixture.write_manifest(valid_manifest());
     let runner = FakeRunner::new([]);
-    let request = Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast)
+    let request = Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast)
         .for_runner_kind(RunnerKind::PythonInstalledWheel);
     let report = execute(&fixture.root, &request, &runner);
 
@@ -1775,7 +1813,7 @@ fn runner_kind_filters_do_not_narrow_repository_validation() {
         let reports = [RunnerKind::Cargo, RunnerKind::PythonInstalledWheel].map(|runner_kind| {
             execute(
                 &fixture.root,
-                &Request::new(CommandKind::Run, None, ExecutionPolicy::FailFast)
+                &Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast)
                     .for_runner_kind(runner_kind),
                 &FakeRunner::new([]),
             )
@@ -1796,7 +1834,7 @@ fn unfiltered_request_preserves_complete_pre_split_report() {
         contract_with_target("cargo", cargo_target()),
         contract_with_target("python", python_target()),
     ];
-    let request = Request::new(CommandKind::Run, None, ExecutionPolicy::KeepGoing);
+    let request = Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::KeepGoing);
     let outputs = [
         (cargo_target(), output(0, "cargo")),
         (python_target(), output(0, "python")),

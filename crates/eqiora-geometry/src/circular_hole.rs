@@ -5,6 +5,8 @@
 //! this value or its identity. A later Realization may therefore replace
 //! affine chords with curved elements without changing the Model's geometry.
 
+use std::collections::BTreeMap;
+
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use serde::{Deserialize, Serialize};
@@ -35,7 +37,7 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 /// geometry only; a chordal or curved numerical representation is a separate
 /// source-bound Realization.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CanonicalCircularHoleGeometryV1 {
+pub(crate) struct CircularHoleGeometry {
     bounds: [[f64; 2]; 2],
     circle_center: [f64; 2],
     circle_radius_m: f64,
@@ -45,7 +47,53 @@ pub struct CanonicalCircularHoleGeometryV1 {
     digest: [u8; 32],
 }
 
-impl CanonicalCircularHoleGeometryV1 {
+impl CircularHoleGeometry {
+    /// Construct one exact rectangle-minus-circle geometry from semantic roles.
+    ///
+    /// Equal boundary names group their fixed roles into one entity set. This
+    /// keeps role-to-entity wiring in the exact Geometry owner rather than in a
+    /// language adapter or application demo.
+    ///
+    /// # Errors
+    /// Returns the same diagnostics as [`Self::new`] after grouping the five
+    /// boundary roles and the one full-dimensional region role.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn from_named_roles(
+        bounds: [[f64; 2]; 2],
+        circle_center: [f64; 2],
+        circle_radius_m: f64,
+        tolerance_m: f64,
+        region: &str,
+        x_lower: &str,
+        x_upper: &str,
+        y_lower: &str,
+        y_upper: &str,
+        hole: &str,
+    ) -> Result<Self, Diagnostic> {
+        let mut boundaries = BTreeMap::<String, Vec<usize>>::new();
+        for (name, entity) in [
+            (x_lower, 0),
+            (x_upper, 1),
+            (y_lower, 2),
+            (y_upper, 3),
+            (hole, 4),
+        ] {
+            boundaries.entry(name.to_owned()).or_default().push(entity);
+        }
+        let mut entity_sets = boundaries
+            .into_iter()
+            .map(|(name, members)| NamedEntitySet::new(name, crate::EDGE_DIMENSION, members))
+            .collect::<Vec<_>>();
+        entity_sets.push(NamedEntitySet::new(region, crate::FACE_DIMENSION, vec![0]));
+        Self::new(
+            bounds,
+            circle_center,
+            circle_radius_m,
+            entity_sets,
+            tolerance_m,
+        )
+    }
+
     /// Validate and canonicalize one exact circular-hole geometry.
     ///
     /// `bounds[axis]` is `[lower, upper]` in metres. The closed circle must
@@ -56,7 +104,7 @@ impl CanonicalCircularHoleGeometryV1 {
     /// Returns `EQ0901` for non-finite or degenerate geometric data, an
     /// insufficient circle-to-side clearance, an invalid entity set, or an
     /// unexpected canonical serialization failure.
-    pub fn new(
+    pub(crate) fn new(
         mut bounds: [[f64; 2]; 2],
         mut circle_center: [f64; 2],
         circle_radius_m: f64,
@@ -99,7 +147,7 @@ impl CanonicalCircularHoleGeometryV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed or unknown wire data, resource excess,
     /// invalid geometry or entity sets, or a noncanonical encoding.
-    pub fn decode_canonical(
+    pub(crate) fn decode_canonical(
         bytes: &[u8],
         limits: CanonicalGeometryLimits,
     ) -> Result<Self, Diagnostic> {
@@ -134,51 +182,43 @@ impl CanonicalCircularHoleGeometryV1 {
 
     /// Exact `[lower, upper]` bounds for Cartesian axes x then y, in metres.
     #[must_use]
-    pub const fn bounds(&self) -> &[[f64; 2]; 2] {
+    pub(crate) const fn bounds(&self) -> &[[f64; 2]; 2] {
         &self.bounds
     }
 
     /// Exact circle centre `[x, y]` in metres.
     #[must_use]
-    pub const fn circle_center(&self) -> [f64; 2] {
+    pub(crate) const fn circle_center(&self) -> [f64; 2] {
         self.circle_center
     }
 
     /// Exact circle radius in metres.
     #[must_use]
-    pub const fn circle_radius_m(&self) -> f64 {
+    pub(crate) const fn circle_radius_m(&self) -> f64 {
         self.circle_radius_m
     }
 
     /// Producer classification precision in metres.
     #[must_use]
-    pub const fn tolerance_m(&self) -> f64 {
+    pub(crate) const fn tolerance_m(&self) -> f64 {
         self.tolerance_m
     }
 
     /// Canonically ordered named exact entity sets.
     #[must_use]
-    pub fn entity_sets(&self) -> &[NamedEntitySet] {
+    pub(crate) fn entity_sets(&self) -> &[NamedEntitySet] {
         &self.entity_sets
-    }
-
-    /// One exact named entity set.
-    #[must_use]
-    pub fn entity_set(&self, name: &str) -> Option<&NamedEntitySet> {
-        self.entity_sets
-            .iter()
-            .find(|candidate| candidate.name() == name)
     }
 
     /// Exact compact canonical JSON bytes.
     #[must_use]
-    pub fn canonical_bytes(&self) -> &[u8] {
+    pub(crate) fn canonical_bytes(&self) -> &[u8] {
         &self.bytes
     }
 
     /// Complete domain-separated SHA-256 identity bytes.
     #[must_use]
-    pub const fn digest_bytes(&self) -> [u8; 32] {
+    pub(crate) const fn digest_bytes(&self) -> [u8; 32] {
         self.digest
     }
 }
@@ -353,8 +393,8 @@ mod tests {
         0x46, 0xd9,
     ];
 
-    fn witness_with(bounds: [[f64; 2]; 2], center: [f64; 2]) -> CanonicalCircularHoleGeometryV1 {
-        CanonicalCircularHoleGeometryV1::new(
+    fn witness_with(bounds: [[f64; 2]; 2], center: [f64; 2]) -> CircularHoleGeometry {
+        CircularHoleGeometry::new(
             bounds,
             center,
             0.05,
@@ -370,7 +410,7 @@ mod tests {
         .expect("valid DFG-shaped geometry")
     }
 
-    fn witness() -> CanonicalCircularHoleGeometryV1 {
+    fn witness() -> CircularHoleGeometry {
         witness_with([[0.0, 2.2], [0.0, 0.41]], [0.2, 0.2])
     }
 
@@ -396,7 +436,12 @@ mod tests {
                 ("fluid", 2, [0].as_slice()),
             ]
         );
-        let reference = CanonicalGeometryRef::from(&geometry);
+        let common = crate::CanonicalGeometryV1::decode_circular_hole_canonical(
+            geometry.canonical_bytes(),
+            CanonicalGeometryLimits::default(),
+        )
+        .expect("accepted circular wire replays through the common owner");
+        let reference = CanonicalGeometryRef::from(&common);
         assert_eq!(reference.digest_bytes(), EXPECTED_DIGEST);
         assert_eq!(reference.ambient_dimension(), 2);
         assert_eq!(reference.topological_dimension(), 2);
@@ -407,7 +452,7 @@ mod tests {
     #[test]
     fn canonical_decode_replays_and_rejects_other_spellings() {
         let geometry = witness();
-        let decoded = CanonicalCircularHoleGeometryV1::decode_canonical(
+        let decoded = CircularHoleGeometry::decode_canonical(
             geometry.canonical_bytes(),
             CanonicalGeometryLimits::default(),
         )
@@ -417,7 +462,7 @@ mod tests {
         let expanded_radius = String::from_utf8(geometry.canonical_bytes().to_vec())
             .expect("UTF-8")
             .replace("\"radius_m\":0.05", "\"radius_m\":0.050");
-        let error = CanonicalCircularHoleGeometryV1::decode_canonical(
+        let error = CircularHoleGeometry::decode_canonical(
             expanded_radius.as_bytes(),
             CanonicalGeometryLimits::default(),
         )
@@ -428,7 +473,7 @@ mod tests {
             .expect("UTF-8")
             .replace("\"entity_sets\":", "\"unknown\":0,\"entity_sets\":");
         assert!(
-            CanonicalCircularHoleGeometryV1::decode_canonical(
+            CircularHoleGeometry::decode_canonical(
                 unknown.as_bytes(),
                 CanonicalGeometryLimits::default(),
             )
@@ -463,17 +508,14 @@ mod tests {
             ),
             ([[-f64::MAX, f64::MAX], [0.0, 1.0]], [0.0, 0.5], 0.1, 1e-12),
         ] {
-            assert!(
-                CanonicalCircularHoleGeometryV1::new(bounds, center, radius, sets(), tolerance,)
-                    .is_err()
-            );
+            assert!(CircularHoleGeometry::new(bounds, center, radius, sets(), tolerance,).is_err());
         }
     }
 
     #[test]
     fn entity_sets_and_decoder_budgets_fail_closed() {
         assert!(
-            CanonicalCircularHoleGeometryV1::new(
+            CircularHoleGeometry::new(
                 [[0.0, 1.0], [0.0, 1.0]],
                 [0.5, 0.5],
                 0.1,
@@ -488,16 +530,14 @@ mod tests {
             ..CanonicalGeometryLimits::default()
         };
         assert!(
-            CanonicalCircularHoleGeometryV1::decode_canonical(geometry.canonical_bytes(), limits,)
-                .is_err()
+            CircularHoleGeometry::decode_canonical(geometry.canonical_bytes(), limits,).is_err()
         );
         let limits = CanonicalGeometryLimits {
             max_entity_sets: 4,
             ..CanonicalGeometryLimits::default()
         };
         assert!(
-            CanonicalCircularHoleGeometryV1::decode_canonical(geometry.canonical_bytes(), limits,)
-                .is_err()
+            CircularHoleGeometry::decode_canonical(geometry.canonical_bytes(), limits,).is_err()
         );
         for limits in [
             CanonicalGeometryLimits {
@@ -514,11 +554,8 @@ mod tests {
             },
         ] {
             assert!(
-                CanonicalCircularHoleGeometryV1::decode_canonical(
-                    geometry.canonical_bytes(),
-                    limits,
-                )
-                .is_err()
+                CircularHoleGeometry::decode_canonical(geometry.canonical_bytes(), limits,)
+                    .is_err()
             );
         }
         let limits = CanonicalGeometryLimits {
@@ -526,8 +563,7 @@ mod tests {
             ..CanonicalGeometryLimits::default()
         };
         assert!(
-            CanonicalCircularHoleGeometryV1::decode_canonical(geometry.canonical_bytes(), limits,)
-                .is_err()
+            CircularHoleGeometry::decode_canonical(geometry.canonical_bytes(), limits,).is_err()
         );
     }
 }

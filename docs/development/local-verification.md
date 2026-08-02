@@ -77,6 +77,12 @@ An evidence package is an executor, not semantic ownership. Therefore callers
 must pass every semantically affected case with `--case`; only direct changes
 inside that case's `verify/` directory select it automatically.
 
+Fast and affected collect those exact case IDs into one canonical, sorted
+`eqiora-verify run` invocation. The runner still reports every semantic case
+separately while executing each shared private execution key once. This batches
+only work selected by one local-verification plan; it does not reuse a result
+from another invocation or source revision.
+
 Fast and affected Clippy use default features. Optional MPI, CUDA, Diffsol, or
 other backend features run through their explicitly selected evidence command
 or a matching environment-specific check. Only the manual `periodic` gate asks

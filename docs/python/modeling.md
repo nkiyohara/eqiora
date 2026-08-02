@@ -26,19 +26,27 @@ A relation receives an explicit zero-valued residual. Symbolic equality and
 Python truth testing are not modeling syntax. Declarations and expressions
 are frozen; validation and artifact creation happen atomically in Rust.
 
-## Exact geometry authoring
+## Authored CAD to exact geometry
 
-The first geometry constructor is intentionally one closed analytic family,
-not a Python Boolean algebra:
+The first accepted path projects one closed authored-CAD history into its exact
+transverse Geometry. Python does not implement the operations:
 
 ```python
 import eqiora
 
-geometry = eqiora.geometry.RectangleWithCircularHole(
-    bounds=((0.0, 2.2), (0.0, 0.41)),
-    circle_center=(0.2, 0.2),
-    circle_radius=0.05,
-    tolerance=1e-12,
+graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+    x_bounds=(0.0, 2.2),
+    y_bounds=(0.0, 0.41),
+    plane_z=0.0,
+    depth=1.0,
+    modeling_tolerance=1e-10,
+).circular_through_cut(
+    center=(0.2, 0.2),
+    radius=0.05,
+    boolean_tolerance=1e-10,
+)
+geometry = graph.planar_circular_section(
+    classification_tolerance=1e-12,
     region="fluid",
     x_lower="inlet",
     x_upper="outlet",
@@ -52,11 +60,14 @@ assert geometry.selection_dimension("cylinder") == 1
 print(geometry.digest)
 ```
 
-Rust owns validation, canonical ordering, bytes, and identity. The circle
-remains centre-and-radius geometry; chord count, mesh size, and approximation
-tolerance cannot enter this constructor. Generic primitives and Boolean
-operations, multiple holes, selection handles, Model binding, solve, Result,
-and visualization remain separate slices.
+Rust owns validation, canonical ordering, bytes, and both distinct identities.
+The 3D graph retains its explicit depth and CAD tolerances; none enter the
+derived 2D Geometry, whose classification tolerance is supplied separately.
+The circle remains centre-and-radius geometry, so chord count, mesh size, and
+approximation tolerance cannot enter it. General operations or sections,
+multiple holes, Model binding, solve, Result, and visualization remain separate
+slices. Installed Python exposes the common `Geometry` projection only through
+the accepted authored graph; it does not publish a demo-shaped constructor.
 
 ## Bounded chordal reference mesh
 
@@ -64,28 +75,29 @@ The matching meshing operation is an explicit Realization choice rather than a
 method on exact geometry:
 
 ```python
-mesh = eqiora.meshing.circular_hole_chordal(
-    geometry,
-    max_boundary_error=1e-4,
-    required_minimum_mean_ratio=1e-5,
-    max_segments=50,
+request = eqiora.meshing.MeshRequest(
+    maximum_boundary_error=1e-4,
+    minimum_mean_ratio=1e-5,
+    maximum_boundary_facets=50,
 )
+plan = eqiora.meshing.resolve(geometry, request)
+mesh = eqiora.meshing.generate(geometry, plan=plan)
 
 assert mesh.source_digest == geometry.digest
-assert mesh.circle_segments == 50
+assert plan.boundary_facets == 50
 assert mesh.selection_entity_count("cylinder") == 50
-print(mesh.mesh_digest)
+print(mesh.digest)
 ```
 
 Rust retains the exact source, chooses and measures the chordal approximation,
 accepts the affine-triangle mesh, and derives realized named selections through
-the geometry-to-mesh correspondence. `mesh_canonical_json` and `mesh_digest`
-identify only the accepted inner simplicial mesh. The returned object is a
-same-process owner, not a durable source-to-mesh artifact.
+the geometry-to-mesh correspondence. `canonical_bytes` and `digest` identify
+only the accepted inner simplicial mesh. The returned object retains the
+source, correspondence, and realization identities in the live process.
 
 This bounded operation supports the one rectangle-with-circular-hole family
-and fixed-phase reference topology. It is not a generic `Mesh` or
-`MeshRequest`, production mesher, curved-element path, external import,
+and fixed-phase reference topology. Its common ownership types do not claim a
+production mesher, curved-element path, external import,
 cross-process generated-realization proof, Model binding, solve, Result, or
 visualization surface.
 

@@ -3,15 +3,18 @@
 //! This module owns the complete Model-to-trajectory composition shared by
 //! Studio and installed Python. It deliberately adds one bounded application
 //! value, not a general coupling graph, mutable step builder, or durable Result
-//! schema.
+//! schema. Its durable leaves are retained so the general fixed-mesh replay
+//! boundary can independently close every content-addressed edge.
 
+use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
-    ExecutionProvenanceV1, ExecutionTopologyV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV3,
-    RunManifestV2, SimplicialMeshEnvelopeV1, SpatialStateEnvelopeV1, SpatialTrajectoryEnvelopeV1,
-    SpatialTrajectorySegmentEnvelopeV1, ValidatedFixedSpatialContextV1,
+    ArtifactDigest, DiscreteFieldEnvelopeV1, ExecutionProvenanceV1, ExecutionTopologyV1,
+    FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
+    LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV3, RunManifestV2, SimplicialMeshEnvelopeV1,
+    SpatialStateEnvelopeV1, SpatialTrajectoryEnvelopeV1, SpatialTrajectorySegmentEnvelopeV1,
+    ValidatedFixedSpatialContextV1,
 };
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
@@ -32,7 +35,9 @@ use eqiora_solver::{
     ReductionPolicy, SERIAL_EXECUTION_PROVIDER, ScalarType, SolverPlan,
 };
 
-use crate::{ModelDocument, snapshot_fixed_reference_fsi_solution_v1};
+use crate::{
+    FixedMeshFieldTrajectoryReplay2dV1, ModelDocument, snapshot_fixed_reference_fsi_solution_v1,
+};
 
 const REFERENCE_SOURCE: &str =
     include_str!("../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi");
@@ -103,6 +108,9 @@ pub struct FixedReferenceFsiResult2d {
     realization: RealizationEnvelopeV3,
     solutions: [ResolvedFixedReferenceFsiSolution2d; 2],
     states: [SpatialStateEnvelopeV1; 2],
+    snapshots: Vec<FieldSnapshotEnvelopeV1>,
+    blocks: Vec<DiscreteFieldEnvelopeV1>,
+    segments: [SpatialTrajectorySegmentEnvelopeV1; 2],
     trajectory: SpatialTrajectoryEnvelopeV1,
     run: RunManifestV2,
 }
@@ -186,6 +194,27 @@ impl FixedReferenceFsiResult2d {
         let trajectory = SpatialTrajectoryEnvelopeV1::extend(&fixed, &first_root, &second_segment)?;
         let run = execution.run.with_output(trajectory.digest()?);
         run.validate_against(&execution.realization)?;
+        let snapshots = unique_catalog(
+            first_snapshots
+                .snapshots()
+                .iter()
+                .chain(second_snapshots.snapshots())
+                .cloned(),
+            FieldSnapshotEnvelopeV1::digest,
+        )?;
+        let blocks = unique_catalog(
+            [&first_snapshots, &second_snapshots]
+                .into_iter()
+                .flat_map(|set| {
+                    set.snapshots().iter().flat_map(|snapshot| {
+                        set.blocks(snapshot.field())
+                            .expect("accepted snapshot set retains every exact block")
+                            .iter()
+                    })
+                })
+                .cloned(),
+            DiscreteFieldEnvelopeV1::digest,
+        )?;
 
         let result = Self {
             model: spatial.model,
@@ -197,6 +226,9 @@ impl FixedReferenceFsiResult2d {
             realization: execution.realization,
             solutions: [first, second],
             states: [first_state, second_state],
+            snapshots,
+            blocks,
+            segments: [first_segment, second_segment],
             trajectory,
             run,
         };
@@ -258,6 +290,27 @@ impl FixedReferenceFsiResult2d {
         &self.states
     }
 
+    /// Fully replay the durable fixed-mesh Field trajectory dependency DAG.
+    ///
+    /// # Errors
+    /// Returns an artifact diagnostic if any retained resource, Field leaf,
+    /// state, immutable prefix, or exact Run output has drifted.
+    pub fn trajectory_replay(&self) -> Result<FixedMeshFieldTrajectoryReplay2dV1<'_>, Diagnostic> {
+        FixedMeshFieldTrajectoryReplay2dV1::new(
+            &self.model,
+            &self.realization,
+            &self.geometry,
+            &self.correspondence,
+            &self.mesh_artifact,
+            &self.trajectory,
+            &self.segments,
+            &self.states,
+            &self.snapshots,
+            &self.blocks,
+            &self.run,
+        )
+    }
+
     /// Immutable two-segment trajectory whose final digest is the Run output.
     #[must_use]
     pub const fn trajectory(&self) -> &SpatialTrajectoryEnvelopeV1 {
@@ -295,6 +348,7 @@ impl FixedReferenceFsiResult2d {
     }
 
     fn validate(&self, backend_provider: eqiora_solver::SolverProvider) -> Result<(), Diagnostic> {
+        self.trajectory_replay()?;
         let vertex_count = self
             .mesh
             .entity_count(0)
@@ -376,6 +430,17 @@ impl FixedReferenceFsiResult2d {
         }
         self.run.validate_against(&self.realization)
     }
+}
+
+fn unique_catalog<T: Clone>(
+    items: impl IntoIterator<Item = T>,
+    digest: impl Fn(&T) -> Result<ArtifactDigest, Diagnostic>,
+) -> Result<Vec<T>, Diagnostic> {
+    let mut catalog = BTreeMap::new();
+    for item in items {
+        catalog.entry(digest(&item)?).or_insert(item);
+    }
+    Ok(catalog.into_values().collect())
 }
 
 fn require_accepted_model(document: &ModelDocument) -> Result<(), Diagnostic> {

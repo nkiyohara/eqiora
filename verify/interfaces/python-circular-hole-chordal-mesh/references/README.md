@@ -3,7 +3,7 @@
 The adapter API shape, claim boundary, and falsifiers were authored before its
 Python implementation. The first oracle revision's exact artifact values were
 wrong; the installed-package gate exposed that it had reconstructed the
-accepted fluid fixture's local cell order rather than the public owner.
+accepted fluid fixture's local cell order rather than the deterministic producer.
 
 Before acceptance, the independent evidence owner corrected those values by
 replaying the pre-existing public Rust producer, without reading or changing
@@ -12,7 +12,7 @@ replay consumes, without changing:
 
 - RFC 0082 and
   `geometry.circular-hole-chordal-reference-mesh` for the exact-source-bound
-  public chordal owner, topology, approximation observations, tolerances, and
+  private chordal reference, accepted artifact owner, topology, approximation observations, tolerances, and
   falsifiers;
 - `interfaces.python-exact-circular-hole-geometry` for the installed-Python
   exact source; and
@@ -20,16 +20,17 @@ replay consumes, without changing:
   canonical bytes and domain-separated identity.
 
 The corrected artifact values were independently derived by applying
-`SimplicialMeshEnvelopeV1::from_mesh` directly to the pre-existing public
-owner's `owner.mesh()`. The standalone test independently hashes the exposed
-`mesh_canonical_json` bytes and compares the Python observations to those
+the accepted artifact constructor directly to the pre-existing deterministic
+reference Mesh. The standalone test independently hashes the exposed
+`Mesh.canonical_bytes` and compares the Python observations to those
 acceptance values. It does not derive expected values from the new Python
 adapter. The property name and the distinct raw/domain-separated hashes keep
-this inner mesh encoding separate from the live source-bound wrapper.
+this inner mesh encoding separate from its exact source and correspondence
+identities.
 
 The accepted fluid fixture is used only as an independent topology witness:
 after the existing allowance-based vertex mapping, its unordered cell sets
-equal the owner's. Its cyclic local cell rotations are not the owner's
+equal the reference Mesh's. Its cyclic local cell rotations are not the reference's
 artifact order. Direct fixture reconstruction was the superseded oracle
 interpretation; the declared wrong-diagonal fixture separately fails the
 mapped unordered-cell-set comparison.

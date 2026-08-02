@@ -26,7 +26,6 @@ mod cad_authored_selection;
 mod cad_authored_swept_mesh;
 mod canonical;
 mod circular_hole;
-mod circular_hole_chordal;
 mod correspondence;
 mod identity;
 mod region;
@@ -46,8 +45,6 @@ pub use cad_authored_graph::CadAuthoredGraph;
 pub use cad_authored_selection::CadAuthoredFaceHandle;
 pub use cad_authored_swept_mesh::CadAuthoredSweptMesh;
 pub use canonical::{CanonicalGeometryLimits, CanonicalGeometryRef, CanonicalGeometryV1};
-pub use circular_hole::CanonicalCircularHoleGeometryV1;
-pub use circular_hole_chordal::CircularHoleChordalMeshV1;
 pub use correspondence::{
     CartesianBodyAssignment, CartesianBoundaryAssignment, GeometryCorrespondenceError,
     GeometryMeshCorrespondence,

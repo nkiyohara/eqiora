@@ -1,15 +1,17 @@
 # Python exact-source-bound chordal reference mesh
 
-This case freezes one deliberately limited installed-Python adapter:
-`eqiora.meshing.circular_hole_chordal`. It accepts the existing immutable
-`eqiora.geometry.RectangleWithCircularHole` and the three explicit policies
-`max_boundary_error`, `required_minimum_mean_ratio`, and `max_segments`. It
-returns one immutable `eqiora.meshing.CircularHoleChordalMesh`.
+This case freezes one deliberately limited installed-Python path through common
+ownership boundaries. `MeshRequest` records the three explicit policies
+`maximum_boundary_error`, `minimum_mean_ratio`, and
+`maximum_boundary_facets`; `eqiora.meshing.resolve` binds the exact
+`eqiora.geometry.Geometry` and complete current provider choice into immutable
+`MeshPlan`; `eqiora.meshing.generate` publishes one immutable
+`eqiora.meshing.Mesh`.
 
-The Python object is a same-process owner. It retains the exact source, the
-opaque RFC 0082 chordal owner, the accepted inner
-`SimplicialMeshEnvelopeV1`, and the Rust-derived authored-region
-correspondence. Python does not select the chord count, sample the circle,
+The Python object is a same-process view of the accepted RFC 0082 artifact
+owner. That owner retains the exact source, pure binding envelope, accepted
+inner `SimplicialMeshEnvelopeV1`, Rust-derived authored-region correspondence,
+and private regenerated reference. Python does not select the chord count, sample the circle,
 construct connectivity, compute quality, encode an artifact, derive a digest,
 or infer selection membership from coordinates.
 
@@ -18,11 +20,11 @@ or infer selection membership from coordinates.
 The non-implementing evidence lane froze the API shape, claim boundary, and
 falsifiers before the public Python implementation existed. The first oracle
 revision's exact artifact values were wrong: it reconstructed the accepted
-fluid fixture's local cell order instead of replaying the public owner. The
+fluid fixture's local cell order instead of replaying the deterministic Rust producer. The
 installed-package gate exposed that provenance mismatch.
 
 Before acceptance, the independent evidence owner corrected the values below
-by replaying the pre-existing public Rust producer, without reading or changing
+by replaying the pre-existing deterministic Rust producer, without reading or changing
 the new Python implementation and without consuming its output. The producer's
 inputs come from the already accepted
 [`geometry.circular-hole-chordal-reference-mesh`](../../geometry/circular-hole-chordal-reference-mesh/README.md)
@@ -30,15 +32,15 @@ case. The expected artifact is derived through the exact public Rust chain the
 adapter must expose:
 
 ```text
-CanonicalCircularHoleGeometryV1
-  -> CircularHoleChordalMeshV1::from_exact(..., 1e-4, 50, MeshQualityGate(1e-5))
-  -> SimplicialMeshEnvelopeV1::from_mesh(owner.mesh())
+CanonicalGeometryV1
+  -> AcceptedCircularHoleChordalRealizationV1::from_reference(..., 1e-4, 50, MeshQualityGate(1e-5))
+  -> accepted.mesh()
 ```
 
 The accepted fluid `mesh.json` remains an independent topology witness, not a
-substitute serialization for the public owner. Its existing conformance check
+substitute serialization for the accepted artifact owner. Its existing conformance check
 matches coordinates within the RFC allowance and compares unordered cell
-vertex sets. It deliberately does not freeze the owner's local cell rotations.
+vertex sets. It deliberately does not freeze the private reference's local cell rotations.
 
 The resulting inner mesh artifact has:
 
@@ -49,7 +51,7 @@ The resulting inner mesh artifact has:
 - domain-separated mesh digest
   `148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a`.
 
-These two hashes are intentionally different. `mesh_digest` is the latter:
+These two hashes are intentionally different. `Mesh.digest` is the latter:
 
 ```text
 sha256(
@@ -59,13 +61,12 @@ sha256(
 )
 ```
 
-The test independently recomputes both hashes from the public
-`mesh_canonical_json`, pins its byte count, parses its closed topology,
+The test independently recomputes both hashes from public `canonical_bytes`,
+pins its byte count, parses its closed topology,
 geometry, acceptance, and evidence fields, and requires the public property
-to equal the domain-separated digest. The explicit `mesh_` prefix prevents
-these inner mesh bytes from being mistaken for a durable encoding of the live
-source-bound wrapper. The inner mesh bytes contain no exact-source field; the
-wrapper's separate `source_digest` proves only the live same-process ownership
+to equal the domain-separated digest. The inner mesh bytes contain no
+exact-source field; the Mesh's separate `source_digest` proves the live
+same-process ownership
 described below.
 
 The DFG witness requires 50 circular chords, 104 vertices, and 104 triangles.
@@ -106,7 +107,7 @@ value. Rebuilding from fixture order produces the superseded
 `minimum_mean_ratio=0.0064272786692910235`, 4,843 bytes, and mesh digest
 `c0d57813a0ca56aade9b286d1f4fff7df217ff130ac176515be5ef174b07847b`.
 Those values describe a different in-memory ordering and are now an explicit
-falsifier for bypassing the public owner.
+falsifier for bypassing the accepted producer.
 
 This was not consumption of `falsifier-wrong-diagonal.json`. That file declares
 `role=wrong-contract-falsifier`, fails the mapped unordered-cell-set comparison,
@@ -142,14 +143,15 @@ check skips when a packaged consumer intentionally has no examples directory.
 
 ## Boundary and future dependency
 
-This is not a generic `Mesh`, `MeshRequest`, generated-mesh protocol, or
-external import surface. It claims no Delaunay or production mesher, curved
+The common names state ownership and do not widen provider coverage. This is
+not an arbitrary-Geometry generated-mesh protocol or external import surface.
+It claims no Delaunay or production mesher, curved
 element, Model, solver, Result, visualization, performance, or physical
 validation.
 
-In particular, `mesh_canonical_json` and the inner
+In particular, `Mesh.canonical_bytes` and the inner
 `SimplicialMeshEnvelopeV1` digest are not a durable
-source-to-mesh binding. The live wrapper is not a cross-process proof and
+source-to-mesh binding. The live Mesh is not a cross-process proof and
 cannot publish or replay the generated realization for a later Result
 lineage. Cross-process publication, replay, and future Result lineage require
 future acceptance of the separate

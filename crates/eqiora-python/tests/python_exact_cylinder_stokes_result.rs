@@ -43,15 +43,36 @@ def geometry(**overrides):
         "hole": "cylinder",
     }
     arguments.update(overrides)
-    return eqiora.geometry.RectangleWithCircularHole(**arguments)
+    x_bounds, y_bounds = arguments["bounds"]
+    graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+        x_bounds=x_bounds,
+        y_bounds=y_bounds,
+        plane_z=0.0,
+        depth=1.0,
+        modeling_tolerance=1e-10,
+    ).circular_through_cut(
+        center=arguments["circle_center"],
+        radius=arguments["circle_radius"],
+        boolean_tolerance=1e-10,
+    )
+    return graph.planar_circular_section(
+        classification_tolerance=arguments["tolerance"],
+        region=arguments["region"],
+        x_lower=arguments["x_lower"],
+        x_upper=arguments["x_upper"],
+        y_lower=arguments["y_lower"],
+        y_upper=arguments["y_upper"],
+        hole=arguments["hole"],
+    )
 
 def mesh(source):
-    return eqiora.meshing.circular_hole_chordal(
-        source,
-        max_boundary_error=1e-4,
-        required_minimum_mean_ratio=1e-5,
-        max_segments=50,
+    request = eqiora.meshing.MeshRequest(
+        maximum_boundary_error=1e-4,
+        minimum_mean_ratio=1e-5,
+        maximum_boundary_facets=50,
     )
+    plan = eqiora.meshing.resolve(source, request)
+    return eqiora.meshing.generate(source, plan=plan)
 
 source = geometry()
 realized = mesh(source)

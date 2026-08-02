@@ -10,6 +10,7 @@
 //! shape is; this crate decides what naming one costs.
 
 use eqiora_core::Diagnostic;
+use eqiora_core::diagnostic::codes;
 use eqiora_geometry::{CanonicalGeometryLimits, CanonicalGeometryV1, PlanarRegion};
 
 use crate::{ArtifactDigest, JsonDecoderLimits, check_json_limits};
@@ -82,7 +83,12 @@ impl GeometryDefinitionV1 {
     /// # Errors
     /// This preserved signature cannot fail for a constructed artifact.
     pub fn region(&self) -> Result<PlanarRegion, Diagnostic> {
-        Ok(self.inner.region().clone())
+        self.inner.region().cloned().ok_or_else(|| {
+            Diagnostic::error(
+                codes::INVALID_ARTIFACT,
+                "geometry definition artifact requires straight-edged planar geometry",
+            )
+        })
     }
 
     /// Canonical encoding of this geometry.

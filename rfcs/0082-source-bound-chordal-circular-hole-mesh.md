@@ -32,14 +32,16 @@ solver or presentation code lose which circle it approximates.
 
 A generic mesher interface, Delaunay dependency, or high-order geometry
 contract would establish compatibility and numerical claims the first cylinder
-path does not need. This RFC adds one bounded owner and reuses existing
-`PlanarRegion`, `SimplicialMesh`, mesh quality, artifact, and correspondence
-contracts.
+path does not need. This RFC adds one bounded scientific realization and
+reuses existing `PlanarRegion`, `SimplicialMesh`, mesh quality, artifact, and
+correspondence contracts. The original public Geometry runtime owner has since
+been privatized behind the accepted artifact state described below; exact
+circular shape meaning remains solely in `CanonicalGeometryV1`.
 
-## Owned realization
+## Private reference and accepted realization
 
-`CircularHoleChordalMeshV1` is constructible only from a validated
-`CanonicalCircularHoleGeometryV1`. It privately owns:
+The deterministic chordal reference is constructible only from a validated
+`CanonicalGeometryV1` and is private to `eqiora-artifact`. It owns:
 
 - the exact source `GeometryRevisionReference`, derived from source digest;
 - requested maximum circular-boundary error;
@@ -50,16 +52,18 @@ contracts.
 - a canonical straight-edged `PlanarRegion`; and
 - a validated `SimplicialMesh`.
 
-The value exposes immutable observations only. There is no constructor from an
-independent digest, region, mesh, or metric tuple, and the owner itself has no
-durable encoding. A separate binding envelope described below captures only a
-validated owner and its exact resources.
+There is no constructor from an independent digest, region, mesh, or metric
+tuple, and the private reference itself has no durable encoding.
+`AcceptedCircularHoleChordalRealizationV1` is the only public in-process owner:
+it bundles a replayed envelope, the exact common source, realized Geometry,
+bound Mesh, authored-region correspondence, and the private regenerated
+reference. The pure wire and accepted resource state remain distinct types.
 
 ## Durable realization binding
 
 `CircularHoleChordalRealizationEnvelopeV1` is the closed canonical durable
 binding for this dedicated reference path. It captures the exact source
-geometry digest, the owner's request and bit-exact observations, and the
+geometry digest, the private reference's request and bit-exact observations, and the
 digests of the realized authored planar region, a conforming simplicial mesh,
 and its Model-free `authored-planar-region-v1` correspondence.
 
@@ -78,17 +82,20 @@ required_minimum_mean_ratio
 ```
 
 Bounded canonical admission precedes resource access. Replay regenerates the
-owner from the supplied exact source, stored request, stored circle-segment
+private reference from the supplied exact source, stored request, stored circle-segment
 count as a work limit, and stored required minimum mean-ratio threshold. It
-then requires bit-exact owner observations, exact region equality, successful
+then requires bit-exact reference observations, exact region equality, successful
 authored-region correspondence validation, and equality of all four resource
-digests. A coherent policy change always changes binding identity even when
-deterministic regeneration lands on the same resources.
+digests before returning the accepted type-state owner. A coherent policy
+change always changes binding identity even when deterministic regeneration
+lands on the same resources.
 
-The binding does not serialize or generalize `CircularHoleChordalMeshV1`, and
-it does not admit a caller-provided observation tuple. It is the minimum
-durable relational witness needed to keep the exact source and all realized
-resources inseparable in the future installed Python and Result lineage.
+The binding does not serialize or expose the private reference, and it does
+not admit a caller-provided observation tuple. The accepted owner may bind a
+distinct conforming Mesh; its correspondence remains the sole authority
+between realized-region and mesh index spaces. Together they are the minimum
+relational state needed to keep the exact source and all realized resources
+inseparable in installed Python and Result lineage.
 
 ## Approximation contract
 
@@ -237,18 +244,17 @@ area, and perimeter convergence.
 ## Compatibility and architecture
 
 No existing exact geometry wire, digest, Model byte, mesh wire, correspondence
-wire, or solver contract changes. The new binding is a separate schema domain.
-The `eqiora-geometry` public surface rises
-from 34 to 35 for the opaque source-bound owner. This is an explicit
-architecture change: solver and Studio are its two downstream consumers, and a
-loose tuple would duplicate or lose the source-binding invariant.
+wire, or solver contract changes. The binding remains a separate schema domain.
+The follow-up ownership cleanup lowers the `eqiora-geometry` public surface
+from 39 to 38 by removing its specialized runtime owner. It raises
+`eqiora-artifact` from 143 to 144 for the accepted type-state owner: a bare
+decoded envelope cannot expose resources, while a loose source/Geometry/Mesh/
+correspondence convoy would duplicate or lose the binding invariant.
 
-The `eqiora-artifact` public surface rises by one for the binding envelope. Its
-deletion condition, and the owner's, is a future general
-geometry-Realization owner that preserves non-forgeable exact-source binding,
-error evidence, immutable region/mesh access, canonical bounded admission, and
-resource replay while replacing these dedicated types without adding a
-parallel wire.
+The deletion condition for both circular-hole artifact names is future common
+CAD/Mesh publication that preserves non-forgeable exact-source binding, error
+evidence, immutable resource access, canonical bounded admission, and replay
+without adding a parallel wire.
 
 ## Nonclaims
 
