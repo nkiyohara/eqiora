@@ -229,9 +229,15 @@ model = eqiora.compile(
 result = eqiora.fsi.solve_fixed_reference_fsi(model)
 
 assert tuple(step.ordinal for step in result.steps) == (1, 2)
-assert not result.coordinates.flags.writeable
+assert not result.trajectory.coordinates.flags.writeable
 assert not result.step(2).displacement.flags.writeable
 ```
+
+The common `Trajectory` is the sole Python owner of the exact Model, Geometry,
+correspondence, Mesh, Realization, Run, ordered-state, and trajectory identities
+as well as the fixed reference coordinates and connectivity. The application
+result retains only its typed FSI partition, step, solver, balance, and
+acceptance evidence beside that trajectory.
 
 The optional still selects an already accepted step and applies an explicitly
 labelled presentation-only displacement scale:

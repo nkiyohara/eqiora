@@ -151,7 +151,7 @@ def build(
         "scene_module_path": SCENE_MODULE.relative_to(ROOT).as_posix(),
         "scene_module_sha256": record.sha256_file(SCENE_MODULE),
         "model_source_sha256": record.sha256_bytes(model_source),
-        "result_digest": result.run_digest,
+        "result_digest": result.trajectory.run_digest,
         "result_frame_input_sha256": _frame_input_digest(data),
         "eqiora_version": eqiora.__version__,
         "eqiora_module_is_installed": True,
@@ -181,7 +181,9 @@ def build(
     context = record.ProductionContext(
         protected_base_revision=source["build_revision"],
         registered_case_ids=frozenset(data.case_ids),
-        lineage_by_run_digest={result.run_digest: record.lineage_digest(lineage)},
+        lineage_by_run_digest={
+            result.trajectory.run_digest: record.lineage_digest(lineage)
+        },
         contracts={},
     )
     payload = record.canonical_bytes(value)
@@ -250,6 +252,7 @@ def _matplotlib():
 
 
 def _scene_data(result: Any) -> scene.SceneData:
+    trajectory = result.trajectory
     steps = tuple(
         scene.AcceptedStep(
             ordinal=int(step.ordinal),
@@ -263,14 +266,14 @@ def _scene_data(result: Any) -> scene.SceneData:
     if len(steps) != 2:
         raise BuildError("gallery media requires exactly two accepted result steps")
     return scene.SceneData(
-        coordinates=np.asarray(result.coordinates).copy(),
-        cells=np.asarray(result.cells).copy(),
+        coordinates=np.asarray(trajectory.coordinates).copy(),
+        cells=np.asarray(trajectory.cells).copy(),
         fluid_cells=np.asarray(result.fluid_cells).copy(),
         solid_cells=np.asarray(result.solid_cells).copy(),
         interface_facets=np.asarray(result.interface_facets).copy(),
         steps=(steps[0], steps[1]),
         case_ids=tuple(result.case_ids),
-        run_digest=result.run_digest,
+        run_digest=trajectory.run_digest,
     )
 
 
@@ -547,20 +550,21 @@ def _recorded_argv(argv: list[str], output_directory: Path) -> list[str]:
 
 def _lineage(result: Any, model: Any) -> dict[str, object]:
     revision = model.revision
+    trajectory = result.trajectory
     if int(revision.number) != int(result.semantic_revision):
         raise BuildError("compiled revision and accepted result revision disagree")
     return {
         "revision_digest": revision.digest,
         "semantic_revision": int(result.semantic_revision),
-        "geometry_digest": result.geometry_digest,
-        "correspondence_digest": result.correspondence_digest,
-        "mesh_digest": result.mesh_digest,
-        "realization_digest": result.realization_digest,
+        "geometry_digest": trajectory.geometry_digest,
+        "correspondence_digest": trajectory.correspondence_digest,
+        "mesh_digest": trajectory.mesh_digest,
+        "realization_digest": trajectory.realization_digest,
         "realization_revision": int(result.realization_revision),
-        "run_digest": result.run_digest,
+        "run_digest": trajectory.run_digest,
         "run_manifest_sha256": record.sha256_bytes(bytes(result.run_manifest_json)),
-        "state_digests": list(result.state_digests),
-        "trajectory_digest": result.trajectory_digest,
+        "state_digests": [state.digest for state in trajectory.states],
+        "trajectory_digest": trajectory.digest,
         "scientific_case_ids": list(result.case_ids),
     }
 

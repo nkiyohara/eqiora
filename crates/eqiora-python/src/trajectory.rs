@@ -360,12 +360,8 @@ impl PyTrajectory {
 }
 
 impl PyTrajectory {
-    pub(crate) fn coordinates_numpy(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
-        self.coordinates.numpy(py)
-    }
-
-    pub(crate) fn cells_numpy(&self, py: Python<'_>) -> PyResult<Py<PyArray2<u32>>> {
-        self.cells.numpy(py)
+    pub(crate) fn run_digest_value(&self) -> &str {
+        &self.run_digest
     }
 
     pub(crate) fn from_replay(

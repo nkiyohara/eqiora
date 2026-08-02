@@ -90,9 +90,9 @@ def check_structural_result(model: eqiora.Model) -> None:
 def check_fsi_result(model: eqiora.Model) -> None:
     result = eqiora.fsi.solve_fixed_reference_fsi(model)
     assert_type(result, FixedReferenceFsiResult)
-    assert_type(result.coordinates, npt.NDArray[np.float64])
-    assert_type(result.cells, npt.NDArray[np.uint32])
     assert_type(result.trajectory, Trajectory)
+    assert_type(result.trajectory.coordinates, npt.NDArray[np.float64])
+    assert_type(result.trajectory.cells, npt.NDArray[np.uint32])
     assert_type(result.trajectory.states, tuple[TrajectoryState, ...])
     assert_type(result.trajectory.state(1).fields, tuple[FieldSnapshot, ...])
     assert_type(
