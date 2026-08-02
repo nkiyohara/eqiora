@@ -62,10 +62,10 @@ When a predicate, budget, or oracle blocks a lane, the lane changes, not the gat
 - a file over its ceiling is **split**, then the ceiling ratchets down to match;
 - a nameable glob re-export is **replaced by named items**, not re-registered;
 - an unsatisfiable oracle is **returned with the argument**, not relaxed;
-- a claim is **narrowed to what was shown**, never widened to what was built.
-
-Raising a ceiling stays permitted as a reviewed architecture change with a reason
-and a deletion condition — never a step inside an ordinary slice.
+- a claim is **narrowed to what was shown**, never widened to what was built;
+- a path a frozen whole-tree sweep predates is **admitted by exact path**, never
+  by a glob, a directory, or a suffix rule, and admission is a permission that
+  joins no frozen set rather than a claim the path was always there.
 
 ## Measure the thing you are reasoning about
 
