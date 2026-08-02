@@ -70,7 +70,7 @@ Result. No partial output is admissible on either branch.
 ## Frozen space spellings
 
 `velocity_space` and `pressure_space` are derived views of the resolved
-discretization, and the contract owner froze their two spellings on issue #319:
+discretization, and the contract owner froze their two spellings before implementation:
 `velocity_space` is `simplex-p1-bubble` and `pressure_space` is
 `continuous-lagrange-1`. This case now asserts both literals exactly, in the
 registered installed-wheel pytest, in its isolated installed-package program,

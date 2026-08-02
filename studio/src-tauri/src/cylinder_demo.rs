@@ -167,8 +167,7 @@ fn prepare_demo() -> Result<PreparedCylinderDemo, Diagnostic> {
         1.0e-13,
         NonZeroUsize::new(10_000).expect("nonzero accepted iteration limit"),
     )?;
-    let plan =
-        ResolvedSteadyStokesPlan2d::resolve(&model, intent, &accepted, &FaerLinearSolver)?;
+    let plan = ResolvedSteadyStokesPlan2d::resolve(&model, intent, &accepted, &FaerLinearSolver)?;
     let result = plan.execute(&FaerLinearSolver)?;
     evidence(&result)
 }

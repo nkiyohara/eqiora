@@ -183,7 +183,7 @@ def _submit_native(
     end_time,
     max_step,
     realization: Realization | None,
-    plan: fluid.SteadyStokesPlan | None,
+    plan,
 ) -> _NativeRun:
     """Validate one public request shape before crossing the native boundary."""
 
