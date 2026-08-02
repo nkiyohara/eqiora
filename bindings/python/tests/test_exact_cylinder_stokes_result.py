@@ -303,6 +303,8 @@ def test_complete_result_replays_binding_run_and_frozen_observations(
     assert result.exact_source_digest == source.digest == SOURCE_DIGEST
     assert realized.source_digest == SOURCE_DIGEST
     assert result.mesh_digest == realized.digest == MESH_DIGEST
+    assert result.correspondence_digest == realized.correspondence_digest
+    assert result.chordal_realization_digest == realized.realization_digest
     assert result.pressure_dimension == PRESSURE_DIMENSION
     pressure_field_id, support_domain_id = model_result_ids(model_bytes())
     assert result.pressure_field_id == pressure_field_id
