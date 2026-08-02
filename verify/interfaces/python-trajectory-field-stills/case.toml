@@ -1,5 +1,5 @@
 id = "interfaces.python-trajectory-field-stills"
-status = "implemented"
+status = "verified"
 scope = "installed-python-common-scalar-and-deformed-stills-over-one-accepted-fixed-mesh-affine-triangle-2d-field-trajectory"
 reference_kind = "accepted-trajectory-projection-replay-plus-explicit-renderer-input-capture"
 
@@ -113,10 +113,7 @@ blank_or_invalid_output = "PNG decode or the nonuniform visible-pixel check fail
 surviving_withdrawn_still = "plot_fixed_reference_fsi remains reachable from the module, its exports, or its packaged stub"
 
 [claim_boundary]
-verified = false
-pending = [
-  "the adapters do not exist at the frozen base revision; this contract is a pre-implementation failing oracle",
-]
+verified = true
 candidate_profile = "matplotlib"
 ordinary_gil_cpython = "3.13"
 exact_matplotlib = "3.11.1"
