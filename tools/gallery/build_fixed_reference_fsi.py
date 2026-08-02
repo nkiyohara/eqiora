@@ -8,6 +8,7 @@ import json
 import os
 import platform
 import shutil
+import struct
 import subprocess
 import sys
 from importlib.metadata import distribution
@@ -92,9 +93,7 @@ def build(
     encoder = _encoder_identity()
 
     poster_path = output_directory / record.OUTPUT_CONTRACTS["poster"][0]
-    reduced_path = output_directory / record.OUTPUT_CONTRACTS[
-        "reduced_motion_still"
-    ][0]
+    reduced_path = output_directory / record.OUTPUT_CONTRACTS["reduced_motion_still"][0]
     text_path = output_directory / record.OUTPUT_CONTRACTS["text_alternative"][0]
     scene.render_poster(data, profile, poster_path)
     scene.render_reduced_motion_still(data, profile, reduced_path)
@@ -163,9 +162,7 @@ def build(
         mp4_probe=mp4_probe,
     )
     accessibility = {
-        "reduced_motion_still": record.OUTPUT_CONTRACTS[
-            "reduced_motion_still"
-        ][0],
+        "reduced_motion_still": record.OUTPUT_CONTRACTS["reduced_motion_still"][0],
         "text_alternative": record.OUTPUT_CONTRACTS["text_alternative"][0],
         "delivery_requirement": record.DELIVERY_REQUIREMENT,
         "dossier_route": record.DOSSIER_ROUTE,
@@ -184,13 +181,15 @@ def build(
     context = record.ProductionContext(
         protected_base_revision=source["build_revision"],
         registered_case_ids=frozenset(data.case_ids),
-        lineage_by_run_digest={
-            result.run_digest: record.lineage_digest(lineage)
-        },
+        lineage_by_run_digest={result.run_digest: record.lineage_digest(lineage)},
         contracts={},
     )
+    payload = record.canonical_bytes(value)
+    persisted = json.loads(payload)
+    if record.canonical_bytes(persisted) != payload:
+        raise BuildError("canonical build record did not survive its JSON round trip")
     admission = record.admit(
-        value,
+        persisted,
         context=context,
         output_facts=facts,
         text_alternative=text,
@@ -201,7 +200,6 @@ def build(
             f"rejections: {admission.reasons}"
         )
     record_path = output_directory / "dev-build-record.json"
-    payload = record.canonical_bytes(value)
     record_path.write_bytes(payload)
     digest = record.sha256_bytes(payload)
     (output_directory / "dev-build-record.sha256").write_text(
@@ -237,7 +235,9 @@ def _installed_eqiora():
     origin = Path(eqiora.__file__).resolve()
     install_root = Path(distribution("eqiora").locate_file("")).resolve()
     if origin.is_relative_to(ROOT) or not origin.is_relative_to(install_root):
-        raise BuildError(f"eqiora must be imported from an installed wheel, got {origin}")
+        raise BuildError(
+            f"eqiora must be imported from an installed wheel, got {origin}"
+        )
     return eqiora
 
 
@@ -368,9 +368,7 @@ def _encoder_identity() -> dict[str, object]:
     }
 
 
-def _common_encoder_argv(
-    ffmpeg: object, frames: Path, destination: Path
-) -> list[str]:
+def _common_encoder_argv(ffmpeg: object, frames: Path, destination: Path) -> list[str]:
     return [
         str(ffmpeg),
         "-nostdin",
@@ -621,14 +619,20 @@ def _outputs(
         facts[role] = fact
         probe = probes.get(role)
         if role in {"poster", "reduced_motion_still"}:
-            width, height = scene.WIDTH, scene.HEIGHT
+            width, height = _png_dimensions(path)
             duration_s = fps = frame_count = stream_count = codec = None
         elif probe is not None:
             width, height = probe["width"], probe["height"]
-            duration_s, fps, frame_count = scene.DURATION_S, scene.FPS, scene.FRAME_COUNT
+            duration_s, fps, frame_count = (
+                scene.DURATION_S,
+                scene.FPS,
+                scene.FRAME_COUNT,
+            )
             stream_count, codec = probe["stream_count"], probe["codec"]
         else:
-            width = height = duration_s = fps = frame_count = stream_count = codec = None
+            width = height = duration_s = fps = frame_count = stream_count = codec = (
+                None
+            )
         values[role] = {
             "filename": filename,
             "media_type": media_type,
@@ -644,6 +648,19 @@ def _outputs(
             "codec": codec,
         }
     return values, facts
+
+
+def _png_dimensions(path: Path) -> tuple[int, int]:
+    """Read the emitted PNG IHDR dimensions without trusting scene constants."""
+
+    header = path.read_bytes()[:24]
+    if (
+        len(header) != 24
+        or header[:8] != b"\x89PNG\r\n\x1a\n"
+        or header[12:16] != b"IHDR"
+    ):
+        raise BuildError(f"{path.name} is not a canonical PNG output")
+    return struct.unpack(">II", header[16:24])
 
 
 def _build_revision() -> str:
@@ -681,6 +698,7 @@ class _FramesDirectory:
         if not self.keep:
             shutil.rmtree(self.path)
         return None
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

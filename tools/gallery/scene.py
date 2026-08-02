@@ -22,11 +22,9 @@ DISPLACEMENT_SCALE = 12.0
 FIELD_RECT = (0.075, 0.16, 0.78, 0.70)
 COLORBAR_RECT = (0.88, 0.19, 0.018, 0.64)
 PNG_METADATA = {"Software": "Eqiora private gallery renderer/1"}
-RESET_LABEL = "SCENE RESET — presentation fade, physics not reversed"
-INTERPOLATION_LABEL = (
-    "PRESENTATION INTERPOLATION t1 → t2 — not solved dynamics"
-)
-POSTER_RETURN_LABEL = "POSTER RETURN — accepted state 2, not a replay"
+RESET_LABEL = record.EXPECTED_SEGMENT_LABELS["neutral-establish"]
+INTERPOLATION_LABEL = record.EXPECTED_SEGMENT_LABELS["presentation-blend"]
+POSTER_RETURN_LABEL = record.EXPECTED_SEGMENT_LABELS["poster-return"]
 
 
 @dataclass(frozen=True)
@@ -105,9 +103,7 @@ def validate_data(data: SceneData) -> None:
             raise ValueError(f"gallery scene {name} contains a non-finite value")
     if any(step.displacement.shape != (vertex_count, 2) for step in data.steps):
         raise ValueError("gallery scene displacement is not vertex-coindexed 2D data")
-    if any(
-        len(step.pressure) != len(step.pressure_vertices) for step in data.steps
-    ):
+    if any(len(step.pressure) != len(step.pressure_vertices) for step in data.steps):
         raise ValueError("gallery scene pressure values and support disagree")
     if any(
         np.any(index < 0) or np.any(index >= upper)
@@ -140,8 +136,7 @@ def make_profile(data: SceneData) -> SceneProfile:
 
     drawn = [data.coordinates]
     drawn.extend(
-        data.coordinates + DISPLACEMENT_SCALE * step.displacement
-        for step in data.steps
+        data.coordinates + DISPLACEMENT_SCALE * step.displacement for step in data.steps
     )
     joined = np.concatenate(drawn, axis=0)
     x_limits, y_limits = _padded_equal_aspect_limits(joined)
@@ -157,9 +152,7 @@ def frame_plan(frame: int) -> FramePlan:
         return FramePlan("poster-open", 1, None, 1.0, 1.0, None, 0.0)
     if frame <= 89:
         opacity = 1.0 - (frame - 44) / 45.0
-        return FramePlan(
-            "neutral-establish", 1, None, opacity, 0.0, RESET_LABEL, 1.0
-        )
+        return FramePlan("neutral-establish", 1, None, opacity, 0.0, RESET_LABEL, 1.0)
     if frame <= 149:
         return FramePlan("state-1-hold", 0, None, 1.0, 0.0, None, 0.0)
     if frame <= 299:
@@ -213,7 +206,7 @@ def render_reduced_motion_still(
 ) -> None:
     """Render a distinct two-panel comparison that needs no motion."""
 
-    Figure, FigureCanvasAgg, _, _, _, _, Normalize, ScalarMappable = _matplotlib()
+    Figure, FigureCanvasAgg, _, _, _, Normalize, ScalarMappable = _matplotlib()
     figure = Figure(figsize=(12.8, 7.2), dpi=100, facecolor="#ffffff")
     FigureCanvasAgg(figure)
     axes = [
@@ -288,10 +281,9 @@ def render_frame(
     else:
         tau = plan.interpolation_tau
         pressure = (1.0 - tau) * data.steps[0].pressure + tau * data.steps[1].pressure
-        displacement = (
-            (1.0 - tau) * data.steps[0].displacement
-            + tau * data.steps[1].displacement
-        )
+        displacement = (1.0 - tau) * data.steps[0].displacement + tau * data.steps[
+            1
+        ].displacement
     title = _frame_title(data, plan)
     _render_single(
         data,
@@ -330,15 +322,6 @@ def scene_record(
 ) -> dict[str, object]:
     """Construct the canonical scene-profile projection for the build record."""
 
-    labels = {
-        "poster-open": "accepted state 2 poster",
-        "neutral-establish": RESET_LABEL,
-        "state-1-hold": "accepted state 1",
-        "presentation-blend": INTERPOLATION_LABEL,
-        "state-2-hold": "accepted state 2",
-        "neutral-reset": RESET_LABEL,
-        "poster-return": POSTER_RETURN_LABEL,
-    }
     segments = [
         {
             "name": name,
@@ -347,7 +330,7 @@ def scene_record(
             "frame_count": last - first + 1,
             "seconds": (last - first + 1) / FPS,
             "kind": kind,
-            "label": labels[name],
+            "label": record.EXPECTED_SEGMENT_LABELS[name],
         }
         for name, first, last, kind in record.EXPECTED_SEGMENTS
     ]
@@ -432,7 +415,7 @@ def _render_single(
     poster_pixels: np.ndarray | None = None,
     poster_opacity: float = 0.0,
 ) -> None:
-    Figure, FigureCanvasAgg, _, _, _, _, Normalize, ScalarMappable = _matplotlib()
+    Figure, FigureCanvasAgg, _, _, _, Normalize, ScalarMappable = _matplotlib()
     figure = Figure(figsize=(12.8, 7.2), dpi=100, facecolor="#ffffff")
     FigureCanvasAgg(figure)
     axes = figure.add_axes(FIELD_RECT)
@@ -493,7 +476,7 @@ def _draw_panel(
     state_opacity: float,
     compact: bool,
 ) -> None:
-    _, _, LineCollection, PolyCollection, Triangulation, _, _, _ = _matplotlib()
+    _, _, LineCollection, PolyCollection, Triangulation, _, _ = _matplotlib()
     coordinates = data.coordinates
     fluid_triangles = data.cells[data.fluid_cells]
     solid_triangles = data.cells[data.solid_cells]
@@ -524,7 +507,9 @@ def _draw_panel(
             dtype=np.int32,
         )
     except KeyError as error:
-        raise ValueError("fluid triangle lies outside accepted pressure support") from error
+        raise ValueError(
+            "fluid triangle lies outside accepted pressure support"
+        ) from error
     pressure_coordinates = coordinates[pressure_vertices]
     triangulation = Triangulation(
         pressure_coordinates[:, 0], pressure_coordinates[:, 1], local_triangles
@@ -598,6 +583,12 @@ def _draw_panel(
             fontsize=9,
             color="#1d4ed8",
             va="top",
+            bbox={
+                "boxstyle": "round,pad=0.2",
+                "facecolor": "#ffffff",
+                "edgecolor": "none",
+                "alpha": 0.82,
+            },
         )
         axes.text(
             0.79,
@@ -621,6 +612,7 @@ def _decorate_figure(figure: Any, data: SceneData) -> None:
         fontsize=11,
         weight="bold",
         color="#b91c1c",
+        zorder=100,
         bbox={
             "boxstyle": "square,pad=0.28",
             "facecolor": "#fff1f2",
@@ -636,12 +628,15 @@ def _decorate_figure(figure: Any, data: SceneData) -> None:
         va="bottom",
         fontsize=8.2,
         color="#334155",
+        zorder=100,
     )
 
 
 def _frame_title(data: SceneData, plan: FramePlan) -> str:
     if plan.segment in {"neutral-establish", "neutral-reset", "poster-return"}:
-        return "Fixed-reference partition • presentation reset • no physical-time advance"
+        return (
+            "Fixed-reference partition • presentation reset • no physical-time advance"
+        )
     if plan.segment == "state-1-hold":
         step = data.steps[0]
         return (
@@ -709,7 +704,6 @@ def _matplotlib():
         LineCollection,
         PolyCollection,
         Triangulation,
-        np,
         Normalize,
         ScalarMappable,
     )

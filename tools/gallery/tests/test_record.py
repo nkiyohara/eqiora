@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import inspect
 
 import pytest
@@ -82,7 +81,9 @@ def fixture() -> tuple[
             "first_frame": first,
             "last_frame": last,
             "frame_count": last - first + 1,
+            "seconds": (last - first + 1) / 30,
             "kind": kind,
+            "label": record.EXPECTED_SEGMENT_LABELS[name],
         }
         for name, first, last, kind in record.EXPECTED_SEGMENTS
     ]
@@ -113,9 +114,7 @@ def fixture() -> tuple[
                 "first_frame": 150,
                 "last_frame": 299,
                 "tau_rule": "(frame-150)/150",
-                "label": (
-                    "PRESENTATION INTERPOLATION t1 → t2 — not solved dynamics"
-                ),
+                "label": ("PRESENTATION INTERPOLATION t1 → t2 — not solved dynamics"),
             },
             "frame_sequence_sha256": digest("frames"),
             "fields_presented": [
@@ -147,10 +146,20 @@ def fixture() -> tuple[
                 "-an",
                 "-threads",
                 "1",
+                "-filter_threads",
+                "1",
+                "-filter_complex_threads",
+                "1",
                 "-fps_mode",
                 "cfr",
                 "-bitexact",
+                "-fflags",
+                "+bitexact",
+                "-flags:v",
+                "+bitexact",
                 "-map_metadata",
+                "-1",
+                "-map_chapters",
                 "-1",
                 "-c:v",
                 "libvpx-vp9",
@@ -161,10 +170,20 @@ def fixture() -> tuple[
                 "-an",
                 "-threads",
                 "1",
+                "-filter_threads",
+                "1",
+                "-filter_complex_threads",
+                "1",
                 "-fps_mode",
                 "cfr",
                 "-bitexact",
+                "-fflags",
+                "+bitexact",
+                "-flags:v",
+                "+bitexact",
                 "-map_metadata",
+                "-1",
+                "-map_chapters",
                 "-1",
                 "-c:v",
                 "libx264",
@@ -210,7 +229,9 @@ def fixture() -> tuple[
             duration_s, fps, frame_count, stream_count = 15.0, 30, 450, 1
             codec = "vp9" if role == "film_modern" else "h264"
         else:
-            width = height = duration_s = fps = frame_count = stream_count = codec = None
+            width = height = duration_s = fps = frame_count = stream_count = codec = (
+                None
+            )
         fact = output_facts[role]
         outputs[role] = {
             "filename": filename,
@@ -258,9 +279,7 @@ def fixture() -> tuple[
     context = record.ProductionContext(
         protected_base_revision=REVISION,
         registered_case_ids=frozenset(EVIDENCE),
-        lineage_by_run_digest={
-            lineage["run_digest"]: record.lineage_digest(lineage)
-        },
+        lineage_by_run_digest={lineage["run_digest"]: record.lineage_digest(lineage)},
         contracts={"turek-hron-fsi3": contract},
     )
     return candidate, context, output_facts
@@ -331,6 +350,12 @@ def test_development_record_is_truthful_and_permanently_rejected() -> None:
             "lineage-complete",
         ),
         (
+            lambda value: value["lineage"].update(
+                {"model_digest": digest("foreign-model")}
+            ),
+            "protected-lineage",
+        ),
+        (
             lambda value: value["source"].update({"result_digest": digest("wrong")}),
             "source-lineage",
         ),
@@ -338,10 +363,12 @@ def test_development_record_is_truthful_and_permanently_rejected() -> None:
             lambda value: value["claim"].update({"statement": "a wider claim"}),
             "claim-boundary",
         ),
+        (lambda value: widen_non_claims(value), "claim-boundary"),
         (
             lambda value: reseal_scene(value, pressure_display_bound_pa=0.0),
             "scene-scales",
         ),
+        (lambda value: add_segment_key(value), "frame-mapping"),
         (
             lambda value: value["outputs"]["film_fallback"].update(
                 {"media_type": 'video/webm; codecs="vp9"'}
@@ -355,7 +382,15 @@ def test_development_record_is_truthful_and_permanently_rejected() -> None:
             "output-digests",
         ),
         (
+            lambda value: value["outputs"]["film_modern"].update({"codec": "h265"}),
+            "output-dimensions",
+        ),
+        (
             lambda value: reseal_encoder_without_threads(value),
+            "encoder-profile",
+        ),
+        (
+            lambda value: reseal_encoder_with_conflicting_threads(value),
             "encoder-profile",
         ),
         (lambda value: reseal_environment(value, tz="local"), "environment-identity"),
@@ -390,9 +425,7 @@ def test_text_alternative_cannot_drop_units() -> None:
     candidate["outputs"]["text_alternative"]["sha256"] = text_digest
     candidate["outputs"]["text_alternative"]["bytes"] = len(text.encode("utf-8"))
     candidate["accessibility"]["description_sha256"] = text_digest
-    facts["text_alternative"] = record.FileFact(
-        text_digest, len(text.encode("utf-8"))
-    )
+    facts["text_alternative"] = record.FileFact(text_digest, len(text.encode("utf-8")))
     assert "text-alternative" in outcome(candidate, context, facts, text).reasons
 
 
@@ -408,6 +441,16 @@ def reseal_scene(candidate: dict[str, object], **changes: object) -> None:
     scene["profile_sha256"] = record.content_digest(scene, "profile_sha256")
 
 
+def add_segment_key(candidate: dict[str, object]) -> None:
+    scene = candidate["scene"]
+    scene["segments"][0]["unknown"] = True
+    scene["profile_sha256"] = record.content_digest(scene, "profile_sha256")
+
+
+def widen_non_claims(candidate: dict[str, object]) -> None:
+    candidate["claim"]["non_claims"].append("an uncontracted escape hatch")
+
+
 def reseal_encoder_without_threads(candidate: dict[str, object]) -> None:
     encoder = candidate["encoder"]
     argv = encoder["webm_argv"]
@@ -416,12 +459,16 @@ def reseal_encoder_without_threads(candidate: dict[str, object]) -> None:
     encoder["profile_sha256"] = record.content_digest(encoder, "profile_sha256")
 
 
+def reseal_encoder_with_conflicting_threads(candidate: dict[str, object]) -> None:
+    encoder = candidate["encoder"]
+    encoder["webm_argv"].extend(["-threads", "4"])
+    encoder["profile_sha256"] = record.content_digest(encoder, "profile_sha256")
+
+
 def reseal_environment(candidate: dict[str, object], **changes: object) -> None:
     environment = candidate["environment"]
     environment.update(changes)
-    environment["profile_sha256"] = record.content_digest(
-        environment, "profile_sha256"
-    )
+    environment["profile_sha256"] = record.content_digest(environment, "profile_sha256")
 
 
 def copy_poster_digest_to_reduced(candidate: dict[str, object]) -> None:

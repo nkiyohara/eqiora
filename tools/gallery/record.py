@@ -6,7 +6,7 @@ import hashlib
 import json
 import math
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -41,9 +41,7 @@ QUANTITIES = {
     "solid_displacement": "m",
     "physical_time": "s",
 }
-DOSSIER_ROUTE = (
-    "verify/interfaces/python-fixed-reference-fsi-gallery-build/README.md"
-)
+DOSSIER_ROUTE = "verify/interfaces/python-fixed-reference-fsi-gallery-build/README.md"
 WATERMARK = "DEVELOPMENT PREVIEW — NOT PUBLISHABLE"
 DELIVERY_REQUIREMENT = (
     "replace motion with the reduced-motion still when prefers-reduced-motion is reduce"
@@ -79,6 +77,15 @@ EXPECTED_SEGMENTS = (
     ("neutral-reset", 375, 419, "labelled-neutral-fade"),
     ("poster-return", 420, 449, "labelled-poster-return"),
 )
+EXPECTED_SEGMENT_LABELS = {
+    "poster-open": "accepted state 2 poster",
+    "neutral-establish": "SCENE RESET — presentation fade, physics not reversed",
+    "state-1-hold": "accepted state 1",
+    "presentation-blend": ("PRESENTATION INTERPOLATION t1 → t2 — not solved dynamics"),
+    "state-2-hold": "accepted state 2",
+    "neutral-reset": "SCENE RESET — presentation fade, physics not reversed",
+    "poster-return": "POSTER RETURN — accepted state 2, not a replay",
+}
 FORBIDDEN_OBSERVABLE_TOKENS = (
     "vorticity",
     "stress",
@@ -271,9 +278,7 @@ def admit(
         reject("publication-status")
     experience_id = candidate.get("experience_id")
     contract = (
-        context.contracts.get(experience_id)
-        if isinstance(experience_id, str)
-        else None
+        context.contracts.get(experience_id) if isinstance(experience_id, str) else None
     )
     if experience_id not in FLAGSHIP_EXPERIENCE_IDS or contract is None:
         reject("experience-id")
@@ -298,14 +303,11 @@ def admit(
         reject("claim-boundary")
 
     evidence_cases = tuple(_sequence(candidate.get("evidence_cases")))
-    if (
-        not evidence_cases
-        or any(
-            not isinstance(case, str)
-            or _CASE_ID.fullmatch(case) is None
-            or case not in context.registered_case_ids
-            for case in evidence_cases
-        )
+    if not evidence_cases or any(
+        not isinstance(case, str)
+        or _CASE_ID.fullmatch(case) is None
+        or case not in context.registered_case_ids
+        for case in evidence_cases
     ):
         reject("evidence-cases")
     if contract is not None and frozenset(evidence_cases) != contract.evidence_cases:
@@ -316,10 +318,9 @@ def admit(
     if tuple(_sequence(lineage.get("scientific_case_ids"))) != evidence_cases:
         reject("evidence-cases")
     run_digest = lineage.get("run_digest")
-    if (
-        not isinstance(run_digest, str)
-        or context.lineage_by_run_digest.get(run_digest) != lineage_digest(lineage)
-    ):
+    if not isinstance(run_digest, str) or context.lineage_by_run_digest.get(
+        run_digest
+    ) != lineage_digest(lineage):
         reject("protected-lineage")
 
     source = _mapping(candidate.get("source"))
@@ -337,13 +338,17 @@ def admit(
     accessibility = _mapping(candidate.get("accessibility"))
     _check_accessibility(accessibility, outputs, text_alternative, reject)
 
-    scanned = canonical_bytes(
-        {
-            "scene": scene,
-            "accessibility": accessibility,
-            "text_alternative": text_alternative,
-        }
-    ).decode("utf-8").lower()
+    scanned = (
+        canonical_bytes(
+            {
+                "scene": scene,
+                "accessibility": accessibility,
+                "text_alternative": text_alternative,
+            }
+        )
+        .decode("utf-8")
+        .lower()
+    )
     if any(token in scanned for token in FORBIDDEN_OBSERVABLE_TOKENS):
         reject("derived-observable")
     whole_record = canonical_bytes(candidate).decode("utf-8")
@@ -355,7 +360,9 @@ def admit(
     return Admission(tuple(reasons))
 
 
-def _check_lineage(lineage: Mapping[str, object], reject: Any) -> None:
+def _check_lineage(
+    lineage: Mapping[str, object], reject: Callable[[str], None]
+) -> None:
     keys = {
         "model_digest",
         "semantic_revision",
@@ -394,7 +401,7 @@ def _check_source(
     source: Mapping[str, object],
     lineage: Mapping[str, object],
     context: ProductionContext,
-    reject: Any,
+    reject: Callable[[str], None],
 ) -> None:
     keys = {
         "build_revision",
@@ -423,7 +430,11 @@ def _check_source(
             reject("source-digests")
     for key in ("build_script_path", "record_module_path", "scene_module_path"):
         value = source.get(key)
-        if not isinstance(value, str) or Path(value).is_absolute() or ".." in Path(value).parts:
+        if (
+            not isinstance(value, str)
+            or Path(value).is_absolute()
+            or ".." in Path(value).parts
+        ):
             reject("source-paths")
     if (
         source.get("build_revision") != context.protected_base_revision
@@ -434,7 +445,7 @@ def _check_source(
         reject("source-lineage")
 
 
-def _check_scene(scene: Mapping[str, object], reject: Any) -> None:
+def _check_scene(scene: Mapping[str, object], reject: Callable[[str], None]) -> None:
     keys = {
         "profile_id",
         "profile_sha256",
@@ -506,24 +517,30 @@ def _check_scene(scene: Mapping[str, object], reject: Any) -> None:
     ):
         reject("physical-time")
     segments = tuple(_sequence(scene.get("segments")))
-    observed_segments = tuple(
-        (
-            _mapping(segment).get("name"),
-            _mapping(segment).get("first_frame"),
-            _mapping(segment).get("last_frame"),
-            _mapping(segment).get("kind"),
+    segment_keys = {
+        "name",
+        "first_frame",
+        "last_frame",
+        "frame_count",
+        "seconds",
+        "kind",
+        "label",
+    }
+    segment_contract_holds = len(segments) == len(EXPECTED_SEGMENTS)
+    for value, expected in zip(segments, EXPECTED_SEGMENTS, strict=False):
+        segment = _mapping(value)
+        name, first, last, kind = expected
+        segment_contract_holds &= (
+            set(segment) == segment_keys
+            and segment.get("name") == name
+            and segment.get("first_frame") == first
+            and segment.get("last_frame") == last
+            and segment.get("frame_count") == last - first + 1
+            and segment.get("seconds") == (last - first + 1) / 30
+            and segment.get("kind") == kind
+            and segment.get("label") == EXPECTED_SEGMENT_LABELS[name]
         )
-        for segment in segments
-    )
-    if observed_segments != EXPECTED_SEGMENTS or any(
-        _mapping(segment).get("frame_count")
-        != _mapping(segment).get("last_frame")
-        - _mapping(segment).get("first_frame")
-        + 1
-        for segment in segments
-        if isinstance(_mapping(segment).get("last_frame"), int)
-        and isinstance(_mapping(segment).get("first_frame"), int)
-    ):
+    if not segment_contract_holds:
         reject("frame-mapping")
     interpolation = _mapping(scene.get("interpolation"))
     if interpolation != {
@@ -539,7 +556,9 @@ def _check_scene(scene: Mapping[str, object], reject: Any) -> None:
         reject("frame-sequence")
 
 
-def _check_renderer(renderer: Mapping[str, object], reject: Any) -> None:
+def _check_renderer(
+    renderer: Mapping[str, object], reject: Callable[[str], None]
+) -> None:
     if set(renderer) != {
         "identity",
         "matplotlib_version",
@@ -559,7 +578,9 @@ def _check_renderer(renderer: Mapping[str, object], reject: Any) -> None:
         reject("renderer-identity")
 
 
-def _check_encoder(encoder: Mapping[str, object], reject: Any) -> None:
+def _check_encoder(
+    encoder: Mapping[str, object], reject: Callable[[str], None]
+) -> None:
     keys = {
         "ffmpeg_path",
         "ffmpeg_sha256",
@@ -586,22 +607,33 @@ def _check_encoder(encoder: Mapping[str, object], reject: Any) -> None:
         reject("encoder-identity")
     for key, codec in (("webm_argv", "libvpx-vp9"), ("mp4_argv", "libx264")):
         argv = tuple(_sequence(encoder.get(key)))
-        required = (
-            "-an",
-            "-threads",
-            "1",
-            "-fps_mode",
-            "cfr",
-            "-bitexact",
-            "-map_metadata",
-            "-1",
-            codec,
+        paired_options = (
+            ("-threads", "1"),
+            ("-filter_threads", "1"),
+            ("-filter_complex_threads", "1"),
+            ("-fps_mode", "cfr"),
+            ("-map_metadata", "-1"),
+            ("-map_chapters", "-1"),
+            ("-fflags", "+bitexact"),
+            ("-flags:v", "+bitexact"),
+            ("-c:v", codec),
         )
-        if not argv or any(value not in argv for value in required) or "-metadata" in argv:
+        if (
+            not argv
+            or argv.count("-an") != 1
+            or argv.count("-bitexact") != 1
+            or any(
+                not _has_exactly_one_option(argv, option, expected)
+                for option, expected in paired_options
+            )
+            or "-metadata" in argv
+        ):
             reject("encoder-profile")
 
 
-def _check_environment(environment: Mapping[str, object], reject: Any) -> None:
+def _check_environment(
+    environment: Mapping[str, object], reject: Callable[[str], None]
+) -> None:
     keys = {
         "platform",
         "machine",
@@ -643,7 +675,7 @@ def _check_environment(environment: Mapping[str, object], reject: Any) -> None:
 def _check_outputs(
     outputs: Mapping[str, object],
     facts: Mapping[str, FileFact],
-    reject: Any,
+    reject: Callable[[str], None],
 ) -> None:
     if set(outputs) != set(OUTPUT_CONTRACTS) or set(facts) != set(OUTPUT_CONTRACTS):
         reject("outputs-complete")
@@ -710,18 +742,21 @@ def _check_outputs(
                 or output.get("codec") != expected_codec
             ):
                 reject("output-dimensions")
-        elif any(
-            output.get(key) is not None
-            for key in (
-                "width",
-                "height",
-                "duration_s",
-                "fps",
-                "frame_count",
-                "stream_count",
-                "codec",
+        elif (
+            any(
+                output.get(key) is not None
+                for key in (
+                    "width",
+                    "height",
+                    "duration_s",
+                    "fps",
+                    "frame_count",
+                    "stream_count",
+                    "codec",
+                )
             )
-        ) or output.get("has_audio") is not False:
+            or output.get("has_audio") is not False
+        ):
             reject("output-dimensions")
     if len(observed_digests) != len(set(observed_digests)):
         reject("output-digests")
@@ -731,7 +766,7 @@ def _check_accessibility(
     accessibility: Mapping[str, object],
     outputs: Mapping[str, object],
     text: str,
-    reject: Any,
+    reject: Callable[[str], None],
 ) -> None:
     if set(accessibility) != {
         "reduced_motion_still",
@@ -797,7 +832,11 @@ def _nonnegative_integer(value: object) -> bool:
 
 
 def _finite(value: object) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
 
 
 def _positive_finite(value: object) -> bool:
@@ -806,8 +845,21 @@ def _positive_finite(value: object) -> bool:
 
 def _ordered_finite_pair(value: object) -> bool:
     pair = _sequence(value)
-    return len(pair) == 2 and _finite(pair[0]) and _finite(pair[1]) and pair[0] < pair[1]
+    return (
+        len(pair) == 2 and _finite(pair[0]) and _finite(pair[1]) and pair[0] < pair[1]
+    )
 
 
 def _absolute_path(value: object) -> bool:
     return isinstance(value, str) and Path(value).is_absolute()
+
+
+def _has_exactly_one_option(
+    argv: tuple[object, ...], option: str, expected: str
+) -> bool:
+    positions = [index for index, value in enumerate(argv) if value == option]
+    return (
+        len(positions) == 1
+        and positions[0] + 1 < len(argv)
+        and argv[positions[0] + 1] == expected
+    )
