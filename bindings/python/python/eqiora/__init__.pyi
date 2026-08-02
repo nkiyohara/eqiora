@@ -19,6 +19,7 @@ from . import fsi as fsi
 from . import geometry as geometry
 from . import meshing as meshing
 from . import solid as solid
+from . import trajectory as trajectory
 
 _Float64Array = npt.NDArray[np.float64]
 
@@ -897,4 +898,5 @@ __all__ = [
     "geometry",
     "meshing",
     "solid",
+    "trajectory",
 ]

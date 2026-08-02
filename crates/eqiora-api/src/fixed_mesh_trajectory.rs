@@ -32,6 +32,7 @@ pub(crate) struct ReplayedFixedFrame<'a> {
 #[derive(Debug)]
 pub struct FixedMeshFieldTrajectoryReplay2dV1<'a> {
     trajectory: &'a SpatialTrajectoryEnvelopeV1,
+    frames: Vec<ReplayedFixedFrame<'a>>,
 }
 
 impl<'a> FixedMeshFieldTrajectoryReplay2dV1<'a> {
@@ -138,13 +139,55 @@ impl<'a> FixedMeshFieldTrajectoryReplay2dV1<'a> {
             ));
         }
 
-        Ok(Self { trajectory })
+        Ok(Self { trajectory, frames })
     }
 
     /// Exact immutable trajectory root whose complete dependency DAG replayed.
     #[must_use]
     pub const fn trajectory(&self) -> &'a SpatialTrajectoryEnvelopeV1 {
         self.trajectory
+    }
+
+    /// Accepted states in exact trajectory-edge order.
+    ///
+    /// This is a borrowed projection of dependencies already admitted by the
+    /// complete replay. It assigns no new identity and performs no catalog
+    /// lookup or digest-based reordering.
+    pub fn states(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &'a SpatialStateEnvelopeV1> + DoubleEndedIterator + '_ {
+        self.frames.iter().map(|frame| frame.state)
+    }
+
+    /// Exact Field snapshots for one accepted state, in state-edge order.
+    ///
+    /// Returns `None` when `state_index` is outside the accepted trajectory.
+    pub fn fields(
+        &self,
+        state_index: usize,
+    ) -> Option<impl ExactSizeIterator<Item = &'a FieldSnapshotEnvelopeV1> + DoubleEndedIterator + '_>
+    {
+        self.frames
+            .get(state_index)
+            .map(|frame| frame.fields.iter().map(|field| field.snapshot))
+    }
+
+    /// Exact numerical blocks for one accepted Field occurrence.
+    ///
+    /// State and Field indices address the accepted edge order exposed by
+    /// [`Self::states`] and [`Self::fields`]. Returns `None` for either
+    /// out-of-range index.
+    pub fn blocks(
+        &self,
+        state_index: usize,
+        field_index: usize,
+    ) -> Option<impl ExactSizeIterator<Item = &'a DiscreteFieldEnvelopeV1> + DoubleEndedIterator + '_>
+    {
+        self.frames
+            .get(state_index)?
+            .fields
+            .get(field_index)
+            .map(|field| field.blocks.iter().copied())
     }
 }
 

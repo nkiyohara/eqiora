@@ -18,6 +18,7 @@ mod model;
 mod modeling;
 mod realization;
 mod steady_stokes;
+mod trajectory;
 
 use std::collections::BTreeMap;
 
@@ -345,6 +346,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     modeling::register(module)?;
     realization::register(module)?;
     steady_stokes::register(module)?;
+    trajectory::register(module)?;
     module.add_function(wrap_pyfunction!(compile, module)?)?;
     module.add_function(wrap_pyfunction!(replay, module)?)?;
     Ok(())
