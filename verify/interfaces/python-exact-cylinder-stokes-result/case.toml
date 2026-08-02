@@ -5,6 +5,7 @@ reference_kind = "composition-of-dual-independent-fluid-oracle-and-independent-l
 
 capabilities = [
   "python-exact-cylinder-steady-stokes-run",
+  "python-typed-steady-stokes-intent-and-resolved-plan",
   "python-typed-exact-cylinder-steady-stokes-result",
   "python-complete-pressure-field-and-support-mesh",
   "python-model-realization-run-snapshot-lineage",
@@ -16,8 +17,11 @@ model = "one packaged byte-exact copy of the accepted current steady-flow-past-c
 geometry = "DFG-shaped 2.2 m by 0.41 m rectangle with one exact radius-0.05 m circle centred at [0.2, 0.2] m"
 realization = "the accepted exact-source-owned 50-chord, 104-triangle reference mesh"
 physics = "steady coherent-SI MINI/P1 Stokes"
-entry_point = "eqiora.fluid.solve_exact_cylinder_stokes"
-result_type = "immutable eqiora.fluid.CircularHoleSteadyStokesResult"
+intent = "immutable eqiora.fluid.SteadyStokes with six mandatory readable arguments"
+entry_point = "eqiora.fluid.resolve then eqiora.submit(model, plan=...) or eqiora.run(model, plan=...)"
+plan_type = "immutable eqiora.fluid.SteadyStokesPlan bound to the exact Model and accepted Mesh lineage"
+result_type = "immutable eqiora.fluid.CircularHoleSteadyStokesResult, temporary until the common spatial Result migration"
+retired_entry_point = "eqiora.fluid.solve_exact_cylinder_stokes is absent from the final runtime, __all__, and stubs"
 
 [oracle]
 fluid_case = "fluid.exact-circular-hole-stokes-2d"
@@ -47,8 +51,33 @@ relative_tolerance = 1e-6
 absolute_tolerance = 1e-13
 maximum_iterations = 10000
 residual_target = 1.3239627651209673e-7
+length_scale_m = 0.41
+velocity_scale_m_per_s = 0.3
+pressure_scale_pa = 0.0007317073170731707
+spatial_dimension = 2
+velocity_space = "simplex-p1-bubble"
+pressure_space = "continuous-lagrange-1"
+solver_algorithm = "sparse-lu"
+preconditioner = "identity"
+reduction = "fast"
+solver_backend = "eqiora.faer"
+workers = 1
+plan_properties = 23
+intent_arguments = 6
 
 [acceptance]
+six_mandatory_readable_intent_arguments = true
+intent_is_immutable_with_value_equality_and_hash = true
+invalid_nonfinite_or_nonpositive_intent_fails_closed = true
+resolved_plan_publishes_every_effective_value_before_submission = true
+frozen_velocity_and_pressure_space_spellings_are_exact = true
+plan_identities_equal_the_revalidated_run_evidence = true
+plan_canonical_bytes_are_the_existing_realization_envelope = true
+resolution_is_deterministic_and_owner_lifetime_independent = true
+submit_run_await_and_repeated_result_share_one_occurrence = true
+cancellation_is_honest_and_never_partial = true
+retired_solve_entry_point_absent_from_runtime_and_stubs = true
+temporary_result_owner_and_pressure_still_unchanged = true
 caller_supplies_current_model_bytes = true
 one_packaged_current_model_resource_is_byte_exact = true
 installed_test_reads_only_the_package_resource = true
@@ -74,6 +103,18 @@ foreign_geometry_owner = "same inner mesh identity cannot substitute a different
 swapped_boundary_roles = "same inner mesh identity cannot substitute a different authored boundary meaning"
 coarse_mesh = "different topology and approximation policy rejected before solve"
 quality_policy_plateau = "same topology coordinates with a different mesh artifact identity rejected before solve"
+optional_intent_argument = "omitting any one of the six arguments must raise TypeError, never default"
+normalized_invalid_intent = "zero, negative, and nonfinite scalars and nonpositive iteration limits raise ValidationError instead of being clamped"
+silent_intent_fallback = "any changed mandatory value raises CapabilityError during resolve, before a Run or worker exists"
+hidden_effective_value = "every frozen Plan property is readable before submission and equals the Run-revalidated value"
+renamed_discretization_space = "either published space name differing from its frozen spelling fails the installed-wheel, isolated-package, and embedded programs"
+fabricated_plan_canonical_bytes = "killed by independent schema-domain-separated digest replay against realization_digest"
+ambient_resolution = "an independently rebuilt Model and Mesh must resolve to an equal Plan with equal canonical bytes"
+plan_owner_lifetime = "deleting the Python Model and a sibling Plan must not invalidate the retained Plan or its submission"
+foreign_model_at_submission = "a shape-equal Model with a foreign source revision is rejected with EQ0807 before a worker"
+duplicate_solve = "repeated result() returns the identical memoized object; sync, await, and run() agree on run_digest"
+partial_cancellation_output = "cancellation either raises CancellationError EQ0506 or returns the whole accepted Result"
+retained_removed_entry_point = "solve_exact_cylinder_stokes present in the runtime module, __all__, native module, or fluid.pyi"
 noncanonical_model_bytes = "pretty JSON is admitted by the current decoder and must replay to the same run identity"
 hardcoded_generated_digests = "killed by independent digest replay from public canonical binding and run bytes"
 result_owned_matrix_lifetime = "killed by retaining all views after deleting Result and forcing collection"
@@ -104,6 +145,12 @@ navier_stokes_or_transient = false
 fsi = false
 performance_or_scale = false
 cross_platform_bit_identity = false
+one_accepted_intent_and_plan_tuple = true
+alternate_solver_backend_or_topology_selection = false
+general_plan_or_realization_unification = false
+durable_plan_wire_or_provider_registry = false
+frozen_velocity_or_pressure_space_spelling = true
+mid_solve_cancellation_boundary = false
 
 [evidence]
 runner = "python-installed-wheel"
