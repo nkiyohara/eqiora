@@ -232,9 +232,14 @@ def _rust_commands(packages: Iterable[str], *, rustdoc: bool) -> list[PlannedCom
 
 
 def _case_commands(cases: Iterable[str]) -> list[PlannedCommand]:
+    selected = sorted(set(cases))
+    if not selected:
+        return []
+    selectors = tuple(item for case in selected for item in ("--case", case))
+    noun = "case" if len(selected) == 1 else "cases"
     return [
         command(
-            f"Registered evidence {case}",
+            f"Registered evidence ({len(selected)} {noun})",
             "cargo",
             "run",
             "--locked",
@@ -242,10 +247,8 @@ def _case_commands(cases: Iterable[str]) -> list[PlannedCommand]:
             "eqiora-verify",
             "--",
             "run",
-            "--case",
-            case,
+            *selectors,
         )
-        for case in sorted(set(cases))
     ]
 
 
