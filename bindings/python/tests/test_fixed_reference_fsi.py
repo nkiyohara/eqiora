@@ -233,9 +233,14 @@ def test_general_trajectory_projects_exact_replayed_fields(
             velocity_snapshot.values("vertex"),
             step.velocity,
         )
+        velocity_cell_block = velocity_snapshot.values("cell")
         np.testing.assert_array_equal(
-            velocity_snapshot.values("cell"),
+            velocity_cell_block[result.fluid_cells],
             step.bubble_velocity,
+        )
+        np.testing.assert_array_equal(
+            velocity_cell_block[result.solid_cells],
+            0.0,
         )
 
         pressure_snapshot = state.field(pressure)

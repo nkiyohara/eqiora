@@ -107,8 +107,8 @@ impl PyFieldSnapshot {
 
     /// Exact mathematical component shape; an empty tuple is scalar.
     #[getter]
-    fn value_shape(&self) -> Vec<u32> {
-        self.value_shape.clone()
+    fn value_shape(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        Ok(PyTuple::new(py, self.value_shape.iter().copied())?.unbind())
     }
 
     /// Coordinate-frame meaning of the mathematical components.
