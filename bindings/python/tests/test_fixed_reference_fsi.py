@@ -234,14 +234,14 @@ def test_general_trajectory_projects_exact_replayed_fields(
             step.velocity,
         )
         velocity_cell_block = velocity_snapshot.values("cell")
+        assert velocity_cell_block.shape == (8, 2)
         np.testing.assert_array_equal(
             velocity_cell_block[result.fluid_cells],
             step.bubble_velocity,
         )
-        np.testing.assert_array_equal(
-            velocity_cell_block[result.solid_cells],
-            0.0,
-        )
+        inactive_velocity_cells = velocity_cell_block[result.solid_cells]
+        np.testing.assert_array_equal(inactive_velocity_cells, 0.0)
+        assert not np.signbit(inactive_velocity_cells).any()
 
         pressure_snapshot = state.field(pressure)
         assert pressure_snapshot.value_shape == ()
@@ -254,7 +254,9 @@ def test_general_trajectory_projects_exact_replayed_fields(
             pressure_block[step.pressure_vertices],
             step.pressure,
         )
-        np.testing.assert_array_equal(pressure_block[[6, 7, 8]], 0.0)
+        inactive_pressure_vertices = pressure_block[[6, 7, 8]]
+        np.testing.assert_array_equal(inactive_pressure_vertices, 0.0)
+        assert not np.signbit(inactive_pressure_vertices).any()
 
         displacement_snapshot = state.field(displacement)
         np.testing.assert_array_equal(

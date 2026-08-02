@@ -355,7 +355,6 @@ impl PyTrajectory {
         self.cells.numpy(py)
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_replay(
         py: Python<'_>,
         model: &PyModel,
@@ -377,6 +376,12 @@ impl PyTrajectory {
         if model_digest != current_model_digest {
             return Err(PyRuntimeError::new_err(
                 "accepted trajectory Model differs from the supplied Python Model",
+            ));
+        }
+        let mesh_digest = first.mesh_artifact().to_string();
+        if mesh_digest != artifact_digest(py, mesh.digest())? {
+            return Err(PyRuntimeError::new_err(
+                "accepted trajectory mesh differs from the supplied mesh artifact",
             ));
         }
 
@@ -477,7 +482,11 @@ impl PyTrajectory {
                         blocks,
                     },
                 )?;
-                field_lookup.insert(field_id, fields.len());
+                if field_lookup.insert(field_id, fields.len()).is_some() {
+                    return Err(PyRuntimeError::new_err(
+                        "accepted trajectory state contains a duplicate Field identity",
+                    ));
+                }
                 fields.push(projected);
             }
             let digest = artifact_digest(py, state.digest())?;
@@ -503,7 +512,7 @@ impl PyTrajectory {
             model_digest,
             geometry_digest: first.geometry_artifact().to_string(),
             correspondence_digest: first.correspondence_artifact().to_string(),
-            mesh_digest: first.mesh_artifact().to_string(),
+            mesh_digest,
             realization_digest: first.realization_artifact().to_string(),
             run_digest: artifact_digest(py, run.digest())?,
             trajectory_digest: artifact_digest(py, replay.trajectory().digest())?,
