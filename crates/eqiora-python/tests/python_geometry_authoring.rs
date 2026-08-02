@@ -94,11 +94,32 @@ def make(**overrides):
         "hole": "cylinder",
     }
     arguments.update(overrides)
-    return eqiora.geometry.RectangleWithCircularHole(**arguments)
+    x_bounds, y_bounds = arguments["bounds"]
+    graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+        x_bounds=x_bounds,
+        y_bounds=y_bounds,
+        plane_z=0.0,
+        depth=1.0,
+        modeling_tolerance=1e-10,
+    ).circular_through_cut(
+        center=arguments["circle_center"],
+        radius=arguments["circle_radius"],
+        boolean_tolerance=1e-10,
+    )
+    return graph.planar_circular_section(
+        classification_tolerance=arguments["tolerance"],
+        region=arguments["region"],
+        x_lower=arguments["x_lower"],
+        x_upper=arguments["x_upper"],
+        y_lower=arguments["y_lower"],
+        y_upper=arguments["y_upper"],
+        hole=arguments["hole"],
+    )
 
 geometry = make()
 assert type(geometry).__module__ == "eqiora._eqiora"
-assert geometry.canonical_json == expected_json
+assert type(geometry).__name__ == "Geometry"
+assert geometry.canonical_bytes == expected_json
 assert geometry.selection_names == (
     "cylinder", "inlet", "outlet", "walls", "fluid"
 )
@@ -115,15 +136,14 @@ assert geometry != swapped
 assert geometry.digest != swapped.digest
 
 oriented = make(y_lower="floor", y_upper="ceiling")
-assert oriented.canonical_json == expected_oriented_json
+assert oriented.canonical_bytes == expected_oriented_json
 assert oriented.digest == expected_oriented_digest
 assert oriented.selection_names == (
     "ceiling", "cylinder", "floor", "inlet", "outlet", "fluid"
 )
 
 off_axis = make(circle_center=(0.3, 0.2))
-assert off_axis.circle_center == (0.3, 0.2)
-assert off_axis.canonical_json == expected_off_axis_json
+assert off_axis.canonical_bytes == expected_off_axis_json
 assert off_axis.digest == expected_off_axis_digest
 
 try:
@@ -147,7 +167,7 @@ except eqiora.ValidationError as error:
 else:
     raise AssertionError("a circle at tolerance clearance was admitted")
 
-canonical_json = geometry.canonical_json
+canonical_json = geometry.canonical_bytes
 python_digest = geometry.digest
 "#
             ),

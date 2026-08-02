@@ -3,7 +3,7 @@
 use std::hash::{Hash, Hasher};
 
 use eqiora::api::FixedReferenceFsiResult2d;
-use eqiora::meshing::{MeshEntity, MeshTopology};
+use eqiora::meshing::MeshEntity;
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use numpy::{PyArray1, PyArray2};
 use pyo3::exceptions::PyIndexError;
@@ -15,6 +15,7 @@ use crate::matrix::{ReadOnlyMatrix, ReadOnlyVector};
 use crate::model::PyModel;
 use crate::panic_boundary;
 use crate::realization::PyLinearSolveSummary;
+use crate::trajectory::PyTrajectory;
 
 /// Frozen projection of one accepted step in the two-state trajectory.
 #[pyclass(
@@ -219,8 +220,7 @@ pub(crate) struct PyFixedReferenceFsiResult {
     run_manifest_json: Vec<u8>,
     state_digests: [String; 2],
     trajectory_digest: String,
-    coordinates: ReadOnlyMatrix<f64>,
-    cells: ReadOnlyMatrix<u32>,
+    trajectory: Py<PyTrajectory>,
     fluid_cells: ReadOnlyVector<u32>,
     solid_cells: ReadOnlyVector<u32>,
     interface_facets: ReadOnlyMatrix<u32>,
@@ -243,7 +243,11 @@ impl Hash for PyFixedReferenceFsiResult {
 }
 
 impl PyFixedReferenceFsiResult {
-    fn from_native(py: Python<'_>, result: FixedReferenceFsiResult2d) -> PyResult<Self> {
+    fn from_native(
+        py: Python<'_>,
+        model: &PyModel,
+        result: FixedReferenceFsiResult2d,
+    ) -> PyResult<Self> {
         let model_digest = digest(py, result.model().digest())?;
         let geometry_digest = digest(py, result.geometry().digest())?;
         let correspondence_digest = digest(py, result.correspondence().digest())?;
@@ -259,35 +263,14 @@ impl PyFixedReferenceFsiResult {
             digest(py, result.states()[1].digest())?,
         ];
         let trajectory_digest = digest(py, result.trajectory().digest())?;
+        let replay = result
+            .trajectory_replay()
+            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
+        let trajectory = Py::new(
+            py,
+            PyTrajectory::from_replay(py, model, result.mesh_artifact(), &replay, result.run())?,
+        )?;
 
-        let vertex_count = result.mesh().vertices().len();
-        let mut coordinates = Vec::with_capacity(vertex_count * 2);
-        for (index, coordinate) in result.mesh().vertices().iter().enumerate() {
-            let coordinate = <[f64; 2]>::try_from(coordinate.as_slice()).map_err(|_| {
-                pyo3::exceptions::PyRuntimeError::new_err(format!(
-                    "accepted FSI vertex {index} is not two-dimensional"
-                ))
-            })?;
-            coordinates.extend(coordinate);
-        }
-        let cell_count = result
-            .mesh()
-            .entity_count(2)
-            .expect("accepted FSI mesh owns its cell stratum");
-        let mut cells = Vec::with_capacity(cell_count * 3);
-        for index in 0..cell_count {
-            let vertices = result
-                .mesh()
-                .entity_vertices(MeshEntity::new(2, index))
-                .expect("accepted FSI cell owns connectivity");
-            for vertex in vertices {
-                cells.push(u32::try_from(vertex.index()).map_err(|_| {
-                    pyo3::exceptions::PyOverflowError::new_err(
-                        "FSI vertex index exceeds Python uint32 connectivity",
-                    )
-                })?);
-            }
-        }
         let fluid_cells = result
             .partition()
             .fluid_cells()
@@ -338,8 +321,7 @@ impl PyFixedReferenceFsiResult {
             run_manifest_json,
             state_digests,
             trajectory_digest,
-            coordinates: ReadOnlyMatrix::new(vertex_count, 2, coordinates),
-            cells: ReadOnlyMatrix::new(cell_count, 3, cells),
+            trajectory,
             fluid_cells: ReadOnlyVector::new(fluid_cells),
             solid_cells: ReadOnlyVector::new(solid_cells),
             interface_facets: ReadOnlyMatrix::new(
@@ -410,14 +392,20 @@ impl PyFixedReferenceFsiResult {
         &self.trajectory_digest
     }
 
+    /// Accepted general trajectory projection over the exact durable replay.
+    #[getter]
+    fn trajectory(&self, py: Python<'_>) -> Py<PyTrajectory> {
+        self.trajectory.clone_ref(py)
+    }
+
     #[getter]
     fn coordinates(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
-        self.coordinates.numpy(py)
+        self.trajectory.borrow(py).coordinates_numpy(py)
     }
 
     #[getter]
     fn cells(&self, py: Python<'_>) -> PyResult<Py<PyArray2<u32>>> {
-        self.cells.numpy(py)
+        self.trajectory.borrow(py).cells_numpy(py)
     }
 
     #[getter]
@@ -562,7 +550,7 @@ pub(crate) fn solve_fixed_reference_fsi(
         });
         result
             .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))
-            .and_then(|result| PyFixedReferenceFsiResult::from_native(py, result))
+            .and_then(|result| PyFixedReferenceFsiResult::from_native(py, model, result))
     })
 }
 

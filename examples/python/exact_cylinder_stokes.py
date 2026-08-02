@@ -28,12 +28,13 @@ def solve() -> eqiora.fluid.CircularHoleSteadyStokesResult:
         y_upper="walls",
         hole="cylinder",
     )
-    mesh = eqiora.meshing.circular_hole_chordal(
-        geometry,
-        max_boundary_error=1e-4,
-        required_minimum_mean_ratio=1e-5,
-        max_segments=50,
+    request = eqiora.meshing.MeshRequest(
+        maximum_boundary_error=1e-4,
+        minimum_mean_ratio=1e-5,
+        maximum_boundary_facets=50,
     )
+    plan = eqiora.meshing.resolve(geometry, request)
+    mesh = eqiora.meshing.generate(geometry, plan=plan)
     model = (
         files(eqiora)
         .joinpath("examples", "steady-flow-past-cylinder.model.json")

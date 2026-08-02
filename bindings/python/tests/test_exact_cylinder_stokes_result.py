@@ -178,22 +178,58 @@ def geometry(**overrides: object) -> Any:
         "hole": "cylinder",
     }
     arguments.update(overrides)
-    return eqiora.geometry.RectangleWithCircularHole(**arguments)
+    (x_bounds, y_bounds) = arguments["bounds"]
+    graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+        x_bounds=x_bounds,
+        y_bounds=y_bounds,
+        plane_z=0.0,
+        depth=1.0,
+        modeling_tolerance=1e-10,
+    ).circular_through_cut(
+        center=arguments["circle_center"],
+        radius=arguments["circle_radius"],
+        boolean_tolerance=1e-10,
+    )
+    return graph.planar_circular_section(
+        classification_tolerance=arguments["tolerance"],
+        region=arguments["region"],
+        x_lower=arguments["x_lower"],
+        x_upper=arguments["x_upper"],
+        y_lower=arguments["y_lower"],
+        y_upper=arguments["y_upper"],
+        hole=arguments["hole"],
+    )
+
+
+def mesh_plan(
+    source: Any,
+    *,
+    maximum_boundary_error: float = 1.0e-4,
+    minimum_mean_ratio: float = 1.0e-5,
+    maximum_boundary_facets: int = 50,
+) -> Any:
+    request = eqiora.meshing.MeshRequest(
+        maximum_boundary_error=maximum_boundary_error,
+        minimum_mean_ratio=minimum_mean_ratio,
+        maximum_boundary_facets=maximum_boundary_facets,
+    )
+    return eqiora.meshing.resolve(source, request)
 
 
 def mesh(
     source: Any,
     *,
-    max_boundary_error: float = 1.0e-4,
-    required_minimum_mean_ratio: float = 1.0e-5,
-    max_segments: int = 50,
+    maximum_boundary_error: float = 1.0e-4,
+    minimum_mean_ratio: float = 1.0e-5,
+    maximum_boundary_facets: int = 50,
 ) -> Any:
-    return eqiora.meshing.circular_hole_chordal(
+    plan = mesh_plan(
         source,
-        max_boundary_error=max_boundary_error,
-        required_minimum_mean_ratio=required_minimum_mean_ratio,
-        max_segments=max_segments,
+        maximum_boundary_error=maximum_boundary_error,
+        minimum_mean_ratio=minimum_mean_ratio,
+        maximum_boundary_facets=maximum_boundary_facets,
     )
+    return eqiora.meshing.generate(source, plan=plan)
 
 
 def solve(source: Any, realized: Any, *, model: bytes | None = None) -> Any:
@@ -266,18 +302,19 @@ def test_complete_result_replays_binding_run_and_frozen_observations(
     assert result.realization_revision == REALIZATION_REVISION
     assert result.exact_source_digest == source.digest == SOURCE_DIGEST
     assert realized.source_digest == SOURCE_DIGEST
-    assert result.mesh_digest == realized.mesh_digest == MESH_DIGEST
+    assert result.mesh_digest == realized.digest == MESH_DIGEST
+    assert result.correspondence_digest == realized.correspondence_digest
+    assert result.chordal_realization_digest == realized.realization_digest
     assert result.pressure_dimension == PRESSURE_DIMENSION
     pressure_field_id, support_domain_id = model_result_ids(model_bytes())
     assert result.pressure_field_id == pressure_field_id
     assert result.support_domain_id == support_domain_id
     assert result.bounds == ((0.0, 2.2), (0.0, 0.41))
+    plan = mesh_plan(source)
     assert result.requested_max_boundary_error == 1.0e-4
-    assert result.boundary_evaluation_allowance == (
-        realized.boundary_evaluation_allowance
-    )
-    assert result.boundary_error_bound == realized.boundary_error_bound
-    assert result.circle_segments == realized.circle_segments == 50
+    assert result.boundary_evaluation_allowance == plan.boundary_evaluation_allowance
+    assert result.boundary_error_bound == plan.boundary_error_bound
+    assert result.circle_segments == plan.boundary_facets == 50
 
     identities = (
         result.model_digest,
@@ -338,7 +375,7 @@ def test_complete_result_replays_binding_run_and_frozen_observations(
         == result.run_digest
     )
 
-    mesh_document = json.loads(realized.mesh_canonical_json)
+    mesh_document = json.loads(realized.canonical_bytes)
     coordinates = result.coordinates
     triangles = result.triangles
     pressure = result.pressure.numpy(copy=False)
@@ -488,7 +525,7 @@ def test_model_and_exact_source_ownership_faults_fail_closed(
     )
 
     foreign = geometry(tolerance=1.0e-10)
-    assert mesh(foreign).mesh_digest == realized.mesh_digest
+    assert mesh(foreign).digest == realized.digest
     assert_error(
         lambda: solve(foreign, realized),
         eqiora.ValidationError,
@@ -498,7 +535,7 @@ def test_model_and_exact_source_ownership_faults_fail_closed(
 
     swapped = geometry(x_lower="outlet", x_upper="inlet")
     swapped_mesh = mesh(swapped)
-    assert swapped_mesh.mesh_digest == realized.mesh_digest
+    assert swapped_mesh.digest == realized.digest
     assert_error(
         lambda: solve(swapped, swapped_mesh),
         eqiora.ValidationError,
@@ -508,11 +545,11 @@ def test_model_and_exact_source_ownership_faults_fail_closed(
 
     coarse = mesh(
         source,
-        max_boundary_error=0.2,
-        required_minimum_mean_ratio=1.0e-8,
-        max_segments=8,
+        maximum_boundary_error=0.2,
+        minimum_mean_ratio=1.0e-8,
+        maximum_boundary_facets=8,
     )
-    assert coarse.mesh_digest != realized.mesh_digest
+    assert coarse.digest != realized.digest
     assert_error(
         lambda: solve(source, coarse),
         eqiora.ValidationError,
@@ -520,8 +557,8 @@ def test_model_and_exact_source_ownership_faults_fail_closed(
         code="EQ0807",
     )
 
-    plateau = mesh(source, required_minimum_mean_ratio=1.0e-6)
-    assert plateau.mesh_digest != realized.mesh_digest
+    plateau = mesh(source, minimum_mean_ratio=1.0e-6)
+    assert plateau.digest != realized.digest
     assert_error(
         lambda: solve(source, plateau),
         eqiora.ValidationError,
@@ -574,11 +611,19 @@ model = (
 assert len(model) == {MODEL_RESOURCE_BYTES}
 assert hashlib.sha256(model).hexdigest() == {MODEL_RESOURCE_SHA256!r}
 assert model.endswith(b"\\n")
-geometry = eqiora.geometry.RectangleWithCircularHole(
-    bounds=((0.0, 2.2), (0.0, 0.41)),
-    circle_center=(0.2, 0.2),
-    circle_radius=0.05,
-    tolerance=1e-12,
+graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+    x_bounds=(0.0, 2.2),
+    y_bounds=(0.0, 0.41),
+    plane_z=0.0,
+    depth=1.0,
+    modeling_tolerance=1e-10,
+).circular_through_cut(
+    center=(0.2, 0.2),
+    radius=0.05,
+    boolean_tolerance=1e-10,
+)
+geometry = graph.planar_circular_section(
+    classification_tolerance=1e-12,
     region="fluid",
     x_lower="inlet",
     x_upper="outlet",
@@ -586,12 +631,13 @@ geometry = eqiora.geometry.RectangleWithCircularHole(
     y_upper="walls",
     hole="cylinder",
 )
-mesh = eqiora.meshing.circular_hole_chordal(
-    geometry,
-    max_boundary_error=1e-4,
-    required_minimum_mean_ratio=1e-5,
-    max_segments=50,
+request = eqiora.meshing.MeshRequest(
+    maximum_boundary_error=1e-4,
+    minimum_mean_ratio=1e-5,
+    maximum_boundary_facets=50,
 )
+plan = eqiora.meshing.resolve(geometry, request)
+mesh = eqiora.meshing.generate(geometry, plan=plan)
 assert "numpy" not in sys.modules
 result = eqiora.fluid.solve_exact_cylinder_stokes(
     model=model,

@@ -96,8 +96,8 @@ section = dfg_graph.planar_circular_section(
     y_upper="walls",
     hole="cylinder",
 )
-assert type(section).__name__ == "RectangleWithCircularHole"
-assert section.canonical_json == expected_section_wire
+assert type(section).__name__ == "Geometry"
+assert section.canonical_bytes == expected_section_wire
 assert section.digest == expected_section_digest
 assert section.selection_names == ("cylinder", "inlet", "outlet", "walls", "fluid")
 

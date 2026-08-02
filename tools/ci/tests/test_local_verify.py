@@ -11,6 +11,8 @@ CI_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(CI_ROOT))
 
 from local_verify import (  # noqa: E402
+    PlannedCommand,
+    VerificationPlan,
     WorkspacePackage,
     build_plan,
     changed_case_ids,
@@ -19,6 +21,25 @@ from local_verify import (  # noqa: E402
     reverse_dependency_closure,
 )
 from check_docs import check as check_docs  # noqa: E402
+
+
+EVIDENCE_RUN_PREFIX = (
+    "cargo",
+    "run",
+    "--locked",
+    "-p",
+    "eqiora-verify",
+    "--",
+    "run",
+)
+
+
+def evidence_runs(plan: VerificationPlan) -> list[PlannedCommand]:
+    return [
+        item
+        for item in plan.commands
+        if item.argv[: len(EVIDENCE_RUN_PREFIX)] == EVIDENCE_RUN_PREFIX
+    ]
 
 
 def workspace() -> dict[str, WorkspacePackage]:
@@ -118,7 +139,47 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(plan.cases, ("language.explicit",))
         rendered = [item.render() for item in plan.commands]
         self.assertTrue(any("cargo test --locked -p eqiora-core" in item for item in rendered))
-        self.assertTrue(any("--case language.explicit" in item for item in rendered))
+        evidence = evidence_runs(plan)
+        self.assertEqual(len(evidence), 1)
+        self.assertEqual(evidence[0].label, "Registered evidence (1 case)")
+        self.assertEqual(
+            evidence[0].argv,
+            (*EVIDENCE_RUN_PREFIX, "--case", "language.explicit"),
+        )
+
+    def test_selected_cases_share_one_canonical_runner_invocation(self) -> None:
+        first = build_plan(
+            "fast",
+            [],
+            ["language.second", "language.first", "language.second"],
+            workspace(),
+        )
+        second = build_plan(
+            "fast",
+            [],
+            ["language.first", "language.second"],
+            workspace(),
+        )
+
+        self.assertEqual(first.cases, ("language.first", "language.second"))
+        evidence = evidence_runs(first)
+        self.assertEqual(len(evidence), 1)
+        self.assertEqual(evidence[0].label, "Registered evidence (2 cases)")
+        self.assertEqual(
+            evidence[0].argv,
+            (
+                *EVIDENCE_RUN_PREFIX,
+                "--case",
+                "language.first",
+                "--case",
+                "language.second",
+            ),
+        )
+        self.assertEqual(first, second)
+
+    def test_no_selected_case_schedules_no_runner_invocation(self) -> None:
+        plan = build_plan("fast", [], [], workspace())
+        self.assertEqual(evidence_runs(plan), [])
 
     def test_affected_plan_expands_packages_and_adds_rustdoc(self) -> None:
         plan = build_plan(

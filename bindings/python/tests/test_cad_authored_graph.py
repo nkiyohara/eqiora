@@ -405,7 +405,7 @@ def test_planar_section_preserves_distinct_y_roles_and_ignores_nonplanar_facts()
         y_lower="floor",
         y_upper="ceiling",
     )
-    assert same_section.canonical_json == oriented.canonical_json
+    assert same_section.canonical_bytes == oriented.canonical_bytes
     assert same_section.digest == oriented.digest
 
     with pytest.raises(eqiora.ValidationError):

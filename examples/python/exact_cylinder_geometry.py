@@ -3,7 +3,7 @@
 import eqiora
 
 
-def build_geometry() -> eqiora.geometry.RectangleWithCircularHole:
+def build_geometry() -> eqiora.geometry.Geometry:
     graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
         x_bounds=(0.0, 2.2),
         y_bounds=(0.0, 0.41),

@@ -12,9 +12,9 @@ use pyo3::types::{PyBytes, PyModule};
 
 use crate::array::PyArrayBuffer;
 use crate::error::diagnostic_error;
-use crate::geometry::{PyRectangleWithCircularHole, digest_to_hex};
+use crate::geometry::{PyGeometry, digest_to_hex};
 use crate::matrix::ReadOnlyMatrix;
-use crate::meshing::PyCircularHoleChordalMesh;
+use crate::meshing::PyMesh;
 use crate::panic_boundary;
 use crate::realization::PyLinearSolveSummary;
 
@@ -420,8 +420,8 @@ impl PyCircularHoleSteadyStokesResult {
 pub(crate) fn solve_exact_cylinder_stokes(
     py: Python<'_>,
     model: &[u8],
-    geometry: &PyRectangleWithCircularHole,
-    mesh: &PyCircularHoleChordalMesh,
+    geometry: &PyGeometry,
+    mesh: &PyMesh,
 ) -> PyResult<PyCircularHoleSteadyStokesResult> {
     panic_boundary(py, || {
         let model = model.to_vec();

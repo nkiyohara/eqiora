@@ -62,10 +62,10 @@ When a predicate, budget, or oracle blocks a lane, the lane changes, not the gat
 - a file over its ceiling is **split**, then the ceiling ratchets down to match;
 - a nameable glob re-export is **replaced by named items**, not re-registered;
 - an unsatisfiable oracle is **returned with the argument**, not relaxed;
-- a claim is **narrowed to what was shown**, never widened to what was built.
-
-Raising a ceiling stays permitted as a reviewed architecture change with a reason
-and a deletion condition — never a step inside an ordinary slice.
+- a claim is **narrowed to what was shown**, never widened to what was built;
+- a path a frozen whole-tree sweep predates is **admitted by exact path**, never
+  by a glob, a directory, or a suffix rule, and admission is a permission that
+  joins no frozen set rather than a claim the path was always there.
 
 ## Measure the thing you are reasoning about
 
@@ -172,9 +172,9 @@ check-architecture` numbers down. Raising a ceiling or adding a debt entry is an
 architecture change, permitted but reviewed as one, and it carries a reason and
 a deletion condition.
 
-Developer convenience stays outside product architecture. Prefer the smallest conventional
-local tool, keep maintainer-specific hosts and paths out of the repository, and do not add a
-protocol or durable contract for a build, cache, synchronization, or editor-host workaround.
+Prefer the smallest conventional local tool. Put large build, candidate, and worktree scratch under
+home-backed `TMPDIR`, never OS `/tmp`. Keep maintainer-specific hosts/paths out of the repository.
+Add no protocol or durable contract to work around build, cache, sync, or editor-host limits.
 
 ## Gates
 

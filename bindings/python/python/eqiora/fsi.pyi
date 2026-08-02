@@ -4,6 +4,7 @@ import numpy as np
 import numpy.typing as npt
 
 from . import LinearSolveSummary, Model
+from .trajectory import Trajectory
 
 @final
 class FixedReferenceFsiStep:
@@ -87,6 +88,8 @@ class FixedReferenceFsiResult:
     def state_digests(self) -> tuple[str, str]: ...
     @property
     def trajectory_digest(self) -> str: ...
+    @property
+    def trajectory(self) -> Trajectory: ...
     @property
     def coordinates(self) -> npt.NDArray[np.float64]: ...
     @property

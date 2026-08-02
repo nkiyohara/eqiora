@@ -1,10 +1,12 @@
 # Python exact-source-bound chordal reference mesh
 
-This case freezes one deliberately limited installed-Python adapter:
-`eqiora.meshing.circular_hole_chordal`. It accepts the existing immutable
-`eqiora.geometry.RectangleWithCircularHole` and the three explicit policies
-`max_boundary_error`, `required_minimum_mean_ratio`, and `max_segments`. It
-returns one immutable `eqiora.meshing.CircularHoleChordalMesh`.
+This case freezes one deliberately limited installed-Python path through common
+ownership boundaries. `MeshRequest` records the three explicit policies
+`maximum_boundary_error`, `minimum_mean_ratio`, and
+`maximum_boundary_facets`; `eqiora.meshing.resolve` binds the exact
+`eqiora.geometry.Geometry` and complete current provider choice into immutable
+`MeshPlan`; `eqiora.meshing.generate` publishes one immutable
+`eqiora.meshing.Mesh`.
 
 The Python object is a same-process view of the accepted RFC 0082 artifact
 owner. That owner retains the exact source, pure binding envelope, accepted
@@ -49,7 +51,7 @@ The resulting inner mesh artifact has:
 - domain-separated mesh digest
   `148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a`.
 
-These two hashes are intentionally different. `mesh_digest` is the latter:
+These two hashes are intentionally different. `Mesh.digest` is the latter:
 
 ```text
 sha256(
@@ -59,13 +61,12 @@ sha256(
 )
 ```
 
-The test independently recomputes both hashes from the public
-`mesh_canonical_json`, pins its byte count, parses its closed topology,
+The test independently recomputes both hashes from public `canonical_bytes`,
+pins its byte count, parses its closed topology,
 geometry, acceptance, and evidence fields, and requires the public property
-to equal the domain-separated digest. The explicit `mesh_` prefix prevents
-these inner mesh bytes from being mistaken for a durable encoding of the live
-source-bound wrapper. The inner mesh bytes contain no exact-source field; the
-wrapper's separate `source_digest` proves only the live same-process ownership
+to equal the domain-separated digest. The inner mesh bytes contain no
+exact-source field; the Mesh's separate `source_digest` proves the live
+same-process ownership
 described below.
 
 The DFG witness requires 50 circular chords, 104 vertices, and 104 triangles.
@@ -142,14 +143,15 @@ check skips when a packaged consumer intentionally has no examples directory.
 
 ## Boundary and future dependency
 
-This is not a generic `Mesh`, `MeshRequest`, generated-mesh protocol, or
-external import surface. It claims no Delaunay or production mesher, curved
+The common names state ownership and do not widen provider coverage. This is
+not an arbitrary-Geometry generated-mesh protocol or external import surface.
+It claims no Delaunay or production mesher, curved
 element, Model, solver, Result, visualization, performance, or physical
 validation.
 
-In particular, `mesh_canonical_json` and the inner
+In particular, `Mesh.canonical_bytes` and the inner
 `SimplicialMeshEnvelopeV1` digest are not a durable
-source-to-mesh binding. The live wrapper is not a cross-process proof and
+source-to-mesh binding. The live Mesh is not a cross-process proof and
 cannot publish or replay the generated realization for a later Result
 lineage. Cross-process publication, replay, and future Result lineage require
 future acceptance of the separate

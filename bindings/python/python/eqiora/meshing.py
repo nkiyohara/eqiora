@@ -1,5 +1,5 @@
-"""Bounded meshing operations owned by Eqiora's native implementation."""
+"""Immutable Geometry-to-Mesh planning owned by Eqiora's native implementation."""
 
-from ._eqiora import CircularHoleChordalMesh, circular_hole_chordal
+from ._eqiora import Mesh, MeshPlan, MeshRequest, generate, resolve
 
-__all__ = ["CircularHoleChordalMesh", "circular_hole_chordal"]
+__all__ = ["Mesh", "MeshPlan", "MeshRequest", "generate", "resolve"]
