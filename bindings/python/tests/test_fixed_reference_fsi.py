@@ -31,6 +31,14 @@ EXPECTED_CELLS = np.array(
     ],
     dtype=np.uint32,
 )
+# Frozen dual-oracle support membership, wired verbatim from registered evidence.
+EXPECTED_SUPPORT = {
+    ("fluid_velocity", "vertex"): [0, 1, 2, 3, 4, 5],
+    ("fluid_velocity", "cell"): [0, 1, 2, 3],
+    ("fluid_pressure", "vertex"): [0, 1, 2, 3, 4, 5],
+    ("solid_displacement", "vertex"): [1, 3, 5, 6, 7, 8],
+    ("solid_velocity", "vertex"): [1, 3, 5, 6, 7, 8],
+}
 
 
 def accepted_model() -> eqiora.Model:
@@ -264,6 +272,96 @@ def test_general_trajectory_projects_exact_replayed_fields(
             step.displacement,
         )
         assert state.field(solid_velocity).associations == ("vertex",)
+
+
+def test_field_support_indices_expose_frozen_membership_without_disturbing_replay(
+    accepted: tuple[eqiora.Model, eqiora.fsi.FixedReferenceFsiResult],
+) -> None:
+    model, result = accepted
+    trajectory = result.trajectory
+    field_names = sorted({name for name, _ in EXPECTED_SUPPORT})
+    fields = {name: model.field(name) for name in field_names}
+    supports: dict[tuple[int, str, str], np.ndarray] = {}
+    for state, step in zip(trajectory.states, result.steps, strict=True):
+        snapshots = {name: state.field(field) for name, field in fields.items()}
+        values_before = {
+            name: snapshot.values(snapshot.associations[0])
+            for name, snapshot in snapshots.items()
+        }
+        for (name, association), expected in EXPECTED_SUPPORT.items():
+            snapshot = snapshots[name]
+            support = snapshot.support_indices(association)
+            assert support is snapshot.support_indices(association)
+            assert support.dtype == np.uint32
+            assert support.ndim == 1
+            np.testing.assert_array_equal(support, expected)
+            np.testing.assert_array_equal(support, np.unique(support))
+            bound = result.cells if association == "cell" else result.coordinates
+            assert int(support.max()) < len(bound)
+            assert support.flags.writeable is False
+            with pytest.raises(ValueError):
+                support.flat[0] = support.flat[0]
+            with pytest.raises(ValueError):
+                support.setflags(write=True)
+            supports[(state.step, name, association)] = support
+        for name, snapshot in snapshots.items():
+            declared = set(snapshot.associations)
+            for absent in ({"vertex", "cell"} - declared) | {"unknown-association"}:
+                with pytest.raises(KeyError):
+                    snapshot.support_indices(absent)
+        for name, snapshot in snapshots.items():
+            assert state.field(fields[name]) is snapshot
+            association = snapshot.associations[0]
+            assert snapshot.values(association) is values_before[name]
+        np.testing.assert_array_equal(
+            snapshots["fluid_velocity"].values("vertex"),
+            step.velocity,
+        )
+        np.testing.assert_array_equal(
+            snapshots["solid_displacement"].values("vertex"),
+            step.displacement,
+        )
+    assert result.trajectory is trajectory
+    assert trajectory.digest == result.trajectory_digest
+
+    for key, association in EXPECTED_SUPPORT:
+        np.testing.assert_array_equal(
+            supports[(1, key, association)],
+            supports[(2, key, association)],
+        )
+    for state_step in (1, 2):
+        np.testing.assert_array_equal(
+            supports[(state_step, "fluid_velocity", "vertex")],
+            supports[(state_step, "fluid_pressure", "vertex")],
+        )
+        np.testing.assert_array_equal(
+            supports[(state_step, "solid_displacement", "vertex")],
+            supports[(state_step, "solid_velocity", "vertex")],
+        )
+
+    fluid_vertices = supports[(1, "fluid_velocity", "vertex")]
+    solid_vertices = supports[(1, "solid_displacement", "vertex")]
+    np.testing.assert_array_equal(
+        np.intersect1d(fluid_vertices, solid_vertices),
+        [1, 3, 5],
+    )
+    np.testing.assert_array_equal(
+        np.union1d(fluid_vertices, solid_vertices),
+        [0, 1, 2, 3, 4, 5, 6, 7, 8],
+    )
+
+    np.testing.assert_array_equal(
+        supports[(1, "fluid_pressure", "vertex")],
+        result.steps[0].pressure_vertices,
+    )
+    np.testing.assert_array_equal(
+        supports[(1, "fluid_velocity", "cell")],
+        result.fluid_cells,
+    )
+    np.testing.assert_array_equal(
+        np.unique(result.interface_facets),
+        np.intersect1d(fluid_vertices, solid_vertices),
+    )
 
 
 def test_general_trajectory_rejects_foreign_fields_and_mutation(

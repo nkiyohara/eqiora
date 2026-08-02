@@ -716,6 +716,7 @@ fn internal(message: impl Into<String>) -> Diagnostic {
 
 #[cfg(test)]
 mod tests {
+    use eqiora_meshing::DiscreteFieldAssociation;
     use eqiora_solver::REFERENCE_LINEAR_SOLVER;
 
     use super::*;
@@ -765,5 +766,70 @@ mod tests {
         let error = FixedReferenceFsiResult2d::solve_reference(&foreign, &REFERENCE_LINEAR_SOLVER)
             .expect_err("foreign physical meaning must fail before realization");
         assert_eq!(error.code(), codes::INVALID_REALIZATION);
+    }
+
+    #[test]
+    fn fixed_mesh_replay_exposes_only_revalidated_snapshot_supports() {
+        let document = ModelDocument::compile("fixed-reference-fsi.eqi", REFERENCE_SOURCE)
+            .expect("accepted reference source");
+        let result =
+            FixedReferenceFsiResult2d::solve_reference(&document, &REFERENCE_LINEAR_SOLVER)
+                .expect("accepted shared application result");
+        let replay = result
+            .trajectory_replay()
+            .expect("complete trajectory replay");
+        let context = ValidatedFixedSpatialContextV1::new(
+            result.model(),
+            result.realization(),
+            result.geometry(),
+            result.correspondence(),
+            result.mesh_artifact(),
+        )
+        .expect("exact fixed-spatial context");
+        let fields = replay
+            .fields(0)
+            .expect("first state Field inventory")
+            .collect::<Vec<_>>();
+
+        for (field_index, snapshot) in fields.iter().enumerate() {
+            for (association, _) in snapshot.block_artifacts() {
+                let blocks = replay
+                    .blocks(0, field_index)
+                    .expect("exact Field block inventory");
+                let expected = snapshot
+                    .active_entities_against(&context, blocks, association)
+                    .expect("revalidated snapshot support");
+                assert_eq!(
+                    replay.support_indices(0, field_index, association),
+                    Some(expected.as_slice())
+                );
+                assert_eq!(
+                    replay.support_indices(1, field_index, association),
+                    Some(expected.as_slice())
+                );
+            }
+        }
+
+        let vertex_only = fields
+            .iter()
+            .position(|snapshot| {
+                snapshot
+                    .block_artifacts()
+                    .iter()
+                    .all(|(association, _)| *association != DiscreteFieldAssociation::Cell)
+            })
+            .expect("accepted trajectory contains a vertex-only Field");
+        assert_eq!(
+            replay.support_indices(0, vertex_only, DiscreteFieldAssociation::Cell),
+            None
+        );
+        assert_eq!(
+            replay.support_indices(replay.states().len(), 0, DiscreteFieldAssociation::Vertex),
+            None
+        );
+        assert_eq!(
+            replay.support_indices(0, fields.len(), DiscreteFieldAssociation::Vertex),
+            None
+        );
     }
 }

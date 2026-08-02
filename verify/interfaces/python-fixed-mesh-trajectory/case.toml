@@ -7,6 +7,7 @@ capabilities = [
   "python-accepted-trajectory-lineage",
   "python-ordered-spatial-states-and-semantic-fields",
   "python-association-explicit-read-only-field-blocks",
+  "python-exact-field-support-membership",
 ]
 
 [problem]
@@ -23,6 +24,7 @@ fsi_case = "interfaces.python-fixed-reference-fsi-demo"
 identity = "projection identities equal the exact accepted artifact lineage; the projection assigns no new durable identity"
 ordering = "state, Field, and block occurrences follow accepted artifact edges and are never rebuilt from digest-keyed catalogs"
 legacy_views = "existing FSI velocity and displacement equal their whole-mesh trajectory blocks; bubble velocity equals the Cell block at accepted fluid support cells while other cells retain canonical zero; compressed pressure equals the Vertex block at pressure vertices while inactive vertices retain canonical zero"
+support = "FieldSnapshot.support_indices(association) returns the frozen exact global cell membership or sorted unique vertex closure already derived from its accepted support Domain; repeated access returns one immutable NumPy owner and equal fixed occurrences retain equal membership"
 thresholds = "none; this adapter introduces no scientific expected value or tolerance"
 
 [acceptance]
@@ -35,6 +37,9 @@ p1_bubble_blocks_remain_separate = true
 subdomain_blocks_remain_full_mesh_zero_extended = true
 model_bound_field_selection_is_exact = true
 numpy_arrays_are_memoized_and_irreversibly_read_only = true
+support_membership_is_correspondence_and_incidence_owned = true
+support_access_is_association_checked = true
+support_access_does_not_compress_coefficients = true
 existing_fsi_mesh_arrays_delegate_to_the_projection = true
 no_scientific_oracle_change = true
 
@@ -45,6 +50,10 @@ foreign_model_field = "FieldRef from a different exact Model digest is accepted"
 missing_field = "same-Model Field outside the accepted Realization inventory is accepted"
 collapsed_p1_bubble = "Vertex and Cell blocks are combined, reordered, or silently interpolated"
 support_compression = "whole-mesh zero-extended coefficient content is gathered or scattered by the general projection"
+support_from_values = "membership inferred from nonzero coefficient locations drops a supported zero entity"
+support_renumbering = "local or compressed indices replace exact global canonical mesh-entity indices"
+support_association_confusion = "Vertex and Cell memberships are exchanged, absent associations return data, or an unknown association returns an empty array"
+support_owner_rebuild = "repeated access on one FieldSnapshot allocates an equivalent support array instead of returning the same object"
 legacy_array_drift = "application-specific FSI arrays differ from their exact whole-mesh blocks or their accepted support-indexed views"
 mutable_array = "assignment, writeability re-enable, or an ordinary NumPy view permits mutation"
 reprojection = "repeated access rebuilds Python owners or complete arrays"
@@ -60,6 +69,9 @@ general_2d_or_3d_admission = false
 moving_mesh_or_remeshing = false
 single_state_spatial_result = false
 field_names = false
+support_associations = ["vertex", "cell"]
+support_is_global_canonical_mesh_index = true
+edge_or_facet_support = false
 basis_beyond_association_and_shape = false
 derived_quantities_or_interpolation = false
 balances_or_acceptance_ontology = false
@@ -69,8 +81,16 @@ durable_projection_schema = false
 [precommitment]
 precommitted = true
 authored_before_implementation_by_a_nonimplementing_agent = true
-oracle_owner = "this manifest, its case READMEs, and the referenced registered cases; the implementer may wire but not relax them"
+scope = "the original accepted trajectory-projection contract at base_revision"
+oracle_owner = "the original manifest, its case READMEs, and the referenced registered cases; the implementer may wire but not relax them"
 base_revision = "6973fc438cd0a43f1c1ed5c6e01b87ef61d7be97"
+
+[precommitment.issue_302_extension]
+precommitted = true
+authored_before_implementation_by_a_nonimplementing_agent = true
+oracle_owner = "the independently frozen installed-Python oracle at base_revision; the implementer may wire but not relax it"
+base_revision = "0a79f4db470bb23ba2dfc9293b6153d66b016f7a"
+wiring_only_by_implementer = true
 
 [evidence]
 runner = "python-installed-wheel"

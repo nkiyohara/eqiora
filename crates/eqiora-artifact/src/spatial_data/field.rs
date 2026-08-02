@@ -163,7 +163,8 @@ impl FieldSnapshotEnvelopeV1 {
         let field_shape = definition.shape().clone();
         require_portable_shape(&field_shape)?;
         let active_cells = context.active_cells(realized_domain)?;
-        let active_vertices = cell_closure_vertices(mesh, &active_cells)?;
+        let active_vertices =
+            support_indices_from_cells(mesh, &active_cells, DiscreteFieldAssociation::Vertex)?;
         for block in &ordered {
             if block.mesh_artifact() != mesh.digest()? {
                 return Err(invalid_artifact(
@@ -173,8 +174,8 @@ impl FieldSnapshotEnvelopeV1 {
             require_matching_shape(&field_shape, block.component_shape())?;
             block.validate_mesh_artifact(mesh)?;
             let active = match block.association() {
-                DiscreteFieldAssociation::Vertex => &active_vertices,
-                DiscreteFieldAssociation::Cell => &active_cells,
+                DiscreteFieldAssociation::Vertex => active_vertices.as_slice(),
+                DiscreteFieldAssociation::Cell => active_cells.as_slice(),
             };
             require_zero_outside_support(block, active)?;
         }
@@ -373,6 +374,30 @@ impl FieldSnapshotEnvelopeV1 {
         Ok(())
     }
 
+    /// Derive exact active mesh entities in one fixed-spatial context.
+    ///
+    /// The complete snapshot is first rebuilt from its exact semantic and
+    /// numerical dependencies. Returned indices are global, sorted canonical
+    /// mesh indices and are never inferred from coefficient values.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for stale snapshot lineage, an association absent from
+    /// the snapshot, or invalid support incidence.
+    pub fn active_entities_against<'a>(
+        &self,
+        context: &ValidatedFixedSpatialContextV1<'_>,
+        blocks: impl IntoIterator<Item = &'a DiscreteFieldEnvelopeV1>,
+        association: DiscreteFieldAssociation,
+    ) -> Result<Vec<usize>, Diagnostic> {
+        let expected = Self::new_in_context(context, self.field(), blocks)?;
+        if self != &expected {
+            return Err(invalid_artifact(
+                "Field snapshot differs from exact semantic and numerical replay",
+            ));
+        }
+        self.active_entities(context.correspondence(), context.mesh(), association)
+    }
+
     /// Derive the exact active mesh entities for one coefficient association.
     ///
     /// This operation revalidates the snapshot's semantic and moving-spatial
@@ -391,6 +416,15 @@ impl FieldSnapshotEnvelopeV1 {
         association: DiscreteFieldAssociation,
     ) -> Result<Vec<usize>, Diagnostic> {
         context.validate_snapshot(self)?;
+        self.active_entities(context.correspondence(), context.mesh(), association)
+    }
+
+    fn active_entities(
+        &self,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        mesh: &SimplicialMeshEnvelopeV1,
+        association: DiscreteFieldAssociation,
+    ) -> Result<Vec<usize>, Diagnostic> {
         if !self
             .block_artifacts()
             .iter()
@@ -400,14 +434,10 @@ impl FieldSnapshotEnvelopeV1 {
                 "Field snapshot does not contain the requested coefficient association",
             ));
         }
-        let cells = context
-            .correspondence()
+        let cells = correspondence
             .body_cells(self.support_domain())
             .ok_or_else(|| invalid_artifact("Field snapshot Domain has no exact mesh cells"))?;
-        match association {
-            DiscreteFieldAssociation::Cell => Ok(cells),
-            DiscreteFieldAssociation::Vertex => cell_closure_vertices(context.mesh(), &cells),
-        }
+        support_indices_from_cells(mesh, &cells, association)
     }
 
     /// Count active entities without allocating their materialized `usize`
@@ -670,10 +700,14 @@ fn realized_field_space_v3(
     ))
 }
 
-fn cell_closure_vertices(
+pub(super) fn support_indices_from_cells(
     mesh: &SimplicialMeshEnvelopeV1,
     cells: &[usize],
+    association: DiscreteFieldAssociation,
 ) -> Result<Vec<usize>, Diagnostic> {
+    if association == DiscreteFieldAssociation::Cell {
+        return Ok(cells.to_vec());
+    }
     let dimension = mesh.dimension();
     let mut vertices = BTreeSet::new();
     for &cell in cells {
