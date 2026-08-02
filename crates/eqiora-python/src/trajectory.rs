@@ -384,6 +384,19 @@ impl PyTrajectory {
                 "accepted trajectory mesh differs from the supplied mesh artifact",
             ));
         }
+        let trajectory_artifact = replay
+            .trajectory()
+            .digest()
+            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
+        if run.model() != first.model_artifact()
+            || run.realization() != first.realization_artifact()
+            || run.outputs() != vec![trajectory_artifact.clone()]
+        {
+            return Err(PyRuntimeError::new_err(
+                "accepted trajectory Run differs from the supplied Run lineage",
+            ));
+        }
+        let trajectory_digest = trajectory_artifact.to_string();
 
         let mesh_value = mesh.mesh();
         let vertex_count = mesh_value.vertices().len();
@@ -515,7 +528,7 @@ impl PyTrajectory {
             mesh_digest,
             realization_digest: first.realization_artifact().to_string(),
             run_digest: artifact_digest(py, run.digest())?,
-            trajectory_digest: artifact_digest(py, replay.trajectory().digest())?,
+            trajectory_digest,
             coordinates: ReadOnlyMatrix::new(vertex_count, 2, coordinates),
             cells: ReadOnlyMatrix::new(cell_count, 3, cells),
             states,
