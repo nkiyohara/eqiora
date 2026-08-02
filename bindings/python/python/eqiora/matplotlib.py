@@ -2,8 +2,10 @@
 
 import math
 
+import numpy as np
+
 try:
-    from matplotlib.collections import LineCollection, PolyCollection
+    from matplotlib.collections import LineCollection
     from matplotlib.figure import Figure
     from mpl_toolkits.axes_grid1 import make_axes_locatable
 except ModuleNotFoundError as error:
@@ -14,14 +16,15 @@ except ModuleNotFoundError as error:
         "install eqiora[matplotlib]"
     ) from error
 
+from ._eqiora import FieldRef, Trajectory
 from .fluid import CircularHoleSteadyStokesResult
-from .fsi import FixedReferenceFsiResult
 from .solid import MixedBoundaryElasticityResult
 
 __all__ = [
+    "plot_deformed_field",
     "plot_displacement",
-    "plot_fixed_reference_fsi",
     "plot_pressure",
+    "plot_scalar_field",
 ]
 
 _FIELD_RECT = (0.065, 0.23, 0.82, 0.58)
@@ -87,8 +90,7 @@ def plot_displacement(
 
     if not isinstance(result, MixedBoundaryElasticityResult):
         raise TypeError(
-            "plot_displacement() requires "
-            "eqiora.solid.MixedBoundaryElasticityResult"
+            "plot_displacement() requires eqiora.solid.MixedBoundaryElasticityResult"
         )
     scale = float(scale)
     if not math.isfinite(scale) or scale < 0.0:
@@ -138,125 +140,187 @@ def plot_displacement(
     return figure
 
 
-def plot_fixed_reference_fsi(
-    result: FixedReferenceFsiResult,
+def plot_scalar_field(
+    trajectory: Trajectory,
     /,
     *,
-    step: int = 2,
-    displacement_scale: float = 12.0,
+    step: int,
+    field: FieldRef,
 ) -> Figure:
-    """Plot one solver-owned step from the accepted fixed-reference trajectory."""
+    """Plot one exact invariant vertex scalar from an accepted trajectory state."""
 
-    if not isinstance(result, FixedReferenceFsiResult):
-        raise TypeError(
-            "plot_fixed_reference_fsi() requires "
-            "eqiora.fsi.FixedReferenceFsiResult"
-        )
-    if isinstance(step, bool) or not isinstance(step, int) or step not in (1, 2):
-        raise ValueError("plot_fixed_reference_fsi() step must be 1 or 2")
-    displacement_scale = float(displacement_scale)
-    if not math.isfinite(displacement_scale) or displacement_scale < 0.0:
-        raise ValueError(
-            "plot_fixed_reference_fsi() displacement_scale must be finite "
-            "and nonnegative"
-        )
-
-    accepted = result.step(step)
-    trajectory = result.trajectory
-    coordinates = trajectory.coordinates
-    cells = trajectory.cells
-    fluid_cells = result.fluid_cells
-    solid_cells = result.solid_cells
-    fluid_triangles = cells[fluid_cells]
-    pressure_by_vertex = {
-        int(vertex): value
-        for vertex, value in zip(
-            accepted.pressure_vertices,
-            accepted.pressure,
-            strict=True,
-        )
-    }
-    fluid_pressure = [
-        sum(pressure_by_vertex[int(vertex)] for vertex in triangle) / 3.0
-        for triangle in fluid_triangles
-    ]
-    deformed = coordinates + displacement_scale * accepted.displacement
-    solid_edges = _triangle_edges(cells[solid_cells])
-
-    figure = Figure(figsize=(10.0, 5.2), facecolor="#ffffff")
-    axes = figure.add_axes((0.07, 0.13, 0.80, 0.76))
-    axes.set_facecolor("#f8fafc")
-    pressure = PolyCollection(
-        coordinates[fluid_triangles],
-        array=fluid_pressure,
-        cmap="coolwarm",
-        edgecolors="#334155",
-        linewidths=0.7,
-        alpha=0.92,
-        label="Fluid pressure",
+    state, snapshot = _trajectory_snapshot(trajectory, step, field)
+    if snapshot.value_shape != ():
+        raise ValueError("plot_scalar_field() requires scalar value shape ()")
+    if snapshot.frame != "invariant":
+        raise ValueError("plot_scalar_field() requires the invariant frame")
+    coordinates, triangles, values, support = _vertex_field_arrays(
+        trajectory,
+        snapshot,
     )
-    axes.add_collection(pressure)
+    restricted = values[support]
+
+    figure = Figure(figsize=(8.0, 5.2), facecolor="#ffffff")
+    axes = figure.add_axes((0.09, 0.13, 0.76, 0.76))
+    axes.set_facecolor("#f8fafc")
+    scalar = axes.tripcolor(
+        coordinates[:, 0],
+        coordinates[:, 1],
+        values,
+        triangles=triangles,
+        shading="gouraud",
+        cmap="viridis",
+        vmin=float(restricted.min()),
+        vmax=float(restricted.max()),
+    )
+    axes.triplot(
+        coordinates[:, 0],
+        coordinates[:, 1],
+        triangles,
+        color="#0f172a",
+        linewidth=0.35,
+        alpha=0.3,
+    )
+    _set_field_axes_bounds(axes, coordinates[support])
+    axes.set_title(f"Scalar field — step {state.step}, t = {state.time_s:g} s")
+    divider = make_axes_locatable(axes)
+    colorbar_axes = divider.append_axes("right", size="3%", pad=0.16)
+    colorbar = figure.colorbar(scalar, cax=colorbar_axes)
+    colorbar.set_label(f"Value [{_coherent_si_unit(snapshot.dimension)}]")
+    return figure
+
+
+def plot_deformed_field(
+    trajectory: Trajectory,
+    /,
+    *,
+    step: int,
+    field: FieldRef,
+    scale: float = 1.0,
+) -> Figure:
+    """Compare exact reference and scaled-deformed support geometry."""
+
+    if not isinstance(trajectory, Trajectory):
+        raise TypeError("plot_deformed_field() requires eqiora.trajectory.Trajectory")
+    scale = float(scale)
+    if not math.isfinite(scale) or scale < 0.0:
+        raise ValueError("plot_deformed_field() scale must be finite and nonnegative")
+
+    state, snapshot = _trajectory_snapshot(trajectory, step, field)
+    if snapshot.value_shape != (trajectory.dimension,):
+        raise ValueError(
+            "plot_deformed_field() value shape must match the trajectory dimension"
+        )
+    if snapshot.frame != "spatial-cartesian":
+        raise ValueError("plot_deformed_field() requires the spatial-cartesian frame")
+    if snapshot.dimension != (0, 1, 0, 0, 0, 0, 0):
+        raise ValueError("plot_deformed_field() requires the SI length dimension")
+
+    coordinates, triangles, values, support = _vertex_field_arrays(
+        trajectory,
+        snapshot,
+    )
+    edges = _triangle_edges(triangles)
+    edge_indices = list(edges)
+    deformed = coordinates + scale * values
+
+    figure = Figure(figsize=(7.0, 6.0), facecolor="#ffffff")
+    axes = figure.add_axes((0.11, 0.12, 0.84, 0.79))
+    axes.set_facecolor("#f8fafc")
     axes.add_collection(
         LineCollection(
-            coordinates[list(solid_edges)],
+            coordinates[edge_indices],
             colors="#64748b",
             linewidths=0.7,
             linestyles="dashed",
-            alpha=0.7,
-            label="Solid reference mesh",
+            alpha=0.72,
+            label="Reference mesh",
         )
     )
     axes.add_collection(
         LineCollection(
-            deformed[list(solid_edges)],
+            deformed[edge_indices],
             colors="#c2410c",
-            linewidths=1.2,
+            linewidths=1.15,
             alpha=0.95,
-            label=f"Solid displacement (scale = {displacement_scale:g})",
+            label=f"Deformed mesh (scale = {scale:g})",
         )
-    )
-    axes.add_collection(
-        LineCollection(
-            coordinates[result.interface_facets],
-            colors="#0891b2",
-            linewidths=3.0,
-            alpha=0.95,
-            label="Conforming interface",
-        )
-    )
-    axes.quiver(
-        coordinates[:, 0],
-        coordinates[:, 1],
-        accepted.velocity[:, 0],
-        accepted.velocity[:, 1],
-        angles="xy",
-        scale_units="xy",
-        scale=None,
-        width=0.004,
-        color="#0369a1",
-        label="Velocity [m/s] (auto-scaled arrows)",
     )
 
-    x_minimum = min(coordinates[:, 0].min(), deformed[:, 0].min())
-    x_maximum = max(coordinates[:, 0].max(), deformed[:, 0].max())
-    y_minimum = min(coordinates[:, 1].min(), deformed[:, 1].min())
-    y_maximum = max(coordinates[:, 1].max(), deformed[:, 1].max())
-    padding = 0.06 * max(x_maximum - x_minimum, y_maximum - y_minimum, 1.0)
+    _set_field_axes_bounds(
+        axes,
+        np.concatenate((coordinates[support], deformed[support])),
+    )
+    axes.set_title(
+        f"Deformed field — step {state.step}, t = {state.time_s:g} s, scale {scale:g}"
+    )
+    axes.legend(loc="upper right")
+    return figure
+
+
+def _trajectory_snapshot(trajectory, step, field):
+    if not isinstance(trajectory, Trajectory):
+        raise TypeError("field stills require eqiora.trajectory.Trajectory")
+    state = trajectory.state(step)
+    return state, state.field(field)
+
+
+def _vertex_field_arrays(trajectory, snapshot):
+    if snapshot.associations != ("vertex",):
+        raise ValueError("field stills require exactly one vertex association")
+
+    coordinates = trajectory.coordinates
+    cells = trajectory.cells
+    values = snapshot.values("vertex")
+    support = snapshot.support_indices("vertex")
+    if trajectory.dimension != 2 or coordinates.ndim != 2 or coordinates.shape[1] != 2:
+        raise ValueError("field stills require two-dimensional coordinates")
+    if cells.ndim != 2 or cells.shape[1] != 3:
+        raise ValueError("field stills require affine triangle topology")
+    if values.shape[0] != coordinates.shape[0]:
+        raise ValueError("field value shape does not match the trajectory vertices")
+    if support.ndim != 1 or support.size == 0:
+        raise ValueError("vertex support must be one-dimensional and nonempty")
+    if int(support.max()) >= coordinates.shape[0]:
+        raise ValueError("vertex support exceeds the trajectory coordinates")
+    if not np.array_equal(support, np.unique(support)):
+        raise ValueError("vertex support must be sorted and unique")
+    if cells.size > 0 and int(cells.max()) >= coordinates.shape[0]:
+        raise ValueError("triangle topology exceeds the trajectory coordinates")
+
+    inside = np.isin(cells, support)
+    triangles = cells[np.all(inside, axis=1)]
+    if triangles.size == 0:
+        raise ValueError("vertex support admits no complete triangle")
+    if not np.array_equal(np.unique(triangles), support):
+        raise ValueError("admitted triangle closure differs from vertex support")
+    return coordinates, triangles, values, support
+
+
+def _set_field_axes_bounds(axes, points):
+    x_minimum = float(points[:, 0].min())
+    x_maximum = float(points[:, 0].max())
+    y_minimum = float(points[:, 1].min())
+    y_maximum = float(points[:, 1].max())
+    padding = 0.05 * max(x_maximum - x_minimum, y_maximum - y_minimum, 1.0)
     axes.set_xlim(x_minimum - padding, x_maximum + padding)
     axes.set_ylim(y_minimum - padding, y_maximum + padding)
     axes.set_aspect("equal", adjustable="box")
     axes.set_xlabel("x [m]")
     axes.set_ylabel("y [m]")
-    axes.set_title(
-        f"Fixed-reference FSI — step {accepted.ordinal}, "
-        f"t = {accepted.time_s:g} s, displacement scale {displacement_scale:g}"
-    )
-    axes.legend(loc="upper center", ncols=2)
-    divider = make_axes_locatable(axes)
-    colorbar_axes = divider.append_axes("right", size="2.5%", pad=0.18)
-    colorbar = figure.colorbar(pressure, cax=colorbar_axes)
-    colorbar.set_label("Fluid pressure [Pa]")
-    return figure
+
+
+def _coherent_si_unit(dimension):
+    terms = [
+        base if exponent == 1 else f"{base}^{exponent}"
+        for base, exponent in zip(
+            ("kg", "m", "s", "A", "K", "mol", "cd"),
+            dimension,
+            strict=True,
+        )
+        if exponent != 0
+    ]
+    return "·".join(terms) if terms else "1"
 
 
 def _quadrilateral_edges(cells):

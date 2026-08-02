@@ -239,16 +239,26 @@ as well as the fixed reference coordinates and connectivity. The application
 result retains only its typed FSI partition, step, solver, balance, and
 acceptance evidence beside that trajectory.
 
-The optional still selects an already accepted step and applies an explicitly
-labelled presentation-only displacement scale:
+The optional Matplotlib adapters select an exact Model-bound Field from an
+already accepted trajectory state. They restrict both values and topology to
+the Field's accepted support; deformation additionally requires a
+spatial-cartesian vector with the SI dimension of length:
 
 ```python
-figure = eqplot.plot_fixed_reference_fsi(
-    result,
+pressure_figure = eqplot.plot_scalar_field(
+    result.trajectory,
     step=2,
-    displacement_scale=12,
+    field=model.field("fluid_pressure"),
 )
-figure.savefig("fixed-reference-fsi.png")
+pressure_figure.savefig("fixed-reference-pressure.png")
+
+deformed_figure = eqplot.plot_deformed_field(
+    result.trajectory,
+    step=2,
+    field=model.field("solid_displacement"),
+    scale=12,
+)
+deformed_figure.savefig("fixed-reference-deformed.png")
 ```
 
 The complete runnable workflow is
@@ -256,7 +266,9 @@ The complete runnable workflow is
 It is one immutable fixed-reference 2D composition. It does not expose a
 general coupling graph, Python time loop, ALE or remeshing, partitioned
 iteration, stress/drag/lift derivation, animation, or scientific validation
-from pixels.
+from pixels. Field names above are resolved by the caller's exact `Model`; the
+presentation adapters receive `FieldRef` values and never use names as field
+identity.
 
 ## Conserving connections
 
