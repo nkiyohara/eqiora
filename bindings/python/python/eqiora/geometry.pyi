@@ -1,4 +1,4 @@
-from typing import Self, final
+from typing import final
 
 @final
 class CadAuthoredFaceHandle:
@@ -77,7 +77,7 @@ class CadAuthoredGraph:
         y_lower: str,
         y_upper: str,
         hole: str,
-    ) -> RectangleWithCircularHole: ...
+    ) -> Geometry: ...
     @property
     def canonical_bytes(self) -> bytes: ...
     @property
@@ -140,31 +140,15 @@ class CadAuthoredGraph:
     def __hash__(self) -> int: ...
 
 @final
-class RectangleWithCircularHole:
-    def __new__(
-        cls,
-        *,
-        bounds: tuple[tuple[float, float], tuple[float, float]],
-        circle_center: tuple[float, float],
-        circle_radius: float,
-        tolerance: float,
-        region: str,
-        x_lower: str,
-        x_upper: str,
-        y_lower: str,
-        y_upper: str,
-        hole: str,
-    ) -> Self: ...
+class Geometry:
+    @property
+    def dimension(self) -> int: ...
     @property
     def bounds(self) -> tuple[tuple[float, float], tuple[float, float]]: ...
     @property
-    def circle_center(self) -> tuple[float, float]: ...
+    def classification_tolerance(self) -> float: ...
     @property
-    def circle_radius(self) -> float: ...
-    @property
-    def tolerance(self) -> float: ...
-    @property
-    def canonical_json(self) -> bytes: ...
+    def canonical_bytes(self) -> bytes: ...
     @property
     def digest(self) -> str: ...
     @property
@@ -178,5 +162,5 @@ __all__ = [
     "CadAuthoredBuild",
     "CadAuthoredFaceHandle",
     "CadAuthoredGraph",
-    "RectangleWithCircularHole",
+    "Geometry",
 ]

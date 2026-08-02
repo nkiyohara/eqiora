@@ -1,14 +1,15 @@
 # Python exact circular-hole geometry verification
 
-This case freezes one deliberately bounded Python authoring surface:
-`eqiora.geometry.RectangleWithCircularHole`. The native value is owned by Rust
-and delegates exact geometry meaning to the existing canonical
-axis-aligned-rectangle-with-one-circular-hole family. It exposes immutable
-bounds, circle data, tolerance, canonical bytes, digest, and the names and
-dimensions of its fixed-role selections. The constructor assigns six semantic
-roles: one region plus x-lower, x-upper, y-lower, y-upper, and hole
-boundaries. Equal same-dimensional names group roles into one selection, so
-the standard witness exposes five names because both y roles are `walls`.
+This case freezes one deliberately bounded Python projection from the accepted
+`CadAuthoredGraph` to common immutable `eqiora.geometry.Geometry`. Rust derives
+the exact planar section from the accepted circular-through-cut history and
+delegates its meaning to the existing canonical owner. Python exposes common
+dimension, bounds, classification tolerance, canonical bytes, digest, and the
+names and dimensions of semantic selections. The section operation assigns six
+roles: one region plus x-lower, x-upper, y-lower, y-upper, and hole boundaries.
+Equal same-dimensional names group roles into one selection, so the standard
+witness exposes five names because both y roles are `walls`. There is no public
+demo-shaped Geometry constructor.
 
 The repository-owned standard byte oracle remains
 [`examples/steady-flow-past-cylinder.geometry.json`](../../../examples/steady-flow-past-cylinder.geometry.json).
@@ -39,12 +40,11 @@ the implementation mapping therefore fails exact content and identity, rather
 than merely producing a second unequal value.
 
 The standard centre has equal coordinates and therefore cannot expose an x/y
-transpose. A second valid wrapper witness uses centre `(0.3, 0.2)`, while
+transpose. A second valid authored-section witness uses centre `(0.3, 0.2)`, while
 retaining the exact same bounds, radius, tolerance, entity sets, schema, and
-canonical-number rules. Its public getter must return `(0.3, 0.2)`, its exact
-511-byte content is pinned, and its digest is
+canonical-number rules. Its exact 511-byte content is pinned, and its digest is
 `552ebf459396ed5bc7f72ab48f34046baa828b6af808794e861bd958dc613881`.
-Transposing either constructor pass-through or getter order therefore fails
+Transposing the authored cut or section pass-through therefore fails
 independently of the symmetric standard witness.
 
 The registered executable case is the package gate: it rebuilds and installs

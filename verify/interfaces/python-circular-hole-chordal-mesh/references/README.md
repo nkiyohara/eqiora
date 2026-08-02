@@ -22,10 +22,11 @@ replay consumes, without changing:
 The corrected artifact values were independently derived by applying
 the accepted artifact constructor directly to the pre-existing deterministic
 reference Mesh. The standalone test independently hashes the exposed
-`mesh_canonical_json` bytes and compares the Python observations to those
+`Mesh.canonical_bytes` and compares the Python observations to those
 acceptance values. It does not derive expected values from the new Python
 adapter. The property name and the distinct raw/domain-separated hashes keep
-this inner mesh encoding separate from the live source-bound wrapper.
+this inner mesh encoding separate from its exact source and correspondence
+identities.
 
 The accepted fluid fixture is used only as an independent topology witness:
 after the existing allowance-based vertex mapping, its unordered cell sets

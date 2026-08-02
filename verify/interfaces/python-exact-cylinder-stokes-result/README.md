@@ -6,8 +6,8 @@ This case freezes one narrow Python completion path:
 eqiora.fluid.solve_exact_cylinder_stokes(
     *,
     model: bytes,
-    geometry: RectangleWithCircularHole,
-    mesh: CircularHoleChordalMesh,
+    geometry: Geometry,
+    mesh: Mesh,
 ) -> CircularHoleSteadyStokesResult
 ```
 

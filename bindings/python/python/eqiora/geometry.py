@@ -4,12 +4,12 @@ from ._eqiora import (
     CadAuthoredBuild,
     CadAuthoredFaceHandle,
     CadAuthoredGraph,
-    RectangleWithCircularHole,
+    Geometry,
 )
 
 __all__ = [
     "CadAuthoredBuild",
     "CadAuthoredFaceHandle",
     "CadAuthoredGraph",
-    "RectangleWithCircularHole",
+    "Geometry",
 ]

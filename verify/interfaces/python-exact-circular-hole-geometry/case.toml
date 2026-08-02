@@ -12,7 +12,7 @@ capabilities = [
 
 [problem]
 geometry = "DFG-shaped 2.2 m by 0.41 m rectangle with one radius-0.05 m circle centred at [0.2, 0.2] m"
-constructor = "eqiora.geometry.RectangleWithCircularHole"
+constructor = "CadAuthoredGraph.circular_through_cut(...).planar_circular_section(...) -> eqiora.geometry.Geometry"
 canonical_source = "examples/steady-flow-past-cylinder.geometry.json"
 region = "fluid, exact topological dimension 2"
 boundaries = "inlet, outlet, walls, and cylinder, exact topological dimension 1"
@@ -25,19 +25,20 @@ signed_zero_has_one_identity = true
 exact_equality_and_hash = true
 y_sides_group_as_one_walls_selection = true
 distinct_y_roles_pin_lower_member_2_and_upper_member_3 = true
-off_axis_center_pass_through_and_getter_order = true
+off_axis_center_pass_through_and_canonical_order = true
 unknown_selection_is_structured_validation = true
 
 [falsifiers]
 swapped_inlet_outlet_roles = "different exact identity"
 reversed_y_lower_y_upper_mapping = "reject-by-independent-556-byte-content-and-digest-witness"
-transposed_circle_center_xy = "reject-by-independent-off-axis-getter-content-and-digest-witness"
+transposed_circle_center_xy = "reject-by-independent-off-axis-canonical-content-and-digest-witness"
 nonfinite_or_nonpositive_radius_or_tolerance = "structured-validation-error"
 reversed_nonfinite_or_degenerate_span = "structured-validation-error"
 tangent_or_insufficiently_clear_circle = "structured-validation-error"
 empty_or_cross_dimension_selection_name = "structured-validation-error"
 unknown_selection = "structured-validation-error-not-none"
-mesh_or_approximation_argument = "no-constructor-parameter"
+direct_demo_shape_constructor = "not present in the public module"
+mesh_or_approximation_argument = "not accepted by the authored Geometry projection"
 
 [claim_boundary]
 ambient_dimension = 2
