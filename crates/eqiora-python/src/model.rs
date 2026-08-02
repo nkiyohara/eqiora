@@ -273,7 +273,7 @@ impl PyValueEdit {
     }
 }
 
-/// One immutable, validated canonical Model revision.
+/// One immutable canonical Model artifact, semantically admitted when closed.
 #[pyclass(name = "Model", module = "eqiora._eqiora", frozen, skip_from_py_object)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyModel {

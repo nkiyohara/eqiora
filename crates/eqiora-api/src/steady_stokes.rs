@@ -253,6 +253,12 @@ impl ResolvedSteadyStokesPlan2d {
     pub const fn execution_provider(&self) -> ExecutionProvider {
         SERIAL_EXECUTION_PROVIDER
     }
+
+    /// Exact host worker count admitted by this bounded Plan.
+    #[must_use]
+    pub const fn workers(&self) -> NonZeroUsize {
+        NonZeroUsize::MIN
+    }
 }
 
 /// Complete accepted lineage for the exact-cylinder steady MINI/P1 Stokes case.
@@ -305,7 +311,7 @@ impl CircularHoleSteadyStokesResult2d {
             plan.solver_provider,
             plan.execution_provider(),
             ExecutionTopologyV1::Host {
-                workers: NonZeroUsize::MIN,
+                workers: plan.workers(),
             },
             plan.intent.solver().reduction(),
             std::iter::empty::<(&str, &str)>(),

@@ -204,6 +204,33 @@ impl ModelEnvelope {
         parse_ulid(&self.wire.model_ulid).map(OntologyId::from_ulid)
     }
 
+    /// Whether whole-program admission requires an external geometry bundle.
+    ///
+    /// This is derived from the typed current Model definitions, not from a
+    /// failed semantic replay or its human-readable diagnostics. Callers may
+    /// retain such an artifact before the exact geometry closure is available,
+    /// but must not treat this predicate as semantic admission.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` only if validated internal wire state cannot be decoded.
+    pub fn requires_geometry_admission(&self) -> Result<bool, Diagnostic> {
+        for node in &self.wire.nodes {
+            let node = node.decode()?;
+            if matches!(
+                node,
+                eqiora_schema::kernel::KernelNode::Domain(domain)
+                    if matches!(
+                        domain.kind(),
+                        eqiora_schema::kernel::DomainKind::GeometryRegion { .. }
+                            | eqiora_schema::kernel::DomainKind::GeometryBoundary { .. }
+                    )
+            ) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     fn canonicalize_and_validate(&mut self, limits: ModelDecoderLimits) -> Result<(), Diagnostic> {
         if self.wire.schema != MODEL_SCHEMA || self.wire.encoding != CANONICAL_ENCODING {
             return Err(invalid_artifact(format!(

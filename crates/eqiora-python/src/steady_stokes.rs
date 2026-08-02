@@ -326,8 +326,8 @@ impl PySteadyStokesPlan {
     }
 
     #[getter]
-    const fn workers(&self) -> usize {
-        1
+    fn workers(&self) -> usize {
+        self.native.workers().get()
     }
 
     #[getter]

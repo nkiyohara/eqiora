@@ -26,7 +26,6 @@ use eqiora::DimExponents;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
 use eqiora::control::{CompileOutcomeV2, CompileRequestV2, execute_compile_v2};
-use eqiora::diagnostic::codes;
 use pyo3::exceptions::{PyKeyError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
@@ -253,6 +252,11 @@ fn compile(py: Python<'_>, source: &str, filename: &str) -> PyResult<PyModel> {
 }
 
 /// Replay one canonical artifact through the current Model contract.
+///
+/// Self-contained Models receive immediate whole-program admission. A Model
+/// whose typed definitions reference external Geometry retains exact artifact
+/// identity and defers semantic admission until an operation supplies that
+/// geometry closure.
 #[pyfunction]
 fn replay(py: Python<'_>, data: &[u8]) -> PyResult<PyModel> {
     panic_boundary(py, || {
@@ -260,10 +264,13 @@ fn replay(py: Python<'_>, data: &[u8]) -> PyResult<PyModel> {
         let replayed = py.detach(move || {
             let artifact = ModelEnvelope::from_json(&data, ModelDecoderLimits::default())
                 .map_err(|diagnostic| vec![diagnostic])?;
-            match ModelDocument::replay(&data) {
-                Ok(document) => Ok((Some(document), artifact)),
-                Err(diagnostics) if needs_geometry_admission(&diagnostics) => Ok((None, artifact)),
-                Err(diagnostics) => Err(diagnostics),
+            let requires_geometry = artifact
+                .requires_geometry_admission()
+                .map_err(|diagnostic| vec![diagnostic])?;
+            if requires_geometry {
+                Ok((None, artifact))
+            } else {
+                ModelDocument::replay(&data).map(|document| (Some(document), artifact))
             }
         });
         replayed
@@ -273,14 +280,6 @@ fn replay(py: Python<'_>, data: &[u8]) -> PyResult<PyModel> {
                 None => PyModel::from_artifact(py, artifact),
             })
     })
-}
-
-fn needs_geometry_admission(diagnostics: &[eqiora::Diagnostic]) -> bool {
-    !diagnostics.is_empty()
-        && diagnostics.iter().all(|diagnostic| {
-            diagnostic.code() == codes::INVALID_KERNEL_DEFINITION
-                && diagnostic.message().contains("requires artifact admission")
-        })
 }
 
 fn execute_compile_request(py: Python<'_>, request: CompileRequestV2) -> PyResult<PyModel> {
@@ -376,11 +375,9 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use eqiora::Diagnostic;
     use eqiora::api::ModelDocument;
-    use eqiora::diagnostic::codes;
 
-    use super::{needs_geometry_admission, python_distribution_version};
+    use super::python_distribution_version;
 
     const SOURCE: &str = r#"
 model decay {
@@ -432,27 +429,11 @@ model decay {
         let replayed = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replayed.canonical_json().unwrap(), bytes);
         assert_eq!(replayed.digest().unwrap(), document.digest().unwrap());
-    }
-
-    #[test]
-    fn deferred_geometry_admission_never_hides_an_independent_replay_error() {
-        let admission = Diagnostic::error(
-            codes::INVALID_KERNEL_DEFINITION,
-            "Field spatial support from a geometry Domain requires artifact admission",
-        );
-        let independent = Diagnostic::error(
-            codes::INVALID_KERNEL_DEFINITION,
-            "an independent semantic invariant failed",
-        );
-        let wrong_code = Diagnostic::error(
-            codes::INVALID_ARTIFACT,
-            "serialized bytes require artifact admission",
-        );
-
-        assert!(needs_geometry_admission(std::slice::from_ref(&admission)));
-        assert!(!needs_geometry_admission(&[]));
-        let mixed_semantic_failures = [admission.clone(), independent];
-        assert!(!needs_geometry_admission(&mixed_semantic_failures));
-        assert!(!needs_geometry_admission(&[admission, wrong_code]));
+        let artifact = eqiora::artifact::ModelEnvelope::from_json(
+            &bytes,
+            eqiora::artifact::ModelDecoderLimits::default(),
+        )
+        .unwrap();
+        assert!(!artifact.requires_geometry_admission().unwrap());
     }
 }
