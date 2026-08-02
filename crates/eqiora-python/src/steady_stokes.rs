@@ -1,22 +1,393 @@
-//! Python projection of the shared exact-cylinder steady-Stokes application.
+//! Python intent, Plan, and Result projection for steady Stokes.
 
+use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::num::NonZeroUsize;
 
-use eqiora::api::CircularHoleSteadyStokesResult2d;
-use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
+use eqiora::Diagnostic;
+use eqiora::api::{
+    CircularHoleSteadyStokesResult2d, ResolvedSteadyStokesPlan2d, SteadyStokesIntent2d,
+};
 use eqiora::backends::faer::FaerLinearSolver;
-use eqiora::geometry::CanonicalGeometryV1;
+use eqiora::diagnostic::codes;
+use eqiora::realization::SpaceFamily;
+use eqiora::solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy};
 use numpy::PyArray2;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyModule};
+use pyo3::types::{PyAny, PyBytes, PyModule};
 
 use crate::array::PyArrayBuffer;
 use crate::error::diagnostic_error;
-use crate::geometry::{PyGeometry, digest_to_hex};
+use crate::geometry::digest_to_hex;
 use crate::matrix::ReadOnlyMatrix;
 use crate::meshing::PyMesh;
+use crate::model::PyModel;
 use crate::panic_boundary;
 use crate::realization::PyLinearSolveSummary;
+
+/// Complete steady-Stokes request with no hidden numerical defaults.
+#[pyclass(
+    name = "SteadyStokes",
+    module = "eqiora._eqiora",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PySteadyStokes {
+    native: SteadyStokesIntent2d,
+}
+
+#[pymethods]
+impl PySteadyStokes {
+    #[new]
+    #[pyo3(signature = (*, length_scale_m, velocity_scale_m_per_s, pressure_scale_pa, relative_tolerance, absolute_tolerance, maximum_iterations))]
+    fn new(
+        py: Python<'_>,
+        length_scale_m: f64,
+        velocity_scale_m_per_s: f64,
+        pressure_scale_pa: f64,
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: i64,
+    ) -> PyResult<Self> {
+        let maximum_iterations = usize::try_from(maximum_iterations)
+            .ok()
+            .and_then(NonZeroUsize::new)
+            .ok_or_else(|| {
+                let diagnostic = Diagnostic::error(
+                    codes::INVALID_REALIZATION,
+                    "steady-Stokes maximum_iterations must be strictly positive",
+                );
+                diagnostic_error(py, std::slice::from_ref(&diagnostic))
+            })?;
+        SteadyStokesIntent2d::new(
+            length_scale_m,
+            velocity_scale_m_per_s,
+            pressure_scale_pa,
+            relative_tolerance,
+            absolute_tolerance,
+            maximum_iterations,
+        )
+        .map(|native| Self { native })
+        .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))
+    }
+
+    #[getter]
+    fn length_scale_m(&self) -> f64 {
+        self.native.scales().length().value()
+    }
+
+    #[getter]
+    fn velocity_scale_m_per_s(&self) -> f64 {
+        self.native.scales().velocity().value()
+    }
+
+    #[getter]
+    fn pressure_scale_pa(&self) -> f64 {
+        self.native.scales().pressure().value()
+    }
+
+    #[getter]
+    fn relative_tolerance(&self) -> f64 {
+        self.native.solver().relative_tolerance()
+    }
+
+    #[getter]
+    fn absolute_tolerance(&self) -> f64 {
+        self.native.solver().absolute_tolerance()
+    }
+
+    #[getter]
+    fn maximum_iterations(&self) -> usize {
+        self.native.solver().maximum_iterations().get()
+    }
+
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
+        other
+            .extract::<PyRef<'_, Self>>()
+            .is_ok_and(|other| self.native == other.native)
+    }
+
+    fn __ne__(&self, other: &Bound<'_, PyAny>) -> bool {
+        !self.__eq__(other)
+    }
+
+    fn __hash__(&self) -> isize {
+        let mut hasher = DefaultHasher::new();
+        self.length_scale_m().to_bits().hash(&mut hasher);
+        self.velocity_scale_m_per_s().to_bits().hash(&mut hasher);
+        self.pressure_scale_pa().to_bits().hash(&mut hasher);
+        self.relative_tolerance().to_bits().hash(&mut hasher);
+        self.absolute_tolerance().to_bits().hash(&mut hasher);
+        self.maximum_iterations().hash(&mut hasher);
+        hasher.finish() as isize
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "SteadyStokes(length_scale_m={}, velocity_scale_m_per_s={}, pressure_scale_pa={}, relative_tolerance={:e}, absolute_tolerance={:e}, maximum_iterations={})",
+            self.length_scale_m(),
+            self.velocity_scale_m_per_s(),
+            self.pressure_scale_pa(),
+            self.relative_tolerance(),
+            self.absolute_tolerance(),
+            self.maximum_iterations(),
+        )
+    }
+}
+
+/// Immutable, inspectable steady-Stokes Plan resolved before submission.
+#[pyclass(
+    name = "SteadyStokesPlan",
+    module = "eqiora._eqiora",
+    frozen,
+    skip_from_py_object
+)]
+pub(crate) struct PySteadyStokesPlan {
+    native: ResolvedSteadyStokesPlan2d,
+    model_digest: String,
+    geometry_digest: String,
+    correspondence_digest: String,
+    mesh_digest: String,
+    realization_digest: String,
+    canonical_bytes: Vec<u8>,
+    spatial_dimension: usize,
+    velocity_space: &'static str,
+    pressure_space: &'static str,
+}
+
+impl PySteadyStokesPlan {
+    fn from_native(
+        py: Python<'_>,
+        native: ResolvedSteadyStokesPlan2d,
+        mesh: &PyMesh,
+    ) -> PyResult<Self> {
+        let model_digest = native
+            .model()
+            .digest()
+            .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?
+            .to_string();
+        let correspondence_digest = mesh
+            .accepted()
+            .correspondence()
+            .digest()
+            .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?
+            .to_string();
+        let mesh_digest = mesh
+            .accepted()
+            .mesh()
+            .digest()
+            .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?
+            .to_string();
+        let realization_digest = native
+            .realization()
+            .digest()
+            .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?
+            .to_string();
+        let canonical_bytes = native
+            .realization()
+            .canonical_json()
+            .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?;
+        let spatial_dimension = native
+            .realization()
+            .requirements()
+            .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?
+            .execution()
+            .spatial_dimension()
+            .get();
+        let velocity_space = space_name(native.velocity_space())
+            .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?;
+        let pressure_space = space_name(native.pressure_space())
+            .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?;
+        Ok(Self {
+            geometry_digest: digest_to_hex(&mesh.accepted().source().digest_bytes()),
+            native,
+            model_digest,
+            correspondence_digest,
+            mesh_digest,
+            realization_digest,
+            canonical_bytes,
+            spatial_dimension,
+            velocity_space,
+            pressure_space,
+        })
+    }
+
+    pub(crate) const fn native(&self) -> &ResolvedSteadyStokesPlan2d {
+        &self.native
+    }
+}
+
+#[pymethods]
+impl PySteadyStokesPlan {
+    #[getter]
+    fn model_digest(&self) -> &str {
+        &self.model_digest
+    }
+
+    #[getter]
+    fn semantic_revision(&self) -> u64 {
+        self.native.realization().semantic_revision().get()
+    }
+
+    #[getter]
+    fn geometry_digest(&self) -> &str {
+        &self.geometry_digest
+    }
+
+    #[getter]
+    fn correspondence_digest(&self) -> &str {
+        &self.correspondence_digest
+    }
+
+    #[getter]
+    fn mesh_digest(&self) -> &str {
+        &self.mesh_digest
+    }
+
+    #[getter]
+    fn realization_digest(&self) -> &str {
+        &self.realization_digest
+    }
+
+    #[getter]
+    fn realization_revision(&self) -> u64 {
+        self.native.realization().realization_revision().get()
+    }
+
+    #[getter]
+    const fn spatial_dimension(&self) -> usize {
+        self.spatial_dimension
+    }
+
+    #[getter]
+    const fn velocity_space(&self) -> &'static str {
+        self.velocity_space
+    }
+
+    #[getter]
+    const fn pressure_space(&self) -> &'static str {
+        self.pressure_space
+    }
+
+    #[getter]
+    fn length_scale_m(&self) -> f64 {
+        self.native.intent().scales().length().value()
+    }
+
+    #[getter]
+    fn velocity_scale_m_per_s(&self) -> f64 {
+        self.native.intent().scales().velocity().value()
+    }
+
+    #[getter]
+    fn pressure_scale_pa(&self) -> f64 {
+        self.native.intent().scales().pressure().value()
+    }
+
+    #[getter]
+    fn solver_algorithm(&self) -> &'static str {
+        linear_solver_name(self.native.intent().solver().algorithm())
+    }
+
+    #[getter]
+    fn preconditioner(&self) -> &'static str {
+        preconditioner_name(self.native.intent().solver().preconditioner())
+    }
+
+    #[getter]
+    fn reduction(&self) -> &'static str {
+        reduction_name(self.native.intent().solver().reduction())
+    }
+
+    #[getter]
+    fn relative_tolerance(&self) -> f64 {
+        self.native.intent().solver().relative_tolerance()
+    }
+
+    #[getter]
+    fn absolute_tolerance(&self) -> f64 {
+        self.native.intent().solver().absolute_tolerance()
+    }
+
+    #[getter]
+    fn maximum_iterations(&self) -> usize {
+        self.native.intent().solver().maximum_iterations().get()
+    }
+
+    #[getter]
+    fn solver_backend(&self) -> &'static str {
+        self.native.solver_provider().id().as_str()
+    }
+
+    #[getter]
+    fn execution_adapter(&self) -> &'static str {
+        self.native.execution_provider().id().as_str()
+    }
+
+    #[getter]
+    fn workers(&self) -> usize {
+        self.native.workers().get()
+    }
+
+    #[getter]
+    fn canonical_bytes(&self, py: Python<'_>) -> Py<PyBytes> {
+        PyBytes::new(py, &self.canonical_bytes).unbind()
+    }
+
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
+        other
+            .extract::<PyRef<'_, Self>>()
+            .is_ok_and(|other| self.native == other.native)
+    }
+
+    fn __ne__(&self, other: &Bound<'_, PyAny>) -> bool {
+        !self.__eq__(other)
+    }
+
+    fn __hash__(&self) -> isize {
+        let mut hasher = DefaultHasher::new();
+        self.realization_digest.hash(&mut hasher);
+        self.solver_backend().hash(&mut hasher);
+        self.native
+            .solver_provider()
+            .implementation_version()
+            .hash(&mut hasher);
+        hasher.finish() as isize
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "SteadyStokesPlan(model_digest={:?}, realization_digest={:?}, solver_backend={:?})",
+            self.model_digest,
+            self.realization_digest,
+            self.solver_backend(),
+        )
+    }
+}
+
+/// Resolve one steady-Stokes intent without executing it.
+#[pyfunction]
+#[pyo3(name = "resolve_steady_stokes")]
+#[pyo3(signature = (model, intent, /, *, mesh))]
+pub(crate) fn resolve(
+    py: Python<'_>,
+    model: &PyModel,
+    intent: &PySteadyStokes,
+    mesh: &PyMesh,
+) -> PyResult<PySteadyStokesPlan> {
+    panic_boundary(py, || {
+        let model = model.artifact().clone();
+        let accepted = mesh.accepted().clone();
+        let intent = intent.native;
+        let native = py.detach(move || {
+            ResolvedSteadyStokesPlan2d::resolve(&model, intent, &accepted, &FaerLinearSolver)
+        });
+        native
+            .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))
+            .and_then(|native| PySteadyStokesPlan::from_native(py, native, mesh))
+    })
+}
 
 /// Frozen result of the one accepted exact-cylinder steady-Stokes operation.
 #[pyclass(
@@ -81,7 +452,10 @@ impl Hash for PyCircularHoleSteadyStokesResult {
 }
 
 impl PyCircularHoleSteadyStokesResult {
-    fn from_native(py: Python<'_>, result: CircularHoleSteadyStokesResult2d) -> PyResult<Self> {
+    pub(crate) fn from_native(
+        py: Python<'_>,
+        result: CircularHoleSteadyStokesResult2d,
+    ) -> PyResult<Self> {
         let model_digest = result
             .model()
             .digest()
@@ -414,42 +788,50 @@ impl PyCircularHoleSteadyStokesResult {
     }
 }
 
-/// Execute the one accepted exact-cylinder steady-Stokes application path.
-#[pyfunction]
-#[pyo3(signature = (*, model, geometry, mesh))]
-pub(crate) fn solve_exact_cylinder_stokes(
-    py: Python<'_>,
-    model: &[u8],
-    geometry: &PyGeometry,
-    mesh: &PyMesh,
-) -> PyResult<PyCircularHoleSteadyStokesResult> {
-    panic_boundary(py, || {
-        let model = model.to_vec();
-        let source: CanonicalGeometryV1 = geometry.geometry().clone();
-        let mesh_source: CanonicalGeometryV1 = mesh.source().clone();
-        let accepted = mesh.accepted().clone();
-        let native = py.detach(move || {
-            if source != mesh_source {
-                return Err(eqiora::Diagnostic::error(
-                    eqiora::diagnostic::codes::INVALID_REALIZATION,
-                    "exact-cylinder geometry and chordal mesh name different source revisions",
-                ));
-            }
-            let model = ModelEnvelope::from_json(&model, ModelDecoderLimits::default())?;
-            CircularHoleSteadyStokesResult2d::solve_reference(&model, &accepted, &FaerLinearSolver)
-        });
-        native
-            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))
-            .and_then(|result| PyCircularHoleSteadyStokesResult::from_native(py, result))
-    })
-}
-
 const fn tuple2(value: [f64; 2]) -> (f64, f64) {
     (value[0], value[1])
 }
 
+fn space_name(space: eqiora::realization::Space) -> Result<&'static str, Diagnostic> {
+    match space.family() {
+        SpaceFamily::SimplexP1Bubble => Ok("simplex-p1-bubble"),
+        SpaceFamily::ContinuousLagrange { order } if order.get() == 1 => {
+            Ok("continuous-lagrange-1")
+        }
+        _ => Err(Diagnostic::error(
+            codes::INTERNAL_FAILURE,
+            "resolved steady-Stokes Plan has no frozen public name for its discrete space",
+        )),
+    }
+}
+
+const fn linear_solver_name(value: LinearSolver) -> &'static str {
+    match value {
+        LinearSolver::ConjugateGradient => "conjugate-gradient",
+        LinearSolver::MinimumResidual => "minimum-residual",
+        LinearSolver::BiConjugateGradientStabilized => "bicgstab",
+        LinearSolver::SparseLu => "sparse-lu",
+    }
+}
+
+const fn preconditioner_name(value: PreconditionerPolicy) -> &'static str {
+    match value {
+        PreconditionerPolicy::Identity => "identity",
+        PreconditionerPolicy::Jacobi => "jacobi",
+    }
+}
+
+const fn reduction_name(value: ReductionPolicy) -> &'static str {
+    match value {
+        ReductionPolicy::Reproducible => "reproducible",
+        ReductionPolicy::Fast => "fast",
+    }
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<PySteadyStokes>()?;
+    module.add_class::<PySteadyStokesPlan>()?;
     module.add_class::<PyCircularHoleSteadyStokesResult>()?;
-    module.add_function(wrap_pyfunction!(solve_exact_cylinder_stokes, module)?)?;
+    module.add_function(wrap_pyfunction!(resolve, module)?)?;
     Ok(())
 }

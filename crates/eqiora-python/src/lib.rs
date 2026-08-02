@@ -24,6 +24,7 @@ use std::collections::BTreeMap;
 
 use eqiora::DimExponents;
 use eqiora::api::ModelDocument;
+use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
 use eqiora::control::{CompileOutcomeV2, CompileRequestV2, execute_compile_v2};
 use pyo3::exceptions::{PyKeyError, PyRuntimeError};
 use pyo3::prelude::*;
@@ -251,13 +252,33 @@ fn compile(py: Python<'_>, source: &str, filename: &str) -> PyResult<PyModel> {
 }
 
 /// Replay one canonical artifact through the current Model contract.
+///
+/// Self-contained Models receive immediate whole-program admission. A Model
+/// whose typed definitions reference external Geometry retains exact artifact
+/// identity and defers semantic admission until an operation supplies that
+/// geometry closure.
 #[pyfunction]
 fn replay(py: Python<'_>, data: &[u8]) -> PyResult<PyModel> {
     panic_boundary(py, || {
         let data = data.to_vec();
-        py.detach(move || ModelDocument::replay(&data))
+        let replayed = py.detach(move || {
+            let artifact = ModelEnvelope::from_json(&data, ModelDecoderLimits::default())
+                .map_err(|diagnostic| vec![diagnostic])?;
+            let requires_geometry = artifact
+                .requires_geometry_admission()
+                .map_err(|diagnostic| vec![diagnostic])?;
+            if requires_geometry {
+                Ok((None, artifact))
+            } else {
+                ModelDocument::replay(&data).map(|document| (Some(document), artifact))
+            }
+        });
+        replayed
             .map_err(|diagnostics| compatibility_error(py, &diagnostics))
-            .and_then(|document| PyModel::from_document(py, document))
+            .and_then(|(document, artifact)| match document {
+                Some(document) => PyModel::from_document(py, document),
+                None => PyModel::from_artifact(py, artifact),
+            })
     })
 }
 
@@ -408,5 +429,11 @@ model decay {
         let replayed = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replayed.canonical_json().unwrap(), bytes);
         assert_eq!(replayed.digest().unwrap(), document.digest().unwrap());
+        let artifact = eqiora::artifact::ModelEnvelope::from_json(
+            &bytes,
+            eqiora::artifact::ModelDecoderLimits::default(),
+        )
+        .unwrap();
+        assert!(!artifact.requires_geometry_admission().unwrap());
     }
 }

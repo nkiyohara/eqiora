@@ -109,30 +109,38 @@ artifact explicitly and returns one immutable result:
 ```python
 from importlib.resources import files
 
-model = (
+model_bytes = (
     files(eqiora)
     .joinpath("examples", "steady-flow-past-cylinder.model.json")
     .read_bytes()
 )
-result = eqiora.fluid.solve_exact_cylinder_stokes(
-    model=model,
-    geometry=geometry,
-    mesh=mesh,
+model = eqiora.replay(model_bytes)
+intent = eqiora.fluid.SteadyStokes(
+    length_scale_m=0.41,
+    velocity_scale_m_per_s=0.3,
+    pressure_scale_pa=0.001 * 0.3 / 0.41,
+    relative_tolerance=1e-6,
+    absolute_tolerance=1e-13,
+    maximum_iterations=10_000,
 )
+plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
+result = eqiora.run(model, plan=plan)
 
 print(result.solve)
 print(result.pressure_minimum, result.pressure_maximum)
 print(result.cylinder_force_on_fluid, result.net_flux)
 ```
 
-Studio and Python use the same Rust composition for Model replay, exact-source
+Studio and Python use the same Rust resolved Plan for Model replay, exact-source
 binding, field-wise Realization, solve, pressure snapshot, and Run provenance.
+The Plan exposes the exact spaces, scales, solver tuple, backend, placement,
+and existing Realization bytes before a worker starts.
 `result.pressure` is the existing immutable rank-one `Array`;
 `result.coordinates` and `result.triangles` lazily publish read-only NumPy
 matrices in matching mesh order.
 
-This operation admits only the checked exact-cylinder Model, geometry, mesh,
-scale profile, and SparseLU policy. Supplying the Model bytes is explicit
+This operation admits only the checked exact-cylinder Model and mesh plus the
+frozen scale and SparseLU intent. Replaying the Model bytes is explicit
 artifact consumption; the wheel ships an exact copy of that one canonical
 artifact so the documented script needs no repository-local runtime input.
 This is not a general Model catalog or Python fluid authoring. Velocity

@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use eqiora::DimExponents;
 use eqiora::api::FixedMeshFieldTrajectoryReplay2dV1;
-use eqiora::artifact::{ArtifactDigest, RunManifestV2, SimplicialMeshEnvelopeV1};
+use eqiora::artifact::{
+    ArtifactDigest, CanonicalModelArtifact, RunManifestV2, SimplicialMeshEnvelopeV1,
+};
 use eqiora::kernel::ValueFrame;
 use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldShape};
 use numpy::{PyArray1, PyArray2};
@@ -377,7 +379,7 @@ impl PyTrajectory {
         })?;
         let model_digest = first.model_artifact().to_string();
         let current_model_digest = model
-            .document()
+            .artifact()
             .artifact_reference()
             .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?
             .artifact()

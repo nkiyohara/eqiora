@@ -1,20 +1,87 @@
-# Python exact-cylinder steady-Stokes Result
+# Python exact-cylinder steady-Stokes Plan and Run
 
 This case freezes one narrow Python completion path:
 
 ```python
-eqiora.fluid.solve_exact_cylinder_stokes(
-    *,
-    model: bytes,
-    geometry: Geometry,
-    mesh: Mesh,
-) -> CircularHoleSteadyStokesResult
+model = eqiora.replay(model_bytes)
+intent = eqiora.fluid.SteadyStokes(
+    length_scale_m=0.41,
+    velocity_scale_m_per_s=0.3,
+    pressure_scale_pa=0.001 * 0.3 / 0.41,
+    relative_tolerance=1e-6,
+    absolute_tolerance=1e-13,
+    maximum_iterations=10_000,
+)
+plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
+run = eqiora.submit(model, plan=plan)
+result = run.result()
 ```
 
 The caller supplies the current Model bytes explicitly. The adapter may admit
 only the already accepted model, exact geometry owner, and source-bound chordal
 mesh. It is a typed composition of existing scientific contracts, not a
 generic Python fluid-authoring or solver API.
+
+The previous single-call `eqiora.fluid.solve_exact_cylinder_stokes(...)` entry
+point is withdrawn in the same slice, so there is exactly one execution
+composition. `CircularHoleSteadyStokesResult` survives only as the temporary
+output of this Run, until the common spatial Result and FieldSnapshot
+migration deletes it; it gains no second construction path.
+
+## Intent, Plan, and Run
+
+All six intent arguments are mandatory keyword arguments and readable back.
+Omitting one is a `TypeError`; a zero, negative, or nonfinite scale or
+tolerance, and a nonpositive iteration limit, raise the existing structured
+`ValidationError` rather than being normalized. A valid but changed value
+raises `CapabilityError` during `fluid.resolve`, before a Run or worker
+exists.
+
+`SteadyStokesPlan` publishes every previously hidden effective value before
+submission: Model, semantic, geometry, correspondence, mesh, and Realization
+identities and revision; spatial dimension; velocity and pressure space names;
+the three scales; the solver algorithm, preconditioner, reduction, tolerances,
+and iteration limit; the solver backend, execution adapter, and worker count;
+and the existing resolved Realization envelope bytes. The evidence requires
+each of them to equal the value revalidated by the Run manifest and the
+`LinearSolveSummary`, so a Plan cannot advertise a value that execution does
+not use.
+
+`canonical_bytes` is not a new wire. The case parses it, checks that it links
+back to the Plan's own Model digest, semantic revision, and Realization
+revision, and independently rehashes it under the same schema-domain-separated
+framing already used for the chordal binding and Run manifest, requiring the
+recomputed value to equal `realization_digest`.
+
+Resolution must be deterministic and independent of ambient state and Python
+lifetime: an independently rebuilt Model and Mesh resolve to an equal Plan with
+equal canonical bytes, and deleting those Python owners does not invalidate a
+retained Plan or its submission.
+
+`eqiora.run(model, plan=...)`, `eqiora.submit(...).result()`, repeated
+`.result()`, and `await run` are one occurrence. Repeated `result()` returns
+the identical memoized object, and every form agrees on the run identity and
+the complete pressure array. This direct sparse solve has no accepted mid-solve
+cancellation boundary, so the cancellation expectation is honest rather than
+optimistic: the Run either reaches the existing typed `CancellationError`
+(`EQ0506`) terminal state with no Result, or completes with the whole accepted
+Result. No partial output is admissible on either branch.
+
+## Frozen space spellings
+
+`velocity_space` and `pressure_space` are derived views of the resolved
+discretization, and the contract owner froze their two spellings before implementation:
+`velocity_space` is `simplex-p1-bubble` and `pressure_space` is
+`continuous-lagrange-1`. This case now asserts both literals exactly, in the
+registered installed-wheel pytest, in its isolated installed-package program,
+and in the supplementary embedded PyO3 program, so a renamed or silently
+substituted space fails before any Run evidence is read.
+
+The two literals are the contract owner's decision, not an inference drawn from
+the capability-matrix prose (`MINI/P1`) or from the artifact kinds carried by
+Realization envelopes checked in elsewhere, and the evidence owner did not read
+the implementation to obtain or confirm them. Determinism remains a separate
+requirement: both names must also be identical across independent resolutions.
 
 The checked-in demo obtains those bytes from the sole packaged resource
 `eqiora/examples/steady-flow-past-cylinder.model.json`. That resource is a
@@ -29,6 +96,11 @@ observations come from the dual-independent
 case and its independently agreed Python and Julia routes. This case imports
 its six pressure probes, signed fluxes, cylinder constraint force, global
 balance, solver tuple, and true-residual acceptance without retuning them.
+Moving the caller from the withdrawn single-call function to the typed
+intent → Plan → Run path changed no scientific expected value or tolerance in
+this case: every probe, flux, reaction, balance, residual, digest, and
+tolerance literal is byte-unchanged, and the Plan is required to reproduce
+them through the common Run.
 
 The source and mesh identities come from the accepted exact-geometry and
 source-bound-mesh cases. The model identity is owned independently by
@@ -116,13 +188,33 @@ ordinary Rust gate, not the registered runner for this case.
 
 ## Fail-closed boundary and non-claims
 
-Malformed Model bytes report compatibility diagnostic `EQ0901`. A valid but
-foreign source revision, foreign exact owner, swapped authored roles, coarse
-mesh, or differently admitted mesh artifact reports validation diagnostic
-`EQ0807` before solve.
+Malformed Model bytes report compatibility diagnostic `EQ0901` at
+`eqiora.replay`. A valid but foreign source revision, foreign exact owner,
+swapped authored roles, coarse mesh, or differently admitted mesh artifact
+reports validation diagnostic `EQ0807` during `fluid.resolve`, before any Plan
+exists. Because the resolver consumes the Mesh rather than a separate Geometry,
+the foreign-owner and swapped-role falsifiers are carried by meshes whose inner
+artifact identity equals the accepted one while their exact source owner
+differs; the case asserts both facts so the substitution remains real. A
+shape-equal Model with a foreign source revision is additionally rejected at
+`submit` and `run` against an already accepted Plan.
+
+The final tree must not retain the withdrawn entry point. The case checks the
+installed `eqiora.fluid` module attribute and `__all__`, the native
+`eqiora._eqiora` module, and the packaged `fluid.pyi` stub, and pins the
+exported `fluid.__all__` set to exactly `CircularHoleSteadyStokesResult`,
+`SteadyStokes`, `SteadyStokesPlan`, and `resolve`.
+
+`eqiora.matplotlib.plot_pressure` is unchanged and still consumes the Run's
+`CircularHoleSteadyStokesResult` unmodified; rendering itself stays owned by
+[`interfaces.python-exact-cylinder-pressure-still`](../python-exact-cylinder-pressure-still/README.md),
+and this case only checks that the migrated Result remains an accepted input
+when Matplotlib is installed.
 
 This case claims no general Model or fluid authoring, velocity or MINI bubble
 projection, drag/lift coefficient, generic meshing or solver selection,
+alternate backend or topology selection, general Plan/Realization unification,
+durable Plan wire or provider registry, mid-solve cancellation boundary,
 visualization, convergence study, transient flow, Navier–Stokes, FSI,
 performance, cross-platform bit identity, packaged-model catalogue, or
 general resource loader.

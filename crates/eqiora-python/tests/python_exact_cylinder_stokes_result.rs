@@ -77,11 +77,62 @@ def mesh(source):
 source = geometry()
 realized = mesh(source)
 assert "numpy" not in sys.modules
-result = eqiora.fluid.solve_exact_cylinder_stokes(
-    model=model,
-    geometry=source,
-    mesh=realized,
+assert not hasattr(eqiora.fluid, "solve_exact_cylinder_stokes")
+assert "solve_exact_cylinder_stokes" not in eqiora.fluid.__all__
+
+intent = eqiora.fluid.SteadyStokes(
+    length_scale_m=0.41,
+    velocity_scale_m_per_s=0.3,
+    pressure_scale_pa=0.001 * 0.3 / 0.41,
+    relative_tolerance=1e-6,
+    absolute_tolerance=1e-13,
+    maximum_iterations=10000,
 )
+assert intent == eqiora.fluid.SteadyStokes(
+    length_scale_m=0.41,
+    velocity_scale_m_per_s=0.3,
+    pressure_scale_pa=0.001 * 0.3 / 0.41,
+    relative_tolerance=1e-6,
+    absolute_tolerance=1e-13,
+    maximum_iterations=10000,
+)
+
+current = eqiora.replay(model)
+plan = eqiora.fluid.resolve(current, intent, mesh=realized)
+assert "numpy" not in sys.modules
+assert type(plan).__module__ == "eqiora._eqiora"
+assert type(plan).__name__ == "SteadyStokesPlan"
+assert plan.model_digest == MODEL_DIGEST == current.digest
+assert plan.geometry_digest == SOURCE_DIGEST
+assert plan.mesh_digest == MESH_DIGEST
+assert plan.semantic_revision == 1
+assert plan.realization_revision == 133
+assert plan.spatial_dimension == 2
+assert plan.length_scale_m == 0.41
+assert plan.velocity_scale_m_per_s == 0.3
+assert plan.pressure_scale_pa == 0.001 * 0.3 / 0.41
+assert plan.solver_algorithm == "sparse-lu"
+assert plan.preconditioner == "identity"
+assert plan.reduction == "fast"
+assert plan.relative_tolerance == 1e-6
+assert plan.absolute_tolerance == 1e-13
+assert plan.maximum_iterations == 10000
+assert plan.solver_backend == "eqiora.faer"
+assert plan.workers == 1
+assert plan.velocity_space == "simplex-p1-bubble"
+assert plan.pressure_space == "continuous-lagrange-1"
+envelope = json.loads(plan.canonical_bytes)
+assert envelope["model_sha256"] == plan.model_digest
+assert envelope["source"]["realization_revision"] == plan.realization_revision
+assert hashlib.sha256(
+    envelope["schema"].encode() + b"\0" + plan.canonical_bytes
+).hexdigest() == plan.realization_digest
+
+run = eqiora.submit(current, plan=plan)
+result = run.result()
+assert run.result() is result
+assert plan.realization_digest == result.realization_digest
+assert plan.execution_adapter == result.solve.adapter
 assert "numpy" not in sys.modules
 assert type(result).__module__ == "eqiora._eqiora"
 assert type(result).__name__ == "CircularHoleSteadyStokesResult"
@@ -118,29 +169,41 @@ assert triangles.shape == (104, 3)
 assert result.pressure.numpy(copy=False).shape == (104,)
 
 try:
-    eqiora.fluid.solve_exact_cylinder_stokes(
-        model=b'{"schema":',
-        geometry=source,
-        mesh=realized,
-    )
+    eqiora.replay(b'{"schema":')
 except eqiora.CompatibilityError as error:
     assert error.category == "compatibility"
     assert any(item.code == "EQ0901" for item in error.diagnostics)
 else:
     raise AssertionError("malformed current Model crossed the native boundary")
 
-foreign = geometry(tolerance=1e-10)
+foreign = mesh(geometry(tolerance=1e-10))
+assert foreign.digest == realized.digest
 try:
-    eqiora.fluid.solve_exact_cylinder_stokes(
-        model=model,
-        geometry=foreign,
-        mesh=realized,
-    )
+    eqiora.fluid.resolve(current, intent, mesh=foreign)
 except eqiora.ValidationError as error:
     assert error.category == "validation"
     assert any(item.code == "EQ0807" for item in error.diagnostics)
 else:
     raise AssertionError("foreign exact geometry ownership was admitted")
+
+try:
+    eqiora.fluid.resolve(
+        current,
+        eqiora.fluid.SteadyStokes(
+            length_scale_m=0.41,
+            velocity_scale_m_per_s=0.3,
+            pressure_scale_pa=0.001 * 0.3 / 0.41,
+            relative_tolerance=1e-11,
+            absolute_tolerance=1e-13,
+            maximum_iterations=10000,
+        ),
+        mesh=realized,
+    )
+except eqiora.CapabilityError as error:
+    assert error.category == "capability"
+    assert error.diagnostics
+else:
+    raise AssertionError("an unsupported intent was resolved into a Plan")
 "#
             ),
             Some(&locals),

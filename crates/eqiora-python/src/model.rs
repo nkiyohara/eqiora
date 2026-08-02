@@ -6,6 +6,7 @@ use std::hash::{Hash, Hasher};
 use eqiora::api::{
     ModelDocument, ModelFieldRef, ModelParameterRef, StructuralSemanticFingerprint, ValueEditPlan,
 };
+use eqiora::artifact::{CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelope};
 use eqiora::diagnostic::codes;
 use eqiora::{Diagnostic, EntityKind, RawId};
 use pyo3::prelude::*;
@@ -272,11 +273,12 @@ impl PyValueEdit {
     }
 }
 
-/// One immutable, validated canonical Model revision.
+/// One immutable canonical Model artifact, semantically admitted when closed.
 #[pyclass(name = "Model", module = "eqiora._eqiora", frozen, skip_from_py_object)]
 #[derive(Debug, Clone)]
 pub(crate) struct PyModel {
-    document: ModelDocument,
+    document: Option<ModelDocument>,
+    artifact: ModelEnvelope,
     revision: PyRevision,
 }
 
@@ -285,18 +287,42 @@ impl PyModel {
         let reference = document
             .artifact_reference()
             .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
+        let artifact = document
+            .canonical_json()
+            .and_then(|bytes| ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()))
+            .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
         Ok(Self {
             revision: PyRevision {
                 model_id: reference.model().ulid().to_string(),
                 digest: reference.artifact().to_string(),
                 number: reference.semantic_revision().get(),
             },
-            document,
+            document: Some(document),
+            artifact,
         })
     }
 
-    pub(crate) fn document(&self) -> &ModelDocument {
-        &self.document
+    pub(crate) fn from_artifact(py: Python<'_>, artifact: ModelEnvelope) -> PyResult<Self> {
+        let reference = artifact
+            .artifact_reference()
+            .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
+        Ok(Self {
+            revision: PyRevision {
+                model_id: reference.model().ulid().to_string(),
+                digest: reference.artifact().to_string(),
+                number: reference.semantic_revision().get(),
+            },
+            document: None,
+            artifact,
+        })
+    }
+
+    pub(crate) fn document(&self) -> Result<&ModelDocument, Diagnostic> {
+        self.document.as_ref().ok_or_else(deferred_admission)
+    }
+
+    pub(crate) const fn artifact(&self) -> &ModelEnvelope {
+        &self.artifact
     }
 
     pub(crate) fn field_ref_from_id(
@@ -305,7 +331,8 @@ impl PyModel {
         field: eqiora::Id<eqiora::kinds::Field>,
     ) -> PyResult<PyModelFieldRef> {
         let value = self
-            .document
+            .document()
+            .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?
             .field_ref(&field.ulid().to_string())
             .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
         Ok(PyModelFieldRef {
@@ -316,10 +343,11 @@ impl PyModel {
     }
 
     fn resolve_edit_target(&self, target: &str) -> Result<RawId, Diagnostic> {
-        if let Some(&id) = self.document.aliases().get(target) {
+        let document = self.document()?;
+        if let Some(&id) = document.aliases().get(target) {
             return Ok(id);
         }
-        self.document
+        document
             .program()
             .nodes()
             .map(|node| node.id())
@@ -336,6 +364,13 @@ impl PyModel {
                 )
             })
     }
+}
+
+fn deferred_admission() -> Diagnostic {
+    Diagnostic::error(
+        codes::NOT_IMPLEMENTED,
+        "this current Model requires application-specific artifact admission before semantic use",
+    )
 }
 
 #[pymethods]
@@ -357,7 +392,7 @@ impl PyModel {
     /// Canonical, versioned Model artifact bytes.
     fn to_json<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         panic_boundary(py, || {
-            self.document
+            self.artifact
                 .canonical_json()
                 .map(|bytes| PyBytes::new(py, &bytes))
                 .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))
@@ -386,7 +421,10 @@ impl PyModel {
     #[getter]
     fn structural_fingerprint(&self, py: Python<'_>) -> PyResult<PyStructuralSemanticFingerprint> {
         panic_boundary(py, || {
-            let document = self.document.clone();
+            let document = self
+                .document()
+                .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+                .clone();
             py.detach(move || document.structural_fingerprint())
                 .map(|value| PyStructuralSemanticFingerprint { value })
                 .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))
@@ -396,8 +434,14 @@ impl PyModel {
     /// Compare structural meaning without changing exact Model equality.
     fn structurally_equivalent(&self, py: Python<'_>, other: &PyModel) -> PyResult<bool> {
         panic_boundary(py, || {
-            let left = self.document.clone();
-            let right = other.document.clone();
+            let left = self
+                .document()
+                .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+                .clone();
+            let right = other
+                .document()
+                .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+                .clone();
             py.detach(move || left.structurally_equivalent(&right))
                 .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))
         })
@@ -405,31 +449,36 @@ impl PyModel {
 
     /// Stable ULIDs of Fields that can appear in results.
     #[getter]
-    fn field_ids(&self) -> Vec<String> {
-        self.document
+    fn field_ids(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+        Ok(self
+            .document()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
             .program()
             .nodes()
             .filter(|node| node.id().kind() == EntityKind::Field)
             .map(|node| node.id().ulid().to_string())
-            .collect()
+            .collect())
     }
 
     /// Stable ULIDs of Parameters addressable by value edits.
     #[getter]
-    fn parameter_ids(&self) -> Vec<String> {
-        self.document
+    fn parameter_ids(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+        Ok(self
+            .document()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
             .program()
             .nodes()
             .filter(|node| node.id().kind() == EntityKind::Parameter)
             .map(|node| node.id().ulid().to_string())
-            .collect()
+            .collect())
     }
 
     /// Resolve a source alias or exact ULID once into an exact Parameter role.
     fn parameter(&self, py: Python<'_>, selection: &str) -> PyResult<PyModelParameterRef> {
         panic_boundary(py, || {
             let value = self
-                .document
+                .document()
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
                 .parameter_ref(selection)
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
             Ok(PyModelParameterRef {
@@ -444,7 +493,8 @@ impl PyModel {
     fn field(&self, py: Python<'_>, selection: &str) -> PyResult<PyModelFieldRef> {
         panic_boundary(py, || {
             let value = self
-                .document
+                .document()
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
                 .field_ref(selection)
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
             Ok(PyModelFieldRef {
@@ -466,7 +516,8 @@ impl PyModel {
             let target = self
                 .resolve_edit_target(target)
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-            self.document
+            self.document()
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
                 .preview_value_edit(target, value)
                 .map(|plan| PyValueEdit { plan })
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))
@@ -476,7 +527,10 @@ impl PyModel {
     /// Atomically commit an exact-base edit into a new immutable child Model.
     fn commit(&self, py: Python<'_>, edit: &PyValueEdit) -> PyResult<Self> {
         panic_boundary(py, || {
-            let document = self.document.clone();
+            let document = self
+                .document()
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
+                .clone();
             let plan = edit.plan.clone();
             let child = py
                 .detach(move || document.commit_value_edit(plan))

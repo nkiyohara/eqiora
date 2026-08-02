@@ -1,7 +1,8 @@
-"""Installed-wheel contract for one exact-cylinder steady Stokes Result."""
+"""Installed-wheel contract for one exact-cylinder steady Stokes Plan and Run."""
 
 from __future__ import annotations
 
+import asyncio
 import gc
 import hashlib
 import importlib.resources
@@ -35,6 +36,56 @@ MODEL_RESOURCE_SHA256 = (
 )
 SEMANTIC_REVISION = 1
 REALIZATION_REVISION = 133
+
+LENGTH_SCALE_M = 0.41
+VELOCITY_SCALE_M_PER_S = 0.3
+PRESSURE_SCALE_PA = 0.001 * 0.3 / 0.41
+RELATIVE_TOLERANCE = 1.0e-6
+ABSOLUTE_TOLERANCE = 1.0e-13
+MAXIMUM_ITERATIONS = 10_000
+SPATIAL_DIMENSION = 2
+VELOCITY_SPACE = "simplex-p1-bubble"
+PRESSURE_SPACE = "continuous-lagrange-1"
+SOLVER_ALGORITHM = "sparse-lu"
+PRECONDITIONER = "identity"
+REDUCTION = "fast"
+SOLVER_BACKEND = "eqiora.faer"
+WORKERS = 1
+
+INTENT_ARGUMENTS: dict[str, Any] = {
+    "length_scale_m": LENGTH_SCALE_M,
+    "velocity_scale_m_per_s": VELOCITY_SCALE_M_PER_S,
+    "pressure_scale_pa": PRESSURE_SCALE_PA,
+    "relative_tolerance": RELATIVE_TOLERANCE,
+    "absolute_tolerance": ABSOLUTE_TOLERANCE,
+    "maximum_iterations": MAXIMUM_ITERATIONS,
+}
+PLAN_PROPERTIES = (
+    "model_digest",
+    "semantic_revision",
+    "geometry_digest",
+    "correspondence_digest",
+    "mesh_digest",
+    "realization_digest",
+    "realization_revision",
+    "spatial_dimension",
+    "velocity_space",
+    "pressure_space",
+    "length_scale_m",
+    "velocity_scale_m_per_s",
+    "pressure_scale_pa",
+    "solver_algorithm",
+    "preconditioner",
+    "reduction",
+    "relative_tolerance",
+    "absolute_tolerance",
+    "maximum_iterations",
+    "solver_backend",
+    "execution_adapter",
+    "workers",
+    "canonical_bytes",
+)
+REMOVED_ENTRY_POINT = "solve_exact_cylinder_stokes"
 
 PRESSURE_DIMENSION = (1, -1, -2, 0, 0, 0, 0)
 PRESSURE_TOLERANCE = 2.0e-14 + 5.0e-7 * (0.001 * 0.3 / 0.41)
@@ -232,19 +283,33 @@ def mesh(
     return eqiora.meshing.generate(source, plan=plan)
 
 
-def solve(source: Any, realized: Any, *, model: bytes | None = None) -> Any:
-    return eqiora.fluid.solve_exact_cylinder_stokes(
-        model=model_bytes() if model is None else model,
-        geometry=source,
-        mesh=realized,
-    )
+def intent(**overrides: object) -> Any:
+    arguments: dict[str, Any] = dict(INTENT_ARGUMENTS)
+    arguments.update(overrides)
+    return eqiora.fluid.SteadyStokes(**arguments)
+
+
+def replayed(model: bytes | None = None) -> Any:
+    return eqiora.replay(model_bytes() if model is None else model)
+
+
+def resolve_plan(
+    realized: Any, *, model: bytes | None = None, **overrides: object
+) -> Any:
+    return eqiora.fluid.resolve(replayed(model), intent(**overrides), mesh=realized)
+
+
+def solve(realized: Any, *, model: bytes | None = None) -> Any:
+    current = replayed(model)
+    resolved = eqiora.fluid.resolve(current, intent(), mesh=realized)
+    return eqiora.submit(current, plan=resolved).result()
 
 
 @pytest.fixture(scope="module")
 def accepted() -> tuple[Any, Any, Any]:
     source = geometry()
     realized = mesh(source)
-    return source, realized, solve(source, realized)
+    return source, realized, solve(realized)
 
 
 def assert_digest(value: str) -> None:
@@ -463,7 +528,7 @@ def test_complete_result_replays_binding_run_and_frozen_observations(
         result.run_digest = "0" * 64
 
     pretty_model = json.dumps(json.loads(model_bytes()), indent=2).encode()
-    replay = solve(source, realized, model=pretty_model)
+    replay = solve(realized, model=pretty_model)
     assert replay == result
     assert hash(replay) == hash(result)
     assert replay.run_digest == result.run_digest
@@ -472,7 +537,7 @@ def test_complete_result_replays_binding_run_and_frozen_observations(
 def test_matrix_views_are_memoized_read_only_and_lifetime_safe() -> None:
     source = geometry()
     realized = mesh(source)
-    result = solve(source, realized)
+    result = solve(realized)
     coordinates = result.coordinates
     triangles = result.triangles
     pressure_owner = result.pressure
@@ -507,7 +572,7 @@ def test_model_and_exact_source_ownership_faults_fail_closed(
 ) -> None:
     source, realized, _result = accepted
     assert_error(
-        lambda: solve(source, realized, model=b'{"schema":'),
+        lambda: replayed(b'{"schema":'),
         eqiora.CompatibilityError,
         category="compatibility",
         code="EQ0901",
@@ -518,16 +583,18 @@ def test_model_and_exact_source_ownership_faults_fail_closed(
     revision_bytes = json.dumps(changed_revision, separators=(",", ":")).encode()
     assert semantic_model_digest(revision_bytes) == MODEL_DIGEST
     assert_error(
-        lambda: solve(source, realized, model=revision_bytes),
+        lambda: resolve_plan(realized, model=revision_bytes),
         eqiora.ValidationError,
         category="validation",
         code="EQ0807",
     )
 
     foreign = geometry(tolerance=1.0e-10)
-    assert mesh(foreign).digest == realized.digest
+    foreign_mesh = mesh(foreign)
+    assert foreign_mesh.digest == realized.digest
+    assert foreign_mesh.source_digest != realized.source_digest
     assert_error(
-        lambda: solve(foreign, realized),
+        lambda: resolve_plan(foreign_mesh),
         eqiora.ValidationError,
         category="validation",
         code="EQ0807",
@@ -536,8 +603,9 @@ def test_model_and_exact_source_ownership_faults_fail_closed(
     swapped = geometry(x_lower="outlet", x_upper="inlet")
     swapped_mesh = mesh(swapped)
     assert swapped_mesh.digest == realized.digest
+    assert swapped_mesh.source_digest != realized.source_digest
     assert_error(
-        lambda: solve(swapped, swapped_mesh),
+        lambda: resolve_plan(swapped_mesh),
         eqiora.ValidationError,
         category="validation",
         code="EQ0807",
@@ -551,7 +619,7 @@ def test_model_and_exact_source_ownership_faults_fail_closed(
     )
     assert coarse.digest != realized.digest
     assert_error(
-        lambda: solve(source, coarse),
+        lambda: resolve_plan(coarse),
         eqiora.ValidationError,
         category="validation",
         code="EQ0807",
@@ -560,18 +628,328 @@ def test_model_and_exact_source_ownership_faults_fail_closed(
     plateau = mesh(source, minimum_mean_ratio=1.0e-6)
     assert plateau.digest != realized.digest
     assert_error(
-        lambda: solve(source, plateau),
+        lambda: resolve_plan(plateau),
         eqiora.ValidationError,
         category="validation",
         code="EQ0807",
     )
 
     with pytest.raises(TypeError):
-        eqiora.fluid.solve_exact_cylinder_stokes(
-            model=model_bytes(),
-            geometry=object(),
-            mesh=realized,
-        )
+        eqiora.fluid.resolve(replayed(), intent(), mesh=object())
+    with pytest.raises(TypeError):
+        eqiora.fluid.resolve(object(), intent(), mesh=realized)
+    with pytest.raises(TypeError):
+        eqiora.fluid.resolve(replayed(), object(), mesh=realized)
+
+
+def test_steady_stokes_intent_is_mandatory_readable_and_fails_closed() -> None:
+    requested = intent()
+    assert type(requested).__module__ == "eqiora._eqiora"
+    assert type(requested).__name__ == "SteadyStokes"
+    assert isinstance(requested, eqiora.fluid.SteadyStokes)
+
+    for name, value in INTENT_ARGUMENTS.items():
+        assert getattr(requested, name) == value
+        with pytest.raises(AttributeError):
+            setattr(requested, name, value)
+    assert requested.maximum_iterations == MAXIMUM_ITERATIONS
+    assert isinstance(requested.maximum_iterations, int)
+    assert not isinstance(requested.maximum_iterations, bool)
+
+    assert requested == intent()
+    assert hash(requested) == hash(intent())
+    assert requested != intent(relative_tolerance=1.0e-7)
+
+    with pytest.raises(TypeError):
+        eqiora.fluid.SteadyStokes()
+    for omitted in INTENT_ARGUMENTS:
+        incomplete = {
+            name: value for name, value in INTENT_ARGUMENTS.items() if name != omitted
+        }
+        with pytest.raises(TypeError):
+            eqiora.fluid.SteadyStokes(**incomplete)
+    with pytest.raises(TypeError):
+        eqiora.fluid.SteadyStokes(*INTENT_ARGUMENTS.values())
+    with pytest.raises(TypeError):
+        intent(workers=2)
+    with pytest.raises(TypeError):
+        intent(maximum_iterations=1.5)
+    with pytest.raises(TypeError):
+        intent(length_scale_m="0.41")
+
+    for rejected in (
+        {"length_scale_m": 0.0},
+        {"length_scale_m": -0.41},
+        {"length_scale_m": float("nan")},
+        {"length_scale_m": float("inf")},
+        {"velocity_scale_m_per_s": 0.0},
+        {"velocity_scale_m_per_s": -0.3},
+        {"velocity_scale_m_per_s": float("nan")},
+        {"velocity_scale_m_per_s": float("inf")},
+        {"pressure_scale_pa": 0.0},
+        {"pressure_scale_pa": -PRESSURE_SCALE_PA},
+        {"pressure_scale_pa": float("nan")},
+        {"pressure_scale_pa": float("inf")},
+        {"relative_tolerance": 0.0},
+        {"relative_tolerance": -1.0e-6},
+        {"relative_tolerance": float("nan")},
+        {"relative_tolerance": float("inf")},
+        {"absolute_tolerance": 0.0},
+        {"absolute_tolerance": -1.0e-13},
+        {"absolute_tolerance": float("nan")},
+        {"absolute_tolerance": float("inf")},
+        {"maximum_iterations": 0},
+        {"maximum_iterations": -1},
+    ):
+        with pytest.raises(eqiora.ValidationError) as caught:
+            intent(**rejected)
+        assert caught.value.category == "validation"
+        assert caught.value.diagnostics
+        assert all(item.severity == "error" for item in caught.value.diagnostics)
+
+
+def test_resolved_plan_publishes_every_effective_value_before_submission(
+    accepted: tuple[Any, Any, Any],
+) -> None:
+    source, realized, result = accepted
+    current = replayed()
+    resolved = eqiora.fluid.resolve(current, intent(), mesh=realized)
+    assert type(resolved).__module__ == "eqiora._eqiora"
+    assert type(resolved).__name__ == "SteadyStokesPlan"
+    assert isinstance(resolved, eqiora.fluid.SteadyStokesPlan)
+
+    for name in PLAN_PROPERTIES:
+        value = getattr(resolved, name)
+        with pytest.raises(AttributeError):
+            setattr(resolved, name, value)
+
+    assert resolved.model_digest == current.digest == MODEL_DIGEST
+    assert resolved.semantic_revision == SEMANTIC_REVISION
+    assert resolved.geometry_digest == source.digest == SOURCE_DIGEST
+    assert resolved.mesh_digest == realized.digest == MESH_DIGEST
+    assert resolved.correspondence_digest == realized.correspondence_digest
+    assert resolved.realization_digest == result.realization_digest
+    assert resolved.realization_revision == REALIZATION_REVISION
+    for identity in (
+        resolved.model_digest,
+        resolved.geometry_digest,
+        resolved.correspondence_digest,
+        resolved.mesh_digest,
+        resolved.realization_digest,
+    ):
+        assert_digest(identity)
+
+    assert resolved.spatial_dimension == SPATIAL_DIMENSION
+    assert resolved.length_scale_m == LENGTH_SCALE_M
+    assert resolved.velocity_scale_m_per_s == VELOCITY_SCALE_M_PER_S
+    assert resolved.pressure_scale_pa == PRESSURE_SCALE_PA
+    assert resolved.solver_algorithm == SOLVER_ALGORITHM
+    assert resolved.preconditioner == PRECONDITIONER
+    assert resolved.reduction == REDUCTION
+    assert resolved.relative_tolerance == RELATIVE_TOLERANCE
+    assert resolved.absolute_tolerance == ABSOLUTE_TOLERANCE
+    assert resolved.maximum_iterations == MAXIMUM_ITERATIONS
+    assert resolved.solver_backend == SOLVER_BACKEND
+    assert resolved.workers == WORKERS
+
+    # The two space names are derived views of the resolved discretization,
+    # spelled by the contract owner's frozen literals rather than by shape.
+    assert resolved.velocity_space == VELOCITY_SPACE
+    assert resolved.pressure_space == PRESSURE_SPACE
+
+    # Every effective value is revalidated by the accepted Run evidence.
+    report = result.solve
+    assert resolved.solver_algorithm == report.algorithm
+    assert resolved.preconditioner == report.preconditioner
+    assert resolved.reduction == report.reduction
+    assert resolved.relative_tolerance == report.relative_tolerance
+    assert resolved.absolute_tolerance == report.absolute_tolerance
+    assert resolved.maximum_iterations == report.maximum_iterations
+    assert resolved.solver_backend == report.backend
+    assert resolved.execution_adapter == report.adapter
+    run = json.loads(result.run_manifest_json)
+    assert resolved.execution_adapter == run["execution"]["adapter"]
+    assert run["execution"]["topology"] == {"kind": "host", "workers": resolved.workers}
+    assert resolved.realization_digest == run["realization_sha256"]
+    assert resolved.model_digest == run["model_sha256"]
+    assert resolved.semantic_revision == run["semantic_revision"]
+
+    envelope = resolved.canonical_bytes
+    assert isinstance(envelope, bytes) and envelope
+    document = json.loads(envelope)
+    assert document["schema"].startswith("eqiora.realization-envelope/")
+    assert document["encoding"] == "eqiora.canonical-json/v1"
+    assert document["model_sha256"] == resolved.model_digest
+    assert document["semantic_revision"] == resolved.semantic_revision
+    assert document["source"]["realization_revision"] == resolved.realization_revision
+    assert (
+        hashlib.sha256(document["schema"].encode() + b"\0" + envelope).hexdigest()
+        == resolved.realization_digest
+    )
+
+    # Resolution is deterministic and cannot depend on ambient state or on the
+    # Python lifetime of its inputs.
+    again = eqiora.fluid.resolve(replayed(), intent(), mesh=mesh(geometry()))
+    assert again == resolved
+    assert hash(again) == hash(resolved)
+    assert again.canonical_bytes == envelope
+    assert again.velocity_space == resolved.velocity_space
+    assert again.pressure_space == resolved.pressure_space
+    del current, again
+    gc.collect()
+    assert resolved.canonical_bytes == envelope
+    assert eqiora.submit(replayed(), plan=resolved).result() == result
+
+
+def test_unsupported_intent_is_refused_during_resolution(
+    accepted: tuple[Any, Any, Any],
+) -> None:
+    realized = accepted[1]
+    for unsupported in (
+        {"length_scale_m": 0.42},
+        {"velocity_scale_m_per_s": 0.31},
+        {"pressure_scale_pa": PRESSURE_SCALE_PA * 2.0},
+        {"relative_tolerance": 1.0e-11},
+        {"absolute_tolerance": 1.0e-14},
+        {"maximum_iterations": 9_999},
+    ):
+        with pytest.raises(eqiora.CapabilityError) as caught:
+            resolve_plan(realized, **unsupported)
+        assert caught.value.category == "capability"
+        assert caught.value.diagnostics
+        assert all(item.severity == "error" for item in caught.value.diagnostics)
+
+
+def test_foreign_model_cannot_submit_an_accepted_plan(
+    accepted: tuple[Any, Any, Any],
+) -> None:
+    realized = accepted[1]
+    resolved = resolve_plan(realized)
+
+    changed_revision = json.loads(model_bytes())
+    changed_revision["source_revision"] = 2
+    revision_bytes = json.dumps(changed_revision, separators=(",", ":")).encode()
+    shape_equal = replayed(revision_bytes)
+    assert shape_equal.digest == MODEL_DIGEST
+    assert_error(
+        lambda: eqiora.submit(shape_equal, plan=resolved),
+        eqiora.ValidationError,
+        category="validation",
+        code="EQ0807",
+    )
+    assert_error(
+        lambda: eqiora.run(shape_equal, plan=resolved),
+        eqiora.ValidationError,
+        category="validation",
+        code="EQ0807",
+    )
+
+    with pytest.raises(TypeError):
+        eqiora.submit(replayed(), plan=object())
+    with pytest.raises(TypeError):
+        eqiora.submit(replayed(), plan=resolved, end_time=1.0, max_step=0.1)
+    with pytest.raises(TypeError):
+        eqiora.run(replayed(), plan=resolved, end_time=1.0, max_step=0.1)
+
+
+def test_synchronous_await_and_repeated_result_share_one_occurrence(
+    accepted: tuple[Any, Any, Any],
+) -> None:
+    realized, expected = accepted[1], accepted[2]
+    current = replayed()
+    resolved = eqiora.fluid.resolve(current, intent(), mesh=realized)
+
+    submitted = eqiora.submit(current, plan=resolved)
+    first = submitted.result()
+    assert submitted.result() is first
+    assert submitted.result() is first
+    assert first == expected
+    assert first.run_digest == expected.run_digest
+    assert submitted.status == eqiora.RunStatus.Completed
+    assert submitted.done
+    assert submitted.cancellation is None
+    assert submitted.model_digest == MODEL_DIGEST
+    assert submitted.adapter == first.solve.adapter
+    assert isinstance(first, eqiora.fluid.CircularHoleSteadyStokesResult)
+
+    synchronous = eqiora.run(current, plan=resolved)
+    assert synchronous == expected
+    assert synchronous.run_digest == expected.run_digest
+
+    async def await_result() -> Any:
+        return await eqiora.submit(current, plan=resolved)
+
+    awaited = asyncio.run(await_result())
+    assert awaited == expected
+    assert awaited.run_digest == expected.run_digest
+    np.testing.assert_array_equal(
+        awaited.pressure.numpy(copy=False), expected.pressure.numpy(copy=False)
+    )
+    assert awaited.run_manifest_json == expected.run_manifest_json
+
+
+def test_cancellation_is_honest_and_publishes_no_partial_result(
+    accepted: tuple[Any, Any, Any],
+) -> None:
+    realized = accepted[1]
+    current = replayed()
+    submitted = eqiora.submit(current, plan=resolve_plan(realized))
+    requested = submitted.cancel()
+
+    if requested and submitted.status == eqiora.RunStatus.Cancelled:
+        with pytest.raises(eqiora.CancellationError) as caught:
+            submitted.result()
+        assert caught.value.diagnostics[0].code == "EQ0506"
+        assert submitted.cancellation is not None
+        assert not submitted.cancel()
+    else:
+        completed = submitted.result()
+        assert submitted.status == eqiora.RunStatus.Completed
+        assert completed == accepted[2]
+        assert completed.run_digest == accepted[2].run_digest
+        assert completed.pressure.shape == (104,)
+    assert submitted.done
+
+
+def test_the_removed_solve_entry_point_is_absent_from_the_installed_surface(
+    accepted: tuple[Any, Any, Any],
+) -> None:
+    result = accepted[2]
+    assert REMOVED_ENTRY_POINT not in eqiora.fluid.__all__
+    assert not hasattr(eqiora.fluid, REMOVED_ENTRY_POINT)
+    assert REMOVED_ENTRY_POINT not in dir(eqiora.fluid)
+    assert not hasattr(eqiora, REMOVED_ENTRY_POINT)
+    native = sys.modules["eqiora._eqiora"]
+    assert not hasattr(native, REMOVED_ENTRY_POINT)
+    assert sorted(eqiora.fluid.__all__) == [
+        "CircularHoleSteadyStokesResult",
+        "SteadyStokes",
+        "SteadyStokesPlan",
+        "resolve",
+    ]
+
+    stub = (
+        importlib.resources.files("eqiora")
+        .joinpath("fluid.pyi")
+        .read_text(encoding="utf-8")
+    )
+    assert REMOVED_ENTRY_POINT not in stub
+    assert "class SteadyStokes:" in stub
+    assert "class SteadyStokesPlan:" in stub
+
+    # CircularHoleSteadyStokesResult survives only as this Run output, and the
+    # accepted pressure still keeps consuming it unchanged.
+    assert isinstance(result, eqiora.fluid.CircularHoleSteadyStokesResult)
+    with pytest.raises(TypeError):
+        eqiora.fluid.CircularHoleSteadyStokesResult()
+    pyplot = pytest.importorskip("matplotlib.pyplot")
+    import eqiora.matplotlib as eqplot
+
+    figure = eqplot.plot_pressure(result)
+    try:
+        assert figure is not None
+    finally:
+        pyplot.close(figure)
 
 
 def test_bounded_surface_does_not_claim_the_future_workflow(
@@ -639,11 +1017,28 @@ request = eqiora.meshing.MeshRequest(
 plan = eqiora.meshing.resolve(geometry, request)
 mesh = eqiora.meshing.generate(geometry, plan=plan)
 assert "numpy" not in sys.modules
-result = eqiora.fluid.solve_exact_cylinder_stokes(
-    model=model,
-    geometry=geometry,
-    mesh=mesh,
+assert not hasattr(eqiora.fluid, "solve_exact_cylinder_stokes")
+current = eqiora.replay(model)
+intent = eqiora.fluid.SteadyStokes(
+    length_scale_m={LENGTH_SCALE_M!r},
+    velocity_scale_m_per_s={VELOCITY_SCALE_M_PER_S!r},
+    pressure_scale_pa={PRESSURE_SCALE_PA!r},
+    relative_tolerance={RELATIVE_TOLERANCE!r},
+    absolute_tolerance={ABSOLUTE_TOLERANCE!r},
+    maximum_iterations={MAXIMUM_ITERATIONS!r},
 )
+resolved = eqiora.fluid.resolve(current, intent, mesh=mesh)
+assert "numpy" not in sys.modules
+assert resolved.realization_revision == {REALIZATION_REVISION!r}
+assert resolved.solver_algorithm == {SOLVER_ALGORITHM!r}
+assert resolved.solver_backend == {SOLVER_BACKEND!r}
+assert resolved.workers == {WORKERS!r}
+assert resolved.velocity_space == {VELOCITY_SPACE!r}
+assert resolved.pressure_space == {PRESSURE_SPACE!r}
+assert len(resolved.canonical_bytes) > 0
+run = eqiora.submit(current, plan=resolved)
+result = run.result()
+assert run.result() is result
 assert "numpy" not in sys.modules
 assert result.model_digest == {MODEL_DIGEST!r}
 assert result.exact_source_digest == {SOURCE_DIGEST!r}
@@ -657,7 +1052,7 @@ assert coordinates.shape == (104, 2)
 assert triangles.shape == (104, 3)
 pressure = result.pressure.numpy(copy=False)
 assert pressure[0] == result.pressure[0]
-del result, geometry, mesh
+del result, run, resolved, intent, current, geometry, mesh
 gc.collect()
 print({MODEL_DIGEST!r})
 print({SOURCE_DIGEST!r})

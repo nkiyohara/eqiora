@@ -461,7 +461,10 @@ pub(crate) fn solve_fixed_reference_fsi(
     model: &PyModel,
 ) -> PyResult<PyFixedReferenceFsiResult> {
     panic_boundary(py, || {
-        let document = model.document().clone();
+        let document = model
+            .document()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+            .clone();
         let result = py.detach(move || {
             FixedReferenceFsiResult2d::solve_reference(&document, &REFERENCE_LINEAR_SOLVER)
         });

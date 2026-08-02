@@ -67,6 +67,7 @@ from ._eqiora import (
     replay,
     submit as _submit,
     submit_realization as _submit_realization,
+    submit_steady_stokes as _submit_steady_stokes,
     through,
     trace,
 )
@@ -159,6 +160,7 @@ def run(
     end_time=_MISSING,
     max_step=_MISSING,
     realization: Realization | None = None,
+    plan=_MISSING,
 ):
     """Execute through the same native lifecycle returned by :func:`submit`."""
 
@@ -169,6 +171,7 @@ def run(
             end_time=end_time,
             max_step=max_step,
             realization=realization,
+            plan=plan,
         )
     ).result()
 
@@ -180,11 +183,20 @@ def _submit_native(
     end_time,
     max_step,
     realization: Realization | None,
+    plan,
 ) -> _NativeRun:
     """Validate one public request shape before crossing the native boundary."""
 
     has_end_time = end_time is not _MISSING
     has_max_step = max_step is not _MISSING
+
+    if plan is not _MISSING:
+        if realization is not None or has_end_time or has_max_step:
+            raise TypeError(
+                f"{operation} accepts plan alone; realization, end_time, and "
+                "max_step belong to other execution forms"
+            )
+        return _submit_steady_stokes(model, plan)
 
     if realization is not None:
         if has_end_time or has_max_step:
@@ -196,8 +208,8 @@ def _submit_native(
 
     if not has_end_time or not has_max_step:
         raise TypeError(
-            f"{operation} requires either realization=... or both end_time=... "
-            "and max_step=..."
+            f"{operation} requires either realization=..., plan=..., or both "
+            "end_time=... and max_step=..."
         )
 
     return _submit(model, end_time=end_time, max_step=max_step)
@@ -254,10 +266,14 @@ class Run:
     def cancel(self) -> bool:
         return self._native.cancel()
 
-    def result(self) -> Result | ScalarEllipticResult:
+    def result(
+        self,
+    ) -> Result | ScalarEllipticResult | fluid.CircularHoleSteadyStokesResult:
         return self._native.result()
 
-    async def _wait(self) -> Result | ScalarEllipticResult:
+    async def _wait(
+        self,
+    ) -> Result | ScalarEllipticResult | fluid.CircularHoleSteadyStokesResult:
         import asyncio
 
         while not self.done:
@@ -277,6 +293,7 @@ def submit(
     end_time=_MISSING,
     max_step=_MISSING,
     realization: Realization | None = None,
+    plan=_MISSING,
 ) -> Run:
     """Submit exactly one accepted temporal or spatial request shape."""
 
@@ -287,5 +304,6 @@ def submit(
             end_time=end_time,
             max_step=max_step,
             realization=realization,
+            plan=plan,
         )
     )

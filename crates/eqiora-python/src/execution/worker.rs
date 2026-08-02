@@ -4,10 +4,11 @@ use std::time::{Duration, Instant};
 use eqiora::Diagnostic;
 use eqiora::api::{
     ModelDocument, ReferenceRunDirective, ReferenceRunObserver, ReferenceRunOutcome,
-    ReferenceRunPlan, ReferenceRunProgress, ScalarEllipticExecutionEnvironment,
-    ScalarEllipticRunDirective, ScalarEllipticRunObserver, ScalarEllipticRunOutcome,
-    ScalarEllipticRunPlan, ScalarEllipticRunProgress,
+    ReferenceRunPlan, ReferenceRunProgress, ResolvedSteadyStokesPlan2d,
+    ScalarEllipticExecutionEnvironment, ScalarEllipticRunDirective, ScalarEllipticRunObserver,
+    ScalarEllipticRunOutcome, ScalarEllipticRunPlan, ScalarEllipticRunProgress,
 };
+use eqiora::backends::faer::FaerLinearSolver;
 
 use super::{
     NativeRunCancellation, NativeRunOutput, NativeRunProgress, RunFailure, RunShared, RunTerminal,
@@ -92,6 +93,7 @@ pub(super) enum NativeRunJob {
         plan: Box<ScalarEllipticRunPlan>,
         environment: ScalarEllipticExecutionEnvironment,
     },
+    SteadyStokes(Box<ResolvedSteadyStokesPlan2d>),
 }
 
 enum NativeWorkerOutcome {
@@ -132,6 +134,12 @@ fn execute_job(
                 }
             }
         }
+        NativeRunJob::SteadyStokes(plan) => plan
+            .execute(&FaerLinearSolver)
+            .map(|result| {
+                NativeWorkerOutcome::Completed(NativeRunOutput::SteadyStokes(Box::new(result)))
+            })
+            .map_err(|diagnostic| vec![diagnostic]),
     }
 }
 
