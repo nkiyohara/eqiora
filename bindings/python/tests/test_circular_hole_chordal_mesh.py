@@ -210,6 +210,7 @@ def test_standard_mesh_replays_the_frozen_rfc_and_inner_artifact() -> None:
         name: mesh.selection_entity_count(name) for name in mesh.selection_names
     }
     assert realized_counts == SELECTION_COUNTS
+    assert mesh.selection_entity_count(name="cylinder") == SELECTION_COUNTS["cylinder"]
     assert (
         sum(realized_counts[name] for name in ("inlet", "outlet", "walls", "cylinder"))
         == 104
