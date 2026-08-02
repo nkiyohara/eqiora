@@ -1,14 +1,13 @@
 id = "interfaces.python-fixed-reference-fsi-demo"
 status = "verified"
-scope = "one-installed-python-immutable-fixed-reference-monolithic-fsi-two-step-result-and-headless-still"
-reference_kind = "shared-rust-application-result-lineage-and-presentation-transparency"
+scope = "one-installed-python-immutable-fixed-reference-monolithic-fsi-two-step-result"
+reference_kind = "shared-rust-application-result-lineage"
 
 capabilities = [
   "python-fixed-reference-fsi-run",
   "python-typed-fixed-reference-fsi-result",
   "python-coupled-model-realization-run-state-trajectory-lineage",
   "python-read-only-coupled-interface-state-arrays",
-  "python-headless-fsi-step-still",
 ]
 
 [problem]
@@ -18,19 +17,17 @@ realization = "the existing fieldwise coupled multi-Domain plan over the exact 9
 accepted_steps = 2
 entry_point = "eqiora.fsi.solve_fixed_reference_fsi"
 result_type = "immutable eqiora.fsi.FixedReferenceFsiResult"
-renderer = "eqiora.matplotlib.plot_fixed_reference_fsi with selected accepted step and explicit finite nonnegative displacement scale"
+presentation_successor = "interfaces.python-trajectory-field-stills owns common scalar and deformed stills over this result's accepted Trajectory"
 
 [oracle]
 scientific_case = "fsi.fixed-reference-monolithic-step-2d"
 trajectory_case = "artifacts.fixed-reference-fsi-spatial-trajectory"
 lineage_case = "interfaces.studio-fixed-reference-fsi-demo"
-matplotlib_case = "interfaces.python-exact-cylinder-pressure-still"
 equivalence_case = "interfaces.structural-semantic-fingerprint"
 model_admission = "structural semantic equivalence to the accepted current source, preserving the caller's current artifact identity; digest equality is neither required nor claimed"
 production_comparison = "the existing Rust scientific tests compare the production composition against the independent support composition for solver coefficients and for ordered two-state, state, trajectory, and Run lineage"
 thresholds = "restated only by reference from the registered scientific cases; never re-derived, tuned, or relaxed here"
 arrays = "coindexed partition, velocity, bubble, pressure-support, displacement, and interface-action arrays in coherent SI order"
-rendering = "partition-owned region and connectivity, fluid-cell pressure, and deformed solid geometry equal to reference coordinates plus scale times displacement"
 
 [acceptance]
 packaged_source_is_byte_exact = true
@@ -55,9 +52,6 @@ arrays_are_memoized_read_only_and_owner_independent = true
 independent_solves_do_not_share_array_storage = true
 numpy_import_is_lazy_until_array_materialization = true
 step_selection_does_not_change_solver_values = true
-scale_is_visible_and_does_not_change_solver_values = true
-headless_caller_owned_nonblank_png = true
-base_import_is_matplotlib_free = true
 
 [falsifiers]
 foreign_model_meaning = "rejected before Realization"
@@ -80,12 +74,6 @@ solver_stopping_presented_as_physics_acceptance = "acceptance scalars and stoppi
 reauthored_or_relaxed_acceptance_threshold = "referenced scientific thresholds differ from their owning cases"
 mutable_or_result_owned_arrays = "array lifetime and writeability checks fail"
 eager_numpy_dependency = "isolated process imports NumPy before first array projection"
-raw_or_foreign_plot_input = "rejected before renderer construction"
-negative_or_nonfinite_scale = "rejected before renderer construction"
-region_reassignment_or_duplication = "captured renderer regions differ from the partition-owned fluid, solid, and interface sets"
-unlabelled_scale = "title and legend omit the applied scale"
-renderer_recomputes_physics = "captured renderer inputs are not exactly the solver-owned vectors"
-gui_dependency = "Agg render runs with DISPLAY absent"
 
 [claim_boundary]
 one_current_model = true
@@ -106,9 +94,6 @@ python_callbacks_or_manual_time_loop = false
 application_recomputes_physics = false
 stress_drag_or_lift = false
 validation_or_benchmark = false
-generic_field_plotting = false
-exact_pixels_or_image_dimensions = false
-scientific_validation_from_pixels = false
 video_or_animation = false
 durable_public_result_generality = false
 interactive_viewer = false

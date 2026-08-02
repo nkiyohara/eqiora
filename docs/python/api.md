@@ -1549,6 +1549,12 @@ def solve_mixed_boundary_elasticity(model: Model, /) -> MixedBoundaryElasticityR
 
 Source: [`bindings/python/python/eqiora/matplotlib.pyi`](https://github.com/nkiyohara/eqiora/blob/main/bindings/python/python/eqiora/matplotlib.pyi)
 
+### `eqiora.matplotlib.plot_deformed_field`
+
+```python
+def plot_deformed_field(trajectory: Trajectory, /, *, step: int, field: FieldRef, scale: float=1.0) -> Figure: ...
+```
+
 ### `eqiora.matplotlib.plot_displacement`
 
 ```python
@@ -1561,10 +1567,10 @@ def plot_displacement(result: MixedBoundaryElasticityResult, /, *, scale: float=
 def plot_pressure(result: CircularHoleSteadyStokesResult, /) -> Figure: ...
 ```
 
-### `eqiora.matplotlib.plot_fixed_reference_fsi`
+### `eqiora.matplotlib.plot_scalar_field`
 
 ```python
-def plot_fixed_reference_fsi(result: FixedReferenceFsiResult, /, *, step: int=2, displacement_scale: float=12.0) -> Figure: ...
+def plot_scalar_field(trajectory: Trajectory, /, *, step: int, field: FieldRef) -> Figure: ...
 ```
 
 ## `eqiora.diff`

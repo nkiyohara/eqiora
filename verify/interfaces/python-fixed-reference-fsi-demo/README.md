@@ -8,10 +8,10 @@ the complete two-state
 trajectory, relational Model → geometry → correspondence → mesh → Realization
 → state → trajectory → Run lineage, and solver-owned coupled fields.
 
-The optional Matplotlib adapter presents either accepted step as a headless,
-caller-owned still. It uses the result's partition and connectivity, fluid
-pressure, solid displacement, interface facets, and velocity without
-recomputing physics.
+Common scalar and deformed stills over this result's accepted `Trajectory` are
+owned separately by
+[`interfaces.python-trajectory-field-stills`](../python-trajectory-field-stills/README.md).
+This case retains no demo-specific presentation entry point.
 
 Scientific meaning, tolerances, and expected values remain owned by
 [`fsi.fixed-reference-monolithic-step-2d`](../../fsi/fixed-reference-monolithic-step-2d/README.md)

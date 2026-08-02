@@ -20,10 +20,15 @@ are recorded here.
 - Added `eqiora.fsi.solve_fixed_reference_fsi(...)` and a packaged two-step
   Python example for the accepted exact-v4 monolithic FSI case. Studio and
   Python now consume one Rust-owned Model-to-trajectory-to-Run result; the
-  optional Matplotlib adapter presents either accepted step with an explicit
-  displacement scale.
+  optional Matplotlib adapters present exact scalar and deformed Fields from
+  either accepted trajectory state with support-restricted topology.
 
 ### Changed
+
+- Replaced the demo-specific `plot_fixed_reference_fsi(...)` entry point with
+  `plot_scalar_field(...)` and `plot_deformed_field(...)` over common
+  `Trajectory` and exact Model-bound `FieldRef` values. No compatibility alias
+  is retained.
 
 - Reset the pre-release Model artifact epoch to one current contract. Rust's
   generation-selecting codec API and `eqiora::compatibility`, Python

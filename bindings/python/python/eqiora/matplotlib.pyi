@@ -1,9 +1,18 @@
 from matplotlib.figure import Figure
 
+from . import FieldRef
 from .fluid import CircularHoleSteadyStokesResult
-from .fsi import FixedReferenceFsiResult
 from .solid import MixedBoundaryElasticityResult
+from .trajectory import Trajectory
 
+def plot_deformed_field(
+    trajectory: Trajectory,
+    /,
+    *,
+    step: int,
+    field: FieldRef,
+    scale: float = 1.0,
+) -> Figure: ...
 def plot_displacement(
     result: MixedBoundaryElasticityResult,
     /,
@@ -11,12 +20,17 @@ def plot_displacement(
     scale: float = 1.0,
 ) -> Figure: ...
 def plot_pressure(result: CircularHoleSteadyStokesResult, /) -> Figure: ...
-def plot_fixed_reference_fsi(
-    result: FixedReferenceFsiResult,
+def plot_scalar_field(
+    trajectory: Trajectory,
     /,
     *,
-    step: int = 2,
-    displacement_scale: float = 12.0,
+    step: int,
+    field: FieldRef,
 ) -> Figure: ...
 
-__all__ = ["plot_displacement", "plot_fixed_reference_fsi", "plot_pressure"]
+__all__ = [
+    "plot_deformed_field",
+    "plot_displacement",
+    "plot_pressure",
+    "plot_scalar_field",
+]
