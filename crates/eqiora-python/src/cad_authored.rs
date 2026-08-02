@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule, PyTuple};
 
 use crate::error::validation_error;
-use crate::geometry::{PyRectangleWithCircularHole, digest_to_hex};
+use crate::geometry::{PyGeometry, digest_to_hex};
 
 /// One immutable native-owned authored-CAD operation graph.
 #[pyclass(
@@ -99,7 +99,7 @@ impl PyCadAuthoredGraph {
         y_lower: &str,
         y_upper: &str,
         hole: &str,
-    ) -> PyResult<PyRectangleWithCircularHole> {
+    ) -> PyResult<PyGeometry> {
         self.graph
             .planar_circular_section(
                 classification_tolerance,
@@ -110,7 +110,7 @@ impl PyCadAuthoredGraph {
                 y_upper,
                 hole,
             )
-            .map(PyRectangleWithCircularHole::from_geometry)
+            .map(PyGeometry::from_geometry)
             .map_err(|diagnostic| native_error(py, diagnostic))
     }
 

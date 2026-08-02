@@ -90,23 +90,25 @@ geometry = graph.planar_circular_section(
     y_upper="walls",
     hole="cylinder",
 )
-mesh = eqiora.meshing.circular_hole_chordal(
-    geometry,
-    max_boundary_error=1e-4,
-    required_minimum_mean_ratio=1e-5,
-    max_segments=50,
+request = eqiora.meshing.MeshRequest(
+    maximum_boundary_error=1e-4,
+    minimum_mean_ratio=1e-5,
+    maximum_boundary_facets=50,
 )
-print(geometry.digest, mesh.mesh_digest)
+plan = eqiora.meshing.resolve(geometry, request)
+mesh = eqiora.meshing.generate(geometry, plan=plan)
+print(geometry.digest, mesh.digest)
 print(mesh.selection_entity_count("cylinder"))
 ```
 
 The graph and its exact planar section have distinct identities. The section
-reproduces the accepted direct convenience value byte-for-byte; depth and CAD
+reproduces the accepted exact planar value byte-for-byte; depth and CAD
 tolerances cannot leak into its independently classified 2D meaning. This is
 not a generic section or Python Boolean implementation. Its matching meshing
-operation is one Rust-owned, error-controlled chordal reference path, not a
-generic or production mesher. The returned wrapper binds its exact source only
-within the live process; durable generated-realization replay, geometry-backed
+operation is one Rust-owned, error-controlled chordal reference path behind
+common request, plan, and mesh ownership boundaries, not a production mesher.
+The returned value retains exact source and correspondence identity within the
+live process; durable generated-realization replay, geometry-backed
 Model binding, solve, Result, and visualization are separate capabilities.
 
 The accepted exact-cylinder Result can be presented as one bounded pressure

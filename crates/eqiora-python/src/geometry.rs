@@ -15,101 +15,50 @@ pub(crate) fn digest_to_hex(bytes: &[u8; 32]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-/// One exact rectangle-minus-circle value with fixed semantic selection roles.
+/// One immutable exact Geometry produced by an accepted authored graph.
+///
+/// The current constructor path is deliberately bounded to the admitted
+/// planar section.  Its public identity and observations do not encode that
+/// proving shape as a Python product type.
 #[pyclass(
-    name = "RectangleWithCircularHole",
+    name = "Geometry",
     module = "eqiora._eqiora",
     frozen,
     eq,
     skip_from_py_object
 )]
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct PyRectangleWithCircularHole {
+pub(crate) struct PyGeometry {
     geometry: CanonicalGeometryV1,
 }
 
 #[pymethods]
-impl PyRectangleWithCircularHole {
-    #[new]
-    #[pyo3(signature = (
-        *,
-        bounds,
-        circle_center,
-        circle_radius,
-        tolerance,
-        region,
-        x_lower,
-        x_upper,
-        y_lower,
-        y_upper,
-        hole
-    ))]
-    #[allow(clippy::too_many_arguments)]
-    fn new(
-        py: Python<'_>,
-        bounds: [[f64; 2]; 2],
-        circle_center: [f64; 2],
-        circle_radius: f64,
-        tolerance: f64,
-        region: String,
-        x_lower: String,
-        x_upper: String,
-        y_lower: String,
-        y_upper: String,
-        hole: String,
-    ) -> PyResult<Self> {
-        let geometry = CanonicalGeometryV1::from_circular_hole_named_roles(
-            bounds,
-            circle_center,
-            circle_radius,
-            tolerance,
-            &region,
-            &x_lower,
-            &x_upper,
-            &y_lower,
-            &y_upper,
-            &hole,
-        )
-        .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))?;
-        Ok(Self { geometry })
+impl PyGeometry {
+    /// Intrinsic and coordinate dimension of this accepted Geometry.
+    #[getter]
+    fn dimension(&self) -> usize {
+        2
     }
 
-    /// Exact Cartesian bounds, x axis then y axis, in metres.
+    /// Exact Cartesian bounds, one pair per coordinate axis, in metres.
     #[getter]
     fn bounds(&self) -> ((f64, f64), (f64, f64)) {
         let [[x_lower, x_upper], [y_lower, y_upper]] = *self
             .geometry
             .circular_hole_bounds()
-            .expect("RectangleWithCircularHole always owns circular-hole geometry");
+            .expect("the admitted planar Geometry has exact Cartesian bounds");
         ((x_lower, x_upper), (y_lower, y_upper))
-    }
-
-    /// Exact circle centre in metres.
-    #[getter]
-    fn circle_center(&self) -> (f64, f64) {
-        self.geometry
-            .circular_hole_center()
-            .expect("RectangleWithCircularHole always owns circular-hole geometry")
-            .into()
-    }
-
-    /// Exact circle radius in metres.
-    #[getter]
-    fn circle_radius(&self) -> f64 {
-        self.geometry
-            .circular_hole_radius_m()
-            .expect("RectangleWithCircularHole always owns circular-hole geometry")
     }
 
     /// Producer classification tolerance in metres.
     #[getter]
-    fn tolerance(&self) -> f64 {
+    fn classification_tolerance(&self) -> f64 {
         self.geometry.tolerance_m()
     }
 
     /// Exact canonical JSON, without a trailing newline.
     #[getter]
-    fn canonical_json(&self, py: Python<'_>) -> Py<PyBytes> {
+    fn canonical_bytes(&self, py: Python<'_>) -> Py<PyBytes> {
         PyBytes::new(py, self.geometry.canonical_bytes()).unbind()
     }
 
@@ -119,7 +68,7 @@ impl PyRectangleWithCircularHole {
         digest_to_hex(&self.geometry.digest_bytes())
     }
 
-    /// Canonically ordered fixed-role selection names.
+    /// Canonically ordered semantic selection names.
     #[getter]
     fn selection_names(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         Ok(PyTuple::new(
@@ -137,7 +86,7 @@ impl PyRectangleWithCircularHole {
             .ok_or_else(|| {
                 let diagnostic = Diagnostic::error(
                     codes::INVALID_ARTIFACT,
-                    format!("exact circular-hole geometry has no selection named {name:?}"),
+                    format!("Geometry has no selection named {name:?}"),
                 );
                 validation_error(py, std::slice::from_ref(&diagnostic))
             })
@@ -152,19 +101,16 @@ impl PyRectangleWithCircularHole {
 
     fn __repr__(&self) -> String {
         format!(
-            "RectangleWithCircularHole(bounds={:?}, circle_center={:?}, \
-             circle_radius={}, tolerance={}, selections={}, digest={:?})",
+            "Geometry(dimension={}, bounds={:?}, selections={}, digest={:?})",
+            self.dimension(),
             self.bounds(),
-            self.circle_center(),
-            self.circle_radius(),
-            self.tolerance(),
             self.geometry.entity_sets().len(),
             self.digest(),
         )
     }
 }
 
-impl PyRectangleWithCircularHole {
+impl PyGeometry {
     pub(crate) const fn from_geometry(geometry: CanonicalGeometryV1) -> Self {
         Self { geometry }
     }
@@ -175,5 +121,5 @@ impl PyRectangleWithCircularHole {
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<PyRectangleWithCircularHole>()
+    module.add_class::<PyGeometry>()
 }

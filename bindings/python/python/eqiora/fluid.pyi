@@ -4,8 +4,8 @@ import numpy as np
 import numpy.typing as npt
 
 from . import Array, LinearSolveSummary
-from .geometry import RectangleWithCircularHole
-from .meshing import CircularHoleChordalMesh
+from .geometry import Geometry
+from .meshing import Mesh
 
 @final
 class CircularHoleSteadyStokesResult:
@@ -88,8 +88,8 @@ class CircularHoleSteadyStokesResult:
 def solve_exact_cylinder_stokes(
     *,
     model: bytes,
-    geometry: RectangleWithCircularHole,
-    mesh: CircularHoleChordalMesh,
+    geometry: Geometry,
+    mesh: Mesh,
 ) -> CircularHoleSteadyStokesResult: ...
 
 __all__ = [

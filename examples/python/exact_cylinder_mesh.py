@@ -3,7 +3,7 @@
 import eqiora
 
 
-def build_mesh() -> eqiora.meshing.CircularHoleChordalMesh:
+def build_mesh_plan() -> tuple[eqiora.meshing.MeshPlan, eqiora.meshing.Mesh]:
     graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
         x_bounds=(0.0, 2.2),
         y_bounds=(0.0, 0.41),
@@ -24,18 +24,24 @@ def build_mesh() -> eqiora.meshing.CircularHoleChordalMesh:
         y_upper="walls",
         hole="cylinder",
     )
-    return eqiora.meshing.circular_hole_chordal(
-        geometry,
-        max_boundary_error=1e-4,
-        required_minimum_mean_ratio=1e-5,
-        max_segments=50,
+    request = eqiora.meshing.MeshRequest(
+        maximum_boundary_error=1e-4,
+        minimum_mean_ratio=1e-5,
+        maximum_boundary_facets=50,
     )
+    plan = eqiora.meshing.resolve(geometry, request)
+    return plan, eqiora.meshing.generate(geometry, plan=plan)
+
+
+def build_mesh() -> eqiora.meshing.Mesh:
+    return build_mesh_plan()[1]
 
 
 if __name__ == "__main__":
-    mesh = build_mesh()
+    plan, mesh = build_mesh_plan()
     print(mesh.source_digest)
-    print(mesh.mesh_digest)
-    print(mesh.dimension, mesh.vertex_count, mesh.cell_count, mesh.circle_segments)
+    print(mesh.digest)
+    print(plan.provider, plan.boundary_facets)
+    print(mesh.dimension, mesh.vertex_count, mesh.cell_count)
     for selection in mesh.selection_names:
         print(selection, mesh.selection_entity_count(selection))

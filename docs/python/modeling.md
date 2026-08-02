@@ -66,8 +66,8 @@ derived 2D Geometry, whose classification tolerance is supplied separately.
 The circle remains centre-and-radius geometry, so chord count, mesh size, and
 approximation tolerance cannot enter it. General operations or sections,
 multiple holes, Model binding, solve, Result, and visualization remain separate
-slices. The direct `RectangleWithCircularHole` convenience remains available
-and constructs the same exact Geometry owner.
+slices. Installed Python exposes the common `Geometry` projection only through
+the accepted authored graph; it does not publish a demo-shaped constructor.
 
 ## Bounded chordal reference mesh
 
@@ -75,28 +75,29 @@ The matching meshing operation is an explicit Realization choice rather than a
 method on exact geometry:
 
 ```python
-mesh = eqiora.meshing.circular_hole_chordal(
-    geometry,
-    max_boundary_error=1e-4,
-    required_minimum_mean_ratio=1e-5,
-    max_segments=50,
+request = eqiora.meshing.MeshRequest(
+    maximum_boundary_error=1e-4,
+    minimum_mean_ratio=1e-5,
+    maximum_boundary_facets=50,
 )
+plan = eqiora.meshing.resolve(geometry, request)
+mesh = eqiora.meshing.generate(geometry, plan=plan)
 
 assert mesh.source_digest == geometry.digest
-assert mesh.circle_segments == 50
+assert plan.boundary_facets == 50
 assert mesh.selection_entity_count("cylinder") == 50
-print(mesh.mesh_digest)
+print(mesh.digest)
 ```
 
 Rust retains the exact source, chooses and measures the chordal approximation,
 accepts the affine-triangle mesh, and derives realized named selections through
-the geometry-to-mesh correspondence. `mesh_canonical_json` and `mesh_digest`
-identify only the accepted inner simplicial mesh. The returned object is a
-same-process owner, not a durable source-to-mesh artifact.
+the geometry-to-mesh correspondence. `canonical_bytes` and `digest` identify
+only the accepted inner simplicial mesh. The returned object retains the
+source, correspondence, and realization identities in the live process.
 
 This bounded operation supports the one rectangle-with-circular-hole family
-and fixed-phase reference topology. It is not a generic `Mesh` or
-`MeshRequest`, production mesher, curved-element path, external import,
+and fixed-phase reference topology. Its common ownership types do not claim a
+production mesher, curved-element path, external import,
 cross-process generated-realization proof, Model binding, solve, Result, or
 visualization surface.
 
