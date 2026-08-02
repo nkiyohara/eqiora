@@ -364,7 +364,7 @@ def _check_lineage(
     lineage: Mapping[str, object], reject: Callable[[str], None]
 ) -> None:
     keys = {
-        "model_digest",
+        "revision_digest",
         "semantic_revision",
         "geometry_digest",
         "correspondence_digest",

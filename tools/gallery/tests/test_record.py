@@ -48,7 +48,7 @@ def fixture() -> tuple[
     dict[str, object], record.ProductionContext, dict[str, record.FileFact]
 ]:
     lineage = {
-        "model_digest": digest("model"),
+        "revision_digest": digest("revision"),
         "semantic_revision": 3,
         "geometry_digest": digest("geometry"),
         "correspondence_digest": digest("correspondence"),
@@ -351,7 +351,7 @@ def test_development_record_is_truthful_and_permanently_rejected() -> None:
         ),
         (
             lambda value: value["lineage"].update(
-                {"model_digest": digest("foreign-model")}
+                {"revision_digest": digest("foreign-revision")}
             ),
             "protected-lineage",
         ),

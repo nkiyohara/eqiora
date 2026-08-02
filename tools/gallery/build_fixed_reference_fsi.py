@@ -133,7 +133,7 @@ def build(
     encoder["mp4_argv"] = _recorded_argv(mp4_argv, output_directory)
     encoder["profile_sha256"] = record.content_digest(encoder, "profile_sha256")
     scene_value = scene.scene_record(data, profile, frame_sequence_sha256)
-    lineage = _lineage(result)
+    lineage = _lineage(result, model)
     environment = _environment(eqiora, matplotlib)
     renderer = {
         "identity": "eqiora.gallery.private-fsi-renderer/1",
@@ -545,9 +545,12 @@ def _recorded_argv(argv: list[str], output_directory: Path) -> list[str]:
     ]
 
 
-def _lineage(result: Any) -> dict[str, object]:
+def _lineage(result: Any, model: Any) -> dict[str, object]:
+    revision = model.revision
+    if int(revision.number) != int(result.semantic_revision):
+        raise BuildError("compiled revision and accepted result revision disagree")
     return {
-        "model_digest": result.model_digest,
+        "revision_digest": revision.digest,
         "semantic_revision": int(result.semantic_revision),
         "geometry_digest": result.geometry_digest,
         "correspondence_digest": result.correspondence_digest,
