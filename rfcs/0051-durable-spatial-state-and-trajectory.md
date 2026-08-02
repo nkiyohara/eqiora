@@ -386,6 +386,25 @@ states, or a segment, but cannot alter an already accepted root. The only
 append-like operation is publishing a new root digest after every referenced
 object has been validated.
 
+### Complete fixed-mesh 2D replay profile
+
+`FixedMeshFieldTrajectoryReplay2dV1` is a borrowed, non-serializable acceptance
+owner over the existing V1 DAG. It is not another artifact and contributes no
+digest. For one affine-triangle 2D mesh it resolves caller-supplied catalogs by
+digest, reconstructs the complete immutable root prefix, validates each
+segment against its exact ordered states, each state against its complete
+Field snapshots, and each snapshot against its normalized blocks. Catalog
+declaration order is irrelevant, but duplicate identities, missing objects,
+and declarations unused by the root all fail.
+
+The profile requires at least two accepted states and reuses the fixed-step
+coordinate rule already owned by the V1 state/segment artifacts. It additionally
+closes the gap left intentionally open by ordinary `RunManifestV2` validation:
+the Run output inventory must equal the singleton final-root digest, not merely
+contain it. This is the accepted result boundary for later private presentation
+adapters. It does not add variable-step, ALE, remeshing, 3D, renderer, storage,
+or restart semantics.
+
 ## Derived dataset view
 
 `DatasetViewEnvelopeV1` is a no-copy logical selection:
