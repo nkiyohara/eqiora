@@ -31,6 +31,20 @@ EXPECTED_CELLS = np.array(
     ],
     dtype=np.uint32,
 )
+# Names withdrawn from FixedReferenceFsiResult, whose sole installed-Python
+# owner is now `result.trajectory`. Absence is the claim: no alias, no shim.
+WITHDRAWN_RESULT_ACCESSORS = (
+    "model_digest",
+    "geometry_digest",
+    "correspondence_digest",
+    "mesh_digest",
+    "realization_digest",
+    "run_digest",
+    "trajectory_digest",
+    "state_digests",
+    "coordinates",
+    "cells",
+)
 # Frozen dual-oracle support membership, wired verbatim from registered evidence.
 EXPECTED_SUPPORT = {
     ("fluid_velocity", "vertex"): [0, 1, 2, 3, 4, 5],
@@ -60,46 +74,62 @@ def test_result_retains_complete_relational_lineage(
     accepted: tuple[eqiora.Model, eqiora.fsi.FixedReferenceFsiResult],
 ) -> None:
     model, result = accepted
+    trajectory = result.trajectory
     assert isinstance(result, eqiora.fsi.FixedReferenceFsiResult)
-    assert result.model_digest == model.revision.digest
+    assert trajectory.model_digest == model.revision.digest
     assert result.semantic_revision == model.revision.number == 1
     assert result.realization_revision == 1
     assert result.case_ids == (
         "fsi.fixed-reference-monolithic-step-2d",
         "artifacts.fixed-reference-fsi-spatial-trajectory",
     )
-    assert len(result.state_digests) == 2
-    assert all(len(digest) == 64 for digest in result.state_digests)
-    assert len(result.trajectory_digest) == 64
+    state_digests = tuple(state.digest for state in trajectory.states)
+    assert len(state_digests) == 2
+    assert all(len(digest) == 64 for digest in state_digests)
+    assert len(trajectory.digest) == 64
 
     run = json.loads(result.run_manifest_json)
-    assert run["model_sha256"] == result.model_digest
-    assert run["realization_sha256"] == result.realization_digest
-    assert run["output_sha256"] == [result.trajectory_digest]
-    assert len(result.run_digest) == 64
+    assert run["model_sha256"] == trajectory.model_digest
+    assert run["realization_sha256"] == trajectory.realization_digest
+    assert run["output_sha256"] == [trajectory.digest]
+    assert len(trajectory.run_digest) == 64
     assert all(
         len(digest) == 64
         for digest in (
-            result.geometry_digest,
-            result.correspondence_digest,
-            result.mesh_digest,
-            result.realization_digest,
+            trajectory.geometry_digest,
+            trajectory.correspondence_digest,
+            trajectory.mesh_digest,
+            trajectory.realization_digest,
         )
     )
+
+
+def test_withdrawn_result_accessors_are_absent_without_alias_or_shim(
+    accepted: tuple[eqiora.Model, eqiora.fsi.FixedReferenceFsiResult],
+) -> None:
+    _, result = accepted
+    assert len(set(WITHDRAWN_RESULT_ACCESSORS)) == len(WITHDRAWN_RESULT_ACCESSORS) == 10
+    for name in WITHDRAWN_RESULT_ACCESSORS:
+        assert hasattr(result, name) is False
+        with pytest.raises(AttributeError):
+            getattr(result, name)
+        assert not hasattr(eqiora.fsi.FixedReferenceFsiResult, name)
+        assert name not in dir(result)
 
 
 def test_partition_and_ordered_step_arrays_are_complete_and_immutable(
     accepted: tuple[eqiora.Model, eqiora.fsi.FixedReferenceFsiResult],
 ) -> None:
     _, result = accepted
-    assert result.coordinates is result.coordinates
-    assert result.cells is result.cells
+    trajectory = result.trajectory
+    assert trajectory.coordinates is trajectory.coordinates
+    assert trajectory.cells is trajectory.cells
     assert result.fluid_cells is result.fluid_cells
     assert result.solid_cells is result.solid_cells
     assert result.interface_facets is result.interface_facets
-    assert result.coordinates.shape == (9, 2)
-    assert result.cells.shape == (8, 3)
-    np.testing.assert_array_equal(result.cells, EXPECTED_CELLS)
+    assert trajectory.coordinates.shape == (9, 2)
+    assert trajectory.cells.shape == (8, 3)
+    np.testing.assert_array_equal(trajectory.cells, EXPECTED_CELLS)
     np.testing.assert_array_equal(result.fluid_cells, [0, 1, 2, 3])
     np.testing.assert_array_equal(result.solid_cells, [4, 5, 6, 7])
     np.testing.assert_array_equal(result.interface_facets, [[1, 3], [3, 5]])
@@ -183,19 +213,27 @@ def test_general_trajectory_projects_exact_replayed_fields(
     trajectory = result.trajectory
     assert isinstance(trajectory, eqiora.trajectory.Trajectory)
     assert result.trajectory is trajectory
-    assert trajectory.digest == result.trajectory_digest
-    assert trajectory.model_digest == result.model_digest
-    assert trajectory.geometry_digest == result.geometry_digest
-    assert trajectory.correspondence_digest == result.correspondence_digest
-    assert trajectory.mesh_digest == result.mesh_digest
-    assert trajectory.realization_digest == result.realization_digest
-    assert trajectory.run_digest == result.run_digest
+    assert trajectory.model_digest == model.revision.digest
+    assert all(
+        len(digest) == 64
+        for digest in (
+            trajectory.digest,
+            trajectory.geometry_digest,
+            trajectory.correspondence_digest,
+            trajectory.mesh_digest,
+            trajectory.realization_digest,
+            trajectory.run_digest,
+        )
+    )
     assert trajectory.dimension == 2
-    assert trajectory.coordinates is result.coordinates
-    assert trajectory.cells is result.cells
+    assert trajectory.coordinates is result.trajectory.coordinates
+    assert trajectory.cells is result.trajectory.cells
     assert tuple(state.step for state in trajectory.states) == (1, 2)
     assert tuple(state.time_s for state in trajectory.states) == (0.05, 0.10)
-    assert tuple(state.digest for state in trajectory.states) == result.state_digests
+    assert tuple(state.digest for state in trajectory.states) == (
+        trajectory.state(1).digest,
+        trajectory.state(2).digest,
+    )
     assert trajectory.state(1) is trajectory.states[0]
     assert trajectory.state(2) is trajectory.states[1]
     with pytest.raises(IndexError):
@@ -234,9 +272,7 @@ def test_general_trajectory_projects_exact_replayed_fields(
             "vertex",
             "cell",
         )
-        assert velocity_snapshot.values("vertex") is velocity_snapshot.values(
-            "vertex"
-        )
+        assert velocity_snapshot.values("vertex") is velocity_snapshot.values("vertex")
         np.testing.assert_array_equal(
             velocity_snapshot.values("vertex"),
             step.velocity,
@@ -279,6 +315,7 @@ def test_field_support_indices_expose_frozen_membership_without_disturbing_repla
 ) -> None:
     model, result = accepted
     trajectory = result.trajectory
+    trajectory_digest_before = trajectory.digest
     field_names = sorted({name for name, _ in EXPECTED_SUPPORT})
     fields = {name: model.field(name) for name in field_names}
     supports: dict[tuple[int, str, str], np.ndarray] = {}
@@ -296,7 +333,9 @@ def test_field_support_indices_expose_frozen_membership_without_disturbing_repla
             assert support.ndim == 1
             np.testing.assert_array_equal(support, expected)
             np.testing.assert_array_equal(support, np.unique(support))
-            bound = result.cells if association == "cell" else result.coordinates
+            bound = (
+                trajectory.cells if association == "cell" else trajectory.coordinates
+            )
             assert int(support.max()) < len(bound)
             assert support.flags.writeable is False
             with pytest.raises(ValueError):
@@ -322,7 +361,7 @@ def test_field_support_indices_expose_frozen_membership_without_disturbing_repla
             step.displacement,
         )
     assert result.trajectory is trajectory
-    assert trajectory.digest == result.trajectory_digest
+    assert trajectory.digest == trajectory_digest_before
 
     for key, association in EXPECTED_SUPPORT:
         np.testing.assert_array_equal(
@@ -419,15 +458,17 @@ def test_independent_compilations_share_meaning_without_sharing_storage() -> Non
 
 def test_array_owners_survive_result_and_step_deletion() -> None:
     result = eqiora.fsi.solve_fixed_reference_fsi(accepted_model())
+    trajectory = result.trajectory
     step = result.step(2)
     arrays = (
-        result.coordinates,
-        result.cells,
+        trajectory.coordinates,
+        trajectory.cells,
         step.velocity,
         step.pressure,
         step.displacement,
     )
     del step
+    del trajectory
     del result
     gc.collect()
     assert all(array.size > 0 and not array.flags.writeable for array in arrays)
@@ -463,7 +504,9 @@ model = eqiora.compile(
 )
 result = eqiora.fsi.solve_fixed_reference_fsi(model)
 assert "numpy" not in sys.modules
-_ = result.coordinates
+trajectory = result.trajectory
+assert "numpy" not in sys.modules
+_ = trajectory.coordinates
 assert "numpy" in sys.modules
 """,
         encoding="utf-8",
