@@ -85,7 +85,7 @@ libloading = "=0.8.9"
 # an incidental bump can silently move a counted number, which moves a gate.
 # `proc-macro2/span-locations` is only there to turn a matched AST node back
 # into the `file:line` a violation report has to name.
-syn = { version = "=2.0.119", default-features = false, features = ["full", "parsing"] }
+syn = { version = "=3.0.3", default-features = false, features = ["full", "parsing"] }
 proc-macro2 = { version = "=1.0.107", default-features = false, features = ["span-locations"] }
 
 # Internal crates (see docs/architecture.md#dependency-layers and `cargo xtask check-layers`)
