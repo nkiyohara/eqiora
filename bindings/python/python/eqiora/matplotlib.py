@@ -162,8 +162,9 @@ def plot_fixed_reference_fsi(
         )
 
     accepted = result.step(step)
-    coordinates = result.coordinates
-    cells = result.cells
+    trajectory = result.trajectory
+    coordinates = trajectory.coordinates
+    cells = trajectory.cells
     fluid_cells = result.fluid_cells
     solid_cells = result.solid_cells
     fluid_triangles = cells[fluid_cells]

@@ -377,8 +377,8 @@ def test_fsi_plot_preserves_partition_fields_and_explicit_scale(
     import matplotlib.pyplot as pyplot
 
     selected = fsi_result.step(1)
-    coordinates = fsi_result.coordinates.copy()
-    cells = fsi_result.cells.copy()
+    coordinates = fsi_result.trajectory.coordinates.copy()
+    cells = fsi_result.trajectory.cells.copy()
     fluid_triangles = cells[fsi_result.fluid_cells]
     solid_triangles = cells[fsi_result.solid_cells]
     solid_edges = sorted(

@@ -209,17 +209,9 @@ impl PyFixedReferenceFsiStep {
     skip_from_py_object
 )]
 pub(crate) struct PyFixedReferenceFsiResult {
-    model_digest: String,
     semantic_revision: u64,
-    geometry_digest: String,
-    correspondence_digest: String,
-    mesh_digest: String,
-    realization_digest: String,
     realization_revision: u64,
-    run_digest: String,
     run_manifest_json: Vec<u8>,
-    state_digests: [String; 2],
-    trajectory_digest: String,
     trajectory: Py<PyTrajectory>,
     fluid_cells: ReadOnlyVector<u32>,
     solid_cells: ReadOnlyVector<u32>,
@@ -230,7 +222,7 @@ pub(crate) struct PyFixedReferenceFsiResult {
 
 impl PartialEq for PyFixedReferenceFsiResult {
     fn eq(&self, other: &Self) -> bool {
-        self.run_digest == other.run_digest
+        self.run_manifest_json == other.run_manifest_json
     }
 }
 
@@ -238,7 +230,7 @@ impl Eq for PyFixedReferenceFsiResult {}
 
 impl Hash for PyFixedReferenceFsiResult {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.run_digest.hash(state);
+        self.run_manifest_json.hash(state);
     }
 }
 
@@ -248,21 +240,10 @@ impl PyFixedReferenceFsiResult {
         model: &PyModel,
         result: FixedReferenceFsiResult2d,
     ) -> PyResult<Self> {
-        let model_digest = digest(py, result.model().digest())?;
-        let geometry_digest = digest(py, result.geometry().digest())?;
-        let correspondence_digest = digest(py, result.correspondence().digest())?;
-        let mesh_digest = digest(py, result.mesh_artifact().digest())?;
-        let realization_digest = digest(py, result.realization().digest())?;
-        let run_digest = digest(py, result.run().digest())?;
         let run_manifest_json = result
             .run()
             .canonical_json()
             .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
-        let state_digests = [
-            digest(py, result.states()[0].digest())?,
-            digest(py, result.states()[1].digest())?,
-        ];
-        let trajectory_digest = digest(py, result.trajectory().digest())?;
         let replay = result
             .trajectory_replay()
             .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
@@ -310,17 +291,9 @@ impl PyFixedReferenceFsiResult {
         ];
 
         Ok(Self {
-            model_digest,
             semantic_revision: result.semantic_revision(),
-            geometry_digest,
-            correspondence_digest,
-            mesh_digest,
-            realization_digest,
             realization_revision: result.realization_revision(),
-            run_digest,
             run_manifest_json,
-            state_digests,
-            trajectory_digest,
             trajectory,
             fluid_cells: ReadOnlyVector::new(fluid_cells),
             solid_cells: ReadOnlyVector::new(solid_cells),
@@ -338,33 +311,8 @@ impl PyFixedReferenceFsiResult {
 #[pymethods]
 impl PyFixedReferenceFsiResult {
     #[getter]
-    fn model_digest(&self) -> &str {
-        &self.model_digest
-    }
-
-    #[getter]
     const fn semantic_revision(&self) -> u64 {
         self.semantic_revision
-    }
-
-    #[getter]
-    fn geometry_digest(&self) -> &str {
-        &self.geometry_digest
-    }
-
-    #[getter]
-    fn correspondence_digest(&self) -> &str {
-        &self.correspondence_digest
-    }
-
-    #[getter]
-    fn mesh_digest(&self) -> &str {
-        &self.mesh_digest
-    }
-
-    #[getter]
-    fn realization_digest(&self) -> &str {
-        &self.realization_digest
     }
 
     #[getter]
@@ -373,39 +321,14 @@ impl PyFixedReferenceFsiResult {
     }
 
     #[getter]
-    fn run_digest(&self) -> &str {
-        &self.run_digest
-    }
-
-    #[getter]
     fn run_manifest_json(&self, py: Python<'_>) -> Py<PyBytes> {
         PyBytes::new(py, &self.run_manifest_json).unbind()
-    }
-
-    #[getter]
-    fn state_digests(&self) -> (String, String) {
-        (self.state_digests[0].clone(), self.state_digests[1].clone())
-    }
-
-    #[getter]
-    fn trajectory_digest(&self) -> &str {
-        &self.trajectory_digest
     }
 
     /// Accepted general trajectory projection over the exact durable replay.
     #[getter]
     fn trajectory(&self, py: Python<'_>) -> Py<PyTrajectory> {
         self.trajectory.clone_ref(py)
-    }
-
-    #[getter]
-    fn coordinates(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
-        self.trajectory.borrow(py).coordinates_numpy(py)
-    }
-
-    #[getter]
-    fn cells(&self, py: Python<'_>) -> PyResult<Py<PyArray2<u32>>> {
-        self.trajectory.borrow(py).cells_numpy(py)
     }
 
     #[getter]
@@ -443,8 +366,11 @@ impl PyFixedReferenceFsiResult {
         (self.case_ids[0], self.case_ids[1])
     }
 
-    fn __repr__(&self) -> String {
-        format!("FixedReferenceFsiResult(run_digest='{}')", self.run_digest)
+    fn __repr__(&self, py: Python<'_>) -> String {
+        format!(
+            "FixedReferenceFsiResult(run_digest='{}')",
+            self.trajectory.borrow(py).run_digest_value()
+        )
     }
 }
 
@@ -525,15 +451,6 @@ fn vector_matrix(values: &[[f64; 2]]) -> ReadOnlyMatrix<f64> {
             .flat_map(|value| value.iter().copied())
             .collect(),
     )
-}
-
-fn digest(
-    py: Python<'_>,
-    value: Result<eqiora::artifact::ArtifactDigest, eqiora::Diagnostic>,
-) -> PyResult<String> {
-    value
-        .map(|digest| digest.to_string())
-        .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))
 }
 
 /// Execute the accepted fixed-reference two-step FSI application path.

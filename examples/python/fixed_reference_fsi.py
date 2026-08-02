@@ -43,8 +43,8 @@ def main() -> None:
     arguments = parser.parse_args()
 
     result = solve()
-    print(result.run_digest)
-    print(result.trajectory_digest)
+    print(result.trajectory.run_digest)
+    print(result.trajectory.digest)
     for step in result.steps:
         print(
             f"step {step.ordinal} at {step.time_s:g} s",
