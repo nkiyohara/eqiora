@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import concurrent.futures
 import hashlib
 import os
 import shlex
@@ -12,6 +11,13 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping, Sequence
+
+from resource_scheduler import (
+    ResourceBudget,
+    ResourceRequest,
+    ScheduledTask,
+    run_tasks,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -34,41 +40,6 @@ HOSTED_TEST_PROFILE = {
     "CARGO_PROFILE_TEST_OPT_LEVEL": "1",
     "CARGO_PROFILE_TEST_OVERFLOW_CHECKS": "true",
 }
-
-
-@dataclass(frozen=True)
-class ResourceBudget:
-    cpu_slots: int
-    memory_mib: int
-    gpu_slots: int = 0
-
-    def __post_init__(self) -> None:
-        if self.cpu_slots < 1:
-            raise ValueError("cpu budget must contain at least one slot")
-        if self.memory_mib < 1:
-            raise ValueError("memory budget must contain at least one MiB")
-        if self.gpu_slots < 0:
-            raise ValueError("gpu budget cannot be negative")
-
-
-@dataclass(frozen=True)
-class ResourceRequest:
-    cpu_slots: int
-    memory_mib: int
-    gpu_slots: int = 0
-    locks: tuple[str, ...] = field(default_factory=tuple)
-
-    def __post_init__(self) -> None:
-        if self.cpu_slots < 1:
-            raise ValueError("cpu request must contain at least one slot")
-        if self.memory_mib < 1:
-            raise ValueError("memory request must contain at least one MiB")
-        if self.gpu_slots < 0:
-            raise ValueError("gpu request cannot be negative")
-        if any(not lock for lock in self.locks):
-            raise ValueError("resource lock names cannot be empty")
-        if tuple(sorted(set(self.locks))) != self.locks:
-            raise ValueError("resource lock names must be sorted and unique")
 
 
 @dataclass(frozen=True)
@@ -280,6 +251,9 @@ def _run_lane(
                 "TMPDIR": str(lane_tmp),
                 "CARGO_TARGET_DIR": str(lane_root / "cargo-target"),
                 "CARGO_BUILD_JOBS": str(cargo_jobs),
+                "EQIORA_VERIFY_CPU_SLOTS": str(lane.resources.cpu_slots),
+                "EQIORA_VERIFY_MEMORY_MIB": str(lane.resources.memory_mib),
+                "EQIORA_VERIFY_GPU_SLOTS": str(lane.resources.gpu_slots),
             }
         )
         with log_paths[index].open("wb") as output:
@@ -307,21 +281,6 @@ def _run_lane(
                     ),
                 )
     return _LaneResult((), ())
-
-
-def _fits(
-    request: ResourceRequest,
-    available_cpu: int,
-    available_memory: int,
-    available_gpu: int,
-    active_locks: frozenset[str],
-) -> bool:
-    return (
-        request.cpu_slots <= available_cpu
-        and request.memory_mib <= available_memory
-        and request.gpu_slots <= available_gpu
-        and active_locks.isdisjoint(request.locks)
-    )
 
 
 def _emit_reports(
@@ -380,14 +339,6 @@ def run_plan(
             lane_directories[lane.name] = lane_root
             lane_tmp_directories[lane.name] = lane_tmp
 
-        available_cpu = admitted_budget.cpu_slots
-        available_memory = admitted_budget.memory_mib
-        available_gpu = admitted_budget.gpu_slots
-        active_locks: set[str] = set()
-        pending = list(enumerate(lanes))
-        active: dict[
-            concurrent.futures.Future[_LaneResult], tuple[int, VerificationLane]
-        ] = {}
         results: list[tuple[int, _LaneResult]] = []
         unexpected: list[tuple[int, Exception]] = []
 
@@ -396,55 +347,28 @@ def run_plan(
             flush=True,
         )
         try:
-            with concurrent.futures.ThreadPoolExecutor(
-                max_workers=len(lanes), thread_name_prefix="eqiora-verify"
-            ) as executor:
-                while pending or active:
-                    for pending_item in tuple(pending):
-                        order, (lane, commands) = pending_item
-                        if not _fits(
-                            lane.resources,
-                            available_cpu,
-                            available_memory,
-                            available_gpu,
-                            frozenset(active_locks),
-                        ):
-                            continue
-                        pending.remove(pending_item)
-                        request = lane.resources
-                        available_cpu -= request.cpu_slots
-                        available_memory -= request.memory_mib
-                        available_gpu -= request.gpu_slots
-                        active_locks.update(request.locks)
-                        future = executor.submit(
-                            _run_lane,
-                            lane,
-                            commands,
-                            root,
-                            lane_directories[lane.name],
-                            lane_tmp_directories[lane.name],
-                            cargo_jobs[lane.name],
-                            log_paths,
-                        )
-                        active[future] = (order, lane)
-
-                    if not active:
-                        raise RuntimeError("verification scheduler made no progress")
-
-                    completed, _ = concurrent.futures.wait(
-                        active, return_when=concurrent.futures.FIRST_COMPLETED
-                    )
-                    for future in sorted(completed, key=lambda item: active[item][0]):
-                        order, lane = active.pop(future)
-                        request = lane.resources
-                        available_cpu += request.cpu_slots
-                        available_memory += request.memory_mib
-                        available_gpu += request.gpu_slots
-                        active_locks.difference_update(request.locks)
-                        try:
-                            results.append((order, future.result()))
-                        except Exception as error:
-                            unexpected.append((order, error))
+            tasks = tuple(
+                ScheduledTask(
+                    lane.name,
+                    lane.resources,
+                    lambda lane=lane, commands=commands: _run_lane(
+                        lane,
+                        commands,
+                        root,
+                        lane_directories[lane.name],
+                        lane_tmp_directories[lane.name],
+                        cargo_jobs[lane.name],
+                        log_paths,
+                    ),
+                )
+                for lane, commands in lanes
+            )
+            for order, outcome in enumerate(run_tasks(tasks, admitted_budget)):
+                if outcome.error is not None:
+                    unexpected.append((order, outcome.error))
+                else:
+                    assert outcome.value is not None
+                    results.append((order, outcome.value))
 
             skipped = frozenset(
                 index for _order, result in results for index in result.skipped

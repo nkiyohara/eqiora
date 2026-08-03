@@ -26,6 +26,16 @@ tool versions, artifact filenames and SHA-256 values, wheel tags, and passing
 profiles. It is release provenance, not a claim that independent builds are
 byte-identical.
 
+Construction and inspection complete before validation fans out. Each profile
+has a disjoint environment, consumer tree, temporary directory, and log under
+home-backed scratch. A shared resource scheduler admits profiles within the
+candidate lane's CPU and memory budget, serializes the memory-heavy framework
+profiles, joins all admitted work, and merges immutable receipts in the order
+listed by the case rather than completion order. The gate rechecks every wheel,
+the sdist, and the extracted source identity before it writes the manifest.
+This changes verification wall-clock and isolation, not the accepted artifact
+or scientific claim.
+
 This case and the JAX, PyTorch, and exact-cylinder pressure-still cases select
 the same registered host target. One aggregate execution builds the candidate
 once, then separately requires the base, typing, JAX, PyTorch, and Matplotlib
@@ -48,7 +58,9 @@ The gate rejects:
   cancellation failure;
 - a missing required base, typing, PyTorch, JAX, or Matplotlib manifest check;
 - a public quick-start failure before upload or drift from the exact NumPy
-  2.1.0 lower-bound profile.
+  2.1.0 lower-bound profile;
+- a validation profile mutating the shared sdist, wheel family, or extracted
+  source, or any admitted profile failing before the joined manifest barrier.
 
 ## Boundary
 

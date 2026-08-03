@@ -5,9 +5,7 @@ from __future__ import annotations
 
 import argparse
 import email.parser
-import hashlib
 import json
-import os
 import platform
 import shutil
 import subprocess
@@ -21,101 +19,24 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import python_candidate_profiles as candidate_profiles
+from python_candidate_common import (
+    CandidateError,
+    DistributionConfig,
+    candidate_payload_identity,
+    checked_run,
+    command_context,
+    home_scratch_parent,
+    python_distribution_version as python_distribution_version,
+    sha256 as sha256,
+)
+
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT
 PYPROJECT = ROOT / "pyproject.toml"
 MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v2"
-EXACT_CYLINDER_DEMO = Path("examples/python/exact_cylinder_stokes.py")
-EXACT_CYLINDER_REPOSITORY_MODEL = Path(
-    "examples/steady-flow-past-cylinder.model.json"
-)
-MIXED_BOUNDARY_ELASTICITY_DEMO = Path(
-    "examples/python/mixed_boundary_elasticity.py"
-)
-MIXED_BOUNDARY_REPOSITORY_SOURCE = Path(
-    "verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi"
-)
-FIXED_REFERENCE_FSI_DEMO = Path("examples/python/fixed_reference_fsi.py")
-FIXED_REFERENCE_FSI_REPOSITORY_SOURCE = Path(
-    "verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi"
-)
-PYTHON_TEST_FIXTURES = (
-    Path("verify/interfaces/control-plane-compile-check"),
-    Path("verify/interfaces/current-authoring-profile"),
-    # The packaged-Poisson consumer test compiles the shipped package source
-    # itself, so reading it is the claim rather than an implementation detail.
-    Path("packages/org.example.poisson"),
-)
-
-
-class CandidateError(RuntimeError):
-    """The requested artifact set is not an acceptable release candidate."""
-
-
-def python_distribution_version(cargo_version: str) -> str:
-    """Map admitted Cargo SemVer release forms to normalized Python versions."""
-
-    if "+" in cargo_version:
-        raise CandidateError(
-            "Cargo release versions with build metadata are unsupported"
-        )
-    release, separator, prerelease = cargo_version.partition("-")
-    release_components = release.split(".")
-    if len(release_components) != 3 or any(
-        not component or not component.isascii() or not component.isdecimal()
-        for component in release_components
-    ):
-        raise CandidateError(f"invalid Cargo release version: {cargo_version}")
-    if not separator:
-        return release
-    prerelease_components = prerelease.split(".")
-    if len(prerelease_components) != 2:
-        raise CandidateError(f"unsupported Cargo prerelease identity: {cargo_version}")
-    label, serial = prerelease_components
-    markers = {"alpha": "a", "beta": "b", "rc": "rc"}
-    if (
-        label not in markers
-        or not serial
-        or not serial.isascii()
-        or not serial.isdecimal()
-        or str(int(serial)) != serial
-    ):
-        raise CandidateError(f"unsupported Cargo prerelease identity: {cargo_version}")
-    return f"{release}{markers[label]}{serial}"
-
-
-@dataclass(frozen=True)
-class DistributionConfig:
-    """Reviewed Python distribution inputs from ``pyproject.toml``."""
-
-    cargo_version: str
-    interpreters: tuple[str, ...]
-    wheel_platform: str
-    extras_interpreter: str
-    numpy_floor_interpreter: str
-    numpy_floor: str
-    uv: str
-    maturin: str
-    pytest: str
-    mypy: str
-    twine: str
-    torch: str
-    jax: tuple[str, ...]
-    matplotlib: str
-    rust: str
-
-    @property
-    def python_version(self) -> str:
-        """Normalized distribution version derived from Cargo."""
-
-        return python_distribution_version(self.cargo_version)
-
-    @property
-    def expected_tag(self) -> str:
-        """Only release tag admitted for this authored version."""
-
-        return f"v{self.python_version}"
+PYTHON_TEST_FIXTURES = candidate_profiles.PYTHON_TEST_FIXTURES
 
 
 @dataclass(frozen=True)
@@ -182,41 +103,6 @@ def load_config() -> DistributionConfig:
     if config.uv != "uv==0.11.31":
         raise CandidateError("the first candidate must use exact uv 0.11.31")
     return config
-
-
-def checked_run(
-    argv: list[str],
-    *,
-    cwd: Path = ROOT,
-    capture: bool = False,
-    extra_environment: dict[str, str] | None = None,
-) -> str:
-    """Run one shell-free command under a source-isolated environment."""
-
-    environment = os.environ.copy()
-    environment.pop("DISPLAY", None)
-    environment.pop("MATPLOTLIBRC", None)
-    environment.pop("MPLCONFIGDIR", None)
-    environment.pop("PYTHONPATH", None)
-    environment.update(
-        {
-            "PIP_DISABLE_PIP_VERSION_CHECK": "1",
-            "PYTHONDONTWRITEBYTECODE": "1",
-            "PYTHONNOUSERSITE": "1",
-        }
-    )
-    if extra_environment is not None:
-        environment.update(extra_environment)
-    completed = subprocess.run(
-        argv,
-        cwd=cwd,
-        env=environment,
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE if capture else None,
-        stderr=subprocess.STDOUT if capture else None,
-    )
-    return completed.stdout.strip() if capture else ""
 
 
 def require_executable(name: str) -> str:
@@ -379,6 +265,7 @@ def build_artifacts(
     scratch: Path,
     config: DistributionConfig,
     uv: str,
+    interpreters: dict[str, str],
 ) -> tuple[Path, dict[str, Path], Path]:
     """Build one sdist, then every wheel solely from its extracted content."""
 
@@ -419,7 +306,6 @@ def build_artifacts(
     wheels: dict[str, Path] = {}
     wheel_tool = maturin_package(config, zig=True)
     for version in config.interpreters:
-        interpreter = uv_interpreter(uv, version)
         before = set(output.glob("*.whl"))
         checked_run(
             [
@@ -437,7 +323,7 @@ def build_artifacts(
                 "--auditwheel",
                 "check",
                 "--interpreter",
-                interpreter,
+                interpreters[version],
                 "--target-dir",
                 str(target),
                 "--out",
@@ -574,194 +460,16 @@ def inspect_wheel(
     }
 
 
-def sha256(path: Path) -> str:
-    """Return a lowercase SHA-256 artifact identity."""
-
-    digest = hashlib.sha256()
-    with path.open("rb") as source:
-        while chunk := source.read(1024 * 1024):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def venv_python(environment: Path) -> Path:
-    """Return the interpreter inside a uv-created virtual environment."""
-
-    return environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-
-
-def install_environment(
-    *,
-    uv: str,
-    interpreter: str,
-    environment: Path,
-    requirements: list[str],
-) -> Path:
-    """Create one isolated environment and install exact artifact inputs."""
-
-    checked_run([uv, "venv", "--python", interpreter, str(environment)])
-    python = venv_python(environment)
-    checked_run(
-        [uv, "pip", "install", "--python", str(python), *requirements],
-        cwd=environment.parent,
-    )
-    return python
-
-
-def assert_installed_origin(
-    python: Path,
-    wheel: Path,
-    run_root: Path,
-    expected_version: str,
-) -> None:
-    """Prove that imports and metadata come from the installed wheel."""
-
-    script = """
-import importlib.metadata as metadata
-import os
-from pathlib import Path
-import eqiora
-
-root = Path.cwd().resolve()
-module = Path(eqiora.__file__).resolve()
-assert root not in module.parents, (root, module)
-distribution = metadata.distribution("eqiora")
-expected_version = os.environ["EQIORA_EXPECTED_VERSION"]
-assert distribution.version == expected_version
-assert eqiora.__version__ == expected_version
-files = {str(path) for path in distribution.files or ()}
-assert "eqiora/py.typed" in files
-assert "eqiora/__init__.pyi" in files
-assert "eqiora/fsi.pyi" in files
-assert "eqiora/examples/fixed-reference-fsi.eqi" in files
-assert not any(
-    name in __import__("sys").modules
-    for name in ("torch", "jax", "jaxlib", "matplotlib")
+prepare_base_consumer_tree = candidate_profiles.prepare_base_consumer_tree
+prepare_exact_cylinder_demo_consumer = (
+    candidate_profiles.prepare_exact_cylinder_demo_consumer
 )
-"""
-    checked_run(
-        [str(python), "-I", "-c", script],
-        cwd=run_root,
-        extra_environment={
-            "EQIORA_EXPECTED_VERSION": expected_version,
-            "EQIORA_EXPECTED_WHEEL": wheel.name,
-        },
-    )
-
-
-def prepare_base_consumer_tree(extracted: Path, run_root: Path) -> tuple[Path, Path]:
-    """Copy tests, typing fixtures, and their exact data without package sources."""
-
-    tests = run_root / "bindings/python/tests"
-    typecheck = run_root / "bindings/python/typecheck"
-    shutil.copytree(extracted / "bindings/python/tests", tests)
-    shutil.copytree(extracted / "bindings/python/typecheck", typecheck)
-    for relative in PYTHON_TEST_FIXTURES:
-        shutil.copytree(extracted / relative, run_root / relative)
-    return tests, typecheck
-
-
-def prepare_exact_cylinder_demo_consumer(
-    extracted: Path,
-    run_root: Path,
-) -> Path:
-    """Copy one checked-in demo without its repository Model dependency."""
-
-    source = extracted / EXACT_CYLINDER_DEMO
-    if not source.is_file():
-        raise CandidateError(
-            f"source distribution omits checked-in demo {EXACT_CYLINDER_DEMO}"
-        )
-    repository_model = run_root / EXACT_CYLINDER_REPOSITORY_MODEL
-    if repository_model.exists():
-        raise CandidateError(
-            "exact-cylinder consumer tree unexpectedly carries the repository Model"
-        )
-    destination = run_root / EXACT_CYLINDER_DEMO
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, destination)
-    if repository_model.exists():  # pragma: no cover - copy2 cannot create it
-        raise CandidateError(
-            "exact-cylinder demo copy introduced the repository Model"
-        )
-    return destination
-
-
-def prepare_mixed_boundary_elasticity_demo_consumer(
-    extracted: Path,
-    run_root: Path,
-) -> Path:
-    """Copy the checked-in structural demo without repository source data."""
-
-    source = extracted / MIXED_BOUNDARY_ELASTICITY_DEMO
-    if not source.is_file():
-        raise CandidateError(
-            "source distribution omits checked-in demo "
-            f"{MIXED_BOUNDARY_ELASTICITY_DEMO}"
-        )
-    repository_source = run_root / MIXED_BOUNDARY_REPOSITORY_SOURCE
-    if repository_source.exists():
-        raise CandidateError(
-            "mixed-boundary consumer tree unexpectedly carries the repository source"
-        )
-    destination = run_root / MIXED_BOUNDARY_ELASTICITY_DEMO
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, destination)
-    if repository_source.exists():  # pragma: no cover - copy2 cannot create it
-        raise CandidateError(
-            "mixed-boundary demo copy introduced the repository source"
-        )
-    return destination
-
-
-def prepare_fixed_reference_fsi_demo_consumer(
-    extracted: Path,
-    run_root: Path,
-) -> Path:
-    """Copy the checked-in FSI demo without its repository source data."""
-
-    source = extracted / FIXED_REFERENCE_FSI_DEMO
-    if not source.is_file():
-        raise CandidateError(
-            f"source distribution omits checked-in demo {FIXED_REFERENCE_FSI_DEMO}"
-        )
-    repository_source = run_root / FIXED_REFERENCE_FSI_REPOSITORY_SOURCE
-    if repository_source.exists():
-        raise CandidateError(
-            "fixed-reference FSI consumer tree unexpectedly carries the "
-            "repository source"
-        )
-    destination = run_root / FIXED_REFERENCE_FSI_DEMO
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, destination)
-    if repository_source.exists():  # pragma: no cover - copy2 cannot create it
-        raise CandidateError(
-            "fixed-reference FSI demo copy introduced the repository source"
-        )
-    return destination
-
-
-def assert_matplotlib_is_optional(python: Path, run_root: Path) -> None:
-    """Require the base wheel to explain its absent Matplotlib adapter."""
-
-    script = """
-import importlib.util
-import sys
-
-assert importlib.util.find_spec("matplotlib") is None
-import eqiora
-assert "matplotlib" not in sys.modules
-try:
-    import eqiora.matplotlib
-except ImportError as error:
-    assert str(error) == (
-        "eqiora.matplotlib requires the optional 'matplotlib' dependency; "
-        "install eqiora[matplotlib]"
-    )
-else:
-    raise AssertionError("the base environment unexpectedly imported Matplotlib")
-"""
-    checked_run([str(python), "-I", "-c", script], cwd=run_root)
+prepare_mixed_boundary_elasticity_demo_consumer = (
+    candidate_profiles.prepare_mixed_boundary_elasticity_demo_consumer
+)
+prepare_fixed_reference_fsi_demo_consumer = (
+    candidate_profiles.prepare_fixed_reference_fsi_demo_consumer
+)
 
 
 def run_public_smoke(
@@ -774,17 +482,13 @@ def run_public_smoke(
 ) -> None:
     """Replay one published quick start against an installed wheel."""
 
-    checked_run(
-        [
-            str(python),
-            "-I",
-            str(extracted / "tools/release/python_public_smoke.py"),
-            "--expected-version",
-            expected_version,
-            "--profile",
-            profile,
-        ],
-        cwd=run_root,
+    candidate_profiles.run_public_smoke(
+        python=python,
+        extracted=extracted,
+        run_root=run_root,
+        expected_version=expected_version,
+        profile=profile,
+        run=checked_run,
     )
 
 
@@ -795,64 +499,19 @@ def run_base_profile(
     python_version: str,
     wheel: Path,
     extracted: Path,
-    scratch: Path,
+    workspace: candidate_profiles.ProfileWorkspace,
     config: DistributionConfig,
 ) -> list[str]:
-    """Run the complete framework-free suite and strict base consumer typing."""
-
-    environment = scratch / f"base-{python_version}"
-    python = install_environment(
+    return candidate_profiles.run_base_profile(
         uv=uv,
         interpreter=interpreter,
-        environment=environment,
-        requirements=[str(wheel), config.pytest, config.mypy],
-    )
-    run_root = scratch / f"run-base-{python_version}"
-    run_root.mkdir()
-    tests, typecheck = prepare_base_consumer_tree(extracted, run_root)
-    prepare_exact_cylinder_demo_consumer(extracted, run_root)
-    prepare_mixed_boundary_elasticity_demo_consumer(extracted, run_root)
-    prepare_fixed_reference_fsi_demo_consumer(extracted, run_root)
-    assert_installed_origin(
-        python,
-        wheel,
-        run_root,
-        config.python_version,
-    )
-    assert_matplotlib_is_optional(python, run_root)
-    checked_run(
-        [str(python), "-I", "-m", "pytest", "-q", str(tests)],
-        cwd=run_root,
-    )
-    checked_run(
-        [
-            str(python),
-            "-I",
-            "-m",
-            "mypy",
-            "--strict",
-            str(typecheck / "base.py"),
-        ],
-        cwd=run_root,
-    )
-    run_public_smoke(
-        python=python,
+        python_version=python_version,
+        wheel=wheel,
         extracted=extracted,
-        run_root=run_root,
-        expected_version=config.python_version,
-        profile="base",
+        workspace=workspace,
+        config=config,
+        run=checked_run,
     )
-    return [
-        f"cp{python_version.replace('.', '')}:installed-wheel",
-        f"cp{python_version.replace('.', '')}:base-and-numpy",
-        f"cp{python_version.replace('.', '')}:packaged-exact-cylinder-model-demo",
-        f"cp{python_version.replace('.', '')}:packaged-mixed-boundary-elasticity-demo",
-        f"cp{python_version.replace('.', '')}:packaged-fixed-reference-fsi-demo",
-        f"cp{python_version.replace('.', '')}:async-and-cancellation",
-        f"cp{python_version.replace('.', '')}:strict-base-typing",
-        f"cp{python_version.replace('.', '')}:public-smoke-base",
-        f"cp{python_version.replace('.', '')}:matplotlib-free-base",
-    ]
 
 
 def run_optional_profile(
@@ -862,149 +521,19 @@ def run_optional_profile(
     interpreter: str,
     wheel: Path,
     extracted: Path,
-    scratch: Path,
+    workspace: candidate_profiles.ProfileWorkspace,
     config: DistributionConfig,
 ) -> list[str]:
-    """Run one optional framework adapter from the exact same wheel."""
-
-    if name == "torch":
-        exact = [config.torch]
-        test = "test_torch.py"
-        environment_variables = {
-            "EQIORA_TEST_TORCH_VERSION": config.torch.split("==", maxsplit=1)[1]
-        }
-    elif name == "jax":
-        exact = list(config.jax)
-        test = "test_jax.py"
-        environment_variables = {
-            "EQIORA_REQUIRE_JAX_ABI_PROBE": "1",
-            "EQIORA_TEST_JAX_VERSION": config.jax[0].split("==", maxsplit=1)[1],
-            "EQIORA_TEST_PYTHON_VERSION": config.extras_interpreter,
-            "JAX_ENABLE_X64": "1",
-            "XLA_FLAGS": "--xla_force_host_platform_device_count=2",
-        }
-    elif name == "matplotlib":
-        exact = [config.matplotlib]
-        test = "test_matplotlib.py"
-        matplotlib_config = scratch / "matplotlib-config"
-        matplotlib_config.mkdir()
-        environment_variables = {
-            "EQIORA_TEST_MATPLOTLIB_VERSION": config.matplotlib.split("==", maxsplit=1)[
-                1
-            ],
-            "MPLBACKEND": "Agg",
-            "MPLCONFIGDIR": str(matplotlib_config),
-        }
-    else:  # pragma: no cover - closed internal call set
-        raise CandidateError(f"unknown optional profile: {name}")
-
-    environment = scratch / name
-    python = install_environment(
+    return candidate_profiles.run_optional_profile(
+        name=name,
         uv=uv,
         interpreter=interpreter,
-        environment=environment,
-        requirements=[f"{wheel}[{name}]", config.pytest, *exact],
+        wheel=wheel,
+        extracted=extracted,
+        workspace=workspace,
+        config=config,
+        run=checked_run,
     )
-    run_root = scratch / f"run-{name}"
-    run_root.mkdir()
-    test_path = run_root / test
-    shutil.copy2(extracted / f"bindings/python/tests/{test}", test_path)
-    demo = None
-    if name == "matplotlib":
-        demo = prepare_exact_cylinder_demo_consumer(extracted, run_root)
-        structural_demo = prepare_mixed_boundary_elasticity_demo_consumer(
-            extracted,
-            run_root,
-        )
-        fsi_demo = prepare_fixed_reference_fsi_demo_consumer(extracted, run_root)
-    checked_run(
-        [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
-        cwd=run_root,
-        extra_environment=environment_variables,
-    )
-    if name == "matplotlib":
-        assert demo is not None
-        destination = run_root / "exact-cylinder-pressure.png"
-        checked_run(
-            [
-                str(python),
-                "-I",
-                str(demo),
-                "--pressure-png",
-                str(destination),
-            ],
-            cwd=run_root,
-            extra_environment=environment_variables,
-        )
-        if not destination.is_file() or not destination.read_bytes().startswith(
-            b"\x89PNG\r\n\x1a\n"
-        ):
-            raise CandidateError(
-                "installed exact-cylinder Matplotlib demo did not write a PNG"
-            )
-        structural_destination = run_root / "mixed-boundary-displacement.png"
-        checked_run(
-            [
-                str(python),
-                "-I",
-                str(structural_demo),
-                "--displacement-png",
-                str(structural_destination),
-                "--scale",
-                "1",
-            ],
-            cwd=run_root,
-            extra_environment=environment_variables,
-        )
-        if (
-            not structural_destination.is_file()
-            or not structural_destination.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-        ):
-            raise CandidateError(
-                "installed mixed-boundary Matplotlib demo did not write a PNG"
-            )
-        fsi_destination = run_root / "fixed-reference-fsi.png"
-        checked_run(
-            [
-                str(python),
-                "-I",
-                str(fsi_demo),
-                "--fsi-png",
-                str(fsi_destination),
-                "--step",
-                "2",
-                "--displacement-scale",
-                "12",
-            ],
-            cwd=run_root,
-            extra_environment=environment_variables,
-        )
-        if not fsi_destination.is_file() or not fsi_destination.read_bytes().startswith(
-            b"\x89PNG\r\n\x1a\n"
-        ):
-            raise CandidateError(
-                "installed fixed-reference FSI Matplotlib demo did not write a PNG"
-            )
-    else:
-        run_public_smoke(
-            python=python,
-            extracted=extracted,
-            run_root=run_root,
-            expected_version=config.python_version,
-            profile=name,
-        )
-    compact = config.extras_interpreter.replace(".", "")
-    checks = [
-        f"cp{compact}:{name}",
-        f"cp{compact}:public-smoke-{name}",
-    ]
-    if name == "matplotlib":
-        checks[1:] = [
-            f"cp{compact}:packaged-exact-cylinder-pressure-demo",
-            f"cp{compact}:packaged-mixed-boundary-displacement-demo",
-            f"cp{compact}:packaged-fixed-reference-fsi-still",
-        ]
-    return checks
 
 
 def run_numpy_floor_profile(
@@ -1013,60 +542,18 @@ def run_numpy_floor_profile(
     interpreter: str,
     wheel: Path,
     extracted: Path,
-    scratch: Path,
+    workspace: candidate_profiles.ProfileWorkspace,
     config: DistributionConfig,
 ) -> tuple[list[str], dict[str, str]]:
-    """Exercise the exact declared NumPy floor without replacing latest profiles."""
-
-    python_version = config.numpy_floor_interpreter
-    environment = scratch / f"numpy-floor-{python_version}"
-    python = install_environment(
+    return candidate_profiles.run_numpy_floor_profile(
         uv=uv,
         interpreter=interpreter,
-        environment=environment,
-        requirements=[str(wheel), config.numpy_floor, config.pytest],
-    )
-    run_root = scratch / f"run-numpy-floor-{python_version}"
-    run_root.mkdir()
-    test_path = run_root / "test_array_transport.py"
-    shutil.copy2(
-        extracted / "bindings/python/tests/test_array_transport.py",
-        test_path,
-    )
-    checked_run(
-        [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
-        cwd=run_root,
-    )
-    run_public_smoke(
-        python=python,
+        wheel=wheel,
         extracted=extracted,
-        run_root=run_root,
-        expected_version=config.python_version,
-        profile="base",
+        workspace=workspace,
+        config=config,
+        run=checked_run,
     )
-    observed = checked_run(
-        [
-            str(python),
-            "-I",
-            "-c",
-            "import importlib.metadata as m; print(m.version('numpy'))",
-        ],
-        cwd=run_root,
-        capture=True,
-    )
-    expected = config.numpy_floor.split("==", maxsplit=1)[1]
-    if observed != expected:
-        raise CandidateError(
-            f"NumPy floor profile expected {expected}, observed {observed!r}"
-        )
-    compact = python_version.replace(".", "")
-    profile = f"cp{compact}:numpy-{observed}-floor"
-    return [profile], {
-        "python": python_version,
-        "requirement": config.numpy_floor,
-        "observed": observed,
-        "profile": profile,
-    }
 
 
 def run_full_typing_profile(
@@ -1075,55 +562,122 @@ def run_full_typing_profile(
     interpreter: str,
     wheel: Path,
     extracted: Path,
-    scratch: Path,
+    workspace: candidate_profiles.ProfileWorkspace,
     config: DistributionConfig,
 ) -> str:
-    """Check runtime/stub parity and strict optional-adapter consumers."""
-
-    environment = scratch / "typing-all"
-    python = install_environment(
+    return candidate_profiles.run_full_typing_profile(
         uv=uv,
         interpreter=interpreter,
-        environment=environment,
-        requirements=[
-            f"{wheel}[torch,jax,matplotlib]",
-            config.mypy,
-            config.torch,
-            *config.jax,
-            config.matplotlib,
-        ],
+        wheel=wheel,
+        extracted=extracted,
+        workspace=workspace,
+        config=config,
+        run=checked_run,
     )
-    run_root = scratch / "run-typing-all"
-    run_root.mkdir()
-    typecheck = run_root / "typecheck"
-    shutil.copytree(extracted / "bindings/python/typecheck", typecheck)
-    checked_run(
-        [
-            str(python),
-            "-I",
-            "-m",
-            "mypy.stubtest",
-            "eqiora",
-            "--concise",
-            "--ignore-disjoint-bases",
-        ],
-        cwd=run_root,
+
+
+def execute_profile(
+    workspace: candidate_profiles.ProfileWorkspace,
+    *,
+    uv: str,
+    config: DistributionConfig,
+    wheels: dict[str, Path],
+    extracted: Path,
+    interpreters: dict[str, str],
+) -> candidate_profiles.ProfileReceipt:
+    """Execute one profile solely within its pre-declared writable root."""
+
+    workspace.root.mkdir(parents=True)
+    workspace.temporary.mkdir()
+    if workspace.matplotlib_config is not None:
+        workspace.matplotlib_config.mkdir()
+
+    name = workspace.name
+    checks: list[str]
+    dependency_profiles: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = ()
+    with command_context(
+        environment=dict(workspace.environment_variables),
+        log=workspace.log,
+    ):
+        if name.startswith("base-"):
+            python_version = name.removeprefix("base-")
+            checks = run_base_profile(
+                uv=uv,
+                interpreter=interpreters[python_version],
+                python_version=python_version,
+                wheel=wheels[python_version],
+                extracted=extracted,
+                workspace=workspace,
+                config=config,
+            )
+        elif name == "numpy-floor-3.12":
+            checks, numpy_floor = run_numpy_floor_profile(
+                uv=uv,
+                interpreter=interpreters[config.numpy_floor_interpreter],
+                wheel=wheels[config.numpy_floor_interpreter],
+                extracted=extracted,
+                workspace=workspace,
+                config=config,
+            )
+            dependency_profiles = (("numpy_floor", tuple(sorted(numpy_floor.items()))),)
+        elif name == "generated-public-api":
+            checked_run(
+                [
+                    interpreters[config.extras_interpreter],
+                    "-I",
+                    str(extracted / "tools/docs/generate_python_api.py"),
+                    "--check",
+                ],
+                cwd=extracted,
+            )
+            checks = ["check:generated-public-api"]
+        elif name in {"torch-3.13", "jax-3.13", "matplotlib-3.13"}:
+            profile = name.removesuffix("-3.13")
+            checks = run_optional_profile(
+                name=profile,
+                uv=uv,
+                interpreter=interpreters[config.extras_interpreter],
+                wheel=wheels[config.extras_interpreter],
+                extracted=extracted,
+                workspace=workspace,
+                config=config,
+            )
+        elif name == "typing-3.13":
+            checks = [
+                run_full_typing_profile(
+                    uv=uv,
+                    interpreter=interpreters[config.extras_interpreter],
+                    wheel=wheels[config.extras_interpreter],
+                    extracted=extracted,
+                    workspace=workspace,
+                    config=config,
+                )
+            ]
+        else:  # pragma: no cover - plan construction owns the closed set
+            raise CandidateError(f"unknown candidate profile: {name}")
+
+    log = workspace.log.read_text(encoding="utf-8") if workspace.log.is_file() else ""
+    return candidate_profiles.ProfileReceipt(
+        name=name,
+        checks=tuple(checks),
+        dependency_profiles=dependency_profiles,
+        diagnostics=(),
+        log=log,
     )
-    checked_run(
-        [
-            str(python),
-            "-I",
-            "-m",
-            "mypy",
-            "--strict",
-            str(typecheck / "diff.py"),
-            str(typecheck / "torch_adapter.py"),
-            str(typecheck / "jax_adapter.py"),
-            str(typecheck / "matplotlib_adapter.py"),
-        ],
-        cwd=run_root,
-    )
-    return f"cp{config.extras_interpreter.replace('.', '')}:complete-public-typing"
+
+
+def replay_profile_logs(
+    plan: tuple[candidate_profiles.ProfileWorkspace, ...],
+) -> None:
+    """Replay joined profile logs in frozen logical order."""
+
+    for workspace in plan:
+        if not workspace.log.is_file():
+            continue
+        print(f"=== Python candidate profile: {workspace.name} ===", flush=True)
+        payload = workspace.log.read_text(encoding="utf-8")
+        if payload:
+            print(payload, end="" if payload.endswith("\n") else "\n", flush=True)
 
 
 def tool_version(argv: list[str]) -> str:
@@ -1147,6 +701,10 @@ def write_manifest(
 ) -> Path:
     """Write deterministic provenance for the accepted artifact set."""
 
+    manifest_checks = [
+        "generated-public-api" if check == "check:generated-public-api" else check
+        for check in checks
+    ]
     artifacts = [
         {
             "filename": sdist.name,
@@ -1188,7 +746,7 @@ def write_manifest(
             "dependency_profiles": dependency_profiles,
         },
         "artifacts": artifacts,
-        "checks": sorted(checks),
+        "checks": sorted(manifest_checks),
         "nonclaims": [
             "reproducible-build-certification",
             "artifact-signature",
@@ -1239,156 +797,153 @@ def build_candidate(
     require_executable("rustc")
     require_executable("cargo")
     rustup = require_executable("rustup")
-    checked_run(
-        [
-            rustup,
-            "toolchain",
-            "install",
-            config.rust,
-            "--profile",
-            "minimal",
-        ]
-    )
 
-    with tempfile.TemporaryDirectory(prefix="eqiora-python-candidate-") as temporary:
+    scratch_parent = home_scratch_parent("python-candidate")
+    with tempfile.TemporaryDirectory(
+        prefix="eqiora-python-candidate-",
+        dir=scratch_parent,
+    ) as temporary:
         scratch = Path(temporary)
-        sdist, wheels, extracted = build_artifacts(
-            output=output,
-            scratch=scratch,
-            config=config,
-            uv=uv,
-        )
-        checked_run(
-            [
-                uv,
-                "tool",
-                "run",
-                "--from",
-                config.twine,
-                "twine",
-                "check",
-                "--strict",
-                str(sdist),
-                *(str(wheels[version]) for version in config.interpreters),
-            ]
-        )
+        candidate_temporary = scratch / "tmp"
+        candidate_temporary.mkdir()
+        with command_context(environment={"TMPDIR": str(candidate_temporary)}):
+            checked_run(
+                [
+                    rustup,
+                    "toolchain",
+                    "install",
+                    config.rust,
+                    "--profile",
+                    "minimal",
+                ]
+            )
 
-        versions: set[str] = set()
-        records: list[dict[str, Any]] = []
-        checks = ["twine-strict", "sdist-to-wheel-rebuild"]
-        license_bytes = (extracted / "LICENSE").read_bytes()
-        notice_bytes = (extracted / "NOTICE").read_bytes()
-        interpreters: dict[str, str] = {}
-        for python_version in config.interpreters:
-            wheel_version, record = inspect_wheel(
-                wheels[python_version],
-                python_version=python_version,
+            interpreters = {
+                version: uv_interpreter(uv, version) for version in config.interpreters
+            }
+            sdist, wheels, extracted = build_artifacts(
+                output=output,
+                scratch=scratch,
                 config=config,
-                license_bytes=license_bytes,
-                notice_bytes=notice_bytes,
+                uv=uv,
+                interpreters=interpreters,
             )
-            versions.add(wheel_version)
-            records.append(record)
-            interpreter = uv_interpreter(uv, python_version)
-            interpreters[python_version] = interpreter
-            checks.extend(
-                run_base_profile(
-                    uv=uv,
-                    interpreter=interpreter,
+            checked_run(
+                [
+                    uv,
+                    "tool",
+                    "run",
+                    "--from",
+                    config.twine,
+                    "twine",
+                    "check",
+                    "--strict",
+                    str(sdist),
+                    *(str(wheels[version]) for version in config.interpreters),
+                ]
+            )
+
+            versions: set[str] = set()
+            records: list[dict[str, Any]] = []
+            license_bytes = (extracted / "LICENSE").read_bytes()
+            notice_bytes = (extracted / "NOTICE").read_bytes()
+            for python_version in config.interpreters:
+                wheel_version, record = inspect_wheel(
+                    wheels[python_version],
                     python_version=python_version,
-                    wheel=wheels[python_version],
-                    extracted=extracted,
-                    scratch=scratch,
                     config=config,
+                    license_bytes=license_bytes,
+                    notice_bytes=notice_bytes,
                 )
-            )
-        floor_checks, numpy_floor = run_numpy_floor_profile(
-            uv=uv,
-            interpreter=interpreters[config.numpy_floor_interpreter],
-            wheel=wheels[config.numpy_floor_interpreter],
-            extracted=extracted,
-            scratch=scratch,
-            config=config,
-        )
-        checks.extend(floor_checks)
-        if len(versions) != 1:
-            raise CandidateError("candidate wheels disagree on the package version")
-        version = versions.pop()
-        if version != config.python_version:
-            raise CandidateError(
-                "candidate artifact version differs from the authored Cargo version"
-            )
-        checked_run(
-            [
-                interpreters[config.extras_interpreter],
-                "-I",
-                str(extracted / "tools/docs/generate_python_api.py"),
-                "--check",
-            ],
-            cwd=extracted,
-        )
-        checks.append("generated-public-api")
+                versions.add(wheel_version)
+                records.append(record)
+            if len(versions) != 1:
+                raise CandidateError("candidate wheels disagree on the package version")
+            version = versions.pop()
+            if version != config.python_version:
+                raise CandidateError(
+                    "candidate artifact version differs from the authored Cargo version"
+                )
 
-        if not skip_extras:
-            extras_version = config.extras_interpreter
-            extras_wheel = wheels[extras_version]
-            extras_interpreter = interpreters[extras_version]
-            checks.extend(
-                run_optional_profile(
-                    name="torch",
-                    uv=uv,
-                    interpreter=extras_interpreter,
-                    wheel=extras_wheel,
-                    extracted=extracted,
-                    scratch=scratch,
-                    config=config,
-                )
+            initial_identity = candidate_payload_identity(
+                sdist,
+                wheels,
+                extracted,
             )
-            checks.extend(
-                run_optional_profile(
-                    name="jax",
-                    uv=uv,
-                    interpreter=extras_interpreter,
-                    wheel=extras_wheel,
-                    extracted=extracted,
-                    scratch=scratch,
-                    config=config,
-                )
+            plan = candidate_profiles.build_profile_plan(
+                scratch,
+                config,
+                skip_extras=skip_extras,
             )
-            checks.extend(
-                run_optional_profile(
-                    name="matplotlib",
+            outcomes = candidate_profiles.run_profile_tasks(
+                plan,
+                lambda workspace: execute_profile(
+                    workspace,
                     uv=uv,
-                    interpreter=extras_interpreter,
-                    wheel=extras_wheel,
-                    extracted=extracted,
-                    scratch=scratch,
                     config=config,
-                )
-            )
-            checks.append(
-                run_full_typing_profile(
-                    uv=uv,
-                    interpreter=extras_interpreter,
-                    wheel=extras_wheel,
+                    wheels=wheels,
                     extracted=extracted,
-                    scratch=scratch,
-                    config=config,
-                )
+                    interpreters=interpreters,
+                ),
             )
+            replay_profile_logs(plan)
 
-    return write_manifest(
-        output=output,
-        source=source,
-        sdist=sdist,
-        version=version,
-        wheel_records=records,
-        checks=checks,
-        config=config,
-        uv=uv,
-        complete_profiles=not skip_extras,
-        dependency_profiles={"numpy_floor": numpy_floor},
-    )
+            outcomes_by_name = {outcome.name: outcome for outcome in outcomes}
+            failures = tuple(
+                (workspace.name, outcomes_by_name[workspace.name].error)
+                for workspace in plan
+                if outcomes_by_name[workspace.name].error is not None
+            )
+            if failures:
+                diagnostics = "\n".join(
+                    f"- {name}: {error}" for name, error in failures
+                )
+                raise CandidateError(
+                    f"candidate validation profiles failed:\n{diagnostics}"
+                )
+
+            final_identity = candidate_payload_identity(
+                sdist,
+                wheels,
+                extracted,
+            )
+            if final_identity != initial_identity:
+                raise CandidateError(
+                    "candidate validation profile mutated shared artifact inputs"
+                )
+
+            receipts = tuple(
+                outcome.value for outcome in outcomes if outcome.value is not None
+            )
+            expected_names = (
+                candidate_profiles.DEVELOPMENT_PROFILE_NAMES
+                if skip_extras
+                else candidate_profiles.COMPLETE_PROFILE_NAMES
+            )
+            merged = candidate_profiles.merge_profile_receipts(
+                expected_names,
+                receipts,
+            )
+            checks = [
+                "twine-strict",
+                "sdist-to-wheel-rebuild",
+                *merged.checks,
+            ]
+            dependency_profiles = {
+                name: dict(values) for name, values in merged.dependency_profiles
+            }
+            return write_manifest(
+                output=output,
+                source=source,
+                sdist=sdist,
+                version=version,
+                wheel_records=records,
+                checks=checks,
+                config=config,
+                uv=uv,
+                complete_profiles=not skip_extras,
+                dependency_profiles=dependency_profiles,
+            )
 
 
 def parse_args() -> argparse.Namespace:
