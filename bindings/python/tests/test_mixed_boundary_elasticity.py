@@ -44,10 +44,9 @@ INTENT_ARGUMENTS: dict[str, Any] = {
 }
 
 # The smallest set parallel to the accepted `SteadyStokesPlan` that publishes
-# every value the withdrawn entry point kept hidden. Issue #338 freezes no
-# discretization-space property name for the structural Plan, so the Q1
-# generated-Cartesian family is proven through `cells_per_axis`, the canonical
-# realization envelope, and the executed Mesh rather than through a new literal.
+# every value the withdrawn entry point kept hidden. The typed literals below
+# make the Q1/generated-Cartesian choice inspectable without requiring a caller
+# to decode the canonical Realization artifact.
 PLAN_PROPERTIES = (
     "model_digest",
     "semantic_revision",
@@ -58,6 +57,15 @@ PLAN_PROPERTIES = (
     "realization_revision",
     "spatial_dimension",
     "cells_per_axis",
+    "discretization_method",
+    "mesh_kind",
+    "mesh_policy",
+    "field_space",
+    "quadrature",
+    "quadrature_points_per_axis",
+    "scalar_type",
+    "vector_layout",
+    "coefficient_association",
     "solver_algorithm",
     "preconditioner",
     "reduction",
@@ -73,6 +81,15 @@ PLAN_PROPERTIES = (
 SEMANTIC_REVISION = 1
 REALIZATION_REVISION = 1
 SPATIAL_DIMENSION = 2
+DISCRETIZATION_METHOD = "continuous-galerkin"
+MESH_KIND = "generated-cartesian"
+MESH_POLICY = "generated-uniform"
+FIELD_SPACE = "continuous-lagrange-1"
+QUADRATURE = "gauss-legendre"
+QUADRATURE_POINTS_PER_AXIS = 2
+SCALAR_TYPE = "f64"
+VECTOR_LAYOUT = "replicated"
+COEFFICIENT_ASSOCIATION = "vertex"
 SOLVER_ALGORITHM = "conjugate-gradient"
 PRECONDITIONER = "identity"
 REDUCTION = "reproducible"
@@ -254,16 +271,20 @@ def test_linear_elasticity_intent_is_keyword_only_without_hidden_defaults() -> N
         )
 
 
-def test_resolved_plan_publishes_every_effective_value_before_submission(
-    accepted: tuple[eqiora.Model, Any, eqiora.Result],
-) -> None:
-    model, plan, result = accepted
+def test_resolved_plan_publishes_every_effective_value_before_submission() -> None:
+    # This exact Plan has not crossed either execution entry point. Keeping this
+    # fixture local prevents a completed module-scoped Run from proving values
+    # that an implementation populated only while submitting it.
+    model = accepted_model()
+    plan = resolve_plan(model)
     assert type(plan).__module__ == "eqiora._eqiora"
     assert type(plan).__name__ == "LinearElasticityPlan"
     assert isinstance(plan, eqiora.solid.LinearElasticityPlan)
 
+    pre_execution: dict[str, object] = {}
     for name in PLAN_PROPERTIES:
         value = getattr(plan, name)
+        pre_execution[name] = value
         with pytest.raises(AttributeError):
             setattr(plan, name, value)
 
@@ -272,6 +293,15 @@ def test_resolved_plan_publishes_every_effective_value_before_submission(
     assert plan.realization_revision == REALIZATION_REVISION
     assert plan.spatial_dimension == SPATIAL_DIMENSION
     assert plan.cells_per_axis == CELLS_PER_AXIS
+    assert plan.discretization_method == DISCRETIZATION_METHOD
+    assert plan.mesh_kind == MESH_KIND
+    assert plan.mesh_policy == MESH_POLICY
+    assert plan.field_space == FIELD_SPACE
+    assert plan.quadrature == QUADRATURE
+    assert plan.quadrature_points_per_axis == QUADRATURE_POINTS_PER_AXIS
+    assert plan.scalar_type == SCALAR_TYPE
+    assert plan.vector_layout == VECTOR_LAYOUT
+    assert plan.coefficient_association == COEFFICIENT_ASSOCIATION
     assert plan.solver_algorithm == SOLVER_ALGORITHM
     assert plan.preconditioner == PRECONDITIONER
     assert plan.reduction == REDUCTION
@@ -290,30 +320,6 @@ def test_resolved_plan_publishes_every_effective_value_before_submission(
         assert_digest(identity)
     assert len(set(identities)) == len(identities)
 
-    # The pre-execution Q1 generated-Cartesian facts are the executed ones.
-    displacement = displacement_of(model)
-    snapshot = result.field(displacement)
-    mesh = result.mesh(displacement)
-    assert plan.mesh_digest == snapshot.mesh_digest == mesh.digest
-    assert plan.correspondence_digest == mesh.correspondence_digest
-    assert mesh.cells.shape == (CELL_COUNT, 4)
-    assert mesh.coordinates.shape == (VERTEX_COUNT, SPATIAL_DIMENSION)
-
-    manifest = result.run_manifest()
-    evidence = eqiora.solid.linear_elasticity_evidence(result)
-    report = evidence.solve
-    assert plan.realization_digest == manifest.realization_digest
-    assert plan.solver_algorithm == report.algorithm
-    assert plan.preconditioner == report.preconditioner
-    assert plan.reduction == report.reduction == manifest.reduction
-    assert plan.relative_tolerance == report.relative_tolerance
-    assert plan.absolute_tolerance == report.absolute_tolerance
-    assert plan.maximum_iterations == report.maximum_iterations
-    assert plan.solver_backend == report.backend == manifest.solver_backend
-    assert plan.execution_adapter == report.adapter == manifest.adapter
-    assert plan.execution_adapter == result.adapter
-    assert plan.workers == manifest.workers >= 1
-
     envelope = plan.canonical_bytes
     assert isinstance(envelope, bytes) and envelope
     document = json.loads(envelope)
@@ -326,6 +332,44 @@ def test_resolved_plan_publishes_every_effective_value_before_submission(
         hashlib.sha256(document["schema"].encode() + b"\0" + envelope).hexdigest()
         == plan.realization_digest
     )
+
+    # Only after every resolved fact and exact identity is observable does this
+    # Plan cross the execution boundary.
+    result = eqiora.submit(model, plan=plan).result()
+    assert type(result) is eqiora.Result
+    assert {name: getattr(plan, name) for name in PLAN_PROPERTIES} == pre_execution
+    displacement = displacement_of(model)
+    snapshot = result.field(displacement)
+    mesh = result.mesh(displacement)
+    assert plan.mesh_digest == snapshot.mesh_digest == mesh.digest
+    assert plan.correspondence_digest == mesh.correspondence_digest
+    assert (
+        plan.geometry_digest
+        == mesh.source_digest
+        == mesh.realized_geometry_digest
+    )
+    assert plan.realization_digest == mesh.realization_digest
+    assert mesh.cells.shape == (CELL_COUNT, 4)
+    assert mesh.coordinates.shape == (VERTEX_COUNT, SPATIAL_DIMENSION)
+
+    manifest = result.run_manifest()
+    evidence = eqiora.solid.linear_elasticity_evidence(result)
+    report = evidence.solve
+    assert (
+        plan.realization_digest
+        == mesh.realization_digest
+        == manifest.realization_digest
+    )
+    assert plan.solver_algorithm == report.algorithm
+    assert plan.preconditioner == report.preconditioner
+    assert plan.reduction == report.reduction == manifest.reduction
+    assert plan.relative_tolerance == report.relative_tolerance
+    assert plan.absolute_tolerance == report.absolute_tolerance
+    assert plan.maximum_iterations == report.maximum_iterations
+    assert plan.solver_backend == report.backend == manifest.solver_backend
+    assert plan.execution_adapter == report.adapter == manifest.adapter
+    assert plan.execution_adapter == result.adapter
+    assert plan.workers == manifest.workers >= 1
 
     # Resolving one exact Model twice is deterministic, and resubmission
     # reproduces byte-identical Run and output identity.
@@ -496,11 +540,13 @@ def test_array_owners_survive_result_release_and_solves_do_not_share_storage() -
         first.mesh(first_displacement).coordinates,
         first.mesh(first_displacement).cells,
         first.field(first_displacement).values("vertex"),
+        first.field(first_displacement).support_indices("vertex"),
     )
     second_arrays = (
         second.mesh(second_displacement).coordinates,
         second.mesh(second_displacement).cells,
         second.field(second_displacement).values("vertex"),
+        second.field(second_displacement).support_indices("vertex"),
     )
 
     for left, right in zip(first_arrays, second_arrays, strict=True):
@@ -703,8 +749,25 @@ def test_converged_names_are_exported_and_predecessors_are_deprecated_shims(
     model, _plan, result = accepted
     assert set(eqiora.solid.__all__) == set(ORDINARY_NAMES) | set(COMPATIBILITY_NAMES)
     assert sorted(eqiora.solid.__all__) == list(eqiora.solid.__all__)
-    for name in ORDINARY_NAMES + COMPATIBILITY_NAMES:
+    for name in ORDINARY_NAMES:
         assert hasattr(eqiora.solid, name)
+
+    # The compatibility type name is resolved lazily so ordinary import of the
+    # solid namespace stays quiet, while both attribute access and the retained
+    # import spelling tell callers which common type replaces it.
+    with pytest.warns(DeprecationWarning, match="eqiora.Result"):
+        compatibility_result = getattr(
+            eqiora.solid,
+            "MixedBoundaryElasticityResult",
+        )
+    imported: dict[str, object] = {}
+    with pytest.warns(DeprecationWarning, match="eqiora.Result"):
+        exec(
+            "from eqiora.solid import MixedBoundaryElasticityResult",
+            imported,
+        )
+    assert compatibility_result is eqiora.Result
+    assert imported["MixedBoundaryElasticityResult"] is compatibility_result
 
     stub = files(eqiora).joinpath("solid.pyi").read_text(encoding="utf-8")
     for declaration in (
@@ -723,13 +786,12 @@ def test_converged_names_are_exported_and_predecessors_are_deprecated_shims(
     # One delegation path per predecessor name. They own no type and no
     # independent lineage: the retained result name is only a projection of the
     # common `eqiora.Result`, and the shim replays the accepted Run exactly.
-    assert eqiora.solid.MixedBoundaryElasticityResult is eqiora.Result
     with pytest.warns(DeprecationWarning, match="eqiora.solid.resolve"):
         delegated = eqiora.solid.solve_mixed_boundary_elasticity(model)
     assert type(delegated) is eqiora.Result
-    assert isinstance(delegated, eqiora.solid.MixedBoundaryElasticityResult)
+    assert isinstance(delegated, compatibility_result)
     with pytest.raises(TypeError):
-        eqiora.solid.MixedBoundaryElasticityResult()
+        compatibility_result()
     assert delegated.run_manifest().digest == result.run_manifest().digest
     assert delegated.model_id == result.model_id
     assert delegated.model_digest == result.model_digest

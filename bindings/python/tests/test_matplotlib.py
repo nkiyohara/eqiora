@@ -578,10 +578,16 @@ def test_deformed_still_rejects_invalid_structural_scale_before_rendering(
 
 def test_predecessor_displacement_still_only_delegates_with_a_deprecation(
     structural: tuple[eqiora.Model, eqiora.Result],
+    result: eqiora.Result,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    model, result = structural
+    model, structural_result = structural
     field = model.field("displacement")
-    converged = eqplot.plot_deformed_field(result, field=field, scale=2.0)
+    converged = eqplot.plot_deformed_field(
+        structural_result,
+        field=field,
+        scale=2.0,
+    )
 
     with pytest.warns(DeprecationWarning):
         shim_result = eqiora.solid.solve_mixed_boundary_elasticity(
@@ -596,6 +602,14 @@ def test_predecessor_displacement_still_only_delegates_with_a_deprecation(
         strict=True,
     ):
         np.testing.assert_array_equal(converged_segments, delegated_segments)
+
+    # The retained result type name resolves to common Result, so the shim must
+    # discriminate with the closed structural-evidence arm rather than an
+    # isinstance check that would also admit this steady-Stokes Result.
+    forbid_rendering(monkeypatch)
+    with pytest.warns(DeprecationWarning, match="plot_deformed_field"):
+        with pytest.raises(eqiora.CapabilityError):
+            eqplot.plot_displacement(result, scale=2.0)
 
 
 # --------------------------------------------------------------------------
