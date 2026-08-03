@@ -25,7 +25,10 @@ Draft therefore verifies its exact head immediately, while changing that same
 head from Draft to Ready reuses the existing required contexts instead of
 starting and cancelling an identical full run. A pushed head still starts a
 new run, and the per-pull-request concurrency groups cancel only its stale
-predecessor.
+predecessor. This relies on GitHub's provider-owned event contract delivering
+those activities for Draft pull requests and retaining commit-bound check runs
+across a readiness-only transition. Repository tests pin the workflow side of
+that boundary; live Actions observation owns the provider side.
 
 Changed-file pagination must match the provider-owned pull-request count.
 Pull requests beyond the API's complete 3,000-file visibility boundary fail

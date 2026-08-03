@@ -14,6 +14,7 @@ capabilities = [
 ]
 
 [claim_boundary]
+provider_event_delivery = "github-hosted-precondition"
 merge_queue = false
 self_hosted_pull_requests = false
 cache_performance_claim = false

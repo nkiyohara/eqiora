@@ -4,6 +4,7 @@ Before this case can advance beyond `specified`, the public repository must
 show:
 
 - `CI gate` and `CI definition trust` on representative pull requests;
+- one Draft-to-Ready transition retaining both contexts without another run;
 - both contexts required by the `main` ruleset and bound to GitHub Actions;
 - destructive updates and direct pushes rejected;
 - a normal product change accepted without a trust-definition bypass;

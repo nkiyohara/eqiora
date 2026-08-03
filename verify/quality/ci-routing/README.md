@@ -8,6 +8,12 @@ making its unchanged head Ready reuses those contexts without a duplicate run.
 A conditional job may be skipped only when the reviewed path ownership says
 its surface is irrelevant.
 
+Draft event delivery and reuse of check runs attached to the unchanged commit
+are GitHub-hosted preconditions, not behavior implemented by this repository.
+Contract tests prove the configured event and concurrency predicates; the
+adjacent publication-time checklist requires live observation of the provider
+behavior.
+
 A separate `pull_request_target` workflow runs only protected-base code, reads
 changed-file metadata, and rejects pull requests that modify workflows,
 CI/release tooling, custom Actions, or CODEOWNERS. It never checks out or
