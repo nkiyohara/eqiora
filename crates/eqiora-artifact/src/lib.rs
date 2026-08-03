@@ -59,7 +59,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub use cad::{CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1};
-pub use cartesian_mesh::CartesianMeshEnvelopeV1;
+pub use cartesian_mesh::{CartesianMeshDecoderLimits, CartesianMeshEnvelopeV1};
 pub use cartesian_q1_field_snapshot::CartesianQ1FieldSnapshotEnvelopeV1;
 pub use circular_hole_chordal_realization::{
     AcceptedCircularHoleChordalRealizationV1, CircularHoleChordalRealizationEnvelopeV1,

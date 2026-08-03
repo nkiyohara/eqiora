@@ -383,7 +383,7 @@ removal = "withdraw MixedBoundaryElasticityResult2d when a common native static 
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 146
+ceiling = 147
 reason = """
 The current Model and ModelTransaction envelopes own the single admitted wire
 epoch; validated content, canonical bytes, and digest derivation remain below
@@ -398,8 +398,12 @@ generated-mesh and Field-output identities needed to remove the bounded
 structural result surface without triangulating Q1 cells or inventing a
 lineage-free projection. They reuse the existing mesh and Field decoder
 budgets and add no provider registry or extension trait.
+CartesianMeshDecoderLimits is the one typed caller policy required to bound
+axis-compressed all-strata entity and closure-reference amplification without
+reinterpreting MeshDecoderLimits, breaking its external struct literals, or
+serializing trust into the Cartesian wire.
 """
-removal = "withdraw the circular-hole wire and accepted type-state owner when common CAD/Mesh publication replaces both without losing the frozen scientific replay evidence; replace the specialized Cartesian Q1 snapshot with the common FieldSnapshot owner when that owner admits hypercube bases without weakening exact mesh linkage, then lower by one; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
+removal = "withdraw the circular-hole wire and accepted type-state owner when common CAD/Mesh publication replaces both without losing the frozen scientific replay evidence; replace the specialized Cartesian Q1 snapshot with the common FieldSnapshot owner when that owner admits hypercube bases without weakening exact mesh linkage, then lower by one; fold CartesianMeshDecoderLimits into a source-compatible shared amplification policy only when that policy names both all-strata entities and entity-closure references without assigning Cartesian meaning to simplicial limits, then lower by one; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
 
 [[public_surface]]
 crate = "eqiora-assembly"
