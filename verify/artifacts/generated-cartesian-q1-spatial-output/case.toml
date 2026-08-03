@@ -1,5 +1,5 @@
 id = "artifacts.generated-cartesian-q1-spatial-output"
-status = "specified"
+status = "verified"
 scope = "one-generated-2d-cartesian-hypercube-mesh-and-vertex-q1-vector-field-snapshot"
 reference_kind = "dual-derived-exact-topology-membership-and-relational-content-lineage"
 
