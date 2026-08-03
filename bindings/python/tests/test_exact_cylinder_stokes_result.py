@@ -160,6 +160,27 @@ def semantic_model_digest(encoded: bytes) -> str:
     return hashlib.sha256(b"eqiora.model-envelope/v8\0" + canonical).hexdigest()
 
 
+def parameter_value_variant(encoded: bytes) -> bytes:
+    """Change one Parameter value without changing any semantic node identity."""
+
+    document = json.loads(encoded)
+    parameter = next(
+        node for node in document["nodes"] if node["id"]["kind"] == "parameter"
+    )
+    identifier = parameter["id"]["ulid"]
+    original = parameter["definition"]["value"]["value"]
+    replacement = original + 1.0
+    parameter["definition"]["value"]["value"] = replacement
+    value = next(
+        item
+        for item in document["values"]
+        if item["target"] == {"kind": "parameter", "ulid": identifier}
+    )
+    assert value["value"]["value"] == original
+    value["value"]["value"] = replacement
+    return json.dumps(document, separators=(",", ":"), ensure_ascii=False).encode()
+
+
 def model_result_ids(encoded: bytes) -> tuple[str, str]:
     document = json.loads(encoded)
     nodes = document["nodes"]
@@ -638,9 +659,8 @@ def test_static_result_field_and_mesh_identity_fail_closed(
     with pytest.raises(KeyError):
         result.mesh(absent)
 
-    edit = current.preview_value_edit(current.parameter_ids[0], 2.0)
-    revised = current.commit(edit)
-    same_id_foreign_model = revised.field(accepted_field.id)
+    foreign_artifact = replayed(parameter_value_variant(model_bytes()))
+    same_id_foreign_model = foreign_artifact.field(accepted_field.id)
     assert same_id_foreign_model.id == accepted_field.id
     assert same_id_foreign_model.model_digest != accepted_field.model_digest
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import gc
 import inspect
 import io
+import json
 import os
 import struct
 import sys
@@ -115,6 +116,27 @@ def accepted_result() -> eqiora.Result:
     )
     plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
     return eqiora.run(model, plan=plan)
+
+
+def parameter_value_variant(encoded: bytes) -> bytes:
+    """Change one Parameter value while preserving every semantic Field ULID."""
+
+    document = json.loads(encoded)
+    parameter = next(
+        node for node in document["nodes"] if node["id"]["kind"] == "parameter"
+    )
+    identifier = parameter["id"]["ulid"]
+    original = parameter["definition"]["value"]["value"]
+    replacement = original + 1.0
+    parameter["definition"]["value"]["value"] = replacement
+    value = next(
+        item
+        for item in document["values"]
+        if item["target"] == {"kind": "parameter", "ulid": identifier}
+    )
+    assert value["value"]["value"] == original
+    value["value"]["value"] = replacement
+    return json.dumps(document, separators=(",", ":")).encode()
 
 
 def accepted_reference_result() -> tuple[eqiora.Model, eqiora.Result]:
@@ -369,17 +391,18 @@ def test_static_scalar_still_rejects_wrong_call_shape_and_identity_before_render
 ) -> None:
     snapshot = result.snapshots[0]
     field = snapshot.field
-    current = eqiora.replay(
+    model_bytes = (
         files(eqiora)
         .joinpath("examples", "steady-flow-past-cylinder.model.json")
         .read_bytes()
     )
+    current = eqiora.replay(model_bytes)
     absent_id = next(
         identifier for identifier in current.field_ids if identifier != field.id
     )
     absent = current.field(absent_id)
-    revised = current.commit(current.preview_value_edit(current.parameter_ids[0], 2.0))
-    same_id_foreign_model = revised.field(field.id)
+    foreign_artifact = eqiora.replay(parameter_value_variant(model_bytes))
+    same_id_foreign_model = foreign_artifact.field(field.id)
     reference_model, reference = accepted_reference_result()
 
     assert same_id_foreign_model.id == field.id
