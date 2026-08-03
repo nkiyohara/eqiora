@@ -579,6 +579,7 @@ below.
 | Capability | C | X | V | M | Current boundary / mature destination |
 |---|:---:|:---:|:---:|:---:|---|
 | Typed study definition | 🟨 | 🟨 | 🟨 | ⬜ | Realization and run artifacts exist; a study spanning many related runs remains |
+| Bounded single-Parameter study composition | ✅ | ✅ | ✅ | ⬜ | Rust binds one immutable accepted 2D scalar-Poisson FEM differentiable program to its exact default point and one varying `diffusion` coordinate, canonicalizes 2--64 finite exact-bit-unique values by binary64 total order, executes serially through the retained program, and publishes either one complete aggregate of unchanged accepted evaluations or an atomic failure/cancellation report. The registered witness uses three points and separately evaluates each member. Multiple varying Parameters, general FEM/FVM studies, Python exposure, parallel or backend batching, solver reuse, caching, persistence, derivatives across the study axis, DOE, optimization, UQ, scheduling, retry, pause/resume, and partial accepted results remain; [`differentiation.bounded-parameter-study`](../verify/differentiation/bounded-parameter-study/README.md) |
 | Static analysis study | 🟨 | ✅ | ✅ | ⬜ | Scalar elliptic slices run; general physics study API remains |
 | Transient analysis study | 🟨 | ✅ | ✅ | ⬜ | Bounded ODE/DAE slices; general transient multiphysics workflow remains |
 | Modal analysis study | ⬜ | ⬜ | ⬜ | ⬜ | Generalized eigenproblem, normalization, participation, and result semantics remain |
