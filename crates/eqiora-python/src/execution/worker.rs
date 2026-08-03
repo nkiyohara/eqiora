@@ -10,6 +10,7 @@ use eqiora::api::{
     ScalarEllipticRunProgress,
 };
 use eqiora::backends::faer::FaerLinearSolver;
+use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 
 use super::{
     NativeRunCancellation, NativeRunOutput, NativeRunProgress, RunFailure, RunShared, RunTerminal,
@@ -140,7 +141,7 @@ fn execute_job(
         NativeRunJob::SteadyStokes(plan) => {
             let started = Instant::now();
             let result = plan
-                .execute(&FaerLinearSolver)
+                .execute(&REFERENCE_LINEAR_SOLVER)
                 .map_err(|diagnostic| vec![diagnostic])?;
             let elapsed_seconds = started.elapsed().as_secs_f64();
             let physical = SteadyStokesPhysicalEvidence::new(

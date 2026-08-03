@@ -8,13 +8,14 @@ use eqiora::Diagnostic;
 use eqiora::api::{
     LinearElasticityIntent2d, MixedBoundaryElasticityResult2d, ResolvedLinearElasticityPlan2d,
 };
-use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::diagnostic::codes;
 use eqiora::realization::{
     DiscretizationMethod, MeshKind, MeshPolicy, QuadraturePolicy, ResolutionSource, SpaceFamily,
     VectorLayoutKind,
 };
-use eqiora::solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType};
+use eqiora::solver::{
+    LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType,
+};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyModule};
 
@@ -481,7 +482,7 @@ pub(crate) fn resolve(
             .clone();
         let intent = intent.native;
         let native = py.detach(move || {
-            ResolvedLinearElasticityPlan2d::resolve(&document, intent, &FaerLinearSolver)
+            ResolvedLinearElasticityPlan2d::resolve(&document, intent, &REFERENCE_LINEAR_SOLVER)
         });
         native
             .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))

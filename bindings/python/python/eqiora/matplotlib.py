@@ -18,6 +18,7 @@ except ModuleNotFoundError as error:
     ) from error
 
 from ._eqiora import FieldRef, Result, Trajectory
+from .fluid import steady_stokes_evidence
 from .solid import linear_elasticity_evidence
 
 __all__ = [
@@ -67,6 +68,10 @@ def plot_scalar_field(
     if isinstance(trajectory, Result):
         if step is not _MISSING:
             raise TypeError("plot_scalar_field() does not accept step for Result")
+        evidence = steady_stokes_evidence(trajectory)
+        bounds = evidence.exact_bounds
+        minimum = evidence.pressure_minimum
+        maximum = evidence.pressure_maximum
         snapshot = trajectory.field(field)
         spatial = trajectory.mesh(field)
         state = None
@@ -76,6 +81,7 @@ def plot_scalar_field(
             raise TypeError("plot_scalar_field() requires step for Trajectory")
         state, snapshot = _trajectory_snapshot(trajectory, step, field)
         spatial = trajectory
+        bounds = None
         scalar_label = f"Value [{_coherent_si_unit(snapshot.dimension)}]"
     else:
         raise TypeError(
@@ -92,8 +98,9 @@ def plot_scalar_field(
         cell_arity=3,
     )
     restricted = values[support]
-    minimum = float(restricted.min())
-    maximum = float(restricted.max())
+    if state is not None:
+        minimum = float(restricted.min())
+        maximum = float(restricted.max())
 
     figure = Figure(figsize=(8.0, 5.2), facecolor="#ffffff")
     axes = figure.add_axes((0.09, 0.13, 0.76, 0.76))
@@ -120,10 +127,7 @@ def plot_scalar_field(
         _set_field_axes_bounds(axes, coordinates[support])
         axes.set_title(f"Scalar field — step {state.step}, t = {state.time_s:g} s")
     else:
-        x_minimum = float(coordinates[support, 0].min())
-        x_maximum = float(coordinates[support, 0].max())
-        y_minimum = float(coordinates[support, 1].min())
-        y_maximum = float(coordinates[support, 1].max())
+        (x_minimum, x_maximum), (y_minimum, y_maximum) = bounds
         axes.set_xlim(x_minimum, x_maximum)
         axes.set_ylim(y_minimum, y_maximum)
         _finish_field_axes(axes)
