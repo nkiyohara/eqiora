@@ -59,6 +59,15 @@ sub-budget; explicit candidate-specific environment settings may narrow or
 raise it when the enclosing execution environment has been provisioned to
 match.
 
+The standard `release-tools` dependency group in `pyproject.toml` owns the exact
+reviewed `uv` and Twine versions, and Dependabot's `uv` ecosystem proposes
+upgrades to that source. Candidate execution neither trusts nor rejects an
+ambient `uv`: it installs the declared binary wheel once below
+`~/.cache/eqiora/tools/uv/`, validates the resulting executable, and reuses that
+versioned cache entry. Updating either reviewed tool is an ordinary dependency
+change followed by the complete distribution gate; a floating `latest` never
+enters candidate identity.
+
 Registered host evidence builds this complete candidate once for one source
 commit and platform. The distribution, typing, PyTorch, JAX, and Matplotlib
 validations then require their own closed check groups from that same manifest

@@ -35,6 +35,9 @@ jax = [
 matplotlib = ["matplotlib==3.11.1"]
 torch = ["torch>=2.13,<2.14"]
 
+[dependency-groups]
+release-tools = ["twine==7.0.0", "uv==0.12.1"]
+
 [project.urls]
 Homepage = "https://eqiora.org"
 Documentation = "https://eqiora.org"
@@ -85,10 +88,8 @@ wheel-platform = "manylinux_2_17_x86_64"
 extras-python = "3.13"
 numpy-floor-python = "3.12"
 tested-numpy-floor = "numpy==2.1.0"
-uv = "uv==0.11.31"
 pytest = "pytest==9.1.1"
 mypy = "mypy==2.3.0"
-twine = "twine==6.2.0"
 tested-torch = "torch==2.13.0"
 tested-jax = ["jax==0.11.0", "jaxlib==0.11.0"]
 tested-matplotlib = "matplotlib==3.11.1"

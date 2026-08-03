@@ -8,6 +8,7 @@ import tarfile
 import tempfile
 import threading
 import time
+import tomllib
 import types
 import unittest
 import zipfile
@@ -28,6 +29,8 @@ from python_candidate import (  # noqa: E402
     CandidateError,
     DistributionConfig,
     SourceIdentity,
+    ensure_exact_uv,
+    exact_uv_version,
     inspect_wheel,
     prepare_base_consumer_tree,
     python_distribution_version,
@@ -47,7 +50,7 @@ class PythonCandidateTests(unittest.TestCase):
             extras_interpreter="3.13",
             numpy_floor_interpreter="3.12",
             numpy_floor="numpy==2.1.0",
-            uv="uv==0.11.31",
+            uv="uv==0.12.1",
             maturin="maturin==1.14.1",
             pytest="pytest==9.1.1",
             mypy="mypy==2.3.0",
@@ -86,20 +89,76 @@ class PythonCandidateTests(unittest.TestCase):
             with self.assertRaises(CandidateError, msg=rejected):
                 python_distribution_version(rejected)
 
-    @mock.patch("python_candidate.tool_version", return_value="uv 0.11.31")
+    def test_standard_release_tools_group_is_the_only_uv_version_source(self) -> None:
+        document = tomllib.loads(
+            (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        )
+        config = python_candidate_module.load_config()
+
+        self.assertNotIn("uv", document["tool"]["eqiora-distribution"])
+        self.assertEqual(
+            document["dependency-groups"]["release-tools"],
+            [config.twine, config.uv],
+        )
+
+    @mock.patch("python_candidate.tool_version", return_value="uv 0.12.1")
     def test_release_tool_requires_the_exact_reviewed_uv(
         self,
         version: mock.Mock,
     ) -> None:
-        require_exact_uv("/usr/bin/uv", "uv==0.11.31")
+        require_exact_uv("/usr/bin/uv", "uv==0.12.1")
         version.assert_called_once_with(["/usr/bin/uv", "--version"])
 
-        version.return_value = "uv 0.11.32"
-        with self.assertRaisesRegex(CandidateError, "requires uv 0.11.31"):
-            require_exact_uv("/usr/bin/uv", "uv==0.11.31")
+        version.return_value = "uv 0.12.0"
+        with self.assertRaisesRegex(CandidateError, "requires uv 0.12.1"):
+            require_exact_uv("/usr/bin/uv", "uv==0.12.1")
 
-        with self.assertRaisesRegex(CandidateError, "requirement is malformed"):
-            require_exact_uv("/usr/bin/uv", "uv>=0.11.31")
+        for malformed in ("uv>=0.12.1", "uv==0.12", "uv==../0.12.1"):
+            with self.assertRaisesRegex(CandidateError, "requirement is malformed"):
+                exact_uv_version(malformed)
+
+    def test_exact_uv_is_installed_once_in_a_versioned_cache(self) -> None:
+        calls: list[list[str]] = []
+
+        def checked(argv: list[str], **_kwargs: object) -> str:
+            calls.append(argv)
+            if argv[1:3] == ["-m", "venv"]:
+                (_virtual_environment := Path(argv[-1]) / "bin").mkdir(parents=True)
+                (_virtual_environment / "python").touch()
+                return ""
+            if argv[1:4] == ["-m", "pip", "install"]:
+                Path(argv[0]).with_name("uv").touch()
+                return ""
+            if argv[-1:] == ["--version"]:
+                return "uv 0.12.1"
+            self.fail(f"unexpected command: {argv}")
+
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            cache = Path(temporary) / "tools"
+            with mock.patch.object(
+                python_candidate_module,
+                "checked_run",
+                side_effect=checked,
+            ):
+                first = ensure_exact_uv("uv==0.12.1", cache_root=cache)
+                install_call_count = len(calls)
+                second = ensure_exact_uv("uv==0.12.1", cache_root=cache)
+
+        self.assertEqual(first, second)
+        self.assertEqual(
+            Path(first),
+            cache.resolve() / "uv" / "0.12.1" / "bin" / "uv",
+        )
+        self.assertEqual(install_call_count, 4)
+        self.assertEqual(len(calls), 5)
+        self.assertEqual(
+            calls[1][-3:],
+            [
+                "--disable-pip-version-check",
+                "--only-binary=:all:",
+                "uv==0.12.1",
+            ],
+        )
 
     @mock.patch("python_candidate.checked_run")
     def test_public_smoke_uses_the_installed_interpreter_in_isolated_mode(
@@ -497,7 +556,11 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 "require_executable",
                 side_effect=lambda name: f"/tool/{name}",
             ),
-            mock.patch.object(python_candidate_module, "require_exact_uv"),
+            mock.patch.object(
+                python_candidate_module,
+                "ensure_exact_uv",
+                return_value="/tool/uv",
+            ),
             mock.patch.object(
                 python_candidate_module, "checked_run", side_effect=checked
             ),

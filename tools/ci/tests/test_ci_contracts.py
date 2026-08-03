@@ -141,9 +141,9 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertIn(action, python_evidence)
         self.assertIn('python-version: "3.12"', python_evidence)
         self.assertIn('["tested-numpy-floor"]', python_evidence)
-        self.assertIn('["uv"]', python_evidence)
+        self.assertNotIn('["uv"]', python_evidence)
         self.assertIn("python -m pip install --only-binary=:all:", python_evidence)
-        self.assertIn("uv --version", python_evidence)
+        self.assertNotIn("uv --version", python_evidence)
         self.assertIn(
             "sudo apt-get install --no-install-recommends --yes ffmpeg",
             python_evidence,
@@ -155,6 +155,12 @@ class HostedTriggerTests(unittest.TestCase):
             "--runner-kind python-installed-wheel",
             python_evidence,
         )
+
+        release = (
+            REPOSITORY_ROOT / ".github/workflows/python-release-candidate.yml"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("uv==", release)
+        self.assertIn("tools/release/python_candidate.py", release)
 
     def test_hosted_test_profile_is_compact_and_test_scoped(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
@@ -220,6 +226,7 @@ class HostedTriggerTests(unittest.TestCase):
         )
         self.assertEqual(workflow.count(formatting), 1)
         self.assertIn("rustup toolchain install 1.89.0", studio)
+        self.assertIn("node-version: 24.18.1", studio)
         self.assertIn(
             "cargo +1.89.0 check --manifest-path studio/src-tauri/Cargo.toml --locked --all-targets",
             studio,
@@ -247,6 +254,12 @@ class HostedTriggerTests(unittest.TestCase):
             "arguments: --all-features --locked --config studio/src-tauri/deny.toml",
             dependency,
         )
+
+        dependabot = (REPOSITORY_ROOT / ".github/dependabot.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("package-ecosystem: uv", dependabot)
+        self.assertIn("package-ecosystem: npm", dependabot)
 
 
 class DependencyIdentityTests(unittest.TestCase):

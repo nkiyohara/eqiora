@@ -155,7 +155,8 @@ References:
 
 ## TypeScript and Tauri (first vertical slice active)
 
-- Baselines checked 2026-07-18: Node.js 24.18.0 LTS, TypeScript 7.0.2,
+- Baselines checked 2026-08-03: Node.js 24.18.1 LTS with npm 11.16.0,
+  TypeScript 7.0.2,
   Tauri 2.11.5 with `@tauri-apps/api` 2.11.1, React/React DOM 19.2.7,
   React Flow 12.11.2, Vite 8.1.5, Vitest 4.1.10, Playwright 1.61.1,
   axe-core/Playwright 4.12.1, Biome 2.5.4, and Zod 4.4.3. The Studio owns
