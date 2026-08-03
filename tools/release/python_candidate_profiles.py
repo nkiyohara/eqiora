@@ -45,6 +45,7 @@ PYTHON_TEST_FIXTURES = (
     Path("verify/interfaces/current-authoring-profile"),
     Path("packages/org.example.poisson"),
     Path("verify/packages/offline-model-package"),
+    Path("verify/packages/typed-execution-lineage"),
     Path(
         "verify/artifacts/current-model-relational-identity-transition/"
         "expected/deterministic/offline-model-package"
