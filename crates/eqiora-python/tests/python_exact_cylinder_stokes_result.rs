@@ -72,13 +72,16 @@ def mesh(source):
         maximum_boundary_facets=50,
     )
     plan = eqiora.meshing.resolve(source, request)
-    return eqiora.meshing.generate(source, plan=plan)
+    return plan, eqiora.meshing.generate(source, plan=plan)
 
 source = geometry()
-realized = mesh(source)
+mesh_plan, realized = mesh(source)
 assert "numpy" not in sys.modules
 assert not hasattr(eqiora.fluid, "solve_exact_cylinder_stokes")
 assert "solve_exact_cylinder_stokes" not in eqiora.fluid.__all__
+assert not hasattr(eqiora.fluid, "CircularHoleSteadyStokesResult")
+assert "CircularHoleSteadyStokesResult" not in eqiora.fluid.__all__
+assert not hasattr(sys.modules["eqiora._eqiora"], "CircularHoleSteadyStokesResult")
 
 intent = eqiora.fluid.SteadyStokes(
     length_scale_m=0.41,
@@ -131,42 +134,52 @@ assert hashlib.sha256(
 run = eqiora.submit(current, plan=plan)
 result = run.result()
 assert run.result() is result
-assert plan.realization_digest == result.realization_digest
-assert plan.execution_adapter == result.solve.adapter
+assert plan.execution_adapter == result.adapter
 assert "numpy" not in sys.modules
 assert type(result).__module__ == "eqiora._eqiora"
-assert type(result).__name__ == "CircularHoleSteadyStokesResult"
-assert isinstance(result, eqiora.fluid.CircularHoleSteadyStokesResult)
+assert type(result).__name__ == "Result"
+assert isinstance(result, eqiora.Result)
 assert result.model_digest == MODEL_DIGEST
-assert result.exact_source_digest == SOURCE_DIGEST
-assert result.mesh_digest == MESH_DIGEST
-assert result.semantic_revision == 1
-assert result.realization_revision == 133
-assert result.pressure.shape == (104,)
-assert result.pressure[0] == result.pressure[0]
+assert result.model_id == current.model_id
+assert result.model_revision == 1
+assert result.fields == []
+assert len(result.snapshots) == 1
+snapshot = result.snapshots[0]
+assert result.field(snapshot.field) is snapshot
+assert result.mesh(snapshot.field) is realized
+assert snapshot.mesh_digest == MESH_DIGEST
+assert snapshot.dimension == (1, -1, -2, 0, 0, 0, 0)
+assert snapshot.value_shape == ()
+assert snapshot.frame == "invariant"
+assert snapshot.associations == ("vertex",)
+evidence = eqiora.fluid.steady_stokes_evidence(result)
+assert isinstance(evidence, eqiora.fluid.SteadyStokesEvidence)
 assert "numpy" not in sys.modules
 
-binding = json.loads(result.chordal_realization_json)
-assert binding["source_geometry_sha256"] == result.exact_source_digest
-assert binding["mesh_sha256"] == result.mesh_digest
+binding = json.loads(mesh_plan.canonical_bytes)
+assert binding["source_geometry_sha256"] == source.digest
+assert binding["realized_geometry_sha256"] == realized.realized_geometry_digest
+assert binding["mesh_sha256"] == realized.digest
 assert hashlib.sha256(
-    binding["schema"].encode() + b"\0" + result.chordal_realization_json
-).hexdigest() == result.chordal_realization_digest
+    binding["schema"].encode() + b"\0" + mesh_plan.canonical_bytes
+).hexdigest() == realized.realization_digest
 
-run = json.loads(result.run_manifest_json)
+manifest = result.run_manifest()
+run_bytes = manifest.to_json()
+run = json.loads(run_bytes)
 assert run["model_sha256"] == result.model_digest
-assert run["realization_sha256"] == result.realization_digest
-assert run["output_sha256"] == [result.snapshot_digest]
+assert run["realization_sha256"] == plan.realization_digest
+assert run["output_sha256"] == [snapshot.digest]
 assert hashlib.sha256(
-    run["schema"].encode() + b"\0" + result.run_manifest_json
-).hexdigest() == result.run_digest
+    run["schema"].encode() + b"\0" + run_bytes
+).hexdigest() == manifest.digest == evidence.run_digest
 
-coordinates = result.coordinates
-triangles = result.triangles
+coordinates = realized.coordinates
+triangles = realized.cells
 assert "numpy" in sys.modules
 assert coordinates.shape == (104, 2)
 assert triangles.shape == (104, 3)
-assert result.pressure.numpy(copy=False).shape == (104,)
+assert snapshot.values("vertex").shape == (104,)
 
 try:
     eqiora.replay(b'{"schema":')
@@ -176,7 +189,7 @@ except eqiora.CompatibilityError as error:
 else:
     raise AssertionError("malformed current Model crossed the native boundary")
 
-foreign = mesh(geometry(tolerance=1e-10))
+_, foreign = mesh(geometry(tolerance=1e-10))
 assert foreign.digest == realized.digest
 try:
     eqiora.fluid.resolve(current, intent, mesh=foreign)

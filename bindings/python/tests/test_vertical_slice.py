@@ -96,6 +96,10 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
     result = eqiora.run(model, end_time=0.2, max_step=0.1)
     series = result["x"]
     assert result[series.id] is series
+    assert isinstance(result.fields, list)
+    assert result.fields == [series]
+    assert len(result) == 1
+    assert result.snapshots == ()
     assert series.dimension == (0, 0, 0, 0, 0, 0, 0)
     time = series.time.numpy(copy=False)
     values = series.values.numpy(copy=False)
@@ -111,6 +115,16 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
     copied = series.values.numpy(copy=True)
     assert copied is not values
     assert copied.flags.writeable
+
+    field = model.field("x")
+    with pytest.raises(KeyError):
+        result.field(field)
+    with pytest.raises(KeyError):
+        result.mesh(field)
+    with pytest.raises(eqiora.CapabilityError):
+        result.run_manifest()
+    with pytest.raises(eqiora.CapabilityError):
+        eqiora.fluid.steady_stokes_evidence(result)
 
     del series, result, model
     gc.collect()

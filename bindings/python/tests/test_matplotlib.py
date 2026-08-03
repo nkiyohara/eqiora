@@ -71,7 +71,7 @@ ACCEPTED_STEPS = (1, 2)
 CONTRACT_VOCABULARY = r"value shape|frame|dimension|association"
 
 
-def accepted_result() -> eqiora.fluid.CircularHoleSteadyStokesResult:
+def accepted_result() -> eqiora.Result:
     graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
         x_bounds=(0.0, 2.2),
         y_bounds=(0.0, 0.41),
@@ -115,6 +115,16 @@ def accepted_result() -> eqiora.fluid.CircularHoleSteadyStokesResult:
     )
     plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
     return eqiora.run(model, plan=plan)
+
+
+def accepted_reference_result() -> tuple[eqiora.Model, eqiora.Result]:
+    state = eqiora.Field("x", initial=1.0)
+    model = eqiora.Model.define(
+        "hold",
+        state,
+        eqiora.Relation("hold", residual=eqiora.derivative(state)),
+    )
+    return model, eqiora.run(model, end_time=0.1, max_step=0.1)
 
 
 def accepted_structural_result() -> eqiora.solid.MixedBoundaryElasticityResult:
@@ -178,7 +188,7 @@ def accepted_fsi_trajectory() -> tuple[
 
 
 @pytest.fixture(scope="module")
-def result() -> eqiora.fluid.CircularHoleSteadyStokesResult:
+def result() -> eqiora.Result:
     return accepted_result()
 
 
@@ -197,19 +207,33 @@ def fsi() -> tuple[
 
 
 def test_plot_passes_the_accepted_p1_field_unchanged_to_matplotlib(
-    result: eqiora.fluid.CircularHoleSteadyStokesResult,
+    result: eqiora.Result,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import matplotlib.pyplot as pyplot
 
-    expected_coordinates = result.coordinates.copy()
-    expected_triangles = result.triangles.copy()
-    expected_pressure = result.pressure.numpy(copy=True)
+    snapshot = result.snapshots[0]
+    mesh = result.mesh(snapshot.field)
+    evidence = eqiora.fluid.steady_stokes_evidence(result)
+    expected_coordinates = mesh.coordinates.copy()
+    expected_triangles = mesh.cells.copy()
+    expected_pressure = snapshot.values("vertex").copy()
+    expected_support = snapshot.support_indices("vertex").copy()
+    bytes_before = (
+        mesh.canonical_bytes,
+        result.run_manifest().to_json(),
+    )
     identity = (
+        result.model_id,
         result.model_digest,
-        result.mesh_digest,
-        result.snapshot_digest,
-        result.run_digest,
+        result.plan_key,
+        mesh.digest,
+        snapshot.field,
+        snapshot.digest,
+        snapshot.block_digests,
+        snapshot.mesh_digest,
+        result.run_manifest().digest,
+        evidence.run_digest,
     )
     observed: dict[str, Any] = {}
     original = Axes.tripcolor
@@ -225,7 +249,7 @@ def test_plot_passes_the_accepted_p1_field_unchanged_to_matplotlib(
 
     monkeypatch.setattr(Axes, "tripcolor", capture)
     registered_figures = pyplot.get_fignums()
-    figure = eqplot.plot_pressure(result)
+    figure = eqplot.plot_scalar_field(result, field=snapshot.field)
     axes = figure.axes[0]
 
     assert pyplot.get_fignums() == registered_figures
@@ -233,6 +257,7 @@ def test_plot_passes_the_accepted_p1_field_unchanged_to_matplotlib(
     np.testing.assert_array_equal(observed["y"], expected_coordinates[:, 1])
     np.testing.assert_array_equal(observed["triangles"], expected_triangles)
     np.testing.assert_array_equal(observed["values"], expected_pressure)
+    np.testing.assert_array_equal(expected_support, np.arange(104, dtype=np.uint32))
     assert expected_coordinates.shape == (104, 2)
     assert expected_triangles.shape == (104, 3)
     assert expected_pressure.shape == (104,)
@@ -240,37 +265,56 @@ def test_plot_passes_the_accepted_p1_field_unchanged_to_matplotlib(
     assert np.isfinite(expected_pressure).all()
     assert expected_triangles.max() < expected_coordinates.shape[0]
     assert observed["artist"].get_clim() == (
-        result.pressure_minimum,
-        result.pressure_maximum,
+        evidence.pressure_minimum,
+        evidence.pressure_maximum,
     )
     assert axes.get_xlabel() == "x [m]"
     assert axes.get_ylabel() == "y [m]"
     assert figure.axes[1].get_ylabel() == "Pressure [Pa]"
     assert axes.get_aspect() == 1.0
-    assert axes.get_xlim() == result.bounds[0]
-    assert axes.get_ylim() == result.bounds[1]
+    assert axes.get_xlim() == evidence.exact_bounds[0]
+    assert axes.get_ylim() == evidence.exact_bounds[1]
 
     assert identity == (
+        result.model_id,
         result.model_digest,
-        result.mesh_digest,
-        result.snapshot_digest,
-        result.run_digest,
+        result.plan_key,
+        mesh.digest,
+        snapshot.field,
+        snapshot.digest,
+        snapshot.block_digests,
+        snapshot.mesh_digest,
+        result.run_manifest().digest,
+        evidence.run_digest,
     )
-    np.testing.assert_array_equal(result.coordinates, expected_coordinates)
-    np.testing.assert_array_equal(result.triangles, expected_triangles)
+    assert bytes_before == (
+        mesh.canonical_bytes,
+        result.run_manifest().to_json(),
+    )
+    assert result.snapshots[0] is snapshot
+    assert result.field(snapshot.field) is snapshot
+    assert result.mesh(snapshot.field) is mesh
+    np.testing.assert_array_equal(mesh.coordinates, expected_coordinates)
+    np.testing.assert_array_equal(mesh.cells, expected_triangles)
     np.testing.assert_array_equal(
-        result.pressure.numpy(copy=False),
+        snapshot.values("vertex"),
         expected_pressure,
     )
-    assert not result.coordinates.flags.writeable
-    assert not result.triangles.flags.writeable
+    np.testing.assert_array_equal(
+        snapshot.support_indices("vertex"),
+        expected_support,
+    )
+    assert not mesh.coordinates.flags.writeable
+    assert not mesh.cells.flags.writeable
+    assert not snapshot.values("vertex").flags.writeable
+    assert not snapshot.support_indices("vertex").flags.writeable
 
 
 def test_headless_figure_is_caller_saveable_and_nonblank(
-    result: eqiora.fluid.CircularHoleSteadyStokesResult,
+    result: eqiora.Result,
     tmp_path: Path,
 ) -> None:
-    figure = eqplot.plot_pressure(result)
+    figure = eqplot.plot_scalar_field(result, field=result.snapshots[0].field)
     encoded = io.BytesIO()
     figure.savefig(encoded, format="png")
     payload = encoded.getvalue()
@@ -309,7 +353,7 @@ def test_headless_figure_is_caller_saveable_and_nonblank(
 
 def test_caller_owned_figure_keeps_its_render_data_alive() -> None:
     result = accepted_result()
-    figure = eqplot.plot_pressure(result)
+    figure = eqplot.plot_scalar_field(result, field=result.snapshots[0].field)
 
     del result
     gc.collect()
@@ -319,27 +363,48 @@ def test_caller_owned_figure_keeps_its_render_data_alive() -> None:
     assert encoded.getvalue().startswith(b"\x89PNG\r\n\x1a\n")
 
 
-def test_foreign_inputs_fail_before_rendering(
+def test_static_scalar_still_rejects_wrong_call_shape_and_identity_before_rendering(
+    result: eqiora.Result,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    rendered = False
+    snapshot = result.snapshots[0]
+    field = snapshot.field
+    current = eqiora.replay(
+        files(eqiora)
+        .joinpath("examples", "steady-flow-past-cylinder.model.json")
+        .read_bytes()
+    )
+    absent_id = next(
+        identifier for identifier in current.field_ids if identifier != field.id
+    )
+    absent = current.field(absent_id)
+    revised = current.commit(current.preview_value_edit(current.parameter_ids[0], 2.0))
+    same_id_foreign_model = revised.field(field.id)
+    reference_model, reference = accepted_reference_result()
 
-    def reject_render(*args: Any, **kwargs: Any) -> Any:
-        nonlocal rendered
-        rendered = True
-        raise AssertionError("foreign input reached Matplotlib")
+    assert same_id_foreign_model.id == field.id
+    assert same_id_foreign_model.model_digest != field.model_digest
+    forbid_rendering(monkeypatch)
+    with pytest.raises(TypeError, match="Result|Trajectory"):
+        eqplot.plot_scalar_field(object(), field=field)  # type: ignore[arg-type]
+    with pytest.raises(TypeError):
+        eqplot.plot_scalar_field(result, step=0, field=field)
+    with pytest.raises(ValueError, match="different exact Model"):
+        eqplot.plot_scalar_field(result, field=same_id_foreign_model)
+    with pytest.raises(KeyError):
+        eqplot.plot_scalar_field(result, field=absent)
+    with pytest.raises(eqiora.CapabilityError):
+        eqplot.plot_scalar_field(
+            reference,
+            field=reference_model.field("x"),
+        )
 
-    monkeypatch.setattr(Axes, "tripcolor", reject_render)
-    with pytest.raises(
-        TypeError,
-        match="CircularHoleSteadyStokesResult",
-    ):
-        eqplot.plot_pressure(object())  # type: ignore[arg-type]
-    assert not rendered
+    assert result.field(field) is snapshot
+    assert result.mesh(field).digest == snapshot.mesh_digest
 
 
 def test_displacement_plot_rejects_foreign_inputs_before_rendering(
-    result: eqiora.fluid.CircularHoleSteadyStokesResult,
+    result: eqiora.Result,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     rendered = False
@@ -542,25 +607,32 @@ def test_still_signatures_are_the_frozen_keyword_only_contract() -> None:
     for parameters in (scalar, deformed):
         for name in ("step", "field"):
             assert parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
-            assert parameters[name].default is inspect.Parameter.empty
+    assert scalar["step"].default is not inspect.Parameter.empty
+    assert scalar["field"].default is inspect.Parameter.empty
+    assert deformed["step"].default is inspect.Parameter.empty
+    assert deformed["field"].default is inspect.Parameter.empty
     assert deformed["scale"].kind is inspect.Parameter.KEYWORD_ONLY
     assert deformed["scale"].default == 1.0
 
 
-def test_withdrawn_fsi_still_is_absent_without_alias_shim_or_export() -> None:
+def test_withdrawn_demo_stills_are_absent_without_alias_shims_or_exports() -> None:
     stub = files(eqiora).joinpath("matplotlib.pyi").read_text(encoding="utf-8")
 
-    assert not hasattr(eqplot, "plot_fixed_reference_fsi")
-    with pytest.raises(AttributeError):
-        getattr(eqplot, "plot_fixed_reference_fsi")
-    assert "plot_fixed_reference_fsi" not in dir(eqplot)
-    assert "plot_fixed_reference_fsi" not in stub
+    for removed in ("plot_fixed_reference_fsi", "plot_pressure"):
+        assert not hasattr(eqplot, removed)
+        with pytest.raises(AttributeError):
+            getattr(eqplot, removed)
+        assert removed not in dir(eqplot)
+        assert removed not in stub
     assert eqplot.__all__ == [
         "plot_deformed_field",
         "plot_displacement",
-        "plot_pressure",
         "plot_scalar_field",
     ]
+    assert "from typing import overload" in stub
+    assert "result: Result" in stub
+    assert "trajectory: Trajectory" in stub
+    assert stub.count("def plot_scalar_field(") == 2
     for name in ("plot_scalar_field", "plot_deformed_field"):
         assert name in stub
         assert callable(getattr(eqplot, name))
@@ -758,8 +830,10 @@ def test_stills_reject_foreign_identity_and_contract_violations_before_a_figure(
     assert velocity.dimension != accepted.dimension
 
     forbid_rendering(monkeypatch)
+    with pytest.raises(TypeError):
+        eqplot.plot_scalar_field(trajectory, field=pressure)
     for foreign_input in (object(), result, trajectory.coordinates):
-        with pytest.raises(TypeError, match="Trajectory"):
+        with pytest.raises(TypeError, match="Result|Trajectory|step"):
             eqplot.plot_scalar_field(foreign_input, step=1, field=pressure)
         with pytest.raises(TypeError, match="Trajectory"):
             eqplot.plot_deformed_field(foreign_input, step=1, field=displacement)
