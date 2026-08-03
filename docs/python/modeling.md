@@ -260,12 +260,13 @@ are not the ordinary API.
 The complete runnable workflow is
 [`examples/python/mixed_boundary_elasticity.py`](../../examples/python/mixed_boundary_elasticity.py).
 
-## Fixed-reference FSI demo
+## Fixed-mesh monolithic FSI result
 
-The installed package carries the accepted two-body FSI source. Python compiles
-it through the current Model path; the shared Rust application service owns the
-fixed mesh, coupled Realization, both consecutive monolithic steps, spatial
-states, trajectory, and final Run:
+The installed package carries the accepted fixed-reference two-body FSI source.
+Python compiles it through the current Model path and resolves mandatory,
+explicit fixed-mesh monolithic intent before execution. The shared Rust
+application service owns the fixed mesh, coupled Realization, both consecutive
+monolithic steps, spatial states, trajectory, and final Run:
 
 ```python
 source = (
@@ -277,18 +278,49 @@ model = eqiora.compile(
     source,
     filename="fixed-reference-fsi.eqi",
 )
-result = eqiora.fsi.solve_fixed_reference_fsi(model)
+intent = eqiora.fsi.FixedMeshMonolithic(
+    time_step_s=0.05,
+    steps=2,
+    initial_velocity_m_per_s=(0.0, 0.0),
+    initial_free_interface_displacement_m=(0.02, 0.0),
+    length_scale_m=2.0,
+    velocity_scale_m_per_s=0.5,
+    pressure_scale_pa=4.0,
+    relative_tolerance=1.0e-11,
+    absolute_tolerance=1.0e-13,
+    maximum_iterations=20_000,
+)
+plan = eqiora.fsi.resolve(model, intent)
+run = eqiora.submit(model, plan=plan)
+result = run.result()
+trajectory = result.trajectory
+evidence = eqiora.fsi.fixed_mesh_monolithic_evidence(result)
 
-assert tuple(step.ordinal for step in result.steps) == (1, 2)
-assert not result.trajectory.coordinates.flags.writeable
-assert not result.step(2).displacement.flags.writeable
+assert tuple(state.step for state in trajectory.states) == (1, 2)
+assert not trajectory.coordinates.flags.writeable
+for state in trajectory.states:
+    state_evidence = evidence.state(state)
+    print(state.step, state.time_s, state_evidence.solve)
 ```
 
-The common `Trajectory` is the sole Python owner of the exact Model, Geometry,
-correspondence, Mesh, Realization, Run, ordered-state, and trajectory identities
-as well as the fixed reference coordinates and connectivity. The application
-result retains only its typed FSI partition, step, solver, balance, and
-acceptance evidence beside that trajectory.
+`FixedMeshMonolithic` is keyword-only, immutable, and has no hidden numerical
+defaults. Its initial state explicitly applies zero velocity everywhere and
+the accepted displacement only on unconstrained interface vertices. The
+model-bound `FixedMeshMonolithicPlan` exposes the admitted fixed-reference
+geometry policy, affine-triangle spaces, backward-Euler time policy, monolithic
+coupling, scales, symmetric-indefinite solver, tolerances, backend, execution
+adapter, worker count, and state count before a worker starts. Resolution
+rejects every unsupported value and foreign Model meaning rather than falling
+back.
+
+The common `Result` returns the common `Trajectory`, which is the sole Python
+owner of the exact Model, Geometry, correspondence, Mesh, Realization, Run,
+ordered-state, and trajectory identities as well as the fixed reference
+coordinates, connectivity, and spatial fields. `FixedMeshMonolithicEvidence`
+owns the exhaustive fluid/solid/interface partition. Its exact
+`TrajectoryState` lookup returns the corresponding action, energy, residual,
+solve, and assembly observations without turning the state into a
+physics-specific property bag.
 
 The optional Matplotlib adapters select an exact Model-bound Field from an
 already accepted trajectory state. They restrict both values and topology to
@@ -297,14 +329,14 @@ spatial-cartesian vector with the SI dimension of length:
 
 ```python
 pressure_figure = eqplot.plot_scalar_field(
-    result.trajectory,
+    trajectory,
     step=2,
     field=model.field("fluid_pressure"),
 )
 pressure_figure.savefig("fixed-reference-pressure.png")
 
 deformed_figure = eqplot.plot_deformed_field(
-    result.trajectory,
+    trajectory,
     step=2,
     field=model.field("solid_displacement"),
     scale=12,
@@ -314,12 +346,12 @@ deformed_figure.savefig("fixed-reference-deformed.png")
 
 The complete runnable workflow is
 [`examples/python/fixed_reference_fsi.py`](../../examples/python/fixed_reference_fsi.py).
-It is one immutable fixed-reference 2D composition. It does not expose a
-general coupling graph, Python time loop, ALE or remeshing, partitioned
-iteration, stress/drag/lift derivation, animation, or scientific validation
-from pixels. Field names above are resolved by the caller's exact `Model`; the
-presentation adapters receive `FieldRef` values and never use names as field
-identity.
+It is one immutable fixed-reference 2D, affine-triangle, host-serial, two-step
+composition. It does not expose a general coupling graph, Python time loop,
+ALE or remeshing, partitioned iteration, stress/drag/lift derivation,
+animation, or scientific validation from pixels. Field names above are
+resolved by the caller's exact `Model`; the presentation adapters receive
+`FieldRef` values and never use names as field identity.
 
 ## Conserving connections
 
