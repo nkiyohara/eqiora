@@ -353,6 +353,236 @@ mod tests {
     use super::*;
     use crate::{CargoEvidenceTarget, PythonEvidenceRunner, PythonInstalledWheelEvidenceTarget};
 
+    fn library_target(
+        test: &str,
+        features: &[&str],
+        environment: EvidenceEnvironment,
+    ) -> EvidenceTarget {
+        let features = features
+            .iter()
+            .map(|feature| format!("\"{feature}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
+        toml::from_str(&format!(
+            "runner = \"cargo-library-test\"\npackage = \"eqiora-numerics\"\ntest = \"{test}\"\nfeatures = [{features}]\nenvironment = \"{}\"\n",
+            environment.as_str()
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn library_build_and_execution_commands_are_closed_exact_and_reproducible() {
+        let runner = SystemEvidenceRunner {
+            cargo: OsString::from("cargo-evidence"),
+            python: OsString::from("python-evidence"),
+            prepared: Arc::new(Mutex::new(BTreeMap::new())),
+        };
+        let root = Path::new("/repository");
+        let first = library_target(
+            "private_parent::private_child::registered_evidence",
+            &["one", "two"],
+            EvidenceEnvironment::HostCpu,
+        );
+        let second = library_target(
+            "private_parent::private_child::second_evidence",
+            &["two", "one"],
+            EvidenceEnvironment::HostCpu,
+        );
+        assert!(matches!(
+            &first,
+            EvidenceTarget::Cargo(CargoEvidenceTarget { test, .. })
+                if test == "lib::private_parent::private_child::registered_evidence"
+        ));
+
+        let build = runner.cargo_build_command(root, &[first.clone(), second]);
+        assert_eq!(build.get_program(), "cargo-evidence");
+        assert_eq!(
+            build
+                .get_args()
+                .map(|argument| argument.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            [
+                "test",
+                "--locked",
+                "-p",
+                "eqiora-numerics",
+                "--lib",
+                "--no-run",
+                "--message-format=json",
+                "--features",
+                "one,two",
+            ]
+        );
+        assert_eq!(build.get_current_dir(), Some(root));
+
+        runner.prepared.lock().unwrap().insert(
+            ExecutionKey::from_target(&first),
+            PreparedCargoTarget {
+                executable: PathBuf::from("/target/eqiora_numerics-lib"),
+                build_stderr: "warning: retained library diagnostic\n".to_owned(),
+            },
+        );
+        let command = runner.command(root, &first).unwrap();
+        assert_eq!(command.get_program(), "/target/eqiora_numerics-lib");
+        assert_eq!(
+            command
+                .get_args()
+                .map(|argument| argument.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            [
+                "private_parent::private_child::registered_evidence",
+                "--exact"
+            ]
+        );
+        assert_eq!(command.get_current_dir(), Some(root));
+        assert_eq!(
+            runner.completed_stderr(
+                &first,
+                b"frozen private oracle failure\n\
+                  test result: FAILED. 0 passed; 1 failed\n",
+                false,
+            ),
+            "warning: retained library diagnostic\n\
+             frozen private oracle failure\n\
+             test result: FAILED. 0 passed; 1 failed\n\
+             error: test failed, to rerun pass `cargo test --locked -p eqiora-numerics --lib --features one,two private_parent::private_child::registered_evidence -- --exact`\n"
+        );
+
+        let physical = library_target(
+            "private_parent::private_child::ignored_evidence",
+            &["mpi-cuda"],
+            EvidenceEnvironment::PhysicalMpiCuda,
+        );
+        runner.prepared.lock().unwrap().insert(
+            ExecutionKey::from_target(&physical),
+            PreparedCargoTarget {
+                executable: PathBuf::from("/target/eqiora_numerics-lib"),
+                build_stderr: String::new(),
+            },
+        );
+        let command = runner.command(root, &physical).unwrap();
+        assert_eq!(
+            command
+                .get_args()
+                .map(|argument| argument.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            [
+                "private_parent::private_child::ignored_evidence",
+                "--exact",
+                "--ignored"
+            ]
+        );
+        assert_eq!(
+            runner.completed_stderr(&physical, b"physical failure\n", false),
+            "physical failure\n\
+             error: test failed, to rerun pass `cargo test --locked -p eqiora-numerics --lib --features mpi-cuda private_parent::private_child::ignored_evidence -- --exact --ignored`\n"
+        );
+    }
+
+    #[test]
+    fn library_artifact_discovery_accepts_only_one_selected_package_library_executable() {
+        let target = library_target(
+            "private_parent::private_child::registered_evidence",
+            &[],
+            EvidenceEnvironment::HostCpu,
+        );
+        let selected = serde_json::json!({
+            "reason": "compiler-artifact",
+            "package_id": "path+file:///repository/eqiora-numerics#0.0.0",
+            "target": {"name": "eqiora_numerics", "kind": ["lib"]},
+            "executable": "/target/eqiora_numerics-lib"
+        });
+        let dependency = serde_json::json!({
+            "reason": "compiler-artifact",
+            "package_id": "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.0",
+            "target": {"name": "serde", "kind": ["lib"]},
+            "executable": "/target/serde-lib"
+        });
+        let diagnostic = serde_json::json!({
+            "reason": "compiler-message",
+            "package_id": "path+file:///repository/eqiora-numerics#0.0.0",
+            "target": {"name": "eqiora_numerics", "kind": ["lib"]},
+            "message": {"rendered": "warning: selected library diagnostic\n"}
+        });
+        let stdout = [diagnostic, dependency.clone(), selected.clone()]
+            .map(|message| message.to_string())
+            .join("\n");
+        let runner = SystemEvidenceRunner {
+            cargo: OsString::from("cargo-evidence"),
+            python: OsString::from("python-evidence"),
+            prepared: Arc::new(Mutex::new(BTreeMap::new())),
+        };
+        runner
+            .record_executables(
+                std::slice::from_ref(&target),
+                stdout.as_bytes(),
+                b"   Compiling eqiora-numerics v0.0.0\nwarning: cargo summary\n",
+            )
+            .unwrap();
+        {
+            let prepared = runner.prepared.lock().unwrap();
+            assert_eq!(prepared.len(), 1);
+            let entry = prepared.values().next().unwrap();
+            assert_eq!(
+                entry.executable,
+                PathBuf::from("/target/eqiora_numerics-lib")
+            );
+            assert_eq!(
+                entry.build_stderr,
+                "warning: selected library diagnostic\nwarning: cargo summary\n"
+            );
+        }
+
+        let wrong_artifacts = [
+            vec![serde_json::json!({
+                "reason": "compiler-artifact",
+                "package_id": "path+file:///repository/eqiora-numerics#0.0.0",
+                "target": {"name": "eqiora_numerics", "kind": ["test"]},
+                "executable": "/target/eqiora_numerics-test"
+            })],
+            vec![serde_json::json!({
+                "reason": "compiler-artifact",
+                "package_id": "path+file:///repository/eqiora-numerics#0.0.0",
+                "target": {"name": "eqiora_numerics", "kind": ["bin"]},
+                "executable": "/target/eqiora_numerics-bin"
+            })],
+            vec![dependency],
+            vec![serde_json::json!({
+                "reason": "compiler-artifact",
+                "package_id": "path+file:///repository/eqiora-numerics#0.0.0",
+                "target": {"name": "eqiora_numerics", "kind": ["lib"]},
+                "executable": null
+            })],
+            vec![
+                selected.clone(),
+                serde_json::json!({
+                    "reason": "compiler-artifact",
+                    "package_id": "path+file:///repository/eqiora-numerics#0.0.0",
+                    "target": {"name": "eqiora_numerics", "kind": ["lib"]},
+                    "executable": "/target/eqiora_numerics-lib-duplicate"
+                }),
+            ],
+        ];
+        for artifacts in wrong_artifacts {
+            let runner = SystemEvidenceRunner {
+                cargo: OsString::from("cargo-evidence"),
+                python: OsString::from("python-evidence"),
+                prepared: Arc::new(Mutex::new(BTreeMap::new())),
+            };
+            let stdout = artifacts
+                .into_iter()
+                .map(|message| message.to_string())
+                .collect::<Vec<_>>()
+                .join("\n");
+            let error = runner
+                .record_executables(std::slice::from_ref(&target), stdout.as_bytes(), b"")
+                .unwrap_err();
+            assert!(error.contains("eqiora-numerics"), "{error}");
+            assert!(error.contains("library"), "{error}");
+            assert!(runner.prepared.lock().unwrap().is_empty());
+        }
+    }
+
     #[test]
     fn system_runner_builds_only_closed_shell_free_commands() {
         let runner = SystemEvidenceRunner {
