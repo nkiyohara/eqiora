@@ -31,6 +31,10 @@ from local_verify import (  # noqa: E402
     run_plan,
 )
 from check_docs import check as check_docs  # noqa: E402
+from verification_scheduler import (  # noqa: E402
+    _available_memory_mib,
+    cpu_allocations,
+)
 
 
 EVIDENCE_RUN_PREFIX = (
@@ -308,6 +312,25 @@ class PlanTests(unittest.TestCase):
                 labels = {item.label for item in plan.commands}
                 self.assertIn("CI contract tests", labels)
 
+    def test_ci_infrastructure_dependency_policies_share_one_lane(self) -> None:
+        plan = build_plan(
+            "affected",
+            ["tools/ci/local_verify.py"],
+            [],
+            workspace(),
+        )
+        lanes = {item.label: item.lane for item in plan.commands}
+        self.assertEqual(lanes["Root dependency policy"].name, "dependency-policy")
+        self.assertEqual(
+            lanes["Root dependency policy"], lanes["Studio dependency policy"]
+        )
+        self.assertEqual(lanes["Rust tests"].name, "root-cargo")
+        self.assertEqual(lanes["Studio unit tests"].name, "studio")
+        self.assertNotIn(
+            lanes["Root dependency policy"].name,
+            {lanes["Rust tests"].name, lanes["Studio unit tests"].name},
+        )
+
 
 class SchedulerTests(unittest.TestCase):
     @staticmethod
@@ -525,6 +548,52 @@ class SchedulerTests(unittest.TestCase):
             [failure.returncode for failure in raised.exception.failures], [7, 9]
         )
 
+    def test_execution_error_preserves_detail_and_skips_lane_successor(self) -> None:
+        rendezvous = threading.Barrier(2)
+        observed: list[str] = []
+        observed_lock = threading.Lock()
+
+        def execute(
+            argv: tuple[str, ...], **kwargs: object
+        ) -> subprocess.CompletedProcess[bytes]:
+            with observed_lock:
+                observed.append(argv[0])
+            if argv[0] != "forbidden":
+                rendezvous.wait(timeout=1.0)
+            if argv[0] == "broken":
+                raise OSError("missing executable: broken")
+            return subprocess.CompletedProcess(argv, 0)
+
+        failed_lane = self.lane("failed")
+        plan = self.plan(
+            PlannedCommand("broken command", ("broken",), lane=failed_lane),
+            PlannedCommand("must be skipped", ("forbidden",), lane=failed_lane),
+            PlannedCommand(
+                "independent success",
+                ("independent",),
+                lane=self.lane("independent"),
+            ),
+        )
+        with (
+            mock.patch("local_verify.subprocess.run", side_effect=execute),
+            tempfile.TemporaryDirectory(dir=Path.home()) as directory,
+            self.assertRaises(VerificationFailure) as raised,
+        ):
+            run_plan(
+                plan,
+                Path(directory),
+                budget=ResourceBudget(2, 2),
+                scratch_root=Path(directory) / "scratch",
+            )
+
+        self.assertCountEqual(observed, ["broken", "independent"])
+        failures = raised.exception.failures
+        self.assertEqual(len(failures), 1)
+        self.assertIsNone(failures[0].returncode)
+        self.assertEqual(failures[0].detail, "missing executable: broken")
+        self.assertEqual(failures[0].command.label, "broken command")
+        self.assertIn("missing executable: broken", str(raised.exception))
+
     def test_lane_environment_is_home_backed_contained_and_disjoint(self) -> None:
         environments: dict[str, dict[str, str]] = {}
         rendezvous = threading.Barrier(2)
@@ -563,6 +632,80 @@ class SchedulerTests(unittest.TestCase):
                     Path(environments[name]["CARGO_TARGET_DIR"]).is_relative_to(root)
                 )
                 self.assertEqual(environments[name]["CARGO_BUILD_JOBS"], "1")
+
+
+class ResourceDetectionTests(unittest.TestCase):
+    SYSCONF_VALUES = {"SC_AVPHYS_PAGES": 131072, "SC_PAGE_SIZE": 4096}
+
+    def test_memavailable_is_preferred_over_sysconf_fallback(self) -> None:
+        meminfo = (
+            "MemTotal:       32000000 kB\n"
+            "MemFree:          512000 kB\n"
+            "MemAvailable:    2048000 kB\n"
+        )
+        sysconf = mock.MagicMock(side_effect=self.SYSCONF_VALUES.__getitem__)
+        with (
+            mock.patch("verification_scheduler.Path.read_text", return_value=meminfo),
+            mock.patch("verification_scheduler.os.sysconf", sysconf),
+        ):
+            self.assertEqual(_available_memory_mib(), 2000)
+        sysconf.assert_not_called()
+
+    def test_unreadable_meminfo_falls_back_to_sysconf(self) -> None:
+        sysconf = mock.MagicMock(side_effect=self.SYSCONF_VALUES.__getitem__)
+        with (
+            mock.patch(
+                "verification_scheduler.Path.read_text",
+                side_effect=OSError("denied"),
+            ),
+            mock.patch("verification_scheduler.os.sysconf", sysconf),
+        ):
+            self.assertEqual(_available_memory_mib(), 512)
+
+
+class CpuAllocationTests(unittest.TestCase):
+    # The module lane constants clamp cpu requests to the importing host's
+    # cpu_count, so the fixture pins the uncapped plan requests instead.
+    PLAN_LANE_REQUESTS = (
+        ("repository", 1),
+        ("root-cargo", 4),
+        ("dependency-policy", 1),
+        ("python-candidate", 2),
+        ("studio", 2),
+        ("cubecl", 2),
+    )
+
+    def test_sixty_four_slots_divide_deterministically_across_plan_lanes(self) -> None:
+        plan = build_plan("periodic", [], [], workspace())
+        self.assertEqual(
+            [lane.name for lane in dict.fromkeys(item.lane for item in plan.commands)],
+            [name for name, _cpu in self.PLAN_LANE_REQUESTS],
+        )
+        lanes = tuple(
+            VerificationLane(name, ResourceRequest(cpu, 1))
+            for name, cpu in self.PLAN_LANE_REQUESTS
+        )
+        self.assertEqual(
+            cpu_allocations(lanes, ResourceBudget(64, 1)),
+            {
+                "repository": 5,
+                "root-cargo": 21,
+                "dependency-policy": 5,
+                "python-candidate": 11,
+                "studio": 11,
+                "cubecl": 11,
+            },
+        )
+
+    def test_exact_budget_keeps_one_job_per_lane(self) -> None:
+        lanes = (
+            VerificationLane("first", ResourceRequest(1, 1)),
+            VerificationLane("second", ResourceRequest(1, 1)),
+        )
+        self.assertEqual(
+            cpu_allocations(lanes, ResourceBudget(2, 1)),
+            {"first": 1, "second": 1},
+        )
 
 
 class LocalDocumentationTests(unittest.TestCase):
