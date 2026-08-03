@@ -8,6 +8,12 @@ provider-bound identity and trust contexts described in
 contexts protect the submitted commit and gate definitions; they do not become
 a second scientific acceptance authority.
 
+The ordinary developer entry point is `mise run fast` while iterating and
+`mise run affected` before integration. `mise install` provisions the declared
+developer tools and `mise run setup` installs the locked Studio dependency
+tree. These tasks delegate to the commands below; `mise.toml` is neither a
+second dependency lock nor a second acceptance implementation.
+
 The repository-owned planner reuses the same path classification as CI and
 includes committed merge-base changes, staged changes, unstaged changes, and
 untracked files:

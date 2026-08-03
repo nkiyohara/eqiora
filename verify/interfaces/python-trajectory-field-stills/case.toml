@@ -16,17 +16,20 @@ trajectory_case = "interfaces.python-fixed-mesh-trajectory"
 admitted_reference = "the exact fixed-mesh affine-triangle 2D FSI trajectory reached through eqiora.fsi.solve_fixed_reference_fsi(model).trajectory"
 mesh = "one immutable 9-vertex 8-affine-triangle 2D reference mesh shared by both accepted states"
 scalar_adapter = "eqiora.matplotlib.plot_scalar_field(trajectory, /, *, step, field) -> Figure"
-deformed_adapter = "eqiora.matplotlib.plot_deformed_field(trajectory, /, *, step, field, scale=1.0) -> Figure"
+deformed_adapter = "eqiora.matplotlib.plot_deformed_field has a Trajectory arm requiring step and a static Result arm forbidding step; this case owns only the accepted Trajectory arm"
 admitted_scalar_field = "fluid_pressure: value_shape (), frame invariant, exactly one vertex association"
 admitted_deformation_field = "solid_displacement: value_shape (dimension,), frame spatial-cartesian, SI dimension (0, 1, 0, 0, 0, 0, 0), exactly one vertex association"
 withdrawn = "eqiora.matplotlib.plot_fixed_reference_fsi, with no alias, shim, or deprecation path"
 renderer = "Matplotlib Agg in the registered evidence environment"
+static_result_owner = "interfaces.python-mixed-boundary-elasticity-demo owns the same adapter's bounded static structural Result arm"
+compatibility_shim = "plot_displacement is a one-subsequent-prerelease warning-emitting delegation to the static Result arm and owns no plotting implementation or evidence"
 
 [oracle]
 contract = "this manifest and its case READMEs, frozen before implementation by a non-implementing Claude lineage; an implementer wires it and returns a proof rather than editing it"
 trajectory_case = "interfaces.python-fixed-mesh-trajectory"
 fsi_case = "interfaces.python-fixed-reference-fsi-demo"
 matplotlib_case = "interfaces.python-exact-cylinder-pressure-still"
+static_result_case = "interfaces.python-mixed-boundary-elasticity-demo"
 scientific_case = "fsi.fixed-reference-monolithic-step-2d"
 solver_values = "reused unchanged from the accepted cases above; this case derives, tunes, and freezes no scientific value, tolerance, extremum, or unit conversion"
 mesh_and_support = "the accepted 8-triangle connectivity and the accepted vertex support membership are wired verbatim from the registered trajectory evidence and are re-derived inside the test from that connectivity, never from coefficient values"
@@ -49,7 +52,7 @@ figure_axes = "figure.axes[0] is the field axes for both stills"
 figure_binding = "the Figure is constructed through the module-level eqiora.matplotlib.Figure name"
 axis_labels = "x [m] and y [m] with equal spatial aspect; the Trajectory scalar colorbar remains the unnamed coherent-SI label Value [kg·m^-1·s^-2], never the static Result route's named Pressure [Pa] label"
 visible_scale = "the applied scale is visible in the deformed axes title or in an artist label"
-rejection_types = "for the scalar adapter, TypeError when the first argument is neither Result nor Trajectory and when the Trajectory route omits step; for the deformed Trajectory-only adapter, TypeError for a non-Trajectory first argument; ValueError for a foreign exact Model, a violated shape/frame/dimension/association requirement, or a non-finite or negative scale; KeyError for an absent field or association; IndexError for an absent step"
+rejection_types = "for both adapters, TypeError when the first argument is neither Result nor Trajectory, when a Trajectory omits step, or when a static Result supplies step; ValueError for a foreign exact Model, a violated shape/frame/dimension/association requirement, or a non-finite or negative scale; KeyError for an absent field or association; IndexError for an absent step"
 rejection_vocabulary = "a contract ValueError message names the violated requirement with one of `value shape`, `frame`, `dimension`, `association`, or `finite and nonnegative`"
 exports = "eqiora.matplotlib.__all__ is exactly the sorted plot_deformed_field, plot_displacement, plot_scalar_field; plot_pressure is absent"
 
@@ -82,6 +85,8 @@ no_pyplot_figure_registration = true
 no_digest_array_identity_writability_or_support_mutation = true
 withdrawn_still_absent_from_runtime_exports_and_stub = true
 no_scientific_value_or_tolerance_is_introduced = true
+static_result_overload_is_owned_by_the_structural_sibling_case = true
+predecessor_displacement_name_delegates_without_independent_ownership = true
 
 [falsifiers]
 foreign_model_field = "a FieldRef from a structurally equivalent independent compilation is accepted, or is rejected only after a Figure exists"

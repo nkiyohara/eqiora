@@ -4,11 +4,13 @@ use std::time::{Duration, Instant};
 use eqiora::Diagnostic;
 use eqiora::api::{
     ModelDocument, ReferenceRunDirective, ReferenceRunObserver, ReferenceRunOutcome,
-    ReferenceRunPlan, ReferenceRunProgress, ResolvedSteadyStokesPlan2d,
-    ScalarEllipticExecutionEnvironment, ScalarEllipticRunDirective, ScalarEllipticRunObserver,
-    ScalarEllipticRunOutcome, ScalarEllipticRunPlan, ScalarEllipticRunProgress,
+    ReferenceRunPlan, ReferenceRunProgress, ResolvedLinearElasticityPlan2d,
+    ResolvedSteadyStokesPlan2d, ScalarEllipticExecutionEnvironment, ScalarEllipticRunDirective,
+    ScalarEllipticRunObserver, ScalarEllipticRunOutcome, ScalarEllipticRunPlan,
+    ScalarEllipticRunProgress,
 };
 use eqiora::backends::faer::FaerLinearSolver;
+use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 
 use super::{
     NativeRunCancellation, NativeRunOutput, NativeRunProgress, RunFailure, RunShared, RunTerminal,
@@ -95,6 +97,7 @@ pub(super) enum NativeRunJob {
         environment: ScalarEllipticExecutionEnvironment,
     },
     SteadyStokes(Box<ResolvedSteadyStokesPlan2d>),
+    LinearElasticity(Box<ResolvedLinearElasticityPlan2d>),
 }
 
 enum NativeWorkerOutcome {
@@ -159,6 +162,18 @@ fn execute_job(
                 NativeRunOutput::SteadyStokes {
                     result: Box::new(materialized),
                     elapsed_seconds,
+                },
+            ))
+        }
+        NativeRunJob::LinearElasticity(plan) => {
+            let started = Instant::now();
+            let result = plan
+                .execute(&REFERENCE_LINEAR_SOLVER)
+                .map_err(|diagnostic| vec![diagnostic])?;
+            Ok(NativeWorkerOutcome::Completed(
+                NativeRunOutput::LinearElasticity {
+                    result: Box::new(result),
+                    elapsed_seconds: started.elapsed().as_secs_f64(),
                 },
             ))
         }

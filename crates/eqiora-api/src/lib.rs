@@ -27,7 +27,9 @@ mod value_edit;
 
 pub use cad::*;
 pub use differentiation::*;
-pub use elasticity::MixedBoundaryElasticityResult2d;
+pub use elasticity::{
+    LinearElasticityIntent2d, MixedBoundaryElasticityResult2d, ResolvedLinearElasticityPlan2d,
+};
 pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFingerprint};
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;
