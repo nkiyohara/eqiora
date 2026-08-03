@@ -9,10 +9,12 @@ capabilities = [
   "minimum-maximum-python-pr-matrix",
   "base-owned-ci-definition-trust-guard",
   "exact-commit-manual-dispatch",
+  "unchanged-head-readiness-reuse",
   "no-duplicate-main-push-suite",
 ]
 
 [claim_boundary]
+provider_event_delivery = "github-hosted-precondition"
 merge_queue = false
 self_hosted_pull_requests = false
 cache_performance_claim = false

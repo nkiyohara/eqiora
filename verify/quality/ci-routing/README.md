@@ -1,10 +1,18 @@
 # Public pull-request CI routing
 
 This case specifies the repository-owned public pull-request trust contract.
-Every pull request creates the workflow, runs the change classifier and
-documentation contract, and reports one aggregate `CI gate`. A conditional job
-may be skipped only when the reviewed path ownership says its surface is
-irrelevant.
+Opening or reopening a pull request, or synchronizing a new head, creates the
+workflow, runs the change classifier and documentation contract, and reports
+one aggregate `CI gate`. Opening a Draft runs the same contract immediately;
+making its unchanged head Ready reuses those contexts without a duplicate run.
+A conditional job may be skipped only when the reviewed path ownership says
+its surface is irrelevant.
+
+Draft event delivery and reuse of check runs attached to the unchanged commit
+are GitHub-hosted preconditions, not behavior implemented by this repository.
+Contract tests prove the configured event and concurrency predicates; the
+adjacent publication-time checklist requires live observation of the provider
+behavior.
 
 A separate `pull_request_target` workflow runs only protected-base code, reads
 changed-file metadata, and rejects pull requests that modify workflows,
