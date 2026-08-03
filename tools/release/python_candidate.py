@@ -920,10 +920,15 @@ def build_candidate(
                 if skip_extras
                 else candidate_profiles.COMPLETE_PROFILE_NAMES
             )
-            merged = candidate_profiles.merge_profile_receipts(
-                expected_names,
-                receipts,
-            )
+            try:
+                merged = candidate_profiles.merge_profile_receipts(
+                    expected_names,
+                    receipts,
+                )
+            except ValueError as error:
+                raise CandidateError(
+                    f"candidate profile receipts are invalid: {error}"
+                ) from error
             checks = [
                 "twine-strict",
                 "sdist-to-wheel-rebuild",

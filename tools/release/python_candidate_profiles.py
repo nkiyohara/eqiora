@@ -217,7 +217,7 @@ def scheduled_profile_tasks(
         "matplotlib-3.13",
         "generated-public-api",
     )
-    return tuple(
+    scheduled = tuple(
         ScheduledTask(
             item.name,
             item.resources,
@@ -226,6 +226,11 @@ def scheduled_profile_tasks(
         for name in priority
         if (item := by_name.get(name)) is not None
     )
+    if len(scheduled) != len(plan):
+        raise CandidateError(
+            "candidate profile plan contains a duplicate or unscheduled identity"
+        )
+    return scheduled
 
 
 def run_profile_tasks(
@@ -236,10 +241,15 @@ def run_profile_tasks(
 ) -> tuple[TaskOutcome[ProfileReceipt], ...]:
     """Run one immutable profile plan under the enclosing resource budget."""
 
-    return run_tasks(
-        scheduled_profile_tasks(plan, execute),
-        profile_budget() if budget is None else budget,
-    )
+    try:
+        return run_tasks(
+            scheduled_profile_tasks(plan, execute),
+            profile_budget() if budget is None else budget,
+        )
+    except ValueError as error:
+        raise CandidateError(
+            f"candidate profile schedule is invalid: {error}"
+        ) from error
 
 
 def merge_profile_receipts(
