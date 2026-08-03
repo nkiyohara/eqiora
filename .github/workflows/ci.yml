@@ -201,13 +201,6 @@ jobs:
             python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["tool"]["eqiora-distribution"]["tested-numpy-floor"])'
           )"
           python -m pip install --only-binary=:all: "$requirement"
-      - name: Install the declared Python candidate builder
-        run: |
-          requirement="$(
-            python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["tool"]["eqiora-distribution"]["uv"])'
-          )"
-          python -m pip install --only-binary=:all: "$requirement"
-          uv --version
       - name: Install stable Rust
         run: rustup toolchain install stable --profile minimal
       - name: Run registered Python installed-wheel host evidence
@@ -318,7 +311,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: 24.18.0
+          node-version: 24.18.1
           cache: npm
           cache-dependency-path: studio/package-lock.json
       - name: Install native WebView dependencies

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import email.parser
 import json
+import os
 import platform
 import shutil
 import subprocess
@@ -47,6 +48,27 @@ class SourceIdentity:
     tags: tuple[str, ...]
 
 
+def exact_group_requirement(
+    document: dict[str, Any],
+    group: str,
+    package: str,
+) -> str:
+    """Return one exact standard dependency-group requirement."""
+
+    requirements = document.get("dependency-groups", {}).get(group, [])
+    prefix = f"{package}=="
+    matches = [
+        requirement
+        for requirement in requirements
+        if isinstance(requirement, str) and requirement.startswith(prefix)
+    ]
+    if len(matches) != 1 or matches[0] == prefix:
+        raise CandidateError(
+            f"dependency-groups.{group} must contain one exact {package} requirement"
+        )
+    return matches[0]
+
+
 def load_config() -> DistributionConfig:
     """Load the single reviewed matrix and tool inventory."""
 
@@ -63,6 +85,8 @@ def load_config() -> DistributionConfig:
         )
 
     raw = document["tool"]["eqiora-distribution"]
+    uv = exact_group_requirement(document, "release-tools", "uv")
+    twine = exact_group_requirement(document, "release-tools", "twine")
     interpreters = tuple(raw["ordinary-gil-cpython"])
     jax = tuple(raw["tested-jax"])
     config = DistributionConfig(
@@ -72,11 +96,11 @@ def load_config() -> DistributionConfig:
         extras_interpreter=raw["extras-python"],
         numpy_floor_interpreter=raw["numpy-floor-python"],
         numpy_floor=raw["tested-numpy-floor"],
-        uv=raw["uv"],
+        uv=uv,
         maturin=maturin[0],
         pytest=raw["pytest"],
         mypy=raw["mypy"],
-        twine=raw["twine"],
+        twine=twine,
         torch=raw["tested-torch"],
         jax=jax,
         matplotlib=raw["tested-matplotlib"],
@@ -100,8 +124,7 @@ def load_config() -> DistributionConfig:
         raise CandidateError(
             "the first public alpha candidate must have Python version 0.1.0a1"
         )
-    if config.uv != "uv==0.11.31":
-        raise CandidateError("the first candidate must use exact uv 0.11.31")
+    exact_uv_version(config.uv)
     return config
 
 
@@ -114,17 +137,101 @@ def require_executable(name: str) -> str:
     return executable
 
 
+def exact_uv_version(requirement: str) -> str:
+    """Return the path-safe version from one exact ``uv`` requirement."""
+    name, separator, expected = requirement.partition("==")
+    components = expected.split(".")
+    if (
+        name != "uv"
+        or not separator
+        or len(components) != 3
+        or any(
+            not component.isascii() or not component.isdecimal()
+            for component in components
+        )
+    ):
+        raise CandidateError("the uv build-tool requirement is malformed")
+    return expected
+
+
 def require_exact_uv(executable: str, requirement: str) -> None:
     """Require the declared release tool rather than an ambient compatible one."""
 
-    name, separator, expected = requirement.partition("==")
-    if name != "uv" or not separator or not expected:
-        raise CandidateError("the uv build-tool requirement is malformed")
+    expected = exact_uv_version(requirement)
     observed = tool_version([executable, "--version"]).split()
     if len(observed) < 2 or observed[0] != "uv" or observed[1] != expected:
         raise CandidateError(
             f"candidate requires uv {expected}, observed {' '.join(observed)!r}"
         )
+
+
+def _virtual_environment_executable(environment: Path, name: str) -> Path:
+    directory = "Scripts" if os.name == "nt" else "bin"
+    suffix = ".exe" if os.name == "nt" else ""
+    return environment / directory / f"{name}{suffix}"
+
+
+def ensure_exact_uv(
+    requirement: str,
+    *,
+    cache_root: Path | None = None,
+) -> str:
+    """Resolve the reviewed ``uv`` release into an immutable home cache entry."""
+
+    version = exact_uv_version(requirement)
+    home = Path.home().resolve()
+    root = (
+        cache_root.resolve()
+        if cache_root is not None
+        else home / ".cache" / "eqiora" / "tools"
+    )
+    if cache_root is None and not root.is_relative_to(home):
+        raise CandidateError("the uv tool cache must remain below the home directory")
+    uv_root = root / "uv"
+    uv_root.mkdir(parents=True, exist_ok=True)
+    resolved_root = uv_root.resolve()
+    if cache_root is None and not resolved_root.is_relative_to(home):
+        raise CandidateError("the uv tool cache must remain below the home directory")
+
+    tool_root = resolved_root / version
+    executable = _virtual_environment_executable(tool_root, "uv")
+    if executable.is_file():
+        require_exact_uv(str(executable), requirement)
+        return str(executable)
+    if tool_root.exists():
+        raise CandidateError(f"the cached uv tool is incomplete: {tool_root}")
+
+    with tempfile.TemporaryDirectory(
+        prefix=f".{version}-", dir=resolved_root
+    ) as temporary:
+        staged = Path(temporary) / "tool"
+        checked_run([sys.executable, "-m", "venv", str(staged)])
+        staged_python = _virtual_environment_executable(staged, "python")
+        checked_run(
+            [
+                str(staged_python),
+                "-m",
+                "pip",
+                "install",
+                "--disable-pip-version-check",
+                "--only-binary=:all:",
+                requirement,
+            ]
+        )
+        staged_uv = _virtual_environment_executable(staged, "uv")
+        require_exact_uv(str(staged_uv), requirement)
+        try:
+            staged.rename(tool_root)
+        except OSError as error:
+            if executable.is_file():
+                require_exact_uv(str(executable), requirement)
+                return str(executable)
+            raise CandidateError(
+                f"failed to publish cached uv tool: {tool_root}"
+            ) from error
+
+    require_exact_uv(str(executable), requirement)
+    return str(executable)
 
 
 def source_identity() -> SourceIdentity:
@@ -791,8 +898,7 @@ def build_candidate(
     source = source_identity()
     if require_tag:
         require_annotated_expected_tag(source, config.expected_tag)
-    uv = require_executable("uv")
-    require_exact_uv(uv, config.uv)
+    uv = ensure_exact_uv(config.uv)
     require_executable("git")
     require_executable("rustc")
     require_executable("cargo")
