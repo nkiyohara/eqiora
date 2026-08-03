@@ -665,7 +665,14 @@ def test_static_result_field_and_mesh_identity_fail_closed(
     assert same_id_foreign_model.model_digest != accepted_field.model_digest
 
     foreign_declaration = eqiora.Field("foreign", initial=1.0)
-    foreign_model = eqiora.Model.define("foreign", foreign_declaration)
+    foreign_model = eqiora.Model.define(
+        "foreign",
+        foreign_declaration,
+        eqiora.Relation(
+            "hold",
+            residual=eqiora.derivative(foreign_declaration),
+        ),
+    )
     different_id_foreign_model = foreign_model.field("foreign")
     for rejected in (same_id_foreign_model, different_id_foreign_model):
         with pytest.raises(ValueError, match="different exact Model"):
