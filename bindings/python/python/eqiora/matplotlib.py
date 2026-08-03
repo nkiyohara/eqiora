@@ -104,6 +104,7 @@ def plot_scalar_field(
         snapshot = trajectory.field(field)
         spatial = trajectory.mesh(field)
         state = None
+        scalar_label = _result_scalar_label(snapshot.dimension)
     elif isinstance(trajectory, Trajectory):
         if step is _MISSING:
             raise TypeError("plot_scalar_field() requires step for Trajectory")
@@ -112,6 +113,7 @@ def plot_scalar_field(
         bounds = None
         minimum = None
         maximum = None
+        scalar_label = f"Value [{_coherent_si_unit(snapshot.dimension)}]"
     else:
         raise TypeError(
             "plot_scalar_field() requires eqiora.Result or eqiora.trajectory.Trajectory"
@@ -160,7 +162,7 @@ def plot_scalar_field(
     divider = make_axes_locatable(axes)
     colorbar_axes = divider.append_axes("right", size="3%", pad=0.16)
     colorbar = figure.colorbar(scalar, cax=colorbar_axes)
-    colorbar.set_label(_scalar_label(snapshot.dimension))
+    colorbar.set_label(scalar_label)
     return figure
 
 
@@ -288,7 +290,7 @@ def _finish_field_axes(axes):
     axes.set_ylabel("y [m]")
 
 
-def _scalar_label(dimension):
+def _result_scalar_label(dimension):
     if dimension == (1, -1, -2, 0, 0, 0, 0):
         return "Pressure [Pa]"
     return f"Value [{_coherent_si_unit(dimension)}]"
