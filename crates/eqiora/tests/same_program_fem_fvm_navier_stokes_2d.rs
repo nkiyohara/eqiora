@@ -19,8 +19,9 @@ use eqiora::solver::{
     ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity};
+use eqiora_meshing::CartesianMesh;
 use eqiora_numerics::{
-    common::CartesianMesh, common::NonZeroStepCount, common::SimplicialP1Field,
+    common::NonZeroStepCount, common::SimplicialP1Field,
     fluid::CellCenteredNavierStokesInitialState2d, fluid::CellCenteredPressureField2d,
     fluid::CellCenteredVelocityField2d, fluid::IncompressibleFlowScaleProfile2d,
     fluid::ResolvedCellCenteredNavierStokesTrajectory2d,

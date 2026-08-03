@@ -27,9 +27,9 @@ use crate::cartesian_elasticity::CartesianLinearElasticity2dSolution;
 use crate::cartesian_elasticity::{
     CartesianEssentialSides2d, finalize_cartesian_q1_linear_elasticity_2d,
 };
-use crate::cartesian_mesh::CartesianMesh;
 use crate::finalized_spatial::FinalizedIsotropicElasticityCartesian2dProblem;
 use crate::spatial_expression::{self, ScalarSpatialExpression};
+use eqiora_meshing::CartesianMesh;
 
 mod block;
 mod boundary;

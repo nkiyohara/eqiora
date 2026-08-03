@@ -843,6 +843,13 @@ planar linear triangles or linear tetrahedra and reconstructs it through the
 same L2 constructor. Gmsh paths, entity/physical/result semantics, and parser
 types do not enter the artifact. The contract does not yet prove global
 non-overlap or provide XDMF, mixed/curved cells, partitioning, or adaptivity.
+
+`eqiora.cartesian-mesh-envelope/v1` is the generated counterpart: it stores
+only strictly increasing axes plus exact last-axis-fastest entity order and
+tensor-product local-node order. Decoding reconstructs the meshing-owned
+`CartesianMesh` and accounts for implied coordinates and connectivity against
+the shared mesh budgets. A basis remains Realization/Field meaning, so the
+mesh artifact says `hypercube`, not Q1.
 No Cartesian index enters a local operator or assembler.
 
 The first canonical spatial vertical slice precedes that factorization:
@@ -1229,6 +1236,15 @@ signature to those leaves. P1 uses a Vertex block; MINI velocity retains both
 Vertex and Cell-bubble blocks. Whole-mesh ordering remains canonical, with
 positive zero outside the exact support closure. The FSI L4 projection checks
 persisted fluid/solid vertex blocks directly on the conforming interface.
+
+Generated hypercube output currently crosses a narrower sibling wire:
+`eqiora.cartesian-q1-field-snapshot-envelope/v1`. It binds normalized inline
+vertex coefficients to the exact Model, global-space Realization, Geometry,
+correspondence, Cartesian Mesh, Field, support, and physical tuple, and replays
+the generated-uniform mesh from body bounds before admission. This is a bridge
+for scalar and fixed-vector Q1 output, not a second universal Field hierarchy;
+it should fold into the common snapshot owner when that owner can retain
+hypercube basis and exact generated-mesh linkage without simplex assumptions.
 
 `SpatialStateEnvelopeV1` contains the complete represented physical-Field
 inventory at one accepted fixed-step coordinate. Constraint multipliers,

@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::Diagnostic;
 use eqiora_geometry::{EDGE_DIMENSION, FACE_DIMENSION, PlanarFace, PlanarRegion, VERTEX_DIMENSION};
-use eqiora_meshing::{MeshEntity, MeshTopology, SimplicialMesh};
+use eqiora_meshing::{GeometryMap, MeshEntity, MeshGeometry, MeshTopology, SimplicialMesh};
 use eqiora_schema::kernel::BoundarySide;
 use serde::{Deserialize, Serialize};
 
@@ -298,18 +298,22 @@ fn generate_assignments(
     })
 }
 
-pub(super) fn entity_coordinates(
-    mesh: &SimplicialMesh,
+pub(super) fn entity_coordinates<M: MeshGeometry + ?Sized>(
+    mesh: &M,
     entity: MeshEntity,
 ) -> Result<Vec<Vec<f64>>, Diagnostic> {
-    mesh.entity_vertices(entity)
+    mesh.incidence(entity, 0)
         .ok_or_else(|| invalid_artifact("mesh entity has no vertex closure"))?
         .into_iter()
-        .map(|vertex| {
-            mesh.vertices()
-                .get(vertex.index())
-                .cloned()
-                .ok_or_else(|| invalid_artifact("mesh entity references an unavailable vertex"))
+        .map(|incidence| {
+            let vertex = incidence.entity;
+            let map = mesh.geometry_map(vertex).ok_or_else(|| {
+                invalid_artifact("mesh entity references an unavailable vertex geometry")
+            })?;
+            let mut coordinates = vec![0.0; map.physical_dimension()];
+            map.map_point(&[], &mut coordinates)
+                .map_err(|error| invalid_artifact(error.message()))?;
+            Ok(coordinates)
         })
         .collect()
 }
@@ -345,8 +349,8 @@ pub(super) fn cartesian_facet_roles(
         .collect()
 }
 
-pub(super) fn validate_parent_outward_cell(
-    mesh: &SimplicialMesh,
+pub(super) fn validate_parent_outward_cell<M: MeshGeometry + ?Sized>(
+    mesh: &M,
     cell: MeshEntity,
     axis: usize,
     side: BoundarySide,

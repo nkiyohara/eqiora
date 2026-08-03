@@ -116,7 +116,7 @@ export const structuralDemoResultSchema = z
         runDigest: artifactDigestSchema,
         semanticRevision: z.number().int().nonnegative(),
         realizationRevision: z.literal(1),
-        outputArtifacts: z.literal(0),
+        outputArtifacts: z.literal(1),
       })
       .strict(),
     evidence: z

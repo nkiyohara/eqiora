@@ -5,6 +5,7 @@
 //! solver policy, canonical model meaning, or artifact serialization.
 
 mod affine_geometry;
+mod cartesian_mesh;
 mod discrete_field;
 mod fixed_topology_geometry;
 mod mesh;
@@ -16,6 +17,7 @@ mod simplex_quadrature;
 mod simplicial_mesh;
 
 pub use affine_geometry::{AffineGeometryLinearization, AffineGeometryMap, AffineMapQuality};
+pub use cartesian_mesh::CartesianMesh;
 pub use discrete_field::{DiscreteFieldAssociation, DiscreteFieldPayload, DiscreteFieldShape};
 pub use fixed_topology_geometry::{
     FixedTopologyCellGeometryAction, FixedTopologyCellGeometryAction2d,

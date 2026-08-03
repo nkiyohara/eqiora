@@ -5,6 +5,8 @@
 //! transaction; deserialization never bypasses an existing invariant.
 
 mod cad;
+mod cartesian_mesh;
+mod cartesian_q1_field_snapshot;
 mod circular_hole_chordal_realization;
 mod circular_hole_chordal_reference;
 mod discrete_field;
@@ -57,6 +59,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub use cad::{CadBuildEvidenceEnvelopeV1, CadDesignEnvelopeV1};
+pub use cartesian_mesh::CartesianMeshEnvelopeV1;
+pub use cartesian_q1_field_snapshot::CartesianQ1FieldSnapshotEnvelopeV1;
 pub use circular_hole_chordal_realization::{
     AcceptedCircularHoleChordalRealizationV1, CircularHoleChordalRealizationEnvelopeV1,
 };

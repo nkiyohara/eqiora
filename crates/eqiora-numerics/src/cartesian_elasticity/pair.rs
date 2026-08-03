@@ -23,9 +23,9 @@ use super::{
     COMPONENTS, CartesianElasticityCell, CartesianEssentialSides2d, CartesianQ1VectorField2d,
     DIMENSION, global_dof, invalid, validate_problem,
 };
-use crate::cartesian_mesh::CartesianMesh;
 use crate::operator::LocalOperator;
 use crate::spatial_expression::ScalarSpatialExpression;
+use eqiora_meshing::CartesianMesh;
 
 /// Exact topological quotient between two conforming Cartesian interface meshes.
 ///

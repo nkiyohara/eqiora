@@ -30,7 +30,7 @@ use crate::cartesian_incompressible::{
     CartesianIncompressibleOperator2d, CellCenteredPressureField2d, CellCenteredVelocityField2d,
     CollocatedNewtonEvidence2d, CollocatedPoint2d, solve_collocated_step_2d,
 };
-use crate::cartesian_mesh::CartesianMesh;
+use eqiora_meshing::CartesianMesh;
 
 const DIMENSION: usize = 2;
 const TIME: DimExponents = DimExponents {

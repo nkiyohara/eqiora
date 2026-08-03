@@ -26,7 +26,7 @@ use eqiora::realization::{
 use eqiora::solver::{
     LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan,
 };
-use eqiora_numerics::common::CartesianMesh;
+use eqiora_meshing::CartesianMesh;
 use eqiora_numerics::scalar::{
     CartesianQ1Field, ResolvedScalarEllipticCartesianSolution, lower_scalar_elliptic_cartesian,
     solve_resolved_scalar_elliptic_cartesian_with_assembly,

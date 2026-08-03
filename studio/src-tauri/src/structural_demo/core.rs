@@ -211,7 +211,7 @@ mod tests {
         assert_eq!(result.mesh.vertices.len(), 289);
         assert_eq!(result.mesh.cells.len(), 256);
         assert_eq!(result.displacement.values_m.len(), 289);
-        assert_eq!(result.lineage.output_artifacts, 0);
+        assert_eq!(result.lineage.output_artifacts, 1);
         assert!(result.execution.true_residual_norm <= result.execution.residual_target);
         assert!(
             result

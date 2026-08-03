@@ -8,7 +8,7 @@ use crate::cartesian_fvm_geometry::{
     CartesianCellMetrics2d, CartesianFacetAdjacency2d, CartesianFacetMetrics2d,
     cartesian_fvm_geometry_2d,
 };
-use crate::cartesian_mesh::CartesianMesh;
+use eqiora_meshing::CartesianMesh;
 
 const DIMENSION: usize = 2;
 

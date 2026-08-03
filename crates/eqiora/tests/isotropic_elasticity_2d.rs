@@ -22,9 +22,9 @@ use eqiora::solver::{
     LinearOperatorProperties, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
     ReductionPolicy, ScalarType, SolverCapability, SolverPlan,
 };
+use eqiora_meshing::CartesianMesh;
 use eqiora_numerics::{
-    common::CartesianMesh, solid::CartesianQ1VectorField2d,
-    solid::lower_cartesian_q1_linear_elasticity_local_action_2d,
+    solid::CartesianQ1VectorField2d, solid::lower_cartesian_q1_linear_elasticity_local_action_2d,
     solid::lower_isotropic_elasticity_cartesian_2d,
     solid::solve_resolved_isotropic_elasticity_cartesian_2d,
 };

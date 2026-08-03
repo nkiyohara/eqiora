@@ -7,11 +7,13 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::{
-    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
-    RealizationEnvelopeV1, RunManifestV2,
+    CartesianMeshEnvelopeV1, CartesianQ1FieldSnapshotEnvelopeV1, ExecutionProvenanceV1,
+    ExecutionTopologyV1, GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
+    LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV1, RunManifestV2,
 };
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DimExponents};
+use eqiora_core::entity::kinds;
+use eqiora_core::{Diagnostic, DimExponents, Id};
 use eqiora_meshing::{MeshEntity, MeshTopology};
 use eqiora_numerics::solid::{
     CartesianLinearElasticity2dSolution, solve_resolved_isotropic_elasticity_cartesian_2d,
@@ -37,6 +39,7 @@ const SCIENTIFIC_CASE: &str =
 const SCIENTIFIC_CASE_ID: &str = "solid.mixed-boundary-elasticity-2d";
 const CELLS_PER_AXIS: usize = 16;
 const REALIZATION_REVISION: u64 = 1;
+const GEOMETRY_CLASSIFICATION_PRECISION_M: f64 = 1.0e-12;
 const RELATIVE_TOLERANCE: f64 = 1.0e-12;
 const ABSOLUTE_TOLERANCE: f64 = 1.0e-14;
 const MAXIMUM_ITERATIONS: usize = 10_000;
@@ -54,6 +57,10 @@ const DISPLACEMENT_DIMENSION: DimExponents = DimExponents {
 pub struct MixedBoundaryElasticityResult2d {
     model: ModelEnvelope,
     realization: RealizationEnvelopeV1,
+    geometry: GeometryIdentityEnvelopeV1,
+    mesh_artifact: CartesianMeshEnvelopeV1,
+    correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+    displacement_snapshot: CartesianQ1FieldSnapshotEnvelopeV1,
     run: RunManifestV2,
     vertices_m: Vec<[f64; 2]>,
     cells: Vec<[u32; 4]>,
@@ -78,7 +85,7 @@ impl MixedBoundaryElasticityResult2d {
         backend: &dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
         validate_scientific_case(SCIENTIFIC_CASE)?;
-        require_accepted_model(document)?;
+        let identities = require_accepted_model(document)?;
         let plan = reference_plan()?;
         let backend_provider = backend.provider();
         let backend_capabilities = backend.capabilities();
@@ -127,6 +134,23 @@ impl MixedBoundaryElasticityResult2d {
         let model = ModelEnvelope::from_program(document.program())?;
         let realization =
             RealizationEnvelopeV1::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)?;
+        let geometry = GeometryIdentityEnvelopeV1::new(
+            &model,
+            [identities.body],
+            GEOMETRY_CLASSIFICATION_PRECISION_M,
+        )?;
+        let mesh_artifact = CartesianMeshEnvelopeV1::from_mesh(solution.displacement().mesh())?;
+        let correspondence =
+            GeometryMeshCorrespondenceEnvelopeV1::new_cartesian(&geometry, &model, &mesh_artifact)?;
+        let displacement_snapshot = CartesianQ1FieldSnapshotEnvelopeV1::new(
+            &model,
+            &realization,
+            &geometry,
+            &correspondence,
+            &mesh_artifact,
+            identities.displacement,
+            displacements_m.iter().flatten().copied(),
+        )?;
         let execution = ExecutionProvenanceV1::from_provider_releases(
             backend_provider,
             SERIAL_EXECUTION_PROVIDER,
@@ -136,12 +160,17 @@ impl MixedBoundaryElasticityResult2d {
             ReductionPolicy::Reproducible,
             std::iter::empty::<(&str, &str)>(),
         )?;
-        let run = RunManifestV2::new(&realization, execution)?;
+        let run = RunManifestV2::new(&realization, execution)?
+            .with_output(displacement_snapshot.digest()?);
         run.validate_against(&realization)?;
 
         Ok(Self {
             model,
             realization,
+            geometry,
+            mesh_artifact,
+            correspondence,
+            displacement_snapshot,
             run,
             vertices_m,
             cells,
@@ -163,7 +192,31 @@ impl MixedBoundaryElasticityResult2d {
         &self.realization
     }
 
-    /// Output-less Run manifest for this bounded solve.
+    /// Exact Cartesian geometry revision selected by this execution.
+    #[must_use]
+    pub const fn geometry(&self) -> &GeometryIdentityEnvelopeV1 {
+        &self.geometry
+    }
+
+    /// Exact generated Cartesian mesh artifact.
+    #[must_use]
+    pub const fn mesh_artifact(&self) -> &CartesianMeshEnvelopeV1 {
+        &self.mesh_artifact
+    }
+
+    /// Exact geometry-to-mesh entity correspondence.
+    #[must_use]
+    pub const fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1 {
+        &self.correspondence
+    }
+
+    /// Exact displacement Field snapshot emitted by this execution.
+    #[must_use]
+    pub const fn displacement_snapshot(&self) -> &CartesianQ1FieldSnapshotEnvelopeV1 {
+        &self.displacement_snapshot
+    }
+
+    /// Run manifest whose sole output is [`Self::displacement_snapshot`].
     #[must_use]
     pub const fn run(&self) -> &RunManifestV2 {
         &self.run
@@ -230,7 +283,12 @@ impl MixedBoundaryElasticityResult2d {
     }
 }
 
-fn require_accepted_model(document: &ModelDocument) -> Result<(), Diagnostic> {
+struct AcceptedIdentities {
+    body: Id<kinds::Domain>,
+    displacement: Id<kinds::Field>,
+}
+
+fn require_accepted_model(document: &ModelDocument) -> Result<AcceptedIdentities, Diagnostic> {
     if document.program().revision().0 != 1 {
         return Err(invalid(
             "mixed-boundary elasticity requires the accepted Model at semantic revision 1",
@@ -258,7 +316,17 @@ fn require_accepted_model(document: &ModelDocument) -> Result<(), Diagnostic> {
             "mixed-boundary displacement Field is not measured in metres",
         ));
     }
-    Ok(())
+    let body = document
+        .aliases()
+        .get("body")
+        .and_then(|id| id.downcast::<kinds::Domain>())
+        .ok_or_else(|| invalid("mixed-boundary Model omitted the body Domain alias"))?;
+    Ok(AcceptedIdentities {
+        body,
+        displacement: displacement
+            .downcast::<kinds::Field>()
+            .expect("validated displacement node has Field identity"),
+    })
 }
 
 fn reference_plan() -> Result<RealizationPlan, Diagnostic> {
@@ -341,7 +409,7 @@ fn project_solution(
             .vertex_coordinates(entity)
             .and_then(|value| <[f64; 2]>::try_from(value).ok())
             .ok_or_else(|| internal(format!("mixed-boundary mesh omitted vertex {index}")))?;
-        let displacement = solution
+        let mut displacement = solution
             .displacement()
             .vertex_values(index)
             .and_then(|value| <[f64; 2]>::try_from(value).ok())
@@ -350,6 +418,11 @@ fn project_solution(
                     "mixed-boundary result omitted displacement vertex {index}"
                 ))
             })?;
+        for value in &mut displacement {
+            if *value == 0.0 {
+                *value = 0.0;
+            }
+        }
         if coordinates.into_iter().any(|value| !value.is_finite())
             || displacement.into_iter().any(|value| !value.is_finite())
         {
@@ -462,7 +535,10 @@ mod tests {
         assert_eq!(result.vertices_m().len(), 289);
         assert_eq!(result.cells().len(), 256);
         assert_eq!(result.displacements_m().len(), 289);
-        assert!(result.run().outputs().is_empty());
+        assert_eq!(
+            result.run().outputs(),
+            [result.displacement_snapshot().digest().unwrap()]
+        );
         assert!(
             result.solution().solve_report().true_residual_norm()
                 <= result.solution().solve_report().residual_target()

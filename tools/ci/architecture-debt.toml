@@ -286,7 +286,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-numerics/src/cartesian_elliptic.rs"
-ceiling = 1946
+ceiling = 1855
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -383,7 +383,7 @@ removal = "withdraw the lower CircularHoleSteadyStokesResult2d execution composi
 
 [[public_surface]]
 crate = "eqiora-artifact"
-ceiling = 144
+ceiling = 146
 reason = """
 The current Model and ModelTransaction envelopes own the single admitted wire
 epoch; validated content, canonical bytes, and digest derivation remain below
@@ -393,8 +393,13 @@ CAD/mesh publication remains incomplete. Its accepted type-state owner keeps
 decoded wire separate from admitted source, Geometry, Mesh, correspondence,
 and private deterministic-reference state; without it every consumer would
 thread and independently re-associate that five-value invariant.
+CartesianMeshEnvelopeV1 and CartesianQ1FieldSnapshotEnvelopeV1 close the exact
+generated-mesh and Field-output identities needed to remove the bounded
+structural result surface without triangulating Q1 cells or inventing a
+lineage-free projection. They reuse the existing mesh and Field decoder
+budgets and add no provider registry or extension trait.
 """
-removal = "withdraw the circular-hole wire and accepted type-state owner, then lower by two when common CAD/Mesh publication replaces both without losing the frozen scientific replay evidence; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
+removal = "withdraw the circular-hole wire and accepted type-state owner when common CAD/Mesh publication replaces both without losing the frozen scientific replay evidence; replace the specialized Cartesian Q1 snapshot with the common FieldSnapshot owner when that owner admits hypercube bases without weakening exact mesh linkage, then lower by one; fold the geometry decoder budget into a shared artifact-family budget when the artifact model is next split, then lower by one"
 
 [[public_surface]]
 crate = "eqiora-assembly"
@@ -519,11 +524,11 @@ removal = "withdraw it if direct coordinate references are removed, or replace i
 
 [[public_surface]]
 crate = "eqiora-meshing"
-ceiling = 51
+ceiling = 52
 
 [[public_surface]]
 crate = "eqiora-numerics"
-ceiling = 308
+ceiling = 307
 reason = "predates the predicate; the largest crate, carrying one public entry point per hand-written physics slice"
 removal = "the FEM form-compiler lane replaces per-physics entry points with instance witness data; lower this with each entry point it deletes"
 
