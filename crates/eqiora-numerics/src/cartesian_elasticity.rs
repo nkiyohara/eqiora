@@ -27,10 +27,10 @@ use eqiora_solver::{
 };
 
 use crate::affine_fem::physical_gradient;
-use crate::cartesian_mesh::CartesianMesh;
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::operator::LocalOperator;
 use crate::spatial_expression::ScalarSpatialExpression;
+use eqiora_meshing::CartesianMesh;
 
 const DIMENSION: usize = 2;
 const COMPONENTS: usize = 2;

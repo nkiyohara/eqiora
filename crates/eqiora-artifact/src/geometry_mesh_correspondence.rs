@@ -13,16 +13,16 @@ use eqiora_geometry::{
     GeometryRevisionReference, GeometryRevisionTopology,
 };
 use eqiora_graph::EdgeKind;
-use eqiora_meshing::{MeshEntity, MeshTopology};
+use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology};
 use eqiora_schema::kernel::{BoundarySide, ConnectionSemantics, KernelNode};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
 use crate::geometry_identity::WireGeometryEntity;
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, GeometryDecoderLimits, GeometryEntityV1,
-    GeometryIdentityEnvelopeV1, ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1,
-    check_json_limits, invalid_artifact,
+    ArtifactDigest, CANONICAL_ENCODING, CartesianMeshEnvelopeV1, GeometryDecoderLimits,
+    GeometryEntityV1, GeometryIdentityEnvelopeV1, ReplayableCanonicalModelArtifact,
+    SimplicialMeshEnvelopeV1, check_json_limits, invalid_artifact,
 };
 use correspondence_sources::{
     cartesian_facet_roles, entity_coordinates, point_inside_cartesian, validate_parent_outward_cell,
@@ -31,7 +31,7 @@ use correspondence_sources::{
 const CORRESPONDENCE_SCHEMA: &str = "eqiora.geometry-mesh-correspondence-envelope/v1";
 
 /// Versioned proof that exact geometry entities correspond to exact cell and
-/// facet sets in one affine-simplex mesh revision.
+/// facet sets in one exact mesh revision.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeometryMeshCorrespondenceEnvelopeV1 {
     wire: WireCorrespondenceV1,
@@ -134,12 +134,36 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
         model: &impl ReplayableCanonicalModelArtifact,
         mesh: &SimplicialMeshEnvelopeV1,
     ) -> Result<Self, Diagnostic> {
+        Self::new_for_mesh(geometry, model, mesh.mesh(), mesh.digest()?)
+    }
+
+    /// Derive the complete correspondence for a Cartesian geometry revision
+    /// realized by one exact Cartesian mesh artifact.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` under the same closed-world membership and lineage
+    /// requirements as [`Self::new`].
+    pub fn new_cartesian(
+        geometry: &GeometryIdentityEnvelopeV1,
+        model: &impl ReplayableCanonicalModelArtifact,
+        mesh: &CartesianMeshEnvelopeV1,
+    ) -> Result<Self, Diagnostic> {
+        Self::new_for_mesh(geometry, model, mesh.mesh(), mesh.digest()?)
+    }
+
+    fn new_for_mesh<M: MeshGeometry + ?Sized>(
+        geometry: &GeometryIdentityEnvelopeV1,
+        model: &impl ReplayableCanonicalModelArtifact,
+        topology: &M,
+        mesh_digest: ArtifactDigest,
+    ) -> Result<Self, Diagnostic> {
         geometry.validate_against(model)?;
         let dimension = geometry.dimension();
-        if mesh.dimension() != dimension {
+        if topology.topological_dimension() != dimension
+            || topology.geometric_dimension() != dimension
+        {
             return Err(invalid_artifact("geometry and mesh dimensions differ"));
         }
-        let topology = mesh.mesh();
         let cell_count = topology
             .entity_count(dimension)
             .ok_or_else(|| invalid_artifact("mesh has no top-dimensional stratum"))?;
@@ -348,7 +372,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
                 schema: CORRESPONDENCE_SCHEMA.to_owned(),
                 encoding: CANONICAL_ENCODING.to_owned(),
                 geometry_sha256: geometry.digest()?.to_string(),
-                mesh_sha256: mesh.digest()?.to_string(),
+                mesh_sha256: mesh_digest.to_string(),
                 dimension: u64::try_from(dimension)
                     .map_err(|_| invalid_artifact("geometry dimension exceeds portable u64"))?,
                 bodies: wire_bodies,
@@ -392,6 +416,26 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
         if self != &expected {
             return Err(invalid_artifact(
                 "geometry-mesh correspondence differs from exact resource replay",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Recompute this correspondence from exact Cartesian resources.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for stale digests, changed identities, membership
+    /// drift, or an invalid Cartesian geometry/mesh relation.
+    pub fn validate_against_cartesian(
+        &self,
+        geometry: &GeometryIdentityEnvelopeV1,
+        model: &impl ReplayableCanonicalModelArtifact,
+        mesh: &CartesianMeshEnvelopeV1,
+    ) -> Result<(), Diagnostic> {
+        let expected = Self::new_cartesian(geometry, model, mesh)?;
+        if self != &expected {
+            return Err(invalid_artifact(
+                "geometry-mesh correspondence differs from exact Cartesian resource replay",
             ));
         }
         Ok(())

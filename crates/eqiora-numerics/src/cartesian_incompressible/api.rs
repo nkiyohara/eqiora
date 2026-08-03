@@ -2,7 +2,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, GraphPath};
 use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology};
 
-use crate::cartesian_mesh::CartesianMesh;
+use eqiora_meshing::CartesianMesh;
 
 const DIMENSION: usize = 2;
 

@@ -171,7 +171,7 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 mod tests {
     use super::*;
     use crate::cartesian_incompressible::CartesianIncompressibleOperator2d;
-    use crate::cartesian_mesh::CartesianMesh;
+    use eqiora_meshing::CartesianMesh;
 
     fn zero_problem() -> (CartesianIncompressibleOperator2d, CollocatedPoint2d) {
         let mesh = CartesianMesh::uniform(&[[0.0, 1.0], [0.0, 1.0]], &[2, 2]).unwrap();

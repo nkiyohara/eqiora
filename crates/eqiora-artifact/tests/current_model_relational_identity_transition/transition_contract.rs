@@ -705,12 +705,12 @@ fn clean_post_reset_product_source() -> BTreeMap<String, String> {
 }
 
 /// Synthetic bytes for each admitted later path, written the way an ordinary
-/// current-owner consumer is: naming the `model_digest` its caller already
-/// holds, freezing nothing. Mutation material, not a specification of those
-/// files — it is what makes the predicates below non-vacuous on a checkout
-/// where none of the paths exists, since every state reaches `observe_admitted`
-/// through real bytes exactly as the live tree does.
-const ADMITTED_AS_RECORDED: [(&str, &str); 3] = [
+/// current-owner consumer is: naming the recorded digest edge its caller
+/// already holds, freezing nothing. Mutation material, not a specification of
+/// those files — it makes every optional-path predicate below non-vacuous,
+/// since every state reaches `observe_admitted` through bytes exactly as the
+/// live tree does.
+const ADMITTED_AS_RECORDED: [(&str, &str); 5] = [
     (
         "crates/eqiora-python/src/trajectory.rs",
         "pub fn trajectory(model_digest: &str) -> PyResult<Trajectory> {\n    \
@@ -723,6 +723,14 @@ const ADMITTED_AS_RECORDED: [(&str, &str); 3] = [
     (
         "crates/eqiora-python/src/result.rs",
         "pub fn result(model_digest: &str) -> PyResult<Result> {\n    Result::open(model_digest)\n}\n",
+    ),
+    (
+        "crates/eqiora-artifact/src/cartesian_q1_field_snapshot.rs",
+        "struct SnapshotWire { model_sha256: String }\n",
+    ),
+    (
+        "crates/eqiora/tests/generated_cartesian_q1_spatial_output.rs",
+        "fn stale_snapshot() { let key = \"model_sha256\"; assert!(!key.is_empty()); }\n",
     ),
 ];
 
@@ -1154,9 +1162,9 @@ fn the_repository_is_in_exactly_one_frozen_transition_state() {
         "the working tree must be the complete post-reset state"
     );
 
-    // Containment-only, so this holds whether or not the later Python
-    // trajectory surface has landed. Neither path exists in this checkout,
-    // which is why the synthetic states below carry the mutants.
+    // Containment-only, so this holds independently for admitted paths that
+    // exist in this checkout and for any optional admitted path absent from a
+    // different valid post-reset state.
     for entry in &contract.post_reset_admitted {
         assert_eq!(
             observed.exists.contains(&entry.path),

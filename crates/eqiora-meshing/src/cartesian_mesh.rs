@@ -1,10 +1,10 @@
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_meshing::{
+
+use crate::{
     AffineGeometryLinearization, AffineGeometryMap, EntityIncidence, MeshEntity, MeshGeometry,
     MeshTopology, OrientationCode, ReferenceCell, ReferenceTopology,
 };
-use eqiora_schema::kernel::BoundarySide;
 
 const MAX_CARTESIAN_ENTITIES: usize = 8_000_000;
 const MAX_CARTESIAN_VERTEX_REFERENCES: usize = 64_000_000;
@@ -258,33 +258,35 @@ impl CartesianMesh {
             .map(|coordinates| [coordinates[0], coordinates[coordinates.len() - 1]])
     }
 
-    /// Linearize one entity map with respect to a Cartesian-box bound.
+    /// Linearize one entity map with respect to its axis endpoints.
     ///
-    /// All axis vertices retain their normalized coordinate between the two
-    /// bounds. The resulting motion is therefore a global affine pullback that
-    /// preserves topology, axis alignment, and TPFA orthogonality.
+    /// `endpoint_tangents` gives the lower and upper coordinate tangent for
+    /// `axis`. Every intermediate axis vertex retains its normalized position
+    /// between those endpoints. The resulting motion is therefore a global
+    /// affine pullback that preserves topology and axis alignment without
+    /// importing Semantic Model boundary vocabulary into the mesh layer.
     ///
     /// # Errors
     /// Returns `EQ0803` for an invalid entity or axis.
-    pub fn linearize_box_bound(
+    pub fn linearize_axis_endpoints(
         &self,
         entity: MeshEntity,
         axis: usize,
-        side: BoundarySide,
+        endpoint_tangents: [f64; 2],
     ) -> Result<AffineGeometryLinearization, Diagnostic> {
+        if endpoint_tangents.iter().any(|value| !value.is_finite()) {
+            return Err(invalid_mesh("Cartesian endpoint tangents must be finite"));
+        }
         let entity_data = self
             .entity(entity)
-            .ok_or_else(|| invalid_mesh("Cartesian bound action requested an invalid entity"))?;
+            .ok_or_else(|| invalid_mesh("Cartesian endpoint action requested an invalid entity"))?;
         let coordinates = self.axes.get(axis).ok_or_else(|| {
-            invalid_mesh("Cartesian bound action requested an invalid physical axis")
+            invalid_mesh("Cartesian endpoint action requested an invalid physical axis")
         })?;
         let coordinate_tangent = |index: usize| {
             let fraction = (coordinates[index] - coordinates[0])
                 / (coordinates[coordinates.len() - 1] - coordinates[0]);
-            match side {
-                BoundarySide::Lower => 1.0 - fraction,
-                BoundarySide::Upper => fraction,
-            }
+            endpoint_tangents[0] * (1.0 - fraction) + endpoint_tangents[1] * fraction
         };
         let primal = self.entity_geometry(entity)?;
         let reference_dimension = entity_data.free_axes.len();
@@ -588,7 +590,7 @@ fn invalid_mesh(message: impl Into<String>) -> Diagnostic {
 
 #[cfg(test)]
 mod tests {
-    use eqiora_meshing::{GeometryMap, MeshGeometry};
+    use crate::{GeometryMap, MeshGeometry};
 
     use super::*;
 
@@ -685,9 +687,7 @@ mod tests {
         let mesh =
             CartesianMesh::from_axes(vec![vec![0.0, 0.25, 1.0], vec![-2.0, -0.5, 2.0]]).unwrap();
         let cell = mesh.cell_at(&[1, 0]).unwrap();
-        let linearized = mesh
-            .linearize_box_bound(cell, 0, BoundarySide::Upper)
-            .unwrap();
+        let linearized = mesh.linearize_axis_endpoints(cell, 0, [0.0, 1.0]).unwrap();
         let mut physical = [0.0; 2];
         let mut tangent = [0.0; 2];
         linearized
@@ -706,9 +706,7 @@ mod tests {
             .map(|incidence| incidence.entity)
             .find(|facet| mesh.entity_free_axes(*facet) == Some(&[1][..]))
             .unwrap();
-        let facet_linearized = mesh
-            .linearize_box_bound(facet, 0, BoundarySide::Upper)
-            .unwrap();
+        let facet_linearized = mesh.linearize_axis_endpoints(facet, 0, [0.0, 1.0]).unwrap();
         assert!(facet_linearized.measure_scale_tangent().abs() < 2.0e-15);
     }
 }

@@ -9,8 +9,8 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_ir::LocalLinearActionIr;
 use eqiora_meshing::{
-    AffineGeometryLinearization, AffineGeometryMap, GeometryMap, MeshEntity, MeshGeometry,
-    MeshTopology, QuadratureRule, ReferenceCell,
+    AffineGeometryLinearization, AffineGeometryMap, CartesianMesh, GeometryMap, MeshEntity,
+    MeshGeometry, MeshTopology, QuadratureRule, ReferenceCell,
 };
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearSolution, LinearSolveRequest,
@@ -20,7 +20,6 @@ use eqiora_solver::{
 use crate::affine_fem::{dot, physical_gradient, weighted_gradient, weighted_gradient_tangent};
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::canonical::ScalarEllipticCartesianModel;
-use crate::cartesian_mesh::CartesianMesh;
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::form_compiler::{
     AdmittedScalarGalerkinForm, DerivedScalarGalerkinForm, compile_cartesian_q1_form,
@@ -28,6 +27,10 @@ use crate::form_compiler::{
 use crate::linearized_output::CartesianScalarFieldLinearization;
 use crate::operator::LocalOperator;
 use crate::spatial_design::SpatialDesignCoordinate;
+
+mod design;
+
+use design::{activate_model_parameter, design_geometry, select_design_coordinates};
 
 /// Continuous scalar Q1 field on a Cartesian mesh.
 ///
@@ -1417,100 +1420,6 @@ fn validate_linearization_inputs(
         ));
     }
     validate_problem(mesh, model.coefficient(), quadrature)
-}
-
-struct SelectedDesignCoordinates {
-    coordinates: Vec<crate::spatial_design::SpatialDesignCoordinate>,
-    values: Vec<f64>,
-    actions: Vec<SpatialDesignAction>,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum SpatialDesignAction {
-    ModelParameter(usize),
-    CartesianBound {
-        axis: usize,
-        side: eqiora_schema::kernel::BoundarySide,
-    },
-}
-
-fn select_design_coordinates(
-    model: &ScalarEllipticCartesianModel,
-    selected: &[SpatialDesignCoordinate],
-) -> Result<SelectedDesignCoordinates, Diagnostic> {
-    if selected.is_empty() {
-        return Err(invalid(
-            "Cartesian differentiation requires at least one explicitly selected design coordinate",
-        ));
-    }
-    if selected
-        .iter()
-        .enumerate()
-        .any(|(index, field)| selected[..index].contains(field))
-    {
-        return Err(invalid(
-            "Cartesian differentiation design selection contains a duplicate",
-        ));
-    }
-    let mut values = Vec::with_capacity(selected.len());
-    let mut actions = Vec::with_capacity(selected.len());
-    for coordinate in selected {
-        match *coordinate {
-            SpatialDesignCoordinate::ModelParameter(field) => {
-                let Some(index) = model
-                    .parameter_fields()
-                    .iter()
-                    .position(|candidate| candidate == &field)
-                else {
-                    return Err(invalid(
-                        "selected model Parameter does not affect the lowered Cartesian relation",
-                    ));
-                };
-                values.push(model.parameter_values()[index]);
-                actions.push(SpatialDesignAction::ModelParameter(index));
-            }
-            SpatialDesignCoordinate::CartesianBound { domain, axis, side } => {
-                if domain != model.domain_id() || axis >= model.dimension() {
-                    return Err(invalid(
-                        "selected Cartesian bound does not belong to the lowered Domain",
-                    ));
-                }
-                let bound = match side {
-                    eqiora_schema::kernel::BoundarySide::Lower => model.bounds()[axis][0],
-                    eqiora_schema::kernel::BoundarySide::Upper => model.bounds()[axis][1],
-                };
-                values.push(bound);
-                actions.push(SpatialDesignAction::CartesianBound { axis, side });
-            }
-        }
-    }
-    Ok(SelectedDesignCoordinates {
-        coordinates: selected.to_vec(),
-        values,
-        actions,
-    })
-}
-
-fn activate_model_parameter(action: SpatialDesignAction, tangent: &mut [f64]) {
-    if let SpatialDesignAction::ModelParameter(index) = action {
-        tangent[index] = 1.0;
-    }
-}
-
-fn design_geometry(
-    mesh: &CartesianMesh,
-    entity: MeshEntity,
-    action: SpatialDesignAction,
-) -> Result<AffineGeometryLinearization, Diagnostic> {
-    match action {
-        SpatialDesignAction::ModelParameter(_) => AffineGeometryLinearization::stationary(
-            mesh.geometry_map(entity)
-                .ok_or_else(|| invalid("Cartesian entity geometry is unavailable"))?,
-        ),
-        SpatialDesignAction::CartesianBound { axis, side } => {
-            mesh.linearize_box_bound(entity, axis, side)
-        }
-    }
 }
 
 fn facet_measure_jvp(

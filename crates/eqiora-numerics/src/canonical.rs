@@ -34,7 +34,6 @@ use crate::cartesian_elliptic::{
 use crate::cartesian_elliptic::{
     finalize_scalar_elliptic_cartesian_fem, finalize_scalar_elliptic_cartesian_fvm,
 };
-use crate::cartesian_mesh::CartesianMesh;
 use crate::elliptic::{
     ScalarBoundaryCondition1d, ScalarBoundaryPair1d, ScalarEllipticSolution1d,
     solve_scalar_elliptic_linear_fem, solve_scalar_elliptic_linear_fem_with_assembly,
@@ -50,6 +49,7 @@ use crate::simplicial_elliptic::{
     ScalarEllipticSimplicialFemSolution, solve_scalar_elliptic_simplicial_fem_with_assembly,
 };
 use crate::spatial_expression::{self, ScalarSpatialExpression};
+use eqiora_meshing::CartesianMesh;
 
 /// Boundary meaning of a canonical scalar elliptic Cartesian model.
 #[derive(Debug, Clone, PartialEq)]

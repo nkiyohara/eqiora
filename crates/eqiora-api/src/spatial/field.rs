@@ -12,10 +12,9 @@ use eqiora_assembly::AssemblyReport;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id};
 use eqiora_execution::ExecutionReceipt;
-use eqiora_meshing::MeshTopology;
+use eqiora_meshing::{CartesianMesh, MeshTopology};
 use eqiora_numerics::{
-    common::CartesianMesh, scalar::ResolvedScalarEllipticCartesianSolution,
-    scalar::ScalarEllipticCartesianModel,
+    scalar::ResolvedScalarEllipticCartesianSolution, scalar::ScalarEllipticCartesianModel,
 };
 use eqiora_schema::kernel::KernelNode;
 use eqiora_solver::SolveReport;

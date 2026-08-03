@@ -87,7 +87,7 @@ function acceptedResult(runDigest = digest("c")): StructuralDemoResult {
       runDigest,
       semanticRevision: 11,
       realizationRevision: 1,
-      outputArtifacts: 0,
+      outputArtifacts: 1,
     },
     evidence: {
       caseId: STRUCTURAL_SCIENTIFIC_CASE,

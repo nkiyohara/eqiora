@@ -21,8 +21,8 @@ use crate::cartesian_elasticity::ConformingCartesianLinearElasticityPair2dSoluti
 use crate::cartesian_elasticity::{
     CartesianEssentialSides2d, finalize_conforming_cartesian_q1_linear_elasticity_pair_2d,
 };
-use crate::cartesian_mesh::CartesianMesh;
 use crate::finalized_spatial::FinalizedConformingIsotropicElasticityCartesianPair2dProblem;
+use eqiora_meshing::CartesianMesh;
 
 type CartesianBounds2d = [[f64; 2]; 2];
 

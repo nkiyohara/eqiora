@@ -16,7 +16,6 @@ mod cartesian_elasticity;
 mod cartesian_elliptic;
 mod cartesian_fvm_geometry;
 mod cartesian_incompressible;
-mod cartesian_mesh;
 mod cartesian_transport;
 mod diffusion;
 mod discrete_block;

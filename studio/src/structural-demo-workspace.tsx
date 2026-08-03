@@ -269,15 +269,15 @@ export function StructuralDemoWorkspace({ result }: StructuralDemoWorkspaceProps
             tabIndex={-1}
           >
             <span className="eyebrow">Content-addressed lineage</span>
-            <h2 id="structural-lineage-heading">Model → Realization → Run</h2>
+            <h2 id="structural-lineage-heading">Model → Realization → Field → Run</h2>
             <dl>
               <Identity label="Model" value={result.lineage.modelDigest} />
               <Identity label="Realization" value={result.lineage.realizationDigest} />
               <Identity label="Run" value={result.lineage.runDigest} />
             </dl>
             <small>
-              This Run has no durable Field output artifact; the bounded native payload remains a
-              presentation result.
+              This Run contains one durable displacement Field snapshot bound to its exact Cartesian
+              Mesh; this view presents the unchanged projection.
             </small>
           </section>
 

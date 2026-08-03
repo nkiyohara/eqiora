@@ -1053,10 +1053,7 @@ fn periodic_seam_basis_action(
     output[output_index]
 }
 
-fn cartesian_cell_index(
-    mesh: &eqiora_numerics::common::CartesianMesh,
-    multi_index: [usize; 2],
-) -> usize {
+fn cartesian_cell_index(mesh: &eqiora_meshing::CartesianMesh, multi_index: [usize; 2]) -> usize {
     (0..mesh.entity_count(2).expect("2D mesh owns cells"))
         .find(|index| {
             mesh.cell_multi_index(MeshEntity::new(2, *index)) == Some(multi_index.as_slice())

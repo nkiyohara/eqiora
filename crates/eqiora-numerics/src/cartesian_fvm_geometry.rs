@@ -3,7 +3,7 @@ use eqiora_core::{Diagnostic, GraphPath};
 use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology};
 use eqiora_schema::kernel::BoundarySide;
 
-use crate::cartesian_mesh::CartesianMesh;
+use eqiora_meshing::CartesianMesh;
 
 const DIMENSION: usize = 2;
 

@@ -1,8 +1,9 @@
 # Frozen observations
 
 The Python result must retain the accepted 289 coordinates, 256 Q1
-quadrilaterals, 289 displacements, exact Model-to-Realization-to-Run links,
-solver and assembly reports, and solver-owned force totals. Matrix views are
+quadrilaterals, 289 displacements, exact
+Model-to-Realization-to-displacement-Snapshot-to-Run links, solver and assembly
+reports, and solver-owned force totals. Matrix views are
 read-only, memoized, owner-independent, and co-indexed.
 
 The renderer derives only `coordinates + scale * displacement` for a finite

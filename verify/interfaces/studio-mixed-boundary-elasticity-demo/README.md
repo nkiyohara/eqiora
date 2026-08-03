@@ -9,7 +9,8 @@ facade, and executes the accepted host-serial `f64` conjugate-gradient path.
 The closed WebView response contains the 289 ordered mesh vertices, 256
 quadrilateral cells, solver-owned two-component displacement values,
 constrained reaction, integrated body force, solve/assembly evidence, and
-content-addressed Model, Realization, and output-less Run identities. Studio
+content-addressed Model, Realization, displacement Snapshot, and
+singleton-output Run identities. Studio
 draws original and displaced coordinates with an explicit presentation-only
 scale and keeps a keyboard-accessible selected-vertex table synchronized with
 the retained numeric values.
@@ -34,5 +35,5 @@ cargo test --manifest-path studio/src-tauri/Cargo.toml --locked structural_demo
 The claim is exactly one checked-in direct Model, one frozen Q1 realization,
 and one presentation result. It does not claim a reusable deformation viewer,
 other geometry or loads, stress postprocessing, nonlinear structure, contact,
-3D, validation, production solvers, durable Field output, distribution,
+3D, validation, production solvers, additional durable Field output, distribution,
 devices, performance, or scale.

@@ -13,13 +13,13 @@ use eqiora_solver::LinearOperatorProperties;
 use super::ConformingIsotropicElasticityCartesianPair2d;
 use crate::canonical_boundary::BoundaryRelationBinding2d;
 use crate::canonical_boundary::{CartesianBoundaryInventory2d, PhysicalBoundaryDisposition};
-use crate::cartesian_mesh::CartesianMesh;
 use crate::discrete_block::{
     AlgebraicClosure, BlockRealizationIdentity, BlockSupport, BlockTransformation,
     ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, FieldBlock,
     FieldBlockRole, RelationBlock, RelationDisposition, ResidualBlock, ResidualOrigin,
     boundary_treatment, conforming_interface_relations,
 };
+use eqiora_meshing::CartesianMesh;
 
 const LENGTH: DimExponents = DimExponents {
     length: 1,

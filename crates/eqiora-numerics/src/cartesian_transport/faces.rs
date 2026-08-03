@@ -13,7 +13,7 @@ use crate::canonical_transport::{
     ScalarTransportCartesianBoundary, ScalarTransportCartesianModel2d,
 };
 use crate::cartesian_fvm_geometry::{CartesianFacetAdjacency2d, cartesian_fvm_geometry_2d};
-use crate::cartesian_mesh::CartesianMesh;
+use eqiora_meshing::CartesianMesh;
 
 const DIMENSION: usize = 2;
 pub(super) type BoundaryRoles2d = BTreeMap<(usize, BoundarySide), ScalarTransportBoundaryRole>;

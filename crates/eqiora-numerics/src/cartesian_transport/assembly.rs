@@ -31,8 +31,8 @@ use super::replay::{
 use crate::canonical_transport::{
     ScalarTransportCartesianModel2d, lower_scalar_transport_cartesian_2d,
 };
-use crate::cartesian_mesh::CartesianMesh;
 use crate::finalized_spatial::FinalizedLinearCore;
+use eqiora_meshing::CartesianMesh;
 
 const DIMENSION: usize = 2;
 
