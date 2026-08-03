@@ -699,6 +699,16 @@ def test_trajectory_and_fsi_evidence_reject_unrelated_common_results() -> None:
             eqiora.fsi.fixed_mesh_monolithic_evidence(wrong_type)
 
 
+def test_trajectory_result_rejects_static_field_selection_explicitly(
+    accepted: tuple[eqiora.Model, Any, eqiora.Result, Any],
+) -> None:
+    model, _, result, _ = accepted
+    field = model.field("fluid_pressure")
+    for selector in (result.field, result.mesh):
+        with pytest.raises(eqiora.CapabilityError, match="Trajectory|static Field"):
+            selector(field)
+
+
 def test_evidence_state_lookup_is_bound_to_exact_occurrence_and_state(
     accepted: tuple[eqiora.Model, Any, eqiora.Result, Any],
 ) -> None:

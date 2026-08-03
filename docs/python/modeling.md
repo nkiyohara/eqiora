@@ -305,7 +305,7 @@ for state in trajectory.states:
 
 `FixedMeshMonolithic` is keyword-only, immutable, and has no hidden numerical
 defaults. Its initial state explicitly applies zero velocity everywhere and
-the accepted displacement only on unconstrained interface vertices. The
+the accepted displacement only at the free interface midpoint. The
 model-bound `FixedMeshMonolithicPlan` exposes the admitted fixed-reference
 geometry policy, affine-triangle spaces, backward-Euler time policy, monolithic
 coupling, scales, symmetric-indefinite solver, tolerances, backend, execution

@@ -112,7 +112,7 @@ impl FixedMeshMonolithicFsiIntent2d {
         self.initial_velocity_m_per_s
     }
 
-    /// Initial displacement applied to every unconstrained interface vertex.
+    /// Initial displacement at the accepted free interface midpoint.
     #[must_use]
     pub const fn initial_free_interface_displacement_m(self) -> [f64; 2] {
         self.initial_free_interface_displacement_m

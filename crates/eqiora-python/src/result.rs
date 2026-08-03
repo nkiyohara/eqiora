@@ -219,14 +219,14 @@ impl PyRunResult {
     /// Select one exact static Field observation by Model-bound identity.
     #[pyo3(signature = (field, /))]
     fn field(&self, py: Python<'_>, field: &PyModelFieldRef) -> PyResult<Py<PyFieldSnapshot>> {
-        self.static_output(field)
+        self.static_output(py, field)
             .map(|output| output.snapshot.clone_ref(py))
     }
 
     /// Select the exact accepted Mesh paired with one static Field.
     #[pyo3(signature = (field, /))]
     fn mesh(&self, py: Python<'_>, field: &PyModelFieldRef) -> PyResult<Py<PyMesh>> {
-        self.static_output(field)
+        self.static_output(py, field)
             .map(|output| output.mesh.clone_ref(py))
     }
 
@@ -276,15 +276,28 @@ impl PyRunResult {
 }
 
 impl PyRunResult {
-    fn static_output(&self, field: &PyModelFieldRef) -> PyResult<&StaticFieldOutput> {
+    fn static_output(
+        &self,
+        py: Python<'_>,
+        field: &PyModelFieldRef,
+    ) -> PyResult<&StaticFieldOutput> {
+        let payload = match &self.payload {
+            ResultPayload::Static(payload) => payload,
+            ResultPayload::Trajectory(_) => {
+                return Err(capability_error(
+                    py,
+                    "this Result occurrence owns a Trajectory, not a static Field output",
+                ));
+            }
+            ResultPayload::Series { .. } => {
+                return Err(PyKeyError::new_err(field.exact_id().to_owned()));
+            }
+        };
         if field.exact_model_digest() != self.identity.model_digest() {
             return Err(PyValueError::new_err(
                 "FieldRef belongs to a different exact Model artifact",
             ));
         }
-        let ResultPayload::Static(payload) = &self.payload else {
-            return Err(PyKeyError::new_err(field.exact_id().to_owned()));
-        };
         let index = payload
             .lookup
             .get(field.exact_id())
