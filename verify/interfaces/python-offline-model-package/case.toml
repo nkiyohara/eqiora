@@ -34,4 +34,4 @@ commit_clearing_oracle = "accepted packages.typed-execution-lineage org.example.
 
 [evidence]
 runner = "python-installed-wheel"
-script = "tools/ci/python_package_gate.py"
+script = "verify/interfaces/python-offline-model-package/evidence.py"

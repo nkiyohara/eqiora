@@ -7,6 +7,12 @@ bare root-local Model selector `Main`. The returned ordinary immutable
 `Model` must retain the frozen Model identity while separately exposing the
 exact package-compilation digest.
 
+The registered executor runs the existing installed-wheel package gate and
+the exact `eqiora-python` `python_offline_model_package` Cargo integration
+target. The latter directly compares diagnostic fields and ordering with
+`PackagedModelDocument::compile_locked`; neither oracle is implied by the
+other.
+
 The positive oracle reads the accepted store and deterministic Model and
 compilation artifacts in place. Repository formatting adds one terminal LF to
 the JSON fixtures; the public resolution input removes exactly that LF before
