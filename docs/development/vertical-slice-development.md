@@ -322,6 +322,7 @@ The self-review classifies the delta by durable risk. A fresh-context
 non-writer must independently review before integration the complete risky
 delta that changes any of:
 
+- governance, review, or evidence policy;
 - scientific meaning, an oracle, expected value, tolerance, or falsifier;
 - a public or versioned API, compatibility promise, or migration;
 - a persisted schema or exact artifact;
@@ -336,17 +337,20 @@ regardless of this review classification.
 
 Outside those boundaries, integrator self-review and repository gates are
 sufficient for a dependency-only update when it includes the lockfile and
-relevant automated gate; a docs-only change; reproducible generated or
-mechanical output; a private behavior-preserving refactor; and a localized
-correction to an already-reviewed finding. No fresh reviewer is required unless
-an anomaly appears. Anomalies include ambiguous risk classification, scope
-drift, an unexplained gate change or failure, non-reproducible generated output,
-or a change to the accepted contract or evidence.
+relevant automated gate; non-governance documentation; reproducible generated
+or mechanical output; a private behavior-preserving refactor; and a localized
+correction to an already-reviewed low-risk finding. No fresh reviewer is
+required unless an anomaly appears. Anomalies include ambiguous risk
+classification, scope drift, an unexplained gate change or failure,
+non-reproducible generated output, or a change to the accepted contract or
+evidence.
 
-A localized corrective change does not trigger full rereview merely because
-the reviewed head changed. It returns to independent review only when it
-reopens the accepted contract or risk, changes the oracle or other evidence,
-widens scope, or introduces another anomaly.
+A strictly localized correction to an already-reviewed high-risk finding gets
+focused fresh-context non-writer review of the correction only, not whole-diff
+rereview merely because the reviewed head changed. If the correction changes
+the claim, evidence, or compatibility, widens scope, or otherwise reopens the
+accepted risk, review the reopened risky delta plus needed context as a new
+high-risk change.
 
 Once the applicable review is closed, mark the pull request ready and merge it
 as soon as the protected branch's required hosted checks pass. No additional

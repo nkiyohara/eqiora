@@ -121,15 +121,15 @@ An exact-artifact oracle replays the producer's exact ordering: a geometrically
 equivalent fixture is not byte evidence when local order changes quality or digest.
 
 Fresh-context non-writer review is required before integration only for the complete delta that
-changes: scientific meaning or an oracle; a public or versioned API, compatibility, or migration;
+changes: governance, review, or evidence policy; scientific meaning or an oracle; a public or versioned API, compatibility, or migration;
 a persisted schema or exact artifact; security, data integrity, release or CI trust; or an
 architecture ceiling or debt entry.
 For mixed changes, review only that risky delta, with enough context to judge it. Outside those
-boundaries, the integrator may self-review and run gates for dependency-only updates (including lockfile and relevant automated gate), docs-only, generated or mechanical changes, private behavior-preserving refactors,
-and localized corrections to reviewed findings. These need no fresh reviewer absent an anomaly.
-A correction does not trigger full rereview unless it reopens the accepted contract or risk, changes
-evidence, or widens scope. The integrator's own high-risk work is not exempt; post-integration review
-does not satisfy this gate.
+boundaries, the integrator may self-review and run gates for dependency-only updates (including lockfile and relevant automated gate), non-governance documentation, generated or mechanical changes, private behavior-preserving refactors,
+and localized corrections to low-risk findings. These need no fresh reviewer absent an anomaly.
+A strictly localized correction to a reviewed high-risk finding gets focused fresh review of the correction,
+not whole-diff rereview. If it changes claim, evidence, or compatibility, widens scope, or otherwise reopens
+accepted risk, review the reopened risky delta plus needed context as a new high-risk change. The integrator's own high-risk work is not exempt; post-integration review does not satisfy this gate.
 
 Independent derivation catches what one agent missed, not what both assumed. Only a new scientific
 formulation, expected value, or tolerance carries a **dual independent oracle gate**: two fresh-context

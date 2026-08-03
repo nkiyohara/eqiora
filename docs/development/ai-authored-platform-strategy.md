@@ -224,15 +224,18 @@ oracle, expected values, tolerances, or falsifiers for its own implementation.**
 Wiring a pre-committed fixture is permitted; owning the evidence content is not.
 
 Fresh-context non-writer review of the complete risky delta is mandatory for
-changes to scientific meaning or evidence, public or versioned API and
-compatibility, persisted schemas or exact artifacts, security or data
-integrity, release or CI trust, and architecture ceilings or debt. Outside
-those boundaries, docs-only, dependency-only with its lockfile and relevant
-gate, reproducible generated or mechanical changes, private behavior-preserving
-refactors, and localized corrections to reviewed findings integrate by
-integrator self-review and repository gates absent an anomaly. A mixed change
-sends only its risky delta to review; a correction returns only if it reopens
-the accepted contract or risk, changes evidence, or widens scope.
+changes to governance, review, or evidence policy; scientific meaning or
+evidence; public or versioned API and compatibility; persisted schemas or exact
+artifacts; security or data integrity; release or CI trust; and architecture
+ceilings or debt. Outside those boundaries, non-governance documentation,
+dependency-only updates with their lockfile and relevant gate, reproducible
+generated or mechanical changes, private behavior-preserving refactors, and
+localized corrections to low-risk findings integrate by integrator self-review
+and repository gates absent an anomaly. A mixed change sends only its risky
+delta to review. A strictly localized correction to a reviewed high-risk
+finding gets focused correction-only fresh review; if it changes claim,
+evidence, or compatibility, widens scope, or otherwise reopens accepted risk,
+review the reopened risky delta plus needed context as a new high-risk change.
 
 ### A5 — Architecture predicates enter CI
 
@@ -352,8 +355,8 @@ integrator's own durable-risk work. The first slice exposed the structural
 failure mode: the agent holding acceptance can accept its own consequential
 governance, architecture, and trust decisions at no marginal cost. The remedy
 is independent review of those complete risky deltas, not blanket rereview of
-mechanically gated low-risk changes. Corrections to accepted review findings
-do not restart broad review unless they reopen the contract or risk.
+mechanically gated low-risk changes. A localized high-risk correction gets
+focused fresh review; only reopened risk returns as a new high-risk delta.
 
 Codex prompts carry explicit writable and integration-owned path lists. Claude
 prompts carry the same lists when they write; model capability never broadens
@@ -397,7 +400,7 @@ progress.
 | Contract | The per-slice contract owner, normally Codex, freezes claim, nonclaims, live consumer, derivation rules, stop condition, API budget, and registration deltas. | A non-writing route challenges bounded scientific ambiguity and cross-seam architecture before the writer is selected. |
 | Oracle | Fresh-context agents independent of the intended writer derive values, signs, mutants, and thresholds before reading implementation. New scientific formulations, expected values, and tolerances use two independent analytic and numerical or symbolic routes; the writer owns neither. | The contract owner checks that the oracle binds the executable seam without authoring or tuning expected values. |
 | Implementation | Codex owns the settled existing-architecture path; Fable owns an escalated long-horizon or visual path; Opus may own a narrow fully frozen path. | A fresh-context non-implementer owns the falsifier and, where durable risk requires it, reviews the complete risky delta. |
-| Acceptance | The per-slice integrator rebases, runs `local_verify.py affected`, and audits registrations and environment limitations. It may merge after the applicable risk review; localized corrections need no new review unless they reopen the contract or risk. | For high-risk deltas, a non-writing agent checks signs, indices, lineage, visual/runtime output where applicable, and every precommitted falsifier. Low-risk deltas need no fresh route absent an anomaly. |
+| Acceptance | The per-slice integrator rebases, runs `local_verify.py affected`, and audits registrations and environment limitations. It may merge after the applicable risk review; a localized high-risk correction gets focused fresh review, while reopened risk is reviewed as a new high-risk delta. | For high-risk deltas, a non-writing agent checks signs, indices, lineage, visual/runtime output where applicable, and every precommitted falsifier. Low-risk deltas need no fresh route absent an anomaly. |
 
 If the contract proves insufficient, the writer returns the missing requirement;
 the contract owner re-freezes it before implementation resumes.
