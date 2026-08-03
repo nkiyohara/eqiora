@@ -343,11 +343,7 @@ def test_resolved_plan_publishes_every_effective_value_before_submission() -> No
     mesh = result.mesh(displacement)
     assert plan.mesh_digest == snapshot.mesh_digest == mesh.digest
     assert plan.correspondence_digest == mesh.correspondence_digest
-    assert (
-        plan.geometry_digest
-        == mesh.source_digest
-        == mesh.realized_geometry_digest
-    )
+    assert plan.geometry_digest == mesh.source_digest == mesh.realized_geometry_digest
     assert plan.realization_digest == mesh.realization_digest
     assert mesh.cells.shape == (CELL_COUNT, 4)
     assert mesh.coordinates.shape == (VERTEX_COUNT, SPATIAL_DIMENSION)

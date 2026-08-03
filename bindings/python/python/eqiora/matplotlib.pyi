@@ -3,9 +3,9 @@ from typing import overload
 from matplotlib.figure import Figure
 
 from . import FieldRef, Result
-from .solid import MixedBoundaryElasticityResult
 from .trajectory import Trajectory
 
+@overload
 def plot_deformed_field(
     trajectory: Trajectory,
     /,
@@ -14,8 +14,16 @@ def plot_deformed_field(
     field: FieldRef,
     scale: float = 1.0,
 ) -> Figure: ...
+@overload
+def plot_deformed_field(
+    result: Result,
+    /,
+    *,
+    field: FieldRef,
+    scale: float = 1.0,
+) -> Figure: ...
 def plot_displacement(
-    result: MixedBoundaryElasticityResult,
+    result: Result,
     /,
     *,
     scale: float = 1.0,

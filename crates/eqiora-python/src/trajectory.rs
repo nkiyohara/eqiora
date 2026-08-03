@@ -7,8 +7,8 @@ use std::sync::Arc;
 use eqiora::DimExponents;
 use eqiora::api::{FixedMeshFieldTrajectoryReplay2dV1, UnstructuredP1ScalarFieldProjection2d};
 use eqiora::artifact::{
-    ArtifactDigest, CanonicalModelArtifact, FieldSnapshotEnvelopeV1, RunManifestV2,
-    SimplicialMeshEnvelopeV1,
+    ArtifactDigest, CanonicalModelArtifact, CartesianQ1FieldSnapshotEnvelopeV1,
+    FieldSnapshotEnvelopeV1, RunManifestV2, SimplicialMeshEnvelopeV1,
 };
 use eqiora::kernel::ValueFrame;
 use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldShape};
@@ -647,6 +647,66 @@ impl PyFieldSnapshot {
                     digest: block_digest.to_string(),
                     values: ProjectedValues::Scalar(ReadOnlyVector::new(
                         projection.values().to_vec(),
+                    )),
+                    support_indices: Arc::new(ReadOnlyVector::new(support_indices)),
+                }],
+            },
+        ))
+    }
+
+    /// Project one validated generated-Cartesian continuous-Q1 vector observation.
+    pub(crate) fn from_cartesian_q1_vector(
+        py: Python<'_>,
+        snapshot: &CartesianQ1FieldSnapshotEnvelopeV1,
+        dimension: DimExponents,
+        components: usize,
+        vertex_count: usize,
+    ) -> PyResult<(String, Self)> {
+        let field_id = snapshot.field().ulid().to_string();
+        let model_digest = snapshot.model_artifact().to_string();
+        let mesh_digest = snapshot.mesh_artifact().to_string();
+        let snapshot_digest = artifact_digest(py, snapshot.digest())?;
+        let expected_values = vertex_count.checked_mul(components).ok_or_else(|| {
+            PyOverflowError::new_err("Cartesian Q1 Field coefficient shape exceeds local usize")
+        })?;
+        if components == 0 || snapshot.coefficients().len() != expected_values {
+            return Err(PyRuntimeError::new_err(
+                "accepted Cartesian Q1 vector coefficients differ from their Mesh shape",
+            ));
+        }
+        let support_indices = (0..vertex_count)
+            .map(|index| {
+                u32::try_from(index).map_err(|_| {
+                    PyOverflowError::new_err("Field support index exceeds Python uint32")
+                })
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let field = Py::new(
+            py,
+            PyModelFieldRef::from_exact(model_digest, field_id.clone()),
+        )?;
+        let component_extent = u32::try_from(components)
+            .map_err(|_| PyOverflowError::new_err("Field component count exceeds Python u32"))?;
+        Ok((
+            field_id.clone(),
+            Self {
+                digest: snapshot_digest.clone(),
+                mesh_digest,
+                field,
+                field_id,
+                support_domain_id: snapshot.support_domain().ulid().to_string(),
+                dimension,
+                value_shape: vec![component_extent],
+                frame: "spatial-cartesian",
+                blocks: vec![ProjectedBlock {
+                    association: "vertex",
+                    // This artifact owns its Q1 coefficient block directly rather than
+                    // naming a separate DiscreteField artifact.
+                    digest: snapshot_digest,
+                    values: ProjectedValues::Vector(ReadOnlyMatrix::new(
+                        vertex_count,
+                        components,
+                        snapshot.coefficients().to_vec(),
                     )),
                     support_indices: Arc::new(ReadOnlyVector::new(support_indices)),
                 }],
