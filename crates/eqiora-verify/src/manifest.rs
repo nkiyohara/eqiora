@@ -5,9 +5,12 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{EvidenceTarget, Status};
+use super::{
+    CARGO_LIBRARY_TEST_PREFIX, CargoEvidenceTarget, EvidenceEnvironment, EvidenceTarget,
+    PythonInstalledWheelEvidenceTarget, Status,
+};
 
 /// The fixed runner identity for an installed-wheel Python evidence target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -21,6 +24,101 @@ impl PythonEvidenceRunner {
     pub(super) fn as_str(self) -> &'static str {
         match self {
             Self::PythonInstalledWheel => "python-installed-wheel",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum CargoLibraryEvidenceRunner {
+    CargoLibraryTest,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CargoLibraryEvidenceTarget {
+    runner: CargoLibraryEvidenceRunner,
+    package: String,
+    test: String,
+    #[serde(default)]
+    features: Vec<String>,
+    #[serde(default)]
+    table: Option<String>,
+    #[serde(default)]
+    environment: EvidenceEnvironment,
+}
+
+#[derive(Serialize)]
+struct CargoLibraryEvidenceTargetRef<'a> {
+    runner: CargoLibraryEvidenceRunner,
+    package: &'a str,
+    test: &'a str,
+    #[serde(skip_serializing_if = "<[String]>::is_empty")]
+    features: &'a [String],
+    #[serde(skip_serializing_if = "Option::is_none")]
+    table: Option<&'a str>,
+    #[serde(skip_serializing_if = "EvidenceEnvironment::is_host_cpu")]
+    environment: EvidenceEnvironment,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum EvidenceTargetManifest {
+    CargoLibrary(CargoLibraryEvidenceTarget),
+    Cargo(CargoEvidenceTarget),
+    PythonInstalledWheel(PythonInstalledWheelEvidenceTarget),
+}
+
+impl<'de> Deserialize<'de> for EvidenceTarget {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        match EvidenceTargetManifest::deserialize(deserializer)? {
+            EvidenceTargetManifest::CargoLibrary(target) => {
+                let CargoLibraryEvidenceTarget {
+                    runner: CargoLibraryEvidenceRunner::CargoLibraryTest,
+                    package,
+                    test,
+                    features,
+                    table,
+                    environment,
+                } = target;
+                Ok(Self::Cargo(CargoEvidenceTarget {
+                    package,
+                    test: format!("{CARGO_LIBRARY_TEST_PREFIX}{test}"),
+                    features,
+                    table,
+                    environment,
+                }))
+            }
+            EvidenceTargetManifest::Cargo(target) => Ok(Self::Cargo(target)),
+            EvidenceTargetManifest::PythonInstalledWheel(target) => {
+                Ok(Self::PythonInstalledWheel(target))
+            }
+        }
+    }
+}
+
+impl Serialize for EvidenceTarget {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Cargo(target) => match target.library_test_name() {
+                Some(test) => CargoLibraryEvidenceTargetRef {
+                    runner: CargoLibraryEvidenceRunner::CargoLibraryTest,
+                    package: &target.package,
+                    test,
+                    features: &target.features,
+                    table: target.table.as_deref(),
+                    environment: target.environment,
+                }
+                .serialize(serializer),
+                None => target.serialize(serializer),
+            },
+            Self::PythonInstalledWheel(target) => target.serialize(serializer),
         }
     }
 }
@@ -169,7 +267,6 @@ fn validate_manifest(
         match evidence {
             EvidenceTarget::Cargo(evidence) => {
                 validate_stable_name("evidence package", &evidence.package)?;
-                validate_stable_name("evidence test", &evidence.test)?;
                 let mut features = BTreeSet::new();
                 for feature in &evidence.features {
                     validate_stable_name("evidence feature", feature)?;
@@ -186,11 +283,22 @@ fn validate_manifest(
                         manifest.id, evidence.package
                     )
                 })?;
-                if !tests.contains(&evidence.test) {
-                    return Err(format!(
-                        "case `{}` names missing integration-test target `{}/{}`",
-                        manifest.id, evidence.package, evidence.test
-                    ));
+                if let Some(test) = evidence.library_test_name() {
+                    validate_library_test_name(test)?;
+                } else {
+                    if evidence.test.contains(':') {
+                        return Err(format!(
+                            "case `{}` names missing integration-test target `{}/{}`",
+                            manifest.id, evidence.package, evidence.test
+                        ));
+                    }
+                    validate_stable_name("evidence test", &evidence.test)?;
+                    if !tests.contains(&evidence.test) {
+                        return Err(format!(
+                            "case `{}` names missing integration-test target `{}/{}`",
+                            manifest.id, evidence.package, evidence.test
+                        ));
+                    }
                 }
                 if let Some(table) = &evidence.table {
                     validate_case_artifact(canonical_root, case_directory, table, &manifest.id)?;
@@ -302,6 +410,26 @@ fn validate_stable_name(label: &str, value: &str) -> Result<(), String> {
         ))
     } else {
         Ok(())
+    }
+}
+
+fn validate_library_test_name(value: &str) -> Result<(), String> {
+    let segments = value.split("::").collect::<Vec<_>>();
+    let valid = segments.len() >= 2
+        && segments.iter().all(|segment| {
+            let bytes = segment.as_bytes();
+            bytes.first().is_some_and(u8::is_ascii_lowercase)
+                && bytes
+                    .iter()
+                    .skip(1)
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'_')
+        });
+    if valid {
+        Ok(())
+    } else {
+        Err(format!(
+            "library evidence test `{value}` is not an exact fully qualified lowercase Rust test name"
+        ))
     }
 }
 

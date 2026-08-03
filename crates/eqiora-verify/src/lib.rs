@@ -364,8 +364,7 @@ impl RunnerKind {
 }
 
 /// One of the closed, shell-free evidence targets a case manifest may select.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvidenceTarget {
     /// One workspace Cargo integration-test target.
     Cargo(CargoEvidenceTarget),
@@ -376,7 +375,10 @@ pub enum EvidenceTarget {
 impl EvidenceTarget {
     fn human_label(&self) -> String {
         let label = match self {
-            Self::Cargo(target) => format!("{}/{}", target.package, target.test),
+            Self::Cargo(target) => target.library_test_name().map_or_else(
+                || format!("{}/{}", target.package, target.test),
+                |test| format!("cargo-library-test/{}/{test}", target.package),
+            ),
             Self::PythonInstalledWheel(target) => {
                 format!("{}/{}", target.runner.as_str(), target.script)
             }
@@ -404,9 +406,7 @@ impl EvidenceTarget {
     }
 }
 
-/// Exact behavior-affecting identity of one process started by the runner.
-///
-/// Case-owned artifacts and descriptive metadata intentionally remain outside
+/// Exact process identity; case-owned descriptive metadata remains outside
 /// this key: they are validated before selection but do not alter the process.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum ExecutionKey {
@@ -452,9 +452,14 @@ impl ExecutionKey {
                 features,
                 environment,
             } => format!(
-                "cargo package={} test={} features={}:[{}] environment={}",
+                "{} package={} test={} features={}:[{}] environment={}",
+                if test.starts_with(CARGO_LIBRARY_TEST_PREFIX) {
+                    "cargo-library-test"
+                } else {
+                    "cargo"
+                },
                 component(package),
-                component(test),
+                component(test.strip_prefix(CARGO_LIBRARY_TEST_PREFIX).unwrap_or(test)),
                 features.len(),
                 features
                     .iter()
@@ -501,6 +506,14 @@ pub struct CargoEvidenceTarget {
     /// Exact environment required to execute this evidence target.
     #[serde(default, skip_serializing_if = "EvidenceEnvironment::is_host_cpu")]
     pub environment: EvidenceEnvironment,
+}
+
+const CARGO_LIBRARY_TEST_PREFIX: &str = "lib::";
+
+impl CargoEvidenceTarget {
+    fn library_test_name(&self) -> Option<&str> {
+        self.test.strip_prefix(CARGO_LIBRARY_TEST_PREFIX)
+    }
 }
 
 /// A repository-owned Python installed-wheel evidence target.
@@ -816,13 +829,20 @@ struct CargoBuildGroup {
 impl CargoBuildGroup {
     fn from_target(target: &CargoEvidenceTarget) -> Self {
         Self {
-            package: target.package.clone(),
+            package: target.library_test_name().map_or_else(
+                || target.package.clone(),
+                |_| format!("{CARGO_LIBRARY_TEST_PREFIX}{}", target.package),
+            ),
             features: normalized_features(&target.features),
         }
     }
 
     fn label(&self) -> String {
-        format!("{} features=[{}]", self.package, self.features.join(","))
+        if let Some(package) = self.package.strip_prefix(CARGO_LIBRARY_TEST_PREFIX) {
+            format!("{} library features=[{}]", package, self.features.join(","))
+        } else {
+            format!("{} features=[{}]", self.package, self.features.join(","))
+        }
     }
 }
 

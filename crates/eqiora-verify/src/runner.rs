@@ -10,7 +10,7 @@ use std::time::Instant;
 
 use super::{
     CargoBuildGroup, EvidenceEnvironment, EvidenceOutput, EvidenceRunner, EvidenceTarget,
-    ExecutionKey,
+    ExecutionKey, normalized_features,
 };
 
 /// Shell-free runner for the closed set of system evidence targets.
@@ -43,26 +43,30 @@ impl SystemEvidenceRunner {
             panic!("Cargo build group must contain a Cargo evidence target");
         };
         let key = CargoBuildGroup::from_target(first);
-        let tests = targets
-            .iter()
-            .map(|target| match target {
-                EvidenceTarget::Cargo(target) => target.test.as_str(),
-                EvidenceTarget::PythonInstalledWheel(_) => {
-                    panic!("Cargo build group must contain only Cargo evidence targets")
-                }
-            })
-            .collect::<BTreeSet<_>>();
+        let library = first.library_test_name().is_some();
         let mut command = Command::new(&self.cargo);
-        command.args([
-            "test",
-            "--locked",
-            "-p",
-            &key.package,
-            "--no-run",
-            "--message-format=json",
-        ]);
-        for test in tests {
-            command.args(["--test", test]);
+        command.args(["test", "--locked", "-p", &first.package]);
+        if library {
+            assert!(targets.iter().all(|target| matches!(
+                target,
+                EvidenceTarget::Cargo(target) if target.library_test_name().is_some()
+            )));
+            command.arg("--lib");
+        }
+        command.args(["--no-run", "--message-format=json"]);
+        if !library {
+            let tests = targets
+                .iter()
+                .map(|target| match target {
+                    EvidenceTarget::Cargo(target) => target.test.as_str(),
+                    EvidenceTarget::PythonInstalledWheel(_) => {
+                        panic!("Cargo build group must contain only Cargo evidence targets")
+                    }
+                })
+                .collect::<BTreeSet<_>>();
+            for test in tests {
+                command.args(["--test", test]);
+            }
         }
         if !key.features.is_empty() {
             command.arg("--features").arg(key.features.join(","));
@@ -86,6 +90,9 @@ impl SystemEvidenceRunner {
                         )
                     })?;
                 let mut command = Command::new(executable);
+                if let Some(test) = target.library_test_name() {
+                    command.args([test, "--exact"]);
+                }
                 if target.environment == EvidenceEnvironment::PhysicalMpiCuda {
                     command.arg("--ignored");
                 }
@@ -101,12 +108,110 @@ impl SystemEvidenceRunner {
         Ok(command)
     }
 
+    fn library_inventory_count(
+        &self,
+        root: &Path,
+        target: &EvidenceTarget,
+        ignored: bool,
+    ) -> Result<usize, String> {
+        let EvidenceTarget::Cargo(target_details) = target else {
+            unreachable!("library inventory requires a Cargo target");
+        };
+        let test = target_details
+            .library_test_name()
+            .expect("library inventory requires a library target");
+        let key = ExecutionKey::from_target(target);
+        let executable = self
+            .prepared
+            .lock()
+            .unwrap()
+            .get(&key)
+            .map(|prepared| prepared.executable.clone())
+            .ok_or_else(|| {
+                format!(
+                    "Cargo evidence execution `{}` has no prepared executable",
+                    key.label()
+                )
+            })?;
+        let mut command = Command::new(executable);
+        command.args([test, "--exact", "--list", "--format=terse"]);
+        if ignored {
+            command.arg("--ignored");
+        }
+        let output = command.current_dir(root).output().map_err(|error| {
+            format!("cannot start library evidence inventory for `{test}`: {error}")
+        })?;
+        if !output.status.success() {
+            return Err(format!(
+                "library evidence inventory for `{test}` failed: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+        let expected = format!("{test}: test");
+        Ok(String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter(|line| *line == expected)
+            .count())
+    }
+
+    fn preflight_library_test(&self, root: &Path, target: &EvidenceTarget) -> Result<(), String> {
+        let EvidenceTarget::Cargo(target_details) = target else {
+            unreachable!("library preflight requires a Cargo target");
+        };
+        let test = target_details
+            .library_test_name()
+            .expect("library preflight requires a library target");
+        let environment = target_details.environment;
+        match self.library_inventory_count(root, target, false)? {
+            1 => {}
+            0 => {
+                return Err(format!(
+                    "library evidence test `{test}` is missing from the {} libtest inventory",
+                    environment.as_str()
+                ));
+            }
+            count => {
+                return Err(format!(
+                    "library evidence test `{test}` appears {count} times in the {} libtest inventory",
+                    environment.as_str()
+                ));
+            }
+        }
+        let ignored = match self.library_inventory_count(root, target, true)? {
+            0 => false,
+            1 => true,
+            count => {
+                return Err(format!(
+                    "library evidence test `{test}` appears {count} times in the ignored libtest inventory"
+                ));
+            }
+        };
+        match (environment, ignored) {
+            (EvidenceEnvironment::HostCpu, false)
+            | (EvidenceEnvironment::PhysicalMpiCuda, true) => Ok(()),
+            (EvidenceEnvironment::HostCpu, true) => Err(format!(
+                "library evidence test `{test}` is ignored but host-cpu library evidence requires a non-ignored test"
+            )),
+            (EvidenceEnvironment::PhysicalMpiCuda, false) => Err(format!(
+                "library evidence test `{test}` is not ignored but physical-mpi-cuda library evidence requires an ignored test"
+            )),
+        }
+    }
+
     fn record_executables(
         &self,
         targets: &[EvidenceTarget],
         stdout: &[u8],
         stderr: &[u8],
     ) -> Result<(), String> {
+        if targets.first().is_some_and(|target| {
+            matches!(
+                target,
+                EvidenceTarget::Cargo(target) if target.library_test_name().is_some()
+            )
+        }) {
+            return self.record_library_executable(targets, stdout, stderr);
+        }
         let expected = targets
             .iter()
             .map(|target| match target {
@@ -204,6 +309,76 @@ impl SystemEvidenceRunner {
         Ok(())
     }
 
+    fn record_library_executable(
+        &self,
+        targets: &[EvidenceTarget],
+        stdout: &[u8],
+        stderr: &[u8],
+    ) -> Result<(), String> {
+        let Some(EvidenceTarget::Cargo(first)) = targets.first() else {
+            unreachable!("library build group requires a Cargo target");
+        };
+        let package = &first.package;
+        if !targets.iter().all(|target| {
+            matches!(
+                target,
+                EvidenceTarget::Cargo(target)
+                    if target.package == *package && target.library_test_name().is_some()
+            )
+        }) {
+            return Err("Cargo library build group contains mismatched targets".to_owned());
+        }
+
+        let mut executables = Vec::new();
+        let mut diagnostics = String::new();
+        for line in String::from_utf8_lossy(stdout).lines() {
+            let Ok(message) = serde_json::from_str::<serde_json::Value>(line) else {
+                continue;
+            };
+            if message["reason"] == "compiler-message" {
+                if let Some(rendered) = message["message"]["rendered"].as_str() {
+                    append_stderr(&mut diagnostics, rendered);
+                }
+                continue;
+            }
+            if message["reason"] != "compiler-artifact"
+                || !message["package_id"]
+                    .as_str()
+                    .is_some_and(|package_id| cargo_package_id_matches(package_id, package))
+                || !message["target"]["kind"]
+                    .as_array()
+                    .is_some_and(|kinds| kinds.iter().any(|kind| kind == "lib"))
+            {
+                continue;
+            }
+            if let Some(executable) = message["executable"].as_str() {
+                executables.push(PathBuf::from(executable));
+            }
+        }
+        if executables.len() != 1 {
+            return Err(format!(
+                "Cargo did not report exactly one library executable for package `{package}` (found {})",
+                executables.len()
+            ));
+        }
+        append_stderr(
+            &mut diagnostics,
+            &cargo_stderr_without_progress(&String::from_utf8_lossy(stderr)),
+        );
+        let executable = executables.pop().expect("one executable was checked");
+        let mut prepared = self.prepared.lock().unwrap();
+        for target in targets {
+            prepared.insert(
+                ExecutionKey::from_target(target),
+                PreparedCargoTarget {
+                    executable: executable.clone(),
+                    build_stderr: diagnostics.clone(),
+                },
+            );
+        }
+        Ok(())
+    }
+
     fn prepared_build_stderr(&self, target: &EvidenceTarget) -> String {
         let key = ExecutionKey::from_target(target);
         self.prepared
@@ -222,13 +397,29 @@ impl SystemEvidenceRunner {
         let mut stderr = self.prepared_build_stderr(target);
         append_stderr(&mut stderr, &String::from_utf8_lossy(child_stderr));
         if !succeeded && let EvidenceTarget::Cargo(target) = target {
-            append_stderr(
-                &mut stderr,
-                &format!(
-                    "error: test failed, to rerun pass `-p {} --test {}`\n",
-                    target.package, target.test
-                ),
-            );
+            if let Some(test) = target.library_test_name() {
+                let features = normalized_features(&target.features);
+                let mut command = format!("cargo test --locked -p {} --lib", target.package);
+                if !features.is_empty() {
+                    command.push_str(&format!(" --features {}", features.join(",")));
+                }
+                command.push_str(&format!(" {test} -- --exact"));
+                if target.environment == EvidenceEnvironment::PhysicalMpiCuda {
+                    command.push_str(" --ignored");
+                }
+                append_stderr(
+                    &mut stderr,
+                    &format!("error: test failed, to rerun pass `{command}`\n"),
+                );
+            } else {
+                append_stderr(
+                    &mut stderr,
+                    &format!(
+                        "error: test failed, to rerun pass `-p {} --test {}`\n",
+                        target.package, target.test
+                    ),
+                );
+            }
         }
         stderr
     }
@@ -272,6 +463,19 @@ impl EvidenceRunner for SystemEvidenceRunner {
     }
 
     fn run(&self, root: &Path, target: &EvidenceTarget) -> EvidenceOutput {
+        if matches!(
+            target,
+            EvidenceTarget::Cargo(target) if target.library_test_name().is_some()
+        ) && let Err(error) = self.preflight_library_test(root, target)
+        {
+            return EvidenceOutput {
+                duration_ms: None,
+                exit_code: None,
+                stdout: String::new(),
+                stderr: self.prepared_build_stderr(target),
+                start_error: Some(error),
+            };
+        }
         let mut command = match self.command(root, target) {
             Ok(command) => command,
             Err(error) => {
@@ -287,7 +491,17 @@ impl EvidenceRunner for SystemEvidenceRunner {
         let started = Instant::now();
         match command.output() {
             Ok(output) => {
-                let stderr = self.completed_stderr(target, &output.stderr, output.status.success());
+                let succeeded = output.status.success();
+                let mut child_stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+                if !succeeded
+                    && matches!(
+                        target,
+                        EvidenceTarget::Cargo(target) if target.library_test_name().is_some()
+                    )
+                {
+                    append_stderr(&mut child_stderr, &String::from_utf8_lossy(&output.stdout));
+                }
+                let stderr = self.completed_stderr(target, child_stderr.as_bytes(), succeeded);
                 EvidenceOutput {
                     duration_ms: Some(
                         u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
@@ -306,6 +520,20 @@ impl EvidenceRunner for SystemEvidenceRunner {
                 start_error: Some(format!("cannot start evidence target: {error}")),
             },
         }
+    }
+}
+
+fn cargo_package_id_matches(package_id: &str, package: &str) -> bool {
+    let Some((source, fragment)) = package_id.rsplit_once('#') else {
+        return false;
+    };
+    if let Some((name, _version)) = fragment.split_once('@') {
+        name == package
+    } else {
+        source
+            .trim_end_matches('/')
+            .rsplit_once('/')
+            .is_some_and(|(_, name)| name == package)
     }
 }
 
