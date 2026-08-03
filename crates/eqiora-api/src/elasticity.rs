@@ -14,20 +14,22 @@ use eqiora_artifact::{
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id};
-use eqiora_meshing::{MeshEntity, MeshTopology};
+use eqiora_meshing::{CartesianMesh, MeshEntity, MeshTopology};
 use eqiora_numerics::solid::{
-    CartesianLinearElasticity2dSolution, solve_resolved_isotropic_elasticity_cartesian_2d,
+    CartesianLinearElasticity2dSolution, lower_isotropic_elasticity_cartesian_2d,
+    solve_resolved_isotropic_elasticity_cartesian_2d,
 };
 use eqiora_realization::{
     Discretization, DiscretizationMethod, ExecutionSchedule, MeshPolicy, QuadraturePolicy,
     RealizationCapabilities, RealizationPlan, RealizationRequest, RealizationRequirements,
-    RealizationRevision, ResolutionSource, SemanticRevision, Space, Target, VectorLayoutKind,
-    resolve,
+    RealizationRevision, ResolutionSource, ResolvedRealization, SemanticRevision, Space, Target,
+    VectorLayoutKind, resolve,
 };
 use eqiora_schema::kernel::KernelNode;
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, LinearSolverBackend, PreconditionerPolicy,
-    ReductionPolicy, SERIAL_EXECUTION_PROVIDER, ScalarType, SolverPlan,
+    ExecutionProvider, LinearOperatorProperties, LinearSolver, LinearSolverBackend,
+    PreconditionerPolicy, ReductionPolicy, SERIAL_EXECUTION_PROVIDER, ScalarType,
+    SolverCapabilities, SolverPlan, SolverProvider,
 };
 
 use crate::ModelDocument;
@@ -47,6 +49,238 @@ const DISPLACEMENT_DIMENSION: DimExponents = DimExponents {
     length: 1,
     ..DimExponents::DIMENSIONLESS
 };
+
+/// Typed, inspectable request for the accepted two-dimensional linear-elasticity solve.
+///
+/// Construction validates every numerical control. Resolution remains responsible
+/// for admitting only the exact tuple implemented by the bounded reference path.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LinearElasticityIntent2d {
+    cells_per_axis: NonZeroUsize,
+    solver: SolverPlan,
+}
+
+impl LinearElasticityIntent2d {
+    /// Construct a complete request with no hidden numerical defaults.
+    ///
+    /// # Errors
+    /// Returns `EQ0807` when either tolerance is non-finite or non-positive.
+    pub fn new(
+        cells_per_axis: NonZeroUsize,
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: NonZeroUsize,
+    ) -> Result<Self, Diagnostic> {
+        if !relative_tolerance.is_finite()
+            || !absolute_tolerance.is_finite()
+            || relative_tolerance <= 0.0
+            || absolute_tolerance <= 0.0
+        {
+            return Err(invalid(
+                "linear-elasticity tolerances must be finite and strictly positive",
+            ));
+        }
+        let solver = SolverPlan::new(
+            LinearSolver::ConjugateGradient,
+            relative_tolerance,
+            absolute_tolerance,
+            maximum_iterations,
+        )?;
+        Ok(Self {
+            cells_per_axis,
+            solver,
+        })
+    }
+
+    /// Number of generated Cartesian cells on each axis.
+    #[must_use]
+    pub const fn cells_per_axis(self) -> NonZeroUsize {
+        self.cells_per_axis
+    }
+
+    /// Requested relative residual tolerance.
+    #[must_use]
+    pub const fn relative_tolerance(self) -> f64 {
+        self.solver.relative_tolerance()
+    }
+
+    /// Requested absolute residual tolerance.
+    #[must_use]
+    pub const fn absolute_tolerance(self) -> f64 {
+        self.solver.absolute_tolerance()
+    }
+
+    /// Requested maximum solver iterations.
+    #[must_use]
+    pub const fn maximum_iterations(self) -> NonZeroUsize {
+        self.solver.maximum_iterations()
+    }
+
+    /// Complete requested linear-solver policy.
+    #[must_use]
+    pub const fn solver(self) -> SolverPlan {
+        self.solver
+    }
+}
+
+/// Immutable result of resolving a linear-elasticity intent before execution.
+///
+/// This is an owned in-process Plan, not a durable wire format. It exposes the
+/// existing exact Model, Realization, geometry, generated Cartesian mesh, and
+/// correspondence artifacts. Execution replays the retained inputs and
+/// revalidates the admitted backend release and capability inventory.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResolvedLinearElasticityPlan2d {
+    document: ModelDocument,
+    intent: LinearElasticityIntent2d,
+    resolved: ResolvedRealization,
+    model: ModelEnvelope,
+    realization: RealizationEnvelopeV1,
+    geometry: GeometryIdentityEnvelopeV1,
+    mesh_artifact: CartesianMeshEnvelopeV1,
+    correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+    solver_provider: SolverProvider,
+    solver_capabilities: SolverCapabilities,
+}
+
+impl ResolvedLinearElasticityPlan2d {
+    /// Resolve one typed request against the exact accepted Model and backend.
+    ///
+    /// # Errors
+    /// Returns a structured diagnostic for foreign Model meaning, unsupported
+    /// intent, mutable provider identity, or invalid realization/artifact lineage.
+    pub fn resolve(
+        document: &ModelDocument,
+        intent: LinearElasticityIntent2d,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<Self, Diagnostic> {
+        let solver_provider = backend.provider();
+        let solver_capabilities = backend.capabilities();
+        let application = resolve_application(document, intent, backend)?;
+        if backend.provider() != solver_provider || backend.capabilities() != solver_capabilities {
+            return Err(internal(
+                "linear solver provider identity or capabilities changed during resolution",
+            ));
+        }
+        Ok(Self {
+            document: document.clone(),
+            intent,
+            resolved: application.resolved,
+            model: application.model,
+            realization: application.realization,
+            geometry: application.geometry,
+            mesh_artifact: application.mesh_artifact,
+            correspondence: application.correspondence,
+            solver_provider,
+            solver_capabilities,
+        })
+    }
+
+    /// Execute exactly this resolved occurrence through the admitted backend.
+    ///
+    /// # Errors
+    /// Revalidates retained Model meaning, intent, artifacts, provider release,
+    /// capabilities, solve evidence, and output lineage before publication.
+    pub fn execute(
+        &self,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<MixedBoundaryElasticityResult2d, Diagnostic> {
+        if backend.provider() != self.solver_provider
+            || backend.capabilities() != self.solver_capabilities
+        {
+            return Err(invalid(
+                "resolved linear-elasticity Plan requires the admitted solver provider release and capabilities",
+            ));
+        }
+        let application = resolve_application(&self.document, self.intent, backend)?;
+        if application.resolved != self.resolved
+            || application.model != self.model
+            || application.realization != self.realization
+            || application.geometry != self.geometry
+            || application.mesh_artifact != self.mesh_artifact
+            || application.correspondence != self.correspondence
+        {
+            return Err(internal(
+                "linear-elasticity artifacts changed between resolution and execution",
+            ));
+        }
+
+        let (lowered, solution) = solve_resolved_isotropic_elasticity_cartesian_2d(
+            self.document.program(),
+            &self.resolved,
+            backend,
+        )?;
+        if backend.provider() != self.solver_provider
+            || backend.capabilities() != self.solver_capabilities
+        {
+            return Err(internal(
+                "linear solver provider identity or capabilities changed during execution",
+            ));
+        }
+        validate_solve_report(&solution, self.solver_provider, self.intent.solver())?;
+        let solved_mesh = CartesianMeshEnvelopeV1::from_mesh(solution.displacement().mesh())?;
+        if solved_mesh != self.mesh_artifact {
+            return Err(internal(
+                "linear-elasticity execution mesh differs from the resolved exact mesh artifact",
+            ));
+        }
+        MixedBoundaryElasticityResult2d::from_execution(self, *lowered.bounds(), solution)
+    }
+
+    /// Exact current Model admitted by this Plan.
+    #[must_use]
+    pub const fn model(&self) -> &ModelEnvelope {
+        &self.model
+    }
+
+    /// Complete caller intent consumed by this Plan.
+    #[must_use]
+    pub const fn intent(&self) -> LinearElasticityIntent2d {
+        self.intent
+    }
+
+    /// Exact field-wise Realization artifact produced during resolution.
+    #[must_use]
+    pub const fn realization(&self) -> &RealizationEnvelopeV1 {
+        &self.realization
+    }
+
+    /// Exact Cartesian geometry identity produced during resolution.
+    #[must_use]
+    pub const fn geometry(&self) -> &GeometryIdentityEnvelopeV1 {
+        &self.geometry
+    }
+
+    /// Exact generated Cartesian mesh artifact produced during resolution.
+    #[must_use]
+    pub const fn mesh_artifact(&self) -> &CartesianMeshEnvelopeV1 {
+        &self.mesh_artifact
+    }
+
+    /// Exact geometry-to-mesh entity correspondence produced during resolution.
+    #[must_use]
+    pub const fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1 {
+        &self.correspondence
+    }
+
+    /// Solver provider release admitted during resolution.
+    #[must_use]
+    pub const fn solver_provider(&self) -> SolverProvider {
+        self.solver_provider
+    }
+
+    /// Host execution adapter used by this bounded Plan.
+    #[must_use]
+    pub const fn execution_provider(&self) -> ExecutionProvider {
+        SERIAL_EXECUTION_PROVIDER
+    }
+
+    /// Exact host worker count admitted by this bounded Plan.
+    #[must_use]
+    pub const fn workers(&self) -> NonZeroUsize {
+        NonZeroUsize::MIN
+    }
+}
 
 /// Complete accepted lineage for the mixed-boundary Cartesian Q1 case.
 ///
@@ -84,98 +318,51 @@ impl MixedBoundaryElasticityResult2d {
         document: &ModelDocument,
         backend: &dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
-        validate_scientific_case(SCIENTIFIC_CASE)?;
-        let identities = require_accepted_model(document)?;
-        let plan = reference_plan()?;
-        let backend_provider = backend.provider();
-        let backend_capabilities = backend.capabilities();
-        backend_capabilities.require_problem(
-            plan.solver(),
-            ScalarType::F64,
-            LinearOperatorProperties::SymmetricPositiveDefinite,
-        )?;
+        ResolvedLinearElasticityPlan2d::resolve(document, reference_intent()?, backend)?
+            .execute(backend)
+    }
 
-        let resolved = resolve(
-            &RealizationRequest::explicit(
-                document.program().model(),
-                SemanticRevision::new(document.program().revision().0),
-                RealizationRevision::new(REALIZATION_REVISION),
-                plan,
-            ),
-            RealizationRequirements::new(
-                NonZeroUsize::new(2).expect("positive frozen dimension"),
-                ScalarType::F64,
-                VectorLayoutKind::Replicated,
-            ),
-            &RealizationCapabilities::isotropic_elasticity_2d_reference(),
-        )?;
-        if resolved.source()
-            != ResolutionSource::Explicit(RealizationRevision::new(REALIZATION_REVISION))
-        {
-            return Err(internal(
-                "mixed-boundary Realization revision changed during resolution",
-            ));
-        }
-
-        let (lowered, solution) = solve_resolved_isotropic_elasticity_cartesian_2d(
-            document.program(),
-            &resolved,
-            backend,
-        )?;
-        if backend.provider() != backend_provider || backend.capabilities() != backend_capabilities
-        {
-            return Err(internal(
-                "linear solver provider identity or capabilities changed during execution",
-            ));
-        }
-        validate_solve_report(&solution, backend_provider)?;
-
+    fn from_execution(
+        plan: &ResolvedLinearElasticityPlan2d,
+        bounds_m: [[f64; 2]; 2],
+        solution: CartesianLinearElasticity2dSolution,
+    ) -> Result<Self, Diagnostic> {
+        let identities = require_accepted_model(&plan.document)?;
         let (vertices_m, cells, displacements_m) = project_solution(&solution)?;
-        let model = ModelEnvelope::from_program(document.program())?;
-        let realization =
-            RealizationEnvelopeV1::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)?;
-        let geometry = GeometryIdentityEnvelopeV1::new(
-            &model,
-            [identities.body],
-            GEOMETRY_CLASSIFICATION_PRECISION_M,
-        )?;
-        let mesh_artifact = CartesianMeshEnvelopeV1::from_mesh(solution.displacement().mesh())?;
-        let correspondence =
-            GeometryMeshCorrespondenceEnvelopeV1::new_cartesian(&geometry, &model, &mesh_artifact)?;
         let displacement_snapshot = CartesianQ1FieldSnapshotEnvelopeV1::new(
-            &model,
-            &realization,
-            &geometry,
-            &correspondence,
-            &mesh_artifact,
+            &plan.model,
+            &plan.realization,
+            &plan.geometry,
+            &plan.correspondence,
+            &plan.mesh_artifact,
             identities.displacement,
             displacements_m.iter().flatten().copied(),
         )?;
         let execution = ExecutionProvenanceV1::from_provider_releases(
-            backend_provider,
-            SERIAL_EXECUTION_PROVIDER,
+            plan.solver_provider,
+            plan.execution_provider(),
             ExecutionTopologyV1::Host {
-                workers: NonZeroUsize::MIN,
+                workers: plan.workers(),
             },
-            ReductionPolicy::Reproducible,
+            plan.intent.solver().reduction(),
             std::iter::empty::<(&str, &str)>(),
         )?;
-        let run = RunManifestV2::new(&realization, execution)?
+        let run = RunManifestV2::new(&plan.realization, execution)?
             .with_output(displacement_snapshot.digest()?);
-        run.validate_against(&realization)?;
+        run.validate_against(&plan.realization)?;
 
         Ok(Self {
-            model,
-            realization,
-            geometry,
-            mesh_artifact,
-            correspondence,
+            model: plan.model.clone(),
+            realization: plan.realization.clone(),
+            geometry: plan.geometry.clone(),
+            mesh_artifact: plan.mesh_artifact.clone(),
+            correspondence: plan.correspondence.clone(),
             displacement_snapshot,
             run,
             vertices_m,
             cells,
             displacements_m,
-            bounds_m: *lowered.bounds(),
+            bounds_m,
             solution,
         })
     }
@@ -288,6 +475,79 @@ struct AcceptedIdentities {
     displacement: Id<kinds::Field>,
 }
 
+struct ResolvedLinearElasticityApplication2d {
+    resolved: ResolvedRealization,
+    model: ModelEnvelope,
+    realization: RealizationEnvelopeV1,
+    geometry: GeometryIdentityEnvelopeV1,
+    mesh_artifact: CartesianMeshEnvelopeV1,
+    correspondence: GeometryMeshCorrespondenceEnvelopeV1,
+}
+
+fn resolve_application(
+    document: &ModelDocument,
+    intent: LinearElasticityIntent2d,
+    backend: &dyn LinearSolverBackend,
+) -> Result<ResolvedLinearElasticityApplication2d, Diagnostic> {
+    validate_scientific_case(SCIENTIFIC_CASE)?;
+    require_supported_intent(intent)?;
+    let identities = require_accepted_model(document)?;
+    let realization_plan = realization_plan(intent)?;
+    backend.capabilities().require_problem(
+        realization_plan.solver(),
+        ScalarType::F64,
+        LinearOperatorProperties::SymmetricPositiveDefinite,
+    )?;
+
+    let resolved = resolve(
+        &RealizationRequest::explicit(
+            document.program().model(),
+            SemanticRevision::new(document.program().revision().0),
+            RealizationRevision::new(REALIZATION_REVISION),
+            realization_plan,
+        ),
+        RealizationRequirements::new(
+            NonZeroUsize::new(2).expect("positive frozen dimension"),
+            ScalarType::F64,
+            VectorLayoutKind::Replicated,
+        ),
+        &RealizationCapabilities::isotropic_elasticity_2d_reference(),
+    )?;
+    if resolved.source()
+        != ResolutionSource::Explicit(RealizationRevision::new(REALIZATION_REVISION))
+    {
+        return Err(internal(
+            "mixed-boundary Realization revision changed during resolution",
+        ));
+    }
+
+    let model = ModelEnvelope::from_program(document.program())?;
+    let realization =
+        RealizationEnvelopeV1::from_resolved(&model, &resolved, LayoutArtifacts::Replicated)?;
+    let geometry = GeometryIdentityEnvelopeV1::new(
+        &model,
+        [identities.body],
+        GEOMETRY_CLASSIFICATION_PRECISION_M,
+    )?;
+    let lowered = lower_isotropic_elasticity_cartesian_2d(document.program())?;
+    let mesh = CartesianMesh::uniform(
+        lowered.bounds(),
+        &[intent.cells_per_axis().get(), intent.cells_per_axis().get()],
+    )?;
+    let mesh_artifact = CartesianMeshEnvelopeV1::from_mesh(&mesh)?;
+    let correspondence =
+        GeometryMeshCorrespondenceEnvelopeV1::new_cartesian(&geometry, &model, &mesh_artifact)?;
+
+    Ok(ResolvedLinearElasticityApplication2d {
+        resolved,
+        model,
+        realization,
+        geometry,
+        mesh_artifact,
+        correspondence,
+    })
+}
+
 fn require_accepted_model(document: &ModelDocument) -> Result<AcceptedIdentities, Diagnostic> {
     if document.program().revision().0 != 1 {
         return Err(invalid(
@@ -329,25 +589,39 @@ fn require_accepted_model(document: &ModelDocument) -> Result<AcceptedIdentities
     })
 }
 
-fn reference_plan() -> Result<RealizationPlan, Diagnostic> {
+fn require_supported_intent(intent: LinearElasticityIntent2d) -> Result<(), Diagnostic> {
+    if intent == reference_intent()? {
+        Ok(())
+    } else {
+        Err(Diagnostic::error(
+            codes::NOT_IMPLEMENTED,
+            "the accepted linear-elasticity application does not implement this intent without fallback",
+        ))
+    }
+}
+
+fn reference_intent() -> Result<LinearElasticityIntent2d, Diagnostic> {
+    LinearElasticityIntent2d::new(
+        NonZeroUsize::new(CELLS_PER_AXIS).expect("positive frozen refinement"),
+        RELATIVE_TOLERANCE,
+        ABSOLUTE_TOLERANCE,
+        NonZeroUsize::new(MAXIMUM_ITERATIONS).expect("positive frozen iteration limit"),
+    )
+}
+
+fn realization_plan(intent: LinearElasticityIntent2d) -> Result<RealizationPlan, Diagnostic> {
     RealizationPlan::new(
         Space::continuous_lagrange(NonZeroU16::MIN),
         Discretization::new(
             DiscretizationMethod::ContinuousGalerkin,
             MeshPolicy::GeneratedUniform {
-                cells_per_axis: NonZeroUsize::new(CELLS_PER_AXIS)
-                    .expect("positive frozen refinement"),
+                cells_per_axis: intent.cells_per_axis(),
             },
             QuadraturePolicy::GaussLegendre {
                 points_per_axis: NonZeroUsize::new(2).expect("positive frozen quadrature"),
             },
         ),
-        SolverPlan::new(
-            LinearSolver::ConjugateGradient,
-            RELATIVE_TOLERANCE,
-            ABSOLUTE_TOLERANCE,
-            NonZeroUsize::new(MAXIMUM_ITERATIONS).expect("positive frozen iteration limit"),
-        )?,
+        intent.solver(),
         Target::HostCpu {
             threads: NonZeroUsize::MIN,
         },
@@ -357,7 +631,8 @@ fn reference_plan() -> Result<RealizationPlan, Diagnostic> {
 
 fn validate_solve_report(
     solution: &CartesianLinearElasticity2dSolution,
-    backend_provider: eqiora_solver::SolverProvider,
+    backend_provider: SolverProvider,
+    solver: SolverPlan,
 ) -> Result<(), Diagnostic> {
     let report = solution.solve_report();
     if report.solver_provider() != backend_provider
@@ -368,7 +643,7 @@ fn validate_solve_report(
         || report.algorithm() != LinearSolver::ConjugateGradient
         || report.preconditioner() != PreconditionerPolicy::Identity
         || report.reduction() != ReductionPolicy::Reproducible
-        || report.solver_plan() != reference_plan()?.solver()
+        || report.solver_plan() != solver
         || report.true_residual_norm() > report.residual_target()
     {
         return Err(internal(
