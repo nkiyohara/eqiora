@@ -13,11 +13,12 @@ use crate::array::PyArrayBuffer;
 use crate::diagnostic_error;
 use crate::elasticity::PyLinearElasticityEvidence;
 use crate::execution::RunIdentity;
+use crate::fsi::PyFixedMeshMonolithicEvidence;
 use crate::meshing::PyMesh;
 use crate::model::PyModelFieldRef;
 use crate::realization::PyRunManifest;
 use crate::steady_stokes::PySteadyStokesEvidence;
-use crate::trajectory::PyFieldSnapshot;
+use crate::trajectory::{PyFieldSnapshot, PyTrajectory};
 
 /// One read-only, field-local sampled series in SI units.
 #[pyclass(name = "Series", module = "eqiora._eqiora", frozen)]
@@ -112,12 +113,19 @@ struct StaticResultPayload {
     evidence: StaticScientificEvidence,
 }
 
+struct TrajectoryResultPayload {
+    trajectory: Py<PyTrajectory>,
+    run_manifest: Py<PyRunManifest>,
+    evidence: Py<PyFixedMeshMonolithicEvidence>,
+}
+
 enum ResultPayload {
     Series {
         fields: Vec<Py<PySeries>>,
         lookup: BTreeMap<String, usize>,
     },
     Static(StaticResultPayload),
+    Trajectory(TrajectoryResultPayload),
 }
 
 /// One accepted execution occurrence with typed output relationships.
@@ -177,7 +185,7 @@ impl PyRunResult {
             ResultPayload::Series { fields, .. } => {
                 fields.iter().map(|field| field.clone_ref(py)).collect()
             }
-            ResultPayload::Static(_) => Vec::new(),
+            ResultPayload::Static(_) | ResultPayload::Trajectory(_) => Vec::new(),
         }
     }
 
@@ -191,8 +199,21 @@ impl PyRunResult {
                 .iter()
                 .map(|output| output.snapshot.clone_ref(py))
                 .collect(),
+            ResultPayload::Trajectory(_) => Vec::new(),
         };
         Ok(PyTuple::new(py, snapshots)?.unbind())
+    }
+
+    /// Exact durable spatial trajectory when this Result owns one.
+    #[getter]
+    fn trajectory(&self, py: Python<'_>) -> PyResult<Py<PyTrajectory>> {
+        match &self.payload {
+            ResultPayload::Trajectory(payload) => Ok(payload.trajectory.clone_ref(py)),
+            ResultPayload::Series { .. } | ResultPayload::Static(_) => Err(capability_error(
+                py,
+                "this Result occurrence has no spatial Trajectory",
+            )),
+        }
     }
 
     /// Select one exact static Field observation by Model-bound identity.
@@ -213,6 +234,7 @@ impl PyRunResult {
     fn run_manifest(&self, py: Python<'_>) -> PyResult<Py<PyRunManifest>> {
         match &self.payload {
             ResultPayload::Static(payload) => Ok(payload.run_manifest.clone_ref(py)),
+            ResultPayload::Trajectory(payload) => Ok(payload.run_manifest.clone_ref(py)),
             ResultPayload::Series { .. } => Err(capability_error(
                 py,
                 "this Result occurrence has no durable Run manifest",
@@ -223,7 +245,7 @@ impl PyRunResult {
     fn __len__(&self) -> usize {
         match &self.payload {
             ResultPayload::Series { fields, .. } => fields.len(),
-            ResultPayload::Static(_) => 0,
+            ResultPayload::Static(_) | ResultPayload::Trajectory(_) => 0,
         }
     }
 
@@ -245,6 +267,7 @@ impl PyRunResult {
             match &self.payload {
                 ResultPayload::Series { .. } => 0,
                 ResultPayload::Static(payload) => payload.outputs.len(),
+                ResultPayload::Trajectory(_) => 0,
             },
             self.model_digest(),
             self.plan_key(),
@@ -287,6 +310,10 @@ impl PyRunResult {
                 py,
                 "this Result occurrence has no steady-Stokes evidence",
             )),
+            ResultPayload::Trajectory(_) => Err(capability_error(
+                py,
+                "this Result occurrence has no steady-Stokes evidence",
+            )),
         }
     }
 
@@ -299,9 +326,24 @@ impl PyRunResult {
                 evidence: StaticScientificEvidence::LinearElasticity(evidence),
                 ..
             }) => Ok(evidence.clone_ref(py)),
-            ResultPayload::Static(_) | ResultPayload::Series { .. } => Err(capability_error(
+            ResultPayload::Static(_)
+            | ResultPayload::Series { .. }
+            | ResultPayload::Trajectory(_) => Err(capability_error(
                 py,
                 "this Result occurrence has no linear-elasticity evidence",
+            )),
+        }
+    }
+
+    pub(crate) fn fixed_mesh_monolithic_evidence(
+        &self,
+        py: Python<'_>,
+    ) -> PyResult<Py<PyFixedMeshMonolithicEvidence>> {
+        match &self.payload {
+            ResultPayload::Trajectory(payload) => Ok(payload.evidence.clone_ref(py)),
+            ResultPayload::Static(_) | ResultPayload::Series { .. } => Err(capability_error(
+                py,
+                "this Result occurrence has no fixed-mesh monolithic FSI evidence",
             )),
         }
     }
@@ -344,6 +386,24 @@ impl PyRunResult {
                 lookup,
                 run_manifest: parts.run_manifest,
                 evidence: StaticScientificEvidence::LinearElasticity(evidence),
+            }),
+        }
+    }
+
+    pub(crate) fn from_fixed_mesh_monolithic_fsi(
+        identity: RunIdentity,
+        elapsed_seconds: f64,
+        trajectory: Py<PyTrajectory>,
+        run_manifest: Py<PyRunManifest>,
+        evidence: Py<PyFixedMeshMonolithicEvidence>,
+    ) -> Self {
+        Self {
+            identity,
+            elapsed_seconds,
+            payload: ResultPayload::Trajectory(TrajectoryResultPayload {
+                trajectory,
+                run_manifest,
+                evidence,
             }),
         }
     }

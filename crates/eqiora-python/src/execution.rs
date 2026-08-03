@@ -8,9 +8,9 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 
 use eqiora::api::{
-    ReferenceRunCancellation, ReferenceRunPlan, ReferenceRunProgress, ReferenceRunResult,
-    ScalarEllipticExecutionEnvironment, ScalarEllipticRunCancellation, ScalarEllipticRunProgress,
-    ScalarEllipticRunResult,
+    FixedReferenceFsiResult2d, ReferenceRunCancellation, ReferenceRunPlan, ReferenceRunProgress,
+    ReferenceRunResult, ScalarEllipticExecutionEnvironment, ScalarEllipticRunCancellation,
+    ScalarEllipticRunProgress, ScalarEllipticRunResult,
 };
 use eqiora::diagnostic::codes;
 use eqiora::{Diagnostic, GraphPath};
@@ -24,6 +24,9 @@ use crate::elasticity::{
 use crate::error::{
     cancellation_error, catch_native_panic, diagnostic_error, execution_error,
     internal_diagnostic_error, internal_error, panic_boundary,
+};
+use crate::fsi::{
+    PyFixedMeshMonolithicPlan, materialize_result as materialize_fixed_mesh_monolithic,
 };
 use crate::meshing::PyMesh;
 use crate::realization::{PyRealization, PyScalarEllipticResult};
@@ -79,11 +82,16 @@ enum NativeRunOutput {
         result: Box<eqiora::api::MixedBoundaryElasticityResult2d>,
         elapsed_seconds: f64,
     },
+    FixedMeshMonolithic {
+        result: Box<FixedReferenceFsiResult2d>,
+        elapsed_seconds: f64,
+    },
 }
 
 enum ResultMaterializationContext {
     None,
     SteadyStokes { mesh: Py<PyMesh> },
+    FixedMeshMonolithic { model: Py<PyModel> },
 }
 
 #[derive(Debug, Clone)]
@@ -575,6 +583,24 @@ impl PyRun {
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
     }
 
+    fn submit_fixed_mesh_monolithic(
+        py: Python<'_>,
+        model: &PyModel,
+        plan: &PyFixedMeshMonolithicPlan,
+    ) -> PyResult<Self> {
+        let identity = RunIdentity::from_fixed_mesh_monolithic(model.artifact(), plan.native())
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
+        Self::spawn(
+            identity,
+            NativeRunJob::FixedMeshMonolithic(Box::new(plan.native().clone())),
+            ResultMaterializationContext::FixedMeshMonolithic {
+                model: plan.model(py),
+            },
+            "eqiora-fixed-mesh-monolithic-fsi-run",
+        )
+        .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
+    }
+
     fn spawn(
         identity: RunIdentity,
         job: NativeRunJob,
@@ -776,6 +802,27 @@ fn materialize_result(
         } => materialize_linear_elasticity(py, *result, identity.clone(), elapsed_seconds)
             .and_then(|result| Py::new(py, result))
             .map(Py::into_any),
+        NativeRunOutput::FixedMeshMonolithic {
+            result,
+            elapsed_seconds,
+        } => match context {
+            ResultMaterializationContext::FixedMeshMonolithic { model } => {
+                materialize_fixed_mesh_monolithic(
+                    py,
+                    *result,
+                    identity.clone(),
+                    elapsed_seconds,
+                    model.borrow(py),
+                )
+                .and_then(|result| Py::new(py, result))
+                .map(Py::into_any)
+            }
+            ResultMaterializationContext::None
+            | ResultMaterializationContext::SteadyStokes { .. } => Err(internal_error(
+                py,
+                "fixed-mesh monolithic FSI Result lost its accepted Model context",
+            )),
+        },
     }
 }
 
@@ -819,6 +866,15 @@ pub(crate) fn submit_linear_elasticity(
     panic_boundary(py, || PyRun::submit_linear_elasticity(py, model, plan))
 }
 
+#[pyfunction]
+pub(crate) fn submit_fixed_mesh_monolithic(
+    py: Python<'_>,
+    model: &PyModel,
+    plan: &PyFixedMeshMonolithicPlan,
+) -> PyResult<PyRun> {
+    panic_boundary(py, || PyRun::submit_fixed_mesh_monolithic(py, model, plan))
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyRunStatus>()?;
     module.add_class::<PyRunProgress>()?;
@@ -830,6 +886,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(submit_realization, module)?)?;
     module.add_function(wrap_pyfunction!(submit_steady_stokes, module)?)?;
     module.add_function(wrap_pyfunction!(submit_linear_elasticity, module)?)?;
+    module.add_function(wrap_pyfunction!(submit_fixed_mesh_monolithic, module)?)?;
     Ok(())
 }
 

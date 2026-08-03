@@ -67,6 +67,7 @@ from ._eqiora import (
     replay,
     submit as _submit,
     submit_realization as _submit_realization,
+    submit_fixed_mesh_monolithic as _submit_fixed_mesh_monolithic,
     submit_linear_elasticity as _submit_linear_elasticity,
     submit_steady_stokes as _submit_steady_stokes,
     through,
@@ -199,6 +200,8 @@ def _submit_native(
             )
         if isinstance(plan, fluid.SteadyStokesPlan):
             return _submit_steady_stokes(model, plan)
+        if isinstance(plan, fsi.FixedMeshMonolithicPlan):
+            return _submit_fixed_mesh_monolithic(model, plan)
         if isinstance(plan, solid.LinearElasticityPlan):
             return _submit_linear_elasticity(model, plan)
         raise TypeError(f"{operation} received an unsupported Plan type")
