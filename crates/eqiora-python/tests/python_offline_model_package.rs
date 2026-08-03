@@ -34,9 +34,9 @@ const TYPED_RESOLUTION_FILE: &[u8] = include_bytes!(
 const TYPED_RELEASE: &[u8] = include_bytes!(
     "../../../verify/interfaces/python-offline-model-package/models/typed-execution-lineage/store/4f3aa811b814ac7fb959f777ff5d758804e2e68593a568ee8935b122c9565462.json"
 );
-const OFFLINE_STORE: &str = "../../../verify/packages/offline-model-package/models/store";
+const OFFLINE_STORE: &str = "../../verify/packages/offline-model-package/models/store";
 const TYPED_STORE: &str =
-    "../../../verify/interfaces/python-offline-model-package/models/typed-execution-lineage/store";
+    "../../verify/interfaces/python-offline-model-package/models/typed-execution-lineage/store";
 const OFFLINE_MODEL_ID: &str = "3JNCJVGEYX9N2QSYVEXRXWXWF4";
 const OFFLINE_MODEL_DIGEST: &str =
     "92837f0f85ff4a1310af0ca6e412d3ace81393df837d017caf5bfabeb8f6c1a1";
