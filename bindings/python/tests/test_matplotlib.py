@@ -7,6 +7,7 @@ import json
 import os
 import struct
 import sys
+import warnings
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -478,6 +479,47 @@ def test_deformed_still_rejects_foreign_structural_inputs_before_rendering(
         eqplot.plot_deformed_field(reference, field=reference_model.field("x"))
 
 
+def test_deformed_still_keeps_trajectory_topology_triangle_only(
+    structural: tuple[eqiora.Model, eqiora.Result],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A future quad-backed Trajectory cannot silently enter this adapter arm."""
+
+    model, result = structural
+    field = model.field("displacement")
+    snapshot = result.field(field)
+    mesh = result.mesh(field)
+
+    class QuadState:
+        step = 1
+        time_s = 0.0
+
+        @staticmethod
+        def field(selected: eqiora.FieldRef) -> Any:
+            assert selected == field
+            return snapshot
+
+    class QuadTrajectory:
+        dimension = mesh.dimension
+        coordinates = mesh.coordinates
+        cells = mesh.cells
+
+        @staticmethod
+        def state(step: int) -> QuadState:
+            assert step == 1
+            return QuadState()
+
+    # Native Trajectory construction currently admits only affine triangles.
+    # Replacing only the adapter's runtime type guard lets this regression test
+    # exercise a prospective quad-backed value without inventing a public
+    # constructor or modifying exact trajectory evidence.
+    monkeypatch.setattr(eqplot, "Trajectory", QuadTrajectory)
+    assert QuadTrajectory.cells.shape[1] == 4
+    forbid_rendering(monkeypatch)
+    with pytest.raises(ValueError, match="affine triangle topology"):
+        eqplot.plot_deformed_field(QuadTrajectory(), step=1, field=field)
+
+
 @pytest.mark.parametrize("scale", [0.0, 2.0])
 def test_deformed_still_preserves_canonical_q1_edges_and_explicit_scale(
     structural: tuple[eqiora.Model, eqiora.Result],
@@ -610,6 +652,14 @@ def test_predecessor_displacement_still_only_delegates_with_a_deprecation(
     with pytest.warns(DeprecationWarning, match="plot_deformed_field"):
         with pytest.raises(eqiora.CapabilityError):
             eqplot.plot_displacement(result, scale=2.0)
+
+
+def test_predecessor_displacement_wrong_type_rejects_before_deprecation() -> None:
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        with pytest.raises(TypeError, match="eqiora.Result"):
+            eqplot.plot_displacement(object())  # type: ignore[arg-type]
+    assert caught == []
 
 
 # --------------------------------------------------------------------------

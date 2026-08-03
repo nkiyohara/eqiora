@@ -38,14 +38,13 @@ def plot_displacement(
 ) -> Figure:
     """Deprecated delegation to :func:`plot_deformed_field`."""
 
+    if not isinstance(result, Result):
+        raise TypeError("plot_displacement() requires eqiora.Result")
     warnings.warn(
         "plot_displacement() is deprecated; use plot_deformed_field() instead",
         DeprecationWarning,
         stacklevel=2,
     )
-    if not isinstance(result, Result):
-        raise TypeError("plot_displacement() requires eqiora.Result")
-    linear_elasticity_evidence(result)
     snapshots = result.snapshots
     if len(snapshots) != 1:
         raise ValueError("plot_displacement() requires one static Field snapshot")
@@ -162,11 +161,13 @@ def plot_deformed_field(
         snapshot = trajectory.field(field)
         spatial = trajectory.mesh(field)
         state = None
+        cell_arity = 4
     elif isinstance(trajectory, Trajectory):
         if step is _MISSING:
             raise TypeError("plot_deformed_field() requires step for Trajectory")
         state, snapshot = _trajectory_snapshot(trajectory, step, field)
         spatial = trajectory
+        cell_arity = 3
     else:
         raise TypeError(
             "plot_deformed_field() requires eqiora.Result or eqiora.trajectory.Trajectory"
@@ -184,6 +185,7 @@ def plot_deformed_field(
     coordinates, cells, values, support = _vertex_field_arrays(
         spatial,
         snapshot,
+        cell_arity=cell_arity,
     )
     edges = _cell_edges(cells)
     edge_indices = list(edges)
@@ -233,7 +235,7 @@ def _trajectory_snapshot(trajectory, step, field):
     return state, state.field(field)
 
 
-def _vertex_field_arrays(spatial, snapshot, *, cell_arity=None):
+def _vertex_field_arrays(spatial, snapshot, *, cell_arity):
     if snapshot.associations != ("vertex",):
         raise ValueError("field stills require exactly one vertex association")
 
@@ -243,11 +245,12 @@ def _vertex_field_arrays(spatial, snapshot, *, cell_arity=None):
     support = snapshot.support_indices("vertex")
     if spatial.dimension != 2 or coordinates.ndim != 2 or coordinates.shape[1] != 2:
         raise ValueError("field stills require two-dimensional coordinates")
-    admitted_arities = (cell_arity,) if cell_arity is not None else (3, 4)
-    if cells.ndim != 2 or cells.shape[1] not in admitted_arities:
+    if cells.ndim != 2 or cells.shape[1] != cell_arity:
         if cell_arity == 3:
             raise ValueError("field stills require affine triangle topology")
-        raise ValueError("field stills require triangle or quadrilateral topology")
+        if cell_arity == 4:
+            raise ValueError("field stills require quadrilateral topology")
+        raise ValueError("field stills received an unsupported topology contract")
     if values.shape[0] != coordinates.shape[0]:
         raise ValueError("field value shape does not match the spatial vertices")
     if support.ndim != 1 or support.size == 0:

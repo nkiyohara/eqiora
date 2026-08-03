@@ -32,14 +32,7 @@ pub(crate) struct PyMesh {
 
 enum AcceptedMeshSource {
     Chordal(Box<AcceptedCircularHoleChordalRealizationV1>),
-    Cartesian(Box<CartesianAcceptedMeshSource>),
-}
-
-struct CartesianAcceptedMeshSource {
-    _geometry: GeometryIdentityEnvelopeV1,
-    _mesh: CartesianMeshEnvelopeV1,
-    _correspondence: GeometryMeshCorrespondenceEnvelopeV1,
-    _realization: RealizationEnvelopeV1,
+    Cartesian,
 }
 
 struct MeshLineage {
@@ -125,7 +118,7 @@ impl PyMesh {
             AcceptedMeshSource::Chordal(accepted) => {
                 Ok(accepted.mesh().mesh().quality_report().minimum_mean_ratio())
             }
-            AcceptedMeshSource::Cartesian(_) => Err(capability_error(
+            AcceptedMeshSource::Cartesian => Err(capability_error(
                 py,
                 "minimum_mean_ratio is not defined for this Cartesian Mesh",
             )),
@@ -141,10 +134,8 @@ impl PyMesh {
                 .iter()
                 .map(NamedEntitySet::name)
                 .collect::<Vec<_>>(),
-            AcceptedMeshSource::Cartesian(retained) => {
-                // Holding the complete accepted lineage keeps every projected
-                // view independent of the native execution Result lifetime.
-                let _ = retained;
+            AcceptedMeshSource::Cartesian => {
+                // This accepted Cartesian Mesh publishes no named selections.
                 Vec::new()
             }
         };
@@ -159,7 +150,7 @@ impl PyMesh {
                 .region_entity_set_entities(accepted.realized_geometry(), name)
                 .map(|entities| entities.len())
                 .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic))),
-            AcceptedMeshSource::Cartesian(_) => Err(capability_error(
+            AcceptedMeshSource::Cartesian => Err(capability_error(
                 py,
                 "this Cartesian Mesh publishes no named selection membership",
             )),
@@ -268,12 +259,7 @@ impl PyMesh {
             .canonical_json()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         Ok(Self {
-            source: AcceptedMeshSource::Cartesian(Box::new(CartesianAcceptedMeshSource {
-                _geometry: geometry,
-                _mesh: mesh,
-                _correspondence: correspondence,
-                _realization: realization,
-            })),
+            source: AcceptedMeshSource::Cartesian,
             lineage: MeshLineage {
                 source_digest: geometry_digest.clone(),
                 realized_geometry_digest: geometry_digest,
@@ -296,7 +282,7 @@ impl PyMesh {
     ) -> PyResult<&AcceptedCircularHoleChordalRealizationV1> {
         match &self.source {
             AcceptedMeshSource::Chordal(accepted) => Ok(accepted),
-            AcceptedMeshSource::Cartesian(_) => Err(capability_error(
+            AcceptedMeshSource::Cartesian => Err(capability_error(
                 py,
                 "this operation requires an accepted affine-triangle Mesh",
             )),
