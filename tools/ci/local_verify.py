@@ -15,6 +15,7 @@ from typing import Iterable, Mapping, Sequence
 from classify_changes import classify
 from verification_scheduler import (
     CUBECL_LANE,
+    DEPENDENCY_POLICY_LANE,
     HOSTED_TEST_PROFILE,
     PYTHON_LANE,
     REPOSITORY_LANE,
@@ -26,6 +27,7 @@ from verification_scheduler import (
     VerificationFailure,
     VerificationLane,
     VerificationPlan,
+    cpu_allocations,
     default_budget,
     run_plan,
 )
@@ -254,7 +256,7 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
                     "deny",
                     "--locked",
                     "check",
-                    lane=ROOT_CARGO_LANE,
+                    lane=DEPENDENCY_POLICY_LANE,
                 ),
                 command(
                     "Studio dependency policy",
@@ -267,7 +269,7 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
                     "--config",
                     "studio/src-tauri/deny.toml",
                     "check",
-                    lane=STUDIO_LANE,
+                    lane=DEPENDENCY_POLICY_LANE,
                 ),
             ]
         )
@@ -635,6 +637,7 @@ def build_plan(
 def render_plan(plan: VerificationPlan, budget: ResourceBudget | None = None) -> str:
     admitted_budget = budget or default_budget()
     lanes = tuple(dict.fromkeys(item.lane for item in plan.commands))
+    cargo_jobs = cpu_allocations(lanes, admitted_budget)
     lines = [
         f"tier: {plan.tier}",
         f"changed paths: {len(plan.paths)}",
@@ -648,7 +651,8 @@ def render_plan(plan: VerificationPlan, budget: ResourceBudget | None = None) ->
         resources = lane.resources
         locks = ",".join(resources.locks) if resources.locks else "none"
         lines.append(
-            f"  - {lane.name}: cpu={resources.cpu_slots}, "
+            f"  - {lane.name}: cpu-min={resources.cpu_slots}, "
+            f"cargo-jobs={cargo_jobs[lane.name]}, "
             f"memory={resources.memory_mib} MiB, gpu={resources.gpu_slots}, "
             f"locks={locks}"
         )

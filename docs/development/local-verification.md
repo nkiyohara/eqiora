@@ -44,7 +44,10 @@ The default budget uses the current host's detected CPUs and available memory,
 with no GPU admission unless `EQIORA_LOCAL_VERIFY_GPU_SLOTS` declares it. A
 constrained or shared machine can set `--cpu-slots`, `--memory-mib`, and
 `--gpu-slots` explicitly. A lane whose own request exceeds the budget is
-rejected before any child process starts.
+rejected before any child process starts. When the detected CPU budget exceeds
+the sum of lane minima, the scheduler apportions the remaining Cargo build jobs
+by those declared weights rather than throttling the longest lane to its
+minimum.
 
 A newly added directory under `verify/` is path-selected before manifest
 discovery can name its case. Land its valid `case.toml` in the same change as
@@ -93,9 +96,9 @@ separately while executing each shared private execution key once. This batches
 only work selected by one local-verification plan; it does not reuse a result
 from another invocation or source revision.
 
-Root Cargo, installed-Python, Studio, CubeCL, and lightweight repository checks
-are separate local lanes. Every lane receives an explicit build root and
-per-invocation temporary directory below
+Root Cargo, installed-Python, Studio, CubeCL, dependency policy, and lightweight
+repository checks are separate local lanes. Every lane receives an explicit
+build root and per-invocation temporary directory below
 `~/.cache/eqiora/local-verify/<checkout>/`; the temporary directory is removed
 after reporting. Build roots remain as recomputable Cargo products so a later
 invocation does not pay for a clean rebuild. Set `--scratch-root` only to an

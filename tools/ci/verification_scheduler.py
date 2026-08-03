@@ -83,6 +83,16 @@ class VerificationLane:
 
 def _available_memory_mib() -> int:
     try:
+        for line in Path("/proc/meminfo").read_text(encoding="ascii").splitlines():
+            key, value = line.split(":", maxsplit=1)
+            if key == "MemAvailable":
+                kibibytes, unit = value.split()
+                if unit != "kB":
+                    raise ValueError("unexpected MemAvailable unit")
+                return max(1, int(kibibytes) // 1024)
+    except (OSError, UnicodeError, ValueError):
+        pass
+    try:
         pages = os.sysconf("SC_AVPHYS_PAGES")
         page_size = os.sysconf("SC_PAGE_SIZE")
     except (OSError, ValueError):
@@ -110,6 +120,10 @@ STUDIO_LANE = VerificationLane(
 CUBECL_LANE = VerificationLane(
     "cubecl",
     ResourceRequest(_cpu_request(2), 4 * 1024, locks=("cubecl",)),
+)
+DEPENDENCY_POLICY_LANE = VerificationLane(
+    "dependency-policy",
+    ResourceRequest(1, 512, locks=("cargo-deny",)),
 )
 
 
@@ -145,19 +159,23 @@ class VerificationPlan:
 @dataclass(frozen=True)
 class CommandFailure:
     command: PlannedCommand
-    returncode: int
+    returncode: int | None
+    detail: str | None = None
 
 
 class VerificationFailure(RuntimeError):
     def __init__(self, failures: Sequence[CommandFailure]) -> None:
         self.failures = tuple(failures)
-        summary = ", ".join(
-            f"{failure.command.label} (exit {failure.returncode})"
-            for failure in self.failures
-        )
+        summary = ", ".join(self._render_failure(failure) for failure in self.failures)
         super().__init__(
             f"{len(self.failures)} verification command(s) failed: {summary}"
         )
+
+    @staticmethod
+    def _render_failure(failure: CommandFailure) -> str:
+        if failure.returncode is not None:
+            return f"{failure.command.label} (exit {failure.returncode})"
+        return f"{failure.command.label} ({failure.detail or 'execution error'})"
 
 
 @dataclass(frozen=True)
@@ -219,12 +237,37 @@ def _validate_lanes(
     return lanes
 
 
+def cpu_allocations(
+    lanes: Sequence[VerificationLane], budget: ResourceBudget
+) -> dict[str, int]:
+    total_request = sum(lane.resources.cpu_slots for lane in lanes)
+    if total_request >= budget.cpu_slots:
+        return {lane.name: lane.resources.cpu_slots for lane in lanes}
+
+    weighted = [
+        (budget.cpu_slots * lane.resources.cpu_slots, order, lane)
+        for order, lane in enumerate(lanes)
+    ]
+    allocations = {
+        lane.name: numerator // total_request for numerator, _order, lane in weighted
+    }
+    remaining = budget.cpu_slots - sum(allocations.values())
+    by_remainder = sorted(
+        weighted,
+        key=lambda item: (-(item[0] % total_request), item[1]),
+    )
+    for _numerator, _order, lane in by_remainder[:remaining]:
+        allocations[lane.name] += 1
+    return allocations
+
+
 def _run_lane(
     lane: VerificationLane,
     commands: tuple[tuple[int, PlannedCommand], ...],
     root: Path,
     lane_root: Path,
     lane_tmp: Path,
+    cargo_jobs: int,
     log_paths: Mapping[int, Path],
 ) -> _LaneResult:
     for position, (index, item) in enumerate(commands):
@@ -236,7 +279,7 @@ def _run_lane(
                 "EQIORA_VERIFY_LANE_ROOT": str(lane_root),
                 "TMPDIR": str(lane_tmp),
                 "CARGO_TARGET_DIR": str(lane_root / "cargo-target"),
-                "CARGO_BUILD_JOBS": str(lane.resources.cpu_slots),
+                "CARGO_BUILD_JOBS": str(cargo_jobs),
             }
         )
         with log_paths[index].open("wb") as output:
@@ -252,6 +295,13 @@ def _run_lane(
             except subprocess.CalledProcessError as error:
                 return _LaneResult(
                     ((index, CommandFailure(item, error.returncode)),),
+                    tuple(
+                        skipped_index for skipped_index, _ in commands[position + 1 :]
+                    ),
+                )
+            except OSError as error:
+                return _LaneResult(
+                    ((index, CommandFailure(item, None, str(error))),),
                     tuple(
                         skipped_index for skipped_index, _ in commands[position + 1 :]
                     ),
@@ -311,6 +361,9 @@ def run_plan(
     run_parent.mkdir(parents=True, exist_ok=True)
     lane_directories: dict[str, Path] = {}
     lane_tmp_directories: dict[str, Path] = {}
+    cargo_jobs = cpu_allocations(
+        tuple(lane for lane, _commands in lanes), admitted_budget
+    )
 
     with tempfile.TemporaryDirectory(prefix="run-", dir=run_parent) as run_directory:
         run_path = Path(run_directory)
@@ -370,6 +423,7 @@ def run_plan(
                             root,
                             lane_directories[lane.name],
                             lane_tmp_directories[lane.name],
+                            cargo_jobs[lane.name],
                             log_paths,
                         )
                         active[future] = (order, lane)
