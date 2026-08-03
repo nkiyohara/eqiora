@@ -245,6 +245,16 @@ impl ResolvedLinearElasticityPlan2d {
         &self.realization
     }
 
+    /// Complete resolved realization retained behind the durable artifact.
+    ///
+    /// Client projections derive the admitted space, discretization, mesh,
+    /// quadrature, scalar, layout, and spatial-dimension facts from this value
+    /// rather than reconstructing the frozen tuple independently.
+    #[must_use]
+    pub const fn resolved(&self) -> &ResolvedRealization {
+        &self.resolved
+    }
+
     /// Exact Cartesian geometry identity produced during resolution.
     #[must_use]
     pub const fn geometry(&self) -> &GeometryIdentityEnvelopeV1 {
