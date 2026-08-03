@@ -31,6 +31,22 @@ from python_torch_gate import uv_gate_command as torch_uv_gate_command  # noqa: 
 
 
 class HostedTriggerTests(unittest.TestCase):
+    EXPECTED_PULL_REQUEST_ACTIONS = ("opened", "reopened", "synchronize")
+
+    def assert_exact_pull_request_actions(
+        self,
+        workflow: str,
+        event: str,
+    ) -> None:
+        match = re.search(
+            rf"(?m)^  {re.escape(event)}:\n    types: \[([a-z_, ]+)\]$",
+            workflow,
+        )
+        self.assertIsNotNone(match, f"{event} must declare explicit action types")
+        assert match is not None
+        actions = tuple(action.strip() for action in match.group(1).split(","))
+        self.assertEqual(actions, self.EXPECTED_PULL_REQUEST_ACTIONS)
+
     def test_public_workflow_runs_for_pull_requests_and_exact_sha_dispatch(
         self,
     ) -> None:
@@ -45,6 +61,22 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertNotIn("push:", trigger)
         self.assertIn("github.event.pull_request.head.sha || inputs.commit", workflow)
         self.assertIn("persist-credentials: false", workflow)
+
+    def test_public_pull_request_lifecycle_runs_once_per_head(self) -> None:
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assert_exact_pull_request_actions(workflow, "pull_request")
+        self.assertNotIn("github.event.pull_request.draft", workflow)
+
+        concurrency = workflow.split("concurrency:\n", maxsplit=1)[1].split(
+            "\nenv:", maxsplit=1
+        )[0]
+        self.assertIn(
+            "group: ci-${{ github.event.pull_request.number || inputs.commit }}",
+            concurrency,
+        )
+        self.assertIn("cancel-in-progress: true", concurrency)
 
     def test_windows_compile_probe_is_visible_complete_and_non_gating(self) -> None:
         workflow = (
@@ -79,11 +111,22 @@ class HostedTriggerTests(unittest.TestCase):
             REPOSITORY_ROOT / ".github/workflows/ci-definition-trust.yml"
         ).read_text(encoding="utf-8")
         self.assertIn("pull_request_target:", workflow)
+        self.assert_exact_pull_request_actions(workflow, "pull_request_target")
         self.assertIn("github.event.pull_request.base.sha", workflow)
         self.assertNotIn("github.event.pull_request.head.sha", workflow)
+        self.assertEqual(workflow.count("uses: actions/checkout@"), 1)
         self.assertIn("pull-requests: read", workflow)
         self.assertNotIn("contents: write", workflow)
         self.assertNotIn("id-token: write", workflow)
+
+        concurrency = workflow.split("concurrency:\n", maxsplit=1)[1].split(
+            "\njobs:", maxsplit=1
+        )[0]
+        self.assertIn(
+            "group: ci-definition-trust-${{ github.event.pull_request.number }}",
+            concurrency,
+        )
+        self.assertIn("cancel-in-progress: true", concurrency)
 
     def test_msrv_gate_covers_optional_production_features(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
