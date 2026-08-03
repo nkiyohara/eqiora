@@ -3,10 +3,12 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
+use eqiora::api::package::PackagedModelDocument;
 use eqiora::api::{ModelDocument, ModelParameterRef, StructuralSemanticFingerprint, ValueEditPlan};
 use eqiora::artifact::{CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelope};
 use eqiora::diagnostic::codes;
 use eqiora::graph::Op;
+use eqiora::package::PackageCompilationRecordV1;
 use eqiora::{Diagnostic, EntityKind, RawId};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyModule};
@@ -267,6 +269,7 @@ pub(crate) struct PyModel {
     document: Option<ModelDocument>,
     artifact: ModelEnvelope,
     revision: PyRevision,
+    package_compilation: Option<PackageCompilationRecordV1>,
 }
 
 impl PyModel {
@@ -286,6 +289,7 @@ impl PyModel {
             },
             document: Some(document),
             artifact,
+            package_compilation: None,
         })
     }
 
@@ -301,7 +305,15 @@ impl PyModel {
             },
             document: None,
             artifact,
+            package_compilation: None,
         })
+    }
+
+    pub(crate) fn from_packaged(py: Python<'_>, packaged: PackagedModelDocument) -> PyResult<Self> {
+        let compilation = packaged.compilation().clone();
+        let mut model = Self::from_document(py, packaged.model().clone())?;
+        model.package_compilation = Some(compilation);
+        Ok(model)
     }
 
     pub(crate) fn document(&self) -> Result<&ModelDocument, Diagnostic> {
@@ -414,6 +426,24 @@ impl PyModel {
     #[getter]
     fn digest(&self) -> &str {
         &self.revision.digest
+    }
+
+    /// Exact accepted package-compilation lineage, absent after any derivation or replay.
+    #[getter]
+    fn package_compilation_digest(&self, py: Python<'_>) -> PyResult<Option<String>> {
+        self.package_compilation
+            .as_ref()
+            .map(|compilation| compilation.digest().map(|digest| digest.to_hex()))
+            .transpose()
+            .map_err(|_| {
+                internal_diagnostic_error(
+                    py,
+                    &[Diagnostic::error(
+                        codes::INTERNAL_FAILURE,
+                        "accepted package-compilation lineage could not be projected",
+                    )],
+                )
+            })
     }
 
     /// Alpha-normalized structural evidence, separate from exact artifact identity.
