@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import contextlib
+import importlib
+import inspect
 import io
 import subprocess
 import sys
@@ -350,6 +352,15 @@ class SchedulerTests(unittest.TestCase):
             name,
             ResourceRequest(cpu_slots, memory_mib, gpu_slots, locks),
         )
+
+    def test_v3_delegates_admission_to_the_callable_scheduler_core(self) -> None:
+        core = importlib.import_module("resource_scheduler")
+        scheduler = importlib.import_module("verification_scheduler")
+
+        self.assertIs(scheduler.ResourceBudget, core.ResourceBudget)
+        self.assertIs(scheduler.ResourceRequest, core.ResourceRequest)
+        self.assertNotIn("_fits", vars(scheduler))
+        self.assertIn("run_tasks(", inspect.getsource(scheduler.run_plan))
 
     def test_disjoint_lanes_overlap_and_logs_remain_plan_ordered(self) -> None:
         rendezvous = threading.Barrier(2)
