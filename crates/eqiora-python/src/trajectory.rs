@@ -395,10 +395,6 @@ impl PyTrajectory {
             .collect()
     }
 
-    pub(crate) fn run_digest_value(&self) -> &str {
-        &self.run_digest
-    }
-
     pub(crate) fn from_replay(
         py: Python<'_>,
         model: &PyModel,

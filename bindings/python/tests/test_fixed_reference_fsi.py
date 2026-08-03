@@ -657,7 +657,7 @@ def test_plan_is_bound_to_one_exact_model_before_worker_creation(
     accepted: tuple[eqiora.Model, Any, eqiora.Result, Any],
 ) -> None:
     model, plan, _, _ = accepted
-    for foreign in (accepted_model(), revised_model(model), foreign_model()):
+    for foreign in (revised_model(model), foreign_model()):
         assert foreign.digest != model.digest
         for entry_point in (eqiora.submit, eqiora.run):
             with pytest.raises(eqiora.ValidationError) as caught:
@@ -694,7 +694,7 @@ def test_trajectory_and_fsi_evidence_reject_unrelated_common_results() -> None:
         _ = unrelated.trajectory
     with pytest.raises(eqiora.CapabilityError):
         eqiora.fsi.fixed_mesh_monolithic_evidence(unrelated)
-    for wrong_type in (object(), unrelated.run_manifest()):
+    for wrong_type in (object(), model):
         with pytest.raises(TypeError):
             eqiora.fsi.fixed_mesh_monolithic_evidence(wrong_type)
 

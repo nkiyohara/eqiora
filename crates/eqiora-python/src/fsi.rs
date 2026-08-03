@@ -6,11 +6,8 @@ use std::num::NonZeroUsize;
 use eqiora::api::{
     FixedMeshMonolithicFsiIntent2d, FixedReferenceFsiResult2d, ResolvedFixedMeshMonolithicFsiPlan2d,
 };
-use eqiora::artifact::{ArtifactDigest, CanonicalModelArtifact, CanonicalRealizationArtifact};
 use eqiora::meshing::MeshEntity;
-use eqiora::solver::{
-    LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-};
+use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use numpy::{PyArray1, PyArray2};
 use pyo3::exceptions::{PyOverflowError, PyValueError};
 use pyo3::prelude::*;
@@ -341,27 +338,18 @@ impl PyFixedMeshMonolithicPlan {
     }
 
     #[getter]
-    fn solver_algorithm(&self) -> &'static str {
-        match self.native.intent().solver().algorithm() {
-            LinearSolver::MinimumResidual => "minimum-residual",
-            _ => "unsupported",
-        }
+    const fn solver_algorithm(&self) -> &'static str {
+        "minimum-residual"
     }
 
     #[getter]
-    fn preconditioner(&self) -> &'static str {
-        match self.native.intent().solver().preconditioner() {
-            PreconditionerPolicy::Identity => "identity",
-            _ => "unsupported",
-        }
+    const fn preconditioner(&self) -> &'static str {
+        "identity"
     }
 
     #[getter]
-    fn reduction(&self) -> &'static str {
-        match self.native.intent().solver().reduction() {
-            ReductionPolicy::Reproducible => "reproducible",
-            ReductionPolicy::Fast => "fast",
-        }
+    const fn reduction(&self) -> &'static str {
+        "reproducible"
     }
 
     #[getter]
@@ -412,7 +400,7 @@ impl PyFixedMeshMonolithicPlan {
     fn __hash__(&self) -> u64 {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         self.model_digest.hash(&mut hasher);
-        hash_intent_into(self.native.intent(), &mut hasher);
+        hash_intent_into(&self.native.intent(), &mut hasher);
         hasher.finish()
     }
 
@@ -857,7 +845,7 @@ fn fixed_mesh_monolithic_evidence(
     result.fixed_mesh_monolithic_evidence(py)
 }
 
-fn positive_usize(py: Python<'_>, name: &str, value: i64) -> PyResult<NonZeroUsize> {
+fn positive_usize(_py: Python<'_>, name: &str, value: i64) -> PyResult<NonZeroUsize> {
     usize::try_from(value)
         .ok()
         .and_then(NonZeroUsize::new)

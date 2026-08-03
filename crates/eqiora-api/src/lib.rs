@@ -34,7 +34,9 @@ pub use eqiora_artifact::{SemanticFingerprintGeneration, StructuralSemanticFinge
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
 pub use external_data::*;
 pub use fixed_mesh_trajectory::FixedMeshFieldTrajectoryReplay2dV1;
-pub use fixed_reference_fsi::FixedReferenceFsiResult2d;
+pub use fixed_reference_fsi::{
+    FixedMeshMonolithicFsiIntent2d, FixedReferenceFsiResult2d, ResolvedFixedMeshMonolithicFsiPlan2d,
+};
 pub use geometry_edit::{CartesianDomainEditPlan, CartesianDomainEditResult};
 pub use ml_dataset::*;
 pub use parameter_regeneration::{

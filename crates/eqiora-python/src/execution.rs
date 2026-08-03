@@ -791,7 +791,8 @@ fn materialize_result(
             )
             .and_then(|result| Py::new(py, result))
             .map(Py::into_any),
-            ResultMaterializationContext::None => Err(internal_error(
+            ResultMaterializationContext::None
+            | ResultMaterializationContext::FixedMeshMonolithic { .. } => Err(internal_error(
                 py,
                 "steady-Stokes Result lost its accepted Mesh context",
             )),
