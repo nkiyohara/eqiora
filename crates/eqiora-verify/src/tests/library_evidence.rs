@@ -440,6 +440,81 @@ test = "{test}"
     )
 }
 
+fn diagnostic_library_manifest(test: &str, environment: EvidenceEnvironment) -> String {
+    let environment = if environment == EvidenceEnvironment::HostCpu {
+        String::new()
+    } else {
+        format!("environment = \"{}\"\n", environment.as_str())
+    };
+    format!(
+        r#"
+id = "area.case"
+status = "verified"
+reference_kind = "compiler-contract"
+capabilities = ["private-library-oracle"]
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "{test}"
+features = ["zeta", "alpha"]
+{environment}"#
+    )
+}
+
+#[test]
+fn preflight_rejections_retain_the_exact_reproduction_command() {
+    let fixture = library_fixture();
+    fs::write(
+        fixture.root.join("eqiora-numerics/Cargo.toml"),
+        "[package]\nname = \"eqiora-numerics\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[features]\nalpha = []\nzeta = []\n",
+    )
+    .unwrap();
+    let runner = SystemEvidenceRunner::from_environment();
+    let request = Request::new(CommandKind::Run, Vec::new(), ExecutionPolicy::FailFast);
+
+    for (test, environment, physical_flag) in [
+        (
+            "private_parent::private_child::missing_evidence",
+            EvidenceEnvironment::HostCpu,
+            "",
+        ),
+        (
+            "private_parent::private_child::renamed_evidence",
+            EvidenceEnvironment::HostCpu,
+            "",
+        ),
+        (
+            "private_parent::private_child::ignored_evidence",
+            EvidenceEnvironment::HostCpu,
+            "",
+        ),
+        (
+            "private_parent::private_child::registered_evidence",
+            EvidenceEnvironment::PhysicalMpiCuda,
+            " --ignored",
+        ),
+    ] {
+        fixture.write_manifest(&diagnostic_library_manifest(test, environment));
+        let report = execute(&fixture.root, &request, &runner);
+        assert!(!report.success, "{test}: {report:?}");
+        assert_eq!(report.cases[0].outcome, Outcome::Failed);
+        let case = &report.cases[0];
+        let retained = format!(
+            "{}\n{}",
+            case.message.as_deref().unwrap_or_default(),
+            case.stderr.as_deref().unwrap_or_default()
+        );
+        let command = format!(
+            "cargo test --locked -p eqiora-numerics --lib --features alpha,zeta {test} -- --exact{physical_flag}"
+        );
+        assert!(
+            retained.contains(&command),
+            "preflight rejection did not retain `{command}`:\n{retained}"
+        );
+    }
+}
+
 #[test]
 fn system_runner_executes_one_exact_private_test_and_fails_closed_preflight() {
     let fixture = library_fixture();
