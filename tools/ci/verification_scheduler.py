@@ -17,8 +17,16 @@ from typing import Mapping, Sequence
 ROOT = Path(__file__).resolve().parents[2]
 
 
-# Keep this identical to the environment in `.github/workflows/ci.yml`. The CI
-# contract tests compare the hosted workflow with this single Python value.
+# The Cargo test profile the hosted workflow runs under. A local gate that does
+# not reproduce it is not measuring the thing CI will measure: the registered
+# preconditioner-scaling case takes 1150.8 s at the default `opt-level = 0` and
+# 64.5 s at `opt-level = 1`, so a local run can be eighteen times slower than
+# the hosted one and still be reported as the same evidence.
+#
+# Apply this to every planned command. The variables are test-profile scoped,
+# so other commands ignore them, while Clippy and tests can share artifacts.
+# `tools/ci/tests/test_ci_contracts.py` fails if this single value stops matching
+# `.github/workflows/ci.yml`.
 HOSTED_TEST_PROFILE = {
     "CARGO_PROFILE_TEST_DEBUG": "0",
     "CARGO_PROFILE_TEST_DEBUG_ASSERTIONS": "true",
@@ -275,9 +283,13 @@ def _emit_reports(
         print(f"==> {item.label} [{item.lane.name}]: {item.render()}", flush=True)
         log_path = log_paths[index]
         if log_path.exists():
-            output = log_path.read_bytes().decode("utf-8", errors="replace")
-            if output:
-                print(output, end="" if output.endswith("\n") else "\n", flush=True)
+            trailing_character = "\n"
+            with log_path.open(encoding="utf-8", errors="replace") as output:
+                while chunk := output.read(64 * 1024):
+                    print(chunk, end="", flush=True)
+                    trailing_character = chunk[-1]
+            if trailing_character != "\n":
+                print(flush=True)
         if index in skipped:
             print("skipped: an earlier command in this lane failed", flush=True)
 
