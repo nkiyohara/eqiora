@@ -20,6 +20,13 @@ Every pull request reports two independent required contexts:
    layer/facade checks, the registered-evidence runner, custom Actions, or
    CODEOWNERS fails this context.
 
+Both workflows start on `opened`, `reopened`, and `synchronize`. Opening a
+Draft therefore verifies its exact head immediately, while changing that same
+head from Draft to Ready reuses the existing required contexts instead of
+starting and cancelling an identical full run. A pushed head still starts a
+new run, and the per-pull-request concurrency groups cancel only its stale
+predecessor.
+
 Changed-file pagination must match the provider-owned pull-request count.
 Pull requests beyond the API's complete 3,000-file visibility boundary fail
 closed instead of trusting a truncated list.
