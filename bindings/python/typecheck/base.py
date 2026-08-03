@@ -182,7 +182,10 @@ def check_fsi_result(model: eqiora.Model) -> None:
     assert_type(evidence.interface_facets, npt.NDArray[np.uint32])
     assert_type(
         evidence.states,
-        tuple[FixedMeshMonolithicStateEvidence, ...],
+        tuple[
+            FixedMeshMonolithicStateEvidence,
+            FixedMeshMonolithicStateEvidence,
+        ],
     )
     assert_type(
         evidence.state(result.trajectory.state(1)).fluid_action,
