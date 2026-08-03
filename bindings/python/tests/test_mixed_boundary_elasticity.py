@@ -9,6 +9,7 @@ here: `solid.mixed-boundary-elasticity-2d` and
 
 from __future__ import annotations
 
+import ast
 import gc
 import hashlib
 import json
@@ -797,9 +798,7 @@ def test_converged_names_are_exported_and_predecessors_are_deprecated_shims(
         assert not hasattr(delegated, withdrawn)
 
 
-def test_checked_in_python_demo_runs_with_packaged_model_resource(
-    accepted: tuple[eqiora.Model, Any, eqiora.Result],
-) -> None:
+def test_checked_in_python_demo_runs_with_packaged_model_resource() -> None:
     if not PYTHON_DEMO.is_file():
         pytest.skip("consumer tree does not carry the checked-in Python example")
 
@@ -815,7 +814,18 @@ def test_checked_in_python_demo_runs_with_packaged_model_resource(
     assert completed.stderr == ""
     lines = completed.stdout.splitlines()
     assert len(lines) == 4
-    assert lines[0] == accepted[2].run_manifest().digest
+    # The subprocess compiles a fresh exact Model occurrence, so its Run digest
+    # is intentionally not the digest of any Model compiled by this process.
+    assert_digest(lines[0])
     assert lines[1].startswith("LinearSolveSummary(")
-    assert lines[2].startswith("constrained reaction ") and lines[2].endswith(" N")
-    assert lines[3].startswith("integrated body force ") and lines[3].endswith(" N")
+    for line, label in zip(
+        lines[2:],
+        ("constrained reaction", "integrated body force"),
+        strict=True,
+    ):
+        prefix = f"{label} "
+        assert line.startswith(prefix) and line.endswith(" N")
+        values = ast.literal_eval(line.removeprefix(prefix).removesuffix(" N"))
+        assert isinstance(values, tuple) and len(values) == SPATIAL_DIMENSION
+        assert all(isinstance(value, (int, float)) for value in values)
+        assert all(np.isfinite(value) for value in values)
