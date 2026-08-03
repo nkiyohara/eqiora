@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import io
 import sys
 import tempfile
@@ -81,6 +82,35 @@ class PythonDistributionGateTests(unittest.TestCase):
 
         self.assertIn("Python distribution gate failed", stderr.getvalue())
         self.assertIn("candidate jax profile", stderr.getvalue())
+
+    def test_aggregate_scratch_is_resolved_below_home(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            scratch = Path(temporary) / "gate"
+            scratch.mkdir()
+
+            def temporary_directory(*args: object, **kwargs: object) -> object:
+                parent = kwargs.get("dir")
+                self.assertIsNotNone(parent)
+                self.assertTrue(
+                    Path(parent).resolve().is_relative_to(Path.home().resolve())
+                )
+                return contextlib.nullcontext(str(scratch))
+
+            with (
+                mock.patch.object(
+                    python_distribution_gate,
+                    "build_and_verify_candidate",
+                ) as build,
+                mock.patch.object(
+                    python_distribution_gate.tempfile,
+                    "TemporaryDirectory",
+                    side_effect=temporary_directory,
+                ) as temporary_factory,
+            ):
+                self.assertEqual(python_distribution_gate.main(), 0)
+
+        temporary_factory.assert_called_once()
+        build.assert_called_once_with(scratch)
 
     def test_registered_profiles_share_one_exact_target(self) -> None:
         manifests = (

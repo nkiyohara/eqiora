@@ -20,6 +20,7 @@ from candidate_manifest import (  # noqa: E402
     verify_artifacts,
 )
 from python_candidate import build_candidate  # noqa: E402
+from python_candidate_common import home_scratch_parent  # noqa: E402
 
 
 def build_and_verify_candidate(root: Path) -> Candidate:
@@ -46,7 +47,8 @@ def main() -> int:
 
     try:
         with tempfile.TemporaryDirectory(
-            prefix="eqiora-python-distribution-gate-"
+            prefix="eqiora-python-distribution-gate-",
+            dir=home_scratch_parent("python-distribution-gate"),
         ) as temporary:
             build_and_verify_candidate(Path(temporary))
     except (

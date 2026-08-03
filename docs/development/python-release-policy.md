@@ -42,6 +42,23 @@ A candidate is accepted only from a clean source commit. The release gate:
 8. records source identity, artifact hashes, build-tool versions, the observed
    NumPy floor, and passing profiles in the candidate manifest.
 
+Artifact construction, wheel inspection, interpreter resolution, and shared
+input hashing form one barrier. The immutable artifact family is then consumed
+by isolated validation profiles under the verification lane's CPU and memory
+budget. Each profile owns its environment, consumer tree, temporary directory,
+and log. Heavy framework profiles do not overlap one another, but may overlap a
+fitting light profile. All admitted work is joined; receipts and diagnostics are
+merged in the frozen logical profile order, and the shared artifact family and
+extracted source are re-hashed before the manifest is written. A profile may
+therefore neither publish partial success nor mutate another profile's input.
+
+Candidate and aggregate-gate scratch space is rooted below the invoking user's
+home directory, including when the ambient system temporary directory points
+at `/tmp`. The candidate admits a bounded internal 2-CPU, 4096-MiB profile
+sub-budget; explicit candidate-specific environment settings may narrow or
+raise it when the enclosing execution environment has been provisioned to
+match.
+
 Registered host evidence builds this complete candidate once for one source
 commit and platform. The distribution, typing, PyTorch, JAX, and Matplotlib
 validations then require their own closed check groups from that same manifest
