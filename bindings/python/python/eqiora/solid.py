@@ -28,6 +28,8 @@ def solve_mixed_boundary_elasticity(model: Model, /) -> Result:
     )
     from . import run
 
+    # Keep this one-release shim on the accepted reference tuple enforced by
+    # `crates/eqiora-api/src/elasticity.rs::require_supported_intent`.
     intent = LinearElasticity(
         cells_per_axis=16,
         relative_tolerance=1.0e-12,

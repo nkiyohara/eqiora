@@ -17,6 +17,8 @@ def solve() -> tuple[eqiora.Model, eqiora.Result]:
         source,
         filename="mixed-boundary-elasticity.eqi",
     )
+    # This checked-in reference case follows the tuple enforced by
+    # `crates/eqiora-api/src/elasticity.rs::require_supported_intent`.
     intent = eqiora.solid.LinearElasticity(
         cells_per_axis=16,
         relative_tolerance=1.0e-12,

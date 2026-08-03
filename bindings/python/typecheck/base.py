@@ -85,6 +85,8 @@ class _InvalidModelSubclass(eqiora.Model):  # type: ignore[misc]
 
 
 def check_structural_result(model: eqiora.Model) -> None:
+    # Accepted reference tuple; its native authority is
+    # `crates/eqiora-api/src/elasticity.rs::require_supported_intent`.
     intent = LinearElasticity(
         cells_per_axis=16,
         relative_tolerance=1.0e-12,
