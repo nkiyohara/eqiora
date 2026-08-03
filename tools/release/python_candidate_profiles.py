@@ -44,6 +44,16 @@ PYTHON_TEST_FIXTURES = (
     Path("verify/interfaces/control-plane-compile-check"),
     Path("verify/interfaces/current-authoring-profile"),
     Path("packages/org.example.poisson"),
+    Path("verify/packages/offline-model-package"),
+    Path(
+        "verify/artifacts/current-model-relational-identity-transition/"
+        "expected/deterministic/offline-model-package"
+    ),
+    Path(
+        "verify/artifacts/current-model-relational-identity-transition/"
+        "expected/deterministic/typed-execution-lineage"
+    ),
+    Path("verify/interfaces/python-offline-model-package/models/typed-execution-lineage"),
 )
 
 COMPLETE_PROFILE_NAMES = (
