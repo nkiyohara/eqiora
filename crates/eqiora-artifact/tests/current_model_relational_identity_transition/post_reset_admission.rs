@@ -110,7 +110,7 @@ fn an_admitted_later_path_is_optional_signal_bearing_and_identity_free() {
         assert_eq!(
             classify(observed),
             Ok(TransitionState::PostReset),
-            "admitted subset mask {mask:#05b} must remain optional"
+            "admitted subset mask {mask:#07b} must remain optional"
         );
     }
 
@@ -161,6 +161,9 @@ fn an_admitted_later_path_is_optional_signal_bearing_and_identity_free() {
         "crates/eqiora-python/src/result/output.rs",
         "bindings/python/python/eqiora/trajectory.py",
         "bindings/python/python/eqiora/trajectory2.pyi",
+        "crates/eqiora-artifact/src/cartesian_q1_field_snapshot_test.rs",
+        "crates/eqiora-artifact/src/cartesian_q1_field_snapshot/mod.rs",
+        "crates/eqiora/tests/generated_cartesian_q1_spatial_output_test.rs",
     ] {
         refused(
             classify(all(reset()).signalling(&[path])),

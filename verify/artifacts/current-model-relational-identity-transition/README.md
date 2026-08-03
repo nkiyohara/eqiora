@@ -48,7 +48,7 @@ by hand.
 | `required_post_reset` | 13 | the complete set of paths the reset may add: 11 byte-frozen promotions — 10 staged control-v2 targets plus the historical cylinder — and 2 existence-only unversioned Rust owners |
 | `preserved_evidence` | 40 | invariant evidence — the same path in both states — whose deletion the reset must never reach |
 | `promoted_evidence` | 1 | evidence whose bytes survive at a different path, so it is invariant at neither |
-| `post_reset_admitted` | 2 | later product paths the post-reset state may contain and never has to; a member of none of the sets above, and of no count in them |
+| `post_reset_admitted` | 5 | later product and oracle paths the post-reset state may contain and never has to; a member of none of the sets above, and of no count in them |
 
 **44, 304 and 13 are not one partition of 338.** What partitions the inventory
 is 34 + 304: the retired paths that are inventory members, plus the preserved
@@ -142,51 +142,58 @@ that needs another new signal-bearing path, or that cannot retire a listed one,
 stops and returns the delta to this oracle. Widening a set here to fit an
 implementation choice is not an available move.
 
-## A later product path is admitted by exact path, never required
+## A later signal-bearing path is admitted by exact path, never required
 
 The transition is history: it says what the repository was before the reset and
 what the reset itself did. Work that comes afterwards is neither. When the
 general trajectory owner of the Python surface was split out of its
 FSI-specific host, the hosted whole-tree gate found two signal-bearing paths the
-frozen record predates —
-`crates/eqiora-python/src/trajectory.rs` and
-`bindings/python/python/eqiora/trajectory.pyi`. Both are ordinary current-owner
-consumers: each names the `model_digest` its caller already holds, and neither
-pins a Model identity.
+frozen record predates: `crates/eqiora-python/src/trajectory.rs` and
+`bindings/python/python/eqiora/trajectory.pyi`. The later common Result owner
+`crates/eqiora-python/src/result.rs` joined them. All three are ordinary
+current-owner consumers of `model_digest`.
+
+The generated Cartesian spatial-output slice later added
+`crates/eqiora-artifact/src/cartesian_q1_field_snapshot.rs` and its independent
+oracle `crates/eqiora/tests/generated_cartesian_q1_spatial_output.rs`. Both name
+only `model_sha256`: the artifact owns a relational edge to its caller's exact
+Model, while the oracle checks and mutates that key without pinning its value.
+None of the five paths freezes a Model identity literal.
 
 Neither of the two sets that could have absorbed them is true. Adding them to
 the 338-path inventory would claim they existed before the reset. Adding them to
 `required_post_reset` would claim the reset created them, and would make a later
 capability a condition of accepting a transition that completed without it. So
-`search.transition.post_reset_admitted` names them, and names them alone:
+`search.transition.post_reset_admitted` names all five, and names them alone:
 
 - **containment only.** Admission widens what the post-reset discovered set may
-  contain; it never asks the path to exist. A post-reset tree carrying neither
-  admitted path is accepted exactly as it was before this amendment, and this
-  checkout — where neither path exists yet — is one such tree.
+  contain; it never asks a path to exist. Every subset of the five, including
+  none and all, is accepted independently of this permission. All five happen
+  to exist in the observed checkout.
 - **exactly the recorded signal.** An admitted path that does exist must spell
   exactly the search tokens recorded for it, in the sweep's own order. A file
   that spells none is not the surface that was admitted, and one that spells
   more has grown a claim nobody classified.
-- **no frozen identity.** `identity_literals` is 0 for both. A path that pins a
+- **no frozen identity.** `identity_literals` is 0 for all five. A path that pins a
   Model-derived lower-hex-64 identity is a fixture, and a fixture is classified
   here rather than admitted.
 - **absent before the reset.** An admitted path present in the pre-reset state
   is a mid-flight tree, refused by existence alone.
 - **exact, and nothing near it.** There is no glob, no directory rule and no
-  suffix rule. A third signal-bearing path is not admitted by sitting in the
-  same directory, by sharing the name `trajectory`, or by being the other
-  extension of the same module; it returns here for classification exactly as an
-  unlisted path did before.
+  suffix rule. A sixth signal-bearing path is not admitted by sitting in the
+  same directory, by sharing a trajectory, Result, or Cartesian snapshot name,
+  or by being the other extension of the same module; it returns here for
+  classification exactly as an unlisted path did before.
 
 Every historical set and count above is unchanged by this: 338 inventory paths,
 44 retired, 304 preserved, 13 required, 40 invariant and 1 promoted, with the
 same bytes and the same digests. Admission adds a permission and removes
 nothing.
 
-The two paths are what this case bounds, not what it owns. Their content belongs
-to the Python trajectory lane, which must not tune this record; a path that
-cannot meet the four conditions above returns here rather than being made to fit.
+The five paths are what this case bounds, not what it owns. Their content
+belongs to their Python, Cartesian artifact, and independent-oracle owners,
+which must not tune this record; a path that cannot meet the four conditions
+above returns here rather than being made to fit.
 
 ## Two consumers the remainder was wrong about
 
@@ -432,14 +439,12 @@ states remain falsifiers for the same predicate. A preserved path migrated in
 place may stop matching, which is admissible and which the predicate allows by
 containment rather than equality.
 
-Admission claims less again. It does not say either admitted path exists — in
-this checkout neither does — and it owns neither file's content: what a present
-one may spell and what it may not freeze is the whole of it. Because both are
-absent here, the live tree exercises only the reading of them, and the four
-conditions are driven by synthetic post-reset states through the same reader the
-live tree uses. That reader answers from bytes, so the mutants are the real
-predicate rather than a restatement of it; what no synthetic state can show is
-what the two files will actually contain when they land.
+Admission claims less again. It does not require any admitted path to exist and
+it owns none of their content: what a present path may spell and what it may not
+freeze is the whole of it. All five exist in this checkout, so the live tree
+exercises their exact observed signals and zero-literal counts. Synthetic
+post-reset states additionally exercise every optional subset and the mutants
+through the same byte reader.
 
 The sweep reads checked-in content. Building the Python extension copies example
 resources into maturin's staging directory
