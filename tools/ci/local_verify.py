@@ -5,42 +5,47 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import shlex
 import subprocess
 import sys
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Iterable, Mapping, Sequence
 
 from classify_changes import classify
+from verification_scheduler import (
+    CUBECL_LANE,
+    DEPENDENCY_POLICY_LANE,
+    HOSTED_TEST_PROFILE,
+    PYTHON_LANE,
+    REPOSITORY_LANE,
+    ROOT_CARGO_LANE,
+    STUDIO_LANE,
+    PlannedCommand,
+    ResourceBudget,
+    ResourceRequest,
+    VerificationFailure,
+    VerificationLane,
+    VerificationPlan,
+    cpu_allocations,
+    default_budget,
+    run_plan,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# The Cargo test profile the hosted workflow runs under. A local gate that does
-# not reproduce it is not measuring the thing CI will measure: the registered
-# preconditioner-scaling case takes 1150.8 s at the default `opt-level = 0` and
-# 64.5 s at `opt-level = 1`, so a local run can be eighteen times slower than
-# the hosted one and still be reported as the same evidence.
-#
-# Applied to every planned command rather than only to the ones that run tests.
-# These variables are scoped to the test profile by construction, so they change
-# nothing for a command that builds no test target, and for the ones that do
-# they let Clippy and the test run share a single set of artifacts instead of
-# building the workspace twice.
-#
-# `tools/ci/tests/test_ci_contracts.py` fails if this stops matching what
-# `.github/workflows/ci.yml` sets. The values live in one place because a second
-# copy is how the local gate silently stops predicting the hosted one.
-HOSTED_TEST_PROFILE = {
-    "CARGO_PROFILE_TEST_DEBUG": "0",
-    "CARGO_PROFILE_TEST_DEBUG_ASSERTIONS": "true",
-    "CARGO_PROFILE_TEST_INCREMENTAL": "false",
-    "CARGO_PROFILE_TEST_OPT_LEVEL": "1",
-    "CARGO_PROFILE_TEST_OVERFLOW_CHECKS": "true",
-}
+__all__ = [
+    "HOSTED_TEST_PROFILE",
+    "PlannedCommand",
+    "ResourceBudget",
+    "ResourceRequest",
+    "VerificationFailure",
+    "VerificationLane",
+    "VerificationPlan",
+    "build_plan",
+    "run_plan",
+]
 
 
 @dataclass(frozen=True)
@@ -48,34 +53,6 @@ class WorkspacePackage:
     name: str
     directory: str
     dependencies: frozenset[str]
-
-
-@dataclass(frozen=True)
-class PlannedCommand:
-    label: str
-    argv: tuple[str, ...]
-    cwd: str = "."
-    env: tuple[tuple[str, str], ...] = field(default_factory=tuple)
-
-    def render(self) -> str:
-        prefix = " ".join(f"{key}={shlex.quote(value)}" for key, value in self.env)
-        command = shlex.join(self.argv)
-        invocation = f"{prefix} {command}" if prefix else command
-        return (
-            invocation
-            if self.cwd == "."
-            else f"(cd {shlex.quote(self.cwd)} && {invocation})"
-        )
-
-
-@dataclass(frozen=True)
-class VerificationPlan:
-    tier: str
-    paths: tuple[str, ...]
-    packages: tuple[str, ...]
-    cases: tuple[str, ...]
-    commands: tuple[PlannedCommand, ...]
-    limitations: tuple[str, ...]
 
 
 def _git_paths(arguments: Sequence[str], root: Path = ROOT) -> set[str]:
@@ -188,13 +165,18 @@ def all_case_ids(root: Path = ROOT) -> set[str]:
 
 
 def command(
-    label: str, *argv: str, cwd: str = ".", env: Mapping[str, str] | None = None
+    label: str,
+    *argv: str,
+    cwd: str = ".",
+    env: Mapping[str, str] | None = None,
+    lane: VerificationLane = REPOSITORY_LANE,
 ) -> PlannedCommand:
     return PlannedCommand(
         label=label,
         argv=tuple(argv),
         cwd=cwd,
         env=tuple(sorted((env or {}).items())),
+        lane=lane,
     )
 
 
@@ -204,7 +186,15 @@ def _rust_commands(packages: Iterable[str], *, rustdoc: bool) -> list[PlannedCom
         return []
     selectors = tuple(item for package in selected for item in ("-p", package))
     commands = [
-        command("Rust tests", "cargo", "test", "--locked", *selectors, "--all-targets"),
+        command(
+            "Rust tests",
+            "cargo",
+            "test",
+            "--locked",
+            *selectors,
+            "--all-targets",
+            lane=ROOT_CARGO_LANE,
+        ),
         command(
             "Rust Clippy",
             "cargo",
@@ -214,6 +204,7 @@ def _rust_commands(packages: Iterable[str], *, rustdoc: bool) -> list[PlannedCom
             "--",
             "-D",
             "warnings",
+            lane=ROOT_CARGO_LANE,
         ),
     ]
     if rustdoc:
@@ -226,6 +217,7 @@ def _rust_commands(packages: Iterable[str], *, rustdoc: bool) -> list[PlannedCom
                 "--no-deps",
                 "--locked",
                 env={"RUSTDOCFLAGS": "-D warnings"},
+                lane=ROOT_CARGO_LANE,
             )
         )
     return commands
@@ -248,6 +240,7 @@ def _case_commands(cases: Iterable[str]) -> list[PlannedCommand]:
             "--",
             "run",
             *selectors,
+            lane=ROOT_CARGO_LANE,
         )
     ]
 
@@ -263,6 +256,7 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
                     "deny",
                     "--locked",
                     "check",
+                    lane=DEPENDENCY_POLICY_LANE,
                 ),
                 command(
                     "Studio dependency policy",
@@ -275,6 +269,7 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
                     "--config",
                     "studio/src-tauri/deny.toml",
                     "check",
+                    lane=DEPENDENCY_POLICY_LANE,
                 ),
             ]
         )
@@ -284,6 +279,7 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
                 "Python isolated wheel and tests",
                 sys.executable,
                 "tools/ci/python_package_gate.py",
+                lane=PYTHON_LANE,
             )
         )
     if surfaces["studio"]:
@@ -298,10 +294,31 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
                     "studio/src-tauri/Cargo.toml",
                     "--",
                     "--check",
+                    lane=STUDIO_LANE,
                 ),
-                command("Studio quality", "npm", "run", "check", cwd="studio"),
-                command("Studio unit tests", "npm", "test", cwd="studio"),
-                command("Studio build", "npm", "run", "build", cwd="studio"),
+                command(
+                    "Studio quality",
+                    "npm",
+                    "run",
+                    "check",
+                    cwd="studio",
+                    lane=STUDIO_LANE,
+                ),
+                command(
+                    "Studio unit tests",
+                    "npm",
+                    "test",
+                    cwd="studio",
+                    lane=STUDIO_LANE,
+                ),
+                command(
+                    "Studio build",
+                    "npm",
+                    "run",
+                    "build",
+                    cwd="studio",
+                    lane=STUDIO_LANE,
+                ),
                 command(
                     "Studio interaction tests",
                     "npm",
@@ -310,6 +327,7 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
                     "--",
                     "--workers=1",
                     cwd="studio",
+                    lane=STUDIO_LANE,
                 ),
                 command(
                     "Studio native MSRV",
@@ -320,6 +338,7 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
                     "studio/src-tauri/Cargo.toml",
                     "--locked",
                     "--all-targets",
+                    lane=STUDIO_LANE,
                 ),
                 command(
                     "Studio native Clippy",
@@ -332,6 +351,7 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
                     "--",
                     "-D",
                     "warnings",
+                    lane=STUDIO_LANE,
                 ),
                 command(
                     "Studio native tests",
@@ -340,6 +360,7 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
                     "--manifest-path",
                     "studio/src-tauri/Cargo.toml",
                     "--locked",
+                    lane=STUDIO_LANE,
                 ),
             ]
         )
@@ -358,6 +379,7 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
                     "--",
                     "-D",
                     "warnings",
+                    lane=CUBECL_LANE,
                 ),
                 command(
                     "CubeCL tests",
@@ -366,6 +388,7 @@ def _surface_commands(surfaces: Mapping[str, bool]) -> list[PlannedCommand]:
                     "--manifest-path",
                     manifest,
                     "--locked",
+                    lane=CUBECL_LANE,
                 ),
             ]
         )
@@ -397,7 +420,15 @@ def build_plan(
             command(
                 "Documentation contract", sys.executable, "tools/ci/check_docs.py", "."
             ),
-            command("Formatting", "cargo", "fmt", "--all", "--", "--check"),
+            command(
+                "Formatting",
+                "cargo",
+                "fmt",
+                "--all",
+                "--",
+                "--check",
+                lane=ROOT_CARGO_LANE,
+            ),
             command(
                 "Workspace Clippy",
                 "cargo",
@@ -409,6 +440,7 @@ def build_plan(
                 "--",
                 "-D",
                 "warnings",
+                lane=ROOT_CARGO_LANE,
             ),
             command(
                 "Workspace tests",
@@ -418,6 +450,7 @@ def build_plan(
                 "--all-targets",
                 "--all-features",
                 "--locked",
+                lane=ROOT_CARGO_LANE,
             ),
             command(
                 "All registered evidence",
@@ -428,9 +461,22 @@ def build_plan(
                 "eqiora-verify",
                 "--",
                 "verify",
+                lane=ROOT_CARGO_LANE,
             ),
-            command("Dependency layers", "cargo", "xtask", "check-layers"),
-            command("Public facade", "cargo", "xtask", "check-facade"),
+            command(
+                "Dependency layers",
+                "cargo",
+                "xtask",
+                "check-layers",
+                lane=ROOT_CARGO_LANE,
+            ),
+            command(
+                "Public facade",
+                "cargo",
+                "xtask",
+                "check-facade",
+                lane=ROOT_CARGO_LANE,
+            ),
             command(
                 "Workspace Rustdoc",
                 "cargo",
@@ -439,6 +485,7 @@ def build_plan(
                 "--no-deps",
                 "--locked",
                 env={"RUSTDOCFLAGS": "-D warnings"},
+                lane=ROOT_CARGO_LANE,
             ),
             command(
                 "MSRV",
@@ -449,6 +496,7 @@ def build_plan(
                 "--all-targets",
                 "--all-features",
                 "--locked",
+                lane=ROOT_CARGO_LANE,
             ),
         ]
         commands.extend(_surface_commands(surfaces))
@@ -471,7 +519,15 @@ def build_plan(
         commands = []
         if surfaces["rust"] or selected_packages:
             commands.append(
-                command("Formatting", "cargo", "fmt", "--all", "--", "--check")
+                command(
+                    "Formatting",
+                    "cargo",
+                    "fmt",
+                    "--all",
+                    "--",
+                    "--check",
+                    lane=ROOT_CARGO_LANE,
+                )
             )
         commands.extend(_rust_commands(selected_packages, rustdoc=tier == "affected"))
         if tier == "affected":
@@ -485,6 +541,7 @@ def build_plan(
                     "eqiora-verify",
                     "--",
                     "check",
+                    lane=ROOT_CARGO_LANE,
                 )
             )
         commands.extend(_case_commands(cases))
@@ -506,7 +563,13 @@ def build_plan(
             for path in paths
         ):
             commands.append(
-                command("Dependency layers", "cargo", "xtask", "check-layers")
+                command(
+                    "Dependency layers",
+                    "cargo",
+                    "xtask",
+                    "check-layers",
+                    lane=ROOT_CARGO_LANE,
+                )
             )
         if any(
             path
@@ -519,7 +582,15 @@ def build_plan(
             }
             for path in paths
         ):
-            commands.append(command("Public facade", "cargo", "xtask", "check-facade"))
+            commands.append(
+                command(
+                    "Public facade",
+                    "cargo",
+                    "xtask",
+                    "check-facade",
+                    lane=ROOT_CARGO_LANE,
+                )
+            )
         ci_contract_inputs = {
             "Cargo.toml",
             "Cargo.lock",
@@ -563,30 +634,36 @@ def build_plan(
     )
 
 
-def render_plan(plan: VerificationPlan) -> str:
+def render_plan(plan: VerificationPlan, budget: ResourceBudget | None = None) -> str:
+    admitted_budget = budget or default_budget()
+    lanes = tuple(dict.fromkeys(item.lane for item in plan.commands))
+    cargo_jobs = cpu_allocations(lanes, admitted_budget)
     lines = [
         f"tier: {plan.tier}",
         f"changed paths: {len(plan.paths)}",
         f"packages: {', '.join(plan.packages) if plan.packages else 'none'}",
         f"cases: {', '.join(plan.cases) if plan.cases else 'none'}",
-        "commands:",
+        f"budget: cpu={admitted_budget.cpu_slots}, "
+        f"memory={admitted_budget.memory_mib} MiB, gpu={admitted_budget.gpu_slots}",
+        "lanes:",
     ]
+    for lane in lanes:
+        resources = lane.resources
+        locks = ",".join(resources.locks) if resources.locks else "none"
+        lines.append(
+            f"  - {lane.name}: cpu-min={resources.cpu_slots}, "
+            f"cargo-jobs={cargo_jobs[lane.name]}, "
+            f"memory={resources.memory_mib} MiB, gpu={resources.gpu_slots}, "
+            f"locks={locks}"
+        )
+    lines.append("commands:")
     lines.extend(
-        f"  {index}. [{item.label}] {item.render()}"
+        f"  {index}. [{item.label}; lane={item.lane.name}] {item.render()}"
         for index, item in enumerate(plan.commands, 1)
     )
     lines.append("limitations:")
     lines.extend(f"  - {limitation}" for limitation in plan.limitations)
     return "\n".join(lines)
-
-
-def run_plan(plan: VerificationPlan, root: Path = ROOT) -> None:
-    for item in plan.commands:
-        print(f"==> {item.label}: {item.render()}", flush=True)
-        environment = os.environ.copy()
-        environment.update(HOSTED_TEST_PROFILE)
-        environment.update(dict(item.env))
-        subprocess.run(item.argv, cwd=root / item.cwd, env=environment, check=True)
 
 
 def main() -> int:
@@ -599,6 +676,26 @@ def main() -> int:
         "--case", action="append", default=[], help="exact affected case ID"
     )
     parser.add_argument("--plan", action="store_true", help="print without executing")
+    parser.add_argument(
+        "--cpu-slots",
+        type=int,
+        help="scheduler CPU admission budget (defaults to detected CPUs)",
+    )
+    parser.add_argument(
+        "--memory-mib",
+        type=int,
+        help="scheduler memory admission budget (defaults to available memory)",
+    )
+    parser.add_argument(
+        "--gpu-slots",
+        type=int,
+        help="scheduler GPU admission budget (defaults to zero or the environment)",
+    )
+    parser.add_argument(
+        "--scratch-root",
+        type=Path,
+        help="home-backed lane root (defaults below ~/.cache/eqiora)",
+    )
     arguments = parser.parse_args()
     try:
         paths = (
@@ -614,12 +711,30 @@ def main() -> int:
             arguments.case,
             load_workspace(),
         )
-        print(render_plan(plan))
+        detected = default_budget()
+        budget = ResourceBudget(
+            arguments.cpu_slots
+            if arguments.cpu_slots is not None
+            else detected.cpu_slots,
+            arguments.memory_mib
+            if arguments.memory_mib is not None
+            else detected.memory_mib,
+            arguments.gpu_slots
+            if arguments.gpu_slots is not None
+            else detected.gpu_slots,
+        )
+        print(render_plan(plan, budget))
         if not arguments.plan:
-            run_plan(plan)
+            run_plan(
+                plan,
+                budget=budget,
+                scratch_root=arguments.scratch_root,
+            )
     except (
         OSError,
         subprocess.CalledProcessError,
+        VerificationFailure,
+        RuntimeError,
         UnicodeError,
         ValueError,
         json.JSONDecodeError,

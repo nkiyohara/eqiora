@@ -32,9 +32,22 @@ python3 tools/ci/local_verify.py periodic
 ```
 
 Every plan prints its selected paths, Cargo packages, registered cases, exact
-commands, and limitations. Execution is shell-free and fail-fast. An absent
+commands, execution lanes, resource requests, and limitations. Execution is
+shell-free. Commands remain ordered and fail-fast inside one lane; independent
+lanes admitted by the CPU, memory, GPU, and named-lock budget overlap. A lane
+failure does not cancel useful work already running elsewhere, and the final
+captured logs and failures are reported in deterministic plan order. An absent
 tool, unsupported environment, failed child process, malformed manifest, or
 unknown path never becomes a silent pass.
+
+The default budget uses the current host's detected CPUs and available memory,
+with no GPU admission unless `EQIORA_LOCAL_VERIFY_GPU_SLOTS` declares it. A
+constrained or shared machine can set `--cpu-slots`, `--memory-mib`, and
+`--gpu-slots` explicitly. A lane whose own request exceeds the budget is
+rejected before any child process starts. When the detected CPU budget exceeds
+the sum of lane minima, the scheduler apportions the remaining Cargo build jobs
+by those declared weights rather than throttling the longest lane to its
+minimum.
 
 A newly added directory under `verify/` is path-selected before manifest
 discovery can name its case. Land its valid `case.toml` in the same change as
@@ -82,6 +95,15 @@ Fast and affected collect those exact case IDs into one canonical, sorted
 separately while executing each shared private execution key once. This batches
 only work selected by one local-verification plan; it does not reuse a result
 from another invocation or source revision.
+
+Root Cargo, installed-Python, Studio, CubeCL, dependency policy, and lightweight
+repository checks are separate local lanes. Every lane receives an explicit
+build root and per-invocation temporary directory below
+`~/.cache/eqiora/local-verify/<checkout>/`; the temporary directory is removed
+after reporting. Build roots remain as recomputable Cargo products so a later
+invocation does not pay for a clean rebuild. Set `--scratch-root` only to an
+equivalent home-backed location. The runner never uses OS `/tmp` for these
+artifacts.
 
 Fast and affected Clippy use default features. Optional MPI, CUDA, Diffsol, or
 other backend features run through their explicitly selected evidence command
