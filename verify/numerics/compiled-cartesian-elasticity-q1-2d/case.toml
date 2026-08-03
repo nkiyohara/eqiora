@@ -1,0 +1,50 @@
+id = "numerics.compiled-cartesian-elasticity-q1-2d"
+status = "specified"
+scope = "private-proof-carrying-cartesian-q1-isotropic-elasticity-form"
+reference_kind = "dual-independent-exact-local-derivative-and-patch-oracles"
+
+capabilities = [
+  "compiled-q1-elasticity-local-matrix-and-load",
+  "compiled-elasticity-state-and-parameter-actions",
+  "compiled-elasticity-paired-transpose-actions",
+  "proof-carrying-elasticity-role-admission",
+  "compiled-elasticity-mutant-rejection",
+]
+
+[problem]
+model = "verify/solid/isotropic-elasticity-2d/models/linear-load.eqi"
+equation = "-div(2 mu sym(grad(u)) + lambda I div(u)) - grad(p) = 0"
+domain = "(0, 1) x (0, 1)"
+local_cell = "lower-left [0, 1/2] x [0, 1/2]"
+material = "mu = 3; lambda = 2"
+load = "p(x, y) = pressure_gradient x; pressure_gradient = 1"
+boundary = "u = [0, 0] on the complete exterior boundary"
+method = "continuous Cartesian HypercubeQ1 Galerkin FEM"
+
+[differentiation]
+state_coordinates = 8
+parameter_coordinates = "mu, lambda, pressure_gradient"
+geometry_coordinates = false
+finite_difference = "centered binary64, h = 2^-12"
+absolute_maximum_tolerance = 1e-9
+
+[claim_boundary]
+spatial_dimension = 2
+unknown = "one two-component spatial-vector displacement"
+domain = "axis-aligned Cartesian box"
+boundary = "complete homogeneous essential"
+cell = "square affine hypercube"
+space = "continuous HypercubeQ1 in production bit and component-fast ordering"
+quadrature = "two-point tensor Gauss with declared exactness"
+execution = "host-serial f64 reference path"
+public_form_or_differential_api = false
+geometry_or_mesh_differentiation = false
+natural_robin_mixed_or_nonhomogeneous_boundary = false
+simplex_high_order_or_adaptive_spaces = false
+finite_strain_nonlinear_dynamic_or_contact = false
+cuda_or_mpi = false
+performance_claim = false
+
+[evidence]
+package = "eqiora-numerics"
+test = "compiled_cartesian_elasticity"
