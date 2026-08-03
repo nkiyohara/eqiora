@@ -1,0 +1,37 @@
+id = "interfaces.python-offline-model-package"
+status = "verified"
+scope = "installed-python-explicit-store-exact-resolution-root-local-model-projection"
+reference_kind = "accepted-offline-package-artifacts-and-direct-rust-diagnostic-parity"
+
+capabilities = [
+  "python-locked-model-package-compilation",
+  "python-package-compilation-digest-projection",
+  "python-package-lineage-clearing",
+  "python-package-structured-failure-mapping",
+]
+
+[claim_boundary]
+caller_selected_store_root = true
+exact_canonical_resolution_bytes = true
+bare_root_local_model_selector = true
+synchronous_read_only = true
+ordinary_immutable_model = true
+private_package_compilation_sidecar = true
+lineage_persisted_in_model_json = false
+workspace_or_lock_discovery = false
+package_authoring_or_installation = false
+imported_model_roots = false
+network_or_registry = false
+execution_or_science = false
+studio = false
+
+[precommitment]
+precommitted = true
+authored_before_implementation_by_a_nonimplementing_agent = true
+base_revision = "0280153810929461521cc9012946f7c268a87dbe"
+primary_oracle = "accepted packages.offline-model-package and deterministic transition artifacts"
+commit_clearing_oracle = "accepted packages.typed-execution-lineage org.example.poisson identities"
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_package_gate.py"
