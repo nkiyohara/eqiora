@@ -73,7 +73,7 @@ fn generated_cartesian_q1_output_closes_exact_spatial_lineage() {
         (0..256).collect::<Vec<_>>(),
     );
     for boundary in geometry.boundaries() {
-        let expected = match (boundary.axis(), boundary.side()) {
+        let expected: Vec<usize> = match (boundary.axis(), boundary.side()) {
             (0, BoundarySide::Lower) => (0..16).map(|t| 272 + t).collect(),
             (0, BoundarySide::Upper) => (0..16).map(|t| 528 + t).collect(),
             (1, BoundarySide::Lower) => (0..16).map(|t| 17 * t).collect(),
