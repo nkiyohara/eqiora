@@ -281,23 +281,20 @@ impl PyRunResult {
         py: Python<'_>,
         field: &PyModelFieldRef,
     ) -> PyResult<&StaticFieldOutput> {
-        let payload = match &self.payload {
-            ResultPayload::Static(payload) => payload,
-            ResultPayload::Trajectory(_) => {
-                return Err(capability_error(
-                    py,
-                    "this Result occurrence owns a Trajectory, not a static Field output",
-                ));
-            }
-            ResultPayload::Series { .. } => {
-                return Err(PyKeyError::new_err(field.exact_id().to_owned()));
-            }
-        };
+        if matches!(&self.payload, ResultPayload::Trajectory(_)) {
+            return Err(capability_error(
+                py,
+                "this Result occurrence owns a Trajectory, not a static Field output",
+            ));
+        }
         if field.exact_model_digest() != self.identity.model_digest() {
             return Err(PyValueError::new_err(
                 "FieldRef belongs to a different exact Model artifact",
             ));
         }
+        let ResultPayload::Static(payload) = &self.payload else {
+            return Err(PyKeyError::new_err(field.exact_id().to_owned()));
+        };
         let index = payload
             .lookup
             .get(field.exact_id())
