@@ -186,11 +186,12 @@ still does not claim raw-array or arbitrary Field plotting, contours, velocity,
 interactive behavior, animation, deterministic image bytes, media admission,
 or validation from visual similarity.
 
-## Mixed-boundary structural demo
+## Mixed-boundary structural result
 
 The installed package also carries the accepted mixed-boundary elasticity
-source. Python compiles it through the current Model path and passes the
-immutable Model into the same Rust-owned application result used by Studio:
+source. Python compiles it through the current `Model` path, resolves an
+explicit linear-elasticity intent before execution, and submits the resulting
+model-bound Plan through the ordinary Run path:
 
 ```python
 from importlib.resources import files
@@ -204,21 +205,57 @@ model = eqiora.compile(
     source,
     filename="mixed-boundary-elasticity.eqi",
 )
-result = eqiora.solid.solve_mixed_boundary_elasticity(model)
+intent = eqiora.solid.LinearElasticity(
+    cells_per_axis=16,
+    relative_tolerance=1.0e-12,
+    absolute_tolerance=1.0e-14,
+    maximum_iterations=10_000,
+)
+plan = eqiora.solid.resolve(model, intent)
+run = eqiora.submit(model, plan=plan)
+result = run.result()
+
+displacement = model.field("displacement")
+snapshot = result.field(displacement)
+mesh = result.mesh(displacement)
+evidence = eqiora.solid.linear_elasticity_evidence(result)
 ```
 
-`result.coordinates`, `result.cells`, and `result.displacement` are
-memoized, read-only NumPy matrices in one canonical Q1 order. Model,
-Realization, Run, solver, assembly, reaction, and body-force evidence remains
-owned by Rust. Stress, strain, traction recovery, analytic error, other
-meshes, and general structural solving are not implied.
+`LinearElasticity` is keyword-only and has no hidden defaults. The resolved
+`LinearElasticityPlan` exposes the effective generated-Cartesian Q1
+Realization, solver, backend, execution, and worker choices before a worker
+starts. Resolution admits only this already verified tuple and rejects other
+values instead of silently falling back.
+
+The common `Result` owns one immutable vector `FieldSnapshot` selected by the
+caller's exact Model-bound `FieldRef`; `result.mesh(displacement)` returns its
+paired exact generated-Cartesian `Mesh`. Snapshot values, Mesh coordinates,
+and Q1 connectivity lazily publish memoized, read-only NumPy views in one
+co-indexed canonical order. The typed `LinearElasticityEvidence` keeps the
+Run digest, reference-CG solve summary, assembly counts, constrained reaction,
+integrated body force, and exact bounds outside the common result transport.
+Model, Realization, Geometry, correspondence, Mesh, Snapshot, and Run identity
+remain Rust-owned and relationally exact. Stress, strain, traction recovery,
+analytic error, other meshes, and general structural solving are not implied.
 
 The optional still displays original and explicitly scaled deformed edges:
 
 ```python
-figure = eqplot.plot_displacement(result, scale=1.0)
+import eqiora.matplotlib as eqplot
+
+figure = eqplot.plot_deformed_field(
+    result,
+    field=displacement,
+    scale=1.0,
+)
 figure.savefig("mixed-boundary-displacement.png")
 ```
+
+For one subsequent prerelease, `MixedBoundaryElasticityResult`,
+`solve_mixed_boundary_elasticity`, and `plot_displacement` remain only as
+warning-emitting compatibility shims that delegate to this path. They own no
+result storage, execution, lineage, plotting implementation, or evidence and
+are not the ordinary API.
 
 The complete runnable workflow is
 [`examples/python/mixed_boundary_elasticity.py`](../../examples/python/mixed_boundary_elasticity.py).

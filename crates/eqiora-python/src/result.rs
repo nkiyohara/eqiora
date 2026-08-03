@@ -11,15 +11,13 @@ use pyo3::types::{PyList, PyModule, PyTuple};
 
 use crate::array::PyArrayBuffer;
 use crate::diagnostic_error;
+use crate::elasticity::PyLinearElasticityEvidence;
 use crate::execution::RunIdentity;
 use crate::meshing::PyMesh;
 use crate::model::PyModelFieldRef;
 use crate::realization::PyRunManifest;
 use crate::steady_stokes::PySteadyStokesEvidence;
 use crate::trajectory::PyFieldSnapshot;
-
-type Bounds2d = ((f64, f64), (f64, f64));
-type ScalarRenderMetadata = (Bounds2d, f64, f64);
 
 /// One read-only, field-local sampled series in SI units.
 #[pyclass(name = "Series", module = "eqiora._eqiora", frozen)]
@@ -88,13 +86,6 @@ impl PySeries {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct StaticScalarMetadata {
-    bounds: Bounds2d,
-    minimum: f64,
-    maximum: f64,
-}
-
 pub(crate) struct StaticResultParts {
     pub(crate) identity: RunIdentity,
     pub(crate) elapsed_seconds: f64,
@@ -102,27 +93,16 @@ pub(crate) struct StaticResultParts {
     pub(crate) snapshot: Py<PyFieldSnapshot>,
     pub(crate) mesh: Py<PyMesh>,
     pub(crate) run_manifest: Py<PyRunManifest>,
-    pub(crate) scalar: StaticScalarMetadata,
-}
-
-impl StaticScalarMetadata {
-    pub(crate) const fn new(bounds: Bounds2d, minimum: f64, maximum: f64) -> Self {
-        Self {
-            bounds,
-            minimum,
-            maximum,
-        }
-    }
 }
 
 struct StaticFieldOutput {
     snapshot: Py<PyFieldSnapshot>,
     mesh: Py<PyMesh>,
-    scalar: StaticScalarMetadata,
 }
 
 enum StaticScientificEvidence {
     SteadyStokes(Py<PySteadyStokesEvidence>),
+    LinearElasticity(Py<PyLinearElasticityEvidence>),
 }
 
 struct StaticResultPayload {
@@ -240,23 +220,6 @@ impl PyRunResult {
         }
     }
 
-    /// Private renderer metadata retained from the accepted Rust projection.
-    #[pyo3(signature = (field, /))]
-    fn _scalar_field_metadata(
-        &self,
-        py: Python<'_>,
-        field: &PyModelFieldRef,
-    ) -> PyResult<ScalarRenderMetadata> {
-        if matches!(&self.payload, ResultPayload::Series { .. }) {
-            return Err(capability_error(
-                py,
-                "this Result occurrence has no static scalar Field",
-            ));
-        }
-        let scalar = self.static_output(field)?.scalar;
-        Ok((scalar.bounds, scalar.minimum, scalar.maximum))
-    }
-
     fn __len__(&self) -> usize {
         match &self.payload {
             ResultPayload::Series { fields, .. } => fields.len(),
@@ -320,6 +283,26 @@ impl PyRunResult {
                 py,
                 "this Result occurrence has no steady-Stokes evidence",
             )),
+            ResultPayload::Static(_) => Err(capability_error(
+                py,
+                "this Result occurrence has no steady-Stokes evidence",
+            )),
+        }
+    }
+
+    pub(crate) fn linear_elasticity_evidence(
+        &self,
+        py: Python<'_>,
+    ) -> PyResult<Py<PyLinearElasticityEvidence>> {
+        match &self.payload {
+            ResultPayload::Static(StaticResultPayload {
+                evidence: StaticScientificEvidence::LinearElasticity(evidence),
+                ..
+            }) => Ok(evidence.clone_ref(py)),
+            ResultPayload::Static(_) | ResultPayload::Series { .. } => Err(capability_error(
+                py,
+                "this Result occurrence has no linear-elasticity evidence",
+            )),
         }
     }
 
@@ -336,11 +319,31 @@ impl PyRunResult {
                 outputs: vec![StaticFieldOutput {
                     snapshot: parts.snapshot,
                     mesh: parts.mesh,
-                    scalar: parts.scalar,
                 }],
                 lookup,
                 run_manifest: parts.run_manifest,
                 evidence: StaticScientificEvidence::SteadyStokes(evidence),
+            }),
+        }
+    }
+
+    pub(crate) fn from_static_linear_elasticity(
+        parts: StaticResultParts,
+        evidence: Py<PyLinearElasticityEvidence>,
+    ) -> Self {
+        let mut lookup = BTreeMap::new();
+        lookup.insert(parts.field_id, 0);
+        Self {
+            identity: parts.identity,
+            elapsed_seconds: parts.elapsed_seconds,
+            payload: ResultPayload::Static(StaticResultPayload {
+                outputs: vec![StaticFieldOutput {
+                    snapshot: parts.snapshot,
+                    mesh: parts.mesh,
+                }],
+                lookup,
+                run_manifest: parts.run_manifest,
+                evidence: StaticScientificEvidence::LinearElasticity(evidence),
             }),
         }
     }

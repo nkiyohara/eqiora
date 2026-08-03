@@ -108,11 +108,12 @@ contract cell
 4. Disjoint consumer branches start from the exact accepted contract revision.
    Writable work uses a separate worktree per mergeable slice; branch identity
    follows the slice, not the agent. Sibling branches do not merge one another.
-5. The integrator reviews the contract, diff, independent verification, and
-   abstraction budget; rebases the slice on the current integration head; runs
-   the affected gate and explicit semantic cases; marks the pull request ready;
-   and merges and removes the branch promptly after required hosted checks
-   pass. Agent-reported completion is not acceptance evidence.
+5. The integrator self-reviews the contract, complete diff, independent
+   verification, and abstraction budget; obtains the risk-required independent
+   review defined below; rebases the slice on the current integration head;
+   runs the affected gate and explicit semantic cases; marks the pull request
+   ready; and merges and removes the branch promptly after required hosted
+   checks pass. Agent-reported completion is not acceptance evidence.
 
 Read-only design, prior-art, oracle, and adversarial audits may scale beyond
 writable lanes. More writers are added only for paths that consume a frozen
@@ -297,9 +298,10 @@ lane. A high-fan-out predecessor merges before its consumer branches begin;
 composition evidence begins only after all of its parent slices are accepted.
 Rebase the current integration head once before final local verification. The
 integrator records the exact local commands and limitations, merges only a
-passing affected closure, and deletes the merged branch. Required hosted checks
-validate the exact proposed merge on protected public branches; they complement
-rather than replace the repository-owned local acceptance decision.
+passing affected closure with any required independent review, and deletes the
+merged branch. Required hosted checks validate the exact proposed merge on
+protected public branches; they complement rather than replace the
+repository-owned local acceptance decision.
 
 A pull request is the exact integration envelope for a closed slice, not a
 queue for routine human approval. Draft status is used only while the slice or
@@ -316,12 +318,45 @@ self-reviews:
 - the exact local commands, results, and environment limitations recorded in
   the pull request.
 
-Once this review is closed, mark the pull request ready and merge it as soon as
-the protected branch's required hosted checks pass. External review is welcome
-but is not a default waiting condition during bootstrap. Stop instead when a
-protection rule requires another action, an anomaly below is unresolved, or a
-scientific, compatibility, security, data-integrity, or release-trust decision
-cannot be justified from the available contract and evidence.
+The self-review classifies the delta by durable risk. A fresh-context
+non-writer must independently review before integration the complete risky
+delta that changes any of:
+
+- governance, review, or evidence policy;
+- scientific meaning, an oracle, expected value, tolerance, or falsifier;
+- a public or versioned API, compatibility promise, or migration;
+- a persisted schema or exact artifact;
+- security, data integrity, release trust, or CI trust; or
+- an architecture ceiling or debt entry.
+
+This review covers only the risky delta, plus enough surrounding context to
+judge it, rather than every unrelated low-risk change in the integration
+envelope. The writer or integrator cannot supply the independent review for
+its own high-risk delta. Implementer/oracle independence remains mandatory
+regardless of this review classification.
+
+Outside those boundaries, integrator self-review and repository gates are
+sufficient for a dependency-only update when it includes the lockfile and
+relevant automated gate; non-governance documentation; reproducible generated
+or mechanical output; a private behavior-preserving refactor; and a localized
+correction to an already-reviewed low-risk finding. No fresh reviewer is
+required unless an anomaly appears. Anomalies include ambiguous risk
+classification, scope drift, an unexplained gate change or failure,
+non-reproducible generated output, or a change to the accepted contract or
+evidence.
+
+A strictly localized correction to an already-reviewed high-risk finding gets
+focused fresh-context non-writer review of the correction only, not whole-diff
+rereview merely because the reviewed head changed. If the correction changes
+the claim, evidence, or compatibility, widens scope, or otherwise reopens the
+accepted risk, review the reopened risky delta plus needed context as a new
+high-risk change.
+
+Once the applicable review is closed, mark the pull request ready and merge it
+as soon as the protected branch's required hosted checks pass. No additional
+review is a default waiting condition. Stop when a protection rule requires
+another action, an anomaly remains unresolved, or a mandatory high-risk review
+has not accepted its bounded delta.
 
 There is no calendar review or activity ledger. Revisit the development model
 only when an operational anomaly appears:
