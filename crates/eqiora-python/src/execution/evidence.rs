@@ -1,8 +1,8 @@
 use eqiora::Diagnostic;
 use eqiora::api::{
     ModelDocument, ReferenceRunCancellation, ReferenceRunPlan, ReferenceRunProgress,
-    ResolvedSteadyStokesPlan2d, ScalarEllipticRunCancellation, ScalarEllipticRunPlan,
-    ScalarEllipticRunProgress,
+    ResolvedLinearElasticityPlan2d, ResolvedSteadyStokesPlan2d, ScalarEllipticRunCancellation,
+    ScalarEllipticRunPlan, ScalarEllipticRunProgress,
 };
 use eqiora::artifact::{CanonicalModelArtifact, ModelEnvelope};
 use eqiora::diagnostic::codes;
@@ -309,6 +309,35 @@ impl RunIdentity {
             model_revision: reference.semantic_revision().get(),
             plan_key: format!(
                 "steady-stokes-v1:{realization}:{}@{}",
+                solver.id().as_str(),
+                solver.implementation_version(),
+            ),
+            adapter: execution.id().as_str(),
+            adapter_version: execution.implementation_version(),
+        })
+    }
+
+    pub(super) fn from_linear_elasticity(
+        model: &ModelEnvelope,
+        plan: &ResolvedLinearElasticityPlan2d,
+    ) -> Result<Self, Diagnostic> {
+        let reference = model.artifact_reference()?;
+        let planned = plan.model().artifact_reference()?;
+        if reference != planned {
+            return Err(Diagnostic::error(
+                codes::INVALID_REALIZATION,
+                "the resolved linear-elasticity Plan belongs to a different exact Model revision",
+            ));
+        }
+        let realization = plan.realization().digest()?;
+        let solver = plan.solver_provider();
+        let execution = plan.execution_provider();
+        Ok(Self {
+            model_id: reference.model().ulid().to_string(),
+            model_digest: reference.artifact().to_string(),
+            model_revision: reference.semantic_revision().get(),
+            plan_key: format!(
+                "linear-elasticity-v1:{realization}:{}@{}",
                 solver.id().as_str(),
                 solver.implementation_version(),
             ),

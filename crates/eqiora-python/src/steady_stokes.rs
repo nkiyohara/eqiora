@@ -24,7 +24,7 @@ use crate::meshing::PyMesh;
 use crate::model::PyModel;
 use crate::panic_boundary;
 use crate::realization::{PyLinearSolveSummary, PyRunManifest};
-use crate::result::{PyRunResult, StaticResultParts, StaticScalarMetadata};
+use crate::result::{PyRunResult, StaticResultParts};
 use crate::trajectory::PyFieldSnapshot;
 
 /// Complete steady-Stokes request with no hidden numerical defaults.
@@ -171,14 +171,13 @@ impl PySteadyStokesPlan {
             .digest()
             .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?
             .to_string();
-        let correspondence_digest = accepted_mesh
-            .accepted()
+        let accepted = accepted_mesh.accepted_chordal(py)?;
+        let correspondence_digest = accepted
             .correspondence()
             .digest()
             .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?
             .to_string();
-        let mesh_digest = accepted_mesh
-            .accepted()
+        let mesh_digest = accepted
             .mesh()
             .digest()
             .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?
@@ -203,7 +202,7 @@ impl PySteadyStokesPlan {
             .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?;
         let pressure_space = space_name(native.pressure_space())
             .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?;
-        let geometry_digest = digest_to_hex(&accepted_mesh.accepted().source().digest_bytes());
+        let geometry_digest = digest_to_hex(&accepted.source().digest_bytes());
         drop(accepted_mesh);
         Ok(Self {
             geometry_digest,
@@ -389,7 +388,7 @@ pub(crate) fn resolve(
 ) -> PyResult<PySteadyStokesPlan> {
     panic_boundary(py, || {
         let model = model.artifact().clone();
-        let accepted = mesh.borrow(py).accepted().clone();
+        let accepted = mesh.borrow(py).accepted_chordal(py)?.clone();
         let intent = intent.native;
         let native = py.detach(move || {
             ResolvedSteadyStokesPlan2d::resolve(&model, intent, &accepted, &FaerLinearSolver)
@@ -602,7 +601,7 @@ pub(crate) fn materialize_result(
 ) -> PyResult<PyRunResult> {
     let accepted_mesh_digest = mesh
         .borrow(py)
-        .accepted()
+        .accepted_chordal(py)?
         .mesh()
         .digest()
         .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
@@ -617,12 +616,6 @@ pub(crate) fn materialize_result(
         &materialized.snapshot,
         &materialized.projection,
     )?;
-    let bounds = materialized.projection.bounds_m();
-    let scalar = StaticScalarMetadata::new(
-        ((bounds[0][0], bounds[0][1]), (bounds[1][0], bounds[1][1])),
-        materialized.projection.minimum(),
-        materialized.projection.maximum(),
-    );
     let run_manifest = Py::new(py, PyRunManifest::from_value(py, materialized.run.clone())?)?;
     let evidence = Py::new(
         py,
@@ -636,7 +629,6 @@ pub(crate) fn materialize_result(
             snapshot: Py::new(py, snapshot)?,
             mesh,
             run_manifest,
-            scalar,
         },
         evidence,
     ))

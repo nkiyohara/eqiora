@@ -7,6 +7,7 @@ import json
 import os
 import struct
 import sys
+import warnings
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -149,17 +150,30 @@ def accepted_reference_result() -> tuple[eqiora.Model, eqiora.Result]:
     return model, eqiora.run(model, end_time=0.1, max_step=0.1)
 
 
-def accepted_structural_result() -> eqiora.solid.MixedBoundaryElasticityResult:
+def accepted_structural_model() -> eqiora.Model:
     source = (
         files(eqiora)
         .joinpath("examples", "mixed-boundary-elasticity.eqi")
         .read_text(encoding="utf-8")
     )
-    model = eqiora.compile(
+    return eqiora.compile(
         source,
         filename="mixed-boundary-elasticity.eqi",
     )
-    return eqiora.solid.solve_mixed_boundary_elasticity(model)
+
+
+def accepted_structural_result() -> tuple[eqiora.Model, eqiora.Result]:
+    """Resolve and run the accepted structural Plan through the ordinary path."""
+
+    model = accepted_structural_model()
+    intent = eqiora.solid.LinearElasticity(
+        cells_per_axis=16,
+        relative_tolerance=1e-12,
+        absolute_tolerance=1e-14,
+        maximum_iterations=10_000,
+    )
+    plan = eqiora.solid.resolve(model, intent)
+    return model, eqiora.run(model, plan=plan)
 
 
 def fsi_source() -> str:
@@ -215,7 +229,7 @@ def result() -> eqiora.Result:
 
 
 @pytest.fixture(scope="module")
-def structural_result() -> eqiora.solid.MixedBoundaryElasticityResult:
+def structural() -> tuple[eqiora.Model, eqiora.Result]:
     return accepted_structural_result()
 
 
@@ -426,59 +440,120 @@ def test_static_scalar_still_rejects_wrong_call_shape_and_identity_before_render
     assert result.mesh(field).digest == snapshot.mesh_digest
 
 
-def test_displacement_plot_rejects_foreign_inputs_before_rendering(
-    result: eqiora.Result,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    rendered = False
+def quadrilateral_edges(cells: np.ndarray) -> list[tuple[int, int]]:
+    """Canonical unique undirected edges of the Z-ordered Q1 connectivity."""
 
-    def reject_render(*args: Any, **kwargs: Any) -> Any:
-        nonlocal rendered
-        rendered = True
-        raise AssertionError("foreign input reached Matplotlib")
-
-    monkeypatch.setattr(Axes, "add_collection", reject_render)
-    for foreign in (object(), result):
-        with pytest.raises(
-            TypeError,
-            match="MixedBoundaryElasticityResult",
-        ):
-            eqplot.plot_displacement(foreign)  # type: ignore[arg-type]
-    assert not rendered
-
-
-@pytest.mark.parametrize("scale", [0.0, 2.0])
-def test_displacement_plot_preserves_canonical_edges_and_explicit_scale(
-    structural_result: eqiora.solid.MixedBoundaryElasticityResult,
-    scale: float,
-) -> None:
-    import matplotlib.pyplot as pyplot
-
-    coordinates = structural_result.coordinates.copy()
-    displacement = structural_result.displacement.copy()
-    cells = structural_result.cells.copy()
-    edges = sorted(
+    return sorted(
         {
             tuple(sorted((int(cell[first]), int(cell[second]))))
             for cell in cells
             for first, second in ((0, 1), (1, 3), (3, 2), (2, 0))
         }
     )
+
+
+def test_deformed_still_rejects_foreign_structural_inputs_before_rendering(
+    structural: tuple[eqiora.Model, eqiora.Result],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model, result = structural
+    displacement = model.field("displacement")
+    reference_model, reference = accepted_reference_result()
+    forbid_rendering(monkeypatch)
+
+    for foreign in (object(), result.run_manifest()):
+        with pytest.raises(TypeError, match="Result|Trajectory"):
+            eqplot.plot_deformed_field(foreign, field=displacement)
+    # The general adapter owns exactly two arms: a static Result without step
+    # and a Trajectory with step. Neither borrows the other's call shape.
+    with pytest.raises(TypeError):
+        eqplot.plot_deformed_field(result, step=1, field=displacement)
+    with pytest.raises(ValueError, match="different exact Model"):
+        eqplot.plot_deformed_field(
+            result,
+            field=accepted_structural_model().field("displacement"),
+        )
+    with pytest.raises(KeyError):
+        eqplot.plot_deformed_field(result, field=model.field("load_potential"))
+    with pytest.raises(eqiora.CapabilityError):
+        eqplot.plot_deformed_field(reference, field=reference_model.field("x"))
+
+
+def test_deformed_still_keeps_trajectory_topology_triangle_only(
+    structural: tuple[eqiora.Model, eqiora.Result],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A future quad-backed Trajectory cannot silently enter this adapter arm."""
+
+    model, result = structural
+    field = model.field("displacement")
+    snapshot = result.field(field)
+    mesh = result.mesh(field)
+
+    class QuadState:
+        step = 1
+        time_s = 0.0
+
+        @staticmethod
+        def field(selected: eqiora.FieldRef) -> Any:
+            assert selected == field
+            return snapshot
+
+    class QuadTrajectory:
+        dimension = mesh.dimension
+        coordinates = mesh.coordinates
+        cells = mesh.cells
+
+        @staticmethod
+        def state(step: int) -> QuadState:
+            assert step == 1
+            return QuadState()
+
+    # Native Trajectory construction currently admits only affine triangles.
+    # Replacing only the adapter's runtime type guard lets this regression test
+    # exercise a prospective quad-backed value without inventing a public
+    # constructor or modifying exact trajectory evidence.
+    monkeypatch.setattr(eqplot, "Trajectory", QuadTrajectory)
+    assert QuadTrajectory.cells.shape[1] == 4
+    forbid_rendering(monkeypatch)
+    with pytest.raises(ValueError, match="affine triangle topology"):
+        eqplot.plot_deformed_field(QuadTrajectory(), step=1, field=field)
+
+
+@pytest.mark.parametrize("scale", [0.0, 2.0])
+def test_deformed_still_preserves_canonical_q1_edges_and_explicit_scale(
+    structural: tuple[eqiora.Model, eqiora.Result],
+    scale: float,
+) -> None:
+    import matplotlib.pyplot as pyplot
+
+    model, result = structural
+    field = model.field("displacement")
+    snapshot = result.field(field)
+    mesh = result.mesh(field)
+    coordinates = mesh.coordinates.copy()
+    displacement = snapshot.values("vertex").copy()
+    edges = quadrilateral_edges(mesh.cells)
+
+    assert snapshot.value_shape == (2,)
+    assert snapshot.frame == "spatial-cartesian"
+    assert snapshot.dimension == (0, 1, 0, 0, 0, 0, 0)
+    assert snapshot.associations == ("vertex",)
+    assert mesh.cells.shape == (256, 4)
     assert len(edges) == 544
     expected_original = coordinates[edges]
     expected_deformed = (coordinates + scale * displacement)[edges]
 
     registered_figures = pyplot.get_fignums()
-    figure = eqplot.plot_displacement(structural_result, scale=scale)
+    figure = eqplot.plot_deformed_field(result, field=field, scale=scale)
     assert pyplot.get_fignums() == registered_figures
     assert len(figure.axes) == 1
     axes = figure.axes[0]
-    original, deformed = axes.collections
-    np.testing.assert_array_equal(original.get_segments(), expected_original)
-    np.testing.assert_array_equal(deformed.get_segments(), expected_deformed)
-    assert original.get_label() == "Original mesh"
-    assert deformed.get_label() == f"Displaced mesh (scale = {scale:g})"
-    assert f"scale {scale:g}" in axes.get_title()
+    original, deformed = wireframes(figure)
+    np.testing.assert_array_equal(original, expected_original)
+    np.testing.assert_array_equal(deformed, expected_deformed)
+    labels = [artist.get_label() for artist in axes.collections]
+    assert any(f"{scale:g}" in text for text in (axes.get_title(), *labels))
     assert axes.get_xlabel() == "x [m]"
     assert axes.get_ylabel() == "y [m]"
     assert axes.get_aspect() == 1.0
@@ -498,17 +573,21 @@ def test_displacement_plot_preserves_canonical_edges_and_explicit_scale(
         coordinates[:, 1].max(),
         expected_deformed[..., 1].max(),
     )
-    assert not structural_result.coordinates.flags.writeable
-    assert not structural_result.cells.flags.writeable
-    assert not structural_result.displacement.flags.writeable
+    assert not mesh.coordinates.flags.writeable
+    assert not mesh.cells.flags.writeable
+    assert not snapshot.values("vertex").flags.writeable
 
 
 def test_structural_figure_is_headless_caller_owned_and_nonblank(
     tmp_path: Path,
 ) -> None:
-    result = accepted_structural_result()
-    figure = eqplot.plot_displacement(result, scale=1.0)
-    del result
+    model, result = accepted_structural_result()
+    figure = eqplot.plot_deformed_field(
+        result,
+        field=model.field("displacement"),
+        scale=1.0,
+    )
+    del model, result
     gc.collect()
 
     encoded = io.BytesIO()
@@ -524,22 +603,63 @@ def test_structural_figure_is_headless_caller_owned_and_nonblank(
 
 
 @pytest.mark.parametrize("scale", [-1.0, float("inf"), float("nan")])
-def test_displacement_plot_rejects_invalid_scale_before_rendering(
-    structural_result: eqiora.solid.MixedBoundaryElasticityResult,
+def test_deformed_still_rejects_invalid_structural_scale_before_rendering(
+    structural: tuple[eqiora.Model, eqiora.Result],
     scale: float,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    rendered = False
-
-    def reject_render(*args: Any, **kwargs: Any) -> Any:
-        nonlocal rendered
-        rendered = True
-        raise AssertionError("invalid scale reached Matplotlib")
-
-    monkeypatch.setattr(Axes, "add_collection", reject_render)
+    model, result = structural
+    forbid_rendering(monkeypatch)
     with pytest.raises(ValueError, match="finite and nonnegative"):
-        eqplot.plot_displacement(structural_result, scale=scale)
-    assert not rendered
+        eqplot.plot_deformed_field(
+            result,
+            field=model.field("displacement"),
+            scale=scale,
+        )
+
+
+def test_predecessor_displacement_still_only_delegates_with_a_deprecation(
+    structural: tuple[eqiora.Model, eqiora.Result],
+    result: eqiora.Result,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model, structural_result = structural
+    field = model.field("displacement")
+    converged = eqplot.plot_deformed_field(
+        structural_result,
+        field=field,
+        scale=2.0,
+    )
+
+    with pytest.warns(DeprecationWarning):
+        shim_result = eqiora.solid.solve_mixed_boundary_elasticity(
+            accepted_structural_model()
+        )
+    with pytest.warns(DeprecationWarning, match="plot_deformed_field"):
+        delegated = eqplot.plot_displacement(shim_result, scale=2.0)
+
+    for converged_segments, delegated_segments in zip(
+        wireframes(converged),
+        wireframes(delegated),
+        strict=True,
+    ):
+        np.testing.assert_array_equal(converged_segments, delegated_segments)
+
+    # The retained result type name resolves to common Result, so the shim must
+    # discriminate with the closed structural-evidence arm rather than an
+    # isinstance check that would also admit this steady-Stokes Result.
+    forbid_rendering(monkeypatch)
+    with pytest.warns(DeprecationWarning, match="plot_deformed_field"):
+        with pytest.raises(eqiora.CapabilityError):
+            eqplot.plot_displacement(result, scale=2.0)
+
+
+def test_predecessor_displacement_wrong_type_rejects_before_deprecation() -> None:
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        with pytest.raises(TypeError, match="eqiora.Result"):
+            eqplot.plot_displacement(object())  # type: ignore[arg-type]
+    assert caught == []
 
 
 # --------------------------------------------------------------------------
@@ -630,9 +750,11 @@ def test_still_signatures_are_the_frozen_keyword_only_contract() -> None:
     for parameters in (scalar, deformed):
         for name in ("step", "field"):
             assert parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
+    # Both adapters are now general over one static Result and one Trajectory,
+    # so `step` is optional in the signature and required by the Trajectory arm.
     assert scalar["step"].default is not inspect.Parameter.empty
+    assert deformed["step"].default is not inspect.Parameter.empty
     assert scalar["field"].default is inspect.Parameter.empty
-    assert deformed["step"].default is inspect.Parameter.empty
     assert deformed["field"].default is inspect.Parameter.empty
     assert deformed["scale"].kind is inspect.Parameter.KEYWORD_ONLY
     assert deformed["scale"].default == 1.0
@@ -656,9 +778,14 @@ def test_withdrawn_demo_stills_are_absent_without_alias_shims_or_exports() -> No
     assert "result: Result" in stub
     assert "trajectory: Trajectory" in stub
     assert stub.count("def plot_scalar_field(") == 2
+    assert stub.count("def plot_deformed_field(") == 2
     for name in ("plot_scalar_field", "plot_deformed_field"):
         assert name in stub
         assert callable(getattr(eqplot, name))
+    # The predecessor still is retained by the pre-1.0 compatibility rule for
+    # one subsequent prerelease and owns no plotting implementation.
+    assert "def plot_displacement(" in stub
+    assert callable(eqplot.plot_displacement)
 
 
 @pytest.mark.parametrize("step", ACCEPTED_STEPS)
@@ -856,6 +983,8 @@ def test_stills_reject_foreign_identity_and_contract_violations_before_a_figure(
     forbid_rendering(monkeypatch)
     with pytest.raises(TypeError):
         eqplot.plot_scalar_field(trajectory, field=pressure)
+    with pytest.raises(TypeError):
+        eqplot.plot_deformed_field(trajectory, field=displacement)
     for foreign_input in (object(), result, trajectory.coordinates):
         with pytest.raises(TypeError, match="Result|Trajectory|step"):
             eqplot.plot_scalar_field(foreign_input, step=1, field=pressure)

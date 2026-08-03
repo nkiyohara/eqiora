@@ -18,6 +18,9 @@ use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
 use crate::PyModel;
+use crate::elasticity::{
+    PyLinearElasticityPlan, materialize_result as materialize_linear_elasticity,
+};
 use crate::error::{
     cancellation_error, catch_native_panic, diagnostic_error, execution_error,
     internal_diagnostic_error, internal_error, panic_boundary,
@@ -70,6 +73,10 @@ enum NativeRunOutput {
     ScalarElliptic(Box<ScalarEllipticRunResult>),
     SteadyStokes {
         result: Box<SteadyStokesRunMaterialization>,
+        elapsed_seconds: f64,
+    },
+    LinearElasticity {
+        result: Box<eqiora::api::MixedBoundaryElasticityResult2d>,
         elapsed_seconds: f64,
     },
 }
@@ -552,6 +559,22 @@ impl PyRun {
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
     }
 
+    fn submit_linear_elasticity(
+        py: Python<'_>,
+        model: &PyModel,
+        plan: &PyLinearElasticityPlan,
+    ) -> PyResult<Self> {
+        let identity = RunIdentity::from_linear_elasticity(model.artifact(), plan.native())
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
+        Self::spawn(
+            identity,
+            NativeRunJob::LinearElasticity(Box::new(plan.native().clone())),
+            ResultMaterializationContext::None,
+            "eqiora-linear-elasticity-run",
+        )
+        .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
+    }
+
     fn spawn(
         identity: RunIdentity,
         job: NativeRunJob,
@@ -747,6 +770,12 @@ fn materialize_result(
                 "steady-Stokes Result lost its accepted Mesh context",
             )),
         },
+        NativeRunOutput::LinearElasticity {
+            result,
+            elapsed_seconds,
+        } => materialize_linear_elasticity(py, *result, identity.clone(), elapsed_seconds)
+            .and_then(|result| Py::new(py, result))
+            .map(Py::into_any),
     }
 }
 
@@ -781,6 +810,15 @@ pub(crate) fn submit_steady_stokes(
     panic_boundary(py, || PyRun::submit_steady_stokes(py, model, plan))
 }
 
+#[pyfunction]
+pub(crate) fn submit_linear_elasticity(
+    py: Python<'_>,
+    model: &PyModel,
+    plan: &PyLinearElasticityPlan,
+) -> PyResult<PyRun> {
+    panic_boundary(py, || PyRun::submit_linear_elasticity(py, model, plan))
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyRunStatus>()?;
     module.add_class::<PyRunProgress>()?;
@@ -791,6 +829,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(submit, module)?)?;
     module.add_function(wrap_pyfunction!(submit_realization, module)?)?;
     module.add_function(wrap_pyfunction!(submit_steady_stokes, module)?)?;
+    module.add_function(wrap_pyfunction!(submit_linear_elasticity, module)?)?;
     Ok(())
 }
 

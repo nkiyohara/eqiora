@@ -4,8 +4,13 @@ import numpy as np
 import numpy.typing as npt
 
 import eqiora
-from eqiora.solid import MixedBoundaryElasticityResult
 from eqiora.fsi import FixedReferenceFsiResult, FixedReferenceFsiStep
+from eqiora.meshing import Mesh
+from eqiora.solid import (
+    LinearElasticity,
+    LinearElasticityEvidence,
+    LinearElasticityPlan,
+)
 from eqiora.trajectory import FieldSnapshot, Trajectory, TrajectoryState
 
 
@@ -80,11 +85,44 @@ class _InvalidModelSubclass(eqiora.Model):  # type: ignore[misc]
 
 
 def check_structural_result(model: eqiora.Model) -> None:
-    result = eqiora.solid.solve_mixed_boundary_elasticity(model)
-    assert_type(result, MixedBoundaryElasticityResult)
-    assert_type(result.coordinates, npt.NDArray[np.float64])
-    assert_type(result.cells, npt.NDArray[np.uint32])
-    assert_type(result.displacement, npt.NDArray[np.float64])
+    # Accepted reference tuple; its native authority is
+    # `crates/eqiora-api/src/elasticity.rs::require_supported_intent`.
+    intent = LinearElasticity(
+        cells_per_axis=16,
+        relative_tolerance=1.0e-12,
+        absolute_tolerance=1.0e-14,
+        maximum_iterations=10_000,
+    )
+    plan = eqiora.solid.resolve(model, intent)
+    assert_type(plan, LinearElasticityPlan)
+    assert_type(plan.discretization_method, str)
+    assert_type(plan.mesh_kind, str)
+    assert_type(plan.mesh_policy, str)
+    assert_type(plan.field_space, str)
+    assert_type(plan.quadrature, str)
+    assert_type(plan.quadrature_points_per_axis, int)
+    assert_type(plan.scalar_type, str)
+    assert_type(plan.vector_layout, str)
+    assert_type(plan.coefficient_association, str)
+    assert_type(eqiora.submit(model, plan=plan), eqiora.Run[eqiora.Result])
+    result = eqiora.run(model, plan=plan)
+    assert_type(result, eqiora.Result)
+
+    displacement = model.field("displacement")
+    snapshot = result.field(displacement)
+    mesh = result.mesh(displacement)
+    assert_type(snapshot, FieldSnapshot)
+    assert_type(mesh, Mesh)
+    assert_type(snapshot.values("vertex"), npt.NDArray[np.float64])
+    assert_type(snapshot.support_indices("vertex"), npt.NDArray[np.uint32])
+    assert_type(mesh.coordinates, npt.NDArray[np.float64])
+    assert_type(mesh.cells, npt.NDArray[np.uint32])
+    assert_type(
+        eqiora.solid.linear_elasticity_evidence(result),
+        LinearElasticityEvidence,
+    )
+
+    LinearElasticity(cells_per_axis=16)  # type: ignore[call-arg]
 
 
 def check_fsi_result(model: eqiora.Model) -> None:

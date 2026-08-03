@@ -4,7 +4,6 @@ from matplotlib.figure import Figure
 
 import eqiora.matplotlib as eqplot
 from eqiora import FieldRef, Result
-from eqiora.solid import MixedBoundaryElasticityResult
 from eqiora.trajectory import Trajectory
 
 
@@ -13,9 +12,15 @@ def check_matplotlib_adapter(result: Result, field: FieldRef) -> None:
     assert_type(figure, Figure)
 
 
-def check_structural_adapter(result: MixedBoundaryElasticityResult) -> None:
-    figure = eqplot.plot_displacement(result, scale=1.0)
+def check_structural_adapter(result: Result, displacement: FieldRef) -> None:
+    figure = eqplot.plot_deformed_field(result, field=displacement, scale=1.0)
     assert_type(figure, Figure)
+    assert_type(eqplot.plot_deformed_field(result, field=displacement), Figure)
+    eqplot.plot_deformed_field(  # type: ignore[call-overload]
+        result,
+        step=2,
+        field=displacement,
+    )
 
 
 def check_trajectory_adapters(
