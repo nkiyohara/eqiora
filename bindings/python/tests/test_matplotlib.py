@@ -188,6 +188,21 @@ def accepted_fsi_model() -> eqiora.Model:
     return eqiora.compile(fsi_source(), filename="fixed-reference-fsi.eqi")
 
 
+def accepted_fsi_intent() -> Any:
+    return eqiora.fsi.FixedMeshMonolithic(
+        time_step_s=0.05,
+        steps=2,
+        initial_velocity_m_per_s=(0.0, 0.0),
+        initial_free_interface_displacement_m=(0.02, 0.0),
+        length_scale_m=2.0,
+        velocity_scale_m_per_s=0.5,
+        pressure_scale_pa=4.0,
+        relative_tolerance=1.0e-11,
+        absolute_tolerance=1.0e-13,
+        maximum_iterations=20_000,
+    )
+
+
 def foreign_fsi_model() -> eqiora.Model:
     """Compile a structurally equivalent Model with a different exact digest.
 
@@ -215,11 +230,12 @@ def revised_fsi_model(model: eqiora.Model) -> eqiora.Model:
 
 def accepted_fsi_trajectory() -> tuple[
     eqiora.Model,
-    eqiora.fsi.FixedReferenceFsiResult,
+    eqiora.Result,
     eqiora.trajectory.Trajectory,
 ]:
     model = accepted_fsi_model()
-    result = eqiora.fsi.solve_fixed_reference_fsi(model)
+    plan = eqiora.fsi.resolve(model, accepted_fsi_intent())
+    result = eqiora.run(model, plan=plan)
     return model, result, result.trajectory
 
 
@@ -236,7 +252,7 @@ def structural() -> tuple[eqiora.Model, eqiora.Result]:
 @pytest.fixture(scope="module")
 def fsi() -> tuple[
     eqiora.Model,
-    eqiora.fsi.FixedReferenceFsiResult,
+    eqiora.Result,
     eqiora.trajectory.Trajectory,
 ]:
     return accepted_fsi_trajectory()
@@ -791,7 +807,7 @@ def test_withdrawn_demo_stills_are_absent_without_alias_shims_or_exports() -> No
 @pytest.mark.parametrize("step", ACCEPTED_STEPS)
 def test_scalar_still_draws_exactly_the_accepted_support_restriction(
     fsi: tuple[
-        eqiora.Model, eqiora.fsi.FixedReferenceFsiResult, eqiora.trajectory.Trajectory
+        eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory
     ],
     step: int,
     monkeypatch: pytest.MonkeyPatch,
@@ -857,7 +873,7 @@ def test_scalar_still_draws_exactly_the_accepted_support_restriction(
 @pytest.mark.parametrize("scale", [0.0, 1.0, 12.0])
 def test_deformed_still_draws_reference_and_scaled_support_edges(
     fsi: tuple[
-        eqiora.Model, eqiora.fsi.FixedReferenceFsiResult, eqiora.trajectory.Trajectory
+        eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory
     ],
     step: int,
     scale: float,
@@ -911,7 +927,7 @@ def test_deformed_still_draws_reference_and_scaled_support_edges(
 
 def test_deformed_still_defaults_to_unit_scale_and_separates_accepted_steps(
     fsi: tuple[
-        eqiora.Model, eqiora.fsi.FixedReferenceFsiResult, eqiora.trajectory.Trajectory
+        eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory
     ],
 ) -> None:
     model, _, trajectory = fsi
@@ -934,7 +950,7 @@ def test_deformed_still_defaults_to_unit_scale_and_separates_accepted_steps(
 
 def test_stills_reject_foreign_identity_and_contract_violations_before_a_figure(
     fsi: tuple[
-        eqiora.Model, eqiora.fsi.FixedReferenceFsiResult, eqiora.trajectory.Trajectory
+        eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory
     ],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1032,7 +1048,7 @@ def test_stills_reject_foreign_identity_and_contract_violations_before_a_figure(
 
 def test_stills_leave_digests_arrays_and_support_membership_untouched(
     fsi: tuple[
-        eqiora.Model, eqiora.fsi.FixedReferenceFsiResult, eqiora.trajectory.Trajectory
+        eqiora.Model, eqiora.Result, eqiora.trajectory.Trajectory
     ],
 ) -> None:
     model, _, trajectory = fsi
