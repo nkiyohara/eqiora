@@ -722,6 +722,7 @@ def test_scalar_still_draws_exactly_the_accepted_support_restriction(
     axes = figure.axes[0]
     assert axes.get_xlabel() == "x [m]"
     assert axes.get_ylabel() == "y [m]"
+    assert figure.axes[1].get_ylabel() == "Value [kg·m^-1·s^-2]"
     assert axes.get_aspect() == 1.0
 
 

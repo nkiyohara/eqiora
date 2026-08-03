@@ -21,9 +21,9 @@ geometry = eqplot.plot_deformed_field(
 ```
 
 The first admitted consumer is the exact fixed-mesh affine-triangle 2D FSI
-trajectory. Both adapters take a `Trajectory` — not an application result — and
-select their field by exact Model-bound `FieldRef` identity through
-`trajectory.state(step).field(field)`. Exact identity is the
+trajectory. Both calls admitted by this case take a `Trajectory` — not an
+application result — and select their field by exact Model-bound `FieldRef`
+identity through `trajectory.state(step).field(field)`. Exact identity is the
 `(Model artifact, field)` pair, and two fixtures close it from both sides: an
 independent compilation of one source is structurally equivalent yet allocates
 fresh semantic field ids, and a committed value edit keeps every semantic field
@@ -32,7 +32,10 @@ equivalence nor a field id string is an authority, so a `FieldRef` from either
 Model is rejected before a Figure exists.
 
 `plot_fixed_reference_fsi` is withdrawn by this slice with no alias, shim, or
-deprecation path.
+deprecation path. The shared adapter surface also contains no `plot_pressure`;
+its static `Result` replacement through `plot_scalar_field` belongs to
+[`interfaces.python-exact-cylinder-pressure-still`](../python-exact-cylinder-pressure-still/README.md),
+not this Trajectory claim.
 
 ## Independent acceptance contract
 
@@ -56,6 +59,10 @@ Figure. It requires exact equality between:
 - artist color limits and the extrema of the support-restricted values;
 - the reference wireframe and `coordinates` on the admitted edges; and
 - the deformed wireframe and `coordinates + scale * values` on those edges.
+
+For the accepted pressure dimension, the Trajectory scalar colorbar remains
+the unnamed coherent-SI label `Value [kg·m^-1·s^-2]`. The named `Pressure [Pa]`
+label is specific to the static `Result` route owned by the pressure-still case.
 
 Admitted cells are exactly those whose complete vertex tuple lies in
 `support_indices("vertex")`, their sorted unique vertex closure must equal that
@@ -92,9 +99,9 @@ conversion, derived magnitudes, Studio or notebook hosting, scientific
 derivation, media admission, and visual scientific validation are not claimed.
 The absence of the withdrawn still is checked in the installed runtime,
 exports, and packaged stub only; documentation and example text are outside the
-installed profile this case executes. The static-Result overload of
+installed profile this case executes. The static-`Result` overload of
 `plot_scalar_field` is owned by the exact-cylinder pressure-still case;
-`plot_displacement` remains untouched by this claim.
+`plot_displacement` remains out of scope and untouched by this claim.
 
 The complete bounded executable contract and its pre-committed falsifiers are
 in [`case.toml`](case.toml).

@@ -47,11 +47,11 @@ deformed_artist_order = "figure.axes[0].collections[0] is the reference wirefram
 deformed_edges = "the sorted unique undirected edge tuples of the admitted cells, each drawn once, with endpoints in ascending vertex order and edges in ascending lexicographic order"
 figure_axes = "figure.axes[0] is the field axes for both stills"
 figure_binding = "the Figure is constructed through the module-level eqiora.matplotlib.Figure name"
-axis_labels = "x [m] and y [m] with equal spatial aspect; no unit name is derived for the field itself"
+axis_labels = "x [m] and y [m] with equal spatial aspect; the Trajectory scalar colorbar remains the unnamed coherent-SI label Value [kg·m^-1·s^-2], never the static Result route's named Pressure [Pa] label"
 visible_scale = "the applied scale is visible in the deformed axes title or in an artist label"
-rejection_types = "TypeError for a non-Trajectory first argument; ValueError for a foreign exact Model, a violated shape/frame/dimension/association requirement, or a non-finite or negative scale; KeyError for an absent field or association; IndexError for an absent step"
+rejection_types = "for the scalar adapter, TypeError when the first argument is neither Result nor Trajectory and when the Trajectory route omits step; for the deformed Trajectory-only adapter, TypeError for a non-Trajectory first argument; ValueError for a foreign exact Model, a violated shape/frame/dimension/association requirement, or a non-finite or negative scale; KeyError for an absent field or association; IndexError for an absent step"
 rejection_vocabulary = "a contract ValueError message names the violated requirement with one of `value shape`, `frame`, `dimension`, `association`, or `finite and nonnegative`"
-exports = "eqiora.matplotlib.__all__ is exactly the sorted plot_deformed_field, plot_displacement, plot_scalar_field"
+exports = "eqiora.matplotlib.__all__ is exactly the sorted plot_deformed_field, plot_displacement, plot_scalar_field; plot_pressure is absent"
 
 [acceptance]
 installed_wheel_with_optional_extra = true
@@ -87,7 +87,7 @@ no_scientific_value_or_tolerance_is_introduced = true
 foreign_model_field = "a FieldRef from a structurally equivalent independent compilation is accepted, or is rejected only after a Figure exists"
 identical_field_id_from_another_model = "a FieldRef whose semantic field id is present in the accepted inventory but whose exact Model artifact differs is accepted, or is rejected only after a Figure exists"
 name_reconstructed_identity = "selection resolves a field id string or a structural match instead of the exact Model-bound FieldRef; an id-inventory membership test alone admits the value-edited Model and is rejected by that fixture"
-non_trajectory_input = "a raw array, an FSI result, or an arbitrary object reaches the renderer"
+non_trajectory_input = "on the Trajectory route, a raw array, an FSI application result, or an arbitrary object reaches the renderer; this case does not classify the common static Result overload as a non-Trajectory input"
 absent_step_field_or_association = "an out-of-range step, an out-of-inventory field, or an undeclared association returns a Figure instead of propagating IndexError or KeyError"
 wrong_scalar_shape_frame_or_association = "a vector, spatial-cartesian, or multi-association field is drawn as a scalar still"
 velocity_as_deformation = "solid_velocity or fluid_velocity is accepted as a deformation; only the SI length dimension separates solid_velocity from solid_displacement here"
