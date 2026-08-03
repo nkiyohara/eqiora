@@ -17,25 +17,20 @@ mod meshing;
 mod model;
 mod modeling;
 mod realization;
+mod result;
 mod steady_stokes;
 mod trajectory;
-
-use std::collections::BTreeMap;
-
-use eqiora::DimExponents;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
 use eqiora::control::{CompileOutcomeV2, CompileRequestV2, execute_compile_v2};
-use pyo3::exceptions::{PyKeyError, PyRuntimeError};
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyModule};
+use pyo3::types::PyModule;
 
-use array::PyArrayBuffer;
 pub(crate) use error::diagnostic_error;
 #[doc(hidden)]
 pub use error::panic_boundary;
 use error::{compatibility_error, control_diagnostic_error};
-use execution::RunIdentity;
 use model::PyModel;
 
 fn python_distribution_version(cargo_version: &str) -> Option<String> {
@@ -74,169 +69,6 @@ fn python_distribution_version(cargo_version: &str) -> Option<String> {
         _ => return None,
     };
     Some(format!("{release}{marker}{serial}"))
-}
-
-/// One read-only, field-local sampled series in SI units.
-#[pyclass(name = "Series", module = "eqiora._eqiora", frozen)]
-struct PySeries {
-    id: String,
-    name: Option<String>,
-    dimension: DimExponents,
-    time: Py<PyArrayBuffer>,
-    values: Py<PyArrayBuffer>,
-}
-
-#[pymethods]
-impl PySeries {
-    /// Stable Field ULID.
-    #[getter]
-    fn id(&self) -> &str {
-        &self.id
-    }
-
-    /// Source alias, absent for a model reconstructed without symbol data.
-    #[getter]
-    fn name(&self) -> Option<&str> {
-        self.name.as_deref()
-    }
-
-    /// SI base-dimension exponents in M,L,T,I,Theta,N,J order.
-    #[getter]
-    fn dimension(&self) -> (i8, i8, i8, i8, i8, i8, i8) {
-        (
-            self.dimension.mass,
-            self.dimension.length,
-            self.dimension.time,
-            self.dimension.current,
-            self.dimension.temperature,
-            self.dimension.amount,
-            self.dimension.luminous_intensity,
-        )
-    }
-
-    /// Field-local model time in seconds.
-    #[getter]
-    fn time(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
-        self.time.clone_ref(py)
-    }
-
-    /// Field-local values expressed in coherent SI units.
-    #[getter]
-    fn values(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
-        self.values.clone_ref(py)
-    }
-
-    fn __len__(&self, py: Python<'_>) -> PyResult<usize> {
-        Ok(self.values.borrow(py).len())
-    }
-
-    /// Iterate `(time, value)` samples, which is what a series is.
-    ///
-    /// Both buffers are snapshotted once and the pairs are yielded from that
-    /// snapshot. There is deliberately no `__getitem__`: a single element
-    /// cannot be read without materializing the whole buffer, so indexing would
-    /// make `for sample in series` quadratic while looking ordinary.
-    fn __iter__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let time = self.time.borrow(py).snapshot(py)?;
-        let values = self.values.borrow(py).snapshot(py)?;
-        if time.len() != values.len() {
-            return Err(PyRuntimeError::new_err(
-                "Series time and value buffers report different lengths",
-            ));
-        }
-        let samples = PyList::new(py, time.into_iter().zip(values))?;
-        Ok(samples.as_any().try_iter()?.into_any().unbind())
-    }
-
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let label = self.name.as_deref().unwrap_or(&self.id);
-        Ok(format!("Series({label:?}, samples={})", self.__len__(py)?))
-    }
-}
-
-/// Immutable collection of independently sampled field series.
-#[pyclass(name = "Result", module = "eqiora._eqiora", frozen)]
-struct PyRunResult {
-    fields: Vec<Py<PySeries>>,
-    lookup: BTreeMap<String, usize>,
-    identity: RunIdentity,
-    elapsed_seconds: f64,
-}
-
-#[pymethods]
-impl PyRunResult {
-    /// Exact canonical Model identity executed by this reference result.
-    #[getter]
-    fn model_id(&self) -> &str {
-        self.identity.model_id()
-    }
-
-    /// Domain-separated digest of the exact immutable Model artifact.
-    #[getter]
-    fn model_digest(&self) -> &str {
-        self.identity.model_digest()
-    }
-
-    /// Exact semantic revision recorded by the Model artifact.
-    #[getter]
-    const fn model_revision(&self) -> u64 {
-        self.identity.model_revision()
-    }
-
-    /// Exact replay key of the admitted semantic-reference plan.
-    #[getter]
-    fn plan_key(&self) -> &str {
-        self.identity.plan_key()
-    }
-
-    /// Concrete native adapter that produced this accepted result.
-    #[getter]
-    fn adapter(&self) -> &'static str {
-        self.identity.adapter()
-    }
-
-    /// Adapter implementation version used by this execution occurrence.
-    #[getter]
-    fn adapter_version(&self) -> &'static str {
-        self.identity.adapter_version()
-    }
-
-    /// Observed native wall time through accepted result projection.
-    #[getter]
-    const fn elapsed_seconds(&self) -> f64 {
-        self.elapsed_seconds
-    }
-
-    /// Series in stable Field-ID order.
-    #[getter]
-    fn fields(&self, py: Python<'_>) -> Vec<Py<PySeries>> {
-        self.fields
-            .iter()
-            .map(|field| field.clone_ref(py))
-            .collect()
-    }
-
-    fn __len__(&self) -> usize {
-        self.fields.len()
-    }
-
-    fn __getitem__(&self, py: Python<'_>, key: &str) -> PyResult<Py<PySeries>> {
-        let index = self
-            .lookup
-            .get(key)
-            .copied()
-            .ok_or_else(|| PyKeyError::new_err(key.to_owned()))?;
-        Ok(self.fields[index].clone_ref(py))
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "Result(fields={}, model_digest={:?}, plan_key={:?})",
-            self.fields.len(),
-            self.model_digest(),
-            self.plan_key()
-        )
-    }
 }
 
 /// Compile exactly one Eqiora model through the canonical Rust pipeline.
@@ -301,47 +133,6 @@ fn execute_compile_request(py: Python<'_>, request: CompileRequestV2) -> PyResul
     }
 }
 
-fn result_into_python(
-    py: Python<'_>,
-    result: eqiora::api::ReferenceRunResult,
-    identity: RunIdentity,
-) -> PyResult<PyRunResult> {
-    let elapsed_seconds = result.evidence().elapsed().as_secs_f64();
-    let series = result.into_series();
-    let mut fields = Vec::with_capacity(series.len());
-    let mut lookup = BTreeMap::new();
-    for owned in series {
-        let id = owned.field().ulid().to_string();
-        let name = owned.name().map(str::to_owned);
-        let dimension = owned.dimension();
-        let (time_values, field_values) = owned.into_buffers();
-        let time = PyArrayBuffer::from_owned_result(py, time_values)?;
-        let values = PyArrayBuffer::from_owned_result(py, field_values)?;
-        let index = fields.len();
-        let field = Py::new(
-            py,
-            PySeries {
-                id: id.clone(),
-                name: name.clone(),
-                dimension,
-                time,
-                values,
-            },
-        )?;
-        lookup.insert(id, index);
-        if let Some(name) = name {
-            lookup.insert(name, index);
-        }
-        fields.push(field);
-    }
-    Ok(PyRunResult {
-        fields,
-        lookup,
-        identity,
-        elapsed_seconds,
-    })
-}
-
 #[pymodule]
 pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     let version = python_distribution_version(eqiora::VERSION).ok_or_else(|| {
@@ -358,8 +149,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     differentiation::register(module)?;
     elasticity::register(module)?;
     jax_ffi::register_module(module)?;
-    module.add_class::<PySeries>()?;
-    module.add_class::<PyRunResult>()?;
+    result::register(module)?;
     execution::register(module)?;
     fsi::register(module)?;
     geometry::register(module)?;

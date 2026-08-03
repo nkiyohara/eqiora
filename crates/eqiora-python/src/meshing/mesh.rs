@@ -30,6 +30,16 @@ impl PyMesh {
         digest_to_hex(&self.accepted.source().digest_bytes())
     }
 
+    /// Identity of the realized straight-edged geometry artifact.
+    #[getter]
+    fn realized_geometry_digest(&self, py: Python<'_>) -> PyResult<String> {
+        self.accepted
+            .realized_geometry()
+            .digest()
+            .map(|digest| digest.to_string())
+            .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))
+    }
+
     /// Identity of the accepted common mesh artifact.
     #[getter]
     fn digest(&self, py: Python<'_>) -> PyResult<String> {

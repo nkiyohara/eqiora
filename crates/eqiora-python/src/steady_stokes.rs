@@ -6,24 +6,26 @@ use std::num::NonZeroUsize;
 
 use eqiora::Diagnostic;
 use eqiora::api::{
-    CircularHoleSteadyStokesResult2d, ResolvedSteadyStokesPlan2d, SteadyStokesIntent2d,
+    ResolvedSteadyStokesPlan2d, SteadyStokesIntent2d, UnstructuredP1ScalarFieldProjection2d,
 };
+use eqiora::artifact::{FieldSnapshotEnvelopeV1, RunManifestV2};
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::diagnostic::codes;
+use eqiora::numerics::SteadyStokesMiniSolution2d;
 use eqiora::realization::SpaceFamily;
 use eqiora::solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy};
-use numpy::PyArray2;
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyModule};
 
-use crate::array::PyArrayBuffer;
 use crate::error::diagnostic_error;
 use crate::geometry::digest_to_hex;
-use crate::matrix::ReadOnlyMatrix;
 use crate::meshing::PyMesh;
 use crate::model::PyModel;
 use crate::panic_boundary;
-use crate::realization::PyLinearSolveSummary;
+use crate::realization::{PyLinearSolveSummary, PyRunManifest};
+use crate::result::{PyRunResult, StaticResultParts, StaticScalarMetadata};
+use crate::trajectory::PyFieldSnapshot;
 
 /// Complete steady-Stokes request with no hidden numerical defaults.
 #[pyclass(
@@ -145,6 +147,7 @@ impl PySteadyStokes {
 )]
 pub(crate) struct PySteadyStokesPlan {
     native: ResolvedSteadyStokesPlan2d,
+    mesh: Py<PyMesh>,
     model_digest: String,
     geometry_digest: String,
     correspondence_digest: String,
@@ -160,20 +163,21 @@ impl PySteadyStokesPlan {
     fn from_native(
         py: Python<'_>,
         native: ResolvedSteadyStokesPlan2d,
-        mesh: &PyMesh,
+        mesh: Py<PyMesh>,
     ) -> PyResult<Self> {
+        let accepted_mesh = mesh.borrow(py);
         let model_digest = native
             .model()
             .digest()
             .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?
             .to_string();
-        let correspondence_digest = mesh
+        let correspondence_digest = accepted_mesh
             .accepted()
             .correspondence()
             .digest()
             .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?
             .to_string();
-        let mesh_digest = mesh
+        let mesh_digest = accepted_mesh
             .accepted()
             .mesh()
             .digest()
@@ -199,9 +203,12 @@ impl PySteadyStokesPlan {
             .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?;
         let pressure_space = space_name(native.pressure_space())
             .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?;
+        let geometry_digest = digest_to_hex(&accepted_mesh.accepted().source().digest_bytes());
+        drop(accepted_mesh);
         Ok(Self {
-            geometry_digest: digest_to_hex(&mesh.accepted().source().digest_bytes()),
+            geometry_digest,
             native,
+            mesh,
             model_digest,
             correspondence_digest,
             mesh_digest,
@@ -215,6 +222,10 @@ impl PySteadyStokesPlan {
 
     pub(crate) const fn native(&self) -> &ResolvedSteadyStokesPlan2d {
         &self.native
+    }
+
+    pub(crate) fn mesh(&self, py: Python<'_>) -> Py<PyMesh> {
+        self.mesh.clone_ref(py)
     }
 }
 
@@ -374,11 +385,11 @@ pub(crate) fn resolve(
     py: Python<'_>,
     model: &PyModel,
     intent: &PySteadyStokes,
-    mesh: &PyMesh,
+    mesh: Py<PyMesh>,
 ) -> PyResult<PySteadyStokesPlan> {
     panic_boundary(py, || {
         let model = model.artifact().clone();
-        let accepted = mesh.accepted().clone();
+        let accepted = mesh.borrow(py).accepted().clone();
         let intent = intent.native;
         let native = py.detach(move || {
             ResolvedSteadyStokesPlan2d::resolve(&model, intent, &accepted, &FaerLinearSolver)
@@ -389,42 +400,74 @@ pub(crate) fn resolve(
     })
 }
 
-/// Frozen result of the one accepted exact-cylinder steady-Stokes operation.
+/// Native worker payload projected into the common Python Result.
+#[derive(Debug)]
+pub(crate) struct SteadyStokesRunMaterialization {
+    run: RunManifestV2,
+    snapshot: FieldSnapshotEnvelopeV1,
+    projection: UnstructuredP1ScalarFieldProjection2d,
+    solution: SteadyStokesMiniSolution2d,
+    physical: SteadyStokesPhysicalEvidence,
+}
+
+impl SteadyStokesRunMaterialization {
+    pub(crate) fn new(
+        run: RunManifestV2,
+        snapshot: FieldSnapshotEnvelopeV1,
+        projection: UnstructuredP1ScalarFieldProjection2d,
+        solution: SteadyStokesMiniSolution2d,
+        physical: SteadyStokesPhysicalEvidence,
+    ) -> Self {
+        Self {
+            run,
+            snapshot,
+            projection,
+            solution,
+            physical,
+        }
+    }
+}
+
+/// Physics observations that do not belong to Mesh, FieldSnapshot, or RunManifest.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct SteadyStokesPhysicalEvidence {
+    cylinder_force_on_fluid: [f64; 2],
+    inlet_flux: f64,
+    outlet_flux: f64,
+    net_flux: f64,
+    momentum_closure: [f64; 2],
+}
+
+impl SteadyStokesPhysicalEvidence {
+    pub(crate) const fn new(
+        cylinder_force_on_fluid: [f64; 2],
+        inlet_flux: f64,
+        outlet_flux: f64,
+        net_flux: f64,
+        momentum_closure: [f64; 2],
+    ) -> Self {
+        Self {
+            cylinder_force_on_fluid,
+            inlet_flux,
+            outlet_flux,
+            net_flux,
+            momentum_closure,
+        }
+    }
+}
+
+/// Frozen scientific evidence selected from one accepted steady-Stokes Result.
 #[pyclass(
-    name = "CircularHoleSteadyStokesResult",
+    name = "SteadyStokesEvidence",
     module = "eqiora._eqiora",
     frozen,
-    eq,
-    hash,
     skip_from_py_object
 )]
-pub(crate) struct PyCircularHoleSteadyStokesResult {
-    model_digest: String,
-    semantic_revision: u64,
-    chordal_realization_digest: String,
-    chordal_realization_json: Vec<u8>,
-    exact_source_digest: String,
-    realized_geometry_digest: String,
-    correspondence_digest: String,
-    realization_digest: String,
-    realization_revision: u64,
+pub(crate) struct PySteadyStokesEvidence {
     run_digest: String,
-    run_manifest_json: Vec<u8>,
-    snapshot_digest: String,
-    mesh_digest: String,
-    pressure_field_id: String,
-    support_domain_id: String,
-    pressure_dimension: (i8, i8, i8, i8, i8, i8, i8),
-    bounds: ((f64, f64), (f64, f64)),
-    coordinates: ReadOnlyMatrix<f64>,
-    triangles: ReadOnlyMatrix<u32>,
-    pressure: Py<PyArrayBuffer>,
     pressure_minimum: f64,
     pressure_maximum: f64,
-    requested_max_boundary_error: f64,
-    boundary_evaluation_allowance: f64,
-    boundary_error_bound: f64,
-    circle_segments: usize,
+    exact_bounds: ((f64, f64), (f64, f64)),
     cylinder_force_on_fluid: (f64, f64),
     inlet_flux: f64,
     outlet_flux: f64,
@@ -437,267 +480,47 @@ pub(crate) struct PyCircularHoleSteadyStokesResult {
     continuity_residual_norm: f64,
 }
 
-impl PartialEq for PyCircularHoleSteadyStokesResult {
-    fn eq(&self, other: &Self) -> bool {
-        self.run_digest == other.run_digest
-    }
-}
-
-impl Eq for PyCircularHoleSteadyStokesResult {}
-
-impl Hash for PyCircularHoleSteadyStokesResult {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.run_digest.hash(state);
-    }
-}
-
-impl PyCircularHoleSteadyStokesResult {
-    pub(crate) fn from_native(
+impl PySteadyStokesEvidence {
+    fn from_materialization(
         py: Python<'_>,
-        result: CircularHoleSteadyStokesResult2d,
+        materialized: &SteadyStokesRunMaterialization,
     ) -> PyResult<Self> {
-        let model_digest = result
-            .model()
-            .digest()
-            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
-        let chordal_realization_digest = result
-            .chordal_realization()
-            .digest()
-            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
-        let chordal_realization_json = result
-            .chordal_realization()
-            .canonical_json()
-            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
-        let realized_geometry_digest = result
-            .realized_geometry()
-            .digest()
-            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
-        let correspondence_digest = result
-            .correspondence()
-            .digest()
-            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
-        let realization_digest = result
-            .realization()
-            .digest()
-            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
-        let run_digest = result
-            .run()
-            .digest()
-            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
-        let run_manifest_json = result
-            .run()
-            .canonical_json()
-            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
-        let snapshot_digest = result
-            .snapshot()
-            .digest()
-            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
-        let mesh_digest = result
-            .mesh()
-            .digest()
-            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
-
-        let projection = result.pressure_projection();
-        let dimension = projection.value_dimension();
+        let projection = &materialized.projection;
         let [[x_lower, x_upper], [y_lower, y_upper]] = *projection.bounds_m();
-        let pressure_minimum = projection.minimum();
-        let pressure_maximum = projection.maximum();
-        let pressure_field_id = projection.field().to_string();
-        let support_domain_id = projection.support_domain().to_string();
-        let coordinate_rows = projection.vertices_m().len();
-        let triangle_rows = projection.triangles().len();
-
-        let solution = result.solution();
+        let solution = &materialized.solution;
         let dimensionless = solution.dimensionless_solution();
         let solve = Py::new(
             py,
             PyLinearSolveSummary::from_report(dimensionless.solve_report()),
         )?;
-        let continuity_residual_norm = dimensionless.continuity_residual_norm();
-        let constrained_reaction = tuple2(solution.boundary_reaction());
-        let integrated_body_force = tuple2(solution.integrated_body_force());
-        let integrated_boundary_traction = tuple2(solution.integrated_boundary_traction());
-
-        let semantic_revision = projection.semantic_revision();
-        let realization_revision = result.realization().realization_revision().get();
-        let exact_source_digest = digest_to_hex(&result.source().digest_bytes());
-        let chordal = result.chordal_realization();
-        let requested_max_boundary_error = chordal.requested_max_boundary_error_m();
-        let boundary_evaluation_allowance = chordal.boundary_evaluation_allowance_m();
-        let boundary_error_bound = chordal.boundary_error_bound_m();
-        let circle_segments = usize::try_from(chordal.circle_segments())
-            .expect("accepted chordal segment count fits local usize");
-        let cylinder_force_on_fluid = tuple2(result.cylinder_force_on_fluid());
-        let inlet_flux = result.inlet_flux();
-        let outlet_flux = result.outlet_flux();
-        let net_flux = result.net_flux();
-        let momentum_closure = tuple2(result.momentum_closure());
-
-        let projection = result.into_pressure_projection();
-        let (coordinates, triangles, pressure_values) = projection.into_arrays();
-        let mut flat_coordinates = Vec::with_capacity(coordinate_rows * 2);
-        flat_coordinates.extend(
-            coordinates
-                .into_iter()
-                .flat_map(|coordinate| coordinate.into_iter()),
-        );
-        let mut flat_triangles = Vec::with_capacity(triangle_rows * 3);
-        flat_triangles.extend(
-            triangles
-                .into_iter()
-                .flat_map(|triangle| triangle.into_iter()),
-        );
-        let pressure = PyArrayBuffer::from_owned_result(py, pressure_values)?;
-
         Ok(Self {
-            model_digest: model_digest.to_string(),
-            semantic_revision,
-            chordal_realization_digest: chordal_realization_digest.to_string(),
-            chordal_realization_json,
-            exact_source_digest,
-            realized_geometry_digest: realized_geometry_digest.to_string(),
-            correspondence_digest: correspondence_digest.to_string(),
-            realization_digest: realization_digest.to_string(),
-            realization_revision,
-            run_digest: run_digest.to_string(),
-            run_manifest_json,
-            snapshot_digest: snapshot_digest.to_string(),
-            mesh_digest: mesh_digest.to_string(),
-            pressure_field_id,
-            support_domain_id,
-            pressure_dimension: (
-                dimension.mass,
-                dimension.length,
-                dimension.time,
-                dimension.current,
-                dimension.temperature,
-                dimension.amount,
-                dimension.luminous_intensity,
-            ),
-            bounds: ((x_lower, x_upper), (y_lower, y_upper)),
-            coordinates: ReadOnlyMatrix::new(coordinate_rows, 2, flat_coordinates),
-            triangles: ReadOnlyMatrix::new(triangle_rows, 3, flat_triangles),
-            pressure,
-            pressure_minimum,
-            pressure_maximum,
-            requested_max_boundary_error,
-            boundary_evaluation_allowance,
-            boundary_error_bound,
-            circle_segments,
-            cylinder_force_on_fluid,
-            inlet_flux,
-            outlet_flux,
-            net_flux,
-            constrained_reaction,
-            integrated_body_force,
-            integrated_boundary_traction,
-            momentum_closure,
+            run_digest: materialized
+                .run
+                .digest()
+                .map_err(|diagnostic| diagnostic_error(py, std::slice::from_ref(&diagnostic)))?
+                .to_string(),
+            pressure_minimum: projection.minimum(),
+            pressure_maximum: projection.maximum(),
+            exact_bounds: ((x_lower, x_upper), (y_lower, y_upper)),
+            cylinder_force_on_fluid: tuple2(materialized.physical.cylinder_force_on_fluid),
+            inlet_flux: materialized.physical.inlet_flux,
+            outlet_flux: materialized.physical.outlet_flux,
+            net_flux: materialized.physical.net_flux,
+            constrained_reaction: tuple2(solution.boundary_reaction()),
+            integrated_body_force: tuple2(solution.integrated_body_force()),
+            integrated_boundary_traction: tuple2(solution.integrated_boundary_traction()),
+            momentum_closure: tuple2(materialized.physical.momentum_closure),
             solve,
-            continuity_residual_norm,
+            continuity_residual_norm: dimensionless.continuity_residual_norm(),
         })
     }
 }
 
 #[pymethods]
-impl PyCircularHoleSteadyStokesResult {
-    #[getter]
-    fn model_digest(&self) -> &str {
-        &self.model_digest
-    }
-
-    #[getter]
-    const fn semantic_revision(&self) -> u64 {
-        self.semantic_revision
-    }
-
-    #[getter]
-    fn chordal_realization_digest(&self) -> &str {
-        &self.chordal_realization_digest
-    }
-
-    #[getter]
-    fn chordal_realization_json(&self, py: Python<'_>) -> Py<PyBytes> {
-        PyBytes::new(py, &self.chordal_realization_json).unbind()
-    }
-
-    #[getter]
-    fn exact_source_digest(&self) -> &str {
-        &self.exact_source_digest
-    }
-
-    #[getter]
-    fn realized_geometry_digest(&self) -> &str {
-        &self.realized_geometry_digest
-    }
-
-    #[getter]
-    fn correspondence_digest(&self) -> &str {
-        &self.correspondence_digest
-    }
-
-    #[getter]
-    fn realization_digest(&self) -> &str {
-        &self.realization_digest
-    }
-
-    #[getter]
-    const fn realization_revision(&self) -> u64 {
-        self.realization_revision
-    }
-
+impl PySteadyStokesEvidence {
     #[getter]
     fn run_digest(&self) -> &str {
         &self.run_digest
-    }
-
-    #[getter]
-    fn run_manifest_json(&self, py: Python<'_>) -> Py<PyBytes> {
-        PyBytes::new(py, &self.run_manifest_json).unbind()
-    }
-
-    #[getter]
-    fn snapshot_digest(&self) -> &str {
-        &self.snapshot_digest
-    }
-
-    #[getter]
-    fn mesh_digest(&self) -> &str {
-        &self.mesh_digest
-    }
-
-    #[getter]
-    fn pressure_field_id(&self) -> &str {
-        &self.pressure_field_id
-    }
-
-    #[getter]
-    fn support_domain_id(&self) -> &str {
-        &self.support_domain_id
-    }
-
-    #[getter]
-    const fn pressure_dimension(&self) -> (i8, i8, i8, i8, i8, i8, i8) {
-        self.pressure_dimension
-    }
-
-    #[getter]
-    const fn bounds(&self) -> ((f64, f64), (f64, f64)) {
-        self.bounds
-    }
-
-    #[getter]
-    fn coordinates(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
-        self.coordinates.numpy(py)
-    }
-
-    #[getter]
-    fn triangles(&self, py: Python<'_>) -> PyResult<Py<PyArray2<u32>>> {
-        self.triangles.numpy(py)
-    }
-
-    #[getter]
-    fn pressure(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
-        self.pressure.clone_ref(py)
     }
 
     #[getter]
@@ -711,23 +534,8 @@ impl PyCircularHoleSteadyStokesResult {
     }
 
     #[getter]
-    const fn requested_max_boundary_error(&self) -> f64 {
-        self.requested_max_boundary_error
-    }
-
-    #[getter]
-    const fn boundary_evaluation_allowance(&self) -> f64 {
-        self.boundary_evaluation_allowance
-    }
-
-    #[getter]
-    const fn boundary_error_bound(&self) -> f64 {
-        self.boundary_error_bound
-    }
-
-    #[getter]
-    const fn circle_segments(&self) -> usize {
-        self.circle_segments
+    const fn exact_bounds(&self) -> ((f64, f64), (f64, f64)) {
+        self.exact_bounds
     }
 
     #[getter]
@@ -781,11 +589,66 @@ impl PyCircularHoleSteadyStokesResult {
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "CircularHoleSteadyStokesResult(run_digest='{}')",
-            self.run_digest
-        )
+        format!("SteadyStokesEvidence(run_digest={:?})", self.run_digest,)
     }
+}
+
+pub(crate) fn materialize_result(
+    py: Python<'_>,
+    materialized: SteadyStokesRunMaterialization,
+    identity: crate::execution::RunIdentity,
+    elapsed_seconds: f64,
+    mesh: Py<PyMesh>,
+) -> PyResult<PyRunResult> {
+    let accepted_mesh_digest = mesh
+        .borrow(py)
+        .accepted()
+        .mesh()
+        .digest()
+        .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
+    if &accepted_mesh_digest != materialized.projection.mesh_artifact() {
+        return Err(PyRuntimeError::new_err(
+            "steady-Stokes Result projection references a different accepted Mesh",
+        ));
+    }
+
+    let (field_id, snapshot) = PyFieldSnapshot::from_authored_scalar(
+        py,
+        &materialized.snapshot,
+        &materialized.projection,
+    )?;
+    let bounds = materialized.projection.bounds_m();
+    let scalar = StaticScalarMetadata::new(
+        ((bounds[0][0], bounds[0][1]), (bounds[1][0], bounds[1][1])),
+        materialized.projection.minimum(),
+        materialized.projection.maximum(),
+    );
+    let run_manifest = Py::new(py, PyRunManifest::from_value(py, materialized.run.clone())?)?;
+    let evidence = Py::new(
+        py,
+        PySteadyStokesEvidence::from_materialization(py, &materialized)?,
+    )?;
+    Ok(PyRunResult::from_static_steady_stokes(
+        StaticResultParts {
+            identity,
+            elapsed_seconds,
+            field_id,
+            snapshot: Py::new(py, snapshot)?,
+            mesh,
+            run_manifest,
+            scalar,
+        },
+        evidence,
+    ))
+}
+
+#[pyfunction]
+#[pyo3(signature = (result, /))]
+fn steady_stokes_evidence(
+    py: Python<'_>,
+    result: &PyRunResult,
+) -> PyResult<Py<PySteadyStokesEvidence>> {
+    result.steady_stokes_evidence(py)
 }
 
 const fn tuple2(value: [f64; 2]) -> (f64, f64) {
@@ -831,7 +694,8 @@ const fn reduction_name(value: ReductionPolicy) -> &'static str {
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PySteadyStokes>()?;
     module.add_class::<PySteadyStokesPlan>()?;
-    module.add_class::<PyCircularHoleSteadyStokesResult>()?;
+    module.add_class::<PySteadyStokesEvidence>()?;
     module.add_function(wrap_pyfunction!(resolve, module)?)?;
+    module.add_function(wrap_pyfunction!(steady_stokes_evidence, module)?)?;
     Ok(())
 }

@@ -583,7 +583,7 @@ pub(crate) struct PyRunManifest {
 }
 
 impl PyRunManifest {
-    fn from_value(py: Python<'_>, value: RunManifestV2) -> PyResult<Self> {
+    pub(crate) fn from_value(py: Python<'_>, value: RunManifestV2) -> PyResult<Self> {
         let digest = value
             .digest()
             .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?

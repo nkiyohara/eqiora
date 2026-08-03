@@ -87,13 +87,14 @@ headless draw, a valid decodable PNG, and nonuniform visible content.
 
 This is not generic Field plotting. Cell-associated scalars, glyph or vector
 stills, interface overlays, composite figures, animation, 3D, non-triangle
-meshes, single-state spatial results, field-name selection, named unit
+meshes, arbitrary single-state spatial results, field-name selection, named unit
 conversion, derived magnitudes, Studio or notebook hosting, scientific
 derivation, media admission, and visual scientific validation are not claimed.
 The absence of the withdrawn still is checked in the installed runtime,
 exports, and packaged stub only; documentation and example text are outside the
-installed profile this case executes. `plot_pressure` and `plot_displacement`
-remain untouched by this claim.
+installed profile this case executes. The static-Result overload of
+`plot_scalar_field` is owned by the exact-cylinder pressure-still case;
+`plot_displacement` remains untouched by this claim.
 
 The complete bounded executable contract and its pre-committed falsifiers are
 in [`case.toml`](case.toml).

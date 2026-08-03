@@ -51,7 +51,7 @@ axis_labels = "x [m] and y [m] with equal spatial aspect; no unit name is derive
 visible_scale = "the applied scale is visible in the deformed axes title or in an artist label"
 rejection_types = "TypeError for a non-Trajectory first argument; ValueError for a foreign exact Model, a violated shape/frame/dimension/association requirement, or a non-finite or negative scale; KeyError for an absent field or association; IndexError for an absent step"
 rejection_vocabulary = "a contract ValueError message names the violated requirement with one of `value shape`, `frame`, `dimension`, `association`, or `finite and nonnegative`"
-exports = "eqiora.matplotlib.__all__ is exactly the sorted plot_deformed_field, plot_displacement, plot_pressure, plot_scalar_field"
+exports = "eqiora.matplotlib.__all__ is exactly the sorted plot_deformed_field, plot_displacement, plot_scalar_field"
 
 [acceptance]
 installed_wheel_with_optional_extra = true

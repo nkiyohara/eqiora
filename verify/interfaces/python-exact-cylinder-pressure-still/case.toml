@@ -4,7 +4,7 @@ scope = "installed-python-one-accepted-exact-cylinder-p1-pressure-headless-still
 reference_kind = "accepted-result-lineage-replay-plus-explicit-renderer-input-capture"
 
 capabilities = [
-  "python-accepted-exact-cylinder-pressure-plot",
+  "python-common-result-scalar-field-plot",
   "python-explicit-p1-triangle-rendering",
   "python-headless-caller-saveable-still",
   "python-optional-matplotlib-adapter",
@@ -12,23 +12,25 @@ capabilities = [
 
 [problem]
 result_case = "interfaces.python-exact-cylinder-stokes-result"
-result_type = "eqiora.fluid.CircularHoleSteadyStokesResult"
-field = "complete accepted vertex-associated P1 pressure"
-support = "the Result's accepted 104-vertex, 104-triangle affine mesh"
-adapter = "eqiora.matplotlib.plot_pressure"
+result_type = "common eqiora.Result with one accepted pressure FieldSnapshot"
+field = "complete accepted vertex-associated P1 pressure selected by its exact Model-bound FieldRef"
+support = "the Result-paired common Mesh with 104 vertices and 104 affine triangles"
+adapter = "eqiora.matplotlib.plot_scalar_field(result, /, *, field)"
 renderer = "Matplotlib Agg in the registered evidence environment"
 
 [oracle]
 lineage_case = "interfaces.python-exact-cylinder-stokes-result"
-coordinates = "exact equality to result.coordinates columns without permutation"
-connectivity = "exact equality to result.triangles, passed explicitly"
-values = "exact equality to result.pressure.numpy(copy=False)"
-normalization = "exact Result pressure minimum and maximum"
+coordinates = "exact equality to result.mesh(field).coordinates columns without permutation"
+connectivity = "exact equality to result.mesh(field).cells, passed explicitly"
+values = "exact equality to result.field(field).values('vertex')"
+normalization = "exact Rust-owned accepted pressure minimum and maximum selected from the Result"
 units = "coherent-SI pressure labelled Pa"
 
 [acceptance]
 installed_wheel_with_optional_extra = true
 live_accepted_result_only = true
+exact_model_bound_field_selection = true
+field_snapshot_and_mesh_pairing = true
 explicit_triangle_connectivity = true
 vertex_association_preserved = true
 gouraud_p1_presentation = true
@@ -42,6 +44,7 @@ result_and_arrays_are_not_mutated = true
 
 [falsifiers]
 lineage_free_or_raw_input = "rejected before a renderer invocation"
+foreign_same_id_field = "a FieldRef with the same Field ULID but a different exact Model artifact is rejected before a renderer invocation"
 coordinate_or_value_permutation = "captured renderer inputs differ from the accepted co-indexed Result arrays"
 coordinate_axis_swap = "captured x/y inputs differ from coordinate columns zero/one"
 automatic_retriangulation = "captured tripcolor invocation omits explicit accepted triangles"
@@ -58,11 +61,12 @@ input_mutation = "Result identities or read-only arrays change after plotting"
 candidate_profile = "matplotlib"
 ordinary_gil_cpython = "3.13"
 exact_matplotlib = "3.11.1"
-one_exact_cylinder_result = true
+one_exact_cylinder_common_result = true
 one_vertex_p1_pressure_field = true
 affine_triangles = true
 presentation_interpolation_only = true
-generic_result_or_field_plotting = false
+common_static_result_scalar_adapter = true
+arbitrary_result_or_field_plotting = false
 raw_array_plotting = false
 velocity_or_vector_plotting = false
 contours_or_streamlines = false

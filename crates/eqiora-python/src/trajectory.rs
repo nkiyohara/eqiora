@@ -5,9 +5,10 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use eqiora::DimExponents;
-use eqiora::api::FixedMeshFieldTrajectoryReplay2dV1;
+use eqiora::api::{FixedMeshFieldTrajectoryReplay2dV1, UnstructuredP1ScalarFieldProjection2d};
 use eqiora::artifact::{
-    ArtifactDigest, CanonicalModelArtifact, RunManifestV2, SimplicialMeshEnvelopeV1,
+    ArtifactDigest, CanonicalModelArtifact, FieldSnapshotEnvelopeV1, RunManifestV2,
+    SimplicialMeshEnvelopeV1,
 };
 use eqiora::kernel::ValueFrame;
 use eqiora::meshing::{DiscreteFieldAssociation, DiscreteFieldShape};
@@ -52,6 +53,7 @@ struct ProjectedBlock {
 )]
 pub(crate) struct PyFieldSnapshot {
     digest: String,
+    mesh_digest: String,
     field: Py<PyModelFieldRef>,
     field_id: String,
     support_domain_id: String,
@@ -81,6 +83,12 @@ impl PyFieldSnapshot {
     #[getter]
     fn digest(&self) -> &str {
         &self.digest
+    }
+
+    /// Exact Mesh artifact on which this observation is defined.
+    #[getter]
+    fn mesh_digest(&self) -> &str {
+        &self.mesh_digest
     }
 
     /// Exact Model-bound semantic Field identity.
@@ -530,6 +538,7 @@ impl PyTrajectory {
                     py,
                     PyFieldSnapshot {
                         digest: artifact_digest(py, snapshot.digest())?,
+                        mesh_digest: mesh_digest.clone(),
                         field: field_ref,
                         field_id: field_id.clone(),
                         support_domain_id: snapshot.support_domain().ulid().to_string(),
@@ -578,6 +587,71 @@ impl PyTrajectory {
             states,
             state_lookup,
         })
+    }
+}
+
+impl PyFieldSnapshot {
+    /// Project one already validated authored static scalar observation.
+    pub(crate) fn from_authored_scalar(
+        py: Python<'_>,
+        snapshot: &FieldSnapshotEnvelopeV1,
+        projection: &UnstructuredP1ScalarFieldProjection2d,
+    ) -> PyResult<(String, Self)> {
+        let field_id = projection.field().ulid().to_string();
+        if snapshot.field() != projection.field()
+            || snapshot.support_domain() != projection.support_domain()
+            || snapshot.dimension() != projection.value_dimension()
+            || !snapshot.value_shape().is_scalar()
+            || snapshot.frame() != ValueFrame::Invariant
+        {
+            return Err(PyRuntimeError::new_err(
+                "accepted static scalar projection differs from its Field snapshot meaning",
+            ));
+        }
+        let blocks = snapshot.block_artifacts();
+        let [(association, block_digest)] = blocks.as_slice() else {
+            return Err(PyRuntimeError::new_err(
+                "accepted static scalar snapshot must contain one coefficient block",
+            ));
+        };
+        if *association != DiscreteFieldAssociation::Vertex {
+            return Err(PyRuntimeError::new_err(
+                "accepted static scalar snapshot must use vertex coefficients",
+            ));
+        }
+
+        let support_indices = (0..projection.vertices_m().len())
+            .map(|index| {
+                u32::try_from(index).map_err(|_| {
+                    PyOverflowError::new_err("Field support index exceeds Python uint32")
+                })
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let field = Py::new(
+            py,
+            PyModelFieldRef::from_exact(projection.model_artifact().to_string(), field_id.clone()),
+        )?;
+        Ok((
+            field_id.clone(),
+            Self {
+                digest: artifact_digest(py, snapshot.digest())?,
+                mesh_digest: projection.mesh_artifact().to_string(),
+                field,
+                field_id,
+                support_domain_id: projection.support_domain().ulid().to_string(),
+                dimension: projection.value_dimension(),
+                value_shape: Vec::new(),
+                frame: "invariant",
+                blocks: vec![ProjectedBlock {
+                    association: "vertex",
+                    digest: block_digest.to_string(),
+                    values: ProjectedValues::Scalar(ReadOnlyVector::new(
+                        projection.values().to_vec(),
+                    )),
+                    support_indices: Arc::new(ReadOnlyVector::new(support_indices)),
+                }],
+            },
+        ))
     }
 }
 

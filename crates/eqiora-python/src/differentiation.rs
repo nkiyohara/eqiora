@@ -569,7 +569,19 @@ pub(crate) fn compile_differentiable(
             .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
             .clone();
         let realization = realization.plan().clone();
-        let output = output.value.clone();
+        let output_model_digest = output.exact_model_digest().to_owned();
+        let output = document
+            .field_ref(output.exact_id())
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
+        if output.model().artifact().to_string() != output_model_digest {
+            return Err(validation_error(
+                py,
+                &[eqiora::Diagnostic::error(
+                    eqiora::diagnostic::codes::INVALID_LINEARIZATION,
+                    "differentiable output FieldRef belongs to another exact Model artifact",
+                )],
+            ));
+        }
         let value = py
             .detach(move || {
                 DifferentiableProgram::compile(&document, realization, &selected, &output)

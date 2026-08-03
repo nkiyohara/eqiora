@@ -6,8 +6,8 @@ reference_kind = "composition-of-dual-independent-fluid-oracle-and-independent-l
 capabilities = [
   "python-exact-cylinder-steady-stokes-run",
   "python-typed-steady-stokes-intent-and-resolved-plan",
-  "python-typed-exact-cylinder-steady-stokes-result",
-  "python-complete-pressure-field-and-support-mesh",
+  "python-common-static-result-for-exact-cylinder-steady-stokes",
+  "python-common-pressure-field-snapshot-and-support-mesh",
   "python-model-realization-run-snapshot-lineage",
   "python-result-owner-independent-read-only-matrix-views",
 ]
@@ -20,8 +20,9 @@ physics = "steady coherent-SI MINI/P1 Stokes"
 intent = "immutable eqiora.fluid.SteadyStokes with six mandatory readable arguments"
 entry_point = "eqiora.fluid.resolve then eqiora.submit(model, plan=...) or eqiora.run(model, plan=...)"
 plan_type = "immutable eqiora.fluid.SteadyStokesPlan bound to the exact Model and accepted Mesh lineage"
-result_type = "immutable eqiora.fluid.CircularHoleSteadyStokesResult, temporary until the common spatial Result migration"
-retired_entry_point = "eqiora.fluid.solve_exact_cylinder_stokes is absent from the final runtime, __all__, and stubs"
+result_type = "immutable common eqiora.Result with one FieldSnapshot and its exact accepted Mesh"
+scientific_evidence = "eqiora.fluid.steady_stokes_evidence(result) returns the memoized bounded steady-Stokes observations"
+retired_surfaces = "eqiora.fluid.solve_exact_cylinder_stokes, eqiora.fluid.CircularHoleSteadyStokesResult, and eqiora.matplotlib.plot_pressure are absent from the final runtime, __all__, and stubs"
 
 [oracle]
 fluid_case = "fluid.exact-circular-hole-stokes-2d"
@@ -77,7 +78,9 @@ resolution_is_deterministic_and_owner_lifetime_independent = true
 submit_run_await_and_repeated_result_share_one_occurrence = true
 cancellation_is_honest_and_never_partial = true
 retired_solve_entry_point_absent_from_runtime_and_stubs = true
-temporary_result_owner_and_pressure_still_unchanged = true
+common_result_field_snapshot_and_mesh_owners = true
+typed_memoized_steady_stokes_evidence_selector = true
+demo_specific_result_and_pressure_plot_absent = true
 caller_supplies_current_model_bytes = true
 one_packaged_current_model_resource_is_byte_exact = true
 installed_test_reads_only_the_package_resource = true
@@ -115,6 +118,9 @@ foreign_model_at_submission = "a shape-equal Model with a foreign source revisio
 duplicate_solve = "repeated result() returns the identical memoized object; sync, await, and run() agree on run_digest"
 partial_cancellation_output = "cancellation either raises CancellationError EQ0506 or returns the whole accepted Result"
 retained_removed_entry_point = "solve_exact_cylinder_stokes present in the runtime module, __all__, native module, or fluid.pyi"
+retained_demo_result_type = "CircularHoleSteadyStokesResult present in the runtime module, __all__, native module, or fluid.pyi"
+retained_demo_plot = "plot_pressure present in eqiora.matplotlib runtime, __all__, or stub"
+foreign_same_id_field = "a FieldRef with the accepted Field ULID but a different exact Model artifact selects a snapshot or Mesh"
 noncanonical_model_bytes = "pretty JSON is admitted by the current decoder and must replay to the same run identity"
 hardcoded_generated_digests = "killed by independent digest replay from public canonical binding and run bytes"
 result_owned_matrix_lifetime = "killed by retaining all views after deleting Result and forcing collection"
@@ -134,6 +140,9 @@ steady_stokes_only = true
 intrinsic_dimension = 2
 affine_triangles_only = true
 complete_pressure_p1_field = true
+common_static_result = true
+common_field_snapshot = true
+common_mesh_pairing = true
 velocity_or_bubble_projection = false
 general_model_or_fluid_authoring = false
 generic_solver_or_meshing_choice = false

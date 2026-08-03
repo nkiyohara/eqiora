@@ -16,68 +16,16 @@ except ModuleNotFoundError as error:
         "install eqiora[matplotlib]"
     ) from error
 
-from ._eqiora import FieldRef, Trajectory
-from .fluid import CircularHoleSteadyStokesResult
+from ._eqiora import FieldRef, Result, Trajectory
 from .solid import MixedBoundaryElasticityResult
 
 __all__ = [
     "plot_deformed_field",
     "plot_displacement",
-    "plot_pressure",
     "plot_scalar_field",
 ]
 
-_FIELD_RECT = (0.065, 0.23, 0.82, 0.58)
-
-
-def plot_pressure(result: CircularHoleSteadyStokesResult, /) -> Figure:
-    """Plot the accepted exact-cylinder P1 pressure without changing its meaning."""
-
-    if not isinstance(result, CircularHoleSteadyStokesResult):
-        raise TypeError(
-            "plot_pressure() requires eqiora.fluid.CircularHoleSteadyStokesResult"
-        )
-
-    coordinates = result.coordinates
-    triangles = result.triangles
-    pressure = result.pressure.numpy(copy=False)
-
-    figure = Figure(
-        figsize=(10.0, 3.0),
-        facecolor="#ffffff",
-    )
-    axes = figure.add_axes(_FIELD_RECT)
-    axes.set_facecolor("#f8fafc")
-    field = axes.tripcolor(
-        coordinates[:, 0],
-        coordinates[:, 1],
-        pressure,
-        triangles=triangles,
-        shading="gouraud",
-        cmap="viridis",
-        vmin=result.pressure_minimum,
-        vmax=result.pressure_maximum,
-    )
-    axes.triplot(
-        coordinates[:, 0],
-        coordinates[:, 1],
-        triangles,
-        color="#0f172a",
-        linewidth=0.25,
-        alpha=0.2,
-    )
-    (x_minimum, x_maximum), (y_minimum, y_maximum) = result.bounds
-    axes.set_xlim(x_minimum, x_maximum)
-    axes.set_ylim(y_minimum, y_maximum)
-    axes.set_aspect("equal", adjustable="box")
-    axes.set_xlabel("x [m]")
-    axes.set_ylabel("y [m]")
-    axes.set_title("Steady Stokes pressure")
-    divider = make_axes_locatable(axes)
-    colorbar_axes = divider.append_axes("right", size="2.5%", pad=0.18)
-    colorbar = figure.colorbar(field, cax=colorbar_axes)
-    colorbar.set_label("Pressure [Pa]")
-    return figure
+_MISSING = object()
 
 
 def plot_displacement(
@@ -141,24 +89,43 @@ def plot_displacement(
 
 
 def plot_scalar_field(
-    trajectory: Trajectory,
+    trajectory: Result | Trajectory,
     /,
     *,
-    step: int,
+    step=_MISSING,
     field: FieldRef,
 ) -> Figure:
-    """Plot one exact invariant vertex scalar from an accepted trajectory state."""
+    """Plot one exact invariant vertex scalar from an accepted result or trajectory."""
 
-    state, snapshot = _trajectory_snapshot(trajectory, step, field)
+    if isinstance(trajectory, Result):
+        if step is not _MISSING:
+            raise TypeError("plot_scalar_field() does not accept step for Result")
+        bounds, minimum, maximum = trajectory._scalar_field_metadata(field)
+        snapshot = trajectory.field(field)
+        spatial = trajectory.mesh(field)
+        state = None
+    elif isinstance(trajectory, Trajectory):
+        if step is _MISSING:
+            raise TypeError("plot_scalar_field() requires step for Trajectory")
+        state, snapshot = _trajectory_snapshot(trajectory, step, field)
+        spatial = trajectory
+        bounds = None
+        minimum = None
+        maximum = None
+    else:
+        raise TypeError(
+            "plot_scalar_field() requires eqiora.Result or eqiora.trajectory.Trajectory"
+        )
+
     if snapshot.value_shape != ():
         raise ValueError("plot_scalar_field() requires scalar value shape ()")
     if snapshot.frame != "invariant":
         raise ValueError("plot_scalar_field() requires the invariant frame")
-    coordinates, triangles, values, support = _vertex_field_arrays(
-        trajectory,
-        snapshot,
-    )
-    restricted = values[support]
+    coordinates, triangles, values, support = _vertex_field_arrays(spatial, snapshot)
+    if state is not None:
+        restricted = values[support]
+        minimum = float(restricted.min())
+        maximum = float(restricted.max())
 
     figure = Figure(figsize=(8.0, 5.2), facecolor="#ffffff")
     axes = figure.add_axes((0.09, 0.13, 0.76, 0.76))
@@ -170,8 +137,8 @@ def plot_scalar_field(
         triangles=triangles,
         shading="gouraud",
         cmap="viridis",
-        vmin=float(restricted.min()),
-        vmax=float(restricted.max()),
+        vmin=minimum,
+        vmax=maximum,
     )
     axes.triplot(
         coordinates[:, 0],
@@ -181,12 +148,19 @@ def plot_scalar_field(
         linewidth=0.35,
         alpha=0.3,
     )
-    _set_field_axes_bounds(axes, coordinates[support])
-    axes.set_title(f"Scalar field — step {state.step}, t = {state.time_s:g} s")
+    if bounds is None:
+        _set_field_axes_bounds(axes, coordinates[support])
+        axes.set_title(f"Scalar field — step {state.step}, t = {state.time_s:g} s")
+    else:
+        (x_minimum, x_maximum), (y_minimum, y_maximum) = bounds
+        axes.set_xlim(x_minimum, x_maximum)
+        axes.set_ylim(y_minimum, y_maximum)
+        _finish_field_axes(axes)
+        axes.set_title("Scalar field")
     divider = make_axes_locatable(axes)
     colorbar_axes = divider.append_axes("right", size="3%", pad=0.16)
     colorbar = figure.colorbar(scalar, cax=colorbar_axes)
-    colorbar.set_label(f"Value [{_coherent_si_unit(snapshot.dimension)}]")
+    colorbar.set_label(_scalar_label(snapshot.dimension))
     return figure
 
 
@@ -265,28 +239,28 @@ def _trajectory_snapshot(trajectory, step, field):
     return state, state.field(field)
 
 
-def _vertex_field_arrays(trajectory, snapshot):
+def _vertex_field_arrays(spatial, snapshot):
     if snapshot.associations != ("vertex",):
         raise ValueError("field stills require exactly one vertex association")
 
-    coordinates = trajectory.coordinates
-    cells = trajectory.cells
+    coordinates = spatial.coordinates
+    cells = spatial.cells
     values = snapshot.values("vertex")
     support = snapshot.support_indices("vertex")
-    if trajectory.dimension != 2 or coordinates.ndim != 2 or coordinates.shape[1] != 2:
+    if spatial.dimension != 2 or coordinates.ndim != 2 or coordinates.shape[1] != 2:
         raise ValueError("field stills require two-dimensional coordinates")
     if cells.ndim != 2 or cells.shape[1] != 3:
         raise ValueError("field stills require affine triangle topology")
     if values.shape[0] != coordinates.shape[0]:
-        raise ValueError("field value shape does not match the trajectory vertices")
+        raise ValueError("field value shape does not match the spatial vertices")
     if support.ndim != 1 or support.size == 0:
         raise ValueError("vertex support must be one-dimensional and nonempty")
     if int(support.max()) >= coordinates.shape[0]:
-        raise ValueError("vertex support exceeds the trajectory coordinates")
+        raise ValueError("vertex support exceeds the spatial coordinates")
     if not np.array_equal(support, np.unique(support)):
         raise ValueError("vertex support must be sorted and unique")
     if cells.size > 0 and int(cells.max()) >= coordinates.shape[0]:
-        raise ValueError("triangle topology exceeds the trajectory coordinates")
+        raise ValueError("triangle topology exceeds the spatial coordinates")
 
     inside = np.isin(cells, support)
     triangles = cells[np.all(inside, axis=1)]
@@ -305,9 +279,19 @@ def _set_field_axes_bounds(axes, points):
     padding = 0.05 * max(x_maximum - x_minimum, y_maximum - y_minimum, 1.0)
     axes.set_xlim(x_minimum - padding, x_maximum + padding)
     axes.set_ylim(y_minimum - padding, y_maximum + padding)
+    _finish_field_axes(axes)
+
+
+def _finish_field_axes(axes):
     axes.set_aspect("equal", adjustable="box")
     axes.set_xlabel("x [m]")
     axes.set_ylabel("y [m]")
+
+
+def _scalar_label(dimension):
+    if dimension == (1, -1, -2, 0, 0, 0, 0):
+        return "Pressure [Pa]"
+    return f"Value [{_coherent_si_unit(dimension)}]"
 
 
 def _coherent_si_unit(dimension):
