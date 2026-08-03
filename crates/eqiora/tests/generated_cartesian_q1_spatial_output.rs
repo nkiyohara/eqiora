@@ -111,7 +111,7 @@ fn generated_cartesian_q1_output_closes_exact_spatial_lineage() {
     );
     assert_eq!(snapshot.support_domain(), body);
     correspondence
-        .validate_against(geometry, model, mesh_artifact)
+        .validate_against_cartesian(geometry, model, mesh_artifact)
         .unwrap();
 
     let coefficients = snapshot.coefficients();
@@ -169,7 +169,7 @@ fn cartesian_mesh_and_q1_snapshot_round_trip_canonically_and_reject_mutants() {
     assert_eq!(mesh_json["encoding"], "eqiora.canonical-json/v1");
     assert_eq!(mesh_json["dimension"], 2);
     assert_eq!(mesh_json["scalar"], "f64");
-    assert_eq!(mesh_json["cell_family"], "hypercube-q1");
+    assert_eq!(mesh_json["cell_family"], "hypercube");
     assert_eq!(mesh_json["axes"], json!([axis(), axis()]));
     assert_eq!(mesh_json["vertex_order"], "last-axis-fastest");
     assert_eq!(mesh_json["cell_order"], "last-axis-fastest");
@@ -211,7 +211,7 @@ fn cartesian_mesh_and_q1_snapshot_round_trip_canonically_and_reject_mutants() {
         correspondence_bytes,
     );
     decoded_correspondence
-        .validate_against(&decoded_geometry, result.model(), &decoded_mesh)
+        .validate_against_cartesian(&decoded_geometry, result.model(), &decoded_mesh)
         .unwrap();
 
     let snapshot_bytes = snapshot.canonical_json().unwrap();
@@ -292,16 +292,6 @@ fn cartesian_mesh_and_q1_snapshot_round_trip_canonically_and_reject_mutants() {
     for (key, value) in [
         ("association", json!("cell")),
         ("space", json!({"family": "simplex-lagrange", "order": 1})),
-        ("value_shape", json!([1])),
-        (
-            "dimension",
-            json!({
-                "mass": 0, "length": 0, "time": 0, "current": 0,
-                "temperature": 0, "amount": 0, "luminous_intensity": 0,
-            }),
-        ),
-        ("frame", json!("invariant")),
-        ("ordering", json!("component-major-entity-last")),
     ] {
         let mut wrong_metadata = snapshot_json.clone();
         wrong_metadata[key] = value;
@@ -313,6 +303,34 @@ fn cartesian_mesh_and_q1_snapshot_round_trip_canonically_and_reject_mutants() {
             .is_err(),
             "specialized Cartesian Q1 snapshot admitted wrong {key}",
         );
+    }
+
+    let mut scalar = snapshot_json.clone();
+    scalar["value_shape"] = json!([]);
+    scalar["coefficients"] = Value::Array(
+        snapshot_json["coefficients"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .step_by(2)
+            .cloned()
+            .collect(),
+    );
+    assert_locally_valid_but_wrong_for_displacement(&scalar, &result);
+
+    for (key, value) in [
+        (
+            "dimension",
+            json!({
+                "mass": 0, "length": 0, "time": 0, "current": 0,
+                "temperature": 0, "amount": 0, "luminous_intensity": 0,
+            }),
+        ),
+        ("frame", json!("invariant")),
+    ] {
+        let mut different_physical_tuple = snapshot_json.clone();
+        different_physical_tuple[key] = value;
+        assert_locally_valid_but_wrong_for_displacement(&different_physical_tuple, &result);
     }
 
     for (key, digest) in [
@@ -342,6 +360,29 @@ fn cartesian_mesh_and_q1_snapshot_round_trip_canonically_and_reject_mutants() {
             "linked replay admitted stale {key}",
         );
     }
+}
+
+fn assert_locally_valid_but_wrong_for_displacement(
+    json: &Value,
+    result: &MixedBoundaryElasticityResult2d,
+) {
+    let decoded = CartesianQ1FieldSnapshotEnvelopeV1::from_json(
+        &serde_json::to_vec(json).unwrap(),
+        Default::default(),
+    )
+    .expect("scalar or different physical metadata is valid low-level Q1 snapshot grammar");
+    assert!(
+        decoded
+            .validate_against(
+                result.model(),
+                result.realization(),
+                result.geometry(),
+                result.correspondence(),
+                result.mesh_artifact(),
+            )
+            .is_err(),
+        "foreign physical tuple matched the exact displacement Field",
+    );
 }
 
 fn axis() -> Vec<f64> {

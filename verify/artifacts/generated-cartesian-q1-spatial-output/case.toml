@@ -1,10 +1,10 @@
 id = "artifacts.generated-cartesian-q1-spatial-output"
 status = "specified"
-scope = "one-generated-2d-cartesian-q1-mesh-and-vertex-vector-field-snapshot"
+scope = "one-generated-2d-cartesian-hypercube-mesh-and-vertex-q1-vector-field-snapshot"
 reference_kind = "dual-derived-exact-topology-membership-and-relational-content-lineage"
 
 capabilities = [
-  "content-addressed-generated-cartesian-q1-mesh",
+  "content-addressed-generated-cartesian-hypercube-mesh",
   "cartesian-geometry-mesh-correspondence",
   "content-addressed-cartesian-q1-field-snapshot",
   "exact-run-displacement-output-lineage",
@@ -13,7 +13,7 @@ capabilities = [
 [problem]
 source_case = "solid.mixed-boundary-elasticity-2d"
 domain = "[0,1] x [0,1] metres"
-mesh = "16-by-16 generated Cartesian hypercube Q1"
+mesh = "16-by-16 generated Cartesian hypercube"
 field = "two-component displacement on the body Domain"
 realization = "continuous Q1, f64, generated uniform, coherent SI"
 
@@ -32,16 +32,18 @@ nonmonotone_axis = "reject during Cartesian mesh decoding"
 transposed_vertex_order = "reject during Cartesian mesh decoding"
 negative_zero_coefficient = "reject during Q1 snapshot decoding"
 wrong_association = "reject during Q1 snapshot decoding"
+foreign_physical_tuple = "decode as a valid low-level snapshot and reject against the exact displacement Field"
 stale_mesh_digest = "reject during linked snapshot replay"
 
 [claim_boundary]
 intrinsic_dimension = 2
 cells_per_axis = 16
-cell_family = "hypercube Q1"
+cell_family = "hypercube"
 association = "vertex"
-value_shape = [2]
+low_level_value_shape = "scalar or fixed vector"
+fixture_value_shape = [2]
 scalar_type = "f64"
-frame = "spatial Cartesian"
+fixture_frame = "spatial Cartesian"
 imported_or_nonuniform_cartesian_mesh = false
 cell_centered_or_high_order_field = false
 triangulated_projection = false
