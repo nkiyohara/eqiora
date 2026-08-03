@@ -812,6 +812,37 @@ mod tests {
     }
 
     #[test]
+    fn library_artifact_discovery_rejects_a_same_named_dependency_package() {
+        let target = library_target(
+            "private_parent::private_child::registered_evidence",
+            &[],
+            EvidenceEnvironment::HostCpu,
+        );
+        let dependency = serde_json::json!({
+            "reason": "compiler-artifact",
+            "package_id": "registry+https://github.com/rust-lang/crates.io-index#eqiora-numerics@9.9.9",
+            "target": {"name": "dependency_override", "kind": ["lib"]},
+            "executable": "/target/dependency-lib"
+        });
+        let runner = SystemEvidenceRunner {
+            cargo: OsString::from("cargo-evidence"),
+            python: OsString::from("python-evidence"),
+            prepared: Arc::new(Mutex::new(BTreeMap::new())),
+        };
+        let error = runner
+            .record_executables(
+                std::slice::from_ref(&target),
+                dependency.to_string().as_bytes(),
+                b"",
+            )
+            .unwrap_err();
+
+        assert!(error.contains("eqiora-numerics"), "{error}");
+        assert!(error.contains("library"), "{error}");
+        assert!(runner.prepared.lock().unwrap().is_empty());
+    }
+
+    #[test]
     fn system_runner_builds_only_closed_shell_free_commands() {
         let runner = SystemEvidenceRunner {
             cargo: OsString::from("cargo-evidence"),
