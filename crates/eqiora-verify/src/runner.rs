@@ -332,20 +332,8 @@ impl SystemEvidenceRunner {
         let mut stderr = self.prepared_build_stderr(target);
         append_stderr(&mut stderr, &String::from_utf8_lossy(child_stderr));
         if !succeeded && let EvidenceTarget::Cargo(target) = target {
-            if let Some(test) = target.library_test_name() {
-                let features = normalized_features(&target.features);
-                let mut command = format!("cargo test --locked -p {} --lib", target.package);
-                if !features.is_empty() {
-                    command.push_str(&format!(" --features {}", features.join(",")));
-                }
-                command.push_str(&format!(" {test} -- --exact"));
-                if target.environment == EvidenceEnvironment::PhysicalMpiCuda {
-                    command.push_str(" --ignored");
-                }
-                append_stderr(
-                    &mut stderr,
-                    &format!("error: test failed, to rerun pass `{command}`\n"),
-                );
+            if target.library_test_name().is_some() {
+                append_stderr(&mut stderr, &library_reproduction_diagnostic(target));
             } else {
                 append_stderr(
                     &mut stderr,
@@ -429,11 +417,19 @@ impl EvidenceRunner for SystemEvidenceRunner {
             EvidenceTarget::Cargo(target) if target.library_test_name().is_some()
         ) && let Err(error) = self.preflight_library_test(root, target)
         {
+            let EvidenceTarget::Cargo(target_details) = target else {
+                unreachable!("library preflight requires a Cargo target");
+            };
+            let mut stderr = self.prepared_build_stderr(target);
+            append_stderr(
+                &mut stderr,
+                &library_reproduction_diagnostic(target_details),
+            );
             return EvidenceOutput {
                 duration_ms: None,
                 exit_code: None,
                 stdout: String::new(),
-                stderr: self.prepared_build_stderr(target),
+                stderr,
                 start_error: Some(error),
             };
         }
@@ -482,6 +478,22 @@ impl EvidenceRunner for SystemEvidenceRunner {
             },
         }
     }
+}
+
+fn library_reproduction_diagnostic(target: &super::CargoEvidenceTarget) -> String {
+    let test = target
+        .library_test_name()
+        .expect("library reproduction requires a library target");
+    let features = normalized_features(&target.features);
+    let mut command = format!("cargo test --locked -p {} --lib", target.package);
+    if !features.is_empty() {
+        command.push_str(&format!(" --features {}", features.join(",")));
+    }
+    command.push_str(&format!(" {test} -- --exact"));
+    if target.environment == EvidenceEnvironment::PhysicalMpiCuda {
+        command.push_str(" --ignored");
+    }
+    format!("error: test failed, to rerun pass `{command}`\n")
 }
 
 fn append_stderr(stderr: &mut String, addition: &str) {
