@@ -58,7 +58,7 @@ def test_result_retains_complete_relational_lineage_and_execution(
     assert run["model_sha256"] == result.model_digest
     assert run["semantic_revision"] == result.semantic_revision
     assert run["realization_sha256"] == result.realization_digest
-    assert run["output_sha256"] == []
+    assert len(run["output_sha256"]) == 1
     assert len(result.run_digest) == 64
     assert len(result.realization_digest) == 64
 

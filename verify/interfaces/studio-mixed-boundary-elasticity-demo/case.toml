@@ -20,6 +20,7 @@ solver = "reference conjugate-gradient, identity, reproducible, f64, rtol 1e-12,
 placement = "one-host-one-worker"
 presented_fields = "solver-owned displacement at 289 ordered vertices"
 presented_totals = "constrained reaction and integrated body force"
+run_output = "exactly the content-addressed displacement Snapshot"
 scientific_authority = "solid.mixed-boundary-elasticity-2d"
 browser_preview = "reject without fabricated scientific result"
 
@@ -44,7 +45,8 @@ plane_stress_or_plane_strain = false
 nonlinear_material_or_geometry = false
 contact_or_fracture = false
 standalone_3d_structure = false
-durable_field_output_artifact = false
+durable_displacement_snapshot_output = true
+additional_run_output_artifact = false
 validation_or_benchmark = false
 production_solver = false
 mpi_or_gpu = false

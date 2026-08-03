@@ -1,0 +1,56 @@
+id = "artifacts.generated-cartesian-q1-spatial-output"
+status = "specified"
+scope = "one-generated-2d-cartesian-q1-mesh-and-vertex-vector-field-snapshot"
+reference_kind = "dual-derived-exact-topology-membership-and-relational-content-lineage"
+
+capabilities = [
+  "content-addressed-generated-cartesian-q1-mesh",
+  "cartesian-geometry-mesh-correspondence",
+  "content-addressed-cartesian-q1-field-snapshot",
+  "exact-run-displacement-output-lineage",
+]
+
+[problem]
+source_case = "solid.mixed-boundary-elasticity-2d"
+domain = "[0,1] x [0,1] metres"
+mesh = "16-by-16 generated Cartesian hypercube Q1"
+field = "two-component displacement on the body Domain"
+realization = "continuous Q1, f64, generated uniform, coherent SI"
+
+[artifact_contract]
+mesh = "two exact 17-entry axes reconstruct 289 vertices and 256 cells in last-axis-fastest order"
+local_nodes = "tensor-product Z order (0,0), (1,0), (0,1), (1,1)"
+facet_ordinals = "x-directed facets first, then y-directed facets, with the frozen Cartesian stratum order"
+geometry = "the exact current Model body and all four boundary Domains"
+correspondence = "body owns all cells; each boundary owns its exact 16 facet ordinals"
+snapshot = "exact Model, Realization, Geometry, correspondence, Mesh, Field, support, representation, physical metadata, and ordered coefficients"
+coefficients = "578 binary64 values in mesh-vertex entity-major, component-last order; mathematical zero is positive zero"
+run_output = "exactly one output equal to the displacement snapshot digest"
+
+[falsifiers]
+nonmonotone_axis = "reject during Cartesian mesh decoding"
+transposed_vertex_order = "reject during Cartesian mesh decoding"
+negative_zero_coefficient = "reject during Q1 snapshot decoding"
+wrong_association = "reject during Q1 snapshot decoding"
+stale_mesh_digest = "reject during linked snapshot replay"
+
+[claim_boundary]
+intrinsic_dimension = 2
+cells_per_axis = 16
+cell_family = "hypercube Q1"
+association = "vertex"
+value_shape = [2]
+scalar_type = "f64"
+frame = "spatial Cartesian"
+imported_or_nonuniform_cartesian_mesh = false
+cell_centered_or_high_order_field = false
+triangulated_projection = false
+general_structured_grid_authoring = false
+three_dimensional_output = false
+remeshing_or_interpolation = false
+stress_strain_or_traction = false
+new_numerical_tolerance = false
+
+[evidence]
+package = "eqiora"
+test = "generated_cartesian_q1_spatial_output"

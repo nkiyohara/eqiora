@@ -24,7 +24,7 @@ scientific_case = "solid.mixed-boundary-elasticity-2d"
 lineage_case = "interfaces.studio-mixed-boundary-elasticity-demo"
 matplotlib_case = "interfaces.python-exact-cylinder-pressure-still"
 model_admission = "structural semantic equivalence to the accepted current source, preserving the caller's current artifact identity"
-lineage = "Model, Realization, and output-less Run identities replay relationally from the one shared Rust-owned application result"
+lineage = "Model, Realization, exact displacement Snapshot, and singleton-output Run identities replay relationally from the one shared Rust-owned application result"
 arrays = "canonical 289-by-2 coordinates, 256-by-4 Q1 connectivity, and 289-by-2 displacement in coherent SI order"
 rendering = "unique canonical undirected Q1 edges, with deformed coordinates equal to coordinates plus scale times displacement"
 
@@ -33,7 +33,7 @@ packaged_source_is_byte_exact = true
 caller_compiles_and_supplies_current_model = true
 studio_and_python_consume_one_shared_rust_result = true
 model_realization_run_lineage_is_relationally_exact = true
-run_has_no_fabricated_output_artifact = true
+run_has_exact_displacement_snapshot_output = true
 solver_and_assembly_evidence_are_exposed = true
 true_residual_meets_the_owned_solver_target = true
 matrix_views_are_memoized_read_only_and_owner_independent = true
