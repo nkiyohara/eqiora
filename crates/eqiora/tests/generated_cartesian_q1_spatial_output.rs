@@ -1,7 +1,7 @@
 use eqiora::api::{MixedBoundaryElasticityResult2d, ModelDocument};
 use eqiora::artifact::{
     CartesianMeshEnvelopeV1, CartesianQ1FieldSnapshotEnvelopeV1, GeometryIdentityEnvelopeV1,
-    GeometryMeshCorrespondenceEnvelopeV1,
+    GeometryMeshCorrespondenceEnvelopeV1, RealizationEnvelopeV1,
 };
 use eqiora::kernel::BoundarySide;
 use eqiora::meshing::{MeshEntity, MeshTopology};
@@ -362,6 +362,107 @@ fn cartesian_mesh_and_q1_snapshot_round_trip_canonically_and_reject_mutants() {
     }
 }
 
+#[test]
+fn linked_replay_rejects_foreign_support_membership_drift_and_huge_realization() {
+    let (_, result) = accepted();
+    let geometry = result.geometry();
+    let mesh = result.mesh_artifact();
+    let correspondence = result.correspondence();
+    let snapshot = result.displacement_snapshot();
+
+    let snapshot_json: Value = serde_json::from_slice(&snapshot.canonical_json().unwrap()).unwrap();
+    let mut wrong_support = snapshot_json.clone();
+    wrong_support["support_domain_ulid"] =
+        json!(geometry.boundaries()[0].domain().ulid().to_string());
+    let wrong_support = CartesianQ1FieldSnapshotEnvelopeV1::from_json(
+        &serde_json::to_vec(&wrong_support).unwrap(),
+        Default::default(),
+    )
+    .expect("a different Model-owned Domain is locally valid snapshot grammar");
+    assert!(
+        wrong_support
+            .validate_against(
+                result.model(),
+                result.realization(),
+                geometry,
+                correspondence,
+                mesh,
+            )
+            .is_err(),
+        "a boundary Domain must not replay as the displacement Field's body support",
+    );
+
+    let correspondence_json: Value =
+        serde_json::from_slice(&correspondence.canonical_json().unwrap()).unwrap();
+    let mut missing_body_cell = correspondence_json.clone();
+    missing_body_cell["bodies"][0]["cell_indices"]
+        .as_array_mut()
+        .unwrap()
+        .pop()
+        .expect("accepted body membership is nonempty");
+    assert_cartesian_correspondence_replay_rejects(
+        &missing_body_cell,
+        &result,
+        "body membership omitted one Cartesian cell",
+    );
+
+    let mut missing_boundary_facet = correspondence_json;
+    missing_boundary_facet["boundaries"][0]["facet_indices"]
+        .as_array_mut()
+        .unwrap()
+        .pop()
+        .expect("accepted boundary membership is nonempty");
+    assert_cartesian_correspondence_replay_rejects(
+        &missing_boundary_facet,
+        &result,
+        "boundary membership omitted one Cartesian facet",
+    );
+
+    let mut huge_realization: Value =
+        serde_json::from_slice(&result.realization().canonical_json().unwrap()).unwrap();
+    huge_realization["plan"]["discretization"]["mesh"]["cells_per_axis"] = json!(1_000_000_000_u64);
+    let huge_realization = RealizationEnvelopeV1::from_json(
+        &serde_json::to_vec(&huge_realization).unwrap(),
+        Default::default(),
+    )
+    .expect("a large positive generated-uniform count is valid Realization grammar");
+    assert_ne!(
+        huge_realization.digest().unwrap(),
+        result.realization().digest().unwrap(),
+    );
+    assert!(
+        snapshot
+            .validate_against(
+                result.model(),
+                &huge_realization,
+                geometry,
+                correspondence,
+                mesh,
+            )
+            .is_err(),
+        "linked replay must reject the foreign Realization identity before constructing its \
+         billion-by-billion generated mesh",
+    );
+}
+
+fn assert_cartesian_correspondence_replay_rejects(
+    json: &Value,
+    result: &MixedBoundaryElasticityResult2d,
+    mutation: &str,
+) {
+    let decoded = GeometryMeshCorrespondenceEnvelopeV1::from_json(
+        &serde_json::to_vec(json).unwrap(),
+        Default::default(),
+    )
+    .expect("incomplete membership is locally valid correspondence grammar");
+    assert!(
+        decoded
+            .validate_against_cartesian(result.geometry(), result.model(), result.mesh_artifact())
+            .is_err(),
+        "exact Cartesian replay admitted drift: {mutation}",
+    );
+}
+
 fn assert_locally_valid_but_wrong_for_displacement(
     json: &Value,
     result: &MixedBoundaryElasticityResult2d,
@@ -392,13 +493,49 @@ fn axis() -> Vec<f64> {
 }
 
 fn assert_top_level_key_order(bytes: &[u8], keys: &[&str]) {
-    let text = std::str::from_utf8(bytes).expect("canonical JSON is UTF-8");
-    let mut cursor = 0;
-    for key in keys {
-        let needle = format!("\"{key}\":");
-        let offset = text[cursor..]
-            .find(&needle)
-            .unwrap_or_else(|| panic!("canonical JSON omitted ordered key {key}"));
-        cursor += offset + needle.len();
+    let mut depth = 0_usize;
+    let mut string_start = None;
+    let mut escaped = false;
+    let mut observed = Vec::new();
+
+    for (index, byte) in bytes.iter().copied().enumerate() {
+        if let Some(start) = string_start {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                string_start = None;
+                let next = bytes[index + 1..]
+                    .iter()
+                    .copied()
+                    .find(|next| !next.is_ascii_whitespace());
+                if depth == 1 && next == Some(b':') {
+                    let encoded = &bytes[start..=index];
+                    observed.push(
+                        serde_json::from_slice::<String>(encoded)
+                            .expect("canonical JSON object key is a string"),
+                    );
+                }
+            }
+            continue;
+        }
+
+        match byte {
+            b'"' => string_start = Some(index),
+            b'{' | b'[' => depth += 1,
+            b'}' | b']' => depth = depth.checked_sub(1).expect("balanced canonical JSON"),
+            _ => {}
+        }
     }
+
+    assert_eq!(depth, 0, "canonical JSON containers are balanced");
+    assert!(
+        string_start.is_none(),
+        "canonical JSON string is terminated"
+    );
+    assert_eq!(
+        observed, keys,
+        "canonical JSON top-level key sequence changed",
+    );
 }
