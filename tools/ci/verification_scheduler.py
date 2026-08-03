@@ -251,9 +251,6 @@ def _run_lane(
                 "TMPDIR": str(lane_tmp),
                 "CARGO_TARGET_DIR": str(lane_root / "cargo-target"),
                 "CARGO_BUILD_JOBS": str(cargo_jobs),
-                "EQIORA_VERIFY_CPU_SLOTS": str(lane.resources.cpu_slots),
-                "EQIORA_VERIFY_MEMORY_MIB": str(lane.resources.memory_mib),
-                "EQIORA_VERIFY_GPU_SLOTS": str(lane.resources.gpu_slots),
             }
         )
         with log_paths[index].open("wb") as output:

@@ -54,8 +54,10 @@ therefore neither publish partial success nor mutate another profile's input.
 
 Candidate and aggregate-gate scratch space is rooted below the invoking user's
 home directory, including when the ambient system temporary directory points
-at `/tmp`. Hosted lane execution passes its own home-backed scratch root and
-resource budget through to the candidate.
+at `/tmp`. The candidate admits a bounded internal 2-CPU, 4096-MiB profile
+sub-budget; explicit candidate-specific environment settings may narrow or
+raise it when the enclosing execution environment has been provisioned to
+match.
 
 Registered host evidence builds this complete candidate once for one source
 commit and platform. The distribution, typing, PyTorch, JAX, and Matplotlib

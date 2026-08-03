@@ -192,9 +192,9 @@ def profile_budget() -> ResourceBudget:
             raise CandidateError(f"{name} must be an integer") from error
 
     return ResourceBudget(
-        value("EQIORA_VERIFY_CPU_SLOTS", 2),
-        value("EQIORA_VERIFY_MEMORY_MIB", 4096),
-        value("EQIORA_VERIFY_GPU_SLOTS", 0),
+        value("EQIORA_PYTHON_CANDIDATE_CPU_SLOTS", 2),
+        value("EQIORA_PYTHON_CANDIDATE_MEMORY_MIB", 4096),
+        value("EQIORA_PYTHON_CANDIDATE_GPU_SLOTS", 0),
     )
 
 
