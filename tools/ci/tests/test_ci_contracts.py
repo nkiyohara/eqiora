@@ -72,11 +72,11 @@ class HostedTriggerTests(unittest.TestCase):
         concurrency = workflow.split("concurrency:\n", maxsplit=1)[1].split(
             "\nenv:", maxsplit=1
         )[0]
-        self.assertIn(
-            "group: ci-${{ github.event.pull_request.number || inputs.commit }}",
+        self.assertEqual(
             concurrency,
+            "  group: ci-${{ github.event.pull_request.number || inputs.commit }}\n"
+            "  cancel-in-progress: true\n",
         )
-        self.assertIn("cancel-in-progress: true", concurrency)
 
     def test_windows_compile_probe_is_visible_complete_and_non_gating(self) -> None:
         workflow = (
@@ -122,11 +122,11 @@ class HostedTriggerTests(unittest.TestCase):
         concurrency = workflow.split("concurrency:\n", maxsplit=1)[1].split(
             "\njobs:", maxsplit=1
         )[0]
-        self.assertIn(
-            "group: ci-definition-trust-${{ github.event.pull_request.number }}",
+        self.assertEqual(
             concurrency,
+            "  group: ci-definition-trust-${{ github.event.pull_request.number }}\n"
+            "  cancel-in-progress: true\n",
         )
-        self.assertIn("cancel-in-progress: true", concurrency)
 
     def test_msrv_gate_covers_optional_production_features(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
