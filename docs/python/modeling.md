@@ -26,6 +26,42 @@ A relation receives an explicit zero-valued residual. Symbolic equality and
 Python truth testing are not modeling syntax. Declarations and expressions
 are frozen; validation and artifact creation happen atomically in Rust.
 
+## Compile one exact locked Model Package
+
+Python can project an existing content-addressed Model Package into the same
+ordinary immutable `Model` without reimplementing package semantics:
+
+```python
+from pathlib import Path
+
+import eqiora
+
+store_root = Path("package-store")
+resolution = Path("resolution.canonical.json").read_bytes()
+model = eqiora.compile_package(
+    store_root,
+    resolution,
+    entry_model="Main",
+)
+
+print(model.digest)
+print(model.package_compilation_digest)
+```
+
+The caller selects one explicit store directory, supplies the exact bytes from
+`ResolutionRecordV1.canonical_json()`, and names one bare root-local Model.
+Rust opens the capability-rooted store, verifies the complete locked closure,
+compiles it through the shared package/compiler path, and returns the existing
+`Model` type. Human-formatted, reordered, newline-terminated, duplicate-key, or
+store-mismatched resolution bytes fail closed.
+
+`package_compilation_digest` is read-only lineage for the accepted call. It is
+absent on source-compiled, natively defined, replayed, and edited Models; it is
+also deliberately excluded from Model JSON, equality, hashing, revision, and
+structural comparison. This surface does not discover stores or lock files,
+author or install packages, access registries or networks, select imported
+Model roots, execute the Model, or add a Studio package workflow.
+
 ## Authored CAD to exact geometry
 
 The first accepted path projects one closed authored-CAD history into its exact

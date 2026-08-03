@@ -390,8 +390,11 @@ progress.
    written before the norm exists hand-rolls one, and a non-deterministic
    digest on the shortest public path is a **contract violation** for a product
    claiming content-addressed identity, not a presentation defect.
-3. **Python Model Package compilation** — the shipped packages are currently
-   reachable from Python only by compiling their source text.
+3. **Python Model Package compilation** — one exact installed-package path now
+   consumes an explicit content-addressed store, canonical resolution bytes,
+   and a root-local Model selector through the Rust-owned package compiler.
+   Discovery, package authoring/installation, registries, and Studio remain
+   later independent surfaces.
 4. **AMG construction and provenance**, whose gate the envelope breach opened,
    and 3D reach.
 5. **Demos of capabilities that already carry registered evidence.** No new

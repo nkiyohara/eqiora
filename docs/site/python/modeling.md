@@ -10,6 +10,10 @@ axis-aligned-rectangle-with-circular-hole geometry. That exact family can enter
 one explicit, error-controlled chordal reference-mesh operation while the
 source remains exact. A typed `Realization` separately selects an admitted
 numerical path; choosing FEM or FVM never changes model or geometry meaning.
+One explicit-store package operation consumes exact canonical resolution bytes
+and a bare root-local Model selector, then returns the ordinary immutable
+`Model` with read-only package-compilation lineage. It performs no discovery,
+authoring, installation, network access, execution, or Studio workflow.
 The package also reaches the common `Result` through explicit resolved Plans
 for the accepted exact-cylinder flow, mixed-boundary structure, and two-step
 fixed-mesh monolithic FSI cases, with typed application evidence and optional
