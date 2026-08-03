@@ -25,8 +25,24 @@ evidence, and omitting it does not block a contribution.
 
 ## Development
 
-Install the latest stable Rust toolchain with `rustfmt` and `clippy`. Public
-crates also support the workspace MSRV declared in `Cargo.toml`. The
+The default developer entry point is [mise](https://mise.jdx.dev/). It installs
+the repository's Rust, Python, Node, npm, and uv versions without replacing the
+language-specific lockfiles or acceptance gates:
+
+```bash
+mise install
+mise run setup
+mise run fast
+mise run affected
+```
+
+Pass `--case <case-id>` after `--` to either verification task to forward
+explicit semantic evidence to the repository planner. Use `mise tasks` to list
+the Studio and full-compatibility entry points. Large verification scratch
+remains home-backed under `~/.cache/eqiora`; mise tasks do not use OS `/tmp`.
+
+The Rust tool remains the latest stable toolchain with `rustfmt` and `clippy`.
+Public crates also support the workspace MSRV declared in `Cargo.toml`. The
 [verification topology](docs/development/ci-topology.md) and
 [local-verification guide](docs/development/local-verification.md) define the
 affected and complete gates.

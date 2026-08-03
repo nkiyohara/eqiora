@@ -17,15 +17,15 @@ Codex GPT-5.6 Sol is the default for contract ownership, implementation,
 end-to-end integration, review, and repository gates. The maintainer directs
 without reading diffs; independence comes from separated roles and fresh context.
 
-A writer never authors or tunes its own oracle and never reviews its own diff.
-A fresh-context non-implementer may own the oracle or review the complete diff
-even with the same provider lineage. Bound each handoff by the frozen claim,
-writable paths, and non-claims; never share writer scratch with oracle or reviewer.
+A writer never authors or tunes its own oracle. When durable risk requires independent review,
+a fresh-context non-implementer reviews the complete risky
+delta; the same provider lineage is permitted. Bound each handoff by the frozen
+claim, writable paths, and non-claims; never share writer scratch with oracle or reviewer.
 
 Provider diversity is optional escalation, not a gate. Use Opus for bounded
 derivation, mutation search, or review when agents disagree, an oracle appears
-wrong, or a scientific claim is unusually consequential. Use Fable for
-cross-cutting, visual, or long-horizon review when fresh-context Sol review is
+wrong, or a scientific claim is unusually consequential. Use Fable for cross-cutting,
+visual, or long-horizon review when fresh-context Sol review is
 insufficient. Confidence is not evidence; every result states what was not checked.
 
 ## Run every lane that can run
@@ -120,20 +120,24 @@ the proof rather than adjusting the implementation to match.
 An exact-artifact oracle replays the producer's exact ordering: a geometrically
 equivalent fixture is not byte evidence when local order changes quality or digest.
 
-Every change is reviewed **before integration** by a fresh-context non-writer;
-the same provider lineage is permitted. **The integrator's own work is not
-exempt**: holding acceptance makes self-acceptance cost nothing. Review may be
-brief; absence is a defect, and review after acceptance is not this gate.
+Fresh-context non-writer review is required before integration only for the complete delta that
+changes: governance, review, or evidence policy; scientific meaning or an oracle; a public or versioned API, compatibility, or migration;
+a persisted schema or exact artifact; security, data integrity, release or CI trust; or an
+architecture ceiling or debt entry.
+For mixed changes, review only that risky delta, with enough context to judge it. Outside those
+boundaries, the integrator may self-review and run gates for dependency-only updates (including lockfile and relevant automated gate), non-governance documentation, generated or mechanical changes, private behavior-preserving refactors,
+and localized corrections to low-risk findings. These need no fresh reviewer absent an anomaly.
+A strictly localized correction to a reviewed high-risk finding gets focused fresh review of the correction,
+not whole-diff rereview. If it changes claim, evidence, or compatibility, widens scope, or otherwise reopens
+accepted risk, review the reopened risky delta plus needed context as a new high-risk change. The integrator's own high-risk work is not exempt; post-integration review does not satisfy this gate.
 
-Cross-review catches what one agent missed, not what both assumed. Only a new
-scientific formulation, expected value, or tolerance carries a **dual
-independent oracle gate**: two fresh-context agents derive it from the public
-claim by different analytic and numerical or symbolic routes, without reading
-implementation, writer scratch, or fixtures. They may use the same provider;
-separation is recommended only on disagreement or consequential claims. Durable
-schemas and exact artifacts require a pre-committed non-implementer oracle, not
-dual derivation unless they introduce science. Adapters and application surfaces
-need focused tests and non-writer review, not derivation ceremony.
+Independent derivation catches what one agent missed, not what both assumed. Only a new scientific
+formulation, expected value, or tolerance carries a **dual independent oracle gate**: two fresh-context
+agents derive it from the public claim by different analytic and numerical or symbolic routes, without
+reading implementation, writer scratch, or fixtures. They may use the same provider; separation is
+recommended only on disagreement or consequential claims. Durable schemas and exact artifacts require
+a pre-committed non-implementer oracle, not dual derivation unless they introduce science. Adapters and
+application surfaces need focused tests, not derivation ceremony.
 
 ## Slice ownership
 
@@ -159,10 +163,8 @@ Issue queue, or the roadmap, and is never committed.
 
 ## Rigor in proportion to durable risk
 
-Reserve full vertical-slice ceremony for scientific meaning, public or
-versioned interfaces, persisted data, compatibility, and release trust. Adapters
-and application surfaces need ordinary typed boundaries and focused tests, not
-automatically a new RFC, schema, digest, registry, or evidence case.
+Reserve full vertical-slice ceremony for durable risk. Adapters and application surfaces need ordinary
+typed boundaries and focused tests, not automatically a new RFC, schema, digest, registry, or evidence case.
 
 Apply the abstraction and public-API budget before adding a crate, public type,
 enum variant, trait, wire field, or registry. Structural predicates are checked,
@@ -171,9 +173,8 @@ check-architecture` numbers down. Raising a ceiling or adding a debt entry is an
 architecture change, permitted but reviewed as one, and it carries a reason and
 a deletion condition.
 
-Prefer the smallest conventional local tool. Put large build, candidate, and worktree scratch under
-home-backed `TMPDIR`, never OS `/tmp`. Keep maintainer-specific hosts/paths out of the repository.
-Add no protocol or durable contract to work around build, cache, sync, or editor-host limits.
+Prefer the smallest conventional local tool. Put large build, candidate, and worktree scratch under home-backed
+`TMPDIR`, never OS `/tmp`. Keep maintainer-specific hosts/paths out of the repository. Add no protocol or durable contract to work around build, cache, sync, or editor-host limits.
 
 ## Gates
 

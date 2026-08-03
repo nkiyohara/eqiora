@@ -213,7 +213,7 @@ express it; it returns the unexpressible requirement to the contract owner
 instead. Adapter and provider conformance kits are not forced into the instance
 model.
 
-### A4 — Independence of the falsifier is mandatory, and the integrator rotates
+### A4 — Oracle independence is mandatory; review follows durable risk
 
 *Owner:* [`AGENTS.md`](../../AGENTS.md)
 
@@ -222,6 +222,20 @@ The integrator is a per-slice role, not a permanent one. The current
 requirement: **an implementing agent must not author, tune, or relax the
 oracle, expected values, tolerances, or falsifiers for its own implementation.**
 Wiring a pre-committed fixture is permitted; owning the evidence content is not.
+
+Fresh-context non-writer review of the complete risky delta is mandatory for
+changes to governance, review, or evidence policy; scientific meaning or
+evidence; public or versioned API and compatibility; persisted schemas or exact
+artifacts; security or data integrity; release or CI trust; and architecture
+ceilings or debt. Outside those boundaries, non-governance documentation,
+dependency-only updates with their lockfile and relevant gate, reproducible
+generated or mechanical changes, private behavior-preserving refactors, and
+localized corrections to low-risk findings integrate by integrator self-review
+and repository gates absent an anomaly. A mixed change sends only its risky
+delta to review. A strictly localized correction to a reviewed high-risk
+finding gets focused correction-only fresh review; if it changes claim,
+evidence, or compatibility, widens scope, or otherwise reopens accepted risk,
+review the reopened risky delta plus needed context as a new high-risk change.
 
 ### A5 — Architecture predicates enter CI
 
@@ -294,8 +308,8 @@ checks.
 
 Three agents, divided by **invariant ownership, observed failure mode, and
 oracle independence** rather than a static task taxonomy. One writer owns each
-central seam; a different model family supplies the independent verifier; one
-integrator owns acceptance per slice.
+central seam; a fresh-context non-writer supplies the independent oracle and,
+for durable-risk deltas, review; one integrator owns acceptance per slice.
 
 ### Routing from evidence, not reputation
 
@@ -328,21 +342,21 @@ The routing rule is operational:
    failed run changes a probe, not a permanent model label.
 
 Implementation is not assigned exclusively to any model. Oracle independence
-is preserved by cross-assignment: whoever implements, another provider lineage
-derives the falsifier and reviews the complete diff. **Provider lineage** means
-the model family behind the service: Fable and Opus are both Claude; Codex/GPT
-is separate. A slice writer owns neither route of its dual oracle. Disjoint
-read-only lanes may run in parallel; disjoint writable lanes additionally
-require frozen contracts.
+is preserved by role separation: whoever implements, a fresh-context
+non-implementer derives the falsifier; two independent routes derive any new
+scientific formulation, expected value, or tolerance. A slice writer owns
+neither route of its dual oracle. Provider diversity is an escalation on
+disagreement or consequential science, not a gate. Disjoint read-only lanes
+may run in parallel; disjoint writable lanes additionally require frozen
+contracts.
 
-Cross-assignment is symmetric and has no exemption for the integrator. The
-first slice violated this in one direction: Codex's implementation was reviewed
-by Claude, but the governance amendments, the RFC, the architecture predicates,
-and the scaling envelope were all written by Claude and accepted by Claude. The
-failure mode is structural rather than careless — the agent holding the
-acceptance decision is the one for whom self-acceptance costs nothing, so the
-rule has to bind hardest exactly there. A brief review is enough; skipping it
-is not.
+Required review is likewise role-independent and has no exemption for the
+integrator's own durable-risk work. The first slice exposed the structural
+failure mode: the agent holding acceptance can accept its own consequential
+governance, architecture, and trust decisions at no marginal cost. The remedy
+is independent review of those complete risky deltas, not blanket rereview of
+mechanically gated low-risk changes. A localized high-risk correction gets
+focused fresh review; only reopened risk returns as a new high-risk delta.
 
 Codex prompts carry explicit writable and integration-owned path lists. Claude
 prompts carry the same lists when they write; model capability never broadens
@@ -384,9 +398,9 @@ progress.
 | Phase | Owner | Independent route |
 | --- | --- | --- |
 | Contract | The per-slice contract owner, normally Codex, freezes claim, nonclaims, live consumer, derivation rules, stop condition, API budget, and registration deltas. | A non-writing route challenges bounded scientific ambiguity and cross-seam architecture before the writer is selected. |
-| Oracle | Independent agents from a provider lineage other than the intended writer derive values, signs, mutants, and thresholds before reading implementation. The slice writer owns neither route of a dual oracle. | The contract owner checks that the oracle binds the executable seam without authoring or tuning expected values. |
-| Implementation | Codex owns the settled existing-architecture path; Fable owns an escalated long-horizon or visual path; Opus may own a narrow fully frozen path. | One writer owns the seam; another provider lineage owns its falsifier and complete-diff review. |
-| Acceptance | The per-slice integrator rebases, runs `local_verify.py affected`, and audits registrations and environment limitations. It may merge only after the independent review at right accepts the exact final head. | A non-writing agent from another provider lineage checks signs, indices, lineage, visual/runtime output where applicable, and every precommitted falsifier. |
+| Oracle | Fresh-context agents independent of the intended writer derive values, signs, mutants, and thresholds before reading implementation. New scientific formulations, expected values, and tolerances use two independent analytic and numerical or symbolic routes; the writer owns neither. | The contract owner checks that the oracle binds the executable seam without authoring or tuning expected values. |
+| Implementation | Codex owns the settled existing-architecture path; Fable owns an escalated long-horizon or visual path; Opus may own a narrow fully frozen path. | A fresh-context non-implementer owns the falsifier and, where durable risk requires it, reviews the complete risky delta. |
+| Acceptance | The per-slice integrator rebases, runs `local_verify.py affected`, and audits registrations and environment limitations. It may merge after the applicable risk review; a localized high-risk correction gets focused fresh review, while reopened risk is reviewed as a new high-risk delta. | For high-risk deltas, a non-writing agent checks signs, indices, lineage, visual/runtime output where applicable, and every precommitted falsifier. Low-risk deltas need no fresh route absent an anomaly. |
 
 If the contract proves insufficient, the writer returns the missing requirement;
 the contract owner re-freezes it before implementation resumes.

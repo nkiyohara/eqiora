@@ -1,7 +1,8 @@
 # Python common trajectory field stills
 
-This case freezes the first two common spatial presentation adapters over the
-accepted `Trajectory`, `FieldRef`, and `FieldSnapshot` boundaries:
+This case freezes the accepted `Trajectory` arms of the first two common
+spatial presentation adapters over the `Trajectory`, `FieldRef`, and
+`FieldSnapshot` boundaries:
 
 ```python
 import eqiora.matplotlib as eqplot
@@ -31,11 +32,25 @@ id while changing only the exact Model artifact. Neither structural
 equivalence nor a field id string is an authority, so a `FieldRef` from either
 Model is rejected before a Figure exists.
 
+`plot_deformed_field` also has a static `Result` arm without `step`. That arm
+selects the bounded mixed-boundary displacement `FieldSnapshot` and exact
+generated-Cartesian Q1 `Mesh` through the same common lookups, and is owned by
+[`interfaces.python-mixed-boundary-elasticity-demo`](../python-mixed-boundary-elasticity-demo/README.md).
+It does not widen this trajectory case to arbitrary single-state spatial
+results. A `Result` call that supplies `step`, or a `Trajectory` call that
+omits it, rejects before constructing a Figure.
+
 `plot_fixed_reference_fsi` is withdrawn by this slice with no alias, shim, or
 deprecation path. The shared adapter surface also contains no `plot_pressure`;
 its static `Result` replacement through `plot_scalar_field` belongs to
 [`interfaces.python-exact-cylinder-pressure-still`](../python-exact-cylinder-pressure-still/README.md),
 not this Trajectory claim.
+
+For one subsequent prerelease, `plot_displacement` remains only as an
+actionable `DeprecationWarning`-emitting delegation to the structural static
+`Result` arm of `plot_deformed_field`. It owns no renderer, accepted input,
+scientific value, tolerance, lineage, or evidence in this case and is not an
+ordinary presentation API.
 
 ## Independent acceptance contract
 
@@ -101,7 +116,9 @@ The absence of the withdrawn still is checked in the installed runtime,
 exports, and packaged stub only; documentation and example text are outside the
 installed profile this case executes. The static-`Result` overload of
 `plot_scalar_field` is owned by the exact-cylinder pressure-still case;
-`plot_displacement` remains out of scope and untouched by this claim.
+The compatibility-only `plot_displacement` name remains outside this case's
+accepted input and evidence ownership; its delegation is checked by the
+structural sibling case.
 
 The complete bounded executable contract and its pre-committed falsifiers are
 in [`case.toml`](case.toml).

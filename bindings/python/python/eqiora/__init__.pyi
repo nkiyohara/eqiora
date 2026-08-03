@@ -826,6 +826,12 @@ def run(
     plan: fluid.SteadyStokesPlan,
 ) -> Result: ...
 @overload
+def run(
+    model: Model,
+    *,
+    plan: solid.LinearElasticityPlan,
+) -> Result: ...
+@overload
 def submit(
     model: Model,
     *,
@@ -840,6 +846,12 @@ def submit(
     model: Model,
     *,
     plan: fluid.SteadyStokesPlan,
+) -> Run[Result]: ...
+@overload
+def submit(
+    model: Model,
+    *,
+    plan: solid.LinearElasticityPlan,
 ) -> Run[Result]: ...
 def through(port: ConservingPort) -> Expression: ...
 def trace(value: _ExpressionLike) -> Expression: ...
