@@ -11,24 +11,22 @@ Everything longer lives in the document that owns it, and those documents are au
   parallel work.**
 - [Local verification](docs/development/local-verification.md) — the gate tiers.
 
-## Three frontier agents, one review layer
+## One primary agent, independent roles
 
-Codex GPT-5.6 Sol, Claude Fable 5, and Claude Opus 5 advance Eqiora; the
-maintainer directs without reading diffs. Route by observed failure mode, never rank.
+Codex GPT-5.6 Sol is the default for contract ownership, implementation,
+end-to-end integration, review, and repository gates. The maintainer directs
+without reading diffs; independence comes from separated roles and fresh context.
 
-Assign by independence and observed failure mode. A writer never authors or
-tunes its own oracle; another provider lineage reviews its complete diff
-(Claude includes Fable and Opus; Codex/GPT is separate). Read-only exploration,
-derivation, and review may run in parallel; one writer owns each seam.
+A writer never authors or tunes its own oracle and never reviews its own diff.
+A fresh-context non-implementer may own the oracle or review the complete diff
+even with the same provider lineage. Bound each handoff by the frozen claim,
+writable paths, and non-claims; never share writer scratch with oracle or reviewer.
 
-Use Opus for bounded derivation, oracle construction, mutation search, and
-narrow review; give it the complete frozen specification plus hard scope and
-terminal-output limits. Escalate a cross-cutting, visual, or long-horizon slice,
-or successive newly discovered mutants in one bounded review, to Fable.
-
-Use Codex for contract ownership, live end-to-end lineage, integration, and repository gates.
-Use bounded handoffs, never shared scratch context. There is no downstream review:
-confidence is not evidence, and every result states what was not checked.
+Provider diversity is optional escalation, not a gate. Use Opus for bounded
+derivation, mutation search, or review when agents disagree, an oracle appears
+wrong, or a scientific claim is unusually consequential. Use Fable for
+cross-cutting, visual, or long-horizon review when fresh-context Sol review is
+insufficient. Confidence is not evidence; every result states what was not checked.
 
 ## Run every lane that can run
 
@@ -122,19 +120,20 @@ the proof rather than adjusting the implementation to match.
 An exact-artifact oracle replays the producer's exact ordering: a geometrically
 equivalent fixture is not byte evidence when local order changes quality or digest.
 
-Every change is reviewed **before integration** by an agent that did not write
-it. **The integrator's own work is not exempt** — holding the acceptance
-decision is exactly what makes self-acceptance cost nothing. The review may be
-brief; its absence is a defect in the slice. A review that happens after
-acceptance is not this gate.
+Every change is reviewed **before integration** by a fresh-context non-writer;
+the same provider lineage is permitted. **The integrator's own work is not
+exempt**: holding acceptance makes self-acceptance cost nothing. Review may be
+brief; absence is a defect, and review after acceptance is not this gate.
 
-Cross-review catches what one agent missed, not what both assumed. A slice
-whose claim rests on a derivation therefore carries a **dual independent oracle
-gate**: two agents derive the expected values separately from the public claim,
-one analytically and one by a different numerical or symbolic route, each
-without reading the implementation or existing fixtures, and implementation
-does not begin until they agree. This is for derivation-bearing scientific
-slices only; an adapter or application surface does not need it.
+Cross-review catches what one agent missed, not what both assumed. Only a new
+scientific formulation, expected value, or tolerance carries a **dual
+independent oracle gate**: two fresh-context agents derive it from the public
+claim by different analytic and numerical or symbolic routes, without reading
+implementation, writer scratch, or fixtures. They may use the same provider;
+separation is recommended only on disagreement or consequential claims. Durable
+schemas and exact artifacts require a pre-committed non-implementer oracle, not
+dual derivation unless they introduce science. Adapters and application surfaces
+need focused tests and non-writer review, not derivation ceremony.
 
 ## Slice ownership
 
