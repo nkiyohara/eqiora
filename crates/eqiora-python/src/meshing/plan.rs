@@ -3,6 +3,7 @@
 use eqiora::artifact::AcceptedCircularHoleChordalRealizationV1;
 use eqiora::meshing::MeshQualityGate;
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 
 use super::request_error;
 use crate::error::validation_error;
@@ -135,6 +136,16 @@ impl PyMeshPlan {
     #[getter]
     const fn boundary_evaluation_allowance(&self) -> f64 {
         self.accepted.boundary_evaluation_allowance_m()
+    }
+
+    /// Canonical bytes of the complete accepted source-to-mesh binding.
+    #[getter]
+    fn canonical_bytes(&self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
+        self.accepted
+            .envelope()
+            .canonical_json()
+            .map(|bytes| PyBytes::new(py, &bytes).unbind())
+            .map_err(|diagnostic| validation_error(py, std::slice::from_ref(&diagnostic)))
     }
 
     /// Measured minimum mean ratio achieved by the resolved mesh.

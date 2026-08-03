@@ -8,22 +8,26 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 
 use eqiora::api::{
-    CircularHoleSteadyStokesResult2d, ReferenceRunCancellation, ReferenceRunPlan,
-    ReferenceRunProgress, ReferenceRunResult, ScalarEllipticExecutionEnvironment,
-    ScalarEllipticRunCancellation, ScalarEllipticRunProgress, ScalarEllipticRunResult,
+    ReferenceRunCancellation, ReferenceRunPlan, ReferenceRunProgress, ReferenceRunResult,
+    ScalarEllipticExecutionEnvironment, ScalarEllipticRunCancellation, ScalarEllipticRunProgress,
+    ScalarEllipticRunResult,
 };
 use eqiora::diagnostic::codes;
 use eqiora::{Diagnostic, GraphPath};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
+use crate::PyModel;
 use crate::error::{
     cancellation_error, catch_native_panic, diagnostic_error, execution_error,
     internal_diagnostic_error, internal_error, panic_boundary,
 };
+use crate::meshing::PyMesh;
 use crate::realization::{PyRealization, PyScalarEllipticResult};
-use crate::steady_stokes::{PyCircularHoleSteadyStokesResult, PySteadyStokesPlan};
-use crate::{PyModel, result_into_python};
+use crate::result::result_into_python;
+use crate::steady_stokes::{
+    PySteadyStokesPlan, SteadyStokesRunMaterialization, materialize_result as materialize_stokes,
+};
 
 pub(crate) use evidence::RunIdentity;
 use evidence::{
@@ -64,7 +68,15 @@ impl NativeRunProgress {
 enum NativeRunOutput {
     Reference(ReferenceRunResult),
     ScalarElliptic(Box<ScalarEllipticRunResult>),
-    SteadyStokes(Box<CircularHoleSteadyStokesResult2d>),
+    SteadyStokes {
+        result: Box<SteadyStokesRunMaterialization>,
+        elapsed_seconds: f64,
+    },
+}
+
+enum ResultMaterializationContext {
+    None,
+    SteadyStokes { mesh: Py<PyMesh> },
 }
 
 #[derive(Debug, Clone)]
@@ -455,6 +467,7 @@ impl ResultCache {
 #[pyclass(name = "Run", module = "eqiora._eqiora", frozen, skip_from_py_object)]
 pub(crate) struct PyRun {
     identity: RunIdentity,
+    materialization: ResultMaterializationContext,
     shared: Arc<RunShared>,
     result_cache: Arc<ResultCache>,
 }
@@ -477,6 +490,7 @@ impl PyRun {
         Self::spawn(
             identity,
             NativeRunJob::Reference { document, plan },
+            ResultMaterializationContext::None,
             "eqiora-reference-run",
         )
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
@@ -514,6 +528,7 @@ impl PyRun {
                 plan: Box::new(plan),
                 environment: ScalarEllipticExecutionEnvironment::host_serial(),
             },
+            ResultMaterializationContext::None,
             "eqiora-scalar-elliptic-run",
         )
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
@@ -529,6 +544,9 @@ impl PyRun {
         Self::spawn(
             identity,
             NativeRunJob::SteadyStokes(Box::new(plan.native().clone())),
+            ResultMaterializationContext::SteadyStokes {
+                mesh: plan.mesh(py),
+            },
             "eqiora-steady-stokes-run",
         )
         .map_err(|diagnostics| internal_diagnostic_error(py, &diagnostics))
@@ -537,6 +555,7 @@ impl PyRun {
     fn spawn(
         identity: RunIdentity,
         job: NativeRunJob,
+        materialization: ResultMaterializationContext,
         thread_name: &str,
     ) -> Result<Self, Vec<Diagnostic>> {
         let shared = Arc::new(RunShared::new());
@@ -556,6 +575,7 @@ impl PyRun {
         }
         Ok(Self {
             identity,
+            materialization,
             shared,
             result_cache: Arc::new(ResultCache::new()),
         })
@@ -669,7 +689,9 @@ impl PyRun {
                     "the completed native Result payload was unavailable",
                 ));
             };
-            let projected = catch_native_panic(|| materialize_result(py, result, &self.identity));
+            let projected = catch_native_panic(|| {
+                materialize_result(py, result, &self.identity, &self.materialization)
+            });
             match projected {
                 Ok(Ok(result)) => {
                     materialization.commit(result.clone_ref(py));
@@ -698,6 +720,7 @@ fn materialize_result(
     py: Python<'_>,
     result: NativeRunOutput,
     identity: &RunIdentity,
+    context: &ResultMaterializationContext,
 ) -> PyResult<Py<PyAny>> {
     match result {
         NativeRunOutput::Reference(result) => result_into_python(py, result, identity.clone())
@@ -706,11 +729,24 @@ fn materialize_result(
         NativeRunOutput::ScalarElliptic(result) => PyScalarEllipticResult::from_result(py, *result)
             .and_then(|result| Py::new(py, result))
             .map(Py::into_any),
-        NativeRunOutput::SteadyStokes(result) => {
-            PyCircularHoleSteadyStokesResult::from_native(py, *result)
-                .and_then(|result| Py::new(py, result))
-                .map(Py::into_any)
-        }
+        NativeRunOutput::SteadyStokes {
+            result,
+            elapsed_seconds,
+        } => match context {
+            ResultMaterializationContext::SteadyStokes { mesh } => materialize_stokes(
+                py,
+                *result,
+                identity.clone(),
+                elapsed_seconds,
+                mesh.clone_ref(py),
+            )
+            .and_then(|result| Py::new(py, result))
+            .map(Py::into_any),
+            ResultMaterializationContext::None => Err(internal_error(
+                py,
+                "steady-Stokes Result lost its accepted Mesh context",
+            )),
+        },
     }
 }
 

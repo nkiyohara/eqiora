@@ -3,11 +3,10 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use eqiora::api::{
-    ModelDocument, ModelFieldRef, ModelParameterRef, StructuralSemanticFingerprint, ValueEditPlan,
-};
+use eqiora::api::{ModelDocument, ModelParameterRef, StructuralSemanticFingerprint, ValueEditPlan};
 use eqiora::artifact::{CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelope};
 use eqiora::diagnostic::codes;
+use eqiora::graph::Op;
 use eqiora::{Diagnostic, EntityKind, RawId};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyModule};
@@ -169,29 +168,17 @@ impl PyModelParameterRef {
     hash,
     skip_from_py_object
 )]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PyModelFieldRef {
-    pub(crate) value: ModelFieldRef,
     model_digest: String,
     id: String,
 }
 
-impl PartialEq for PyModelFieldRef {
-    fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
-    }
-}
-
-impl Eq for PyModelFieldRef {}
-
-impl Hash for PyModelFieldRef {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.model_digest.hash(state);
-        self.id.hash(state);
-    }
-}
-
 impl PyModelFieldRef {
+    pub(crate) fn from_exact(model_digest: String, id: String) -> Self {
+        Self { model_digest, id }
+    }
+
     pub(crate) fn exact_model_digest(&self) -> &str {
         &self.model_digest
     }
@@ -330,16 +317,28 @@ impl PyModel {
         py: Python<'_>,
         field: eqiora::Id<eqiora::kinds::Field>,
     ) -> PyResult<PyModelFieldRef> {
-        let value = self
-            .document()
-            .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?
-            .field_ref(&field.ulid().to_string())
+        let reference = self
+            .artifact
+            .artifact_reference()
             .map_err(|diagnostic| internal_diagnostic_error(py, &[diagnostic]))?;
-        Ok(PyModelFieldRef {
-            model_digest: value.model().artifact().to_string(),
-            id: value.id().ulid().to_string(),
-            value,
-        })
+        Ok(PyModelFieldRef::from_exact(
+            reference.artifact().to_string(),
+            field.ulid().to_string(),
+        ))
+    }
+
+    fn artifact_ids(&self, kind: EntityKind) -> Result<Vec<String>, Vec<Diagnostic>> {
+        let (transaction, _) = self.artifact.to_transaction()?;
+        Ok(transaction
+            .ops()
+            .iter()
+            .filter_map(|operation| match operation {
+                Op::DefineKernelNode { node } if node.id().kind() == kind => {
+                    Some(node.id().ulid().to_string())
+                }
+                _ => None,
+            })
+            .collect())
     }
 
     fn resolve_edit_target(&self, target: &str) -> Result<RawId, Diagnostic> {
@@ -450,14 +449,17 @@ impl PyModel {
     /// Stable ULIDs of Fields that can appear in results.
     #[getter]
     fn field_ids(&self, py: Python<'_>) -> PyResult<Vec<String>> {
-        Ok(self
-            .document()
-            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
-            .program()
-            .nodes()
-            .filter(|node| node.id().kind() == EntityKind::Field)
-            .map(|node| node.id().ulid().to_string())
-            .collect())
+        match &self.document {
+            Some(document) => Ok(document
+                .program()
+                .nodes()
+                .filter(|node| node.id().kind() == EntityKind::Field)
+                .map(|node| node.id().ulid().to_string())
+                .collect()),
+            None => self
+                .artifact_ids(EntityKind::Field)
+                .map_err(|diagnostics| diagnostic_error(py, &diagnostics)),
+        }
     }
 
     /// Stable ULIDs of Parameters addressable by value edits.
@@ -492,16 +494,35 @@ impl PyModel {
     /// Resolve a source alias or exact ULID once into an exact Field role.
     fn field(&self, py: Python<'_>, selection: &str) -> PyResult<PyModelFieldRef> {
         panic_boundary(py, || {
-            let value = self
-                .document()
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?
-                .field_ref(selection)
+            if let Some(document) = &self.document {
+                let value = document
+                    .field_ref(selection)
+                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+                return Ok(PyModelFieldRef::from_exact(
+                    value.model().artifact().to_string(),
+                    value.id().ulid().to_string(),
+                ));
+            }
+            let field_ids = self
+                .artifact_ids(EntityKind::Field)
+                .map_err(|diagnostics| validation_error(py, &diagnostics))?;
+            if !field_ids.iter().any(|id| id == selection) {
+                return Err(validation_error(
+                    py,
+                    &[Diagnostic::error(
+                        codes::NODE_NOT_FOUND,
+                        "deferred-admission Model field selection requires an exact Field ULID",
+                    )],
+                ));
+            }
+            let reference = self
+                .artifact
+                .artifact_reference()
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-            Ok(PyModelFieldRef {
-                model_digest: value.model().artifact().to_string(),
-                id: value.id().ulid().to_string(),
-                value,
-            })
+            Ok(PyModelFieldRef::from_exact(
+                reference.artifact().to_string(),
+                selection.to_owned(),
+            ))
         })
     }
 

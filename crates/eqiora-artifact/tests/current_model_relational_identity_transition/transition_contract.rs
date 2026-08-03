@@ -102,6 +102,13 @@ const ORACLE_FILES: [&str; 2] = [
      transition_contract.rs",
 ];
 
+/// Cohesive admission regressions split out for the architecture ceiling.
+///
+/// Unlike `ORACLE_FILES`, this sibling deliberately carries no searched
+/// spelling, remains visible to the sweep, and needs no exclusion permission.
+const ADMISSION_TEST_FILE: &str = "crates/eqiora-artifact/tests/current_model_relational_identity_transition/\
+     post_reset_admission.rs";
+
 /// One walk of the working tree, answering both questions it can answer: which
 /// paths carry the Model search signal, and what the scopes contain. Two
 /// walkers would be two chances to disagree.
@@ -701,9 +708,9 @@ fn clean_post_reset_product_source() -> BTreeMap<String, String> {
 /// current-owner consumer is: naming the `model_digest` its caller already
 /// holds, freezing nothing. Mutation material, not a specification of those
 /// files — it is what makes the predicates below non-vacuous on a checkout
-/// where neither path exists, since every state reaches `observe_admitted`
+/// where none of the paths exists, since every state reaches `observe_admitted`
 /// through real bytes exactly as the live tree does.
-const ADMITTED_AS_RECORDED: [(&str, &str); 2] = [
+const ADMITTED_AS_RECORDED: [(&str, &str); 3] = [
     (
         "crates/eqiora-python/src/trajectory.rs",
         "pub fn trajectory(model_digest: &str) -> PyResult<Trajectory> {\n    \
@@ -712,6 +719,10 @@ const ADMITTED_AS_RECORDED: [(&str, &str); 2] = [
     (
         "bindings/python/python/eqiora/trajectory.pyi",
         "class Trajectory:\n    model_digest: str\n",
+    ),
+    (
+        "crates/eqiora-python/src/result.rs",
+        "pub fn result(model_digest: &str) -> PyResult<Result> {\n    Result::open(model_digest)\n}\n",
     ),
 ];
 
@@ -912,6 +923,13 @@ fn the_sweep_excludes_exactly_this_cases_two_executor_files() {
             "`{path}` is excluded from the sweep and must not also be a classified candidate"
         );
     }
+
+    let admission_bytes = fs::read(root.join(ADMISSION_TEST_FILE)).unwrap_or_else(|error| {
+        panic!("admission regression `{ADMISSION_TEST_FILE}` must exist: {error}")
+    });
+    assert!(!ORACLE_FILES.contains(&ADMISSION_TEST_FILE));
+    assert!(!carries_model_search_signal(&admission_bytes));
+    assert!(!inventory.contains(ADMISSION_TEST_FILE));
 
     // Exact, and only exact: every other test file in the crate — including the
     // sibling Model oracle — stays a classified inventory member.
@@ -1841,156 +1859,5 @@ fn a_clean_post_reset_product_source_is_accepted_and_a_private_branch_is_refused
     }
 }
 
-/// Admission adds a permission and nothing else: the historical record of the
-/// reset is what it was, and no admitted path joins a single set inside it.
-#[test]
-fn a_later_product_path_is_admitted_by_exact_path_and_joins_no_frozen_set() {
-    let contract = TransitionContract::from_classification();
-    let classification = classification();
-    let transition = &classification["search"]["transition"];
-    let classes = classification["classes"].as_object().unwrap();
-    let admitted = contract
-        .post_reset_admitted
-        .iter()
-        .map(|entry| entry.path.clone())
-        .collect::<BTreeSet<_>>();
-
-    assert_eq!(
-        admitted,
-        ADMITTED_AS_RECORDED
-            .iter()
-            .map(|(path, _)| (*path).to_owned())
-            .collect::<BTreeSet<_>>(),
-        "the admitted set is exactly the two paths this oracle derived, and the synthetic states \
-         below mutate those same two"
-    );
-    let count = transition["post_reset_admitted_path_count"]
-        .as_u64()
-        .unwrap();
-    assert_eq!(admitted.len(), contract.post_reset_admitted.len());
-    assert_eq!(admitted.len() as u64, count);
-
-    // Every historical count is still its own. Listing an admitted path in the
-    // inventory would claim it existed before the reset; listing one in
-    // `required_post_reset` would claim the reset created it, and would make a
-    // later capability a condition of the transition being accepted.
-    assert_eq!(contract.inventory.len(), 338);
-    assert_eq!(contract.retired.len(), 44);
-    assert_eq!(contract.preserved().len(), 304);
-    assert_eq!(contract.required_post_reset.len(), 13);
-    assert_eq!(contract.preserved_evidence.len(), 40);
-    for path in &admitted {
-        assert!(
-            !contract.inventory.contains(path)
-                && !contract.retired.contains(path)
-                && !contract.required_post_reset.contains(path)
-                && !contract.preserved_evidence.contains(path)
-                && !ORACLE_FILES.contains(&path.as_str())
-                && (contract.promotion.iter())
-                    .all(|row| row.source != *path && row.target != *path),
-            "admitted `{path}` joins no frozen set: not the inventory, not `retired`, not \
-             `required_post_reset`, not `preserved_evidence`, no promotion row, and not this \
-             oracle's own executor files"
-        );
-    }
-
-    // Each entry says what it is, who owns it, and why, and is admitted only for
-    // a signal the sweep really searches for, spelled as the sweep spells it.
-    for entry in transition["post_reset_admitted"].as_array().unwrap() {
-        let path = entry["path"].as_str().unwrap();
-        let class = entry["class"].as_str().unwrap();
-        assert!(classes.contains_key(class), "undeclared class {class}");
-        for key in ["owner", "note"] {
-            assert!(!entry[key].as_str().unwrap().is_empty(), "{path}: `{key}`");
-        }
-        let signals = frozen_list(entry, "signals");
-        let places = (signals.iter())
-            .map(|signal| SEARCH_TOKENS.iter().position(|token| token == signal))
-            .collect::<Option<Vec<_>>>();
-        assert!(
-            !signals.is_empty()
-                && places.is_some_and(|at| at.windows(2).all(|pair| pair[0] < pair[1])),
-            "{path} must record a nonempty signal list the sweep would find, in its order and \
-             without repeats"
-        );
-        assert_eq!(
-            entry["identity_literals"].as_u64().unwrap(),
-            0,
-            "{path} is admitted as a consumer surface and may freeze no Model identity"
-        );
-    }
-}
-
-/// The admission predicate: optional, signal-bearing, identity-free, absent
-/// before the reset, and exact.
-#[test]
-fn an_admitted_later_path_is_optional_signal_bearing_and_identity_free() {
-    let contract = TransitionContract::from_classification();
-    let classify = |observed: Observed| classify_transition(&contract, &observed);
-    let reset = || Observed::maximal_post_reset(&contract);
-    let both = |state: Observed| {
-        (ADMITTED_AS_RECORDED.iter()).fold(state, |at, (path, bytes)| at.admitting(path, bytes))
-    };
-    let trajectory = |source: &str| reset().admitting(ADMITTED_AS_RECORDED[0].0, source);
-
-    // Optional, in all three arrangements: neither path, either one, or both.
-    assert_eq!(classify(reset()), Ok(TransitionState::PostReset));
-    for (path, source) in ADMITTED_AS_RECORDED {
-        assert_eq!(
-            classify(reset().admitting(path, source)),
-            Ok(TransitionState::PostReset),
-            "`{path}` alone must be admissible"
-        );
-    }
-    assert_eq!(classify(both(reset())), Ok(TransitionState::PostReset));
-
-    // Signal. The first mutant is what neither path existence nor the candidate
-    // sweep can see: it exists, spells no signal at all, and is therefore never
-    // discovered. The second spells one signal more than it was admitted for.
-    for source in [
-        "pub fn trajectory(handle: &Handle) -> PyResult<Trajectory> {\n    handle.open()\n}\n",
-        "pub fn trajectory(model_digest: &str, model_sha256: &str) -> PyResult<Trajectory> {\n    \
-         todo!()\n}\n",
-    ] {
-        refused(
-            classify(trajectory(source)),
-            "must carry exactly its recorded search signal",
-        );
-    }
-
-    // Identity. The same consumer with one Model identity frozen into it is a
-    // fixture, and a fixture is classified rather than admitted.
-    let pinned = format!(
-        "{}const PINNED_MODEL: &str = \"{}\";\n",
-        ADMITTED_AS_RECORDED[0].1,
-        "e".repeat(64)
-    );
-    refused(
-        classify(trajectory(&pinned)),
-        "Model-derived identity literal",
-    );
-
-    // Pre-reset. Admission describes a path created after the reset, so one
-    // present before it is mid-flight — by existence alone, signal or not.
-    for (path, _) in ADMITTED_AS_RECORDED {
-        refused(
-            classify(Observed::exact_pre_reset(&contract).with(&[path])),
-            "admission covers a product path created after the reset",
-        );
-    }
-
-    // Exact. Admission reaches those two paths and no third: not a sibling in
-    // the same directory, not a file below one of them, not another spelling of
-    // the same name, and not the other extension of the same module.
-    for path in [
-        "crates/eqiora-python/src/trajectory_2d.rs",
-        "crates/eqiora-python/src/trajectory/segment.rs",
-        "bindings/python/python/eqiora/trajectory.py",
-        "bindings/python/python/eqiora/trajectory2.pyi",
-    ] {
-        refused(
-            classify(both(reset()).signalling(&[path])),
-            "unclassified new signal-bearing",
-        );
-    }
-}
+#[path = "post_reset_admission.rs"]
+mod post_reset_admission;

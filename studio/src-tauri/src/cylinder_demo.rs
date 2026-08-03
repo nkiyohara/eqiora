@@ -4,8 +4,7 @@ use std::num::NonZeroUsize;
 
 use eqiora::Diagnostic;
 use eqiora::api::{
-    CircularHoleSteadyStokesResult2d, ResolvedSteadyStokesPlan2d, SteadyStokesIntent2d,
-    UnstructuredP1ScalarFieldProjection2d,
+    ResolvedSteadyStokesPlan2d, SteadyStokesIntent2d, UnstructuredP1ScalarFieldProjection2d,
 };
 use eqiora::artifact::{AcceptedCircularHoleChordalRealizationV1, ModelEnvelope};
 use eqiora::backends::faer::FaerLinearSolver;
@@ -169,14 +168,6 @@ fn prepare_demo() -> Result<PreparedCylinderDemo, Diagnostic> {
     )?;
     let plan = ResolvedSteadyStokesPlan2d::resolve(&model, intent, &accepted, &FaerLinearSolver)?;
     let result = plan.execute(&FaerLinearSolver)?;
-    evidence(&result)
-}
-
-fn embedded_json(bytes: &[u8]) -> &[u8] {
-    bytes.strip_suffix(b"\n").unwrap_or(bytes)
-}
-
-fn evidence(result: &CircularHoleSteadyStokesResult2d) -> Result<PreparedCylinderDemo, Diagnostic> {
     let solution = result.solution();
     let chordal = result.chordal_realization();
     let constrained = solution.boundary_reaction();
@@ -230,6 +221,10 @@ fn evidence(result: &CircularHoleSteadyStokesResult2d) -> Result<PreparedCylinde
             continuity_residual_norm: dimensionless.continuity_residual_norm(),
         },
     })
+}
+
+fn embedded_json(bytes: &[u8]) -> &[u8] {
+    bytes.strip_suffix(b"\n").unwrap_or(bytes)
 }
 
 fn missing_evidence(name: &str) -> Diagnostic {

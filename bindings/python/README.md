@@ -117,15 +117,17 @@ still:
 ```python
 import eqiora.matplotlib as eqplot
 
-# `result` is the accepted exact-cylinder Result returned by the fluid solve.
-figure = eqplot.plot_pressure(result)
+# `result` is the common Result returned by the accepted fluid solve.
+pressure = result.snapshots[0]
+figure = eqplot.plot_scalar_field(result, field=pressure.field)
 figure.savefig("exact-cylinder-pressure.png")
 ```
 
-The adapter accepts the complete accepted Result rather than raw arrays. It
-uses the Result's explicit triangle connectivity, vertex-associated P1
-pressure, and full pressure range in pascals. It is not a generic Field plot,
-animation, media-publication, or visual-validation claim.
+The adapter selects an exact Model-bound Field from the accepted Result rather
+than accepting raw arrays. It uses the Result's paired Mesh connectivity,
+vertex-associated P1 pressure, and Rust-owned full pressure range in pascals.
+This slice does not claim arbitrary fields, vectors, animation,
+media-publication, or visual validation.
 
 The accepted mixed-boundary structural workflow is likewise an ordinary
 Python file:

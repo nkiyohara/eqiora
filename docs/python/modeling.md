@@ -126,18 +126,24 @@ intent = eqiora.fluid.SteadyStokes(
 plan = eqiora.fluid.resolve(model, intent, mesh=mesh)
 result = eqiora.run(model, plan=plan)
 
-print(result.solve)
-print(result.pressure_minimum, result.pressure_maximum)
-print(result.cylinder_force_on_fluid, result.net_flux)
+pressure = result.snapshots[0]
+evidence = eqiora.fluid.steady_stokes_evidence(result)
+print(result.run_manifest().digest, pressure.digest)
+print(evidence.solve)
+print(evidence.pressure_minimum, evidence.pressure_maximum)
+print(evidence.cylinder_force_on_fluid, evidence.net_flux)
 ```
 
 Studio and Python use the same Rust resolved Plan for Model replay, exact-source
 binding, field-wise Realization, solve, pressure snapshot, and Run provenance.
 The Plan exposes the exact spaces, scales, solver tuple, backend, placement,
 and existing Realization bytes before a worker starts.
-`result.pressure` is the existing immutable rank-one `Array`;
-`result.coordinates` and `result.triangles` lazily publish read-only NumPy
-matrices in matching mesh order.
+The common `Result` exposes one immutable pressure `FieldSnapshot`, selected by
+its exact Model-bound `FieldRef`; `result.mesh(field)` returns the paired common
+`Mesh`. Snapshot values and Mesh coordinates/connectivity lazily publish
+read-only NumPy views in matching mesh order. Solver- and physics-specific
+observations remain available through
+`eqiora.fluid.steady_stokes_evidence(result)`.
 
 This operation admits only the checked exact-cylinder Model and mesh plus the
 frozen scale and SparseLU intent. Replaying the Model bytes is explicit
@@ -164,19 +170,19 @@ The equivalent composition API is:
 ```python
 import eqiora.matplotlib as eqplot
 
-figure = eqplot.plot_pressure(result)
+pressure = result.snapshots[0]
+figure = eqplot.plot_scalar_field(result, field=pressure.field)
 figure.savefig("exact-cylinder-pressure.png")
 ```
 
-The adapter accepts only the complete
-`CircularHoleSteadyStokesResult`. It sends the Result's co-indexed P1 pressure,
-coordinates, and explicit accepted triangle connectivity to Matplotlib and
-uses the Result's pressure extrema in pascals. Gouraud shading is presentation
-interpolation of the accepted vertex coefficients, not a new scientific
-field.
+The adapter selects an exact Field from the common `Result`. It sends the
+co-indexed P1 pressure, paired Mesh coordinates, and explicit accepted triangle
+connectivity to Matplotlib and uses the Rust-owned pressure extrema in pascals.
+Gouraud shading is presentation interpolation of accepted vertex coefficients,
+not a new scientific field.
 
 Matplotlib remains optional and is not imported by base `eqiora`. This bounded
-still does not claim raw-array or general Field plotting, contours, velocity,
+still does not claim raw-array or arbitrary Field plotting, contours, velocity,
 interactive behavior, animation, deterministic image bytes, media admission,
 or validation from visual similarity.
 

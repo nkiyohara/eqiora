@@ -24,9 +24,11 @@ generic Python fluid-authoring or solver API.
 
 The previous single-call `eqiora.fluid.solve_exact_cylinder_stokes(...)` entry
 point is withdrawn in the same slice, so there is exactly one execution
-composition. `CircularHoleSteadyStokesResult` survives only as the temporary
-output of this Run, until the common spatial Result and FieldSnapshot
-migration deletes it; it gains no second construction path.
+composition. The Run now returns the existing common `eqiora.Result`: its
+static output is one common `FieldSnapshot` paired with the exact accepted
+`Mesh`, while `fluid.steady_stokes_evidence(result)` selects the bounded
+physics observations. No cylinder-shaped Result owner or compatibility alias
+survives.
 
 ## Intent, Plan, and Run
 
@@ -160,17 +162,17 @@ schema-domain-separated framing, and requires the recomputed values to equal
 the public digests. This catches fabricated or stale lineage while avoiding an
 oracle copied from the implementation under test.
 
-The Result owns a complete pressure P1 field co-indexed with its 104 support
-coordinates. Its support arrays must equal the accepted inner mesh artifact.
-The six coordinate-selected pressure probes avoid assuming a local vertex
-order beyond that public co-indexing.
+The common Result owns a complete pressure P1 `FieldSnapshot` co-indexed with
+the 104 vertices of its paired common `Mesh`. Its support arrays must equal the
+accepted inner mesh artifact. The six coordinate-selected pressure probes
+avoid assuming a local vertex order beyond that public co-indexing.
 
 ## Python ownership boundary
 
-`pressure` reuses Eqiora's immutable `Array`. `coordinates` and `triangles`
-are memoized read-only NumPy views, with `float64 (104, 2)` and
-`uint32 (104, 3)` layouts. The views remain valid after the Result and its
-other owners are deleted. None can be made writeable.
+`FieldSnapshot.values("vertex")` and `support_indices("vertex")` are memoized
+read-only NumPy views. The paired Mesh coordinates and cells have `float64
+(104, 2)` and `uint32 (104, 3)` layouts. The views remain valid after the
+Result and its other owners are deleted. None can be made writeable.
 
 NumPy remains absent while constructing the exact geometry, source-bound mesh,
 solving, inspecting scalar metadata, and indexing pressure. Matrix access is
@@ -199,17 +201,19 @@ differs; the case asserts both facts so the substitution remains real. A
 shape-equal Model with a foreign source revision is additionally rejected at
 `submit` and `run` against an already accepted Plan.
 
-The final tree must not retain the withdrawn entry point. The case checks the
-installed `eqiora.fluid` module attribute and `__all__`, the native
-`eqiora._eqiora` module, and the packaged `fluid.pyi` stub, and pins the
-exported `fluid.__all__` set to exactly `CircularHoleSteadyStokesResult`,
-`SteadyStokes`, `SteadyStokesPlan`, and `resolve`.
+The final tree must not retain the withdrawn entry point or the demo-specific
+Result type. The case checks the installed `eqiora.fluid` module attribute and
+`__all__`, the native `eqiora._eqiora` module, and the packaged `fluid.pyi`
+stub, and pins the exported `fluid.__all__` set to exactly `SteadyStokes`,
+`SteadyStokesEvidence`, `SteadyStokesPlan`, `resolve`, and
+`steady_stokes_evidence`.
 
-`eqiora.matplotlib.plot_pressure` is unchanged and still consumes the Run's
-`CircularHoleSteadyStokesResult` unmodified; rendering itself stays owned by
+The removed `eqiora.matplotlib.plot_pressure` name has no alias. The general
+`plot_scalar_field(result, field=...)` overload consumes the common owners;
+rendering itself stays owned by
 [`interfaces.python-exact-cylinder-pressure-still`](../python-exact-cylinder-pressure-still/README.md),
-and this case only checks that the migrated Result remains an accepted input
-when Matplotlib is installed.
+and this case only checks that the common Result remains an accepted input when
+Matplotlib is installed.
 
 This case claims no general Model or fluid authoring, velocity or MINI bubble
 projection, drag/lift coefficient, generic meshing or solver selection,

@@ -3,14 +3,13 @@ from typing import assert_type
 from matplotlib.figure import Figure
 
 import eqiora.matplotlib as eqplot
-from eqiora import FieldRef
-from eqiora.fluid import CircularHoleSteadyStokesResult
+from eqiora import FieldRef, Result
 from eqiora.solid import MixedBoundaryElasticityResult
 from eqiora.trajectory import Trajectory
 
 
-def check_matplotlib_adapter(result: CircularHoleSteadyStokesResult) -> None:
-    figure = eqplot.plot_pressure(result)
+def check_matplotlib_adapter(result: Result, field: FieldRef) -> None:
+    figure = eqplot.plot_scalar_field(result, field=field)
     assert_type(figure, Figure)
 
 

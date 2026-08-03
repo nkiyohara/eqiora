@@ -5,14 +5,15 @@ This case freezes one optional presentation adapter:
 ```python
 import eqiora.matplotlib as eqplot
 
-figure = eqplot.plot_pressure(result)
+pressure = result.snapshots[0]
+figure = eqplot.plot_scalar_field(result, field=pressure.field)
 figure.savefig("pressure.png")
 ```
 
-The input must be the accepted
-`eqiora.fluid.CircularHoleSteadyStokesResult`. The adapter passes its complete
-co-indexed pressure and support mesh to Matplotlib; it does not accept raw
-arrays or reconstruct scientific meaning.
+The input is the common `eqiora.Result` returned by the accepted fluid Run.
+The adapter selects its pressure `FieldSnapshot` through an exact Model-bound
+`FieldRef` and passes the paired common Mesh and complete co-indexed values to
+Matplotlib; it does not accept raw arrays or reconstruct scientific meaning.
 
 ## Independent acceptance contract
 
@@ -24,11 +25,11 @@ without changing any scientific value or tolerance.
 The installed-wheel test captures the public triangular renderer call while
 allowing the real Agg draw to continue. It requires exact equality between:
 
-- renderer `x` and `result.coordinates[:, 0]`;
-- renderer `y` and `result.coordinates[:, 1]`;
-- explicit renderer connectivity and `result.triangles`;
-- renderer vertex values and `result.pressure.numpy(copy=False)`; and
-- renderer color limits and the Result's pressure extrema.
+- renderer `x` and `result.mesh(field).coordinates[:, 0]`;
+- renderer `y` and `result.mesh(field).coordinates[:, 1]`;
+- explicit renderer connectivity and `result.mesh(field).cells`;
+- renderer vertex values and `result.field(field).values("vertex")`; and
+- renderer color limits and the Rust-owned accepted pressure extrema.
 
 The renderer uses vertex-associated Gouraud shading only as presentation of
 the already accepted P1 coefficients. It does not smooth, average, shift,
@@ -57,7 +58,8 @@ dimensions, and nonuniform visible content.
 
 ## Non-claims
 
-This is not a generic Result, Field, or raw-array plotting API. It claims no
+This verifies the common static-Result scalar adapter for one accepted Field,
+not arbitrary Result, Field, or raw-array plotting. It claims no
 velocity, vectors, contours, streamlines, probes, interactive behavior, 3D,
 trajectory animation, media admission, publication styling, deterministic
 image bytes, or scientific evidence from visual similarity.

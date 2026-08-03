@@ -268,12 +268,12 @@ class Run:
 
     def result(
         self,
-    ) -> Result | ScalarEllipticResult | fluid.CircularHoleSteadyStokesResult:
+    ) -> Result | ScalarEllipticResult:
         return self._native.result()
 
     async def _wait(
         self,
-    ) -> Result | ScalarEllipticResult | fluid.CircularHoleSteadyStokesResult:
+    ) -> Result | ScalarEllipticResult:
         import asyncio
 
         while not self.done:

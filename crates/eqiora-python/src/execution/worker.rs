@@ -14,6 +14,7 @@ use super::{
     NativeRunCancellation, NativeRunOutput, NativeRunProgress, RunFailure, RunShared, RunTerminal,
 };
 use crate::error::catch_native_panic;
+use crate::steady_stokes::{SteadyStokesPhysicalEvidence, SteadyStokesRunMaterialization};
 
 const PROGRESS_PUBLICATION_INTERVAL: Duration = Duration::from_millis(100);
 
@@ -134,12 +135,33 @@ fn execute_job(
                 }
             }
         }
-        NativeRunJob::SteadyStokes(plan) => plan
-            .execute(&FaerLinearSolver)
-            .map(|result| {
-                NativeWorkerOutcome::Completed(NativeRunOutput::SteadyStokes(Box::new(result)))
-            })
-            .map_err(|diagnostic| vec![diagnostic]),
+        NativeRunJob::SteadyStokes(plan) => {
+            let started = Instant::now();
+            let result = plan
+                .execute(&FaerLinearSolver)
+                .map_err(|diagnostic| vec![diagnostic])?;
+            let elapsed_seconds = started.elapsed().as_secs_f64();
+            let physical = SteadyStokesPhysicalEvidence::new(
+                result.cylinder_force_on_fluid(),
+                result.inlet_flux(),
+                result.outlet_flux(),
+                result.net_flux(),
+                result.momentum_closure(),
+            );
+            let materialized = SteadyStokesRunMaterialization::new(
+                result.run().clone(),
+                result.snapshot().clone(),
+                result.pressure_projection().clone(),
+                result.solution().clone(),
+                physical,
+            );
+            Ok(NativeWorkerOutcome::Completed(
+                NativeRunOutput::SteadyStokes {
+                    result: Box::new(materialized),
+                    elapsed_seconds,
+                },
+            ))
+        }
     }
 }
 

@@ -30,6 +30,12 @@ are recorded here.
   `Trajectory` and exact Model-bound `FieldRef` values. No compatibility alias
   is retained.
 
+- The exact-cylinder fluid path now returns the common `Result`,
+  `FieldSnapshot`, and `Mesh` owners. Scientific observations move behind
+  `fluid.steady_stokes_evidence(result)`, while the demo-specific
+  `CircularHoleSteadyStokesResult` and `plot_pressure(...)` surfaces are
+  removed in favor of `plot_scalar_field(result, field=...)`.
+
 - Reset the pre-release Model artifact epoch to one current contract. Rust's
   generation-selecting codec API and `eqiora::compatibility`, Python
   `eqiora.compatibility`, Model/Transaction v1--v7 runtime support, and

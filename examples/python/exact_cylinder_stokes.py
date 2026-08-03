@@ -7,7 +7,7 @@ from pathlib import Path
 import eqiora
 
 
-def solve() -> eqiora.fluid.CircularHoleSteadyStokesResult:
+def solve() -> eqiora.Result:
     graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
         x_bounds=(0.0, 2.2),
         y_bounds=(0.0, 0.41),
@@ -63,20 +63,22 @@ def main() -> None:
     arguments = parser.parse_args()
 
     result = solve()
-    print(result.run_digest)
-    print(result.solve)
+    pressure = result.snapshots[0]
+    evidence = eqiora.fluid.steady_stokes_evidence(result)
+    print(result.run_manifest().digest)
+    print(evidence.solve)
     print(
         "pressure",
-        result.pressure_minimum,
-        result.pressure_maximum,
+        evidence.pressure_minimum,
+        evidence.pressure_maximum,
         "Pa",
     )
-    print("cylinder force on fluid", result.cylinder_force_on_fluid, "N/m")
-    print("net flux", result.net_flux, "m^2/s")
+    print("cylinder force on fluid", evidence.cylinder_force_on_fluid, "N/m")
+    print("net flux", evidence.net_flux, "m^2/s")
     if arguments.pressure_png is not None:
         import eqiora.matplotlib as eqplot
 
-        figure = eqplot.plot_pressure(result)
+        figure = eqplot.plot_scalar_field(result, field=pressure.field)
         figure.savefig(arguments.pressure_png, dpi=180)
         print("pressure still", arguments.pressure_png)
 
