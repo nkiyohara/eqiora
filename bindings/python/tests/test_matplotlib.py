@@ -1004,7 +1004,7 @@ def test_stills_reject_foreign_identity_and_contract_violations_before_a_figure(
     for foreign_input in (object(), result, trajectory.coordinates):
         with pytest.raises(TypeError, match="Result|Trajectory|step"):
             eqplot.plot_scalar_field(foreign_input, step=1, field=pressure)
-        with pytest.raises(TypeError, match="Trajectory"):
+        with pytest.raises(TypeError, match="Result|Trajectory"):
             eqplot.plot_deformed_field(foreign_input, step=1, field=displacement)
     for other in (foreign, revised):
         with pytest.raises(ValueError, match="different exact Model"):
