@@ -1,7 +1,7 @@
 #[cfg(any(feature = "cuda", feature = "hip"))]
 use eqiora_cubecl_local_action_experiment::{LocalActionPolicy, execute};
-use eqiora_meshing::QuadratureRule;
-use eqiora_numerics::{common::CartesianMesh, scalar::lower_cartesian_q1_diffusion_local_action};
+use eqiora_meshing::{CartesianMesh, QuadratureRule};
+use eqiora_numerics::scalar::lower_cartesian_q1_diffusion_local_action;
 
 fn action_case(dimension: usize) -> (eqiora_ir::LocalLinearActionIr, Vec<f64>) {
     let bounds = vec![[-0.5, 1.5]; dimension];

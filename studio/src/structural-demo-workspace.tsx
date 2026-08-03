@@ -276,8 +276,8 @@ export function StructuralDemoWorkspace({ result }: StructuralDemoWorkspaceProps
               <Identity label="Run" value={result.lineage.runDigest} />
             </dl>
             <small>
-              This Run contains one durable displacement Field snapshot bound to its exact
-              Cartesian Mesh; this view presents the unchanged projection.
+              This Run contains one durable displacement Field snapshot bound to its exact Cartesian
+              Mesh; this view presents the unchanged projection.
             </small>
           </section>
 
