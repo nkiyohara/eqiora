@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import contextlib
+import io
+import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -12,6 +17,10 @@ sys.path.insert(0, str(CI_ROOT))
 
 from local_verify import (  # noqa: E402
     PlannedCommand,
+    ResourceBudget,
+    ResourceRequest,
+    VerificationFailure,
+    VerificationLane,
     VerificationPlan,
     WorkspacePackage,
     build_plan,
@@ -19,6 +28,7 @@ from local_verify import (  # noqa: E402
     direct_packages,
     local_changed_paths,
     reverse_dependency_closure,
+    run_plan,
 )
 from check_docs import check as check_docs  # noqa: E402
 
@@ -287,6 +297,252 @@ class PlanTests(unittest.TestCase):
                 plan = build_plan("affected", [path], [], workspace())
                 labels = {item.label for item in plan.commands}
                 self.assertIn("CI contract tests", labels)
+
+
+class SchedulerTests(unittest.TestCase):
+    @staticmethod
+    def plan(*commands: PlannedCommand) -> VerificationPlan:
+        return VerificationPlan("affected", (), (), (), commands, ())
+
+    @staticmethod
+    def lane(
+        name: str,
+        *,
+        cpu_slots: int = 1,
+        memory_mib: int = 1,
+        gpu_slots: int = 0,
+        locks: tuple[str, ...] = (),
+    ) -> VerificationLane:
+        return VerificationLane(
+            name,
+            ResourceRequest(cpu_slots, memory_mib, gpu_slots, locks),
+        )
+
+    def test_disjoint_lanes_overlap_and_logs_remain_plan_ordered(self) -> None:
+        rendezvous = threading.Barrier(2)
+        completion_order: list[str] = []
+        completion_lock = threading.Lock()
+
+        def execute(argv: tuple[str, ...], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+            rendezvous.wait(timeout=1.0)
+            if argv[0] == "slow":
+                time.sleep(0.05)
+            output = kwargs["stdout"]
+            output.write(f"LOG-{argv[0]}\n".encode())
+            output.flush()
+            with completion_lock:
+                completion_order.append(argv[0])
+            return subprocess.CompletedProcess(argv, 0)
+
+        plan = self.plan(
+            PlannedCommand("slow witness", ("slow",), lane=self.lane("rust")),
+            PlannedCommand("fast witness", ("fast",), lane=self.lane("python")),
+        )
+        stream = io.StringIO()
+        with (
+            mock.patch("local_verify.subprocess.run", side_effect=execute),
+            contextlib.redirect_stdout(stream),
+            tempfile.TemporaryDirectory(dir=Path.home()) as directory,
+        ):
+            run_plan(
+                plan,
+                Path(directory),
+                budget=ResourceBudget(2, 2),
+                scratch_root=Path(directory) / "scratch",
+            )
+
+        self.assertEqual(completion_order, ["fast", "slow"])
+        self.assertEqual(
+            [line for line in stream.getvalue().splitlines() if line.startswith("LOG-")],
+            ["LOG-slow", "LOG-fast"],
+        )
+
+    def test_cpu_memory_gpu_and_named_locks_each_prevent_overlap(self) -> None:
+        scenarios = {
+            "cpu": (
+                self.lane("first", cpu_slots=1),
+                self.lane("second", cpu_slots=1),
+                ResourceBudget(1, 2, 0),
+            ),
+            "memory": (
+                self.lane("first", memory_mib=2),
+                self.lane("second", memory_mib=2),
+                ResourceBudget(2, 2, 0),
+            ),
+            "gpu": (
+                self.lane("first", gpu_slots=1),
+                self.lane("second", gpu_slots=1),
+                ResourceBudget(2, 2, 1),
+            ),
+            "named lock": (
+                self.lane("first", locks=("shared-tool",)),
+                self.lane("second", locks=("shared-tool",)),
+                ResourceBudget(2, 2, 0),
+            ),
+        }
+        for name, (first, second, budget) in scenarios.items():
+            with self.subTest(resource=name):
+                second_started = threading.Event()
+                overlap_observed = threading.Event()
+
+                def execute(
+                    argv: tuple[str, ...], **kwargs: object
+                ) -> subprocess.CompletedProcess[bytes]:
+                    if argv[0] == "first":
+                        if second_started.wait(timeout=0.05):
+                            overlap_observed.set()
+                    else:
+                        second_started.set()
+                    return subprocess.CompletedProcess(argv, 0)
+
+                plan = self.plan(
+                    PlannedCommand("first", ("first",), lane=first),
+                    PlannedCommand("second", ("second",), lane=second),
+                )
+                with (
+                    mock.patch("local_verify.subprocess.run", side_effect=execute),
+                    tempfile.TemporaryDirectory(dir=Path.home()) as directory,
+                ):
+                    run_plan(
+                        plan,
+                        Path(directory),
+                        budget=budget,
+                        scratch_root=Path(directory) / "scratch",
+                    )
+                self.assertFalse(overlap_observed.is_set())
+
+    def test_insufficient_budget_rejects_before_starting_a_child(self) -> None:
+        scenarios = {
+            "cpu": (ResourceRequest(2, 1), ResourceBudget(1, 1)),
+            "memory": (ResourceRequest(1, 2), ResourceBudget(1, 1)),
+            "gpu": (ResourceRequest(1, 1, 1), ResourceBudget(1, 1, 0)),
+        }
+        for name, (request, budget) in scenarios.items():
+            with self.subTest(resource=name):
+                plan = self.plan(
+                    PlannedCommand(
+                        "must not start",
+                        ("forbidden",),
+                        lane=VerificationLane("oversized", request),
+                    )
+                )
+                with (
+                    mock.patch("local_verify.subprocess.run") as execute,
+                    tempfile.TemporaryDirectory(dir=Path.home()) as directory,
+                    self.assertRaisesRegex(ValueError, name),
+                ):
+                    run_plan(
+                        plan,
+                        Path(directory),
+                        budget=budget,
+                        scratch_root=Path(directory) / "scratch",
+                    )
+                execute.assert_not_called()
+
+    def test_commands_remain_ordered_inside_one_lane(self) -> None:
+        observed: list[str] = []
+
+        def execute(argv: tuple[str, ...], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+            observed.append(argv[0])
+            return subprocess.CompletedProcess(argv, 0)
+
+        lane = self.lane("ordered")
+        plan = self.plan(
+            PlannedCommand("first", ("first",), lane=lane),
+            PlannedCommand("second", ("second",), lane=lane),
+        )
+        with (
+            mock.patch("local_verify.subprocess.run", side_effect=execute),
+            tempfile.TemporaryDirectory(dir=Path.home()) as directory,
+        ):
+            run_plan(
+                plan,
+                Path(directory),
+                budget=ResourceBudget(2, 2),
+                scratch_root=Path(directory) / "scratch",
+            )
+        self.assertEqual(observed, ["first", "second"])
+
+    def test_failure_skips_successor_and_collects_independent_failure(self) -> None:
+        rendezvous = threading.Barrier(2)
+        observed: list[str] = []
+        observed_lock = threading.Lock()
+
+        def execute(argv: tuple[str, ...], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+            with observed_lock:
+                observed.append(argv[0])
+            if argv[0] != "forbidden":
+                rendezvous.wait(timeout=1.0)
+            returncode = {"first-failure": 7, "independent-failure": 9}.get(
+                argv[0], 0
+            )
+            if returncode:
+                raise subprocess.CalledProcessError(returncode, argv)
+            return subprocess.CompletedProcess(argv, returncode)
+
+        failed_lane = self.lane("failed")
+        plan = self.plan(
+            PlannedCommand("first failure", ("first-failure",), lane=failed_lane),
+            PlannedCommand("must be skipped", ("forbidden",), lane=failed_lane),
+            PlannedCommand(
+                "independent failure",
+                ("independent-failure",),
+                lane=self.lane("independent"),
+            ),
+        )
+        with (
+            mock.patch("local_verify.subprocess.run", side_effect=execute),
+            tempfile.TemporaryDirectory(dir=Path.home()) as directory,
+            self.assertRaises(VerificationFailure) as raised,
+        ):
+            run_plan(
+                plan,
+                Path(directory),
+                budget=ResourceBudget(2, 2),
+                scratch_root=Path(directory) / "scratch",
+            )
+
+        self.assertCountEqual(observed, ["first-failure", "independent-failure"])
+        self.assertEqual(
+            [failure.returncode for failure in raised.exception.failures], [7, 9]
+        )
+
+    def test_lane_environment_is_home_backed_contained_and_disjoint(self) -> None:
+        environments: dict[str, dict[str, str]] = {}
+        rendezvous = threading.Barrier(2)
+
+        def execute(argv: tuple[str, ...], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+            environments[argv[0]] = dict(kwargs["env"])
+            rendezvous.wait(timeout=1.0)
+            return subprocess.CompletedProcess(argv, 0)
+
+        plan = self.plan(
+            PlannedCommand("first", ("first",), lane=self.lane("first")),
+            PlannedCommand("second", ("second",), lane=self.lane("second")),
+        )
+        with (
+            mock.patch("local_verify.subprocess.run", side_effect=execute),
+            tempfile.TemporaryDirectory(dir=Path.home()) as directory,
+        ):
+            scratch_root = Path(directory) / "scratch"
+            run_plan(
+                plan,
+                Path(directory),
+                budget=ResourceBudget(2, 2),
+                scratch_root=scratch_root,
+            )
+            roots = {
+                name: Path(environment["EQIORA_VERIFY_LANE_ROOT"])
+                for name, environment in environments.items()
+            }
+            self.assertEqual(len(set(roots.values())), 2)
+            for name, root in roots.items():
+                self.assertTrue(root.is_relative_to(scratch_root))
+                self.assertTrue(Path(environments[name]["TMPDIR"]).is_relative_to(root))
+                self.assertTrue(
+                    Path(environments[name]["CARGO_TARGET_DIR"]).is_relative_to(root)
+                )
+                self.assertEqual(environments[name]["CARGO_BUILD_JOBS"], "1")
 
 
 class LocalDocumentationTests(unittest.TestCase):
