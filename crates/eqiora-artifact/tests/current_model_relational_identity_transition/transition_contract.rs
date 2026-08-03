@@ -701,9 +701,9 @@ fn clean_post_reset_product_source() -> BTreeMap<String, String> {
 /// current-owner consumer is: naming the `model_digest` its caller already
 /// holds, freezing nothing. Mutation material, not a specification of those
 /// files — it is what makes the predicates below non-vacuous on a checkout
-/// where neither path exists, since every state reaches `observe_admitted`
+/// where none of the paths exists, since every state reaches `observe_admitted`
 /// through real bytes exactly as the live tree does.
-const ADMITTED_AS_RECORDED: [(&str, &str); 2] = [
+const ADMITTED_AS_RECORDED: [(&str, &str); 3] = [
     (
         "crates/eqiora-python/src/trajectory.rs",
         "pub fn trajectory(model_digest: &str) -> PyResult<Trajectory> {\n    \
@@ -712,6 +712,10 @@ const ADMITTED_AS_RECORDED: [(&str, &str); 2] = [
     (
         "bindings/python/python/eqiora/trajectory.pyi",
         "class Trajectory:\n    model_digest: str\n",
+    ),
+    (
+        "crates/eqiora-python/src/result.rs",
+        "pub fn result(model_digest: &str) -> PyResult<Result> {\n    Result::open(model_digest)\n}\n",
     ),
 ];
 
@@ -1861,8 +1865,8 @@ fn a_later_product_path_is_admitted_by_exact_path_and_joins_no_frozen_set() {
             .iter()
             .map(|(path, _)| (*path).to_owned())
             .collect::<BTreeSet<_>>(),
-        "the admitted set is exactly the two paths this oracle derived, and the synthetic states \
-         below mutate those same two"
+        "the admitted set is exactly the paths this oracle derived, and the synthetic states \
+         below mutate those same paths"
     );
     let count = transition["post_reset_admitted_path_count"]
         .as_u64()
@@ -1928,23 +1932,32 @@ fn an_admitted_later_path_is_optional_signal_bearing_and_identity_free() {
     let contract = TransitionContract::from_classification();
     let classify = |observed: Observed| classify_transition(&contract, &observed);
     let reset = || Observed::maximal_post_reset(&contract);
-    let both = |state: Observed| {
+    let all = |state: Observed| {
         (ADMITTED_AS_RECORDED.iter()).fold(state, |at, (path, bytes)| at.admitting(path, bytes))
     };
     let trajectory = |source: &str| reset().admitting(ADMITTED_AS_RECORDED[0].0, source);
 
-    // Optional, in all three arrangements: neither path, either one, or both.
-    assert_eq!(classify(reset()), Ok(TransitionState::PostReset));
-    for (path, source) in ADMITTED_AS_RECORDED {
+    // Optional independently: every subset, including none and all, remains a
+    // complete post-reset state.
+    for mask in 0..(1 << ADMITTED_AS_RECORDED.len()) {
+        let observed = ADMITTED_AS_RECORDED.iter().enumerate().fold(
+            reset(),
+            |state, (index, (path, source))| {
+                if mask & (1 << index) == 0 {
+                    state
+                } else {
+                    state.admitting(path, source)
+                }
+            },
+        );
         assert_eq!(
-            classify(reset().admitting(path, source)),
+            classify(observed),
             Ok(TransitionState::PostReset),
-            "`{path}` alone must be admissible"
+            "admitted subset mask {mask:#05b} must remain optional"
         );
     }
-    assert_eq!(classify(both(reset())), Ok(TransitionState::PostReset));
 
-    // Signal. The first mutant is what neither path existence nor the candidate
+    // Signal. The first mutant is what path existence and the candidate
     // sweep can see: it exists, spells no signal at all, and is therefore never
     // discovered. The second spells one signal more than it was admitted for.
     for source in [
@@ -1979,17 +1992,19 @@ fn an_admitted_later_path_is_optional_signal_bearing_and_identity_free() {
         );
     }
 
-    // Exact. Admission reaches those two paths and no third: not a sibling in
+    // Exact. Admission reaches only those exact paths: not a sibling in
     // the same directory, not a file below one of them, not another spelling of
     // the same name, and not the other extension of the same module.
     for path in [
         "crates/eqiora-python/src/trajectory_2d.rs",
         "crates/eqiora-python/src/trajectory/segment.rs",
+        "crates/eqiora-python/src/result_2d.rs",
+        "crates/eqiora-python/src/result/output.rs",
         "bindings/python/python/eqiora/trajectory.py",
         "bindings/python/python/eqiora/trajectory2.pyi",
     ] {
         refused(
-            classify(both(reset()).signalling(&[path])),
+            classify(all(reset()).signalling(&[path])),
             "unclassified new signal-bearing",
         );
     }

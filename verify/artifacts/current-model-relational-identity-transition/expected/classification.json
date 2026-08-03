@@ -241,11 +241,11 @@
         }
       ],
       "promoted_evidence_note": "each entry names one evidence file whose bytes survive and whose owner changes. `pre_reset` is a member of `retired`, `post_reset` is a member of `required_post_reset`, and a `promotion` row freezes the exact bytes carried across. Deleting the bytes rather than moving them fails as a substituted promotion, not as a missing path.",
-      "post_reset_admitted_contract": "a product declaration or consumer surface created after the reset is admitted by exact path and by nothing else. Admission is containment-only: it adds the path to what the post-reset discovered set may contain and never requires the path to exist, so a post-reset state carrying neither admitted path is accepted exactly as it was before this amendment. An admitted path that does exist must carry exactly the search signals recorded for it and must freeze no Model-derived lower-hex-64 identity literal; an admitted path present in the pre-reset state is refused as mid-flight, because admission describes a path the reset did not create and the pre-reset tree did not have.",
+      "post_reset_admitted_contract": "a product declaration or consumer surface created after the reset is admitted by exact path and by nothing else. Admission is containment-only: it adds the path to what the post-reset discovered set may contain and never requires the path to exist, so a post-reset state carrying none of the admitted paths is accepted exactly as it was before this amendment. An admitted path that does exist must carry exactly the search signals recorded for it and must freeze no Model-derived lower-hex-64 identity literal; an admitted path present in the pre-reset state is refused as mid-flight, because admission describes a path the reset did not create and the pre-reset tree did not have.",
       "post_reset_admitted_is_not_membership": "no admitted path joins `inventory`, `retired`, `retired_outside_inventory`, `required_post_reset`, `required_post_reset_without_frozen_bytes`, `preserved_evidence`, `promoted_evidence`, or any `promotion` row, and no count above moves. Listing one in the inventory would claim it existed before the reset; listing one in `required_post_reset` would claim the reset created it and would make a later capability mandatory for acceptance. Both are false.",
-      "post_reset_admitted_exactness": "these two paths and no others. A third signal-bearing path is not admitted by proximity, by sharing their directory, by sharing a `trajectory` name, or by any suffix rule — it is refused as an unclassified candidate and returned to this oracle, exactly as an unlisted path was before this amendment. There is no glob here either.",
-      "post_reset_admitted_note": "the hosted whole-tree transition gate found both after the reset, when the general trajectory owner of the Python surface was split out of its FSI-specific host. Both are ordinary current-owner consumers of `model_digest`: each names the digest its caller already holds, and neither pins a Model identity. This case bounds the signal each may carry and owns neither file's content.",
-      "post_reset_admitted_path_count": 2,
+      "post_reset_admitted_exactness": "these three paths and no others. A fourth signal-bearing path is not admitted by proximity, by sharing their directory, by sharing a `trajectory` or `result` name, or by any suffix rule — it is refused as an unclassified candidate and returned to this oracle, exactly as an unlisted path was before this amendment. There is no glob here either.",
+      "post_reset_admitted_note": "hosted whole-tree transition gates found all three after the reset. The first two arrived when the general trajectory owner of the Python surface was split out of its FSI-specific host; the third is the common installed-Python Result owner introduced by Issue #323 to replace a demo-specific execution result. All three are ordinary current-owner consumers of `model_digest`: each names the digest its caller already holds, and none pins a Model identity. This case bounds the signal each may carry and owns none of the files' content.",
+      "post_reset_admitted_path_count": 3,
       "post_reset_admitted": [
         {
           "path": "crates/eqiora-python/src/trajectory.rs",
@@ -266,6 +266,16 @@
           "identity_literals": 0,
           "owner": "the eqiora-python trajectory surface",
           "note": "the typed stub of that binding. `model_digest` appears as a declared attribute or parameter name, which is a consumer spelling and not a frozen identity, exactly as in the classified `fsi.pyi` and `fluid.pyi` beside it."
+        },
+        {
+          "path": "crates/eqiora-python/src/result.rs",
+          "class": "non-fixture-search-hit",
+          "signals": [
+            "model_digest"
+          ],
+          "identity_literals": 0,
+          "owner": "the eqiora-python common Result surface",
+          "note": "the common installed-Python Result owner introduced by Issue #323. `model_digest` is the exact digest carried by the accepted Run identity and checked against caller-owned FieldRef identity; the module freezes no Model identity literal and is neither a reset product nor a required transition path."
         }
       ]
     },
