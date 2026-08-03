@@ -54,7 +54,9 @@ def evidence_runs(plan: VerificationPlan) -> list[PlannedCommand]:
 
 def workspace() -> dict[str, WorkspacePackage]:
     return {
-        "eqiora-core": WorkspacePackage("eqiora-core", "crates/eqiora-core", frozenset()),
+        "eqiora-core": WorkspacePackage(
+            "eqiora-core", "crates/eqiora-core", frozenset()
+        ),
         "eqiora-compiler": WorkspacePackage(
             "eqiora-compiler", "crates/eqiora-compiler", frozenset({"eqiora-core"})
         ),
@@ -148,7 +150,9 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(plan.packages, ("eqiora-core",))
         self.assertEqual(plan.cases, ("language.explicit",))
         rendered = [item.render() for item in plan.commands]
-        self.assertTrue(any("cargo test --locked -p eqiora-core" in item for item in rendered))
+        self.assertTrue(
+            any("cargo test --locked -p eqiora-core" in item for item in rendered)
+        )
         evidence = evidence_runs(plan)
         self.assertEqual(len(evidence), 1)
         self.assertEqual(evidence[0].label, "Registered evidence (1 case)")
@@ -208,7 +212,9 @@ class PlanTests(unittest.TestCase):
         self.assertFalse(any("--all-features" in item for item in rendered))
         self.assertTrue(any("--case language.explicit" in item for item in rendered))
 
-    def test_affected_plan_does_not_infer_semantic_cases_from_executor_crates(self) -> None:
+    def test_affected_plan_does_not_infer_semantic_cases_from_executor_crates(
+        self,
+    ) -> None:
         plan = build_plan(
             "affected",
             ["crates/eqiora-core/src/lib.rs"],
@@ -219,7 +225,9 @@ class PlanTests(unittest.TestCase):
         labels = {item.label for item in plan.commands}
         self.assertIn("Evidence manifest inventory", labels)
         self.assertNotIn("All registered evidence", labels)
-        self.assertFalse(any(label.startswith("Registered evidence ") for label in labels))
+        self.assertFalse(
+            any(label.startswith("Registered evidence ") for label in labels)
+        )
 
     def test_ci_infrastructure_change_reuses_fail_closed_surface_mapping(self) -> None:
         plan = build_plan(
@@ -242,7 +250,9 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(studio_e2e.argv[-2:], ("--", "--workers=1"))
         self.assertIn("Evidence manifest inventory", labels)
         self.assertNotIn("All registered evidence", labels)
-        self.assertFalse(any(label.startswith("Registered evidence ") for label in labels))
+        self.assertFalse(
+            any(label.startswith("Registered evidence ") for label in labels)
+        )
         python_commands = [
             item for item in plan.commands if item.label.startswith("Python ")
         ]
@@ -323,7 +333,9 @@ class SchedulerTests(unittest.TestCase):
         completion_order: list[str] = []
         completion_lock = threading.Lock()
 
-        def execute(argv: tuple[str, ...], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        def execute(
+            argv: tuple[str, ...], **kwargs: object
+        ) -> subprocess.CompletedProcess[bytes]:
             rendezvous.wait(timeout=1.0)
             if argv[0] == "slow":
                 time.sleep(0.05)
@@ -353,7 +365,11 @@ class SchedulerTests(unittest.TestCase):
 
         self.assertEqual(completion_order, ["fast", "slow"])
         self.assertEqual(
-            [line for line in stream.getvalue().splitlines() if line.startswith("LOG-")],
+            [
+                line
+                for line in stream.getvalue().splitlines()
+                if line.startswith("LOG-")
+            ],
             ["LOG-slow", "LOG-fast"],
         )
 
@@ -442,7 +458,9 @@ class SchedulerTests(unittest.TestCase):
     def test_commands_remain_ordered_inside_one_lane(self) -> None:
         observed: list[str] = []
 
-        def execute(argv: tuple[str, ...], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        def execute(
+            argv: tuple[str, ...], **kwargs: object
+        ) -> subprocess.CompletedProcess[bytes]:
             observed.append(argv[0])
             return subprocess.CompletedProcess(argv, 0)
 
@@ -468,14 +486,14 @@ class SchedulerTests(unittest.TestCase):
         observed: list[str] = []
         observed_lock = threading.Lock()
 
-        def execute(argv: tuple[str, ...], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        def execute(
+            argv: tuple[str, ...], **kwargs: object
+        ) -> subprocess.CompletedProcess[bytes]:
             with observed_lock:
                 observed.append(argv[0])
             if argv[0] != "forbidden":
                 rendezvous.wait(timeout=1.0)
-            returncode = {"first-failure": 7, "independent-failure": 9}.get(
-                argv[0], 0
-            )
+            returncode = {"first-failure": 7, "independent-failure": 9}.get(argv[0], 0)
             if returncode:
                 raise subprocess.CalledProcessError(returncode, argv)
             return subprocess.CompletedProcess(argv, returncode)
@@ -511,7 +529,9 @@ class SchedulerTests(unittest.TestCase):
         environments: dict[str, dict[str, str]] = {}
         rendezvous = threading.Barrier(2)
 
-        def execute(argv: tuple[str, ...], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        def execute(
+            argv: tuple[str, ...], **kwargs: object
+        ) -> subprocess.CompletedProcess[bytes]:
             environments[argv[0]] = dict(kwargs["env"])
             rendezvous.wait(timeout=1.0)
             return subprocess.CompletedProcess(argv, 0)
@@ -550,7 +570,9 @@ class LocalDocumentationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "docs").mkdir()
-            (root / "docs/capability-matrix.md").write_text("matrix\n", encoding="utf-8")
+            (root / "docs/capability-matrix.md").write_text(
+                "matrix\n", encoding="utf-8"
+            )
             for name in ("README.md", "AGENTS.md", "CONTRIBUTING.md"):
                 (root / name).write_text(
                     "[matrix](docs/capability-matrix.md)\n", encoding="utf-8"
