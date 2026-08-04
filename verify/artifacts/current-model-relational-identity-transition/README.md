@@ -48,7 +48,8 @@ by hand.
 | `required_post_reset` | 13 | the complete set of paths the reset may add: 11 byte-frozen promotions — 10 staged control-v2 targets plus the historical cylinder — and 2 existence-only unversioned Rust owners |
 | `preserved_evidence` | 40 | invariant evidence — the same path in both states — whose deletion the reset must never reach |
 | `promoted_evidence` | 1 | evidence whose bytes survive at a different path, so it is invariant at neither |
-| `post_reset_admitted` | 5 | later product and oracle paths the post-reset state may contain and never has to; a member of none of the sets above, and of no count in them |
+| `post_reset_admitted` | 9 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
+| `post_reset_fixture_admitted` | 10 | later signal-bearing fixture paths admitted through a separate exact-path permission with their exact search signals and same-line identity-literal counts; a member of no historical or identity-free set |
 
 **44, 304 and 13 are not one partition of 338.** What partitions the inventory
 is 34 + 304: the retired paths that are inventory members, plus the preserved
@@ -142,7 +143,7 @@ that needs another new signal-bearing path, or that cannot retire a listed one,
 stops and returns the delta to this oracle. Widening a set here to fit an
 implementation choice is not an available move.
 
-## A later signal-bearing path is admitted by exact path, never required
+## Later signal-bearing paths are admitted by exact path, never required
 
 The transition is history: it says what the repository was before the reset and
 what the reset itself did. Work that comes afterwards is neither. When the
@@ -160,40 +161,85 @@ only `model_sha256`: the artifact owns a relational edge to its caller's exact
 Model, while the oracle checks and mutates that key without pinning its value.
 None of the five paths freezes a Model identity literal.
 
+RFC 0085 then pre-admitted four more identity-free classified hits: the RFC
+itself, the standalone prescribed-dynamic-solid Realization source owner, the
+independent Rust exact-artifact oracle, and its independent standard-library
+derivation route. The RFC and derivation name both the current Model schema and
+`model_sha256`; the two Rust files name only `model_sha256`. All four freeze zero
+Model-derived identity literals. They are ordinary classified search hits even
+though the RFC and derivation are not product source, so this permission is now
+described as identity-free classified-path admission rather than product-path
+admission.
+
 Neither of the two sets that could have absorbed them is true. Adding them to
 the 338-path inventory would claim they existed before the reset. Adding them to
 `required_post_reset` would claim the reset created them, and would make a later
 capability a condition of accepting a transition that completed without it. So
-`search.transition.post_reset_admitted` names all five, and names them alone:
+`search.transition.post_reset_admitted` names all nine, and names them alone:
 
 - **containment only.** Admission widens what the post-reset discovered set may
-  contain; it never asks a path to exist. Every subset of the five, including
-  none and all, is accepted independently of this permission. All five happen
-  to exist in the observed checkout.
+  contain; it never asks a path to exist. Every subset of the nine, including
+  none and all, is accepted independently of this permission. The original
+  five paths and the RFC 0085 path happen to exist in the observed checkout;
+  the other three RFC 0085 paths are optional successors.
 - **exactly the recorded signal.** An admitted path that does exist must spell
   exactly the search tokens recorded for it, in the sweep's own order. A file
   that spells none is not the surface that was admitted, and one that spells
   more has grown a claim nobody classified.
-- **no frozen identity.** `identity_literals` is 0 for all five. A path that pins a
+- **no frozen identity.** `identity_literals` is 0 for all nine. A path that pins a
   Model-derived lower-hex-64 identity is a fixture, and a fixture is classified
   here rather than admitted.
 - **absent before the reset.** An admitted path present in the pre-reset state
   is a mid-flight tree, refused by existence alone.
 - **exact, and nothing near it.** There is no glob, no directory rule and no
-  suffix rule. A sixth signal-bearing path is not admitted by sitting in the
-  same directory, by sharing a trajectory, Result, or Cartesian snapshot name,
-  or by being the other extension of the same module; it returns here for
-  classification exactly as an unlisted path did before.
+  suffix rule. A tenth identity-free signal-bearing path is not admitted by
+  sitting in the same directory, by sharing a trajectory, Result, Cartesian
+  snapshot, prescribed-solid, RFC, test, or derivation name, or by being the
+  other extension of the same module; it returns here for classification
+  exactly as an unlisted path did before.
 
 Every historical set and count above is unchanged by this: 338 inventory paths,
 44 retired, 304 preserved, 13 required, 40 invariant and 1 promoted, with the
 same bytes and the same digests. Admission adds a permission and removes
 nothing.
 
-The five paths are what this case bounds, not what it owns. Their content
-belongs to their Python, Cartesian artifact, and independent-oracle owners,
-which must not tune this record; a path that cannot meet the four conditions
-above returns here rather than being made to fit.
+The nine paths are what this case bounds, not what it owns. Their content
+belongs to their Python, Cartesian artifact, RFC, prescribed-solid artifact,
+and independent-oracle owners, which must not tune this record; a path that
+cannot meet the four conditions above returns here rather than being made to
+fit.
+
+## Signal-bearing expected bytes use a separate fixture permission
+
+The ten expected files frozen by RFC 0085 are not identity-free consumer
+surfaces. The Model fixture carries `eqiora.model-envelope/v` and zero
+same-line Model-derived lower-hex-64 literals. The exact Geometry identity,
+Realization, four FieldSnapshot, two State, and Run fixtures each carry
+`model_sha256` and exactly one such literal. Calling those files identity-free
+would weaken the predicate above; adding them to a historical set would claim
+they existed before the reset or were created by it. Both claims are false.
+
+`search.transition.post_reset_fixture_admitted` therefore records a second
+containment-only permission:
+
+- each of the ten exact paths is optional after the reset and absent before it;
+- a present path must carry its exact ordered search-signal list and exact
+  same-line lower-hex-64 literal occurrence count, so two identities on one
+  qualifying line count as two and are refused by every one-occurrence row;
+- every row has the exact delegated fixture class, owner, and note frozen by
+  the independent transition oracle;
+- no row joins the inventory, retired, required, preserved-evidence, promoted,
+  promotion, or identity-free admitted set; and
+- no glob, directory, suffix, expected-file naming convention, or sibling
+  proximity admits an eleventh fixture.
+
+Every subset of the nine identity-free paths and every subset of the ten
+fixture paths is accepted independently, including neither set being present.
+Synthetic mutants remove or add a search signal, change a zero or one literal
+count, substitute a path, and alter every metadata field. Nearby RFC, Rust,
+derivation, and expected-file paths remain unclassified. This keeps both
+permissions optional and fail-closed without making one a relaxation of the
+other.
 
 ## Two consumers the remainder was wrong about
 
@@ -440,11 +486,14 @@ place may stop matching, which is admissible and which the predicate allows by
 containment rather than equality.
 
 Admission claims less again. It does not require any admitted path to exist and
-it owns none of their content: what a present path may spell and what it may not
-freeze is the whole of it. All five exist in this checkout, so the live tree
-exercises their exact observed signals and zero-literal counts. Synthetic
-post-reset states additionally exercise every optional subset and the mutants
-through the same byte reader.
+it owns none of their content: what a present identity-free path may spell and
+what it may not freeze, or what a present fixture path may spell and exactly
+how many same-line identity occurrences it carries, is the whole of it. The first five
+identity-free paths and the RFC exist in this checkout, so the live tree
+exercises their exact observed signals and zero-literal counts; the other three
+identity-free paths and all ten fixtures remain optional successor paths.
+Synthetic post-reset states additionally exercise every optional subset and the
+mutants through the same byte reader.
 
 The sweep reads checked-in content. Building the Python extension copies example
 resources into maturin's staging directory

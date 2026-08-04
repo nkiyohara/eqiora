@@ -25,16 +25,31 @@ fn repository_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-fn has_lower_hex_identity(line: &str) -> bool {
+fn lower_hex_identity_occurrences(line: &str) -> usize {
     let lower = line.to_ascii_lowercase();
     if !(lower.contains("model") || lower.contains("transaction")) {
-        return false;
+        return 0;
     }
-    line.as_bytes().windows(64).any(|window| {
-        window
+
+    let bytes = line.as_bytes();
+    let mut count = 0;
+    let mut start = 0;
+    while start + 64 <= bytes.len() {
+        if bytes[start..start + 64]
             .iter()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
-    })
+        {
+            count += 1;
+            start += 64;
+        } else {
+            start += 1;
+        }
+    }
+    count
+}
+
+fn has_lower_hex_identity(line: &str) -> bool {
+    lower_hex_identity_occurrences(line) != 0
 }
 
 /// The exact spellings the sweep searches for, beside the same-line lower-hex-64
@@ -62,8 +77,9 @@ fn carries_model_search_signal(bytes: &[u8]) -> bool {
 }
 
 /// What one admitted later path's bytes spell: the search tokens they contain,
-/// in `SEARCH_TOKENS` order, and how many of their lines freeze a Model-derived
-/// lower-hex-64 identity. The live tree and every synthetic state read it here.
+/// in `SEARCH_TOKENS` order, and how many non-overlapping Model-derived
+/// lower-hex-64 occurrences appear on qualifying lines. The live tree and every
+/// synthetic state read it here.
 fn observe_admitted(bytes: &[u8]) -> (Vec<String>, usize) {
     let Ok(text) = std::str::from_utf8(bytes) else {
         return (Vec::new(), 0);
@@ -72,8 +88,8 @@ fn observe_admitted(bytes: &[u8]) -> (Vec<String>, usize) {
         .filter(|token| text.contains(**token))
         .map(|token| (*token).to_owned())
         .collect();
-    let literals = text.lines().filter(|line| has_lower_hex_identity(line));
-    (signals, literals.count())
+    let literals = text.lines().map(lower_hex_identity_occurrences).sum();
+    (signals, literals)
 }
 
 /// Trees the sweep does not enter, by exact relative path.
@@ -180,16 +196,20 @@ struct PromotedEvidence {
     post_reset: String,
 }
 
-/// One later product path admitted by exact path, and the exact signal it is
-/// admitted as carrying. Admission is a permission, never an obligation: the
-/// path may be absent, and a post-reset state carrying none of these is
-/// accepted exactly as it was before this class existed. A path that does exist
-/// must spell exactly `signals`, freeze exactly `identity_literals` — zero —
-/// Model identities, and not exist before the reset at all.
+/// One later classified path admitted by exact path, and the exact signal and
+/// same-line Model-derived identity count it is admitted as carrying.
+/// Admission is a permission, never an obligation: the path may be absent, and
+/// a post-reset state carrying none of these is accepted exactly as it was
+/// before this class existed. Identity-free and fixture admissions live in
+/// separate vectors so neither predicate can silently absorb the other.
+#[derive(Clone)]
 struct PostResetAdmitted {
     path: String,
+    class: String,
     signals: Vec<String>,
     identity_literals: usize,
+    owner: String,
+    note: String,
 }
 
 /// One narrowly frozen product-source scope and the tokens the reset deletes
@@ -305,7 +325,10 @@ fn scan_forbidden_tokens(
 /// set of paths the reset may add: eleven byte-frozen promotions — ten staged
 /// control-v2 sources and the historical cylinder — plus two unversioned Rust
 /// wire owners required by existence alone. `post_reset_admitted` is neither of
-/// those: it permits a later product path without ever requiring one.
+/// those: it permits a later identity-free classified path without ever
+/// requiring one. `post_reset_fixture_admitted` is a second, disjoint
+/// permission for exact signal-bearing fixture paths and their exact literal
+/// counts; it does not weaken the zero-identity permission.
 ///
 /// There is no third state and no sentinel. A repository in which a proper
 /// nonempty subset of `retired` is missing is mid-flight, not reset.
@@ -319,6 +342,7 @@ struct TransitionContract {
     promoted_evidence: Vec<PromotedEvidence>,
     promotion: Vec<Promotion>,
     post_reset_admitted: Vec<PostResetAdmitted>,
+    post_reset_fixture_admitted: Vec<PostResetAdmitted>,
     forbidden: Vec<ForbiddenScope>,
 }
 
@@ -364,6 +388,22 @@ fn frozen_list(scope: &Value, key: &str) -> Vec<String> {
         .collect()
 }
 
+fn frozen_admitted(transition: &Value, key: &str) -> Vec<PostResetAdmitted> {
+    transition[key]
+        .as_array()
+        .unwrap_or_else(|| panic!("the transition contract must name `{key}`"))
+        .iter()
+        .map(|entry| PostResetAdmitted {
+            path: entry["path"].as_str().unwrap().to_owned(),
+            class: entry["class"].as_str().unwrap().to_owned(),
+            signals: frozen_list(entry, "signals"),
+            identity_literals: entry["identity_literals"].as_u64().unwrap() as usize,
+            owner: entry["owner"].as_str().unwrap().to_owned(),
+            note: entry["note"].as_str().unwrap().to_owned(),
+        })
+        .collect()
+}
+
 impl TransitionContract {
     fn from_classification() -> Self {
         let classification = classification();
@@ -400,16 +440,8 @@ impl TransitionContract {
                     target_exists_pre_reset: entry["target_exists_pre_reset"].as_bool().unwrap(),
                 })
                 .collect(),
-            post_reset_admitted: transition["post_reset_admitted"]
-                .as_array()
-                .expect("the transition contract must name what it admits after the reset")
-                .iter()
-                .map(|entry| PostResetAdmitted {
-                    path: entry["path"].as_str().unwrap().to_owned(),
-                    signals: frozen_list(entry, "signals"),
-                    identity_literals: entry["identity_literals"].as_u64().unwrap() as usize,
-                })
-                .collect(),
+            post_reset_admitted: frozen_admitted(transition, "post_reset_admitted"),
+            post_reset_fixture_admitted: frozen_admitted(transition, "post_reset_fixture_admitted"),
             forbidden: search["forbidden_product_tokens"]["scopes"]
                 .as_array()
                 .expect("the forbidden-token contract must declare its scopes")
@@ -443,6 +475,11 @@ impl TransitionContract {
         // Mentioned but never required: naming them here is what lets both
         // states see whether one is present.
         paths.extend(self.post_reset_admitted.iter().map(|e| e.path.clone()));
+        paths.extend(
+            self.post_reset_fixture_admitted
+                .iter()
+                .map(|e| e.path.clone()),
+        );
         paths
     }
 
@@ -522,8 +559,18 @@ impl TransitionContract {
             if observed.exists.contains(&admitted.path) {
                 return Err(format!(
                     "pre-reset: post-reset-admitted path `{}` already exists; admission covers a \
-                     product path created after the reset, and a pre-reset tree that carries one \
+                     classified path created after the reset, and a pre-reset tree that carries one \
                      is mid-flight",
+                    admitted.path
+                ));
+            }
+        }
+        for admitted in &self.post_reset_fixture_admitted {
+            if observed.exists.contains(&admitted.path) {
+                return Err(format!(
+                    "pre-reset: post-reset-fixture-admitted path `{}` already exists; fixture \
+                     admission covers an exact evidence path created after the reset, and a \
+                     pre-reset tree that carries one is mid-flight",
                     admitted.path
                 ));
             }
@@ -579,37 +626,24 @@ impl TransitionContract {
                 ));
             }
         }
-        // Containment-only: an absent admitted path is skipped, so no later
-        // capability is required for acceptance. A present one must still be
-        // what it was admitted as.
-        for admitted in &self.post_reset_admitted {
-            if !observed.exists.contains(&admitted.path) {
-                continue;
-            }
-            let (signals, literals) = observed.admitted.get(&admitted.path).ok_or_else(|| {
-                format!(
-                    "post-reset: admitted path `{}` exists but no content was observed for it",
-                    admitted.path
-                )
-            })?;
-            if signals != &admitted.signals {
-                return Err(format!(
-                    "post-reset: admitted path `{}` must carry exactly its recorded search signal \
-                     {:?}, observed {signals:?}; a path that spells something else returns here",
-                    admitted.path, admitted.signals
-                ));
-            }
-            if literals != &admitted.identity_literals {
-                return Err(format!(
-                    "post-reset: admitted path `{}` freezes {literals} Model-derived identity \
-                     literal against the recorded {}; a path that pins an identity is a fixture",
-                    admitted.path, admitted.identity_literals
-                ));
-            }
-        }
+        check_admitted(
+            &self.post_reset_admitted,
+            observed,
+            "identity-free admitted",
+        )?;
+        check_admitted(
+            &self.post_reset_fixture_admitted,
+            observed,
+            "fixture-admitted",
+        )?;
         let mut admissible = self.preserved();
         admissible.extend(self.required_post_reset.iter().cloned());
         admissible.extend(self.post_reset_admitted.iter().map(|e| e.path.clone()));
+        admissible.extend(
+            self.post_reset_fixture_admitted
+                .iter()
+                .map(|e| e.path.clone()),
+        );
         let unclassified = observed
             .discovered
             .difference(&admissible)
@@ -622,6 +656,42 @@ impl TransitionContract {
         }
         scan_forbidden_tokens(&self.forbidden, &observed.content)
     }
+}
+
+/// Containment-only admission shared by the two separately frozen permissions.
+/// The caller chooses the vector explicitly; there is no inferred membership.
+fn check_admitted(
+    entries: &[PostResetAdmitted],
+    observed: &Observed,
+    kind: &str,
+) -> Result<(), String> {
+    for admitted in entries {
+        if !observed.exists.contains(&admitted.path) {
+            continue;
+        }
+        let (signals, literals) = observed.admitted.get(&admitted.path).ok_or_else(|| {
+            format!(
+                "post-reset: {kind} path `{}` exists but no content was observed for it",
+                admitted.path
+            )
+        })?;
+        if signals != &admitted.signals {
+            return Err(format!(
+                "post-reset: {kind} path `{}` must carry exactly its recorded search signal \
+                 {:?}, observed {signals:?}; a path that spells something else returns here",
+                admitted.path, admitted.signals
+            ));
+        }
+        if literals != &admitted.identity_literals {
+            return Err(format!(
+                "post-reset: {kind} path `{}` freezes {literals} Model-derived identity \
+                 literal occurrences against the recorded {}; exact literal occurrence counts \
+                 never relax",
+                admitted.path, admitted.identity_literals
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// The complete transition predicate. Nothing else decides which state a
@@ -760,7 +830,11 @@ impl Observed {
             }
         }
         let mut admitted = BTreeMap::new();
-        for entry in &contract.post_reset_admitted {
+        for entry in contract
+            .post_reset_admitted
+            .iter()
+            .chain(&contract.post_reset_fixture_admitted)
+        {
             if let Ok(bytes) = fs::read(root.join(&entry.path)) {
                 admitted.insert(entry.path.clone(), observe_admitted(&bytes));
             }
@@ -1165,7 +1239,11 @@ fn the_repository_is_in_exactly_one_frozen_transition_state() {
     // Containment-only, so this holds independently for admitted paths that
     // exist in this checkout and for any optional admitted path absent from a
     // different valid post-reset state.
-    for entry in &contract.post_reset_admitted {
+    for entry in contract
+        .post_reset_admitted
+        .iter()
+        .chain(&contract.post_reset_fixture_admitted)
+    {
         assert_eq!(
             observed.exists.contains(&entry.path),
             observed.admitted.contains_key(&entry.path),
