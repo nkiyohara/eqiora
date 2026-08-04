@@ -16,6 +16,7 @@ mod matrix;
 mod meshing;
 mod model;
 mod modeling;
+mod package;
 mod realization;
 mod result;
 mod steady_stokes;
@@ -144,6 +145,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("__version__", version)?;
     error::register(module)?;
     model::register(module)?;
+    package::register(module)?;
     array::register(module)?;
     cad_authored::register(module)?;
     differentiation::register(module)?;

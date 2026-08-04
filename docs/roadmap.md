@@ -162,7 +162,8 @@ the capability matrix.
   canonical Model envelopes with bounded decoding and content identity.
 - Deterministic Component expansion, exact-package identity and offline
   resolution, compiler-owned package validation, capability-rooted directory
-  admission, retained local-store replay, and atomic no-clobber installation.
+  admission, retained local-store replay, atomic no-clobber installation, and
+  one installed-Python projection from an explicit store plus canonical lock.
 - Occurrence-bound spatial supports and Fields, field-valued boundary
   interfaces, complete exterior Port families, and hierarchical conserving
   connection-set normalization.

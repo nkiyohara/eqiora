@@ -1,4 +1,5 @@
 from collections.abc import Generator, Iterator, Sequence
+from os import PathLike
 from typing import (
     Any,
     ClassVar,
@@ -357,6 +358,8 @@ class Model:
     def structurally_equivalent(self, other: Model) -> bool: ...
     @property
     def digest(self) -> str: ...
+    @property
+    def package_compilation_digest(self) -> str | None: ...
     @property
     def structural_fingerprint(self) -> StructuralSemanticFingerprint: ...
     @property
@@ -805,6 +808,12 @@ def compile(
     *,
     filename: str = "<memory>",
 ) -> Model: ...
+def compile_package(
+    store_root: str | PathLike[str],
+    resolution: bytes,
+    *,
+    entry_model: str,
+) -> Model: ...
 def connect(*ports: ConservingPort) -> Connection: ...
 def derivative(field: Field) -> Expression: ...
 def div(value: _ExpressionLike) -> Expression: ...
@@ -929,6 +938,7 @@ __all__ = [
     "ValueEdit",
     "across",
     "compile",
+    "compile_package",
     "connect",
     "derivative",
     "div",

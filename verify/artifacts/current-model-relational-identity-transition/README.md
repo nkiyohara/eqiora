@@ -263,6 +263,31 @@ Nearby RFC, Rust, protocol, provider, documentation, derivation, and
 expected-file paths remain unclassified. This keeps both permissions optional
 and fail-closed without making one a relaxation of the other.
 
+## Later mixed identity evidence uses exact classification
+
+The #114 installed-Python package oracle adds three paths that fit neither
+admission permission. Its Python and Rust test surfaces each contain four
+already-frozen current Model/package-artifact identities together with
+immutable source, release, and resolution identities. The stored package
+release contains only source/package identities. Treating all three as
+identity-free would be false, while treating the stored release as a current
+Model fixture would also be false.
+
+`search.transition.post_reset_classified` therefore freezes exactly three
+paths, two mixed assertion surfaces, one source-or-package identity path, and
+eight current identity occurrences. A present path must reproduce its complete
+ordered search-signal inventory, same-line lower-hex signal count, and exact
+lower-hex-64 literal multiset. The two mixed surfaces must decompose migrating
+current-owner assertions from immutable inputs; the stored release must carry
+zero current Model identities. These values are reused from the independent
+#114 package oracle and the already-frozen transition identities, not derived
+or tuned by this executor.
+
+Like both admissions, classification is containment-only: none of the three
+paths is required for reset acceptance or joins a historical, required,
+promotion, identity-free, or fixture-admitted set. A fourth path gains nothing
+from a shared directory, stem, extension, or nearby classification.
+
 ## Two consumers the remainder was wrong about
 
 A remainder is only safe while every path it covers really does migrate in place

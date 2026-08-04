@@ -118,12 +118,16 @@ const ORACLE_FILES: [&str; 2] = [
      transition_contract.rs",
 ];
 
-/// Cohesive admission regressions split out for the architecture ceiling.
+/// Cohesive regressions split out for the architecture ceiling.
 ///
-/// Unlike `ORACLE_FILES`, this sibling deliberately carries no searched
-/// spelling, remains visible to the sweep, and needs no exclusion permission.
-const ADMISSION_TEST_FILE: &str = "crates/eqiora-artifact/tests/current_model_relational_identity_transition/\
-     post_reset_admission.rs";
+/// Unlike `ORACLE_FILES`, these siblings deliberately carry no searched
+/// spelling, remain visible to the sweep, and need no exclusion permission.
+const NON_SIGNAL_ORACLE_FILES: [&str; 2] = [
+    "crates/eqiora-artifact/tests/current_model_relational_identity_transition/\
+     post_reset_admission.rs",
+    "crates/eqiora-artifact/tests/current_model_relational_identity_transition/\
+     post_reset_classification.rs",
+];
 
 /// One walk of the working tree, answering both questions it can answer: which
 /// paths carry the Model search signal, and what the scopes contain. Two
@@ -328,7 +332,9 @@ fn scan_forbidden_tokens(
 /// those: it permits a later identity-free classified path without ever
 /// requiring one. `post_reset_fixture_admitted` is a second, disjoint
 /// permission for exact signal-bearing fixture paths and their exact literal
-/// counts; it does not weaken the zero-identity permission.
+/// counts; it does not weaken the zero-identity permission. A third exact-path
+/// classification records later evidence whose identity-bearing claims cannot
+/// truthfully use either admission predicate.
 ///
 /// There is no third state and no sentinel. A repository in which a proper
 /// nonempty subset of `retired` is missing is mid-flight, not reset.
@@ -343,6 +349,7 @@ struct TransitionContract {
     promotion: Vec<Promotion>,
     post_reset_admitted: Vec<PostResetAdmitted>,
     post_reset_fixture_admitted: Vec<PostResetAdmitted>,
+    post_reset_classified: Vec<post_reset_classification::PostResetClassified>,
     forbidden: Vec<ForbiddenScope>,
 }
 
@@ -364,6 +371,7 @@ struct Observed {
     /// What `observe_admitted` read from each admitted later path that exists.
     /// Absent is how "not there" is spelled, and that is an accepted state.
     admitted: BTreeMap<String, (Vec<String>, usize)>,
+    classified: BTreeMap<String, post_reset_classification::ClassifiedObservation>,
 }
 
 fn classification() -> Value {
@@ -442,6 +450,10 @@ impl TransitionContract {
                 .collect(),
             post_reset_admitted: frozen_admitted(transition, "post_reset_admitted"),
             post_reset_fixture_admitted: frozen_admitted(transition, "post_reset_fixture_admitted"),
+            post_reset_classified: post_reset_classification::validated_from_classification(
+                &classification,
+            )
+            .expect("the transition contract must classify later identity evidence"),
             forbidden: search["forbidden_product_tokens"]["scopes"]
                 .as_array()
                 .expect("the forbidden-token contract must declare its scopes")
@@ -480,6 +492,7 @@ impl TransitionContract {
                 .iter()
                 .map(|e| e.path.clone()),
         );
+        paths.extend(self.post_reset_classified.iter().map(|e| e.path.clone()));
         paths
     }
 
@@ -575,6 +588,10 @@ impl TransitionContract {
                 ));
             }
         }
+        post_reset_classification::validate_pre_reset_absence(
+            &self.post_reset_classified,
+            &observed.exists,
+        )?;
         Ok(())
     }
 
@@ -636,6 +653,12 @@ impl TransitionContract {
             observed,
             "fixture-admitted",
         )?;
+        post_reset_classification::validate_post_reset(
+            &self.post_reset_classified,
+            &observed.exists,
+            &observed.discovered,
+            &observed.classified,
+        )?;
         let mut admissible = self.preserved();
         admissible.extend(self.required_post_reset.iter().cloned());
         admissible.extend(self.post_reset_admitted.iter().map(|e| e.path.clone()));
@@ -644,6 +667,7 @@ impl TransitionContract {
                 .iter()
                 .map(|e| e.path.clone()),
         );
+        admissible.extend(self.post_reset_classified.iter().map(|e| e.path.clone()));
         let unclassified = observed
             .discovered
             .difference(&admissible)
@@ -700,6 +724,7 @@ fn classify_transition(
     contract: &TransitionContract,
     observed: &Observed,
 ) -> Result<TransitionState, String> {
+    post_reset_classification::validate_runtime(&contract.post_reset_classified)?;
     if let Some(path) = observed.discovered.difference(&observed.exists).next() {
         return Err(format!(
             "incoherent observation: `{path}` carries the search signal but does not exist"
@@ -839,12 +864,15 @@ impl Observed {
                 admitted.insert(entry.path.clone(), observe_admitted(&bytes));
             }
         }
+        let classified =
+            post_reset_classification::observe_repository(&contract.post_reset_classified, root);
         Self {
             exists,
             discovered: sweep.found,
             digests,
             content: sweep.content,
             admitted,
+            classified,
         }
     }
 
@@ -872,6 +900,7 @@ impl Observed {
             digests,
             content: BTreeMap::new(),
             admitted: BTreeMap::new(),
+            classified: BTreeMap::new(),
         }
     }
 
@@ -898,6 +927,7 @@ impl Observed {
             digests,
             content: clean_post_reset_product_source(),
             admitted: BTreeMap::new(),
+            classified: BTreeMap::new(),
         }
     }
 
@@ -921,6 +951,7 @@ impl Observed {
             );
             self.discovered.remove(*path);
             self.digests.remove(*path);
+            self.classified.remove(*path);
         }
         self
     }
@@ -1006,12 +1037,13 @@ fn the_sweep_excludes_exactly_this_cases_two_executor_files() {
         );
     }
 
-    let admission_bytes = fs::read(root.join(ADMISSION_TEST_FILE)).unwrap_or_else(|error| {
-        panic!("admission regression `{ADMISSION_TEST_FILE}` must exist: {error}")
-    });
-    assert!(!ORACLE_FILES.contains(&ADMISSION_TEST_FILE));
-    assert!(!carries_model_search_signal(&admission_bytes));
-    assert!(!inventory.contains(ADMISSION_TEST_FILE));
+    for path in NON_SIGNAL_ORACLE_FILES {
+        let bytes = fs::read(root.join(path))
+            .unwrap_or_else(|error| panic!("support regression `{path}` must exist: {error}"));
+        assert!(!ORACLE_FILES.contains(&path));
+        assert!(!carries_model_search_signal(&bytes));
+        assert!(!inventory.contains(path));
+    }
 
     // Exact, and only exact: every other test file in the crate — including the
     // sibling Model oracle — stays a classified inventory member.
@@ -1947,3 +1979,6 @@ fn a_clean_post_reset_product_source_is_accepted_and_a_private_branch_is_refused
 
 #[path = "post_reset_admission.rs"]
 mod post_reset_admission;
+
+#[path = "post_reset_classification.rs"]
+mod post_reset_classification;
