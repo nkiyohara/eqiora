@@ -377,6 +377,7 @@ trait ValidatedSpatialStateContext {
     fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1;
     fn mesh(&self) -> &SimplicialMeshEnvelopeV1;
     fn duration_s(&self) -> Result<f64, Diagnostic>;
+    #[allow(clippy::type_complexity)]
     fn represented_fields(&self) -> Result<Vec<(Id<kinds::Field>, Id<kinds::Domain>)>, Diagnostic>;
 }
 
