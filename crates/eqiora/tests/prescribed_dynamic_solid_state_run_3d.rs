@@ -427,14 +427,15 @@ fn application_publishes_the_exact_realization_states_and_singleton_run() {
         owner.prior_state().digest().unwrap(),
         owner.accepted_state().digest().unwrap()
     );
-    assert_eq!(
+    assert_ne!(
         owner.prior_velocity_block().digest().unwrap(),
         owner.accepted_velocity_block().digest().unwrap(),
-        "equal content deduplicates without inventing a second identity"
+        "distinct live velocity bits retain distinct block content identities"
     );
-    assert_eq!(
+    assert_ne!(
         owner.prior_velocity_snapshot().digest().unwrap(),
-        owner.accepted_velocity_snapshot().digest().unwrap()
+        owner.accepted_velocity_snapshot().digest().unwrap(),
+        "role-specific velocity snapshots retain their distinct block content"
     );
 }
 

@@ -12,8 +12,9 @@ bytes.
 `model.json` is the exact current Model emitted by the accepted source at the
 fixed predecessor. The standard-library derivation structurally validates it
 and independently renders every downstream artifact. The four numerical
-blocks use explicit binary64 producer bits; equal prior and accepted velocity
-content is not forced to have distinct identity.
+blocks use explicit binary64 producer bits. The prior and accepted velocity
+sequences differ at those exact bits, so their canonical bytes and content
+digests remain distinct.
 
 These bytes are evidence, not a migration format, arbitrary artifact catalog,
 or serialized acceptance report. They must not be regenerated from successor
