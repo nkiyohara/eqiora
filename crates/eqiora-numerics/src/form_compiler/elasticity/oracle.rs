@@ -129,26 +129,29 @@ fn private_seam_matches_the_frozen_contract() {
         &'quadrature QuadratureRule,
     ) -> Result<AdmittedCartesianQ1ElasticityForm2d<'form>, Diagnostic> =
         DerivedCartesianQ1ElasticityForm2d::admit_quadrature;
-    let _: for<'form> fn(
-        &AdmittedCartesianQ1ElasticityForm2d<'form>,
-        &AffineGeometryMap,
-        &QuadratureRule,
-        f64,
-        f64,
-        Option<&ScalarSpatialExpression>,
-    ) -> Result<LocalContribution, Diagnostic> =
-        AdmittedCartesianQ1ElasticityForm2d::evaluate;
-    let _: for<'form> fn(
-        &AdmittedCartesianQ1ElasticityForm2d<'form>,
-        &AffineGeometryMap,
-        &QuadratureRule,
-        [f64; 3],
-        &[f64; 8],
-        &[f64; 8],
-        [f64; 3],
-        &[f64; 8],
-    ) -> Result<CartesianElasticityDifferentialActions2d, Diagnostic> =
-        AdmittedCartesianQ1ElasticityForm2d::evaluate_with_actions;
+    fn assert_admitted_methods<'form>() {
+        let _: fn(
+            &AdmittedCartesianQ1ElasticityForm2d<'form>,
+            &AffineGeometryMap,
+            &QuadratureRule,
+            f64,
+            f64,
+            Option<&ScalarSpatialExpression>,
+        ) -> Result<LocalContribution, Diagnostic> =
+            AdmittedCartesianQ1ElasticityForm2d::evaluate;
+        let _: fn(
+            &AdmittedCartesianQ1ElasticityForm2d<'form>,
+            &AffineGeometryMap,
+            &QuadratureRule,
+            [f64; 3],
+            &[f64; 8],
+            &[f64; 8],
+            [f64; 3],
+            &[f64; 8],
+        ) -> Result<CartesianElasticityDifferentialActions2d, Diagnostic> =
+            AdmittedCartesianQ1ElasticityForm2d::evaluate_with_actions;
+    }
+    assert_admitted_methods();
     let _: fn(&CartesianElasticityDifferentialActions2d) -> &LocalContribution =
         CartesianElasticityDifferentialActions2d::contribution;
     let _: fn(&CartesianElasticityDifferentialActions2d) -> &[f64; 8] =
