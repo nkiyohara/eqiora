@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the frozen scientific agreement and Issue #256 state oracle."""
+"""Check the frozen sparse-LU reuse scientific agreement and state oracle."""
 
 from __future__ import annotations
 

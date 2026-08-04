@@ -1,6 +1,6 @@
 # Accepted faer sparse-LU factorization reuse
 
-This case freezes the public half of Issue #256. It executes the ordinary
+This case freezes the public half of the registered sparse-LU reuse evidence. It executes the ordinary
 `FinalizedScalarEllipticParameterPoint -> DeploymentBinding ->
 AdmittedExecution -> FaerSparseLuReuseOwner::execute ->
 AcceptedLinearExecution` path for the two-element one-dimensional Q1 fixture.

@@ -425,7 +425,7 @@ fn every_compatible_reordering_preserves_pointwise_acceptance_and_lineage() {
                 point(&fixture, selected).portable_realization()
             );
         }
-        // Deliberately no cross-order factorization-count assertion: Issue #256
+        // Deliberately no cross-order factorization-count assertion: the registered reuse evidence
         // makes no phase-count order-independence claim.
     }
 }
