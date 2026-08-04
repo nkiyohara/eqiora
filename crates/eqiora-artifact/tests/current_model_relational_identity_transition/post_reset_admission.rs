@@ -153,6 +153,135 @@ fn rfc85_fixtures() -> Vec<ExpectedAdmission> {
     rows
 }
 
+fn issue118_identity_free() -> Vec<ExpectedAdmission> {
+    vec![
+        ExpectedAdmission {
+            path: "crates/eqiora-artifact/src/prescribed_dynamic_solid_provider_occurrence.rs",
+            class: "non-fixture-search-hit",
+            owner: "the prescribed dynamic-solid provider-occurrence artifact owner",
+            note: format!(
+                "the role-preserving provider-occurrence artifact names `{}` as its exact \
+                 current-Model edge but freezes no Model-derived identity literal; this \
+                 admission owns only the future path and signal shape.",
+                SEARCH_TOKENS[2]
+            ),
+            source: format!("struct Wire {{ {}: String }}\n", SEARCH_TOKENS[2]),
+        },
+        ExpectedAdmission {
+            path: "crates/eqiora-api/src/prescribed_dynamic_solid/provider/protocol/control.rs",
+            class: "non-fixture-search-hit",
+            owner: "the connected-subprocess provider protocol control owner",
+            note: format!(
+                "the closed protocol control DTOs name `{}` as a caller-owned binding field but \
+                 freeze no Model-derived identity literal; this admission owns only the future \
+                 path and signal shape.",
+                SEARCH_TOKENS[2]
+            ),
+            source: format!("struct Bind {{ {}: String }}\n", SEARCH_TOKENS[2]),
+        },
+        ExpectedAdmission {
+            path: "crates/eqiora/tests/prescribed_dynamic_solid_subprocess_provider_3d.rs",
+            class: "non-fixture-search-hit",
+            owner: "interfaces.prescribed-dynamic-solid-subprocess-provider-3d independent oracle",
+            note: format!(
+                "the independent protocol and exact-artifact oracle names `{}` as a canonical \
+                 field and mutant but derives expected identities instead of pinning a \
+                 Model-derived literal.",
+                SEARCH_TOKENS[2]
+            ),
+            source: format!("let key = \"{}\";\n", SEARCH_TOKENS[2]),
+        },
+        ExpectedAdmission {
+            path: "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/references/\
+                   derive_provider_occurrence.py",
+            class: "non-fixture-search-hit",
+            owner: "interfaces.prescribed-dynamic-solid-subprocess-provider-3d independent oracle",
+            note: format!(
+                "the independent standard-library derivation names `{}` while deriving every \
+                 identity from accepted inputs and exact protocol bytes; it freezes no \
+                 Model-derived identity literal.",
+                SEARCH_TOKENS[2]
+            ),
+            source: format!("EDGE = \"{}\"\n", SEARCH_TOKENS[2]),
+        },
+        ExpectedAdmission {
+            path: "examples/python/prescribed_dynamic_solid_provider.py",
+            class: "non-fixture-search-hit",
+            owner: "the prescribed dynamic-solid affine Python provider",
+            note: format!(
+                "the positive provider reads `{}` from the exact bind payload but freezes no \
+                 Model-derived identity literal; this permission grants no Python path family \
+                 or sibling admission.",
+                SEARCH_TOKENS[2]
+            ),
+            source: format!("edge = request[\"{}\"]\n", SEARCH_TOKENS[2]),
+        },
+        ExpectedAdmission {
+            path: "docs/external-boundary-provider.md",
+            class: "current-owner-assertion",
+            owner: "interfaces.prescribed-dynamic-solid-subprocess-provider-3d current-owner documentation",
+            note: format!(
+                "the current-owner documentation names `{}` as the occurrence's current-Model \
+                 lineage edge without freezing any Model-derived identity literal; \
+                 documentation proximity grants no admission.",
+                SEARCH_TOKENS[2]
+            ),
+            source: format!("The lineage edge is `{}`.\n", SEARCH_TOKENS[2]),
+        },
+    ]
+}
+
+fn issue118_fixture_source(count: usize) -> String {
+    let identities = (1..count)
+        .map(|_| format!("\"{}\"", "e".repeat(64)))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!(
+        "{{\"{}\":\"{}\",\"other_model_identities\":[{}]}}\n",
+        SEARCH_TOKENS[2],
+        "e".repeat(64),
+        identities
+    )
+}
+
+fn issue118_fixtures() -> Vec<ExpectedAdmission> {
+    let owner = "interfaces.prescribed-dynamic-solid-subprocess-provider-3d independent oracle";
+    vec![
+        ExpectedAdmission {
+            path: "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/expected/\
+                   provider-occurrence.json",
+            class: "delegated-current-owner-evidence",
+            owner,
+            note: format!(
+                "the exact provider-occurrence fixture carries `{}` and thirteen same-line \
+                 Model-derived lower-hex-64 literal occurrences; admission owns only this path, \
+                 signal, and literal count.",
+                SEARCH_TOKENS[2]
+            ),
+            source: issue118_fixture_source(13),
+        },
+        ExpectedAdmission {
+            path: "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/expected/\
+                   run.json",
+            class: "delegated-current-owner-evidence",
+            owner,
+            note: format!(
+                "the exact two-output Run fixture carries `{}` and four same-line Model-derived \
+                 lower-hex-64 literal occurrences; admission owns only this path, signal, and \
+                 literal count.",
+                SEARCH_TOKENS[2]
+            ),
+            source: issue118_fixture_source(4),
+        },
+    ]
+}
+
+fn all_fixtures() -> Vec<ExpectedAdmission> {
+    let mut rows = rfc85_fixtures();
+    rows.extend(issue118_fixtures());
+    rows
+}
+
 fn row_matches(row: &PostResetAdmitted, expected: &ExpectedAdmission) -> bool {
     let (signals, literals) = observe_admitted(expected.source.as_bytes());
     row.path == expected.path
@@ -170,6 +299,11 @@ fn all_identity_free_sources() -> Vec<(&'static str, String)> {
         .collect::<Vec<_>>();
     sources.extend(
         rfc85_identity_free()
+            .into_iter()
+            .map(|row| (row.path, row.source)),
+    );
+    sources.extend(
+        issue118_identity_free()
             .into_iter()
             .map(|row| (row.path, row.source)),
     );
@@ -205,7 +339,7 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
         .into_iter()
         .map(|(path, _)| path.to_owned())
         .collect::<BTreeSet<_>>();
-    let expected_fixtures = rfc85_fixtures()
+    let expected_fixtures = all_fixtures()
         .into_iter()
         .map(|row| row.path.to_owned())
         .collect::<BTreeSet<_>>();
@@ -225,8 +359,16 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
             .as_u64()
             .unwrap()
     );
-    assert_eq!(identity_free.len(), 9);
-    assert_eq!(fixtures.len(), 10);
+    assert_eq!(identity_free.len(), 15);
+    assert_eq!(fixtures.len(), 12);
+    assert_eq!(
+        contract
+            .post_reset_fixture_admitted
+            .iter()
+            .map(|entry| entry.identity_literals)
+            .sum::<usize>(),
+        26
+    );
 
     // Every historical count is still its own. Listing an admitted path in the
     // inventory would claim it existed before the reset; listing one in
@@ -286,27 +428,27 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
     );
 }
 
-/// The fourteen RFC 0085 rows are frozen field by field. Mutating each field
+/// Every precommitted successor row is frozen field by field. Mutating each field
 /// demonstrates that omission, substitution, or metadata drift cannot be
 /// hidden behind the correct path count.
 #[test]
-fn rfc85_rows_reject_wrong_path_signal_count_class_owner_or_note() {
+fn successor_rows_reject_wrong_path_signal_count_class_owner_or_note() {
     let contract = TransitionContract::from_classification();
     for (rows, expected) in [
         (
             contract.post_reset_admitted.as_slice(),
-            rfc85_identity_free(),
+            [rfc85_identity_free(), issue118_identity_free()].concat(),
         ),
         (
             contract.post_reset_fixture_admitted.as_slice(),
-            rfc85_fixtures(),
+            all_fixtures(),
         ),
     ] {
         for expected in expected {
             let row = rows
                 .iter()
                 .find(|row| row.path == expected.path)
-                .unwrap_or_else(|| panic!("omitted RFC 0085 admission `{}`", expected.path));
+                .unwrap_or_else(|| panic!("omitted successor admission `{}`", expected.path));
             assert!(row_matches(row, &expected));
 
             let mut mutants = Vec::new();
@@ -346,7 +488,7 @@ fn both_admission_permissions_are_optional_exact_and_fail_closed() {
     let classify = |observed: Observed| classify_transition(&contract, &observed);
     let reset = || Observed::maximal_post_reset(&contract);
     let identity_free = all_identity_free_sources();
-    let fixtures = rfc85_fixtures();
+    let fixtures = all_fixtures();
     let fixture_sources = fixtures
         .iter()
         .map(|row| (row.path, row.source.clone()))
@@ -467,6 +609,15 @@ fn no_glob_directory_suffix_or_proximity_admission_exists() {
         "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/checkpoint.json",
         "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/run.json.bak",
         "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/nested/run.json",
+        "crates/eqiora-artifact/src/prescribed_dynamic_solid_provider_occurrence/mod.rs",
+        "crates/eqiora-api/src/prescribed_dynamic_solid/provider/protocol/control_test.rs",
+        "crates/eqiora/tests/prescribed_dynamic_solid_subprocess_provider_2d.rs",
+        "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/references/derive.py",
+        "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/expected/\
+         provider-occurrence-copy.json",
+        "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/expected/run.json.bak",
+        "examples/python/prescribed_dynamic_solid_provider_test.py",
+        "docs/external-boundary-provider-notes.md",
     ] {
         refused(
             classify_transition(&contract, &reset().signalling(&[path])),

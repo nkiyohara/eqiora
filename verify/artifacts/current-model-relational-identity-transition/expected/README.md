@@ -24,18 +24,23 @@
   carries — 98 of the 102, with `from_program_v2`, `from_json_v2`,
   `from_transaction_v2`, and `digest_v2` absent and forbidden prospectively.
 - `classification.json` also declares two disjoint containment-only successor
-  permissions. `post_reset_admitted` contains exactly 9 identity-free
-  classified paths — the unchanged 5 existing rows plus the exact 4 RFC 0085
-  RFC/source/test/derivation rows — each optional, absent before reset, exact in
-  path and ordered signals, and fixed at zero Model-derived identity literals.
-  `post_reset_fixture_admitted` contains exactly the 10 RFC 0085 expected paths,
-  each optional and exact in path, ordered signals, same-line lower-hex-64
-  literal occurrence count, fixture class, owner, and note. Multiple matching
-  identities on one qualifying line are counted separately. Neither permission
-  changes a historical inventory, transition, evidence, promotion, or required count;
-  fixture admission joins no identity-free set and weakens no zero-identity
-  predicate. There is no glob, directory, suffix, inferred sibling, or
-  proximity admission.
+  permissions. `post_reset_admitted` contains exactly 15 identity-free
+  classified paths — the unchanged 5 existing rows, the exact 4 RFC 0085 rows,
+  and the exact 6 source/test/derivation/provider/documentation rows for
+  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` — each optional,
+  absent before reset, exact in path and ordered signals, and fixed at zero
+  Model-derived identity literals.
+  `post_reset_fixture_admitted` contains exactly 12 paths: the 10 RFC 0085
+  expected paths plus the exact provider-occurrence and Run fixtures for
+  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`.
+  The new rows contribute 13 + 4 occurrences, taking the aggregate from 9 to
+  26. Every row is optional and exact in path, ordered signals, same-line
+  lower-hex-64 literal occurrence count, fixture class, owner, and note.
+  Multiple matching identities on one qualifying line are counted separately.
+  Neither permission changes a historical inventory, transition, evidence,
+  promotion, or required count; fixture admission joins no identity-free set
+  and weakens no zero-identity predicate. There is no glob, directory, suffix,
+  inferred sibling, or proximity admission.
 - `classification-inventory.txt` — the sorted, exact 338-path output of that
   executable candidate sweep; it contains no glob or inferred path. The sweep
   excludes two exact files, declared in `search.excluded_paths`: this case's own

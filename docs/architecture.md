@@ -1558,6 +1558,16 @@ runner-kind filters are applied only after complete registry validation.
 Neither target form admits a shell command, free-form arguments, a working
 directory, or a host-specific path.
 
+The bounded prescribed-dynamic-solid E1 provider composition does not change
+`RunManifestV2`, `ExecutionProvenanceV1`, or the direct singleton-output State
+Run. L4 accepts only an application-created already-connected child, validates
+and consumes one bounded session, and publishes no owner on failure. L3 records
+provider, adapter, projection, request, candidate, transcript, admission, and
+accepted-State roles in a separate occurrence artifact; the E1 Run contains
+exactly that occurrence and the unchanged accepted State. Launch authority and
+general external-operator meaning remain outside this boundary; see
+[External boundary provider](external-boundary-provider.md).
+
 The original bounded package path composes with `RunManifestV1` through
 `PackageRunBindingV1`, a separate canonical sidecar containing the shared
 Model digest, exact package-compilation digest, closed Run schema, and canonical

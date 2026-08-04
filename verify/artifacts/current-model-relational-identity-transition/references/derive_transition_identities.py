@@ -799,6 +799,80 @@ RFC85_FIXTURE_ADMISSION = [
     },
 ]
 
+# The registered `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`
+# evidence adds no path family. These eight rows independently respell the
+# accepted v3 transition appendix: six zero-identity current-owner hits and two
+# exact fixtures whose 13 + 4 literals raise the aggregate from 9 to 26.
+ISSUE118_IDENTITY_FREE_ADMISSION = [
+    {
+        "path": "crates/eqiora-artifact/src/prescribed_dynamic_solid_provider_occurrence.rs",
+        "class": "non-fixture-search-hit",
+        "signals": ["model_sha256"],
+        "identity_literals": 0,
+        "owner": "the prescribed dynamic-solid provider-occurrence artifact owner",
+        "note": "the role-preserving provider-occurrence artifact names `model_sha256` as its exact current-Model edge but freezes no Model-derived identity literal; this admission owns only the future path and signal shape.",
+    },
+    {
+        "path": "crates/eqiora-api/src/prescribed_dynamic_solid/provider/protocol/control.rs",
+        "class": "non-fixture-search-hit",
+        "signals": ["model_sha256"],
+        "identity_literals": 0,
+        "owner": "the connected-subprocess provider protocol control owner",
+        "note": "the closed protocol control DTOs name `model_sha256` as a caller-owned binding field but freeze no Model-derived identity literal; this admission owns only the future path and signal shape.",
+    },
+    {
+        "path": "crates/eqiora/tests/prescribed_dynamic_solid_subprocess_provider_3d.rs",
+        "class": "non-fixture-search-hit",
+        "signals": ["model_sha256"],
+        "identity_literals": 0,
+        "owner": "interfaces.prescribed-dynamic-solid-subprocess-provider-3d independent oracle",
+        "note": "the independent protocol and exact-artifact oracle names `model_sha256` as a canonical field and mutant but derives expected identities instead of pinning a Model-derived literal.",
+    },
+    {
+        "path": "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/references/derive_provider_occurrence.py",
+        "class": "non-fixture-search-hit",
+        "signals": ["model_sha256"],
+        "identity_literals": 0,
+        "owner": "interfaces.prescribed-dynamic-solid-subprocess-provider-3d independent oracle",
+        "note": "the independent standard-library derivation names `model_sha256` while deriving every identity from accepted inputs and exact protocol bytes; it freezes no Model-derived identity literal.",
+    },
+    {
+        "path": "examples/python/prescribed_dynamic_solid_provider.py",
+        "class": "non-fixture-search-hit",
+        "signals": ["model_sha256"],
+        "identity_literals": 0,
+        "owner": "the prescribed dynamic-solid affine Python provider",
+        "note": "the positive provider reads `model_sha256` from the exact bind payload but freezes no Model-derived identity literal; this permission grants no Python path family or sibling admission.",
+    },
+    {
+        "path": "docs/external-boundary-provider.md",
+        "class": "current-owner-assertion",
+        "signals": ["model_sha256"],
+        "identity_literals": 0,
+        "owner": "interfaces.prescribed-dynamic-solid-subprocess-provider-3d current-owner documentation",
+        "note": "the current-owner documentation names `model_sha256` as the occurrence's current-Model lineage edge without freezing any Model-derived identity literal; documentation proximity grants no admission.",
+    },
+]
+
+ISSUE118_FIXTURE_ADMISSION = [
+    {
+        "path": "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/expected/provider-occurrence.json",
+        "class": "delegated-current-owner-evidence",
+        "signals": ["model_sha256"],
+        "identity_literals": 13,
+        "owner": "interfaces.prescribed-dynamic-solid-subprocess-provider-3d independent oracle",
+        "note": "the exact provider-occurrence fixture carries `model_sha256` and thirteen same-line Model-derived lower-hex-64 literal occurrences; admission owns only this path, signal, and literal count.",
+    },
+    {
+        "path": "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/expected/run.json",
+        "class": "delegated-current-owner-evidence",
+        "signals": ["model_sha256"],
+        "identity_literals": 4,
+        "owner": "interfaces.prescribed-dynamic-solid-subprocess-provider-3d independent oracle",
+        "note": "the exact two-output Run fixture carries `model_sha256` and four same-line Model-derived lower-hex-64 literal occurrences; admission owns only this path, signal, and literal count.",
+    },
+]
+
 LEGACY_IDENTITY_FREE_ADMISSION_SHAPE = [
     (
         "crates/eqiora-python/src/trajectory.rs",
@@ -844,6 +918,14 @@ PROXIMATE_UNADMITTED_PATHS = [
     "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/checkpoint.json",
     "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/run.json.bak",
     "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/nested/run.json",
+    "crates/eqiora-artifact/src/prescribed_dynamic_solid_provider_occurrence/mod.rs",
+    "crates/eqiora-api/src/prescribed_dynamic_solid/provider/protocol/control_test.rs",
+    "crates/eqiora/tests/prescribed_dynamic_solid_subprocess_provider_2d.rs",
+    "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/references/derive.py",
+    "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/expected/provider-occurrence-copy.json",
+    "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/expected/run.json.bak",
+    "examples/python/prescribed_dynamic_solid_provider_test.py",
+    "docs/external-boundary-provider-notes.md",
 ]
 
 
@@ -866,14 +948,14 @@ def observe_admitted(raw: bytes) -> tuple[list[str], int]:
 
 
 def check_post_reset_admissions() -> None:
-    """The two exact, disjoint successor permissions frozen by RFC 0085."""
+    """The exact permissions for `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`."""
     print("Exact post-reset admissions")
     classification = frozen_classification()
     transition = classification["search"]["transition"]
     identity_free = transition["post_reset_admitted"]
     fixtures = transition["post_reset_fixture_admitted"]
 
-    check("identity-free admission count", len(identity_free), 9)
+    check("identity-free admission count", len(identity_free), 15)
     check(
         "declared identity-free admission count",
         len(identity_free),
@@ -889,16 +971,31 @@ def check_post_reset_admissions() -> None:
     )
     check(
         "exact four RFC 0085 identity-free rows",
-        identity_free[5:],
+        identity_free[5:9],
         RFC85_IDENTITY_FREE_ADMISSION,
     )
-    check("fixture admission count", len(fixtures), 10)
+    check(
+        "exact six `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` identity-free rows",
+        identity_free[9:],
+        ISSUE118_IDENTITY_FREE_ADMISSION,
+    )
+    check("fixture admission count", len(fixtures), 12)
     check(
         "declared fixture admission count",
         len(fixtures),
         transition["post_reset_fixture_admitted_path_count"],
     )
-    check("exact ten RFC 0085 fixture rows", fixtures, RFC85_FIXTURE_ADMISSION)
+    check("exact ten RFC 0085 fixture rows", fixtures[:10], RFC85_FIXTURE_ADMISSION)
+    check(
+        "exact two `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` fixture rows",
+        fixtures[10:],
+        ISSUE118_FIXTURE_ADMISSION,
+    )
+    check(
+        "fixture identity-literal occurrence aggregate",
+        sum(row["identity_literals"] for row in fixtures),
+        26,
+    )
 
     identity_paths = {row["path"] for row in identity_free}
     fixture_paths = {row["path"] for row in fixtures}
@@ -911,10 +1008,13 @@ def check_post_reset_admissions() -> None:
         [],
     )
     check(
-        "every RFC 0085 class is declared",
+        "every successor admission class is declared",
         sorted(
             row["class"]
-            for row in RFC85_IDENTITY_FREE_ADMISSION + RFC85_FIXTURE_ADMISSION
+            for row in RFC85_IDENTITY_FREE_ADMISSION
+            + RFC85_FIXTURE_ADMISSION
+            + ISSUE118_IDENTITY_FREE_ADMISSION
+            + ISSUE118_FIXTURE_ADMISSION
             if row["class"] not in classification["classes"]
         ),
         [],
@@ -974,7 +1074,24 @@ def check_post_reset_admissions() -> None:
     }
     for row in RFC85_FIXTURE_ADMISSION[1:]:
         synthetic[row["path"]] = b'{"model_sha256":"' + (b"e" * 64) + b'"}\n'
-    for row in RFC85_IDENTITY_FREE_ADMISSION + RFC85_FIXTURE_ADMISSION:
+    for row in ISSUE118_IDENTITY_FREE_ADMISSION:
+        synthetic[row["path"]] = b'let key = "model_sha256";\n'
+    for row in ISSUE118_FIXTURE_ADMISSION:
+        count = row["identity_literals"]
+        synthetic[row["path"]] = (
+            b'{"model_sha256":"'
+            + (b"e" * 64)
+            + b'","other_model_identities":['
+            + b",".join(b'"' + (b"e" * 64) + b'"' for _ in range(count - 1))
+            + b"]}\n"
+        )
+    all_successor_rows = (
+        RFC85_IDENTITY_FREE_ADMISSION
+        + RFC85_FIXTURE_ADMISSION
+        + ISSUE118_IDENTITY_FREE_ADMISSION
+        + ISSUE118_FIXTURE_ADMISSION
+    )
+    for row in all_successor_rows:
         check(
             f"{row['path']} synthetic signal and literal observation",
             list(observe_admitted(synthetic[row["path"]])),

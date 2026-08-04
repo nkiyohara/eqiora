@@ -113,6 +113,7 @@
         { "name": "ParameterStudyPlan", "from": "eqiora_api::ParameterStudyPlan" },
         { "name": "ParameterStudyPointKey", "from": "eqiora_api::ParameterStudyPointKey" },
         { "name": "ParameterStudyTerminalReport", "from": "eqiora_api::ParameterStudyTerminalReport" },
+        { "name": "PrescribedDynamicSolidExternalProviderStateRun3d", "from": "eqiora_api::PrescribedDynamicSolidExternalProviderStateRun3d" },
         { "name": "PrescribedDynamicSolidStateRun3d", "from": "eqiora_api::PrescribedDynamicSolidStateRun3d" },
         { "name": "REFERENCE_EXECUTION_ADAPTER", "from": "eqiora_api::REFERENCE_EXECUTION_ADAPTER" },
         { "name": "ReferenceAcceptance", "from": "eqiora_api::ReferenceAcceptance" },
