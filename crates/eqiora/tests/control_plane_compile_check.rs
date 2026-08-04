@@ -133,15 +133,42 @@ fn one_transport_neutral_operation_owns_both_adapters() {
         1,
         "Python compile must invoke the transport-neutral operation exactly once"
     );
-    let detach = python
-        .find("py.detach")
-        .expect("Python compilation must release the GIL around native compilation");
-    let operation = python.find("ModelDocument::compile").unwrap();
-    assert!(
-        operation > detach,
-        "the operation invocation must be lexically owned by the detached path"
+    let detached_call = rust_call_expression(python, "py.detach");
+    assert_eq!(
+        detached_call.matches("ModelDocument::compile").count(),
+        1,
+        "the py.detach call expression itself must own the operation invocation"
     );
     assert_no_lower_compiler_entrypoint(python, "Python");
+}
+
+#[test]
+fn detached_call_ownership_predicate_rejects_post_detach_compilation() {
+    let accepted = r#"
+        fn compile(py: Python<'_>, filename: &str, source: &str) {
+            py.detach(move || ModelDocument::compile(filename, source));
+        }
+    "#;
+    assert_eq!(
+        rust_call_expression(accepted, "py.detach")
+            .matches("ModelDocument::compile")
+            .count(),
+        1
+    );
+
+    let post_detach_mutant = r#"
+        fn compile(py: Python<'_>, filename: &str, source: &str) {
+            py.detach(|| ());
+            ModelDocument::compile(filename, source);
+        }
+    "#;
+    assert_eq!(
+        rust_call_expression(post_detach_mutant, "py.detach")
+            .matches("ModelDocument::compile")
+            .count(),
+        0,
+        "a compile call after a completed detach expression must not satisfy ownership"
+    );
 }
 
 #[test]
@@ -372,6 +399,35 @@ fn rust_function<'a>(source: &'a str, signature: &str) -> &'a str {
         }
     }
     panic!("function {signature:?} has an unterminated body")
+}
+
+fn rust_call_expression<'a>(source: &'a str, callee: &str) -> &'a str {
+    let start = source
+        .find(callee)
+        .unwrap_or_else(|| panic!("source omits call to {callee:?}"));
+    let suffix = &source[start + callee.len()..];
+    let open_offset = suffix
+        .find('(')
+        .unwrap_or_else(|| panic!("call to {callee:?} has no argument list"));
+    assert!(
+        suffix[..open_offset].trim().is_empty(),
+        "{callee:?} is not immediately followed by one call argument list"
+    );
+    let open = start + callee.len() + open_offset;
+    let mut depth = 0_u32;
+    for (offset, byte) in source[open..].bytes().enumerate() {
+        match byte {
+            b'(' => depth += 1,
+            b')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return &source[start..=open + offset];
+                }
+            }
+            _ => {}
+        }
+    }
+    panic!("call to {callee:?} has an unterminated argument list")
 }
 
 fn assert_no_lower_compiler_entrypoint(function: &str, adapter: &str) {
