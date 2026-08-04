@@ -1,7 +1,10 @@
 use std::collections::BTreeMap;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::AtomicBool;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use eqiora_artifact::{
     ArtifactDigest, PrescribedDynamicSolidProviderOccurrenceEnvelopeV1, RunManifestV2,
@@ -21,6 +24,9 @@ const DIRECT_SOURCE: &str = include_str!(
 const EXPECTED_OCCURRENCE: &[u8] = include_bytes!(
     "../../../../../verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/expected/provider-occurrence.json"
 );
+const POSITIVE_PYTHON_OVERRIDE: &str = "EQIORA_TEST_PRESCRIBED_PROVIDER_PYTHON";
+const POSITIVE_PYTHON_PROBE: &str = "import sys; import numpy; ok = sys.implementation.name == 'cpython' and sys.version_info[:2] == (3, 12) and sys.version_info.releaselevel == 'final' and numpy.__version__ == '2.1.0'; raise SystemExit(0 if ok else 1)";
+const POSITIVE_PYTHON_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 
 fn compact_occurrence_fixture() -> &'static [u8] {
     let compact = EXPECTED_OCCURRENCE
@@ -41,10 +47,51 @@ fn document() -> ModelDocument {
     ModelDocument::compile("private-provider-owner-oracle.eqi", DIRECT_SOURCE).unwrap()
 }
 
-fn positive_child() -> Child {
-    let script = repository_root().join("examples/python/prescribed_dynamic_solid_provider.py");
-    Command::new("uv")
-        .args([
+fn exact_positive_python() -> Option<OsString> {
+    let mut candidates = Vec::with_capacity(3);
+    if let Some(interpreter) = std::env::var_os(POSITIVE_PYTHON_OVERRIDE)
+        && !interpreter.is_empty()
+    {
+        candidates.push(interpreter);
+    }
+    candidates.extend([OsString::from("python"), OsString::from("python3.12")]);
+    candidates
+        .into_iter()
+        .find(|interpreter| is_exact_positive_python(interpreter))
+}
+
+fn is_exact_positive_python(interpreter: &OsStr) -> bool {
+    let child = Command::new(interpreter)
+        .args(["-c", POSITIVE_PYTHON_PROBE])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn();
+    let Ok(mut child) = child else {
+        return false;
+    };
+    let started = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return status.success(),
+            Ok(None) if started.elapsed() < POSITIVE_PYTHON_PROBE_TIMEOUT => {
+                thread::sleep(Duration::from_millis(10));
+            }
+            Ok(None) | Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return false;
+            }
+        }
+    }
+}
+
+fn positive_python_command() -> Command {
+    if let Some(interpreter) = exact_positive_python() {
+        Command::new(interpreter)
+    } else {
+        let mut command = Command::new("uv");
+        command.args([
             "run",
             "--no-project",
             "--isolated",
@@ -53,7 +100,14 @@ fn positive_child() -> Child {
             "--with",
             "numpy==2.1.0",
             "python",
-        ])
+        ]);
+        command
+    }
+}
+
+fn positive_child() -> Child {
+    let script = repository_root().join("examples/python/prescribed_dynamic_solid_provider.py");
+    positive_python_command()
         .arg(script)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -66,15 +120,7 @@ fn hostile_child() -> Child {
     let script = repository_root().join(
         "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/mutants/hostile_provider.py",
     );
-    Command::new("uv")
-        .args([
-            "run",
-            "--no-project",
-            "--isolated",
-            "--python",
-            "3.12",
-            "python",
-        ])
+    Command::new("python3.12")
         .arg(script)
         .arg("honest")
         .stdin(Stdio::piped())
