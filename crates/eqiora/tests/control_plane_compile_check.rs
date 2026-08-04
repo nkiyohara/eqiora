@@ -5,6 +5,10 @@ use eqiora::control::{
 };
 use serde_json::Value;
 
+const CONTROL_EXECUTOR_SOURCE: &str =
+    include_str!("../../eqiora-api/src/control/compile_response.rs");
+const PYTHON_ADAPTER_SOURCE: &str = include_str!("../../eqiora-python/src/lib.rs");
+
 #[path = "control_plane_compile_check/contract.rs"]
 mod contract;
 
@@ -73,10 +77,9 @@ fn accepted_fixture_links_one_execution_and_preserves_structural_meaning() {
     let second = execute_compile_v2(&request);
     let second_document = second.document().unwrap();
     let ordinary = ModelDocument::compile(request.filename(), request.source()).unwrap();
-    let identities = [document, second_document, &ordinary]
-        .map(|value| (value.digest().unwrap(), value.program().model()));
-    assert!(identities[0].0 != identities[1].0 && identities[1].0 != identities[2].0);
-    assert!(identities[0].1 != identities[1].1 && identities[1].1 != identities[2].1);
+    let documents = [document, second_document, &ordinary];
+    assert_pairwise_distinct(documents.map(|value| value.digest().unwrap()));
+    assert_pairwise_distinct(documents.map(|value| value.program().model()));
     assert_eq!(
         document.structural_fingerprint().unwrap(),
         second_document.structural_fingerprint().unwrap()
@@ -105,6 +108,40 @@ fn accepted_fixture_links_one_execution_and_preserves_structural_meaning() {
             "`{field}` entered control data"
         );
     }
+}
+
+#[test]
+fn one_transport_neutral_operation_owns_both_adapters() {
+    let _operation: fn(&str, &str) -> Result<ModelDocument, Vec<eqiora::Diagnostic>> =
+        ModelDocument::compile;
+
+    let control = rust_function(CONTROL_EXECUTOR_SOURCE, "pub fn execute_compile_v2(");
+    assert_eq!(
+        control.matches("ModelDocument::compile").count(),
+        1,
+        "control-v2 must invoke the transport-neutral operation exactly once"
+    );
+    assert!(
+        control.contains("ModelDocument::compile(request.filename(), request.source())"),
+        "control-v2 must forward the one admitted filename/source pair unchanged"
+    );
+    assert_no_lower_compiler_entrypoint(control, "control-v2");
+
+    let python = rust_function(PYTHON_ADAPTER_SOURCE, "fn compile(");
+    assert_eq!(
+        python.matches("ModelDocument::compile").count(),
+        1,
+        "Python compile must invoke the transport-neutral operation exactly once"
+    );
+    let detach = python
+        .find("py.detach")
+        .expect("Python compilation must release the GIL around native compilation");
+    let operation = python.find("ModelDocument::compile").unwrap();
+    assert!(
+        operation > detach,
+        "the operation invocation must be lexically owned by the detached path"
+    );
+    assert_no_lower_compiler_entrypoint(python, "Python");
 }
 
 #[test]
@@ -305,4 +342,49 @@ fn frozen_diagnostic_overflow_is_one_closed_decodable_response() {
             "response"
         ])
     );
+}
+
+fn assert_pairwise_distinct<T: std::fmt::Debug + PartialEq>(values: [T; 3]) {
+    assert_ne!(&values[0], &values[1]);
+    assert_ne!(&values[0], &values[2]);
+    assert_ne!(&values[1], &values[2]);
+}
+
+fn rust_function<'a>(source: &'a str, signature: &str) -> &'a str {
+    let start = source
+        .find(signature)
+        .unwrap_or_else(|| panic!("source omits function signature {signature:?}"));
+    let open = source[start..]
+        .find('{')
+        .map(|offset| start + offset)
+        .unwrap_or_else(|| panic!("function {signature:?} has no body"));
+    let mut depth = 0_u32;
+    for (offset, byte) in source[open..].bytes().enumerate() {
+        match byte {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return &source[start..=open + offset];
+                }
+            }
+            _ => {}
+        }
+    }
+    panic!("function {signature:?} has an unterminated body")
+}
+
+fn assert_no_lower_compiler_entrypoint(function: &str, adapter: &str) {
+    for forbidden in [
+        "eqiora::compiler::",
+        "eqiora_compiler",
+        "compiler::compile(",
+        "lower_draft(",
+        "lower_model(",
+    ] {
+        assert!(
+            !function.contains(forbidden),
+            "{adapter} bypasses ModelDocument::compile through {forbidden:?}"
+        );
+    }
 }
