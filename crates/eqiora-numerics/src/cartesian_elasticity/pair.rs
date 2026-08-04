@@ -20,10 +20,10 @@ use eqiora_solver::{
 };
 
 use super::{
-    COMPONENTS, CartesianElasticityCell, CartesianEssentialSides2d, CartesianQ1VectorField2d,
-    DIMENSION, global_dof, invalid, validate_problem,
+    COMPONENTS, CartesianEssentialSides2d, CartesianQ1VectorField2d, DIMENSION, global_dof,
+    invalid, validate_problem,
 };
-use crate::operator::LocalOperator;
+use crate::form_compiler::compile_cartesian_q1_elasticity_form_2d;
 use crate::spatial_expression::ScalarSpatialExpression;
 use eqiora_meshing::CartesianMesh;
 
@@ -469,6 +469,7 @@ pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
     let packet_count = cell_counts[0]
         .checked_add(cell_counts[1])
         .ok_or_else(|| invalid("conforming elasticity cell count overflows usize"))?;
+    let operator = compile_cartesian_q1_elasticity_form_2d(quadrature)?;
     let work = IndexedAssemblyWork::new(packet_count, |packet| {
         let (subdomain, cell_index) = if packet < cell_counts[0] {
             (0, packet)
@@ -480,12 +481,13 @@ pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
         let geometry = mesh
             .geometry_map(cell)
             .expect("a Cartesian cell owns affine geometry");
-        let local = CartesianElasticityCell {
-            shear_modulus: shear_moduli[subdomain],
-            first_lame_parameter: first_lame_parameters[subdomain],
-            body_force_potential: Some(body_force_potentials[subdomain]),
-        }
-        .evaluate(&geometry, quadrature)?;
+        let local = operator.evaluate(
+            &geometry,
+            quadrature,
+            shear_moduli[subdomain],
+            first_lame_parameters[subdomain],
+            Some(body_force_potentials[subdomain]),
+        )?;
         let vertices = mesh
             .entity_vertices(cell)
             .expect("a Cartesian cell owns its vertex closure");

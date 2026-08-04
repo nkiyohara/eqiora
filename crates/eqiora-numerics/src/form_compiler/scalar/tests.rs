@@ -8,11 +8,11 @@ use eqiora_sem::KernelProgram;
 
 use super::*;
 
-const SOURCE: &str = include_str!("../../../../packages/org.example.poisson/src/main.eqi");
+const SOURCE: &str = include_str!("../../../../../packages/org.example.poisson/src/main.eqi");
 const SOURCE_1D: &str =
-    include_str!("../../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi");
+    include_str!("../../../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi");
 const SOURCE_3D: &str =
-    include_str!("../../../../verify/numerics/cartesian-poisson-3d-fem-fvm/models/poisson.eqi");
+    include_str!("../../../../../verify/numerics/cartesian-poisson-3d-fem-fvm/models/poisson.eqi");
 const MATRIX: [f64; 16] = [
     0.833_333_333_333_333_3,
     -0.583_333_333_333_333_3,
