@@ -479,8 +479,8 @@ def build_documents() -> dict[str, bytes]:
             "geometry_sha256": geometry_identity,
             "correspondence_sha256": correspondence_identity,
             "mesh_sha256": mesh_identity,
-            "support_domain_ulid": roles["body"],
             "field_ulid": field,
+            "support_domain_ulid": roles["body"],
             "physical": {
                 "unit_system": "coherent-si",
                 "dimension": dimension,

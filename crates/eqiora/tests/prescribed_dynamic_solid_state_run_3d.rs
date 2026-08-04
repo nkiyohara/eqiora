@@ -907,11 +907,17 @@ fn blocks_snapshots_and_states_replay_exact_local_grammar_without_owner_role_inf
         let mut mutant: Value =
             serde_json::from_slice(frozen(EXPECTED_PRIOR_DISPLACEMENT_SNAPSHOT)).unwrap();
         let target = mutant.pointer_mut(&pointer).unwrap();
+        let before = target.clone();
         *target = match target {
-            Value::String(_) => json!(fixture.mesh.digest().unwrap().to_string()),
+            Value::String(current) => {
+                let model = fixture.model.digest().unwrap().to_string();
+                let geometry = fixture.geometry.digest().unwrap().to_string();
+                json!(if *current == model { geometry } else { model })
+            }
             Value::Number(_) => json!(2),
             _ => unreachable!(),
         };
+        assert_ne!(*target, before, "the selected snapshot member must change");
         let decoded = FieldSnapshotEnvelopeV1::from_json(
             &encode_like(EXPECTED_PRIOR_DISPLACEMENT_SNAPSHOT, &mutant),
             Default::default(),
