@@ -14,14 +14,15 @@ use ulid::Ulid;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldDecoderLimits,
     GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference,
-    PrescribedDynamicSolidRealizationEnvelopeV1, RealizationEnvelopeV3,
-    ReplayableCanonicalModelArtifact, ReplayableFixedTopologyAleRealizationArtifact,
-    SimplicialMeshEnvelopeV1, ValidatedFixedSpatialContextV1, ValidatedMovingSpatialContextV2,
-    check_json_limits, invalid_artifact,
+    PrescribedDynamicSolidRealizationEnvelopeV1, ReplayableCanonicalModelArtifact,
+    ReplayableFixedTopologyAleRealizationArtifact, SimplicialMeshEnvelopeV1,
+    ValidatedFixedSpatialContextV1, ValidatedMovingSpatialContextV2, check_json_limits,
+    invalid_artifact,
 };
 
 use super::context::{
     ValidatedCircularHoleFieldwiseContext, ValidatedPrescribedDynamicSolidContext,
+    realized_field_space_v3,
 };
 
 const FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.field-snapshot-envelope/v1";
@@ -718,79 +719,6 @@ impl ValidatedFieldSnapshotContext for ValidatedCircularHoleFieldwiseContext<'_>
             })?;
         Ok((spatial.domain(), binding.space().family()))
     }
-}
-
-impl ValidatedFieldSnapshotContext for ValidatedPrescribedDynamicSolidContext<'_> {
-    fn model_reference(&self) -> &ModelArtifactReference {
-        ValidatedPrescribedDynamicSolidContext::model_reference(self)
-    }
-
-    fn program(&self) -> &eqiora_sem::KernelProgram {
-        ValidatedPrescribedDynamicSolidContext::program(self)
-    }
-
-    fn realization_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
-        self.realization().digest()
-    }
-
-    fn geometry_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
-        self.geometry().digest()
-    }
-
-    fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1 {
-        ValidatedPrescribedDynamicSolidContext::correspondence(self)
-    }
-
-    fn mesh(&self) -> &SimplicialMeshEnvelopeV1 {
-        ValidatedPrescribedDynamicSolidContext::mesh(self)
-    }
-
-    fn active_cells(&self, domain: Id<kinds::Domain>) -> Result<Vec<usize>, Diagnostic> {
-        ValidatedPrescribedDynamicSolidContext::active_cells(self, domain)
-    }
-
-    fn realized_field_space(
-        &self,
-        field: Id<kinds::Field>,
-    ) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
-        ValidatedPrescribedDynamicSolidContext::realized_field_space(self, field)
-    }
-}
-
-fn realized_field_space_v3(
-    realization: &RealizationEnvelopeV3,
-    field: Id<kinds::Field>,
-) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
-    let plan = realization.plan()?;
-    for domain in plan.spatial().domains() {
-        if let Some(binding) = domain
-            .field_spaces()
-            .iter()
-            .find(|binding| binding.field() == field)
-        {
-            return Ok((domain.domain(), binding.space().family()));
-        }
-    }
-    let eliminated = plan.time_step().eliminated_state();
-    if eliminated.pair().state() == field {
-        let rate = eliminated.pair().rate();
-        let domain = plan
-            .spatial()
-            .domains()
-            .iter()
-            .find(|domain| {
-                domain
-                    .field_spaces()
-                    .iter()
-                    .any(|binding| binding.field() == rate)
-            })
-            .map(|domain| domain.domain())
-            .ok_or_else(|| invalid_artifact("eliminated state rate has no realized Domain"))?;
-        return Ok((domain, eliminated.state_space().family()));
-    }
-    Err(invalid_artifact(
-        "Field snapshot Field is absent from the exact Realization",
-    ))
 }
 
 pub(super) fn support_indices_from_cells(

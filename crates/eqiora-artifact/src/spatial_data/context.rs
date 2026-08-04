@@ -11,12 +11,14 @@ use eqiora_schema::kernel::{DomainKind, KernelNode};
 use eqiora_sem::KernelProgram;
 
 use crate::{
-    AcceptedCircularHoleChordalRealizationV1, CanonicalModelArtifact, GeometryDefinitionV1,
-    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference,
-    ModelEnvelope, PrescribedDynamicSolidRealizationEnvelopeV1, RealizationEnvelopeV2,
-    RealizationEnvelopeV3, ReplayableCanonicalModelArtifact, ReplayedCanonicalModel,
-    SimplicialMeshEnvelopeV1, invalid_artifact,
+    AcceptedCircularHoleChordalRealizationV1, ArtifactDigest, CanonicalModelArtifact,
+    GeometryDefinitionV1, GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
+    ModelArtifactReference, ModelEnvelope, PrescribedDynamicSolidRealizationEnvelopeV1,
+    RealizationEnvelopeV2, RealizationEnvelopeV3, ReplayableCanonicalModelArtifact,
+    ReplayedCanonicalModel, SimplicialMeshEnvelopeV1, invalid_artifact,
 };
+
+use super::field::ValidatedFieldSnapshotContext;
 
 /// Runtime proof that one fixed-spatial artifact lineage has been replayed.
 ///
@@ -204,6 +206,79 @@ impl<'a> ValidatedPrescribedDynamicSolidContext<'a> {
             },
         ))
     }
+}
+
+impl ValidatedFieldSnapshotContext for ValidatedPrescribedDynamicSolidContext<'_> {
+    fn model_reference(&self) -> &ModelArtifactReference {
+        ValidatedPrescribedDynamicSolidContext::model_reference(self)
+    }
+
+    fn program(&self) -> &KernelProgram {
+        ValidatedPrescribedDynamicSolidContext::program(self)
+    }
+
+    fn realization_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
+        self.realization().digest()
+    }
+
+    fn geometry_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
+        self.geometry().digest()
+    }
+
+    fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1 {
+        ValidatedPrescribedDynamicSolidContext::correspondence(self)
+    }
+
+    fn mesh(&self) -> &SimplicialMeshEnvelopeV1 {
+        ValidatedPrescribedDynamicSolidContext::mesh(self)
+    }
+
+    fn active_cells(&self, domain: Id<kinds::Domain>) -> Result<Vec<usize>, Diagnostic> {
+        ValidatedPrescribedDynamicSolidContext::active_cells(self, domain)
+    }
+
+    fn realized_field_space(
+        &self,
+        field: Id<kinds::Field>,
+    ) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
+        ValidatedPrescribedDynamicSolidContext::realized_field_space(self, field)
+    }
+}
+
+pub(super) fn realized_field_space_v3(
+    realization: &RealizationEnvelopeV3,
+    field: Id<kinds::Field>,
+) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
+    let plan = realization.plan()?;
+    for domain in plan.spatial().domains() {
+        if let Some(binding) = domain
+            .field_spaces()
+            .iter()
+            .find(|binding| binding.field() == field)
+        {
+            return Ok((domain.domain(), binding.space().family()));
+        }
+    }
+    let eliminated = plan.time_step().eliminated_state();
+    if eliminated.pair().state() == field {
+        let rate = eliminated.pair().rate();
+        let domain = plan
+            .spatial()
+            .domains()
+            .iter()
+            .find(|domain| {
+                domain
+                    .field_spaces()
+                    .iter()
+                    .any(|binding| binding.field() == rate)
+            })
+            .map(|domain| domain.domain())
+            .ok_or_else(|| invalid_artifact("eliminated state rate has no realized Domain"))?;
+        return Ok((domain, eliminated.state_space().family()));
+    }
+    Err(invalid_artifact(
+        "Field snapshot Field is absent from the exact Realization",
+    ))
 }
 
 /// Private proof of the one accepted exact-circle field-wise lineage.
