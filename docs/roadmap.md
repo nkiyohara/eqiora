@@ -189,6 +189,11 @@ solver, public trust service, or general package-manager UX.
   incompressible Newtonian flow, mixed boundary data, conforming elastic
   interfaces, first-order dynamic-solid meaning, transient fixed-domain flow,
   and the FSI spine above.
+- One exact serial-host unit-cube dynamic-solid step publishes a standalone
+  Realization, retained prior and accepted-next two-Field States, and a Run
+  whose sole output is the accepted-next State. Other Models, meshes,
+  candidates, steps, standalone trajectories, restart, and continuation remain
+  outside that bounded lineage.
 - A conservative cell-centered transport path, a collocated incompressible
   finite-volume path, and a same-Program FEM/FVM comparison at a shared
   analytic equilibrium.

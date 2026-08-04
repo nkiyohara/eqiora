@@ -8,6 +8,12 @@ are recorded here.
 
 ### Added
 
+- Added one exact serial-host prescribed dynamic-solid publication path with a
+  content-addressed standalone Realization, retained prior and accepted-next
+  two-Field States, and a Run whose sole output is the accepted-next State.
+  This remains the bounded accepted unit-cube reference, not a general
+  standalone structural time-integration API.
+
 - Added an optional `eqiora.matplotlib` adapter that plots the accepted
   exact-cylinder P1 pressure Result as a caller-owned, headless-saveable
   Matplotlib Figure without making Matplotlib a base dependency.

@@ -31,6 +31,7 @@ mod model_transaction;
 mod model_transaction_wire;
 mod model_wire;
 mod physical_exposure;
+mod prescribed_dynamic_solid_realization;
 mod realization;
 mod realization_reference;
 mod realization_v2;
@@ -113,6 +114,7 @@ pub use physical_exposure::{
     PhysicalExposureObservationBindingV1, PhysicalExposureProjectionV1, PhysicalExposureQuantityV1,
     PhysicalExposureSourceOriginV1, PhysicalExposureSourceSpanV1,
 };
+pub use prescribed_dynamic_solid_realization::PrescribedDynamicSolidRealizationEnvelopeV1;
 pub use realization::{
     LayoutArtifacts, LayoutArtifactsV1, RealizationDecoderLimits, RealizationEnvelopeV1,
 };
