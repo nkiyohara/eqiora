@@ -10,10 +10,12 @@ use eqiora::assembly::{
 use eqiora::kernel::BoundarySide;
 use eqiora::meshing::{MeshQualityGate, SimplicialMesh, VertexId};
 use eqiora::solver::{
-    CanonicalCsrSystemView, ExecutionReport, LinearOperatorProperties, LinearProblem,
+    BackendId, CanonicalCsrSystemView, ExecutionId, ExecutionProvider, ExecutionReport,
+    FixedOrderInnerProduct, LinearOperator, LinearOperatorProperties, LinearProblem,
     LinearSolution, LinearSolver, LinearSolverBackend, PreconditionerPolicy,
-    REFERENCE_LINEAR_SOLVER, ReductionPolicy, ReplicatedLinearExecution, SolverCapabilities,
-    SolverPlan, SolverProvider,
+    REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, ReductionPolicy, ReplicatedLinearExecution,
+    SERIAL_EXECUTION_PROVIDER, SERIAL_LINEAR_EXECUTION, SolverCapabilities, SolverPlan,
+    SolverProvider, accept_linear_solution, accept_linear_solution_with_verifier,
 };
 use eqiora::{Diagnostic, DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{
@@ -505,6 +507,12 @@ fn constructor_rejects_invalid_time_state_lineage_boundary_and_topology() {
     ] {
         assert!(fixture.reference(invalid_time).is_err());
     }
+    assert!(
+        fixture
+            .reference(DynQuantity::new(2.0 * oracle.time_step_s, TIME))
+            .is_err(),
+        "the exact 0.25 s reference step must reject a different finite positive time step"
+    );
 
     let mut missing_displacement = fixture.prior_displacement.clone();
     missing_displacement.pop();
@@ -835,6 +843,137 @@ fn validation_assembly_and_solver_failures_publish_no_partial_generation() {
             )
             .is_ok(),
         "the same generation remains admissible after solver failure"
+    );
+}
+
+#[test]
+fn non_serial_assembly_evidence_is_rejected_without_advancing_generation() {
+    let oracle = oracle();
+    let fixture = Fixture::new(&oracle);
+    let candidate = coefficients(&oracle.driven_total_displacement_m);
+    let mut reference = fixture
+        .reference(DynQuantity::new(oracle.time_step_s, TIME))
+        .unwrap();
+
+    assert!(
+        reference
+            .accept_candidate(
+                0,
+                &candidate,
+                &NonSerialAssemblyEvidence,
+                &REFERENCE_LINEAR_SOLVER,
+            )
+            .is_err(),
+        "a numerically correct assembly carrying non-serial execution evidence must be rejected"
+    );
+    assert_eq!(reference.accepted_generation(), 0);
+    assert_eq!(reference.project_driven_surface().0, 0);
+}
+
+#[test]
+fn substituted_solver_provider_is_rejected_without_advancing_generation() {
+    assert_solver_evidence_rejected(
+        SolverEvidenceMutation::Provider,
+        "a substituted solver provider must be rejected",
+    );
+}
+
+#[test]
+fn substituted_solver_plan_is_rejected_without_advancing_generation() {
+    let mutations = [
+        (
+            "algorithm",
+            solver_plan(
+                LinearSolver::MinimumResidual,
+                PreconditionerPolicy::Identity,
+                ReductionPolicy::Reproducible,
+                1.0e-13,
+                1.0e-15,
+                500,
+            ),
+        ),
+        (
+            "preconditioner",
+            solver_plan(
+                LinearSolver::ConjugateGradient,
+                PreconditionerPolicy::Jacobi,
+                ReductionPolicy::Reproducible,
+                1.0e-13,
+                1.0e-15,
+                500,
+            ),
+        ),
+        (
+            "reduction",
+            solver_plan(
+                LinearSolver::ConjugateGradient,
+                PreconditionerPolicy::Identity,
+                ReductionPolicy::Fast,
+                1.0e-13,
+                1.0e-15,
+                500,
+            ),
+        ),
+        (
+            "relative tolerance",
+            solver_plan(
+                LinearSolver::ConjugateGradient,
+                PreconditionerPolicy::Identity,
+                ReductionPolicy::Reproducible,
+                1.0e-12,
+                1.0e-15,
+                500,
+            ),
+        ),
+        (
+            "absolute tolerance",
+            solver_plan(
+                LinearSolver::ConjugateGradient,
+                PreconditionerPolicy::Identity,
+                ReductionPolicy::Reproducible,
+                1.0e-13,
+                1.0e-14,
+                500,
+            ),
+        ),
+        (
+            "iteration limit",
+            solver_plan(
+                LinearSolver::ConjugateGradient,
+                PreconditionerPolicy::Identity,
+                ReductionPolicy::Reproducible,
+                1.0e-13,
+                1.0e-15,
+                501,
+            ),
+        ),
+    ];
+    let admitted = mutations
+        .into_iter()
+        .filter_map(|(label, plan)| {
+            (!solver_evidence_is_rejected(SolverEvidenceMutation::Plan(plan))).then_some(label)
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        admitted.is_empty(),
+        "substituted solver-plan evidence was admitted for: {}",
+        admitted.join(", ")
+    );
+}
+
+#[test]
+fn non_serial_solver_execution_is_rejected_without_advancing_generation() {
+    assert_solver_evidence_rejected(
+        SolverEvidenceMutation::Execution,
+        "non-serial solver execution evidence must be rejected",
+    );
+}
+
+#[test]
+fn non_serial_solver_verification_is_rejected_without_advancing_generation() {
+    assert_solver_evidence_rejected(
+        SolverEvidenceMutation::Verification,
+        "non-serial solver verification evidence must be rejected",
     );
 }
 
@@ -1328,4 +1467,191 @@ impl LinearSolverBackend for RejectSolver {
             "oracle-injected solver failure",
         ))
     }
+}
+
+const MUTATED_EXECUTION: ExecutionId = ExecutionId::new("eqiora.oracle.non-serial");
+const MUTATED_EXECUTION_PROVIDER: ExecutionProvider =
+    ExecutionProvider::new(MUTATED_EXECUTION, env!("CARGO_PKG_VERSION"), &[]);
+const MUTATED_SOLVER_PROVIDER: SolverProvider = SolverProvider::new(
+    BackendId::new("eqiora.oracle.substituted-solver"),
+    env!("CARGO_PKG_VERSION"),
+    &[],
+);
+
+fn non_serial_execution_report() -> ExecutionReport {
+    ExecutionReport::host(MUTATED_EXECUTION, std::num::NonZeroUsize::new(2).unwrap())
+}
+
+#[derive(Debug)]
+struct NonSerialAssemblyEvidence;
+
+impl AssemblyBackend for NonSerialAssemblyEvidence {
+    fn assemble(
+        &self,
+        plan: &AssemblyPlan,
+        work: &dyn AssemblyWork,
+    ) -> Result<AssemblyResult, Diagnostic> {
+        let result = REFERENCE_ASSEMBLY_BACKEND.assemble(plan, work)?;
+        let (systems, report) = result.into_parts();
+        AssemblyResult::from_complete_systems(
+            plan,
+            systems,
+            report.packet_count(),
+            non_serial_execution_report(),
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SolverEvidenceMutation {
+    Provider,
+    Plan(SolverPlan),
+    Execution,
+    Verification,
+}
+
+#[derive(Debug)]
+struct MutatedSolverEvidence(SolverEvidenceMutation);
+
+impl LinearSolverBackend for MutatedSolverEvidence {
+    fn provider(&self) -> SolverProvider {
+        REFERENCE_SOLVER_PROVIDER
+    }
+
+    fn capabilities(&self) -> SolverCapabilities {
+        REFERENCE_LINEAR_SOLVER.capabilities()
+    }
+
+    fn solve_with_execution(
+        &self,
+        problem: &LinearProblem<'_>,
+        plan: SolverPlan,
+        execution: &dyn ReplicatedLinearExecution,
+    ) -> Result<LinearSolution, Diagnostic> {
+        let produced = REFERENCE_LINEAR_SOLVER.solve_with_execution(problem, plan, execution)?;
+        let (values, report) = produced.into_parts();
+        match self.0 {
+            SolverEvidenceMutation::Provider => accept_linear_solution_with_verifier(
+                problem,
+                plan,
+                MUTATED_SOLVER_PROVIDER,
+                report.execution_provider(),
+                report.execution(),
+                report.reason(),
+                report.completed_iterations(),
+                report.reported_residual_norm(),
+                values,
+                &SERIAL_LINEAR_EXECUTION,
+            ),
+            SolverEvidenceMutation::Plan(mutated_plan) => accept_linear_solution(
+                problem,
+                mutated_plan,
+                REFERENCE_SOLVER_PROVIDER,
+                report.reason(),
+                report.completed_iterations(),
+                report.reported_residual_norm(),
+                values,
+            ),
+            SolverEvidenceMutation::Execution => accept_linear_solution_with_verifier(
+                problem,
+                plan,
+                REFERENCE_SOLVER_PROVIDER,
+                MUTATED_EXECUTION_PROVIDER,
+                non_serial_execution_report(),
+                report.reason(),
+                report.completed_iterations(),
+                report.reported_residual_norm(),
+                values,
+                &SERIAL_LINEAR_EXECUTION,
+            ),
+            SolverEvidenceMutation::Verification => accept_linear_solution_with_verifier(
+                problem,
+                plan,
+                REFERENCE_SOLVER_PROVIDER,
+                SERIAL_EXECUTION_PROVIDER,
+                ExecutionReport::host_serial(),
+                report.reason(),
+                report.completed_iterations(),
+                report.reported_residual_norm(),
+                values,
+                &NonSerialVerifier,
+            ),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct NonSerialVerifier;
+
+impl ReplicatedLinearExecution for NonSerialVerifier {
+    fn provider(&self) -> ExecutionProvider {
+        MUTATED_EXECUTION_PROVIDER
+    }
+
+    fn report(&self) -> ExecutionReport {
+        non_serial_execution_report()
+    }
+
+    fn require_reduction(&self, policy: ReductionPolicy) -> Result<(), Diagnostic> {
+        SERIAL_LINEAR_EXECUTION.require_reduction(policy)
+    }
+
+    fn apply(
+        &self,
+        operator: &dyn LinearOperator,
+        input: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        SERIAL_LINEAR_EXECUTION.apply(operator, input, output)
+    }
+
+    fn inner_product(&self, action: FixedOrderInnerProduct<'_>) -> Result<f64, Diagnostic> {
+        SERIAL_LINEAR_EXECUTION.inner_product(action)
+    }
+}
+
+fn solver_plan(
+    algorithm: LinearSolver,
+    preconditioner: PreconditionerPolicy,
+    reduction: ReductionPolicy,
+    relative_tolerance: f64,
+    absolute_tolerance: f64,
+    maximum_iterations: usize,
+) -> SolverPlan {
+    SolverPlan::new(
+        algorithm,
+        relative_tolerance,
+        absolute_tolerance,
+        std::num::NonZeroUsize::new(maximum_iterations).unwrap(),
+    )
+    .unwrap()
+    .with_preconditioner(preconditioner)
+    .with_reduction(reduction)
+}
+
+fn assert_solver_evidence_rejected(mutation: SolverEvidenceMutation, message: &str) {
+    assert!(solver_evidence_is_rejected(mutation), "{message}");
+}
+
+fn solver_evidence_is_rejected(mutation: SolverEvidenceMutation) -> bool {
+    let oracle = oracle();
+    let fixture = Fixture::new(&oracle);
+    let candidate = coefficients(&oracle.driven_total_displacement_m);
+    let mut reference = fixture
+        .reference(DynQuantity::new(oracle.time_step_s, TIME))
+        .unwrap();
+
+    let rejected = reference
+        .accept_candidate(
+            0,
+            &candidate,
+            &REFERENCE_ASSEMBLY_BACKEND,
+            &MutatedSolverEvidence(mutation),
+        )
+        .is_err();
+    if rejected {
+        assert_eq!(reference.accepted_generation(), 0);
+        assert_eq!(reference.project_driven_surface().0, 0);
+    }
+    rejected
 }
