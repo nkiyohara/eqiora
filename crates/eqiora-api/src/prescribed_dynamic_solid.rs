@@ -27,6 +27,11 @@ use eqiora_solver::{
 
 use crate::ModelDocument;
 
+mod composition;
+mod provider;
+
+pub use provider::PrescribedDynamicSolidExternalProviderStateRun3d;
+
 #[cfg(test)]
 mod tests;
 
@@ -98,159 +103,8 @@ impl PrescribedDynamicSolidStateRun3d {
         assembly: &dyn AssemblyBackend,
         solver: &dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
-        let model = ModelEnvelope::from_program(document.program())?;
-        let canonical = lower_isotropic_elastodynamics_cartesian_3d(document.program())?;
-        let body = canonical.domain().downcast().ok_or_else(|| {
-            invalid("prescribed dynamic-solid body does not retain a typed Domain identity")
-        })?;
-        let geometry = GeometryIdentityEnvelopeV1::new(&model, [body], 1.0e-12)?;
-        let mesh = exact_mesh()?;
-        let correspondence = GeometryMeshCorrespondenceEnvelopeV1::new(&geometry, &model, &mesh)?;
-
-        let prior_displacement = VERTICES
-            .iter()
-            .enumerate()
-            .map(|(index, coordinates)| (VertexId::new(index), [coordinates[0] / 100.0, 0.0, 0.0]))
-            .collect::<Vec<_>>();
-        let prior_velocity = VERTICES
-            .iter()
-            .enumerate()
-            .map(|(index, coordinates)| (VertexId::new(index), [coordinates[0] / 50.0, 0.0, 0.0]))
-            .collect::<Vec<_>>();
-        let candidate = DRIVEN_VERTICES
-            .into_iter()
-            .map(|index| (VertexId::new(index), [0.015, 0.0, 0.0]))
-            .collect::<Vec<_>>();
-
-        let driven_boundary = canonical
-            .boundary_inventory()
-            .boundary(0, eqiora_schema::kernel::BoundarySide::Upper)
-            .and_then(|entry| entry.boundary().downcast())
-            .ok_or_else(|| {
-                invalid(
-                    "prescribed dynamic-solid x-upper boundary does not retain a typed Domain identity",
-                )
-            })?;
-        let solver_provider = solver.provider();
-        let mut reference = PrescribedDynamicSolidReference3d::new(
-            &model,
-            &geometry,
-            &mesh,
-            &correspondence,
-            DynQuantity::new(0.25, TIME),
-            &prior_displacement,
-            &prior_velocity,
-            driven_boundary,
-        )?;
-        let accepted = reference.accept_candidate(0, &candidate, assembly, solver)?;
-        if accepted.solve_report().solver_provider() != solver_provider {
-            return Err(invalid(
-                "accepted prescribed dynamic-solid evidence differs from the injected solver provider",
-            ));
-        }
-
-        let realization = PrescribedDynamicSolidRealizationEnvelopeV1::new(
-            &model,
-            &geometry,
-            &correspondence,
-            &mesh,
-            RealizationRevision::new(1),
-            &candidate,
-        )?;
-        let prior_displacement_block = vector_block(&mesh, &prior_displacement)?;
-        let prior_velocity_block = vector_block(&mesh, &prior_velocity)?;
-        let accepted_displacement_block = vector_block(&mesh, accepted.displacement())?;
-        let accepted_velocity_block = vector_block(&mesh, accepted.velocity())?;
-
-        let prior_displacement_snapshot = FieldSnapshotEnvelopeV1::new_prescribed_dynamic_solid(
-            &model,
-            &realization,
-            &geometry,
-            &correspondence,
-            &mesh,
-            realization.displacement_field(),
-            std::slice::from_ref(&prior_displacement_block),
-        )?;
-        let prior_velocity_snapshot = FieldSnapshotEnvelopeV1::new_prescribed_dynamic_solid(
-            &model,
-            &realization,
-            &geometry,
-            &correspondence,
-            &mesh,
-            realization.velocity_field(),
-            std::slice::from_ref(&prior_velocity_block),
-        )?;
-        let accepted_displacement_snapshot = FieldSnapshotEnvelopeV1::new_prescribed_dynamic_solid(
-            &model,
-            &realization,
-            &geometry,
-            &correspondence,
-            &mesh,
-            realization.displacement_field(),
-            std::slice::from_ref(&accepted_displacement_block),
-        )?;
-        let accepted_velocity_snapshot = FieldSnapshotEnvelopeV1::new_prescribed_dynamic_solid(
-            &model,
-            &realization,
-            &geometry,
-            &correspondence,
-            &mesh,
-            realization.velocity_field(),
-            std::slice::from_ref(&accepted_velocity_block),
-        )?;
-        let prior_snapshots = [
-            prior_displacement_snapshot.clone(),
-            prior_velocity_snapshot.clone(),
-        ];
-        let accepted_snapshots = [
-            accepted_displacement_snapshot.clone(),
-            accepted_velocity_snapshot.clone(),
-        ];
-        let prior_state = SpatialStateEnvelopeV1::new_prescribed_dynamic_solid(
-            &model,
-            &realization,
-            &geometry,
-            &correspondence,
-            &mesh,
-            0,
-            0.0,
-            &prior_snapshots,
-        )?;
-        let accepted_state = SpatialStateEnvelopeV1::new_prescribed_dynamic_solid(
-            &model,
-            &realization,
-            &geometry,
-            &correspondence,
-            &mesh,
-            1,
-            0.25,
-            &accepted_snapshots,
-        )?;
-        let execution = exact_execution(&accepted)?;
-        let run =
-            RunManifestV2::new(&realization, execution)?.with_output(accepted_state.digest()?);
-
-        let value = Self {
-            model,
-            geometry,
-            correspondence,
-            mesh,
-            realization,
-            accepted,
-            prior_displacement_block,
-            prior_velocity_block,
-            accepted_displacement_block,
-            accepted_velocity_block,
-            prior_displacement_snapshot,
-            prior_velocity_snapshot,
-            accepted_displacement_snapshot,
-            accepted_velocity_snapshot,
-            prior_state,
-            accepted_state,
-            run,
-        };
-        value.revalidate()?;
-        Ok(value)
+        let prepared = composition::PreparedPrescribedDynamicSolid3d::new(document)?;
+        prepared.accept(document, &composition::exact_candidate(), assembly, solver)
     }
 
     /// Exact current Model used by this occurrence.
