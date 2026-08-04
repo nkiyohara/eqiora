@@ -199,7 +199,7 @@ impl Fixture {
     }
 }
 
-#[allow(dead_code, clippy::too_many_arguments)]
+#[allow(dead_code, clippy::too_many_arguments, clippy::type_complexity)]
 fn compile_contract_exact_issue_signatures(
     model: &impl ReplayableCanonicalModelArtifact,
     geometry: &GeometryIdentityEnvelopeV1,
@@ -1187,6 +1187,7 @@ fn assert_coefficients_close(
     }
 }
 
+#[allow(clippy::needless_range_loop)]
 fn assert_csr_block_close(
     matrix: &CsrMatrix,
     first: usize,
@@ -1212,6 +1213,7 @@ fn assert_csr_block_close(
     }
 }
 
+#[allow(clippy::needless_range_loop)]
 fn assert_system_block_close(
     system: &CanonicalCsrSystemView,
     expected: [[f64; 3]; 3],
