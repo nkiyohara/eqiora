@@ -300,6 +300,11 @@ Geometry and CAD
 bounded native authored Sketch/profile composition
   -> installed-Python explicit Sketch composition (#367)
 
+External boundary providers
+  accepted #352/#365 prescribed-solid occurrence                 closed
+    -> deterministic connected-subprocess E1 (#118)              closed
+      -> E2 second-language implementation
+
 Physics libraries and credibility
   elasticity patch + thermal slab + Couette--Poiseuille
     -> thermoelasticity and conjugate heat

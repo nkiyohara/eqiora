@@ -14,6 +14,15 @@ are recorded here.
   This remains the bounded accepted unit-cube reference, not a general
   standalone structural time-integration API.
 
+- Added one failure-atomic external-boundary-provider path for the exact
+  prescribed dynamic-solid occurrence. An application-created, already-connected
+  subprocess supplies the admitted boundary-displacement candidate; Eqiora
+  records a complete provider-occurrence artifact and a separate two-output Run
+  linking it to the unchanged accepted-next State. The first verified provider
+  is limited to ordinary-GIL CPython 3.12 with NumPy 2.1.0; the direct
+  singleton-output Run, process launch authority, and broader coupling remain
+  unchanged.
+
 - Added an optional `eqiora.matplotlib` adapter that plots the accepted
   exact-cylinder P1 pressure Result as a caller-owned, headless-saveable
   Matplotlib Figure without making Matplotlib a base dependency.
