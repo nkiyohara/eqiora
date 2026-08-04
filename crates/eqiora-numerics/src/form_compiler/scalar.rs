@@ -36,13 +36,13 @@ const HOMOGENEOUS_ESSENTIAL_DISCHARGE: &str =
 const SOURCE_PAIRING: &str = "fem.derive.v1.source-pairing";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MatrixSlot {
+pub(super) enum MatrixSlot {
     Test,
     Trial,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum WeakTermSlot {
+pub(super) enum WeakTermSlot {
     TestPairing { test: MatrixSlot },
     Bilinear { test: MatrixSlot, trial: MatrixSlot },
     Boundary { test: MatrixSlot },
@@ -50,7 +50,7 @@ enum WeakTermSlot {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum WeakSign {
+pub(super) enum WeakSign {
     Positive,
     Negative,
 }
