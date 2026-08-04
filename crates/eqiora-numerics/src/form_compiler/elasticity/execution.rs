@@ -374,7 +374,7 @@ struct ProgramCompiler<'a> {
     displacement: Option<RawId>,
     materials: Option<[Id<kinds::Parameter>; 2]>,
     relation: Option<RawId>,
-    load_node: Option<ExprId>,
+    volume: Option<super::VolumeNodes>,
     instructions: Vec<LocalFormInstruction>,
     provenance: Vec<LocalFormInstructionProvenance>,
 }
@@ -404,7 +404,7 @@ impl<'a> ProgramCompiler<'a> {
             displacement: Some(displacement),
             materials: Some(materials),
             relation: Some(certificate.balance_relation),
-            load_node: Some(certificate.volume.load_gradient),
+            volume: Some(certificate.volume),
             instructions: Vec::new(),
             provenance: Vec::new(),
         }
@@ -416,7 +416,7 @@ impl<'a> ProgramCompiler<'a> {
             displacement: None,
             materials: None,
             relation: None,
-            load_node: None,
+            volume: None,
             instructions: Vec::new(),
             provenance: Vec::new(),
         }
@@ -451,47 +451,47 @@ impl<'a> ProgramCompiler<'a> {
             };
             let gradient = self.read(
                 LocalFormInput2d::ShapeGradient(to_u8(axis)?),
-                self.weak_provenance(DIVERGENCE_BY_PARTS, self.load_node),
+                self.weak_provenance(DIVERGENCE_BY_PARTS)?,
             )?;
             let product = self.push(
                 LocalFormInstruction::Mul(stress, gradient),
-                self.weak_provenance(DIVERGENCE_BY_PARTS, self.load_node),
+                self.weak_provenance(DIVERGENCE_BY_PARTS)?,
             )?;
             contraction = Some(match contraction {
                 None => product,
                 Some(left) => self.push(
                     LocalFormInstruction::Add(left, product),
-                    self.weak_provenance(DIVERGENCE_BY_PARTS, self.load_node),
+                    self.weak_provenance(DIVERGENCE_BY_PARTS)?,
                 )?,
             });
         }
         let shape = self.read(
             LocalFormInput2d::ShapeValue,
-            self.weak_provenance(SOURCE_PAIRING, self.load_node),
+            self.weak_provenance(SOURCE_PAIRING)?,
         )?;
         let force = self.read(
             LocalFormInput2d::BodyForce(to_u8(component)?),
-            self.weak_provenance(SOURCE_PAIRING, self.load_node),
+            self.weak_provenance(SOURCE_PAIRING)?,
         )?;
         let load = self.push(
             LocalFormInstruction::Mul(shape, force),
-            self.weak_provenance(SOURCE_PAIRING, self.load_node),
+            self.weak_provenance(SOURCE_PAIRING)?,
         )?;
         let negative_load = self.push(
             LocalFormInstruction::Neg(load),
-            self.weak_provenance(SOURCE_PAIRING, self.load_node),
+            self.weak_provenance(SOURCE_PAIRING)?,
         )?;
         let residual = self.push(
             LocalFormInstruction::Add(contraction.expect("two axes"), negative_load),
-            self.weak_provenance(TEST_PAIRING, self.load_node),
+            self.weak_provenance(TEST_PAIRING)?,
         )?;
         let scale = self.read(
             LocalFormInput2d::QuadratureScale,
-            self.weak_provenance(TEST_PAIRING, self.load_node),
+            self.weak_provenance(TEST_PAIRING)?,
         )?;
         self.push(
             LocalFormInstruction::Mul(scale, residual),
-            self.weak_provenance(TEST_PAIRING, self.load_node),
+            self.weak_provenance(TEST_PAIRING)?,
         )
     }
 
@@ -772,7 +772,6 @@ impl<'a> ProgramCompiler<'a> {
                 if Some(field.erase()) == self.displacement
         )
     }
-
     fn read(
         &mut self,
         input: LocalFormInput2d,
@@ -784,7 +783,6 @@ impl<'a> ProgramCompiler<'a> {
             .ok_or_else(|| tape_error("compiler requested an unknown dense input role"))?;
         self.push(LocalFormInstruction::Read(to_u16(input)?), provenance)
     }
-
     fn constant(
         &mut self,
         value: f64,
@@ -798,7 +796,6 @@ impl<'a> ProgramCompiler<'a> {
             provenance,
         )
     }
-
     fn push(
         &mut self,
         instruction: LocalFormInstruction,
@@ -812,33 +809,36 @@ impl<'a> ProgramCompiler<'a> {
         self.provenance.push(provenance);
         Ok(index)
     }
-
     fn source_provenance(
         &self,
         source_node: Option<ExprId>,
         operator_definition: Option<OperatorDefinitionDigest>,
     ) -> LocalFormInstructionProvenance {
+        let source_node = source_node.or(self.volume.map(|volume| volume.load_gradient));
         LocalFormInstructionProvenance {
             rule_id: None,
             relation: self.relation,
-            source_node: self.relation.and(source_node.or(self.load_node)),
+            source_node: self.relation.and(source_node),
             operator_definition,
         }
     }
-
     fn weak_provenance(
         &self,
         rule_id: &'static str,
-        source_node: Option<ExprId>,
-    ) -> LocalFormInstructionProvenance {
-        LocalFormInstructionProvenance {
+    ) -> Result<LocalFormInstructionProvenance, Diagnostic> {
+        let source_node = match rule_id {
+            TEST_PAIRING => self.volume.map(|volume| volume.root),
+            DIVERGENCE_BY_PARTS => self.volume.map(|volume| volume.divergence),
+            SOURCE_PAIRING => self.volume.map(|volume| volume.load_gradient),
+            _ => return Err(tape_error("compiler requested an unknown weak rule")),
+        };
+        Ok(LocalFormInstructionProvenance {
             rule_id: Some(rule_id),
             relation: self.relation,
             source_node: self.relation.and(source_node),
             operator_definition: None,
-        }
+        })
     }
-
     fn finish(&mut self, roots: Vec<u16>) -> Result<LocalFormProgram2d, Diagnostic> {
         Ok(LocalFormProgram2d {
             inputs: closed_inputs().to_vec(),
