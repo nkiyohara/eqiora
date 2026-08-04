@@ -5,11 +5,11 @@ use std::hash::{Hash, Hasher};
 
 use eqiora::Diagnostic;
 use eqiora::geometry::{
-    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1,
-    ConstrainedRectangleV1,
+    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph, CadAuthoredSketch,
+    CadRepairDispositionV1, ConstrainedRectangleV1,
 };
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyModule, PyTuple};
+use pyo3::types::{PyAny, PyBytes, PyModule, PyTuple};
 
 use crate::error::validation_error;
 use crate::geometry::{PyGeometry, digest_to_hex};
@@ -25,6 +25,73 @@ use crate::geometry::{PyGeometry, digest_to_hex};
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PyCadAuthoredGraph {
     graph: CadAuthoredGraph,
+}
+
+/// One opaque native-owned input for the closed authored-CAD operations.
+#[pyclass(
+    name = "CadAuthoredSketch",
+    module = "eqiora._eqiora",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PyCadAuthoredSketch {
+    sketch: CadAuthoredSketch,
+}
+
+#[pymethods]
+impl PyCadAuthoredSketch {
+    /// Admit the one constrained XY rectangle input.
+    #[staticmethod]
+    #[pyo3(signature = (
+        *,
+        x_bounds,
+        y_bounds,
+        plane_z,
+        modeling_tolerance
+    ))]
+    fn rectangle_xy(
+        py: Python<'_>,
+        x_bounds: (f64, f64),
+        y_bounds: (f64, f64),
+        plane_z: f64,
+        modeling_tolerance: f64,
+    ) -> PyResult<Self> {
+        let rectangle = ConstrainedRectangleV1::new(x_bounds, y_bounds, plane_z)
+            .map_err(|diagnostic| native_error(py, diagnostic))?;
+        CadAuthoredSketch::rectangle_xy(rectangle, modeling_tolerance)
+            .map(|sketch| Self { sketch })
+            .map_err(|diagnostic| native_error(py, diagnostic))
+    }
+
+    /// Admit one exact circle bound to a predecessor graph's end cap.
+    #[staticmethod]
+    #[pyo3(signature = (face, /, *, center, radius))]
+    fn circle_on_face(
+        py: Python<'_>,
+        face: &PyCadAuthoredFaceHandle,
+        center: [f64; 2],
+        radius: f64,
+    ) -> PyResult<Self> {
+        CadAuthoredSketch::circle_on_face(face.handle.clone(), center, radius)
+            .map(|sketch| Self { sketch })
+            .map_err(|diagnostic| native_error(py, diagnostic))
+    }
+
+    /// Apply the one admitted positive-z extrusion.
+    #[pyo3(signature = (*, depth))]
+    fn extrude_positive_z(&self, py: Python<'_>, depth: f64) -> PyResult<PyCadAuthoredGraph> {
+        self.sketch
+            .extrude_positive_z(depth)
+            .map(|graph| PyCadAuthoredGraph { graph })
+            .map_err(|diagnostic| native_error(py, diagnostic))
+    }
+
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
+        other
+            .extract::<PyRef<'_, Self>>()
+            .is_ok_and(|other| self.sketch == other.sketch)
+    }
 }
 
 #[pymethods]
@@ -73,6 +140,20 @@ impl PyCadAuthoredGraph {
     ) -> PyResult<Self> {
         self.graph
             .circular_through_cut(center, radius, boolean_tolerance)
+            .map(|graph| Self { graph })
+            .map_err(|diagnostic| native_error(py, diagnostic))
+    }
+
+    /// Return a successor graph containing the admitted sketch's through-cut.
+    #[pyo3(signature = (sketch, /, *, boolean_tolerance))]
+    fn through_cut(
+        &self,
+        py: Python<'_>,
+        sketch: &PyCadAuthoredSketch,
+        boolean_tolerance: f64,
+    ) -> PyResult<Self> {
+        self.graph
+            .through_cut(&sketch.sketch, boolean_tolerance)
             .map(|graph| Self { graph })
             .map_err(|diagnostic| native_error(py, diagnostic))
     }
@@ -507,6 +588,7 @@ fn hash_bytes(bytes: &[u8]) -> u64 {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyCadAuthoredGraph>()?;
+    module.add_class::<PyCadAuthoredSketch>()?;
     module.add_class::<PyCadAuthoredFaceHandle>()?;
     module.add_class::<PyCadAuthoredBuild>()
 }
