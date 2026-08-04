@@ -799,7 +799,8 @@ RFC85_FIXTURE_ADMISSION = [
     },
 ]
 
-# Issue #118 adds no path family. These eight rows independently respell the
+# The registered `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`
+# evidence adds no path family. These eight rows independently respell the
 # accepted v3 transition appendix: six zero-identity current-owner hits and two
 # exact fixtures whose 13 + 4 literals raise the aggregate from 9 to 26.
 ISSUE118_IDENTITY_FREE_ADMISSION = [
@@ -848,7 +849,7 @@ ISSUE118_IDENTITY_FREE_ADMISSION = [
         "class": "current-owner-assertion",
         "signals": ["model_sha256"],
         "identity_literals": 0,
-        "owner": "Issue #118 external-boundary-provider documentation",
+        "owner": "interfaces.prescribed-dynamic-solid-subprocess-provider-3d current-owner documentation",
         "note": "the current-owner documentation names `model_sha256` as the occurrence's current-Model lineage edge without freezing any Model-derived identity literal; documentation proximity grants no admission.",
     },
 ]
@@ -947,7 +948,7 @@ def observe_admitted(raw: bytes) -> tuple[list[str], int]:
 
 
 def check_post_reset_admissions() -> None:
-    """The two exact, disjoint successor permissions through Issue #118."""
+    """The exact permissions for `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`."""
     print("Exact post-reset admissions")
     classification = frozen_classification()
     transition = classification["search"]["transition"]
@@ -974,7 +975,7 @@ def check_post_reset_admissions() -> None:
         RFC85_IDENTITY_FREE_ADMISSION,
     )
     check(
-        "exact six Issue #118 identity-free rows",
+        "exact six `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` identity-free rows",
         identity_free[9:],
         ISSUE118_IDENTITY_FREE_ADMISSION,
     )
@@ -986,7 +987,7 @@ def check_post_reset_admissions() -> None:
     )
     check("exact ten RFC 0085 fixture rows", fixtures[:10], RFC85_FIXTURE_ADMISSION)
     check(
-        "exact two Issue #118 fixture rows",
+        "exact two `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` fixture rows",
         fixtures[10:],
         ISSUE118_FIXTURE_ADMISSION,
     )

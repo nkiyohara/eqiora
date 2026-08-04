@@ -171,7 +171,8 @@ though the RFC and derivation are not product source, so this permission is now
 described as identity-free classified-path admission rather than product-path
 admission.
 
-Issue #118 pre-admits six more exact identity-free hits before their production
+The registered `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`
+evidence pre-admits six more exact identity-free hits before their production
 files appear: the provider-occurrence artifact owner, the protocol-control
 owner, the independent Rust oracle, its independent derivation, the positive
 Python provider, and the current-owner external-boundary-provider
@@ -189,7 +190,8 @@ capability a condition of accepting a transition that completed without it. So
   contain; it never asks a path to exist. Every subset of the fifteen, including
   none and all, is accepted independently of this permission. The original
   five paths and the RFC 0085 path happen to exist in the observed checkout;
-  the other three RFC 0085 paths and all six Issue #118 paths are optional
+  the other three RFC 0085 paths and all six paths pre-admitted for
+  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` are optional
   successors at this precommit revision.
 - **exactly the recorded signal.** An admitted path that does exist must spell
   exactly the search tokens recorded for it, in the sweep's own order. A file
@@ -229,13 +231,15 @@ Realization, four FieldSnapshot, two State, and Run fixtures each carry
 would weaken the predicate above; adding them to a historical set would claim
 they existed before the reset or were created by it. Both claims are false.
 
-Issue #118 adds exactly two more delegated fixtures under its interface case.
+The registered `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`
+evidence adds exactly two more delegated fixtures under its interface case.
 The provider-occurrence JSON carries `model_sha256` and 13 same-line
 Model-derived lower-hex-64 literal occurrences; the two-output Run JSON carries
 the same signal and 4 occurrences. Together with RFC 0085's 9 occurrences, the
 twelve exact fixture rows carry an aggregate 26. The binary transcript and
 candidate fixtures are non-UTF-8 and carry no discovered text signal, and no
-other Issue #118 path is admitted by this fixture permission.
+other `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` path is
+admitted by this fixture permission.
 
 `search.transition.post_reset_fixture_admitted` therefore records a second
 containment-only permission:
@@ -509,8 +513,9 @@ what it may not freeze, or what a present fixture path may spell and exactly
 how many same-line identity occurrences it carries, is the whole of it. The first five
 identity-free paths and the RFC exist in this checkout, so the live tree
 exercises their exact observed signals and zero-literal counts; the other three
-RFC 0085 identity-free paths, all six Issue #118 identity-free paths, and all
-twelve fixtures remain optional successor paths.
+RFC 0085 identity-free paths, all six
+`interfaces.prescribed-dynamic-solid-subprocess-provider-3d` identity-free
+paths, and all twelve fixtures remain optional successor paths.
 Synthetic post-reset states additionally exercise every optional subset and the
 mutants through the same byte reader.
 

@@ -219,7 +219,7 @@ fn issue118_identity_free() -> Vec<ExpectedAdmission> {
         ExpectedAdmission {
             path: "docs/external-boundary-provider.md",
             class: "current-owner-assertion",
-            owner: "Issue #118 external-boundary-provider documentation",
+            owner: "interfaces.prescribed-dynamic-solid-subprocess-provider-3d current-owner documentation",
             note: format!(
                 "the current-owner documentation names `{}` as the occurrence's current-Model \
                  lineage edge without freezing any Model-derived identity literal; \

@@ -26,11 +26,13 @@
 - `classification.json` also declares two disjoint containment-only successor
   permissions. `post_reset_admitted` contains exactly 15 identity-free
   classified paths — the unchanged 5 existing rows, the exact 4 RFC 0085 rows,
-  and the exact 6 Issue #118 source/test/derivation/provider/documentation rows
-  — each optional, absent before reset, exact in path and ordered signals, and
-  fixed at zero Model-derived identity literals.
+  and the exact 6 source/test/derivation/provider/documentation rows for
+  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` — each optional,
+  absent before reset, exact in path and ordered signals, and fixed at zero
+  Model-derived identity literals.
   `post_reset_fixture_admitted` contains exactly 12 paths: the 10 RFC 0085
-  expected paths plus the exact Issue #118 provider-occurrence and Run fixtures.
+  expected paths plus the exact provider-occurrence and Run fixtures for
+  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`.
   The new rows contribute 13 + 4 occurrences, taking the aggregate from 9 to
   26. Every row is optional and exact in path, ordered signals, same-line
   lower-hex-64 literal occurrence count, fixture class, owner, and note.
