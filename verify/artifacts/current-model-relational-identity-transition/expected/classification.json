@@ -18,10 +18,10 @@
     "excluded_paths_note": "this case's own executable oracle is two files: the integration-test root and the private support module it includes with `#[path]`, split because a single file exceeded the 2,000-line test ceiling. Both spell the tokens the sweep searches for, so both are excluded by exact path — never by their directory, by a suffix rule, or by anything resembling `crates/*/tests/`. Every other test file in the repository, including the sibling oracle `crates/eqiora-artifact/tests/current_model_wire_oracle.rs`, stays a classified candidate. A third executor file added beside these two arrives as an unclassified candidate and is returned to this oracle.",
     "transition": {
       "contract": "the epoch reset is an exact two-state transition, not a sentinel heuristic. Every inventory path is either retired or preserved; `retired` additionally names the staged control-v2 promotion sources and the retired control-v1 request fixtures, which carry no search signal and are therefore not inventory members.",
-      "pre_reset": "every path in `retired` exists, every inventory path exists, the discovered candidate set equals the frozen inventory exactly, every promotion source carries its frozen sha256, no promotion target marked `target_exists_pre_reset: false` exists yet, and no path in `required_post_reset_without_frozen_bytes` or `post_reset_admitted` exists yet",
-      "post_reset": "no path in `retired` exists, every preserved inventory path exists although an in-place migration may stop matching the search signal, every path in `required_post_reset` exists — those in `promotion` carrying their frozen sha256, those in `required_post_reset_without_frozen_bytes` by existence alone — every path in `preserved_evidence` exists, every declared product-source scope is free of every forbidden token, every path in `post_reset_admitted` that exists carries exactly its recorded signals and freezes no identity literal, and the discovered candidate set is contained in the preserved inventory together with `required_post_reset` and `post_reset_admitted`",
+      "pre_reset": "every path in `retired` exists, every inventory path exists, the discovered candidate set equals the frozen inventory exactly, every promotion source carries its frozen sha256, no promotion target marked `target_exists_pre_reset: false` exists yet, and no path in `required_post_reset_without_frozen_bytes`, `post_reset_admitted`, or `post_reset_fixture_admitted` exists yet",
+      "post_reset": "no path in `retired` exists, every preserved inventory path exists although an in-place migration may stop matching the search signal, every path in `required_post_reset` exists — those in `promotion` carrying their frozen sha256, those in `required_post_reset_without_frozen_bytes` by existence alone — every path in `preserved_evidence` exists, every declared product-source scope is free of every forbidden token, every path in `post_reset_admitted` that exists carries exactly its recorded signals and freezes no identity literal, every path in `post_reset_fixture_admitted` that exists carries exactly its recorded signals and same-line Model-derived lower-hex-64 literal occurrence count, and the discovered candidate set is contained in the preserved inventory together with `required_post_reset`, `post_reset_admitted`, and `post_reset_fixture_admitted`",
       "partial_transition": "any other combination fails, including exactly one retired path missing before the reset and exactly one retired path surviving after it. A proper nonempty subset of `retired` is never an admissible state, so a reset cannot land one seam at a time.",
-      "unchanged_from_the_accepted_contract": "no new signal-bearing path may appear in either state by inference; `required_post_reset` is the complete set of paths the reset is permitted to add, and of those only `schemas/control/compile-v2.schema.json`, the promoted historical v1 schema copy, the promoted historical cylinder resource, and the two unversioned Rust wire owners carry a search signal. A signal-bearing product path created later, by work the reset did not do, is admitted only through `post_reset_admitted` — by exact path, and only by amending this frozen record, never by the state predicate widening itself",
+      "unchanged_from_the_accepted_contract": "no new signal-bearing path may appear in either state by inference; `required_post_reset` is the complete set of paths the reset is permitted to add, and of those only `schemas/control/compile-v2.schema.json`, the promoted historical v1 schema copy, the promoted historical cylinder resource, and the two unversioned Rust wire owners carry a search signal. A later identity-free classified path is admitted only through `post_reset_admitted`, and a later signal-bearing fixture only through the separate `post_reset_fixture_admitted` permission — always by exact path and only by amending this frozen record, never by the state predicate widening itself",
       "escape": "an implementation that needs another new signal-bearing path, another declared scope exclusion, or that cannot retire a listed path, stops and returns the delta to this oracle. Widening a set here to admit an implementation choice is not an available move.",
       "ownership_of_the_unversioned_wire_owners": "the reset folds the retired `model_v8.rs` and `model_transaction_v8.rs` wrappers together with the surviving current encoding into `crates/eqiora-artifact/src/model_wire.rs` and `crates/eqiora-artifact/src/model_transaction_wire.rs`. This gives the exact current persisted wire an unversioned product owner without growing the already-large `model.rs` and `model_transaction.rs`. Their existence is required; their content is not frozen here, because this oracle does not own the current encoding — `artifacts.current-model-canonical-identity` does.",
       "counts": "44, 304 and 13 are not one partition of 338. What partitions the inventory is 34 + 304: the 34 retired paths that are inventory members plus the 304 preserved ones. The other 10 retired paths carry no search signal and were never members. The 13 required paths are post-reset additions and replacements, not inventory members: 12 are created by the reset, and `verify/interfaces/control-plane-compile-check/expected/contract.json` is the one existing member whose bytes are replaced in place. Of the 13, 11 carry a frozen promotion digest — 10 staged control-v2 sources plus the historical cylinder — and 2 are required by existence alone.",
@@ -241,11 +241,11 @@
         }
       ],
       "promoted_evidence_note": "each entry names one evidence file whose bytes survive and whose owner changes. `pre_reset` is a member of `retired`, `post_reset` is a member of `required_post_reset`, and a `promotion` row freezes the exact bytes carried across. Deleting the bytes rather than moving them fails as a substituted promotion, not as a missing path.",
-      "post_reset_admitted_contract": "a product declaration or consumer surface created after the reset is admitted by exact path and by nothing else. Admission is containment-only: it adds the path to what the post-reset discovered set may contain and never requires the path to exist, so a post-reset state carrying none of the admitted paths is accepted exactly as it was before this amendment. An admitted path that does exist must carry exactly the search signals recorded for it and must freeze no Model-derived lower-hex-64 identity literal; an admitted path present in the pre-reset state is refused as mid-flight, because admission describes a path the reset did not create and the pre-reset tree did not have.",
+      "post_reset_admitted_contract": "an identity-free classified path created after the reset is admitted by exact path and by nothing else. Admission is containment-only: it adds the path to what the post-reset discovered set may contain and never requires the path to exist, so a post-reset state carrying none of the admitted paths is accepted exactly as it was before this amendment. An admitted path that does exist must carry exactly the search signals recorded for it and must freeze no Model-derived lower-hex-64 identity literal; an admitted path present in the pre-reset state is refused as mid-flight, because admission describes a path the reset did not create and the pre-reset tree did not have.",
       "post_reset_admitted_is_not_membership": "no admitted path joins `inventory`, `retired`, `retired_outside_inventory`, `required_post_reset`, `required_post_reset_without_frozen_bytes`, `preserved_evidence`, `promoted_evidence`, or any `promotion` row, and no count above moves. Listing one in the inventory would claim it existed before the reset; listing one in `required_post_reset` would claim the reset created it and would make a later capability mandatory for acceptance. Both are false.",
-      "post_reset_admitted_exactness": "these five paths and no others. A sixth signal-bearing path is not admitted by proximity, by sharing their directory, by sharing a `trajectory`, `result`, or Cartesian snapshot name, or by any suffix rule — it is refused as an unclassified candidate and returned to this oracle, exactly as an unlisted path was before this amendment. There is no glob here either.",
-      "post_reset_admitted_note": "hosted whole-tree transition gates found all five after the reset. The first two arrived when the general trajectory owner of the Python surface was split out of its FSI-specific host; the third is the common installed-Python static Result owner exercised by the registered `interfaces.python-exact-cylinder-stokes-result` evidence. Those three are ordinary current-owner consumers of `model_digest`. The fourth is the low-level Cartesian Q1 Field snapshot artifact owner, whose `model_sha256` is a relational artifact edge; the fifth is its independent generated-Cartesian spatial-output oracle, which checks and mutates that key without pinning a value. Every path freezes zero Model identity literals. This case bounds the exact signal each may carry and owns none of the files' content.",
-      "post_reset_admitted_path_count": 5,
+      "post_reset_admitted_exactness": "these nine paths and no others. A tenth identity-free signal-bearing path is not admitted by proximity, by sharing their directory, by sharing a `trajectory`, `result`, Cartesian snapshot, prescribed-solid, RFC, test, or derivation name, or by any suffix rule — it is refused as an unclassified candidate and returned to this oracle, exactly as an unlisted path was before this amendment. There is no glob here either.",
+      "post_reset_admitted_note": "hosted whole-tree transition gates found the first five after the reset. The first two arrived when the general trajectory owner of the Python surface was split out of its FSI-specific host; the third is the common installed-Python static Result owner exercised by the registered `interfaces.python-exact-cylinder-stokes-result` evidence. Those three are ordinary current-owner consumers of `model_digest`. The fourth is the low-level Cartesian Q1 Field snapshot artifact owner, whose `model_sha256` is a relational artifact edge; the fifth is its independent generated-Cartesian spatial-output oracle, which checks and mutates that key without pinning a value. RFC 0085 pre-admits four more identity-free classified search hits: the accepted RFC, the standalone-solid Realization source owner, the independent Rust exact-artifact oracle, and its independent derivation route. Every path freezes zero Model identity literals. This case bounds the exact signal each may carry and owns none of the files' content.",
+      "post_reset_admitted_path_count": 9,
       "post_reset_admitted": [
         {
           "path": "crates/eqiora-python/src/trajectory.rs",
@@ -296,6 +296,135 @@
           "identity_literals": 0,
           "owner": "artifacts.generated-cartesian-q1-spatial-output independent oracle",
           "note": "the independent oracle for the generated Cartesian spatial-output artifact added after the Model epoch reset. It names `model_sha256` as a canonical snapshot key and stale-link mutant, but every expected identity is derived from the live accepted result and no Model identity literal is frozen. It is neither a reset product nor a required transition path."
+        },
+        {
+          "path": "rfcs/0085-standalone-prescribed-dynamic-solid-artifacts.md",
+          "class": "current-owner-assertion",
+          "signals": [
+            "eqiora.model-envelope/v",
+            "model_sha256"
+          ],
+          "identity_literals": 0,
+          "owner": "RFC 0085 standalone prescribed dynamic-solid artifact contract",
+          "note": "the accepted RFC owns the exact successor path split and names the current Model schema and digest edge without freezing any Model-derived identity literal. It is neither a reset product nor a required transition path."
+        },
+        {
+          "path": "crates/eqiora-artifact/src/prescribed_dynamic_solid_realization.rs",
+          "class": "non-fixture-search-hit",
+          "signals": [
+            "model_sha256"
+          ],
+          "identity_literals": 0,
+          "owner": "the prescribed dynamic-solid Realization artifact owner",
+          "note": "`model_sha256` is the exact relational edge to the caller-owned current Model artifact; the module freezes no Model-derived identity literal and is neither a reset product nor a required transition path."
+        },
+        {
+          "path": "crates/eqiora/tests/prescribed_dynamic_solid_state_run_3d.rs",
+          "class": "non-fixture-search-hit",
+          "signals": [
+            "model_sha256"
+          ],
+          "identity_literals": 0,
+          "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+          "note": "the independent exact-artifact oracle names `model_sha256` as a canonical lineage key and mutation target but derives all expected identities from committed bytes; the Rust source freezes no Model-derived identity literal and is neither a reset product nor a required transition path."
+        },
+        {
+          "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/references/derive_prescribed_dynamic_solid_state_run_3d.py",
+          "class": "non-fixture-search-hit",
+          "signals": [
+            "eqiora.model-envelope/v",
+            "model_sha256"
+          ],
+          "identity_literals": 0,
+          "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+          "note": "the independent standard-library derivation names the current Model schema and `model_sha256` while re-deriving expected identities from canonical bytes; the script freezes no Model-derived identity literal and is neither a reset product nor a required transition path."
+        }
+      ],
+      "post_reset_fixture_admitted_contract": "a signal-bearing fixture created after the reset is admitted through a second containment-only permission, by exact path and by nothing else. Each path is optional after the reset, absent before it, and if present must carry exactly its recorded ordered search-signal list and exact same-line Model-derived lower-hex-64 literal occurrence count together with its declared fixture class, owner, and note. Every non-overlapping matching occurrence is counted, including multiple identities on one qualifying line. This permission joins no historical frozen, promotion, identity-free, or required set and does not weaken `post_reset_admitted`'s zero-identity predicate.",
+      "post_reset_fixture_admitted_is_not_membership": "no fixture-admitted path joins `inventory`, `retired`, `retired_outside_inventory`, `required_post_reset`, `required_post_reset_without_frozen_bytes`, `preserved_evidence`, `promoted_evidence`, any `promotion` row, or `post_reset_admitted`, and no historical count moves. A fixture path belongs only to this exact optional permission.",
+      "post_reset_fixture_admitted_exactness": "these ten expected files and no others. A sibling expected file, another filename under the same case, another JSON suffix, or a path merely below `verify/artifacts/prescribed-dynamic-solid-state-run-3d/` is unclassified unless another exact row is precommitted. There is no glob, directory, suffix, or proximity rule.",
+      "post_reset_fixture_admitted_note": "RFC 0085 delegates these exact canonical expected bytes to `artifacts.prescribed-dynamic-solid-state-run-3d`. The Model fixture carries the current Model schema search signal and no same-line Model-derived identity literal. Geometry, Realization, four FieldSnapshot, two State, and Run fixtures each carry exactly one same-line `model_sha256` lower-hex-64 literal. This transition case owns only their exact optional admission shape, not their bytes or identities.",
+      "post_reset_fixture_admitted_path_count": 10,
+      "post_reset_fixture_admitted": [
+        {
+          "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/model.json",
+          "class": "delegated-current-owner-evidence",
+          "signals": ["eqiora.model-envelope/v"],
+          "identity_literals": 0,
+          "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+          "note": "the exact current Model canonical-byte fixture names its schema and freezes no same-line Model-derived lower-hex-64 identity; its bytes remain owned by the standalone lineage oracle."
+        },
+        {
+          "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/geometry-identity.json",
+          "class": "delegated-current-owner-evidence",
+          "signals": ["model_sha256"],
+          "identity_literals": 1,
+          "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+          "note": "the exact Geometry identity fixture carries one same-line `model_sha256` literal linking it to the current Model; admission owns only this path, signal, and literal count."
+        },
+        {
+          "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/realization.json",
+          "class": "delegated-current-owner-evidence",
+          "signals": ["model_sha256"],
+          "identity_literals": 1,
+          "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+          "note": "the exact standalone-solid Realization fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count."
+        },
+        {
+          "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/prior-displacement-snapshot.json",
+          "class": "delegated-current-owner-evidence",
+          "signals": ["model_sha256"],
+          "identity_literals": 1,
+          "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+          "note": "the exact prior-displacement FieldSnapshot fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count."
+        },
+        {
+          "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/prior-velocity-snapshot.json",
+          "class": "delegated-current-owner-evidence",
+          "signals": ["model_sha256"],
+          "identity_literals": 1,
+          "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+          "note": "the exact prior-velocity FieldSnapshot fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count."
+        },
+        {
+          "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/accepted-displacement-snapshot.json",
+          "class": "delegated-current-owner-evidence",
+          "signals": ["model_sha256"],
+          "identity_literals": 1,
+          "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+          "note": "the exact accepted-displacement FieldSnapshot fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count."
+        },
+        {
+          "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/accepted-velocity-snapshot.json",
+          "class": "delegated-current-owner-evidence",
+          "signals": ["model_sha256"],
+          "identity_literals": 1,
+          "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+          "note": "the exact accepted-velocity FieldSnapshot fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count."
+        },
+        {
+          "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/prior-state.json",
+          "class": "delegated-current-owner-evidence",
+          "signals": ["model_sha256"],
+          "identity_literals": 1,
+          "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+          "note": "the exact prior State fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count."
+        },
+        {
+          "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/accepted-state.json",
+          "class": "delegated-current-owner-evidence",
+          "signals": ["model_sha256"],
+          "identity_literals": 1,
+          "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+          "note": "the exact accepted-next State fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count."
+        },
+        {
+          "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/run.json",
+          "class": "delegated-current-owner-evidence",
+          "signals": ["model_sha256"],
+          "identity_literals": 1,
+          "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+          "note": "the exact Run fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count."
         }
       ]
     },
