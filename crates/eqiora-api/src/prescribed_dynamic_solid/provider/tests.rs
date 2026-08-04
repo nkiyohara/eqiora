@@ -13,9 +13,7 @@ use serde_json::{Value, json};
 use crate::ModelDocument;
 
 use super::super::PrescribedDynamicSolidExternalProviderStateRun3d;
-use super::test_support::{
-    CancellationCheckpoint, solve_with_injected_cancellation_checkpoint,
-};
+use super::test_support::{CancellationCheckpoint, solve_with_injected_cancellation_checkpoint};
 
 const DIRECT_SOURCE: &str = include_str!(
     "../../../../../verify/artifacts/prescribed-dynamic-solid-state-run-3d/models/direct.eqi"
@@ -48,6 +46,7 @@ fn positive_child() -> Child {
     Command::new("uv")
         .args([
             "run",
+            "--no-project",
             "--isolated",
             "--python",
             "3.12",
@@ -68,7 +67,14 @@ fn hostile_child() -> Child {
         "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/mutants/hostile_provider.py",
     );
     Command::new("uv")
-        .args(["run", "--isolated", "--python", "3.12", "python"])
+        .args([
+            "run",
+            "--no-project",
+            "--isolated",
+            "--python",
+            "3.12",
+            "python",
+        ])
         .arg(script)
         .arg("honest")
         .stdin(Stdio::piped())
@@ -127,12 +133,12 @@ fn rebuilt_occurrence(
     provider_dependencies: &BTreeMap<String, String>,
     displacement_input: ArtifactDigest,
     velocity_input: ArtifactDigest,
-) -> PrescribedDynamicSolidProviderOccurrenceEnvelopeV1 {
+) -> Result<PrescribedDynamicSolidProviderOccurrenceEnvelopeV1, eqiora_core::Diagnostic> {
     let retained = &owner.provider_occurrence;
     PrescribedDynamicSolidProviderOccurrenceEnvelopeV1::new(
-        &owner.realization,
-        &owner.prior_state,
-        &owner.accepted_state,
+        owner.realization(),
+        owner.prior_state(),
+        owner.accepted_state(),
         provider_id,
         "1.0.0",
         provider_dependencies,
@@ -145,18 +151,31 @@ fn rebuilt_occurrence(
         retained.candidate_identity(),
         retained.transcript_identity(),
     )
-    .expect("the cross-substituted occurrence remains locally well formed")
+}
+
+fn assert_occurrence_construction_rejected(
+    result: Result<PrescribedDynamicSolidProviderOccurrenceEnvelopeV1, eqiora_core::Diagnostic>,
+    label: &str,
+) {
+    let error = match result {
+        Err(error) => error,
+        Ok(_) => panic!("{label} unexpectedly constructed a locally valid occurrence"),
+    };
+    assert_eq!(
+        error.code(),
+        eqiora_core::diagnostic::codes::INVALID_ARTIFACT,
+        "{label} returned the wrong diagnostic"
+    );
 }
 
 fn occurrence_from_wire(
     wire: &[u8],
     label: &str,
 ) -> PrescribedDynamicSolidProviderOccurrenceEnvelopeV1 {
-    PrescribedDynamicSolidProviderOccurrenceEnvelopeV1::from_json(
-        wire,
-        Default::default(),
-    )
-    .unwrap_or_else(|error| panic!("{label} must remain locally valid occurrence data: {error}"))
+    PrescribedDynamicSolidProviderOccurrenceEnvelopeV1::from_json(wire, Default::default())
+        .unwrap_or_else(|error| {
+            panic!("{label} must remain locally valid occurrence data: {error}")
+        })
 }
 
 fn assert_occurrence_wire_rejected(wire: &[u8], label: &str) {
@@ -200,7 +219,7 @@ fn run_with_outputs(
 #[test]
 fn revalidate_rejects_accepted_state_candidate_and_transcript_substitution() {
     let mut wrong_state = owner();
-    wrong_state.accepted_state = wrong_state.prior_state.clone();
+    wrong_state.accepted_state = wrong_state.prior_state().clone();
     assert_revalidation_rejected(&wrong_state, "accepted State substitution");
 
     let mut wrong_candidate = owner();
@@ -218,29 +237,29 @@ fn revalidate_rejects_every_occurrence_cross_substitution() {
     let retained_dependencies = dependencies("2.1.0");
     let foreign_input = ArtifactDigest::from_sha256([0xa5; 32]);
 
-    let mut provider = owner();
-    provider.provider_occurrence = rebuilt_occurrence(
-        &provider,
-        "eqiora.python.foreign-affine",
-        &retained_dependencies,
-        provider
-            .provider_occurrence
-            .displacement_input_identity(),
-        provider.provider_occurrence.velocity_input_identity(),
+    let provider = owner();
+    assert_occurrence_construction_rejected(
+        rebuilt_occurrence(
+            &provider,
+            "eqiora.python.foreign-affine",
+            &retained_dependencies,
+            provider.provider_occurrence.displacement_input_identity(),
+            provider.provider_occurrence.velocity_input_identity(),
+        ),
+        "provider identity substitution",
     );
-    assert_revalidation_rejected(&provider, "provider and occurrence linkage substitution");
 
-    let mut dependency = owner();
-    dependency.provider_occurrence = rebuilt_occurrence(
-        &dependency,
-        "eqiora.python.prescribed-dynamic-solid-affine",
-        &dependencies("2.1.1"),
-        dependency
-            .provider_occurrence
-            .displacement_input_identity(),
-        dependency.provider_occurrence.velocity_input_identity(),
+    let dependency = owner();
+    assert_occurrence_construction_rejected(
+        rebuilt_occurrence(
+            &dependency,
+            "eqiora.python.prescribed-dynamic-solid-affine",
+            &dependencies("2.1.1"),
+            dependency.provider_occurrence.displacement_input_identity(),
+            dependency.provider_occurrence.velocity_input_identity(),
+        ),
+        "provider dependency substitution",
     );
-    assert_revalidation_rejected(&dependency, "provider dependency substitution");
 
     let mut displacement = owner();
     displacement.provider_occurrence = rebuilt_occurrence(
@@ -249,7 +268,8 @@ fn revalidate_rejects_every_occurrence_cross_substitution() {
         &retained_dependencies,
         foreign_input.clone(),
         displacement.provider_occurrence.velocity_input_identity(),
-    );
+    )
+    .expect("the displacement input-identity substitution remains locally well formed");
     assert_revalidation_rejected(&displacement, "displacement input-block substitution");
 
     let mut velocity = owner();
@@ -257,11 +277,10 @@ fn revalidate_rejects_every_occurrence_cross_substitution() {
         &velocity,
         "eqiora.python.prescribed-dynamic-solid-affine",
         &retained_dependencies,
-        velocity
-            .provider_occurrence
-            .displacement_input_identity(),
+        velocity.provider_occurrence.displacement_input_identity(),
         foreign_input,
-    );
+    )
+    .expect("the velocity input-identity substitution remains locally well formed");
     assert_revalidation_rejected(&velocity, "velocity input-block substitution");
 
     let wire = replace_first(
@@ -273,7 +292,7 @@ fn revalidate_rejects_every_occurrence_cross_substitution() {
 
     let mut accepted_state = owner();
     let retained = accepted_state.accepted_state.digest().unwrap().to_string();
-    let foreign = accepted_state.prior_state.digest().unwrap().to_string();
+    let foreign = accepted_state.prior_state().digest().unwrap().to_string();
     let wire = replace_first(
         compact_occurrence_fixture(),
         retained.as_bytes(),
@@ -288,11 +307,8 @@ fn revalidate_rejects_prior_missing_additional_and_unlinked_run_outputs() {
     let mut prior = owner();
     let accepted_identity = prior.accepted_state.digest().unwrap().to_string();
     let occurrence_identity = prior.provider_occurrence.digest().unwrap().to_string();
-    let prior_identity = prior.prior_state.digest().unwrap().to_string();
-    prior.run = run_with_outputs(
-        &prior,
-        vec![occurrence_identity.clone(), prior_identity],
-    );
+    let prior_identity = prior.prior_state().digest().unwrap().to_string();
+    prior.run = run_with_outputs(&prior, vec![occurrence_identity.clone(), prior_identity]);
     assert_revalidation_rejected(&prior, "prior State Run output");
 
     let mut missing_accepted = owner();

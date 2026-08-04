@@ -108,16 +108,8 @@ fn hostile_child(mode: &str) -> Child {
     let script = repository_root().join(
         "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/mutants/hostile_provider.py",
     );
-    let mut command = Command::new("uv");
+    let mut command = Command::new("python3.12");
     command
-        .args([
-            "run",
-            "--isolated",
-            "--no-project",
-            "--python",
-            "3.12",
-            "python",
-        ])
         .arg(script)
         .arg(mode)
         .stdin(Stdio::piped())
@@ -883,9 +875,8 @@ fn missing_pipe_ends_and_backend_failures_are_failure_atomic() {
         "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/mutants/hostile_provider.py",
     );
     for missing_stdout in [false, true] {
-        let mut command = Command::new("uv");
+        let mut command = Command::new("python3.12");
         command
-            .args(["run", "--isolated", "--python", "3.12", "python"])
             .arg(&script)
             .arg("honest")
             .stdin(if missing_stdout {
