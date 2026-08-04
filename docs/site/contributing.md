@@ -11,7 +11,8 @@ architecture and evidence discipline.
    [architecture](https://github.com/nkiyohara/eqiora/blob/main/docs/architecture.md)
    and [glossary](https://github.com/nkiyohara/eqiora/blob/main/docs/glossary.md).
 3. Search existing issues and RFCs before introducing a public concept.
-4. Keep one vertical slice bounded enough to verify and review.
+4. Keep one capability claim bounded enough to verify and review, and reuse
+   accepted contracts rather than rebuilding its full stack.
 
 New public semantics, wire formats, stable interfaces, dependency-layer
 exceptions, numerical contracts, or governance changes require the

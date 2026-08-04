@@ -5,7 +5,7 @@ Everything longer lives in the document that owns it, and those documents are au
 
 - [AI-authored platform strategy](docs/development/ai-authored-platform-strategy.md)
   — what Eqiora optimizes for, and which rules the agent-authorship premise amends.
-- [Vertical-slice development](docs/development/vertical-slice-development.md)
+- [Contract-wave capability development](docs/development/vertical-slice-development.md)
   — definition of done, parallelization, conformance kits, abstraction budget,
   Issue queue, branch discipline. **Read it before starting capability or
   parallel work.**
@@ -50,8 +50,8 @@ it.
 ## Structure outranks speed, every time
 
 Parallelism is the only accepted speed, because it spends agents rather than
-structure. A slow slice costs twice as long once, visibly. A structure that
-makes every later slice harder compounds forever and bills nobody — the agent
+structure. A slow lane costs twice as long once, visibly. A structure that
+makes every later lane harder compounds forever and bills nobody — the agent
 taking the shortcut is not the one who pays. More lanes sharpen this: each sees
 only its own cost, so the locally cheapest move is to widen something shared.
 
@@ -139,16 +139,16 @@ recommended only on disagreement or consequential claims. Durable schemas and ex
 a pre-committed non-implementer oracle, not dual derivation unless they introduce science. Adapters and
 application surfaces need focused tests, not derivation ceremony.
 
-## Slice ownership
+## Contract and lane ownership
 
-One writer owns an invariant-bearing central seam until its reference slice is
+One writer owns an invariant-bearing central seam until its reference capability path is
 accepted; disjoint consumers then start from that exact accepted revision. A
 fan-out lane consumes its accepted contract and does not extend it for local
 convenience — if the contract cannot express a discovered requirement, stop the
 lane and return the requirement to the contract owner.
 
-Writable branches belong to mergeable slices rather than to agents, and use
-separate worktrees. The integrator is a per-slice role, not a standing one.
+Writable branches belong to mergeable lanes rather than to agents, and use
+separate worktrees. The integrator is a per-integration-envelope role, not a standing one.
 
 During parallel waves the integrator alone edits crate roots, public facades,
 workspace manifests and lockfiles, the capability matrix and roadmap, shared
@@ -156,14 +156,14 @@ workflow registries, and artifact version registrars. A feature agent returns
 its proposed registration delta instead.
 
 Do not create a durable activity ledger inside the repository. Non-authoritative
-coordination state outside it is permitted: agent, slice, base revision, branch
+coordination state outside it is permitted: agent, lane, base revision, branch
 or worktree, current lock, and handoff only. It stays disposable, never becomes
 the authority for a Model, claim, or evidence, never shadows `verify/`, the
 Issue queue, or the roadmap, and is never committed.
 
 ## Rigor in proportion to durable risk
 
-Reserve full vertical-slice ceremony for durable risk. Adapters and application surfaces need ordinary
+Reserve full contract-and-evidence ceremony for durable risk. Adapters and application surfaces need ordinary
 typed boundaries and focused tests, not automatically a new RFC, schema, digest, registry, or evidence case.
 
 Apply the abstraction and public-API budget before adding a crate, public type,

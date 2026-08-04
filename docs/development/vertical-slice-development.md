@@ -1,8 +1,10 @@
-# Vertical-slice development
+# Contract-wave capability development
 
 Eqiora optimizes for completed, falsifiable capabilities rather than lines,
-commits, or simultaneously open branches. The smallest unit of delivery is a
-closed vertical slice:
+commits, or simultaneously open branches. Development, evidence, and product
+acceptance deliberately use different units. The default writable unit is a
+bounded contract cell or disjoint implementation lane. The unit that may widen
+a product claim is a closed capability path:
 
 ```text
 bounded semantic claim
@@ -13,9 +15,33 @@ bounded semantic claim
   -> registered case.toml evidence
 ```
 
-An implementation that stops earlier is useful work, but it is not a completed
-capability. A verification fixture that bypasses the ordinary path is not a
-vertical slice.
+A **reference slice** is the first such path that freezes a central contract.
+Downstream lanes consume that accepted contract; they do not create parallel
+meaning or repeat accepted conformance evidence. A capability-changing lane
+still reaches the ordinary path and adds the exact evidence required for its
+new claim. A fixture that bypasses that path is not capability evidence.
+
+## Working units
+
+| Unit | Purpose | Boundary |
+| --- | --- | --- |
+| Contract cell | Establish one invariant, owner, reference path, oracle, and falsifier | Normally serialized; not a fan-out assignment |
+| Implementation lane | Consume frozen contracts in disjoint writable paths | Not a product claim by itself |
+| Evidence unit | Attach evidence under the owning contract | Only compiler-derived instances split class proof from instance witness; providers retain exact-tuple evidence |
+| Capability closure | Carry one bounded claim through the ordinary path into registered evidence | Does not require a new full-stack architecture |
+
+An implementation that stops before capability closure can be useful branch
+work, but it is not a completed capability and must not merge as dormant or
+hidden capability code. A capability-directed implementation never becomes a
+non-capability delta merely because it omits or defers its claim.
+
+A pull request may separately carry an accepted RFC or governance decision, or
+one of these bounded maintenance deltas that neither adds nor extends a
+capability: a dependency-only update with its lockfile and relevant gate;
+non-governance documentation; reproducible generated or mechanical output; a
+private behavior-preserving refactor; or a localized correction to an
+already-reviewed low-risk finding. The applicable review and gates below still
+apply.
 
 ## Definition of done
 
@@ -79,9 +105,10 @@ proceed in parallel:
 - examples, benchmarks, and verification fixtures.
 
 Data/mesh adapters, Python, and Studio are three immediately independent
-outward lanes with disjoint primary paths. Each lane closes one registered
-vertical slice without weakening a central contract. Cross-lane integration
-happens only after each lane's affected gate passes.
+outward lanes with disjoint primary paths. Each capability-changing lane closes
+one registered capability path without weakening a central contract; it reuses
+accepted upstream conformance instead of rebuilding its proof machinery.
+Cross-lane integration happens only after each lane's affected gate passes.
 
 ### Contract-wave integration loop
 
@@ -91,7 +118,7 @@ owner:
 
 ```text
 contract cell
-  -> reference path, oracle, and falsifier
+  -> reference capability path, oracle, and falsifier
   -> accepted contract revision
   -> disjoint adapter, backend, package, Python, Studio, and evidence lanes
   -> one integration queue
@@ -102,15 +129,15 @@ contract cell
 2. One writer owns each affected central seam. An independent verifier derives
    a plausible wrong implementation and the falsifier that must reject it,
    preferably before reading the implementation explanation.
-3. A central change closes one reference vertical slice and is accepted before
-   dependent implementation fans out. A types-only foundation branch is not a
-   contract freeze point.
+3. A central change closes one reference capability path and is accepted before
+   dependent implementation fans out. This path is the reference slice; a
+   types-only foundation branch is not a contract freeze point.
 4. Disjoint consumer branches start from the exact accepted contract revision.
-   Writable work uses a separate worktree per mergeable slice; branch identity
-   follows the slice, not the agent. Sibling branches do not merge one another.
+   Writable work uses a separate worktree per mergeable lane; branch identity
+   follows the lane, not the agent. Sibling branches do not merge one another.
 5. The integrator self-reviews the contract, complete diff, independent
    verification, and abstraction budget; obtains the risk-required independent
-   review defined below; rebases the slice on the current integration head;
+   review defined below; rebases the integration envelope on the current head;
    runs the affected gate and explicit semantic cases; marks the pull request
    ready; and merges and removes the branch promptly after required hosted
    checks pass. Agent-reported completion is not acceptance evidence.
@@ -136,12 +163,12 @@ points. The integrator applies their proposed deltas to:
 - artifact-family version registrars.
 
 This is an ownership rule for parallel integration, not permission to defer the
-registration. A capability-changing slice still includes its facade, evidence,
+registration. A capability-changing lane still includes its facade, evidence,
 and matrix changes in the same pull request. The feature writer supplies the
 exact proposed export, dependency, workflow, artifact-version, and claim
 changes so that the integrator can reconcile them once.
 
-### Slice assignment
+### Contract and lane assignment
 
 An Issue records a closable product claim, not an agent roster or permanent
 project plan. Before writable work starts, its body or implementation prompt
@@ -154,7 +181,7 @@ should identify:
 - an independent positive oracle and plausible wrong implementation;
 - the required falsifier, registered case, and capability-matrix row;
 - any environment-specific limitation; and
-- the condition that stops the slice when another public abstraction, wire, or
+- the condition that stops the lane when another public abstraction, wire, or
   central seam becomes necessary.
 
 Do not copy this information into another machine-readable planning registry.
@@ -176,23 +203,24 @@ does not extend conformance.
 
 ### Compiler-class proof and instance witness
 
-Where one contract derives many instances from a single translation rule, the
-kit divides in two.
+Where one compiler contract derives many instances from a single translation
+rule, the kit divides in two.
 
-- **Compiler-class conformance** is owned by the deriving contract: the
+- **Compiler-class conformance** is owned by the deriving compiler contract: the
   derivation rules, a reference interpreter, the mutant corpus, and
   primal/JVP/VJP consistency. It is proved once for the class.
 - **Instance witness** is supplied per instance and contains only data: a
   manufactured or reference solution, boundary data, norm, expected convergence
   order, conserved quantity, tolerances, and nonclaims.
 
-An instance may not add its own kernel, Jacobian, or conformance harness when
-the class can already express it. If the class cannot express a discovered
-requirement, the instance stops and returns that requirement to the contract
-owner instead of adding a local workaround.
+A compiler-derived instance may not add its own kernel, Jacobian, or
+conformance harness when the class can already express it. If the class cannot
+express a discovered requirement, the instance stops and returns that
+requirement to the contract owner instead of adding a local workaround.
 
-This division applies to derived instances. Adapter and provider conformance
-kits keep their existing form and are not forced into the witness model.
+This division applies only to compiler-derived instances. Adapter and provider
+conformance kits keep their existing form and are not forced into the witness
+model.
 
 ## Abstraction and public-API budget
 
@@ -265,15 +293,15 @@ utility crate, DTO, context, or plugin interface.
 Issue intake is continuous, while implementation remains dependency-ordered.
 Refresh the complete open queue at three natural boundaries:
 
-1. before selecting the next vertical slice;
+1. before selecting the next contract cell or capability closure;
 2. after accepting a central-contract or authoritative dependency-spine
    change; and
-3. immediately before integrating a completed slice.
+3. immediately before integrating a completed envelope.
 
 Classify each newly observed Issue before changing course:
 
 - **prerequisite** — it corrects or invalidates an invariant required by the
-  active slice; stop at a clean boundary and resolve it first;
+  active lane; stop at a clean boundary and resolve it first;
 - **urgent fault** — it reports a credible security, correctness, or data-loss
   risk in an accepted path; triage immediately under the repository's normal
   evidence and exception rules;
@@ -293,9 +321,10 @@ This audit is a transition check, not a calendar ceremony or activity metric.
 
 ## Branch and integration discipline
 
-Branches are short-lived and scoped to one slice or one independent outward
-lane. A high-fan-out predecessor merges before its consumer branches begin;
-composition evidence begins only after all of its parent slices are accepted.
+Branches are short-lived and scoped to one contract cell, capability closure,
+or independent outward lane. A high-fan-out predecessor merges before its
+consumer branches begin; composition evidence begins only after all of its
+parent capability paths are accepted.
 Rebase the current integration head once before final local verification. The
 integrator records the exact local commands and limitations, merges only a
 passing affected closure with any required independent review, and deletes the
@@ -303,10 +332,11 @@ merged branch. Required hosted checks validate the exact proposed merge on
 protected public branches; they complement rather than replace the
 repository-owned local acceptance decision.
 
-A pull request is the exact integration envelope for a closed slice, not a
-queue for routine human approval. Draft status is used only while the slice or
-its own verification is incomplete. Before marking it ready, the integrator
-self-reviews:
+A pull request is the exact integration envelope for a closed capability, an
+accepted RFC or governance decision, or one of the bounded maintenance deltas
+enumerated above. It is not a queue for routine human approval. Draft status is
+used only while that envelope or its verification is incomplete. Before
+marking it ready, the integrator self-reviews:
 
 - the complete diff against the current base and the absence of unrelated
   changes;
@@ -365,10 +395,10 @@ only when an operational anomaly appears:
 - central-contract rework repeatedly invalidates downstream work;
 - parallel lanes produce increasing merge conflicts;
 - the same revision receives redundant broad hosted verification;
-- a ready slice waits behind integration for longer than one broad gate;
+- a ready capability waits behind integration for longer than one broad gate;
 - a plausible mutant survives the registered falsifier;
-- one slice expands into more than one independently owned central seam;
-- public APIs or crates grow faster than completed vertical slices; or
+- one lane expands into more than one independently owned central seam;
+- public APIs or crates grow faster than accepted capabilities; or
 - evidence registration itself becomes the implementation bottleneck.
 
 The review ends when the concrete recurring cause is removed. It must not add
