@@ -48,7 +48,8 @@ fn registered_state_machine_oracle_executes_all_private_falsifiers() {
     p0_p1_p2_has_the_exact_phase_and_counter_inventory();
     p0_singular_p1_retains_the_last_committed_numeric_state();
     candidate_state_never_commits_before_both_acceptance_boundaries();
-    every_required_validation_component_has_a_targeted_mutant();
+    every_rejecting_validation_component_has_a_targeted_mutant();
+    coefficient_change_rebuilds_numeric_while_its_omission_mutant_reuses_numeric();
     stale_foreign_partial_failed_and_singular_factor_states_reject();
 }
 
@@ -144,11 +145,10 @@ fn candidate_state_never_commits_before_both_acceptance_boundaries() {
 }
 
 #[test]
-fn every_required_validation_component_has_a_targeted_mutant() {
+fn every_rejecting_validation_component_has_a_targeted_mutant() {
     for mutant in [
         ValidationMutant::ExistingFullCsrOmitsRightHandSide,
         ValidationMutant::ReuseOmitsStructure,
-        ValidationMutant::ReuseOmitsCoefficients,
         ValidationMutant::ReuseOmitsPolicy,
         ValidationMutant::ReuseOmitsProvider,
         ValidationMutant::ReuseOmitsPortableRealizationGraph,
@@ -170,6 +170,30 @@ fn every_required_validation_component_has_a_targeted_mutant() {
         );
         assert_eq!(observation.baseline_numerical_attempt_delta(), 0);
     }
+}
+
+#[test]
+fn coefficient_change_rebuilds_numeric_while_its_omission_mutant_reuses_numeric() {
+    let trace = phase_trace(PhaseScenario::P0P1P2);
+    assert_eq!(trace.operation_phases(2), P2_PHASES);
+    assert_eq!(trace.final_counters(), [3, 3, 1, 2]);
+
+    let identities = trace.identity_relations();
+    assert!(identities.p1_p2_structure_equal());
+    assert!(!identities.p1_p2_coefficients_equal());
+    assert!(identities.p1_p2_symbolic_equal());
+    assert!(!identities.p1_p2_numeric_equal());
+
+    let observation = validation_mutant_observation(ValidationMutant::ReuseOmitsCoefficients);
+    assert!(
+        !observation.baseline_authorizes(),
+        "a coefficient mismatch must not authorize retained numeric factors"
+    );
+    assert!(
+        observation.mutant_authorizes(),
+        "omitting coefficient equality must expose invalid numeric-factor reuse"
+    );
+    assert!(observation.only_targeted_component_differs());
 }
 
 #[test]
