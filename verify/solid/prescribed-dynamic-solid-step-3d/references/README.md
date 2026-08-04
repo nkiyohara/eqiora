@@ -1,8 +1,11 @@
 # Reference authorities
 
-GitHub issue #352 freezes the exact unit-cube topology, material and time data,
-dual independent continuum/finite-element values, binary64 tolerances, public
-two-type API, and required falsifiers for this case.
+The checked-in [case manifest](../case.toml),
+[independent oracle](../expected/accepted-step.json), and
+[Rust evidence](../../../../crates/eqiora/tests/prescribed_dynamic_solid_step_3d.rs)
+freeze the exact unit-cube topology, material and time data, dual independent
+continuum/finite-element values, binary64 tolerances, public two-type API, and
+required falsifiers for this case.
 
 The canonical first-order isotropic-elastodynamics and velocity/traction
 boundary meaning is the already registered
