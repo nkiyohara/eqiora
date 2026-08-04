@@ -1,6 +1,6 @@
 //! Closed Realization artifact for one prescribed dynamic-solid occurrence.
 
-use std::num::{NonZeroU16, NonZeroUsize};
+use std::num::NonZeroUsize;
 use std::str::FromStr;
 
 use eqiora_core::entity::kinds;
