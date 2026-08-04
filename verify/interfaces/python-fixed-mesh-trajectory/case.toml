@@ -12,7 +12,7 @@ capabilities = [
 
 [problem]
 source = "the complete fixed-mesh 2D V1 trajectory replay accepted by artifacts.general-fixed-mesh-field-trajectory-2d"
-proving_consumer = "eqiora.fsi.FixedReferenceFsiResult.trajectory"
+proving_consumer = "eqiora.Result.trajectory from the accepted eqiora.fsi.FixedMeshMonolithic Plan execution"
 projection = "eqiora.trajectory.Trajectory, TrajectoryState, and FieldSnapshot"
 mesh = "one immutable affine-triangle 2D mesh shared by every accepted state"
 fields = "complete semantic Field inventory with exact support, coherent-SI dimension, shape, frame, and Vertex/Cell coefficient associations"
@@ -23,7 +23,7 @@ trajectory_case = "artifacts.general-fixed-mesh-field-trajectory-2d"
 fsi_case = "interfaces.python-fixed-reference-fsi-demo"
 identity = "projection identities equal the exact accepted artifact lineage; the projection assigns no new durable identity"
 ordering = "state, Field, and block occurrences follow accepted artifact edges and are never rebuilt from digest-keyed catalogs"
-legacy_views = "existing FSI velocity and displacement equal their whole-mesh trajectory blocks; bubble velocity equals the Cell block at accepted fluid support cells while other cells retain canonical zero; compressed pressure equals the Vertex block at pressure vertices while inactive vertices retain canonical zero"
+fsi_fields_and_evidence = "velocity, bubble velocity, pressure, and displacement remain exact Trajectory FieldSnapshot blocks; fixed_mesh_monolithic_evidence(result).state(state) adds only the accepted state-specific action, energy, residual, solve, and assembly observations"
 support = "FieldSnapshot.support_indices(association) returns the frozen exact global cell membership or sorted unique vertex closure already derived from its accepted support Domain; repeated access returns one immutable NumPy owner and equal fixed occurrences retain equal membership"
 thresholds = "none; this adapter introduces no scientific expected value or tolerance"
 
@@ -40,7 +40,8 @@ numpy_arrays_are_memoized_and_irreversibly_read_only = true
 support_membership_is_correspondence_and_incidence_owned = true
 support_access_is_association_checked = true
 support_access_does_not_compress_coefficients = true
-existing_fsi_mesh_arrays_delegate_to_the_projection = true
+fsi_spatial_fields_are_owned_only_by_the_projection = true
+typed_fsi_evidence_does_not_duplicate_spatial_field_arrays = true
 no_scientific_oracle_change = true
 
 [falsifiers]
@@ -54,7 +55,8 @@ support_from_values = "membership inferred from nonzero coefficient locations dr
 support_renumbering = "local or compressed indices replace exact global canonical mesh-entity indices"
 support_association_confusion = "Vertex and Cell memberships are exchanged, absent associations return data, or an unknown association returns an empty array"
 support_owner_rebuild = "repeated access on one FieldSnapshot allocates an equivalent support array instead of returning the same object"
-legacy_array_drift = "application-specific FSI arrays differ from their exact whole-mesh blocks or their accepted support-indexed views"
+fsi_field_or_evidence_drift = "the common Trajectory field blocks or exact TrajectoryState-keyed FSI evidence differ from the accepted replay"
+surviving_predecessor_result = "FixedReferenceFsiStep or FixedReferenceFsiResult remains as a second Python trajectory or state owner"
 mutable_array = "assignment, writeability re-enable, or an ordinary NumPy view permits mutation"
 reprojection = "repeated access rebuilds Python owners or complete arrays"
 

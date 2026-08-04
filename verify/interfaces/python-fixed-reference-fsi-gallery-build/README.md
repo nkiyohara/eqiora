@@ -3,10 +3,12 @@
 This case verifies one private publication adapter over the already accepted
 two-state fixed-reference FSI trajectory. A checked-in ordinary Python script
 imports an installed `eqiora` wheel, compiles the packaged source, and consumes
-the same Rust-owned result used by verification and Studio. It renders a
-lossless poster, VP9 WebM, H.264 MP4, a distinct two-panel reduced-motion still,
-and a descriptive text alternative, then records complete source, lineage,
-scene, encoder, environment, and output identity in canonical private JSON.
+the same Rust-owned `FixedMeshMonolithic` Plan and common `Result` used by
+verification and Studio. Its typed FSI evidence is keyed by exact
+`TrajectoryState`. The script renders a lossless poster, VP9 WebM, H.264 MP4,
+a distinct two-panel reduced-motion still, and a descriptive text alternative,
+then records complete source, lineage, scene, encoder, environment, and output
+identity in canonical private JSON.
 
 The media remain visibly marked as a development preview. Their record retains
 the truthful scientific and trajectory evidence IDs but cannot pass production
@@ -26,7 +28,7 @@ Scientific values, tolerances, and acceptance remain owned by
 [`fsi.fixed-reference-monolithic-step-2d`](../../fsi/fixed-reference-monolithic-step-2d/README.md)
 and
 [`artifacts.fixed-reference-fsi-spatial-trajectory`](../../artifacts/fixed-reference-fsi-spatial-trajectory/README.md).
-The installed Python result boundary remains owned by
+The installed Python common-Result and typed-evidence boundary remains owned by
 [`interfaces.python-fixed-reference-fsi-demo`](../python-fixed-reference-fsi-demo/README.md).
 The complete executable claim and non-claims are frozen in
 [`case.toml`](case.toml).

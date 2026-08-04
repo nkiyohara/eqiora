@@ -1103,12 +1103,13 @@ def test_bounded_surface_does_not_claim_the_future_workflow(
         "velocity_bubbles",
         "drag",
         "lift",
-        "trajectory",
         "plot",
         "animate",
         "save",
     ):
         assert not hasattr(result, unsupported)
+    with pytest.raises(eqiora.CapabilityError):
+        _ = result.trajectory
 
 
 def test_isolated_installed_package_path_is_lazy_and_self_contained(

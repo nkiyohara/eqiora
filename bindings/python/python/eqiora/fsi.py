@@ -1,13 +1,19 @@
-"""Narrow fixed-reference FSI application composed by Eqiora's native layer."""
+"""Fixed-mesh monolithic FSI intent, Plan, and typed evidence."""
 
 from ._eqiora import (
-    FixedReferenceFsiResult,
-    FixedReferenceFsiStep,
-    solve_fixed_reference_fsi,
+    FixedMeshMonolithic,
+    FixedMeshMonolithicEvidence,
+    FixedMeshMonolithicPlan,
+    FixedMeshMonolithicStateEvidence,
+    fixed_mesh_monolithic_evidence,
+    resolve_fixed_mesh_monolithic as resolve,
 )
 
 __all__ = [
-    "FixedReferenceFsiResult",
-    "FixedReferenceFsiStep",
-    "solve_fixed_reference_fsi",
+    "FixedMeshMonolithic",
+    "FixedMeshMonolithicEvidence",
+    "FixedMeshMonolithicPlan",
+    "FixedMeshMonolithicStateEvidence",
+    "fixed_mesh_monolithic_evidence",
+    "resolve",
 ]

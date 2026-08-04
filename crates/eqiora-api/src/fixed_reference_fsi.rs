@@ -31,13 +31,17 @@ use eqiora_realization::{
     resolve_coupled_fieldwise,
 };
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, LinearSolverBackend, PreconditionerPolicy,
-    ReductionPolicy, SERIAL_EXECUTION_PROVIDER, ScalarType, SolverPlan,
+    LinearSolver, LinearSolverBackend, PreconditionerPolicy, ReductionPolicy,
+    SERIAL_EXECUTION_PROVIDER, SolverPlan,
 };
 
 use crate::{
     FixedMeshFieldTrajectoryReplay2dV1, ModelDocument, snapshot_fixed_reference_fsi_solution_v1,
 };
+
+mod plan;
+
+pub use plan::{FixedMeshMonolithicFsiIntent2d, ResolvedFixedMeshMonolithicFsiPlan2d};
 
 const REFERENCE_SOURCE: &str =
     include_str!("../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi");
@@ -75,6 +79,7 @@ const PRESSURE: DimExponents = DimExponents {
     ..DimExponents::DIMENSIONLESS
 };
 
+#[derive(Debug, Clone, PartialEq)]
 struct SpatialContext {
     model: ModelEnvelope,
     mesh: SimplicialMesh,
@@ -84,6 +89,7 @@ struct SpatialContext {
     partition: FixedReferenceFsiPartition2d,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 struct ExecutionContext {
     mesh_reference: MeshArtifactReference,
     resolved: ResolvedCoupledFieldwiseRealization,
@@ -130,60 +136,34 @@ impl FixedReferenceFsiResult2d {
         document: &ModelDocument,
         backend: &dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
-        validate_scientific_case(STEP_CASE, STEP_CASE_ID)?;
-        validate_scientific_case(TRAJECTORY_CASE, TRAJECTORY_CASE_ID)?;
-        require_accepted_model(document)?;
+        ResolvedFixedMeshMonolithicFsiPlan2d::resolve(document, plan::reference_intent()?, backend)?
+            .execute(backend)
+    }
 
-        let canonical = lower_fixed_reference_fsi_cartesian_2d(document.program())?;
-        let spatial = spatial_context(document.program(), &canonical)?;
-        let backend_provider = backend.provider();
-        let backend_capabilities = backend.capabilities();
-        let solver_plan = reference_solver()?;
-        backend_capabilities.require_problem(
-            solver_plan,
-            ScalarType::F64,
-            LinearOperatorProperties::SymmetricIndefinite,
-        )?;
-        let execution = execution_context(
-            document.program(),
-            &canonical,
-            &spatial,
-            solver_plan,
-            backend,
-        )?;
-
-        let first = solve_step(
-            &canonical,
-            &spatial,
-            &execution,
-            &prestrained_state(&spatial)?,
-            backend,
-        )?;
-        require_unchanged_backend(backend, backend_provider, &backend_capabilities)?;
-        let second = solve_step(
-            &canonical,
-            &spatial,
-            &execution,
-            &state_from_solution(&spatial, &first)?,
-            backend,
-        )?;
-        require_unchanged_backend(backend, backend_provider, &backend_capabilities)?;
-
+    fn from_execution(
+        plan: &ResolvedFixedMeshMonolithicFsiPlan2d,
+        solutions: [ResolvedFixedReferenceFsiSolution2d; 2],
+    ) -> Result<Self, Diagnostic> {
         let fixed = ValidatedFixedSpatialContextV1::new(
-            &spatial.model,
-            &execution.realization,
-            &spatial.geometry,
-            &spatial.correspondence,
-            &spatial.mesh_artifact,
+            plan.model(),
+            plan.realization(),
+            plan.geometry(),
+            plan.correspondence(),
+            plan.mesh_artifact(),
         )?;
+        let [first, second] = solutions;
         let first_snapshots = snapshot_fixed_reference_fsi_solution_v1(&fixed, &first)?;
         let second_snapshots = snapshot_fixed_reference_fsi_solution_v1(&fixed, &second)?;
-        let first_state =
-            SpatialStateEnvelopeV1::new(&fixed, 1, TIME_STEP_S, first_snapshots.snapshots())?;
+        let first_state = SpatialStateEnvelopeV1::new(
+            &fixed,
+            1,
+            plan.intent().time_step_s(),
+            first_snapshots.snapshots(),
+        )?;
         let second_state = SpatialStateEnvelopeV1::new(
             &fixed,
             2,
-            2.0 * TIME_STEP_S,
+            2.0 * plan.intent().time_step_s(),
             second_snapshots.snapshots(),
         )?;
         let first_segment =
@@ -192,8 +172,8 @@ impl FixedReferenceFsiResult2d {
             SpatialTrajectorySegmentEnvelopeV1::new(&fixed, std::slice::from_ref(&second_state))?;
         let first_root = SpatialTrajectoryEnvelopeV1::start(&fixed, &first_segment)?;
         let trajectory = SpatialTrajectoryEnvelopeV1::extend(&fixed, &first_root, &second_segment)?;
-        let run = execution.run.with_output(trajectory.digest()?);
-        run.validate_against(&execution.realization)?;
+        let run = plan.run().clone().with_output(trajectory.digest()?);
+        run.validate_against(plan.realization())?;
         let snapshots = unique_catalog(
             first_snapshots
                 .snapshots()
@@ -217,13 +197,13 @@ impl FixedReferenceFsiResult2d {
         )?;
 
         let result = Self {
-            model: spatial.model,
-            mesh: spatial.mesh,
-            mesh_artifact: spatial.mesh_artifact,
-            geometry: spatial.geometry,
-            correspondence: spatial.correspondence,
-            partition: spatial.partition,
-            realization: execution.realization,
+            model: plan.model().clone(),
+            mesh: plan.mesh().clone(),
+            mesh_artifact: plan.mesh_artifact().clone(),
+            geometry: plan.geometry().clone(),
+            correspondence: plan.correspondence().clone(),
+            partition: plan.partition().clone(),
+            realization: plan.realization().clone(),
             solutions: [first, second],
             states: [first_state, second_state],
             snapshots,
@@ -232,7 +212,7 @@ impl FixedReferenceFsiResult2d {
             trajectory,
             run,
         };
-        result.validate(backend_provider)?;
+        result.validate(plan.solver_provider())?;
         Ok(result)
     }
 
@@ -524,7 +504,7 @@ fn execution_context(
     program: &eqiora_sem::KernelProgram,
     canonical: &FixedReferenceFsiCartesianModel2d,
     spatial: &SpatialContext,
-    solver_plan: SolverPlan,
+    intent: FixedMeshMonolithicFsiIntent2d,
     backend: &dyn LinearSolverBackend,
 ) -> Result<ExecutionContext, Diagnostic> {
     let mesh_reference =
@@ -532,13 +512,13 @@ fn execution_context(
     let plan = fixed_reference_fsi_plan_2d(
         canonical,
         mesh_reference,
-        DynQuantity::new(TIME_STEP_S, TIME),
+        DynQuantity::new(intent.time_step_s(), TIME),
         FixedReferenceFsiScaleProfile2d::new(
-            DynQuantity::new(LENGTH_SCALE_M, LENGTH),
-            DynQuantity::new(VELOCITY_SCALE_M_PER_S, VELOCITY),
-            DynQuantity::new(PRESSURE_SCALE_PA, PRESSURE),
+            DynQuantity::new(intent.length_scale_m(), LENGTH),
+            DynQuantity::new(intent.velocity_scale_m_per_s(), VELOCITY),
+            DynQuantity::new(intent.pressure_scale_pa(), PRESSURE),
         )?,
-        solver_plan,
+        intent.solver(),
     )?;
     let resolved = resolve_coupled_fieldwise(
         &CoupledFieldwiseRealizationRequest::explicit(
@@ -578,7 +558,10 @@ fn execution_context(
     })
 }
 
-fn prestrained_state(spatial: &SpatialContext) -> Result<FixedReferenceFsiState2d, Diagnostic> {
+fn initial_state(
+    spatial: &SpatialContext,
+    intent: FixedMeshMonolithicFsiIntent2d,
+) -> Result<FixedReferenceFsiState2d, Diagnostic> {
     let mut displacement = vec![[0.0; 2]; spatial.mesh.vertices().len()];
     let interface_midpoint = spatial
         .mesh
@@ -586,12 +569,12 @@ fn prestrained_state(spatial: &SpatialContext) -> Result<FixedReferenceFsiState2
         .iter()
         .position(|point| point.as_slice() == [1.0, 0.5])
         .ok_or_else(|| internal("fixed-reference mesh omitted the free interface midpoint"))?;
-    displacement[interface_midpoint] = [0.02, 0.0];
+    displacement[interface_midpoint] = intent.initial_free_interface_displacement_m();
     FixedReferenceFsiState2d::new(
         &spatial.mesh,
         &spatial.partition,
-        vec![[0.0; 2]; spatial.mesh.vertices().len()],
-        vec![[0.0; 2]; spatial.partition.fluid_cells().len()],
+        vec![intent.initial_velocity_m_per_s(); spatial.mesh.vertices().len()],
+        vec![intent.initial_velocity_m_per_s(); spatial.partition.fluid_cells().len()],
         displacement,
     )
 }
