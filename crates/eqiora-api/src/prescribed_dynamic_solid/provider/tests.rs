@@ -276,11 +276,7 @@ fn revalidate_rejects_prior_missing_additional_and_unlinked_run_outputs() {
     let prior_identity = prior.prior_state.digest().unwrap().to_string();
     prior.run = run_with_outputs(
         &prior,
-        vec![
-            accepted_identity.clone(),
-            occurrence_identity.clone(),
-            prior_identity.clone(),
-        ],
+        vec![occurrence_identity.clone(), prior_identity],
     );
     assert_revalidation_rejected(&prior, "prior State Run output");
 
