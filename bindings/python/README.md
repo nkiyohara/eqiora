@@ -142,19 +142,22 @@ the shared Rust application result, and renders original and scaled-deformed
 canonical Q1 edges. It is one bounded verified case, not a general structural
 solver or deformation viewer.
 
-The accepted fixed-reference FSI workflow follows the same rule and performs
-both coupled time steps inside the shared Rust application service:
+The accepted fixed-reference FSI workflow follows the same rule. It resolves a
+fully explicit, immutable `FixedMeshMonolithic` intent before submitting the
+ordinary Run; both coupled time steps execute inside the shared Rust application
+service:
 
 ```console
 python examples/python/fixed_reference_fsi.py \
   --fsi-png fixed-reference-fsi.png --step 2 --displacement-scale 12
 ```
 
-The immutable result exposes the accepted partition, ordered coupled fields,
-solver/acceptance evidence, and complete Model-to-trajectory-to-Run lineage.
-The optional still uses only those result-owned values. This is one verified
-fixed-reference monolithic case, not a general FSI API, ALE or moving-mesh
-solver, Python time loop, or animation surface.
+The common immutable `Result` exposes the ordered fields and lineage through its
+`Trajectory`, while `fixed_mesh_monolithic_evidence(result)` owns the accepted
+partition and FSI-specific solver/acceptance observations. The optional still
+uses only the general trajectory field adapters. This is one verified
+fixed-reference monolithic case, not general FSI, ALE or moving-mesh support, a
+Python time loop, or an animation surface.
 
 ## Structured diagnostics
 

@@ -4,7 +4,12 @@ import numpy as np
 import numpy.typing as npt
 
 import eqiora
-from eqiora.fsi import FixedReferenceFsiResult, FixedReferenceFsiStep
+from eqiora.fsi import (
+    FixedMeshMonolithic,
+    FixedMeshMonolithicEvidence,
+    FixedMeshMonolithicPlan,
+    FixedMeshMonolithicStateEvidence,
+)
 from eqiora.meshing import Mesh
 from eqiora.solid import (
     LinearElasticity,
@@ -126,8 +131,31 @@ def check_structural_result(model: eqiora.Model) -> None:
 
 
 def check_fsi_result(model: eqiora.Model) -> None:
-    result = eqiora.fsi.solve_fixed_reference_fsi(model)
-    assert_type(result, FixedReferenceFsiResult)
+    intent = FixedMeshMonolithic(
+        time_step_s=0.05,
+        steps=2,
+        initial_velocity_m_per_s=(0.0, 0.0),
+        initial_free_interface_displacement_m=(0.02, 0.0),
+        length_scale_m=2.0,
+        velocity_scale_m_per_s=0.5,
+        pressure_scale_pa=4.0,
+        relative_tolerance=1.0e-11,
+        absolute_tolerance=1.0e-13,
+        maximum_iterations=20_000,
+    )
+    plan = eqiora.fsi.resolve(model, intent)
+    assert_type(plan, FixedMeshMonolithicPlan)
+    assert_type(plan.coupling_method, str)
+    assert_type(plan.geometry_motion, str)
+    assert_type(plan.mesh_kind, str)
+    assert_type(plan.fluid_velocity_space, str)
+    assert_type(plan.fluid_pressure_space, str)
+    assert_type(plan.solid_velocity_space, str)
+    assert_type(plan.solid_displacement_space, str)
+    assert_type(plan.time_integrator, str)
+    assert_type(eqiora.submit(model, plan=plan), eqiora.Run[eqiora.Result])
+    result = eqiora.run(model, plan=plan)
+    assert_type(result, eqiora.Result)
     assert_type(result.trajectory, Trajectory)
     assert_type(result.trajectory.coordinates, npt.NDArray[np.float64])
     assert_type(result.trajectory.cells, npt.NDArray[np.uint32])
@@ -143,5 +171,25 @@ def check_fsi_result(model: eqiora.Model) -> None:
         .support_indices("vertex"),
         npt.NDArray[np.uint32],
     )
-    assert_type(result.steps, tuple[FixedReferenceFsiStep, FixedReferenceFsiStep])
-    assert_type(result.step(1).pressure, npt.NDArray[np.float64])
+    evidence = eqiora.fsi.fixed_mesh_monolithic_evidence(result)
+    assert_type(evidence, FixedMeshMonolithicEvidence)
+    assert_type(
+        evidence.state(result.trajectory.state(1)),
+        FixedMeshMonolithicStateEvidence,
+    )
+    assert_type(evidence.fluid_cells, npt.NDArray[np.uint32])
+    assert_type(evidence.solid_cells, npt.NDArray[np.uint32])
+    assert_type(evidence.interface_facets, npt.NDArray[np.uint32])
+    assert_type(
+        evidence.states,
+        tuple[
+            FixedMeshMonolithicStateEvidence,
+            FixedMeshMonolithicStateEvidence,
+        ],
+    )
+    assert_type(
+        evidence.state(result.trajectory.state(1)).fluid_action,
+        npt.NDArray[np.float64],
+    )
+
+    FixedMeshMonolithic()  # type: ignore[call-arg]

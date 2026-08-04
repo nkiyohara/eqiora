@@ -1,37 +1,426 @@
-//! Python projection of the shared fixed-reference FSI application.
+//! Python intent, Plan, Result trajectory, and typed evidence for bounded FSI.
 
 use std::hash::{Hash, Hasher};
+use std::num::NonZeroUsize;
 
-use eqiora::api::FixedReferenceFsiResult2d;
+use eqiora::api::{
+    FixedMeshMonolithicFsiIntent2d, FixedReferenceFsiResult2d, ResolvedFixedMeshMonolithicFsiPlan2d,
+};
 use eqiora::meshing::MeshEntity;
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use numpy::{PyArray1, PyArray2};
-use pyo3::exceptions::PyIndexError;
+use pyo3::exceptions::{PyOverflowError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyModule, PyTuple};
+use pyo3::types::{PyAny, PyBytes, PyModule, PyTuple};
 
 use crate::error::diagnostic_error;
+use crate::execution::RunIdentity;
 use crate::matrix::{ReadOnlyMatrix, ReadOnlyVector};
 use crate::model::PyModel;
 use crate::panic_boundary;
-use crate::realization::PyLinearSolveSummary;
-use crate::trajectory::PyTrajectory;
+use crate::realization::{PyLinearSolveSummary, PyRunManifest};
+use crate::result::PyRunResult;
+use crate::trajectory::{PyTrajectory, PyTrajectoryState};
 
-/// Frozen projection of one accepted step in the two-state trajectory.
+/// Complete fixed-mesh monolithic FSI request with no hidden numerical state.
 #[pyclass(
-    name = "FixedReferenceFsiStep",
+    name = "FixedMeshMonolithic",
     module = "eqiora._eqiora",
     frozen,
     skip_from_py_object
 )]
-pub(crate) struct PyFixedReferenceFsiStep {
-    ordinal: u64,
-    time_s: f64,
-    velocity: ReadOnlyMatrix<f64>,
-    bubble_velocity: ReadOnlyMatrix<f64>,
-    pressure_vertices: ReadOnlyVector<u32>,
-    pressure: ReadOnlyVector<f64>,
-    displacement: ReadOnlyMatrix<f64>,
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PyFixedMeshMonolithic {
+    native: FixedMeshMonolithicFsiIntent2d,
+}
+
+#[pymethods]
+impl PyFixedMeshMonolithic {
+    #[new]
+    #[pyo3(signature = (*, time_step_s, steps, initial_velocity_m_per_s, initial_free_interface_displacement_m, length_scale_m, velocity_scale_m_per_s, pressure_scale_pa, relative_tolerance, absolute_tolerance, maximum_iterations))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        py: Python<'_>,
+        time_step_s: f64,
+        steps: i64,
+        initial_velocity_m_per_s: [f64; 2],
+        initial_free_interface_displacement_m: [f64; 2],
+        length_scale_m: f64,
+        velocity_scale_m_per_s: f64,
+        pressure_scale_pa: f64,
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: i64,
+    ) -> PyResult<Self> {
+        let steps = positive_usize(py, "steps", steps)?;
+        let maximum_iterations = positive_usize(py, "maximum_iterations", maximum_iterations)?;
+        FixedMeshMonolithicFsiIntent2d::new(
+            time_step_s,
+            steps,
+            initial_velocity_m_per_s,
+            initial_free_interface_displacement_m,
+            length_scale_m,
+            velocity_scale_m_per_s,
+            pressure_scale_pa,
+            relative_tolerance,
+            absolute_tolerance,
+            maximum_iterations,
+        )
+        .map(|native| Self { native })
+        .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))
+    }
+
+    #[getter]
+    fn time_step_s(&self) -> f64 {
+        self.native.time_step_s()
+    }
+
+    #[getter]
+    fn steps(&self) -> usize {
+        self.native.steps().get()
+    }
+
+    #[getter]
+    const fn initial_velocity_m_per_s(&self) -> (f64, f64) {
+        tuple2(self.native.initial_velocity_m_per_s())
+    }
+
+    #[getter]
+    const fn initial_free_interface_displacement_m(&self) -> (f64, f64) {
+        tuple2(self.native.initial_free_interface_displacement_m())
+    }
+
+    #[getter]
+    fn length_scale_m(&self) -> f64 {
+        self.native.length_scale_m()
+    }
+
+    #[getter]
+    fn velocity_scale_m_per_s(&self) -> f64 {
+        self.native.velocity_scale_m_per_s()
+    }
+
+    #[getter]
+    fn pressure_scale_pa(&self) -> f64 {
+        self.native.pressure_scale_pa()
+    }
+
+    #[getter]
+    fn relative_tolerance(&self) -> f64 {
+        self.native.relative_tolerance()
+    }
+
+    #[getter]
+    fn absolute_tolerance(&self) -> f64 {
+        self.native.absolute_tolerance()
+    }
+
+    #[getter]
+    fn maximum_iterations(&self) -> usize {
+        self.native.maximum_iterations().get()
+    }
+
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
+        other
+            .extract::<PyRef<'_, Self>>()
+            .is_ok_and(|other| self.native == other.native)
+    }
+
+    fn __ne__(&self, other: &Bound<'_, PyAny>) -> bool {
+        !self.__eq__(other)
+    }
+
+    fn __hash__(&self) -> u64 {
+        hash_intent(self.native)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "FixedMeshMonolithic(time_step_s={}, steps={}, relative_tolerance={:e}, absolute_tolerance={:e}, maximum_iterations={})",
+            self.time_step_s(),
+            self.steps(),
+            self.relative_tolerance(),
+            self.absolute_tolerance(),
+            self.maximum_iterations(),
+        )
+    }
+}
+
+/// Immutable, fully resolved fixed-mesh monolithic FSI Plan.
+#[pyclass(
+    name = "FixedMeshMonolithicPlan",
+    module = "eqiora._eqiora",
+    frozen,
+    skip_from_py_object
+)]
+pub(crate) struct PyFixedMeshMonolithicPlan {
+    native: ResolvedFixedMeshMonolithicFsiPlan2d,
+    model: Py<PyModel>,
+    model_digest: String,
+    geometry_digest: String,
+    correspondence_digest: String,
+    mesh_digest: String,
+    realization_digest: String,
+    canonical_bytes: Vec<u8>,
+}
+
+impl PyFixedMeshMonolithicPlan {
+    fn from_native(
+        py: Python<'_>,
+        native: ResolvedFixedMeshMonolithicFsiPlan2d,
+        model: Py<PyModel>,
+    ) -> PyResult<Self> {
+        let model_digest = native
+            .model()
+            .digest()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+            .to_string();
+        let geometry_digest = native
+            .geometry()
+            .digest()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+            .to_string();
+        let correspondence_digest = native
+            .correspondence()
+            .digest()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+            .to_string();
+        let mesh_digest = native
+            .mesh_artifact()
+            .digest()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+            .to_string();
+        let realization_digest = native
+            .realization()
+            .digest()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+            .to_string();
+        let canonical_bytes = native
+            .realization()
+            .canonical_json()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
+        Ok(Self {
+            native,
+            model,
+            model_digest,
+            geometry_digest,
+            correspondence_digest,
+            mesh_digest,
+            realization_digest,
+            canonical_bytes,
+        })
+    }
+
+    pub(crate) const fn native(&self) -> &ResolvedFixedMeshMonolithicFsiPlan2d {
+        &self.native
+    }
+
+    pub(crate) fn model(&self, py: Python<'_>) -> Py<PyModel> {
+        self.model.clone_ref(py)
+    }
+}
+
+#[pymethods]
+impl PyFixedMeshMonolithicPlan {
+    #[getter]
+    fn model_digest(&self) -> &str {
+        &self.model_digest
+    }
+
+    #[getter]
+    fn semantic_revision(&self) -> u64 {
+        self.native.realization().semantic_revision().get()
+    }
+
+    #[getter]
+    fn geometry_digest(&self) -> &str {
+        &self.geometry_digest
+    }
+
+    #[getter]
+    fn correspondence_digest(&self) -> &str {
+        &self.correspondence_digest
+    }
+
+    #[getter]
+    fn mesh_digest(&self) -> &str {
+        &self.mesh_digest
+    }
+
+    #[getter]
+    fn realization_digest(&self) -> &str {
+        &self.realization_digest
+    }
+
+    #[getter]
+    fn realization_revision(&self) -> u64 {
+        self.native.realization().realization_revision().get()
+    }
+
+    #[getter]
+    const fn spatial_dimension(&self) -> usize {
+        2
+    }
+
+    #[getter]
+    const fn coupling_method(&self) -> &'static str {
+        "monolithic"
+    }
+
+    #[getter]
+    const fn geometry_motion(&self) -> &'static str {
+        "none"
+    }
+
+    #[getter]
+    const fn mesh_kind(&self) -> &'static str {
+        "imported-affine-simplicial"
+    }
+
+    #[getter]
+    const fn fluid_velocity_space(&self) -> &'static str {
+        "simplex-p1-bubble"
+    }
+
+    #[getter]
+    const fn fluid_pressure_space(&self) -> &'static str {
+        "continuous-lagrange-1"
+    }
+
+    #[getter]
+    const fn solid_velocity_space(&self) -> &'static str {
+        "continuous-lagrange-1"
+    }
+
+    #[getter]
+    const fn solid_displacement_space(&self) -> &'static str {
+        "backward-euler-eliminated-continuous-lagrange-1"
+    }
+
+    #[getter]
+    const fn time_integrator(&self) -> &'static str {
+        "backward-euler"
+    }
+
+    #[getter]
+    fn time_step_s(&self) -> f64 {
+        self.native.intent().time_step_s()
+    }
+
+    #[getter]
+    fn steps(&self) -> usize {
+        self.native.intent().steps().get()
+    }
+
+    #[getter]
+    const fn initial_velocity_m_per_s(&self) -> (f64, f64) {
+        tuple2(self.native.intent().initial_velocity_m_per_s())
+    }
+
+    #[getter]
+    const fn initial_free_interface_displacement_m(&self) -> (f64, f64) {
+        tuple2(self.native.intent().initial_free_interface_displacement_m())
+    }
+
+    #[getter]
+    fn length_scale_m(&self) -> f64 {
+        self.native.intent().length_scale_m()
+    }
+
+    #[getter]
+    fn velocity_scale_m_per_s(&self) -> f64 {
+        self.native.intent().velocity_scale_m_per_s()
+    }
+
+    #[getter]
+    fn pressure_scale_pa(&self) -> f64 {
+        self.native.intent().pressure_scale_pa()
+    }
+
+    #[getter]
+    const fn solver_algorithm(&self) -> &'static str {
+        "minimum-residual"
+    }
+
+    #[getter]
+    const fn preconditioner(&self) -> &'static str {
+        "identity"
+    }
+
+    #[getter]
+    const fn reduction(&self) -> &'static str {
+        "reproducible"
+    }
+
+    #[getter]
+    fn relative_tolerance(&self) -> f64 {
+        self.native.intent().relative_tolerance()
+    }
+
+    #[getter]
+    fn absolute_tolerance(&self) -> f64 {
+        self.native.intent().absolute_tolerance()
+    }
+
+    #[getter]
+    fn maximum_iterations(&self) -> usize {
+        self.native.intent().maximum_iterations().get()
+    }
+
+    #[getter]
+    fn solver_backend(&self) -> &'static str {
+        self.native.solver_provider().id().as_str()
+    }
+
+    #[getter]
+    fn execution_adapter(&self) -> &'static str {
+        self.native.execution_provider().id().as_str()
+    }
+
+    #[getter]
+    fn workers(&self) -> usize {
+        self.native.workers().get()
+    }
+
+    #[getter]
+    fn canonical_bytes(&self, py: Python<'_>) -> Py<PyBytes> {
+        PyBytes::new(py, &self.canonical_bytes).unbind()
+    }
+
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
+        other
+            .extract::<PyRef<'_, Self>>()
+            .is_ok_and(|other| self.native == other.native)
+    }
+
+    fn __ne__(&self, other: &Bound<'_, PyAny>) -> bool {
+        !self.__eq__(other)
+    }
+
+    fn __hash__(&self) -> u64 {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.model_digest.hash(&mut hasher);
+        hash_intent_into(&self.native.intent(), &mut hasher);
+        hasher.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "FixedMeshMonolithicPlan(model_digest={:?}, realization_digest={:?})",
+            self.model_digest, self.realization_digest,
+        )
+    }
+}
+
+/// Scientific and solver observations bound to one exact accepted state.
+#[pyclass(
+    name = "FixedMeshMonolithicStateEvidence",
+    module = "eqiora._eqiora",
+    frozen,
+    skip_from_py_object
+)]
+pub(crate) struct PyFixedMeshMonolithicStateEvidence {
+    state_digest: String,
     interface_vertices: ReadOnlyVector<u32>,
     fluid_action: ReadOnlyMatrix<f64>,
     solid_action: ReadOnlyMatrix<f64>,
@@ -55,40 +444,10 @@ pub(crate) struct PyFixedReferenceFsiStep {
 }
 
 #[pymethods]
-impl PyFixedReferenceFsiStep {
+impl PyFixedMeshMonolithicStateEvidence {
     #[getter]
-    const fn ordinal(&self) -> u64 {
-        self.ordinal
-    }
-
-    #[getter]
-    const fn time_s(&self) -> f64 {
-        self.time_s
-    }
-
-    #[getter]
-    fn velocity(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
-        self.velocity.numpy(py)
-    }
-
-    #[getter]
-    fn bubble_velocity(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
-        self.bubble_velocity.numpy(py)
-    }
-
-    #[getter]
-    fn pressure_vertices(&self, py: Python<'_>) -> PyResult<Py<PyArray1<u32>>> {
-        self.pressure_vertices.numpy(py)
-    }
-
-    #[getter]
-    fn pressure(&self, py: Python<'_>) -> PyResult<Py<PyArray1<f64>>> {
-        self.pressure.numpy(py)
-    }
-
-    #[getter]
-    fn displacement(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
-        self.displacement.numpy(py)
+    fn state_digest(&self) -> &str {
+        &self.state_digest
     }
 
     #[getter]
@@ -193,142 +552,41 @@ impl PyFixedReferenceFsiStep {
 
     fn __repr__(&self) -> String {
         format!(
-            "FixedReferenceFsiStep(ordinal={}, time_s={})",
-            self.ordinal, self.time_s
+            "FixedMeshMonolithicStateEvidence(state_digest={:?})",
+            self.state_digest,
         )
     }
 }
 
-/// Frozen two-step result of the accepted fixed-reference FSI application.
+/// Typed evidence for one exact fixed-mesh monolithic FSI Result.
 #[pyclass(
-    name = "FixedReferenceFsiResult",
+    name = "FixedMeshMonolithicEvidence",
     module = "eqiora._eqiora",
     frozen,
-    eq,
-    hash,
     skip_from_py_object
 )]
-pub(crate) struct PyFixedReferenceFsiResult {
-    semantic_revision: u64,
-    realization_revision: u64,
-    run_manifest_json: Vec<u8>,
-    trajectory: Py<PyTrajectory>,
+pub(crate) struct PyFixedMeshMonolithicEvidence {
+    model_digest: String,
+    trajectory_digest: String,
+    run_digest: String,
     fluid_cells: ReadOnlyVector<u32>,
     solid_cells: ReadOnlyVector<u32>,
     interface_facets: ReadOnlyMatrix<u32>,
-    steps: [Py<PyFixedReferenceFsiStep>; 2],
+    state_owners: [Py<PyTrajectoryState>; 2],
+    states: [Py<PyFixedMeshMonolithicStateEvidence>; 2],
     case_ids: [&'static str; 2],
 }
 
-impl PartialEq for PyFixedReferenceFsiResult {
-    fn eq(&self, other: &Self) -> bool {
-        self.run_manifest_json == other.run_manifest_json
-    }
-}
-
-impl Eq for PyFixedReferenceFsiResult {}
-
-impl Hash for PyFixedReferenceFsiResult {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.run_manifest_json.hash(state);
-    }
-}
-
-impl PyFixedReferenceFsiResult {
-    fn from_native(
-        py: Python<'_>,
-        model: &PyModel,
-        result: FixedReferenceFsiResult2d,
-    ) -> PyResult<Self> {
-        let run_manifest_json = result
-            .run()
-            .canonical_json()
-            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
-        let replay = result
-            .trajectory_replay()
-            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))?;
-        let trajectory = Py::new(
-            py,
-            PyTrajectory::from_replay(py, model, result.mesh_artifact(), &replay, result.run())?,
-        )?;
-
-        let fluid_cells = result
-            .partition()
-            .fluid_cells()
-            .iter()
-            .map(|cell| u32::try_from(cell.index()))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| {
-                pyo3::exceptions::PyOverflowError::new_err("FSI cell index exceeds u32")
-            })?;
-        let solid_cells = result
-            .partition()
-            .solid_cells()
-            .iter()
-            .map(|cell| u32::try_from(cell.index()))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| {
-                pyo3::exceptions::PyOverflowError::new_err("FSI cell index exceeds u32")
-            })?;
-        let mut interface_facets =
-            Vec::with_capacity(result.partition().interface_facets().len() * 2);
-        for facet in result.partition().interface_facets() {
-            let vertices = result
-                .mesh()
-                .entity_vertices(MeshEntity::new(1, facet.index()))
-                .expect("accepted FSI interface facet owns connectivity");
-            for vertex in vertices {
-                interface_facets.push(u32::try_from(vertex.index()).map_err(|_| {
-                    pyo3::exceptions::PyOverflowError::new_err(
-                        "FSI interface vertex index exceeds u32",
-                    )
-                })?);
-            }
-        }
-        let steps = [
-            Py::new(py, project_step(py, &result, 0)?)?,
-            Py::new(py, project_step(py, &result, 1)?)?,
-        ];
-
-        Ok(Self {
-            semantic_revision: result.semantic_revision(),
-            realization_revision: result.realization_revision(),
-            run_manifest_json,
-            trajectory,
-            fluid_cells: ReadOnlyVector::new(fluid_cells),
-            solid_cells: ReadOnlyVector::new(solid_cells),
-            interface_facets: ReadOnlyMatrix::new(
-                result.partition().interface_facets().len(),
-                2,
-                interface_facets,
-            ),
-            steps,
-            case_ids: result.scientific_case_ids(),
-        })
-    }
-}
-
 #[pymethods]
-impl PyFixedReferenceFsiResult {
+impl PyFixedMeshMonolithicEvidence {
     #[getter]
-    const fn semantic_revision(&self) -> u64 {
-        self.semantic_revision
+    fn trajectory_digest(&self) -> &str {
+        &self.trajectory_digest
     }
 
     #[getter]
-    const fn realization_revision(&self) -> u64 {
-        self.realization_revision
-    }
-
-    #[getter]
-    fn run_manifest_json(&self, py: Python<'_>) -> Py<PyBytes> {
-        PyBytes::new(py, &self.run_manifest_json).unbind()
-    }
-
-    /// Accepted general trajectory projection over the exact durable replay.
-    #[getter]
-    fn trajectory(&self, py: Python<'_>) -> Py<PyTrajectory> {
-        self.trajectory.clone_ref(py)
+    fn run_digest(&self) -> &str {
+        &self.run_digest
     }
 
     #[getter]
@@ -347,18 +605,35 @@ impl PyFixedReferenceFsiResult {
     }
 
     #[getter]
-    fn steps(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        Ok(PyTuple::new(py, self.steps.iter().map(|step| step.clone_ref(py)))?.unbind())
+    fn states(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        Ok(PyTuple::new(py, self.states.iter().map(|state| state.clone_ref(py)))?.unbind())
     }
 
-    #[pyo3(signature = (ordinal, /))]
-    fn step(&self, py: Python<'_>, ordinal: isize) -> PyResult<Py<PyFixedReferenceFsiStep>> {
-        let index = match ordinal {
-            1 => 0,
-            2 => 1,
-            _ => return Err(PyIndexError::new_err("FSI step ordinal must be 1 or 2")),
-        };
-        Ok(self.steps[index].clone_ref(py))
+    /// Select evidence only through the exact state object owned by this Result.
+    #[pyo3(signature = (state, /))]
+    fn state(
+        &self,
+        py: Python<'_>,
+        state: &Bound<'_, PyTrajectoryState>,
+    ) -> PyResult<Py<PyFixedMeshMonolithicStateEvidence>> {
+        if state.borrow().model_digest_value() != self.model_digest {
+            return Err(PyValueError::new_err(
+                "TrajectoryState belongs to a different exact Model artifact",
+            ));
+        }
+        let position = self
+            .state_owners
+            .iter()
+            .position(|owner| owner.bind(py).is(state))
+            .ok_or_else(|| {
+                PyValueError::new_err("TrajectoryState belongs to a different Result occurrence")
+            })?;
+        if state.borrow().digest_value() != self.states[position].borrow(py).state_digest {
+            return Err(PyValueError::new_err(
+                "TrajectoryState identity differs from its accepted FSI evidence",
+            ));
+        }
+        Ok(self.states[position].clone_ref(py))
     }
 
     #[getter]
@@ -366,19 +641,90 @@ impl PyFixedReferenceFsiResult {
         (self.case_ids[0], self.case_ids[1])
     }
 
-    fn __repr__(&self, py: Python<'_>) -> String {
+    fn __repr__(&self) -> String {
         format!(
-            "FixedReferenceFsiResult(run_digest='{}')",
-            self.trajectory.borrow(py).run_digest_value()
+            "FixedMeshMonolithicEvidence(run_digest={:?})",
+            self.run_digest,
         )
     }
 }
 
-fn project_step(
+impl PyFixedMeshMonolithicEvidence {
+    fn from_native(
+        py: Python<'_>,
+        result: &FixedReferenceFsiResult2d,
+        trajectory: &PyTrajectory,
+    ) -> PyResult<Self> {
+        let fluid_cells = result
+            .partition()
+            .fluid_cells()
+            .iter()
+            .map(|cell| u32::try_from(cell.index()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| PyOverflowError::new_err("FSI cell index exceeds uint32"))?;
+        let solid_cells = result
+            .partition()
+            .solid_cells()
+            .iter()
+            .map(|cell| u32::try_from(cell.index()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| PyOverflowError::new_err("FSI cell index exceeds uint32"))?;
+        let mut interface_facets =
+            Vec::with_capacity(result.partition().interface_facets().len() * 2);
+        for facet in result.partition().interface_facets() {
+            let vertices = result
+                .mesh()
+                .entity_vertices(MeshEntity::new(1, facet.index()))
+                .expect("accepted FSI interface facet owns connectivity");
+            for vertex in vertices {
+                interface_facets.push(u32::try_from(vertex.index()).map_err(|_| {
+                    PyOverflowError::new_err("FSI interface vertex index exceeds uint32")
+                })?);
+            }
+        }
+        let state_owners: [Py<PyTrajectoryState>; 2] = trajectory
+            .state_handles(py)
+            .try_into()
+            .map_err(|_| PyValueError::new_err("accepted FSI trajectory must have two states"))?;
+        let states = [
+            Py::new(py, project_state_evidence(py, result, 0)?)?,
+            Py::new(py, project_state_evidence(py, result, 1)?)?,
+        ];
+        for (owner, evidence) in state_owners.iter().zip(&states) {
+            if owner.borrow(py).digest_value() != evidence.borrow(py).state_digest {
+                return Err(PyValueError::new_err(
+                    "accepted FSI state evidence differs from the Trajectory state",
+                ));
+            }
+        }
+        let run_digest = result
+            .run()
+            .digest()
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+            .to_string();
+        Ok(Self {
+            model_digest: trajectory.model_digest_value().to_owned(),
+            trajectory_digest: trajectory.digest_value().to_owned(),
+            run_digest,
+            fluid_cells: ReadOnlyVector::new(fluid_cells),
+            solid_cells: ReadOnlyVector::new(solid_cells),
+            interface_facets: ReadOnlyMatrix::new(
+                result.partition().interface_facets().len(),
+                2,
+                interface_facets,
+            ),
+            state_owners,
+            states,
+            case_ids: result.scientific_case_ids(),
+        })
+    }
+}
+
+fn project_state_evidence(
     py: Python<'_>,
     result: &FixedReferenceFsiResult2d,
     position: usize,
-) -> PyResult<PyFixedReferenceFsiStep> {
+) -> PyResult<PyFixedMeshMonolithicStateEvidence> {
     let solution = &result.solutions()[position];
     let state = &result.states()[position];
     let numerical = solution.numerical_evidence();
@@ -389,33 +735,22 @@ fn project_step(
     let mut solid_action = Vec::with_capacity(actions.len() * 2);
     let mut action_imbalance = Vec::with_capacity(actions.len() * 2);
     for action in actions {
-        interface_vertices.push(u32::try_from(action.vertex().index()).map_err(|_| {
-            pyo3::exceptions::PyOverflowError::new_err("FSI interface vertex index exceeds u32")
-        })?);
+        interface_vertices.push(
+            u32::try_from(action.vertex().index()).map_err(|_| {
+                PyOverflowError::new_err("FSI interface vertex index exceeds uint32")
+            })?,
+        );
         fluid_action.extend(action.fluid());
         solid_action.extend(action.solid());
         action_imbalance.extend(action.imbalance());
     }
     let assembly = numerical.assembly_report();
-    Ok(PyFixedReferenceFsiStep {
-        ordinal: state.step(),
-        time_s: state.time_s(),
-        velocity: vector_matrix(solution.vertex_velocity_coefficients()),
-        bubble_velocity: vector_matrix(solution.fluid_velocity_bubble_coefficients()),
-        pressure_vertices: ReadOnlyVector::new(
-            solution
-                .fluid_pressure_vertices()
-                .iter()
-                .map(|vertex| u32::try_from(vertex.index()))
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|_| {
-                    pyo3::exceptions::PyOverflowError::new_err(
-                        "FSI pressure vertex index exceeds u32",
-                    )
-                })?,
-        ),
-        pressure: ReadOnlyVector::new(solution.fluid_pressure_coefficients().to_vec()),
-        displacement: vector_matrix(solution.solid_displacement_coefficients()),
+    let state_digest = state
+        .digest()
+        .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
+        .to_string();
+    Ok(PyFixedMeshMonolithicStateEvidence {
+        state_digest,
         interface_vertices: ReadOnlyVector::new(interface_vertices),
         fluid_action: ReadOnlyMatrix::new(actions.len(), 2, fluid_action),
         solid_action: ReadOnlyMatrix::new(actions.len(), 2, solid_action),
@@ -442,41 +777,128 @@ fn project_step(
     })
 }
 
-fn vector_matrix(values: &[[f64; 2]]) -> ReadOnlyMatrix<f64> {
-    ReadOnlyMatrix::new(
-        values.len(),
-        2,
-        values
-            .iter()
-            .flat_map(|value| value.iter().copied())
-            .collect(),
-    )
-}
-
-/// Execute the accepted fixed-reference two-step FSI application path.
+/// Resolve one complete FSI intent without executing it.
 #[pyfunction]
-#[pyo3(signature = (model, /))]
-pub(crate) fn solve_fixed_reference_fsi(
+#[pyo3(name = "resolve_fixed_mesh_monolithic")]
+#[pyo3(signature = (model, intent, /))]
+pub(crate) fn resolve(
     py: Python<'_>,
-    model: &PyModel,
-) -> PyResult<PyFixedReferenceFsiResult> {
+    model: &Bound<'_, PyModel>,
+    intent: &PyFixedMeshMonolithic,
+) -> PyResult<PyFixedMeshMonolithicPlan> {
     panic_boundary(py, || {
         let document = model
+            .borrow()
             .document()
             .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
             .clone();
-        let result = py.detach(move || {
-            FixedReferenceFsiResult2d::solve_reference(&document, &REFERENCE_LINEAR_SOLVER)
+        let native_intent = intent.native;
+        let native = py.detach(move || {
+            ResolvedFixedMeshMonolithicFsiPlan2d::resolve(
+                &document,
+                native_intent,
+                &REFERENCE_LINEAR_SOLVER,
+            )
         });
-        result
-            .map_err(|error| diagnostic_error(py, std::slice::from_ref(&error)))
-            .and_then(|result| PyFixedReferenceFsiResult::from_native(py, model, result))
+        native
+            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))
+            .and_then(|native| {
+                PyFixedMeshMonolithicPlan::from_native(py, native, model.clone().unbind())
+            })
     })
 }
 
+pub(crate) fn materialize_result(
+    py: Python<'_>,
+    result: FixedReferenceFsiResult2d,
+    identity: RunIdentity,
+    elapsed_seconds: f64,
+    model: PyRef<'_, PyModel>,
+) -> PyResult<PyRunResult> {
+    let replay = result
+        .trajectory_replay()
+        .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
+    let trajectory = Py::new(
+        py,
+        PyTrajectory::from_replay(py, &model, result.mesh_artifact(), &replay, result.run())?,
+    )?;
+    let evidence = Py::new(
+        py,
+        PyFixedMeshMonolithicEvidence::from_native(py, &result, &trajectory.borrow(py))?,
+    )?;
+    let run_manifest = Py::new(py, PyRunManifest::from_value(py, result.run().clone())?)?;
+    Ok(PyRunResult::from_fixed_mesh_monolithic_fsi(
+        identity,
+        elapsed_seconds,
+        trajectory,
+        run_manifest,
+        evidence,
+    ))
+}
+
+#[pyfunction]
+#[pyo3(signature = (result, /))]
+fn fixed_mesh_monolithic_evidence(
+    py: Python<'_>,
+    result: &PyRunResult,
+) -> PyResult<Py<PyFixedMeshMonolithicEvidence>> {
+    result.fixed_mesh_monolithic_evidence(py)
+}
+
+fn positive_usize(_py: Python<'_>, name: &str, value: i64) -> PyResult<NonZeroUsize> {
+    usize::try_from(value)
+        .ok()
+        .and_then(NonZeroUsize::new)
+        .ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "fixed-mesh monolithic FSI {name} must be strictly positive"
+            ))
+        })
+}
+
+const fn tuple2(value: [f64; 2]) -> (f64, f64) {
+    (value[0], value[1])
+}
+
+fn hash_float<H: Hasher>(value: f64, hasher: &mut H) {
+    let normalized = if value == 0.0 { 0.0 } else { value };
+    normalized.to_bits().hash(hasher);
+}
+
+fn hash_intent_into<H: Hasher>(intent: &FixedMeshMonolithicFsiIntent2d, hasher: &mut H) {
+    hash_float(intent.time_step_s(), hasher);
+    intent.steps().hash(hasher);
+    for value in intent
+        .initial_velocity_m_per_s()
+        .into_iter()
+        .chain(intent.initial_free_interface_displacement_m())
+    {
+        hash_float(value, hasher);
+    }
+    for value in [
+        intent.length_scale_m(),
+        intent.velocity_scale_m_per_s(),
+        intent.pressure_scale_pa(),
+        intent.relative_tolerance(),
+        intent.absolute_tolerance(),
+    ] {
+        hash_float(value, hasher);
+    }
+    intent.maximum_iterations().hash(hasher);
+}
+
+fn hash_intent(intent: FixedMeshMonolithicFsiIntent2d) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    hash_intent_into(&intent, &mut hasher);
+    hasher.finish()
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<PyFixedReferenceFsiStep>()?;
-    module.add_class::<PyFixedReferenceFsiResult>()?;
-    module.add_function(wrap_pyfunction!(solve_fixed_reference_fsi, module)?)?;
+    module.add_class::<PyFixedMeshMonolithic>()?;
+    module.add_class::<PyFixedMeshMonolithicPlan>()?;
+    module.add_class::<PyFixedMeshMonolithicStateEvidence>()?;
+    module.add_class::<PyFixedMeshMonolithicEvidence>()?;
+    module.add_function(wrap_pyfunction!(resolve, module)?)?;
+    module.add_function(wrap_pyfunction!(fixed_mesh_monolithic_evidence, module)?)?;
     Ok(())
 }

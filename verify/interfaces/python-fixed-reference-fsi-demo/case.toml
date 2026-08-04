@@ -1,11 +1,11 @@
 id = "interfaces.python-fixed-reference-fsi-demo"
 status = "verified"
 scope = "one-installed-python-immutable-fixed-reference-monolithic-fsi-two-step-result"
-reference_kind = "shared-rust-application-result-lineage"
+reference_kind = "shared-rust-plan-common-result-typed-evidence-lineage"
 
 capabilities = [
-  "python-fixed-reference-fsi-run",
-  "python-typed-fixed-reference-fsi-result",
+  "python-fixed-mesh-monolithic-fsi-plan-run",
+  "python-common-fsi-result-and-typed-evidence",
   "python-coupled-model-realization-run-state-trajectory-lineage",
   "python-read-only-coupled-interface-state-arrays",
 ]
@@ -15,9 +15,12 @@ model = "one packaged byte-exact copy of verify/fsi/fixed-reference-monolithic-s
 physics = "verified fixed-reference inertial-fluid linear-solid monolithic backward-Euler coupling"
 realization = "the existing fieldwise coupled multi-Domain plan over the exact 9-vertex 8-affine-triangle two-body mesh"
 accepted_steps = 2
-entry_point = "eqiora.fsi.solve_fixed_reference_fsi"
-result_type = "immutable eqiora.fsi.FixedReferenceFsiResult"
-presentation_successor = "interfaces.python-trajectory-field-stills owns common scalar and deformed stills over this result's accepted Trajectory"
+intent = "immutable keyword-only eqiora.fsi.FixedMeshMonolithic with every initial-state, time, scale, solver-tolerance, and iteration input explicit"
+resolution = "eqiora.fsi.resolve(model, intent) returns one exact-Model-bound FixedMeshMonolithicPlan before execution"
+entry_point = "eqiora.submit(model, plan=plan).result(), with eqiora.run(model, plan=plan) as the synchronous common-Result route"
+result_type = "immutable common eqiora.Result whose trajectory property returns the accepted Trajectory"
+evidence = "eqiora.fsi.fixed_mesh_monolithic_evidence(result), with exact TrajectoryState-keyed state evidence"
+presentation_successor = "interfaces.python-trajectory-field-stills owns common scalar and deformed stills over this common Result's accepted Trajectory"
 
 [oracle]
 scientific_case = "fsi.fixed-reference-monolithic-step-2d"
@@ -32,6 +35,9 @@ arrays = "coindexed partition, velocity, bubble, pressure-support, displacement,
 [acceptance]
 packaged_source_is_byte_exact = true
 caller_compiles_and_supplies_current_model = true
+intent_has_no_hidden_defaults = true
+plan_is_bound_to_the_exact_model_revision = true
+unsupported_intent_rejects_before_worker_creation = true
 studio_and_python_consume_one_production_rust_composition = true
 admission_is_structural_and_never_digest_equality = true
 caller_current_artifact_identity_is_retained_in_lineage = true
@@ -41,6 +47,9 @@ production_and_support_compositions_agree_in_existing_rust_tests = true
 no_scientific_expected_value_tolerance_or_falsifier_changes = true
 exact_partition_is_nine_vertices_and_eight_triangles = true
 two_ordered_accepted_steps_are_exposed = true
+run_result_is_the_common_result = true
+result_trajectory_is_memoized = true
+fsi_evidence_is_selected_by_exact_trajectory_state = true
 mini_bubble_velocity_block_is_exposed = true
 fluid_p1_pressure_support_is_exposed = true
 solid_displacement_is_exposed = true
@@ -74,6 +83,8 @@ solver_stopping_presented_as_physics_acceptance = "acceptance scalars and stoppi
 reauthored_or_relaxed_acceptance_threshold = "referenced scientific thresholds differ from their owning cases"
 mutable_or_result_owned_arrays = "array lifetime and writeability checks fail"
 eager_numpy_dependency = "isolated process imports NumPy before first array projection"
+surviving_predecessor_python_api = "FixedReferenceFsiStep, FixedReferenceFsiResult, or solve_fixed_reference_fsi remains reachable from the native module, Python facade, exports, shipped stub, generated API docs, or installed wheel"
+ordinal_only_evidence_lookup = "state evidence accepts an ordinal or a TrajectoryState from another occurrence instead of the exact accepted TrajectoryState"
 
 [claim_boundary]
 one_current_model = true
@@ -85,7 +96,7 @@ two_consecutive_accepted_steps_only = true
 monolithic_single_step_coupling_only = true
 general_fsi = false
 same_time_iterative_or_partitioned_coupling = false
-generic_coupling_graph_or_result = false
+generic_coupling_graph = false
 ale_moving_mesh_or_remeshing = false
 advection_or_navier_stokes = false
 other_model_geometry_mesh_or_time_plan = false
@@ -95,7 +106,7 @@ application_recomputes_physics = false
 stress_drag_or_lift = false
 validation_or_benchmark = false
 video_or_animation = false
-durable_public_result_generality = false
+result_trajectory_generality_beyond_the_accepted_case = false
 interactive_viewer = false
 
 [precommitment]

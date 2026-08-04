@@ -14,6 +14,8 @@ python examples/python/exact_cylinder_mesh.py
 python examples/python/exact_cylinder_stokes.py
 python examples/python/exact_cylinder_stokes.py \
   --pressure-png exact-cylinder-pressure.png
+python examples/python/fixed_reference_fsi.py \
+  --fsi-png fixed-reference-fsi.png --step 2 --displacement-scale 12
 ```
 
 | Example | Source | What it shows |
@@ -23,6 +25,7 @@ python examples/python/exact_cylinder_stokes.py \
 | `exact-cylinder-geometry` | [`python/exact_cylinder_geometry.py`](python/exact_cylinder_geometry.py) | From an installed `eqiora` package, author the exact rectangle-with-one-circular-hole identity and inspect its fixed-role named selections. |
 | `exact-cylinder-mesh` | [`python/exact_cylinder_mesh.py`](python/exact_cylinder_mesh.py) | From an installed `eqiora` package, explicitly realize the exact cylinder source as the bounded error-controlled chordal reference mesh and inspect Rust-derived selection counts. |
 | `exact-cylinder-stokes` | [`python/exact_cylinder_stokes.py`](python/exact_cylinder_stokes.py) | From an installed `eqiora` package, load its shipped exact Model artifact, execute the accepted exact-cylinder steady-Stokes composition, inspect immutable pressure, solver, force, and flux evidence, and optionally save its accepted P1 pressure through `eqiora[matplotlib]` without a repository-local runtime input. |
+| `fixed-reference-fsi` | [`python/fixed_reference_fsi.py`](python/fixed_reference_fsi.py) | From an installed `eqiora` package, resolve the explicit accepted fixed-mesh monolithic Plan, submit its Run, inspect the common Result/Trajectory and typed FSI evidence, and optionally render general pressure and deformed-field stills. |
 | `steady-flow-past-cylinder` | [`steady-flow-past-cylinder.eqi`](steady-flow-past-cylinder.eqi), [exact geometry](steady-flow-past-cylinder.geometry.json), [current Model](steady-flow-past-cylinder.model.json) | In native Studio, replay one immutable exact rectangle-minus-circle Model, realize its error-controlled affine mesh, execute the accepted steady Stokes path, and inspect the pressure field with reaction and balance evidence. |
 
 General examples keep the Model, the Realization, and the Run visibly separate;

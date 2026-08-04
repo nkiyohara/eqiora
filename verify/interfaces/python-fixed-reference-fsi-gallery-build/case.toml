@@ -15,7 +15,9 @@ capabilities = [
 source_case = "interfaces.python-fixed-reference-fsi-demo"
 scientific_case = "fsi.fixed-reference-monolithic-step-2d"
 trajectory_case = "artifacts.fixed-reference-fsi-spatial-trajectory"
-result_type = "installed eqiora.fsi.FixedReferenceFsiResult"
+result_type = "installed common eqiora.Result with the accepted trajectory property"
+result_path = "eqiora.fsi.FixedMeshMonolithic -> eqiora.fsi.resolve -> eqiora.submit -> Run.result -> Result.trajectory"
+evidence = "eqiora.fsi.fixed_mesh_monolithic_evidence(result), with exact TrajectoryState-keyed state observations"
 entry_point = "tools/gallery/build_fixed_reference_fsi.py"
 scene = "one 1280 by 720, 450-frame, 30-fps, 15-second silent development film"
 outputs = "lossless PNG poster, VP9 WebM, H.264 MP4, distinct two-panel reduced-motion PNG, descriptive UTF-8 text, and canonical private JSON record"
@@ -36,7 +38,8 @@ admission = "pure production predicate compares a candidate with protected-base 
 
 [acceptance]
 ordinary_checked_in_python_imports_installed_wheel = true
-same_rust_owned_result_as_verification_and_studio = true
+same_rust_owned_plan_and_common_result_as_verification_and_studio = true
+typed_state_evidence_uses_exact_trajectory_state_identity = true
 general_trajectory_replay_was_accepted_before_python_projection = true
 actual_render_and_both_encodes_execute = true
 poster_is_lossless_png = true
@@ -75,6 +78,7 @@ poster_loop_drift = "frame zero and frame 449 exact file bytes differ"
 reduced_motion_equals_poster = "digest and two-panel scene checks reject"
 text_alternative_drops_unit_state_mapping_or_evidence = "accessibility check rejects"
 unknown_record_key = "closed-key validation rejects"
+surviving_predecessor_python_api = "FixedReferenceFsiStep, FixedReferenceFsiResult, or solve_fixed_reference_fsi remains reachable from the native module, facade, exports, shipped stub, or installed wheel"
 
 [claim_boundary]
 development_preview_only = true

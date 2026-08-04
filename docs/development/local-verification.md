@@ -136,6 +136,54 @@ ends. It never mutates an externally managed system interpreter or mixes a
 project-discovered development environment with a different pytest
 interpreter.
 
+## Heavy scientific candidates
+
+Production-resolution gallery solves, refinement campaigns, and complete media
+encodes are not ordinary pull-request or periodic verification. They use the
+same three-authority boundary as the
+[gallery contract](../verification/gallery/README.md#heavy-result-production):
+
+1. **PR conformance** exercises the ordinary implementation path with bounded
+   meshes, trajectories, witnesses, mutants, and renderer fixtures. Its narrow
+   evidence does not accept or claim the production result.
+2. **Exact-head scientific candidates** execute the full frozen campaign
+   explicitly against one final source revision in the declared trusted
+   environment. The claim, independent oracle, tolerances, stop conditions,
+   affected registered cases, and invalidation inputs are fixed before the
+   candidate runs.
+3. **Immutable publication projections** consume the accepted Result or
+   trajectory and reuse digest-verified admitted bytes. Publication never
+   invokes the scientific solve.
+
+The candidate records the exact Model, Geometry, mesh family, correspondence,
+Realization, Run, fields and results, source revision, producer and runtime
+environment, solver and library identities, oracle and evidence IDs, output
+inventory, and content digests. It is eligible only for the affected claim at
+that exact head. Equation, lowering, assembly, boundary-law, mesh-family,
+time-integrator, solver-acceptance, scientific-observable, benchmark, or oracle
+changes require a new full candidate on the final affected head. Renderer,
+scene-profile, encoder, or accessibility changes may rerender the unchanged
+accepted trajectory. Documentation, site-shell, and unrelated product changes
+reuse the accepted result and admitted media.
+
+Selection and failure are visible and fail closed. When the required heavy
+environment cannot run, record the limitation and narrow the claim or stop its
+promotion. `not-selected`, a stale bundle, a cache hit, or successful PR
+conformance is never full scientific acceptance. Each scientific slice names
+the exact affected registered cases; these rules do not infer semantic
+invalidation from a broad path glob.
+
+Actions, compiler, workstation, Vault, and site caches may accelerate or mirror
+bytes but have no scientific or publication authority. The accepted receipt
+and digests identify bytes retrieved from the first consumer's durable delivery
+location. The current verification planner does not discover, schedule, cache,
+publish, or transfer heavy candidates automatically, and this policy does not
+define a provider, scheduler, archive, wire format, signing scheme, retention
+policy, remote-execution API, or calendar cadence.
+Nothing in this boundary weakens independent-oracle ownership, convergence or
+refinement obligations, registered evidence, or the gallery's publication
+predicate.
+
 ## Environment boundary
 
 The planner states evidence that the current machine cannot generalize:

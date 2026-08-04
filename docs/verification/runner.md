@@ -105,7 +105,7 @@ that serial fail-fast would report as `skipped` into a real `passed` or
 ## Trust boundary
 
 A manifest cannot provide a shell fragment, working directory, or free-form
-arguments. Its `[evidence]` table accepts one of two closed forms.
+arguments. Its `[evidence]` table accepts one of three closed forms.
 
 Workspace Cargo integration test:
 
@@ -130,6 +130,22 @@ environment = "physical-mpi-cuda"
 The default is `host-cpu`. Environment values are a closed enum, not arbitrary
 runner labels or host capabilities.
 
+One exact crate-private library-unit oracle can be selected without exporting a
+test hook or duplicating `lib.rs` as a Cargo target:
+
+```toml
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "form_compiler::elasticity::oracle::registered_evidence"
+```
+
+The test is one complete lowercase Rust test name, with at least two
+`::`-separated identifier segments; it is never a prefix, glob, source path, or
+argument list. The runner proves that this exact test exists before execution.
+Host evidence requires a non-ignored test and physical MPI/CUDA evidence
+requires an ignored test, matching the environment selected by the manifest.
+
 Repository-owned installed-wheel Python gate:
 
 ```toml
@@ -138,16 +154,25 @@ runner = "python-installed-wheel"
 script = "tools/ci/python_torch_gate.py"
 ```
 
-For Cargo, the runner first obtains the workspace package and integration-test
-inventory from `cargo metadata --format-version=1 --no-deps`. After complete
-validation, case selection, and both optional filters, selected Cargo targets
-are partitioned by their exact package and sorted declared feature set. A
-Python-only runner-kind selection therefore constructs and builds no Cargo
-group. Each group is compiled once with the fixed form
+For Cargo, the runner first obtains the workspace package, library, and
+integration-test inventory from `cargo metadata --format-version=1 --no-deps`.
+After complete validation, case selection, and both optional filters, selected
+Cargo targets are partitioned by target shape, exact package, and sorted
+declared feature set. A Python-only runner-kind selection therefore constructs
+and builds no Cargo group. Each integration-test group is compiled once with the fixed form
 `cargo test --locked -p <package> --no-run --message-format=json`, one `--test`
 selector per target, and that group's exact `--features` value when non-empty.
 Features from different manifests are never unioned. The runner reads Cargo's
 compiler-artifact messages and executes each emitted test binary directly.
+Each library-test group instead compiles once with `--lib --no-run`, retains
+only the unique executable library artifact belonging to the selected workspace
+package, preflights the exact libtest inventory, and invokes only the declared
+test with `--exact` (plus `--ignored` for physical MPI/CUDA evidence). A missing,
+renamed, substring-only, wrong-ignore-state, absent-artifact, or ambiguous
+library target fails closed. Library selectors are normalized internally with a
+reserved `lib::` discriminator that cannot collide with the stable integration
+target grammar; manifests, indexes, and reports expose only the explicit
+`cargo-library-test` shape.
 For Python it invokes `PYTHON` (or `python3`) with the single declared script.
 The script must be a normalized repository-relative regular `.py` file; no
 arguments are accepted. Both runners use the repository root and never invoke
@@ -158,12 +183,12 @@ reported against every case whose target belongs to that exact group and names
 the group; it is not treated as a test failure for fail-fast scheduling, so
 targets from successfully built groups still run. A test-binary failure is
 attributed only to cases selecting that exact execution key. The private key
-contains every per-target process input: Cargo runner, package,
-integration-test name, normalized feature set and environment; or Python
-runner, script and environment. A case-relative `table` and claim metadata are
-validated but excluded because neither changes the process. Cases sharing a
-key reuse its one captured result, duration and streams while retaining
-distinct case reports. Invocation-wide repository, tool, inherited
+contains every per-target process input: Cargo target shape, package, exact
+integration-target or library-test name, normalized feature set and
+environment; or Python runner, script and environment. A case-relative `table`
+and claim metadata are validated but excluded because neither changes the
+process. Cases sharing a key reuse its one captured result, duration and
+streams while retaining distinct case reports. Invocation-wide repository, tool, inherited
 environment, source-tree, toolchain and dependency state are not cross-run
 cache claims: this reuse exists only within one runner invocation.
 

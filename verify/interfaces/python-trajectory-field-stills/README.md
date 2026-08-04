@@ -7,7 +7,7 @@ spatial presentation adapters over the `Trajectory`, `FieldRef`, and
 ```python
 import eqiora.matplotlib as eqplot
 
-trajectory = eqiora.fsi.solve_fixed_reference_fsi(model).trajectory
+trajectory = result.trajectory
 pressure = eqplot.plot_scalar_field(
     trajectory,
     step=2,
@@ -21,9 +21,12 @@ geometry = eqplot.plot_deformed_field(
 )
 ```
 
+Here `result` is the common `Result` returned by the explicit
+`FixedMeshMonolithic` Plan workflow in the Python modeling guide.
+
 The first admitted consumer is the exact fixed-mesh affine-triangle 2D FSI
-trajectory. Both calls admitted by this case take a `Trajectory` — not an
-application result — and select their field by exact Model-bound `FieldRef`
+trajectory. Both calls admitted by this case take a `Trajectory` — not a
+common `Result` — and select their field by exact Model-bound `FieldRef`
 identity through `trajectory.state(step).field(field)`. Exact identity is the
 `(Model artifact, field)` pair, and two fixtures close it from both sides: an
 independent compilation of one source is structurally equivalent yet allocates
@@ -45,6 +48,10 @@ deprecation path. The shared adapter surface also contains no `plot_pressure`;
 its static `Result` replacement through `plot_scalar_field` belongs to
 [`interfaces.python-exact-cylinder-pressure-still`](../python-exact-cylinder-pressure-still/README.md),
 not this Trajectory claim.
+
+The predecessor FSI state, result, and one-call solve names are absent as well;
+the common `TrajectoryState`, common `Result`, explicit Plan execution, and
+typed evidence are their only product successors.
 
 For one subsequent prerelease, `plot_displacement` remains only as an
 actionable `DeprecationWarning`-emitting delegation to the structural static
@@ -112,9 +119,9 @@ stills, interface overlays, composite figures, animation, 3D, non-triangle
 meshes, arbitrary single-state spatial results, field-name selection, named unit
 conversion, derived magnitudes, Studio or notebook hosting, scientific
 derivation, media admission, and visual scientific validation are not claimed.
-The absence of the withdrawn still is checked in the installed runtime,
-exports, and packaged stub only; documentation and example text are outside the
-installed profile this case executes. The static-`Result` overload of
+The absence of the withdrawn still and predecessor FSI product names is checked
+in the installed runtime, exports, and packaged stub; documentation and example
+text are outside the installed profile this case executes. The static-`Result` overload of
 `plot_scalar_field` is owned by the exact-cylinder pressure-still case;
 The compatibility-only `plot_displacement` name remains outside this case's
 accepted input and evidence ownership; its delegation is checked by the

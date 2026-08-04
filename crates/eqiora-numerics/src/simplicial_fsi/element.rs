@@ -5,13 +5,11 @@ use eqiora_core::Diagnostic;
 use eqiora_meshing::{AffineGeometryMap, MeshEntity, QuadratureRule};
 
 use super::contract::{
-    FixedReferenceFsiMaterial, FixedReferenceFsiState, FixedReferenceFsiStepConfig,
-    require_local_geometry_dimension,
+    FixedReferenceFsiState, FixedReferenceFsiStepConfig, require_local_geometry_dimension,
 };
-use super::{fluid_local_size, p1_count, solid_local_size};
-use crate::affine_fem::physical_gradient;
-use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
+use super::{fluid_local_size, p1_count};
 use crate::simplicial_mini_transient::{MiniAffineScales, MiniScaledAffineCell};
+use crate::simplicial_solid_element::{local_dimension, p1_solid_backward_euler_velocity};
 
 pub(crate) fn fluid_local<const D: usize>(
     geometry: &AffineGeometryMap,
@@ -57,108 +55,42 @@ pub(crate) fn solid_local<const D: usize>(
 ) -> Result<LocalContribution, Diagnostic> {
     require_geometry::<D>(geometry, quadrature)?;
     let p1_count = p1_count::<D>();
-    let solid_local_size = solid_local_size::<D>();
-    let inverse = geometry.inverse_jacobian()?;
-    let space = SimplexP1Space::new(D)?;
     let material = config.material();
     let velocity_scale = config.scale().velocity();
     let power_scale = config.scale().power();
-    let mut matrix = vec![0.0; solid_local_size * solid_local_size];
-    let mut rhs = vec![0.0; solid_local_size];
-    for point in quadrature.points() {
-        let basis = space.tabulate(&point.coordinates)?;
-        let gradients = (0..p1_count)
-            .map(|index| {
-                physical_gradient(
-                    basis.gradient(index).expect("accepted P1 basis index"),
-                    &inverse,
-                    D,
-                )
-            })
-            .collect::<Vec<_>>();
-        let scale = point.weight * geometry.measure_scale();
-        let mut previous_velocity = [0.0; D];
-        for (local, vertex) in vertices.iter().take(p1_count).enumerate() {
-            for (component, value) in previous_velocity.iter_mut().enumerate() {
-                *value +=
-                    basis.values()[local] * previous.vertex_velocity()[vertex.index()][component];
-            }
-        }
-        for row_basis in 0..p1_count {
-            for (row_component, previous_component) in previous_velocity.iter().enumerate() {
-                let row = local_velocity_dimension::<D>(row_basis, row_component);
-                rhs[row] += scale * material.solid_density() / config.time_step()
-                    * basis.values()[row_basis]
-                    * previous_component
-                    * velocity_scale
-                    / power_scale;
-                for column_basis in 0..p1_count {
-                    for column_component in 0..D {
-                        let column = local_velocity_dimension::<D>(column_basis, column_component);
-                        let mass = if row_component == column_component {
-                            material.solid_density() / config.time_step()
-                                * basis.values()[row_basis]
-                                * basis.values()[column_basis]
-                        } else {
-                            0.0
-                        };
-                        let stiffness = elasticity_entry(
-                            &gradients[row_basis],
-                            row_component,
-                            &gradients[column_basis],
-                            column_component,
-                            material,
-                        );
-                        matrix[row * solid_local_size + column] += scale
-                            * (mass + config.time_step() * stiffness)
-                            * velocity_scale
-                            * velocity_scale
-                            / power_scale;
-                        rhs[row] -= scale
-                            * stiffness
-                            * previous.solid_displacement()[vertices[column_basis].index()]
-                                [column_component]
-                            * velocity_scale
-                            / power_scale;
-                    }
-                }
-            }
-        }
-    }
-    LocalContribution::new(solid_local_size, solid_local_size, matrix, rhs)
-}
-
-fn elasticity_entry<const D: usize>(
-    row_gradient: &[f64],
-    row_component: usize,
-    column_gradient: &[f64],
-    column_component: usize,
-    material: FixedReferenceFsiMaterial<D>,
-) -> f64 {
-    let diagonal = if row_component == column_component {
-        dot(row_gradient, column_gradient)
-    } else {
-        0.0
-    };
-    let crossed = row_gradient[column_component] * column_gradient[row_component];
-    material.solid_shear_modulus() * (diagonal + crossed)
-        + material.solid_first_lame_parameter()
-            * row_gradient[row_component]
-            * column_gradient[column_component]
+    let previous_vertex_velocity = vertices
+        .iter()
+        .take(p1_count)
+        .map(|vertex| previous.vertex_velocity()[vertex.index()])
+        .collect::<Vec<_>>();
+    let previous_vertex_displacement = vertices
+        .iter()
+        .take(p1_count)
+        .map(|vertex| previous.solid_displacement()[vertex.index()])
+        .collect::<Vec<_>>();
+    p1_solid_backward_euler_velocity::<D>(
+        geometry,
+        quadrature,
+        material.solid_density(),
+        material.solid_shear_modulus(),
+        material.solid_first_lame_parameter(),
+        config.time_step(),
+        &previous_vertex_velocity,
+        &previous_vertex_displacement,
+        velocity_scale,
+        power_scale,
+    )
 }
 
 pub(crate) const fn local_velocity_dimension<const D: usize>(
     basis: usize,
     component: usize,
 ) -> usize {
-    basis * D + component
+    local_dimension::<D>(basis, component)
 }
 
 pub(crate) fn dot(left: &[f64], right: &[f64]) -> f64 {
-    left.iter()
-        .zip(right)
-        .map(|(left, right)| left * right)
-        .sum()
+    crate::affine_fem::dot(left, right)
 }
 
 fn require_geometry<const D: usize>(
