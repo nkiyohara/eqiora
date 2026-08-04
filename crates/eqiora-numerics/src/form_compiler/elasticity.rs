@@ -1,8 +1,8 @@
+#![cfg_attr(not(test), allow(dead_code))]
+#![cfg_attr(test, allow(clippy::extra_unused_lifetimes, clippy::type_complexity))]
 mod execution;
-
 #[cfg(test)]
 mod oracle;
-
 use std::borrow::Cow;
 
 use eqiora_assembly::LocalContribution;
@@ -26,7 +26,6 @@ use crate::canonical_boundary::PhysicalBoundaryDisposition;
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::form_compiler::{MatrixSlot, WeakSign, WeakTermSlot};
 use crate::spatial_expression::ScalarSpatialExpression;
-
 const DIMENSION: usize = 2;
 const COMPONENTS: usize = 2;
 const SCALAR_DOFS: usize = 4;
@@ -37,7 +36,6 @@ const DIVERGENCE_BY_PARTS: &str = "fem.derive.v1.divergence-by-parts";
 const HOMOGENEOUS_ESSENTIAL_DISCHARGE: &str =
     "fem.derive.v1.boundary-discharge.essential-homogeneous";
 const SOURCE_PAIRING: &str = "fem.derive.v1.source-pairing";
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct VolumeNodes {
     root: ExprId,
@@ -256,6 +254,7 @@ impl DerivationCertificate {
 }
 
 impl<'form> AdmittedCartesianQ1ElasticityForm2d<'form> {
+    #[allow(private_interfaces)]
     pub(super) fn executable_program(&self) -> &LocalFormProgram2d {
         self.program.as_ref()
     }
@@ -291,6 +290,7 @@ impl<'form> AdmittedCartesianQ1ElasticityForm2d<'form> {
         .map(|result| result.contribution)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn evaluate_with_actions(
         &self,
         geometry: &AffineGeometryMap,
@@ -501,7 +501,7 @@ fn cumulative_local_form(
             EvaluationRequest::Primal => [[0.0; DIMENSION]; COMPONENTS],
             EvaluationRequest::Actions {
                 state_direction, ..
-            } => interpolate_jets(*state_direction, &gradients),
+            } => interpolate_jets(state_direction, &gradients),
         };
         let scale = point.weight * geometry.measure_scale();
 
@@ -730,9 +730,8 @@ fn scatter_parameter_action(
         match *input {
             LocalFormInput2d::Material(index) => output[usize::from(index)] += cotangent,
             LocalFormInput2d::BodyForce(component) => {
-                for parameter in 0..3 {
-                    output[parameter] +=
-                        cotangent * load.jacobian[parameter][usize::from(component)];
+                for (parameter, value) in output.iter_mut().enumerate() {
+                    *value += cotangent * load.jacobian[parameter][usize::from(component)];
                 }
             }
             _ => {}
