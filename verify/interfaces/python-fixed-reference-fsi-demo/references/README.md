@@ -8,8 +8,9 @@ The acceptance contract was derived independently before implementation.
   trajectory, and final Run lineage.
 - `interfaces.studio-fixed-reference-fsi-demo` owns the already accepted
   application and presentation boundary.
-- The existing Python Result and Matplotlib cases supply installed-wheel,
-  immutable-array, optional-dependency, and headless-Figure contracts.
+- The common Python `Result`, `Trajectory`, typed FSI evidence, and Matplotlib
+  cases supply installed-wheel, immutable-array, optional-dependency, and
+  headless-Figure contracts.
 
 The existing Rust scientific tests compare the production application
 composition directly with their independent support composition. This case

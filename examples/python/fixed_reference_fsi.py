@@ -1,4 +1,4 @@
-"""Solve and optionally plot the accepted two-step fixed-reference FSI case."""
+"""Resolve, run, and optionally plot the accepted fixed-mesh FSI case."""
 
 import argparse
 from importlib.resources import files
@@ -19,8 +19,24 @@ def compile_model() -> eqiora.Model:
     )
 
 
-def solve(model: eqiora.Model) -> eqiora.fsi.FixedReferenceFsiResult:
-    return eqiora.fsi.solve_fixed_reference_fsi(model)
+def intent() -> eqiora.fsi.FixedMeshMonolithic:
+    return eqiora.fsi.FixedMeshMonolithic(
+        time_step_s=0.05,
+        steps=2,
+        initial_velocity_m_per_s=(0.0, 0.0),
+        initial_free_interface_displacement_m=(0.02, 0.0),
+        length_scale_m=2.0,
+        velocity_scale_m_per_s=0.5,
+        pressure_scale_pa=4.0,
+        relative_tolerance=1.0e-11,
+        absolute_tolerance=1.0e-13,
+        maximum_iterations=20_000,
+    )
+
+
+def solve(model: eqiora.Model) -> eqiora.Result:
+    plan = eqiora.fsi.resolve(model, intent())
+    return eqiora.submit(model, plan=plan).result()
 
 
 def main() -> None:
@@ -52,20 +68,23 @@ def main() -> None:
 
     model = compile_model()
     result = solve(model)
-    print(result.trajectory.run_digest)
-    print(result.trajectory.digest)
-    for step in result.steps:
+    trajectory = result.trajectory
+    evidence = eqiora.fsi.fixed_mesh_monolithic_evidence(result)
+    print(evidence.run_digest)
+    print(trajectory.digest)
+    for state in trajectory.states:
+        state_evidence = evidence.state(state)
         print(
-            f"step {step.ordinal} at {step.time_s:g} s",
-            step.solve,
-            f"energy defect {step.energy_defect_j_per_m:.6e} J/m",
+            f"step {state.step} at {state.time_s:g} s",
+            state_evidence.solve,
+            f"energy defect {state_evidence.energy_defect_j_per_m:.6e} J/m",
         )
     if arguments.fsi_png is not None or arguments.pressure_png is not None:
         import eqiora.matplotlib as eqplot
 
         if arguments.pressure_png is not None:
             pressure = eqplot.plot_scalar_field(
-                result.trajectory,
+                trajectory,
                 step=arguments.step,
                 field=model.field("fluid_pressure"),
             )
@@ -73,7 +92,7 @@ def main() -> None:
             print("Pressure field still", arguments.pressure_png)
         if arguments.fsi_png is not None:
             deformed = eqplot.plot_deformed_field(
-                result.trajectory,
+                trajectory,
                 step=arguments.step,
                 field=model.field("solid_displacement"),
                 scale=arguments.displacement_scale,

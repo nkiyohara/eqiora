@@ -4,10 +4,10 @@ use std::time::{Duration, Instant};
 use eqiora::Diagnostic;
 use eqiora::api::{
     ModelDocument, ReferenceRunDirective, ReferenceRunObserver, ReferenceRunOutcome,
-    ReferenceRunPlan, ReferenceRunProgress, ResolvedLinearElasticityPlan2d,
-    ResolvedSteadyStokesPlan2d, ScalarEllipticExecutionEnvironment, ScalarEllipticRunDirective,
-    ScalarEllipticRunObserver, ScalarEllipticRunOutcome, ScalarEllipticRunPlan,
-    ScalarEllipticRunProgress,
+    ReferenceRunPlan, ReferenceRunProgress, ResolvedFixedMeshMonolithicFsiPlan2d,
+    ResolvedLinearElasticityPlan2d, ResolvedSteadyStokesPlan2d, ScalarEllipticExecutionEnvironment,
+    ScalarEllipticRunDirective, ScalarEllipticRunObserver, ScalarEllipticRunOutcome,
+    ScalarEllipticRunPlan, ScalarEllipticRunProgress,
 };
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
@@ -98,6 +98,7 @@ pub(super) enum NativeRunJob {
     },
     SteadyStokes(Box<ResolvedSteadyStokesPlan2d>),
     LinearElasticity(Box<ResolvedLinearElasticityPlan2d>),
+    FixedMeshMonolithic(Box<ResolvedFixedMeshMonolithicFsiPlan2d>),
 }
 
 enum NativeWorkerOutcome {
@@ -172,6 +173,18 @@ fn execute_job(
                 .map_err(|diagnostic| vec![diagnostic])?;
             Ok(NativeWorkerOutcome::Completed(
                 NativeRunOutput::LinearElasticity {
+                    result: Box::new(result),
+                    elapsed_seconds: started.elapsed().as_secs_f64(),
+                },
+            ))
+        }
+        NativeRunJob::FixedMeshMonolithic(plan) => {
+            let started = Instant::now();
+            let result = plan
+                .execute(&REFERENCE_LINEAR_SOLVER)
+                .map_err(|diagnostic| vec![diagnostic])?;
+            Ok(NativeWorkerOutcome::Completed(
+                NativeRunOutput::FixedMeshMonolithic {
                     result: Box::new(result),
                     elapsed_seconds: started.elapsed().as_secs_f64(),
                 },

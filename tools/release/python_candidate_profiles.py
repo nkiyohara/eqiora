@@ -331,6 +331,13 @@ assert "eqiora/py.typed" in files
 assert "eqiora/__init__.pyi" in files
 assert "eqiora/fsi.pyi" in files
 assert "eqiora/examples/fixed-reference-fsi.eqi" in files
+for retired in (
+    "FixedReferenceFsiStep",
+    "FixedReferenceFsiResult",
+    "solve_fixed_reference_fsi",
+):
+    assert not hasattr(eqiora.fsi, retired)
+    assert retired not in eqiora.fsi.__all__
 assert not any(name in __import__("sys").modules for name in ("torch", "jax", "jaxlib", "matplotlib"))
 """
     run(

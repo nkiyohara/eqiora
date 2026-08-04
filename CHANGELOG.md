@@ -17,13 +17,19 @@ are recorded here.
   now consume one Rust-owned Model-to-Run result, and the optional Matplotlib
   adapter can render its original and explicitly scaled displacement meshes.
 
-- Added `eqiora.fsi.solve_fixed_reference_fsi(...)` and a packaged two-step
-  Python example for the accepted exact-v4 monolithic FSI case. Studio and
-  Python now consume one Rust-owned Model-to-trajectory-to-Run result; the
-  optional Matplotlib adapters present exact scalar and deformed Fields from
-  either accepted trajectory state with support-restricted topology.
+- Added an explicit `eqiora.fsi.FixedMeshMonolithic` intent and inspectable
+  Model-bound Plan for the accepted two-step FSI case. Studio and Python share
+  one Rust-owned resolver; the common Run returns a common Result whose exact
+  Trajectory and typed state evidence feed the general scalar and deformed
+  Field adapters.
 
 ### Changed
+
+- Removed the unreleased Python `FixedReferenceFsiStep`,
+  `FixedReferenceFsiResult`, and `solve_fixed_reference_fsi(...)` names. Exact
+  spatial Fields now live only on `TrajectoryState`/`FieldSnapshot`, while
+  partition, interface, energy, residual, solve, and assembly observations are
+  selected through `fixed_mesh_monolithic_evidence(result)`.
 
 - Replaced the demo-specific `plot_fixed_reference_fsi(...)` entry point with
   `plot_scalar_field(...)` and `plot_deformed_field(...)` over common

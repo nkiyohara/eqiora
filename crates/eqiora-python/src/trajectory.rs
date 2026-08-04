@@ -207,6 +207,16 @@ impl Hash for PyTrajectoryState {
     }
 }
 
+impl PyTrajectoryState {
+    pub(crate) fn digest_value(&self) -> &str {
+        &self.digest
+    }
+
+    pub(crate) fn model_digest_value(&self) -> &str {
+        &self.model_digest
+    }
+}
+
 #[pymethods]
 impl PyTrajectoryState {
     #[getter]
@@ -370,8 +380,19 @@ impl PyTrajectory {
 }
 
 impl PyTrajectory {
-    pub(crate) fn run_digest_value(&self) -> &str {
-        &self.run_digest
+    pub(crate) fn digest_value(&self) -> &str {
+        &self.trajectory_digest
+    }
+
+    pub(crate) fn model_digest_value(&self) -> &str {
+        &self.model_digest
+    }
+
+    pub(crate) fn state_handles(&self, py: Python<'_>) -> Vec<Py<PyTrajectoryState>> {
+        self.states
+            .iter()
+            .map(|state| state.clone_ref(py))
+            .collect()
     }
 
     pub(crate) fn from_replay(

@@ -17,7 +17,7 @@ then use the focused guides:
   framework-neutral program and the bounded PyTorch and JAX projections.
 - [Modeling and realization](modeling.md#exact-cylinder-pressure-still) also
   shows the accepted exact-cylinder, mixed-boundary structural, and
-  fixed-reference FSI Result/Matplotlib workflows.
+  fixed-mesh monolithic FSI common-Result/Matplotlib workflows.
 - [Generated API reference](api.md) is derived only from the public type
   stubs shipped in the distribution.
 
