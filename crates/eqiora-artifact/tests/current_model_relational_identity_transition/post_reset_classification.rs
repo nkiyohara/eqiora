@@ -7,8 +7,12 @@ const OWNER: &str = "interfaces.python-offline-model-package";
 const CURRENT_ROLE: &str = "current-model-or-package-artifact";
 const IMMUTABLE_ROLE: &str = "source-or-resolution-identity";
 
-static ACCEPTED_CLASSIFICATION: OnceLock<Vec<PostResetClassified>> = OnceLock::new();
-static ACCEPTED_RECORD: OnceLock<Value> = OnceLock::new();
+struct AcceptedClassificationState {
+    identities: Vec<PostResetClassified>,
+    diagnostic_record: Value,
+}
+
+static ACCEPTED_STATE: OnceLock<AcceptedClassificationState> = OnceLock::new();
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct ClassifiedClaim {
@@ -147,33 +151,41 @@ pub(super) fn validated_from_classification(
 ) -> Result<Vec<PostResetClassified>, String> {
     let entries = from_classification(classification)?;
     validate(&entries, classification)?;
-    if let Some(accepted) = ACCEPTED_CLASSIFICATION.get() {
-        if accepted != &entries {
-            return Err("later classification: frozen rows changed within one run".to_owned());
-        }
-    } else {
-        ACCEPTED_CLASSIFICATION
-            .set(entries.clone())
-            .map_err(|_| "later classification: cannot freeze accepted rows".to_owned())?;
-        ACCEPTED_RECORD
-            .set(classification.clone())
-            .map_err(|_| "later classification: cannot freeze accepted record".to_owned())?;
-    }
+    initialize_accepted_state(&ACCEPTED_STATE, &entries, classification)?;
     Ok(entries)
 }
 
-pub(super) fn validate_runtime(entries: &[PostResetClassified]) -> Result<(), String> {
-    let accepted = ACCEPTED_CLASSIFICATION
+fn initialize_accepted_state<'a>(
+    cell: &'a OnceLock<AcceptedClassificationState>,
+    identities: &[PostResetClassified],
+    diagnostic_record: &Value,
+) -> Result<&'a AcceptedClassificationState, String> {
+    let accepted = cell.get_or_init(|| AcceptedClassificationState {
+        identities: identities.to_vec(),
+        diagnostic_record: diagnostic_record.clone(),
+    });
+    if accepted.identities != identities {
+        return Err("later classification: frozen rows changed within one run".to_owned());
+    }
+    Ok(accepted)
+}
+
+fn validate_cached_runtime(
+    cell: &OnceLock<AcceptedClassificationState>,
+    entries: &[PostResetClassified],
+) -> Result<(), String> {
+    let accepted = cell
         .get()
         .ok_or_else(|| "later classification: accepted rows were not initialized".to_owned())?;
-    if entries != accepted {
-        let record = ACCEPTED_RECORD.get().ok_or_else(|| {
-            "later classification: accepted record was not initialized".to_owned()
-        })?;
-        validate(entries, record)?;
+    if entries != accepted.identities {
+        validate(entries, &accepted.diagnostic_record)?;
         return Err("later classification: runtime table differs from accepted rows".to_owned());
     }
     Ok(())
+}
+
+pub(super) fn validate_runtime(entries: &[PostResetClassified]) -> Result<(), String> {
+    validate_cached_runtime(&ACCEPTED_STATE, entries)
 }
 
 fn transition_current_identities() -> BTreeSet<String> {
@@ -271,12 +283,34 @@ pub(super) fn validate(
 
     let paths = entries
         .iter()
-        .map(|entry| entry.path.as_str())
+        .map(|entry| entry.path.clone())
         .collect::<BTreeSet<_>>();
     if paths.len() != entries.len() || entries.len() != frozen_counts.0 {
         return Err(
             "later classification: exactly three unique exact paths are required".to_owned(),
         );
+    }
+    let fixture_paths = transition["post_reset_fixture_admitted"]
+        .as_array()
+        .ok_or_else(|| {
+            "later classification: frozen transition must name `post_reset_fixture_admitted`"
+                .to_owned()
+        })?
+        .iter()
+        .enumerate()
+        .map(|(index, row)| {
+            string_field(
+                row,
+                "path",
+                &format!("post_reset_fixture_admitted[{index}]"),
+            )
+        })
+        .collect::<Result<BTreeSet<_>, String>>()?;
+    if let Some(overlap) = paths.intersection(&fixture_paths).next() {
+        return Err(format!(
+            "later classification: `{overlap}` overlaps `post_reset_fixture_admitted`; exact \
+             classifications and fixture admissions are disjoint"
+        ));
     }
 
     let transition_identities = transition_current_identities();
@@ -599,6 +633,10 @@ fn identity_bearing_tests_and_the_source_release_have_truthful_exact_classes() {
                     .post_reset_admitted
                     .iter()
                     .any(|admitted| admitted.path == entry.path)
+                && !contract
+                    .post_reset_fixture_admitted
+                    .iter()
+                    .any(|admitted| admitted.path == entry.path)
                 && contract
                     .promotion
                     .iter()
@@ -628,6 +666,50 @@ fn identity_bearing_tests_and_the_source_release_have_truthful_exact_classes() {
     assert!(
         stem.bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    );
+}
+
+#[test]
+fn accepted_identity_and_diagnostic_state_initializes_atomically_under_concurrency() {
+    const THREADS: usize = 32;
+
+    let classification = classification();
+    let entries = from_classification(&classification).unwrap();
+    let cell = OnceLock::new();
+    let barrier = std::sync::Barrier::new(THREADS);
+    let addresses = std::thread::scope(|scope| {
+        let handles = (0..THREADS)
+            .map(|_| {
+                scope.spawn(|| {
+                    barrier.wait();
+                    let accepted =
+                        initialize_accepted_state(&cell, &entries, &classification).unwrap();
+                    assert_eq!(accepted.identities, entries);
+                    assert_eq!(accepted.diagnostic_record, classification);
+                    accepted as *const AcceptedClassificationState as usize
+                })
+            })
+            .collect::<Vec<_>>();
+        handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect::<BTreeSet<_>>()
+    });
+    assert_eq!(
+        addresses.len(),
+        1,
+        "every thread must observe one atomic cell"
+    );
+    validate_cached_runtime(&cell, &entries).unwrap();
+
+    let mut mutant = entries.clone();
+    mutant[0].class = "non-fixture-search-hit".to_owned();
+    assert_eq!(
+        validate_cached_runtime(&cell, &mutant),
+        Err(format!(
+            "later classification: `{}` has an invalid top-level class",
+            mutant[0].path
+        ))
     );
 }
 
@@ -721,6 +803,20 @@ fn omission_misclassification_and_path_proximity_are_refused() {
     let mut proximity_mutant = entries.clone();
     proximity_mutant[mixed].path = PROXIMATE.to_owned();
     assert!(validate(&proximity_mutant, &classification).is_err());
+
+    let fixture_path =
+        classification["search"]["transition"]["post_reset_fixture_admitted"][0]["path"]
+            .as_str()
+            .unwrap();
+    let mut overlap_mutant = entries.clone();
+    overlap_mutant[mixed].path = fixture_path.to_owned();
+    assert_eq!(
+        validate(&overlap_mutant, &classification),
+        Err(format!(
+            "later classification: `{fixture_path}` overlaps `post_reset_fixture_admitted`; \
+             exact classifications and fixture admissions are disjoint"
+        ))
+    );
 }
 
 #[test]
