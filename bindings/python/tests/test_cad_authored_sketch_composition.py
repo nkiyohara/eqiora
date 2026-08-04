@@ -64,6 +64,26 @@ V2_WIRE = (
 )
 V2_DIGEST = "00acb9494fc7dea8f1f2500d1316cb3315130a965a24179b3eb1b10345058b47"
 DFG_SECTION_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
+EXPECTED_GEOMETRY_ALL = [
+    "CadAuthoredBuild",
+    "CadAuthoredFaceHandle",
+    "CadAuthoredGraph",
+    "CadAuthoredSketch",
+    "Geometry",
+]
+WRONG_FACE_MESSAGE = "authored CAD circle sketch requires a v1 end-cap face handle"
+FOREIGN_GRAPH_MESSAGE = (
+    "CAD face handle belongs to a foreign authored graph identity or wire variant"
+)
+RECTANGLE_AS_CUT_MESSAGE = (
+    "circular through-cut requires the admitted circle-on-face sketch"
+)
+CIRCLE_AS_EXTRUSION_MESSAGE = (
+    "positive-z extrusion requires the admitted rectangle sketch"
+)
+SECOND_CUT_MESSAGE = (
+    "authored CAD v2 admits exactly one cut after the rectangle extrusion"
+)
 NONFINITE = (float("nan"), float("inf"), float("-inf"))
 NONPOSITIVE_OR_NONFINITE = (0.0, -0.0, -1.0, *NONFINITE)
 
@@ -292,6 +312,7 @@ def assert_native_validation(
     operation: Callable[[], object],
     *,
     compatibility_operation: Callable[[], object] | None = None,
+    expected_message: str | None = None,
     graphs: tuple[object, ...] = (),
     sketch_pairs: tuple[tuple[object, object], ...] = (),
     handles: tuple[object, ...] = (),
@@ -303,7 +324,7 @@ def assert_native_validation(
         (handle.canonical_bytes, handle.graph_digest, handle.provenance_key)
         for handle in handles
     )
-    expected_message = None
+    assert (compatibility_operation is None) != (expected_message is None)
     if compatibility_operation is not None:
         with pytest.raises(eqiora.ValidationError) as compatibility_caught:
             compatibility_operation()
@@ -328,8 +349,7 @@ def assert_native_validation(
     assert diagnostic.severity == "error"
     assert diagnostic.code == "EQ0901"
     assert diagnostic.message
-    if expected_message is not None:
-        assert diagnostic.message == expected_message
+    assert diagnostic.message == expected_message
 
     assert (
         tuple((graph.canonical_bytes, graph.graph_digest) for graph in graphs)
@@ -448,9 +468,51 @@ def test_rectangle_and_circle_signed_zero_ownership_are_separate() -> None:
     assert positive_center.graph_digest == negative_center.graph_digest == V2_DIGEST
 
 
+def test_sketch_equality_rejects_materially_distinct_values_and_variants() -> None:
+    rectangle = rectangle_sketch()
+    equal_rectangle = rectangle_sketch()
+    changed_bounds = rectangle_sketch(x_bounds=(-2.0, 4.0))
+    changed_plane = rectangle_sketch(plane_z=0.75)
+    changed_tolerance = rectangle_sketch(modeling_tolerance=2e-9)
+    assert rectangle == equal_rectangle
+    assert rectangle != changed_bounds
+    assert rectangle != changed_plane
+    assert rectangle != changed_tolerance
+    assert rectangle != object()
+
+    base = symmetric_base(explicit=True)
+    circle = eqiora.geometry.CadAuthoredSketch.circle_on_face(
+        base.face_handle("end-cap"), center=(0.02, 0.0), radius=0.008
+    )
+    equal_circle = eqiora.geometry.CadAuthoredSketch.circle_on_face(
+        base.face_handle("end-cap"), center=(0.02, 0.0), radius=0.008
+    )
+    changed_center = eqiora.geometry.CadAuthoredSketch.circle_on_face(
+        base.face_handle("end-cap"), center=(0.01, 0.0), radius=0.008
+    )
+    changed_radius = eqiora.geometry.CadAuthoredSketch.circle_on_face(
+        base.face_handle("end-cap"), center=(0.02, 0.0), radius=0.007
+    )
+    changed_source = rectangle_sketch(
+        x_bounds=(-0.04, 0.04),
+        y_bounds=(-0.025, 0.025),
+        plane_z=0.0,
+        modeling_tolerance=1e-10,
+    ).extrude_positive_z(depth=0.03)
+    changed_binding = eqiora.geometry.CadAuthoredSketch.circle_on_face(
+        changed_source.face_handle("end-cap"), center=(0.02, 0.0), radius=0.008
+    )
+    assert circle == equal_circle
+    assert circle != changed_center
+    assert circle != changed_radius
+    assert circle != changed_binding
+    assert circle != rectangle
+    assert circle != object()
+
+
 @pytest.mark.parametrize(
     ("axis", "index", "value"),
-    itertools.product(("x_bounds", "y_bounds"), (0, 1), NONFINITE),
+    tuple(itertools.product(("x_bounds", "y_bounds"), (0, 1), NONFINITE)),
 )
 def test_every_nonfinite_rectangle_coordinate_rejects(
     axis: str, index: int, value: float
@@ -571,7 +633,9 @@ def test_derived_end_plane_overflow_rejects_without_changing_the_sketch() -> Non
     )
 
 
-@pytest.mark.parametrize(("index", "value"), itertools.product((0, 1), NONFINITE))
+@pytest.mark.parametrize(
+    ("index", "value"), tuple(itertools.product((0, 1), NONFINITE))
+)
 def test_every_nonfinite_circle_coordinate_rejects(index: int, value: float) -> None:
     base = symmetric_base(explicit=True)
     handle = base.face_handle("end-cap")
@@ -645,6 +709,7 @@ def test_start_cap_and_every_lateral_face_reject_circle_binding(face: str) -> No
         lambda: eqiora.geometry.CadAuthoredSketch.circle_on_face(
             handle, center=(0.02, 0.0), radius=0.008
         ),
+        expected_message=WRONG_FACE_MESSAGE,
         graphs=(base,),
         handles=(handle,),
     )
@@ -657,6 +722,7 @@ def test_v2_end_cap_rejects_circle_binding() -> None:
         lambda: eqiora.geometry.CadAuthoredSketch.circle_on_face(
             handle, center=(0.02, 0.0), radius=0.008
         ),
+        expected_message=WRONG_FACE_MESSAGE,
         graphs=(cut,),
         handles=(handle,),
     )
@@ -703,6 +769,7 @@ def test_foreign_and_stale_end_cap_sketches_reject_at_the_target(target: str) ->
 
     assert_native_validation(
         lambda: destination.through_cut(circle, boolean_tolerance=1e-9),
+        expected_message=FOREIGN_GRAPH_MESSAGE,
         graphs=(source, destination),
         sketch_pairs=((circle, circle_snapshot),),
     )
@@ -777,6 +844,7 @@ def test_wrong_operation_order_rejects_atomically() -> None:
     )
     assert_native_validation(
         lambda: base.through_cut(rectangle, boolean_tolerance=1e-9),
+        expected_message=RECTANGLE_AS_CUT_MESSAGE,
         graphs=(base,),
         sketch_pairs=((rectangle, rectangle_snapshot),),
     )
@@ -789,6 +857,7 @@ def test_wrong_operation_order_rejects_atomically() -> None:
     )
     assert_native_validation(
         lambda: circle.extrude_positive_z(depth=0.02),
+        expected_message=CIRCLE_AS_EXTRUSION_MESSAGE,
         graphs=(base,),
         sketch_pairs=((circle, circle_snapshot),),
     )
@@ -796,6 +865,7 @@ def test_wrong_operation_order_rejects_atomically() -> None:
     once_cut = base.through_cut(circle, boolean_tolerance=1e-9)
     assert_native_validation(
         lambda: once_cut.through_cut(circle, boolean_tolerance=1e-9),
+        expected_message=SECOND_CUT_MESSAGE,
         graphs=(base, once_cut),
         sketch_pairs=((circle, circle_snapshot),),
     )
@@ -934,6 +1004,10 @@ def test_runtime_stub_inventory_signatures_and_exports_are_exact() -> None:
         "extrude_positive_z",
     }
     assert "__eq__" in sketch_type.__dict__
+    for constructor_name in ("rectangle_xy", "circle_on_face"):
+        assert isinstance(
+            inspect.getattr_static(sketch_type, constructor_name), staticmethod
+        )
     assert str(inspect.signature(sketch_type.rectangle_xy)) == (
         "(*, x_bounds, y_bounds, plane_z, modeling_tolerance)"
     )
@@ -965,6 +1039,14 @@ def test_runtime_stub_inventory_signatures_and_exports_are_exact() -> None:
     assert {
         node.name for node in sketch_stub.body if isinstance(node, ast.FunctionDef)
     } == {"rectangle_xy", "circle_on_face", "extrude_positive_z", "__eq__"}
+    assert [
+        ast.unparse(decorator)
+        for decorator in stub_method(sketch_stub, "rectangle_xy").decorator_list
+    ] == ["staticmethod"]
+    assert [
+        ast.unparse(decorator)
+        for decorator in stub_method(sketch_stub, "circle_on_face").decorator_list
+    ] == ["staticmethod"]
     assert_stub_signature(
         stub_method(sketch_stub, "rectangle_xy"),
         keyword_only=(
@@ -1037,8 +1119,8 @@ def test_runtime_stub_inventory_signatures_and_exports_are_exact() -> None:
             for target in node.targets
         )
     )
-    assert list(eqiora.geometry.__all__) == stub_all == sorted(stub_all)
-    assert stub_all.count("CadAuthoredSketch") == 1
+    assert list(eqiora.geometry.__all__) == stub_all == EXPECTED_GEOMETRY_ALL
+    assert stub_all == sorted(stub_all)
 
     forbidden_types = ("Sketch", "Plane", "Profile", "Feature", "Boolean")
     assert all(not hasattr(eqiora.geometry, name) for name in forbidden_types)

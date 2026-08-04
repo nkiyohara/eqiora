@@ -13,13 +13,11 @@ const DFG_SECTION_DIGEST: &str = "b00123472a596e8289820cabaee20d52cdf81b5572fa9c
 fn python_explicit_composition_replays_the_public_rust_authorities() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {
-        let native_base = CadAuthoredSketch::rectangle_xy(
-            ConstrainedRectangleV1::new((-0.04, 0.04), (-0.025, 0.025), 0.0).unwrap(),
-            1.0e-10,
-        )
-        .unwrap()
-        .extrude_positive_z(0.02)
-        .unwrap();
+        let native_rectangle =
+            ConstrainedRectangleV1::new((-0.04, 0.04), (-0.025, 0.025), 0.0).unwrap();
+        let native_rectangle_sketch =
+            CadAuthoredSketch::rectangle_xy(native_rectangle, 1.0e-10).unwrap();
+        let native_base = native_rectangle_sketch.extrude_positive_z(0.02).unwrap();
         let native_circle = CadAuthoredSketch::circle_on_face(
             native_base.face_handle("end-cap").unwrap(),
             [0.02, 0.0],
@@ -27,23 +25,70 @@ fn python_explicit_composition_replays_the_public_rust_authorities() -> PyResult
         )
         .unwrap();
         let native_cut = native_base.through_cut(&native_circle, 1.0e-9).unwrap();
-        let native_rejection_messages = vec![
-            native_circle
+        let mut native_rejection_messages = Vec::new();
+        for face in [
+            "start-cap",
+            "profile-x-lower",
+            "profile-x-upper",
+            "profile-y-lower",
+            "profile-y-upper",
+        ] {
+            native_rejection_messages.push(
+                CadAuthoredSketch::circle_on_face(
+                    native_base.face_handle(face).unwrap(),
+                    [0.02, 0.0],
+                    0.008,
+                )
+                .unwrap_err()
+                .message()
+                .to_owned(),
+            );
+        }
+        native_rejection_messages.push(
+            CadAuthoredSketch::circle_on_face(
+                native_cut.face_handle("end-cap").unwrap(),
+                [0.02, 0.0],
+                0.008,
+            )
+            .unwrap_err()
+            .message()
+            .to_owned(),
+        );
+        for target in [
+            CadAuthoredSketch::rectangle_xy(
+                ConstrainedRectangleV1::new((-0.05, 0.05), (-0.025, 0.025), 0.0).unwrap(),
+                1.0e-10,
+            )
+            .unwrap()
+            .extrude_positive_z(0.02)
+            .unwrap(),
+            CadAuthoredSketch::rectangle_xy(native_rectangle, 1.0e-10)
+                .unwrap()
+                .extrude_positive_z(0.03)
+                .unwrap(),
+            CadAuthoredSketch::rectangle_xy(native_rectangle, 2.0e-10)
+                .unwrap()
                 .extrude_positive_z(0.02)
-                .unwrap_err()
-                .message()
-                .to_owned(),
+                .unwrap(),
+        ] {
+            native_rejection_messages.push(
+                target
+                    .through_cut(&native_circle, 1.0e-9)
+                    .unwrap_err()
+                    .message()
+                    .to_owned(),
+            );
+        }
+        for error in [
             native_base
-                .through_cut(&native_circle, 0.0)
-                .unwrap_err()
-                .message()
-                .to_owned(),
-            native_cut
-                .through_cut(&native_circle, 1.0e-9)
-                .unwrap_err()
-                .message()
-                .to_owned(),
-        ];
+                .through_cut(&native_rectangle_sketch, 1.0e-9)
+                .unwrap_err(),
+            native_circle.extrude_positive_z(0.02).unwrap_err(),
+            native_base.through_cut(&native_circle, 0.0).unwrap_err(),
+            native_cut.through_cut(&native_circle, 1.0e-9).unwrap_err(),
+        ] {
+            native_rejection_messages.push(error.message().to_owned());
+        }
         let module = public_module(py)?;
         let locals = PyDict::new(py);
         locals.set_item("eqiora", module)?;
@@ -56,8 +101,20 @@ fn python_explicit_composition_replays_the_public_rust_authorities() -> PyResult
         py.run(
             c_str!(
                 r#"
-Sketch = eqiora.geometry.CadAuthoredSketch
+import inspect
+
 Graph = eqiora.geometry.CadAuthoredGraph
+assert isinstance(inspect.getattr_static(Graph, "rectangle_extrusion"), staticmethod)
+Sketch = eqiora.geometry.CadAuthoredSketch
+assert eqiora.geometry.__all__ == [
+    "CadAuthoredBuild",
+    "CadAuthoredFaceHandle",
+    "CadAuthoredGraph",
+    "CadAuthoredSketch",
+    "Geometry",
+]
+assert isinstance(inspect.getattr_static(Sketch, "rectangle_xy"), staticmethod)
+assert isinstance(inspect.getattr_static(Sketch, "circle_on_face"), staticmethod)
 
 rectangle = Sketch.rectangle_xy(
     x_bounds=(-2.0, 3.0),
@@ -77,6 +134,24 @@ compatibility_v1 = Graph.rectangle_extrusion(
 assert explicit_v1 == reused_v1 == compatibility_v1
 assert explicit_v1.canonical_bytes == v1_wire
 assert explicit_v1.graph_digest == v1_digest
+assert rectangle == Sketch.rectangle_xy(
+    x_bounds=(-2.0, 3.0),
+    y_bounds=(-1.0, 2.0),
+    plane_z=0.5,
+    modeling_tolerance=1e-9,
+)
+assert rectangle != Sketch.rectangle_xy(
+    x_bounds=(-2.0, 4.0),
+    y_bounds=(-1.0, 2.0),
+    plane_z=0.5,
+    modeling_tolerance=1e-9,
+)
+assert rectangle != Sketch.rectangle_xy(
+    x_bounds=(-2.0, 3.0),
+    y_bounds=(-1.0, 2.0),
+    plane_z=0.5,
+    modeling_tolerance=2e-9,
+)
 
 def four_routes(*, x_bounds, y_bounds, depth, center, radius, boolean_tolerance):
     explicit_base = Sketch.rectangle_xy(
@@ -171,11 +246,67 @@ base = Sketch.rectangle_xy(
 circle = Sketch.circle_on_face(
     base.face_handle("end-cap"), center=(0.02, 0.0), radius=0.008
 )
-for operation, native_message in zip((
+assert circle == Sketch.circle_on_face(
+    base.face_handle("end-cap"), center=(0.02, 0.0), radius=0.008
+)
+assert circle != Sketch.circle_on_face(
+    base.face_handle("end-cap"), center=(0.01, 0.0), radius=0.008
+)
+assert circle != Sketch.circle_on_face(
+    base.face_handle("end-cap"), center=(0.02, 0.0), radius=0.007
+)
+
+wrong_faces = (
+    "start-cap",
+    "profile-x-lower",
+    "profile-x-upper",
+    "profile-y-lower",
+    "profile-y-upper",
+)
+foreign_base = Sketch.rectangle_xy(
+    x_bounds=(-0.05, 0.05),
+    y_bounds=(-0.025, 0.025),
+    plane_z=0.0,
+    modeling_tolerance=1e-10,
+).extrude_positive_z(depth=0.02)
+changed_depth = Sketch.rectangle_xy(
+    x_bounds=(-0.04, 0.04),
+    y_bounds=(-0.025, 0.025),
+    plane_z=0.0,
+    modeling_tolerance=1e-10,
+).extrude_positive_z(depth=0.03)
+changed_tolerance = Sketch.rectangle_xy(
+    x_bounds=(-0.04, 0.04),
+    y_bounds=(-0.025, 0.025),
+    plane_z=0.0,
+    modeling_tolerance=2e-10,
+).extrude_positive_z(depth=0.02)
+base_rectangle = Sketch.rectangle_xy(
+    x_bounds=(-0.04, 0.04),
+    y_bounds=(-0.025, 0.025),
+    plane_z=0.0,
+    modeling_tolerance=1e-10,
+)
+operations = tuple(
+    lambda face=face: Sketch.circle_on_face(
+        base.face_handle(face), center=(0.02, 0.0), radius=0.008
+    )
+    for face in wrong_faces
+) + (
+    lambda: Sketch.circle_on_face(
+        v2_routes[0].face_handle("end-cap"), center=(0.02, 0.0), radius=0.008
+    ),
+    lambda: foreign_base.through_cut(circle, boolean_tolerance=1e-9),
+    lambda: changed_depth.through_cut(circle, boolean_tolerance=1e-9),
+    lambda: changed_tolerance.through_cut(circle, boolean_tolerance=1e-9),
+    lambda: base.through_cut(base_rectangle, boolean_tolerance=1e-9),
     lambda: circle.extrude_positive_z(depth=0.02),
     lambda: base.through_cut(circle, boolean_tolerance=0.0),
     lambda: v2_routes[0].through_cut(circle, boolean_tolerance=1e-9),
-), native_rejection_messages, strict=True):
+)
+for operation, native_message in zip(
+    operations, native_rejection_messages, strict=True
+):
     try:
         operation()
     except eqiora.ValidationError as error:

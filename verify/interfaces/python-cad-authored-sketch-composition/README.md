@@ -45,8 +45,20 @@ every nonpositive or nonfinite tolerance, depth, and radius, derived-end-plane
 overflow, every wrong v1 face, a v2 face, foreign and stale graph bindings,
 strict signed-clearance mutants, and every wrong operation order. Each
 rejection also checks that observable graph, handle, and sketch inputs retain
-their prior identity. Wrong wrapper types, tuple arity, and nonnumeric Python
-values instead remain ordinary `TypeError` before native admission.
+their prior identity. Every branch compares the complete diagnostic message
+with its accepted native owner: compatibility routes derive it dynamically,
+while the wrong-face/v2, foreign/stale binding, rectangle-as-cut,
+circle-as-extrusion, and second-cut branches pin messages derived directly
+from the accepted native public API. Wrong wrapper types, tuple arity, and
+nonnumeric Python values instead remain ordinary `TypeError` before native
+admission.
+
+Sketch equality is exact rather than variant-only or always true. Independent
+equal rectangle and circle wrappers compare equal. Changed rectangle bounds,
+plane, or modeling tolerance and changed circle center, radius, or retained
+graph binding compare unequal; rectangle and circle variants also compare
+unequal. These pairs make the atomicity snapshots capable of rejecting a
+trivial always-equal implementation.
 
 The lifetime oracle retains wrappers, constructs inline, drops source graph and
 handle wrappers, and applies a retained sketch to a canonically replayed equal
@@ -54,7 +66,11 @@ target. Every route must retain exact v2 output identity. Runtime and installed
 stub signatures, method inventory, sorted `__all__` parity, absence of generic
 names and aliases, lack of a public sketch constructor, and absence of a root
 `eqiora.CadAuthoredSketch` export are frozen. A second `python -I` subprocess
-proves the explicit route from the non-editable installed wheel.
+proves the explicit route from the non-editable installed wheel. The complete
+runtime and stub export inventory is frozen as exactly `CadAuthoredBuild`,
+`CadAuthoredFaceHandle`, `CadAuthoredGraph`, `CadAuthoredSketch`, and
+`Geometry`, in that sorted order. Both sketch constructors must be actual
+runtime and stub static methods.
 
 Run after the implementation and integration lanes provide the frozen public
 surface:

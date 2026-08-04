@@ -7,4 +7,7 @@ CAD cases listed in [`../references/README.md`](../references/README.md). The
 511-byte planar Geometry is inherited separately and reached only through the
 distinct DFG-sized graph fixture. This case freezes explicit-versus-
 compatibility equality, exact native failure projection, public surface shape,
-and owned-wrapper lifetime.
+owned-wrapper lifetime, and equality/inequality for materially distinct sketch
+values. Every native rejection message is either compared with the accepted
+compatibility route or pinned from a direct public-native derivation; no
+adapter-authored diagnostic text is accepted.
