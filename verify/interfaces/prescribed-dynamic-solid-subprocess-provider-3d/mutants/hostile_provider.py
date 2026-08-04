@@ -21,6 +21,47 @@ MODE = sys.argv[1] if len(sys.argv) == 2 else "honest"
 IN = sys.stdin.buffer
 OUT = sys.stdout.buffer
 
+BIND_MUTATION_MODES = {
+    "stale-model-binding",
+    "stale-semantic-revision-binding",
+    "stale-realization-binding",
+    "stale-geometry-binding",
+    "stale-correspondence-binding",
+    "stale-mesh-binding",
+    "stale-prior-state-binding",
+    "stale-model-time-binding",
+    "stale-next-time-binding",
+    "stale-delta-time-binding",
+    "stale-solid-body-binding",
+    "stale-boundary-binding",
+    "stale-displacement-field-binding",
+    "stale-velocity-field-binding",
+    "stale-output-field-binding",
+    "wrong-displacement-role-binding",
+    "wrong-velocity-role-binding",
+    "wrong-output-role-binding",
+    "swapped-input-roles-binding",
+    "caller-order-vertices-binding",
+    "missing-vertex-binding",
+    "duplicate-vertex-binding",
+    "reordered-vertices-binding",
+    "foreign-vertex-binding",
+    "missing-input-descriptor-binding",
+    "additional-input-descriptor-binding",
+    "wrong-unit-binding",
+    "wrong-shape-binding",
+    "wrong-frame-binding",
+    "wrong-representation-binding",
+    "wrong-input-association-binding",
+    "wrong-coefficient-count-binding",
+    "wrong-byte-length-binding",
+    "wrong-coefficient-order-binding",
+    "stale-displacement-block-binding",
+    "stale-velocity-block-binding",
+    "changed-bound-provider-binding",
+    "changed-bound-dependency-binding",
+}
+
 
 def canonical(document: Any) -> bytes:
     return json.dumps(
@@ -121,6 +162,93 @@ def hello() -> dict[str, Any]:
     }
 
 
+def changed_bind(document: dict[str, Any]) -> dict[str, Any]:
+    """Mutate one named binding role without spelling transition-owned keys."""
+    changed = json.loads(canonical(document))
+    top = list(changed)
+    inputs = changed[top[18]]
+    output = changed[top[19]]
+    zeros = "0" * 64
+    foreign = "0" * 26
+    if MODE == "stale-model-binding":
+        changed[top[3]] = zeros
+    elif MODE == "stale-semantic-revision-binding":
+        changed[top[4]] = 2
+    elif MODE == "stale-realization-binding":
+        changed[top[5]] = zeros
+    elif MODE == "stale-geometry-binding":
+        changed[top[6]] = zeros
+    elif MODE == "stale-correspondence-binding":
+        changed[top[7]] = zeros
+    elif MODE == "stale-mesh-binding":
+        changed[top[8]] = zeros
+    elif MODE == "stale-prior-state-binding":
+        changed[top[9]] = zeros
+    elif MODE == "stale-model-time-binding":
+        changed[top[11]] = 0.125
+    elif MODE == "stale-next-time-binding":
+        changed[top[12]] = 0.5
+    elif MODE == "stale-delta-time-binding":
+        changed[top[13]] = 0.5
+    elif MODE == "stale-solid-body-binding":
+        changed[top[14]] = foreign
+    elif MODE == "stale-boundary-binding":
+        changed[top[15]] = foreign
+    elif MODE == "stale-displacement-field-binding":
+        inputs[0]["field_ulid"] = foreign
+    elif MODE == "stale-velocity-field-binding":
+        inputs[1]["field_ulid"] = foreign
+    elif MODE == "stale-output-field-binding":
+        output["field_ulid"] = foreign
+    elif MODE == "wrong-displacement-role-binding":
+        inputs[0]["role"] = "foreign-displacement"
+    elif MODE == "wrong-velocity-role-binding":
+        inputs[1]["role"] = "foreign-velocity"
+    elif MODE == "wrong-output-role-binding":
+        output["role"] = "foreign-output"
+    elif MODE == "swapped-input-roles-binding":
+        inputs[0]["role"], inputs[1]["role"] = inputs[1]["role"], inputs[0]["role"]
+    elif MODE == "caller-order-vertices-binding":
+        changed[top[16]] = [7, 5, 3, 1]
+    elif MODE == "missing-vertex-binding":
+        changed[top[16]] = [1, 3, 5]
+    elif MODE == "duplicate-vertex-binding":
+        changed[top[16]] = [1, 3, 3, 7]
+    elif MODE == "reordered-vertices-binding":
+        changed[top[16]] = [1, 5, 3, 7]
+    elif MODE == "foreign-vertex-binding":
+        changed[top[16]] = [1, 3, 5, 8]
+    elif MODE == "missing-input-descriptor-binding":
+        inputs.pop()
+    elif MODE == "additional-input-descriptor-binding":
+        inputs.append(dict(inputs[-1]))
+    elif MODE == "wrong-unit-binding":
+        inputs[0]["unit"] = "mm"
+    elif MODE == "wrong-shape-binding":
+        inputs[0]["value_shape"] = [2]
+    elif MODE == "wrong-frame-binding":
+        inputs[0]["frame"] = "material"
+    elif MODE == "wrong-representation-binding":
+        inputs[0]["representation"] = "discontinuous"
+    elif MODE == "wrong-input-association-binding":
+        inputs[0]["association"] = "cell"
+    elif MODE == "wrong-coefficient-count-binding":
+        inputs[0]["coefficient_count"] = 11
+    elif MODE == "wrong-byte-length-binding":
+        inputs[0]["byte_length"] = 88
+    elif MODE == "wrong-coefficient-order-binding":
+        changed[top[17]] = "caller-order"
+    elif MODE == "stale-displacement-block-binding":
+        inputs[0]["block_sha256"] = zeros
+    elif MODE == "stale-velocity-block-binding":
+        inputs[1]["block_sha256"] = zeros
+    elif MODE == "changed-bound-provider-binding":
+        changed[top[10]]["id"] = "eqiora.python.foreign"
+    elif MODE == "changed-bound-dependency-binding":
+        changed[top[10]]["dependencies"][1]["release"] = "2.1.1"
+    return changed
+
+
 def changed_hello() -> tuple[dict[str, Any], bytes | None]:
     document = hello()
     payload = None
@@ -194,6 +322,10 @@ def send_hello() -> None:
     payload = canonical(document) if payload is None else payload
     if MODE == "wrong-magic":
         write_raw(b"NOPE" + framed(1, payload)[4:])
+    elif MODE == "wrong-magic-cleanup-noise":
+        write_raw(b"NOPE" + framed(1, payload)[4:])
+        sys.stderr.write("cleanup exit after initiating bad magic\n")
+        raise SystemExit(7)
     elif MODE == "wrong-frame-kind":
         write_raw(framed(2, payload))
     elif MODE == "nonzero-reserved":
@@ -270,6 +402,16 @@ def main() -> None:
     if MODE == "timeout-before-hello":
         time.sleep(10)
         return
+    if MODE == "timeout-late-cleanup-noise":
+        sys.stderr.write("bounded noise before structural timeout\n")
+        sys.stderr.flush()
+        time.sleep(10)
+        return
+    if MODE == "late-response-after-cancellation":
+        time.sleep(1)
+        send_hello()
+        sys.stderr.write("late response after cancellation\n")
+        raise SystemExit(7)
     if MODE == "cancel-before-hello":
         time.sleep(2)
         return
@@ -280,8 +422,13 @@ def main() -> None:
         write_raw(framed(1, hello_payload) + framed(1, canonical(placeholder("bound"))))
     else:
         send_hello()
+    if MODE == "close-input-after-hello":
+        IN.close()
+        time.sleep(10)
+        return
     if MODE in {
         "wrong-magic",
+        "wrong-magic-cleanup-noise",
         "wrong-frame-kind",
         "nonzero-reserved",
         "big-endian-length",
@@ -334,6 +481,8 @@ def main() -> None:
     bound_identity = binding.hex()
     if MODE == "wrong-binding-identity":
         bound_identity = "0" * 64
+    elif MODE in BIND_MUTATION_MODES:
+        bound_identity = identity(BINDING_DOMAIN, canonical(changed_bind(bind))).hex()
     bound = {"type": "bound", "binding_sha256": bound_identity}
     write_control(bound)
     if MODE == "duplicate-bound":
@@ -361,6 +510,8 @@ def main() -> None:
 
     first = struct.unpack("<12d", displacement)
     second = struct.unpack("<12d", velocity)
+    if MODE == "swapped-bulk-frames":
+        first, second = second, first
     candidate_values = [
         left + 0.25 * right for left, right in zip(first, second, strict=True)
     ]
@@ -432,6 +583,7 @@ def main() -> None:
         "wrong-candidate-bits",
         "wrong-request-identity",
         "wrong-candidate-identity",
+        "swapped-bulk-frames",
     }:
         return
     if MODE == "exit-before-report":
@@ -467,7 +619,14 @@ def main() -> None:
     if MODE == "duplicate-report" or MODE == "extra-response-before-close":
         write_control(report)
 
-    close, _ = read_control("close")
+    if MODE == "cleanup-noise-after-local-failure":
+        try:
+            close, _ = read_control("close")
+        except EOFError:
+            sys.stderr.write("bounded cleanup stderr after local failure\n")
+            raise SystemExit(7) from None
+    else:
+        close, _ = read_control("close")
     if MODE == "error-close":
         write_control(error("close"))
         return

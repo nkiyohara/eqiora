@@ -4,7 +4,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use eqiora::api::{
     ModelDocument, PrescribedDynamicSolidExternalProviderStateRun3d,
@@ -72,6 +72,31 @@ fn positive_child(launch_salt: &str, working_directory: &Path) -> Child {
     command
         .spawn()
         .expect("uv must provision the exact positive provider profile")
+}
+
+fn wrapped_positive_child(launch_salt: &str, working_directory: &Path) -> Child {
+    let mut command = Command::new("uv");
+    command
+        .args([
+            "run",
+            "--isolated",
+            "--python",
+            "3.12",
+            "--with",
+            "numpy==2.1.0",
+            "python",
+            "-c",
+            "import runpy,sys; print('bounded launch note', file=sys.stderr); runpy.run_path(sys.argv[1], run_name='__main__')",
+            "../../../examples/python/prescribed_dynamic_solid_provider.py",
+        ])
+        .current_dir(working_directory)
+        .env("EQIORA_ORACLE_LAUNCH_SALT", launch_salt)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    command
+        .spawn()
+        .expect("uv must launch the same provider through the alternate command and path")
 }
 
 fn hostile_child(mode: &str) -> Child {
@@ -146,11 +171,25 @@ fn assert_reaped(pid: u32, mode: &str) {
 fn assert_hostile_rejected(mode: &str) {
     let child = hostile_child(mode);
     let pid = child.id();
-    assert!(
-        solve(child, &AtomicBool::new(false)).is_err(),
-        "hostile mode {mode} unexpectedly published an owner"
+    expect_error(
+        solve(child, &AtomicBool::new(false)),
+        eqiora::diagnostic::codes::INVALID_EXTERNAL_DATA_IMPORT,
+        mode,
     );
     assert_reaped(pid, mode);
+}
+
+fn expect_error(
+    result: Result<PrescribedDynamicSolidExternalProviderStateRun3d, eqiora::Diagnostic>,
+    code: eqiora::Code,
+    label: &str,
+) -> eqiora::Diagnostic {
+    let error = match result {
+        Err(error) => error,
+        Ok(_) => panic!("{label} unexpectedly published an owner"),
+    };
+    assert_eq!(error.code(), code, "{label} returned the wrong diagnostic");
+    error
 }
 
 #[allow(dead_code)]
@@ -193,10 +232,10 @@ fn exact_positive_sessions_publish_the_frozen_candidate_occurrence_and_run() {
     )
     .expect("the first exact provider session is admitted");
     let second = solve(
-        positive_child("different-launch", &case),
+        wrapped_positive_child("different-launch", &case),
         &AtomicBool::new(false),
     )
-    .expect("launch metadata cannot alter the second admitted session");
+    .expect("command, path, working directory, environment, and bounded stderr cannot alter bytes");
 
     for owner in [&first, &second] {
         owner.revalidate().expect("the complete owner revalidates");
@@ -353,22 +392,10 @@ fn occurrence_decoder_is_closed_canonical_and_intrinsically_bounded() {
     assert_eq!(decoded.canonical_json().unwrap(), bytes);
 
     for raw in [b"{".as_slice(), b"[]", b" null"] {
-        assert!(
-            PrescribedDynamicSolidProviderOccurrenceEnvelopeV1::from_json(
-                raw,
-                JsonDecoderLimits::default(),
-            )
-            .is_err()
-        );
+        assert_occurrence_decode_rejected(raw);
     }
     let reordered = move_first_member_to_end(bytes);
-    assert!(
-        PrescribedDynamicSolidProviderOccurrenceEnvelopeV1::from_json(
-            &reordered,
-            JsonDecoderLimits::default(),
-        )
-        .is_err()
-    );
+    assert_occurrence_decode_rejected(&reordered);
 
     let mut mutations = vec![
         replace_first(
@@ -411,15 +438,19 @@ fn occurrence_decoder_is_closed_canonical_and_intrinsically_bounded() {
     mutations.push(unknown);
 
     for mutant in mutations {
-        assert!(
-            PrescribedDynamicSolidProviderOccurrenceEnvelopeV1::from_json(
-                &mutant,
-                JsonDecoderLimits::default(),
-            )
-            .is_err(),
-            "locally invalid occurrence mutation was accepted"
-        );
+        assert_occurrence_decode_rejected(&mutant);
     }
+}
+
+fn assert_occurrence_decode_rejected(bytes: &[u8]) {
+    let error = match PrescribedDynamicSolidProviderOccurrenceEnvelopeV1::from_json(
+        bytes,
+        JsonDecoderLimits::default(),
+    ) {
+        Err(error) => error,
+        Ok(_) => panic!("locally invalid occurrence mutation was accepted"),
+    };
+    assert_eq!(error.code(), eqiora::diagnostic::codes::INVALID_ARTIFACT);
 }
 
 #[test]
@@ -468,6 +499,52 @@ fn prefix_control_policy_and_dependency_mutants_publish_no_owner() {
 }
 
 #[test]
+fn every_projection_binding_role_has_a_named_identity_falsifier() {
+    for mode in [
+        "stale-model-binding",
+        "stale-semantic-revision-binding",
+        "stale-realization-binding",
+        "stale-geometry-binding",
+        "stale-correspondence-binding",
+        "stale-mesh-binding",
+        "stale-prior-state-binding",
+        "stale-model-time-binding",
+        "stale-next-time-binding",
+        "stale-delta-time-binding",
+        "stale-solid-body-binding",
+        "stale-boundary-binding",
+        "stale-displacement-field-binding",
+        "stale-velocity-field-binding",
+        "stale-output-field-binding",
+        "wrong-displacement-role-binding",
+        "wrong-velocity-role-binding",
+        "wrong-output-role-binding",
+        "swapped-input-roles-binding",
+        "caller-order-vertices-binding",
+        "missing-vertex-binding",
+        "duplicate-vertex-binding",
+        "reordered-vertices-binding",
+        "foreign-vertex-binding",
+        "missing-input-descriptor-binding",
+        "additional-input-descriptor-binding",
+        "wrong-unit-binding",
+        "wrong-shape-binding",
+        "wrong-frame-binding",
+        "wrong-representation-binding",
+        "wrong-input-association-binding",
+        "wrong-coefficient-count-binding",
+        "wrong-byte-length-binding",
+        "wrong-coefficient-order-binding",
+        "stale-displacement-block-binding",
+        "stale-velocity-block-binding",
+        "changed-bound-provider-binding",
+        "changed-bound-dependency-binding",
+    ] {
+        assert_hostile_rejected(mode);
+    }
+}
+
+#[test]
 fn state_candidate_identity_and_terminal_mutants_publish_no_owner() {
     for mode in [
         "bound-before-bind",
@@ -479,9 +556,6 @@ fn state_candidate_identity_and_terminal_mutants_publish_no_owner() {
         "duplicate-closed",
         "response-after-close",
         "extra-bytes-after-closed",
-        "error-bind",
-        "error-evaluate",
-        "error-close",
         "exit-before-hello",
         "exit-before-bound",
         "exit-before-candidate",
@@ -499,6 +573,7 @@ fn state_candidate_identity_and_terminal_mutants_publish_no_owner() {
         "bulk-budget-breach",
         "wrong-bulk-kind",
         "wrong-endian-binary64",
+        "swapped-bulk-frames",
         "negative-zero",
         "nan",
         "infinity",
@@ -511,6 +586,25 @@ fn state_candidate_identity_and_terminal_mutants_publish_no_owner() {
         "nonzero-exit",
     ] {
         assert_hostile_rejected(mode);
+    }
+}
+
+#[test]
+fn explicit_provider_errors_retain_the_provider_code_and_message() {
+    for mode in ["error-bind", "error-evaluate", "error-close"] {
+        let child = hostile_child(mode);
+        let pid = child.id();
+        let error = expect_error(
+            solve(child, &AtomicBool::new(false)),
+            eqiora::diagnostic::codes::INVALID_EXTERNAL_DATA_IMPORT,
+            mode,
+        );
+        assert!(
+            error.message().contains("provider.rejected")
+                && error.message().contains("hostile provider rejection"),
+            "provider code or message was replaced for {mode}: {error}"
+        );
+        assert_reaped(pid, mode);
     }
 }
 
@@ -529,19 +623,67 @@ fn every_awaited_boundary_has_a_deadline_and_poisoned_child() {
 }
 
 #[test]
+fn hello_timeout_observes_the_five_second_budget_and_timeout_cause() {
+    let child = hostile_child("timeout-late-cleanup-noise");
+    let pid = child.id();
+    let started = Instant::now();
+    let error = expect_error(
+        solve(child, &AtomicBool::new(false)),
+        eqiora::diagnostic::codes::INVALID_EXTERNAL_DATA_IMPORT,
+        "hello-timeout",
+    );
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed >= Duration::from_millis(4_800) && elapsed < Duration::from_secs(8),
+        "the structural five-second timeout completed after {elapsed:?}"
+    );
+    assert!(
+        error.message().to_ascii_lowercase().contains("timed out"),
+        "late bytes, stderr, or exit must not replace the timeout cause: {error}"
+    );
+    assert_reaped(pid, "timeout-late-cleanup-noise");
+}
+
+#[test]
+fn protocol_and_broken_pipe_causes_survive_cleanup_exit_noise() {
+    let child = hostile_child("wrong-magic-cleanup-noise");
+    let pid = child.id();
+    let error = expect_error(
+        solve(child, &AtomicBool::new(false)),
+        eqiora::diagnostic::codes::INVALID_EXTERNAL_DATA_IMPORT,
+        "wrong magic with cleanup noise",
+    );
+    assert!(
+        error.message().to_ascii_lowercase().contains("magic"),
+        "cleanup stderr and nonzero exit replaced the initiating framing error: {error}"
+    );
+    assert_reaped(pid, "wrong-magic-cleanup-noise");
+
+    let child = hostile_child("close-input-after-hello");
+    let pid = child.id();
+    let error = expect_error(
+        solve(child, &AtomicBool::new(false)),
+        eqiora::diagnostic::codes::INVALID_EXTERNAL_DATA_IMPORT,
+        "actual bind broken pipe",
+    );
+    assert!(
+        error.message().to_ascii_lowercase().contains("broken pipe"),
+        "the actual write-side failure was not retained: {error}"
+    );
+    assert_reaped(pid, "close-input-after-hello");
+}
+
+#[test]
 fn cancellation_before_admission_and_while_waiting_returns_no_owner() {
     let pre_cancelled = AtomicBool::new(true);
     let child = hostile_child("cancel-before-hello");
     let pid = child.id();
-    let error = match solve(child, &pre_cancelled) {
-        Err(error) => error,
-        Ok(_) => panic!("pre-session cancellation unexpectedly published an owner"),
-    };
-    assert_eq!(
-        error.code(),
+    let error = expect_error(
+        solve(child, &pre_cancelled),
         eqiora::diagnostic::codes::EXECUTION_CANCELLED,
-        "pre-session cancellation precedes provider admission"
+        "pre-session cancellation",
     );
+    assert!(error.message().to_ascii_lowercase().contains("cancel"));
     assert_reaped(pid, "pre-cancelled");
 
     for mode in [
@@ -560,24 +702,51 @@ fn cancellation_before_admission_and_while_waiting_returns_no_owner() {
         });
         let child = hostile_child(mode);
         let pid = child.id();
-        assert!(solve(child, &cancellation).is_err());
+        let error = expect_error(
+            solve(child, &cancellation),
+            eqiora::diagnostic::codes::EXECUTION_CANCELLED,
+            mode,
+        );
+        assert!(
+            error.message().to_ascii_lowercase().contains("cancel"),
+            "timeout, late response, cleanup, and exit cannot replace cancellation: {error}"
+        );
         trigger.join().unwrap();
         assert_reaped(pid, mode);
     }
 
+    let cancellation = Arc::new(AtomicBool::new(false));
+    let setter = Arc::clone(&cancellation);
+    let trigger = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(100));
+        setter.store(true, Ordering::Release);
+    });
+    let child = hostile_child("late-response-after-cancellation");
+    let pid = child.id();
+    let error = expect_error(
+        solve(child, &cancellation),
+        eqiora::diagnostic::codes::EXECUTION_CANCELLED,
+        "late response after cancellation",
+    );
+    assert!(error.message().to_ascii_lowercase().contains("cancel"));
+    trigger.join().unwrap();
+    assert_reaped(pid, "late-response-after-cancellation");
+
     let cancellation = AtomicBool::new(false);
     let child = hostile_child("honest");
     let pid = child.id();
-    assert!(
+    let error = expect_error(
         PrescribedDynamicSolidExternalProviderStateRun3d::solve_reference_with_connected_subprocess(
             &document(),
             &CancelDuringStructuralSolve(&cancellation),
             &REFERENCE_LINEAR_SOLVER,
             child,
             &cancellation,
-        )
-        .is_err()
+        ),
+        eqiora::diagnostic::codes::EXECUTION_CANCELLED,
+        "cancellation during structural solve",
     );
+    assert!(error.message().to_ascii_lowercase().contains("cancel"));
     assert!(cancellation.load(Ordering::Acquire));
     assert_reaped(pid, "cancel-during-structural-solve");
 }
@@ -606,35 +775,49 @@ fn missing_pipe_ends_and_backend_failures_are_failure_atomic() {
             .stderr(Stdio::piped());
         let child = command.spawn().unwrap();
         let pid = child.id();
-        assert!(solve(child, &AtomicBool::new(false)).is_err());
+        expect_error(
+            solve(child, &AtomicBool::new(false)),
+            eqiora::diagnostic::codes::INVALID_EXTERNAL_DATA_IMPORT,
+            "missing-pipe",
+        );
         assert_reaped(pid, "missing-pipe");
     }
 
-    let child = hostile_child("honest");
+    let child = hostile_child("cleanup-noise-after-local-failure");
     let pid = child.id();
-    assert!(
+    let error = expect_error(
         PrescribedDynamicSolidExternalProviderStateRun3d::solve_reference_with_connected_subprocess(
             &document(),
             &RejectAssembly,
             &REFERENCE_LINEAR_SOLVER,
             child,
             &AtomicBool::new(false),
-        )
-        .is_err()
+        ),
+        eqiora::diagnostic::codes::ASSEMBLY_FAILED,
+        "assembly failure with cleanup noise",
+    );
+    assert_eq!(
+        error.message(),
+        "oracle-injected external-provider assembly failure"
     );
     assert_reaped(pid, "assembly-failure");
 
-    let child = hostile_child("honest");
+    let child = hostile_child("cleanup-noise-after-local-failure");
     let pid = child.id();
-    assert!(
+    let error = expect_error(
         PrescribedDynamicSolidExternalProviderStateRun3d::solve_reference_with_connected_subprocess(
             &document(),
             &REFERENCE_ASSEMBLY_BACKEND,
             &RejectSolver,
             child,
             &AtomicBool::new(false),
-        )
-        .is_err()
+        ),
+        eqiora::diagnostic::codes::NUMERICAL_SOLVE_FAILED,
+        "solver failure with cleanup noise",
+    );
+    assert_eq!(
+        error.message(),
+        "oracle-injected external-provider solver failure"
     );
     assert_reaped(pid, "solver-failure");
 }

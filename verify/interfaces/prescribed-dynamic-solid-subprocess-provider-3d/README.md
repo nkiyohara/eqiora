@@ -20,6 +20,21 @@ Rust tests reject framing, canonical-control, state-machine, projection,
 identity, binary64, cancellation, timeout, clean-close, and publication
 mutants.  Every terminal failure consumes the child and returns no owner.
 
+Projection falsifiers independently stale every retained resource, State,
+time coordinate, body, boundary, Field, descriptor, input block, vertex list,
+and bound provider role; separate mutants swap the two input roles and their
+bulk frames.  Private retained-owner tests cross-substitute both input blocks,
+provider, dependency inventory, fixed adapter, accepted State, occurrence
+linkage, and missing, prior, or additional Run outputs.
+
+Process-boundary evidence uses a real closed input pipe, a response arriving
+after cancellation, the structural five-second timeout, and cleanup stderr and
+nonzero exits that must not replace the initiating diagnostic.  A private test
+hook injects cancellation before and after every frozen safe checkpoint from
+session admission through final process wait and publication.  A second clean
+session changes command form, path spelling, working directory, environment,
+and bounded stderr while requiring identical durable bytes.
+
 This is one displacement-only, deterministic, stateless, single-evaluation
 fixture.  It does not claim launch or sandbox authority, arbitrary providers or
 Fields, traction exchange, conservative two-way coupling, reusable sessions,
