@@ -192,6 +192,27 @@ fn expect_error(
     error
 }
 
+fn assert_structural_timeout(mode: &str) {
+    let child = hostile_child(mode);
+    let pid = child.id();
+    let started = Instant::now();
+    let error = expect_error(
+        solve(child, &AtomicBool::new(false)),
+        eqiora::diagnostic::codes::INVALID_EXTERNAL_DATA_IMPORT,
+        mode,
+    );
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed >= Duration::from_millis(4_800) && elapsed < Duration::from_secs(8),
+        "the structural five-second {mode} deadline completed after {elapsed:?}"
+    );
+    assert!(
+        error.message().to_ascii_lowercase().contains("timed out"),
+        "cleanup or terminal noise replaced the {mode} timeout cause: {error}"
+    );
+    assert_reaped(pid, mode);
+}
+
 #[allow(dead_code)]
 fn compile_frozen_public_surface(
     document: &ModelDocument,
@@ -614,34 +635,19 @@ fn every_awaited_boundary_has_a_deadline_and_poisoned_child() {
         "timeout-before-hello",
         "timeout-before-bound",
         "timeout-before-candidate",
+        "timeout-before-candidate-bulk",
         "timeout-before-report",
         "timeout-before-closed",
         "dirty-eof-delay",
+        "timeout-before-process-exit",
     ] {
-        assert_hostile_rejected(mode);
+        assert_structural_timeout(mode);
     }
 }
 
 #[test]
 fn hello_timeout_observes_the_five_second_budget_and_timeout_cause() {
-    let child = hostile_child("timeout-late-cleanup-noise");
-    let pid = child.id();
-    let started = Instant::now();
-    let error = expect_error(
-        solve(child, &AtomicBool::new(false)),
-        eqiora::diagnostic::codes::INVALID_EXTERNAL_DATA_IMPORT,
-        "hello-timeout",
-    );
-    let elapsed = started.elapsed();
-    assert!(
-        elapsed >= Duration::from_millis(4_800) && elapsed < Duration::from_secs(8),
-        "the structural five-second timeout completed after {elapsed:?}"
-    );
-    assert!(
-        error.message().to_ascii_lowercase().contains("timed out"),
-        "late bytes, stderr, or exit must not replace the timeout cause: {error}"
-    );
-    assert_reaped(pid, "timeout-late-cleanup-noise");
+    assert_structural_timeout("timeout-late-cleanup-noise");
 }
 
 #[test]

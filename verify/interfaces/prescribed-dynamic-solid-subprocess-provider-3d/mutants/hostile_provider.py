@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import struct
 import sys
 import time
@@ -423,7 +424,7 @@ def main() -> None:
     else:
         send_hello()
     if MODE == "close-input-after-hello":
-        IN.close()
+        os.close(IN.fileno())
         time.sleep(10)
         return
     if MODE in {
@@ -537,6 +538,9 @@ def main() -> None:
         "byte_length": 96,
     }
     write_control(candidate_control)
+    if MODE == "timeout-before-candidate-bulk":
+        time.sleep(10)
+        return
     if MODE == "report-before-candidate-bulk":
         write_control(
             {
@@ -647,6 +651,10 @@ def main() -> None:
         write_raw(b"x")
     elif MODE == "nonzero-exit":
         raise SystemExit(7)
+    elif MODE == "timeout-before-process-exit":
+        os.close(OUT.fileno())
+        time.sleep(10)
+        return
     elif MODE == "dirty-eof-delay":
         time.sleep(10)
     require_equal = close["outcome"] == "accepted"
