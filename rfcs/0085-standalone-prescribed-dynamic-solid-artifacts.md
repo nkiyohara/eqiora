@@ -700,9 +700,9 @@ crate:
 | Crate | Accepted base | Maximum after implementation | Addition |
 | --- | ---: | ---: | --- |
 | `eqiora-numerics` | `309` | `309` | none |
-| `eqiora-artifact` | `146` | `147` | `PrescribedDynamicSolidRealizationEnvelopeV1` |
-| `eqiora-api` | `138` | `139` | `PrescribedDynamicSolidStateRun3d` |
-| `eqiora` | `280` | `281` | application owner re-export only |
+| `eqiora-artifact` | `147` | `148` | `PrescribedDynamicSolidRealizationEnvelopeV1` |
+| `eqiora-api` | `142` | `143` | `PrescribedDynamicSolidStateRun3d` |
+| `eqiora` | `284` | `285` | application owner re-export only |
 | `eqiora-realization` | `117` | `117` | none |
 
 The artifact type remains reachable through the facade's existing transitional
@@ -720,13 +720,13 @@ entries in `tools/ci/architecture-debt.toml` and no others:
 
 | Crate | Exact ceiling | Exact reason appended to the existing `reason` | Exact deletion condition appended to the existing `removal` |
 | --- | ---: | --- | --- |
-| `eqiora-artifact` | `147` | `PrescribedDynamicSolidRealizationEnvelopeV1 is one closed standalone-solid wire for the exact prescribed-step occurrence; it reuses existing decoder limits and Snapshot, State, and Run families, derives every durable role from the bound Model, and adds no registry, trait, builder, or option bag.` | `Withdraw PrescribedDynamicSolidRealizationEnvelopeV1 and lower this ceiling to 146 when one already-counted accepted common fixed-spatial Realization preserves its exact role derivation, Geometry and mesh gates, canonical bytes, and Run projection.` |
-| `eqiora-api` | `139` | `PrescribedDynamicSolidStateRun3d is one failure-atomic application composition joining the accepted prescribed step to existing Field, Snapshot, State, and Run artifacts; it adds no request, result, provider, or registry protocol.` | `Withdraw PrescribedDynamicSolidStateRun3d and lower this ceiling to 138 when one already-counted accepted common native structural Result owns and revalidates the same exact lineage and accepted evidence without an open option bag.` |
-| `eqiora` | `281` | `PrescribedDynamicSolidStateRun3d is one named transitional eqiora::api export of the bounded application owner; the facade adds no second implementation or stable compatibility promise.` | `Withdraw that transitional export and lower this ceiling to 280 when an accepted existing facade type subsumes its exact structural lineage and accepted evidence without a replacement top-level facade item.` |
+| `eqiora-artifact` | `148` | `PrescribedDynamicSolidRealizationEnvelopeV1 is one closed standalone-solid wire for the exact prescribed-step occurrence; it reuses existing decoder limits and Snapshot, State, and Run families, derives every durable role from the bound Model, and adds no registry, trait, builder, or option bag.` | `Withdraw PrescribedDynamicSolidRealizationEnvelopeV1 and lower this ceiling to 147 when one already-counted accepted common fixed-spatial Realization preserves its exact role derivation, Geometry and mesh gates, canonical bytes, and Run projection.` |
+| `eqiora-api` | `143` | `PrescribedDynamicSolidStateRun3d is one failure-atomic application composition joining the accepted prescribed step to existing Field, Snapshot, State, and Run artifacts; it adds no request, result, provider, or registry protocol.` | `Withdraw PrescribedDynamicSolidStateRun3d and lower this ceiling to 142 when one already-counted accepted common native structural Result owns and revalidates the same exact lineage and accepted evidence without an open option bag.` |
+| `eqiora` | `285` | `PrescribedDynamicSolidStateRun3d is one named transitional eqiora::api export of the bounded application owner; the facade adds no second implementation or stable compatibility promise.` | `Withdraw that transitional export and lower this ceiling to 284 when an accepted existing facade type subsumes its exact structural lineage and accepted evidence without a replacement top-level facade item.` |
 
 These are ceiling amendments, not debt permission for another item. An
 implementation that ends below a listed maximum ratchets that ceiling down in
-the same integration. Growth beyond `147`, `139`, or `281`, or growth in any
+the same integration. Growth beyond `148`, `143`, or `285`, or growth in any
 other crate, is an unplanned architecture change and a stop condition.
 
 Any additional public type, trait, enum variant, registry, context, builder,
