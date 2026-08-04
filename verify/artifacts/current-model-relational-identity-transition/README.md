@@ -48,8 +48,8 @@ by hand.
 | `required_post_reset` | 13 | the complete set of paths the reset may add: 11 byte-frozen promotions — 10 staged control-v2 targets plus the historical cylinder — and 2 existence-only unversioned Rust owners |
 | `preserved_evidence` | 40 | invariant evidence — the same path in both states — whose deletion the reset must never reach |
 | `promoted_evidence` | 1 | evidence whose bytes survive at a different path, so it is invariant at neither |
-| `post_reset_admitted` | 9 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
-| `post_reset_fixture_admitted` | 10 | later signal-bearing fixture paths admitted through a separate exact-path permission with their exact search signals and same-line identity-literal counts; a member of no historical or identity-free set |
+| `post_reset_admitted` | 15 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
+| `post_reset_fixture_admitted` | 12 | later signal-bearing fixture paths admitted through a separate exact-path permission with their exact search signals and same-line identity-literal counts; a member of no historical or identity-free set |
 
 **44, 304 and 13 are not one partition of 338.** What partitions the inventory
 is 34 + 304: the retired paths that are inventory members, plus the preserved
