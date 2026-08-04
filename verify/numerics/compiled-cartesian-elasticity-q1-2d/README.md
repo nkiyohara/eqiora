@@ -6,17 +6,19 @@ must produce the accepted Cartesian Q1 local contribution and the same private
 operator must own its state and `(mu, lambda, pressure_gradient)` differential
 actions and paired transpose actions.
 
-The evidence is split deliberately:
+The evidence ownership is deliberate:
 
-- the crate-private compiler child owns the exact local derivative oracle,
-  certificate mutations, and fail-closed admission checks; and
-- `compiled_cartesian_elasticity` reaches the ordinary public solid-mechanics
-  path, checks the exact lower-left-cell contribution, and retains the separate
-  affine-stress and loaded homogeneous-boundary patch balances.
+- the exact registered crate-private aggregate owns the local derivative
+  oracle, certificate mutations, fail-closed admission checks, ordinary local
+  construction, and both complete patch balances; and
+- `compiled_cartesian_elasticity` is supplementary formula-free smoke for the
+  outward public solid-mechanics construction and scatter boundary.
 
 Run:
 
 ```bash
+cargo test --locked -p eqiora-numerics --lib \
+  form_compiler::elasticity::oracle::registered_evidence -- --exact
 cargo test --locked -p eqiora-numerics --test compiled_cartesian_elasticity
 cargo run -p eqiora-verify -- run --case numerics.compiled-cartesian-elasticity-q1-2d
 ```

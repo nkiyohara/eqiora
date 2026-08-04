@@ -31,7 +31,7 @@ absolute_maximum_tolerance = 1e-9
 [claim_boundary]
 spatial_dimension = 2
 unknown = "one two-component spatial-vector displacement"
-domain = "axis-aligned Cartesian box"
+domain = "exact unit-square Model identity: body = box(0, 1, 0, 1)"
 boundary = "complete homogeneous essential"
 cell = "square affine hypercube"
 space = "continuous HypercubeQ1 in production bit and component-fast ordering"
@@ -46,5 +46,6 @@ cuda_or_mpi = false
 performance_claim = false
 
 [evidence]
+runner = "cargo-library-test"
 package = "eqiora-numerics"
-test = "compiled_cartesian_elasticity"
+test = "form_compiler::elasticity::oracle::registered_evidence"
