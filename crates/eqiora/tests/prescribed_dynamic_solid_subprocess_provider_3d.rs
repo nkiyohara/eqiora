@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
@@ -43,6 +44,9 @@ const EXPECTED_TRANSCRIPT: &[u8] = include_bytes!(
 );
 const LINEAGE_KEY: &str = "model_sha256";
 const TRANSCRIPT_DOMAIN: &str = "eqiora.prescribed-dynamic-solid-provider-transcript/v1";
+const POSITIVE_PYTHON_OVERRIDE: &str = "EQIORA_TEST_PRESCRIBED_PROVIDER_PYTHON";
+const POSITIVE_PYTHON_PROBE: &str = "import sys; import numpy; ok = sys.implementation.name == 'cpython' and sys.version_info[:2] == (3, 12) and sys.version_info.releaselevel == 'final' and numpy.__version__ == '2.1.0'; raise SystemExit(0 if ok else 1)";
+const POSITIVE_PYTHON_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 
 fn repository_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -53,11 +57,51 @@ fn document() -> ModelDocument {
         .expect("the accepted direct source compiles")
 }
 
-fn positive_child(launch_salt: &str, working_directory: &Path) -> Child {
-    let script = repository_root().join("examples/python/prescribed_dynamic_solid_provider.py");
-    let mut command = Command::new("uv");
-    command
-        .args([
+fn exact_positive_python() -> Option<OsString> {
+    let mut candidates = Vec::with_capacity(3);
+    if let Some(interpreter) = std::env::var_os(POSITIVE_PYTHON_OVERRIDE)
+        && !interpreter.is_empty()
+    {
+        candidates.push(interpreter);
+    }
+    candidates.extend([OsString::from("python"), OsString::from("python3.12")]);
+    candidates
+        .into_iter()
+        .find(|interpreter| is_exact_positive_python(interpreter))
+}
+
+fn is_exact_positive_python(interpreter: &OsStr) -> bool {
+    let child = Command::new(interpreter)
+        .args(["-c", POSITIVE_PYTHON_PROBE])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn();
+    let Ok(mut child) = child else {
+        return false;
+    };
+    let started = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return status.success(),
+            Ok(None) if started.elapsed() < POSITIVE_PYTHON_PROBE_TIMEOUT => {
+                thread::sleep(Duration::from_millis(10));
+            }
+            Ok(None) | Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return false;
+            }
+        }
+    }
+}
+
+fn positive_python_command() -> Command {
+    if let Some(interpreter) = exact_positive_python() {
+        Command::new(interpreter)
+    } else {
+        let mut command = Command::new("uv");
+        command.args([
             "run",
             "--isolated",
             "--no-project",
@@ -66,7 +110,15 @@ fn positive_child(launch_salt: &str, working_directory: &Path) -> Child {
             "--with",
             "numpy==2.1.0",
             "python",
-        ])
+        ]);
+        command
+    }
+}
+
+fn positive_child(launch_salt: &str, working_directory: &Path) -> Child {
+    let script = repository_root().join("examples/python/prescribed_dynamic_solid_provider.py");
+    let mut command = positive_python_command();
+    command
         .arg(script)
         .current_dir(working_directory)
         .env("EQIORA_ORACLE_LAUNCH_SALT", launch_salt)
@@ -79,17 +131,9 @@ fn positive_child(launch_salt: &str, working_directory: &Path) -> Child {
 }
 
 fn wrapped_positive_child(launch_salt: &str, working_directory: &Path) -> Child {
-    let mut command = Command::new("uv");
+    let mut command = positive_python_command();
     command
         .args([
-            "run",
-            "--isolated",
-            "--no-project",
-            "--python",
-            "3.12",
-            "--with",
-            "numpy==2.1.0",
-            "python",
             "-c",
             "import runpy,sys; print('bounded launch note', file=sys.stderr); runpy.run_path(sys.argv[1], run_name='__main__')",
             "../../../examples/python/prescribed_dynamic_solid_provider.py",
