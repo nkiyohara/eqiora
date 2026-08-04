@@ -421,6 +421,37 @@ mod tests {
         write_manifest(root, &[("src/main.eqi", BundleRoleV1::ModelSource)]);
     }
 
+    #[cfg(unix)]
+    fn bind_socket_entry(root: &TestDirectory) -> std::os::unix::net::UnixListener {
+        use std::os::unix::fs::FileTypeExt;
+        use std::os::unix::net::UnixListener;
+
+        let intended = root.0.join("main.eqi");
+        #[cfg(target_os = "linux")]
+        let listener = {
+            use std::os::fd::AsRawFd;
+
+            let parent = fs::File::open(&root.0).expect("open socket parent");
+            let through_parent =
+                PathBuf::from(format!("/proc/self/fd/{}/main.eqi", parent.as_raw_fd()));
+            let listener = UnixListener::bind(through_parent)
+                .expect("create Unix-domain socket entry through retained parent");
+            drop(parent);
+            listener
+        };
+        #[cfg(not(target_os = "linux"))]
+        let listener = UnixListener::bind(&intended).expect("create Unix-domain socket entry");
+
+        assert!(
+            fs::symlink_metadata(&intended)
+                .expect("inspect intended socket entry")
+                .file_type()
+                .is_socket(),
+            "the socket must exist at the exact inventoried path"
+        );
+        listener
+    }
+
     #[test]
     fn ambient_and_caller_owned_directory_capabilities_admit_the_same_sources() {
         let directory = TestDirectory::create("constructors");
@@ -645,11 +676,8 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn special_file_input_fails_without_entering_a_blocking_read() {
-        use std::os::unix::net::UnixListener;
-
         let directory = TestDirectory::create("special-file");
-        let _listener = UnixListener::bind(directory.0.join("main.eqi"))
-            .expect("create Unix-domain socket entry");
+        let _listener = bind_socket_entry(&directory);
         write_manifest(&directory, &[("main.eqi", BundleRoleV1::ModelSource)]);
         assert!(
             AuthorPackageDirectory::open_ambient(&directory.0)

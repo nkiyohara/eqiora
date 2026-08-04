@@ -64,6 +64,37 @@ fn write_source(root: &TestDirectory, path: &str, bytes: &[u8]) {
     fs::write(path, bytes).expect("write evidence source");
 }
 
+#[cfg(unix)]
+fn bind_socket_entry(root: &TestDirectory) -> std::os::unix::net::UnixListener {
+    use std::os::unix::fs::FileTypeExt;
+    use std::os::unix::net::UnixListener;
+
+    let intended = root.0.join("main.eqi");
+    #[cfg(target_os = "linux")]
+    let listener = {
+        use std::os::fd::AsRawFd;
+
+        let parent = fs::File::open(&root.0).expect("open socket parent");
+        let through_parent =
+            PathBuf::from(format!("/proc/self/fd/{}/main.eqi", parent.as_raw_fd()));
+        let listener = UnixListener::bind(through_parent)
+            .expect("create Unix-domain socket entry through retained parent");
+        drop(parent);
+        listener
+    };
+    #[cfg(not(target_os = "linux"))]
+    let listener = UnixListener::bind(&intended).expect("create Unix-domain socket entry");
+
+    assert!(
+        fs::symlink_metadata(&intended)
+            .expect("inspect intended socket entry")
+            .file_type()
+            .is_socket(),
+        "the socket must exist at the exact inventoried path"
+    );
+    listener
+}
+
 #[test]
 fn reads_only_inventory_and_rejects_invalid_entries() {
     let directory = TestDirectory::create("inventory");
@@ -134,11 +165,9 @@ fn enforces_manifest_and_source_read_budgets() {
 #[test]
 fn rejects_symlink_redirection_and_retains_its_root() {
     use std::os::unix::fs::symlink;
-    use std::os::unix::net::UnixListener;
 
     let special = TestDirectory::create("special-file");
-    let _listener =
-        UnixListener::bind(special.0.join("main.eqi")).expect("create special-file entry");
+    let _listener = bind_socket_entry(&special);
     write_manifest(&special, &["main.eqi"]);
     assert!(
         AuthorPackageDirectory::open_ambient(&special.0)
