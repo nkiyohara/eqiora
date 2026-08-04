@@ -338,7 +338,8 @@ fn rfc85_rows_reject_wrong_path_signal_count_class_owner_or_note() {
 }
 
 /// Both permissions are independently optional. The identity-free permission
-/// stays zero-identity; the fixture permission keeps each exact literal count.
+/// stays zero-identity; the fixture permission keeps each exact literal
+/// occurrence count.
 #[test]
 fn both_admission_permissions_are_optional_exact_and_fail_closed() {
     let contract = TransitionContract::from_classification();
@@ -391,12 +392,12 @@ fn both_admission_permissions_are_optional_exact_and_fail_closed() {
     );
     refused(
         classify(reset().admitting(first_identity_free.0, &pinned)),
-        "exact literal counts never relax",
+        "exact literal occurrence counts never relax",
     );
 
     // The fixture permission is separate: its zero-count Model file and every
     // one-count relational fixture reject both a changed signal list and a
-    // changed same-line literal count.
+    // changed same-line literal occurrence count.
     let model = &fixtures[0];
     let model_with_edge = format!(
         "{}{{\"{}\":\"{}\"}}\n",
@@ -410,11 +411,21 @@ fn both_admission_permissions_are_optional_exact_and_fail_closed() {
     );
     let relational = &fixtures[1];
     let no_literal = format!("{{\"{}\":\"not-a-digest\"}}\n", SEARCH_TOKENS[2]);
-    let two_literals = format!("{}{}", relational.source, relational.source);
-    for source in [&no_literal, &two_literals] {
+    let two_literals_same_line = format!(
+        "{{\"{}\":\"{}\",\"other_model\":\"{}\"}}\n",
+        SEARCH_TOKENS[2],
+        "e".repeat(64),
+        "f".repeat(64)
+    );
+    assert_eq!(
+        observe_admitted(two_literals_same_line.as_bytes()),
+        (vec![SEARCH_TOKENS[2].to_owned()], 2),
+        "the observer counts both lower-hex-64 occurrences on one Model line"
+    );
+    for source in [&no_literal, &two_literals_same_line] {
         refused(
             classify(reset().admitting(relational.path, source)),
-            "exact literal counts never relax",
+            "exact literal occurrence counts never relax",
         );
     }
 

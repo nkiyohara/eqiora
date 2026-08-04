@@ -855,11 +855,13 @@ def observe_admitted(raw: bytes) -> tuple[list[str], int]:
         lowered = line.lower()
         if "model" not in lowered and "transaction" not in lowered:
             continue
-        if any(
-            all(character in HEX_DIGITS for character in line[start : start + 64])
-            for start in range(len(line) - 63)
-        ):
-            literals += 1
+        start = 0
+        while start + 64 <= len(line):
+            if all(character in HEX_DIGITS for character in line[start : start + 64]):
+                literals += 1
+                start += 64
+            else:
+                start += 1
     return signals, literals
 
 
@@ -1008,6 +1010,27 @@ def check_post_reset_admissions() -> None:
         != [
             RFC85_IDENTITY_FREE_ADMISSION[1]["signals"],
             RFC85_IDENTITY_FREE_ADMISSION[1]["identity_literals"],
+        ],
+        True,
+    )
+    two_literals_same_line = (
+        b'{"model_sha256":"'
+        + (b"e" * 64)
+        + b'","other_model":"'
+        + (b"f" * 64)
+        + b'"}\n'
+    )
+    check(
+        "the observer counts two identities on one Model line",
+        list(observe_admitted(two_literals_same_line)),
+        [["model_sha256"], 2],
+    )
+    check(
+        "a one-occurrence fixture rejects a same-line second identity",
+        list(observe_admitted(two_literals_same_line))
+        != [
+            RFC85_FIXTURE_ADMISSION[1]["signals"],
+            RFC85_FIXTURE_ADMISSION[1]["identity_literals"],
         ],
         True,
     )

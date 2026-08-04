@@ -25,16 +25,31 @@ fn repository_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-fn has_lower_hex_identity(line: &str) -> bool {
+fn lower_hex_identity_occurrences(line: &str) -> usize {
     let lower = line.to_ascii_lowercase();
     if !(lower.contains("model") || lower.contains("transaction")) {
-        return false;
+        return 0;
     }
-    line.as_bytes().windows(64).any(|window| {
-        window
+
+    let bytes = line.as_bytes();
+    let mut count = 0;
+    let mut start = 0;
+    while start + 64 <= bytes.len() {
+        if bytes[start..start + 64]
             .iter()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
-    })
+        {
+            count += 1;
+            start += 64;
+        } else {
+            start += 1;
+        }
+    }
+    count
+}
+
+fn has_lower_hex_identity(line: &str) -> bool {
+    lower_hex_identity_occurrences(line) != 0
 }
 
 /// The exact spellings the sweep searches for, beside the same-line lower-hex-64
@@ -62,8 +77,9 @@ fn carries_model_search_signal(bytes: &[u8]) -> bool {
 }
 
 /// What one admitted later path's bytes spell: the search tokens they contain,
-/// in `SEARCH_TOKENS` order, and how many of their lines freeze a Model-derived
-/// lower-hex-64 identity. The live tree and every synthetic state read it here.
+/// in `SEARCH_TOKENS` order, and how many non-overlapping Model-derived
+/// lower-hex-64 occurrences appear on qualifying lines. The live tree and every
+/// synthetic state read it here.
 fn observe_admitted(bytes: &[u8]) -> (Vec<String>, usize) {
     let Ok(text) = std::str::from_utf8(bytes) else {
         return (Vec::new(), 0);
@@ -72,8 +88,8 @@ fn observe_admitted(bytes: &[u8]) -> (Vec<String>, usize) {
         .filter(|token| text.contains(**token))
         .map(|token| (*token).to_owned())
         .collect();
-    let literals = text.lines().filter(|line| has_lower_hex_identity(line));
-    (signals, literals.count())
+    let literals = text.lines().map(lower_hex_identity_occurrences).sum();
+    (signals, literals)
 }
 
 /// Trees the sweep does not enter, by exact relative path.
@@ -669,7 +685,8 @@ fn check_admitted(
         if literals != &admitted.identity_literals {
             return Err(format!(
                 "post-reset: {kind} path `{}` freezes {literals} Model-derived identity \
-                 literals against the recorded {}; exact literal counts never relax",
+                 literal occurrences against the recorded {}; exact literal occurrence counts \
+                 never relax",
                 admitted.path, admitted.identity_literals
             ));
         }

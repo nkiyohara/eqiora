@@ -30,8 +30,9 @@
   path and ordered signals, and fixed at zero Model-derived identity literals.
   `post_reset_fixture_admitted` contains exactly the 10 RFC 0085 expected paths,
   each optional and exact in path, ordered signals, same-line lower-hex-64
-  literal count, fixture class, owner, and note. Neither permission changes a
-  historical inventory, transition, evidence, promotion, or required count;
+  literal occurrence count, fixture class, owner, and note. Multiple matching
+  identities on one qualifying line are counted separately. Neither permission
+  changes a historical inventory, transition, evidence, promotion, or required count;
   fixture admission joins no identity-free set and weakens no zero-identity
   predicate. There is no glob, directory, suffix, inferred sibling, or
   proximity admission.

@@ -178,9 +178,10 @@ capability a condition of accepting a transition that completed without it. So
 `search.transition.post_reset_admitted` names all nine, and names them alone:
 
 - **containment only.** Admission widens what the post-reset discovered set may
-  contain; it never asks a path to exist. Every subset of the five, including
-  none and all, is accepted independently of this permission. All five happen
-  to exist in the observed checkout.
+  contain; it never asks a path to exist. Every subset of the nine, including
+  none and all, is accepted independently of this permission. The original
+  five paths and the RFC 0085 path happen to exist in the observed checkout;
+  the other three RFC 0085 paths are optional successors.
 - **exactly the recorded signal.** An admitted path that does exist must spell
   exactly the search tokens recorded for it, in the sweep's own order. A file
   that spells none is not the surface that was admitted, and one that spells
@@ -223,7 +224,8 @@ containment-only permission:
 
 - each of the ten exact paths is optional after the reset and absent before it;
 - a present path must carry its exact ordered search-signal list and exact
-  same-line lower-hex-64 literal count;
+  same-line lower-hex-64 literal occurrence count, so two identities on one
+  qualifying line count as two and are refused by every one-occurrence row;
 - every row has the exact delegated fixture class, owner, and note frozen by
   the independent transition oracle;
 - no row joins the inventory, retired, required, preserved-evidence, promoted,
@@ -485,8 +487,8 @@ containment rather than equality.
 
 Admission claims less again. It does not require any admitted path to exist and
 it owns none of their content: what a present identity-free path may spell and
-what it may not freeze, or what a present fixture path may spell and exactly how
-many same-line identities it carries, is the whole of it. The first five
+what it may not freeze, or what a present fixture path may spell and exactly
+how many same-line identity occurrences it carries, is the whole of it. The first five
 identity-free paths and the RFC exist in this checkout, so the live tree
 exercises their exact observed signals and zero-literal counts; the other three
 identity-free paths and all ten fixtures remain optional successor paths.
