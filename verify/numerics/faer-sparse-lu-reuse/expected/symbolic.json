@@ -1,0 +1,1402 @@
+{
+  "accepted_points": [
+    {
+      "binary64_observation": {
+        "absolute_representation_error": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "binary64_evaluated_residual_bits": [
+          "0x0000000000000000"
+        ],
+        "binary64_evaluated_residual_exact_values": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "exact_residual_of_stored_binary64_solution": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "nearest_solution_bits": [
+          "0x3fd0000000000000"
+        ],
+        "nearest_solution_exact_values": [
+          {
+            "denominator": 4,
+            "numerator": 1
+          }
+        ],
+        "not_used_for_residual_contract_error_bound": true,
+        "signed_representation_error": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "status": "observation_only_not_scientific_authority"
+      },
+      "exact_assembly": {
+        "canonical_unconstrained_csr": {
+          "columns": [
+            0,
+            1,
+            0,
+            1,
+            2,
+            1,
+            2
+          ],
+          "offsets": [
+            0,
+            2,
+            5,
+            7
+          ],
+          "shape": [
+            3,
+            3
+          ],
+          "values": [
+            {
+              "denominator": 1,
+              "numerator": 2
+            },
+            {
+              "denominator": 1,
+              "numerator": -2
+            },
+            {
+              "denominator": 1,
+              "numerator": -2
+            },
+            {
+              "denominator": 1,
+              "numerator": 4
+            },
+            {
+              "denominator": 1,
+              "numerator": -2
+            },
+            {
+              "denominator": 1,
+              "numerator": -2
+            },
+            {
+              "denominator": 1,
+              "numerator": 2
+            }
+          ]
+        },
+        "canonical_unconstrained_rhs": [
+          {
+            "denominator": 2,
+            "numerator": 1
+          },
+          {
+            "denominator": 1,
+            "numerator": 1
+          },
+          {
+            "denominator": 2,
+            "numerator": 1
+          }
+        ],
+        "unconstrained_global_coo": {
+          "matrix": [
+            {
+              "column": 0,
+              "element": 0,
+              "row": 0,
+              "value": {
+                "denominator": 1,
+                "numerator": 2
+              }
+            },
+            {
+              "column": 1,
+              "element": 0,
+              "row": 0,
+              "value": {
+                "denominator": 1,
+                "numerator": -2
+              }
+            },
+            {
+              "column": 0,
+              "element": 0,
+              "row": 1,
+              "value": {
+                "denominator": 1,
+                "numerator": -2
+              }
+            },
+            {
+              "column": 1,
+              "element": 0,
+              "row": 1,
+              "value": {
+                "denominator": 1,
+                "numerator": 2
+              }
+            },
+            {
+              "column": 1,
+              "element": 1,
+              "row": 1,
+              "value": {
+                "denominator": 1,
+                "numerator": 2
+              }
+            },
+            {
+              "column": 2,
+              "element": 1,
+              "row": 1,
+              "value": {
+                "denominator": 1,
+                "numerator": -2
+              }
+            },
+            {
+              "column": 1,
+              "element": 1,
+              "row": 2,
+              "value": {
+                "denominator": 1,
+                "numerator": -2
+              }
+            },
+            {
+              "column": 2,
+              "element": 1,
+              "row": 2,
+              "value": {
+                "denominator": 1,
+                "numerator": 2
+              }
+            }
+          ],
+          "rhs": [
+            {
+              "element": 0,
+              "row": 0,
+              "value": {
+                "denominator": 2,
+                "numerator": 1
+              }
+            },
+            {
+              "element": 0,
+              "row": 1,
+              "value": {
+                "denominator": 2,
+                "numerator": 1
+              }
+            },
+            {
+              "element": 1,
+              "row": 1,
+              "value": {
+                "denominator": 2,
+                "numerator": 1
+              }
+            },
+            {
+              "element": 1,
+              "row": 2,
+              "value": {
+                "denominator": 2,
+                "numerator": 1
+              }
+            }
+          ]
+        }
+      },
+      "exact_classification": {
+        "determinant": {
+          "denominator": 1,
+          "numerator": 4
+        },
+        "singular": false
+      },
+      "exact_solution": {
+        "reconstructed_global_dofs": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          },
+          {
+            "denominator": 4,
+            "numerator": 1
+          },
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "reduced_free_dofs": [
+          {
+            "denominator": 4,
+            "numerator": 1
+          }
+        ]
+      },
+      "exact_true_reduced_residual": {
+        "infinity_norm": {
+          "denominator": 1,
+          "numerator": 0
+        },
+        "vector": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ]
+      },
+      "id": "p0",
+      "parameters": {
+        "named": {
+          "boundary_offset": {
+            "denominator": 1,
+            "numerator": 0
+          },
+          "diffusion": {
+            "denominator": 1,
+            "numerator": 1
+          },
+          "source_scale": {
+            "denominator": 1,
+            "numerator": 2
+          }
+        },
+        "tuple": [
+          {
+            "denominator": 1,
+            "numerator": 2
+          },
+          {
+            "denominator": 1,
+            "numerator": 1
+          },
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ]
+      },
+      "residual_contract_solution_error_bound": {
+        "absolute_bound_per_free_component": {
+          "denominator": 4294967296,
+          "numerator": 1
+        },
+        "formula": "||A^{-1}||_infinity * 2^-30",
+        "inverse_infinity_norm": {
+          "denominator": 4,
+          "numerator": 1
+        },
+        "kind": "componentwise_absolute_bound_from_infinity_norm"
+      },
+      "strong_dirichlet_elimination": {
+        "boundary_dofs": [
+          0,
+          2
+        ],
+        "boundary_values": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          },
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "free_dofs": [
+          1
+        ],
+        "method": "free_boundary_block_elimination_not_boundary_row_replacement",
+        "reduced_csr": {
+          "columns": [
+            0
+          ],
+          "offsets": [
+            0,
+            1
+          ],
+          "shape": [
+            1,
+            1
+          ],
+          "values": [
+            {
+              "denominator": 1,
+              "numerator": 4
+            }
+          ]
+        },
+        "reduced_rhs": [
+          {
+            "denominator": 1,
+            "numerator": 1
+          }
+        ]
+      }
+    },
+    {
+      "binary64_observation": {
+        "absolute_representation_error": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "binary64_evaluated_residual_bits": [
+          "0x0000000000000000"
+        ],
+        "binary64_evaluated_residual_exact_values": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "exact_residual_of_stored_binary64_solution": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "nearest_solution_bits": [
+          "0x3fe0000000000000"
+        ],
+        "nearest_solution_exact_values": [
+          {
+            "denominator": 2,
+            "numerator": 1
+          }
+        ],
+        "not_used_for_residual_contract_error_bound": true,
+        "signed_representation_error": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "status": "observation_only_not_scientific_authority"
+      },
+      "exact_assembly": {
+        "canonical_unconstrained_csr": {
+          "columns": [
+            0,
+            1,
+            0,
+            1,
+            2,
+            1,
+            2
+          ],
+          "offsets": [
+            0,
+            2,
+            5,
+            7
+          ],
+          "shape": [
+            3,
+            3
+          ],
+          "values": [
+            {
+              "denominator": 1,
+              "numerator": 2
+            },
+            {
+              "denominator": 1,
+              "numerator": -2
+            },
+            {
+              "denominator": 1,
+              "numerator": -2
+            },
+            {
+              "denominator": 1,
+              "numerator": 4
+            },
+            {
+              "denominator": 1,
+              "numerator": -2
+            },
+            {
+              "denominator": 1,
+              "numerator": -2
+            },
+            {
+              "denominator": 1,
+              "numerator": 2
+            }
+          ]
+        },
+        "canonical_unconstrained_rhs": [
+          {
+            "denominator": 1,
+            "numerator": 1
+          },
+          {
+            "denominator": 1,
+            "numerator": 2
+          },
+          {
+            "denominator": 1,
+            "numerator": 1
+          }
+        ],
+        "unconstrained_global_coo": {
+          "matrix": [
+            {
+              "column": 0,
+              "element": 0,
+              "row": 0,
+              "value": {
+                "denominator": 1,
+                "numerator": 2
+              }
+            },
+            {
+              "column": 1,
+              "element": 0,
+              "row": 0,
+              "value": {
+                "denominator": 1,
+                "numerator": -2
+              }
+            },
+            {
+              "column": 0,
+              "element": 0,
+              "row": 1,
+              "value": {
+                "denominator": 1,
+                "numerator": -2
+              }
+            },
+            {
+              "column": 1,
+              "element": 0,
+              "row": 1,
+              "value": {
+                "denominator": 1,
+                "numerator": 2
+              }
+            },
+            {
+              "column": 1,
+              "element": 1,
+              "row": 1,
+              "value": {
+                "denominator": 1,
+                "numerator": 2
+              }
+            },
+            {
+              "column": 2,
+              "element": 1,
+              "row": 1,
+              "value": {
+                "denominator": 1,
+                "numerator": -2
+              }
+            },
+            {
+              "column": 1,
+              "element": 1,
+              "row": 2,
+              "value": {
+                "denominator": 1,
+                "numerator": -2
+              }
+            },
+            {
+              "column": 2,
+              "element": 1,
+              "row": 2,
+              "value": {
+                "denominator": 1,
+                "numerator": 2
+              }
+            }
+          ],
+          "rhs": [
+            {
+              "element": 0,
+              "row": 0,
+              "value": {
+                "denominator": 1,
+                "numerator": 1
+              }
+            },
+            {
+              "element": 0,
+              "row": 1,
+              "value": {
+                "denominator": 1,
+                "numerator": 1
+              }
+            },
+            {
+              "element": 1,
+              "row": 1,
+              "value": {
+                "denominator": 1,
+                "numerator": 1
+              }
+            },
+            {
+              "element": 1,
+              "row": 2,
+              "value": {
+                "denominator": 1,
+                "numerator": 1
+              }
+            }
+          ]
+        }
+      },
+      "exact_classification": {
+        "determinant": {
+          "denominator": 1,
+          "numerator": 4
+        },
+        "singular": false
+      },
+      "exact_solution": {
+        "reconstructed_global_dofs": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          },
+          {
+            "denominator": 2,
+            "numerator": 1
+          },
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "reduced_free_dofs": [
+          {
+            "denominator": 2,
+            "numerator": 1
+          }
+        ]
+      },
+      "exact_true_reduced_residual": {
+        "infinity_norm": {
+          "denominator": 1,
+          "numerator": 0
+        },
+        "vector": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ]
+      },
+      "id": "p1",
+      "parameters": {
+        "named": {
+          "boundary_offset": {
+            "denominator": 1,
+            "numerator": 0
+          },
+          "diffusion": {
+            "denominator": 1,
+            "numerator": 1
+          },
+          "source_scale": {
+            "denominator": 1,
+            "numerator": 4
+          }
+        },
+        "tuple": [
+          {
+            "denominator": 1,
+            "numerator": 4
+          },
+          {
+            "denominator": 1,
+            "numerator": 1
+          },
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ]
+      },
+      "residual_contract_solution_error_bound": {
+        "absolute_bound_per_free_component": {
+          "denominator": 4294967296,
+          "numerator": 1
+        },
+        "formula": "||A^{-1}||_infinity * 2^-30",
+        "inverse_infinity_norm": {
+          "denominator": 4,
+          "numerator": 1
+        },
+        "kind": "componentwise_absolute_bound_from_infinity_norm"
+      },
+      "strong_dirichlet_elimination": {
+        "boundary_dofs": [
+          0,
+          2
+        ],
+        "boundary_values": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          },
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "free_dofs": [
+          1
+        ],
+        "method": "free_boundary_block_elimination_not_boundary_row_replacement",
+        "reduced_csr": {
+          "columns": [
+            0
+          ],
+          "offsets": [
+            0,
+            1
+          ],
+          "shape": [
+            1,
+            1
+          ],
+          "values": [
+            {
+              "denominator": 1,
+              "numerator": 4
+            }
+          ]
+        },
+        "reduced_rhs": [
+          {
+            "denominator": 1,
+            "numerator": 2
+          }
+        ]
+      }
+    },
+    {
+      "binary64_observation": {
+        "absolute_representation_error": [
+          {
+            "denominator": 90071992547409920,
+            "numerator": 1
+          }
+        ],
+        "binary64_evaluated_residual_bits": [
+          "0x0000000000000000"
+        ],
+        "binary64_evaluated_residual_exact_values": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "exact_residual_of_stored_binary64_solution": [
+          {
+            "denominator": 18014398509481984,
+            "numerator": 1
+          }
+        ],
+        "nearest_solution_bits": [
+          "0x3fc999999999999a"
+        ],
+        "nearest_solution_exact_values": [
+          {
+            "denominator": 18014398509481984,
+            "numerator": 3602879701896397
+          }
+        ],
+        "not_used_for_residual_contract_error_bound": true,
+        "signed_representation_error": [
+          {
+            "denominator": 90071992547409920,
+            "numerator": 1
+          }
+        ],
+        "status": "observation_only_not_scientific_authority"
+      },
+      "exact_assembly": {
+        "canonical_unconstrained_csr": {
+          "columns": [
+            0,
+            1,
+            0,
+            1,
+            2,
+            1,
+            2
+          ],
+          "offsets": [
+            0,
+            2,
+            5,
+            7
+          ],
+          "shape": [
+            3,
+            3
+          ],
+          "values": [
+            {
+              "denominator": 2,
+              "numerator": 5
+            },
+            {
+              "denominator": 2,
+              "numerator": -5
+            },
+            {
+              "denominator": 2,
+              "numerator": -5
+            },
+            {
+              "denominator": 1,
+              "numerator": 5
+            },
+            {
+              "denominator": 2,
+              "numerator": -5
+            },
+            {
+              "denominator": 2,
+              "numerator": -5
+            },
+            {
+              "denominator": 2,
+              "numerator": 5
+            }
+          ]
+        },
+        "canonical_unconstrained_rhs": [
+          {
+            "denominator": 2,
+            "numerator": 1
+          },
+          {
+            "denominator": 1,
+            "numerator": 1
+          },
+          {
+            "denominator": 2,
+            "numerator": 1
+          }
+        ],
+        "unconstrained_global_coo": {
+          "matrix": [
+            {
+              "column": 0,
+              "element": 0,
+              "row": 0,
+              "value": {
+                "denominator": 2,
+                "numerator": 5
+              }
+            },
+            {
+              "column": 1,
+              "element": 0,
+              "row": 0,
+              "value": {
+                "denominator": 2,
+                "numerator": -5
+              }
+            },
+            {
+              "column": 0,
+              "element": 0,
+              "row": 1,
+              "value": {
+                "denominator": 2,
+                "numerator": -5
+              }
+            },
+            {
+              "column": 1,
+              "element": 0,
+              "row": 1,
+              "value": {
+                "denominator": 2,
+                "numerator": 5
+              }
+            },
+            {
+              "column": 1,
+              "element": 1,
+              "row": 1,
+              "value": {
+                "denominator": 2,
+                "numerator": 5
+              }
+            },
+            {
+              "column": 2,
+              "element": 1,
+              "row": 1,
+              "value": {
+                "denominator": 2,
+                "numerator": -5
+              }
+            },
+            {
+              "column": 1,
+              "element": 1,
+              "row": 2,
+              "value": {
+                "denominator": 2,
+                "numerator": -5
+              }
+            },
+            {
+              "column": 2,
+              "element": 1,
+              "row": 2,
+              "value": {
+                "denominator": 2,
+                "numerator": 5
+              }
+            }
+          ],
+          "rhs": [
+            {
+              "element": 0,
+              "row": 0,
+              "value": {
+                "denominator": 2,
+                "numerator": 1
+              }
+            },
+            {
+              "element": 0,
+              "row": 1,
+              "value": {
+                "denominator": 2,
+                "numerator": 1
+              }
+            },
+            {
+              "element": 1,
+              "row": 1,
+              "value": {
+                "denominator": 2,
+                "numerator": 1
+              }
+            },
+            {
+              "element": 1,
+              "row": 2,
+              "value": {
+                "denominator": 2,
+                "numerator": 1
+              }
+            }
+          ]
+        }
+      },
+      "exact_classification": {
+        "determinant": {
+          "denominator": 1,
+          "numerator": 5
+        },
+        "singular": false
+      },
+      "exact_solution": {
+        "reconstructed_global_dofs": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          },
+          {
+            "denominator": 5,
+            "numerator": 1
+          },
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "reduced_free_dofs": [
+          {
+            "denominator": 5,
+            "numerator": 1
+          }
+        ]
+      },
+      "exact_true_reduced_residual": {
+        "infinity_norm": {
+          "denominator": 1,
+          "numerator": 0
+        },
+        "vector": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ]
+      },
+      "id": "p2",
+      "parameters": {
+        "named": {
+          "boundary_offset": {
+            "denominator": 1,
+            "numerator": 0
+          },
+          "diffusion": {
+            "denominator": 4,
+            "numerator": 5
+          },
+          "source_scale": {
+            "denominator": 1,
+            "numerator": 2
+          }
+        },
+        "tuple": [
+          {
+            "denominator": 1,
+            "numerator": 2
+          },
+          {
+            "denominator": 4,
+            "numerator": 5
+          },
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ]
+      },
+      "residual_contract_solution_error_bound": {
+        "absolute_bound_per_free_component": {
+          "denominator": 5368709120,
+          "numerator": 1
+        },
+        "formula": "||A^{-1}||_infinity * 2^-30",
+        "inverse_infinity_norm": {
+          "denominator": 5,
+          "numerator": 1
+        },
+        "kind": "componentwise_absolute_bound_from_infinity_norm"
+      },
+      "strong_dirichlet_elimination": {
+        "boundary_dofs": [
+          0,
+          2
+        ],
+        "boundary_values": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          },
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ],
+        "free_dofs": [
+          1
+        ],
+        "method": "free_boundary_block_elimination_not_boundary_row_replacement",
+        "reduced_csr": {
+          "columns": [
+            0
+          ],
+          "offsets": [
+            0,
+            1
+          ],
+          "shape": [
+            1,
+            1
+          ],
+          "values": [
+            {
+              "denominator": 1,
+              "numerator": 5
+            }
+          ]
+        },
+        "reduced_rhs": [
+          {
+            "denominator": 1,
+            "numerator": 1
+          }
+        ]
+      }
+    }
+  ],
+  "claim_boundary": {
+    "claims": [
+      "exact two-element one-dimensional uniform Q1 reference systems at the three stated parameter tuples",
+      "exact two-point Gauss-Legendre integration for the degree-zero stiffness and degree-one load integrands",
+      "exact strong Dirichlet free-DOF elimination, solve, determinants, residuals, and stated error bounds",
+      "classification of the two required canonical CSR mutants"
+    ],
+    "nonclaims": [
+      "no solver implementation, factorization-reuse behavior, timing, or performance is evaluated",
+      "no mesh, element, quadrature, PDE, boundary condition, or parameter tuple beyond the frozen claim is generalized",
+      "binary64 observations are not substitutes for exact assembly or the residual-contract error bound"
+    ]
+  },
+  "mutants": {
+    "required_same_pattern_singular": {
+      "augmented_rank": 1,
+      "canonical_csr": {
+        "columns": [
+          0
+        ],
+        "offsets": [
+          0,
+          1
+        ],
+        "shape": [
+          1,
+          1
+        ],
+        "values": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          }
+        ]
+      },
+      "classification": "singular_with_retained_structure",
+      "coefficient_rank": 0,
+      "compatible_with_accepted_reduced_pattern": true,
+      "exact_determinant": {
+        "denominator": 1,
+        "numerator": 0
+      },
+      "exact_solution": null,
+      "rhs": [
+        {
+          "denominator": 1,
+          "numerator": 1
+        }
+      ],
+      "singular": true,
+      "zero_residual_solution_exists": false
+    },
+    "required_structure_mismatch": {
+      "canonical_csr": {
+        "columns": [
+          0,
+          1,
+          0,
+          1
+        ],
+        "offsets": [
+          0,
+          2,
+          4
+        ],
+        "shape": [
+          2,
+          2
+        ],
+        "values": [
+          {
+            "denominator": 1,
+            "numerator": 4
+          },
+          {
+            "denominator": 1,
+            "numerator": -2
+          },
+          {
+            "denominator": 1,
+            "numerator": -2
+          },
+          {
+            "denominator": 1,
+            "numerator": 4
+          }
+        ]
+      },
+      "classification": "not_an_accepted_compatible_structure",
+      "compatible_with_accepted_reduced_pattern": false,
+      "exact_determinant": {
+        "denominator": 1,
+        "numerator": 12
+      },
+      "exact_solution": [
+        {
+          "denominator": 2,
+          "numerator": 1
+        },
+        {
+          "denominator": 2,
+          "numerator": 1
+        }
+      ],
+      "exact_true_residual": [
+        {
+          "denominator": 1,
+          "numerator": 0
+        },
+        {
+          "denominator": 1,
+          "numerator": 0
+        }
+      ],
+      "rhs": [
+        {
+          "denominator": 1,
+          "numerator": 1
+        },
+        {
+          "denominator": 1,
+          "numerator": 1
+        }
+      ],
+      "singular": false
+    }
+  },
+  "public_claim": {
+    "PDE": "-div(diffusion * grad(potential)) - source_scale = 0",
+    "absolute_residual_tolerance": {
+      "denominator": 1073741824,
+      "numerator": 1
+    },
+    "absolute_residual_tolerance_expression": "2^-30",
+    "domain": [
+      {
+        "denominator": 1,
+        "numerator": 0
+      },
+      {
+        "denominator": 1,
+        "numerator": 1
+      }
+    ],
+    "parameter_tuple_order": [
+      "source_scale",
+      "diffusion",
+      "boundary_offset"
+    ],
+    "uniform_Q1_element_count": 2,
+    "weak_form": "integral(diffusion*potential_prime*test_prime) = integral(source_scale*test)"
+  },
+  "reference_construction": {
+    "Q1_basis_coefficients_in_ascending_xi_power": [
+      [
+        {
+          "denominator": 2,
+          "numerator": 1
+        },
+        {
+          "denominator": 2,
+          "numerator": -1
+        }
+      ],
+      [
+        {
+          "denominator": 2,
+          "numerator": 1
+        },
+        {
+          "denominator": 2,
+          "numerator": 1
+        }
+      ]
+    ],
+    "Q1_basis_derivative_coefficients_in_ascending_xi_power": [
+      [
+        {
+          "denominator": 2,
+          "numerator": -1
+        }
+      ],
+      [
+        {
+          "denominator": 2,
+          "numerator": 1
+        }
+      ]
+    ],
+    "affine_element_maps": [
+      {
+        "element": 0,
+        "global_dofs": [
+          0,
+          1
+        ],
+        "jacobian_dx_dxi": {
+          "denominator": 4,
+          "numerator": 1
+        },
+        "physical_interval": [
+          {
+            "denominator": 1,
+            "numerator": 0
+          },
+          {
+            "denominator": 2,
+            "numerator": 1
+          }
+        ],
+        "x_of_xi_coefficients_in_ascending_power": [
+          {
+            "denominator": 4,
+            "numerator": 1
+          },
+          {
+            "denominator": 4,
+            "numerator": 1
+          }
+        ]
+      },
+      {
+        "element": 1,
+        "global_dofs": [
+          1,
+          2
+        ],
+        "jacobian_dx_dxi": {
+          "denominator": 4,
+          "numerator": 1
+        },
+        "physical_interval": [
+          {
+            "denominator": 2,
+            "numerator": 1
+          },
+          {
+            "denominator": 1,
+            "numerator": 1
+          }
+        ],
+        "x_of_xi_coefficients_in_ascending_power": [
+          {
+            "denominator": 4,
+            "numerator": 3
+          },
+          {
+            "denominator": 4,
+            "numerator": 1
+          }
+        ]
+      }
+    ],
+    "quadrature_exactness_proof": {
+      "exact_moment_identities": [
+        {
+          "degree": 0,
+          "equal": true,
+          "exact_integral_over_minus1_plus1": {
+            "denominator": 1,
+            "numerator": 2
+          },
+          "two_point_rule_moment": {
+            "denominator": 1,
+            "numerator": 2
+          }
+        },
+        {
+          "degree": 1,
+          "equal": true,
+          "exact_integral_over_minus1_plus1": {
+            "denominator": 1,
+            "numerator": 0
+          },
+          "two_point_rule_moment": {
+            "denominator": 1,
+            "numerator": 0
+          }
+        },
+        {
+          "degree": 2,
+          "equal": true,
+          "exact_integral_over_minus1_plus1": {
+            "denominator": 3,
+            "numerator": 2
+          },
+          "two_point_rule_moment": {
+            "denominator": 3,
+            "numerator": 2
+          }
+        },
+        {
+          "degree": 3,
+          "equal": true,
+          "exact_integral_over_minus1_plus1": {
+            "denominator": 1,
+            "numerator": 0
+          },
+          "two_point_rule_moment": {
+            "denominator": 1,
+            "numerator": 0
+          }
+        }
+      ],
+      "floating_nodes_used": false,
+      "linearity_conclusion": "exact for every polynomial of degree <= 3",
+      "relevant_integrands": {
+        "Q1_stiffness_degree": 0,
+        "constant_source_times_Q1_basis_degree": 1
+      },
+      "rule": "two_point_gauss_legendre",
+      "symbolic_node_identity": "r^2 = 1/3 with nodes -r and +r",
+      "symbolic_nodes": [
+        "-1/sqrt(3)",
+        "+1/sqrt(3)"
+      ],
+      "weights": [
+        {
+          "denominator": 1,
+          "numerator": 1
+        },
+        {
+          "denominator": 1,
+          "numerator": 1
+        }
+      ]
+    },
+    "reference_coordinate_domain": [
+      {
+        "denominator": 1,
+        "numerator": -1
+      },
+      {
+        "denominator": 1,
+        "numerator": 1
+      }
+    ]
+  },
+  "schema": "eqiora.faer_sparse_lu_reuse.symbolic_reference.v1",
+  "scientific_authority": {
+    "arithmetic": "Python standard-library fractions.Fraction",
+    "assembly_route": "reference Q1 polynomials and exact Gauss moment identities",
+    "floating_point_role": "binary64 observations only"
+  },
+  "self_checks_and_falsifiers": [
+    "required parameter tuple order rejects source/diffusion swaps",
+    "weak-form positive load rejects a negative-source-sign mutant",
+    "source and diffusion scaling identities hold independently",
+    "nonzero boundary sentinel requires both A_fb*g contributions",
+    "duplicate COO entries accumulate instead of last-write overwrite",
+    "canonical CSR rows have deterministic increasing column order",
+    "required 2x2 mutant mismatches the accepted reduced pattern",
+    "required zero 1x1 mutant retains pattern and is exactly singular"
+  ]
+}

@@ -413,7 +413,9 @@ ceiling = 2
 
 [[public_surface]]
 crate = "eqiora-backend-faer"
-ceiling = 4
+ceiling = 5
+reason = "exact admitted faer SparseLU reuse owner for the bounded host-serial slice"
+removal = "delete or replace the backend-owned exception only when a real second provider requires the same semantics and a common owner can preserve the exact admission, identity, acceptance, and failure-retention invariants; speculative provider generalization is not a deletion trigger"
 
 [[public_surface]]
 crate = "eqiora-backend-mpi"

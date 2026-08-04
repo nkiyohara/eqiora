@@ -7,6 +7,10 @@
 //! verification.
 
 mod sparse_lu;
+mod sparse_lu_factor;
+mod sparse_lu_reuse;
+
+pub use sparse_lu_reuse::FaerSparseLuReuseOwner;
 
 use std::sync::{Arc, Mutex};
 
