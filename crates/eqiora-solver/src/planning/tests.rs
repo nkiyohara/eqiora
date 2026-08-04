@@ -875,7 +875,7 @@ fn malformed_inventory_rejects_before_profile_or_numerical_work() {
         instrumented_canonical_system(&storage, LinearOperatorProperties::General);
     storage.reset_after_legitimate_construction();
     let problem = system.linear_problem().unwrap();
-    assert!(std::ptr::eq(
+    assert!(std::ptr::addr_eq(
         problem.operator(),
         &system as &dyn LinearOperator
     ));
@@ -918,7 +918,7 @@ fn common_controls_are_compared_by_bits_and_exact_iteration_count() {
         instrumented_canonical_system(&storage, LinearOperatorProperties::General);
     storage.reset_after_legitimate_construction();
     let problem = system.linear_problem().unwrap();
-    assert!(std::ptr::eq(
+    assert!(std::ptr::addr_eq(
         problem.operator(),
         &system as &dyn LinearOperator
     ));
@@ -1155,7 +1155,7 @@ fn profile_and_capability_rejections_cannot_be_ranked() {
     let exact = capability(faer_bicgstab_plan());
     let capability_mutants = [
         SolverCapability {
-            algorithm: LinearSolver::ConjugateGradient,
+            algorithm: LinearSolver::SparseLu,
             ..exact
         },
         SolverCapability {
