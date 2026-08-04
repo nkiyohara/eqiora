@@ -1,7 +1,7 @@
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
     GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, ModelEnvelope,
-    SimplicialMeshEnvelopeV1,
+    ReplayableCanonicalModelArtifact, SimplicialMeshEnvelopeV1,
 };
 use eqiora::assembly::{
     AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork, CsrMatrix,
@@ -197,6 +197,53 @@ impl Fixture {
             self.driven_boundary,
         )
     }
+}
+
+#[allow(dead_code, clippy::too_many_arguments)]
+fn compile_contract_exact_issue_signatures(
+    model: &impl ReplayableCanonicalModelArtifact,
+    geometry: &GeometryIdentityEnvelopeV1,
+    mesh: &SimplicialMeshEnvelopeV1,
+    correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+    time_step: DynQuantity,
+    prior_displacement: &[(VertexId, [f64; 3])],
+    prior_velocity: &[(VertexId, [f64; 3])],
+    driven_boundary: Id<kinds::Domain>,
+    driven_total_displacement: &[(VertexId, [f64; 3])],
+    assembly: &dyn AssemblyBackend,
+    solver: &dyn LinearSolverBackend,
+) -> Result<AcceptedPrescribedDynamicSolidStep3d, Diagnostic> {
+    let mut reference: PrescribedDynamicSolidReference3d = PrescribedDynamicSolidReference3d::new(
+        model,
+        geometry,
+        mesh,
+        correspondence,
+        time_step,
+        prior_displacement,
+        prior_velocity,
+        driven_boundary,
+    )?;
+    let immutable_reference: &PrescribedDynamicSolidReference3d = &reference;
+    let generation: u64 = immutable_reference.accepted_generation();
+    let _: &[VertexId] = immutable_reference.driven_vertices();
+    let _: (u64, Vec<(VertexId, [f64; 3])>, Vec<(VertexId, [f64; 3])>) =
+        immutable_reference.project_driven_surface();
+
+    let accepted: AcceptedPrescribedDynamicSolidStep3d =
+        reference.accept_candidate(generation, driven_total_displacement, assembly, solver)?;
+    let _: u64 = accepted.generation();
+    let _: &[(VertexId, [f64; 3])] = accepted.displacement();
+    let _: &[(VertexId, [f64; 3])] = accepted.velocity();
+    let _: &[(VertexId, [f64; 3])] = accepted.acceleration();
+    let _: &[(VertexId, [f64; 3])] = accepted.constraint_reactions();
+    let _: &CsrMatrix = accepted.mass_operator();
+    let _: &CsrMatrix = accepted.stiffness_operator();
+    let _: &CanonicalCsrSystemView = accepted.reduced_system();
+    let _: f64 = accepted.free_momentum_residual_norm();
+    let _: f64 = accepted.kinematic_residual_norm();
+    let _: &eqiora::assembly::AssemblyReport = accepted.assembly_report();
+    let _: &eqiora::solver::SolveReport = accepted.solve_report();
+    Ok(accepted)
 }
 
 #[test]
@@ -504,6 +551,20 @@ fn constructor_rejects_invalid_time_state_lineage_boundary_and_topology() {
         &fixture.prior_displacement,
         &fixture.prior_velocity,
         domain(&fixture.document, "x_lower"),
+    );
+    assert!(
+        PrescribedDynamicSolidReference3d::new(
+            &fixture.model,
+            &fixture.geometry,
+            &fixture.mesh,
+            &fixture.correspondence,
+            DynQuantity::new(oracle.time_step_s, TIME),
+            &fixture.prior_displacement,
+            &fixture.prior_velocity,
+            domain(&fixture.document, "y_lower"),
+        )
+        .is_err(),
+        "an actual FluxZero y-lower boundary cannot be selected as the driven live PortBinding"
     );
     assert_reference_rejected(
         &fixture,
