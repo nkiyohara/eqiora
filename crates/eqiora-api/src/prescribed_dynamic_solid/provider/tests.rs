@@ -24,6 +24,17 @@ const EXPECTED_OCCURRENCE: &[u8] = include_bytes!(
     "../../../../../verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/expected/provider-occurrence.json"
 );
 
+fn compact_occurrence_fixture() -> &'static [u8] {
+    let compact = EXPECTED_OCCURRENCE
+        .strip_suffix(b"\n")
+        .expect("the occurrence fixture carries one repository newline");
+    assert!(
+        !compact.ends_with(b"\n"),
+        "the occurrence fixture carries exactly one repository newline"
+    );
+    compact
+}
+
 fn repository_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
@@ -148,21 +159,6 @@ fn occurrence_from_wire(
     .unwrap_or_else(|error| panic!("{label} must remain locally valid occurrence data: {error}"))
 }
 
-fn assert_occurrence_wire_rejected(wire: &[u8], label: &str) {
-    let error = match PrescribedDynamicSolidProviderOccurrenceEnvelopeV1::from_json(
-        wire,
-        Default::default(),
-    ) {
-        Err(error) => error,
-        Ok(_) => panic!("{label} unexpectedly decoded"),
-    };
-    assert_eq!(
-        error.code(),
-        eqiora_core::diagnostic::codes::INVALID_ARTIFACT,
-        "{label} returned the wrong diagnostic"
-    );
-}
-
 fn replace_first(bytes: &[u8], before: &[u8], after: &[u8]) -> Vec<u8> {
     let start = bytes
         .windows(before.len())
@@ -253,17 +249,23 @@ fn revalidate_rejects_every_occurrence_cross_substitution() {
     );
     assert_revalidation_rejected(&velocity, "velocity input-block substitution");
 
+    let mut adapter = owner();
     let wire = replace_first(
-        EXPECTED_OCCURRENCE,
+        compact_occurrence_fixture(),
         b"eqiora.subprocess.external-boundary-provider",
         b"eqiora.subprocess.foreign-boundary-provider",
     );
-    assert_occurrence_wire_rejected(&wire, "fixed adapter substitution");
+    adapter.provider_occurrence = occurrence_from_wire(&wire, "adapter substitution");
+    assert_revalidation_rejected(&adapter, "occurrence adapter substitution");
 
     let mut accepted_state = owner();
     let retained = accepted_state.accepted_state.digest().unwrap().to_string();
     let foreign = accepted_state.prior_state.digest().unwrap().to_string();
-    let wire = replace_first(EXPECTED_OCCURRENCE, retained.as_bytes(), foreign.as_bytes());
+    let wire = replace_first(
+        compact_occurrence_fixture(),
+        retained.as_bytes(),
+        foreign.as_bytes(),
+    );
     accepted_state.provider_occurrence = occurrence_from_wire(&wire, "accepted State substitution");
     assert_revalidation_rejected(&accepted_state, "occurrence accepted State substitution");
 }
