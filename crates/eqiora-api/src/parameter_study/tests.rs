@@ -17,8 +17,38 @@ const DEFAULT_POINT: [f64; 3] = [19.739208802178716, 1.0, 0.0];
 const PERMUTED_DIFFUSION: [f64; 3] = [1.25, 0.75, 1.0];
 const CANONICAL_DIFFUSION: [f64; 3] = [0.75, 1.0, 1.25];
 
+mod public_integration_oracle {
+    mod eqiora {
+        pub use eqiora_core::Id;
+
+        pub mod api {
+            pub use crate::{
+                CompleteParameterStudy, DifferentiableEvaluation, DifferentiableProgram,
+                ModelDocument, ParameterStudyPlan, ParameterStudyPointKey,
+                ParameterStudyTerminalReport, ScalarEllipticExecutionEnvironment,
+                ScalarEllipticIntent, ScalarEllipticMethod,
+            };
+        }
+
+        pub mod diagnostic {
+            pub use eqiora_core::diagnostic::codes;
+        }
+
+        pub mod entity {
+            pub use eqiora_core::entity::kinds;
+        }
+
+        pub mod realization {
+            pub use eqiora_realization::RealizationRevision;
+        }
+    }
+
+    include!("../../../eqiora/tests/bounded_parameter_study.rs");
+}
+
 #[test]
 fn registered_composition_oracle_executes_all_private_falsifiers() {
+    public_integration_oracle::execute_all_public_authority_tests();
     injected_evaluator_is_called_once_per_reached_point_in_canonical_serial_order();
     injected_failure_stops_at_its_key_and_preserves_the_completed_prefix();
     injected_evaluator_proves_cancellation_boundaries_and_final_completion_priority();

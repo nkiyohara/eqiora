@@ -26,6 +26,16 @@ struct Fixture {
     wave_number: Id<kinds::Parameter>,
 }
 
+pub fn execute_all_public_authority_tests() {
+    study_matches_separately_accepted_evaluations_in_canonical_order();
+    every_caller_permutation_has_one_plan_and_one_member_order();
+    planning_rejects_every_frozen_inventory_and_identity_mutant();
+    point_keys_use_parameter_identity_exact_bits_and_total_order();
+    point_failure_is_terminal_and_preserves_original_diagnostics();
+    cancellation_is_observed_only_before_or_between_point_evaluations();
+    repeated_direct_point_evaluation_remains_isolated_around_an_alternate_point();
+}
+
 #[test]
 fn study_matches_separately_accepted_evaluations_in_canonical_order() {
     let fixture = build_fixture(ScalarEllipticMethod::FiniteElement);
