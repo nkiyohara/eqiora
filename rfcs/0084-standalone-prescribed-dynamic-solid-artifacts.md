@@ -62,6 +62,8 @@ This RFC admits exactly the reference occurrence already verified by
   three-dimensional dynamic solid;
 - the exact ordered nine-vertex, twelve-positive-tetrahedron imported mesh and
   its exact Geometry identity and Geometry-to-Mesh correspondence;
+- the Geometry identity's exact `1e-12 m` classification tolerance and the
+  imported mesh's exact `0.1` minimum-mean-ratio admission gate;
 - the solid body Domain, displacement and velocity Fields, fixed `x = 0`
   boundary, and live driven `x = 1` boundary derived from that Model;
 - complete canonical prior displacement and velocity at step zero;
@@ -198,14 +200,23 @@ vertex_index 7, value_m [0.015, 0.0, 0.0]
 The list is ordered by exact mesh vertex index, is unique, and must equal the
 driven vertex inventory reconstructed from the correspondence. Values use
 canonical finite binary64 spelling. Negative zero is rejected. The listed
-values, solver policy, and tolerances are copied from the accepted reference;
-they are not new scientific assertions.
+values, solver policy, geometry tolerance, mesh-quality gate, and solver
+tolerances are copied from the accepted reference; they are not new scientific
+assertions.
 
 Geometry and correspondence digests are present because the unchanged V1
 FieldSnapshot and State wires name them. Omitting them from the Realization
 would make the application owner reconstruct two lineage edges from ambient
-caller convention. Material values are not duplicated because their authority
-is the exact Model artifact.
+caller convention. The Geometry identity must satisfy
+`geometry.tolerance_m().to_bits() == (1.0e-12_f64).to_bits()`, and the mesh
+artifact must satisfy
+`mesh.mesh().quality_gate().minimum_mean_ratio().to_bits() == (0.1_f64).to_bits()`.
+Those constants are already members of the Geometry and mesh canonical bytes;
+their referenced digests make both constants digest-bearing in this
+Realization without duplicating either value in its wire. Changing either
+constant changes its owner artifact's digest, makes the recorded edge stale,
+and changes this Realization's canonical bytes and digest. Material values are
+not duplicated because their authority is the exact Model artifact.
 
 ### Canonical bytes and identity
 
@@ -233,11 +244,12 @@ Realization digest.
 
 The application path constructs the envelope only after the exact reference
 has returned `AcceptedPrescribedDynamicSolidStep3d`. The artifact constructor
-accepts the exact Model, Geometry, correspondence, mesh, semantic role
-identities, explicit Realization revision, and driven values. Every numerical
-and placement policy literal is internal and fixed; it is not a caller option.
-The artifact crate does not depend on the numerics crate and therefore does
-not accept or reconstruct `AcceptedPrescribedDynamicSolidStep3d`.
+accepts the exact Model, Geometry, correspondence, mesh, explicit Realization
+revision, and driven values. It derives every semantic role from the bound
+Model; no Domain or Field role is a caller assertion. Every numerical and
+placement policy literal is internal and fixed; it is not a caller option. The
+artifact crate does not depend on the numerics crate and therefore does not
+accept or reconstruct `AcceptedPrescribedDynamicSolidStep3d`.
 
 The public artifact surface is exactly this constructor, decoder, canonical
 identity API, role projection, and external validation API:
@@ -249,11 +261,6 @@ pub fn new(
     correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
     mesh: &SimplicialMeshEnvelopeV1,
     realization_revision: RealizationRevision,
-    solid_domain: Id<kinds::Domain>,
-    displacement_field: Id<kinds::Field>,
-    velocity_field: Id<kinds::Field>,
-    fixed_boundary: Id<kinds::Domain>,
-    driven_boundary: Id<kinds::Domain>,
     driven_total_displacement: &[(VertexId, [f64; 3])],
 ) -> Result<Self, Diagnostic>;
 
@@ -289,36 +296,58 @@ The implementation may cache the decoded driven projection privately so the
 borrowed selector does not allocate. It must not expose a public wire DTO or a
 constructor that accepts the fixed policy objects separately.
 
-Construction and `validate_against` replay all artifact-layer conditions:
+Construction and detached `validate_against` replay all durable semantic and
+artifact conditions from scratch:
 
 1. The Model artifact digest, typed Model identity, and semantic revision
-   agree, and every named Domain and Field exists in that exact replayed Model.
-2. Geometry validates against that Model, correspondence validates against
+   agree. The implementation lowers the replayed bound Model to the same exact
+   first-order isotropic-elastodynamics meaning used by the accepted #352
+   reference. From that result it derives, rather than accepts, the sole solid
+   body, length-valued spatial-Cartesian displacement Field, velocity-valued
+   spatial-Cartesian velocity Field, exact Cartesian `x = 0` lower boundary
+   whose disposition is exactly `TraceZero`, and exact Cartesian `x = 1`
+   upper boundary whose disposition is a live `PortBinding { .. }`. The four
+   `y`/`z` sides remain exactly `FluxZero`. Raw identity existence, graph
+   membership, Geometry membership, or caller-supplied IDs never establishes
+   one of these roles.
+2. The role identities stored in the wire equal those newly derived
+   identities. `PrescribedDynamicSolidRealizationEnvelopeV1` is the sole owner
+   of this durable role-binding invariant. The existing numerics lowerer
+   remains the owner of executable #352 admission and acceptance; the
+   application owner requires both boundaries against the same Model and
+   resources and never treats either as a substitute for the other.
+3. Geometry validates against that Model, correspondence validates against
    Geometry, Model, and mesh, and their digests equal the wire.
-3. The body, displacement, velocity, fixed boundary, and driven boundary are
+4. The body, displacement, velocity, fixed boundary, and driven boundary are
    distinct where their roles require it. The two Fields share the solid body,
    are rank-one spatial-Cartesian three-vectors, and retain their existing
    coherent-SI length and length-per-time dimensions.
-4. The imported mesh digest equals the wire and the mesh is the exact accepted
-   ordered nine-vertex, twelve-tetrahedron fixture.
-5. The fixed and driven boundaries have the exact correspondence memberships,
+5. Geometry tolerance is exactly `1e-12 m`; the imported mesh quality gate is
+   exactly `0.1`; the mesh digest equals the wire; and the mesh is the exact
+   accepted ordered nine-vertex, twelve-tetrahedron fixture.
+6. The fixed and driven boundaries have the exact correspondence memberships,
    and the driven entries equal the reconstructed canonical driven-boundary
    vertex order.
-6. Every singleton discretization, time, solver, layout, target, schedule,
+7. Every singleton discretization, time, solver, layout, target, schedule,
    assembly, solve, and verification value equals the grammar above.
 
 The application owner then replays the accepted numerical lowerer, proves the
 exact material, load, boundary-disposition, prior-field, candidate, generation,
 and backend-evidence contract, and matches the accepted result's driven
 displacement to this validated envelope. This is the sole acceptance path for
-the bounded executable claim. The artifact layer does not duplicate the
-numerical lowerer or claim that locally valid bytes prove execution.
+the bounded executable claim. The artifact layer's private role derivation
+owns no material, load, prior-field, candidate, generation, solver, residual,
+or backend acceptance and does not claim that locally valid bytes prove
+execution.
 
 The reference application uses explicit Realization revision `1`. The wire
 stores it rather than treating it as a default. Decoding an envelope alone
-establishes local canonical validity, not availability or validity of its
-referenced resources and not proof that execution occurred. Full trust
-requires `validate_against` or the complete application owner below.
+establishes local canonical validity. Detached `validate_against` establishes
+the complete durable semantic-role and resource invariant above, including a
+fresh bound-Model derivation; it does not establish candidate acceptance,
+provider evidence, or that execution occurred. The complete application owner
+below is the only path that joins that durable validation to the nonforgeable
+accepted numerical result.
 
 ### Run-compatible projection
 
@@ -366,18 +395,87 @@ network, artifact-catalog, backend, or Model replay operation.
 
 ## Existing FieldSnapshot and State wires
 
-### Private fixed-spatial context
+### Exact family-specific bridge
 
-Implementation extends the artifact crate's private fixed-spatial validation
-machinery to consume the new Realization. It does not widen or rename the
-public `ValidatedFixedSpatialContextV1`, add another public context, or make a
-public trait implementation point.
+The accepted `ValidatedFixedSpatialContextV1` is concretely V3-specific: its
+public constructor accepts `RealizationEnvelopeV3`, and its stored Realization
+and represented-Field machinery cannot carry this family. It is not widened,
+renamed, generalized, or overloaded. The generalized snapshot machinery that
+already exists behind `ValidatedFieldSnapshotContext` stays crate-private.
 
-The private context proves the exact Model, Realization, Geometry,
-correspondence, mesh, solid Domain, and two-Field inventory once. Existing
-FieldSnapshot and State constructors consume that proof through private shared
-machinery. Their schemas, canonical DTOs, digest domains, decoder limits, and
-public constructors remain unchanged.
+Instead, the implementation adds exactly these four family-specific associated
+functions to the two existing public envelope types:
+
+```rust
+impl FieldSnapshotEnvelopeV1 {
+    pub fn new_prescribed_dynamic_solid(
+        model: &impl ReplayableCanonicalModelArtifact,
+        realization: &PrescribedDynamicSolidRealizationEnvelopeV1,
+        geometry: &GeometryIdentityEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        mesh: &SimplicialMeshEnvelopeV1,
+        field: Id<kinds::Field>,
+        blocks: &[DiscreteFieldEnvelopeV1],
+    ) -> Result<Self, Diagnostic>;
+
+    pub fn validate_against_prescribed_dynamic_solid(
+        &self,
+        model: &impl ReplayableCanonicalModelArtifact,
+        realization: &PrescribedDynamicSolidRealizationEnvelopeV1,
+        geometry: &GeometryIdentityEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        mesh: &SimplicialMeshEnvelopeV1,
+        blocks: &[DiscreteFieldEnvelopeV1],
+    ) -> Result<(), Diagnostic>;
+}
+
+impl SpatialStateEnvelopeV1 {
+    pub fn new_prescribed_dynamic_solid(
+        model: &impl ReplayableCanonicalModelArtifact,
+        realization: &PrescribedDynamicSolidRealizationEnvelopeV1,
+        geometry: &GeometryIdentityEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        mesh: &SimplicialMeshEnvelopeV1,
+        step: u64,
+        time_s: f64,
+        snapshots: &[FieldSnapshotEnvelopeV1],
+    ) -> Result<Self, Diagnostic>;
+
+    pub fn validate_against_prescribed_dynamic_solid(
+        &self,
+        model: &impl ReplayableCanonicalModelArtifact,
+        realization: &PrescribedDynamicSolidRealizationEnvelopeV1,
+        geometry: &GeometryIdentityEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        mesh: &SimplicialMeshEnvelopeV1,
+        snapshots: &[FieldSnapshotEnvelopeV1],
+    ) -> Result<(), Diagnostic>;
+}
+```
+
+Each constructor first calls the Realization's detached `validate_against`, so
+its private proof receives roles derived from the bound Model rather than raw
+identity membership. A new crate-private prescribed-solid context then
+implements the existing private snapshot machinery and the state module's
+corresponding factored `new_in_context` path. It proves the exact Model,
+Realization, Geometry, correspondence, mesh, complete solid-body cell support,
+continuous vector P1 space, and exact two-Field inventory once per public call.
+It is neither returned nor accepted as a public parameter.
+
+The Field constructor accepts only the Realization-derived displacement or
+velocity Field, one Vertex block, and the lineage below. The State constructor
+accepts only the complete two-snapshot inventory and exactly coordinate
+`(step, time_s) == (0, 0.0)` or `(1, 0.25)`. Both validation functions rebuild
+through their matching constructor and require complete envelope equality.
+They never weaken the detached Realization validation and never infer a role
+from a snapshot's stored Field ID.
+
+No new public context, trait, proof token, builder, DTO, or top-level type is
+introduced. The existing `FieldSnapshotEnvelopeV1::new`,
+`FieldSnapshotEnvelopeV1::validate_against`, `SpatialStateEnvelopeV1::new`, and
+`SpatialStateEnvelopeV1::validate_against` signatures and behavior remain
+byte-for-byte compatible; the four names above are additive. All existing
+schemas, canonical DTOs, digest domains, and decoder limits remain unchanged.
 
 ### Exact numerical blocks and snapshots
 
@@ -496,6 +594,16 @@ The two velocity selectors may return equal-content artifacts. They remain
 role-specific selectors into the complete owner and do not assert distinct
 content identities.
 
+`revalidate` first runs the Realization's detached `validate_against`, then
+revalidates every block against the mesh, every snapshot through
+`validate_against_prescribed_dynamic_solid`, both States through
+`validate_against_prescribed_dynamic_solid`, and the Run through its existing
+Realization and output checks. It finally repeats exact equality between the
+nonforgeable accepted displacement/velocity, the recorded driven candidate,
+and the next-State numerical leaves, and checks the accepted generation and
+fixed solver/execution evidence. It does not turn a decoded detached
+Realization, snapshot, State, or Run into evidence that an execution occurred.
+
 ### Exact execution provenance and Run
 
 The application captures the solver provider before execution and relies on
@@ -532,8 +640,11 @@ application owner is returned only after all of the following succeed:
 
 1. exact reference admission and candidate acceptance;
 2. standalone Realization construction and replay;
-3. all block, snapshot, and State construction;
-4. all block-to-snapshot and snapshot-to-State relational validation;
+3. all block construction, then every snapshot through
+   `FieldSnapshotEnvelopeV1::new_prescribed_dynamic_solid`, then both States
+   through `SpatialStateEnvelopeV1::new_prescribed_dynamic_solid`;
+4. all block-to-snapshot and snapshot-to-State relational validation through
+   the matching family-specific validation methods;
 5. Run construction, Realization validation, and singleton-output equality;
    and
 6. final comparison between accepted in-memory displacement/velocity and the
@@ -557,8 +668,9 @@ This change is additive:
   FieldSnapshot, spatial State, trajectory, checkpoint, and restart bytes and
   digest domains remain unchanged;
 - existing decoders do not reinterpret another schema as the new family;
-- `FieldSnapshotEnvelopeV1`, `SpatialStateEnvelopeV1`, and `RunManifestV2`
-  retain their exact public and wire contracts;
+- `FieldSnapshotEnvelopeV1` and `SpatialStateEnvelopeV1` gain only the four
+  named family-specific methods above; every pre-existing public signature and
+  behavior, and all three existing wire contracts, remain unchanged;
 - no existing Realization gains a standalone-solid variant or optional
   member; and
 - no migration from V3, V4, or V5 is offered because those artifacts have
@@ -580,7 +692,8 @@ or option bag.
 ## Public architecture budget
 
 The public surface is itself the bounded product claim. It adds exactly two
-public types and no new crate:
+public types, four associated methods on existing artifact types, and no new
+crate:
 
 | Crate | Accepted base | Maximum after implementation | Addition |
 | --- | ---: | ---: | --- |
@@ -594,7 +707,9 @@ The artifact type remains reachable through the facade's existing transitional
 `eqiora::artifact` module; that existing glob is not widened textually or
 converted into another stable registration. The one new named curated-facade
 item is the application owner under `eqiora::api`. Existing root ownership
-conventions still apply inside the workspace.
+conventions still apply inside the workspace. The four family-specific methods
+and the Realization's role-deriving constructor/validator add no top-level
+public item and therefore do not move the table's type ceilings.
 
 Any additional public type, trait, enum variant, registry, context, builder,
 option bag, durable schema, facade item, or architecture-ceiling increase is a
@@ -616,14 +731,69 @@ crates/eqiora/tests/prescribed_dynamic_solid_state_run_3d.rs
 verify/artifacts/prescribed-dynamic-solid-state-run-3d/**
 ```
 
-If the frozen current-Model relational sweep applies, a separate oracle owner
-may additionally write only:
+The frozen current-Model relational sweep applies unconditionally. Its separate
+oracle owner must pre-commit the exact admission delta below before this RFC or
+any successor path is integrated, and may write only:
 
 ```text
-crates/eqiora-artifact/tests/current_model_relational_identity_transition.rs
-crates/eqiora-artifact/tests/current_model_relational_identity_transition/**
-verify/artifacts/current-model-relational-identity-transition/**
+crates/eqiora-artifact/tests/current_model_relational_identity_transition/transition_contract.rs
+crates/eqiora-artifact/tests/current_model_relational_identity_transition/post_reset_admission.rs
+verify/artifacts/current-model-relational-identity-transition/README.md
+verify/artifacts/current-model-relational-identity-transition/expected/README.md
+verify/artifacts/current-model-relational-identity-transition/expected/classification.json
+verify/artifacts/current-model-relational-identity-transition/references/derive_transition_identities.py
 ```
+
+The transition amendment adds these exact identity-free paths to the existing
+containment-only `post_reset_admitted` permission, with no glob, directory,
+suffix rule, inferred sibling, or membership in a historical frozen set:
+
+| Exact path | Exact search signals | `identity_literals` | Class |
+| --- | --- | ---: | --- |
+| `rfcs/0084-standalone-prescribed-dynamic-solid-artifacts.md` | `eqiora.model-envelope/v`, `model_sha256` | `0` | `current-owner-assertion` |
+| `crates/eqiora-artifact/src/prescribed_dynamic_solid_realization.rs` | `model_sha256` | `0` | `non-fixture-search-hit` |
+| `crates/eqiora/tests/prescribed_dynamic_solid_state_run_3d.rs` | `model_sha256` | `0` | `non-fixture-search-hit` |
+| `verify/artifacts/prescribed-dynamic-solid-state-run-3d/references/derive_prescribed_dynamic_solid_state_run_3d.py` | `eqiora.model-envelope/v`, `model_sha256` | `0` | `non-fixture-search-hit` |
+
+The transition contract's prose and regression names must describe this
+existing permission as later identity-free classified paths rather than only
+product paths, because the RFC and independent derivation route are ordinary
+classified search hits too. The optional/exact/zero-identity predicate itself
+does not change.
+
+The expected bytes are signal-bearing fixtures rather than identity-free
+consumer surfaces. The transition owner therefore adds a separate
+containment-only `post_reset_fixture_admitted` record whose predicate is:
+optional after the reset; absent before it; admitted only by exact path; exact
+ordered search-signal list; exact same-line Model-derived lower-hex-64 literal
+count; declared fixture class, owner, and note; and membership in none of
+`inventory`, `retired`, `required_post_reset`, `preserved_evidence`, promotion,
+or the existing `post_reset_admitted` set. It does not weaken the existing
+zero-identity admission predicate. Its exact initial rows are:
+
+| Exact path | Exact search signals | `identity_literals` | Class |
+| --- | --- | ---: | --- |
+| `verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/model.json` | `eqiora.model-envelope/v` | `0` | `delegated-current-owner-evidence` |
+| `verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/geometry-identity.json` | `model_sha256` | `1` | `delegated-current-owner-evidence` |
+| `verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/realization.json` | `model_sha256` | `1` | `delegated-current-owner-evidence` |
+| `verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/prior-displacement-snapshot.json` | `model_sha256` | `1` | `delegated-current-owner-evidence` |
+| `verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/prior-velocity-snapshot.json` | `model_sha256` | `1` | `delegated-current-owner-evidence` |
+| `verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/accepted-displacement-snapshot.json` | `model_sha256` | `1` | `delegated-current-owner-evidence` |
+| `verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/accepted-velocity-snapshot.json` | `model_sha256` | `1` | `delegated-current-owner-evidence` |
+| `verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/prior-state.json` | `model_sha256` | `1` | `delegated-current-owner-evidence` |
+| `verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/accepted-state.json` | `model_sha256` | `1` | `delegated-current-owner-evidence` |
+| `verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/run.json` | `model_sha256` | `1` | `delegated-current-owner-evidence` |
+
+`transition_contract.rs`, `post_reset_admission.rs`, `classification.json`,
+both transition READMEs, and the independent transition derivation script must
+all enforce and describe that exact two-permission distinction. Historical
+counts and sets do not move. A successor file that carries another search
+signal, or any listed file whose exact signal list or literal count differs,
+returns to the transition-oracle owner before the lane starts. The new
+lineage-case README, case manifest, model source, nonsignal-bearing mesh,
+correspondence, discrete blocks, and reference README prose must remain
+free of the sweep's search spellings unless first admitted by another exact
+row.
 
 The production implementation writer owns only:
 
@@ -634,8 +804,6 @@ crates/eqiora-artifact/src/spatial_data/context.rs
 crates/eqiora-artifact/src/spatial_data/field.rs
 crates/eqiora-artifact/src/spatial_data/state.rs
 crates/eqiora-api/src/prescribed_dynamic_solid.rs
-crates/eqiora-numerics/src/prescribed_dynamic_solid/contract.rs
-crates/eqiora-numerics/src/prescribed_dynamic_solid/acceptance.rs
 ```
 
 The integrator alone owns:
@@ -646,14 +814,26 @@ crates/eqiora-artifact/src/lib.rs
 crates/eqiora-api/src/lib.rs
 crates/eqiora/src/lib.rs
 api/eqiora-facade-v1.json
-tools/ci/architecture-debt.toml
 docs/capability-matrix.md
 docs/roadmap.md
 CHANGELOG.md
 ```
 
-No Cargo manifest or lockfile change is expected. A writer that needs another
-path stops and returns the requirement to the contract owner or integrator.
+The integrator's exact registration delta is: add
+`- [RFC 0084: Standalone prescribed dynamic-solid artifacts](0084-standalone-prescribed-dynamic-solid-artifacts.md)`
+to `rfcs/README.md`; declare and named-re-export
+`PrescribedDynamicSolidRealizationEnvelopeV1` from `eqiora-artifact`; declare
+and named-re-export `PrescribedDynamicSolidStateRun3d` from `eqiora-api`; add
+only that application owner to the curated `eqiora::api` facade and its JSON
+inventory; add the narrow capability-matrix row backed by the new registered
+case; and record the accepted roadmap/changelog item. Existing artifact access
+continues through the transitional `eqiora::artifact` module, so no curated
+facade entry for the Realization is added. The integrator must run the index
+and architecture checks after these registrations.
+
+No Cargo manifest, lockfile, architecture-debt, or ceiling change is expected.
+A writer that needs another path, public item, or registration stops and
+returns the requirement to the contract owner or integrator.
 
 ## Independent exact-artifact oracle
 
@@ -666,6 +846,9 @@ The independent oracle freezes at least:
 
 - complete canonical Realization bytes, byte length, schema-domain digest,
   field order, nested field order, and exact decoder boundaries;
+- the exact `1e-12 m` Geometry classification tolerance and exact `0.1` mesh
+  minimum-mean-ratio gate as canonical, digest-bearing members of their owner
+  artifacts and stale Realization edges when either owner changes;
 - independently rendered discrete Field, FieldSnapshot, prior State,
   accepted-next State, and Run bytes and identities;
 - every Realization-to-block-to-snapshot-to-State-to-Run edge;
@@ -681,6 +864,11 @@ At minimum, mutations must reject:
   limit;
 - changed Model digest/identity/revision, Realization revision, Geometry,
   correspondence, mesh, body, Field, or boundary role;
+- a Model in which all recorded role IDs still exist but `x = 0` is not exact
+  `TraceZero`, `x = 1` is not a live `PortBinding { .. }`, either boundary is
+  on another Cartesian side, or a `y`/`z` side is not exact `FluxZero`;
+- Geometry classification tolerance other than exact `1e-12 m` or a mesh
+  minimum-mean-ratio gate other than exact `0.1`;
 - changed, missing, duplicated, reordered, non-finite, negative-zero, or
   noncanonical driven displacement;
 - another space, method, quadrature, time method/duration, solver axis,
@@ -697,6 +885,13 @@ At minimum, mutations must reject:
   State; and
 - an accepted result from another candidate, generation, provider, solver
   plan, execution report, or verification report.
+
+The oracle separately proves detached behavior: `from_json` alone accepts
+locally canonical bytes without claiming referenced resources or execution;
+`validate_against` rejects every semantic-role or resource mutant above but
+still makes no execution claim; and `PrescribedDynamicSolidStateRun3d` is the
+only public value whose successful construction and `revalidate` join those
+bytes to accepted in-memory execution evidence.
 
 The writer may wire the pre-committed fixtures but must not derive, tune,
 relax, reorder, or replace their bytes, expected identities, or mutations. If
