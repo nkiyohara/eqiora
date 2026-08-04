@@ -27,3 +27,6 @@ pub use crate::finalized_spatial::{
     FinalizedConformingIsotropicElasticityCartesianPair2dProblem,
     FinalizedIsotropicElasticityCartesian2dProblem,
 };
+pub use crate::prescribed_dynamic_solid::{
+    AcceptedPrescribedDynamicSolidStep3d, PrescribedDynamicSolidReference3d,
+};
