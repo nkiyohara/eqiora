@@ -6,6 +6,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::*;
 
+mod library_evidence;
+
 struct Fixture {
     root: PathBuf,
 }

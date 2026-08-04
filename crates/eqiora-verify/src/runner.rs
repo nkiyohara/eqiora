@@ -8,9 +8,11 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+use crate::manifest::cargo_library;
+
 use super::{
     CargoBuildGroup, EvidenceEnvironment, EvidenceOutput, EvidenceRunner, EvidenceTarget,
-    ExecutionKey,
+    ExecutionKey, normalized_features,
 };
 
 /// Shell-free runner for the closed set of system evidence targets.
@@ -43,26 +45,30 @@ impl SystemEvidenceRunner {
             panic!("Cargo build group must contain a Cargo evidence target");
         };
         let key = CargoBuildGroup::from_target(first);
-        let tests = targets
-            .iter()
-            .map(|target| match target {
-                EvidenceTarget::Cargo(target) => target.test.as_str(),
-                EvidenceTarget::PythonInstalledWheel(_) => {
-                    panic!("Cargo build group must contain only Cargo evidence targets")
-                }
-            })
-            .collect::<BTreeSet<_>>();
+        let library = first.library_test_name().is_some();
         let mut command = Command::new(&self.cargo);
-        command.args([
-            "test",
-            "--locked",
-            "-p",
-            &key.package,
-            "--no-run",
-            "--message-format=json",
-        ]);
-        for test in tests {
-            command.args(["--test", test]);
+        command.args(["test", "--locked", "-p", &first.package]);
+        if library {
+            assert!(targets.iter().all(|target| matches!(
+                target,
+                EvidenceTarget::Cargo(target) if target.library_test_name().is_some()
+            )));
+            command.arg("--lib");
+        }
+        command.args(["--no-run", "--message-format=json"]);
+        if !library {
+            let tests = targets
+                .iter()
+                .map(|target| match target {
+                    EvidenceTarget::Cargo(target) => target.test.as_str(),
+                    EvidenceTarget::PythonInstalledWheel(_) => {
+                        panic!("Cargo build group must contain only Cargo evidence targets")
+                    }
+                })
+                .collect::<BTreeSet<_>>();
+            for test in tests {
+                command.args(["--test", test]);
+            }
         }
         if !key.features.is_empty() {
             command.arg("--features").arg(key.features.join(","));
@@ -86,6 +92,9 @@ impl SystemEvidenceRunner {
                         )
                     })?;
                 let mut command = Command::new(executable);
+                if let Some(test) = target.library_test_name() {
+                    command.args([test, "--exact"]);
+                }
                 if target.environment == EvidenceEnvironment::PhysicalMpiCuda {
                     command.arg("--ignored");
                 }
@@ -101,12 +110,77 @@ impl SystemEvidenceRunner {
         Ok(command)
     }
 
+    fn preflight_library_test(&self, root: &Path, target: &EvidenceTarget) -> Result<(), String> {
+        let EvidenceTarget::Cargo(target_details) = target else {
+            unreachable!("library preflight requires a Cargo target");
+        };
+        let test = target_details
+            .library_test_name()
+            .expect("library preflight requires a library target");
+        let key = ExecutionKey::from_target(target);
+        let executable = self
+            .prepared
+            .lock()
+            .unwrap()
+            .get(&key)
+            .map(|prepared| prepared.executable.clone())
+            .ok_or_else(|| {
+                format!(
+                    "Cargo evidence execution `{}` has no prepared executable",
+                    key.label()
+                )
+            })?;
+        cargo_library::preflight_test(root, &executable, test, target_details.environment)
+    }
+
+    #[cfg(test)]
     fn record_executables(
         &self,
         targets: &[EvidenceTarget],
         stdout: &[u8],
         stderr: &[u8],
     ) -> Result<(), String> {
+        let selected_library_package_id = if targets.first().is_some_and(|target| {
+            matches!(
+                target,
+                EvidenceTarget::Cargo(target) if target.library_test_name().is_some()
+            )
+        }) {
+            Some(cargo_library::test_package_id(stdout))
+        } else {
+            None
+        };
+        self.record_executables_with_library_package_id(
+            targets,
+            stdout,
+            stderr,
+            selected_library_package_id.as_deref(),
+        )
+    }
+
+    fn record_executables_with_library_package_id(
+        &self,
+        targets: &[EvidenceTarget],
+        stdout: &[u8],
+        stderr: &[u8],
+        selected_library_package_id: Option<&str>,
+    ) -> Result<(), String> {
+        if targets.first().is_some_and(|target| {
+            matches!(
+                target,
+                EvidenceTarget::Cargo(target) if target.library_test_name().is_some()
+            )
+        }) {
+            let selected_library_package_id = selected_library_package_id.ok_or_else(|| {
+                "Cargo library evidence build has no exact selected package ID".to_owned()
+            })?;
+            return self.record_library_executable(
+                targets,
+                stdout,
+                stderr,
+                selected_library_package_id,
+            );
+        }
         let expected = targets
             .iter()
             .map(|target| match target {
@@ -204,6 +278,42 @@ impl SystemEvidenceRunner {
         Ok(())
     }
 
+    fn record_library_executable(
+        &self,
+        targets: &[EvidenceTarget],
+        stdout: &[u8],
+        stderr: &[u8],
+        selected_package_id: &str,
+    ) -> Result<(), String> {
+        let Some(EvidenceTarget::Cargo(first)) = targets.first() else {
+            unreachable!("library build group requires a Cargo target");
+        };
+        let package = &first.package;
+        if !targets.iter().all(|target| {
+            matches!(
+                target,
+                EvidenceTarget::Cargo(target)
+                    if target.package == *package && target.library_test_name().is_some()
+            )
+        }) {
+            return Err("Cargo library build group contains mismatched targets".to_owned());
+        }
+
+        let artifact =
+            cargo_library::inspect_build_output(stdout, stderr, package, selected_package_id)?;
+        let mut prepared = self.prepared.lock().unwrap();
+        for target in targets {
+            prepared.insert(
+                ExecutionKey::from_target(target),
+                PreparedCargoTarget {
+                    executable: artifact.executable.clone(),
+                    build_stderr: artifact.diagnostics.clone(),
+                },
+            );
+        }
+        Ok(())
+    }
+
     fn prepared_build_stderr(&self, target: &EvidenceTarget) -> String {
         let key = ExecutionKey::from_target(target);
         self.prepared
@@ -222,13 +332,17 @@ impl SystemEvidenceRunner {
         let mut stderr = self.prepared_build_stderr(target);
         append_stderr(&mut stderr, &String::from_utf8_lossy(child_stderr));
         if !succeeded && let EvidenceTarget::Cargo(target) = target {
-            append_stderr(
-                &mut stderr,
-                &format!(
-                    "error: test failed, to rerun pass `-p {} --test {}`\n",
-                    target.package, target.test
-                ),
-            );
+            if target.library_test_name().is_some() {
+                append_stderr(&mut stderr, &library_reproduction_diagnostic(target));
+            } else {
+                append_stderr(
+                    &mut stderr,
+                    &format!(
+                        "error: test failed, to rerun pass `-p {} --test {}`\n",
+                        target.package, target.test
+                    ),
+                );
+            }
         }
         stderr
     }
@@ -236,6 +350,27 @@ impl SystemEvidenceRunner {
 
 impl EvidenceRunner for SystemEvidenceRunner {
     fn build_cargo_group(&self, root: &Path, targets: &[EvidenceTarget]) -> Option<EvidenceOutput> {
+        let selected_library_package_id = match targets.first() {
+            Some(EvidenceTarget::Cargo(target)) if target.library_test_name().is_some() => {
+                match cargo_library::selected_workspace_package_id(
+                    &self.cargo,
+                    root,
+                    &target.package,
+                ) {
+                    Ok(package_id) => Some(package_id),
+                    Err(error) => {
+                        return Some(EvidenceOutput {
+                            duration_ms: None,
+                            exit_code: None,
+                            stdout: String::new(),
+                            stderr: String::new(),
+                            start_error: Some(error),
+                        });
+                    }
+                }
+            }
+            _ => None,
+        };
         let output = match self.cargo_build_command(root, targets).output() {
             Ok(output) => output,
             Err(error) => {
@@ -259,7 +394,12 @@ impl EvidenceRunner for SystemEvidenceRunner {
                 start_error: None,
             });
         }
-        if let Err(error) = self.record_executables(targets, &output.stdout, &output.stderr) {
+        if let Err(error) = self.record_executables_with_library_package_id(
+            targets,
+            &output.stdout,
+            &output.stderr,
+            selected_library_package_id.as_deref(),
+        ) {
             return Some(EvidenceOutput {
                 duration_ms: None,
                 exit_code: output.status.code(),
@@ -272,6 +412,27 @@ impl EvidenceRunner for SystemEvidenceRunner {
     }
 
     fn run(&self, root: &Path, target: &EvidenceTarget) -> EvidenceOutput {
+        if matches!(
+            target,
+            EvidenceTarget::Cargo(target) if target.library_test_name().is_some()
+        ) && let Err(error) = self.preflight_library_test(root, target)
+        {
+            let EvidenceTarget::Cargo(target_details) = target else {
+                unreachable!("library preflight requires a Cargo target");
+            };
+            let mut stderr = self.prepared_build_stderr(target);
+            append_stderr(
+                &mut stderr,
+                &library_reproduction_diagnostic(target_details),
+            );
+            return EvidenceOutput {
+                duration_ms: None,
+                exit_code: None,
+                stdout: String::new(),
+                stderr,
+                start_error: Some(error),
+            };
+        }
         let mut command = match self.command(root, target) {
             Ok(command) => command,
             Err(error) => {
@@ -287,7 +448,17 @@ impl EvidenceRunner for SystemEvidenceRunner {
         let started = Instant::now();
         match command.output() {
             Ok(output) => {
-                let stderr = self.completed_stderr(target, &output.stderr, output.status.success());
+                let succeeded = output.status.success();
+                let mut child_stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+                if !succeeded
+                    && matches!(
+                        target,
+                        EvidenceTarget::Cargo(target) if target.library_test_name().is_some()
+                    )
+                {
+                    append_stderr(&mut child_stderr, &String::from_utf8_lossy(&output.stdout));
+                }
+                let stderr = self.completed_stderr(target, child_stderr.as_bytes(), succeeded);
                 EvidenceOutput {
                     duration_ms: Some(
                         u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
@@ -307,6 +478,22 @@ impl EvidenceRunner for SystemEvidenceRunner {
             },
         }
     }
+}
+
+fn library_reproduction_diagnostic(target: &super::CargoEvidenceTarget) -> String {
+    let test = target
+        .library_test_name()
+        .expect("library reproduction requires a library target");
+    let features = normalized_features(&target.features);
+    let mut command = format!("cargo test --locked -p {} --lib", target.package);
+    if !features.is_empty() {
+        command.push_str(&format!(" --features {}", features.join(",")));
+    }
+    command.push_str(&format!(" {test} -- --exact"));
+    if target.environment == EvidenceEnvironment::PhysicalMpiCuda {
+        command.push_str(" --ignored");
+    }
+    format!("error: test failed, to rerun pass `{command}`\n")
 }
 
 fn append_stderr(stderr: &mut String, addition: &str) {
@@ -352,6 +539,267 @@ fn cargo_stderr_without_progress(stderr: &str) -> String {
 mod tests {
     use super::*;
     use crate::{CargoEvidenceTarget, PythonEvidenceRunner, PythonInstalledWheelEvidenceTarget};
+
+    fn library_target(
+        test: &str,
+        features: &[&str],
+        environment: EvidenceEnvironment,
+    ) -> EvidenceTarget {
+        let features = features
+            .iter()
+            .map(|feature| format!("\"{feature}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
+        toml::from_str(&format!(
+            "runner = \"cargo-library-test\"\npackage = \"eqiora-numerics\"\ntest = \"{test}\"\nfeatures = [{features}]\nenvironment = \"{}\"\n",
+            environment.as_str()
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn library_build_and_execution_commands_are_closed_exact_and_reproducible() {
+        let runner = SystemEvidenceRunner {
+            cargo: OsString::from("cargo-evidence"),
+            python: OsString::from("python-evidence"),
+            prepared: Arc::new(Mutex::new(BTreeMap::new())),
+        };
+        let root = Path::new("/repository");
+        let first = library_target(
+            "private_parent::private_child::registered_evidence",
+            &["one", "two"],
+            EvidenceEnvironment::HostCpu,
+        );
+        let second = library_target(
+            "private_parent::private_child::second_evidence",
+            &["two", "one"],
+            EvidenceEnvironment::HostCpu,
+        );
+        assert!(matches!(
+            &first,
+            EvidenceTarget::Cargo(CargoEvidenceTarget { test, .. })
+                if test == "lib::private_parent::private_child::registered_evidence"
+        ));
+
+        let build = runner.cargo_build_command(root, &[first.clone(), second]);
+        assert_eq!(build.get_program(), "cargo-evidence");
+        assert_eq!(
+            build
+                .get_args()
+                .map(|argument| argument.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            [
+                "test",
+                "--locked",
+                "-p",
+                "eqiora-numerics",
+                "--lib",
+                "--no-run",
+                "--message-format=json",
+                "--features",
+                "one,two",
+            ]
+        );
+        assert_eq!(build.get_current_dir(), Some(root));
+
+        runner.prepared.lock().unwrap().insert(
+            ExecutionKey::from_target(&first),
+            PreparedCargoTarget {
+                executable: PathBuf::from("/target/eqiora_numerics-lib"),
+                build_stderr: "warning: retained library diagnostic\n".to_owned(),
+            },
+        );
+        let command = runner.command(root, &first).unwrap();
+        assert_eq!(command.get_program(), "/target/eqiora_numerics-lib");
+        assert_eq!(
+            command
+                .get_args()
+                .map(|argument| argument.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            [
+                "private_parent::private_child::registered_evidence",
+                "--exact"
+            ]
+        );
+        assert_eq!(command.get_current_dir(), Some(root));
+        assert_eq!(
+            runner.completed_stderr(
+                &first,
+                b"frozen private oracle failure\n\
+                  test result: FAILED. 0 passed; 1 failed\n",
+                false,
+            ),
+            "warning: retained library diagnostic\n\
+             frozen private oracle failure\n\
+             test result: FAILED. 0 passed; 1 failed\n\
+             error: test failed, to rerun pass `cargo test --locked -p eqiora-numerics --lib --features one,two private_parent::private_child::registered_evidence -- --exact`\n"
+        );
+
+        let physical = library_target(
+            "private_parent::private_child::ignored_evidence",
+            &["mpi-cuda"],
+            EvidenceEnvironment::PhysicalMpiCuda,
+        );
+        runner.prepared.lock().unwrap().insert(
+            ExecutionKey::from_target(&physical),
+            PreparedCargoTarget {
+                executable: PathBuf::from("/target/eqiora_numerics-lib"),
+                build_stderr: String::new(),
+            },
+        );
+        let command = runner.command(root, &physical).unwrap();
+        assert_eq!(
+            command
+                .get_args()
+                .map(|argument| argument.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            [
+                "private_parent::private_child::ignored_evidence",
+                "--exact",
+                "--ignored"
+            ]
+        );
+        assert_eq!(
+            runner.completed_stderr(&physical, b"physical failure\n", false),
+            "physical failure\n\
+             error: test failed, to rerun pass `cargo test --locked -p eqiora-numerics --lib --features mpi-cuda private_parent::private_child::ignored_evidence -- --exact --ignored`\n"
+        );
+    }
+
+    #[test]
+    fn library_artifact_discovery_accepts_only_one_selected_package_library_executable() {
+        let target = library_target(
+            "private_parent::private_child::registered_evidence",
+            &[],
+            EvidenceEnvironment::HostCpu,
+        );
+        let selected = serde_json::json!({
+            "reason": "compiler-artifact",
+            "package_id": "path+file:///repository/eqiora-numerics#0.0.0",
+            "target": {"name": "eqiora_numerics", "kind": ["lib"]},
+            "executable": "/target/eqiora_numerics-lib"
+        });
+        let dependency = serde_json::json!({
+            "reason": "compiler-artifact",
+            "package_id": "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.0",
+            "target": {"name": "serde", "kind": ["lib"]},
+            "executable": "/target/serde-lib"
+        });
+        let diagnostic = serde_json::json!({
+            "reason": "compiler-message",
+            "package_id": "path+file:///repository/eqiora-numerics#0.0.0",
+            "target": {"name": "eqiora_numerics", "kind": ["lib"]},
+            "message": {"rendered": "warning: selected library diagnostic\n"}
+        });
+        let stdout = [diagnostic, dependency.clone(), selected.clone()]
+            .map(|message| message.to_string())
+            .join("\n");
+        let runner = SystemEvidenceRunner {
+            cargo: OsString::from("cargo-evidence"),
+            python: OsString::from("python-evidence"),
+            prepared: Arc::new(Mutex::new(BTreeMap::new())),
+        };
+        runner
+            .record_executables(
+                std::slice::from_ref(&target),
+                stdout.as_bytes(),
+                b"   Compiling eqiora-numerics v0.0.0\nwarning: cargo summary\n",
+            )
+            .unwrap();
+        {
+            let prepared = runner.prepared.lock().unwrap();
+            assert_eq!(prepared.len(), 1);
+            let entry = prepared.values().next().unwrap();
+            assert_eq!(
+                entry.executable,
+                PathBuf::from("/target/eqiora_numerics-lib")
+            );
+            assert_eq!(
+                entry.build_stderr,
+                "warning: selected library diagnostic\nwarning: cargo summary\n"
+            );
+        }
+
+        let wrong_artifacts = [
+            vec![serde_json::json!({
+                "reason": "compiler-artifact",
+                "package_id": "path+file:///repository/eqiora-numerics#0.0.0",
+                "target": {"name": "eqiora_numerics", "kind": ["test"]},
+                "executable": "/target/eqiora_numerics-test"
+            })],
+            vec![serde_json::json!({
+                "reason": "compiler-artifact",
+                "package_id": "path+file:///repository/eqiora-numerics#0.0.0",
+                "target": {"name": "eqiora_numerics", "kind": ["bin"]},
+                "executable": "/target/eqiora_numerics-bin"
+            })],
+            vec![dependency],
+            vec![serde_json::json!({
+                "reason": "compiler-artifact",
+                "package_id": "path+file:///repository/eqiora-numerics#0.0.0",
+                "target": {"name": "eqiora_numerics", "kind": ["lib"]},
+                "executable": null
+            })],
+            vec![
+                selected.clone(),
+                serde_json::json!({
+                    "reason": "compiler-artifact",
+                    "package_id": "path+file:///repository/eqiora-numerics#0.0.0",
+                    "target": {"name": "eqiora_numerics", "kind": ["lib"]},
+                    "executable": "/target/eqiora_numerics-lib-duplicate"
+                }),
+            ],
+        ];
+        for artifacts in wrong_artifacts {
+            let runner = SystemEvidenceRunner {
+                cargo: OsString::from("cargo-evidence"),
+                python: OsString::from("python-evidence"),
+                prepared: Arc::new(Mutex::new(BTreeMap::new())),
+            };
+            let stdout = artifacts
+                .into_iter()
+                .map(|message| message.to_string())
+                .collect::<Vec<_>>()
+                .join("\n");
+            let error = runner
+                .record_executables(std::slice::from_ref(&target), stdout.as_bytes(), b"")
+                .unwrap_err();
+            assert!(error.contains("eqiora-numerics"), "{error}");
+            assert!(error.contains("library"), "{error}");
+            assert!(runner.prepared.lock().unwrap().is_empty());
+        }
+    }
+
+    #[test]
+    fn library_artifact_discovery_rejects_a_same_named_dependency_package() {
+        let target = library_target(
+            "private_parent::private_child::registered_evidence",
+            &[],
+            EvidenceEnvironment::HostCpu,
+        );
+        let dependency = serde_json::json!({
+            "reason": "compiler-artifact",
+            "package_id": "registry+https://github.com/rust-lang/crates.io-index#eqiora-numerics@9.9.9",
+            "target": {"name": "dependency_override", "kind": ["lib"]},
+            "executable": "/target/dependency-lib"
+        });
+        let runner = SystemEvidenceRunner {
+            cargo: OsString::from("cargo-evidence"),
+            python: OsString::from("python-evidence"),
+            prepared: Arc::new(Mutex::new(BTreeMap::new())),
+        };
+        let error = runner
+            .record_executables(
+                std::slice::from_ref(&target),
+                dependency.to_string().as_bytes(),
+                b"",
+            )
+            .unwrap_err();
+
+        assert!(error.contains("eqiora-numerics"), "{error}");
+        assert!(error.contains("library"), "{error}");
+        assert!(runner.prepared.lock().unwrap().is_empty());
+    }
 
     #[test]
     fn system_runner_builds_only_closed_shell_free_commands() {
