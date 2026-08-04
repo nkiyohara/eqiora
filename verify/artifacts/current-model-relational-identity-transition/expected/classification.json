@@ -15,13 +15,13 @@
       "crates/eqiora-artifact/tests/current_model_relational_identity_transition.rs",
       "crates/eqiora-artifact/tests/current_model_relational_identity_transition/transition_contract.rs"
     ],
-    "excluded_paths_note": "this case's own executable oracle is two files: the integration-test root and the private support module it includes with `#[path]`, split because a single file exceeded the 2,000-line test ceiling. Both spell the tokens the sweep searches for, so both are excluded by exact path — never by their directory, by a suffix rule, or by anything resembling `crates/*/tests/`. Every other test file in the repository, including the sibling oracle `crates/eqiora-artifact/tests/current_model_wire_oracle.rs`, stays a classified candidate. A third executor file added beside these two arrives as an unclassified candidate and is returned to this oracle.",
+    "excluded_paths_note": "this case excludes exactly two executable files: the integration-test root and the private transition-contract module it includes with `#[path]`, split because a single file exceeded the 2,000-line test ceiling. Both spell the tokens the sweep searches for, so both are excluded by exact path — never by their directory, by a suffix rule, or by anything resembling `crates/*/tests/`. The adjacent admission and later-classification regression modules deliberately carry no searched signal and remain visible to the sweep. Every other test file in the repository, including the sibling oracle `crates/eqiora-artifact/tests/current_model_wire_oracle.rs`, stays a classified candidate; any additional executor that carries a searched signal arrives as an unclassified candidate and is returned to this oracle.",
     "transition": {
       "contract": "the epoch reset is an exact two-state transition, not a sentinel heuristic. Every inventory path is either retired or preserved; `retired` additionally names the staged control-v2 promotion sources and the retired control-v1 request fixtures, which carry no search signal and are therefore not inventory members.",
-      "pre_reset": "every path in `retired` exists, every inventory path exists, the discovered candidate set equals the frozen inventory exactly, every promotion source carries its frozen sha256, no promotion target marked `target_exists_pre_reset: false` exists yet, and no path in `required_post_reset_without_frozen_bytes`, `post_reset_admitted`, or `post_reset_fixture_admitted` exists yet",
-      "post_reset": "no path in `retired` exists, every preserved inventory path exists although an in-place migration may stop matching the search signal, every path in `required_post_reset` exists — those in `promotion` carrying their frozen sha256, those in `required_post_reset_without_frozen_bytes` by existence alone — every path in `preserved_evidence` exists, every declared product-source scope is free of every forbidden token, every path in `post_reset_admitted` that exists carries exactly its recorded signals and freezes no identity literal, every path in `post_reset_fixture_admitted` that exists carries exactly its recorded signals and same-line Model-derived lower-hex-64 literal occurrence count, and the discovered candidate set is contained in the preserved inventory together with `required_post_reset`, `post_reset_admitted`, and `post_reset_fixture_admitted`",
+      "pre_reset": "every path in `retired` exists, every inventory path exists, the discovered candidate set equals the frozen inventory exactly, every promotion source carries its frozen sha256, no promotion target marked `target_exists_pre_reset: false` exists yet, and no path in `required_post_reset_without_frozen_bytes`, `post_reset_admitted`, `post_reset_fixture_admitted`, or `post_reset_classified` exists yet",
+      "post_reset": "no path in `retired` exists, every preserved inventory path exists although an in-place migration may stop matching the search signal, every path in `required_post_reset` exists — those in `promotion` carrying their frozen sha256, those in `required_post_reset_without_frozen_bytes` by existence alone — every path in `preserved_evidence` exists, every declared product-source scope is free of every forbidden token, every optional path in `post_reset_admitted`, `post_reset_fixture_admitted`, or `post_reset_classified` that exists carries exactly its recorded search-signal and identity-literal inventory, and the discovered candidate set is contained in the preserved inventory together with `required_post_reset`, `post_reset_admitted`, `post_reset_fixture_admitted`, and `post_reset_classified`",
       "partial_transition": "any other combination fails, including exactly one retired path missing before the reset and exactly one retired path surviving after it. A proper nonempty subset of `retired` is never an admissible state, so a reset cannot land one seam at a time.",
-      "unchanged_from_the_accepted_contract": "no new signal-bearing path may appear in either state by inference; `required_post_reset` is the complete set of paths the reset is permitted to add, and of those only `schemas/control/compile-v2.schema.json`, the promoted historical v1 schema copy, the promoted historical cylinder resource, and the two unversioned Rust wire owners carry a search signal. A later identity-free classified path is admitted only through `post_reset_admitted`, and a later signal-bearing fixture only through the separate `post_reset_fixture_admitted` permission — always by exact path and only by amending this frozen record, never by the state predicate widening itself",
+      "unchanged_from_the_accepted_contract": "no new signal-bearing path may appear in either state by inference; `required_post_reset` is the complete set of paths the reset is permitted to add, and of those only `schemas/control/compile-v2.schema.json`, the promoted historical v1 schema copy, the promoted historical cylinder resource, and the two unversioned Rust wire owners carry a search signal. A signal-bearing path created later, by work the reset did not do, enters only through an exact amendment to this frozen record: identity-free surfaces through `post_reset_admitted`, exact fixtures through `post_reset_fixture_admitted`, and mixed or source/package identity evidence through `post_reset_classified`. None is inferred by the state predicate, a glob, a directory, or proximity.",
       "escape": "an implementation that needs another new signal-bearing path, another declared scope exclusion, or that cannot retire a listed path, stops and returns the delta to this oracle. Widening a set here to admit an implementation choice is not an available move.",
       "ownership_of_the_unversioned_wire_owners": "the reset folds the retired `model_v8.rs` and `model_transaction_v8.rs` wrappers together with the surviving current encoding into `crates/eqiora-artifact/src/model_wire.rs` and `crates/eqiora-artifact/src/model_transaction_wire.rs`. This gives the exact current persisted wire an unversioned product owner without growing the already-large `model.rs` and `model_transaction.rs`. Their existence is required; their content is not frozen here, because this oracle does not own the current encoding — `artifacts.current-model-canonical-identity` does.",
       "counts": "44, 304 and 13 are not one partition of 338. What partitions the inventory is 34 + 304: the 34 retired paths that are inventory members plus the 304 preserved ones. The other 10 retired paths carry no search signal and were never members. The 13 required paths are post-reset additions and replacements, not inventory members: 12 are created by the reset, and `verify/interfaces/control-plane-compile-check/expected/contract.json` is the one existing member whose bytes are replaced in place. Of the 13, 11 carry a frozen promotion digest — 10 staged control-v2 sources plus the historical cylinder — and 2 are required by existence alone.",
@@ -490,6 +490,174 @@
           "owner": "interfaces.prescribed-dynamic-solid-subprocess-provider-3d independent oracle",
           "note": "the exact two-output Run fixture carries `model_sha256` and four same-line Model-derived lower-hex-64 literal occurrences; admission owns only this path, signal, and literal count."
         }
+      ],
+      "post_reset_classified_contract": "identity-bearing evidence created after the reset is classified by exact path and by nothing else. Classification is containment-only and never makes a later capability a condition of accepting the reset. A present path must reproduce its complete recorded search-token inventory, same-line lower-hex search-signal count, and lower-hex-64 literal multiset; a missing signal, extra signal, substituted identity, or additional identity returns the path to this oracle.",
+      "post_reset_classified_is_not_membership": "no later-classified path joins `inventory`, `retired`, `retired_outside_inventory`, `required_post_reset`, `required_post_reset_without_frozen_bytes`, `preserved_evidence`, `promoted_evidence`, `post_reset_admitted`, or any `promotion` row. The historical counts and the five-path identity-free admission remain unchanged.",
+      "post_reset_classified_exactness": "these three paths and no others. The two API-oracle surfaces decompose their migrating current Model/package-artifact assertions from immutable source, release, and resolution identities that migrate in place. The minified stored release is source/package identity only. A sibling test or release receives no classification by directory, stem, extension, or proximity.",
+      "post_reset_classified_path_count": 3,
+      "post_reset_classified_mixed_assertion_surface_count": 2,
+      "post_reset_classified_source_or_package_identity_path_count": 1,
+      "post_reset_classified_model_derived_identity_literal_count": 8,
+      "post_reset_classified": [
+        {
+          "path": "bindings/python/tests/test_offline_model_package.py",
+          "class": "mixed-claim-surface",
+          "disposition": "decompose-by-claim",
+          "owner": "interfaces.python-offline-model-package",
+          "signals": [
+            "model_sha256",
+            "model_digest"
+          ],
+          "same_line_lower_hex_identity_signal_lines": 0,
+          "current_model_identity_literals": 4,
+          "identity_literal_occurrences": 9,
+          "identity_literals": [
+            {
+              "value": "92837f0f85ff4a1310af0ca6e412d3ace81393df837d017caf5bfabeb8f6c1a1",
+              "role": "current-model-or-package-artifact",
+              "occurrences": 1
+            },
+            {
+              "value": "a6e31415d973c5dc23a92a101ba3db7cef7b1b70b0dc51d2b73214f1fc00bf49",
+              "role": "current-model-or-package-artifact",
+              "occurrences": 1
+            },
+            {
+              "value": "c2c35e6b58f6ee0d40b8aa2bd0c252e519eec6f6779e39366ae2e28cdbd5300a",
+              "role": "current-model-or-package-artifact",
+              "occurrences": 1
+            },
+            {
+              "value": "6e72043a1d0569d7488717cd7ffdf54a01c7e5e65262cecc3a49fcdce645dec0",
+              "role": "current-model-or-package-artifact",
+              "occurrences": 1
+            },
+            {
+              "value": "081cca92b2a8d6ee8bba78741db2becd5d5edfa896a114a193c8e1486997b6fe",
+              "role": "source-or-resolution-identity",
+              "occurrences": 1
+            },
+            {
+              "value": "38b5bb0c7e1f8aa7baa5e690157014a974c446f8f38fcd19d6b73b981e9ca810",
+              "role": "source-or-resolution-identity",
+              "occurrences": 1
+            },
+            {
+              "value": "4f3aa811b814ac7fb959f777ff5d758804e2e68593a568ee8935b122c9565462",
+              "role": "source-or-resolution-identity",
+              "occurrences": 1
+            },
+            {
+              "value": "cd7afe063d06007b97c108d3957e1bdc92e64fe47adfc7ac92975fee4f2c0d28",
+              "role": "source-or-resolution-identity",
+              "occurrences": 1
+            },
+            {
+              "value": "ce343238d92f202646d2dd2947d68c311eac90aa711aa9d0e3905fa170f6f3f1",
+              "role": "source-or-resolution-identity",
+              "occurrences": 1
+            }
+          ],
+          "claims": [
+            {
+              "selector": "ordinary Python contract and exact current Model/package-artifact projection",
+              "class": "current-owner-assertion",
+              "disposition": "migrate"
+            },
+            {
+              "selector": "immutable source release and resolution inputs",
+              "class": "source-or-package-identity",
+              "disposition": "migrate-in-place"
+            }
+          ]
+        },
+        {
+          "path": "crates/eqiora-python/tests/python_offline_model_package.rs",
+          "class": "mixed-claim-surface",
+          "disposition": "decompose-by-claim",
+          "owner": "interfaces.python-offline-model-package",
+          "signals": [],
+          "same_line_lower_hex_identity_signal_lines": 4,
+          "current_model_identity_literals": 4,
+          "identity_literal_occurrences": 9,
+          "identity_literals": [
+            {
+              "value": "92837f0f85ff4a1310af0ca6e412d3ace81393df837d017caf5bfabeb8f6c1a1",
+              "role": "current-model-or-package-artifact",
+              "occurrences": 1
+            },
+            {
+              "value": "a6e31415d973c5dc23a92a101ba3db7cef7b1b70b0dc51d2b73214f1fc00bf49",
+              "role": "current-model-or-package-artifact",
+              "occurrences": 1
+            },
+            {
+              "value": "c2c35e6b58f6ee0d40b8aa2bd0c252e519eec6f6779e39366ae2e28cdbd5300a",
+              "role": "current-model-or-package-artifact",
+              "occurrences": 1
+            },
+            {
+              "value": "6e72043a1d0569d7488717cd7ffdf54a01c7e5e65262cecc3a49fcdce645dec0",
+              "role": "current-model-or-package-artifact",
+              "occurrences": 1
+            },
+            {
+              "value": "38b5bb0c7e1f8aa7baa5e690157014a974c446f8f38fcd19d6b73b981e9ca810",
+              "role": "source-or-resolution-identity",
+              "occurrences": 1
+            },
+            {
+              "value": "4f3aa811b814ac7fb959f777ff5d758804e2e68593a568ee8935b122c9565462",
+              "role": "source-or-resolution-identity",
+              "occurrences": 2
+            },
+            {
+              "value": "cd7afe063d06007b97c108d3957e1bdc92e64fe47adfc7ac92975fee4f2c0d28",
+              "role": "source-or-resolution-identity",
+              "occurrences": 1
+            },
+            {
+              "value": "ce343238d92f202646d2dd2947d68c311eac90aa711aa9d0e3905fa170f6f3f1",
+              "role": "source-or-resolution-identity",
+              "occurrences": 1
+            }
+          ],
+          "claims": [
+            {
+              "selector": "ordinary Python contract and exact current Model/package-artifact projection",
+              "class": "current-owner-assertion",
+              "disposition": "migrate"
+            },
+            {
+              "selector": "immutable source release and resolution inputs",
+              "class": "source-or-package-identity",
+              "disposition": "migrate-in-place"
+            }
+          ]
+        },
+        {
+          "path": "verify/interfaces/python-offline-model-package/models/typed-execution-lineage/store/4f3aa811b814ac7fb959f777ff5d758804e2e68593a568ee8935b122c9565462.json",
+          "class": "source-or-package-identity",
+          "disposition": "migrate-in-place",
+          "owner": "interfaces.python-offline-model-package",
+          "signals": [],
+          "same_line_lower_hex_identity_signal_lines": 1,
+          "current_model_identity_literals": 0,
+          "identity_literal_occurrences": 2,
+          "identity_literals": [
+            {
+              "value": "87332fcbb93ed232747faeec616c2f8c07d43e4bb99895bbd3e30d4ea98888cb",
+              "role": "source-or-resolution-identity",
+              "occurrences": 1
+            },
+            {
+              "value": "96f8cc7ddc28aa0888789f85c40f1efe68ba6c8522d57239601bbcd0b711a460",
+              "role": "source-or-resolution-identity",
+              "occurrences": 1
+            }
+          ],
+          "claims": []
+        }
       ]
     },
     "forbidden_product_tokens": {
@@ -706,7 +874,7 @@
     "delegated-current-owner-evidence": "exact current bytes, current assertions, or historical rejection specimens already owned by another registered oracle; retained there rather than duplicated here",
     "negative-historical-rejection-corpus": "literal historical bytes retained only as negative specimens proving that the current decoder rejects old schemas; no historical runtime decoder is retained",
     "current-owner-assertion": "semantic, scientific, application, or documentation claim that survives and migrates to the ordinary current owner",
-    "mixed-claim-surface": "one file contains both a surviving current claim and a removed compatibility selector; each claim has its own selector and disposition",
+    "mixed-claim-surface": "one file contains claims with different semantic fates; each claim has its own selector, class, and disposition. Existing reset surfaces separate surviving current claims from removed compatibility selectors; later evidence may instead separate migrating current-artifact assertions from immutable source/package identities that remain in place.",
     "compatibility-only": "sole claim is that a removed Model or Transaction generation stays callable or byte-stable; deleted by the reset",
     "source-or-package-identity": "hash of source text or package content, not a Model artifact identity; immutable input",
     "prose-transcript": "documentation transcript of one flat compilation; unreproducible by construction and covered by no registered case",
@@ -720,7 +888,7 @@
     "migrate": "the path survives and its claim moves to the current owner, with any identity literal it carries substituted by the precommitted successor",
     "preserve-bytes": "the path survives byte-identical, and any Model reference inside it stays opaque",
     "decompose-by-claim": "the file carries several claims with different fates; each entry in `claims` carries its own disposition",
-    "migrate-in-place": "the path survives an in-place migration and contributes no frozen identity literal here. The inventory remainder inherits this fate, and only paths that survive may: no retired path is left to it."
+    "migrate-in-place": "the path or claim survives in place and contributes no Model-derived identity transition here. Immutable source/package identities may remain byte-stable under this disposition. The identity-free inventory remainder inherits it, and only paths that survive may: no retired path is left to it."
   },
   "disposition_completeness": "every entry naming at least one path declares exactly one disposition from the vocabulary above, no path is named by two entries, and every one of the 338 inventory paths therefore has exactly one fate: 109 from an entry and 229 from the remainder rule.",
   "entries": [

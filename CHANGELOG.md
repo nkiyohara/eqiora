@@ -8,6 +8,12 @@ are recorded here.
 
 ### Added
 
+- Added `eqiora.compile_package(...)` for one exact installed-Python locked
+  Model Package path. Callers provide an explicit content-addressed store,
+  canonical resolution bytes, and a bare root-local Model selector; discovery,
+  authoring, installation, registry/network access, execution, and Studio
+  workflows remain outside the claim.
+
 - Added one exact serial-host prescribed dynamic-solid publication path with a
   content-addressed standalone Realization, retained prior and accepted-next
   two-Field States, and a Run whose sole output is the accepted-next State.
