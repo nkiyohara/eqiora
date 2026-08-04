@@ -554,8 +554,10 @@ fn derivation_rejects_ambiguous_incomplete_foreign_and_mixed_roles() {
     );
     assert_derivation_rejects(&mixed_boundary, "mixed boundary role");
 
-    let mut oversized_load = String::from("pressure_gradient * coordinate(0)");
-    oversized_load.push_str(&" + 0".repeat(4_097));
+    let mut oversized_terms =
+        vec!["0 * (pressure_gradient * coordinate(0))"; 4_097];
+    oversized_terms.push("pressure_gradient * coordinate(0)");
+    let oversized_load = balanced_sum(&oversized_terms);
     let oversized = SOURCE.replace("pressure_gradient * coordinate(0)", &oversized_load);
     assert_derivation_rejects(&oversized, "bounded compiler resources");
 }
@@ -847,6 +849,18 @@ fn center_vertex(mesh: &CartesianMesh) -> usize {
                 == [0.5, 0.5]
         })
         .unwrap()
+}
+
+fn balanced_sum(terms: &[&str]) -> String {
+    if let [term] = terms {
+        return (*term).to_owned();
+    }
+    let middle = terms.len() / 2;
+    format!(
+        "({} + {})",
+        balanced_sum(&terms[..middle]),
+        balanced_sum(&terms[middle..]),
+    )
 }
 
 fn actions(
