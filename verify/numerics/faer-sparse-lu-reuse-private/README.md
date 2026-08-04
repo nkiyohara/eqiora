@@ -13,11 +13,13 @@ numeric factorization, candidate solve, solver acceptance, and execution
 acceptance. None may expose a candidate identity or reach `state-commit`, and
 all retain the last accepted binding and factors.
 
-Six component mutants are precommitted. For each, the complete baseline
-validation rejects an otherwise-single-component mismatch, while omitting
-only the named equality lets that mutant survive: right-hand-side sensitivity
-in the existing full-CSR identity, then structure, coefficients, policy,
-provider, and complete portable graph in reuse validation.
+Six component mutants are precommitted. The complete baseline rejects the
+right-hand-side, structure, policy, provider, and complete portable-graph
+mismatches. A coefficient mismatch instead takes the live full P2 numeric
+rebuild path; complete coefficient equality denies retained-numeric reuse,
+while omitting only that equality authorizes the invalid retained reuse. For
+every mutant, omitting only the named equality is the sole authorization
+change.
 
 Injected stale, foreign, partially constructed, failed, and singular factor
 states all reject with `EQ0807` during preflight. They reach no factor solve,
