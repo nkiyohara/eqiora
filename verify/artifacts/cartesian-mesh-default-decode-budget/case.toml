@@ -1,0 +1,124 @@
+id = "artifacts.cartesian-mesh-default-decode-budget"
+status = "verified"
+scope = "default-and-explicit-resource-policy-for-axis-compressed-cartesian-mesh-decoding"
+reference_kind = "independent-closed-form-axis-state-product-and-literal-boundary-oracle"
+
+capabilities = [
+  "all-strata-cartesian-entity-preflight",
+  "all-entity-closure-reference-preflight",
+  "default-untrusted-cartesian-decode-budget",
+  "explicit-large-cartesian-replay-policy",
+  "trusted-capture-default-decode-asymmetry",
+]
+
+[contract]
+axis_vertex_count = "n_i >= 2"
+total_entities = "E = product(2 * n_i - 1)"
+total_entity_closure_vertex_references = "R = product(3 * n_i - 2)"
+default_max_cartesian_entities = 1000000
+default_max_cartesian_entity_vertex_references = 8000000
+comparison = "inclusive"
+arithmetic = "checked factors and products before CartesianMesh reconstruction"
+failure_code = "EQ0901"
+default_api = "CartesianMeshEnvelopeV1::from_json(bytes, MeshDecoderLimits)"
+explicit_api = "CartesianMeshEnvelopeV1::from_json_with_limits(bytes, CartesianMeshDecoderLimits)"
+trusted_capture = "CartesianMeshEnvelopeV1::from_mesh retains shared MeshDecoderLimits defaults but does not apply untrusted-default E/R ceilings"
+
+[witness.accepted_17_by_17]
+axes = [17, 17]
+entities = 1089
+entity_vertex_references = 2401
+outcome = "default accept with frozen canonical bytes, digest, and ordering"
+
+[witness.exact_3_by_3]
+axes = [3, 3]
+entities = 25
+entity_vertex_references = 49
+outcome = "25/49 accepts; 24/49 and 25/48 reject independently"
+
+[witness.entity_boundary_accept]
+axes = [16, 16, 16, 16]
+entities = 923521
+entity_vertex_references = 4477456
+outcome = "default accept"
+
+[witness.entity_boundary_reject]
+axes = [17, 17, 17, 17]
+entities = 1185921
+entity_vertex_references = 5764801
+outcome = "default reject on entity budget only"
+
+[witness.reference_boundary_accept]
+axes = [4, 4, 4, 4, 4, 4, 3]
+entities = 588245
+entity_vertex_references = 7000000
+outcome = "default accept"
+
+[witness.reference_boundary_reject]
+axes = [4, 4, 4, 4, 4, 4, 4]
+entities = 823543
+entity_vertex_references = 10000000
+outcome = "default reject on closure-reference budget only"
+
+[witness.issue_example_2d]
+axes = [1000, 1000]
+entities = 3996001
+entity_vertex_references = 8988004
+outcome = "default reject before reconstruction"
+
+[witness.issue_example_3d]
+axes = [100, 100, 100]
+entities = 7880599
+entity_vertex_references = 26463592
+outcome = "default reject before reconstruction"
+
+[witness.nonuniform]
+axes = [2, 3, 5]
+entities = 135
+entity_vertex_references = 364
+outcome = "135/364 accepts; one-below entity and reference limits reject independently"
+
+[witness.preconstruction_diagnostic]
+axes = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+entities = 531441
+entity_vertex_references = 16777216
+outcome = "default decoder-specific reference-budget rejection precedes ReferenceTopology"
+
+[witness.trusted_capture]
+axes = [501, 501]
+entities = 1002001
+entity_vertex_references = 2253001
+outcome = "trusted capture succeeds; default decode rejects; exact explicit 1002001/2253001 policy replays identical bytes, digest, and mesh"
+
+[falsifiers]
+old_shared_limits_only = "4D x 17 and 7D x 4 would be admitted"
+vertices_plus_top_cells = "4D x 17 would be admitted"
+top_cell_connectivity_only = "7D x 4 would be admitted"
+isotropic_or_first_axis_formula = "the [2,3,5] exact limits fail"
+exclusive_limit_comparison = "the exact [3,3] 25/49 witness fails"
+wrapping_or_saturating_product = "32 and 64 two-point axes do not report a Cartesian product overflow"
+reconstruct_before_preflight = "the 12-axis witness reports ReferenceTopology ownership instead of the decoder-specific reference budget"
+untrusted_policy_during_capture = "trusted 501x501 capture fails"
+ignored_explicit_policy = "exact custom limits or trusted replay fail"
+serialized_policy_state = "the frozen 17x17 canonical bytes or digest change"
+
+[diagnostics]
+entity_excess = "Cartesian mesh entity count {actual} exceeds decoder limit {limit}"
+entity_reference_excess = "Cartesian mesh entity-closure vertex-reference count {actual} exceeds decoder limit {limit}"
+entity_overflow = "Cartesian mesh entity count overflows usize"
+entity_reference_overflow = "Cartesian mesh entity-closure vertex-reference count overflows usize"
+
+[claim_boundary]
+wire_schema_or_digest_change = false
+new_mesh_family_or_import_workflow = false
+universal_mesh_or_policy_registry = false
+serialized_trust_or_provenance_heuristic = false
+unbounded_trusted_escape_hatch = false
+heap_byte_or_allocator_layout_guarantee = false
+latency_or_performance_guarantee = false
+solver_or_scientific_oracle_change = false
+meshing_hard_cap_relaxation = false
+
+[evidence]
+package = "eqiora-artifact"
+test = "cartesian_mesh_decode_budget"

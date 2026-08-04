@@ -11,6 +11,37 @@ use crate::{
 
 const CARTESIAN_MESH_SCHEMA: &str = "eqiora.cartesian-mesh-envelope/v1";
 
+/// Resource policy for decoding an axis-compressed Cartesian mesh.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CartesianMeshDecoderLimits {
+    /// Shared JSON and expanded-mesh resource limits.
+    pub mesh: MeshDecoderLimits,
+    /// Maximum number of reconstructed entities across every stratum.
+    pub max_cartesian_entities: usize,
+    /// Maximum number of vertex references across every entity closure.
+    pub max_cartesian_entity_vertex_references: usize,
+}
+
+impl Default for CartesianMeshDecoderLimits {
+    fn default() -> Self {
+        Self {
+            mesh: MeshDecoderLimits::default(),
+            max_cartesian_entities: 1_000_000,
+            max_cartesian_entity_vertex_references: 8_000_000,
+        }
+    }
+}
+
+impl CartesianMeshDecoderLimits {
+    fn trusted_capture() -> Self {
+        Self {
+            mesh: MeshDecoderLimits::default(),
+            max_cartesian_entities: usize::MAX,
+            max_cartesian_entity_vertex_references: usize::MAX,
+        }
+    }
+}
+
 /// Versioned axes and canonical topology for one Cartesian mesh revision.
 ///
 /// The artifact owns mesh topology and geometry, not a finite-element basis.
@@ -36,7 +67,7 @@ impl CartesianMeshEnvelopeV1 {
                     .ok_or_else(|| invalid_artifact("Cartesian mesh omitted a physical axis"))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        Self::from_axes(axes, MeshDecoderLimits::default())
+        Self::from_axes(axes, CartesianMeshDecoderLimits::trusted_capture())
     }
 
     /// Decode with byte, nesting, coordinate, entity, and connectivity limits.
@@ -44,8 +75,26 @@ impl CartesianMeshEnvelopeV1 {
     /// # Errors
     /// Returns `EQ0901` for malformed, unknown, oversized, noncanonical, or
     /// invalid Cartesian mesh data.
-    pub fn from_json(bytes: &[u8], limits: MeshDecoderLimits) -> Result<Self, Diagnostic> {
-        check_json_limits(bytes, limits.json)?;
+    pub fn from_json(bytes: &[u8], mesh_limits: MeshDecoderLimits) -> Result<Self, Diagnostic> {
+        Self::from_json_with_limits(
+            bytes,
+            CartesianMeshDecoderLimits {
+                mesh: mesh_limits,
+                ..CartesianMeshDecoderLimits::default()
+            },
+        )
+    }
+
+    /// Decode with explicit shared and Cartesian reconstruction limits.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for malformed, unknown, oversized, noncanonical, or
+    /// invalid Cartesian mesh data.
+    pub fn from_json_with_limits(
+        bytes: &[u8],
+        limits: CartesianMeshDecoderLimits,
+    ) -> Result<Self, Diagnostic> {
+        check_json_limits(bytes, limits.mesh.json)?;
         let wire = serde_json::from_slice(bytes)
             .map_err(|error| invalid_artifact(format!("invalid Cartesian mesh JSON: {error}")))?;
         Self::from_wire(wire, limits)
@@ -93,7 +142,10 @@ impl CartesianMeshEnvelopeV1 {
         self.mesh.topological_dimension()
     }
 
-    fn from_axes(axes: Vec<Vec<f64>>, limits: MeshDecoderLimits) -> Result<Self, Diagnostic> {
+    fn from_axes(
+        axes: Vec<Vec<f64>>,
+        limits: CartesianMeshDecoderLimits,
+    ) -> Result<Self, Diagnostic> {
         let dimension = u64::try_from(axes.len())
             .map_err(|_| invalid_artifact("Cartesian mesh dimension exceeds portable u64"))?;
         Self::from_wire(
@@ -114,7 +166,7 @@ impl CartesianMeshEnvelopeV1 {
 
     fn from_wire(
         wire: WireCartesianMeshEnvelopeV1,
-        limits: MeshDecoderLimits,
+        limits: CartesianMeshDecoderLimits,
     ) -> Result<Self, Diagnostic> {
         if wire.schema != CARTESIAN_MESH_SCHEMA
             || wire.encoding != CANONICAL_ENCODING
@@ -143,7 +195,7 @@ impl CartesianMeshEnvelopeV1 {
         require_count(
             "Cartesian axis coordinate",
             stored_coordinate_count,
-            limits.max_mesh_coordinate_values,
+            limits.mesh.max_mesh_coordinate_values,
         )?;
         if wire
             .axes
@@ -154,6 +206,26 @@ impl CartesianMeshEnvelopeV1 {
             return Err(invalid_artifact(
                 "Cartesian mesh coordinates require canonical positive zero",
             ));
+        }
+        if wire.axes.iter().all(|axis| axis.len() >= 2) {
+            let cartesian_entity_count =
+                checked_axis_state_product(&wire.axes, 2, 1, "Cartesian mesh entity")?;
+            require_count(
+                "Cartesian mesh entity",
+                cartesian_entity_count,
+                limits.max_cartesian_entities,
+            )?;
+            let cartesian_entity_vertex_reference_count = checked_axis_state_product(
+                &wire.axes,
+                3,
+                2,
+                "Cartesian mesh entity-closure vertex-reference",
+            )?;
+            require_count(
+                "Cartesian mesh entity-closure vertex-reference",
+                cartesian_entity_vertex_reference_count,
+                limits.max_cartesian_entity_vertex_references,
+            )?;
         }
         let vertex_count = wire.axes.iter().try_fold(1_usize, |count, axis| {
             count
@@ -168,16 +240,20 @@ impl CartesianMeshEnvelopeV1 {
         require_count(
             "Cartesian mesh vertex",
             vertex_count,
-            limits.max_mesh_vertices,
+            limits.mesh.max_mesh_vertices,
         )?;
-        require_count("Cartesian mesh cell", cell_count, limits.max_mesh_cells)?;
+        require_count(
+            "Cartesian mesh cell",
+            cell_count,
+            limits.mesh.max_mesh_cells,
+        )?;
         let expanded_coordinate_count = vertex_count
             .checked_mul(dimension)
             .ok_or_else(|| invalid_artifact("Cartesian mesh coordinate count overflows usize"))?;
         require_count(
             "Cartesian expanded coordinate",
             expanded_coordinate_count,
-            limits.max_mesh_coordinate_values,
+            limits.mesh.max_mesh_coordinate_values,
         )?;
         let cell_width = 1_usize
             .checked_shl(
@@ -191,7 +267,7 @@ impl CartesianMeshEnvelopeV1 {
         require_count(
             "Cartesian connectivity index",
             connectivity_count,
-            limits.max_mesh_connectivity_indices,
+            limits.mesh.max_mesh_connectivity_indices,
         )?;
         let mesh = CartesianMesh::from_axes(wire.axes.clone())
             .map_err(|error| invalid_artifact(error.message()))?;
@@ -204,6 +280,24 @@ impl CartesianMeshEnvelopeV1 {
         }
         Ok(Self { wire, mesh })
     }
+}
+
+fn checked_axis_state_product(
+    axes: &[Vec<f64>],
+    multiplier: usize,
+    offset: usize,
+    label: &str,
+) -> Result<usize, Diagnostic> {
+    axes.iter().try_fold(1_usize, |product, axis| {
+        let factor = axis
+            .len()
+            .checked_mul(multiplier)
+            .and_then(|weighted| weighted.checked_sub(offset))
+            .ok_or_else(|| invalid_artifact(format!("{label} count overflows usize")))?;
+        product
+            .checked_mul(factor)
+            .ok_or_else(|| invalid_artifact(format!("{label} count overflows usize")))
+    })
 }
 
 fn require_count(label: &str, actual: usize, limit: usize) -> Result<(), Diagnostic> {
