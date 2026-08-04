@@ -1,0 +1,10 @@
+{"schema":"eqiora.spatial-state-envelope/v1",
+"encoding":"eqiora.canonical-json/v1",
+"model_sha256":"2d28e2f8142a4fc06c0b02da96bdde6c1b306c43483cbed749d9145818427107",
+"semantic_revision":1,
+"realization_sha256":"64ec436b1f9478982543a0ee9928af41c37e719a1037f72fe18653f718550488",
+"geometry_sha256":"4a9f829782dd45c07491b7b3d5b6d3e960b9aafbcc44b707b66e3e7732c16fd1",
+"correspondence_sha256":"e070498fa53c664628c748af314791c48dae079d6a5e45360cc99974ebba4fe6",
+"mesh_sha256":"ff6f0d68acb005514c13e1e1bd8a9df6780b869661c0598dad40bbe627cd9fc8",
+"accepted":{"step":1,"time_s":0.25},
+"fields":[{"support_domain_ulid":"0PPGQVKZBQTQQ26M9EW1522YHZ","field_ulid":"129QZZWQYCHAH7E7JE2RRF260A","snapshot_sha256":"16d85936e20d9c67b04a05d097cde0b0a1feb5acf41f44244b68931175f2c9dc"},{"support_domain_ulid":"0PPGQVKZBQTQQ26M9EW1522YHZ","field_ulid":"49V9X8Z5SYVV9AM4Y6SA468KQV","snapshot_sha256":"b8e74641336085b043aa48a21b72e1953b4a28883af185ee66cbc8fbcebb86d4"}]}

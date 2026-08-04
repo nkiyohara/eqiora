@@ -1,0 +1,51 @@
+id = "artifacts.prescribed-dynamic-solid-state-run-3d"
+status = "verified"
+scope = "exact-serial-host-prescribed-dynamic-solid-realization-prior-and-accepted-state-run-3d"
+reference_kind = "standard-library-exact-binary64-canonical-artifact-oracle"
+
+capabilities = [
+  "standalone-prescribed-dynamic-solid-realization",
+  "exact-prior-and-accepted-two-field-state",
+  "accepted-next-state-singleton-run-output",
+  "failure-atomic-accepted-execution-publication",
+  "resource-bound-current-model-role-replay",
+]
+
+[problem]
+ambient_dimension = 3
+source_step = "solid.prescribed-dynamic-solid-step-3d"
+mesh = "exact ordered nine-vertex twelve-tetrahedron unit cube"
+states = "prior at step zero and accepted next at step one"
+fields = "displacement and velocity, continuous vector P1"
+execution = "one-worker serial host with reproducible reduction"
+
+[artifact_contract]
+realization = "one closed standalone-solid envelope with exact semantic roles and resources"
+field_snapshots = "prior and accepted displacement and velocity over exact Vertex blocks"
+states = "artifact-local exact coordinate pair and canonical two-Field inventory"
+owner_roles = "prior and accepted occurrence binding is checked only by the application owner"
+run_output = "exact singleton accepted-next State digest"
+persisted_numerics = "complete accepted live binary64 bit sequence"
+
+[falsifiers]
+wire_or_decoder_drift = "reject malformed, noncanonical, reordered, unknown, or over-budget input"
+role_or_resource_drift = "reject stale lineage and structurally changed current-Model meaning"
+driven_displacement_drift = "reject complete-object change, omission, duplication, reorder, or invalid value"
+block_snapshot_state_drift = "reject wrong numerical leaf, metadata, support, inventory, or coordinate"
+owner_role_substitution = "reject prior/accepted State, snapshot, block, or Run cross-role substitution"
+execution_substitution = "return no owner for changed provider, plan, execution, verification, or backend failure"
+
+[claim_boundary]
+exact_serial_host_occurrence = true
+standalone_realization_state_and_run = true
+accepted_next_state_is_only_output = true
+prior_state_is_retained_input_observation = true
+arbitrary_model_mesh_candidate_or_step = false
+trajectory_checkpoint_restart_or_continuation = false
+python_subprocess_provider_discovery_or_studio = false
+mpi_gpu_parallel_performance_or_scale = false
+general_structural_result_or_realization_hierarchy = false
+
+[evidence]
+package = "eqiora"
+test = "prescribed_dynamic_solid_state_run_3d"
