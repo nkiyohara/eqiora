@@ -55,7 +55,7 @@ impl PyCadAuthoredSketch {
     fn rectangle_xy(
         py: Python<'_>,
         #[pyo3(from_py_with = extract_rectangle_pair)] x_bounds: (f64, f64),
-        y_bounds: (f64, f64),
+        #[pyo3(from_py_with = extract_rectangle_pair)] y_bounds: (f64, f64),
         plane_z: f64,
         modeling_tolerance: f64,
     ) -> PyResult<Self> {
