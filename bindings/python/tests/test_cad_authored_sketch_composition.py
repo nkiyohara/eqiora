@@ -1017,7 +1017,8 @@ def test_runtime_stub_inventory_signatures_and_exports_are_exact() -> None:
     assert str(inspect.signature(sketch_type.extrude_positive_z)) == (
         "(self, /, *, depth)"
     )
-    assert str(inspect.signature(sketch_type.__eq__)) == "(self, other, /)"
+    assert str(inspect.signature(sketch_type.__eq__)) == "(self, value, /)"
+    assert sketch_type.__eq__.__text_signature__ == "($self, value, /)"
     assert str(inspect.signature(eqiora.geometry.CadAuthoredGraph.through_cut)) == (
         "(self, sketch, /, *, boolean_tolerance)"
     )
