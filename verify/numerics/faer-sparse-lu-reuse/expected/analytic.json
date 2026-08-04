@@ -1,0 +1,629 @@
+{
+  "schema": "eqiora.faer-sparse-lu-reuse.analytic-oracle.v1",
+  "parameter_tuple_order": [
+    "source_scale",
+    "diffusion",
+    "boundary_offset"
+  ],
+  "residual_contract": {
+    "system": "strongly_eliminated_reduced_system",
+    "norm": "absolute_value",
+    "tolerance": "1/1073741824",
+    "tolerance_power_of_two": "2^-30"
+  },
+  "mesh": {
+    "domain": [
+      "0",
+      "1"
+    ],
+    "nodes": [
+      "0",
+      "1/2",
+      "1"
+    ],
+    "elements": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "element_length": "1/2",
+    "basis": "Q1",
+    "quadrature": {
+      "name": "two_point_gauss_legendre",
+      "polynomial_exactness_degree": 3,
+      "stiffness_integrand_degree": 0,
+      "load_integrand_degree": 1
+    }
+  },
+  "element_arrays": {
+    "stiffness": {
+      "formula": "diffusion/element_length * [[1,-1],[-1,1]]",
+      "coefficient_for_element_length": "2",
+      "basis_matrix": [
+        [
+          "1",
+          "-1"
+        ],
+        [
+          "-1",
+          "1"
+        ]
+      ]
+    },
+    "load": {
+      "formula": "source_scale*element_length/2 * [1,1]",
+      "coefficient_for_element_length": "1/4",
+      "basis_vector": [
+        "1",
+        "1"
+      ]
+    }
+  },
+  "assembly_template": {
+    "full_coo_uncoalesced": {
+      "rows": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        2,
+        2
+      ],
+      "columns": [
+        0,
+        1,
+        0,
+        1,
+        1,
+        2,
+        1,
+        2
+      ],
+      "value_multipliers_of_diffusion": [
+        "2",
+        "-2",
+        "-2",
+        "2",
+        "2",
+        "-2",
+        "-2",
+        "2"
+      ]
+    },
+    "full_coo_coalesced": {
+      "rows": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        2,
+        2
+      ],
+      "columns": [
+        0,
+        1,
+        0,
+        1,
+        2,
+        1,
+        2
+      ],
+      "value_multipliers_of_diffusion": [
+        "2",
+        "-2",
+        "-2",
+        "4",
+        "-2",
+        "-2",
+        "2"
+      ]
+    },
+    "full_canonical_csr": {
+      "offsets": [
+        0,
+        2,
+        5,
+        7
+      ],
+      "columns": [
+        0,
+        1,
+        0,
+        1,
+        2,
+        1,
+        2
+      ],
+      "value_multipliers_of_diffusion": [
+        "2",
+        "-2",
+        "-2",
+        "4",
+        "-2",
+        "-2",
+        "2"
+      ]
+    },
+    "full_rhs_multipliers_of_source_scale": [
+      "1/4",
+      "1/2",
+      "1/4"
+    ],
+    "strong_endpoint_elimination": {
+      "boundary_dofs": [
+        0,
+        2
+      ],
+      "interior_dofs": [
+        1
+      ],
+      "reduced_csr_offsets": [
+        0,
+        1
+      ],
+      "reduced_csr_columns": [
+        0
+      ],
+      "matrix_formula": "4*diffusion",
+      "rhs_formula": "source_scale/2 + 4*diffusion*boundary_offset",
+      "solution_formula": "boundary_offset + source_scale/(8*diffusion)",
+      "method": "restriction_and_boundary_shift",
+      "boundary_row_replacement": false
+    }
+  },
+  "points": [
+    {
+      "id": "p0",
+      "tuple": [
+        "2",
+        "1",
+        "0"
+      ],
+      "full_system": {
+        "coo_rows": [
+          0,
+          0,
+          1,
+          1,
+          1,
+          2,
+          2
+        ],
+        "coo_columns": [
+          0,
+          1,
+          0,
+          1,
+          2,
+          1,
+          2
+        ],
+        "coo_values": [
+          "2",
+          "-2",
+          "-2",
+          "4",
+          "-2",
+          "-2",
+          "2"
+        ],
+        "csr_offsets": [
+          0,
+          2,
+          5,
+          7
+        ],
+        "csr_columns": [
+          0,
+          1,
+          0,
+          1,
+          2,
+          1,
+          2
+        ],
+        "csr_values": [
+          "2",
+          "-2",
+          "-2",
+          "4",
+          "-2",
+          "-2",
+          "2"
+        ],
+        "rhs": [
+          "1/2",
+          "1",
+          "1/2"
+        ]
+      },
+      "reduced_system": {
+        "csr_offsets": [
+          0,
+          1
+        ],
+        "csr_columns": [
+          0
+        ],
+        "csr_values": [
+          "4"
+        ],
+        "rhs": [
+          "1"
+        ],
+        "determinant": "4",
+        "inverse_infinity_norm": "1/4",
+        "solution": [
+          "1/4"
+        ],
+        "full_nodal_solution": [
+          "0",
+          "1/4",
+          "0"
+        ],
+        "exact_residual": [
+          "0"
+        ],
+        "residual_conditioned_solution_error_bound": "1/4294967296",
+        "bound_expression": "2^-32"
+      }
+    },
+    {
+      "id": "p1",
+      "tuple": [
+        "4",
+        "1",
+        "0"
+      ],
+      "full_system": {
+        "coo_rows": [
+          0,
+          0,
+          1,
+          1,
+          1,
+          2,
+          2
+        ],
+        "coo_columns": [
+          0,
+          1,
+          0,
+          1,
+          2,
+          1,
+          2
+        ],
+        "coo_values": [
+          "2",
+          "-2",
+          "-2",
+          "4",
+          "-2",
+          "-2",
+          "2"
+        ],
+        "csr_offsets": [
+          0,
+          2,
+          5,
+          7
+        ],
+        "csr_columns": [
+          0,
+          1,
+          0,
+          1,
+          2,
+          1,
+          2
+        ],
+        "csr_values": [
+          "2",
+          "-2",
+          "-2",
+          "4",
+          "-2",
+          "-2",
+          "2"
+        ],
+        "rhs": [
+          "1",
+          "2",
+          "1"
+        ]
+      },
+      "reduced_system": {
+        "csr_offsets": [
+          0,
+          1
+        ],
+        "csr_columns": [
+          0
+        ],
+        "csr_values": [
+          "4"
+        ],
+        "rhs": [
+          "2"
+        ],
+        "determinant": "4",
+        "inverse_infinity_norm": "1/4",
+        "solution": [
+          "1/2"
+        ],
+        "full_nodal_solution": [
+          "0",
+          "1/2",
+          "0"
+        ],
+        "exact_residual": [
+          "0"
+        ],
+        "residual_conditioned_solution_error_bound": "1/4294967296",
+        "bound_expression": "2^-32"
+      }
+    },
+    {
+      "id": "p2",
+      "tuple": [
+        "2",
+        "5/4",
+        "0"
+      ],
+      "full_system": {
+        "coo_rows": [
+          0,
+          0,
+          1,
+          1,
+          1,
+          2,
+          2
+        ],
+        "coo_columns": [
+          0,
+          1,
+          0,
+          1,
+          2,
+          1,
+          2
+        ],
+        "coo_values": [
+          "5/2",
+          "-5/2",
+          "-5/2",
+          "5",
+          "-5/2",
+          "-5/2",
+          "5/2"
+        ],
+        "csr_offsets": [
+          0,
+          2,
+          5,
+          7
+        ],
+        "csr_columns": [
+          0,
+          1,
+          0,
+          1,
+          2,
+          1,
+          2
+        ],
+        "csr_values": [
+          "5/2",
+          "-5/2",
+          "-5/2",
+          "5",
+          "-5/2",
+          "-5/2",
+          "5/2"
+        ],
+        "rhs": [
+          "1/2",
+          "1",
+          "1/2"
+        ]
+      },
+      "reduced_system": {
+        "csr_offsets": [
+          0,
+          1
+        ],
+        "csr_columns": [
+          0
+        ],
+        "csr_values": [
+          "5"
+        ],
+        "rhs": [
+          "1"
+        ],
+        "determinant": "5",
+        "inverse_infinity_norm": "1/5",
+        "solution": [
+          "1/5"
+        ],
+        "full_nodal_solution": [
+          "0",
+          "1/5",
+          "0"
+        ],
+        "exact_residual": [
+          "0"
+        ],
+        "residual_conditioned_solution_error_bound": "1/5368709120",
+        "bound_expression": "1/(5*2^30)"
+      }
+    }
+  ],
+  "reuse_classification": {
+    "p0_to_p1": {
+      "classification": "numeric_factors_reusable",
+      "pattern_unchanged": true,
+      "matrix_values_before": [
+        "4"
+      ],
+      "matrix_values_after": [
+        "4"
+      ],
+      "rhs_before": [
+        "1"
+      ],
+      "rhs_after": [
+        "2"
+      ]
+    },
+    "p1_to_p2": {
+      "classification": "symbolic_structure_only_reusable",
+      "pattern_unchanged": true,
+      "matrix_values_before": [
+        "4"
+      ],
+      "matrix_values_after": [
+        "5"
+      ],
+      "rhs_before": [
+        "2"
+      ],
+      "rhs_after": [
+        "1"
+      ]
+    },
+    "stale_p0_numeric_factor_at_p2": {
+      "stale_inverse": "1/4",
+      "p2_rhs": "1",
+      "computed_solution": "1/4",
+      "true_p2_residual": "1/4",
+      "passes_absolute_residual_tolerance": false
+    }
+  },
+  "mutants": {
+    "structure_mismatch": {
+      "classification": "nonsingular_but_pattern_mismatch",
+      "csr_offsets": [
+        0,
+        2,
+        4
+      ],
+      "csr_columns": [
+        0,
+        1,
+        0,
+        1
+      ],
+      "csr_values": [
+        "4",
+        "-2",
+        "-2",
+        "4"
+      ],
+      "rhs": [
+        "1",
+        "1"
+      ],
+      "determinant": "12",
+      "solution": [
+        "1/2",
+        "1/2"
+      ],
+      "exact_residual": [
+        "0",
+        "0"
+      ],
+      "accepted_pattern_csr_offsets": [
+        0,
+        1
+      ],
+      "accepted_pattern_csr_columns": [
+        0
+      ],
+      "pattern_matches_accepted": false
+    },
+    "same_pattern_singular": {
+      "classification": "singular_and_inconsistent",
+      "csr_offsets": [
+        0,
+        1
+      ],
+      "csr_columns": [
+        0
+      ],
+      "csr_values": [
+        "0"
+      ],
+      "rhs": [
+        "1"
+      ],
+      "determinant": "0",
+      "pattern_matches_accepted": true,
+      "consistent": false,
+      "has_solution": false
+    }
+  },
+  "binary64_observations": {
+    "rounding_mode": "round_to_nearest_ties_to_even",
+    "contract_separation": "half_ulp_is_not_the_residual_contract_bound",
+    "points": [
+      {
+        "id": "p0",
+        "exact_solution": "1/4",
+        "nearest_binary64_bits": "0x3fd0000000000000",
+        "stored_exact_rational": "1/4",
+        "representation_error_stored_minus_exact": "0",
+        "exact_true_reduced_residual": "0"
+      },
+      {
+        "id": "p1",
+        "exact_solution": "1/2",
+        "nearest_binary64_bits": "0x3fe0000000000000",
+        "stored_exact_rational": "1/2",
+        "representation_error_stored_minus_exact": "0",
+        "exact_true_reduced_residual": "0"
+      },
+      {
+        "id": "p2",
+        "exact_solution": "1/5",
+        "nearest_binary64_bits": "0x3fc999999999999a",
+        "stored_exact_rational": "3602879701896397/18014398509481984",
+        "representation_error_stored_minus_exact": "1/90071992547409920",
+        "representation_error_expression": "1/(5*2^54)",
+        "local_spacing": "1/36028797018963968",
+        "local_spacing_expression": "2^-55",
+        "half_ulp": "1/72057594037927936",
+        "half_ulp_expression": "2^-56",
+        "exact_true_reduced_residual": "1/18014398509481984",
+        "exact_true_reduced_residual_expression": "2^-54"
+      }
+    ]
+  },
+  "contract_checks": {
+    "tuple_order_exact": true,
+    "source_sign_positive_rhs": true,
+    "half_element_stiffness_scale": "2*diffusion",
+    "interior_stiffness_scale": "4*diffusion",
+    "coo_duplicates_coalesced": true,
+    "csr_columns_sorted_and_unique_per_row": true,
+    "strong_elimination_shifts_both_endpoint_terms": true,
+    "boundary_row_replacement_used": false,
+    "reuse_requires_pattern_and_value_comparison": true
+  },
+  "nonclaims": [
+    "No repository implementation, solver API, factorization internals, runtime behavior, performance, or pivoting claim.",
+    "No nonuniform mesh, variable coefficient, other tuple order, higher-order, higher-dimensional, alternate quadrature, or alternate boundary-condition claim.",
+    "No floating-point claim beyond the listed nearest-binary64 observations under round-to-nearest, ties-to-even.",
+    "No boundary-row-replacement system or full boundary-row residual claim."
+  ]
+}
