@@ -1,8 +1,9 @@
 # Expected evidence
 
 The exact rational local matrix, load, residual, forward actions, transpose
-actions, scalar pairings, and both distinct patch checks are frozen in public
-Issue 113 and encoded as literals in the independently owned Rust oracle.
+actions, scalar pairings, and both distinct patch checks are frozen by this
+registered evidence case and encoded as literals in the independently owned
+Rust oracle.
 
 Centered binary64 finite differences use the exact dyadic step `2^-12`. Every
 vector and scalar finite-difference comparison, including expected zeros, uses

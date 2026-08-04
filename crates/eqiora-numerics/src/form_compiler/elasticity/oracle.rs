@@ -1,8 +1,9 @@
 //! Independently derived oracle for the frozen Cartesian Q1 elasticity form.
 //!
-//! Every scientific literal and tolerance below is owned by public Issue 113.
-//! This child module calls the production-native private seam directly; it
-//! intentionally contains no second elasticity formula or test-only adapter.
+//! Every scientific literal and tolerance below is owned by the registered
+//! `numerics.compiled-cartesian-elasticity-q1-2d` evidence contract. This child
+//! module calls the production-native private seam directly; it intentionally
+//! contains no second elasticity formula or test-only adapter.
 
 mod patch_assembly;
 mod tape;
