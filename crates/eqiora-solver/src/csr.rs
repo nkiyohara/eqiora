@@ -1,4 +1,8 @@
 use std::ops::Range;
+#[cfg(test)]
+use std::sync::Arc;
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -71,6 +75,76 @@ pub struct CanonicalCsrSystemView {
     right_hand_side: Vec<f64>,
     properties: LinearOperatorProperties,
     agreement_fingerprint: CanonicalCsrAgreementFingerprintV1,
+    #[cfg(test)]
+    operator_call_instrumentation: TestOperatorCallInstrumentation,
+}
+
+#[cfg(test)]
+#[derive(Debug, Default)]
+struct CanonicalCsrOperatorCallCounts {
+    apply: AtomicUsize,
+    diagonal: AtomicUsize,
+}
+
+/// Test-only, isolated call ledger for one owned canonical CSR operator.
+///
+/// Each ledger owns distinct atomic counters, so parallel tests cannot observe
+/// one another. It does not exist in product builds.
+#[cfg(test)]
+#[derive(Debug, Clone, Default)]
+pub(crate) struct CanonicalCsrOperatorCallLedger(Arc<CanonicalCsrOperatorCallCounts>);
+
+#[cfg(test)]
+impl CanonicalCsrOperatorCallLedger {
+    pub(crate) fn apply_calls(&self) -> usize {
+        self.0.apply.load(Ordering::SeqCst)
+    }
+
+    pub(crate) fn diagonal_calls(&self) -> usize {
+        self.0.diagonal.load(Ordering::SeqCst)
+    }
+
+    pub(crate) fn reset(&self) {
+        self.0.apply.store(0, Ordering::SeqCst);
+        self.0.diagonal.store(0, Ordering::SeqCst);
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug, Default)]
+struct TestOperatorCallInstrumentation(Option<CanonicalCsrOperatorCallLedger>);
+
+// A cloned canonical view is a distinct owned operator, so it must not inherit
+// an observation ledger attached to the source object's identity.
+#[cfg(test)]
+impl Clone for TestOperatorCallInstrumentation {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+#[cfg(test)]
+impl TestOperatorCallInstrumentation {
+    fn record_apply(&self) {
+        if let Some(ledger) = &self.0 {
+            ledger.0.apply.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    fn record_diagonal(&self) {
+        if let Some(ledger) = &self.0 {
+            ledger.0.diagonal.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+}
+
+// Instrumentation is observational only: attaching a test ledger must not
+// change the captured system's ordinary equality semantics.
+#[cfg(test)]
+impl PartialEq for TestOperatorCallInstrumentation {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
 }
 
 impl CanonicalCsrSystemView {
@@ -116,7 +190,21 @@ impl CanonicalCsrSystemView {
             right_hand_side,
             properties,
             agreement_fingerprint,
+            #[cfg(test)]
+            operator_call_instrumentation: TestOperatorCallInstrumentation::default(),
         })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn attach_test_operator_call_ledger(
+        &mut self,
+        ledger: &CanonicalCsrOperatorCallLedger,
+    ) {
+        assert!(
+            self.operator_call_instrumentation.0.is_none(),
+            "a canonical CSR test call ledger may be attached only once"
+        );
+        self.operator_call_instrumentation = TestOperatorCallInstrumentation(Some(ledger.clone()));
     }
 
     /// Captured matrix row count.
@@ -245,6 +333,8 @@ impl LinearOperator for CanonicalCsrSystemView {
     }
 
     fn apply(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+        #[cfg(test)]
+        self.operator_call_instrumentation.record_apply();
         self.apply_range(0..self.rows, input, output)
     }
 
@@ -253,6 +343,8 @@ impl LinearOperator for CanonicalCsrSystemView {
     }
 
     fn diagonal(&self, output: &mut [f64]) -> Result<DiagonalAvailability, Diagnostic> {
+        #[cfg(test)]
+        self.operator_call_instrumentation.record_diagonal();
         if output.len() != self.rows {
             return Err(solve_failed(
                 "canonical CSR diagonal output must match its dimension",
@@ -544,6 +636,54 @@ mod tests {
         assert_ne!(&actual, storage.unrelated_action(&[1.0, 2.0]).as_slice());
         assert_eq!(view.agreement_fingerprint(), original);
         assert_eq!(view.linear_problem().unwrap().right_hand_side(), [2.0, 8.0]);
+    }
+
+    #[test]
+    fn test_call_ledger_observes_the_exact_owned_problem_operator() {
+        let storage = AdversarialStorage {
+            values: vec![2.0, 4.0],
+            hidden_action_scale: 99.0,
+        };
+        let mut view = CanonicalCsrSystemView::new(
+            &storage,
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+        )
+        .unwrap();
+        let uninstrumented = view.clone();
+        let ledger = CanonicalCsrOperatorCallLedger::default();
+        view.attach_test_operator_call_ledger(&ledger);
+        assert_eq!(view, uninstrumented);
+        let cloned_view = view.clone();
+        assert_eq!(cloned_view, view);
+
+        let problem = view.linear_problem().unwrap();
+        let mut applied = [0.0; 2];
+        problem.operator().apply(&[1.0, 2.0], &mut applied).unwrap();
+        let mut diagonal = [0.0; 2];
+        assert_eq!(
+            problem.operator().diagonal(&mut diagonal).unwrap(),
+            DiagonalAvailability::Available
+        );
+        assert_eq!(ledger.apply_calls(), 1);
+        assert_eq!(ledger.diagonal_calls(), 1);
+
+        let mut cloned_applied = [0.0; 2];
+        cloned_view
+            .linear_problem()
+            .unwrap()
+            .operator()
+            .apply(&[1.0, 2.0], &mut cloned_applied)
+            .unwrap();
+        assert_eq!(
+            ledger.apply_calls(),
+            1,
+            "a cloned view has a distinct identity"
+        );
+        assert_eq!(ledger.diagonal_calls(), 1);
+
+        ledger.reset();
+        assert_eq!(ledger.apply_calls(), 0);
+        assert_eq!(ledger.diagonal_calls(), 0);
     }
 
     #[test]

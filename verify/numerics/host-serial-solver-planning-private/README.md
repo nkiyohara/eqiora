@@ -1,0 +1,60 @@
+# Private host-serial solver-planning falsifiers
+
+This required companion to
+[`numerics.host-serial-solver-planning`](../host-serial-solver-planning/README.md)
+selects one exact `eqiora-solver` library-test aggregator. The public case owns
+the three live backend executions and public observations. This private case
+owns the complete adversarial catalog, control, profile, capability, reranking,
+problem-identity, zero-work, and exactly-once checks. The capability is verified
+only when both cases pass.
+
+The aggregator directly executes every private check. Candidate rejection
+freezes the complete candidate-ID-ordered reason trace and exact remaining
+selection for Robust, Fast, and LowMemory. All nonempty admitted subsets are
+covered. One faer BiCGSTAB mutation makes both its evidence identity and
+provider descriptor stale, and every objective must still record only
+`catalog.evidence-mismatch` before reranking; a provider-first validator fails
+the complete trace. Capability mutations independently change algorithm, operator
+properties, preconditioner, reduction, and scalar. Provider equality retains
+the exact ordered real one-member faer dependency inventory; no artificial
+two-member reorder surrogate exists.
+
+Every catalog, control, profile, and capability rejection retains zero selected
+and unselected backend solve calls and zero total `apply`/`diagonal` calls on
+the exact owned `CanonicalCsrSystemView` installed in the resolved problem.
+Each canonical fixture attaches its own test-only ledger before constructing
+the planning problem, directly calls `problem.operator().apply` and
+`.diagonal` once as a self-control, proves both calls were observed, and resets
+before resolution. The missing, duplicate, unknown, relative-tolerance-bit,
+absolute-tolerance-bit, and iteration-limit preflights all use that exact
+instrumented canonical operator rather than a hand-built surrogate. Distinct
+ledgers isolate parallel tests; source-storage counters are separately reset
+after legitimate capture. Transposed hand-built input must reject, but this
+oracle does not choose between the simultaneous
+`profile.normal-required` and `profile.canonical-csr-required` sub-gates.
+
+For successful and failing execution, every objective records exactly one call
+to its selected backend, zero calls to both unselected backends, no retry or
+fallback, no plan mutation, the address of the exact `LinearProblem` borrowed
+at resolution, and the identity of its exact owned canonical operator. The
+successful fake backend delegates true-residual acceptance through the supplied
+execution and exact resolved problem operator: the reset actual-operator ledger
+therefore records exactly two total `apply` calls (initial and final residual)
+and zero `diagonal` calls. Selected failure records zero total actual-operator
+`apply` and `diagonal` calls. One extra direct call through
+`decision.problem().operator()` would therefore falsify either exact total.
+
+Run the paired evidence with:
+
+```console
+cargo run --locked -p eqiora-verify -- run \
+  --case numerics.host-serial-solver-planning \
+  --case numerics.host-serial-solver-planning-private
+```
+
+At the frozen preimplementation revision, `planning.rs` and its crate-root test
+wiring do not exist. The public integration target therefore fails at the
+absent planning API, and this exact library selector fails closed because the
+aggregator is absent. These are the intentional red boundaries until production
+and integration-owned wiring are composed. This private case adds no public
+surface or product capability.
