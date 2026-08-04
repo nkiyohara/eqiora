@@ -15,6 +15,6 @@ This composition oracle consumes exactly three accepted authorities:
   reaches it only through the separate `[0,2.2] × [0,0.41]` graph with center
   `[0.2,0.2]` and radius `0.05`.
 
-Issue #371 freezes only native composition over these authorities. This case
-adds no provider reference, scientific derivation, expected value, tolerance,
-wire, digest family, or alternate presentation authority.
+This case freezes only native composition over these authorities. It adds no
+provider reference, scientific derivation, expected value, tolerance, wire,
+digest family, or alternate presentation authority.
