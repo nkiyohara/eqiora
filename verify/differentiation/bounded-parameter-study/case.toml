@@ -1,7 +1,7 @@
 id = "differentiation.bounded-parameter-study"
 status = "verified"
 scope = "one-host-serial-fem-program-one-diffusion-coordinate-two-to-sixty-four-point-complete-study"
-reference_kind = "separately-executed-accepted-evaluations-and-injected-composition-mutants"
+reference_kind = "separately-executed-accepted-evaluations"
 
 capabilities = [
   "exact-program-bound-parameter-study-plan",
@@ -46,8 +46,6 @@ signed_zero_keys_are_distinct = true
 point_order_uses_total_cmp = true
 planning_performs_no_numerical_evaluation = true
 execution_uses_only_the_retained_program = true
-evaluation_calls_are_sequential = true
-one_call_per_reached_point = true
 complete_members_are_canonical_and_exact = true
 failure_is_atomic = true
 cancellation_is_observed_before_or_between_points = true
@@ -63,15 +61,6 @@ foreign_parameter = "a Parameter outside the retained program input coordinates 
 non_finite = "NaN or infinity reaches execution"
 signed_zero = "negative and positive zero collapse to one key or compare equal"
 replacement = "replacing one value leaves plan equality or membership unchanged"
-foreign_member = "a member from another Model, Realization, method, program input order, or point enters a complete result"
-missing_member = "a dropped member still permits complete construction"
-duplicate_member = "a duplicated member still permits complete construction"
-inserted_member = "an unplanned member still permits complete construction"
-reordered_member = "noncanonical members still permit complete construction"
-substituted_evaluation = "an evaluator result for another requested point is accepted"
-failure_continuation = "execution calls a later point or publishes complete after one failure"
-cancellation_boundary = "cancellation is polled inside evaluation or after final completion"
-parallel_evaluation = "the injected evaluator observes active depth above one"
 
 [claim_boundary]
 varying_parameters = 1
@@ -100,10 +89,9 @@ scheduler_or_workflow_dag = false
 precommitted = true
 authored_before_implementation_by_a_nonimplementing_agent = true
 base_revision = "181949f113dde780787388e154b2b92069b76755"
-oracle_owner = "this manifest, its READMEs, and the two frozen Rust oracle files; the implementation writer may wire but not edit or relax them"
+oracle_owner = "this manifest, its READMEs, and crates/eqiora/tests/bounded_parameter_study.rs own the public authority; differentiation.bounded-parameter-study-private owns the required private composition falsifiers"
 expected_predecessor_result = "the public production module is absent, so the frozen Rust oracle does not compile until the implementation and integrator registrations are composed"
 
 [evidence]
-runner = "cargo-library-test"
-package = "eqiora-api"
-test = "parameter_study::tests::registered_composition_oracle_executes_all_private_falsifiers"
+package = "eqiora"
+test = "bounded_parameter_study"

@@ -6,7 +6,8 @@ The expected member for each canonical key is the immutable
 program at the same complete point. The test compares exact value bits and all
 exposed accepted primal evidence directly.
 
-The fixed composition observations are canonical keys `0.75, 1.0, 1.25`, one
-sequential evaluator call per reached key, maximum active evaluator depth one,
-an exact complete membership bijection, canonical failure prefixes, and
-cancellation polling only before or between point evaluations.
+The public fixed observations are canonical keys `0.75, 1.0, 1.25`, exact
+member equality with separately accepted evaluations, canonical failure
+prefixes, and cancellation polling before or between point evaluations. The
+required private companion owns exact call count and depth plus construction
+mutants for the complete membership bijection.

@@ -11,8 +11,32 @@ use eqiora::diagnostic::codes;
 use eqiora::entity::kinds;
 use eqiora::realization::RealizationRevision;
 
-const SOURCE: &str =
-    include_str!("../../../verify/differentiation/spatial-poisson-fem-fvm/models/poisson.eqi");
+const SOURCE: &str = r#"model differentiated_poisson_plane {
+  domain square = box(0, 1, 0, 1);
+  domain x_lower = boundary(square, axis = 0, side = lower);
+  domain x_upper = boundary(square, axis = 0, side = upper);
+  domain y_lower = boundary(square, axis = 1, side = lower);
+  domain y_upper = boundary(square, axis = 1, side = upper);
+  representation scalar_space = continuum;
+
+  field potential on square as scalar_space: 1 = 0;
+  parameter diffusion: 1 = 1;
+  parameter wave_number: 1 / m = 3.141592653589793;
+  parameter source_scale: 1 / m ^ 2 = 19.739208802178716;
+  parameter boundary_offset: 1 = 0;
+
+  relation balance continuous on square {
+    -div(diffusion * grad(potential))
+      - source_scale
+        * sin(wave_number * coordinate(0))
+        * sin(wave_number * coordinate(1)) = 0;
+  }
+  relation x_lower_value continuous on x_lower { trace(potential) - boundary_offset = 0; }
+  relation x_upper_value continuous on x_upper { trace(potential) - boundary_offset = 0; }
+  relation y_lower_value continuous on y_lower { trace(potential) - boundary_offset = 0; }
+  relation y_upper_value continuous on y_upper { trace(potential) - boundary_offset = 0; }
+}
+"#;
 const DEFAULT_POINT: [f64; 3] = [19.739208802178716, 1.0, 0.0];
 const PERMUTED_DIFFUSION: [f64; 3] = [1.25, 0.75, 1.0];
 const CANONICAL_DIFFUSION: [f64; 3] = [0.75, 1.0, 1.25];
@@ -24,16 +48,6 @@ struct Fixture {
     diffusion: Id<kinds::Parameter>,
     boundary_offset: Id<kinds::Parameter>,
     wave_number: Id<kinds::Parameter>,
-}
-
-pub fn execute_all_public_authority_tests() {
-    study_matches_separately_accepted_evaluations_in_canonical_order();
-    every_caller_permutation_has_one_plan_and_one_member_order();
-    planning_rejects_every_frozen_inventory_and_identity_mutant();
-    point_keys_use_parameter_identity_exact_bits_and_total_order();
-    point_failure_is_terminal_and_preserves_original_diagnostics();
-    cancellation_is_observed_only_before_or_between_point_evaluations();
-    repeated_direct_point_evaluation_remains_isolated_around_an_alternate_point();
 }
 
 #[test]

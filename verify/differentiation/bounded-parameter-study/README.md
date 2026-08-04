@@ -18,10 +18,11 @@ Planning tests freeze exact-bit duplicate rejection, the 2--64 point bound,
 the mandatory default anchor, selected-Parameter ownership, finiteness, plan
 equality, and signed-zero ordering. Public execution tests freeze failure
 atomicity and cancellation immediately before the first point and between
-accepted points. The private child-module oracle injects evaluators and member
-vectors to reject parallel or repeated calls, foreign members, missing,
-duplicate, inserted, reordered, or substituted members, and continuation
-after a failure.
+accepted points. The required companion case
+[`differentiation.bounded-parameter-study-private`](../bounded-parameter-study-private/README.md)
+injects evaluators and member vectors to reject parallel or repeated calls,
+foreign members, missing, duplicate, inserted, reordered, or substituted
+members, and continuation after a failure.
 
 The first slice does not claim Python exposure, general batching, parallel or
 remote scheduling, alternate bases, several varying Parameters, caching or
@@ -33,10 +34,12 @@ Run the composed evidence with:
 
 ```console
 cargo test --locked -p eqiora --test bounded_parameter_study
-cargo test --locked -p eqiora-api parameter_study::tests
-cargo run --locked -p eqiora-verify -- run --case differentiation.bounded-parameter-study
+cargo run --locked -p eqiora-verify -- run \
+  --case differentiation.bounded-parameter-study \
+  --case differentiation.bounded-parameter-study-private
 ```
 
 At the preimplementation base revision, the production module and public
-registrations intentionally do not exist, so the Rust oracle is expected not
-to compile. It must pass after composition without changing these oracle files.
+registrations intentionally do not exist, so both Rust authorities are
+expected not to compile or resolve. They must pass after composition without
+changing either oracle.

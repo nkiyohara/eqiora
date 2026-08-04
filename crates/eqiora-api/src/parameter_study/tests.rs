@@ -11,44 +11,38 @@ use crate::{
     ScalarEllipticExecutionEnvironment, ScalarEllipticIntent, ScalarEllipticMethod,
 };
 
-const SOURCE: &str =
-    include_str!("../../../../verify/differentiation/spatial-poisson-fem-fvm/models/poisson.eqi");
+const SOURCE: &str = r#"model differentiated_poisson_plane {
+  domain square = box(0, 1, 0, 1);
+  domain x_lower = boundary(square, axis = 0, side = lower);
+  domain x_upper = boundary(square, axis = 0, side = upper);
+  domain y_lower = boundary(square, axis = 1, side = lower);
+  domain y_upper = boundary(square, axis = 1, side = upper);
+  representation scalar_space = continuum;
+
+  field potential on square as scalar_space: 1 = 0;
+  parameter diffusion: 1 = 1;
+  parameter wave_number: 1 / m = 3.141592653589793;
+  parameter source_scale: 1 / m ^ 2 = 19.739208802178716;
+  parameter boundary_offset: 1 = 0;
+
+  relation balance continuous on square {
+    -div(diffusion * grad(potential))
+      - source_scale
+        * sin(wave_number * coordinate(0))
+        * sin(wave_number * coordinate(1)) = 0;
+  }
+  relation x_lower_value continuous on x_lower { trace(potential) - boundary_offset = 0; }
+  relation x_upper_value continuous on x_upper { trace(potential) - boundary_offset = 0; }
+  relation y_lower_value continuous on y_lower { trace(potential) - boundary_offset = 0; }
+  relation y_upper_value continuous on y_upper { trace(potential) - boundary_offset = 0; }
+}
+"#;
 const DEFAULT_POINT: [f64; 3] = [19.739208802178716, 1.0, 0.0];
 const PERMUTED_DIFFUSION: [f64; 3] = [1.25, 0.75, 1.0];
 const CANONICAL_DIFFUSION: [f64; 3] = [0.75, 1.0, 1.25];
 
-mod public_integration_oracle {
-    mod eqiora {
-        pub use eqiora_core::Id;
-
-        pub mod api {
-            pub use crate::{
-                CompleteParameterStudy, DifferentiableEvaluation, DifferentiableProgram,
-                ModelDocument, ParameterStudyPlan, ParameterStudyPointKey,
-                ParameterStudyTerminalReport, ScalarEllipticExecutionEnvironment,
-                ScalarEllipticIntent, ScalarEllipticMethod,
-            };
-        }
-
-        pub mod diagnostic {
-            pub use eqiora_core::diagnostic::codes;
-        }
-
-        pub mod entity {
-            pub use eqiora_core::entity::kinds;
-        }
-
-        pub mod realization {
-            pub use eqiora_realization::RealizationRevision;
-        }
-    }
-
-    include!("../../../eqiora/tests/bounded_parameter_study.rs");
-}
-
 #[test]
 fn registered_composition_oracle_executes_all_private_falsifiers() {
-    public_integration_oracle::execute_all_public_authority_tests();
     injected_evaluator_is_called_once_per_reached_point_in_canonical_serial_order();
     injected_failure_stops_at_its_key_and_preserves_the_completed_prefix();
     injected_evaluator_proves_cancellation_boundaries_and_final_completion_priority();

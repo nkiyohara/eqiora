@@ -7,6 +7,7 @@ complete points with diffusion values `0.75`, `1.0`, and `1.25`. Each study
 member must reproduce the corresponding immutable evaluation's exact public
 observations.
 
-The private child-module tests use the frozen `execute_with_evaluator` and
-`CompleteParameterStudy::from_members` seams solely to inject composition
-mutants. They add no executor abstraction and publish no member constructor.
+The required `differentiation.bounded-parameter-study-private` companion owns
+the crate-private `execute_with_evaluator` and
+`CompleteParameterStudy::from_members` composition mutants. It adds no
+executor abstraction and publishes no member constructor.
