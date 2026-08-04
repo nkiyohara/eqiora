@@ -17,7 +17,8 @@ use super::super::execution::{
     compile_derived_local_form_program_2d, compile_witness_local_form_program_2d,
 };
 use super::super::{
-    AdmittedCartesianQ1ElasticityForm2d, DerivationCertificate, DerivedCartesianQ1ElasticityForm2d,
+    AdmittedCartesianQ1ElasticityForm2d, DIVERGENCE_BY_PARTS, DerivationCertificate,
+    DerivedCartesianQ1ElasticityForm2d, SOURCE_PAIRING, TEST_PAIRING,
 };
 use crate::form_compiler::{MatrixSlot, WeakSign, WeakTermSlot};
 
@@ -34,11 +35,43 @@ generic executor operates on opaque dense values and does not inspect those role
 pub(super) fn structural_tape_falsifiers() {
     private_tape_seam_matches_the_frozen_contract();
     derived_and_witness_programs_normalize_identically();
+    derived_weak_rules_retain_their_exact_certificate_source_nodes();
     mutated_structure_and_provenance_fail_closed();
     off_diagonal_instruction_mutant_is_rejected_by_the_exact_matrix_oracle();
     evaluator_result_depends_on_the_mutated_instruction_tape();
     primal_and_all_actions_consume_one_admitted_program_instance();
     witness_program_equality_does_not_admit_actions();
+}
+
+fn derived_weak_rules_retain_their_exact_certificate_source_nodes() {
+    let derived = super::derived_form();
+    let expected = [
+        (TEST_PAIRING, derived.certificate.volume.root),
+        (DIVERGENCE_BY_PARTS, derived.certificate.volume.divergence),
+        (SOURCE_PAIRING, derived.certificate.volume.load_gradient),
+    ];
+    let mut observed = [0_usize; 3];
+
+    for provenance in &derived.program.provenance {
+        let Some(rule_id) = provenance.rule_id else {
+            continue;
+        };
+        let rule = expected
+            .iter()
+            .position(|(expected_rule, _)| *expected_rule == rule_id)
+            .unwrap_or_else(|| panic!("generated instruction retained unknown rule `{rule_id}`"));
+        observed[rule] += 1;
+        assert_eq!(
+            provenance.source_node,
+            Some(expected[rule].1),
+            "generated `{rule_id}` instruction lost its exact certificate source-node provenance",
+        );
+    }
+
+    assert!(
+        observed.iter().all(|count| *count > 0),
+        "generated program omitted one or more frozen weak-rule provenance classes: {observed:?}",
+    );
 }
 
 fn private_tape_seam_matches_the_frozen_contract() {
@@ -215,6 +248,31 @@ fn mutated_structure_and_provenance_fail_closed() {
         .expect("the certificate contains an independently foreign source node");
     source_node.program.provenance[provenance].source_node = Some(foreign_node);
     assert_admission_rejects(source_node, "foreign source-node provenance");
+
+    let mut shared_load_gradient = super::derived_form();
+    let load_gradient = shared_load_gradient.certificate.volume.load_gradient;
+    let mut mutated = [0_usize; 2];
+    for provenance in &mut shared_load_gradient.program.provenance {
+        match provenance.rule_id {
+            Some(TEST_PAIRING) => {
+                provenance.source_node = Some(load_gradient);
+                mutated[0] += 1;
+            }
+            Some(DIVERGENCE_BY_PARTS) => {
+                provenance.source_node = Some(load_gradient);
+                mutated[1] += 1;
+            }
+            _ => {}
+        }
+    }
+    assert!(
+        mutated.iter().all(|count| *count > 0),
+        "shared load-gradient mutant did not reach both non-load weak-rule classes: {mutated:?}",
+    );
+    assert_admission_rejects(
+        shared_load_gradient,
+        "shared load-gradient source-node provenance",
+    );
 
     let mut operator = super::derived_form();
     let provenance = operator
