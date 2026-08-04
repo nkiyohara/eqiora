@@ -6,11 +6,13 @@ use eqiora_realization::{
     SemanticRevision, Target, VectorLayoutKind,
 };
 use eqiora_solver::ReductionPolicy;
+use std::num::NonZeroUsize;
 
 use crate::{
-    ArtifactDigest, CanonicalModelArtifact, LayoutArtifacts, RealizationEnvelopeV1,
-    RealizationEnvelopeV2, RealizationEnvelopeV3, RealizationEnvelopeV4, RealizationEnvelopeV5,
-    SimplicialMeshEnvelopeV1, invalid_artifact,
+    ArtifactDigest, CanonicalModelArtifact, LayoutArtifacts,
+    PrescribedDynamicSolidRealizationEnvelopeV1, RealizationEnvelopeV1, RealizationEnvelopeV2,
+    RealizationEnvelopeV3, RealizationEnvelopeV4, RealizationEnvelopeV5, SimplicialMeshEnvelopeV1,
+    invalid_artifact,
 };
 
 mod sealed {
@@ -291,6 +293,24 @@ impl CanonicalRealizationArtifact for RealizationEnvelopeV5 {
             self.requirements()?.coupled().execution().vector_layout(),
             self.layout_artifacts(),
             plan.coupled().solver().reduction(),
+        ))
+    }
+}
+
+impl sealed::Sealed for PrescribedDynamicSolidRealizationEnvelopeV1 {}
+
+impl CanonicalRealizationArtifact for PrescribedDynamicSolidRealizationEnvelopeV1 {
+    fn artifact_reference(&self) -> Result<RealizationArtifactReference, Diagnostic> {
+        Ok(RealizationArtifactReference::new(
+            self.digest()?,
+            self.model_artifact(),
+            self.semantic_revision(),
+            Target::HostCpu {
+                threads: NonZeroUsize::MIN,
+            },
+            VectorLayoutKind::Replicated,
+            LayoutArtifacts::Replicated,
+            ReductionPolicy::Reproducible,
         ))
     }
 }

@@ -13,13 +13,16 @@ use ulid::Ulid;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldDecoderLimits,
-    GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference, RealizationEnvelopeV3,
+    GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference,
+    PrescribedDynamicSolidRealizationEnvelopeV1, RealizationEnvelopeV3,
     ReplayableCanonicalModelArtifact, ReplayableFixedTopologyAleRealizationArtifact,
     SimplicialMeshEnvelopeV1, ValidatedFixedSpatialContextV1, ValidatedMovingSpatialContextV2,
     check_json_limits, invalid_artifact,
 };
 
-use super::context::ValidatedCircularHoleFieldwiseContext;
+use super::context::{
+    ValidatedCircularHoleFieldwiseContext, ValidatedPrescribedDynamicSolidContext,
+};
 
 const FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.field-snapshot-envelope/v1";
 
@@ -90,6 +93,29 @@ impl FieldSnapshotEnvelopeV1 {
         blocks: &[DiscreteFieldEnvelopeV1],
     ) -> Result<Self, Diagnostic> {
         Self::new_in_context(context, field, blocks)
+    }
+
+    /// Bind one exact prescribed dynamic-solid displacement or velocity snapshot.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for any semantic role, lineage, support, block, or content drift.
+    pub fn new_prescribed_dynamic_solid(
+        model: &impl ReplayableCanonicalModelArtifact,
+        realization: &PrescribedDynamicSolidRealizationEnvelopeV1,
+        geometry: &crate::GeometryIdentityEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        mesh: &SimplicialMeshEnvelopeV1,
+        field: Id<kinds::Field>,
+        blocks: &[DiscreteFieldEnvelopeV1],
+    ) -> Result<Self, Diagnostic> {
+        let context = ValidatedPrescribedDynamicSolidContext::new(
+            model,
+            realization,
+            geometry,
+            correspondence,
+            mesh,
+        )?;
+        Self::new_in_context(&context, field, blocks)
     }
 
     pub(super) fn new_in_context<'a>(
@@ -346,6 +372,36 @@ impl FieldSnapshotEnvelopeV1 {
         if self != &expected {
             return Err(invalid_artifact(
                 "Field snapshot differs from exact semantic and numerical replay",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Rebuild and compare one exact prescribed dynamic-solid snapshot.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for any semantic, resource, block, or content drift.
+    pub fn validate_against_prescribed_dynamic_solid(
+        &self,
+        model: &impl ReplayableCanonicalModelArtifact,
+        realization: &PrescribedDynamicSolidRealizationEnvelopeV1,
+        geometry: &crate::GeometryIdentityEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        mesh: &SimplicialMeshEnvelopeV1,
+        blocks: &[DiscreteFieldEnvelopeV1],
+    ) -> Result<(), Diagnostic> {
+        let expected = Self::new_prescribed_dynamic_solid(
+            model,
+            realization,
+            geometry,
+            correspondence,
+            mesh,
+            self.field(),
+            blocks,
+        )?;
+        if self != &expected {
+            return Err(invalid_artifact(
+                "Field snapshot differs from exact prescribed dynamic-solid replay",
             ));
         }
         Ok(())
@@ -661,6 +717,43 @@ impl ValidatedFieldSnapshotContext for ValidatedCircularHoleFieldwiseContext<'_>
                 invalid_artifact("Field snapshot Field is absent from the exact Realization")
             })?;
         Ok((spatial.domain(), binding.space().family()))
+    }
+}
+
+impl ValidatedFieldSnapshotContext for ValidatedPrescribedDynamicSolidContext<'_> {
+    fn model_reference(&self) -> &ModelArtifactReference {
+        ValidatedPrescribedDynamicSolidContext::model_reference(self)
+    }
+
+    fn program(&self) -> &eqiora_sem::KernelProgram {
+        ValidatedPrescribedDynamicSolidContext::program(self)
+    }
+
+    fn realization_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
+        self.realization().digest()
+    }
+
+    fn geometry_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
+        self.geometry().digest()
+    }
+
+    fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1 {
+        ValidatedPrescribedDynamicSolidContext::correspondence(self)
+    }
+
+    fn mesh(&self) -> &SimplicialMeshEnvelopeV1 {
+        ValidatedPrescribedDynamicSolidContext::mesh(self)
+    }
+
+    fn active_cells(&self, domain: Id<kinds::Domain>) -> Result<Vec<usize>, Diagnostic> {
+        ValidatedPrescribedDynamicSolidContext::active_cells(self, domain)
+    }
+
+    fn realized_field_space(
+        &self,
+        field: Id<kinds::Field>,
+    ) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
+        ValidatedPrescribedDynamicSolidContext::realized_field_space(self, field)
     }
 }
 

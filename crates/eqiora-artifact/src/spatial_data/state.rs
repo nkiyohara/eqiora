@@ -10,8 +10,13 @@ use ulid::Ulid;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, FieldDecoderLimits, FieldSnapshotEnvelopeV1,
-    ValidatedFixedSpatialContextV1, check_json_limits, invalid_artifact,
+    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
+    PrescribedDynamicSolidRealizationEnvelopeV1, ReplayableCanonicalModelArtifact,
+    SimplicialMeshEnvelopeV1, ValidatedFixedSpatialContextV1, check_json_limits, invalid_artifact,
 };
+
+use super::context::ValidatedPrescribedDynamicSolidContext;
+use super::field::ValidatedFieldSnapshotContext;
 
 const SPATIAL_STATE_SCHEMA: &str = "eqiora.spatial-state-envelope/v1";
 const MAX_EXACT_F64_INTEGER: u64 = 1_u64 << 53;
@@ -55,7 +60,62 @@ impl SpatialStateEnvelopeV1 {
                 "spatial-state accepted time differs from step times the exact fixed-step Realization duration",
             ));
         }
-        let expected = context.represented_fields();
+        let expected = context
+            .represented_fields()
+            .iter()
+            .map(|entry| (entry.field(), entry.domain()))
+            .collect::<Vec<_>>();
+        Self::new_in_context(context, &expected, step, time_s, snapshots)
+    }
+
+    /// Construct one complete prescribed dynamic-solid state at an admitted coordinate.
+    ///
+    /// The local artifact grammar admits the exact prior and accepted coordinates,
+    /// but deliberately does not infer which numerical content belongs to either
+    /// application role.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for stale lineage, a coordinate outside `(0, 0)` or
+    /// `(1, 0.25)`, incomplete Fields, wrong support, or foreign snapshots.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_prescribed_dynamic_solid(
+        model: &impl ReplayableCanonicalModelArtifact,
+        realization: &PrescribedDynamicSolidRealizationEnvelopeV1,
+        geometry: &GeometryIdentityEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        mesh: &SimplicialMeshEnvelopeV1,
+        step: u64,
+        time_s: f64,
+        snapshots: &[FieldSnapshotEnvelopeV1],
+    ) -> Result<Self, Diagnostic> {
+        let coordinate_is_admitted = (step == 0 && time_s.to_bits() == 0.0f64.to_bits())
+            || (step == 1 && time_s.to_bits() == 0.25f64.to_bits());
+        if !coordinate_is_admitted {
+            return Err(invalid_artifact(
+                "prescribed dynamic-solid state coordinate must be exactly (0, 0 s) or (1, 0.25 s)",
+            ));
+        }
+        let context = ValidatedPrescribedDynamicSolidContext::new(
+            model,
+            realization,
+            geometry,
+            correspondence,
+            mesh,
+        )?;
+        let expected = [
+            (realization.displacement_field(), realization.solid_domain()),
+            (realization.velocity_field(), realization.solid_domain()),
+        ];
+        Self::new_in_context(&context, &expected, step, time_s, snapshots)
+    }
+
+    fn new_in_context(
+        context: &impl ValidatedFieldSnapshotContext,
+        expected: &[(Id<kinds::Field>, Id<kinds::Domain>)],
+        step: u64,
+        time_s: f64,
+        snapshots: &[FieldSnapshotEnvelopeV1],
+    ) -> Result<Self, Diagnostic> {
         if snapshots.len() != expected.len() {
             return Err(invalid_artifact(
                 "spatial state does not contain the complete Realization Field inventory",
@@ -63,7 +123,7 @@ impl SpatialStateEnvelopeV1 {
         }
         let expected_by_field = expected
             .iter()
-            .map(|entry| (entry.field().ulid(), entry.domain()))
+            .map(|(field, domain)| (field.ulid(), *domain))
             .collect::<BTreeMap<_, _>>();
         let mut ordered = snapshots.iter().collect::<Vec<_>>();
         ordered.sort_by_key(|snapshot| snapshot.field().ulid());
@@ -82,8 +142,8 @@ impl SpatialStateEnvelopeV1 {
                 ));
             };
             if snapshot.model_artifact() != *context.model_reference().artifact()
-                || snapshot.realization_artifact() != realization.digest()?
-                || snapshot.geometry_artifact() != context.geometry().digest()?
+                || snapshot.realization_artifact() != context.realization_artifact()?
+                || snapshot.geometry_artifact() != context.geometry_artifact()?
                 || snapshot.correspondence_artifact() != context.correspondence().digest()?
                 || snapshot.mesh_artifact() != context.mesh().digest()?
                 || snapshot.support_domain() != *domain
@@ -99,8 +159,8 @@ impl SpatialStateEnvelopeV1 {
                 encoding: CANONICAL_ENCODING.to_owned(),
                 model_sha256: context.model_reference().artifact().to_string(),
                 semantic_revision: context.model_reference().semantic_revision().get(),
-                realization_sha256: realization.digest()?.to_string(),
-                geometry_sha256: context.geometry().digest()?.to_string(),
+                realization_sha256: context.realization_artifact()?.to_string(),
+                geometry_sha256: context.geometry_artifact()?.to_string(),
                 correspondence_sha256: context.correspondence().digest()?.to_string(),
                 mesh_sha256: context.mesh().digest()?.to_string(),
                 accepted: WireAcceptedStep { step, time_s },
@@ -237,6 +297,38 @@ impl SpatialStateEnvelopeV1 {
         if self != &expected {
             return Err(invalid_artifact(
                 "spatial state differs from exact Field snapshot replay",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Rebuild and compare this state against the exact prescribed-solid lineage.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for missing, substituted, incomplete, or stale content.
+    #[allow(clippy::too_many_arguments)]
+    pub fn validate_against_prescribed_dynamic_solid(
+        &self,
+        model: &impl ReplayableCanonicalModelArtifact,
+        realization: &PrescribedDynamicSolidRealizationEnvelopeV1,
+        geometry: &GeometryIdentityEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        mesh: &SimplicialMeshEnvelopeV1,
+        snapshots: &[FieldSnapshotEnvelopeV1],
+    ) -> Result<(), Diagnostic> {
+        let expected = Self::new_prescribed_dynamic_solid(
+            model,
+            realization,
+            geometry,
+            correspondence,
+            mesh,
+            self.step(),
+            self.time_s(),
+            snapshots,
+        )?;
+        if self != &expected {
+            return Err(invalid_artifact(
+                "prescribed dynamic-solid state differs from exact Field snapshot replay",
             ));
         }
         Ok(())
