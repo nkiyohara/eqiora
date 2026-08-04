@@ -226,9 +226,11 @@ counterparts with claims and falsifiers are
 and
 [`packages.typed-execution-lineage`](https://github.com/nkiyohara/eqiora/blob/main/verify/packages/typed-execution-lineage/README.md).
 
-## Build a new vertical slice
+## Close a new capability
 
 Contributors should follow the repository's
-[vertical-slice definition of done](https://github.com/nkiyohara/eqiora/blob/main/docs/development/vertical-slice-development.md):
+[contract-wave capability guide](https://github.com/nkiyohara/eqiora/blob/main/docs/development/vertical-slice-development.md):
 typed contract, execution path, falsifier, registered evidence, capability
-matrix update, and verification.
+matrix update, and verification. Reuse accepted contracts and applicable
+conformance kits. Only compiler-derived instances use the class-proof/instance-
+witness split; execution providers retain exact-tuple evidence.

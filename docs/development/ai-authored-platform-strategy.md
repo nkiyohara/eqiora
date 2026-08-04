@@ -4,7 +4,7 @@
 - Created: 2026-07-25
 - Baseline revision: `f5ae8c5`
 - Related: [library and accelerator strategy](library-and-accelerator-strategy.md),
-  [vertical-slice development](vertical-slice-development.md),
+  [contract-wave capability development](vertical-slice-development.md),
   [roadmap](../roadmap.md)
 
 ## Purpose and authority
@@ -83,10 +83,11 @@ crate is duplicated proof machinery are withdrawn as unsupported.
 
 ### Why this and not more physics
 
-Every arrow in the roadmap's physics chain is a hand-written vertical slice.
-Under the premise above, that chain encodes the wrong growth curve: each new
-physics re-earns its proof machinery instead of inheriting it. The lane's
-purpose is therefore **amortizing evidence**, not adding physics faster.
+Every arrow in the roadmap's physics chain has been a separately hand-written
+capability path. Under the premise above, that chain encodes the wrong growth
+curve: each new physics re-earns its proof machinery instead of inheriting it.
+The lane's purpose is therefore **amortizing evidence**, not adding physics
+faster.
 
 ### Scope, stated narrowly
 
@@ -169,7 +170,7 @@ reason so the change is auditable rather than silent.
 
 ### A1 — Abstraction budget admits audit compression
 
-*Owner:* [vertical-slice development](vertical-slice-development.md)
+*Owner:* [contract-wave capability development](vertical-slice-development.md)
 
 The two-consumer rule is a human-team heuristic: it avoids speculative
 generality because refactoring is expensive. Under agent authorship,
@@ -196,14 +197,14 @@ prohibition is retained for the repository and relaxed outside it: **do not
 create a durable activity ledger inside the repository; non-authoritative
 external coordination state is permitted.**
 
-External state may hold only agent, slice, base revision, branch or worktree,
+External state may hold only agent, lane, base revision, branch or worktree,
 current lock, and handoff. It must be disposable, must never become the
 authority for a Model, claim, or evidence, must not shadow `verify/`, the Issue
 queue, or the roadmap, and is never committed.
 
 ### A3 — Conformance kits split by class and instance
 
-*Owner:* [vertical-slice development](vertical-slice-development.md)
+*Owner:* [contract-wave capability development](vertical-slice-development.md)
 
 Kits divide into **compiler-class conformance** — derivation rules, reference
 interpreter, mutant corpus, primal/JVP/VJP consistency, owned by the compiler —
@@ -217,7 +218,8 @@ model.
 
 *Owner:* [`AGENTS.md`](../../AGENTS.md)
 
-The integrator is a per-slice role, not a permanent one. The current
+The integrator is a per-integration-envelope role, not a permanent one. The
+current
 "an independent agent *should* derive the falsifier" is strengthened to a
 requirement: **an implementing agent must not author, tune, or relax the
 oracle, expected values, tolerances, or falsifiers for its own implementation.**
@@ -251,9 +253,9 @@ numbers down.
 
 The FEM form-compiler lane is inserted as a prerequisite of *broader* FEM
 structural and fluid libraries. The elasticity patch, thermal slab, and
-Couette–Poiseuille slices are **not** blocked: they are the lane's candidate
-second consumers and falsifiers. FVM libraries are explicitly excluded from
-this dependency.
+Couette–Poiseuille capability closures are **not** blocked: they are the
+lane's candidate second consumers and falsifiers. FVM libraries are explicitly
+excluded from this dependency.
 
 ### A7 — Scale gates open on a declared envelope breach
 
@@ -293,7 +295,7 @@ the destination is fixed, and must not be cited as though CI enforced them.
 | --- | --- |
 | File size | New production `.rs` ≤ 1,000 physical lines; target ceiling 1,500 for production, 2,000 for tests. Existing excess frozen at its current value. Generated files exempt only with a generator path and hash. |
 | Function complexity | New or changed functions ≤ 120 logical lines, cyclomatic complexity ≤ 20, nesting ≤ 5, parameters ≤ 7. Excess requires a debt entry with reason and deletion condition. |
-| Public surface | New crates ≤ 128 AST-reachable public items. Every existing crate is frozen at its exact current count, so a crate under the budget cannot drift up to it unobserved. A public capability slice may add ≤ 8 net. Above 128, a freeze must carry a reason and a removal condition. |
+| Public surface | New crates ≤ 128 AST-reachable public items. Every existing crate is frozen at its exact current count, so a crate under the budget cannot drift up to it unobserved. A public capability closure may add ≤ 8 net. Above 128, a freeze must carry a reason and a removal condition. |
 | Visibility | Zero `unreachable_pub` violations, zero glob re-exports, zero duplicate canonical public paths. Extend the existing facade check from `eqiora` to every publishable crate. |
 | Dependency graph | Every workspace SCC has size 1 across normal, build, and dev edges. Currently zero cycles; retain the existing layer-direction check. |
 | Cross-physics clone | Zero new clone classes spanning distinct physics owners at ≥ 30 logical lines or ≥ 100 normalized tokens with ≥ 85% AST similarity. Existing clones recorded as digest-keyed debt. |
@@ -309,7 +311,7 @@ checks.
 Three agents, divided by **invariant ownership, observed failure mode, and
 oracle independence** rather than a static task taxonomy. One writer owns each
 central seam; a fresh-context non-writer supplies the independent oracle and,
-for durable-risk deltas, review; one integrator owns acceptance per slice.
+for durable-risk deltas, review; one integrator owns each integration envelope.
 
 ### Routing from evidence, not reputation
 
@@ -336,7 +338,7 @@ The routing rule is operational:
    Opus review returns successive newly discovered mutants instead of
    converging. Do not use Fable merely to repeat an unchanged prompt.
 3. Keep Codex on contract ownership and integration, and prefer it for a
-   settled slice whose main risk is losing the live Model--Realization--Run--
+   settled lane whose main risk is losing the live Model--Realization--Run--
    consumer lineage while navigating existing code.
 4. Re-evaluate these priors after concrete Eqiora outcomes. One successful or
    failed run changes a probe, not a permanent model label.
@@ -344,15 +346,15 @@ The routing rule is operational:
 Implementation is not assigned exclusively to any model. Oracle independence
 is preserved by role separation: whoever implements, a fresh-context
 non-implementer derives the falsifier; two independent routes derive any new
-scientific formulation, expected value, or tolerance. A slice writer owns
-neither route of its dual oracle. Provider diversity is an escalation on
+scientific formulation, expected value, or tolerance. An implementation writer
+owns neither route of its dual oracle. Provider diversity is an escalation on
 disagreement or consequential science, not a gate. Disjoint read-only lanes
 may run in parallel; disjoint writable lanes additionally require frozen
 contracts.
 
 Required review is likewise role-independent and has no exemption for the
-integrator's own durable-risk work. The first slice exposed the structural
-failure mode: the agent holding acceptance can accept its own consequential
+integrator's own durable-risk work. The first governance revision exposed the
+structural failure mode: the agent holding acceptance can accept its own consequential
 governance, architecture, and trust decisions at no marginal cost. The remedy
 is independent review of those complete risky deltas, not blanket rereview of
 mechanically gated low-risk changes. A localized high-risk correction gets
@@ -384,7 +386,7 @@ progress.
    Everything downstream is built either on a compiler that subsumes
    hand-written evaluators or on the admission that it does not.
 2. **A public error norm over accepted results, and a reproducible Model
-   digest** — independent slices, run in parallel. Both compound: every demo
+   digest** — independent lanes, run in parallel. Both compound: every demo
    written before the norm exists hand-rolls one, and a non-deterministic
    digest on the shortest public path is a **contract violation** for a product
    claiming content-addressed identity, not a presentation defect.
@@ -397,10 +399,10 @@ progress.
 
 | Phase | Owner | Independent route |
 | --- | --- | --- |
-| Contract | The per-slice contract owner, normally Codex, freezes claim, nonclaims, live consumer, derivation rules, stop condition, API budget, and registration deltas. | A non-writing route challenges bounded scientific ambiguity and cross-seam architecture before the writer is selected. |
+| Contract | The contract-cell owner, normally Codex, freezes claim, nonclaims, live consumer, derivation rules, stop condition, API budget, and registration deltas. | A non-writing route challenges bounded scientific ambiguity and cross-seam architecture before the writer is selected. |
 | Oracle | Fresh-context agents independent of the intended writer derive values, signs, mutants, and thresholds before reading implementation. New scientific formulations, expected values, and tolerances use two independent analytic and numerical or symbolic routes; the writer owns neither. | The contract owner checks that the oracle binds the executable seam without authoring or tuning expected values. |
 | Implementation | Codex owns the settled existing-architecture path; Fable owns an escalated long-horizon or visual path; Opus may own a narrow fully frozen path. | A fresh-context non-implementer owns the falsifier and, where durable risk requires it, reviews the complete risky delta. |
-| Acceptance | The per-slice integrator rebases, runs `local_verify.py affected`, and audits registrations and environment limitations. It may merge after the applicable risk review; a localized high-risk correction gets focused fresh review, while reopened risk is reviewed as a new high-risk delta. | For high-risk deltas, a non-writing agent checks signs, indices, lineage, visual/runtime output where applicable, and every precommitted falsifier. Low-risk deltas need no fresh route absent an anomaly. |
+| Acceptance | The per-envelope integrator rebases, runs `local_verify.py affected`, and audits registrations and environment limitations. It may merge after the applicable risk review; a localized high-risk correction gets focused fresh review, while reopened risk is reviewed as a new high-risk delta. | For high-risk deltas, a non-writing agent checks signs, indices, lineage, visual/runtime output where applicable, and every precommitted falsifier. Low-risk deltas need no fresh route absent an anomaly. |
 
 If the contract proves insufficient, the writer returns the missing requirement;
 the contract owner re-freezes it before implementation resumes.

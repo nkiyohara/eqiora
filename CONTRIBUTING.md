@@ -7,12 +7,15 @@ Apache-2.0 through the Developer Certificate of Origin process.
 
 Read the [architecture summary](docs/architecture.md), the
 [glossary](docs/glossary.md), and the
-[vertical-slice definition of done](docs/development/vertical-slice-development.md).
+[contract-wave capability guide](docs/development/vertical-slice-development.md).
 
 - Small bug fixes and documentation improvements may go directly to a pull
   request.
 - New public concepts, semantics, persisted or wire formats, dependency-layer
   changes, and governance changes require an RFC.
+- Separate the contract cell, implementation lane, and capability closure;
+  reuse accepted contracts and applicable conformance kits instead of
+  rebuilding them. Execution-provider tuples retain their exact evidence.
 - Do not add a Semantic Kernel node for UI or adapter convenience. First show
   why a typed named subgraph cannot express the concept.
 - Open an issue before substantial implementation so alternatives can be

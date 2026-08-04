@@ -1,7 +1,8 @@
 # Roadmap
 
-Eqiora advances by dependency-closed vertical slices, not by calendar phases.
-Each capability must travel through:
+Eqiora advances through dependency-ordered contract waves, not calendar phases.
+A central invariant closes one reference capability path before disjoint
+consumers fan out. Every product claim must still travel through:
 
 ```text
 typed meaning
@@ -104,7 +105,7 @@ those two parent paths, not another physical semantics.
 - temporal XDMF import, arbitrary trajectory export, parallel HDF5, or a
   production Dataset loader.
 
-Those remain independent vertical slices. They must reuse the established
+Those remain independent capability closures. They must reuse the established
 meaning-to-evidence path rather than introduce a second physical or identity
 authority.
 
@@ -210,7 +211,7 @@ industrial-scale validation remain open.
 - Primal, JVP, and VJP actions from one scalar Operator IR; normal and
   transposed solves; smooth implicit sensitivities; one discrete implicit-step
   adjoint; bounded spatial coefficient/shape derivatives; and one
-  transversal-event saltation slice.
+  transversal-event saltation capability closure.
 
 General DAE execution, simultaneous hybrid event ordering, statechart history,
 Zeno policy, adaptive/BDF trajectory adjoints, checkpoint scheduling, FSI/ALE
@@ -249,7 +250,7 @@ remain open.
 
 ### Studio
 
-Implemented bounded slices include:
+Implemented bounded capabilities include:
 
 - accessible Relation projection, source-span diagnostics, compile/check,
   exact reference-plan preview, controlled reference execution, result
@@ -270,10 +271,10 @@ General mesh rendering, imported/adaptive fields, general vector/tensor and 3D
 visualization, production level-of-detail, source-language services, dynamic
 workflow plugins, and whole-product localization remain open.
 
-## Next dependency-safe slices
+## Next dependency-safe capability closures
 
 The public alpha is closed. Public feedback enters the same Issue queue as
-other work and preempts an accepted slice only for an owning prerequisite or a
+other work and preempts an accepted capability only for an owning prerequisite or a
 credible security, correctness, or data-loss fault.
 
 The next product wavefront is dependency-ordered rather than calendar-ordered:
@@ -324,11 +325,11 @@ Differentiation and optimization
 Geometry, physics credibility, time/hybrid systems, and scale may advance in
 parallel when they neither redefine the same central seam nor share primary
 writable paths. Differentiation may establish a small trajectory reference
-slice early, but its ALE, remeshing, and CAD branches wait for the corresponding
-primal contracts.
+capability path early, but its ALE, remeshing, and CAD branches wait for the
+corresponding primal contracts.
 
 The FEM form-derivation spine gates *broader* FEM libraries, not the named
-credibility slices: the elasticity patch, thermal slab, and Couette--Poiseuille
+credibility closures: the elasticity patch, thermal slab, and Couette--Poiseuille
 cases are the derivation's candidate second consumers and falsifiers, and
 proceed in parallel. Finite-volume libraries are outside this dependency
 entirely — conservative face fluxes are method-foreign to a variational form,
@@ -357,7 +358,7 @@ phase:
 
 Each preparation is behavior-preserving, stays private until two independent
 consumers justify a public boundary, and runs the existing affected evidence.
-Do not create a general refactoring phase or broaden a slice merely because
+Do not create a general refactoring phase or broaden a lane merely because
 adjacent cleanup is attractive.
 
 Release work remains a separate trust path. Additional platforms and release
@@ -384,5 +385,5 @@ maintained in the
 a support claim; its status records the evidence actually available.
 
 See [GOVERNANCE.md](../GOVERNANCE.md), the [RFC index](../rfcs/README.md), and
-the [vertical-slice guide](development/vertical-slice-development.md) for how
+the [contract-wave capability guide](development/vertical-slice-development.md) for how
 this roadmap changes.
