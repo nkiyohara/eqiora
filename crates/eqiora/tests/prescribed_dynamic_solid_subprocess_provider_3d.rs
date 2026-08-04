@@ -127,7 +127,7 @@ fn positive_child(launch_salt: &str, working_directory: &Path) -> Child {
         .stderr(Stdio::piped());
     command
         .spawn()
-        .expect("uv must provision the exact positive provider profile")
+        .expect("the exact positive provider profile must launch")
 }
 
 fn wrapped_positive_child(launch_salt: &str, working_directory: &Path) -> Child {
@@ -143,9 +143,9 @@ fn wrapped_positive_child(launch_salt: &str, working_directory: &Path) -> Child 
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    command
-        .spawn()
-        .expect("uv must launch the same provider through the alternate command and path")
+    command.spawn().expect(
+        "the exact positive provider profile must launch through the alternate command and path",
+    )
 }
 
 fn hostile_child(mode: &str) -> Child {
