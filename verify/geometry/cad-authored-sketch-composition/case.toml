@@ -1,0 +1,77 @@
+id = "geometry.cad-authored-sketch-composition"
+status = "verified"
+scope = "one-opaque-no-wire-rectangle-or-end-cap-circle-sketch-over-the-accepted-authored-cad-graph"
+reference_kind = "exact-predecessor-authority-replay-and-explicit-compatibility-route-equivalence"
+
+capabilities = [
+  "bounded-native-authored-cad-sketch-owner",
+  "explicit-positive-z-rectangle-extrusion-composition",
+  "exact-end-cap-bound-circular-through-cut-composition",
+  "compatibility-constructor-route-equivalence",
+  "graph-bound-face-and-closed-operation-order-admission",
+]
+
+[problem]
+rectangle_route = "ConstrainedRectangleV1 plus finite positive requested modeling tolerance -> positive-z extrusion"
+circle_route = "exact canonical v1 end-cap handle plus finite center and positive radius -> one through-cut with finite positive Boolean tolerance"
+v1_authority = "geometry.cad-authored-rectangle-extrusion: 731 bytes and digest 919545f70118840c04da9715829deb2da947460a51311ebabec6a34038c66f36"
+v2_authority = "geometry.cad-authored-circular-through-cut: 1292 bytes and digest 00acb9494fc7dea8f1f2500d1316cb3315130a965a24179b3eb1b10345058b47"
+planar_authority = "a separate [0,2.2] x [0,0.41], center [0.2,0.2], radius 0.05, depth 1.0 graph reproduces geometry.exact-circular-hole-geometry: 511 bytes and digest b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
+
+[oracle]
+exact_artifacts = "accepted v1, v2, and planar canonical bytes, lengths, and domain-separated digests"
+route_equivalence = "explicit and compatibility graph bytes, digests, handles/order, public observations, receipt, per-category lineage vectors, and decode/re-encode"
+lineage = "route equality plus inherited category membership/counts and complete face-inventory partition; no new internal vector order or created-lineage literal"
+new_expected_value = false
+new_scientific_tolerance = false
+
+[acceptance]
+explicit_v1_equals_compatibility = true
+explicit_v2_equals_compatibility = true
+canonical_graph_and_handle_decode_reencode = true
+exact_public_observations_equal = true
+complete_build_receipts_equal = true
+lineage_vectors_equal_by_route = true
+inherited_lineage_membership_and_counts = true
+positive_and_negative_rectangle_lower_zero_equal = true
+positive_and_negative_circle_center_zero_equal = true
+dfg_planar_authority_uses_a_separate_exact_graph_fixture = true
+rejections_are_invalid_artifact = true
+
+[falsifiers]
+modeling_tolerance = "positive and negative zero, negative, NaN, and both infinities reject"
+extrusion_depth = "positive and negative zero, negative, NaN, both infinities, and nonfinite derived end plane reject"
+circle_center = "NaN and both infinities independently in each coordinate reject"
+circle_radius = "positive and negative zero, negative, NaN, and both infinities reject"
+boolean_tolerance = "positive and negative zero, negative, NaN, and both infinities reject"
+face_binding = "start-cap, every lateral face, v2, foreign, stale-depth, and changed-tolerance handles reject at the owned boundary"
+signed_clearance = "outside, asymmetric near-boundary, and equality-boundary candidates reject while strict interior succeeds"
+operation_order = "rectangle-as-cut, circle-as-extrusion, and second cut reject"
+identity_transport = "clone, move, inline, and compatibility argument construction preserve exact identity"
+
+[claim_boundary]
+opaque_no_wire_sketch_owner = true
+rectangle_variants = 1
+circle_variants = 1
+positive_z_extrusions = 1
+circular_through_cuts = 1
+general_constraint_solver = false
+arbitrary_plane_profile_curve_or_operation_dag = false
+new_wire_schema_or_digest = false
+multiple_or_blind_holes = false
+mesh_or_provider_kernel = false
+python_or_studio_projection = false
+mutation_undo_or_history_editing = false
+new_numerical_or_scientific_tolerance = false
+
+[precommitment]
+precommitted = true
+authored_before_implementation_by_a_fresh_context_nonimplementer = true
+base_revision = "f36f6f029e7cdc59b81163355ff07ec1cdb9c78e"
+implementation_read = false
+writer_scratch_read = false
+expected_predecessor_result = "CadAuthoredSketch and CadAuthoredGraph::through_cut are absent, so this Rust target intentionally does not compile until the implementation and integrator registrations are composed"
+
+[evidence]
+package = "eqiora-geometry"
+test = "cad_authored_sketch_composition"

@@ -24,19 +24,13 @@ fn invalid(message: impl Into<String>) -> Diagnostic {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct CircularThroughCut {
+pub(crate) struct AdmittedCircle {
     center_m: [f64; 2],
     radius_m: f64,
-    requested_tolerance_m: f64,
 }
 
-impl CircularThroughCut {
-    pub(crate) fn new(
-        sketch: ConstrainedRectangleV1,
-        mut center_m: [f64; 2],
-        radius_m: f64,
-        requested_tolerance_m: f64,
-    ) -> Result<Self, Diagnostic> {
+impl AdmittedCircle {
+    pub(crate) fn new(mut center_m: [f64; 2], radius_m: f64) -> Result<Self, Diagnostic> {
         for coordinate in &mut center_m {
             *coordinate = canonical_zero(*coordinate);
         }
@@ -50,11 +44,39 @@ impl CircularThroughCut {
                 "authored CAD cut radius must be finite and positive in metres",
             ));
         }
+        Ok(Self {
+            center_m,
+            radius_m: canonical_zero(radius_m),
+        })
+    }
+
+    pub(crate) const fn center_m(self) -> [f64; 2] {
+        self.center_m
+    }
+
+    pub(crate) const fn radius_m(self) -> f64 {
+        self.radius_m
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct CircularThroughCut {
+    circle: AdmittedCircle,
+    requested_tolerance_m: f64,
+}
+
+impl CircularThroughCut {
+    pub(crate) fn new(
+        sketch: ConstrainedRectangleV1,
+        circle: AdmittedCircle,
+        requested_tolerance_m: f64,
+    ) -> Result<Self, Diagnostic> {
         if !requested_tolerance_m.is_finite() || requested_tolerance_m <= 0.0 {
             return Err(invalid(
                 "authored CAD Boolean tolerance must be finite and positive in metres",
             ));
         }
+        let center_m = circle.center_m();
         let [(x0, x1), (y0, y1)] = [sketch.x_bounds_m(), sketch.y_bounds_m()];
         let signed_side_distances = [
             center_m[0] - x0,
@@ -71,25 +93,24 @@ impl CircularThroughCut {
             .into_iter()
             .reduce(f64::min)
             .expect("four signed distances");
-        let clearance = minimum - radius_m;
+        let clearance = minimum - circle.radius_m();
         if !clearance.is_finite() || clearance <= requested_tolerance_m {
             return Err(invalid(
                 "authored circular cut must remain inside every rectangle side by more than the requested Boolean tolerance",
             ));
         }
         Ok(Self {
-            center_m,
-            radius_m: canonical_zero(radius_m),
+            circle,
             requested_tolerance_m: canonical_zero(requested_tolerance_m),
         })
     }
 
     pub(crate) const fn center_m(self) -> [f64; 2] {
-        self.center_m
+        self.circle.center_m()
     }
 
     pub(crate) const fn radius_m(self) -> f64 {
-        self.radius_m
+        self.circle.radius_m()
     }
 
     pub(crate) const fn requested_tolerance_m(self) -> f64 {
@@ -112,9 +133,16 @@ pub(crate) fn encode_v2(
     .map_err(|error| invalid(format!("cannot serialize authored CAD graph v2: {error}")))
 }
 
-pub(crate) fn decode_v2(
-    bytes: &[u8],
-) -> Result<(ConstrainedRectangleV1, f64, f64, CircularThroughCut), Diagnostic> {
+pub(crate) struct DecodedGraphV2 {
+    pub(crate) sketch: ConstrainedRectangleV1,
+    pub(crate) extrusion_depth_m: f64,
+    pub(crate) requested_modeling_tolerance_m: f64,
+    pub(crate) center_m: [f64; 2],
+    pub(crate) radius_m: f64,
+    pub(crate) requested_boolean_tolerance_m: f64,
+}
+
+pub(crate) fn decode_v2(bytes: &[u8]) -> Result<DecodedGraphV2, Diagnostic> {
     let wire: WireCadAuthoredGraphV2 = serde_json::from_slice(bytes)
         .map_err(|error| invalid(format!("invalid authored CAD graph v2 JSON: {error}")))?;
     wire.check_contract()?;
@@ -123,18 +151,14 @@ pub(crate) fn decode_v2(
         (wire.profile.y_bounds_m[0], wire.profile.y_bounds_m[1]),
         wire.sketch_plane.z_m,
     )?;
-    let cut = CircularThroughCut::new(
+    Ok(DecodedGraphV2 {
         sketch,
-        wire.cut_profile.center_m,
-        wire.cut_profile.radius_m,
-        wire.cut.requested_tolerance_m,
-    )?;
-    Ok((
-        sketch,
-        wire.extrusion.depth_m,
-        wire.requested_modeling_tolerance_m,
-        cut,
-    ))
+        extrusion_depth_m: wire.extrusion.depth_m,
+        requested_modeling_tolerance_m: wire.requested_modeling_tolerance_m,
+        center_m: wire.cut_profile.center_m,
+        radius_m: wire.cut_profile.radius_m,
+        requested_boolean_tolerance_m: wire.cut.requested_tolerance_m,
+    })
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

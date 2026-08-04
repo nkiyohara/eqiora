@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::cad_authored_build::CadAuthoredBuild;
 use crate::cad_authored_cut::{CircularThroughCut, GRAPH_SCHEMA_V2, decode_v2, encode_v2};
 use crate::cad_authored_selection::{CadAuthoredFaceHandle, FaceKey, WireFaceSelectionV1};
+use crate::cad_authored_sketch::CadAuthoredSketch;
 use crate::canonical::{CANONICAL_ENCODING, WireLengthUnit, digest_with_schema};
 use crate::{AxisAlignedBox3, CadRepairDispositionV1, CanonicalGeometryV1, ConstrainedRectangleV1};
 
@@ -68,7 +69,16 @@ impl CadAuthoredGraph {
         extrusion_depth_m: f64,
         requested_modeling_tolerance_m: f64,
     ) -> Result<Self, Diagnostic> {
-        let core = validate_core(sketch, extrusion_depth_m, requested_modeling_tolerance_m)?;
+        CadAuthoredSketch::rectangle_xy(sketch, requested_modeling_tolerance_m)?
+            .extrude_positive_z(extrusion_depth_m)
+    }
+
+    pub(crate) fn from_rectangle_sketch(
+        sketch: ConstrainedRectangleV1,
+        requested_modeling_tolerance_m: f64,
+        extrusion_depth_m: f64,
+    ) -> Result<Self, Diagnostic> {
+        let core = validate_extrusion(sketch, extrusion_depth_m, requested_modeling_tolerance_m)?;
         let wire = WireCadAuthoredGraphV1::from_core(core);
         let bytes = serde_json::to_vec(&wire)
             .map_err(|error| invalid(format!("cannot serialize authored CAD graph: {error}")))?;
@@ -96,17 +106,37 @@ impl CadAuthoredGraph {
         radius_m: f64,
         requested_boolean_tolerance_m: f64,
     ) -> Result<Self, Diagnostic> {
+        let sketch =
+            CadAuthoredSketch::circle_on_face(self.face_handle("end-cap")?, center_m, radius_m)?;
+        self.through_cut(&sketch, requested_boolean_tolerance_m)
+    }
+
+    /// Apply the one admitted circular through-cut to its exact predecessor.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` unless this is a v1 rectangle-extrusion graph, the
+    /// sketch is a circle bound to this graph's canonical `end-cap`, and the
+    /// existing finite positive tolerance and strict signed-clearance
+    /// predicates are satisfied.
+    pub fn through_cut(
+        &self,
+        sketch: &CadAuthoredSketch,
+        requested_boolean_tolerance_m: f64,
+    ) -> Result<Self, Diagnostic> {
         if !matches!(self.kind, GraphKind::RectangleExtrusion) {
             return Err(invalid(
                 "authored CAD v2 admits exactly one cut after the rectangle extrusion",
             ));
         }
-        let cut = CircularThroughCut::new(
-            self.core.sketch,
-            center_m,
-            radius_m,
-            requested_boolean_tolerance_m,
-        )?;
+        let (face, circle) = sketch.circle_parts().ok_or_else(|| {
+            invalid("circular through-cut requires the admitted circle-on-face sketch")
+        })?;
+        if self.resolve_face_key(face)? != FaceKey::end_cap() {
+            return Err(invalid(
+                "authored CAD circular through-cut requires this graph's end cap",
+            ));
+        }
+        let cut = CircularThroughCut::new(self.core.sketch, circle, requested_boolean_tolerance_m)?;
         let bytes = encode_v2(
             self.core.sketch,
             self.core.extrusion_depth_m,
@@ -193,12 +223,16 @@ impl CadAuthoredGraph {
                 wire.requested_modeling_tolerance_m,
             );
         }
-        if let Ok((sketch, depth, modeling_tolerance, cut)) = decode_v2(bytes) {
-            let base = Self::new(sketch, depth, modeling_tolerance)?;
+        if let Ok(decoded) = decode_v2(bytes) {
+            let base = Self::new(
+                decoded.sketch,
+                decoded.extrusion_depth_m,
+                decoded.requested_modeling_tolerance_m,
+            )?;
             return base.circular_through_cut(
-                cut.center_m(),
-                cut.radius_m(),
-                cut.requested_tolerance_m(),
+                decoded.center_m,
+                decoded.radius_m,
+                decoded.requested_boolean_tolerance_m,
             );
         }
         Err(invalid("unsupported or malformed authored CAD graph wire"))
@@ -564,7 +598,7 @@ impl CadAuthoredGraph {
     }
 }
 
-fn validate_core(
+fn validate_extrusion(
     sketch: ConstrainedRectangleV1,
     extrusion_depth_m: f64,
     requested_modeling_tolerance_m: f64,
@@ -574,13 +608,7 @@ fn validate_core(
             "authored CAD extrusion depth must be finite and positive in metres",
         ));
     }
-    if !requested_modeling_tolerance_m.is_finite() || requested_modeling_tolerance_m <= 0.0 {
-        return Err(invalid(
-            "authored CAD modeling tolerance must be finite and positive in metres",
-        ));
-    }
     let extrusion_depth_m = canonical_zero(extrusion_depth_m);
-    let requested_modeling_tolerance_m = canonical_zero(requested_modeling_tolerance_m);
     let bounds = sketch.extruded_box(extrusion_depth_m)?;
     if bounds
         .bounds_m()

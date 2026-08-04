@@ -297,6 +297,9 @@ Geometry and CAD
               -> Python and Studio projections (after the artifact epoch)
                 -> CAD and ALE shape sensitivity
 
+bounded native authored Sketch/profile composition
+  -> installed-Python explicit Sketch composition (#367)
+
 Physics libraries and credibility
   elasticity patch + thermal slab + Couette--Poiseuille
     -> thermoelasticity and conjugate heat
