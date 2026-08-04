@@ -749,9 +749,8 @@ pub(crate) mod test_support {
             .expect_err("complete validation rejects the targeted mismatch");
         let phases = owner.phase_names();
         let after = owner.test_snapshot();
-        let mutant_result = owner.execute_core(
-            SyntheticExecution::new(candidate).validating(Some(component)),
-        );
+        let mutant_result =
+            owner.execute_core(SyntheticExecution::new(candidate).validating(Some(component)));
         ValidationMutantObservation {
             baseline,
             mutant: mutant_authorizes && mutant_result.is_ok(),
@@ -838,9 +837,9 @@ pub(crate) mod test_support {
         let after = owner.test_snapshot();
         FactorStateRejectionObservation {
             error_code: error.code().0,
-            factor_solve: phases.iter().any(|phase| {
-                matches!(*phase, "retained-factor-solve" | "candidate-factor-solve")
-            }),
+            factor_solve: phases
+                .iter()
+                .any(|phase| matches!(*phase, "retained-factor-solve" | "candidate-factor-solve")),
             attempt_delta: after.counters[0] - before.counters[0],
             retained_binding: before.binding == after.binding,
             retained_identities: before.symbolic_identity == after.symbolic_identity

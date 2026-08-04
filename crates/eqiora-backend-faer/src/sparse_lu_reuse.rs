@@ -220,9 +220,7 @@ impl FaerSparseLuReuseOwner {
                     ready.numeric_identity,
                 )?;
                 let validation = ValidationComponents::between(ready, &input);
-                if requires_numeric_reuse_validation
-                    && !validation.authorizes_numeric(omission)
-                {
+                if requires_numeric_reuse_validation && !validation.authorizes_numeric(omission) {
                     return Err(invalid_realization(
                         "faer sparse LU numeric reuse validation rejected a changed component",
                     ));
@@ -656,10 +654,7 @@ impl ValidationComponents {
         }
     }
 
-    fn classify(
-        self,
-        omission: Option<ValidationComponent>,
-    ) -> Result<ReuseAction, Diagnostic> {
+    fn classify(self, omission: Option<ValidationComponent>) -> Result<ReuseAction, Diagnostic> {
         let includes = |component, value| omission == Some(component) || value;
         if !(includes(ValidationComponent::AcceptedBinding, self.accepted_binding)
             && includes(ValidationComponent::Structure, self.structure)
@@ -671,11 +666,13 @@ impl ValidationComponents {
                 "faer sparse LU reuse binding, structure, policy, provider, or graph changed",
             ));
         }
-        Ok(if includes(ValidationComponent::Coefficients, self.coefficients) {
-            ReuseAction::ReuseNumeric
-        } else {
-            ReuseAction::RebuildNumeric
-        })
+        Ok(
+            if includes(ValidationComponent::Coefficients, self.coefficients) {
+                ReuseAction::ReuseNumeric
+            } else {
+                ReuseAction::RebuildNumeric
+            },
+        )
     }
 
     pub(crate) fn authorizes_numeric(self, omission: Option<ValidationComponent>) -> bool {
