@@ -6,8 +6,10 @@ use eqiora_assembly::{AssemblyReport, CsrMatrix, LinearSystem};
 use eqiora_core::Diagnostic;
 use eqiora_meshing::VertexId;
 use eqiora_solver::{
-    CanonicalCsrSystemView, LinearOperatorProperties, LinearSolver, LinearSolverBackend,
-    PreconditionerPolicy, ReductionPolicy, SolveReport, SolverPlan,
+    CanonicalCsrSystemView, ExecutionReport, FixedOrderInnerProduct, LinearOperatorProperties,
+    LinearSolver, LinearSolverBackend, PreconditionerPolicy, ReductionPolicy,
+    ReplicatedLinearExecution, SERIAL_EXECUTION_PROVIDER, SERIAL_LINEAR_EXECUTION, SolveReport,
+    SolverPlan, SolverProvider,
 };
 
 use super::assembly::AssembledPhysicalOperators;
@@ -194,16 +196,26 @@ pub(super) fn solve_and_accept(
         &reduced_linear_system,
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )?;
-    let solved = solver.solve(&reduced_system.linear_problem()?, reference_solver_plan()?)?;
+    let solver_plan = reference_solver_plan()?;
+    let expected_residual_target =
+        solver_plan.residual_target(serial_norm(reduced_system.right_hand_side())?)?;
+    let solver_provider = solver.provider();
+    let solved = solver.solve(&reduced_system.linear_problem()?, solver_plan)?;
     if solved.values().len() != free_dofs.len() {
         return Err(invalid(
             "prescribed dynamic-solid solver result differs from the reduced displacement layout",
         ));
     }
-    for (value, full_dof) in solved.values().iter().zip(&free_dofs) {
+    let (algebraic_displacement, solve_report) = solved.into_parts();
+    require_exact_solve_evidence(
+        solver_provider,
+        solver_plan,
+        expected_residual_target,
+        &solve_report,
+    )?;
+    for (value, full_dof) in algebraic_displacement.iter().zip(&free_dofs) {
         next_displacement[*full_dof / DIMENSION][*full_dof % DIMENSION] = *value;
     }
-    let (algebraic_displacement, solve_report) = solved.into_parts();
 
     let prior_displacement_values = contract
         .prior_displacement()
@@ -376,6 +388,39 @@ fn reference_solver_plan() -> Result<SolverPlan, Diagnostic> {
     .with_reduction(ReductionPolicy::Reproducible))
 }
 
+fn require_exact_solve_evidence(
+    solver_provider: SolverProvider,
+    solver_plan: SolverPlan,
+    expected_residual_target: f64,
+    report: &SolveReport,
+) -> Result<(), Diagnostic> {
+    if report.solver_provider() != solver_provider {
+        return Err(invalid(
+            "prescribed dynamic-solid solve evidence differs from the injected solver provider",
+        ));
+    }
+    if report.solver_plan() != solver_plan {
+        return Err(invalid(
+            "prescribed dynamic-solid solve evidence differs from the frozen solver plan",
+        ));
+    }
+    if report.execution_provider() != SERIAL_EXECUTION_PROVIDER
+        || report.execution() != ExecutionReport::host_serial()
+        || report.verification_provider() != SERIAL_EXECUTION_PROVIDER
+        || report.verification() != ExecutionReport::host_serial()
+    {
+        return Err(invalid(
+            "prescribed dynamic-solid solve requires exact serial-host execution and verification evidence",
+        ));
+    }
+    if report.residual_target() != expected_residual_target {
+        return Err(invalid(
+            "prescribed dynamic-solid solve evidence differs from the residual target recomputed from the frozen plan and reduced right-hand side",
+        ));
+    }
+    Ok(())
+}
+
 fn flatten(values: &[(VertexId, [f64; DIMENSION])]) -> Vec<f64> {
     values
         .iter()
@@ -397,4 +442,10 @@ fn tagged(values: Vec<[f64; DIMENSION]>) -> Vec<(VertexId, [f64; DIMENSION])> {
 
 fn norm(values: &[f64]) -> f64 {
     values.iter().map(|value| value * value).sum::<f64>().sqrt()
+}
+
+fn serial_norm(values: &[f64]) -> Result<f64, Diagnostic> {
+    Ok(SERIAL_LINEAR_EXECUTION
+        .inner_product(FixedOrderInnerProduct::new(values, values)?)?
+        .sqrt())
 }

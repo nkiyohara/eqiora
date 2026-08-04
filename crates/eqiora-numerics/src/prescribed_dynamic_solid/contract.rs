@@ -70,9 +70,9 @@ impl PrescribedDynamicSolidContract {
         prior_velocity: &[(VertexId, [f64; 3])],
         driven_boundary: Id<kinds::Domain>,
     ) -> Result<Self, Diagnostic> {
-        if time_step.dim() != TIME || !time_step.value().is_finite() || time_step.value() <= 0.0 {
+        if time_step.dim() != TIME || time_step.value() != 0.25 {
             return Err(invalid(
-                "prescribed dynamic-solid time step must be finite, strictly positive, and have time dimension",
+                "prescribed dynamic-solid reference admits only the exact coherent-SI 0.25 s time step",
             ));
         }
 

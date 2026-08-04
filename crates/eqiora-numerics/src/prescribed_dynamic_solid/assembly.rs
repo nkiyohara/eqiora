@@ -9,6 +9,7 @@ use eqiora_core::Diagnostic;
 use eqiora_meshing::{
     MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, simplex_duffy_gauss_legendre,
 };
+use eqiora_solver::ExecutionReport;
 
 use super::contract::{PrescribedDynamicSolidContract, invalid};
 use crate::simplicial_solid_element::p1_solid_element_matrices;
@@ -92,6 +93,11 @@ impl<'a> PreparedPhysicalAssembly<'a> {
 
     fn finish(self, result: AssemblyResult) -> Result<AssembledPhysicalOperators, Diagnostic> {
         let (systems, report) = result.into_parts();
+        if report.execution() != ExecutionReport::host_serial() {
+            return Err(invalid(
+                "prescribed dynamic-solid assembly requires exact serial-host execution evidence",
+            ));
+        }
         if report.packet_count() != self.cell_count || report.target_count() != 2 {
             return Err(invalid(
                 "prescribed dynamic-solid assembly evidence differs from its exact cell/two-operator inventory",
