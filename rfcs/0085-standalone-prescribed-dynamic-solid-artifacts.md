@@ -1,4 +1,4 @@
-# RFC 0084: Standalone prescribed dynamic-solid artifacts
+# RFC 0085: Standalone prescribed dynamic-solid artifacts
 
 - Status: Draft
 - Authors: Eqiora contributors
@@ -739,7 +739,7 @@ when it does not establish a second invariant owner or public extension point.
 The contract owner writes only:
 
 ```text
-rfcs/0084-standalone-prescribed-dynamic-solid-artifacts.md
+rfcs/0085-standalone-prescribed-dynamic-solid-artifacts.md
 ```
 
 The independent exact-artifact oracle owns:
@@ -768,7 +768,7 @@ suffix rule, inferred sibling, or membership in a historical frozen set:
 
 | Exact path | Exact search signals | `identity_literals` | Class |
 | --- | --- | ---: | --- |
-| `rfcs/0084-standalone-prescribed-dynamic-solid-artifacts.md` | `eqiora.model-envelope/v`, `model_sha256` | `0` | `current-owner-assertion` |
+| `rfcs/0085-standalone-prescribed-dynamic-solid-artifacts.md` | `eqiora.model-envelope/v`, `model_sha256` | `0` | `current-owner-assertion` |
 | `crates/eqiora-artifact/src/prescribed_dynamic_solid_realization.rs` | `model_sha256` | `0` | `non-fixture-search-hit` |
 | `crates/eqiora/tests/prescribed_dynamic_solid_state_run_3d.rs` | `model_sha256` | `0` | `non-fixture-search-hit` |
 | `verify/artifacts/prescribed-dynamic-solid-state-run-3d/references/derive_prescribed_dynamic_solid_state_run_3d.py` | `eqiora.model-envelope/v`, `model_sha256` | `0` | `non-fixture-search-hit` |
@@ -839,7 +839,7 @@ CHANGELOG.md
 ```
 
 The integrator's exact registration delta is: add
-`- [RFC 0084: Standalone prescribed dynamic-solid artifacts](0084-standalone-prescribed-dynamic-solid-artifacts.md)`
+`- [RFC 0085: Standalone prescribed dynamic-solid artifacts](0085-standalone-prescribed-dynamic-solid-artifacts.md)`
 to `rfcs/README.md`; declare and named-re-export
 `PrescribedDynamicSolidRealizationEnvelopeV1` from `eqiora-artifact`; declare
 and named-re-export `PrescribedDynamicSolidStateRun3d` from `eqiora-api`; add
