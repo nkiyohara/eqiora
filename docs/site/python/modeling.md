@@ -10,9 +10,10 @@ axis-aligned-rectangle-with-circular-hole geometry. That exact family can enter
 one explicit, error-controlled chordal reference-mesh operation while the
 source remains exact. A typed `Realization` separately selects an admitted
 numerical path; choosing FEM or FVM never changes model or geometry meaning.
-The package also projects three bounded Rust-owned application Results for the
-accepted exact-cylinder flow, mixed-boundary structure, and two-step
-fixed-reference FSI cases, with optional caller-owned Matplotlib stills.
+The package also reaches the common `Result` through explicit resolved Plans
+for the accepted exact-cylinder flow, mixed-boundary structure, and two-step
+fixed-mesh monolithic FSI cases, with typed application evidence and optional
+caller-owned Matplotlib stills.
 
 Start with the complete [five-minute example](../get-started.md), then read
 the maintained

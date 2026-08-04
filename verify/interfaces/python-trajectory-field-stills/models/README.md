@@ -2,8 +2,9 @@
 
 There is no new Model, mesh, or result fixture. The gate performs the live
 installed workflow from the packaged `fixed-reference-fsi.eqi` Model resource
-and consumes the common `Trajectory` reached through
-`eqiora.fsi.solve_fixed_reference_fsi(model).trajectory`.
+and consumes the common `Trajectory` reached through explicit
+`FixedMeshMonolithic` resolution, common Run execution, and
+`result.trajectory`.
 
 The identity falsifiers derive two Models from that same packaged source, and
 neither introduces a second physical model. Compiling it once more with its

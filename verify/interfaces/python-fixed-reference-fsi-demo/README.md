@@ -2,13 +2,16 @@
 
 This case verifies one installed-Python projection of the already accepted
 two-step fixed-reference FSI application. Python compiles the packaged
-byte-exact source through the current Model owner and passes that immutable
-Model to the same Rust-owned composition used by Studio. The result retains
-the complete two-state
-trajectory, relational Model → geometry → correspondence → mesh → Realization
-→ state → trajectory → Run lineage, and solver-owned coupled fields.
+byte-exact source through the current Model owner, resolves mandatory explicit
+`FixedMeshMonolithic` intent, and submits the model-bound Plan through the
+ordinary Run path used by Studio. The common `Result` retains the complete
+two-state `Trajectory`, relational Model → geometry → correspondence → mesh →
+Realization → state → trajectory → Run lineage, and solver-owned coupled
+fields. `fixed_mesh_monolithic_evidence(result)` retains the exhaustive
+partition and selects each state observation by exact `TrajectoryState`.
 
-Common scalar and deformed stills over this result's accepted `Trajectory` are
+Common scalar and deformed stills over this common Result's accepted
+`Trajectory` are
 owned separately by
 [`interfaces.python-trajectory-field-stills`](../python-trajectory-field-stills/README.md).
 This case retains no demo-specific presentation entry point.

@@ -87,8 +87,22 @@ def build(
     model = eqiora.compile(
         model_source.decode("utf-8"), filename="fixed-reference-fsi.eqi"
     )
-    result = eqiora.fsi.solve_fixed_reference_fsi(model)
-    data = _scene_data(result)
+    intent = eqiora.fsi.FixedMeshMonolithic(
+        time_step_s=0.05,
+        steps=2,
+        initial_velocity_m_per_s=(0.0, 0.0),
+        initial_free_interface_displacement_m=(0.02, 0.0),
+        length_scale_m=2.0,
+        velocity_scale_m_per_s=0.5,
+        pressure_scale_pa=4.0,
+        relative_tolerance=1.0e-11,
+        absolute_tolerance=1.0e-13,
+        maximum_iterations=20_000,
+    )
+    plan = eqiora.fsi.resolve(model, intent)
+    result = eqiora.submit(model, plan=plan).result()
+    evidence = eqiora.fsi.fixed_mesh_monolithic_evidence(result)
+    data = _scene_data(result, model, evidence)
     profile = scene.make_profile(data)
     encoder = _encoder_identity()
 
@@ -133,7 +147,7 @@ def build(
     encoder["mp4_argv"] = _recorded_argv(mp4_argv, output_directory)
     encoder["profile_sha256"] = record.content_digest(encoder, "profile_sha256")
     scene_value = scene.scene_record(data, profile, frame_sequence_sha256)
-    lineage = _lineage(result, model)
+    lineage = _lineage(result, model, plan, evidence)
     environment = _environment(eqiora, matplotlib)
     renderer = {
         "identity": "eqiora.gallery.private-fsi-renderer/1",
@@ -151,7 +165,7 @@ def build(
         "scene_module_path": SCENE_MODULE.relative_to(ROOT).as_posix(),
         "scene_module_sha256": record.sha256_file(SCENE_MODULE),
         "model_source_sha256": record.sha256_bytes(model_source),
-        "result_digest": result.trajectory.run_digest,
+        "result_digest": evidence.run_digest,
         "result_frame_input_sha256": _frame_input_digest(data),
         "eqiora_version": eqiora.__version__,
         "eqiora_module_is_installed": True,
@@ -251,29 +265,43 @@ def _matplotlib():
     return matplotlib
 
 
-def _scene_data(result: Any) -> scene.SceneData:
+def _scene_data(result: Any, model: Any, evidence: Any) -> scene.SceneData:
     trajectory = result.trajectory
+    pressure_field = model.field("fluid_pressure")
+    displacement_field = model.field("solid_displacement")
     steps = tuple(
-        scene.AcceptedStep(
-            ordinal=int(step.ordinal),
-            time_s=float(step.time_s),
-            pressure_vertices=np.asarray(step.pressure_vertices).copy(),
-            pressure=np.asarray(step.pressure).copy(),
-            displacement=np.asarray(step.displacement).copy(),
-        )
-        for step in result.steps
+        _accepted_step(state, pressure_field, displacement_field)
+        for state in trajectory.states
     )
     if len(steps) != 2:
         raise BuildError("gallery media requires exactly two accepted result steps")
     return scene.SceneData(
         coordinates=np.asarray(trajectory.coordinates).copy(),
         cells=np.asarray(trajectory.cells).copy(),
-        fluid_cells=np.asarray(result.fluid_cells).copy(),
-        solid_cells=np.asarray(result.solid_cells).copy(),
-        interface_facets=np.asarray(result.interface_facets).copy(),
+        fluid_cells=np.asarray(evidence.fluid_cells).copy(),
+        solid_cells=np.asarray(evidence.solid_cells).copy(),
+        interface_facets=np.asarray(evidence.interface_facets).copy(),
         steps=(steps[0], steps[1]),
-        case_ids=tuple(result.case_ids),
-        run_digest=trajectory.run_digest,
+        case_ids=tuple(evidence.case_ids),
+        run_digest=evidence.run_digest,
+    )
+
+
+def _accepted_step(
+    state: Any,
+    pressure_field: Any,
+    displacement_field: Any,
+) -> scene.AcceptedStep:
+    pressure = state.field(pressure_field)
+    pressure_vertices = np.asarray(pressure.support_indices("vertex"))
+    return scene.AcceptedStep(
+        ordinal=int(state.step),
+        time_s=float(state.time_s),
+        pressure_vertices=pressure_vertices.copy(),
+        pressure=np.asarray(pressure.values("vertex"))[pressure_vertices].copy(),
+        displacement=np.asarray(
+            state.field(displacement_field).values("vertex")
+        ).copy(),
     )
 
 
@@ -548,24 +576,30 @@ def _recorded_argv(argv: list[str], output_directory: Path) -> list[str]:
     ]
 
 
-def _lineage(result: Any, model: Any) -> dict[str, object]:
+def _lineage(
+    result: Any,
+    model: Any,
+    plan: Any,
+    evidence: Any,
+) -> dict[str, object]:
     revision = model.revision
     trajectory = result.trajectory
-    if int(revision.number) != int(result.semantic_revision):
+    if int(revision.number) != int(result.model_revision):
         raise BuildError("compiled revision and accepted result revision disagree")
+    run_manifest = result.run_manifest()
     return {
         "revision_digest": revision.digest,
-        "semantic_revision": int(result.semantic_revision),
+        "semantic_revision": int(result.model_revision),
         "geometry_digest": trajectory.geometry_digest,
         "correspondence_digest": trajectory.correspondence_digest,
         "mesh_digest": trajectory.mesh_digest,
         "realization_digest": trajectory.realization_digest,
-        "realization_revision": int(result.realization_revision),
-        "run_digest": trajectory.run_digest,
-        "run_manifest_sha256": record.sha256_bytes(bytes(result.run_manifest_json)),
+        "realization_revision": int(plan.realization_revision),
+        "run_digest": evidence.run_digest,
+        "run_manifest_sha256": record.sha256_bytes(run_manifest.to_json()),
         "state_digests": [state.digest for state in trajectory.states],
         "trajectory_digest": trajectory.digest,
-        "scientific_case_ids": list(result.case_ids),
+        "scientific_case_ids": list(evidence.case_ids),
     }
 
 
