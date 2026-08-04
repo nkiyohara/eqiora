@@ -1,0 +1,74 @@
+id = "numerics.host-serial-solver-planning-private"
+status = "verified"
+scope = "crate-private-host-serial-solver-planning-v1-adversarial-oracle"
+reference_kind = "independent-literal-policy-reranking-and-counting-falsifiers"
+
+capabilities = [
+  "exact-catalog-control-profile-and-capability-rejection",
+  "complete-id-ordered-rejection-traces",
+  "evidence-before-provider-simultaneous-rejection-precedence",
+  "observable-admitted-subset-reranking",
+  "zero-resolution-time-numerical-work",
+  "exact-resolved-problem-pointer-execution",
+  "exact-owned-canonical-operator-identity-and-total-call-ledger",
+  "all-objective-success-and-failure-exactly-once-execution",
+]
+
+[authority]
+required_primary_case = "numerics.host-serial-solver-planning"
+verification_requires_both_cases = true
+policy_oracle = "../host-serial-solver-planning/expected/policy-v1.json"
+private_falsifier_owner = "crates/eqiora-solver/src/planning/tests.rs"
+aggregator = "planning::tests::registered_host_serial_planning_oracle_executes_all_private_falsifiers"
+
+[rejection]
+candidate_order = "ascending candidate ID"
+candidate_record = "one first rejection or candidate.admitted, followed immediately by nonselection or objective selection for admitted candidates"
+catalog_controls_profile_capability_backend_solve_calls = 0
+actual_owned_operator_apply_calls = 0
+actual_owned_operator_diagonal_calls = 0
+simultaneous_stale_evidence_and_provider_reason = "catalog.evidence-mismatch"
+simultaneous_stale_evidence_and_provider_reranking = "complete ID-ordered trace for Robust, Fast, and LowMemory"
+transposed_hand_built_profile_subgate_precedence = "not frozen: normal-required or canonical-csr-required"
+
+[execution]
+objectives = ["Robust", "Fast", "LowMemory"]
+success_selected_backend_calls = 1
+failure_selected_backend_calls = 1
+unselected_backend_calls = 0
+retry_calls = 0
+backend_received_problem = "exact pointer borrowed at resolution"
+backend_received_operator = "exact owned CanonicalCsrSystemView installed in the resolved problem"
+success_actual_owned_operator_apply_calls = 2
+failure_actual_owned_operator_apply_calls = 0
+actual_owned_operator_diagonal_calls = 0
+
+[instrumentation_self_control]
+isolated_ledger_per_canonical_view = true
+direct_problem_operator_apply_calls_before_reset = 1
+direct_problem_operator_diagonal_calls_before_reset = 1
+operator_apply_calls_after_reset = 0
+operator_diagonal_calls_after_reset = 0
+extra_direct_apply_or_diagonal_fails_exact_total = true
+
+[claim_boundary]
+adds_product_capability = false
+adds_public_api = false
+adds_durable_artifact_or_registry = false
+duplicates_policy_or_expected_value_authority = false
+fast_axis_swap_distinguished = false
+invented_provider_dependency = false
+performance_or_memory_superiority = false
+
+[precommitment]
+precommitted = true
+authored_before_implementation_by_a_fresh_context_nonimplementer = true
+base_revision = "f36f6f029e7cdc59b81163355ff07ec1cdb9c78e"
+implementation_read = false
+writer_scratch_read = false
+expected_predecessor_result = "planning.rs and cfg(test) wiring are absent, so the exact library selector is intentionally red until implementation composition"
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-solver"
+test = "planning::tests::registered_host_serial_planning_oracle_executes_all_private_falsifiers"
