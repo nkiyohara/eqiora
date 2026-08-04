@@ -67,6 +67,13 @@ class CadAuthoredGraph:
         radius: float,
         boolean_tolerance: float,
     ) -> CadAuthoredGraph: ...
+    def through_cut(
+        self,
+        sketch: CadAuthoredSketch,
+        /,
+        *,
+        boolean_tolerance: float,
+    ) -> CadAuthoredGraph: ...
     def planar_circular_section(
         self,
         *,
@@ -140,6 +147,31 @@ class CadAuthoredGraph:
     def __hash__(self) -> int: ...
 
 @final
+class CadAuthoredSketch:
+    @staticmethod
+    def rectangle_xy(
+        *,
+        x_bounds: tuple[float, float],
+        y_bounds: tuple[float, float],
+        plane_z: float,
+        modeling_tolerance: float,
+    ) -> CadAuthoredSketch: ...
+    @staticmethod
+    def circle_on_face(
+        face: CadAuthoredFaceHandle,
+        /,
+        *,
+        center: tuple[float, float],
+        radius: float,
+    ) -> CadAuthoredSketch: ...
+    def extrude_positive_z(
+        self,
+        *,
+        depth: float,
+    ) -> CadAuthoredGraph: ...
+    def __eq__(self, other: object, /) -> bool: ...
+
+@final
 class Geometry:
     @property
     def dimension(self) -> int: ...
@@ -162,5 +194,6 @@ __all__ = [
     "CadAuthoredBuild",
     "CadAuthoredFaceHandle",
     "CadAuthoredGraph",
+    "CadAuthoredSketch",
     "Geometry",
 ]
