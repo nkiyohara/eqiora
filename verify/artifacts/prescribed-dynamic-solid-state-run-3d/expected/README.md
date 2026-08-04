@@ -4,10 +4,11 @@ Each JSON file preserves canonical member and value bytes and has one trailing
 repository newline. The nine lineage-bearing downstream fixtures place each
 top-level member on its own line so the repository's frozen transition guard
 observes exactly one Model-derived identity on the `model_` + `sha256` line.
-Those insignificant newlines and the repository newline are removed by JSON
-re-encoding before exact canonical-byte comparison. Every digest is derived by
+The oracle removes only those fixture newlines, without parsing or reordering
+members, before exact canonical-byte comparison. Every digest is derived by
 hashing the schema identifier, one zero byte, and those compact canonical
-bytes.
+bytes. Snapshot value shapes use the existing V1 object grammar
+`{"extents":[3]}`.
 
 `model.json` is the exact current Model emitted by the accepted source at the
 fixed predecessor. The standard-library derivation structurally validates it

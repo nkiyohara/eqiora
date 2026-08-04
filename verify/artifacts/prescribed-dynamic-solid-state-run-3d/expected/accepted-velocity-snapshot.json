@@ -8,5 +8,5 @@
 "mesh_sha256":"ff6f0d68acb005514c13e1e1bd8a9df6780b869661c0598dad40bbe627cd9fc8",
 "support_domain_ulid":"0PPGQVKZBQTQQ26M9EW1522YHZ",
 "field_ulid":"129QZZWQYCHAH7E7JE2RRF260A",
-"physical":{"unit_system":"coherent-si","dimension":{"mass":0,"length":1,"time":-1,"current":0,"temperature":0,"amount":0,"luminous_intensity":0},"value_shape":[3],"frame":"spatial-cartesian"},
+"physical":{"unit_system":"coherent-si","dimension":{"mass":0,"length":1,"time":-1,"current":0,"temperature":0,"amount":0,"luminous_intensity":0},"value_shape":{"extents":[3]},"frame":"spatial-cartesian"},
 "representation":{"scalar":"f64","ordering":"canonical-mesh-entity-major","blocks":[{"association":"vertex","discrete_field_sha256":"beb8f3f5f0d82730bab517b526c1abdc7a4f864aadbe842d68f72d24600b46af"}]}}

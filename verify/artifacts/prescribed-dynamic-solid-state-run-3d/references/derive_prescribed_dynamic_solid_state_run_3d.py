@@ -484,7 +484,7 @@ def build_documents() -> dict[str, bytes]:
             "physical": {
                 "unit_system": "coherent-si",
                 "dimension": dimension,
-                "value_shape": [3],
+                "value_shape": {"extents": [3]},
                 "frame": "spatial-cartesian",
             },
             "representation": {

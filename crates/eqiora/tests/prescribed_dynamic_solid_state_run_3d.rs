@@ -1,4 +1,5 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
 use std::num::NonZeroUsize;
 
 use eqiora::api::{ModelDocument, PrescribedDynamicSolidStateRun3d};
@@ -27,6 +28,7 @@ use eqiora_numerics::{
     common::PhysicalBoundaryDisposition,
     solid::{PrescribedDynamicSolidReference3d, lower_isotropic_elastodynamics_cartesian_3d},
 };
+use serde::de::{Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde_json::{Value, json};
 
 macro_rules! expected {
@@ -441,9 +443,9 @@ fn application_publishes_the_exact_realization_states_and_singleton_run() {
 
 #[test]
 fn realization_decoder_is_closed_canonical_and_bounded() {
-    let bytes = frozen(EXPECTED_REALIZATION);
+    let bytes = canonical_fixture(EXPECTED_REALIZATION);
     let decoded = PrescribedDynamicSolidRealizationEnvelopeV1::from_json(
-        bytes,
+        &bytes,
         RealizationDecoderLimits::default(),
     )
     .expect("detached canonical bytes are locally valid");
@@ -460,13 +462,7 @@ fn realization_decoder_is_closed_canonical_and_bounded() {
     unknown["unexpected"] = json!(true);
     assert_value_decode_rejected(unknown);
 
-    let mut reordered = realization_wire();
-    let schema = reordered.as_object_mut().unwrap().remove("schema").unwrap();
-    reordered
-        .as_object_mut()
-        .unwrap()
-        .insert("schema".into(), schema);
-    let reordered_bytes = serde_json::to_vec(&reordered).unwrap();
+    let reordered_bytes = move_first_top_level_member_to_end(EXPECTED_REALIZATION);
     assert_ne!(reordered_bytes, bytes);
     assert_decode_rejected(&reordered_bytes);
 
@@ -495,7 +491,7 @@ fn realization_decoder_is_closed_canonical_and_bounded() {
 
     assert!(
         PrescribedDynamicSolidRealizationEnvelopeV1::from_json(
-            bytes,
+            &bytes,
             RealizationDecoderLimits {
                 json: JsonDecoderLimits {
                     max_bytes: bytes.len() - 1,
@@ -508,7 +504,7 @@ fn realization_decoder_is_closed_canonical_and_bounded() {
     );
     assert!(
         PrescribedDynamicSolidRealizationEnvelopeV1::from_json(
-            bytes,
+            &bytes,
             RealizationDecoderLimits {
                 json: JsonDecoderLimits {
                     max_nesting_depth: 1,
@@ -521,7 +517,7 @@ fn realization_decoder_is_closed_canonical_and_bounded() {
     );
     assert!(
         PrescribedDynamicSolidRealizationEnvelopeV1::from_json(
-            bytes,
+            &bytes,
             RealizationDecoderLimits {
                 max_realization_fields: 1,
                 ..Default::default()
@@ -691,7 +687,7 @@ fn resource_validation_rejects_stale_roles_gates_and_identity_preserving_semanti
         let mut mutant = realization_wire();
         *mutant.pointer_mut(pointer).unwrap() = replacement;
         let decoded = PrescribedDynamicSolidRealizationEnvelopeV1::from_json(
-            &serde_json::to_vec(&mutant).unwrap(),
+            &encode_like(EXPECTED_REALIZATION, &mutant),
             Default::default(),
         );
         if let Ok(decoded) = decoded {
@@ -847,7 +843,7 @@ fn blocks_snapshots_and_states_replay_exact_local_grammar_without_owner_role_inf
     block_mutants.push(wrong_vertex_order);
     for mutant in block_mutants {
         let decoded = DiscreteFieldEnvelopeV1::from_json(
-            &serde_json::to_vec(&mutant).unwrap(),
+            &encode_like(EXPECTED_PRIOR_DISPLACEMENT_BLOCK, &mutant),
             Default::default(),
         );
         if let Ok(decoded) = decoded {
@@ -904,7 +900,7 @@ fn blocks_snapshots_and_states_replay_exact_local_grammar_without_owner_role_inf
         "/support_domain_ulid".into(),
         "/field_ulid".into(),
         "/physical/dimension/length".into(),
-        "/physical/value_shape/0".into(),
+        "/physical/value_shape/extents/0".into(),
         "/physical/frame".into(),
         "/representation/blocks/0/discrete_field_sha256".into(),
     ] {
@@ -917,7 +913,7 @@ fn blocks_snapshots_and_states_replay_exact_local_grammar_without_owner_role_inf
             _ => unreachable!(),
         };
         let decoded = FieldSnapshotEnvelopeV1::from_json(
-            &serde_json::to_vec(&mutant).unwrap(),
+            &encode_like(EXPECTED_PRIOR_DISPLACEMENT_SNAPSHOT, &mutant),
             Default::default(),
         );
         if let Ok(decoded) = decoded {
@@ -990,7 +986,7 @@ fn blocks_snapshots_and_states_replay_exact_local_grammar_without_owner_role_inf
         let mut mutant: Value = serde_json::from_slice(frozen(EXPECTED_PRIOR_STATE)).unwrap();
         *mutant.pointer_mut(pointer).unwrap() = replacement;
         let decoded = SpatialStateEnvelopeV1::from_json(
-            &serde_json::to_vec(&mutant).unwrap(),
+            &encode_like(EXPECTED_PRIOR_STATE, &mutant),
             Default::default(),
         )
         .unwrap();
@@ -999,7 +995,7 @@ fn blocks_snapshots_and_states_replay_exact_local_grammar_without_owner_role_inf
     let mut missing: Value = serde_json::from_slice(frozen(EXPECTED_PRIOR_STATE)).unwrap();
     missing["fields"].as_array_mut().unwrap().pop();
     let missing = SpatialStateEnvelopeV1::from_json(
-        &serde_json::to_vec(&missing).unwrap(),
+        &encode_like(EXPECTED_PRIOR_STATE, &missing),
         Default::default(),
     )
     .unwrap();
@@ -1009,7 +1005,7 @@ fn blocks_snapshots_and_states_replay_exact_local_grammar_without_owner_role_inf
     reordered["fields"].as_array_mut().unwrap().swap(0, 1);
     assert!(
         SpatialStateEnvelopeV1::from_json(
-            &serde_json::to_vec(&reordered).unwrap(),
+            &encode_like(EXPECTED_PRIOR_STATE, &reordered),
             Default::default(),
         )
         .is_err()
@@ -1019,7 +1015,7 @@ fn blocks_snapshots_and_states_replay_exact_local_grammar_without_owner_role_inf
     duplicate["fields"].as_array_mut().unwrap().push(first);
     assert!(
         SpatialStateEnvelopeV1::from_json(
-            &serde_json::to_vec(&duplicate).unwrap(),
+            &encode_like(EXPECTED_PRIOR_STATE, &duplicate),
             Default::default(),
         )
         .is_err()
@@ -1113,8 +1109,8 @@ fn semantic_role_mutant() -> SemanticMutant {
 
     let mut restored = original.clone();
     relation_mut(&mut restored, &lower)["definition"]["residuals"] = lower_residual;
-    assert_eq!(serde_json::to_vec(&restored).unwrap(), original_bytes);
-    let mutated_bytes = serde_json::to_vec(&original).unwrap();
+    assert_eq!(encode_like(EXPECTED_MODEL, &restored), original_bytes);
+    let mutated_bytes = encode_like(EXPECTED_MODEL, &original);
     assert_ne!(mutated_bytes, original_bytes);
     let model = ModelEnvelope::from_json(&mutated_bytes, ModelDecoderLimits::default())
         .expect("the one-subtree current-Model mutant remains canonical");
@@ -1250,14 +1246,14 @@ fn realization_wire() -> Value {
 
 fn decode_realization_value(value: Value) -> PrescribedDynamicSolidRealizationEnvelopeV1 {
     PrescribedDynamicSolidRealizationEnvelopeV1::from_json(
-        &serde_json::to_vec(&value).unwrap(),
+        &encode_like(EXPECTED_REALIZATION, &value),
         Default::default(),
     )
     .expect("the mutant remains locally canonical and detached")
 }
 
 fn assert_value_decode_rejected(value: Value) {
-    assert_decode_rejected(&serde_json::to_vec(&value).unwrap());
+    assert_decode_rejected(&encode_like(EXPECTED_REALIZATION, &value));
 }
 
 fn assert_decode_rejected(bytes: &[u8]) {
@@ -1277,15 +1273,15 @@ fn mutate_driven_object(index: u64, mutate: impl FnOnce(&mut Value)) -> Vec<u8> 
             assert_eq!(entries[position], before[position]);
         }
     }
-    serde_json::to_vec(&wire).unwrap()
+    encode_like(EXPECTED_REALIZATION, &wire)
 }
 
 fn replace_driven_object_raw(index: u64, replacement: &[u8]) -> Vec<u8> {
-    let bytes = frozen(EXPECTED_REALIZATION);
+    let bytes = canonical_fixture(EXPECTED_REALIZATION);
     let wire = realization_wire();
     let entries = wire["driven_total_displacement"].as_array().unwrap();
     let selected = unique_entry(entries, index);
-    let object = serde_json::to_vec(&entries[selected]).unwrap();
+    let object = encode_like(EXPECTED_REALIZATION, &entries[selected]);
     let matches = bytes
         .windows(object.len())
         .enumerate()
@@ -1403,9 +1399,246 @@ fn frozen(bytes: &[u8]) -> &[u8] {
     bytes.strip_suffix(b"\n").unwrap_or(bytes)
 }
 
+#[derive(Debug)]
+enum JsonTemplate {
+    Leaf,
+    Array(Vec<JsonTemplate>),
+    Object(Vec<(String, JsonTemplate)>),
+}
+
+impl<'de> Deserialize<'de> for JsonTemplate {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_any(JsonTemplateVisitor)
+    }
+}
+
+struct JsonTemplateVisitor;
+
+impl<'de> Visitor<'de> for JsonTemplateVisitor {
+    type Value = JsonTemplate;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a JSON value")
+    }
+
+    fn visit_bool<E>(self, _: bool) -> Result<Self::Value, E> {
+        Ok(JsonTemplate::Leaf)
+    }
+
+    fn visit_i64<E>(self, _: i64) -> Result<Self::Value, E> {
+        Ok(JsonTemplate::Leaf)
+    }
+
+    fn visit_u64<E>(self, _: u64) -> Result<Self::Value, E> {
+        Ok(JsonTemplate::Leaf)
+    }
+
+    fn visit_f64<E>(self, _: f64) -> Result<Self::Value, E> {
+        Ok(JsonTemplate::Leaf)
+    }
+
+    fn visit_str<E>(self, _: &str) -> Result<Self::Value, E> {
+        Ok(JsonTemplate::Leaf)
+    }
+
+    fn visit_string<E>(self, _: String) -> Result<Self::Value, E> {
+        Ok(JsonTemplate::Leaf)
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E> {
+        Ok(JsonTemplate::Leaf)
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E> {
+        Ok(JsonTemplate::Leaf)
+    }
+
+    fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let mut entries = Vec::new();
+        while let Some(entry) = sequence.next_element()? {
+            entries.push(entry);
+        }
+        Ok(JsonTemplate::Array(entries))
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut entries = Vec::new();
+        while let Some(key) = map.next_key()? {
+            entries.push((key, map.next_value()?));
+        }
+        Ok(JsonTemplate::Object(entries))
+    }
+}
+
+fn canonical_fixture(bytes: &[u8]) -> Vec<u8> {
+    bytes
+        .iter()
+        .copied()
+        .filter(|byte| !matches!(byte, b'\n' | b'\r'))
+        .collect()
+}
+
+fn encode_like(template_bytes: &[u8], value: &Value) -> Vec<u8> {
+    let compact = canonical_fixture(template_bytes);
+    let template: JsonTemplate = serde_json::from_slice(&compact).unwrap();
+    let mut catalog = BTreeMap::new();
+    collect_key_orders(&template, &mut catalog);
+    let mut encoded = Vec::new();
+    encode_ordered(value, Some(&template), &catalog, &mut encoded);
+    encoded
+}
+
+fn collect_key_orders(template: &JsonTemplate, catalog: &mut BTreeMap<Vec<String>, Vec<String>>) {
+    match template {
+        JsonTemplate::Leaf => {}
+        JsonTemplate::Array(entries) => {
+            for entry in entries {
+                collect_key_orders(entry, catalog);
+            }
+        }
+        JsonTemplate::Object(entries) => {
+            let order = entries
+                .iter()
+                .map(|(key, _)| key.clone())
+                .collect::<Vec<_>>();
+            let mut signature = order.clone();
+            signature.sort();
+            catalog.entry(signature).or_insert(order);
+            for (_, entry) in entries {
+                collect_key_orders(entry, catalog);
+            }
+        }
+    }
+}
+
+fn encode_ordered(
+    value: &Value,
+    template: Option<&JsonTemplate>,
+    catalog: &BTreeMap<Vec<String>, Vec<String>>,
+    output: &mut Vec<u8>,
+) {
+    match value {
+        Value::Array(entries) => {
+            output.push(b'[');
+            let templates = match template {
+                Some(JsonTemplate::Array(entries)) => Some(entries.as_slice()),
+                _ => None,
+            };
+            for (index, entry) in entries.iter().enumerate() {
+                if index > 0 {
+                    output.push(b',');
+                }
+                let child =
+                    templates.and_then(|entries| entries.get(index).or_else(|| entries.last()));
+                encode_ordered(entry, child, catalog, output);
+            }
+            output.push(b']');
+        }
+        Value::Object(entries) => {
+            output.push(b'{');
+            let mut signature = entries.keys().cloned().collect::<Vec<_>>();
+            signature.sort();
+            let template_entries = match template {
+                Some(JsonTemplate::Object(entries)) => Some(entries.as_slice()),
+                _ => None,
+            };
+            let template_order = template_entries.map(|entries| {
+                entries
+                    .iter()
+                    .map(|(key, _)| key.clone())
+                    .collect::<Vec<_>>()
+            });
+            let exact_template = template_order.as_ref().is_some_and(|order| {
+                let mut keys = order.clone();
+                keys.sort();
+                keys == signature
+            });
+            let mut order = if exact_template {
+                template_order.unwrap()
+            } else if let Some(order) = catalog.get(&signature) {
+                order.clone()
+            } else if let Some(order) = template_order {
+                order
+                    .into_iter()
+                    .filter(|key| entries.contains_key(key))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            for key in entries.keys() {
+                if !order.contains(key) {
+                    order.push(key.clone());
+                }
+            }
+            for (index, key) in order.iter().enumerate() {
+                if index > 0 {
+                    output.push(b',');
+                }
+                serde_json::to_writer(&mut *output, key).unwrap();
+                output.push(b':');
+                let child = template_entries.and_then(|entries| {
+                    entries
+                        .iter()
+                        .find(|(candidate, _)| candidate == key)
+                        .map(|(_, value)| value)
+                });
+                encode_ordered(&entries[key], child, catalog, output);
+            }
+            output.push(b'}');
+        }
+        _ => serde_json::to_writer(&mut *output, value).unwrap(),
+    }
+}
+
+fn move_first_top_level_member_to_end(fixture: &[u8]) -> Vec<u8> {
+    let bytes = canonical_fixture(fixture);
+    let mut depth = 0_u32;
+    let mut quoted = false;
+    let mut escaped = false;
+    let mut separator = None;
+    for (index, byte) in bytes.iter().copied().enumerate() {
+        if quoted {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                quoted = false;
+            }
+            continue;
+        }
+        match byte {
+            b'"' => quoted = true,
+            b'{' | b'[' => depth += 1,
+            b'}' | b']' => depth -= 1,
+            b',' if depth == 1 => {
+                separator = Some(index);
+                break;
+            }
+            _ => {}
+        }
+    }
+    let separator = separator.expect("the fixture has more than one top-level member");
+    let mut reordered = Vec::with_capacity(bytes.len());
+    reordered.push(b'{');
+    reordered.extend_from_slice(&bytes[separator + 1..bytes.len() - 1]);
+    reordered.push(b',');
+    reordered.extend_from_slice(&bytes[1..separator]);
+    reordered.push(b'}');
+    reordered
+}
+
 fn assert_exact_json(actual: Vec<u8>, expected: &[u8]) {
-    let value: Value = serde_json::from_slice(expected).unwrap();
-    assert_eq!(actual, serde_json::to_vec(&value).unwrap());
+    assert_eq!(actual, canonical_fixture(expected));
 }
 
 fn domain(document: &ModelDocument, name: &str) -> Id<kinds::Domain> {
