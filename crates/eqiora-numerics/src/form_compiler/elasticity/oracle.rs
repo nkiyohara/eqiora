@@ -4,18 +4,17 @@
 //! This child module calls the production-native private seam directly; it
 //! intentionally contains no second elasticity formula or test-only adapter.
 
+mod patch_assembly;
+
 use std::{array, num::NonZeroUsize};
 
-use eqiora_assembly::{
-    AssemblyMap, CooAssembler, DofId, LinearSystem, LocalContribution, LocalUnknown,
-};
+use eqiora_assembly::LocalContribution;
 use eqiora_compiler::compile;
 use eqiora_core::Diagnostic;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
-use eqiora_ir::LocalLinearActionIr;
 use eqiora_meshing::{
-    AffineGeometryMap, CartesianMesh, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule,
-    ReferenceCell, simplex_centroid_rule,
+    AffineGeometryMap, CartesianMesh, MeshEntity, MeshTopology, QuadratureRule, ReferenceCell,
+    simplex_centroid_rule,
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
@@ -23,10 +22,10 @@ use eqiora_solver::{LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, S
 use super::*;
 use crate::form_compiler::{MatrixSlot, WeakSign, WeakTermSlot};
 use crate::spatial_expression::ScalarSpatialExpression;
+use patch_assembly::{assemble_body_free_action, assemble_loaded_derived_form, center_vertex};
 
-const SOURCE: &str = include_str!(
-    "../../../../../verify/solid/isotropic-elasticity-2d/models/linear-load.eqi"
-);
+const SOURCE: &str =
+    include_str!("../../../../../verify/solid/isotropic-elasticity-2d/models/linear-load.eqi");
 
 const PARAMETERS: [f64; 3] = [3.0, 2.0, 1.0];
 const STATE: [f64; 8] = [1.0, -2.0, 2.0, 0.5, 2.5, 1.5, 3.5, 4.0];
@@ -35,24 +34,81 @@ const PARAMETER_DIRECTION: [f64; 3] = [0.5, -1.0 / 3.0, 2.0];
 const COTANGENT: [f64; 8] = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
 
 const MATRIX: [f64; 64] = [
-    11.0 / 3.0, 5.0 / 4.0, -13.0 / 6.0, -1.0 / 4.0,
-    1.0 / 3.0, 1.0 / 4.0, -11.0 / 6.0, -5.0 / 4.0,
-    5.0 / 4.0, 11.0 / 3.0, 1.0 / 4.0, 1.0 / 3.0,
-    -1.0 / 4.0, -13.0 / 6.0, -5.0 / 4.0, -11.0 / 6.0,
-    -13.0 / 6.0, 1.0 / 4.0, 11.0 / 3.0, -5.0 / 4.0,
-    -11.0 / 6.0, 5.0 / 4.0, 1.0 / 3.0, -1.0 / 4.0,
-    -1.0 / 4.0, 1.0 / 3.0, -5.0 / 4.0, 11.0 / 3.0,
-    5.0 / 4.0, -11.0 / 6.0, 1.0 / 4.0, -13.0 / 6.0,
-    1.0 / 3.0, -1.0 / 4.0, -11.0 / 6.0, 5.0 / 4.0,
-    11.0 / 3.0, -5.0 / 4.0, -13.0 / 6.0, 1.0 / 4.0,
-    1.0 / 4.0, -13.0 / 6.0, 5.0 / 4.0, -11.0 / 6.0,
-    -5.0 / 4.0, 11.0 / 3.0, -1.0 / 4.0, 1.0 / 3.0,
-    -11.0 / 6.0, -5.0 / 4.0, 1.0 / 3.0, 1.0 / 4.0,
-    -13.0 / 6.0, -1.0 / 4.0, 11.0 / 3.0, 5.0 / 4.0,
-    -5.0 / 4.0, -11.0 / 6.0, -1.0 / 4.0, -13.0 / 6.0,
-    1.0 / 4.0, 1.0 / 3.0, 5.0 / 4.0, 11.0 / 3.0,
+    11.0 / 3.0,
+    5.0 / 4.0,
+    -13.0 / 6.0,
+    -1.0 / 4.0,
+    1.0 / 3.0,
+    1.0 / 4.0,
+    -11.0 / 6.0,
+    -5.0 / 4.0,
+    5.0 / 4.0,
+    11.0 / 3.0,
+    1.0 / 4.0,
+    1.0 / 3.0,
+    -1.0 / 4.0,
+    -13.0 / 6.0,
+    -5.0 / 4.0,
+    -11.0 / 6.0,
+    -13.0 / 6.0,
+    1.0 / 4.0,
+    11.0 / 3.0,
+    -5.0 / 4.0,
+    -11.0 / 6.0,
+    5.0 / 4.0,
+    1.0 / 3.0,
+    -1.0 / 4.0,
+    -1.0 / 4.0,
+    1.0 / 3.0,
+    -5.0 / 4.0,
+    11.0 / 3.0,
+    5.0 / 4.0,
+    -11.0 / 6.0,
+    1.0 / 4.0,
+    -13.0 / 6.0,
+    1.0 / 3.0,
+    -1.0 / 4.0,
+    -11.0 / 6.0,
+    5.0 / 4.0,
+    11.0 / 3.0,
+    -5.0 / 4.0,
+    -13.0 / 6.0,
+    1.0 / 4.0,
+    1.0 / 4.0,
+    -13.0 / 6.0,
+    5.0 / 4.0,
+    -11.0 / 6.0,
+    -5.0 / 4.0,
+    11.0 / 3.0,
+    -1.0 / 4.0,
+    1.0 / 3.0,
+    -11.0 / 6.0,
+    -5.0 / 4.0,
+    1.0 / 3.0,
+    1.0 / 4.0,
+    -13.0 / 6.0,
+    -1.0 / 4.0,
+    11.0 / 3.0,
+    5.0 / 4.0,
+    -5.0 / 4.0,
+    -11.0 / 6.0,
+    -1.0 / 4.0,
+    -13.0 / 6.0,
+    1.0 / 4.0,
+    1.0 / 3.0,
+    5.0 / 4.0,
+    11.0 / 3.0,
 ];
-const LOAD: [f64; 8] = [1.0 / 16.0, 0.0, 1.0 / 16.0, 0.0, 1.0 / 16.0, 0.0, 1.0 / 16.0, 0.0];
+const LOAD: [f64; 8] = [
+    1.0 / 16.0,
+    0.0,
+    1.0 / 16.0,
+    0.0,
+    1.0 / 16.0,
+    0.0,
+    1.0 / 16.0,
+    0.0,
+];
 const RESIDUAL: [f64; 8] = [
     -217.0 / 16.0,
     -21.0,
@@ -116,19 +172,17 @@ fn registered_evidence() {
 }
 
 fn private_seam_matches_the_frozen_contract() {
-    let _: fn(
-        &KernelProgram,
-    ) -> Result<DerivedCartesianQ1ElasticityForm2d, Diagnostic> =
+    let _: fn(&KernelProgram) -> Result<DerivedCartesianQ1ElasticityForm2d, Diagnostic> =
         derive_cartesian_q1_elasticity_form_2d;
-    let _: fn(
-        &QuadratureRule,
-    ) -> Result<AdmittedCartesianQ1ElasticityForm2d<'static>, Diagnostic> =
+    let _: fn(&QuadratureRule) -> Result<AdmittedCartesianQ1ElasticityForm2d<'static>, Diagnostic> =
         compile_cartesian_q1_elasticity_form_2d;
     let _: for<'form, 'quadrature> fn(
         &'form DerivedCartesianQ1ElasticityForm2d,
         &'quadrature QuadratureRule,
-    ) -> Result<AdmittedCartesianQ1ElasticityForm2d<'form>, Diagnostic> =
-        DerivedCartesianQ1ElasticityForm2d::admit_quadrature;
+    ) -> Result<
+        AdmittedCartesianQ1ElasticityForm2d<'form>,
+        Diagnostic,
+    > = DerivedCartesianQ1ElasticityForm2d::admit_quadrature;
     fn assert_admitted_methods<'form>() {
         let _: fn(
             &AdmittedCartesianQ1ElasticityForm2d<'form>,
@@ -137,8 +191,7 @@ fn private_seam_matches_the_frozen_contract() {
             f64,
             f64,
             Option<&ScalarSpatialExpression>,
-        ) -> Result<LocalContribution, Diagnostic> =
-            AdmittedCartesianQ1ElasticityForm2d::evaluate;
+        ) -> Result<LocalContribution, Diagnostic> = AdmittedCartesianQ1ElasticityForm2d::evaluate;
         let _: fn(
             &AdmittedCartesianQ1ElasticityForm2d<'form>,
             &AffineGeometryMap,
@@ -168,8 +221,8 @@ fn private_seam_matches_the_frozen_contract() {
 
 fn exact_local_contribution_and_differential_actions_match_the_dual_oracle() {
     let program = compile_program(SOURCE);
-    let model = crate::canonical_elasticity::lower_isotropic_elasticity_cartesian_2d(&program)
-        .unwrap();
+    let model =
+        crate::canonical_elasticity::lower_isotropic_elasticity_cartesian_2d(&program).unwrap();
     let quadrature = quadrature();
     let form = derive_cartesian_q1_elasticity_form_2d(&program).unwrap();
     let admitted = form.admit_quadrature(&quadrature).unwrap();
@@ -213,7 +266,10 @@ fn exact_local_contribution_and_differential_actions_match_the_dual_oracle() {
     }
 
     assert_absolute_scalar(dot(&COTANGENT, baseline.state_direction_action()), -60.0);
-    assert_absolute_scalar(dot(&STATE_DIRECTION, baseline.state_transpose_action()), -60.0);
+    assert_absolute_scalar(
+        dot(&STATE_DIRECTION, baseline.state_transpose_action()),
+        -60.0,
+    );
     assert_absolute_scalar(dot(&COTANGENT, baseline.parameter_direction_action()), 17.0);
     assert_absolute_scalar(
         dot(&PARAMETER_DIRECTION, baseline.parameter_transpose_action()),
@@ -222,7 +278,13 @@ fn exact_local_contribution_and_differential_actions_match_the_dual_oracle() {
 }
 
 fn centered_finite_differences_confirm_every_forward_and_transpose_action() {
-    let baseline = actions(PARAMETERS, STATE, STATE_DIRECTION, PARAMETER_DIRECTION, COTANGENT);
+    let baseline = actions(
+        PARAMETERS,
+        STATE,
+        STATE_DIRECTION,
+        PARAMETER_DIRECTION,
+        COTANGENT,
+    );
     let plus_state = array::from_fn(|index| STATE[index] + STEP * STATE_DIRECTION[index]);
     let minus_state = array::from_fn(|index| STATE[index] - STEP * STATE_DIRECTION[index]);
     let state_fd = centered_vector(
@@ -231,12 +293,10 @@ fn centered_finite_differences_confirm_every_forward_and_transpose_action() {
     );
     assert_absolute_slice(&state_fd, baseline.state_direction_action());
 
-    let plus_parameters = array::from_fn(|index| {
-        PARAMETERS[index] + STEP * PARAMETER_DIRECTION[index]
-    });
-    let minus_parameters = array::from_fn(|index| {
-        PARAMETERS[index] - STEP * PARAMETER_DIRECTION[index]
-    });
+    let plus_parameters =
+        array::from_fn(|index| PARAMETERS[index] + STEP * PARAMETER_DIRECTION[index]);
+    let minus_parameters =
+        array::from_fn(|index| PARAMETERS[index] - STEP * PARAMETER_DIRECTION[index]);
     let parameter_fd = centered_vector(
         residual(plus_parameters, STATE),
         residual(minus_parameters, STATE),
@@ -272,7 +332,13 @@ fn centered_finite_differences_confirm_every_forward_and_transpose_action() {
 }
 
 fn exact_values_reject_constitutive_order_load_and_transpose_mutants() {
-    let baseline = actions(PARAMETERS, STATE, STATE_DIRECTION, PARAMETER_DIRECTION, COTANGENT);
+    let baseline = actions(
+        PARAMETERS,
+        STATE,
+        STATE_DIRECTION,
+        PARAMETER_DIRECTION,
+        COTANGENT,
+    );
 
     // A full-gradient law cannot preserve the frozen matrix or the zero action
     // of the exact infinitesimal rotation in this DOF ordering.
@@ -286,7 +352,13 @@ fn exact_values_reject_constitutive_order_load_and_transpose_mutants() {
         ("dropped volumetric contribution", [3.0, 0.0, 1.0]),
         ("halved volumetric contribution", [3.0, 1.0, 1.0]),
     ] {
-        let mutant = actions(parameters, STATE, STATE_DIRECTION, PARAMETER_DIRECTION, COTANGENT);
+        let mutant = actions(
+            parameters,
+            STATE,
+            STATE_DIRECTION,
+            PARAMETER_DIRECTION,
+            COTANGENT,
+        );
         assert_rejected_numeric_mutant(mutant.contribution().matrix(), &MATRIX, name);
     }
     let half_shear = actions(
@@ -311,7 +383,10 @@ fn exact_values_reject_constitutive_order_load_and_transpose_mutants() {
     for (name, permutation) in [
         ("swapped vector components", component_permutation),
         ("swapped scalar-node bit order", node_permutation),
-        ("component-major local-DOF flattening", component_major_permutation),
+        (
+            "component-major local-DOF flattening",
+            component_major_permutation,
+        ),
     ] {
         let mutant = permute_matrix(baseline.contribution().matrix(), permutation);
         assert_rejected_numeric_mutant(&mutant, &MATRIX, name);
@@ -436,19 +511,10 @@ fn derived_primal_requires_its_certificate_owned_load_before_realization_work() 
 
     for (name, potential) in [
         ("absent", None),
-        (
-            "foreign",
-            Some(foreign_model.load_potential_expression()),
-        ),
+        ("foreign", Some(foreign_model.load_potential_expression())),
     ] {
         let error = admitted
-            .evaluate(
-                &wrong_geometry,
-                &wrong_quadrature,
-                3.0,
-                2.0,
-                potential,
-            )
+            .evaluate(&wrong_geometry, &wrong_quadrature, 3.0, 2.0, potential)
             .expect_err("derived primal must reject a non-certificate load");
         assert!(
             error.message().contains("load") || error.message().contains("certificate"),
@@ -482,10 +548,8 @@ fn derivation_rejects_ambiguous_incomplete_foreign_and_mixed_roles() {
     let altered_domain = SOURCE.replace("box(0, 1, 0, 1)", "box(0, 2, 0, 1)");
     assert_derivation_rejects(&altered_domain, "altered unit-square domain");
 
-    let absent_coefficient = SOURCE.replace(
-        "      + lambda * isotropic_lift(div(displacement))\n",
-        "",
-    );
+    let absent_coefficient =
+        SOURCE.replace("      + lambda * isotropic_lift(div(displacement))\n", "");
     assert_derivation_rejects(&absent_coefficient, "absent Lamé coefficient role");
 
     let duplicated_coefficient = SOURCE.replace(
@@ -554,8 +618,7 @@ fn derivation_rejects_ambiguous_incomplete_foreign_and_mixed_roles() {
     );
     assert_derivation_rejects(&mixed_boundary, "mixed boundary role");
 
-    let mut oversized_terms =
-        vec!["0 * (pressure_gradient * coordinate(0))"; 4_097];
+    let mut oversized_terms = vec!["0 * (pressure_gradient * coordinate(0))"; 4_097];
     oversized_terms.push("pressure_gradient * coordinate(0)");
     let oversized_load = balanced_sum(&oversized_terms);
     let oversized = SOURCE.replace("pressure_gradient * coordinate(0)", &oversized_load);
@@ -576,15 +639,14 @@ fn certificate_replay_rejects_stale_relation_node_and_test_trial_slot() {
     stale_relation.certificate.entries[0].relation = relation;
     assert!(stale_relation.admit_quadrature(&quadrature).is_err());
 
-    let foreign_source = SOURCE.replace("domain body", "domain foreign_body").replace(
-        "boundary(body,",
-        "boundary(foreign_body,",
-    ).replace(" on body", " on foreign_body");
+    let foreign_source = SOURCE
+        .replace("domain body", "domain foreign_body")
+        .replace("boundary(body,", "boundary(foreign_body,")
+        .replace(" on body", " on foreign_body");
     let foreign_form = derive_cartesian_q1_elasticity_form_2d(&compile_program(&foreign_source))
         .expect("renaming the exact Model preserves its mathematical shape");
     let mut foreign_relation = derived_form();
-    foreign_relation.certificate.entries[0].relation =
-        foreign_form.certificate.entries[0].relation;
+    foreign_relation.certificate.entries[0].relation = foreign_form.certificate.entries[0].relation;
     assert!(foreign_relation.admit_quadrature(&quadrature).is_err());
 
     let mut foreign_domain = derived_form();
@@ -703,12 +765,11 @@ fn ordinary_local_action_matches_the_affine_patch_oracle() {
             }
         }
     }
-    for (actual, expected) in side_resultants.iter().zip([
-        [-30.0, -24.0],
-        [30.0, 24.0],
-        [-24.0, -60.0],
-        [24.0, 60.0],
-    ]) {
+    for (actual, expected) in
+        side_resultants
+            .iter()
+            .zip([[-30.0, -24.0], [30.0, 24.0], [-24.0, -60.0], [24.0, 60.0]])
+    {
         assert_absolute_slice(actual, &expected);
     }
     assert_absolute_slice(&assembled_resultant, &[0.0, 0.0]);
@@ -716,8 +777,8 @@ fn ordinary_local_action_matches_the_affine_patch_oracle() {
 
 fn loaded_homogeneous_patch_matches_the_separate_balance_oracle() {
     let program = compile_program(SOURCE);
-    let model = crate::canonical_elasticity::lower_isotropic_elasticity_cartesian_2d(&program)
-        .unwrap();
+    let model =
+        crate::canonical_elasticity::lower_isotropic_elasticity_cartesian_2d(&program).unwrap();
     let mesh = CartesianMesh::uniform(&[[0.0, 1.0], [0.0, 1.0]], &[2, 2]).unwrap();
     let quadrature = quadrature();
     let system = assemble_loaded_derived_form(&program, &model, &mesh, &quadrature);
@@ -734,10 +795,7 @@ fn loaded_homogeneous_patch_matches_the_separate_balance_oracle() {
         &[44.0 / 3.0, 0.0, 0.0, 44.0 / 3.0],
     );
     assert_absolute_slice(
-        &[
-            system.rhs()[center_dofs[0]],
-            system.rhs()[center_dofs[1]],
-        ],
+        &[system.rhs()[center_dofs[0]], system.rhs()[center_dofs[1]]],
         &[1.0 / 4.0, 0.0],
     );
 
@@ -770,85 +828,6 @@ fn loaded_homogeneous_patch_matches_the_separate_balance_oracle() {
         ],
         &[0.0, 0.0],
     );
-}
-
-fn assemble_body_free_action(mesh: &CartesianMesh, action: &LocalLinearActionIr) -> LinearSystem {
-    let vertex_count = mesh.entity_count(0).unwrap();
-    let mut assembler = CooAssembler::new(2 * vertex_count).unwrap();
-    let entries_per_cell = action.rows() * action.columns();
-    for cell_index in 0..action.entity_count() {
-        let offset = cell_index * entries_per_cell;
-        let local = LocalContribution::new(
-            action.rows(),
-            action.columns(),
-            action.coefficients()[offset..offset + entries_per_cell].to_vec(),
-            vec![0.0; action.rows()],
-        )
-        .unwrap();
-        assembler
-            .scatter(&full_patch_map(mesh, cell_index), &local)
-            .unwrap();
-    }
-    assembler.finish().unwrap()
-}
-
-fn assemble_loaded_derived_form(
-    program: &KernelProgram,
-    model: &crate::canonical_elasticity::IsotropicElasticityCartesianModel2d,
-    mesh: &CartesianMesh,
-    quadrature: &QuadratureRule,
-) -> LinearSystem {
-    let form = derive_cartesian_q1_elasticity_form_2d(program).unwrap();
-    let admitted = form.admit_quadrature(quadrature).unwrap();
-    let vertex_count = mesh.entity_count(0).unwrap();
-    let mut assembler = CooAssembler::new(2 * vertex_count).unwrap();
-    for cell_index in 0..mesh.entity_count(2).unwrap() {
-        let geometry = mesh
-            .geometry_map(MeshEntity::new(2, cell_index))
-            .unwrap();
-        let local = admitted
-            .evaluate(
-                &geometry,
-                quadrature,
-                model.shear_modulus(),
-                model.first_lame_parameter(),
-                Some(model.load_potential_expression()),
-            )
-            .unwrap();
-        assembler
-            .scatter(&full_patch_map(mesh, cell_index), &local)
-            .unwrap();
-    }
-    assembler.finish().unwrap()
-}
-
-fn full_patch_map(mesh: &CartesianMesh, cell_index: usize) -> AssemblyMap {
-    let vertices = mesh
-        .entity_vertices(MeshEntity::new(2, cell_index))
-        .unwrap();
-    let global = vertices
-        .iter()
-        .flat_map(|vertex| [2 * vertex.index(), 2 * vertex.index() + 1])
-        .collect::<Vec<_>>();
-    let rows = global
-        .iter()
-        .map(|index| Some(DofId::new(*index)))
-        .collect();
-    let columns = global
-        .iter()
-        .map(|index| LocalUnknown::Free(DofId::new(*index)))
-        .collect();
-    AssemblyMap::new(rows, columns).unwrap()
-}
-
-fn center_vertex(mesh: &CartesianMesh) -> usize {
-    (0..mesh.entity_count(0).unwrap())
-        .find(|vertex| {
-            mesh.vertex_coordinates(MeshEntity::new(0, *vertex))
-                .unwrap()
-                == [0.5, 0.5]
-        })
-        .unwrap()
 }
 
 fn balanced_sum(terms: &[&str]) -> String {
@@ -935,7 +914,10 @@ fn centered_scalar(plus: f64, minus: f64) -> f64 {
 }
 
 fn dot(left: &[f64], right: &[f64]) -> f64 {
-    left.iter().zip(right).map(|(left, right)| left * right).sum()
+    left.iter()
+        .zip(right)
+        .map(|(left, right)| left * right)
+        .sum()
 }
 
 fn matrix_action(matrix: &[f64], input: &[f64; 8]) -> [f64; 8] {
