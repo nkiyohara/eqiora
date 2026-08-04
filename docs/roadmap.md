@@ -304,7 +304,7 @@ Physics libraries and credibility
 
 FEM form derivation
   proof-carrying Q1 Poisson derivation from the typed residual   [done]
-    -> a second physics consumer that deletes a handwritten derivative path
+    -> a second physics consumer that deletes a handwritten derivative path [done]
       -> broader FEM structural and fluid libraries
 
 Time and hybrid systems

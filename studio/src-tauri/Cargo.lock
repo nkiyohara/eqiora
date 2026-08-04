@@ -1003,8 +1003,10 @@ name = "eqiora-backend-faer"
 version = "0.1.0-alpha.1"
 dependencies = [
  "eqiora-core",
+ "eqiora-execution",
  "eqiora-solver",
  "faer",
+ "sha2 0.11.0",
 ]
 
 [[package]]
