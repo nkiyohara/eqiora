@@ -5,6 +5,7 @@
 //! intentionally contains no second elasticity formula or test-only adapter.
 
 mod patch_assembly;
+mod tape;
 
 use std::{array, num::NonZeroUsize};
 
@@ -159,6 +160,7 @@ const ABSOLUTE_TOLERANCE: f64 = 1.0e-9;
 
 #[test]
 fn registered_evidence() {
+    tape::structural_tape_falsifiers();
     private_seam_matches_the_frozen_contract();
     exact_local_contribution_and_differential_actions_match_the_dual_oracle();
     centered_finite_differences_confirm_every_forward_and_transpose_action();
