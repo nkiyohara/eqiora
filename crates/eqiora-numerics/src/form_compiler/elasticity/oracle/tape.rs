@@ -79,7 +79,11 @@ fn private_tape_seam_matches_the_frozen_contract() {
     let _: for<'a> fn(&'a LocalFormExecution) -> Option<&'a [f64]> =
         LocalFormExecution::input_cotangents;
 
-    let _: for<'form, 'borrow> fn(
+    bind_executable_program_for_arbitrary_form_lifetime();
+}
+
+fn bind_executable_program_for_arbitrary_form_lifetime<'form>() {
+    let _: for<'borrow> fn(
         &'borrow AdmittedCartesianQ1ElasticityForm2d<'form>,
     ) -> &'borrow LocalFormProgram2d = AdmittedCartesianQ1ElasticityForm2d::executable_program;
 }
