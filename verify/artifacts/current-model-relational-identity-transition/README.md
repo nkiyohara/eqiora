@@ -171,31 +171,41 @@ though the RFC and derivation are not product source, so this permission is now
 described as identity-free classified-path admission rather than product-path
 admission.
 
+Issue #118 pre-admits six more exact identity-free hits before their production
+files appear: the provider-occurrence artifact owner, the protocol-control
+owner, the independent Rust oracle, its independent derivation, the positive
+Python provider, and the current-owner external-boundary-provider
+documentation. Each carries only `model_sha256`, freezes zero Model-derived
+identity literals, and grants no sibling, path-family, or documentation
+proximity admission.
+
 Neither of the two sets that could have absorbed them is true. Adding them to
 the 338-path inventory would claim they existed before the reset. Adding them to
 `required_post_reset` would claim the reset created them, and would make a later
 capability a condition of accepting a transition that completed without it. So
-`search.transition.post_reset_admitted` names all nine, and names them alone:
+`search.transition.post_reset_admitted` names all fifteen, and names them alone:
 
 - **containment only.** Admission widens what the post-reset discovered set may
-  contain; it never asks a path to exist. Every subset of the nine, including
+  contain; it never asks a path to exist. Every subset of the fifteen, including
   none and all, is accepted independently of this permission. The original
   five paths and the RFC 0085 path happen to exist in the observed checkout;
-  the other three RFC 0085 paths are optional successors.
+  the other three RFC 0085 paths and all six Issue #118 paths are optional
+  successors at this precommit revision.
 - **exactly the recorded signal.** An admitted path that does exist must spell
   exactly the search tokens recorded for it, in the sweep's own order. A file
   that spells none is not the surface that was admitted, and one that spells
   more has grown a claim nobody classified.
-- **no frozen identity.** `identity_literals` is 0 for all nine. A path that pins a
+- **no frozen identity.** `identity_literals` is 0 for all fifteen. A path that pins a
   Model-derived lower-hex-64 identity is a fixture, and a fixture is classified
   here rather than admitted.
 - **absent before the reset.** An admitted path present in the pre-reset state
   is a mid-flight tree, refused by existence alone.
 - **exact, and nothing near it.** There is no glob, no directory rule and no
-  suffix rule. A tenth identity-free signal-bearing path is not admitted by
+  suffix rule. A sixteenth identity-free signal-bearing path is not admitted by
   sitting in the same directory, by sharing a trajectory, Result, Cartesian
-  snapshot, prescribed-solid, RFC, test, or derivation name, or by being the
-  other extension of the same module; it returns here for classification
+  snapshot, prescribed-solid, provider, protocol, RFC, documentation, test, or
+  derivation name, or by being the other extension of the same module; it
+  returns here for classification
   exactly as an unlisted path did before.
 
 Every historical set and count above is unchanged by this: 338 inventory paths,
@@ -203,11 +213,11 @@ Every historical set and count above is unchanged by this: 338 inventory paths,
 same bytes and the same digests. Admission adds a permission and removes
 nothing.
 
-The nine paths are what this case bounds, not what it owns. Their content
+The fifteen paths are what this case bounds, not what it owns. Their content
 belongs to their Python, Cartesian artifact, RFC, prescribed-solid artifact,
-and independent-oracle owners, which must not tune this record; a path that
-cannot meet the four conditions above returns here rather than being made to
-fit.
+provider/protocol, documentation, and independent-oracle owners, which must not
+tune this record; a path that cannot meet the four conditions above returns
+here rather than being made to fit.
 
 ## Signal-bearing expected bytes use a separate fixture permission
 
@@ -219,10 +229,18 @@ Realization, four FieldSnapshot, two State, and Run fixtures each carry
 would weaken the predicate above; adding them to a historical set would claim
 they existed before the reset or were created by it. Both claims are false.
 
+Issue #118 adds exactly two more delegated fixtures under its interface case.
+The provider-occurrence JSON carries `model_sha256` and 13 same-line
+Model-derived lower-hex-64 literal occurrences; the two-output Run JSON carries
+the same signal and 4 occurrences. Together with RFC 0085's 9 occurrences, the
+twelve exact fixture rows carry an aggregate 26. The binary transcript and
+candidate fixtures are non-UTF-8 and carry no discovered text signal, and no
+other Issue #118 path is admitted by this fixture permission.
+
 `search.transition.post_reset_fixture_admitted` therefore records a second
 containment-only permission:
 
-- each of the ten exact paths is optional after the reset and absent before it;
+- each of the twelve exact paths is optional after the reset and absent before it;
 - a present path must carry its exact ordered search-signal list and exact
   same-line lower-hex-64 literal occurrence count, so two identities on one
   qualifying line count as two and are refused by every one-occurrence row;
@@ -231,15 +249,15 @@ containment-only permission:
 - no row joins the inventory, retired, required, preserved-evidence, promoted,
   promotion, or identity-free admitted set; and
 - no glob, directory, suffix, expected-file naming convention, or sibling
-  proximity admits an eleventh fixture.
+  proximity admits a thirteenth fixture.
 
-Every subset of the nine identity-free paths and every subset of the ten
+Every subset of the fifteen identity-free paths and every subset of the twelve
 fixture paths is accepted independently, including neither set being present.
-Synthetic mutants remove or add a search signal, change a zero or one literal
-count, substitute a path, and alter every metadata field. Nearby RFC, Rust,
-derivation, and expected-file paths remain unclassified. This keeps both
-permissions optional and fail-closed without making one a relaxation of the
-other.
+Synthetic mutants remove or add a search signal; change a zero, one, four, or
+thirteen literal count; substitute a path; and alter every metadata field.
+Nearby RFC, Rust, protocol, provider, documentation, derivation, and
+expected-file paths remain unclassified. This keeps both permissions optional
+and fail-closed without making one a relaxation of the other.
 
 ## Two consumers the remainder was wrong about
 
@@ -491,7 +509,8 @@ what it may not freeze, or what a present fixture path may spell and exactly
 how many same-line identity occurrences it carries, is the whole of it. The first five
 identity-free paths and the RFC exist in this checkout, so the live tree
 exercises their exact observed signals and zero-literal counts; the other three
-identity-free paths and all ten fixtures remain optional successor paths.
+RFC 0085 identity-free paths, all six Issue #118 identity-free paths, and all
+twelve fixtures remain optional successor paths.
 Synthetic post-reset states additionally exercise every optional subset and the
 mutants through the same byte reader.
 
