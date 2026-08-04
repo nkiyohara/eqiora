@@ -13,13 +13,16 @@ use ulid::Ulid;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldDecoderLimits,
-    GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference, RealizationEnvelopeV3,
+    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference,
+    PrescribedDynamicSolidRealizationEnvelopeV1, RealizationEnvelopeV3,
     ReplayableCanonicalModelArtifact, ReplayableFixedTopologyAleRealizationArtifact,
     SimplicialMeshEnvelopeV1, ValidatedFixedSpatialContextV1, ValidatedMovingSpatialContextV2,
     check_json_limits, invalid_artifact,
 };
 
-use super::context::ValidatedCircularHoleFieldwiseContext;
+use super::context::{
+    ValidatedCircularHoleFieldwiseContext, ValidatedPrescribedDynamicSolidContext,
+};
 
 const FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.field-snapshot-envelope/v1";
 
@@ -90,6 +93,29 @@ impl FieldSnapshotEnvelopeV1 {
         blocks: &[DiscreteFieldEnvelopeV1],
     ) -> Result<Self, Diagnostic> {
         Self::new_in_context(context, field, blocks)
+    }
+
+    /// Bind one prescribed-solid displacement or velocity observation,
+    /// rederiving its semantic role, physical type, support, and resources.
+    /// # Errors
+    /// Returns `EQ0901` for stale resources, Field, block, or support drift.
+    pub fn new_prescribed_dynamic_solid(
+        model: &impl ReplayableCanonicalModelArtifact,
+        realization: &PrescribedDynamicSolidRealizationEnvelopeV1,
+        geometry: &GeometryIdentityEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        mesh: &SimplicialMeshEnvelopeV1,
+        field: Id<kinds::Field>,
+        blocks: &[DiscreteFieldEnvelopeV1],
+    ) -> Result<Self, Diagnostic> {
+        let context = ValidatedPrescribedDynamicSolidContext::new(
+            model,
+            realization,
+            geometry,
+            correspondence,
+            mesh,
+        )?;
+        Self::new_in_context(&context, field, blocks)
     }
 
     pub(super) fn new_in_context<'a>(
@@ -370,6 +396,33 @@ impl FieldSnapshotEnvelopeV1 {
             return Err(invalid_artifact(
                 "Field snapshot differs from exact moving semantic and numerical replay",
             ));
+        }
+        Ok(())
+    }
+
+    /// Rebuild and compare one prescribed-solid Field snapshot.
+    /// # Errors
+    /// Returns `EQ0901` for semantic, resource, block, or content drift.
+    pub fn validate_against_prescribed_dynamic_solid(
+        &self,
+        model: &impl ReplayableCanonicalModelArtifact,
+        realization: &PrescribedDynamicSolidRealizationEnvelopeV1,
+        geometry: &GeometryIdentityEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        mesh: &SimplicialMeshEnvelopeV1,
+        blocks: &[DiscreteFieldEnvelopeV1],
+    ) -> Result<(), Diagnostic> {
+        let expected = Self::new_prescribed_dynamic_solid(
+            model,
+            realization,
+            geometry,
+            correspondence,
+            mesh,
+            self.field(),
+            blocks,
+        )?;
+        if self != &expected {
+            return Err(invalid_artifact("prescribed-solid Field snapshot differs"));
         }
         Ok(())
     }
