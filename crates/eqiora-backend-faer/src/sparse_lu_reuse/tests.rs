@@ -40,13 +40,8 @@ const P2_PHASES: &[&str] = &[
     "execution-acceptance-success",
     "state-commit",
 ];
-const SINGULAR_PHASES: &[&str] = &[
-    "preflight-attempt",
-    "preflight-success",
-    "numeric-attempt",
-];
-const PREFLIGHT_REJECTION_PHASES: &[&str] =
-    &["preflight-attempt", "preflight-rejected"];
+const SINGULAR_PHASES: &[&str] = &["preflight-attempt", "preflight-success", "numeric-attempt"];
+const PREFLIGHT_REJECTION_PHASES: &[&str] = &["preflight-attempt", "preflight-rejected"];
 
 #[test]
 fn registered_state_machine_oracle_executes_all_private_falsifiers() {
@@ -100,11 +95,7 @@ fn candidate_state_never_commits_before_both_acceptance_boundaries() {
     for (failure, expected_phases) in [
         (
             CandidateFailurePoint::NumericFactorization,
-            &[
-                "preflight-attempt",
-                "preflight-success",
-                "numeric-attempt",
-            ][..],
+            &["preflight-attempt", "preflight-success", "numeric-attempt"][..],
         ),
         (
             CandidateFailurePoint::CandidateSolve,
@@ -173,7 +164,10 @@ fn every_required_validation_component_has_a_targeted_mutant() {
         );
         assert!(observation.only_targeted_component_differs());
         assert!(observation.committed_state_unchanged_by_baseline_rejection());
-        assert_eq!(observation.baseline_rejection_phases(), PREFLIGHT_REJECTION_PHASES);
+        assert_eq!(
+            observation.baseline_rejection_phases(),
+            PREFLIGHT_REJECTION_PHASES
+        );
         assert_eq!(observation.baseline_numerical_attempt_delta(), 0);
     }
 }
