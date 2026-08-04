@@ -20,6 +20,9 @@ use eqiora::solver::{
     LinearProblem, LinearSolution, LinearSolverBackend, REFERENCE_LINEAR_SOLVER,
     ReplicatedLinearExecution, SolverCapabilities, SolverPlan, SolverProvider,
 };
+use serde::de::{MapAccess, SeqAccess, Visitor};
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
@@ -57,6 +60,7 @@ fn positive_child(launch_salt: &str, working_directory: &Path) -> Child {
         .args([
             "run",
             "--isolated",
+            "--no-project",
             "--python",
             "3.12",
             "--with",
@@ -80,6 +84,7 @@ fn wrapped_positive_child(launch_salt: &str, working_directory: &Path) -> Child 
         .args([
             "run",
             "--isolated",
+            "--no-project",
             "--python",
             "3.12",
             "--with",
@@ -105,7 +110,14 @@ fn hostile_child(mode: &str) -> Child {
     );
     let mut command = Command::new("uv");
     command
-        .args(["run", "--isolated", "--python", "3.12", "python"])
+        .args([
+            "run",
+            "--isolated",
+            "--no-project",
+            "--python",
+            "3.12",
+            "python",
+        ])
         .arg(script)
         .arg(mode)
         .stdin(Stdio::piped())
@@ -133,6 +145,114 @@ fn compact_fixture(bytes: &[u8]) -> &[u8] {
     bytes
         .strip_suffix(b"\n")
         .expect("canonical JSON fixtures carry one repository newline")
+}
+
+enum OrderedFixtureJson {
+    Null,
+    Bool(bool),
+    Number(serde_json::Number),
+    String(String),
+    Array(Vec<Self>),
+    Object(Vec<(String, Self)>),
+}
+
+impl<'de> Deserialize<'de> for OrderedFixtureJson {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_any(OrderedFixtureJsonVisitor)
+    }
+}
+
+struct OrderedFixtureJsonVisitor;
+
+impl<'de> Visitor<'de> for OrderedFixtureJsonVisitor {
+    type Value = OrderedFixtureJson;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("a JSON value")
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E> {
+        Ok(OrderedFixtureJson::Null)
+    }
+
+    fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E> {
+        Ok(OrderedFixtureJson::Bool(value))
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(OrderedFixtureJson::Number(value.into()))
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(OrderedFixtureJson::Number(value.into()))
+    }
+
+    fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        serde_json::Number::from_f64(value)
+            .map(OrderedFixtureJson::Number)
+            .ok_or_else(|| E::custom("non-finite JSON number"))
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(OrderedFixtureJson::String(value.to_owned()))
+    }
+
+    fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
+        Ok(OrderedFixtureJson::String(value))
+    }
+
+    fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let mut values = Vec::new();
+        while let Some(value) = sequence.next_element()? {
+            values.push(value);
+        }
+        Ok(OrderedFixtureJson::Array(values))
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut entries = Vec::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if entries.iter().any(|(existing, _)| existing == &key) {
+                return Err(serde::de::Error::custom("duplicate JSON object key"));
+            }
+            entries.push((key, map.next_value()?));
+        }
+        Ok(OrderedFixtureJson::Object(entries))
+    }
+}
+
+impl Serialize for OrderedFixtureJson {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Null => serializer.serialize_unit(),
+            Self::Bool(value) => serializer.serialize_bool(*value),
+            Self::Number(value) => value.serialize(serializer),
+            Self::String(value) => serializer.serialize_str(value),
+            Self::Array(values) => values.serialize(serializer),
+            Self::Object(entries) => {
+                let mut map = serializer.serialize_map(Some(entries.len()))?;
+                for (key, value) in entries {
+                    map.serialize_entry(key, value)?;
+                }
+                map.end()
+            }
+        }
+    }
 }
 
 fn fixture_value(bytes: &[u8]) -> Value {
@@ -388,7 +508,7 @@ fn transcript_fixture_has_the_exact_frame_sequence_and_candidate_payload() {
         let payload = &EXPECTED_TRANSCRIPT[offset..offset + length];
         offset += length;
         if kind == 1 {
-            let value: Value = serde_json::from_slice(payload).unwrap();
+            let value: OrderedFixtureJson = serde_json::from_slice(payload).unwrap();
             assert_eq!(serde_json::to_vec(&value).unwrap(), payload);
         } else {
             assert_eq!(length, 96);
