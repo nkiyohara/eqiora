@@ -27,6 +27,68 @@ structure follows, FSI consumes both, shape optimization reuses the accepted
 flow, force, geometry-motion, and result-history seams, and the remaining
 experiences add independent physics and scale.
 
+## Heavy result production
+
+Production-resolution solves, refinement campaigns, and complete media encodes
+are governed by three separate authorities:
+
+1. **PR conformance** uses small meshes, short trajectories, analytic or
+   manufactured witnesses, admission mutants, and bounded renderer fixtures to
+   exercise the ordinary implementation path cheaply. It does not accept or
+   claim the production gallery result.
+2. **Exact-head scientific candidates** run the full frozen scientific
+   campaign explicitly for one final source revision in its declared trusted
+   environment. Before the run, the claim, independent oracle, tolerances, and
+   stop conditions are fixed; the candidate is accepted before the experience
+   can become result-ready.
+3. **Immutable publication projections** consume an accepted, immutable Result
+   or trajectory. Publication and replay retrieve and verify the exact admitted
+   media bytes; site deployment never solves the governing equations.
+
+The current tiny fixed-reference FSI gallery case may retain its complete
+450-frame development build because that bounded case is cheap. It is PR
+conformance, not a production-resolution cost precedent or a full scientific
+candidate.
+
+Each heavy candidate binds the exact Model, Geometry, mesh family,
+correspondence, Realization, Run, field and result identities, source revision,
+producer and runtime environment, solver and library identities, independent
+oracle and registered evidence IDs, output inventory, and content digests. The
+first real consumer also fixes its private delivery record and durable external
+delivery location. The repository retains the bounded case contract,
+independently owned oracle or reference inputs, compact observations and
+comparison summaries, receipts and manifests, digests, and small conformance
+fixtures; bulk trajectories and media need not enter source history.
+
+Invalidation is fail-closed and follows the changed meaning:
+
+- an equation, lowering, assembly, boundary law, mesh family, time integrator,
+  solver-acceptance rule, scientific observable, benchmark, or oracle change
+  requires a new full candidate on the final affected head;
+- a renderer, scene-profile, encoder, or accessibility change may project new
+  media from the unchanged accepted trajectory; and
+- documentation, site-shell, and unrelated product changes reuse the accepted
+  result and admitted media unchanged.
+
+A source change never transfers a successful candidate to another head by
+assertion. If the affected heavy environment cannot run, the limitation stays
+visible and the claim is narrowed or promotion stops. A small conformance pass,
+stale bundle, or `not-selected` result cannot be relabelled as full scientific
+acceptance. Each scientific slice names the exact registered cases and
+invalidation inputs it affects; this contract does not define broad path-glob
+automation.
+
+An Actions cache, compiler cache, workstation cache, Vault copy, or site copy
+may accelerate or mirror retrieval, but it is never the authoritative Result,
+media record, or scientific evidence. A common runner or durable public
+artifact wire waits for a second real heavy consumer and the ordinary
+duplication and abstraction-budget review. This contract does not choose an
+object store, HPC provider, scheduler, archive format, signing scheme,
+retention policy, scene graph, remote-execution API, or calendar cadence.
+It does not weaken independent-oracle ownership, convergence or refinement
+obligations, registered evidence, or the common publication admission
+predicate below.
+
 ## Publication admission
 
 A production gallery build must fail closed unless every entry supplies all of
