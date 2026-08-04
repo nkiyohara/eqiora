@@ -677,6 +677,341 @@ CLASSIFIED_TEST_FILES = [
     "crates/eqiora-artifact/tests/realization_v4_wire.rs",
 ]
 
+# RFC 0085's admission delta is respelled here rather than read back out of the
+# declaration. The four identity-free rows and ten fixture rows are different
+# permissions: a route that concatenated them would silently weaken the former's
+# zero-identity predicate.
+RFC85_IDENTITY_FREE_ADMISSION = [
+    {
+        "path": "rfcs/0085-standalone-prescribed-dynamic-solid-artifacts.md",
+        "class": "current-owner-assertion",
+        "signals": ["eqiora.model-envelope/v", "model_sha256"],
+        "identity_literals": 0,
+        "owner": "RFC 0085 standalone prescribed dynamic-solid artifact contract",
+        "note": "the accepted RFC owns the exact successor path split and names the current Model schema and digest edge without freezing any Model-derived identity literal. It is neither a reset product nor a required transition path.",
+    },
+    {
+        "path": "crates/eqiora-artifact/src/prescribed_dynamic_solid_realization.rs",
+        "class": "non-fixture-search-hit",
+        "signals": ["model_sha256"],
+        "identity_literals": 0,
+        "owner": "the prescribed dynamic-solid Realization artifact owner",
+        "note": "`model_sha256` is the exact relational edge to the caller-owned current Model artifact; the module freezes no Model-derived identity literal and is neither a reset product nor a required transition path.",
+    },
+    {
+        "path": "crates/eqiora/tests/prescribed_dynamic_solid_state_run_3d.rs",
+        "class": "non-fixture-search-hit",
+        "signals": ["model_sha256"],
+        "identity_literals": 0,
+        "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+        "note": "the independent exact-artifact oracle names `model_sha256` as a canonical lineage key and mutation target but derives all expected identities from committed bytes; the Rust source freezes no Model-derived identity literal and is neither a reset product nor a required transition path.",
+    },
+    {
+        "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/references/derive_prescribed_dynamic_solid_state_run_3d.py",
+        "class": "non-fixture-search-hit",
+        "signals": ["eqiora.model-envelope/v", "model_sha256"],
+        "identity_literals": 0,
+        "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+        "note": "the independent standard-library derivation names the current Model schema and `model_sha256` while re-deriving expected identities from canonical bytes; the script freezes no Model-derived identity literal and is neither a reset product nor a required transition path.",
+    },
+]
+
+RFC85_FIXTURE_ADMISSION = [
+    {
+        "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/model.json",
+        "class": "delegated-current-owner-evidence",
+        "signals": ["eqiora.model-envelope/v"],
+        "identity_literals": 0,
+        "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+        "note": "the exact current Model canonical-byte fixture names its schema and freezes no same-line Model-derived lower-hex-64 identity; its bytes remain owned by the standalone lineage oracle.",
+    },
+    {
+        "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/geometry-identity.json",
+        "class": "delegated-current-owner-evidence",
+        "signals": ["model_sha256"],
+        "identity_literals": 1,
+        "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+        "note": "the exact Geometry identity fixture carries one same-line `model_sha256` literal linking it to the current Model; admission owns only this path, signal, and literal count.",
+    },
+    {
+        "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/realization.json",
+        "class": "delegated-current-owner-evidence",
+        "signals": ["model_sha256"],
+        "identity_literals": 1,
+        "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+        "note": "the exact standalone-solid Realization fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count.",
+    },
+    {
+        "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/prior-displacement-snapshot.json",
+        "class": "delegated-current-owner-evidence",
+        "signals": ["model_sha256"],
+        "identity_literals": 1,
+        "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+        "note": "the exact prior-displacement FieldSnapshot fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count.",
+    },
+    {
+        "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/prior-velocity-snapshot.json",
+        "class": "delegated-current-owner-evidence",
+        "signals": ["model_sha256"],
+        "identity_literals": 1,
+        "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+        "note": "the exact prior-velocity FieldSnapshot fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count.",
+    },
+    {
+        "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/accepted-displacement-snapshot.json",
+        "class": "delegated-current-owner-evidence",
+        "signals": ["model_sha256"],
+        "identity_literals": 1,
+        "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+        "note": "the exact accepted-displacement FieldSnapshot fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count.",
+    },
+    {
+        "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/accepted-velocity-snapshot.json",
+        "class": "delegated-current-owner-evidence",
+        "signals": ["model_sha256"],
+        "identity_literals": 1,
+        "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+        "note": "the exact accepted-velocity FieldSnapshot fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count.",
+    },
+    {
+        "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/prior-state.json",
+        "class": "delegated-current-owner-evidence",
+        "signals": ["model_sha256"],
+        "identity_literals": 1,
+        "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+        "note": "the exact prior State fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count.",
+    },
+    {
+        "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/accepted-state.json",
+        "class": "delegated-current-owner-evidence",
+        "signals": ["model_sha256"],
+        "identity_literals": 1,
+        "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+        "note": "the exact accepted-next State fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count.",
+    },
+    {
+        "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/run.json",
+        "class": "delegated-current-owner-evidence",
+        "signals": ["model_sha256"],
+        "identity_literals": 1,
+        "owner": "artifacts.prescribed-dynamic-solid-state-run-3d independent exact-artifact oracle",
+        "note": "the exact Run fixture carries one same-line `model_sha256` literal; admission owns only this path, signal, and literal count.",
+    },
+]
+
+LEGACY_IDENTITY_FREE_ADMISSION_SHAPE = [
+    (
+        "crates/eqiora-python/src/trajectory.rs",
+        "non-fixture-search-hit",
+        ["model_digest"],
+        0,
+    ),
+    (
+        "bindings/python/python/eqiora/trajectory.pyi",
+        "non-fixture-search-hit",
+        ["model_digest"],
+        0,
+    ),
+    (
+        "crates/eqiora-python/src/result.rs",
+        "non-fixture-search-hit",
+        ["model_digest"],
+        0,
+    ),
+    (
+        "crates/eqiora-artifact/src/cartesian_q1_field_snapshot.rs",
+        "non-fixture-search-hit",
+        ["model_sha256"],
+        0,
+    ),
+    (
+        "crates/eqiora/tests/generated_cartesian_q1_spatial_output.rs",
+        "non-fixture-search-hit",
+        ["model_sha256"],
+        0,
+    ),
+]
+
+PROXIMATE_UNADMITTED_PATHS = [
+    "rfcs/0085-standalone-prescribed-dynamic-solid-artifacts.notes.md",
+    "rfcs/0086-standalone-prescribed-dynamic-solid-artifacts.md",
+    "crates/eqiora-artifact/src/prescribed_dynamic_solid_realization_test.rs",
+    "crates/eqiora-artifact/src/prescribed_dynamic_solid_realization/mod.rs",
+    "crates/eqiora/tests/prescribed_dynamic_solid_state_run_2d.rs",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/references/derive.py",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/model-copy.json",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/geometry.json",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/checkpoint.json",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/run.json.bak",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/nested/run.json",
+]
+
+
+def observe_admitted(raw: bytes) -> tuple[list[str], int]:
+    text = raw.decode("utf-8")
+    signals = [token for token in SEARCH_TOKENS if token in text]
+    literals = 0
+    for line in text.splitlines():
+        lowered = line.lower()
+        if "model" not in lowered and "transaction" not in lowered:
+            continue
+        if any(
+            all(character in HEX_DIGITS for character in line[start : start + 64])
+            for start in range(len(line) - 63)
+        ):
+            literals += 1
+    return signals, literals
+
+
+def check_post_reset_admissions() -> None:
+    """The two exact, disjoint successor permissions frozen by RFC 0085."""
+    print("Exact post-reset admissions")
+    classification = frozen_classification()
+    transition = classification["search"]["transition"]
+    identity_free = transition["post_reset_admitted"]
+    fixtures = transition["post_reset_fixture_admitted"]
+
+    check("identity-free admission count", len(identity_free), 9)
+    check(
+        "declared identity-free admission count",
+        len(identity_free),
+        transition["post_reset_admitted_path_count"],
+    )
+    check(
+        "unchanged five-row identity-free prefix",
+        [
+            (row["path"], row["class"], row["signals"], row["identity_literals"])
+            for row in identity_free[:5]
+        ],
+        LEGACY_IDENTITY_FREE_ADMISSION_SHAPE,
+    )
+    check(
+        "exact four RFC 0085 identity-free rows",
+        identity_free[5:],
+        RFC85_IDENTITY_FREE_ADMISSION,
+    )
+    check("fixture admission count", len(fixtures), 10)
+    check(
+        "declared fixture admission count",
+        len(fixtures),
+        transition["post_reset_fixture_admitted_path_count"],
+    )
+    check("exact ten RFC 0085 fixture rows", fixtures, RFC85_FIXTURE_ADMISSION)
+
+    identity_paths = {row["path"] for row in identity_free}
+    fixture_paths = {row["path"] for row in fixtures}
+    check(
+        "the two permissions are disjoint", sorted(identity_paths & fixture_paths), []
+    )
+    check(
+        "identity-free admission remains zero-identity",
+        [row["path"] for row in identity_free if row["identity_literals"] != 0],
+        [],
+    )
+    check(
+        "every RFC 0085 class is declared",
+        sorted(
+            row["class"]
+            for row in RFC85_IDENTITY_FREE_ADMISSION + RFC85_FIXTURE_ADMISSION
+            if row["class"] not in classification["classes"]
+        ),
+        [],
+    )
+
+    historical = set(frozen_inventory())
+    for key in (
+        "retired",
+        "retired_outside_inventory",
+        "required_post_reset",
+        "required_post_reset_without_frozen_bytes",
+        "preserved_evidence",
+    ):
+        historical.update(transition[key])
+    for row in transition["promotion"]:
+        historical.update((row["source"], row["target"]))
+    for row in transition["promoted_evidence"]:
+        historical.update((row["pre_reset"], row["post_reset"]))
+    check(
+        "admission leaks into no historical or promotion set",
+        sorted((identity_paths | fixture_paths) & historical),
+        [],
+    )
+    check(
+        "every admission path is exact",
+        sorted(
+            path
+            for path in identity_paths | fixture_paths
+            if not path
+            or path.startswith("/")
+            or path.endswith("/")
+            or "*" in path
+            or "?" in path
+            or ".." in path
+        ),
+        [],
+    )
+    check(
+        "no proximate path inherits admission",
+        sorted(set(PROXIMATE_UNADMITTED_PATHS) & (identity_paths | fixture_paths)),
+        [],
+    )
+
+    synthetic = {
+        RFC85_IDENTITY_FREE_ADMISSION[0]["path"]: (
+            'const SCHEMA: &str = "eqiora.model-envelope/v8";\n'
+            'const EDGE: &str = "model_sha256";\n'
+        ).encode(),
+        RFC85_IDENTITY_FREE_ADMISSION[1][
+            "path"
+        ]: b"struct Wire { model_sha256: String }\n",
+        RFC85_IDENTITY_FREE_ADMISSION[2]["path"]: b'let key = "model_sha256";\n',
+        RFC85_IDENTITY_FREE_ADMISSION[3]["path"]: (
+            b'SCHEMA = "eqiora.model-envelope/v8"\nEDGE = "model_sha256"\n'
+        ),
+        RFC85_FIXTURE_ADMISSION[0]["path"]: b'{"schema":"eqiora.model-envelope/v8"}\n',
+    }
+    for row in RFC85_FIXTURE_ADMISSION[1:]:
+        synthetic[row["path"]] = b'{"model_sha256":"' + (b"e" * 64) + b'"}\n'
+    for row in RFC85_IDENTITY_FREE_ADMISSION + RFC85_FIXTURE_ADMISSION:
+        check(
+            f"{row['path']} synthetic signal and literal observation",
+            list(observe_admitted(synthetic[row["path"]])),
+            [row["signals"], row["identity_literals"]],
+        )
+        path = ROOT / row["path"]
+        if path.exists():
+            check(
+                f"{row['path']} live signal and literal observation",
+                list(observe_admitted(path.read_bytes())),
+                [row["signals"], row["identity_literals"]],
+            )
+
+    # Plausible weakenings are not equal to either exact permission: one extra
+    # signal turns the Model fixture into another row, and one pinned identity
+    # turns an identity-free owner into a fixture.
+    model_fixture = synthetic[RFC85_FIXTURE_ADMISSION[0]["path"]]
+    model_with_edge = model_fixture + b'{"model_sha256":"' + (b"e" * 64) + b'"}\n'
+    check(
+        "the zero-literal fixture rejects an extra signal and identity",
+        list(observe_admitted(model_with_edge))
+        != [
+            RFC85_FIXTURE_ADMISSION[0]["signals"],
+            RFC85_FIXTURE_ADMISSION[0]["identity_literals"],
+        ],
+        True,
+    )
+    identity_owner = synthetic[RFC85_IDENTITY_FREE_ADMISSION[1]["path"]]
+    pinned = identity_owner + b'const PINNED_MODEL: &str = "' + (b"e" * 64) + b'";\n'
+    check(
+        "the zero-identity permission rejects a pinned identity",
+        list(observe_admitted(pinned))
+        != [
+            RFC85_IDENTITY_FREE_ADMISSION[1]["signals"],
+            RFC85_IDENTITY_FREE_ADMISSION[1]["identity_literals"],
+        ],
+        True,
+    )
+
 
 def carries_model_search_signal(raw: bytes) -> bool:
     try:
@@ -1694,6 +2029,8 @@ def main() -> int:
         check_model_input_consumer(entry)
         print()
     check_search_exclusions()
+    print()
+    check_post_reset_admissions()
     print()
     check_transition_contract()
     print()
