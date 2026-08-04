@@ -104,5 +104,6 @@ oracle_owner = "this manifest, its READMEs, and the two frozen Rust oracle files
 expected_predecessor_result = "the public production module is absent, so the frozen Rust oracle does not compile until the implementation and integrator registrations are composed"
 
 [evidence]
-package = "eqiora"
-test = "bounded_parameter_study"
+runner = "cargo-library-test"
+package = "eqiora-api"
+test = "parameter_study::tests::registered_composition_oracle_executes_all_private_falsifiers"

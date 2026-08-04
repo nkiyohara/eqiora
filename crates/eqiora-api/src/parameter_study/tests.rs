@@ -18,6 +18,17 @@ const PERMUTED_DIFFUSION: [f64; 3] = [1.25, 0.75, 1.0];
 const CANONICAL_DIFFUSION: [f64; 3] = [0.75, 1.0, 1.25];
 
 #[test]
+fn registered_composition_oracle_executes_all_private_falsifiers() {
+    injected_evaluator_is_called_once_per_reached_point_in_canonical_serial_order();
+    injected_failure_stops_at_its_key_and_preserves_the_completed_prefix();
+    injected_evaluator_proves_cancellation_boundaries_and_final_completion_priority();
+    from_members_rejects_missing_duplicate_inserted_and_reordered_members();
+    from_members_rejects_foreign_model_realization_method_program_and_point();
+    evaluator_returning_another_point_cannot_substitute_a_member();
+    evaluator_returning_a_foreign_program_member_fails_before_the_next_point();
+}
+
+#[test]
 fn injected_evaluator_is_called_once_per_reached_point_in_canonical_serial_order() {
     let (document, program) = fixture();
     let diffusion = document.parameter_ref("diffusion").unwrap().id();
