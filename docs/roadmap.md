@@ -169,6 +169,9 @@ the capability matrix.
 - Versioned Model, Realization, Run, spatial-state, trajectory, import-lineage,
   and package-execution artifacts. Each wire owns only its declared identity
   and provenance boundary.
+- Exact bounded standalone prescribed dynamic-solid lineage for one serial-host
+  unit-cube 3D P1 step: one Realization, prior and accepted-next two-Field
+  States, and a Run whose sole output is the accepted-next State.
 - A structural semantic fingerprint for comparing accepted graphs across
   source and native authoring without replacing exact Model artifact identity.
 

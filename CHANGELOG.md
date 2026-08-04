@@ -8,6 +8,11 @@ are recorded here.
 
 ### Added
 
+- Added exact standalone artifact lineage for the accepted serial-host
+  unit-cube 3D P1 prescribed dynamic-solid step: one content-addressed
+  Realization, exact prior and accepted-next two-Field States, and a Run whose
+  sole output is the accepted-next State.
+
 - Added an optional `eqiora.matplotlib` adapter that plots the accepted
   exact-cylinder P1 pressure Result as a caller-owned, headless-saveable
   Matplotlib Figure without making Matplotlib a base dependency.
