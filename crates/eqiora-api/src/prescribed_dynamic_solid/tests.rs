@@ -106,11 +106,9 @@ fn revalidate_rejects_role_specific_snapshot_and_block_substitution() {
     let prior_state = std::str::from_utf8(&prior_state).unwrap();
     assert_eq!(prior_state.matches(&prior_snapshot).count(), 1);
     let replaced_state = prior_state.replacen(&prior_snapshot, &accepted_snapshot, 1);
-    coherent_prior_leaf_replacement.prior_state = SpatialStateEnvelopeV1::from_json(
-        replaced_state.as_bytes(),
-        Default::default(),
-    )
-    .expect("the coherently replaced prior leaf chain remains locally valid State data");
+    coherent_prior_leaf_replacement.prior_state =
+        SpatialStateEnvelopeV1::from_json(replaced_state.as_bytes(), Default::default())
+            .expect("the coherently replaced prior leaf chain remains locally valid State data");
     assert!(coherent_prior_leaf_replacement.revalidate().is_err());
 }
 
