@@ -323,6 +323,14 @@ pub(super) fn rhs_omission_mutant_observation() -> (bool, bool) {
     (baseline, rhs_omitting_mutant)
 }
 
+fn invalid_realization(message: impl Into<String>) -> Diagnostic {
+    Diagnostic::error(codes::INVALID_REALIZATION, message)
+}
+
+fn solve_failed(message: impl Into<String>) -> Diagnostic {
+    Diagnostic::error(codes::NUMERICAL_SOLVE_FAILED, message)
+}
+
 #[cfg(test)]
 pub(crate) mod test_support {
     use std::num::NonZeroUsize;
@@ -371,7 +379,6 @@ pub(crate) mod test_support {
         input: PreflightInput,
         failure: Option<CandidateFailurePoint>,
         omission: Option<ValidationComponent>,
-        require_numeric_reuse: bool,
         reject_input: bool,
     }
 
@@ -381,7 +388,6 @@ pub(crate) mod test_support {
                 input,
                 failure: None,
                 omission: None,
-                require_numeric_reuse: false,
                 reject_input: false,
             }
         }
@@ -391,9 +397,8 @@ pub(crate) mod test_support {
             self
         }
 
-        fn validating(mut self, omission: Option<ValidationComponent>) -> Self {
-            self.omission = omission;
-            self.require_numeric_reuse = true;
+        fn omitting(mut self, component: ValidationComponent) -> Self {
+            self.omission = Some(component);
             self
         }
 
@@ -468,10 +473,6 @@ pub(crate) mod test_support {
 
         fn validation_omission(&self) -> Option<ValidationComponent> {
             self.omission
-        }
-
-        fn requires_numeric_reuse_validation(&self) -> bool {
-            self.require_numeric_reuse
         }
     }
 
@@ -742,18 +743,32 @@ pub(crate) mod test_support {
         let before = owner.test_snapshot();
         let candidate = mutated_fixture(component);
         let validation = owner.validation_for(&candidate);
-        let baseline = validation.authorizes_numeric(None);
-        let mutant_authorizes = validation.authorizes_numeric(Some(component));
-        owner
-            .execute_core(SyntheticExecution::new(candidate.clone()).validating(None))
-            .expect_err("complete validation rejects the targeted mismatch");
+        let baseline_result = owner.execute_core(SyntheticExecution::new(candidate.clone()));
         let phases = owner.phase_names();
         let after = owner.test_snapshot();
-        let mutant_result =
-            owner.execute_core(SyntheticExecution::new(candidate).validating(Some(component)));
+
+        let mut mutant_owner = self::owner();
+        mutant_owner
+            .execute_core(SyntheticExecution::new(fixture(0)))
+            .expect("mutant baseline state commits");
+        let mutant_before = mutant_owner.test_snapshot();
+        let mutant_result = mutant_owner
+            .execute_core(SyntheticExecution::new(candidate.clone()).omitting(component));
+        let mutant_phases = mutant_owner.phase_names();
+        let mutant_after = mutant_owner.test_snapshot();
+        let baseline_authorizes = baseline_result.is_ok()
+            && phases.contains(&"retained-factor-solve")
+            && !phases.contains(&"numeric-attempt");
+        let mutant_authorizes = mutant_result.is_ok()
+            && mutant_phases.contains(&"retained-factor-solve")
+            && !mutant_phases.contains(&"numeric-attempt")
+            && (component != ValidationComponent::Coefficients
+                || (mutant_after.numeric_factor == mutant_before.numeric_factor
+                    && mutant_after.numeric_identity == mutant_before.numeric_identity
+                    && mutant_after.numeric_identity != Some(candidate.identities.numeric)));
         ValidationMutantObservation {
-            baseline,
-            mutant: mutant_authorizes && mutant_result.is_ok(),
+            baseline: baseline_authorizes,
+            mutant: mutant_authorizes,
             targeted: validation.difference_count() == 1,
             unchanged: before == after,
             phases,
@@ -888,14 +903,18 @@ pub(crate) mod test_support {
     }
 
     fn mutated_fixture(component: ValidationComponent) -> PreflightInput {
-        let mut input = fixture(1);
+        let mut input = if component == ValidationComponent::Coefficients {
+            fixture(2)
+        } else {
+            fixture(1)
+        };
         match component {
             ValidationComponent::AcceptedBinding => match &mut input.binding {
                 ReuseBinding::Synthetic(binding) => binding.shell += 1,
                 ReuseBinding::Live(_) => unreachable!(),
             },
             ValidationComponent::Structure => input.identities.structure[0] ^= 1,
-            ValidationComponent::Coefficients => input.identities.coefficients[0] ^= 1,
+            ValidationComponent::Coefficients => {}
             ValidationComponent::Policy => input.identities.policy[0] ^= 1,
             ValidationComponent::Provider => match &mut input.binding {
                 ReuseBinding::Synthetic(binding) => binding.provider += 1,
@@ -949,12 +968,4 @@ pub(crate) mod test_support {
         hash.update(normalized_bits(value).to_be_bytes());
         hash.finalize().into()
     }
-}
-
-fn invalid_realization(message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_REALIZATION, message)
-}
-
-fn solve_failed(message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::NUMERICAL_SOLVE_FAILED, message)
 }

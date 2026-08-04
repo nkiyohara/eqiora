@@ -138,11 +138,7 @@ impl FaerSparseLuReuseOwner {
                 return Err(error);
             }
         };
-        let preflight = match self.preflight(
-            input,
-            execution.validation_omission(),
-            execution.requires_numeric_reuse_validation(),
-        ) {
+        let preflight = match self.preflight(input, execution.validation_omission()) {
             Ok(preflight) => preflight,
             Err(error) => {
                 self.last_phases.record(Phase::PreflightRejected);
@@ -153,7 +149,7 @@ impl FaerSparseLuReuseOwner {
         self.counters.begin_attempt();
 
         let (candidate_solution, candidate_factors) = match preflight.action {
-            ReuseAction::BuildSymbolicAndNumeric => {
+            ReuseAction::BuildBoth => {
                 self.last_phases.record(Phase::SymbolicAttempt);
                 let symbolic = execution.factor_symbolic()?;
                 self.last_phases.record(Phase::SymbolicSuccess);
@@ -167,13 +163,13 @@ impl FaerSparseLuReuseOwner {
                     CandidateFactors::SymbolicAndNumeric(symbolic, numeric),
                 )
             }
-            ReuseAction::ReuseNumeric => {
+            ReuseAction::Reuse => {
                 self.last_phases.record(Phase::RetainedFactorSolve);
                 let ready = self.ready_state()?;
                 let solution = execution.solve(&ready.symbolic_factor, &ready.numeric_factor)?;
                 (solution, CandidateFactors::Retained)
             }
-            ReuseAction::RebuildNumeric => {
+            ReuseAction::Rebuild => {
                 self.last_phases.record(Phase::NumericAttempt);
                 let numeric = {
                     let ready = self.ready_state()?;
@@ -204,7 +200,6 @@ impl FaerSparseLuReuseOwner {
         &self,
         input: PreflightInput,
         omission: Option<ValidationComponent>,
-        requires_numeric_reuse_validation: bool,
     ) -> Result<Preflight, Diagnostic> {
         if self.counters.attempted >= self.maximum_attempts.get() {
             return Err(invalid_realization(
@@ -212,7 +207,7 @@ impl FaerSparseLuReuseOwner {
             ));
         }
         let action = match &self.state {
-            ReuseState::Empty => ReuseAction::BuildSymbolicAndNumeric,
+            ReuseState::Empty => ReuseAction::BuildBoth,
             ReuseState::Ready(ready) => {
                 validate_factor_state(
                     ready.factor_state,
@@ -220,11 +215,6 @@ impl FaerSparseLuReuseOwner {
                     ready.numeric_identity,
                 )?;
                 let validation = ValidationComponents::between(ready, &input);
-                if requires_numeric_reuse_validation && !validation.authorizes_numeric(omission) {
-                    return Err(invalid_realization(
-                        "faer sparse LU numeric reuse validation rejected a changed component",
-                    ));
-                }
                 validation.classify(omission)?
             }
         };
@@ -251,7 +241,7 @@ impl FaerSparseLuReuseOwner {
     ) -> Result<(), Diagnostic> {
         match candidate {
             CandidateFactors::SymbolicAndNumeric(symbolic_factor, numeric_factor) => {
-                self.state = ReuseState::Ready(ReadyState {
+                self.state = ReuseState::Ready(Box::new(ReadyState {
                     binding: preflight.binding,
                     structure_identity: preflight.identities.structure,
                     coefficient_identity: preflight.identities.coefficients,
@@ -264,7 +254,7 @@ impl FaerSparseLuReuseOwner {
                         preflight.identities.symbolic,
                         preflight.identities.numeric,
                     ),
-                });
+                }));
                 self.counters.commit(true, true);
             }
             CandidateFactors::Numeric(numeric_factor) => {
@@ -400,7 +390,7 @@ impl ReuseExecution for LiveExecution<'_> {
             ));
         }
         Ok(PreflightInput {
-            binding: ReuseBinding::Live(binding.clone()),
+            binding: ReuseBinding::Live(Box::new(binding.clone())),
             identities: identities(system, owner_plan, binding.solver_provider())?,
         })
     }
@@ -415,6 +405,9 @@ impl ReuseExecution for LiveExecution<'_> {
         &mut self,
         symbolic: &StoredSymbolicFactor,
     ) -> Result<StoredNumericFactor, Diagnostic> {
+        #[cfg(not(test))]
+        let StoredSymbolicFactor::Live(symbolic) = symbolic;
+        #[cfg(test)]
         let symbolic = match symbolic {
             StoredSymbolicFactor::Live(symbolic) => symbolic,
             #[cfg(test)]
@@ -424,10 +417,10 @@ impl ReuseExecution for LiveExecution<'_> {
                 ));
             }
         };
-        Ok(StoredNumericFactor::Live(factor_numeric(
+        Ok(StoredNumericFactor::Live(Box::new(factor_numeric(
             symbolic,
             self.admitted().system(),
-        )?))
+        )?)))
     }
 
     fn solve(
@@ -435,6 +428,9 @@ impl ReuseExecution for LiveExecution<'_> {
         symbolic: &StoredSymbolicFactor,
         numeric: &StoredNumericFactor,
     ) -> Result<Self::CandidateSolution, Diagnostic> {
+        #[cfg(not(test))]
+        let StoredSymbolicFactor::Live(symbolic) = symbolic;
+        #[cfg(test)]
         let symbolic = match symbolic {
             StoredSymbolicFactor::Live(symbolic) => symbolic,
             #[cfg(test)]
@@ -444,6 +440,9 @@ impl ReuseExecution for LiveExecution<'_> {
                 ));
             }
         };
+        #[cfg(not(test))]
+        let StoredNumericFactor::Live(numeric) = numeric;
+        #[cfg(test)]
         let numeric = match numeric {
             StoredNumericFactor::Live(numeric) => numeric,
             #[cfg(test)]
@@ -516,15 +515,12 @@ pub(crate) trait ReuseExecution {
     fn validation_omission(&self) -> Option<ValidationComponent> {
         None
     }
-    fn requires_numeric_reuse_validation(&self) -> bool {
-        false
-    }
 }
 
 #[derive(Debug)]
 enum ReuseState {
     Empty,
-    Ready(ReadyState),
+    Ready(Box<ReadyState>),
 }
 
 #[derive(Debug)]
@@ -542,7 +538,7 @@ struct ReadyState {
 
 #[derive(Debug, Clone)]
 pub(crate) enum ReuseBinding {
-    Live(DeploymentBinding),
+    Live(Box<DeploymentBinding>),
     #[cfg(test)]
     Synthetic(SyntheticBinding),
 }
@@ -574,7 +570,7 @@ impl StoredSymbolicFactor {
 
 #[derive(Debug)]
 pub(crate) enum StoredNumericFactor {
-    Live(SparseLuNumericFactor),
+    Live(Box<SparseLuNumericFactor>),
     #[cfg(test)]
     Synthetic(u64),
 }
@@ -611,9 +607,9 @@ pub(crate) struct PreflightInput {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ReuseAction {
-    BuildSymbolicAndNumeric,
-    ReuseNumeric,
-    RebuildNumeric,
+    BuildBoth,
+    Reuse,
+    Rebuild,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -668,21 +664,11 @@ impl ValidationComponents {
         }
         Ok(
             if includes(ValidationComponent::Coefficients, self.coefficients) {
-                ReuseAction::ReuseNumeric
+                ReuseAction::Reuse
             } else {
-                ReuseAction::RebuildNumeric
+                ReuseAction::Rebuild
             },
         )
-    }
-
-    pub(crate) fn authorizes_numeric(self, omission: Option<ValidationComponent>) -> bool {
-        let includes = |component, value| omission == Some(component) || value;
-        includes(ValidationComponent::AcceptedBinding, self.accepted_binding)
-            && includes(ValidationComponent::Structure, self.structure)
-            && includes(ValidationComponent::Coefficients, self.coefficients)
-            && includes(ValidationComponent::Policy, self.policy)
-            && includes(ValidationComponent::Provider, self.provider)
-            && includes(ValidationComponent::Graph, self.graph)
     }
 
     #[cfg(test)]
