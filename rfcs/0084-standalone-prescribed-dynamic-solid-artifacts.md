@@ -687,7 +687,9 @@ compatibility decision and a common standalone-solid artifact/application
 boundary that preserves the exact role binding, candidate identity,
 failure-atomic publication, and State/Run lineage. An anticipated Python or
 Studio consumer alone does not justify a general trait, registry, hierarchy,
-or option bag.
+or option bag. `PrescribedDynamicSolidStateRun3d` is deliberately a
+`transitional_export` in `eqiora::api` and `api/eqiora-facade-v1.json`; this RFC
+does not place it in `stable_exports` or promise stable facade compatibility.
 
 ## Public architecture budget
 
@@ -706,15 +708,31 @@ crate:
 The artifact type remains reachable through the facade's existing transitional
 `eqiora::artifact` module; that existing glob is not widened textually or
 converted into another stable registration. The one new named curated-facade
-item is the application owner under `eqiora::api`. Existing root ownership
+item is the application owner under `eqiora::api`, classified explicitly as a
+`transitional_export`, never as a stable export. Existing root ownership
 conventions still apply inside the workspace. The four family-specific methods
 and the Realization's role-deriving constructor/validator add no top-level
 public item and therefore do not move the table's type ceilings.
 
+The three one-item increases in the table are planned, reviewed architecture
+changes. The integrator changes exactly the existing `[[public_surface]]`
+entries in `tools/ci/architecture-debt.toml` and no others:
+
+| Crate | Exact ceiling | Exact reason appended to the existing `reason` | Exact deletion condition appended to the existing `removal` |
+| --- | ---: | --- | --- |
+| `eqiora-artifact` | `147` | `PrescribedDynamicSolidRealizationEnvelopeV1 is one closed standalone-solid wire for the exact prescribed-step occurrence; it reuses existing decoder limits and Snapshot, State, and Run families, derives every durable role from the bound Model, and adds no registry, trait, builder, or option bag.` | `Withdraw PrescribedDynamicSolidRealizationEnvelopeV1 and lower this ceiling to 146 when one already-counted accepted common fixed-spatial Realization preserves its exact role derivation, Geometry and mesh gates, canonical bytes, and Run projection.` |
+| `eqiora-api` | `139` | `PrescribedDynamicSolidStateRun3d is one failure-atomic application composition joining the accepted prescribed step to existing Field, Snapshot, State, and Run artifacts; it adds no request, result, provider, or registry protocol.` | `Withdraw PrescribedDynamicSolidStateRun3d and lower this ceiling to 138 when one already-counted accepted common native structural Result owns and revalidates the same exact lineage and accepted evidence without an open option bag.` |
+| `eqiora` | `281` | `PrescribedDynamicSolidStateRun3d is one named transitional eqiora::api export of the bounded application owner; the facade adds no second implementation or stable compatibility promise.` | `Withdraw that transitional export and lower this ceiling to 280 when an accepted existing facade type subsumes its exact structural lineage and accepted evidence without a replacement top-level facade item.` |
+
+These are ceiling amendments, not debt permission for another item. An
+implementation that ends below a listed maximum ratchets that ceiling down in
+the same integration. Growth beyond `147`, `139`, or `281`, or growth in any
+other crate, is an unplanned architecture change and a stop condition.
+
 Any additional public type, trait, enum variant, registry, context, builder,
-option bag, durable schema, facade item, or architecture-ceiling increase is a
-stop condition. A private helper is permitted only when it does not establish
-a second invariant owner or public extension point.
+option bag, durable schema, facade item, or ceiling growth beyond the three
+exact reviewed maxima is a stop condition. A private helper is permitted only
+when it does not establish a second invariant owner or public extension point.
 
 ## Successor path ownership
 
@@ -814,6 +832,7 @@ crates/eqiora-artifact/src/lib.rs
 crates/eqiora-api/src/lib.rs
 crates/eqiora/src/lib.rs
 api/eqiora-facade-v1.json
+tools/ci/architecture-debt.toml
 docs/capability-matrix.md
 docs/roadmap.md
 CHANGELOG.md
@@ -824,16 +843,45 @@ The integrator's exact registration delta is: add
 to `rfcs/README.md`; declare and named-re-export
 `PrescribedDynamicSolidRealizationEnvelopeV1` from `eqiora-artifact`; declare
 and named-re-export `PrescribedDynamicSolidStateRun3d` from `eqiora-api`; add
-only that application owner to the curated `eqiora::api` facade and its JSON
-inventory; add the narrow capability-matrix row backed by the new registered
-case; and record the accepted roadmap/changelog item. Existing artifact access
-continues through the transitional `eqiora::artifact` module, so no curated
-facade entry for the Realization is added. The integrator must run the index
-and architecture checks after these registrations.
+only that application owner to the curated `eqiora::api` Rust namespace and
+to that namespace's JSON `transitional_exports` array; make no addition to any
+`stable_exports` array; apply exactly the three reviewed public-surface ceiling
+amendments above; update the existing capability rows below; and record the
+accepted roadmap/changelog item. Existing artifact access continues through
+the transitional `eqiora::artifact` module, so no curated facade entry for the
+Realization is added. The integrator must run the index, facade, and
+architecture checks after these registrations.
 
-No Cargo manifest, lockfile, architecture-debt, or ceiling change is expected.
-A writer that needs another path, public item, or registration stops and
-returns the requirement to the contract owner or integrator.
+The capability matrix gains no artifact-specific row. The integrator narrows
+and extends exactly these existing rows, retaining their current C/X/V/M
+statuses and all existing evidence links:
+
+- Both occurrences of `First-order dynamic linear solid` add that the same
+  exact serial-host unit-cube 3D P1 step now publishes one content-addressed
+  standalone-solid Realization, exact prior and accepted-next two-Field States,
+  and one Run whose sole output is the accepted-next State. They link
+  `artifacts.prescribed-dynamic-solid-state-run-3d` and replace the former
+  blanket nonclaim of durable standalone structural time integration with the
+  narrower nonclaim: no other Model, mesh, candidate, step, multi-step
+  trajectory, restart, or general standalone structural integration is
+  durable.
+- `Linear elasticity` adds only that exact one-step unit-cube occurrence and
+  its standalone Realization/State/Run lineage, links
+  `artifacts.prescribed-dynamic-solid-state-run-3d`, and continues to disclaim
+  general standalone 3D analysis, wider boundary data, elements, materials,
+  performance, and scale.
+- `Structural dynamics` replaces `Durable standalone State/Run lineage` as an
+  unqualified remainder with the exact admitted one-step lineage above, links
+  `artifacts.prescribed-dynamic-solid-state-run-3d`, and keeps multiple-step
+  standalone trajectories, restart/continuation, damping, modal, harmonic,
+  response-spectrum, finite-strain, and contact paths as nonclaims. The prior
+  State remains a retained input observation, not a Run output or evidence of
+  an earlier execution.
+
+No Cargo manifest or lockfile change is expected. A writer that needs another
+path, public item, registration, or ceiling change beyond the three exact
+amendments stops and returns the requirement to the contract owner or
+integrator.
 
 ## Independent exact-artifact oracle
 
