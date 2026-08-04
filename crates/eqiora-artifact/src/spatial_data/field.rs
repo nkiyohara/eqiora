@@ -13,13 +13,17 @@ use ulid::Ulid;
 
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, DiscreteFieldEnvelopeV1, FieldDecoderLimits,
-    GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference, RealizationEnvelopeV3,
-    ReplayableCanonicalModelArtifact, ReplayableFixedTopologyAleRealizationArtifact,
-    SimplicialMeshEnvelopeV1, ValidatedFixedSpatialContextV1, ValidatedMovingSpatialContextV2,
-    check_json_limits, invalid_artifact,
+    GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference,
+    PrescribedDynamicSolidRealizationEnvelopeV1, ReplayableCanonicalModelArtifact,
+    ReplayableFixedTopologyAleRealizationArtifact, SimplicialMeshEnvelopeV1,
+    ValidatedFixedSpatialContextV1, ValidatedMovingSpatialContextV2, check_json_limits,
+    invalid_artifact,
 };
 
-use super::context::ValidatedCircularHoleFieldwiseContext;
+use super::context::{
+    ValidatedCircularHoleFieldwiseContext, ValidatedPrescribedDynamicSolidContext,
+    realized_field_space_v3,
+};
 
 const FIELD_SNAPSHOT_SCHEMA: &str = "eqiora.field-snapshot-envelope/v1";
 
@@ -90,6 +94,29 @@ impl FieldSnapshotEnvelopeV1 {
         blocks: &[DiscreteFieldEnvelopeV1],
     ) -> Result<Self, Diagnostic> {
         Self::new_in_context(context, field, blocks)
+    }
+
+    /// Bind one exact prescribed dynamic-solid displacement or velocity snapshot.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for any semantic role, lineage, support, block, or content drift.
+    pub fn new_prescribed_dynamic_solid(
+        model: &impl ReplayableCanonicalModelArtifact,
+        realization: &PrescribedDynamicSolidRealizationEnvelopeV1,
+        geometry: &crate::GeometryIdentityEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        mesh: &SimplicialMeshEnvelopeV1,
+        field: Id<kinds::Field>,
+        blocks: &[DiscreteFieldEnvelopeV1],
+    ) -> Result<Self, Diagnostic> {
+        let context = ValidatedPrescribedDynamicSolidContext::new(
+            model,
+            realization,
+            geometry,
+            correspondence,
+            mesh,
+        )?;
+        Self::new_in_context(&context, field, blocks)
     }
 
     pub(super) fn new_in_context<'a>(
@@ -346,6 +373,36 @@ impl FieldSnapshotEnvelopeV1 {
         if self != &expected {
             return Err(invalid_artifact(
                 "Field snapshot differs from exact semantic and numerical replay",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Rebuild and compare one exact prescribed dynamic-solid snapshot.
+    ///
+    /// # Errors
+    /// Returns `EQ0901` for any semantic, resource, block, or content drift.
+    pub fn validate_against_prescribed_dynamic_solid(
+        &self,
+        model: &impl ReplayableCanonicalModelArtifact,
+        realization: &PrescribedDynamicSolidRealizationEnvelopeV1,
+        geometry: &crate::GeometryIdentityEnvelopeV1,
+        correspondence: &GeometryMeshCorrespondenceEnvelopeV1,
+        mesh: &SimplicialMeshEnvelopeV1,
+        blocks: &[DiscreteFieldEnvelopeV1],
+    ) -> Result<(), Diagnostic> {
+        let expected = Self::new_prescribed_dynamic_solid(
+            model,
+            realization,
+            geometry,
+            correspondence,
+            mesh,
+            self.field(),
+            blocks,
+        )?;
+        if self != &expected {
+            return Err(invalid_artifact(
+                "Field snapshot differs from exact prescribed dynamic-solid replay",
             ));
         }
         Ok(())
@@ -662,42 +719,6 @@ impl ValidatedFieldSnapshotContext for ValidatedCircularHoleFieldwiseContext<'_>
             })?;
         Ok((spatial.domain(), binding.space().family()))
     }
-}
-
-fn realized_field_space_v3(
-    realization: &RealizationEnvelopeV3,
-    field: Id<kinds::Field>,
-) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
-    let plan = realization.plan()?;
-    for domain in plan.spatial().domains() {
-        if let Some(binding) = domain
-            .field_spaces()
-            .iter()
-            .find(|binding| binding.field() == field)
-        {
-            return Ok((domain.domain(), binding.space().family()));
-        }
-    }
-    let eliminated = plan.time_step().eliminated_state();
-    if eliminated.pair().state() == field {
-        let rate = eliminated.pair().rate();
-        let domain = plan
-            .spatial()
-            .domains()
-            .iter()
-            .find(|domain| {
-                domain
-                    .field_spaces()
-                    .iter()
-                    .any(|binding| binding.field() == rate)
-            })
-            .map(|domain| domain.domain())
-            .ok_or_else(|| invalid_artifact("eliminated state rate has no realized Domain"))?;
-        return Ok((domain, eliminated.state_space().family()));
-    }
-    Err(invalid_artifact(
-        "Field snapshot Field is absent from the exact Realization",
-    ))
 }
 
 pub(super) fn support_indices_from_cells(

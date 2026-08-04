@@ -1,0 +1,12 @@
+{"schema":"eqiora.field-snapshot-envelope/v1",
+"encoding":"eqiora.canonical-json/v1",
+"model_sha256":"2d28e2f8142a4fc06c0b02da96bdde6c1b306c43483cbed749d9145818427107",
+"semantic_revision":1,
+"realization_sha256":"64ec436b1f9478982543a0ee9928af41c37e719a1037f72fe18653f718550488",
+"geometry_sha256":"4a9f829782dd45c07491b7b3d5b6d3e960b9aafbcc44b707b66e3e7732c16fd1",
+"correspondence_sha256":"e070498fa53c664628c748af314791c48dae079d6a5e45360cc99974ebba4fe6",
+"mesh_sha256":"ff6f0d68acb005514c13e1e1bd8a9df6780b869661c0598dad40bbe627cd9fc8",
+"field_ulid":"49V9X8Z5SYVV9AM4Y6SA468KQV",
+"support_domain_ulid":"0PPGQVKZBQTQQ26M9EW1522YHZ",
+"physical":{"unit_system":"coherent-si","dimension":{"mass":0,"length":1,"time":0,"current":0,"temperature":0,"amount":0,"luminous_intensity":0},"value_shape":{"extents":[3]},"frame":"spatial-cartesian"},
+"representation":{"scalar":"f64","ordering":"canonical-mesh-entity-major","blocks":[{"association":"vertex","discrete_field_sha256":"c029a44093e11556116a2aad4416c9bf88202aa1a487292827ec07a911bf5af5"}]}}

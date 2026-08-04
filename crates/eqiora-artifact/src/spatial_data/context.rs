@@ -1,19 +1,24 @@
 //! Validated spatial lineages shared by durable observations.
 
+use std::num::NonZeroU16;
+
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use eqiora_geometry::CanonicalGeometryRef;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
-use eqiora_realization::{RepresentedPhysicalField, SemanticRevision};
+use eqiora_realization::{RepresentedPhysicalField, SemanticRevision, SpaceFamily};
 use eqiora_schema::kernel::{DomainKind, KernelNode};
 use eqiora_sem::KernelProgram;
 
 use crate::{
-    AcceptedCircularHoleChordalRealizationV1, CanonicalModelArtifact, GeometryDefinitionV1,
-    GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1, ModelArtifactReference,
-    ModelEnvelope, RealizationEnvelopeV2, RealizationEnvelopeV3, ReplayableCanonicalModelArtifact,
+    AcceptedCircularHoleChordalRealizationV1, ArtifactDigest, CanonicalModelArtifact,
+    GeometryDefinitionV1, GeometryIdentityEnvelopeV1, GeometryMeshCorrespondenceEnvelopeV1,
+    ModelArtifactReference, ModelEnvelope, PrescribedDynamicSolidRealizationEnvelopeV1,
+    RealizationEnvelopeV2, RealizationEnvelopeV3, ReplayableCanonicalModelArtifact,
     ReplayedCanonicalModel, SimplicialMeshEnvelopeV1, invalid_artifact,
 };
+
+use super::field::ValidatedFieldSnapshotContext;
 
 /// Runtime proof that one fixed-spatial artifact lineage has been replayed.
 ///
@@ -103,6 +108,177 @@ impl<'a> ValidatedFixedSpatialContextV1<'a> {
     pub fn represented_fields(&self) -> &[RepresentedPhysicalField] {
         &self.represented_fields
     }
+}
+
+/// Private replay proof for the exact standalone prescribed-solid lineage.
+#[derive(Debug)]
+pub(super) struct ValidatedPrescribedDynamicSolidContext<'a> {
+    replayed_model: ReplayedCanonicalModel,
+    realization: &'a PrescribedDynamicSolidRealizationEnvelopeV1,
+    geometry: &'a GeometryIdentityEnvelopeV1,
+    correspondence: &'a GeometryMeshCorrespondenceEnvelopeV1,
+    mesh: &'a SimplicialMeshEnvelopeV1,
+    active_cells: Vec<usize>,
+}
+
+impl<'a> ValidatedPrescribedDynamicSolidContext<'a> {
+    pub(super) fn new(
+        model: &impl ReplayableCanonicalModelArtifact,
+        realization: &'a PrescribedDynamicSolidRealizationEnvelopeV1,
+        geometry: &'a GeometryIdentityEnvelopeV1,
+        correspondence: &'a GeometryMeshCorrespondenceEnvelopeV1,
+        mesh: &'a SimplicialMeshEnvelopeV1,
+    ) -> Result<Self, Diagnostic> {
+        realization.validate_against(model, geometry, correspondence, mesh)?;
+        let replayed_model = model.replay_model()?;
+        let active_cells = correspondence
+            .body_cells(realization.solid_domain())
+            .ok_or_else(|| {
+                invalid_artifact("prescribed dynamic-solid body has no exact mesh-cell support")
+            })?;
+        if active_cells
+            .iter()
+            .copied()
+            .ne(0..mesh.mesh().cells().len())
+        {
+            return Err(invalid_artifact(
+                "prescribed dynamic-solid body does not cover the complete canonical mesh",
+            ));
+        }
+        Ok(Self {
+            replayed_model,
+            realization,
+            geometry,
+            correspondence,
+            mesh,
+            active_cells,
+        })
+    }
+
+    pub(super) const fn model_reference(&self) -> &ModelArtifactReference {
+        self.replayed_model.artifact_reference()
+    }
+
+    pub(super) const fn program(&self) -> &KernelProgram {
+        self.replayed_model.program()
+    }
+
+    pub(super) const fn realization(&self) -> &'a PrescribedDynamicSolidRealizationEnvelopeV1 {
+        self.realization
+    }
+
+    pub(super) const fn geometry(&self) -> &'a GeometryIdentityEnvelopeV1 {
+        self.geometry
+    }
+
+    pub(super) const fn correspondence(&self) -> &'a GeometryMeshCorrespondenceEnvelopeV1 {
+        self.correspondence
+    }
+
+    pub(super) const fn mesh(&self) -> &'a SimplicialMeshEnvelopeV1 {
+        self.mesh
+    }
+
+    pub(super) fn active_cells(&self, domain: Id<kinds::Domain>) -> Result<Vec<usize>, Diagnostic> {
+        if domain != self.realization.solid_domain() {
+            return Err(invalid_artifact(
+                "prescribed dynamic-solid Field support differs from the solid Domain",
+            ));
+        }
+        Ok(self.active_cells.clone())
+    }
+
+    pub(super) fn realized_field_space(
+        &self,
+        field: Id<kinds::Field>,
+    ) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
+        if field != self.realization.displacement_field()
+            && field != self.realization.velocity_field()
+        {
+            return Err(invalid_artifact(
+                "Field is outside the prescribed dynamic-solid two-Field inventory",
+            ));
+        }
+        Ok((
+            self.realization.solid_domain(),
+            SpaceFamily::ContinuousLagrange {
+                order: NonZeroU16::MIN,
+            },
+        ))
+    }
+}
+
+impl ValidatedFieldSnapshotContext for ValidatedPrescribedDynamicSolidContext<'_> {
+    fn model_reference(&self) -> &ModelArtifactReference {
+        ValidatedPrescribedDynamicSolidContext::model_reference(self)
+    }
+
+    fn program(&self) -> &KernelProgram {
+        ValidatedPrescribedDynamicSolidContext::program(self)
+    }
+
+    fn realization_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
+        self.realization().digest()
+    }
+
+    fn geometry_artifact(&self) -> Result<ArtifactDigest, Diagnostic> {
+        self.geometry().digest()
+    }
+
+    fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1 {
+        ValidatedPrescribedDynamicSolidContext::correspondence(self)
+    }
+
+    fn mesh(&self) -> &SimplicialMeshEnvelopeV1 {
+        ValidatedPrescribedDynamicSolidContext::mesh(self)
+    }
+
+    fn active_cells(&self, domain: Id<kinds::Domain>) -> Result<Vec<usize>, Diagnostic> {
+        ValidatedPrescribedDynamicSolidContext::active_cells(self, domain)
+    }
+
+    fn realized_field_space(
+        &self,
+        field: Id<kinds::Field>,
+    ) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
+        ValidatedPrescribedDynamicSolidContext::realized_field_space(self, field)
+    }
+}
+
+pub(super) fn realized_field_space_v3(
+    realization: &RealizationEnvelopeV3,
+    field: Id<kinds::Field>,
+) -> Result<(Id<kinds::Domain>, SpaceFamily), Diagnostic> {
+    let plan = realization.plan()?;
+    for domain in plan.spatial().domains() {
+        if let Some(binding) = domain
+            .field_spaces()
+            .iter()
+            .find(|binding| binding.field() == field)
+        {
+            return Ok((domain.domain(), binding.space().family()));
+        }
+    }
+    let eliminated = plan.time_step().eliminated_state();
+    if eliminated.pair().state() == field {
+        let rate = eliminated.pair().rate();
+        let domain = plan
+            .spatial()
+            .domains()
+            .iter()
+            .find(|domain| {
+                domain
+                    .field_spaces()
+                    .iter()
+                    .any(|binding| binding.field() == rate)
+            })
+            .map(|domain| domain.domain())
+            .ok_or_else(|| invalid_artifact("eliminated state rate has no realized Domain"))?;
+        return Ok((domain, eliminated.state_space().family()));
+    }
+    Err(invalid_artifact(
+        "Field snapshot Field is absent from the exact Realization",
+    ))
 }
 
 /// Private proof of the one accepted exact-circle field-wise lineage.
