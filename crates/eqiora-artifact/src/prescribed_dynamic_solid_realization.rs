@@ -5,7 +5,7 @@ use std::str::FromStr;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, OntologyId, RawId, ValueShape};
 use eqiora_graph::EdgeKind;
-use eqiora_meshing::{MeshEntity, MeshTopology, VertexId};
+use eqiora_meshing::{MeshEntity, VertexId};
 use eqiora_realization::{RealizationRevision, SemanticRevision};
 use eqiora_schema::Model;
 use eqiora_schema::kernel::{
@@ -687,6 +687,7 @@ fn require_geometry_and_correspondence(
             "prescribed dynamic-solid Geometry or body-cell correspondence differs",
         ));
     }
+    let geometry_boundaries = geometry.boundaries();
     for (axis, side, role) in [
         (0, BoundarySide::Lower, Some(roles.fixed_boundary)),
         (0, BoundarySide::Upper, Some(roles.driven_boundary)),
@@ -695,8 +696,7 @@ fn require_geometry_and_correspondence(
         (2, BoundarySide::Lower, None),
         (2, BoundarySide::Upper, None),
     ] {
-        let candidates = geometry
-            .boundaries()
+        let candidates = geometry_boundaries
             .iter()
             .filter(|entry| entry.axis() == axis && entry.side() == side)
             .collect::<Vec<_>>();
