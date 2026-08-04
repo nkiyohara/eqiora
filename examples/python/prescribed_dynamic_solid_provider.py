@@ -179,6 +179,27 @@ def require_ulid(value: object) -> str:
     return value
 
 
+def require_keys(value: object, keys: list[str], label: str) -> dict[str, object]:
+    if not isinstance(value, dict) or list(value) != keys:
+        raise ValueError(f"{label} members are reordered or incomplete")
+    return value
+
+
+def require_int(value: object, expected: int, label: str) -> None:
+    if type(value) is not int or value != expected:
+        raise ValueError(f"{label} is not the exact JSON integer")
+
+
+def require_float(value: object, expected: float, label: str) -> None:
+    if (
+        type(value) is not float
+        or value != expected
+        or not math.isfinite(value)
+        or (value == 0.0 and math.copysign(1.0, value) < 0.0)
+    ):
+        raise ValueError(f"{label} is not the exact finite JSON binary64 value")
+
+
 def require_descriptor(
     value: object,
     *,
@@ -187,8 +208,6 @@ def require_descriptor(
     unit: str,
     output: bool,
 ) -> dict[str, object]:
-    if not isinstance(value, dict):
-        raise ValueError("descriptor is not an object")
     expected_keys = [
         "role",
         "field_ulid",
@@ -203,8 +222,13 @@ def require_descriptor(
     expected_keys.extend(("coefficient_count", "byte_length"))
     if not output:
         expected_keys.append("block_sha256")
-    if list(value) != expected_keys:
-        raise ValueError("descriptor members are reordered or incomplete")
+    value = require_keys(value, expected_keys, "descriptor")
+    shape = value["value_shape"]
+    if not isinstance(shape, list) or len(shape) != 1:
+        raise ValueError("descriptor value shape is not the exact array")
+    require_int(shape[0], 3, "descriptor value shape")
+    require_int(value["coefficient_count"], 12, "descriptor coefficient count")
+    require_int(value["byte_length"], 96, "descriptor byte length")
     expected: dict[str, object] = {
         "role": role,
         "field_ulid": field,
@@ -226,17 +250,28 @@ def require_descriptor(
 
 
 def validate_bind(bind: dict[str, object]) -> None:
+    require_int(bind["semantic_revision"], 1, "semantic revision")
+    require_float(bind["model_time_s"], 0.0, "model time")
+    require_float(bind["next_time_s"], 0.25, "next time")
+    require_float(bind["delta_time_s"], 0.25, "delta time")
+    vertices = bind["vertex_indices"]
+    if not isinstance(vertices, list) or len(vertices) != 4:
+        raise ValueError("vertex inventory is not the exact array")
+    for value, expected in zip(vertices, (1, 3, 5, 7), strict=True):
+        require_int(value, expected, "vertex index")
+    provider = require_keys(
+        bind["provider"], ["id", "release", "dependencies"], "provider"
+    )
+    dependencies = provider["dependencies"]
+    if not isinstance(dependencies, list) or len(dependencies) != 2:
+        raise ValueError("provider dependency inventory is not the exact array")
+    for dependency in dependencies:
+        require_keys(dependency, ["name", "release"], "provider dependency")
     if (
         bind["type"] != "bind"
         or bind["protocol"] != PROTOCOL
         or bind["contract"] != CONTRACT
-        or bind["semantic_revision"] != 1
-        or bind["provider"] != exact_provider()
-        or bind["model_time_s"] != 0.0
-        or math.copysign(1.0, bind["model_time_s"]) < 0.0
-        or bind["next_time_s"] != 0.25
-        or bind["delta_time_s"] != 0.25
-        or bind["vertex_indices"] != [1, 3, 5, 7]
+        or provider != exact_provider()
         or bind["coefficient_order"] != "vertex-index-ascending-component-x-y-z"
     ):
         raise ValueError("bind differs from fixed policy")

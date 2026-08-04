@@ -8,7 +8,7 @@ use eqiora_meshing::VertexId;
 use sha2::{Digest, Sha256};
 
 use super::super::composition::PreparedPrescribedDynamicSolid3d;
-use super::super::invalid;
+use super::invalid;
 
 pub(super) mod control;
 pub(super) mod frame;
@@ -25,6 +25,7 @@ const CANDIDATE_DOMAIN: &[u8] = b"eqiora.prescribed-dynamic-solid-provider-candi
 const TRANSCRIPT_DOMAIN: &[u8] = b"eqiora.prescribed-dynamic-solid-provider-transcript/v1";
 const MAX_TRANSCRIPT_BYTES: usize = 36_864;
 const VERTEX_INDICES: [usize; 4] = [1, 3, 5, 7];
+type CandidateTrace = Vec<(VertexId, [f64; 3])>;
 
 pub(super) struct Exchange {
     pub(super) bind: Bind,
@@ -135,7 +136,8 @@ impl Exchange {
                 "provider candidate control differs from the active request or output length",
             ));
         }
-        ArtifactDigest::from_hex(candidate.candidate_sha256.clone())?;
+        ArtifactDigest::from_hex(candidate.candidate_sha256.clone())
+            .map_err(|_| invalid("provider candidate identity is not a canonical digest"))?;
         Ok(())
     }
 
@@ -143,7 +145,7 @@ impl Exchange {
         &self,
         candidate_control: &Candidate,
         bulk: &[u8],
-    ) -> Result<(ArtifactDigest, Vec<(VertexId, [f64; 3])>), Diagnostic> {
+    ) -> Result<(ArtifactDigest, CandidateTrace), Diagnostic> {
         self.validate_candidate_control(candidate_control)?;
         let identity = candidate_identity(&self.request_identity, &self.output_header, bulk);
         if candidate_control.candidate_sha256 != identity.as_str() {
@@ -244,14 +246,6 @@ impl Transcript {
         Ok(())
     }
 
-    pub(super) fn prospective_identity(
-        &self,
-        close: &Close,
-        closed: &Closed,
-    ) -> Result<ArtifactDigest, Diagnostic> {
-        Ok(self.prospective(close, closed)?.identity())
-    }
-
     pub(super) fn prospective(&self, close: &Close, closed: &Closed) -> Result<Self, Diagnostic> {
         let mut prospective = self.clone();
         prospective.record(
@@ -281,6 +275,10 @@ impl Transcript {
 
     pub(super) fn identity(&self) -> ArtifactDigest {
         single_payload_identity(TRANSCRIPT_DOMAIN, &self.bytes)
+    }
+
+    pub(super) fn bytes(&self) -> &[u8] {
+        &self.bytes
     }
 }
 

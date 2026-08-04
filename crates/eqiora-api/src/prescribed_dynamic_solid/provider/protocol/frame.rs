@@ -4,7 +4,7 @@ use std::io::{self, Read, Write};
 
 use eqiora_core::Diagnostic;
 
-use super::super::super::invalid;
+use super::super::invalid;
 use super::control::MAX_CONTROL_BYTES;
 
 const MAGIC: [u8; 4] = *b"EQP1";

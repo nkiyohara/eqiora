@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use eqiora_core::Diagnostic;
 
-use super::super::super::invalid;
+use super::super::invalid;
 
 pub(in super::super) const PROTOCOL: &str = "eqiora.external-boundary-provider-subprocess/v1";
 pub(in super::super) const CONTRACT: &str = "eqiora.prescribed-dynamic-solid-state-boundary/v1";

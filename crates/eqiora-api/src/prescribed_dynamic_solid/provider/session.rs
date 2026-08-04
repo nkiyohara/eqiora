@@ -11,7 +11,7 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use serde::Serialize;
 
-use super::super::invalid;
+use super::invalid;
 use super::protocol::control::{self, ReceivedControl};
 use super::protocol::frame::{Frame, FrameKind};
 use super::protocol::{Direction, Transcript};
@@ -23,30 +23,50 @@ const STDERR_BUDGET: usize = 4096;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum CancellationCheckpoint {
     BeforeSessionAdmission,
-    BeforeProviderFrame,
-    WhileWaitingForProvider,
-    AfterProviderFrame,
+    BeforeHelloFrame,
+    AfterHelloFrame,
     BeforeProjection,
     AfterProjection,
+    BeforeBindFrame,
+    AfterBindFrame,
+    BeforeBoundFrame,
+    AfterBoundFrame,
+    BeforeEvaluateFrame,
+    AfterEvaluateFrame,
+    BeforeDisplacementBulkFrame,
+    AfterDisplacementBulkFrame,
+    BeforeVelocityBulkFrame,
+    AfterVelocityBulkFrame,
+    BeforeCandidateFrame,
+    AfterCandidateFrame,
+    BeforeCandidateBulkFrame,
+    AfterCandidateBulkFrame,
+    BeforeReportFrame,
+    AfterReportFrame,
     BeforeStructuralSolve,
     AfterStructuralSolve,
     BeforeComposition,
     AfterComposition,
+    BeforeCloseFrame,
+    AfterCloseFrame,
+    BeforeClosedFrame,
+    AfterClosedFrame,
+    BeforeFinalEofWait,
+    AfterFinalEof,
+    BeforeProcessExitWait,
+    AfterProcessExit,
+    BeforePublication,
 }
 
 #[cfg(test)]
 thread_local! {
-    static TEST_CANCELLATION_HOOK: std::cell::Cell<
-        Option<fn(CancellationCheckpoint, &AtomicBool)>,
-    > = const { std::cell::Cell::new(None) };
+    static TEST_CANCELLATION_CHECKPOINT: std::cell::Cell<Option<CancellationCheckpoint>> =
+        const { std::cell::Cell::new(None) };
 }
 
-/// Install the current test thread's exact safe-boundary cancellation hook.
 #[cfg(test)]
-pub(super) fn set_test_cancellation_checkpoint_hook(
-    hook: Option<fn(CancellationCheckpoint, &AtomicBool)>,
-) {
-    TEST_CANCELLATION_HOOK.set(hook);
+pub(super) fn set_test_cancellation_checkpoint(checkpoint: Option<CancellationCheckpoint>) {
+    TEST_CANCELLATION_CHECKPOINT.set(checkpoint);
 }
 
 pub(super) fn check_cancellation(
@@ -54,13 +74,17 @@ pub(super) fn check_cancellation(
     checkpoint: CancellationCheckpoint,
 ) -> Result<(), Diagnostic> {
     #[cfg(test)]
-    TEST_CANCELLATION_HOOK.with(|hook| {
-        if let Some(hook) = hook.get() {
-            hook(checkpoint, cancellation);
+    TEST_CANCELLATION_CHECKPOINT.with(|selected| {
+        if selected.get() == Some(checkpoint) {
+            cancellation.store(true, Ordering::Release);
         }
     });
     #[cfg(not(test))]
     let _ = checkpoint;
+    observe_cancellation(cancellation)
+}
+
+fn observe_cancellation(cancellation: &AtomicBool) -> Result<(), Diagnostic> {
     if cancellation.load(Ordering::Acquire) {
         return Err(Diagnostic::error(
             codes::EXECUTION_CANCELLED,
@@ -140,32 +164,45 @@ impl ConnectedSession {
         &mut self,
         value: &T,
         cancellation: &AtomicBool,
+        before: CancellationCheckpoint,
+        after: CancellationCheckpoint,
     ) -> Result<(), Diagnostic> {
-        self.send_frame(Frame::control(control::encode(value)?)?, cancellation)
+        self.send_frame(
+            Frame::control(control::encode(value)?)?,
+            cancellation,
+            before,
+            after,
+        )
     }
 
     pub(super) fn send_bulk(
         &mut self,
         bytes: Vec<u8>,
         cancellation: &AtomicBool,
+        before: CancellationCheckpoint,
+        after: CancellationCheckpoint,
     ) -> Result<(), Diagnostic> {
-        self.send_frame(Frame::bulk(bytes)?, cancellation)
+        self.send_frame(Frame::bulk(bytes)?, cancellation, before, after)
     }
 
     pub(super) fn receive_control(
         &mut self,
         cancellation: &AtomicBool,
+        before: CancellationCheckpoint,
+        after: CancellationCheckpoint,
     ) -> Result<ReceivedControl, Diagnostic> {
-        let frame = self.receive_frame(FrameKind::Control, cancellation)?;
+        let frame = self.receive_frame(FrameKind::Control, cancellation, before, after)?;
         control::decode(frame.payload())
     }
 
     pub(super) fn receive_bulk(
         &mut self,
         cancellation: &AtomicBool,
+        before: CancellationCheckpoint,
+        after: CancellationCheckpoint,
     ) -> Result<Vec<u8>, Diagnostic> {
         Ok(self
-            .receive_frame(FrameKind::Bulk, cancellation)?
+            .receive_frame(FrameKind::Bulk, cancellation, before, after)?
             .payload()
             .to_vec())
     }
@@ -176,6 +213,7 @@ impl ConnectedSession {
 
     pub(super) fn finish(mut self, cancellation: &AtomicBool) -> Result<Transcript, Diagnostic> {
         self.stdin.take();
+        check_cancellation(cancellation, CancellationCheckpoint::BeforeFinalEofWait)?;
         match self.await_event(cancellation, "provider final EOF")? {
             ReadEvent::Eof => {}
             ReadEvent::Frame(_) => {
@@ -185,16 +223,19 @@ impl ConnectedSession {
             }
             ReadEvent::Failure(error) => return Err(error),
         }
+        check_cancellation(cancellation, CancellationCheckpoint::AfterFinalEof)?;
+        check_cancellation(cancellation, CancellationCheckpoint::BeforeProcessExitWait)?;
         let exit_deadline = Instant::now() + DEADLINE;
         let status = loop {
-            check_cancellation(
-                cancellation,
-                CancellationCheckpoint::WhileWaitingForProvider,
-            )?;
+            observe_cancellation(cancellation)?;
             match self.child.try_wait() {
                 Ok(Some(status)) => break status,
                 Ok(None) if Instant::now() < exit_deadline => thread::sleep(CANCELLATION_POLL),
-                Ok(None) => return Err(invalid("provider process exit exceeded five seconds")),
+                Ok(None) => {
+                    return Err(invalid(
+                        "provider process exit timed out after five seconds",
+                    ));
+                }
                 Err(error) => {
                     return Err(invalid(format!(
                         "cannot wait for provider process: {error}"
@@ -202,6 +243,7 @@ impl ConnectedSession {
                 }
             }
         };
+        check_cancellation(cancellation, CancellationCheckpoint::AfterProcessExit)?;
         if !status.success() {
             return Err(invalid("provider process did not exit successfully"));
         }
@@ -212,29 +254,37 @@ impl ConnectedSession {
         Ok(std::mem::take(&mut self.transcript))
     }
 
-    fn send_frame(&mut self, frame: Frame, cancellation: &AtomicBool) -> Result<(), Diagnostic> {
-        check_cancellation(cancellation, CancellationCheckpoint::BeforeProviderFrame)?;
+    fn send_frame(
+        &mut self,
+        frame: Frame,
+        cancellation: &AtomicBool,
+        before: CancellationCheckpoint,
+        after: CancellationCheckpoint,
+    ) -> Result<(), Diagnostic> {
+        check_cancellation(cancellation, before)?;
         frame.write_to(
             self.stdin
                 .as_mut()
                 .ok_or_else(|| invalid("provider stdin is already closed"))?,
         )?;
         self.transcript.record(Direction::Outgoing, &frame)?;
-        check_cancellation(cancellation, CancellationCheckpoint::AfterProviderFrame)
+        check_cancellation(cancellation, after)
     }
 
     fn receive_frame(
         &mut self,
         expected: FrameKind,
         cancellation: &AtomicBool,
+        before: CancellationCheckpoint,
+        after: CancellationCheckpoint,
     ) -> Result<Frame, Diagnostic> {
-        check_cancellation(cancellation, CancellationCheckpoint::BeforeProviderFrame)?;
+        check_cancellation(cancellation, before)?;
         let frame = match self.await_event(cancellation, "provider frame")? {
             ReadEvent::Frame(frame) => frame,
             ReadEvent::Eof => return Err(invalid("provider closed stdout before the next frame")),
             ReadEvent::Failure(error) => return Err(error),
         };
-        check_cancellation(cancellation, CancellationCheckpoint::AfterProviderFrame)?;
+        check_cancellation(cancellation, after)?;
         if frame.kind() != expected {
             return Err(invalid(
                 "provider frame kind differs from the active protocol state",
@@ -247,21 +297,15 @@ impl ConnectedSession {
     fn await_event(&self, cancellation: &AtomicBool, label: &str) -> Result<ReadEvent, Diagnostic> {
         let deadline = Instant::now() + DEADLINE;
         loop {
-            check_cancellation(
-                cancellation,
-                CancellationCheckpoint::WhileWaitingForProvider,
-            )?;
+            observe_cancellation(cancellation)?;
             let now = Instant::now();
             if now >= deadline {
-                return Err(invalid(format!("{label} exceeded five seconds")));
+                return Err(invalid(format!("{label} timed out after five seconds")));
             }
             let remaining = deadline.saturating_duration_since(now);
             match self.receiver.recv_timeout(remaining.min(CANCELLATION_POLL)) {
                 Ok(event) => {
-                    check_cancellation(
-                        cancellation,
-                        CancellationCheckpoint::WhileWaitingForProvider,
-                    )?;
+                    observe_cancellation(cancellation)?;
                     return Ok(event);
                 }
                 Err(RecvTimeoutError::Timeout) => {}
