@@ -37,7 +37,11 @@ const SPARSE_LU_CONTRACT_SHA256: &str =
 
 #[test]
 fn faer_sparse_lu_source_keeps_serial_and_residual_handoffs() {
-    let source = include_str!("../../eqiora-backend-faer/src/sparse_lu.rs");
+    let source = format!(
+        "{}\n{}",
+        include_str!("../../eqiora-backend-faer/src/sparse_lu.rs"),
+        include_str!("../../eqiora-backend-faer/src/sparse_lu_factor.rs"),
+    );
     let normalized_source = source.split_whitespace().collect::<Vec<_>>().join(" ");
     for process_global_wrapper in [
         ".sp_lu(",
@@ -58,9 +62,11 @@ fn faer_sparse_lu_source_keeps_serial_and_residual_handoffs() {
     assert!(source.contains("let parallelism = Par::Seq;"));
     assert!(!source.contains("Par::Rayon"));
     assert!(!source.contains("Par::rayon"));
-    assert!(normalized_source.contains("column_matrix.as_ref(), parallelism, factor_stack,"));
     assert!(normalized_source.contains(
-        "lu.solve_in_place_with_conj(Conj::No, output.as_mut(), parallelism, solve_stack);"
+        "column_matrix.as_ref(), parallelism, MemStack::new(&mut buffer), Default::default(),"
+    ));
+    assert!(normalized_source.contains(
+        "LuRef::new_unchecked(&symbolic.factor, &numeric.factor).solve_in_place_with_conj( Conj::No, output.as_mut(), parallelism, MemStack::new(&mut buffer), );"
     ));
     assert!(
         normalized_source
