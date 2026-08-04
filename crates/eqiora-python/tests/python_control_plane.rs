@@ -29,8 +29,8 @@ const FILENAME_MESSAGE: &str = "source filename must contain 1 to 4096 non-contr
 const SOURCE_MESSAGE: &str = "source exceeds the 8388608-byte compile/check v2 limit";
 const PUBLIC_INIT: &[u8] = include_bytes!("../../../bindings/python/python/eqiora/__init__.py");
 const PUBLIC_STUB: &[u8] = include_bytes!("../../../bindings/python/python/eqiora/__init__.pyi");
-const PUBLIC_INIT_SHA256: &str = "a0809052259501fa05fc0a4742530c3e413fb7de44eaeb22d669e821fea075cb";
-const PUBLIC_STUB_SHA256: &str = "55045947b842c2542bc290efec41fd0acb9885b0a05186b3bf2fac595c56b541";
+const PUBLIC_INIT_SHA256: &str = "f571b840508b182ba6b9b08692939c0792a645b61d621dadf0cfc659d18edb8d";
+const PUBLIC_STUB_SHA256: &str = "e700863bc021d12057f0b93dfeeef98c4e52640ded0663e978e6d9b0badc3139";
 
 #[derive(Debug, PartialEq, Eq)]
 struct NormalizedDiagnostic {
