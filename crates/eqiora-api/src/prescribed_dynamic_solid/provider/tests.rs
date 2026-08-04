@@ -159,6 +159,21 @@ fn occurrence_from_wire(
     .unwrap_or_else(|error| panic!("{label} must remain locally valid occurrence data: {error}"))
 }
 
+fn assert_occurrence_wire_rejected(wire: &[u8], label: &str) {
+    let error = match PrescribedDynamicSolidProviderOccurrenceEnvelopeV1::from_json(
+        wire,
+        Default::default(),
+    ) {
+        Err(error) => error,
+        Ok(_) => panic!("{label} unexpectedly decoded"),
+    };
+    assert_eq!(
+        error.code(),
+        eqiora_core::diagnostic::codes::INVALID_ARTIFACT,
+        "{label} returned the wrong diagnostic"
+    );
+}
+
 fn replace_first(bytes: &[u8], before: &[u8], after: &[u8]) -> Vec<u8> {
     let start = bytes
         .windows(before.len())
@@ -249,14 +264,12 @@ fn revalidate_rejects_every_occurrence_cross_substitution() {
     );
     assert_revalidation_rejected(&velocity, "velocity input-block substitution");
 
-    let mut adapter = owner();
     let wire = replace_first(
         compact_occurrence_fixture(),
         b"eqiora.subprocess.external-boundary-provider",
         b"eqiora.subprocess.foreign-boundary-provider",
     );
-    adapter.provider_occurrence = occurrence_from_wire(&wire, "adapter substitution");
-    assert_revalidation_rejected(&adapter, "occurrence adapter substitution");
+    assert_occurrence_wire_rejected(&wire, "fixed adapter substitution");
 
     let mut accepted_state = owner();
     let retained = accepted_state.accepted_state.digest().unwrap().to_string();
