@@ -460,7 +460,7 @@ ceiling = 22
 
 [[public_surface]]
 crate = "eqiora-geometry"
-ceiling = 38
+ceiling = 39
 reason = """
 Raised from 23 as an architecture change, not as drift. The seven added names
 are the authored-region vocabulary: a canonical straight-edged planar region,
@@ -490,8 +490,16 @@ exact authored target graph, source-relative grading and work policy, and the
 accepted tetrahedral mesh as one invariant. A loose tuple would let a consumer
 substitute a foreign target or forget the direction and grading that produced
 the mesh; no request schema, artifact variant, or provider registry was added.
+One additional no-wire opaque `CadAuthoredSketch` owns the two closed profile
+inputs admitted by the existing graph: one constrained XY rectangle with its
+requested modeling tolerance and one exact circle bound to a v1 end-cap handle.
+The public explicit Rust composition and the existing compatibility constructors
+both consume this owner, so plane/profile discrimination, tolerance ownership,
+signed-zero normalization, and foreign/stale handle rejection have one owner
+before #367 projects it. It adds no wire, digest, operation registry, or general
+constraint vocabulary.
 """
-removal = "lower if the owned geometry value can replace the separate borrowed semantic reference without exposing content or caller-authored facts; lower if a second volume-meshing consumer proves that the no-wire sweep owner can become a private implementation behind an existing generic accepted Mesh/Realization boundary without losing its source and target binding"
+removal = "lower if the owned geometry value can replace the separate borrowed semantic reference without exposing content or caller-authored facts; lower if a second volume-meshing consumer proves that the no-wire sweep owner can become a private implementation behind an existing generic accepted Mesh/Realization boundary without losing its source and target binding; Replace `CadAuthoredSketch` and lower the ceiling by one when an accepted general versioned Sketch/constraint graph subsumes both closed inputs and both the legacy graph constructors and installed Python consume that one owner; do not retain both public sketch owners."
 
 [[public_surface]]
 crate = "eqiora-graph"
