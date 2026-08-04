@@ -8,8 +8,9 @@ use eqiora::geometry::{
     CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph, CadAuthoredSketch,
     CadRepairDispositionV1, ConstrainedRectangleV1,
 };
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBytes, PyModule, PyTuple};
+use pyo3::types::{PyBytes, PyModule, PyTuple};
 
 use crate::error::validation_error;
 use crate::geometry::{PyGeometry, digest_to_hex};
@@ -32,6 +33,7 @@ pub(crate) struct PyCadAuthoredGraph {
     name = "CadAuthoredSketch",
     module = "eqiora._eqiora",
     frozen,
+    eq,
     skip_from_py_object
 )]
 #[derive(Clone, Debug, PartialEq)]
@@ -52,7 +54,7 @@ impl PyCadAuthoredSketch {
     ))]
     fn rectangle_xy(
         py: Python<'_>,
-        x_bounds: (f64, f64),
+        #[pyo3(from_py_with = extract_rectangle_pair)] x_bounds: (f64, f64),
         y_bounds: (f64, f64),
         plane_z: f64,
         modeling_tolerance: f64,
@@ -70,7 +72,7 @@ impl PyCadAuthoredSketch {
     fn circle_on_face(
         py: Python<'_>,
         face: &PyCadAuthoredFaceHandle,
-        center: [f64; 2],
+        #[pyo3(from_py_with = extract_sequence_pair)] center: [f64; 2],
         radius: f64,
     ) -> PyResult<Self> {
         CadAuthoredSketch::circle_on_face(face.handle.clone(), center, radius)
@@ -85,12 +87,6 @@ impl PyCadAuthoredSketch {
             .extrude_positive_z(depth)
             .map(|graph| PyCadAuthoredGraph { graph })
             .map_err(|diagnostic| native_error(py, diagnostic))
-    }
-
-    fn __eq__(&self, other: &Bound<'_, PyAny>) -> bool {
-        other
-            .extract::<PyRef<'_, Self>>()
-            .is_ok_and(|other| self.sketch == other.sketch)
     }
 }
 
@@ -584,6 +580,41 @@ fn hash_bytes(bytes: &[u8]) -> u64 {
     let mut hasher = DefaultHasher::new();
     bytes.hash(&mut hasher);
     hasher.finish()
+}
+
+fn extract_rectangle_pair(value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<(f64, f64)> {
+    let extracted = value.extract::<(f64, f64)>();
+    match extracted {
+        Err(error) if error.is_instance_of::<PyValueError>(value.py()) => {
+            if let Ok(tuple) = value.cast::<PyTuple>() {
+                let actual = tuple.len();
+                if actual != 2 {
+                    return Err(PyTypeError::new_err(format!(
+                        "expected tuple of length 2, but got tuple of length {actual}"
+                    )));
+                }
+            }
+            Err(error)
+        }
+        result => result,
+    }
+}
+
+fn extract_sequence_pair(value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<[f64; 2]> {
+    let extracted = value.extract::<[f64; 2]>();
+    match extracted {
+        Err(error) if error.is_instance_of::<PyValueError>(value.py()) => {
+            if let Ok(actual) = value.len()
+                && actual != 2
+            {
+                return Err(PyTypeError::new_err(format!(
+                    "expected a sequence of length 2 (got {actual})"
+                )));
+            }
+            Err(error)
+        }
+        result => result,
+    }
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
