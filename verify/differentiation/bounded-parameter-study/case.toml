@@ -1,0 +1,97 @@
+id = "differentiation.bounded-parameter-study"
+status = "verified"
+scope = "one-host-serial-fem-program-one-diffusion-coordinate-two-to-sixty-four-point-complete-study"
+reference_kind = "separately-executed-accepted-evaluations"
+
+capabilities = [
+  "exact-program-bound-parameter-study-plan",
+  "binary64-total-ordered-point-keys",
+  "caller-order-independent-plan-equality",
+  "bounded-two-to-sixty-four-point-inventory",
+  "default-point-anchored-single-coordinate-replacement",
+  "host-serial-sequential-point-execution",
+  "accepted-evaluation-member-retention",
+  "complete-membership-construction",
+  "all-or-nothing-study-publication",
+  "between-point-cooperative-cancellation",
+  "typed-point-failure-terminal-report",
+]
+
+[problem]
+source_case = "differentiation.spatial-poisson-fem-fvm"
+method = "continuous-q1-galerkin"
+spatial_dimension = 2
+scalar = "native-f64"
+execution = "host-serial"
+program_inputs = ["source_scale", "diffusion", "boundary_offset"]
+varying_parameter = "diffusion"
+base_point = [19.739208802178716, 1.0, 0.0]
+caller_values = [1.25, 0.75, 1.0]
+canonical_values = [0.75, 1.0, 1.25]
+
+[oracle]
+pointwise_owner = "differentiation.spatial-poisson-fem-fvm"
+member_reference = "three separate DifferentiableProgram::evaluate calls made outside the study layer at the exact canonical complete points"
+member_observation = "program identity, ordered input IDs, point value bits, complete Field coefficient bits, state-system fingerprint, accepted solver-output fingerprint, solve report, and full exposed primal evidence"
+aggregate_observation = "the complete study retains exactly one separately accepted evaluation for each canonical key, in canonical order"
+terminal_observation = "failure and cancellation expose only the plan, canonical completed-key prefix, optional failed key, diagnostics, and cancellation flag"
+fixed_scientific_values = false
+new_field_digest = false
+new_tolerance = false
+
+[acceptance]
+caller_permutations_have_equal_plans = true
+point_keys_use_parameter_and_value_bits = true
+signed_zero_keys_are_distinct = true
+point_order_uses_total_cmp = true
+planning_performs_no_numerical_evaluation = true
+execution_uses_only_the_retained_program = true
+complete_members_are_canonical_and_exact = true
+failure_is_atomic = true
+cancellation_is_observed_before_or_between_points = true
+completion_wins_after_final_member = true
+terminal_reports_expose_no_partial_evaluations = true
+
+[falsifiers]
+caller_permutation = "changes plan equality, execution order, or member order"
+duplicate_bits = "an exact-bit duplicate is silently removed or executed"
+missing_anchor = "an inventory without the default-point bits is admitted"
+point_bound = "one or 65 values are admitted"
+foreign_parameter = "a Parameter outside the retained program input coordinates is admitted"
+non_finite = "NaN or infinity reaches execution"
+signed_zero = "negative and positive zero collapse to one key or compare equal"
+replacement = "replacing one value leaves plan equality or membership unchanged"
+
+[claim_boundary]
+varying_parameters = 1
+minimum_points = 2
+maximum_points = 64
+reference_points = 3
+caller_selected_base_point = false
+default_point_anchor_required = true
+general_fem_or_fvm_execution = false
+registered_execution_method = "continuous-q1-galerkin"
+fvm_identity_separation_only = true
+partial_accepted_result = false
+python_study_api = false
+parallel_or_threaded = false
+cuda = false
+mpi = false
+remote_or_framework_batched = false
+factorization_or_preconditioner_reuse = false
+cache = false
+derivative_across_study_axis = false
+doe_optimization_uq_or_adaptive_sampling = false
+persistence_or_wire = false
+scheduler_or_workflow_dag = false
+
+[precommitment]
+precommitted = true
+authored_before_implementation_by_a_nonimplementing_agent = true
+base_revision = "181949f113dde780787388e154b2b92069b76755"
+oracle_owner = "this manifest, its READMEs, and crates/eqiora/tests/bounded_parameter_study.rs own the public authority; differentiation.bounded-parameter-study-private owns the required private composition falsifiers"
+expected_predecessor_result = "the public production module is absent, so the frozen Rust oracle does not compile until the implementation and integrator registrations are composed"
+
+[evidence]
+package = "eqiora"
+test = "bounded_parameter_study"

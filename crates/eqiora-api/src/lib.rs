@@ -17,6 +17,7 @@ mod geometry_edit;
 mod ml_dataset;
 pub mod package;
 mod parameter_regeneration;
+mod parameter_study;
 mod reference_run;
 mod remeshing_trajectory;
 mod spatial;
@@ -41,6 +42,10 @@ pub use geometry_edit::{CartesianDomainEditPlan, CartesianDomainEditResult};
 pub use ml_dataset::*;
 pub use parameter_regeneration::{
     ParameterGeometryRegenerationPlan, ParameterGeometryRegenerationResult,
+};
+pub use parameter_study::{
+    CompleteParameterStudy, ParameterStudyPlan, ParameterStudyPointKey,
+    ParameterStudyTerminalReport,
 };
 pub use reference_run::*;
 pub use remeshing_trajectory::RemeshingTrajectoryReplayInputV1;

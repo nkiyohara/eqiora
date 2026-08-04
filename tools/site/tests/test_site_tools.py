@@ -92,6 +92,23 @@ class EvidenceCatalogTests(unittest.TestCase):
         with self.assertRaises(catalog.CatalogError):
             catalog.render_catalog(index([physical]))
 
+    def test_cargo_library_target_is_visible_and_closed(self):
+        library = entry()
+        library["evidence"] = {
+            "runner": "cargo-library-test",
+            "package": "eqiora-api",
+            "test": "parameter_study::tests::registered_evidence",
+        }
+        rendered = catalog.render_catalog(index([library]))
+        self.assertIn(
+            "cargo-library-test: eqiora-api/parameter_study::tests::registered_evidence",
+            rendered,
+        )
+
+        library["evidence"]["runner"] = "unreviewed-runner"
+        with self.assertRaises(catalog.CatalogError):
+            catalog.render_catalog(index([library]))
+
 
 class SiteCheckTests(unittest.TestCase):
     def test_local_link_checker_accepts_existing_and_rejects_escape(self):

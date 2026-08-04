@@ -1,0 +1,85 @@
+id = "differentiation.bounded-parameter-study-private"
+status = "verified"
+scope = "crate-private-composition-falsifiers-for-one-host-serial-bounded-parameter-study"
+reference_kind = "injected-composition-mutants"
+
+capabilities = [
+  "host-serial-sequential-point-execution",
+  "accepted-evaluation-member-retention",
+  "complete-membership-construction",
+  "all-or-nothing-study-publication",
+  "between-point-cooperative-cancellation",
+  "typed-point-failure-terminal-report",
+]
+
+[authority]
+required_primary_case = "differentiation.bounded-parameter-study"
+verification_requires_both_cases = true
+public_observation_owner = "crates/eqiora/tests/bounded_parameter_study.rs"
+private_falsifier_owner = "crates/eqiora-api/src/parameter_study/tests.rs"
+
+[problem]
+source_case = "differentiation.spatial-poisson-fem-fvm"
+method = "continuous-q1-galerkin"
+spatial_dimension = 2
+scalar = "native-f64"
+execution = "host-serial"
+program_inputs = ["source_scale", "diffusion", "boundary_offset"]
+varying_parameter = "diffusion"
+base_point = [19.739208802178716, 1.0, 0.0]
+caller_values = [1.25, 0.75, 1.0]
+canonical_values = [0.75, 1.0, 1.25]
+
+[oracle]
+pointwise_owner = "differentiation.spatial-poisson-fem-fvm"
+member_reference = "accepted DifferentiableEvaluation values injected only through the production-private evaluator and complete-construction seams"
+aggregate_observation = "exactly one accepted member for every canonical planned key, in canonical order, with no foreign, missing, duplicated, inserted, reordered, or substituted member"
+execution_observation = "one nonoverlapping evaluator call per reached canonical point, stopping immediately on failure or between-point cancellation"
+fixed_scientific_values = false
+new_field_digest = false
+new_tolerance = false
+
+[acceptance]
+evaluation_calls_are_sequential = true
+one_call_per_reached_point = true
+complete_members_are_canonical_and_exact = true
+failure_is_atomic = true
+cancellation_is_observed_before_or_between_points = true
+completion_wins_after_final_member = true
+terminal_reports_expose_no_partial_evaluations = true
+
+[falsifiers]
+foreign_member = "a member from another Model, Realization, method, program input order, or point enters a complete result"
+missing_member = "a dropped member still permits complete construction"
+duplicate_member = "a duplicated member still permits complete construction"
+inserted_member = "an unplanned member still permits complete construction"
+reordered_member = "noncanonical members still permit complete construction"
+substituted_evaluation = "an evaluator result for another requested point is accepted"
+failure_continuation = "execution calls a later point or publishes complete after one failure"
+cancellation_boundary = "cancellation is polled inside evaluation or after final completion"
+parallel_evaluation = "the injected evaluator observes active depth above one"
+
+[claim_boundary]
+adds_public_api = false
+adds_executor_abstraction = false
+adds_pointwise_scientific_claim = false
+partial_accepted_result = false
+parallel_or_threaded = false
+cuda = false
+mpi = false
+remote_or_framework_batched = false
+cache = false
+persistence_or_wire = false
+scheduler_or_workflow_dag = false
+
+[precommitment]
+precommitted = true
+authored_before_implementation_by_a_nonimplementing_agent = true
+base_revision = "181949f113dde780787388e154b2b92069b76755"
+oracle_owner = "this manifest, its adjacent documentation, and crates/eqiora-api/src/parameter_study/tests.rs; the implementation writer may wire but not edit or relax them"
+expected_predecessor_result = "the production-private module and test wiring are absent, so the exact library oracle is missing until implementation and integration are composed"
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-api"
+test = "parameter_study::tests::registered_composition_oracle_executes_all_private_falsifiers"
