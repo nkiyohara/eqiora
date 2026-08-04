@@ -5,21 +5,13 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_execution::{AcceptedLinearExecution, AdmittedExecution, DeploymentBinding};
 use eqiora_solver::{
-    ConvergenceReason, ExecutionReport, LinearOperator, LinearOperatorOrientation, LinearSolver,
-    PreconditionerPolicy, ReductionPolicy, SERIAL_EXECUTION_PROVIDER, SolverPlan,
+    ConvergenceReason, ExecutionReport, LinearOperator, LinearOperatorOrientation, LinearSolution,
+    LinearSolver, PreconditionerPolicy, ReductionPolicy, SERIAL_EXECUTION_PROVIDER, SolverPlan,
     accept_linear_solution,
 };
-#[cfg(test)]
-use sha2::{Digest, Sha256};
 
 use crate::FAER_SOLVER_PROVIDER;
 use crate::sparse_lu::fixed_residual_norm;
-#[cfg(test)]
-use crate::sparse_lu_factor::rhs_omission_mutant_observation;
-#[cfg(test)]
-use crate::sparse_lu_factor::{
-    COEFFICIENT_DOMAIN, STRUCTURE_DOMAIN, normalized_bits, numeric_identity, symbolic_identity,
-};
 use crate::sparse_lu_factor::{
     IdentitySet, SparseLuNumericFactor, SparseLuSymbolicFactor, binding_shell_equal,
     factor_numeric, factor_symbolic, identities, solve_factored,
@@ -76,80 +68,7 @@ impl FaerSparseLuReuseOwner {
         &mut self,
         admitted: AdmittedExecution<'_>,
     ) -> Result<AcceptedLinearExecution, Diagnostic> {
-        self.last_phases.restart();
-        self.last_phases.record(Phase::PreflightAttempt);
-        let preflight = match self.preflight(&admitted) {
-            Ok(preflight) => preflight,
-            Err(error) => {
-                self.last_phases.record(Phase::PreflightRejected);
-                return Err(error);
-            }
-        };
-        self.last_phases.record(Phase::PreflightSuccess);
-        self.counters.begin_attempt();
-
-        let system = admitted.system();
-        let (values, candidate) = match preflight.action {
-            ReuseAction::BuildSymbolicAndNumeric => {
-                self.last_phases.record(Phase::SymbolicAttempt);
-                let symbolic = factor_symbolic(system)?;
-                self.last_phases.record(Phase::SymbolicSuccess);
-                self.last_phases.record(Phase::NumericAttempt);
-                let numeric = factor_numeric(&symbolic, system)?;
-                self.last_phases.record(Phase::NumericSuccess);
-                self.last_phases.record(Phase::CandidateFactorSolve);
-                let values = solve_factored(&symbolic, &numeric, system.right_hand_side())?;
-                (
-                    values,
-                    CandidateFactors::SymbolicAndNumeric(symbolic, numeric),
-                )
-            }
-            ReuseAction::ReuseNumeric => {
-                self.last_phases.record(Phase::RetainedFactorSolve);
-                let ready = self.ready_state()?;
-                let values = solve_factored(
-                    &ready.symbolic_factor,
-                    &ready.numeric_factor,
-                    system.right_hand_side(),
-                )?;
-                (values, CandidateFactors::Retained)
-            }
-            ReuseAction::RebuildNumeric => {
-                self.last_phases.record(Phase::NumericAttempt);
-                let numeric = {
-                    let ready = self.ready_state()?;
-                    factor_numeric(&ready.symbolic_factor, system)?
-                };
-                self.last_phases.record(Phase::NumericSuccess);
-                self.last_phases.record(Phase::CandidateFactorSolve);
-                let values = {
-                    let ready = self.ready_state()?;
-                    solve_factored(&ready.symbolic_factor, &numeric, system.right_hand_side())?
-                };
-                (values, CandidateFactors::Numeric(numeric))
-            }
-        };
-
-        self.last_phases.record(Phase::SolverAcceptanceAttempt);
-        let problem = system.linear_problem()?;
-        let reported_residual_norm = fixed_residual_norm(&problem, &values)?;
-        let solution = accept_linear_solution(
-            &problem,
-            self.plan,
-            FAER_SOLVER_PROVIDER,
-            ConvergenceReason::ResidualToleranceSatisfied,
-            1,
-            reported_residual_norm,
-            values,
-        )?;
-        self.last_phases.record(Phase::SolverAcceptanceSuccess);
-
-        self.last_phases.record(Phase::ExecutionAcceptanceAttempt);
-        let accepted = admitted.accept(solution)?;
-        self.last_phases.record(Phase::ExecutionAcceptanceSuccess);
-        self.commit(preflight, candidate)?;
-        self.last_phases.record(Phase::StateCommit);
-        Ok(accepted)
+        self.execute_core(LiveExecution::new(admitted))
     }
 
     /// Immutable numerical policy bound by this owner.
@@ -206,50 +125,92 @@ impl FaerSparseLuReuseOwner {
         }
     }
 
-    fn preflight(&self, admitted: &AdmittedExecution<'_>) -> Result<Preflight, Diagnostic> {
+    pub(crate) fn execute_core<E: ReuseExecution>(
+        &mut self,
+        mut execution: E,
+    ) -> Result<E::Accepted, Diagnostic> {
+        self.last_phases.restart();
+        self.last_phases.record(Phase::PreflightAttempt);
+        let input = match execution.preflight_input(self.plan) {
+            Ok(input) => input,
+            Err(error) => {
+                self.last_phases.record(Phase::PreflightRejected);
+                return Err(error);
+            }
+        };
+        let preflight = match self.preflight(
+            input,
+            execution.validation_omission(),
+            execution.requires_numeric_reuse_validation(),
+        ) {
+            Ok(preflight) => preflight,
+            Err(error) => {
+                self.last_phases.record(Phase::PreflightRejected);
+                return Err(error);
+            }
+        };
+        self.last_phases.record(Phase::PreflightSuccess);
+        self.counters.begin_attempt();
+
+        let (candidate_solution, candidate_factors) = match preflight.action {
+            ReuseAction::BuildSymbolicAndNumeric => {
+                self.last_phases.record(Phase::SymbolicAttempt);
+                let symbolic = execution.factor_symbolic()?;
+                self.last_phases.record(Phase::SymbolicSuccess);
+                self.last_phases.record(Phase::NumericAttempt);
+                let numeric = execution.factor_numeric(&symbolic)?;
+                self.last_phases.record(Phase::NumericSuccess);
+                self.last_phases.record(Phase::CandidateFactorSolve);
+                let solution = execution.solve(&symbolic, &numeric)?;
+                (
+                    solution,
+                    CandidateFactors::SymbolicAndNumeric(symbolic, numeric),
+                )
+            }
+            ReuseAction::ReuseNumeric => {
+                self.last_phases.record(Phase::RetainedFactorSolve);
+                let ready = self.ready_state()?;
+                let solution = execution.solve(&ready.symbolic_factor, &ready.numeric_factor)?;
+                (solution, CandidateFactors::Retained)
+            }
+            ReuseAction::RebuildNumeric => {
+                self.last_phases.record(Phase::NumericAttempt);
+                let numeric = {
+                    let ready = self.ready_state()?;
+                    execution.factor_numeric(&ready.symbolic_factor)?
+                };
+                self.last_phases.record(Phase::NumericSuccess);
+                self.last_phases.record(Phase::CandidateFactorSolve);
+                let solution = {
+                    let ready = self.ready_state()?;
+                    execution.solve(&ready.symbolic_factor, &numeric)?
+                };
+                (solution, CandidateFactors::Numeric(numeric))
+            }
+        };
+
+        self.last_phases.record(Phase::SolverAcceptanceAttempt);
+        let solver_accepted = execution.accept_solver(candidate_solution)?;
+        self.last_phases.record(Phase::SolverAcceptanceSuccess);
+        self.last_phases.record(Phase::ExecutionAcceptanceAttempt);
+        let accepted = execution.accept_execution(solver_accepted)?;
+        self.last_phases.record(Phase::ExecutionAcceptanceSuccess);
+        self.commit(preflight, candidate_factors)?;
+        self.last_phases.record(Phase::StateCommit);
+        Ok(accepted)
+    }
+
+    fn preflight(
+        &self,
+        input: PreflightInput,
+        omission: Option<ValidationComponent>,
+        requires_numeric_reuse_validation: bool,
+    ) -> Result<Preflight, Diagnostic> {
         if self.counters.attempted >= self.maximum_attempts.get() {
             return Err(invalid_realization(
                 "faer sparse LU reuse owner exhausted its numerical attempt capacity",
             ));
         }
-        let binding = admitted.binding();
-        let Some(host) = binding.host_executor() else {
-            return Err(invalid_realization(
-                "faer sparse LU reuse requires a host deployment binding",
-            ));
-        };
-        if binding.execution() != ExecutionReport::host_serial()
-            || binding.execution_provider() != SERIAL_EXECUTION_PROVIDER
-            || binding.verification_provider() != SERIAL_EXECUTION_PROVIDER
-        {
-            return Err(invalid_realization(
-                "faer sparse LU reuse requires the direct one-worker host execution provider",
-            ));
-        }
-        if host.solver_provider() != FAER_SOLVER_PROVIDER
-            || binding.solver_provider() != FAER_SOLVER_PROVIDER
-        {
-            return Err(invalid_realization(
-                "faer sparse LU reuse requires the pinned faer provider descriptor",
-            ));
-        }
-        if binding.solver_plan() != self.plan || admitted.solver_plan() != self.plan {
-            return Err(invalid_realization(
-                "faer sparse LU reuse execution plan differs from the immutable owner plan",
-            ));
-        }
-        let system = admitted.system();
-        if system.orientation() != LinearOperatorOrientation::Normal {
-            return Err(invalid_realization(
-                "faer sparse LU reuse requires normal-orientation canonical CSR",
-            ));
-        }
-
-        let identities = identities(system, self.plan, binding.solver_provider())?;
-        let structure = identities.structure;
-        let coefficients = identities.coefficients;
-        let policy = identities.policy;
-
         let action = match &self.state {
             ReuseState::Empty => ReuseAction::BuildSymbolicAndNumeric,
             ReuseState::Ready(ready) => {
@@ -258,20 +219,20 @@ impl FaerSparseLuReuseOwner {
                     ready.symbolic_identity,
                     ready.numeric_identity,
                 )?;
-                let validation = ValidationComponents {
-                    accepted_binding: binding_shell_equal(&ready.binding, binding),
-                    structure: ready.structure_identity == structure,
-                    coefficients: ready.coefficient_identity == coefficients,
-                    policy: ready.policy_identity == policy,
-                    provider: ready.binding.solver_provider() == binding.solver_provider(),
-                    graph: ready.binding.realization() == binding.realization(),
-                };
-                validation.classify()?
+                let validation = ValidationComponents::between(ready, &input);
+                if requires_numeric_reuse_validation
+                    && !validation.authorizes_numeric(omission)
+                {
+                    return Err(invalid_realization(
+                        "faer sparse LU numeric reuse validation rejected a changed component",
+                    ));
+                }
+                validation.classify(omission)?
             }
         };
         Ok(Preflight {
-            binding: binding.clone(),
-            identities,
+            binding: input.binding,
+            identities: input.identities,
             action,
         })
     }
@@ -328,6 +289,238 @@ impl FaerSparseLuReuseOwner {
         }
         Ok(())
     }
+
+    #[cfg(test)]
+    pub(crate) fn phase_names(&self) -> Vec<&'static str> {
+        self.last_phases.names()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_snapshot(&self) -> OwnerSnapshot {
+        let mut snapshot = OwnerSnapshot {
+            counters: self.counters.as_array(),
+            binding: None,
+            symbolic_identity: self.symbolic_reuse_identity(),
+            numeric_identity: self.numeric_reuse_identity(),
+            symbolic_factor: None,
+            numeric_factor: None,
+        };
+        if let ReuseState::Ready(ready) = &self.state {
+            if let ReuseBinding::Synthetic(binding) = ready.binding {
+                snapshot.binding = Some(binding);
+            }
+            snapshot.symbolic_factor = ready.symbolic_factor.synthetic_token();
+            snapshot.numeric_factor = ready.numeric_factor.synthetic_token();
+        }
+        snapshot
+    }
+
+    #[cfg(test)]
+    pub(crate) fn validation_for(&self, input: &PreflightInput) -> ValidationComponents {
+        let ReuseState::Ready(ready) = &self.state else {
+            panic!("validation observation requires one committed state");
+        };
+        ValidationComponents::between(ready, input)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn inject_factor_state(&mut self, mutant: InjectedFactorState) {
+        let ReuseState::Ready(ready) = &mut self.state else {
+            panic!("factor-state injection requires one committed state");
+        };
+        match mutant {
+            InjectedFactorState::Stale => ready.factor_state.status = FactorStateStatus::Stale,
+            InjectedFactorState::Foreign => {
+                ready.factor_state.symbolic_identity = Some([0xF0; 32]);
+            }
+            InjectedFactorState::PartiallyConstructed => {
+                ready.factor_state.numeric_identity = None;
+            }
+            InjectedFactorState::Failed => ready.factor_state.status = FactorStateStatus::Failed,
+            InjectedFactorState::Singular => {
+                ready.factor_state.status = FactorStateStatus::Singular;
+            }
+        }
+    }
+}
+
+struct LiveExecution<'system> {
+    admitted: Option<AdmittedExecution<'system>>,
+}
+
+impl<'system> LiveExecution<'system> {
+    fn new(admitted: AdmittedExecution<'system>) -> Self {
+        Self {
+            admitted: Some(admitted),
+        }
+    }
+
+    fn admitted(&self) -> &AdmittedExecution<'system> {
+        self.admitted
+            .as_ref()
+            .expect("live execution remains available until execution acceptance")
+    }
+}
+
+impl ReuseExecution for LiveExecution<'_> {
+    type CandidateSolution = Vec<f64>;
+    type SolverAccepted = LinearSolution;
+    type Accepted = AcceptedLinearExecution;
+
+    fn preflight_input(&self, owner_plan: SolverPlan) -> Result<PreflightInput, Diagnostic> {
+        let admitted = self.admitted();
+        let binding = admitted.binding();
+        let Some(host) = binding.host_executor() else {
+            return Err(invalid_realization(
+                "faer sparse LU reuse requires a host deployment binding",
+            ));
+        };
+        if binding.execution() != ExecutionReport::host_serial()
+            || binding.execution_provider() != SERIAL_EXECUTION_PROVIDER
+            || binding.verification_provider() != SERIAL_EXECUTION_PROVIDER
+        {
+            return Err(invalid_realization(
+                "faer sparse LU reuse requires the direct one-worker host execution provider",
+            ));
+        }
+        if host.solver_provider() != FAER_SOLVER_PROVIDER
+            || binding.solver_provider() != FAER_SOLVER_PROVIDER
+        {
+            return Err(invalid_realization(
+                "faer sparse LU reuse requires the pinned faer provider descriptor",
+            ));
+        }
+        if binding.solver_plan() != owner_plan || admitted.solver_plan() != owner_plan {
+            return Err(invalid_realization(
+                "faer sparse LU reuse execution plan differs from the immutable owner plan",
+            ));
+        }
+        let system = admitted.system();
+        if system.orientation() != LinearOperatorOrientation::Normal {
+            return Err(invalid_realization(
+                "faer sparse LU reuse requires normal-orientation canonical CSR",
+            ));
+        }
+        Ok(PreflightInput {
+            binding: ReuseBinding::Live(binding.clone()),
+            identities: identities(system, owner_plan, binding.solver_provider())?,
+        })
+    }
+
+    fn factor_symbolic(&mut self) -> Result<StoredSymbolicFactor, Diagnostic> {
+        Ok(StoredSymbolicFactor::Live(factor_symbolic(
+            self.admitted().system(),
+        )?))
+    }
+
+    fn factor_numeric(
+        &mut self,
+        symbolic: &StoredSymbolicFactor,
+    ) -> Result<StoredNumericFactor, Diagnostic> {
+        let symbolic = match symbolic {
+            StoredSymbolicFactor::Live(symbolic) => symbolic,
+            #[cfg(test)]
+            StoredSymbolicFactor::Synthetic(_) => {
+                return Err(invalid_realization(
+                    "live execution received synthetic symbolic state",
+                ));
+            }
+        };
+        Ok(StoredNumericFactor::Live(factor_numeric(
+            symbolic,
+            self.admitted().system(),
+        )?))
+    }
+
+    fn solve(
+        &mut self,
+        symbolic: &StoredSymbolicFactor,
+        numeric: &StoredNumericFactor,
+    ) -> Result<Self::CandidateSolution, Diagnostic> {
+        let symbolic = match symbolic {
+            StoredSymbolicFactor::Live(symbolic) => symbolic,
+            #[cfg(test)]
+            StoredSymbolicFactor::Synthetic(_) => {
+                return Err(invalid_realization(
+                    "live execution received synthetic factor state",
+                ));
+            }
+        };
+        let numeric = match numeric {
+            StoredNumericFactor::Live(numeric) => numeric,
+            #[cfg(test)]
+            StoredNumericFactor::Synthetic(_) => {
+                return Err(invalid_realization(
+                    "live execution received synthetic factor state",
+                ));
+            }
+        };
+        solve_factored(
+            symbolic,
+            numeric,
+            self.admitted().system().right_hand_side(),
+        )
+    }
+
+    fn accept_solver(
+        &mut self,
+        values: Self::CandidateSolution,
+    ) -> Result<Self::SolverAccepted, Diagnostic> {
+        let system = self.admitted().system();
+        let problem = system.linear_problem()?;
+        let reported_residual_norm = fixed_residual_norm(&problem, &values)?;
+        accept_linear_solution(
+            &problem,
+            self.admitted().solver_plan(),
+            FAER_SOLVER_PROVIDER,
+            ConvergenceReason::ResidualToleranceSatisfied,
+            1,
+            reported_residual_norm,
+            values,
+        )
+    }
+
+    fn accept_execution(
+        &mut self,
+        solution: Self::SolverAccepted,
+    ) -> Result<Self::Accepted, Diagnostic> {
+        self.admitted
+            .take()
+            .expect("live execution accepts exactly once")
+            .accept(solution)
+    }
+}
+
+pub(crate) trait ReuseExecution {
+    type CandidateSolution;
+    type SolverAccepted;
+    type Accepted;
+
+    fn preflight_input(&self, owner_plan: SolverPlan) -> Result<PreflightInput, Diagnostic>;
+    fn factor_symbolic(&mut self) -> Result<StoredSymbolicFactor, Diagnostic>;
+    fn factor_numeric(
+        &mut self,
+        symbolic: &StoredSymbolicFactor,
+    ) -> Result<StoredNumericFactor, Diagnostic>;
+    fn solve(
+        &mut self,
+        symbolic: &StoredSymbolicFactor,
+        numeric: &StoredNumericFactor,
+    ) -> Result<Self::CandidateSolution, Diagnostic>;
+    fn accept_solver(
+        &mut self,
+        candidate: Self::CandidateSolution,
+    ) -> Result<Self::SolverAccepted, Diagnostic>;
+    fn accept_execution(
+        &mut self,
+        accepted: Self::SolverAccepted,
+    ) -> Result<Self::Accepted, Diagnostic>;
+    fn validation_omission(&self) -> Option<ValidationComponent> {
+        None
+    }
+    fn requires_numeric_reuse_validation(&self) -> bool {
+        false
+    }
 }
 
 #[derive(Debug)]
@@ -338,29 +531,84 @@ enum ReuseState {
 
 #[derive(Debug)]
 struct ReadyState {
-    binding: DeploymentBinding,
+    binding: ReuseBinding,
     structure_identity: [u8; 32],
     coefficient_identity: [u8; 32],
     policy_identity: [u8; 32],
     symbolic_identity: [u8; 32],
     numeric_identity: [u8; 32],
-    symbolic_factor: SparseLuSymbolicFactor,
-    numeric_factor: SparseLuNumericFactor,
+    symbolic_factor: StoredSymbolicFactor,
+    numeric_factor: StoredNumericFactor,
     factor_state: FactorStateMarker,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum ReuseBinding {
+    Live(DeploymentBinding),
+    #[cfg(test)]
+    Synthetic(SyntheticBinding),
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SyntheticBinding {
+    pub(crate) shell: u64,
+    pub(crate) provider: u64,
+    pub(crate) graph: u64,
+}
+
+#[derive(Debug)]
+pub(crate) enum StoredSymbolicFactor {
+    Live(SparseLuSymbolicFactor),
+    #[cfg(test)]
+    Synthetic(u64),
+}
+
+impl StoredSymbolicFactor {
+    #[cfg(test)]
+    fn synthetic_token(&self) -> Option<u64> {
+        match self {
+            Self::Synthetic(token) => Some(*token),
+            Self::Live(_) => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum StoredNumericFactor {
+    Live(SparseLuNumericFactor),
+    #[cfg(test)]
+    Synthetic(u64),
+}
+
+impl StoredNumericFactor {
+    #[cfg(test)]
+    fn synthetic_token(&self) -> Option<u64> {
+        match self {
+            Self::Synthetic(token) => Some(*token),
+            Self::Live(_) => None,
+        }
+    }
 }
 
 #[derive(Debug)]
 enum CandidateFactors {
-    SymbolicAndNumeric(SparseLuSymbolicFactor, SparseLuNumericFactor),
-    Numeric(SparseLuNumericFactor),
+    SymbolicAndNumeric(StoredSymbolicFactor, StoredNumericFactor),
+    Numeric(StoredNumericFactor),
     Retained,
 }
 
 #[derive(Debug)]
 struct Preflight {
-    binding: DeploymentBinding,
+    binding: ReuseBinding,
     identities: IdentitySet,
     action: ReuseAction,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct PreflightInput {
+    pub(crate) binding: ReuseBinding,
+    pub(crate) identities: IdentitySet,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -371,7 +619,7 @@ enum ReuseAction {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct ValidationComponents {
+pub(crate) struct ValidationComponents {
     accepted_binding: bool,
     structure: bool,
     coefficients: bool,
@@ -381,30 +629,89 @@ struct ValidationComponents {
 }
 
 impl ValidationComponents {
-    fn classify(self) -> Result<ReuseAction, Diagnostic> {
-        if !(self.accepted_binding && self.structure && self.policy && self.provider && self.graph)
+    fn between(ready: &ReadyState, input: &PreflightInput) -> Self {
+        let (accepted_binding, provider, graph) = match (&ready.binding, &input.binding) {
+            (ReuseBinding::Live(left), ReuseBinding::Live(right)) => (
+                binding_shell_equal(left, right),
+                left.solver_provider() == right.solver_provider(),
+                left.realization() == right.realization(),
+            ),
+            #[cfg(test)]
+            (ReuseBinding::Synthetic(left), ReuseBinding::Synthetic(right)) => (
+                left.shell == right.shell,
+                left.provider == right.provider,
+                left.graph == right.graph,
+            ),
+            #[cfg(test)]
+            (ReuseBinding::Live(_), ReuseBinding::Synthetic(_))
+            | (ReuseBinding::Synthetic(_), ReuseBinding::Live(_)) => (false, false, false),
+        };
+        Self {
+            accepted_binding,
+            structure: ready.structure_identity == input.identities.structure,
+            coefficients: ready.coefficient_identity == input.identities.coefficients,
+            policy: ready.policy_identity == input.identities.policy,
+            provider,
+            graph,
+        }
+    }
+
+    fn classify(
+        self,
+        omission: Option<ValidationComponent>,
+    ) -> Result<ReuseAction, Diagnostic> {
+        let includes = |component, value| omission == Some(component) || value;
+        if !(includes(ValidationComponent::AcceptedBinding, self.accepted_binding)
+            && includes(ValidationComponent::Structure, self.structure)
+            && includes(ValidationComponent::Policy, self.policy)
+            && includes(ValidationComponent::Provider, self.provider)
+            && includes(ValidationComponent::Graph, self.graph))
         {
             return Err(invalid_realization(
                 "faer sparse LU reuse binding, structure, policy, provider, or graph changed",
             ));
         }
-        Ok(if self.coefficients {
+        Ok(if includes(ValidationComponent::Coefficients, self.coefficients) {
             ReuseAction::ReuseNumeric
         } else {
             ReuseAction::RebuildNumeric
         })
     }
 
-    #[cfg(test)]
-    fn authorizes_numeric(self, omitted: Option<ValidationComponent>) -> bool {
-        let included = |component, matches| omitted == Some(component) || matches;
-        included(ValidationComponent::AcceptedBinding, self.accepted_binding)
-            && included(ValidationComponent::Structure, self.structure)
-            && included(ValidationComponent::Coefficients, self.coefficients)
-            && included(ValidationComponent::Policy, self.policy)
-            && included(ValidationComponent::Provider, self.provider)
-            && included(ValidationComponent::Graph, self.graph)
+    pub(crate) fn authorizes_numeric(self, omission: Option<ValidationComponent>) -> bool {
+        let includes = |component, value| omission == Some(component) || value;
+        includes(ValidationComponent::AcceptedBinding, self.accepted_binding)
+            && includes(ValidationComponent::Structure, self.structure)
+            && includes(ValidationComponent::Coefficients, self.coefficients)
+            && includes(ValidationComponent::Policy, self.policy)
+            && includes(ValidationComponent::Provider, self.provider)
+            && includes(ValidationComponent::Graph, self.graph)
     }
+
+    #[cfg(test)]
+    pub(crate) fn difference_count(self) -> usize {
+        [
+            self.accepted_binding,
+            self.structure,
+            self.coefficients,
+            self.policy,
+            self.provider,
+            self.graph,
+        ]
+        .into_iter()
+        .filter(|equal| !equal)
+        .count()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ValidationComponent {
+    AcceptedBinding,
+    Structure,
+    Coefficients,
+    Policy,
+    Provider,
+    Graph,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -450,28 +757,6 @@ enum Phase {
     StateCommit,
 }
 
-#[cfg(test)]
-impl Phase {
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::PreflightAttempt => "preflight-attempt",
-            Self::PreflightSuccess => "preflight-success",
-            Self::PreflightRejected => "preflight-rejected",
-            Self::SymbolicAttempt => "symbolic-attempt",
-            Self::SymbolicSuccess => "symbolic-success",
-            Self::NumericAttempt => "numeric-attempt",
-            Self::NumericSuccess => "numeric-success",
-            Self::RetainedFactorSolve => "retained-factor-solve",
-            Self::CandidateFactorSolve => "candidate-factor-solve",
-            Self::SolverAcceptanceAttempt => "solver-acceptance-attempt",
-            Self::SolverAcceptanceSuccess => "solver-acceptance-success",
-            Self::ExecutionAcceptanceAttempt => "execution-acceptance-attempt",
-            Self::ExecutionAcceptanceSuccess => "execution-acceptance-success",
-            Self::StateCommit => "state-commit",
-        }
-    }
-}
-
 #[derive(Debug, Default)]
 struct PhaseLedger {
     phases: Vec<Phase>,
@@ -488,7 +773,25 @@ impl PhaseLedger {
 
     #[cfg(test)]
     fn names(&self) -> Vec<&'static str> {
-        self.phases.iter().map(|phase| phase.as_str()).collect()
+        self.phases
+            .iter()
+            .map(|phase| match phase {
+                Phase::PreflightAttempt => "preflight-attempt",
+                Phase::PreflightSuccess => "preflight-success",
+                Phase::PreflightRejected => "preflight-rejected",
+                Phase::SymbolicAttempt => "symbolic-attempt",
+                Phase::SymbolicSuccess => "symbolic-success",
+                Phase::NumericAttempt => "numeric-attempt",
+                Phase::NumericSuccess => "numeric-success",
+                Phase::RetainedFactorSolve => "retained-factor-solve",
+                Phase::CandidateFactorSolve => "candidate-factor-solve",
+                Phase::SolverAcceptanceAttempt => "solver-acceptance-attempt",
+                Phase::SolverAcceptanceSuccess => "solver-acceptance-success",
+                Phase::ExecutionAcceptanceAttempt => "execution-acceptance-attempt",
+                Phase::ExecutionAcceptanceSuccess => "execution-acceptance-success",
+                Phase::StateCommit => "state-commit",
+            })
+            .collect()
     }
 }
 
@@ -497,10 +800,6 @@ enum FactorStateStatus {
     Ready,
     #[cfg(test)]
     Stale,
-    #[cfg(test)]
-    Foreign,
-    #[cfg(test)]
-    PartiallyConstructed,
     #[cfg(test)]
     Failed,
     #[cfg(test)]
@@ -540,454 +839,33 @@ fn validate_factor_state(
     Ok(())
 }
 
+#[cfg(test)]
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum InjectedFactorState {
+    Stale,
+    Foreign,
+    PartiallyConstructed,
+    Failed,
+    Singular,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OwnerSnapshot {
+    pub(crate) counters: [usize; 4],
+    pub(crate) binding: Option<SyntheticBinding>,
+    pub(crate) symbolic_identity: Option<[u8; 32]>,
+    pub(crate) numeric_identity: Option<[u8; 32]>,
+    pub(crate) symbolic_factor: Option<u64>,
+    pub(crate) numeric_factor: Option<u64>,
+}
+
 fn invalid_realization(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_REALIZATION, message)
 }
 
 #[cfg(test)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ValidationComponent {
-    AcceptedBinding,
-    Structure,
-    Coefficients,
-    Policy,
-    Provider,
-    Graph,
-}
-
-#[cfg(test)]
-pub(crate) mod test_support {
-    use super::*;
-
-    #[derive(Debug, Clone, Copy)]
-    pub(crate) enum PhaseScenario {
-        P0P1P2,
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub(crate) enum CandidateFailurePoint {
-        NumericFactorization,
-        CandidateSolve,
-        SolverAcceptance,
-        ExecutionAcceptance,
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub(crate) enum ValidationMutant {
-        ExistingFullCsrOmitsRightHandSide,
-        ReuseOmitsStructure,
-        ReuseOmitsCoefficients,
-        ReuseOmitsPolicy,
-        ReuseOmitsProvider,
-        ReuseOmitsPortableRealizationGraph,
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub(crate) enum FactorStateMutant {
-        Stale,
-        Foreign,
-        PartiallyConstructed,
-        Failed,
-        Singular,
-    }
-
-    #[derive(Debug)]
-    pub(crate) struct PhaseTrace {
-        ids: Vec<&'static str>,
-        phases: Vec<Vec<&'static str>>,
-        counters: [usize; 4],
-        identities: IdentityRelations,
-    }
-
-    impl PhaseTrace {
-        pub(crate) fn operation_ids(&self) -> &[&'static str] {
-            &self.ids
-        }
-
-        pub(crate) fn operation_phases(&self, index: usize) -> &[&'static str] {
-            &self.phases[index]
-        }
-
-        pub(crate) const fn final_counters(&self) -> [usize; 4] {
-            self.counters
-        }
-
-        pub(crate) const fn identity_relations(&self) -> IdentityRelations {
-            self.identities
-        }
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub(crate) struct IdentityRelations {
-        p0_p1_structure: bool,
-        p0_p1_coefficients: bool,
-        p0_p1_symbolic: bool,
-        p0_p1_numeric: bool,
-        p0_p1_rhs: bool,
-        p0_p1_full_csr: bool,
-        p1_p2_structure: bool,
-        p1_p2_coefficients: bool,
-        p1_p2_symbolic: bool,
-        p1_p2_numeric: bool,
-    }
-
-    macro_rules! identity_getter {
-        ($name:ident, $field:ident) => {
-            pub(crate) const fn $name(self) -> bool {
-                self.$field
-            }
-        };
-    }
-
-    impl IdentityRelations {
-        identity_getter!(p0_p1_structure_equal, p0_p1_structure);
-        identity_getter!(p0_p1_coefficients_equal, p0_p1_coefficients);
-        identity_getter!(p0_p1_symbolic_equal, p0_p1_symbolic);
-        identity_getter!(p0_p1_numeric_equal, p0_p1_numeric);
-        identity_getter!(p0_p1_rhs_equal, p0_p1_rhs);
-        identity_getter!(p0_p1_full_csr_equal, p0_p1_full_csr);
-        identity_getter!(p1_p2_structure_equal, p1_p2_structure);
-        identity_getter!(p1_p2_coefficients_equal, p1_p2_coefficients);
-        identity_getter!(p1_p2_symbolic_equal, p1_p2_symbolic);
-        identity_getter!(p1_p2_numeric_equal, p1_p2_numeric);
-    }
-
-    pub(crate) fn phase_trace(_scenario: PhaseScenario) -> PhaseTrace {
-        let mut counters = Counters::default();
-        let p0 = accepted_trace(&mut counters, ReuseAction::BuildSymbolicAndNumeric);
-        let p1 = accepted_trace(&mut counters, ReuseAction::ReuseNumeric);
-        let p2 = accepted_trace(&mut counters, ReuseAction::RebuildNumeric);
-        PhaseTrace {
-            ids: vec!["p0", "p1", "p2"],
-            phases: vec![p0, p1, p2],
-            counters: counters.as_array(),
-            identities: identity_relations(),
-        }
-    }
-
-    #[derive(Debug)]
-    pub(crate) struct RetentionTrace {
-        ids: Vec<&'static str>,
-        phases: Vec<Vec<&'static str>>,
-        after_failure: [usize; 4],
-        final_counters: [usize; 4],
-    }
-
-    impl RetentionTrace {
-        pub(crate) fn operation_ids(&self) -> &[&'static str] {
-            &self.ids
-        }
-
-        pub(crate) fn operation_phases(&self, index: usize) -> &[&'static str] {
-            &self.phases[index]
-        }
-
-        pub(crate) const fn after_failure_counters(&self) -> [usize; 4] {
-            self.after_failure
-        }
-
-        pub(crate) const fn final_counters(&self) -> [usize; 4] {
-            self.final_counters
-        }
-
-        pub(crate) const fn committed_binding_retained(&self) -> bool {
-            true
-        }
-        pub(crate) const fn committed_symbolic_identity_retained(&self) -> bool {
-            true
-        }
-        pub(crate) const fn committed_numeric_identity_retained(&self) -> bool {
-            true
-        }
-        pub(crate) const fn failed_candidate_identity_was_never_visible(&self) -> bool {
-            true
-        }
-        pub(crate) const fn p1_used_retained_p0_numeric_factor(&self) -> bool {
-            true
-        }
-    }
-
-    pub(crate) fn retention_trace() -> RetentionTrace {
-        let mut counters = Counters::default();
-        let p0 = accepted_trace(&mut counters, ReuseAction::BuildSymbolicAndNumeric);
-        let mut singular = PhaseLedger::default();
-        singular.record(Phase::PreflightAttempt);
-        singular.record(Phase::PreflightSuccess);
-        counters.begin_attempt();
-        singular.record(Phase::NumericAttempt);
-        let after_failure = counters.as_array();
-        let p1 = accepted_trace(&mut counters, ReuseAction::ReuseNumeric);
-        RetentionTrace {
-            ids: vec!["p0", "singular-candidate", "p1"],
-            phases: vec![p0, singular.names(), p1],
-            after_failure,
-            final_counters: counters.as_array(),
-        }
-    }
-
-    #[derive(Debug)]
-    pub(crate) struct CandidateFailureObservation {
-        phases: Vec<&'static str>,
-    }
-
-    impl CandidateFailureObservation {
-        pub(crate) fn phases(&self) -> &[&'static str] {
-            &self.phases
-        }
-        pub(crate) const fn counters(&self) -> [usize; 4] {
-            [2, 1, 1, 1]
-        }
-        pub(crate) const fn committed_binding_retained(&self) -> bool {
-            true
-        }
-        pub(crate) const fn committed_symbolic_identity_retained(&self) -> bool {
-            true
-        }
-        pub(crate) const fn committed_numeric_identity_retained(&self) -> bool {
-            true
-        }
-        pub(crate) const fn candidate_identity_visible(&self) -> bool {
-            false
-        }
-        pub(crate) const fn state_commit_reached(&self) -> bool {
-            false
-        }
-    }
-
-    pub(crate) fn candidate_failure_observation(
-        failure: CandidateFailurePoint,
-    ) -> CandidateFailureObservation {
-        let mut ledger = PhaseLedger::default();
-        ledger.record(Phase::PreflightAttempt);
-        ledger.record(Phase::PreflightSuccess);
-        ledger.record(Phase::NumericAttempt);
-        if !matches!(failure, CandidateFailurePoint::NumericFactorization) {
-            ledger.record(Phase::NumericSuccess);
-            ledger.record(Phase::CandidateFactorSolve);
-        }
-        if matches!(
-            failure,
-            CandidateFailurePoint::SolverAcceptance | CandidateFailurePoint::ExecutionAcceptance
-        ) {
-            ledger.record(Phase::SolverAcceptanceAttempt);
-        }
-        if matches!(failure, CandidateFailurePoint::ExecutionAcceptance) {
-            ledger.record(Phase::SolverAcceptanceSuccess);
-            ledger.record(Phase::ExecutionAcceptanceAttempt);
-        }
-        CandidateFailureObservation {
-            phases: ledger.names(),
-        }
-    }
-
-    #[derive(Debug)]
-    pub(crate) struct ValidationMutantObservation {
-        baseline: bool,
-        mutant: bool,
-    }
-
-    impl ValidationMutantObservation {
-        pub(crate) const fn baseline_authorizes(&self) -> bool {
-            self.baseline
-        }
-        pub(crate) const fn mutant_authorizes(&self) -> bool {
-            self.mutant
-        }
-        pub(crate) const fn only_targeted_component_differs(&self) -> bool {
-            true
-        }
-        pub(crate) const fn committed_state_unchanged_by_baseline_rejection(&self) -> bool {
-            true
-        }
-        pub(crate) const fn baseline_rejection_phases(&self) -> &[&str] {
-            &["preflight-attempt", "preflight-rejected"]
-        }
-        pub(crate) const fn baseline_numerical_attempt_delta(&self) -> usize {
-            0
-        }
-    }
-
-    pub(crate) fn validation_mutant_observation(
-        mutant: ValidationMutant,
-    ) -> ValidationMutantObservation {
-        if matches!(mutant, ValidationMutant::ExistingFullCsrOmitsRightHandSide) {
-            let (baseline, mutant) = rhs_omission_mutant_observation();
-            return ValidationMutantObservation { baseline, mutant };
-        }
-        let component = match mutant {
-            ValidationMutant::ExistingFullCsrOmitsRightHandSide => unreachable!(),
-            ValidationMutant::ReuseOmitsStructure => ValidationComponent::Structure,
-            ValidationMutant::ReuseOmitsCoefficients => ValidationComponent::Coefficients,
-            ValidationMutant::ReuseOmitsPolicy => ValidationComponent::Policy,
-            ValidationMutant::ReuseOmitsProvider => ValidationComponent::Provider,
-            ValidationMutant::ReuseOmitsPortableRealizationGraph => ValidationComponent::Graph,
-        };
-        let mut validation = ValidationComponents {
-            accepted_binding: true,
-            structure: true,
-            coefficients: true,
-            policy: true,
-            provider: true,
-            graph: true,
-        };
-        match component {
-            ValidationComponent::AcceptedBinding => validation.accepted_binding = false,
-            ValidationComponent::Structure => validation.structure = false,
-            ValidationComponent::Coefficients => validation.coefficients = false,
-            ValidationComponent::Policy => validation.policy = false,
-            ValidationComponent::Provider => validation.provider = false,
-            ValidationComponent::Graph => validation.graph = false,
-        }
-        ValidationMutantObservation {
-            baseline: validation.authorizes_numeric(None),
-            mutant: validation.authorizes_numeric(Some(component)),
-        }
-    }
-
-    #[derive(Debug)]
-    pub(crate) struct FactorStateRejectionObservation {
-        rejected: bool,
-    }
-
-    impl FactorStateRejectionObservation {
-        pub(crate) const fn error_code(&self) -> &str {
-            if self.rejected { "EQ0807" } else { "" }
-        }
-        pub(crate) const fn phases(&self) -> &[&str] {
-            &["preflight-attempt", "preflight-rejected"]
-        }
-        pub(crate) const fn factor_solve_reached(&self) -> bool {
-            false
-        }
-        pub(crate) const fn numerical_attempt_delta(&self) -> usize {
-            0
-        }
-        pub(crate) const fn committed_binding_retained(&self) -> bool {
-            true
-        }
-        pub(crate) const fn committed_identities_retained(&self) -> bool {
-            true
-        }
-        pub(crate) const fn public_counters_unchanged(&self) -> bool {
-            true
-        }
-    }
-
-    pub(crate) fn factor_state_rejection_observation(
-        mutant: FactorStateMutant,
-    ) -> FactorStateRejectionObservation {
-        let status = match mutant {
-            FactorStateMutant::Stale => FactorStateStatus::Stale,
-            FactorStateMutant::Foreign => FactorStateStatus::Foreign,
-            FactorStateMutant::PartiallyConstructed => FactorStateStatus::PartiallyConstructed,
-            FactorStateMutant::Failed => FactorStateStatus::Failed,
-            FactorStateMutant::Singular => FactorStateStatus::Singular,
-        };
-        let symbolic = [3; 32];
-        let numeric = [5; 32];
-        let marker = FactorStateMarker {
-            status,
-            symbolic_identity: Some(symbolic),
-            numeric_identity: Some(numeric),
-        };
-        FactorStateRejectionObservation {
-            rejected: validate_factor_state(marker, symbolic, numeric)
-                .is_err_and(|error| error.code() == codes::INVALID_REALIZATION),
-        }
-    }
-
-    fn accepted_trace(counters: &mut Counters, action: ReuseAction) -> Vec<&'static str> {
-        let mut ledger = PhaseLedger::default();
-        ledger.record(Phase::PreflightAttempt);
-        ledger.record(Phase::PreflightSuccess);
-        counters.begin_attempt();
-        match action {
-            ReuseAction::BuildSymbolicAndNumeric => {
-                ledger.record(Phase::SymbolicAttempt);
-                ledger.record(Phase::SymbolicSuccess);
-                ledger.record(Phase::NumericAttempt);
-                ledger.record(Phase::NumericSuccess);
-                ledger.record(Phase::CandidateFactorSolve);
-                counters.commit(true, true);
-            }
-            ReuseAction::ReuseNumeric => {
-                ledger.record(Phase::RetainedFactorSolve);
-                counters.commit(false, false);
-            }
-            ReuseAction::RebuildNumeric => {
-                ledger.record(Phase::NumericAttempt);
-                ledger.record(Phase::NumericSuccess);
-                ledger.record(Phase::CandidateFactorSolve);
-                counters.commit(false, true);
-            }
-        }
-        ledger.record(Phase::SolverAcceptanceAttempt);
-        ledger.record(Phase::SolverAcceptanceSuccess);
-        ledger.record(Phase::ExecutionAcceptanceAttempt);
-        ledger.record(Phase::ExecutionAcceptanceSuccess);
-        ledger.record(Phase::StateCommit);
-        ledger.names()
-    }
-
-    fn identity_relations() -> IdentityRelations {
-        let p0_structure = synthetic_structure(1, 1, &[0, 1], &[0]);
-        let p1_structure = synthetic_structure(1, 1, &[0, 1], &[0]);
-        let p2_structure = synthetic_structure(1, 1, &[0, 1], &[0]);
-        let p0_coefficients = synthetic_coefficients(p0_structure, &[4.0]);
-        let p1_coefficients = synthetic_coefficients(p1_structure, &[4.0]);
-        let p2_coefficients = synthetic_coefficients(p2_structure, &[5.0]);
-        let policy = [7; 32];
-        let p0_symbolic = symbolic_identity(p0_structure, policy);
-        let p1_symbolic = symbolic_identity(p1_structure, policy);
-        let p2_symbolic = symbolic_identity(p2_structure, policy);
-        IdentityRelations {
-            p0_p1_structure: p0_structure == p1_structure,
-            p0_p1_coefficients: p0_coefficients == p1_coefficients,
-            p0_p1_symbolic: p0_symbolic == p1_symbolic,
-            p0_p1_numeric: numeric_identity(p0_symbolic, p0_coefficients)
-                == numeric_identity(p1_symbolic, p1_coefficients),
-            p0_p1_rhs: false,
-            p0_p1_full_csr: false,
-            p1_p2_structure: p1_structure == p2_structure,
-            p1_p2_coefficients: p1_coefficients == p2_coefficients,
-            p1_p2_symbolic: p1_symbolic == p2_symbolic,
-            p1_p2_numeric: numeric_identity(p1_symbolic, p1_coefficients)
-                == numeric_identity(p2_symbolic, p2_coefficients),
-        }
-    }
-
-    fn synthetic_structure(
-        rows: usize,
-        columns: usize,
-        offsets: &[usize],
-        indices: &[usize],
-    ) -> [u8; 32] {
-        let mut hash = Sha256::new();
-        hash.update(STRUCTURE_DOMAIN);
-        for value in [rows, columns, offsets.len()] {
-            hash.update(u64::try_from(value).unwrap().to_be_bytes());
-        }
-        for &offset in offsets {
-            hash.update(u64::try_from(offset).unwrap().to_be_bytes());
-        }
-        hash.update(u64::try_from(indices.len()).unwrap().to_be_bytes());
-        for &index in indices {
-            hash.update(u64::try_from(index).unwrap().to_be_bytes());
-        }
-        hash.finalize().into()
-    }
-
-    fn synthetic_coefficients(structure: [u8; 32], values: &[f64]) -> [u8; 32] {
-        let mut hash = Sha256::new();
-        hash.update(COEFFICIENT_DOMAIN);
-        hash.update(structure);
-        hash.update(u64::try_from(values.len()).unwrap().to_be_bytes());
-        for &value in values {
-            hash.update(normalized_bits(value).to_be_bytes());
-        }
-        hash.finalize().into()
-    }
-}
+pub(crate) use crate::sparse_lu_factor::test_support;
 
 #[cfg(test)]
 #[path = "sparse_lu_reuse/tests.rs"]
