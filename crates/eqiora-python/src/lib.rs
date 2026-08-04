@@ -23,7 +23,6 @@ mod steady_stokes;
 mod trajectory;
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
-use eqiora::control::{CompileOutcomeV2, CompileRequestV2, execute_compile_v2};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
@@ -31,8 +30,11 @@ use pyo3::types::PyModule;
 pub(crate) use error::diagnostic_error;
 #[doc(hidden)]
 pub use error::panic_boundary;
-use error::{compatibility_error, control_diagnostic_error};
+use error::{compatibility_error, python_compile_admission_error};
 use model::PyModel;
+
+const MAX_PYTHON_COMPILE_FILENAME_BYTES: usize = 4_096;
+const MAX_PYTHON_COMPILE_SOURCE_BYTES: usize = 8 * 1_024 * 1_024;
 
 fn python_distribution_version(cargo_version: &str) -> Option<String> {
     if cargo_version.contains('+') {
@@ -77,11 +79,35 @@ fn python_distribution_version(cargo_version: &str) -> Option<String> {
 #[pyo3(signature = (source, *, filename="<memory>"))]
 fn compile(py: Python<'_>, source: &str, filename: &str) -> PyResult<PyModel> {
     panic_boundary(py, || {
-        let request =
-            CompileRequestV2::new("python.compile", filename.to_owned(), source.to_owned())
-                .map_err(|diagnostic| control_diagnostic_error(py, &[diagnostic]))?;
-        execute_compile_request(py, request)
+        validate_python_compile_input(py, filename, source)?;
+        let filename = filename.to_owned();
+        let source = source.to_owned();
+        py.detach(move || ModelDocument::compile(&filename, &source))
+            .map_err(|diagnostics| diagnostic_error(py, &diagnostics))
+            .and_then(|document| PyModel::from_document(py, document))
     })
+}
+
+fn validate_python_compile_input(py: Python<'_>, filename: &str, source: &str) -> PyResult<()> {
+    if filename.is_empty()
+        || filename.chars().count() > MAX_PYTHON_COMPILE_FILENAME_BYTES
+        || filename.len() > MAX_PYTHON_COMPILE_FILENAME_BYTES
+        || filename.chars().any(char::is_control)
+    {
+        return Err(python_compile_admission_error(
+            py,
+            "source filename must contain 1 to 4096 non-control UTF-8 bytes",
+        ));
+    }
+    if source.chars().count() > MAX_PYTHON_COMPILE_SOURCE_BYTES
+        || source.len() > MAX_PYTHON_COMPILE_SOURCE_BYTES
+    {
+        return Err(python_compile_admission_error(
+            py,
+            "source exceeds the 8388608-byte compile/check v2 limit",
+        ));
+    }
+    Ok(())
 }
 
 /// Replay one canonical artifact through the current Model contract.
@@ -113,25 +139,6 @@ fn replay(py: Python<'_>, data: &[u8]) -> PyResult<PyModel> {
                 None => PyModel::from_artifact(py, artifact),
             })
     })
-}
-
-fn execute_compile_request(py: Python<'_>, request: CompileRequestV2) -> PyResult<PyModel> {
-    let execution = py.detach(move || execute_compile_v2(&request));
-    let (response, document) = execution.into_parts();
-    match response.outcome() {
-        CompileOutcomeV2::Accepted { .. } => document
-            .map(|document| PyModel::from_document(py, document))
-            .transpose()?
-            .ok_or_else(|| {
-                error::internal_error(
-                    py,
-                    "compile/check accepted a model without returning its immutable document",
-                )
-            }),
-        CompileOutcomeV2::Rejected { diagnostics } => {
-            Err(control_diagnostic_error(py, diagnostics))
-        }
-    }
 }
 
 #[pymodule]

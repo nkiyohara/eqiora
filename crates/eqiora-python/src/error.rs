@@ -4,7 +4,6 @@ use std::cell::Cell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Once;
 
-use eqiora::control::{ControlDiagnosticSourceV2, ControlDiagnosticV2, ControlSeverityV2};
 use eqiora::{Diagnostic, Severity};
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
@@ -207,31 +206,6 @@ impl From<&Diagnostic> for PyDiagnostic {
     }
 }
 
-impl From<&ControlDiagnosticV2> for PyDiagnostic {
-    fn from(diagnostic: &ControlDiagnosticV2) -> Self {
-        let severity = match diagnostic.severity() {
-            ControlSeverityV2::Error => "error",
-            ControlSeverityV2::Warning => "warning",
-            ControlSeverityV2::Note => "note",
-        };
-        let source = match diagnostic.source() {
-            ControlDiagnosticSourceV2::Control => "control",
-            ControlDiagnosticSourceV2::Kernel => "kernel",
-        };
-        Self {
-            source: source.to_owned(),
-            code: diagnostic.code().to_owned(),
-            severity: severity.to_owned(),
-            message: diagnostic.message().to_owned(),
-            graph_path: diagnostic.graph_path().map(<[String]>::to_vec),
-            source_span: diagnostic
-                .span()
-                .map(|span| (span.file().to_owned(), span.start(), span.end())),
-            suggestion: diagnostic.patch().map(|patch| patch.summary().to_owned()),
-        }
-    }
-}
-
 pub(crate) fn diagnostic_error(py: Python<'_>, diagnostics: &[Diagnostic]) -> PyErr {
     structured_diagnostic_error(py, diagnostics.iter().map(PyDiagnostic::from).collect())
 }
@@ -276,18 +250,20 @@ pub(crate) fn internal_diagnostic_error(py: Python<'_>, diagnostics: &[Diagnosti
     )
 }
 
-pub(crate) fn control_diagnostic_error(
-    py: Python<'_>,
-    diagnostics: &[ControlDiagnosticV2],
-) -> PyErr {
-    let projected: Vec<_> = diagnostics.iter().map(PyDiagnostic::from).collect();
-    if diagnostics.iter().any(|diagnostic| {
-        diagnostic.source() == ControlDiagnosticSourceV2::Control && diagnostic.code() == "EQ0901"
-    }) {
-        structured_diagnostic_error_as(py, ErrorCategory::Validation, projected)
-    } else {
-        structured_diagnostic_error(py, projected)
-    }
+pub(crate) fn python_compile_admission_error(py: Python<'_>, message: &str) -> PyErr {
+    structured_diagnostic_error_as(
+        py,
+        ErrorCategory::Validation,
+        vec![PyDiagnostic {
+            source: "control".to_owned(),
+            code: "EQ0901".to_owned(),
+            severity: "error".to_owned(),
+            message: message.to_owned(),
+            graph_path: None,
+            source_span: None,
+            suggestion: None,
+        }],
+    )
 }
 
 pub(crate) fn internal_error(py: Python<'_>, message: &str) -> PyErr {
