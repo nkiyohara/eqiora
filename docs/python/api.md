@@ -91,6 +91,38 @@ class InternalError(EqioraError):
     ...
 ```
 
+### `eqiora.PackageConformancePackage`
+
+```python
+class PackageConformancePackage(NamedTuple):
+    name: str
+    version: str
+    semantic_digest: str
+    source_digest: str
+```
+
+### `eqiora.PackageConformanceReport`
+
+```python
+class PackageConformanceReport(NamedTuple):
+    profile: str
+    eqiora_version: str
+    compiler: str
+    compiler_version: str
+    semantic_canonicalization_version: int
+    source_bundle_version: int
+    resolution_version: int
+    root_package: PackageConformancePackage
+    packages: tuple[PackageConformancePackage, ...]
+    entry_model: str
+    resolution_digest: str
+    package_compilation_digest: str
+    model_id: str
+    model_revision: int
+    model_digest: str
+    deterministic_replay_agreement: bool
+```
+
 ### `eqiora.Dimension`
 
 ```python
@@ -926,6 +958,12 @@ def compile(source: str, *, filename: str='<memory>') -> Model: ...
 
 ```python
 def compile_package(store_root: str | PathLike[str], resolution: bytes, *, entry_model: str) -> Model: ...
+```
+
+### `eqiora.check_package_conformance`
+
+```python
+def check_package_conformance(store_root: str | os.PathLike[str], resolution_bytes: bytes, *, entry_model: str, profile: str) -> PackageConformanceReport: ...
 ```
 
 ### `eqiora.connect`

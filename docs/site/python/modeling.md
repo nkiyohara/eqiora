@@ -14,6 +14,12 @@ One explicit-store package operation consumes exact canonical resolution bytes
 and a bare root-local Model selector, then returns the ordinary immutable
 `Model` with read-only package-compilation lineage. It performs no discovery,
 authoring, installation, network access, execution, or Studio workflow.
+The installed distribution also checks that same explicit locked closure under
+the exact `eqiora.package.structural-conformance-v1` profile. Its immutable
+in-process report records structural replay agreement and exact identities;
+even deliberately false scientific documentation can pass. The report proves
+no physical truth, numerical correctness, execution support, trust,
+certification, evidence lookup, or Studio workflow.
 The package also reaches the common `Result` through explicit resolved Plans
 for the accepted exact-cylinder flow, mixed-boundary structure, and two-step
 fixed-mesh monolithic FSI cases, with typed application evidence and optional

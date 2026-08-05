@@ -54,6 +54,7 @@ PYTHON_TEST_FIXTURES = (
         "verify/artifacts/current-model-relational-identity-transition/"
         "expected/deterministic/typed-execution-lineage"
     ),
+    Path("verify/interfaces/python-package-conformance"),
     Path("verify/interfaces/python-offline-model-package/models/typed-execution-lineage"),
 )
 
