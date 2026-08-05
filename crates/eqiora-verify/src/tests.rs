@@ -818,7 +818,7 @@ fn current_registry_collision_counts_match_the_frozen_execution_contract() {
             .unwrap()
     };
     assert_eq!(count_for_script("tools/ci/python_distribution_gate.py"), 8);
-    assert_eq!(count_for_script("tools/ci/python_package_gate.py"), 5);
+    assert_eq!(count_for_script("tools/ci/python_package_gate.py"), 6);
     assert_eq!(count_for_script("tools/ci/python_gallery_gate.py"), 1);
 
     for pair in [
