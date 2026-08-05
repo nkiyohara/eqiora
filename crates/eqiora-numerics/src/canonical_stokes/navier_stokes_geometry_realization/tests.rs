@@ -311,20 +311,6 @@ fn authored_correspondence_names_and_partition_are_not_inferred() {
             ["inlet", "outlet", "walls", "cylinder"],
             "uncovered exterior facet",
         ),
-        (
-            circular_source(
-                [0.2, 0.2],
-                vec![
-                    named("fluid", FACE_DIMENSION, &[0]),
-                    named("walls", EDGE_DIMENSION, &[2, 3, 4]),
-                    named("inlet", EDGE_DIMENSION, &[0]),
-                    named("cylinder", EDGE_DIMENSION, &[4]),
-                    named("outlet", EDGE_DIMENSION, &[1]),
-                ],
-            ),
-            ["inlet", "outlet", "walls", "cylinder"],
-            "overlapping facet",
-        ),
     ] {
         let accepted = owner(&source, 1.0e-4, 50, 1.0e-5);
         let program = geometry_program(&source, SOURCE, names);
@@ -332,6 +318,29 @@ fn authored_correspondence_names_and_partition_are_not_inferred() {
             TransientNavierStokesGeometryBinding2d::new(&program, accepted).expect_err(reason);
         assert_eq!(error.code(), codes::INVALID_REALIZATION, "{reason}");
     }
+
+    let overlapping_source = circular_source(
+        [0.2, 0.2],
+        vec![
+            named("fluid", FACE_DIMENSION, &[0]),
+            named("walls", EDGE_DIMENSION, &[2, 3, 4]),
+            named("inlet", EDGE_DIMENSION, &[0]),
+            named("cylinder", EDGE_DIMENSION, &[4]),
+            named("outlet", EDGE_DIMENSION, &[1]),
+        ],
+    );
+    let overlap_error = AcceptedCircularHoleChordalRealizationV1::from_reference(
+        &overlapping_source,
+        1.0e-4,
+        50,
+        MeshQualityGate::new(1.0e-5).unwrap(),
+    )
+    .expect_err("the accepted owner rejects an ambiguous named facet before assembly");
+    assert_eq!(overlap_error.code(), codes::INVALID_ARTIFACT);
+    assert_eq!(
+        overlap_error.message(),
+        "mesh facet is ambiguous between region entity sets 'cylinder' and 'walls'"
+    );
 }
 
 #[test]
