@@ -494,7 +494,7 @@ fn two_alias_store() -> (Scratch, Vec<u8>, PathBuf) {
         root.source().files().to_vec(),
     )
     .expect("typed two-alias release");
-    let resolution = ResolutionRecordV1::from_exact_releases(&root, &[library.clone()])
+    let resolution = ResolutionRecordV1::from_exact_releases(&root, std::slice::from_ref(&library))
         .expect("two-edge exact resolution");
     assert_eq!(resolution.edges().len(), 2);
 
