@@ -188,6 +188,17 @@ def canonical_fixture(path: Path) -> bytes:
     return canonical
 
 
+def canonical_json(value: object) -> bytes:
+    return json.dumps(value, separators=(",", ":")).encode("utf-8")
+
+
+def source_bundle_digest(source: object) -> str:
+    digest = hashlib.sha256()
+    digest.update(b"eqiora.source-bundle.sha256.v1\0")
+    digest.update(canonical_json(source))
+    return digest.hexdigest()
+
+
 PRIMARY_RESOLUTION = canonical_fixture(PRIMARY_RESOLUTION_FILE)
 SECONDARY_RESOLUTION = canonical_fixture(SECONDARY / "resolution.json")
 EXPECTED_MODEL = canonical_fixture(EXPECTED / "model.json")
@@ -688,12 +699,39 @@ def test_package_conformance_public_signature_named_tuples_and_stub_are_exact() 
         ("PackageConformancePackage", CONFORMANCE_PACKAGE_FIELDS),
         ("PackageConformanceReport", CONFORMANCE_REPORT_FIELDS),
     ]:
-        declarations = [
-            node.target.id
+        assert [ast.unparse(base) for base in classes[name].bases] == ["NamedTuple"]
+        declarations = {
+            node.target.id: ast.unparse(node.annotation)
             for node in classes[name].body
             if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
-        ]
+        }
         assert tuple(declarations) == fields
+        assert declarations == {
+            "PackageConformancePackage": {
+                "name": "str",
+                "version": "str",
+                "semantic_digest": "str",
+                "source_digest": "str",
+            },
+            "PackageConformanceReport": {
+                "profile": "str",
+                "eqiora_version": "str",
+                "compiler": "str",
+                "compiler_version": "str",
+                "semantic_canonicalization_version": "int",
+                "source_bundle_version": "int",
+                "resolution_version": "int",
+                "root_package": "PackageConformancePackage",
+                "packages": "tuple[PackageConformancePackage, ...]",
+                "entry_model": "str",
+                "resolution_digest": "str",
+                "package_compilation_digest": "str",
+                "model_id": "str",
+                "model_revision": "int",
+                "model_digest": "str",
+                "deterministic_replay_agreement": "bool",
+            },
+        }[name]
     function = next(
         node
         for node in stub.body
@@ -707,6 +745,15 @@ def test_package_conformance_public_signature_named_tuples_and_stub_are_exact() 
         "entry_model",
         "profile",
     ]
+    assert {
+        argument.arg: ast.unparse(argument.annotation)
+        for argument in [*function.args.args, *function.args.kwonlyargs]
+    } == {
+        "store_root": "str | os.PathLike[str]",
+        "resolution_bytes": "bytes",
+        "entry_model": "str",
+        "profile": "str",
+    }
     assert function.args.defaults == []
     assert function.args.kw_defaults == [None, None]
     assert ast.unparse(function.returns) == "PackageConformanceReport"
@@ -839,6 +886,7 @@ def test_profile_and_argument_shapes_fail_before_filesystem_authority() -> None:
     for rejected in [
         "EQIORA.PACKAGE.STRUCTURAL-CONFORMANCE-V1",
         "eqiora.package.structural-conformance-v1 ",
+        "eqiora.package.structural-conformance-v2",
         "eqiora.package.structural-conformance",
         "structural-conformance-v1",
         "",
@@ -916,12 +964,39 @@ def test_resolution_wire_is_exact_before_store_and_rejects_stale_or_foreign_inpu
     primary_decoded = json.loads(PRIMARY_RESOLUTION)
     node_reordered = dict(primary_decoded)
     node_reordered["nodes"] = list(reversed(node_reordered["nodes"]))
-    node_reordered_bytes = json.dumps(node_reordered, separators=(",", ":")).encode("utf-8")
-    extra_edge = dict(primary_decoded["edges"][0])
-    extra_edge["alias"] = "zz_extra"
-    edge_reordered = dict(primary_decoded)
-    edge_reordered["edges"] = [extra_edge, primary_decoded["edges"][0]]
-    edge_reordered_bytes = json.dumps(edge_reordered, separators=(",", ":")).encode("utf-8")
+    node_reordered_bytes = canonical_json(node_reordered)
+
+    root_release = json.loads((PRIMARY_STORE / f"{ROOT_SOURCE}.json").read_bytes())
+    assert source_bundle_digest(root_release["source"]) == ROOT_SOURCE
+    dependencies = root_release["source"]["manifest"]["dependencies"]
+    assert len(dependencies) == 1
+    spare_dependency = {
+        "alias": "spare",
+        "target": dependencies[0]["target"],
+    }
+    dependencies.append(spare_dependency)
+    two_edge = json.loads(PRIMARY_RESOLUTION)
+    root_node = next(
+        node
+        for node in two_edge["nodes"]
+        if node["identity"] == two_edge["root"]
+    )
+    root_node["source_digest"] = source_bundle_digest(root_release["source"])
+    spare_edge = {
+        "declaring": two_edge["edges"][0]["declaring"],
+        "alias": "spare",
+        "target": two_edge["edges"][0]["target"],
+    }
+    two_edge["edges"].append(spare_edge)
+    two_edge_bytes = canonical_json(two_edge)
+    assert len(two_edge["edges"]) == 2
+
+    edge_reordered = json.loads(two_edge_bytes)
+    edge_reordered["edges"].reverse()
+    edge_reordered_bytes = canonical_json(edge_reordered)
+    assert edge_reordered_bytes != two_edge_bytes
+    edge_reordered["edges"].reverse()
+    assert canonical_json(edge_reordered) == two_edge_bytes
 
     class UntouchedPath:
         calls = 0
@@ -946,6 +1021,21 @@ def test_resolution_wire_is_exact_before_store_and_rejects_stale_or_foreign_inpu
         assert path.calls == 0
 
     def run(parent: Path) -> None:
+        two_edge_store = parent / "two-edge"
+        two_edge_store.mkdir()
+        library_path = PRIMARY_STORE / f"{LIBRARY_SOURCE}.json"
+        shutil.copy2(library_path, two_edge_store / library_path.name)
+        two_edge_root = two_edge_store / f"{root_node['source_digest']}.json"
+        two_edge_root.write_bytes(canonical_json(root_release))
+        two_edge_before = tree_snapshot(two_edge_store)
+        two_edge_report = check_conformance(two_edge_store, two_edge_bytes)
+        assert two_edge_report.root_package.source_digest == root_node["source_digest"]
+        assert tuple(package.name for package in two_edge_report.packages) == (
+            "Eqiora.Electrical.Basic",
+            "org.example.parallel",
+        )
+        assert tree_snapshot(two_edge_store) == two_edge_before
+
         store = parent / "stale-inputs"
         shutil.copytree(FALSE_CLAIM_STORE, store)
 
@@ -1025,11 +1115,30 @@ def test_release_normalization_accepts_representation_but_rejects_semantic_chang
             shutil.copytree(FALSE_CLAIM_STORE, hostile)
             hostile_path = hostile / release_path.name
             hostile_release = json.loads(hostile_path.read_bytes())
-            hostile_release["source"]["files"][0]["role"] = role
-            hostile_path.write_bytes(
-                json.dumps(hostile_release, separators=(",", ":")).encode("utf-8")
+            assert source_bundle_digest(hostile_release["source"]) == hostile_path.stem
+            hostile_file = hostile_release["source"]["files"][0]
+            hostile_file["role"] = role
+            hostile_bundle = next(
+                entry
+                for entry in hostile_release["source"]["manifest"]["bundle"]
+                if entry["path"] == hostile_file["path"]
             )
-            assert_compatibility(assert_conformance_rejection(hostile))
+            hostile_bundle["role"] = role
+            hostile_source = hostile_release["source"]
+            hostile_digest = source_bundle_digest(hostile_source)
+            hostile_path.unlink()
+            hostile_path = hostile / f"{hostile_digest}.json"
+            hostile_path.write_bytes(canonical_json(hostile_release))
+            hostile_resolution = json.loads(FALSE_CLAIM_RESOLUTION)
+            hostile_resolution["nodes"][0]["source_digest"] = hostile_digest
+            assert hostile_bundle["role"] == hostile_file["role"] == role
+            assert hostile_path.stem == hostile_resolution["nodes"][0]["source_digest"]
+            assert_compatibility(
+                assert_conformance_rejection(
+                    hostile,
+                    resolution=canonical_json(hostile_resolution),
+                )
+            )
 
         alias_changed = parent / "alias-changed"
         shutil.copytree(PRIMARY_STORE, alias_changed)
