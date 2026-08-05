@@ -692,7 +692,7 @@ def test_package_conformance_public_signature_named_tuples_and_stub_are_exact() 
     assert not hasattr(caller_value, "attestation")
     assert not hasattr(caller_value, "to_json")
 
-    stub_path = ROOT / "bindings/python/python/eqiora/__init__.pyi"
+    stub_path = Path(inspect.getfile(eqiora)).with_name("__init__.pyi")
     stub = ast.parse(stub_path.read_text(encoding="utf-8"))
     classes = {node.name: node for node in stub.body if isinstance(node, ast.ClassDef)}
     for name, fields in [
