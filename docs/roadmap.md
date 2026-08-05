@@ -301,6 +301,11 @@ Geometry and CAD
 bounded native authored Sketch/profile composition
   -> installed-Python explicit Sketch composition (#367)
 
+Client compile/check adapters
+  transport-neutral current-Model operation (#78)
+    -> local stdio MCP adapter (#79)
+      -> command-line check workflow (#80)
+
 External boundary providers
   accepted #352/#365 prescribed-solid occurrence                 closed
     -> deterministic connected-subprocess E1 (#118)              closed

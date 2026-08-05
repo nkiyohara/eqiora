@@ -28,6 +28,10 @@ pub use eqiora_core::{InvalidValueShape, ValueShape};
 pub use release_identity::VERSION;
 
 /// Shared application operations used by thin language and Studio clients.
+///
+/// [`crate::api::ModelDocument::compile`] owns transport-neutral compilation;
+/// client adapters may apply their own admission and projection without
+/// redefining it.
 pub mod api {
     pub use eqiora_api::package;
     pub use eqiora_api::{
@@ -86,7 +90,9 @@ pub mod api {
     };
 }
 
-/// Versioned, transport-neutral commands and diagnostics for thin clients.
+/// Versioned control-v2 wire values and adapter for thin clients.
+///
+/// Compilation meaning remains owned by [`api::ModelDocument::compile`].
 pub mod control {
     pub use eqiora_api::control::{
         COMPILE_COMMAND_V1, COMPILE_V2_SCHEMA_JSON, CONTROL_PROTOCOL_V2, CompileControlExecutionV2,

@@ -1,6 +1,7 @@
 //! Studio transport for the shared compile/check control contract.
 //!
-//! Canonical compilation is owned by `eqiora::control`. This module only
+//! Canonical compilation is owned by `eqiora::api::ModelDocument::compile`;
+//! `eqiora::control` adapts that operation to control-v2. This module only
 //! decodes the closed control request, projects an accepted immutable Model
 //! for Studio, and admits that Model to the bounded local cache.
 

@@ -57,7 +57,7 @@ impl CompileModelDescriptorV2 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum CompileOutcomeV2 {
-    /// One canonical Model was compiled through the current wire.
+    /// One canonical Model was compiled by the current operation and described on this wire.
     Accepted {
         /// Exact typed Model identity.
         model: CompileModelDescriptorV2,
@@ -188,7 +188,7 @@ impl CompileResponseV2 {
     }
 }
 
-/// Rust application result: transport response plus an optional opaque Model.
+/// Control-adapter result: wire response plus the optional Model from that invocation.
 #[derive(Debug, Clone)]
 pub struct CompileControlExecutionV2 {
     response: CompileResponseV2,
@@ -215,8 +215,10 @@ impl CompileControlExecutionV2 {
     }
 }
 
-/// Execute one fully admitted compile/check request against the current Model
-/// contract.
+/// Adapt one fully admitted request to exactly one current-Model compile operation.
+///
+/// The response descriptor and optional document are projected from that same
+/// invocation; protocol and request identity do not enter compilation meaning.
 #[must_use]
 pub fn execute_compile_v2(request: &CompileRequestV2) -> CompileControlExecutionV2 {
     let document = match ModelDocument::compile(request.filename(), request.source()) {
