@@ -276,9 +276,32 @@ fn issue118_fixtures() -> Vec<ExpectedAdmission> {
     ]
 }
 
+fn package_conformance_fixture_source(count: usize) -> String {
+    let identities = (0..count)
+        .map(|_| format!("\"{}\"", "e".repeat(64)))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("{{\"model_source_identities\":[{identities}]}}\n")
+}
+
+fn package_conformance_fixture() -> ExpectedAdmission {
+    ExpectedAdmission {
+        path: "verify/interfaces/python-package-conformance/models/false-scientific-claim/store/\
+               d1e08b039c49c53cb963f314d424277a49e959b7d14a64208a86be972d06caf7.json",
+        class: "source-or-package-identity",
+        owner: "interfaces.python-package-conformance independent oracle",
+        note: "admission owns only the exact path/search shape/count; release bytes and \
+               source/package identities remain owned by that oracle; it creates no raw \
+               release-wire predicate"
+            .to_owned(),
+        source: package_conformance_fixture_source(2),
+    }
+}
+
 fn all_fixtures() -> Vec<ExpectedAdmission> {
     let mut rows = rfc85_fixtures();
     rows.extend(issue118_fixtures());
+    rows.push(package_conformance_fixture());
     rows
 }
 
@@ -335,6 +358,11 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
         .iter()
         .map(|entry| entry.path.clone())
         .collect::<BTreeSet<_>>();
+    let classified = contract
+        .post_reset_classified
+        .iter()
+        .map(|entry| entry.path.clone())
+        .collect::<BTreeSet<_>>();
     let expected_identity_free = all_identity_free_sources()
         .into_iter()
         .map(|(path, _)| path.to_owned())
@@ -347,6 +375,8 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
     assert_eq!(identity_free, expected_identity_free);
     assert_eq!(fixtures, expected_fixtures);
     assert!(identity_free.is_disjoint(&fixtures));
+    assert!(identity_free.is_disjoint(&classified));
+    assert!(fixtures.is_disjoint(&classified));
     assert_eq!(
         identity_free.len() as u64,
         transition["post_reset_admitted_path_count"]
@@ -360,14 +390,14 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
             .unwrap()
     );
     assert_eq!(identity_free.len(), 15);
-    assert_eq!(fixtures.len(), 12);
+    assert_eq!(fixtures.len(), 13);
     assert_eq!(
         contract
             .post_reset_fixture_admitted
             .iter()
             .map(|entry| entry.identity_literals)
             .sum::<usize>(),
-        26
+        28
     );
 
     // Every historical count is still its own. Listing an admitted path in the
@@ -384,6 +414,7 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
                 && !contract.retired.contains(path)
                 && !contract.required_post_reset.contains(path)
                 && !contract.preserved_evidence.contains(path)
+                && !classified.contains(path)
                 && !ORACLE_FILES.contains(&path.as_str())
                 && contract
                     .promotion
@@ -415,7 +446,7 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
             .map(|signal| SEARCH_TOKENS.iter().position(|token| token == signal))
             .collect::<Option<Vec<_>>>();
         assert!(
-            !entry.signals.is_empty()
+            (!entry.signals.is_empty() || entry.identity_literals > 0)
                 && places.is_some_and(|at| at.windows(2).all(|pair| pair[0] < pair[1]))
         );
     }
@@ -458,9 +489,19 @@ fn successor_rows_reject_wrong_path_signal_count_class_owner_or_note() {
             let mut mutant = row.clone();
             mutant.signals.push(SEARCH_TOKENS[4].to_owned());
             mutants.push(mutant);
+            if !row.signals.is_empty() {
+                let mut mutant = row.clone();
+                mutant.signals.pop();
+                mutants.push(mutant);
+            }
             let mut mutant = row.clone();
             mutant.identity_literals += 1;
             mutants.push(mutant);
+            if row.identity_literals > 0 {
+                let mut mutant = row.clone();
+                mutant.identity_literals -= 1;
+                mutants.push(mutant);
+            }
             let mut mutant = row.clone();
             mutant.class.push_str("-wrong");
             mutants.push(mutant);
@@ -476,6 +517,26 @@ fn successor_rows_reject_wrong_path_signal_count_class_owner_or_note() {
                 expected.path
             );
         }
+    }
+
+    // The new release row cannot be made into a second description of either
+    // a historical member or one of the complete later classifications.
+    let expected = package_conformance_fixture();
+    let row = contract
+        .post_reset_fixture_admitted
+        .iter()
+        .find(|row| row.path == expected.path)
+        .expect("the package-conformance release admission must exist");
+    for overlap in [
+        contract.inventory.iter().next().unwrap().as_str(),
+        contract.post_reset_classified[0].path.as_str(),
+    ] {
+        let mut mutant = row.clone();
+        mutant.path = overlap.to_owned();
+        assert!(
+            !row_matches(&mutant, &expected),
+            "an admission overlapping `{overlap}` must be refused"
+        );
     }
 }
 
@@ -571,6 +632,27 @@ fn both_admission_permissions_are_optional_exact_and_fail_closed() {
         );
     }
 
+    // The package-release fixture is discovered by its two same-line
+    // source/package identities alone. It carries no Model search token, and
+    // neither changing the count nor adding a token is an admissible rewrite.
+    let package = package_conformance_fixture();
+    assert_eq!(
+        observe_admitted(package.source.as_bytes()),
+        (Vec::new(), 2),
+        "the independent oracle's release carries no search token and two identity occurrences"
+    );
+    for count in [1, 3] {
+        refused(
+            classify(reset().admitting(package.path, &package_conformance_fixture_source(count))),
+            "exact literal occurrence counts never relax",
+        );
+    }
+    let package_with_signal = format!("{}{}\n", package.source, SEARCH_TOKENS[4]);
+    refused(
+        classify(reset().admitting(package.path, &package_with_signal)),
+        "must carry exactly its recorded search signal",
+    );
+
     // Absent before reset is shared, but membership is not inferred between
     // the two permissions.
     for (path, _) in identity_free.iter().chain(&fixture_sources) {
@@ -618,6 +700,17 @@ fn no_glob_directory_suffix_or_proximity_admission_exists() {
         "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/expected/run.json.bak",
         "examples/python/prescribed_dynamic_solid_provider_test.py",
         "docs/external-boundary-provider-notes.md",
+        "verify/interfaces/python-package-conformance/models/false-scientific-claim/store/\
+         ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.json",
+        "verify/interfaces/python-package-conformance/models/false-scientific-claim/store/\
+         d1e08b039c49c53cb963f314d424277a49e959b7d14a64208a86be972d06caf7.json.bak",
+        "verify/interfaces/python-package-conformance/models/false-scientific-claim/store/\
+         d1e08b039c49c53cb963f314d424277a49e959b7d14a64208a86be972d06caf7.toml",
+        "verify/interfaces/python-package-conformance/models/false-scientific-claim/store/nested/\
+         d1e08b039c49c53cb963f314d424277a49e959b7d14a64208a86be972d06caf7.json",
+        "verify/interfaces/python-package-conformance/models/false-scientific-claim/sibling-store/\
+         d1e08b039c49c53cb963f314d424277a49e959b7d14a64208a86be972d06caf7.json",
+        "verify/interfaces/python-package-conformance/models/another-claim/fixture.json",
     ] {
         refused(
             classify_transition(&contract, &reset().signalling(&[path])),

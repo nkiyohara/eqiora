@@ -30,17 +30,21 @@
   `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` — each optional,
   absent before reset, exact in path and ordered signals, and fixed at zero
   Model-derived identity literals.
-  `post_reset_fixture_admitted` contains exactly 12 paths: the 10 RFC 0085
-  expected paths plus the exact provider-occurrence and Run fixtures for
-  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`.
-  The new rows contribute 13 + 4 occurrences, taking the aggregate from 9 to
-  26. Every row is optional and exact in path, ordered signals, same-line
+  `post_reset_fixture_admitted` contains exactly 13 paths: the 10 RFC 0085
+  expected paths, the exact provider-occurrence and Run fixtures for
+  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`, and the exact
+  source-or-package release path from the independent
+  `interfaces.python-package-conformance` oracle. The provider rows contribute
+  13 + 4 occurrences and the release adds 2 with an empty search-signal list,
+  taking the aggregate from 9 to 28. Every row is optional and exact in path,
+  ordered signals (empty only with a positive occurrence count), same-line
   lower-hex-64 literal occurrence count, fixture class, owner, and note.
   Multiple matching identities on one qualifying line are counted separately.
   Neither permission changes a historical inventory, transition, evidence,
-  promotion, or required count; fixture admission joins no identity-free set
-  and weakens no zero-identity predicate. There is no glob, directory, suffix,
-  inferred sibling, or proximity admission.
+  promotion, required, or later-classified count; fixture admission joins no
+  identity-free or `post_reset_classified` set and weakens no zero-identity
+  predicate. There is no glob, directory, suffix, stem, inferred sibling, or
+  proximity admission.
 - `classification-inventory.txt` — the sorted, exact 338-path output of that
   executable candidate sweep; it contains no glob or inferred path. The sweep
   excludes two exact files, declared in `search.excluded_paths`: this case's own
