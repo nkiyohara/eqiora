@@ -5,6 +5,7 @@ use eqiora_schema::kernel::BoundarySide;
 use super::{IncompressibleFlowScaleProfile2d, invalid_realization};
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
 use crate::canonical_stokes::TransientIncompressibleNavierStokesCartesianModel2d;
+use crate::canonical_stokes::navier_stokes::TransientIncompressibleNavierStokesModel2d;
 use crate::canonical_stokes::realization::NormalizedCartesianSimplicialMesh2d;
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
@@ -14,48 +15,39 @@ use crate::simplicial_stokes::{
 const DIMENSION: usize = 2;
 
 pub(super) fn pressure_uses_gauge(
-    model: &TransientIncompressibleNavierStokesCartesianModel2d,
+    model: &TransientIncompressibleNavierStokesModel2d,
 ) -> Result<bool, Diagnostic> {
     let mut essential = 0_usize;
     let mut traction = 0_usize;
-    for axis in 0..DIMENSION {
-        for side in [BoundarySide::Lower, BoundarySide::Upper] {
-            let disposition = model
-                .boundary_inventory()
-                .boundary(axis, side)
-                .ok_or_else(|| {
-                    invalid_realization(format!(
-                        "transient boundary inventory omits axis {axis} {side:?}"
-                    ))
-                })?
-                .disposition();
-            match disposition {
-                PhysicalBoundaryDisposition::TraceZero => essential += 1,
-                PhysicalBoundaryDisposition::FluxZero => traction += 1,
-                PhysicalBoundaryDisposition::Prescribed(law) => match law.quantity() {
-                    PhysicalBoundaryQuantity::Trace => essential += 1,
-                    PhysicalBoundaryQuantity::Flux => traction += 1,
-                },
-                PhysicalBoundaryDisposition::PortBinding { connection, port } => {
-                    return Err(invalid_realization(format!(
-                        "live transient PortBinding {connection} through Port {port} requires an explicit trace-space interface Realization"
-                    )));
-                }
+    for disposition in model.boundary_dispositions.values().copied() {
+        match disposition {
+            PhysicalBoundaryDisposition::TraceZero => essential += 1,
+            PhysicalBoundaryDisposition::FluxZero => traction += 1,
+            PhysicalBoundaryDisposition::Prescribed(law) => match law.quantity() {
+                PhysicalBoundaryQuantity::Trace => essential += 1,
+                PhysicalBoundaryQuantity::Flux => traction += 1,
+            },
+            PhysicalBoundaryDisposition::PortBinding { connection, port } => {
+                return Err(invalid_realization(format!(
+                    "live transient PortBinding {connection} through Port {port} requires an explicit trace-space interface Realization"
+                )));
             }
         }
     }
     match (essential, traction) {
-        (count, 0) if count == 2 * DIMENSION => Ok(true),
+        (count, 0) if count > 0 && count == model.boundary_dispositions.len() => Ok(true),
         (essential, traction)
-            if essential > 0 && traction > 0 && essential + traction == 2 * DIMENSION =>
+            if essential > 0
+                && traction > 0
+                && essential + traction == model.boundary_dispositions.len() =>
         {
             Ok(false)
         }
-        (0, count) if count == 2 * DIMENSION => Err(invalid_realization(
+        (0, count) if count == model.boundary_dispositions.len() => Err(invalid_realization(
             "all-traction transient boundary is invalid because the velocity is otherwise determined only up to a constant",
         )),
         _ => Err(invalid_realization(
-            "transient boundary must cover every Cartesian side with exactly one essential-velocity or constant-traction condition",
+            "transient boundary must contain both essential-velocity and constant-traction meaning, or a complete essential partition",
         )),
     }
 }

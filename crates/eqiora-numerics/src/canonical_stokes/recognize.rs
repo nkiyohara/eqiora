@@ -449,7 +449,7 @@ fn lower_boundary_projection(
     }
 }
 
-fn unique_circular_hole_domain(
+pub(super) fn unique_circular_hole_domain(
     program: &KernelProgram,
     geometry: &CanonicalGeometryV1,
 ) -> Result<(RawId, BTreeMap<String, RawId>), Diagnostic> {

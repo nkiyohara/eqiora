@@ -11,20 +11,16 @@ use eqiora_schema::kernel::ValueFrame;
 use eqiora_sem::KernelProgram;
 use eqiora_solver::LinearOperatorProperties;
 
-use super::{
-    IncompressibleFlowScaleProfile2d, SteadyStokesScaleProfile2d,
-    TransientIncompressibleNavierStokesCartesianModel2d,
-};
+use super::navier_stokes::TransientIncompressibleNavierStokesModel2d;
+use super::{IncompressibleFlowScaleProfile2d, SteadyStokesScaleProfile2d};
 use crate::canonical_boundary::BoundaryRelationBinding2d;
-use crate::canonical_boundary::{
-    CartesianBoundaryInventory2d, PhysicalBoundaryDisposition, PhysicalBoundaryQuantity,
-};
+use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
 use crate::canonical_stokes::api::SteadyIncompressibleStokesModel2d;
 use crate::discrete_block::{
     AlgebraicClosure, AuxiliaryBlock, BlockRealizationIdentity, BlockSupport, BlockTransformation,
     ContributionBatch, ContributionTerm, DiscreteBlockContext, DiscreteBlockSystem, FieldBlock,
     FieldBlockRole, RelationBlock, RelationDisposition, ResidualBlock, ResidualOrigin,
-    boundary_treatment, boundary_treatment_for,
+    boundary_treatment_for,
 };
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
@@ -369,20 +365,20 @@ pub(super) fn steady_stokes_block_system(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn transient_navier_stokes_block_system(
     program: &KernelProgram,
-    model: &TransientIncompressibleNavierStokesCartesianModel2d,
+    model: &TransientIncompressibleNavierStokesModel2d,
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
     boundary: &SimplicialMiniStokesBoundary2d,
     resolved: &ResolvedTransientFieldwiseRealization,
     scales: IncompressibleFlowScaleProfile2d,
 ) -> Result<DiscreteBlockSystem, Diagnostic> {
-    let domain = domain_id(model.domain())?;
-    let velocity = field(model.velocity())?;
-    let pressure = field(model.pressure())?;
-    let force = field(model.force_potential())?;
-    let momentum = relation(model.momentum_relation())?;
-    let incompressibility = relation(model.incompressibility_relation())?;
-    let force_definition = relation(model.force_potential_definition())?;
+    let domain = domain_id(model.domain)?;
+    let velocity = field(model.velocity)?;
+    let pressure = field(model.pressure)?;
+    let force = field(model.force_potential)?;
+    let momentum = relation(model.momentum_relation)?;
+    let incompressibility = relation(model.incompressibility_relation)?;
+    let force_definition = relation(model.force_potential_definition)?;
     let fields = vec![
         FieldBlock::discrete(
             domain,
@@ -434,8 +430,8 @@ pub(super) fn transient_navier_stokes_block_system(
         ),
     ];
     relations.extend(boundary_relation_blocks(
-        model.boundary_inventory(),
-        model.boundary_relations(),
+        &model.boundary_dispositions,
+        &model.boundary_relations,
         velocity,
     )?);
 
@@ -517,9 +513,9 @@ pub(super) fn transient_navier_stokes_block_system(
             ResidualOrigin::Relation(incompressibility),
         ],
         parameter_inventory([
-            model.mass_density_expression().parameter_fields(),
-            model.dynamic_viscosity_expression().parameter_fields(),
-            model.force_potential_expression().parameter_fields(),
+            model.mass_density.parameter_fields(),
+            model.dynamic_viscosity.parameter_fields(),
+            model.force_potential_expression.parameter_fields(),
         ]),
         [
             AlgebraicBlock::Field(velocity),
@@ -569,7 +565,7 @@ pub(super) fn transient_navier_stokes_block_system(
         .count();
     if traction_count > 0 {
         let mut supports = vec![BlockSupport::Volume(domain)];
-        for binding in model.boundary_relations() {
+        for binding in &model.boundary_relations {
             if traction.contains(&relation(binding.relation())?) {
                 let support = BlockSupport::Boundary(domain_id(binding.boundary())?);
                 if !supports.contains(&support) {
@@ -678,7 +674,7 @@ fn steady_boundary_relation_blocks(
 }
 
 fn boundary_relation_blocks(
-    inventory: &CartesianBoundaryInventory2d,
+    dispositions: &std::collections::BTreeMap<RawId, PhysicalBoundaryDisposition>,
     bindings: &[BoundaryRelationBinding2d],
     field: Id<kinds::Field>,
 ) -> Result<Vec<RelationBlock>, Diagnostic> {
@@ -690,7 +686,14 @@ fn boundary_relation_blocks(
                 BlockSupport::Boundary(domain_id(binding.boundary())?),
                 RelationDisposition::BoundaryCondition {
                     field,
-                    treatment: boundary_treatment(inventory, *binding)?,
+                    treatment: boundary_treatment_for(
+                        *dispositions.get(&binding.boundary()).ok_or_else(|| {
+                            invalid_identity(
+                                "boundary Relation support in the transient inventory",
+                                binding.boundary(),
+                            )
+                        })?,
+                    )?,
                 },
             ))
         })
@@ -740,16 +743,17 @@ fn relations_with_disposition(
 }
 
 fn transient_boundary_relations(
-    model: &TransientIncompressibleNavierStokesCartesianModel2d,
+    model: &TransientIncompressibleNavierStokesModel2d,
     predicate: impl Fn(PhysicalBoundaryDisposition) -> bool,
 ) -> Result<Vec<Id<kinds::Relation>>, Diagnostic> {
     model
-        .boundary_relations()
+        .boundary_relations
         .iter()
         .filter(|binding| {
-            model.boundary_inventory().entries().any(|(_, entry)| {
-                entry.boundary() == binding.boundary() && predicate(entry.disposition())
-            })
+            model
+                .boundary_dispositions
+                .get(&binding.boundary())
+                .is_some_and(|disposition| predicate(*disposition))
         })
         .map(|binding| relation(binding.relation()))
         .collect()

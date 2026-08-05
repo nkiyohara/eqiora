@@ -24,6 +24,7 @@ use eqiora_realization::{
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, ScalarType, SolverPlan};
 
+use super::navier_stokes::TransientIncompressibleNavierStokesModel2d;
 use super::realization::normalize_cartesian_mesh;
 use super::{
     IncompressibleFlowScaleProfile2d, TransientIncompressibleNavierStokesCartesianModel2d,
@@ -113,11 +114,12 @@ impl TransientNavierStokesInitialState2d {
                 "transient initial pressure-reference evidence must be finite",
             ));
         }
+        let common = model.common_projection();
         Ok(Self {
             time,
             mesh_artifact,
-            velocity_field: velocity_id(model),
-            pressure_field: pressure_id(model),
+            velocity_field: velocity_id(&common),
+            pressure_field: pressure_id(&common),
             velocity,
             pressure,
             pressure_reference,
@@ -179,6 +181,12 @@ impl ResolvedTransientNavierStokesState2d {
 pub fn transient_navier_stokes_fieldwise_requirements_2d(
     model: &TransientIncompressibleNavierStokesCartesianModel2d,
 ) -> TransientFieldwiseRealizationRequirements {
+    transient_navier_stokes_fieldwise_requirements_for_2d(&model.common_projection())
+}
+
+pub(super) fn transient_navier_stokes_fieldwise_requirements_for_2d(
+    model: &TransientIncompressibleNavierStokesModel2d,
+) -> TransientFieldwiseRealizationRequirements {
     let fieldwise = FieldwiseRealizationRequirements::new(
         domain_id(model),
         [velocity_id(model), pressure_id(model)],
@@ -207,6 +215,24 @@ pub fn transient_navier_stokes_fieldwise_requirements_2d(
 /// Returns `EQ0807` for an invalid scale, solver, or composed transient plan.
 pub fn transient_navier_stokes_mini_plan_2d(
     model: &TransientIncompressibleNavierStokesCartesianModel2d,
+    mesh: MeshArtifactReference,
+    scales: IncompressibleFlowScaleProfile2d,
+    time_step: DynQuantity,
+    nonlinear: NonlinearSolvePlan,
+    solver: SolverPlan,
+) -> Result<TransientFieldwiseRealizationPlan, Diagnostic> {
+    transient_navier_stokes_mini_plan_for_2d(
+        &model.common_projection(),
+        mesh,
+        scales,
+        time_step,
+        nonlinear,
+        solver,
+    )
+}
+
+pub(super) fn transient_navier_stokes_mini_plan_for_2d(
+    model: &TransientIncompressibleNavierStokesModel2d,
     mesh: MeshArtifactReference,
     scales: IncompressibleFlowScaleProfile2d,
     time_step: DynQuantity,
@@ -403,13 +429,14 @@ pub fn advance_resolved_transient_navier_stokes_mini_2d_with_assembly(
         ));
     }
     let model = lower_transient_incompressible_navier_stokes_cartesian_2d(program)?;
-    let with_gauge = boundary::pressure_uses_gauge(&model)?;
+    let common = model.common_projection();
+    let with_gauge = boundary::pressure_uses_gauge(&common)?;
     let realization_graph = resolved.portable_graph()?;
     let (scales, numerical_plan) =
-        require_exact_transient_plan(&model, resolved, &realization_graph, mesh_artifact)?;
+        require_exact_transient_plan(&common, resolved, &realization_graph, mesh_artifact)?;
     if initial.mesh_artifact != mesh_artifact
-        || initial.velocity_field != velocity_id(&model)
-        || initial.pressure_field != pressure_id(&model)
+        || initial.velocity_field != velocity_id(&common)
+        || initial.pressure_field != pressure_id(&common)
     {
         return Err(invalid_realization(
             "transient initial state identity differs from the resolved Model or mesh revision",
@@ -433,7 +460,7 @@ pub fn advance_resolved_transient_navier_stokes_mini_2d_with_assembly(
     let numerical_initial = normalize_state(&initial, &normalized.mesh, scales, with_gauge)?;
     let block_system = super::block::transient_navier_stokes_block_system(
         program,
-        &model,
+        &common,
         mesh_artifact,
         &normalized.mesh,
         &boundary,
@@ -449,7 +476,7 @@ pub fn advance_resolved_transient_navier_stokes_mini_2d_with_assembly(
             lower[0] + length * coordinate_hat[0],
             lower[1] + length * coordinate_hat[1],
         ];
-        let force = model.conservative_body_force(&coordinate)?;
+        let force = common.conservative_body_force(&coordinate)?;
         Ok([length * force[0] / pressure, length * force[1] / pressure])
     };
     let essential_velocity =
@@ -561,6 +588,7 @@ fn reconstruct_state(
     model: &TransientIncompressibleNavierStokesCartesianModel2d,
     scales: IncompressibleFlowScaleProfile2d,
 ) -> Result<ResolvedTransientNavierStokesState2d, Diagnostic> {
+    let common = model.common_projection();
     let velocity = SimplicialMiniVelocityField2d::new(
         mesh.clone(),
         state
@@ -616,8 +644,8 @@ fn reconstruct_state(
     }
     Ok(ResolvedTransientNavierStokesState2d {
         time,
-        velocity_field: velocity_id(model),
-        pressure_field: pressure_id(model),
+        velocity_field: velocity_id(&common),
+        pressure_field: pressure_id(&common),
         velocity,
         pressure,
         pressure_reference,
@@ -640,8 +668,8 @@ pub(super) fn require_complete_zero_trace(
     Ok(())
 }
 
-fn require_exact_transient_plan(
-    model: &TransientIncompressibleNavierStokesCartesianModel2d,
+pub(super) fn require_exact_transient_plan(
+    model: &TransientIncompressibleNavierStokesModel2d,
     resolved: &ResolvedTransientFieldwiseRealization,
     graph: &PortableRealizationGraph,
     mesh_artifact: MeshArtifactReference,
@@ -653,7 +681,7 @@ fn require_exact_transient_plan(
     Diagnostic,
 > {
     let with_gauge = boundary::pressure_uses_gauge(model)?;
-    let expected_requirements = transient_navier_stokes_fieldwise_requirements_2d(model);
+    let expected_requirements = transient_navier_stokes_fieldwise_requirements_for_2d(model);
     if resolved.requirements() != &expected_requirements {
         return Err(invalid_realization(
             "transient Realization requirements differ from the exact flow lowerer inventory",
@@ -845,30 +873,32 @@ fn require_exact_transient_plan(
     Ok((scales, numerical))
 }
 
-fn domain_id(model: &TransientIncompressibleNavierStokesCartesianModel2d) -> Id<kinds::Domain> {
+pub(super) fn domain_id(model: &TransientIncompressibleNavierStokesModel2d) -> Id<kinds::Domain> {
     model
-        .domain()
+        .domain
         .downcast()
         .expect("transient lowerer retains a Domain identity")
 }
 
-fn velocity_id(model: &TransientIncompressibleNavierStokesCartesianModel2d) -> Id<kinds::Field> {
+pub(super) fn velocity_id(model: &TransientIncompressibleNavierStokesModel2d) -> Id<kinds::Field> {
     model
-        .velocity()
+        .velocity
         .downcast()
         .expect("transient lowerer retains a velocity Field identity")
 }
 
-fn pressure_id(model: &TransientIncompressibleNavierStokesCartesianModel2d) -> Id<kinds::Field> {
+pub(super) fn pressure_id(model: &TransientIncompressibleNavierStokesModel2d) -> Id<kinds::Field> {
     model
-        .pressure()
+        .pressure
         .downcast()
         .expect("transient lowerer retains a pressure Field identity")
 }
 
-fn momentum_id(model: &TransientIncompressibleNavierStokesCartesianModel2d) -> Id<kinds::Relation> {
+pub(super) fn momentum_id(
+    model: &TransientIncompressibleNavierStokesModel2d,
+) -> Id<kinds::Relation> {
     model
-        .momentum_relation()
+        .momentum_relation
         .downcast()
         .expect("transient lowerer retains a momentum Relation identity")
 }
