@@ -48,8 +48,8 @@ by hand.
 | `required_post_reset` | 13 | the complete set of paths the reset may add: 11 byte-frozen promotions — 10 staged control-v2 targets plus the historical cylinder — and 2 existence-only unversioned Rust owners |
 | `preserved_evidence` | 40 | invariant evidence — the same path in both states — whose deletion the reset must never reach |
 | `promoted_evidence` | 1 | evidence whose bytes survive at a different path, so it is invariant at neither |
-| `post_reset_admitted` | 15 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
-| `post_reset_fixture_admitted` | 13 | later fixtures discovered by exact search signals or positive same-line identity-literal counts, admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
+| `post_reset_admitted` | 17 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
+| `post_reset_fixture_admitted` | 14 | later fixtures discovered by exact search signals or positive same-line identity-literal counts, admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
 
 **44, 304 and 13 are not one partition of 338.** What partitions the inventory
 is 34 + 304: the retired paths that are inventory members, plus the preserved
@@ -185,35 +185,42 @@ path carrying `model_digest`. It derives that digest from the accepted source
 bytes and pins no Model-derived identity. Its permission covers only that test
 file, not its module, directory, or a future cylinder-flow sibling.
 
+The private `eqiora-mcp` tool adapter adds one exact production hit at
+`crates/eqiora/src/bin/eqiora-mcp/tool.rs`. It carries, in sweep order,
+`eqiora.model-envelope/v` and `eqiora.model-transaction-envelope/v`, and freezes
+zero Model-derived identity literals. This permission owns only that exact
+path, ordered signal list, and zero count; it owns none of the adapter's wire
+meaning or content.
+
 Neither of the two sets that could have absorbed them is true. Adding them to
 the 338-path inventory would claim they existed before the reset. Adding them to
 `required_post_reset` would claim the reset created them, and would make a later
 capability a condition of accepting a transition that completed without it. So
-`search.transition.post_reset_admitted` names all sixteen, and names them alone:
+`search.transition.post_reset_admitted` names all seventeen, and names them alone:
 
 - **containment only.** Admission widens what the post-reset discovered set may
-  contain; it never asks a path to exist. Every subset of the sixteen, including
+  contain; it never asks a path to exist. Every subset of the seventeen, including
   none and all, is accepted independently of this permission. The original
   five paths, the RFC 0085 path, and the non-box transient oracle happen to
   exist in the observed checkout; the other three RFC 0085 paths and all six
   paths pre-admitted for
-  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` are optional
-  successors at this precommit revision.
+  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`, plus the MCP
+  tool path, are optional successors at this precommit revision.
 - **exactly the recorded signal.** An admitted path that does exist must spell
   exactly the search tokens recorded for it, in the sweep's own order. A file
   that spells none is not the surface that was admitted, and one that spells
   more has grown a claim nobody classified.
-- **no frozen identity.** `identity_literals` is 0 for all sixteen. A path that
+- **no frozen identity.** `identity_literals` is 0 for all seventeen. A path that
   pins a Model-derived lower-hex-64 identity is a fixture, and a fixture is
   classified here rather than admitted.
 - **absent before the reset.** An admitted path present in the pre-reset state
   is a mid-flight tree, refused by existence alone.
 - **exact, and nothing near it.** There is no glob, no directory rule and no
-  suffix rule. A seventeenth identity-free signal-bearing path is not admitted by
+  suffix rule. An eighteenth identity-free signal-bearing path is not admitted by
   sitting in the same directory, by sharing a trajectory, Result, Cartesian
-  snapshot, prescribed-solid, provider, protocol, RFC, documentation, non-box
-  transient, test, or derivation name, or by being the other extension of the
-  same module; it returns here for classification
+  snapshot, prescribed-solid, provider, protocol, MCP, RFC, documentation,
+  non-box transient, test, or derivation name, or by being the other extension
+  of the same module; it returns here for classification
   exactly as an unlisted path did before.
 
 Every historical set and count above is unchanged by this: 338 inventory paths,
@@ -221,9 +228,9 @@ Every historical set and count above is unchanged by this: 338 inventory paths,
 same bytes and the same digests. Admission adds a permission and removes
 nothing.
 
-The sixteen paths are what this case bounds, not what it owns. Their content
+The seventeen paths are what this case bounds, not what it owns. Their content
 belongs to their Python, Cartesian artifact, RFC, prescribed-solid artifact,
-provider/protocol, documentation, numerics, and independent-oracle owners,
+provider/protocol, MCP adapter, documentation, numerics, and independent-oracle owners,
 which must not tune this record; a path that cannot meet the four conditions
 above returns here rather than being made to fit.
 
@@ -254,12 +261,20 @@ Model-bearing line, so discovery is the positive occurrence count rather than
 a nonempty signal list. Admission owns only that path, empty search shape, and
 count. The oracle retains ownership of the release bytes and source/package
 identities; this transition record creates no raw release-wire predicate. The
-thirteen rows therefore carry 28 occurrences in aggregate.
+first thirteen rows therefore carry 28 occurrences in aggregate.
+
+The independent `interfaces.mcp-stdio-compile-check` oracle adds the exact
+`verify/interfaces/mcp-stdio-compile-check/expected/tool-definition.json`
+snapshot. Like the production row, it carries the current Model and Transaction
+schema signals in that order and freezes zero Model-derived identity literals.
+Its bytes and wire meaning remain owned by that independent oracle; this
+transition permission owns only the exact fixture path, ordered signal list,
+and zero count. The fourteen rows still carry 28 occurrences in aggregate.
 
 `search.transition.post_reset_fixture_admitted` therefore records a second
 containment-only permission:
 
-- each of the thirteen exact paths is optional after the reset and absent before it;
+- each of the fourteen exact paths is optional after the reset and absent before it;
 - a present path must carry its exact ordered search-signal list and exact
   same-line lower-hex-64 literal occurrence count; the signal list may be empty
   only when the occurrence count is positive, and every non-overlapping
@@ -269,16 +284,18 @@ containment-only permission:
 - no row joins the inventory, retired, required, preserved-evidence, promoted,
   promotion, identity-free admitted, or later-classified set; and
 - no glob, directory, suffix, expected-file naming convention, or sibling
-  proximity admits a fourteenth fixture.
+  proximity admits a fifteenth fixture.
 
-Every subset of the sixteen identity-free paths and every subset of the thirteen
+Every subset of the seventeen identity-free paths and every subset of the fourteen
 fixture paths is accepted independently, including neither set being present.
-Synthetic mutants remove or add a search signal; change the new two-occurrence
-row to one or three; change the other zero, one, four, or thirteen counts;
-substitute a path; alter every metadata field; and attempt overlap with both
-historical and later-classified paths. Another digest in the same store, a
-backup or alternate suffix, a nested or sibling store, and another
-package-conformance fixture remain unclassified alongside the existing nearby
+Synthetic mutants remove, add, substitute, or reorder a search signal; change
+the #116 two-occurrence row to one or three; change the other zero, one, four,
+or thirteen counts; substitute a path; alter every metadata field; swap the MCP
+production and fixture classes; and attempt overlap with both historical and
+later-classified paths. Another digest in the same store, a backup or alternate
+suffix, a nested or sibling store, another package-conformance fixture, a
+copied or nearby MCP tool or tool-definition path, and a signal-bearing
+`expected/contract.json` remain unclassified alongside the existing nearby
 RFC, Rust, protocol, provider, documentation, derivation, and expected-file
 paths. This keeps both permissions optional and fail-closed without making one
 a relaxation of the other.
@@ -560,7 +577,8 @@ identity-free paths and the RFC exist in this checkout, so the live tree
 exercises their exact observed signals and zero-literal counts; the other three
 RFC 0085 identity-free paths, all six
 `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` identity-free
-paths, and all thirteen fixtures remain optional successor paths.
+paths, the MCP production path, and all fourteen fixtures remain optional
+successor paths.
 Synthetic post-reset states additionally exercise every optional subset and the
 mutants through the same byte reader.
 

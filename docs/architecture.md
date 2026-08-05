@@ -763,6 +763,20 @@ result Artifacts, free-threaded builds, `abi3`, zero-copy DLPack execution, GPU,
 distributed/sparse arrays, JAX, PyTorch double backward/batching/export, and
 general ML-framework interop require separate evidence under RFC 0012.
 
+The local `eqiora-mcp` subprocess is a separate L4 projection of the accepted
+transport-neutral `ModelDocument::compile` operation. Its closed MCP
+`2026-07-28` surface uses newline-delimited stdio, requires version and client
+capability metadata, advertises exactly one in-memory compile/check tool, and
+admits one active call. Bounded framing and metadata fail before compilation;
+accepted calls return only the current Model descriptor plus a structural
+comparison fingerprint, while rejected calls return bounded structured
+diagnostics. Best-effort response cancellation can suppress a result but does
+not claim compiler cancellation. Direct-operation parity and black-box stdio
+evidence own this projection. It is not a protocol layer shared by clients,
+does not make Python an MCP client, and adds no Studio, remote transport,
+execution, scientific-data, persistence, artifact inspection, or generic MCP
+conformance capability.
+
 Time execution follows the same one-way path. A validated continuous canonical
 Relation first lowers to scalar Operator IR. The first-order projection proves
 a complete constant derivative Jacobian from SSA structure and recomputes its

@@ -11,6 +11,60 @@ struct ExpectedAdmission {
     source: String,
 }
 
+const IDENTITY_FREE_PATH_ORDER: [&str; 17] = [
+    "crates/eqiora-python/src/trajectory.rs",
+    "bindings/python/python/eqiora/trajectory.pyi",
+    "crates/eqiora-python/src/result.rs",
+    "crates/eqiora-artifact/src/cartesian_q1_field_snapshot.rs",
+    "crates/eqiora/tests/generated_cartesian_q1_spatial_output.rs",
+    "rfcs/0085-standalone-prescribed-dynamic-solid-artifacts.md",
+    "crates/eqiora-artifact/src/prescribed_dynamic_solid_realization.rs",
+    "crates/eqiora/tests/prescribed_dynamic_solid_state_run_3d.rs",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/references/\
+     derive_prescribed_dynamic_solid_state_run_3d.py",
+    "crates/eqiora-artifact/src/prescribed_dynamic_solid_provider_occurrence.rs",
+    "crates/eqiora-api/src/prescribed_dynamic_solid/provider/protocol/control.rs",
+    "crates/eqiora/tests/prescribed_dynamic_solid_subprocess_provider_3d.rs",
+    "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/references/\
+     derive_provider_occurrence.py",
+    "examples/python/prescribed_dynamic_solid_provider.py",
+    "docs/external-boundary-provider.md",
+    "crates/eqiora-numerics/src/canonical_stokes/\
+     navier_stokes_geometry_realization/tests.rs",
+    "crates/eqiora/src/bin/eqiora-mcp/tool.rs",
+];
+
+const FIXTURE_PATH_ORDER: [&str; 14] = [
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/model.json",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/\
+     geometry-identity.json",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/realization.json",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/\
+     prior-displacement-snapshot.json",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/\
+     prior-velocity-snapshot.json",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/\
+     accepted-displacement-snapshot.json",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/\
+     accepted-velocity-snapshot.json",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/prior-state.json",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/accepted-state.json",
+    "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/run.json",
+    "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/expected/\
+     provider-occurrence.json",
+    "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/expected/run.json",
+    "verify/interfaces/python-package-conformance/models/false-scientific-claim/store/\
+     d1e08b039c49c53cb963f314d424277a49e959b7d14a64208a86be972d06caf7.json",
+    "verify/interfaces/mcp-stdio-compile-check/expected/tool-definition.json",
+];
+
+fn rows_have_exact_unique_path_order(rows: &[PostResetAdmitted], expected: &[&str]) -> bool {
+    let paths = rows.iter().map(|row| row.path.as_str()).collect::<Vec<_>>();
+    rows.len() == expected.len()
+        && paths.iter().copied().eq(expected.iter().copied())
+        && paths.iter().copied().collect::<BTreeSet<_>>().len() == rows.len()
+}
+
 fn rfc85_identity_free() -> Vec<ExpectedAdmission> {
     vec![
         ExpectedAdmission {
@@ -296,6 +350,39 @@ fn issue118_fixtures() -> Vec<ExpectedAdmission> {
     ]
 }
 
+fn issue79_identity_free() -> ExpectedAdmission {
+    ExpectedAdmission {
+        path: "crates/eqiora/src/bin/eqiora-mcp/tool.rs",
+        class: "non-fixture-search-hit",
+        owner: "eqiora-mcp private tool adapter",
+        note: "the private MCP tool names the current Model and Transaction schemas without \
+               freezing a Model-derived identity; admission owns only this exact production \
+               path, ordered signal list, and zero-literal count."
+            .to_owned(),
+        source: format!(
+            "const MODEL_SCHEMA: &str = \"{}8\";\nconst TRANSACTION_SCHEMA: &str = \"{}8\";\n",
+            SEARCH_TOKENS[0], SEARCH_TOKENS[1]
+        ),
+    }
+}
+
+fn issue79_fixture() -> ExpectedAdmission {
+    ExpectedAdmission {
+        path: "verify/interfaces/mcp-stdio-compile-check/expected/tool-definition.json",
+        class: "delegated-current-owner-evidence",
+        owner: "interfaces.mcp-stdio-compile-check independent oracle",
+        note: "the exact tool-definition snapshot delegates the current Model and Transaction \
+               schema names to their existing owner and freezes no Model-derived identity; \
+               admission owns only this exact fixture path, ordered signal list, and \
+               zero-literal count."
+            .to_owned(),
+        source: format!(
+            "{{\"modelSchema\":\"{}8\",\"transactionSchema\":\"{}8\"}}\n",
+            SEARCH_TOKENS[0], SEARCH_TOKENS[1]
+        ),
+    }
+}
+
 fn package_conformance_fixture_source(count: usize) -> String {
     let identities = (0..count)
         .map(|_| format!("\"{}\"", "e".repeat(64)))
@@ -322,6 +409,7 @@ fn all_fixtures() -> Vec<ExpectedAdmission> {
     let mut rows = rfc85_fixtures();
     rows.extend(issue118_fixtures());
     rows.push(package_conformance_fixture());
+    rows.push(issue79_fixture());
     rows
 }
 
@@ -355,6 +443,8 @@ fn all_identity_free_sources() -> Vec<(&'static str, String)> {
             .into_iter()
             .map(|row| (row.path, row.source)),
     );
+    let issue79 = issue79_identity_free();
+    sources.push((issue79.path, issue79.source));
     sources
 }
 
@@ -414,8 +504,8 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
             .as_u64()
             .unwrap()
     );
-    assert_eq!(identity_free.len(), 16);
-    assert_eq!(fixtures.len(), 13);
+    assert_eq!(identity_free.len(), 17);
+    assert_eq!(fixtures.len(), 14);
     assert_eq!(
         contract
             .post_reset_fixture_admitted
@@ -484,6 +574,61 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
     );
 }
 
+/// Classification arrays are exact ordered artifacts, independently of the
+/// optional repository-path subsets they permit.
+#[test]
+fn admission_arrays_reject_row_reorder_and_duplicate_paths() {
+    let contract = TransitionContract::from_classification();
+    for (name, rows, expected, predecessor, appended) in [
+        (
+            "identity-free",
+            contract.post_reset_admitted.as_slice(),
+            IDENTITY_FREE_PATH_ORDER.as_slice(),
+            15,
+            16,
+        ),
+        (
+            "fixture",
+            contract.post_reset_fixture_admitted.as_slice(),
+            FIXTURE_PATH_ORDER.as_slice(),
+            12,
+            13,
+        ),
+    ] {
+        assert!(
+            rows_have_exact_unique_path_order(rows, expected),
+            "the {name} classification array must retain its exact unique path order"
+        );
+
+        let mut reordered = rows.to_vec();
+        reordered.swap(predecessor, appended);
+        assert!(
+            !rows_have_exact_unique_path_order(&reordered, expected),
+            "the {name} appended row must not move before its accepted predecessor"
+        );
+
+        let zero_literal_row = rows
+            .last()
+            .expect("each permission has one appended row")
+            .clone();
+        assert_eq!(zero_literal_row.identity_literals, 0);
+
+        let mut extra_duplicate = rows.to_vec();
+        extra_duplicate.push(zero_literal_row.clone());
+        assert!(
+            !rows_have_exact_unique_path_order(&extra_duplicate, expected),
+            "an extra duplicate zero-literal {name} row must be refused"
+        );
+
+        let mut same_length_collision = rows.to_vec();
+        same_length_collision[0] = zero_literal_row;
+        assert!(
+            !rows_have_exact_unique_path_order(&same_length_collision, expected),
+            "a duplicate {name} path replacing another row must be refused"
+        );
+    }
+}
+
 /// Every precommitted successor row is frozen field by field. Mutating each field
 /// demonstrates that omission, substitution, or metadata drift cannot be
 /// hidden behind the correct path count.
@@ -497,6 +642,7 @@ fn successor_rows_reject_wrong_path_signal_count_class_owner_or_note() {
                 rfc85_identity_free(),
                 issue118_identity_free(),
                 non_box_transient_identity_free(),
+                vec![issue79_identity_free()],
             ]
             .concat(),
         ),
@@ -522,6 +668,18 @@ fn successor_rows_reject_wrong_path_signal_count_class_owner_or_note() {
             if !row.signals.is_empty() {
                 let mut mutant = row.clone();
                 mutant.signals.pop();
+                mutants.push(mutant);
+                let mut mutant = row.clone();
+                let replacement = SEARCH_TOKENS
+                    .iter()
+                    .find(|token| !row.signals.iter().any(|signal| signal == **token))
+                    .expect("the frozen search vocabulary has a substitution token");
+                mutant.signals[0] = (*replacement).to_owned();
+                mutants.push(mutant);
+            }
+            if row.signals.len() > 1 {
+                let mut mutant = row.clone();
+                mutant.signals.swap(0, 1);
                 mutants.push(mutant);
             }
             let mut mutant = row.clone();
@@ -568,6 +726,27 @@ fn successor_rows_reject_wrong_path_signal_count_class_owner_or_note() {
             "an admission overlapping `{overlap}` must be refused"
         );
     }
+
+    // The MCP production and independent-fixture rows cannot exchange their
+    // containment classes even when every other frozen field remains intact.
+    let production = issue79_identity_free();
+    let fixture = issue79_fixture();
+    let production_row = contract
+        .post_reset_admitted
+        .iter()
+        .find(|row| row.path == production.path)
+        .expect("the MCP production admission must exist");
+    let fixture_row = contract
+        .post_reset_fixture_admitted
+        .iter()
+        .find(|row| row.path == fixture.path)
+        .expect("the MCP tool-definition admission must exist");
+    let mut swapped_production = production_row.clone();
+    swapped_production.class = fixture.class.to_owned();
+    let mut swapped_fixture = fixture_row.clone();
+    swapped_fixture.class = production.class.to_owned();
+    assert!(!row_matches(&swapped_production, &production));
+    assert!(!row_matches(&swapped_fixture, &fixture));
 }
 
 /// Both permissions are independently optional. The identity-free permission
@@ -747,6 +926,13 @@ fn no_glob_directory_suffix_or_proximity_admission_exists() {
         "verify/interfaces/python-package-conformance/models/false-scientific-claim/sibling-store/\
          d1e08b039c49c53cb963f314d424277a49e959b7d14a64208a86be972d06caf7.json",
         "verify/interfaces/python-package-conformance/models/another-claim/fixture.json",
+        "crates/eqiora/src/bin/eqiora-mcp/tool.rs.bak",
+        "crates/eqiora/src/bin/eqiora-mcp/tool_test.rs",
+        "crates/eqiora/src/bin/eqiora-mcp/tool/mod.rs",
+        "verify/interfaces/mcp-stdio-compile-check/expected/tool-definition.json.bak",
+        "verify/interfaces/mcp-stdio-compile-check/expected/tool-definition-copy.json",
+        "verify/interfaces/mcp-stdio-compile-check/expected/nested/tool-definition.json",
+        "verify/interfaces/mcp-stdio-compile-check/expected/contract.json",
     ] {
         refused(
             classify_transition(&contract, &reset().signalling(&[path])),

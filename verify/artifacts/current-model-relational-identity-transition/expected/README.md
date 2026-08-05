@@ -24,22 +24,24 @@
   carries — 98 of the 102, with `from_program_v2`, `from_json_v2`,
   `from_transaction_v2`, and `digest_v2` absent and forbidden prospectively.
 - `classification.json` also declares two disjoint containment-only successor
-  permissions. `post_reset_admitted` contains exactly 16 identity-free
+  permissions. `post_reset_admitted` contains exactly 17 identity-free
   classified paths — the unchanged 5 existing rows, the exact 4 RFC 0085 rows,
   the exact 6 source/test/derivation/provider/documentation rows for
-  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`, and the exact
-  private non-box transient oracle path — each optional, absent before reset,
-  exact in path and ordered signals, and fixed at zero Model-derived identity
-  literals.
-  `post_reset_fixture_admitted` contains exactly 13 paths: the 10 RFC 0085
+  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`, the exact
+  private non-box transient oracle path, and the exact private `eqiora-mcp`
+  tool-adapter row — each optional, absent before reset, exact in path and
+  ordered signals, and fixed at zero Model-derived identity literals.
+  `post_reset_fixture_admitted` contains exactly 14 paths: the 10 RFC 0085
   expected paths, the exact provider-occurrence and Run fixtures for
   `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`, and the exact
   source-or-package release path from the independent
-  `interfaces.python-package-conformance` oracle. The provider rows contribute
-  13 + 4 occurrences and the release adds 2 with an empty search-signal list,
-  taking the aggregate from 9 to 28. Every row is optional and exact in path,
-  ordered signals (empty only with a positive occurrence count), same-line
-  lower-hex-64 literal occurrence count, fixture class, owner, and note.
+  `interfaces.python-package-conformance` oracle, plus the exact tool-definition
+  snapshot from the independent `interfaces.mcp-stdio-compile-check` oracle.
+  The provider rows contribute 13 + 4 occurrences and the release adds 2 with
+  an empty search-signal list, taking the aggregate from 9 to 28; the MCP row
+  adds zero. Every row is optional and exact in path, ordered signals (empty
+  only with a positive occurrence count), same-line lower-hex-64 literal
+  occurrence count, fixture class, owner, and note.
   Multiple matching identities on one qualifying line are counted separately.
   Neither permission changes a historical inventory, transition, evidence,
   promotion, required, or later-classified count; fixture admission joins no

@@ -940,6 +940,8 @@ dependencies = [
  "eqiora-sem",
  "eqiora-solver",
  "eqiora-time",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
