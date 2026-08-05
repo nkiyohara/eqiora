@@ -1,0 +1,44 @@
+id = "interfaces.python-package-conformance"
+status = "verified"
+scope = "installed-python-explicit-store-exact-resolution-structural-package-report"
+reference_kind = "independent-exact-package-identities-and-direct-rust-replay-parity"
+
+capabilities = [
+  "python-package-structural-conformance-check",
+  "immutable-in-process-package-conformance-report",
+  "deterministic-package-and-current-model-replay",
+  "package-conformance-structured-failure-mapping",
+]
+
+[claim_boundary]
+explicit_store_root = true
+exact_canonical_resolution_bytes = true
+bare_root_local_model_selector = true
+private_root_local_model_accepted = true
+exact_profile_token = "eqiora.package.structural-conformance-v1"
+read_only = true
+deterministic_replay = true
+report_wire_or_attestation = false
+package_code_or_tests_executed = false
+registry_discovery_installation_or_trust = false
+automatic_scientific_evidence_lookup = false
+physical_or_numerical_correctness = false
+execution_support = false
+studio = false
+
+[precommitment]
+precommitted = true
+authored_before_implementation_by_a_nonimplementing_agent = true
+base_revision = "7433809a8e47c0e47b229bf5fc737794ce182b74"
+primary_oracle = "out-of-checkout private-root package with deliberately false scientific documentation"
+secondary_oracle = "accepted org.example.poisson package identities without evidence inference"
+
+[reused_registered_evidence]
+definition_and_resource_budgets = "packages.package-definition-validation"
+offline_store_and_resolution = "packages.offline-model-package"
+independent_poisson_lineage = "packages.typed-execution-lineage"
+installed_distribution_matrix = "interfaces.python-distribution-candidate"
+
+[evidence]
+runner = "python-installed-wheel"
+script = "verify/interfaces/python-package-conformance/evidence.py"

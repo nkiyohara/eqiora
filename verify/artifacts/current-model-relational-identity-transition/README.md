@@ -49,7 +49,7 @@ by hand.
 | `preserved_evidence` | 40 | invariant evidence — the same path in both states — whose deletion the reset must never reach |
 | `promoted_evidence` | 1 | evidence whose bytes survive at a different path, so it is invariant at neither |
 | `post_reset_admitted` | 15 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
-| `post_reset_fixture_admitted` | 12 | later signal-bearing fixture paths admitted through a separate exact-path permission with their exact search signals and same-line identity-literal counts; a member of no historical or identity-free set |
+| `post_reset_fixture_admitted` | 13 | later fixtures discovered by exact search signals or positive same-line identity-literal counts, admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
 
 **44, 304 and 13 are not one partition of 338.** What partitions the inventory
 is 34 + 304: the retired paths that are inventory members, plus the preserved
@@ -221,7 +221,7 @@ provider/protocol, documentation, and independent-oracle owners, which must not
 tune this record; a path that cannot meet the four conditions above returns
 here rather than being made to fit.
 
-## Signal-bearing expected bytes use a separate fixture permission
+## Exact later fixture bytes use a separate permission
 
 The ten expected files frozen by RFC 0085 are not identity-free consumer
 surfaces. The Model fixture carries `eqiora.model-envelope/v` and zero
@@ -236,32 +236,46 @@ evidence adds exactly two more delegated fixtures under its interface case.
 The provider-occurrence JSON carries `model_sha256` and 13 same-line
 Model-derived lower-hex-64 literal occurrences; the two-output Run JSON carries
 the same signal and 4 occurrences. Together with RFC 0085's 9 occurrences, the
-twelve exact fixture rows carry an aggregate 26. The binary transcript and
+first twelve exact fixture rows carry an aggregate 26. The binary transcript and
 candidate fixtures are non-UTF-8 and carry no discovered text signal, and no
 other `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` path is
 admitted by this fixture permission.
 
+The independent `interfaces.python-package-conformance` oracle adds one exact
+source-or-package-identity release path. Its minified bytes contain no recorded
+search token and exactly two same-line lower-hex-64 occurrences on a
+Model-bearing line, so discovery is the positive occurrence count rather than
+a nonempty signal list. Admission owns only that path, empty search shape, and
+count. The oracle retains ownership of the release bytes and source/package
+identities; this transition record creates no raw release-wire predicate. The
+thirteen rows therefore carry 28 occurrences in aggregate.
+
 `search.transition.post_reset_fixture_admitted` therefore records a second
 containment-only permission:
 
-- each of the twelve exact paths is optional after the reset and absent before it;
+- each of the thirteen exact paths is optional after the reset and absent before it;
 - a present path must carry its exact ordered search-signal list and exact
-  same-line lower-hex-64 literal occurrence count, so two identities on one
-  qualifying line count as two and are refused by every one-occurrence row;
+  same-line lower-hex-64 literal occurrence count; the signal list may be empty
+  only when the occurrence count is positive, and every non-overlapping
+  identity on one qualifying line is counted;
 - every row has the exact delegated fixture class, owner, and note frozen by
   the independent transition oracle;
 - no row joins the inventory, retired, required, preserved-evidence, promoted,
-  promotion, or identity-free admitted set; and
+  promotion, identity-free admitted, or later-classified set; and
 - no glob, directory, suffix, expected-file naming convention, or sibling
-  proximity admits a thirteenth fixture.
+  proximity admits a fourteenth fixture.
 
-Every subset of the fifteen identity-free paths and every subset of the twelve
+Every subset of the fifteen identity-free paths and every subset of the thirteen
 fixture paths is accepted independently, including neither set being present.
-Synthetic mutants remove or add a search signal; change a zero, one, four, or
-thirteen literal count; substitute a path; and alter every metadata field.
-Nearby RFC, Rust, protocol, provider, documentation, derivation, and
-expected-file paths remain unclassified. This keeps both permissions optional
-and fail-closed without making one a relaxation of the other.
+Synthetic mutants remove or add a search signal; change the new two-occurrence
+row to one or three; change the other zero, one, four, or thirteen counts;
+substitute a path; alter every metadata field; and attempt overlap with both
+historical and later-classified paths. Another digest in the same store, a
+backup or alternate suffix, a nested or sibling store, and another
+package-conformance fixture remain unclassified alongside the existing nearby
+RFC, Rust, protocol, provider, documentation, derivation, and expected-file
+paths. This keeps both permissions optional and fail-closed without making one
+a relaxation of the other.
 
 ## Later mixed identity evidence uses exact classification
 
@@ -540,7 +554,7 @@ identity-free paths and the RFC exist in this checkout, so the live tree
 exercises their exact observed signals and zero-literal counts; the other three
 RFC 0085 identity-free paths, all six
 `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` identity-free
-paths, and all twelve fixtures remain optional successor paths.
+paths, and all thirteen fixtures remain optional successor paths.
 Synthetic post-reset states additionally exercise every optional subset and the
 mutants through the same byte reader.
 

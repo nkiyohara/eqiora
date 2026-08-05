@@ -14,6 +14,12 @@ are recorded here.
   authoring, installation, registry/network access, execution, and Studio
   workflows remain outside the claim.
 
+- Added `eqiora.check_package_conformance(...)` for one explicit locked package
+  closure and the exact `eqiora.package.structural-conformance-v1` profile. Its
+  immutable in-process report proves structural replay agreement only; it is
+  not scientific verification, execution support, trust, certification, or a
+  Studio workflow.
+
 - Added one exact serial-host prescribed dynamic-solid publication path with a
   content-addressed standalone Realization, retained prior and accepted-next
   two-Field States, and a Run whose sole output is the accepted-next State.

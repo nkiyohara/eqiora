@@ -1,9 +1,13 @@
 """Python ergonomics over Eqiora's canonical Rust implementation."""
 
+import os
+from typing import NamedTuple
+
 from . import fluid, fsi, geometry, meshing, solid, trajectory
 
 from ._eqiora import (
     __version__,
+    _check_package_conformance,
     Array,
     BoundarySide,
     CancellationError,
@@ -77,6 +81,33 @@ from ._eqiora import (
 
 from . import diff
 
+
+class PackageConformancePackage(NamedTuple):
+    name: str
+    version: str
+    semantic_digest: str
+    source_digest: str
+
+
+class PackageConformanceReport(NamedTuple):
+    profile: str
+    eqiora_version: str
+    compiler: str
+    compiler_version: str
+    semantic_canonicalization_version: int
+    source_bundle_version: int
+    resolution_version: int
+    root_package: PackageConformancePackage
+    packages: tuple[PackageConformancePackage, ...]
+    entry_model: str
+    resolution_digest: str
+    package_compilation_digest: str
+    model_id: str
+    model_revision: int
+    model_digest: str
+    deterministic_replay_agreement: bool
+
+
 __all__ = [
     "__version__",
     "Array",
@@ -107,6 +138,8 @@ __all__ = [
     "LinearSolveSummary",
     "LinearizationState",
     "Model",
+    "PackageConformancePackage",
+    "PackageConformanceReport",
     "Parameter",
     "ParameterRef",
     "PhysicalDomain",
@@ -133,6 +166,7 @@ __all__ = [
     "ValidationError",
     "ValueEdit",
     "across",
+    "check_package_conformance",
     "compile",
     "compile_package",
     "connect",
@@ -156,6 +190,29 @@ __all__ = [
 
 
 _MISSING = object()
+
+
+def check_package_conformance(
+    store_root: str | os.PathLike[str],
+    resolution_bytes: bytes,
+    *,
+    entry_model: str,
+    profile: str,
+) -> PackageConformanceReport:
+    """Check one exact locked package closure for structural conformance."""
+
+    native = _check_package_conformance(
+        store_root,
+        resolution_bytes,
+        entry_model=entry_model,
+        profile=profile,
+    )
+    return PackageConformanceReport(
+        *native[:7],
+        PackageConformancePackage(*native[7]),
+        tuple(PackageConformancePackage(*package) for package in native[8]),
+        *native[9:],
+    )
 
 
 def run(

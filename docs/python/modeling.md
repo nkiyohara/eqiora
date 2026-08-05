@@ -62,6 +62,39 @@ structural comparison. This surface does not discover stores or lock files,
 author or install packages, access registries or networks, select imported
 Model roots, execute the Model, or add a Studio package workflow.
 
+## Check one exact package structurally
+
+An external package author can check the same locked closure without turning
+the check into a scientific or execution claim:
+
+```python
+report = eqiora.check_package_conformance(
+    store_root,
+    resolution,
+    entry_model="Main",
+    profile="eqiora.package.structural-conformance-v1",
+)
+
+print(report.packages)
+print(report.package_compilation_digest)
+print(report.model_digest)
+```
+
+The read-only operation accepts one explicit store, exact canonical resolution
+bytes, one bare root-local Model selector, and the exact profile token shown
+above. It compiles and replays the closure twice through the existing package
+and current Model boundaries, then returns immutable in-process facts only
+after package-compilation and Model identity agree. Rejections raise the
+existing structured `EqioraError` family and return no partial report.
+
+This is structural compatibility only. The conformance fixture deliberately
+includes scientifically false documentation that still passes: a report does
+not establish physical truth, well-posedness, realizability, solver support,
+accuracy, convergence, performance, or verified physics. It executes no
+package code or tests and supplies no registry, discovery, installation,
+publishing, signature, trust, badge, attestation, durable report wire,
+scientific-evidence lookup, execution workflow, or Studio surface.
+
 ## Authored CAD to exact geometry
 
 The first accepted path projects one closed authored-CAD history into its exact

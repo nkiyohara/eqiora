@@ -145,6 +145,31 @@ impl CompilationToolchainV1 {
         }
     }
 
+    #[must_use]
+    pub fn compiler(&self) -> &QualifiedName {
+        &self.compiler
+    }
+
+    #[must_use]
+    pub fn compiler_version(&self) -> &ExactVersion {
+        &self.compiler_version
+    }
+
+    #[must_use]
+    pub fn semantic_canonicalization_version(&self) -> u32 {
+        self.semantic_canonicalization_version
+    }
+
+    #[must_use]
+    pub fn source_bundle_version(&self) -> u32 {
+        self.source_bundle_version
+    }
+
+    #[must_use]
+    pub fn resolution_version(&self) -> u32 {
+        self.resolution_version
+    }
+
     fn validate_v1(&self) -> Result<(), ContractError> {
         if self.semantic_canonicalization_version != V1
             || self.source_bundle_version != V1
@@ -279,6 +304,11 @@ impl PackageCompilationRecordV1 {
     #[must_use]
     pub fn packages(&self) -> &[CompilationPackageV1] {
         &self.packages
+    }
+
+    #[must_use]
+    pub fn toolchain(&self) -> &CompilationToolchainV1 {
+        &self.toolchain
     }
 }
 

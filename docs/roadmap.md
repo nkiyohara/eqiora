@@ -164,6 +164,8 @@ the capability matrix.
   resolution, compiler-owned package validation, capability-rooted directory
   admission, retained local-store replay, atomic no-clobber installation, and
   one installed-Python projection from an explicit store plus canonical lock.
+  The same Python/API-first path now exposes one read-only structural
+  conformance report for an explicit locked closure and exact named profile.
 - Occurrence-bound spatial supports and Fields, field-valued boundary
   interfaces, complete exterior Port families, and hierarchical conserving
   connection-set normalization.
@@ -236,6 +238,9 @@ candidate:
 
 - source compilation, immutable native scalar/spatial authoring, exact Model
   and child-revision identity, and structured diagnostics;
+- explicit-store locked Model Package compilation and the bounded
+  `check_package_conformance(...)` structural report, with a deliberately
+  false scientific claim retained as an accepted non-inference fixture;
 - typed scalar-elliptic FEM/FVM Realization preview and host-serial sync/await
   Run lifecycle with bounded progress and safe-point cancellation;
 - immutable CPU `float64` arrays with explicit NumPy copy policy and bounded
@@ -252,7 +257,10 @@ release checklist.
 GPU DLPack, framework GPU execution, broader transformations, free-threaded
 Python, other operating systems and architectures, general graph/PDE authoring,
 durable output artifacts, production cancellation, and a broad async API
-remain open.
+remain open. The package-conformance workflow has no Studio, CLI, MCP,
+execution, scientific-validation, evidence-discovery, registry, certification,
+or trust projection; those are deferred independent capabilities rather than
+implications of its structural report.
 
 ### Studio
 
