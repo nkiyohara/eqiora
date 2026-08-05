@@ -23,8 +23,8 @@ use eqiora_schema::ModelView;
 use eqiora_schema::kernel::{BoundarySide, DomainDef, DomainKind, GeometryDigest, KernelNode};
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, LinearSolverBackend, PreconditionerPolicy,
-    REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolverPlan,
+    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
+    ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
 };
 
 use super::TransientNavierStokesGeometryBinding2d;
@@ -603,6 +603,7 @@ fn exact_zero_state(mesh: &eqiora_meshing::SimplicialMesh) -> SimplicialMiniNavi
 }
 
 fn capabilities() -> RealizationCapabilities {
+    let solver = solver_plan();
     RealizationCapabilities::cartesian_product(
         [DiscretizationMethod::ContinuousGalerkin],
         [(
@@ -610,7 +611,14 @@ fn capabilities() -> RealizationCapabilities {
             SpatialDimensionSupport::exact(NonZeroUsize::new(2).unwrap()),
         )],
         [VectorLayoutKind::Replicated],
-        REFERENCE_LINEAR_SOLVER.capabilities(),
+        SolverCapabilities::exact([SolverCapability {
+            algorithm: solver.algorithm(),
+            operator_properties: LinearOperatorProperties::General,
+            preconditioner: solver.preconditioner(),
+            reduction: solver.reduction(),
+            scalar_type: ScalarType::F64,
+        }])
+        .expect("the precommitted General/Fast solver tuple is exact"),
         TargetCapabilities::none().with_host_cpu(NonZeroUsize::MIN),
     )
     .unwrap()
