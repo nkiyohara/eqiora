@@ -262,6 +262,17 @@ execution, scientific-validation, evidence-discovery, registry, certification,
 or trust projection; those are deferred independent capabilities rather than
 implications of its structural report.
 
+### MCP
+
+One bounded local `eqiora-mcp` subprocess projects the accepted compile/check
+operation as exactly one MCP `2026-07-28` in-memory tool over newline-delimited
+stdio. Discovery, tool listing and calls, bounded diagnostics, direct-operation
+parity, one-active-call admission, and best-effort response cancellation are
+verified. It does not execute or persist models, transport scientific results,
+provide remote service or generic MCP conformance, make Python an MCP client,
+or add a Studio capability. Those clients continue to consume the same
+Rust-owned semantics through independently verified projections.
+
 ### Studio
 
 Implemented bounded capabilities include:
@@ -311,7 +322,7 @@ bounded native authored Sketch/profile composition
 
 Client compile/check adapters
   transport-neutral current-Model operation (#78)
-    -> local stdio MCP adapter (#79)
+    -> local stdio MCP adapter (#79)                                  closed
       -> command-line check workflow (#80)
 
 External boundary providers

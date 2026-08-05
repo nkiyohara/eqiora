@@ -46,6 +46,16 @@ structured diagnostics, array ownership, asynchronous runs, bounded PyTorch
 and JAX integrations, and optional Matplotlib presentation of accepted
 results.
 
+Local agents can separately compile/check one in-memory Eqiora source through
+the `eqiora-mcp` subprocess. It exposes exactly one bounded MCP `2026-07-28`
+tool over newline-delimited stdio and returns either structured compiler
+diagnostics or the current Model descriptor and comparison fingerprint. It
+does not execute a model, transport scientific results, persist an artifact,
+or provide remote, Python, or Studio integration. Python remains the first
+execution API and can serve the initial gallery directly; a future Studio
+client can consume the same Rust-owned model semantics through its own
+independently verified projection.
+
 ## One model, two layers
 
 Eqiora treats block diagrams, state charts, PDEs, and acausal physical

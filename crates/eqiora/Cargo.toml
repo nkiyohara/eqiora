@@ -57,6 +57,8 @@ eqiora-runtime = { workspace = true }
 eqiora-sem = { workspace = true }
 eqiora-solver = { workspace = true }
 eqiora-time = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 eqiora-backend-faer = { workspace = true }
@@ -66,8 +68,6 @@ eqiora-spatial-distribution = { workspace = true }
 num-rational = { workspace = true }
 rustix = { workspace = true }
 quick-xml = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
 sha2 = { workspace = true }
 
 [lints]
