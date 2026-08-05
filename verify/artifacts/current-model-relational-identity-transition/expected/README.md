@@ -24,12 +24,13 @@
   carries — 98 of the 102, with `from_program_v2`, `from_json_v2`,
   `from_transaction_v2`, and `digest_v2` absent and forbidden prospectively.
 - `classification.json` also declares two disjoint containment-only successor
-  permissions. `post_reset_admitted` contains exactly 15 identity-free
+  permissions. `post_reset_admitted` contains exactly 16 identity-free
   classified paths — the unchanged 5 existing rows, the exact 4 RFC 0085 rows,
-  and the exact 6 source/test/derivation/provider/documentation rows for
-  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` — each optional,
-  absent before reset, exact in path and ordered signals, and fixed at zero
-  Model-derived identity literals.
+  the exact 6 source/test/derivation/provider/documentation rows for
+  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`, and the exact
+  private non-box transient oracle path — each optional, absent before reset,
+  exact in path and ordered signals, and fixed at zero Model-derived identity
+  literals.
   `post_reset_fixture_admitted` contains exactly 13 paths: the 10 RFC 0085
   expected paths, the exact provider-occurrence and Run fixtures for
   `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`, and the exact

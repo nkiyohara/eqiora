@@ -180,34 +180,40 @@ documentation. Each carries only `model_sha256`, freezes zero Model-derived
 identity literals, and grants no sibling, path-family, or documentation
 proximity admission.
 
+The private non-box transient Navier--Stokes oracle adds one exact later test
+path carrying `model_digest`. It derives that digest from the accepted source
+bytes and pins no Model-derived identity. Its permission covers only that test
+file, not its module, directory, or a future cylinder-flow sibling.
+
 Neither of the two sets that could have absorbed them is true. Adding them to
 the 338-path inventory would claim they existed before the reset. Adding them to
 `required_post_reset` would claim the reset created them, and would make a later
 capability a condition of accepting a transition that completed without it. So
-`search.transition.post_reset_admitted` names all fifteen, and names them alone:
+`search.transition.post_reset_admitted` names all sixteen, and names them alone:
 
 - **containment only.** Admission widens what the post-reset discovered set may
-  contain; it never asks a path to exist. Every subset of the fifteen, including
+  contain; it never asks a path to exist. Every subset of the sixteen, including
   none and all, is accepted independently of this permission. The original
-  five paths and the RFC 0085 path happen to exist in the observed checkout;
-  the other three RFC 0085 paths and all six paths pre-admitted for
+  five paths, the RFC 0085 path, and the non-box transient oracle happen to
+  exist in the observed checkout; the other three RFC 0085 paths and all six
+  paths pre-admitted for
   `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` are optional
   successors at this precommit revision.
 - **exactly the recorded signal.** An admitted path that does exist must spell
   exactly the search tokens recorded for it, in the sweep's own order. A file
   that spells none is not the surface that was admitted, and one that spells
   more has grown a claim nobody classified.
-- **no frozen identity.** `identity_literals` is 0 for all fifteen. A path that pins a
-  Model-derived lower-hex-64 identity is a fixture, and a fixture is classified
-  here rather than admitted.
+- **no frozen identity.** `identity_literals` is 0 for all sixteen. A path that
+  pins a Model-derived lower-hex-64 identity is a fixture, and a fixture is
+  classified here rather than admitted.
 - **absent before the reset.** An admitted path present in the pre-reset state
   is a mid-flight tree, refused by existence alone.
 - **exact, and nothing near it.** There is no glob, no directory rule and no
-  suffix rule. A sixteenth identity-free signal-bearing path is not admitted by
+  suffix rule. A seventeenth identity-free signal-bearing path is not admitted by
   sitting in the same directory, by sharing a trajectory, Result, Cartesian
-  snapshot, prescribed-solid, provider, protocol, RFC, documentation, test, or
-  derivation name, or by being the other extension of the same module; it
-  returns here for classification
+  snapshot, prescribed-solid, provider, protocol, RFC, documentation, non-box
+  transient, test, or derivation name, or by being the other extension of the
+  same module; it returns here for classification
   exactly as an unlisted path did before.
 
 Every historical set and count above is unchanged by this: 338 inventory paths,
@@ -215,11 +221,11 @@ Every historical set and count above is unchanged by this: 338 inventory paths,
 same bytes and the same digests. Admission adds a permission and removes
 nothing.
 
-The fifteen paths are what this case bounds, not what it owns. Their content
+The sixteen paths are what this case bounds, not what it owns. Their content
 belongs to their Python, Cartesian artifact, RFC, prescribed-solid artifact,
-provider/protocol, documentation, and independent-oracle owners, which must not
-tune this record; a path that cannot meet the four conditions above returns
-here rather than being made to fit.
+provider/protocol, documentation, numerics, and independent-oracle owners,
+which must not tune this record; a path that cannot meet the four conditions
+above returns here rather than being made to fit.
 
 ## Exact later fixture bytes use a separate permission
 
@@ -265,7 +271,7 @@ containment-only permission:
 - no glob, directory, suffix, expected-file naming convention, or sibling
   proximity admits a fourteenth fixture.
 
-Every subset of the fifteen identity-free paths and every subset of the thirteen
+Every subset of the sixteen identity-free paths and every subset of the thirteen
 fixture paths is accepted independently, including neither set being present.
 Synthetic mutants remove or add a search signal; change the new two-occurrence
 row to one or three; change the other zero, one, four, or thirteen counts;
