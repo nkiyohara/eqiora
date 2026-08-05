@@ -14,8 +14,8 @@ use eqiora_schema::kernel::{
 };
 use eqiora_sem::KernelProgram;
 
-use crate::canonical_boundary::BoundaryRelationBinding;
 use crate::canonical_boundary::CartesianBoundaryInventory;
+use crate::canonical_boundary::{BoundaryRelationBinding, PhysicalBoundaryDisposition};
 use crate::spatial_expression::{self, ScalarSpatialExpression};
 
 use super::boundary::{self, LoweredStokesBoundary};
@@ -74,6 +74,56 @@ pub struct TransientIncompressibleNavierStokesCartesianModel<const D: usize> {
     boundary_inventory: CartesianBoundaryInventory<D>,
     boundary_relations: Vec<BoundaryRelationBinding>,
     normal_velocity_expressions: BTreeMap<(usize, BoundarySide), ScalarSpatialExpression>,
+}
+
+/// Crate-private two-dimensional projection shared by transient execution paths.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct TransientIncompressibleNavierStokesModel2d {
+    pub(super) domain: RawId,
+    pub(super) velocity: RawId,
+    pub(super) pressure: RawId,
+    pub(super) force_potential: RawId,
+    pub(super) bounds: [[f64; 2]; 2],
+    pub(super) mass_density: ScalarSpatialExpression,
+    pub(super) dynamic_viscosity: ScalarSpatialExpression,
+    pub(super) force_potential_expression: ScalarSpatialExpression,
+    pub(super) force_potential_definition: RawId,
+    pub(super) momentum_relation: RawId,
+    pub(super) incompressibility_relation: RawId,
+    pub(super) boundary_dispositions: BTreeMap<RawId, PhysicalBoundaryDisposition>,
+    pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
+    pub(super) normal_velocity_expressions: BTreeMap<RawId, ScalarSpatialExpression>,
+}
+
+impl TransientIncompressibleNavierStokesModel2d {
+    pub(super) fn mass_density(&self) -> f64 {
+        self.mass_density
+            .constant_value()
+            .expect("transient-flow lowerer retains a constant density tape")
+    }
+
+    pub(super) fn dynamic_viscosity(&self) -> f64 {
+        self.dynamic_viscosity
+            .constant_value()
+            .expect("transient-flow lowerer retains a constant viscosity tape")
+    }
+
+    pub(super) fn conservative_body_force(
+        &self,
+        coordinates: &[f64],
+    ) -> Result<[f64; 2], Diagnostic> {
+        let zero_parameters = vec![0.0; self.force_potential_expression.parameter_fields().len()];
+        let mut gradient = [0.0; 2];
+        for axis in 0..2 {
+            let mut direction = [0.0; 2];
+            direction[axis] = 1.0;
+            gradient[axis] = self
+                .force_potential_expression
+                .evaluate_jvp(coordinates, &direction, &zero_parameters)?
+                .1;
+        }
+        Ok(gradient)
+    }
 }
 
 impl<const D: usize> TransientIncompressibleNavierStokesCartesianModel<D> {
@@ -205,6 +255,39 @@ impl<const D: usize> TransientIncompressibleNavierStokesCartesianModel<D> {
                 .1;
         }
         Ok(gradient)
+    }
+}
+
+impl TransientIncompressibleNavierStokesCartesianModel2d {
+    pub(super) fn common_projection(&self) -> TransientIncompressibleNavierStokesModel2d {
+        TransientIncompressibleNavierStokesModel2d {
+            domain: self.domain,
+            velocity: self.velocity,
+            pressure: self.pressure,
+            force_potential: self.force_potential,
+            bounds: self.bounds,
+            mass_density: self.mass_density.clone(),
+            dynamic_viscosity: self.dynamic_viscosity.clone(),
+            force_potential_expression: self.force_potential_expression.clone(),
+            force_potential_definition: self.force_potential_definition,
+            momentum_relation: self.momentum_relation,
+            incompressibility_relation: self.incompressibility_relation,
+            boundary_dispositions: self
+                .boundary_inventory
+                .entries()
+                .map(|(_, entry)| (entry.boundary(), entry.disposition()))
+                .collect(),
+            boundary_relations: self.boundary_relations.clone(),
+            normal_velocity_expressions: self
+                .normal_velocity_expressions
+                .iter()
+                .filter_map(|(key, expression)| {
+                    self.boundary_inventory
+                        .boundary(key.0, key.1)
+                        .map(|entry| (entry.boundary(), expression.clone()))
+                })
+                .collect(),
+        }
     }
 }
 
@@ -345,6 +428,72 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_subdomain<const D: us
     domain: RawId,
     bounds: [[f64; 2]; D],
 ) -> Result<LoweredTransientIncompressibleNavierStokesSubdomain<D>, Diagnostic> {
+    let volume = lower_transient_volume::<D>(program, domain)?;
+
+    let boundary = boundary::lower_dimension::<D>(
+        program,
+        domain,
+        volume.velocity,
+        volume.pressure,
+        &volume.dynamic_viscosity,
+    )?;
+    require_boundary_volume(
+        &volume,
+        &boundary.normal_velocity_fields,
+        &boundary.normal_velocity_definitions,
+    )?;
+    let model = TransientIncompressibleNavierStokesCartesianModel {
+        domain,
+        velocity: volume.velocity,
+        pressure: volume.pressure,
+        force_potential: volume.force_potential,
+        bounds,
+        mass_density: volume.mass_density,
+        dynamic_viscosity: volume.dynamic_viscosity,
+        force_potential_expression: volume.force_potential_expression,
+        force_potential_definition: volume.force_potential_definition,
+        momentum_relation: volume.momentum_relation,
+        incompressibility_relation: volume.incompressibility_relation,
+        boundary_inventory: boundary.inventory.clone(),
+        boundary_relations: boundary.boundary_relations.clone(),
+        normal_velocity_expressions: boundary.normal_velocity_expressions.clone(),
+    };
+    Ok(LoweredTransientIncompressibleNavierStokesSubdomain {
+        model,
+        representation: volume.representation,
+        volume_relations: volume.volume_relations,
+        boundary,
+    })
+}
+
+#[derive(Debug)]
+pub(crate) struct LoweredTransientIncompressibleNavierStokesSubdomain<const D: usize> {
+    pub(crate) model: TransientIncompressibleNavierStokesCartesianModel<D>,
+    pub(crate) representation: RawId,
+    pub(crate) volume_relations: Vec<RawId>,
+    pub(crate) boundary: LoweredStokesBoundary<D>,
+}
+
+pub(super) struct TransientVolume<const D: usize> {
+    pub(super) domain: RawId,
+    pub(super) velocity: RawId,
+    pub(super) pressure: RawId,
+    pub(super) force_potential: RawId,
+    pub(super) mass_density: ScalarSpatialExpression,
+    pub(super) dynamic_viscosity: ScalarSpatialExpression,
+    pub(super) force_potential_expression: ScalarSpatialExpression,
+    pub(super) force_potential_definition: RawId,
+    pub(super) momentum_relation: RawId,
+    pub(super) incompressibility_relation: RawId,
+    pub(super) normal_velocity_fields: BTreeSet<RawId>,
+    pub(super) representation: RawId,
+    pub(super) volume_relations: Vec<RawId>,
+}
+
+pub(super) fn lower_transient_volume<const D: usize>(
+    program: &KernelProgram,
+    domain: RawId,
+) -> Result<TransientVolume<D>, Diagnostic> {
     let (velocity, scalar_fields, normal_velocity_fields, representation) =
         transient_fields_for_dimension::<D>(program, domain)?;
     if scalar_fields.len() != 2 {
@@ -373,7 +522,6 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_subdomain<const D: us
         .iter()
         .map(|relation| Ok((*relation, typed_relation(program, *relation)?)))
         .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
-
     let incompressibility = volume_relations
         .iter()
         .copied()
@@ -400,7 +548,6 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_subdomain<const D: us
         ));
     }
     let incompressibility_relation = incompressibility[0];
-
     let mut candidates = Vec::new();
     for &force_potential in &scalar_fields {
         for &pressure in &scalar_fields {
@@ -502,57 +649,53 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_subdomain<const D: us
         )
     })?;
     require_positive_constant(&dynamic_viscosity, momentum_relation, "dynamic viscosity")?;
-
-    let boundary =
-        boundary::lower_dimension::<D>(program, domain, velocity, pressure, &dynamic_viscosity)?;
-    if boundary.normal_velocity_fields != normal_velocity_fields {
-        return Err(lowering_error(
-            domain,
-            "every scalar velocity-valued Field must define one prescribed normal-velocity boundary law",
-        ));
-    }
-    let mut expected_volume_relations = BTreeSet::from([
-        force_potential_definition,
-        momentum_relation,
-        incompressibility_relation,
-    ]);
-    expected_volume_relations.extend(boundary.normal_velocity_definitions.iter().copied());
-    if volume_relations.iter().copied().collect::<BTreeSet<_>>() != expected_volume_relations {
-        return Err(lowering_error(
-            domain,
-            "transient flow volume contains a Relation outside force, momentum, incompressibility, and prescribed normal-velocity definitions",
-        ));
-    }
-    let model = TransientIncompressibleNavierStokesCartesianModel {
+    Ok(TransientVolume {
         domain,
         velocity,
         pressure,
         force_potential,
-        bounds,
         mass_density,
         dynamic_viscosity,
         force_potential_expression,
         force_potential_definition,
         momentum_relation,
         incompressibility_relation,
-        boundary_inventory: boundary.inventory.clone(),
-        boundary_relations: boundary.boundary_relations.clone(),
-        normal_velocity_expressions: boundary.normal_velocity_expressions.clone(),
-    };
-    Ok(LoweredTransientIncompressibleNavierStokesSubdomain {
-        model,
+        normal_velocity_fields,
         representation,
         volume_relations,
-        boundary,
     })
 }
 
-#[derive(Debug)]
-pub(crate) struct LoweredTransientIncompressibleNavierStokesSubdomain<const D: usize> {
-    pub(crate) model: TransientIncompressibleNavierStokesCartesianModel<D>,
-    pub(crate) representation: RawId,
-    pub(crate) volume_relations: Vec<RawId>,
-    pub(crate) boundary: LoweredStokesBoundary<D>,
+pub(super) fn require_boundary_volume<const D: usize>(
+    volume: &TransientVolume<D>,
+    boundary_fields: &BTreeSet<RawId>,
+    boundary_definitions: &BTreeSet<RawId>,
+) -> Result<(), Diagnostic> {
+    if boundary_fields != &volume.normal_velocity_fields {
+        return Err(lowering_error(
+            volume.domain,
+            "every scalar velocity-valued Field must define one prescribed normal-velocity boundary law",
+        ));
+    }
+    let mut expected = BTreeSet::from([
+        volume.force_potential_definition,
+        volume.momentum_relation,
+        volume.incompressibility_relation,
+    ]);
+    expected.extend(boundary_definitions.iter().copied());
+    if volume
+        .volume_relations
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>()
+        != expected
+    {
+        return Err(lowering_error(
+            volume.domain,
+            "transient flow volume contains a Relation outside force, momentum, incompressibility, and prescribed normal-velocity definitions",
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy)]

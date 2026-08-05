@@ -231,6 +231,26 @@ fn issue118_identity_free() -> Vec<ExpectedAdmission> {
     ]
 }
 
+fn non_box_transient_identity_free() -> Vec<ExpectedAdmission> {
+    vec![ExpectedAdmission {
+        path: "crates/eqiora-numerics/src/canonical_stokes/\
+               navier_stokes_geometry_realization/tests.rs",
+        class: "non-fixture-search-hit",
+        owner: "fluid.non-box-transient-navier-stokes-2d-private independent oracle",
+        note: format!(
+            "the private non-box transient oracle names `{}` while proving that the compiled \
+             program remains bound to the accepted source digest; it derives that digest from \
+             live source bytes, freezes no Model-derived identity literal, and this permission \
+             grants no sibling module or directory admission.",
+            SEARCH_TOKENS[4]
+        ),
+        source: format!(
+            "fn assert_source_binding({}: [u8; 32]) {{ assert_ne!({}, [0; 32]); }}\n",
+            SEARCH_TOKENS[4], SEARCH_TOKENS[4]
+        ),
+    }]
+}
+
 fn issue118_fixture_source(count: usize) -> String {
     let identities = (1..count)
         .map(|_| format!("\"{}\"", "e".repeat(64)))
@@ -330,6 +350,11 @@ fn all_identity_free_sources() -> Vec<(&'static str, String)> {
             .into_iter()
             .map(|row| (row.path, row.source)),
     );
+    sources.extend(
+        non_box_transient_identity_free()
+            .into_iter()
+            .map(|row| (row.path, row.source)),
+    );
     sources
 }
 
@@ -389,7 +414,7 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
             .as_u64()
             .unwrap()
     );
-    assert_eq!(identity_free.len(), 15);
+    assert_eq!(identity_free.len(), 16);
     assert_eq!(fixtures.len(), 13);
     assert_eq!(
         contract
@@ -468,7 +493,12 @@ fn successor_rows_reject_wrong_path_signal_count_class_owner_or_note() {
     for (rows, expected) in [
         (
             contract.post_reset_admitted.as_slice(),
-            [rfc85_identity_free(), issue118_identity_free()].concat(),
+            [
+                rfc85_identity_free(),
+                issue118_identity_free(),
+                non_box_transient_identity_free(),
+            ]
+            .concat(),
         ),
         (
             contract.post_reset_fixture_admitted.as_slice(),
@@ -700,6 +730,12 @@ fn no_glob_directory_suffix_or_proximity_admission_exists() {
         "verify/interfaces/prescribed-dynamic-solid-subprocess-provider-3d/expected/run.json.bak",
         "examples/python/prescribed_dynamic_solid_provider_test.py",
         "docs/external-boundary-provider-notes.md",
+        "crates/eqiora-numerics/src/canonical_stokes/\
+         navier_stokes_geometry_realization/test.rs",
+        "crates/eqiora-numerics/src/canonical_stokes/\
+         navier_stokes_geometry_realization/tests_copy.rs",
+        "crates/eqiora-numerics/src/canonical_stokes/\
+         navier_stokes_geometry_realization/tests/helpers.rs",
         "verify/interfaces/python-package-conformance/models/false-scientific-claim/store/\
          ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.json",
         "verify/interfaces/python-package-conformance/models/false-scientific-claim/store/\
