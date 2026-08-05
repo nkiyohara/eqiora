@@ -2,17 +2,18 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use eqiora::api::ModelDocument;
 use eqiora::api::package::{PackageCompilationError, PackagedModelDocument};
 use eqiora::package::{
     AuthorManifestV1, BundleEntryV1, BundleRoleV1, CanonicalDeclaration, DeclarationKindV1,
-    ExactVersion, InMemoryPackageStore, NormalizedRelativePath, PackageCompilationRecordV1,
-    PackageReleaseV1, QualifiedName, ResolutionRecordV1, SemanticContentV1, SemanticDeclarationV1,
-    SourceFileV1, VisibilityV1,
+    DependencyRequirementV1, ExactVersion, InMemoryPackageStore, NormalizedRelativePath,
+    PackageCompilationRecordV1, PackageReleaseV1, QualifiedName, ResolutionRecordV1,
+    SemanticContentV1, SemanticDeclarationV1, SourceFileV1, VisibilityV1,
 };
 use eqiora::{Diagnostic, Severity};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBytes, PyDict, PyModule};
+use pyo3::types::{PyAny, PyBytes, PyDict, PyModule, PyTuple};
 
 const OFFLINE_RESOLUTION_FILE: &[u8] =
     include_bytes!("../../../verify/packages/offline-model-package/models/resolution.json");
@@ -37,6 +38,15 @@ const TYPED_RELEASE: &[u8] = include_bytes!(
 const OFFLINE_STORE: &str = "../../verify/packages/offline-model-package/models/store";
 const TYPED_STORE: &str =
     "../../verify/interfaces/python-offline-model-package/models/typed-execution-lineage/store";
+const CONFORMANCE_RESOLUTION_FILE: &[u8] = include_bytes!(
+    "../../../verify/interfaces/python-package-conformance/models/false-scientific-claim/resolution.json"
+);
+const CONFORMANCE_EXPECTED_FILE: &[u8] = include_bytes!(
+    "../../../verify/interfaces/python-package-conformance/expected/identities.json"
+);
+const CONFORMANCE_STORE: &str =
+    "../../verify/interfaces/python-package-conformance/models/false-scientific-claim/store";
+const CONFORMANCE_PROFILE: &str = "eqiora.package.structural-conformance-v1";
 const OFFLINE_MODEL_ID: &str = "3JNCJVGEYX9N2QSYVEXRXWXWF4";
 const OFFLINE_MODEL_DIGEST: &str =
     "92837f0f85ff4a1310af0ca6e412d3ace81393df837d017caf5bfabeb8f6c1a1";
@@ -82,6 +92,54 @@ fn compile_package(
             Some(&kwargs),
         )
         .map(Bound::unbind)
+}
+
+fn check_package_conformance(
+    module: &Bound<'_, PyModule>,
+    py: Python<'_>,
+    store: &Path,
+    resolution: &[u8],
+    entry_model: &str,
+    profile: &str,
+) -> PyResult<Py<PyAny>> {
+    let kwargs = PyDict::new(py);
+    kwargs.set_item("entry_model", entry_model)?;
+    kwargs.set_item("profile", profile)?;
+    module
+        .getattr("_check_package_conformance")?
+        .call(
+            (
+                store.to_str().expect("fixture path must be Unicode"),
+                PyBytes::new(py, resolution),
+            ),
+            Some(&kwargs),
+        )
+        .map(Bound::unbind)
+}
+
+fn conformance_release() -> PackageReleaseV1 {
+    let store = fixture_path(CONFORMANCE_STORE);
+    let mut entries = fs::read_dir(&store)
+        .expect("read exact oracle store")
+        .map(|entry| entry.expect("read oracle entry").path())
+        .collect::<Vec<_>>();
+    entries.sort();
+    assert_eq!(
+        entries.len(),
+        1,
+        "oracle store must contain one exact release"
+    );
+    let bytes = fs::read(&entries[0]).expect("read exact oracle release");
+    PackageReleaseV1::from_json(&bytes).expect("accepted false-claim release")
+}
+
+fn conformance_direct() -> (InMemoryPackageStore, ResolutionRecordV1) {
+    let release = conformance_release();
+    let resolution = ResolutionRecordV1::from_json(canonical_fixture(CONFORMANCE_RESOLUTION_FILE))
+        .expect("accepted false-claim resolution");
+    let mut store = InMemoryPackageStore::default();
+    store.insert(&release).expect("insert false-claim release");
+    (store, resolution)
 }
 
 fn assert_no_lineage(model: &Bound<'_, PyAny>) -> PyResult<()> {
@@ -407,6 +465,65 @@ impl Drop for Scratch {
     }
 }
 
+fn two_alias_store() -> (Scratch, Vec<u8>, PathBuf) {
+    let library = PackageReleaseV1::from_json(OFFLINE_LIBRARY).expect("accepted library release");
+    let root = PackageReleaseV1::from_json(OFFLINE_ROOT).expect("accepted root release");
+    let requirement = root
+        .manifest()
+        .dependencies()
+        .first()
+        .expect("offline root has one exact dependency");
+    let mut dependencies = root.manifest().dependencies().to_vec();
+    dependencies.push(
+        DependencyRequirementV1::new(
+            QualifiedName::parse("spare").expect("second alias"),
+            requirement.target().clone(),
+        )
+        .expect("second exact alias"),
+    );
+    let manifest = AuthorManifestV1::new(
+        root.manifest().name().clone(),
+        root.manifest().version().clone(),
+        dependencies,
+        root.manifest().bundle().to_vec(),
+    )
+    .expect("two-alias manifest");
+    let root = PackageReleaseV1::new(
+        manifest,
+        root.semantic().clone(),
+        root.source().files().to_vec(),
+    )
+    .expect("typed two-alias release");
+    let resolution = ResolutionRecordV1::from_exact_releases(&root, &[library.clone()])
+        .expect("two-edge exact resolution");
+    assert_eq!(resolution.edges().len(), 2);
+
+    let scratch = Scratch::create("dependency-order");
+    let library_entry = scratch.0.join(format!(
+        "{}.json",
+        library.source_digest().expect("library source identity")
+    ));
+    fs::write(
+        library_entry,
+        library.canonical_json().expect("canonical library release"),
+    )
+    .expect("write exact library release");
+    let root_entry = scratch.0.join(format!(
+        "{}.json",
+        root.source_digest().expect("root source identity")
+    ));
+    fs::write(
+        &root_entry,
+        root.canonical_json().expect("canonical root release"),
+    )
+    .expect("write exact root release");
+    (
+        scratch,
+        resolution.canonical_json().expect("canonical resolution"),
+        root_entry,
+    )
+}
+
 fn dishonest_store() -> (Scratch, Vec<u8>) {
     let path = NormalizedRelativePath::parse("src/main.eqi").expect("source path");
     let manifest = AuthorManifestV1::new(
@@ -531,6 +648,288 @@ fn invalid_shapes_and_package_failures_are_mapped_without_a_partial_model() -> P
             "compatibility",
             "EQ0901",
         )?;
+        Ok(())
+    })
+}
+
+#[test]
+fn package_conformance_native_facts_match_direct_double_compile_and_replay() -> PyResult<()> {
+    let (store, resolution) = conformance_direct();
+    let first = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect("private bare root-local Main must compile");
+    let second = PackagedModelDocument::compile_locked(&store, &resolution, "Main")
+        .expect("second exact compilation must succeed");
+    assert_eq!(
+        first.model().canonical_json(),
+        second.model().canonical_json()
+    );
+    assert_eq!(first.compilation(), second.compilation());
+
+    let compilation_bytes = first
+        .compilation()
+        .canonical_json()
+        .expect("canonical compilation bytes");
+    let replayed_compilation = PackageCompilationRecordV1::from_json(&compilation_bytes)
+        .expect("replayed compilation record");
+    replayed_compilation
+        .validate_against(&resolution)
+        .expect("record matches the exact resolution");
+    assert_eq!(&replayed_compilation, first.compilation());
+    assert_eq!(
+        replayed_compilation
+            .digest()
+            .expect("replayed compilation identity"),
+        first
+            .compilation()
+            .digest()
+            .expect("accepted compilation identity")
+    );
+
+    let artifact_bytes = first
+        .model()
+        .canonical_json()
+        .expect("canonical artifact bytes");
+    let replayed = ModelDocument::replay(&artifact_bytes).expect("ordinary current replay");
+    assert_eq!(replayed.canonical_json(), first.model().canonical_json());
+    assert_eq!(replayed.digest(), first.model().digest());
+    assert_eq!(
+        replayed.artifact_reference(),
+        first.model().artifact_reference()
+    );
+
+    let release = conformance_release();
+    assert_eq!(release.semantic().declarations().len(), 1);
+    assert_eq!(
+        release.semantic().declarations()[0].visibility(),
+        VisibilityV1::Private
+    );
+    let root = first.compilation().root();
+    let package = first
+        .compilation()
+        .packages()
+        .first()
+        .expect("one exact package");
+    assert_eq!(first.compilation().packages().len(), 1);
+    assert_eq!(package.package(), root);
+    let toolchain = first.compilation().toolchain();
+    assert_eq!(toolchain.compiler().as_str(), "Eqiora.Compiler");
+    assert_eq!(toolchain.compiler_version().as_str(), "0.1.0-alpha.1");
+    assert_eq!(toolchain.semantic_canonicalization_version(), 1);
+    assert_eq!(toolchain.source_bundle_version(), 1);
+    assert_eq!(toolchain.resolution_version(), 1);
+
+    Python::initialize();
+    Python::attach(|py| {
+        let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
+        let module = native.bind(py);
+        let expected = py
+            .import("json")?
+            .getattr("loads")?
+            .call1((
+                std::str::from_utf8(CONFORMANCE_EXPECTED_FILE).expect("UTF-8 expected JSON"),
+            ))?;
+        let expected = expected.cast::<PyDict>()?;
+        let false_claim = expected
+            .get_item("false_claim")?
+            .expect("false-claim expected facts")
+            .cast_into::<PyDict>()?;
+
+        let native_facts = check_package_conformance(
+            module,
+            py,
+            &fixture_path(CONFORMANCE_STORE),
+            canonical_fixture(CONFORMANCE_RESOLUTION_FILE),
+            "Main",
+            CONFORMANCE_PROFILE,
+        )?;
+        let native_facts = native_facts.bind(py).cast::<PyTuple>()?;
+        assert_eq!(native_facts.len(), 16);
+        assert_eq!(
+            native_facts.get_item(0)?.extract::<String>()?,
+            CONFORMANCE_PROFILE
+        );
+        assert_eq!(
+            native_facts.get_item(1)?.extract::<String>()?,
+            expected
+                .get_item("distribution_version")?
+                .expect("distribution version")
+                .extract::<String>()?
+        );
+        assert_eq!(
+            native_facts.get_item(2)?.extract::<String>()?,
+            toolchain.compiler().as_str()
+        );
+        assert_eq!(
+            native_facts.get_item(3)?.extract::<String>()?,
+            toolchain.compiler_version().as_str()
+        );
+        assert_eq!(
+            (
+                native_facts.get_item(4)?.extract::<u32>()?,
+                native_facts.get_item(5)?.extract::<u32>()?,
+                native_facts.get_item(6)?.extract::<u32>()?,
+            ),
+            (1, 1, 1)
+        );
+
+        let root_facts = native_facts
+            .get_item(7)?
+            .extract::<(String, String, String, String)>()?;
+        assert_eq!(root_facts.0, root.name.as_str());
+        assert_eq!(root_facts.1, root.version.as_str());
+        assert_eq!(root_facts.2, root.semantic_digest.to_hex());
+        assert_eq!(root_facts.3, package.source_digest().to_hex());
+        assert_eq!(
+            root_facts.2,
+            false_claim
+                .get_item("semantic_identity")?
+                .expect("semantic identity")
+                .extract::<String>()?
+        );
+        assert_eq!(
+            root_facts.3,
+            false_claim
+                .get_item("source_identity")?
+                .expect("source identity")
+                .extract::<String>()?
+        );
+        assert_eq!(
+            native_facts
+                .get_item(8)?
+                .extract::<Vec<(String, String, String, String)>>()?,
+            vec![root_facts]
+        );
+        assert_eq!(native_facts.get_item(9)?.extract::<String>()?, "Main");
+        assert_eq!(
+            native_facts.get_item(10)?.extract::<String>()?,
+            resolution.digest().expect("resolution identity").to_hex()
+        );
+        assert_eq!(
+            native_facts.get_item(11)?.extract::<String>()?,
+            first
+                .compilation()
+                .digest()
+                .expect("compilation identity")
+                .to_hex()
+        );
+        let reference = first
+            .model()
+            .artifact_reference()
+            .expect("canonical artifact reference");
+        assert_eq!(
+            native_facts.get_item(12)?.extract::<String>()?,
+            reference.model().ulid().to_string()
+        );
+        assert_eq!(
+            native_facts.get_item(13)?.extract::<u64>()?,
+            reference.semantic_revision().get()
+        );
+        assert_eq!(
+            native_facts.get_item(14)?.extract::<String>()?,
+            first.model().digest().expect("canonical identity")
+        );
+        assert!(native_facts.get_item(15)?.extract::<bool>()?);
+
+        for (index, key) in [
+            (10, "resolution_identity"),
+            (11, "compilation_identity"),
+            (12, "object_id"),
+            (14, "canonical_identity"),
+        ] {
+            assert_eq!(
+                native_facts.get_item(index)?.extract::<String>()?,
+                false_claim
+                    .get_item(key)?
+                    .unwrap_or_else(|| panic!("missing expected key {key}"))
+                    .extract::<String>()?
+            );
+        }
+        assert_eq!(
+            native_facts.get_item(13)?.extract::<u64>()?,
+            false_claim
+                .get_item("revision")?
+                .expect("revision")
+                .extract::<u64>()?
+        );
+        Ok(())
+    })
+}
+
+#[test]
+fn package_conformance_native_rejection_preserves_complete_compiler_diagnostics() -> PyResult<()> {
+    let (store, resolution) = conformance_direct();
+    let expected = match PackagedModelDocument::compile_locked(&store, &resolution, "Missing") {
+        Err(PackageCompilationError::Diagnostics(diagnostics)) => diagnostics,
+        other => panic!("expected direct compiler diagnostics, received {other:?}"),
+    };
+
+    Python::initialize();
+    Python::attach(|py| {
+        let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
+        let module = native.bind(py);
+        let error = check_package_conformance(
+            module,
+            py,
+            &fixture_path(CONFORMANCE_STORE),
+            canonical_fixture(CONFORMANCE_RESOLUTION_FILE),
+            "Missing",
+            CONFORMANCE_PROFILE,
+        )
+        .expect_err("compiler rejection must return no primitive success facts");
+        assert_compiler_diagnostics_equal(module, py, error, &expected)
+    })
+}
+
+#[test]
+fn package_conformance_normalizes_dependency_collection_representation() -> PyResult<()> {
+    let (scratch, resolution, root_entry) = two_alias_store();
+    Python::initialize();
+    Python::attach(|py| {
+        let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
+        let module = native.bind(py);
+        let canonical_facts = check_package_conformance(
+            module,
+            py,
+            &scratch.0,
+            &resolution,
+            "Main",
+            CONFORMANCE_PROFILE,
+        )?;
+        let json = py.import("json")?;
+        let canonical = fs::read_to_string(&root_entry).expect("canonical release text");
+        let represented = json.getattr("loads")?.call1((canonical,))?;
+        let source = represented.get_item("source")?;
+        let manifest = source.get_item("manifest")?;
+        manifest.get_item("dependencies")?.call_method0("reverse")?;
+        let kwargs = PyDict::new(py);
+        kwargs.set_item("indent", 2)?;
+        let represented = json
+            .getattr("dumps")?
+            .call((represented,), Some(&kwargs))?
+            .extract::<String>()?;
+        fs::write(&root_entry, format!("{represented}\n"))
+            .expect("write harmless noncanonical release representation");
+        let before = fs::read(&root_entry).expect("represented bytes before check");
+        let represented_facts = check_package_conformance(
+            module,
+            py,
+            &scratch.0,
+            &resolution,
+            "Main",
+            CONFORMANCE_PROFILE,
+        )?;
+        assert!(canonical_facts.bind(py).eq(represented_facts.bind(py))?);
+        assert_eq!(
+            fs::read(&root_entry).expect("represented bytes after check"),
+            before
+        );
+        let packages = represented_facts
+            .bind(py)
+            .cast::<PyTuple>()?
+            .get_item(8)?
+            .extract::<Vec<(String, String, String, String)>>()?;
+        assert_eq!(packages.len(), 2);
+        assert!(packages.windows(2).all(|pair| pair[0] < pair[1]));
         Ok(())
     })
 }
