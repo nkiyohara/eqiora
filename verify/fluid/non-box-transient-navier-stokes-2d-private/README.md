@@ -1,8 +1,9 @@
 # Private non-box transient Navier--Stokes oracle
 
-This pre-implementation case freezes the crate-private composition requested by
-Issue #165. It requires the already accepted transient MINI/P1 grammar to bind
-one exact circular-hole source, its deterministic chordal realization, its
+This pre-implementation case freezes the crate-private composition required by
+the future cylinder-wake gallery slice. It requires the already accepted
+transient MINI/P1 grammar to bind one exact circular-hole source, its
+deterministic chordal realization, its
 content-addressed simplicial mesh, and its authored correspondence before a
 single exact-zero backward-Euler step can execute.
 
@@ -55,5 +56,5 @@ The claim boundary is exact:
 
 The oracle additionally claims no initial-state equality, direct replay-call
 count, ledger, marker, duplicate equality, environment ordinal, observer,
-output, persistence, or artifact emission. Issue #165 remains proposed/Parked;
-this prerequisite does not promote it.
+output, persistence, or artifact emission. The larger cylinder-wake gallery
+capability remains outside this prerequisite and is not promoted by it.
