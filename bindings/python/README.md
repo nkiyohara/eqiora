@@ -67,20 +67,23 @@ typed lowering, atomic commit, execution, and artifact identity remain in
 Rust. Spatial authoring and the bounded FEM/FVM realization path are described
 in [Modeling and realization](https://eqiora.org/python/modeling/).
 
-The accepted exact-cylinder path now begins at the shared authored-CAD graph:
+The accepted exact-cylinder path now begins with explicit native-owned sketch
+composition:
 
 ```python
-graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+base_sketch = eqiora.geometry.CadAuthoredSketch.rectangle_xy(
     x_bounds=(0.0, 2.2),
     y_bounds=(0.0, 0.41),
     plane_z=0.0,
-    depth=1.0,
     modeling_tolerance=1e-10,
-).circular_through_cut(
+)
+base = base_sketch.extrude_positive_z(depth=1.0)
+cut_sketch = eqiora.geometry.CadAuthoredSketch.circle_on_face(
+    base.face_handle("end-cap"),
     center=(0.2, 0.2),
     radius=0.05,
-    boolean_tolerance=1e-10,
 )
+graph = base.through_cut(cut_sketch, boolean_tolerance=1e-10)
 geometry = graph.planar_circular_section(
     classification_tolerance=1e-12,
     region="fluid",
@@ -101,12 +104,16 @@ print(geometry.digest, mesh.digest)
 print(mesh.selection_entity_count("cylinder"))
 ```
 
-The graph and its exact planar section have distinct identities. The section
-reproduces the accepted exact planar value byte-for-byte; depth and CAD
-tolerances cannot leak into its independently classified 2D meaning. This is
-not a generic section or Python Boolean implementation. Its matching meshing
-operation is one Rust-owned, error-controlled chordal reference path behind
-common request, plan, and mesh ownership boundaries, not a production mesher.
+The sketch wrappers retain native values and all dimensions and tolerances are
+coherent-SI metres. Existing `CadAuthoredGraph.rectangle_extrusion` and
+`graph.circular_through_cut` calls remain supported and reproduce the same
+canonical graph. The graph and its exact planar section have distinct
+identities. The section reproduces the accepted exact planar value
+byte-for-byte; depth and CAD tolerances cannot leak into its independently
+classified 2D meaning. This is not a generic Sketch, section, or Python Boolean
+implementation. Its matching meshing operation is one Rust-owned,
+error-controlled chordal reference path behind common request, plan, and mesh
+ownership boundaries, not a production mesher.
 The returned value retains exact source and correspondence identity within the
 live process; durable generated-realization replay, geometry-backed
 Model binding, solve, Result, and visualization are separate capabilities.

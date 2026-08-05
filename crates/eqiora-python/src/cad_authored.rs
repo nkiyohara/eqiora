@@ -5,9 +5,10 @@ use std::hash::{Hash, Hasher};
 
 use eqiora::Diagnostic;
 use eqiora::geometry::{
-    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph, CadRepairDispositionV1,
-    ConstrainedRectangleV1,
+    CadAuthoredBuild, CadAuthoredFaceHandle, CadAuthoredGraph, CadAuthoredSketch,
+    CadRepairDispositionV1, ConstrainedRectangleV1,
 };
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule, PyTuple};
 
@@ -25,6 +26,68 @@ use crate::geometry::{PyGeometry, digest_to_hex};
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PyCadAuthoredGraph {
     graph: CadAuthoredGraph,
+}
+
+/// One opaque native-owned input for the closed authored-CAD operations.
+#[pyclass(
+    name = "CadAuthoredSketch",
+    module = "eqiora._eqiora",
+    frozen,
+    eq,
+    skip_from_py_object
+)]
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PyCadAuthoredSketch {
+    sketch: CadAuthoredSketch,
+}
+
+#[pymethods]
+impl PyCadAuthoredSketch {
+    /// Admit the one constrained XY rectangle input.
+    #[staticmethod]
+    #[pyo3(signature = (
+        *,
+        x_bounds,
+        y_bounds,
+        plane_z,
+        modeling_tolerance
+    ))]
+    fn rectangle_xy(
+        py: Python<'_>,
+        #[pyo3(from_py_with = extract_rectangle_pair)] x_bounds: (f64, f64),
+        #[pyo3(from_py_with = extract_rectangle_pair)] y_bounds: (f64, f64),
+        plane_z: f64,
+        modeling_tolerance: f64,
+    ) -> PyResult<Self> {
+        let rectangle = ConstrainedRectangleV1::new(x_bounds, y_bounds, plane_z)
+            .map_err(|diagnostic| native_error(py, diagnostic))?;
+        CadAuthoredSketch::rectangle_xy(rectangle, modeling_tolerance)
+            .map(|sketch| Self { sketch })
+            .map_err(|diagnostic| native_error(py, diagnostic))
+    }
+
+    /// Admit one exact circle bound to a predecessor graph's end cap.
+    #[staticmethod]
+    #[pyo3(signature = (face, /, *, center, radius))]
+    fn circle_on_face(
+        py: Python<'_>,
+        face: &PyCadAuthoredFaceHandle,
+        #[pyo3(from_py_with = extract_sequence_pair)] center: [f64; 2],
+        radius: f64,
+    ) -> PyResult<Self> {
+        CadAuthoredSketch::circle_on_face(face.handle.clone(), center, radius)
+            .map(|sketch| Self { sketch })
+            .map_err(|diagnostic| native_error(py, diagnostic))
+    }
+
+    /// Apply the one admitted positive-z extrusion.
+    #[pyo3(signature = (*, depth))]
+    fn extrude_positive_z(&self, py: Python<'_>, depth: f64) -> PyResult<PyCadAuthoredGraph> {
+        self.sketch
+            .extrude_positive_z(depth)
+            .map(|graph| PyCadAuthoredGraph { graph })
+            .map_err(|diagnostic| native_error(py, diagnostic))
+    }
 }
 
 #[pymethods]
@@ -73,6 +136,20 @@ impl PyCadAuthoredGraph {
     ) -> PyResult<Self> {
         self.graph
             .circular_through_cut(center, radius, boolean_tolerance)
+            .map(|graph| Self { graph })
+            .map_err(|diagnostic| native_error(py, diagnostic))
+    }
+
+    /// Return a successor graph containing the admitted sketch's through-cut.
+    #[pyo3(signature = (sketch, /, *, boolean_tolerance))]
+    fn through_cut(
+        &self,
+        py: Python<'_>,
+        sketch: &PyCadAuthoredSketch,
+        boolean_tolerance: f64,
+    ) -> PyResult<Self> {
+        self.graph
+            .through_cut(&sketch.sketch, boolean_tolerance)
             .map(|graph| Self { graph })
             .map_err(|diagnostic| native_error(py, diagnostic))
     }
@@ -505,8 +582,44 @@ fn hash_bytes(bytes: &[u8]) -> u64 {
     hasher.finish()
 }
 
+fn extract_rectangle_pair(value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<(f64, f64)> {
+    let extracted = value.extract::<(f64, f64)>();
+    match extracted {
+        Err(error) if error.is_instance_of::<PyValueError>(value.py()) => {
+            if let Ok(tuple) = value.cast::<PyTuple>() {
+                let actual = tuple.len();
+                if actual != 2 {
+                    return Err(PyTypeError::new_err(format!(
+                        "expected tuple of length 2, but got tuple of length {actual}"
+                    )));
+                }
+            }
+            Err(error)
+        }
+        result => result,
+    }
+}
+
+fn extract_sequence_pair(value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<[f64; 2]> {
+    let extracted = value.extract::<[f64; 2]>();
+    match extracted {
+        Err(error) if error.is_instance_of::<PyValueError>(value.py()) => {
+            if let Ok(actual) = value.len()
+                && actual != 2
+            {
+                return Err(PyTypeError::new_err(format!(
+                    "expected a sequence of length 2 (got {actual})"
+                )));
+            }
+            Err(error)
+        }
+        result => result,
+    }
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyCadAuthoredGraph>()?;
+    module.add_class::<PyCadAuthoredSketch>()?;
     module.add_class::<PyCadAuthoredFaceHandle>()?;
     module.add_class::<PyCadAuthoredBuild>()
 }

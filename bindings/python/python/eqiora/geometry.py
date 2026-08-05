@@ -4,6 +4,7 @@ from ._eqiora import (
     CadAuthoredBuild,
     CadAuthoredFaceHandle,
     CadAuthoredGraph,
+    CadAuthoredSketch,
     Geometry,
 )
 
@@ -11,5 +12,6 @@ __all__ = [
     "CadAuthoredBuild",
     "CadAuthoredFaceHandle",
     "CadAuthoredGraph",
+    "CadAuthoredSketch",
     "Geometry",
 ]

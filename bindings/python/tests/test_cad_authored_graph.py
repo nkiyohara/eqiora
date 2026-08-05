@@ -449,6 +449,7 @@ def test_runtime_surface_and_installed_stub_name_the_same_bounded_api() -> None:
             "rectangle_extrusion",
             "decode_canonical",
             "circular_through_cut",
+            "through_cut",
             "planar_circular_section",
             "canonical_bytes",
             "graph_digest",
