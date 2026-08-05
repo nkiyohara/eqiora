@@ -239,9 +239,12 @@ rejects it as unsupported.
 
 A new `eqiora.control/v2` compile/check contract removes `modelWire` from the
 request. Its response may report the fixed current Model schema as an observed
-output fact, but not as caller policy. Studio, Python, and Rust consume v2
-without a route-local generation switch. This RFC does not otherwise collapse
-the control protocol family.
+output fact, but not as caller policy. Rust adapters and Studio consume v2
+without a route-local generation switch. Python instead performs its own
+language-specific admission and invokes the same `ModelDocument::compile`
+operation directly, so it shares compilation meaning without becoming a
+control-v2 client. This RFC does not otherwise collapse the control protocol
+family.
 
 The Python pre-1.0 release policy permits this immediate removal only because
 this RFC fixes the scope, retained bytes, rejection behavior, consumer

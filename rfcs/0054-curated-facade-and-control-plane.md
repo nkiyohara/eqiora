@@ -11,8 +11,9 @@
 
 Eqiora will make public compatibility and client control explicit: a checked,
 machine-readable inventory owns the stable Rust facade, while one exact,
-versioned control-plane contract is projected into Rust, TypeScript, and
-Python without creating another model or scientific-data semantics.
+versioned control-plane contract is projected into Rust and TypeScript.
+Python consumes the same transport-neutral application operation directly;
+neither route creates another model or scientific-data semantics.
 
 ## Motivation
 
@@ -70,10 +71,13 @@ the first useful gate.
 
 ### Control-plane ownership
 
-`eqiora-api` owns transport-neutral command values and exact dispatch. The
-public facade exposes the selected subset under `eqiora::control`. Client
-adapters translate language ergonomics and transport concerns only; they do
-not compile, validate, or infer model meaning independently.
+`ModelDocument::compile` owns the transport-neutral compile/check operation.
+`eqiora-api::control` owns the command values, wire admission, response policy,
+and exact dispatch that adapt that operation once. The public facade exposes
+the selected subset under `eqiora::control`. Studio consumes that control
+contract; Python performs Python-specific admission and invokes the same
+operation directly. Client adapters translate language ergonomics and
+transport concerns only; they do not infer model meaning independently.
 
 Every protocol generation has:
 
@@ -129,8 +133,9 @@ downstream spelling is unchanged.
 
 Existing canonical Model envelopes and transaction generations remain
 immutable. The compile/check control command composes them and advertises the
-exact selected generation. Studio and Python migrate to the same fixture
-incrementally; no client must switch to an incomplete second protocol.
+exact selected generation. Studio consumes that command while Python retains
+its language-specific call shape over the same `ModelDocument::compile`
+operation; Python is not required to become a protocol client.
 
 ## Alternatives considered
 
@@ -171,10 +176,10 @@ The facade gate is falsified by tests that introduce:
 - the correct downstream name re-exported from the wrong provider; or
 - duplicate or contradictory inventory entries.
 
-The bounded compile/check slice is complete only when one committed fixture:
+The bounded compile/check slice is complete only when committed evidence:
 
-1. has the same exact request and response meaning in Rust, Studio TypeScript,
-   and Python;
+1. fixes the same exact control request and response meaning in Rust and
+   Studio TypeScript, while Python directly invokes the same compile operation;
 2. succeeds through the ordinary compiler, transaction, graph commit, and
    immutable Model artifact path;
 3. rejects unsupported protocol, command, feature, malformed UTF-8, and

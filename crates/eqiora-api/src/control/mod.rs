@@ -1,8 +1,10 @@
 //! Versioned, client-neutral control-plane contracts.
 //!
-//! This module owns small command and diagnostic values shared by transport
-//! adapters. It deliberately excludes scientific arrays, meshes, Fields, and
-//! trajectories. Those values belong to the data plane.
+//! [`crate::ModelDocument::compile`] owns transport-neutral compilation. This
+//! module owns the bounded command, admission, response, and diagnostic policy
+//! that adapts that operation for control-v2 clients. It deliberately excludes
+//! scientific arrays, meshes, Fields, and trajectories; those values belong to
+//! the data plane.
 
 mod compile;
 mod compile_response;
