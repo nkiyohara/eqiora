@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_artifact::AcceptedCircularHoleChordalRealizationV1;
@@ -469,13 +469,13 @@ fn assert_exact_graph(
             .fields()
             .iter()
             .map(|field| field.field())
-            .collect::<BTreeSet<_>>(),
+            .collect::<HashSet<_>>(),
         requirements
             .fieldwise()
             .unknown_fields()
             .iter()
             .copied()
-            .collect()
+            .collect::<HashSet<_>>()
     );
     match graph.transformations() {
         [
