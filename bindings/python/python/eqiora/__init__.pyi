@@ -1,9 +1,11 @@
 from collections.abc import Generator, Iterator, Sequence
+import os
 from os import PathLike
 from typing import (
     Any,
     ClassVar,
     Generic,
+    NamedTuple,
     Never,
     Protocol,
     Self,
@@ -64,6 +66,30 @@ class CapabilityError(EqioraError): ...
 class ExecutionError(EqioraError): ...
 class CancellationError(EqioraError): ...
 class InternalError(EqioraError): ...
+
+class PackageConformancePackage(NamedTuple):
+    name: str
+    version: str
+    semantic_digest: str
+    source_digest: str
+
+class PackageConformanceReport(NamedTuple):
+    profile: str
+    eqiora_version: str
+    compiler: str
+    compiler_version: str
+    semantic_canonicalization_version: int
+    source_bundle_version: int
+    resolution_version: int
+    root_package: PackageConformancePackage
+    packages: tuple[PackageConformancePackage, ...]
+    entry_model: str
+    resolution_digest: str
+    package_compilation_digest: str
+    model_id: str
+    model_revision: int
+    model_digest: str
+    deterministic_replay_agreement: bool
 
 @final
 class Dimension:
@@ -814,6 +840,13 @@ def compile_package(
     *,
     entry_model: str,
 ) -> Model: ...
+def check_package_conformance(
+    store_root: str | os.PathLike[str],
+    resolution_bytes: bytes,
+    *,
+    entry_model: str,
+    profile: str,
+) -> PackageConformanceReport: ...
 def connect(*ports: ConservingPort) -> Connection: ...
 def derivative(field: Field) -> Expression: ...
 def div(value: _ExpressionLike) -> Expression: ...
@@ -911,6 +944,8 @@ __all__ = [
     "LinearSolveSummary",
     "LinearizationState",
     "Model",
+    "PackageConformancePackage",
+    "PackageConformanceReport",
     "Parameter",
     "ParameterRef",
     "PhysicalDomain",
@@ -937,6 +972,7 @@ __all__ = [
     "ValidationError",
     "ValueEdit",
     "across",
+    "check_package_conformance",
     "compile",
     "compile_package",
     "connect",

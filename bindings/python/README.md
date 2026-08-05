@@ -67,6 +67,31 @@ typed lowering, atomic commit, execution, and artifact identity remain in
 Rust. Spatial authoring and the bounded FEM/FVM realization path are described
 in [Modeling and realization](https://eqiora.org/python/modeling/).
 
+One explicit locked Model Package can also be checked through the installed
+Python distribution:
+
+```python
+from pathlib import Path
+
+resolution_bytes = Path("resolution.canonical.json").read_bytes()
+report = eqiora.check_package_conformance(
+    "package-store",
+    resolution_bytes,
+    entry_model="Main",
+    profile="eqiora.package.structural-conformance-v1",
+)
+```
+
+The immutable in-process report states structural compatibility and exact
+package-compilation and current Model identity only. A deliberately false
+scientific claim in package documentation can still pass: the operation does
+not prove physics, well-posedness, realizability, numerical accuracy,
+convergence, performance, or execution support. It runs no package code or
+tests and creates no registry, installation, publishing, trust, badge,
+attestation, durable report wire, scientific-evidence decision, or Studio
+workflow. The precise boundary is documented under
+[Modeling and realization](https://eqiora.org/python/modeling/#check-one-exact-package-structurally).
+
 The accepted exact-cylinder path now begins with explicit native-owned sketch
 composition:
 
