@@ -323,7 +323,7 @@ bounded native authored Sketch/profile composition
 Client compile/check adapters
   transport-neutral current-Model operation (#78)
     -> local stdio MCP adapter (#79)                                  closed
-      -> command-line check workflow (#80)
+      -> command-line check workflow (#80)                         closed
 
 External boundary providers
   accepted #352/#365 prescribed-solid occurrence                 closed

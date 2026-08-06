@@ -1,0 +1,10 @@
+Compile/check one local Eqiora Model source file.
+
+Usage:
+  eqiora check <MODEL_PATH>
+
+Arguments:
+  <MODEL_PATH>    UTF-8 path to one regular Model source file.
+
+Options:
+  -h, --help    Print help.

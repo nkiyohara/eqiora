@@ -1,0 +1,11 @@
+Compile and check one Eqiora Model source file.
+
+Usage:
+  eqiora check <MODEL_PATH>
+
+Commands:
+  check    Compile/check one local Model source file.
+
+Options:
+  -h, --help       Print help.
+  -V, --version    Print version.

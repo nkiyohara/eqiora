@@ -1,0 +1,78 @@
+{
+  "schema": "eqiora.verify.cli-compile-check/v1",
+  "protectedBase": "280ccfe3046d7b7279f821d68f19f38b7b5a9fcd",
+  "command": "eqiora check <MODEL_PATH>",
+  "packageVersion": "0.1.0-alpha.1",
+  "acceptedFixtureBytes": 169,
+  "rejectedFixtureBytes": 39,
+  "acceptedFingerprintGeneration": "eqiora.structural-semantic-fingerprint/v2",
+  "rejectedDiagnostic": {
+    "severity": "error",
+    "code": "EQ0602",
+    "message": "source requires at least one `model` declaration",
+    "start": 39,
+    "end": 39
+  },
+  "limits": {
+    "pathScalars": 4096,
+    "pathBytes": 4096,
+    "sourceBytes": 8388608,
+    "readCeilingBytes": 8388609,
+    "diagnostics": 1024,
+    "diagnosticMessageScalars": 1048576,
+    "diagnosticMessageBytes": 1048576,
+    "graphSegments": 256,
+    "graphSegmentScalars": 4096,
+    "graphSegmentBytes": 4096,
+    "spanFileScalars": 4096,
+    "spanFileBytes": 4096,
+    "suggestionScalars": 4096,
+    "suggestionBytes": 4096,
+    "stderrBytes": 1048576
+  },
+  "exits": {
+    "accepted": 0,
+    "rejected": 1,
+    "usage": 64,
+    "data": 65,
+    "unavailable": 66,
+    "internal": 70,
+    "outputIo": 74
+  },
+  "stderr": {
+    "invalidCommandLine": "eqiora: invalid command line\nusage: eqiora check <MODEL_PATH>\n",
+    "invalidPath": "eqiora: MODEL_PATH must contain 1 to 4096 non-control UTF-8 bytes\n",
+    "sourceTooLarge": "eqiora: Model source exceeds 8388608 bytes\n",
+    "invalidUtf8": "eqiora: Model source is not valid UTF-8\n",
+    "unavailable": "eqiora: MODEL_PATH does not resolve to a readable regular file\n",
+    "diagnosticOverflow": "eqiora: compilation rejected; terminal diagnostics exceed the 1048576-byte limit\n",
+    "internal": "eqiora: internal compile/check failure\n"
+  },
+  "productionPaths": [
+    "crates/eqiora/src/bin/eqiora/main.rs",
+    "crates/eqiora/src/bin/eqiora/command.rs",
+    "crates/eqiora/src/bin/eqiora/terminal.rs"
+  ],
+  "operation": "eqiora::api::ModelDocument::compile",
+  "installedCandidate": {
+    "command": ["cargo", "install", "--locked", "--offline", "--path", "<REPOSITORY_ROOT>/crates/eqiora", "--bin", "eqiora", "--root", "<INSTALL_ROOT>"],
+    "executable": "<INSTALL_ROOT>/bin/eqiora",
+    "isolatedTarget": true,
+    "cleanSameHead": true,
+    "homeBackedTmpdir": true
+  },
+  "claimBoundary": {
+    "compileCheck": true,
+    "modelOwner": "current",
+    "localFilesystemPath": true,
+    "preview": false,
+    "execute": false,
+    "solve": false,
+    "render": false,
+    "artifactWrite": false,
+    "scientificData": false,
+    "remote": false,
+    "python": false,
+    "studio": false
+  }
+}
