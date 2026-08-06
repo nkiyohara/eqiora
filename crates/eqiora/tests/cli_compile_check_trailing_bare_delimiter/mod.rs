@@ -18,7 +18,7 @@ static SCRATCH_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 fn binary() -> &'static OsStr {
     OsStr::new(
         option_env!("CARGO_BIN_EXE_eqiora")
-            .expect("Issue #80 production binary is absent; oracle remains intentionally RED"),
+            .expect("production binary is absent; oracle remains intentionally RED"),
     )
 }
 
