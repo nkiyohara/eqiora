@@ -107,11 +107,17 @@ class HostedTriggerTests(unittest.TestCase):
           printf '%s\\n' "$mise_bin_dir" >> "$GITHUB_PATH"
 """
 
+        test_step = "      - name: Test CI ownership and aggregate contracts"
+        stage_step = "      - name: Stage the checksum-pinned mise CLI"
+        stage_start = changes.index(stage_step)
+        test_start = changes.index(test_step)
+
         self.assertNotIn("jdx/mise-action@", workflow)
-        self.assertIn(setup, changes)
-        self.assertLess(
-            changes.index(setup),
-            changes.index("      - name: Test CI ownership and aggregate contracts"),
+        self.assertNotIn("github.token", changes)
+        self.assertNotIn("secrets.", changes)
+        self.assertEqual(
+            changes[stage_start:test_start],
+            setup,
         )
 
     def test_windows_compile_probe_is_visible_complete_and_non_gating(self) -> None:
