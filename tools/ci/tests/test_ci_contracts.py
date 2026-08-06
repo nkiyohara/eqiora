@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
+import subprocess
 import sys
 import tomllib
 import unittest
@@ -742,12 +744,54 @@ class MiseTaskContractTests(unittest.TestCase):
             with self.subTest(task=task):
                 self.assertEqual(self.tasks[task]["depends"], ["setup"])
 
-    def test_standard_gates_wrap_exact_planner_modes_and_base(self) -> None:
-        for task, mode in (("fast", "fast"), ("affected", "affected")):
+    def test_standard_gates_wrap_exact_planner_commands(self) -> None:
+        expected = {
+            "fast": "python3 tools/ci/local_verify.py fast --base origin/main",
+            "affected": (
+                "python3 tools/ci/local_verify.py affected --base origin/main"
+            ),
+            "periodic": "python3 tools/ci/local_verify.py periodic",
+        }
+        for task, command in expected.items():
             with self.subTest(task=task):
-                self.assertEqual(
-                    self.tasks[task]["run"],
-                    f"python3 tools/ci/local_verify.py {mode} --base origin/main",
+                self.assertEqual(self.tasks[task]["run"], command)
+
+    def test_mise_forwards_arguments_after_setup_to_every_executable_gate(self) -> None:
+        mise = os.environ.get("MISE_EXE") or shutil.which("mise")
+        if mise is None:
+            self.skipTest("mise is not installed in this hosted unit-test context")
+
+        environment = dict(os.environ)
+        environment["COLUMNS"] = "240"
+        environment.pop("FORCE_COLOR", None)
+        environment["NO_COLOR"] = "1"
+        for task, marker in (("fast", "f"), ("affected", "a"), ("periodic", "p")):
+            with self.subTest(task=task):
+                completed = subprocess.run(
+                    [
+                        mise,
+                        "run",
+                        "--dry-run",
+                        "--force",
+                        task,
+                        "--",
+                        f"--x={marker}",
+                    ],
+                    cwd=REPOSITORY_ROOT,
+                    env=environment,
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                )
+                self.assertEqual(completed.returncode, 0, completed.stdout)
+                setup = "[setup] $ npm ci"
+                invocation = f"[{task}] $ {self.tasks[task]['run']} --x={marker}"
+                self.assertIn(setup, completed.stdout)
+                self.assertIn(invocation, completed.stdout)
+                self.assertLess(
+                    completed.stdout.index(setup),
+                    completed.stdout.index(invocation),
                 )
 
     def test_plan_is_setup_free_and_nonexecuting(self) -> None:
@@ -758,17 +802,41 @@ class MiseTaskContractTests(unittest.TestCase):
             "python3 tools/ci/local_verify.py affected --base origin/main --plan",
         )
 
-    def test_authorities_use_mise_for_executable_fast_and_affected_gates(self) -> None:
+    def test_authority_and_evidence_docs_reject_direct_executable_gates(self) -> None:
         direct_gate = re.compile(
-            r"(?:/usr/bin/)?python3\s+tools/ci/local_verify\.py\s+(?:fast|affected)\b"
+            r"^\s*(?:[A-Z_][A-Z0-9_]*=\S+\s+)*"
+            r"(?:/usr/bin/)?python3\s+tools/ci/local_verify\.py\s+"
+            r"(?:fast|affected|periodic)\b"
         )
         authorities = {
             path: (REPOSITORY_ROOT / path).read_text(encoding="utf-8")
             for path in self.AUTHORITY_DOCS
         }
-        for path, contents in authorities.items():
-            with self.subTest(path=path):
-                self.assertIsNone(direct_gate.search(contents))
+        instruction_documents = [REPOSITORY_ROOT / "AGENTS.md"]
+        for root in ("docs", "rfcs", "verify"):
+            instruction_documents.extend(
+                sorted((REPOSITORY_ROOT / root).rglob("*.md"))
+            )
+
+        for document in instruction_documents:
+            lines = document.read_text(encoding="utf-8").splitlines()
+            for index, line in enumerate(lines):
+                if direct_gate.search(line) is None:
+                    continue
+                command = line
+                cursor = index
+                while command.rstrip().endswith("\\") and cursor + 1 < len(lines):
+                    cursor += 1
+                    command = f"{command}\n{lines[cursor]}"
+                with self.subTest(
+                    path=document.relative_to(REPOSITORY_ROOT),
+                    line=index + 1,
+                ):
+                    self.assertIn(
+                        "--plan",
+                        command,
+                        "executable gates in authority/evidence docs must use mise",
+                    )
         combined = "\n".join(authorities.values())
         self.assertIn("mise run fast", combined)
         self.assertIn("mise run affected", combined)

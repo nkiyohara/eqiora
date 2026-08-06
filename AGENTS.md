@@ -185,11 +185,11 @@ mise run affected  # before integration
 Pass every semantically affected case with `--case`; Cargo closure is conservative
 assistance, and an evidence package is an executor rather than semantic owner.
 
-High-risk deltas wait for relevant hosted checks before merge. A localized low-risk change
-with local gates, scope/DCO, and required review complete may merge through an authorized
-GitHub path as soon as it is mergeable; track running nonrequired matrix jobs post-merge and
-repair or decide rollback immediately on failure. Never weaken branch protection or required
-checks. See [local verification](docs/development/local-verification.md) for classification.
+High-risk deltas wait for relevant hosted checks. Only the exact low-risk class in
+[hosted topology](docs/development/ci-topology.md) may deliberately use the live owner/admin
+bypass after exact-head mise gate, scope/DCO, and review; prefer base trust, record actor and
+reason, track CI post-merge, and repair or assess rollback on failure. Required contexts and
+the ruleset remain unchanged.
 
 Default tiers exclude optional backends, which need their own case or environment check.
 Hosted media installs native tools; one cache or host proves neither contention nor portability.

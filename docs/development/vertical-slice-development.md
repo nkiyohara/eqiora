@@ -459,14 +459,13 @@ demand it. This replaces destructive ceremony, not review or evidence.
 
 Hosted waiting follows the same durable-risk boundary. A delta in the high-risk
 list above waits for every relevant hosted check before merge. A localized
-low-risk change—such as a one-line agent-capacity configuration,
-non-governance documentation, reproducible mechanical output, or private
-behavior-preserving work—may merge without waiting for the whole hosted matrix
-once its applicable local gate, scope and DCO audit, and any required review
-pass and GitHub reports it mergeable through an authorized integration path.
-Track already-running checks as post-merge signals; a failure triggers immediate
-repair or rollback assessment. This policy neither weakens branch protection
-nor bypasses an enforced required check.
+low-risk change in the exact class enumerated by
+[the hosted topology](ci-topology.md) may deliberately use the existing
+auditable owner/admin bypass after its exact-head mise gate, scope and DCO
+audit, and any required review pass. Prefer the base-owned trust context,
+record the actor, reason, head, commands, and results, and track running CI as a
+post-merge signal; failure triggers immediate repair or rollback assessment.
+The ruleset and its required contexts remain unchanged.
 
 Once the applicable review and hosted-wait condition are closed, mark the pull
 request ready and merge promptly. Stop when protection requires another action,

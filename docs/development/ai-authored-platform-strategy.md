@@ -367,13 +367,13 @@ and [local verification](local-verification.md)
 Waiting for an entire hosted matrix is an acceptance cost, so it follows A4's
 risk boundary rather than becoming a universal ceremony. Durable-risk deltas
 wait for every relevant hosted check before merge. A localized low-risk delta,
-such as a one-line agent-capacity configuration, non-governance documentation,
-mechanical output, or private behavior-preserving change, may merge after its
-applicable local gate, scope and DCO audit, and required review when GitHub
-reports an authorized merge path. Running nonrequired checks remain post-merge
-signals and are tracked to completion; failure triggers immediate repair or
-rollback assessment. This amendment neither weakens branch protection nor
-bypasses an enforced required check.
+in the exact class named by the hosted topology, may deliberately use the live
+owner/admin bypass after its exact-head mise gate, scope and DCO audit, and any
+required review. Prefer the base-owned trust context and record the actor,
+reason, head, commands, and results. Running checks remain post-merge signals;
+failure triggers immediate repair or rollback assessment. This leaves the
+strict ruleset and required contexts unchanged; normal and high-risk changes
+cannot use the low-risk route.
 
 ## Architecture predicates
 

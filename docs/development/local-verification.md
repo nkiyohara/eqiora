@@ -236,9 +236,12 @@ Playwright expects Google Chrome at `/opt/google/chrome/chrome`, and
 every other Studio browser stage has passed. Say which stage failed in the
 change rather than reporting a clean gate, and rely on CI for that stage.
 
-**Studio's own dependencies are not installed by the gate.** Without
-`npm ci` in `studio/`, verification stops earlier still, at `biome: not found`.
-That failure looks like a lint error and is not one.
+**Studio's locked npm dependencies are installed automatically; browser and
+system dependencies are not.** Ordinary mise gates run their `setup`
+dependency first and execute locked `npm ci` when the worktree needs it. A
+missing Chrome executable or native system package remains an external
+prerequisite and is reported as a limitation. `biome: not found` after an
+ordinary gate therefore indicates skipped or invalid setup, not a lint result.
 
 **A whole-file hash cannot verify `icon.icns` regeneration.** The pinned
 Tauri CLI 2.11.4 may reorder the type-keyed ICNS chunks across identical
@@ -258,19 +261,18 @@ oracle, public or versioned API and compatibility, persisted schema or exact
 artifact, security or data integrity, release or CI trust, governance, and
 architecture changes wait for every relevant hosted check before merge.
 
-A localized low-risk delta—including a one-line agent-capacity configuration,
-non-governance documentation, reproducible mechanical output, or private
-behavior-preserving work—need not wait for the entire hosted matrix after its
-applicable mise gate, scope and DCO audit, and required review pass, if GitHub
-reports it mergeable through an authorized integration path. Continue tracking
-checks already running as post-merge signals; on failure, immediately repair or
-assess rollback. This changes neither branch-protection requirements nor which
-checks are enforced, and never authorizes a bypass outside an allowed
-integration route.
+A localized low-risk delta in the exact class defined by
+[the public verification topology](ci-topology.md) may use the live auditable
+owner/admin bypass after its exact-head mise gate, scope and DCO audit, and any
+required review pass. Prefer completion of the base-owned `CI definition trust`
+context. Record the bypass actor, reason, head, commands, and results; continue
+already-running checks as post-merge signals and immediately assess repair or
+rollback on failure. Normal and high-risk deltas wait for relevant required
+contexts. This changes neither the required contexts nor the ruleset.
 
 ## Integration loop
 
-After the affected plan and any applicable optional-provenance check pass,
+After the affected gate and any applicable optional-provenance check pass,
 record the exact commands and limitations in the pull request or issue, merge
 the short-lived integration branch, push the accepted main commit, and delete
 the merged branch. If a command fails, fix the same slice and rerun it; do not
