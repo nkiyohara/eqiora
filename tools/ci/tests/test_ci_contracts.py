@@ -306,19 +306,37 @@ class HostedTriggerTests(unittest.TestCase):
         quality = workflow.split("  quality:\n", maxsplit=1)[1].split(
             "\n  host_evidence:", maxsplit=1
         )[0]
+        expected_job_contract = (
+            "    name: Stable quality gate\n"
+            "    needs: changes\n"
+            "    if: needs.changes.outputs.rust == 'true'\n"
+            "    runs-on: ubuntu-latest\n"
+            "    timeout-minutes: 180\n"
+        )
         steps = (
             (
                 "      - name: Tests\n",
                 "      - name: Full feature tests\n",
+                (),
                 "cargo +stable test --workspace --all-targets --locked",
             ),
             (
                 "      - name: Full feature tests\n",
                 "      - name: Dependency layers\n",
+                ("needs.changes.outputs.full == 'true'",),
                 "cargo +stable test --workspace --all-targets --all-features --locked",
             ),
         )
 
+        self.assertEqual(
+            quality.split("    steps:\n", maxsplit=1)[0],
+            expected_job_contract,
+        )
+        self.assertEqual(workflow.count("TMPDIR"), 3)
+        self.assertEqual(
+            re.findall(r"(?m)^[ \t]*TMPDIR:[ \t]*(.*?)[ \t]*$", workflow),
+            ["${{ runner.temp }}"] * 3,
+        )
         self.assertLess(quality.index(steps[0][0]), quality.index(steps[1][0]))
         self.assertNotRegex(
             workflow.split("jobs:\n", maxsplit=1)[0],
@@ -326,10 +344,15 @@ class HostedTriggerTests(unittest.TestCase):
         )
         self.assertNotRegex(quality, r"(?m)^ {0,8}TMPDIR:")
 
-        for marker, next_marker, command in steps:
+        for marker, next_marker, conditions, command in steps:
+            self.assertEqual(quality.count(marker), 1)
             step = quality.split(marker, maxsplit=1)[1].split(
                 next_marker, maxsplit=1
             )[0]
+            self.assertEqual(
+                re.findall(r"(?m)^        if: (.+)$", step),
+                list(conditions),
+            )
             environment = step.split("        env:\n", maxsplit=1)[1].split(
                 "        run:", maxsplit=1
             )[0]
