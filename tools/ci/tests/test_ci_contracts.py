@@ -299,6 +299,51 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertNotIn("CARGO_PROFILE_TEST_", studio)
         self.assertNotIn("fast-math", workflow.lower())
 
+    def test_quality_workspace_tests_use_step_scoped_runner_temp(self) -> None:
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
+            encoding="utf-8"
+        )
+        quality = workflow.split("  quality:\n", maxsplit=1)[1].split(
+            "\n  host_evidence:", maxsplit=1
+        )[0]
+        steps = (
+            (
+                "      - name: Tests\n",
+                "      - name: Full feature tests\n",
+                "cargo +stable test --workspace --all-targets --locked",
+            ),
+            (
+                "      - name: Full feature tests\n",
+                "      - name: Dependency layers\n",
+                "cargo +stable test --workspace --all-targets --all-features --locked",
+            ),
+        )
+
+        self.assertLess(quality.index(steps[0][0]), quality.index(steps[1][0]))
+        self.assertNotRegex(
+            workflow.split("jobs:\n", maxsplit=1)[0],
+            r"(?m)^\s*TMPDIR:",
+        )
+        self.assertNotRegex(quality, r"(?m)^ {0,8}TMPDIR:")
+
+        for marker, next_marker, command in steps:
+            step = quality.split(marker, maxsplit=1)[1].split(
+                next_marker, maxsplit=1
+            )[0]
+            environment = step.split("        env:\n", maxsplit=1)[1].split(
+                "        run:", maxsplit=1
+            )[0]
+            self.assertEqual(
+                re.findall(
+                    r"(?m)^          TMPDIR:[ \t]*(.*?)[ \t]*$", environment
+                ),
+                ["${{ runner.temp }}"],
+            )
+            self.assertEqual(
+                re.findall(r"(?m)^        run: (.+)$", step),
+                [command],
+            )
+
     def test_studio_checks_its_independent_manifest_at_the_same_msrv(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
             encoding="utf-8"
