@@ -57,6 +57,50 @@ and repetitions, per the accelerator strategy's evidence rules. No global
 speed ratio against another framework is adopted as a target; such a rule is
 underspecified and currently unsupported by any registered measurement.
 
+### Design record — risk-tiered outcome contracts
+
+**Proposal, stated precisely:** keep independent evidence and fresh review for
+durable risk, while every other contract freezes externally observable outcomes
+and bounds rather than an unclaimed implementation or trust mechanism.
+
+The fragile assumption behind the previous posture was that more mechanism
+always means more assurance. It does not: a negative test can pass because an
+unrelated denial broke the positive path, allocator or worklist behavior can
+turn a resource contract into an implementation lock, and an oracle can grow
+larger than the seam it audits. The opposite assumption is also unsafe:
+low-risk application glue does not make scientific, compatibility, artifact,
+security, release, CI, or architecture risk disappear.
+
+| Formulation | Naturalness | Computational cost | Implementation complexity | Faithfulness to accepted evidence | Approximation quality | Experimental promise |
+| --- | --- | --- | --- | --- | --- | --- |
+| Blanket relaxation | Low: ignores risk classes | Low initially | Low | Poor: removes needed independence | Poor; risk is under-modelled | Poor after the first consequential miss |
+| Per-Issue waivers | Low: exceptions become the model | Unbounded review traffic | High and cumulative | Variable and non-reproducible | Weak; similar work receives different rigor | Poor; queue latency remains |
+| Mechanism-maximal contracts | Low: implementation stands in for outcome | High | Highest | Superficially strict but often vacuous | Weak when mechanism and claim diverge | Poor; process can outrun product |
+| Risk-tiered outcome contracts | High: rigor follows durable claim | Focused on consequential seams | Lowest compatible with the claim | Retains every durable-risk gate | Strong: outcomes, failure modes, authority, identity, and bounds are explicit | Best; positive-path and non-vacuity probes expose mistakes early |
+
+**Current best formulation:** the risk-tiered outcome contract. It rejects both
+blanket relaxation and per-Issue waivers. Scientific derivation and other
+durable-risk evidence stay independent; adapters and private glue use typed
+boundaries and focused tests; a mechanism becomes contractual only when it is
+itself the public claim.
+
+**Rejected / superseded ideas:** blanket relaxation loses consequential gates;
+per-Issue waivers add a second policy queue; mechanism-maximal contracts confuse
+one implementation with the protected outcome.
+
+**Open questions:** whether repeated non-vacuity failures reveal a shared test
+helper, and whether any public resource-residency claim actually needs a live
+allocation oracle. Neither justifies adding a framework in advance.
+
+**Next experiments:** on each new or reopened lane, require the cheapest ordinary
+positive probe before negative probes, and reject one plausible mutant at the
+named gate. If the package cannot do both without new trust machinery, simplify
+the contract or separate authority first.
+
+**Red-team note:** this calibration must not become a euphemism for weaker
+evidence. An inconsistent oracle still stops work, durable-risk review remains
+mandatory, and accepted claims are never widened by reinterpretation.
+
 ## Measured baseline
 
 Independently measured at `f5ae8c5` by both reviewing agents; figures agreed.
@@ -272,6 +316,39 @@ candidate enters the stable vocabulary only after passing. AMG, restarted
 GMRES, and field split are three distinct contracts — a multilevel construction
 and provenance problem, a Krylov algorithm, and a solver graph over blocks
 respectively — and each needs its own envelope, not one shared gate.
+
+### A8 — Outcome contracts calibrate mechanism to durable risk
+
+*Owners:* [contract-wave capability development](vertical-slice-development.md)
+and [local verification](local-verification.md)
+
+Contracts freeze the accepted outcome, ordinary positive path, named failure
+conditions, relevant authority and identity, and input and resource bounds.
+They do not freeze Landlock, seccomp, allocation, worklist, scheduler, or other
+internal machinery unless that machinery is itself the claim. Resource gates
+use raw input limits and deterministic implementation-independent abstract
+cost; negative evidence proves that its named gate, rather than an earlier
+unrelated denial, rejects the mutant.
+
+Full independent evidence and fresh review remain mandatory for the durable
+risk classes in A4. Other adapters, application surfaces, and private glue use
+typed boundaries and focused positive and falsifier tests without automatically
+creating an RFC, schema, digest, dual derivation, or sandbox. Independence
+defaults to role separation, fresh context, sealed inputs, and scratch
+non-sharing; persistent actor identities or lifetime receipts belong only to
+an actual adversarial multi-party provenance or trust claim.
+
+A contract-discovery lane may write one isolated candidate before an
+implementation contract is frozen when its research question, source
+authority, output path, non-claims, and decision and STOP criteria are frozen.
+It writes no implementation, fixture, or tuned evidence, and implementation
+remains stopped. If evidence grows more complex than the seam or requires a new
+OS trust mechanism, simplify the contract or separate authority before adding
+machinery; do not relax an inconsistent oracle.
+
+This amendment is prospective. Existing accepted claims and evidence are not
+retroactively widened; new, reopened, and previously rejected lanes apply the
+calibrated rules at their next contract freeze.
 
 ## Architecture predicates
 

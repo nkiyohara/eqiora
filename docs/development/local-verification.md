@@ -75,6 +75,30 @@ merge base, verifies score and expiry, and rejects malformed, unknown, stale,
 or candidate-added entries. See [RFC
 0068](../../rfcs/0068-optional-implementation-agent-attestations.md).
 
+## Positive path and non-vacuity
+
+An oracle or falsifier package counts as evidence only when its execution order
+first proves at least one ordinary positive end-to-end path. Negative probes
+then name the specific gate they target and demonstrate non-vacuity: the same
+package must fail if an earlier unrelated denial makes the capability unusable.
+A sandbox, parser, identity, or admission failure before the targeted boundary
+cannot be reported as successful rejection of the intended mutant. If the
+positive probe fails, the case fails; later negative outcomes do not rescue it.
+
+Local verification executes the case manifest and reports its technical result;
+a zero exit status cannot broaden a claim whose evidence package is vacuous.
+Case review therefore checks the positive-path ordering and targeted denial as
+part of the registered claim. The contract may require fail-closed behavior,
+authority separation, or a resource envelope without requiring one OS or
+allocator mechanism unless that mechanism is itself the claim.
+
+Resource probes use raw input caps plus a deterministic,
+implementation-independent abstract cost or step function. They do not sample
+live allocation, queue depth, or worklist lifetime unless resource residency is
+the declared public claim. When an oracle would become more complex than the
+product seam or require a new OS trust mechanism, stop and simplify the outcome
+contract or separate authority; never turn the mismatch into a passing gate.
+
 ## Tiers
 
 `fast` runs formatting, direct changed-package tests and Clippy, explicitly

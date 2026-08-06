@@ -1,59 +1,53 @@
 # Repository instructions
 
-These repository-wide instructions state only what an agent cannot infer from the code.
-Everything longer lives in the document that owns it, and those documents are authoritative:
+These repository-wide instructions state only what code cannot reveal. Longer rules live in
+their authoritative owners:
 
-- [AI-authored platform strategy](docs/development/ai-authored-platform-strategy.md)
-  — what Eqiora optimizes for, and which rules the agent-authorship premise amends.
-- [Contract-wave capability development](docs/development/vertical-slice-development.md)
-  — definition of done, parallelization, conformance kits, abstraction budget,
-  Issue queue, branch discipline. **Read it before starting capability or
-  parallel work.**
+- [AI-authored platform strategy](docs/development/ai-authored-platform-strategy.md) — optimization and amendments.
+- [Contract-wave capability development](docs/development/vertical-slice-development.md) — closure, lanes, conformance, abstractions, Issues, and branches.
+  **Read it before capability or parallel work.**
 - [Local verification](docs/development/local-verification.md) — the gate tiers.
 
 ## One primary agent, independent roles
 
-Codex GPT-5.6 Sol is the default for contract ownership, implementation,
-end-to-end integration, review, and repository gates. The maintainer directs
-without reading diffs; independence comes from separated roles and fresh context.
+Codex GPT-5.6 Sol defaults to contract ownership, implementation, integration, review,
+and gates. The maintainer directs without reading diffs; roles stay independent.
 
-A writer never authors or tunes its own oracle. When durable risk requires independent review,
-a fresh-context non-implementer reviews the complete risky
-delta; the same provider lineage is permitted. Bound each handoff by the frozen
-claim, writable paths, and non-claims; never share writer scratch with oracle or reviewer.
+A writer never authors or tunes its oracle. Durable risk gets complete-delta review by a
+fresh-context non-writer; same-provider lineage is permitted. Bind handoffs by frozen claim,
+paths, non-claims, sealed inputs, and no scratch sharing. Stable actor identity or lifetime
+receipts are only for actual adversarial multi-party trust, not scientific independence.
 
-Provider diversity is optional escalation, not a gate. Use Opus for bounded
-derivation, mutation search, or review when agents disagree, an oracle appears
-wrong, or a scientific claim is unusually consequential. Use Fable for cross-cutting,
-visual, or long-horizon review when fresh-context Sol review is
-insufficient. Confidence is not evidence; every result states what was not checked.
+Provider diversity is optional escalation, not a gate. Use Opus for bounded derivation,
+mutation search, or disagreement; Fable for cross-cutting, visual, or long-horizon review.
+Confidence is not evidence; every result states what was not checked.
 
 ## Run every lane that can run
 
-Wall-clock to a working platform is the scarce resource; tokens and agent count
-are not. Start a lane when, and only when, both hold:
+Wall-clock is scarce; tokens and agent count are not. Start a lane only when both hold:
 
 - its writable paths are disjoint from every lane in flight, and
-- its contract is frozen — bounded claim, non-claims, pre-committed oracle,
-  writable-path allowlist, and the decisions the implementer must not revisit.
+- an implementation lane's outcome contract is frozen — externally observable
+  result, ordinary positive path, failure conditions, relevant authority and
+  identity, bounds, non-claims, oracle, writable paths, and STOP decisions.
 
-Those conditions keep rework out; a lane started without them costs a cycle,
-not a saving. Never invent an audit, preflight, or review merely to fill a slot;
-idle is correct when no result can change a decision or shorten the critical path.
+Contract discovery may precede that freeze only with a frozen question, source authority,
+isolated candidate path, non-claims, and decision/STOP criteria. It writes no implementation,
+fixture, or tuned evidence; implementation stays stopped.
 
-Recheck when a lane finishes and when a dependency merges, even while your own
-task is in flight; a startable lane left idle loses wall clock.
+Starting without them costs a cycle. Never invent work to fill a slot; idle is correct when
+no result can change a decision or shorten the critical path.
+
+Recheck on lane finish and dependency merge, even mid-task; an idle startable lane loses time.
 
 Prefer the cheap check that would falsify a premise over the work that assumes
 it.
 
 ## Structure outranks speed, every time
 
-Parallelism is the only accepted speed, because it spends agents rather than
-structure. A slow lane costs twice as long once, visibly. A structure that
-makes every later lane harder compounds forever and bills nobody — the agent
-taking the shortcut is not the one who pays. More lanes sharpen this: each sees
-only its own cost, so the locally cheapest move is to widen something shared.
+Parallelism is the accepted speed because it spends agents rather than structure. A slow lane
+costs once; a structure that burdens every later lane compounds. More lanes sharpen the risk:
+each sees its local cost and may widen something shared.
 
 When a predicate, budget, or oracle blocks a lane, the lane changes, not the gate:
 
@@ -67,12 +61,10 @@ When a predicate, budget, or oracle blocks a lane, the lane changes, not the gat
 
 ## Measure the thing you are reasoning about
 
-A number from one environment is not evidence about another. Local wall-clock
-does not predict hosted, a development profile does not predict `opt-level=1`,
-and an aborted run is not a completed one. State the environment beside the
-number or omit the number, and reproduce the hosted profile with the prefix in
-[local verification](docs/development/local-verification.md) before quoting a
-timing that informs a hosted decision.
+A number from one environment is not evidence about another. Local wall-clock does not
+predict hosted, development does not predict `opt-level=1`, and an aborted run is not complete.
+State the environment or omit the number; reproduce the hosted profile per
+[local verification](docs/development/local-verification.md) before a hosted decision.
 
 Run the repository's own gate, not an equivalent you assembled. What a
 hand-written command list omits — packaged-tree behaviour, the interpreter
@@ -80,15 +72,11 @@ matrix, the CI contracts — is where the defects that reach CI live.
 
 ## Improve these instructions, at constant size
 
-When cross-review, a gate, or CI teaches something an agent could not have
-inferred, write it here in the same change. A lesson left in a pull-request body
-is lost.
+When review or CI teaches something code cannot reveal, write it here in the same change;
+a lesson left in a pull-request body is lost.
 
-This file is loaded into every session and competes with the work for attention,
-so it holds a **hard budget of 200 lines**. Adding requires removing: find the
-line whose deletion would no longer cause a mistake, and delete it. If nothing
-qualifies, the lesson belongs in the document that owns the topic, linked from
-here rather than restated.
+This file has a **hard budget of 200 lines**. Adding requires removing a line whose deletion
+no longer causes error; otherwise put the lesson in its owning document and link it.
 
 ## Claims are part of the implementation
 
@@ -119,6 +107,8 @@ an implementer believes a pre-committed oracle is wrong, it stops and returns
 the proof rather than adjusting the implementation to match.
 An exact-artifact oracle replays the producer's exact ordering: a geometrically
 equivalent fixture is not byte evidence when local order changes quality or digest.
+Every evidence package proves an ordinary positive end-to-end path first. A negative
+probe must prove non-vacuity: an earlier unrelated denial cannot count as rejection.
 
 Fresh-context non-writer review is required before integration only for the complete delta that
 changes: governance, review, or evidence policy; scientific meaning or an oracle; a public or versioned API, compatibility, or migration;
@@ -163,8 +153,18 @@ Issue queue, or the roadmap, and is never committed.
 
 ## Rigor in proportion to durable risk
 
-Reserve full contract-and-evidence ceremony for durable risk. Adapters and application surfaces need ordinary
-typed boundaries and focused tests, not automatically a new RFC, schema, digest, registry, or evidence case.
+Outcome contracts freeze observable results and bounds, not Landlock, seccomp,
+allocator, worklist, or other internal mechanisms unless the mechanism is the claim.
+Reserve full contract-and-evidence ceremony for durable risk. Adapters, application
+surfaces, and private glue need typed boundaries and focused positive/falsifier tests,
+not automatically an RFC, schema, digest, registry, dual derivation, or sandbox.
+
+Resource gates use raw input caps and a deterministic implementation-independent
+abstract cost or step function, not live allocation or worklist lifetime unless
+resource residency is the public claim. If an oracle grows beyond the product seam
+or needs a new OS trust mechanism, simplify the contract or separate authority;
+never relax an inconsistent oracle. Existing accepted claims are not widened:
+new, reopened, and rejected lanes use this calibration at their next contract freeze.
 
 Apply the abstraction and public-API budget before adding a crate, public type,
 enum variant, trait, wire field, or registry. Structural predicates are checked,

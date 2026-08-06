@@ -21,10 +21,20 @@ meaning or repeat accepted conformance evidence. A capability-changing lane
 still reaches the ordinary path and adds the exact evidence required for its
 new claim. A fixture that bypasses that path is not capability evidence.
 
+An **outcome contract** freezes only what another layer, user, or verifier can
+observe: the accepted result, at least one ordinary positive path, named
+failure conditions, authority and identity boundaries where they matter, and
+declared input and resource bounds. Landlock, seccomp, allocator behavior,
+worklist lifetime, process layout, and other internal mechanisms remain
+implementation choices unless the bounded product claim is specifically about
+that mechanism. A contract may require fail-closed isolation or a resource
+envelope without preselecting how the implementation supplies it.
+
 ## Working units
 
 | Unit | Purpose | Boundary |
 | --- | --- | --- |
+| Contract-discovery lane | Resolve one frozen research question into an isolated contract candidate | No implementation, fixture, or tuned expected value; implementation remains stopped |
 | Contract cell | Establish one invariant, owner, reference path, oracle, and falsifier | Normally serialized; not a fan-out assignment |
 | Implementation lane | Consume frozen contracts in disjoint writable paths | Not a product claim by itself |
 | Evidence unit | Attach evidence under the owning contract | Only compiler-derived instances split class proof from instance witness; providers retain exact-tuple evidence |
@@ -55,9 +65,12 @@ below are true:
    layer. Meaning is not reconstructed in an adapter or client.
 3. One ordinary end-to-end path reaches an accepted result through lowering
    and realization.
-4. Evidence has an independent positive oracle and at least one falsifier that
-   would reject a plausible wrong implementation. Failure occurs before
-   mutation or artifact acceptance where the contract is fail-closed.
+4. Evidence first proves one ordinary positive end-to-end path with an
+   independent oracle, then runs at least one falsifier that would reject a
+   plausible wrong implementation. The negative probe demonstrates
+   non-vacuity: it cannot pass merely because an earlier unrelated denial made
+   the capability unusable. Failure occurs before mutation or artifact
+   acceptance where the contract is fail-closed.
 5. A validated `verify/<area>/<case>/case.toml` registers the exact claim,
    reference strategy, structured evidence target, and claim boundary. The
    adjacent README explains only details that cannot be expressed by the
@@ -124,11 +137,13 @@ contract cell
   -> one integration queue
 ```
 
-1. The integrator chooses a bounded claim, names its invariant owner, and
-   identifies every central surface it may change.
-2. One writer owns each affected central seam. An independent verifier derives
-   a plausible wrong implementation and the falsifier that must reject it,
-   preferably before reading the implementation explanation.
+1. The integrator chooses a bounded outcome claim, names its invariant owner,
+   and identifies every central surface it may change without freezing an
+   unclaimed implementation mechanism.
+2. One writer owns each affected central seam. An independent verifier fixes
+   an ordinary positive probe, a plausible wrong implementation, and the
+   non-vacuous falsifier that must reject it, preferably before reading the
+   implementation explanation.
 3. A central change closes one reference capability path and is accepted before
    dependent implementation fans out. This path is the reference slice; a
    types-only foundation branch is not a contract freeze point.
@@ -145,6 +160,16 @@ contract cell
 Read-only design, prior-art, oracle, and adversarial audits may scale beyond
 writable lanes. More writers are added only for paths that consume a frozen
 seam without redefining it. Semantic merge authority remains singular.
+
+Contract discovery is the one writable pre-freeze exception. It may begin when
+the research question, source authority, one isolated candidate output path,
+non-claims, and decision and STOP criteria are frozen and disjoint from every
+lane in flight. It writes only a contract candidate: no implementation, test
+fixture, oracle value, tolerance, or falsifier may be authored or tuned there.
+The candidate has no implementation authority, and implementation stays
+stopped until the contract owner accepts or rejects and freezes the outcome
+contract. Discovery lanes are for collapsing uncertainty, not speculative
+foundation branches.
 
 Fan-out means contract consumption, not delegated contract design. A consumer
 that cannot express its bounded claim through the accepted seam stops and
@@ -176,6 +201,8 @@ should identify:
 
 - the predecessor and exact starting revision;
 - the bounded claim, important non-claims, and invariant owner;
+- the externally observable outcome, ordinary positive path, failure
+  conditions, authority or identity boundary, and input and resource bounds;
 - the primary writable paths and central paths that must not change;
 - the ordinary execution path and existing contract being consumed;
 - an independent positive oracle and plausible wrong implementation;
@@ -183,6 +210,9 @@ should identify:
 - any environment-specific limitation; and
 - the condition that stops the lane when another public abstraction, wire, or
   central seam becomes necessary.
+
+The prompt must not freeze an internal isolation, allocation, scheduling, or
+worklist mechanism unless that mechanism is itself part of the bounded claim.
 
 Do not copy this information into another machine-readable planning registry.
 The roadmap owns durable dependency order, Issues own transient closable work,
@@ -196,6 +226,12 @@ modes; it does not encode one adapter's implementation or numerical oracle.
 Its fixtures remain under `verify/`, and its consuming cases declare the kit in
 their manifests. A private shared test helper is preferred until independent
 external consumers justify a public conformance crate.
+
+Every oracle or falsifier package starts with at least one ordinary positive
+end-to-end probe. A negative probe must show that its targeted gate, rather
+than an earlier unrelated denial, distinguishes the admitted path from the
+rejected one. A package that can pass while the capability is unusable is
+vacuous and cannot close a claim.
 
 An RFC's verification section maps its acceptance invariants to registered
 cases and kit IDs. Adding an enum variant or adapter name without such a path
@@ -221,6 +257,38 @@ requirement to the contract owner instead of adding a local workaround.
 This division applies only to compiler-derived instances. Adapter and provider
 conformance kits keep their existing form and are not forced into the witness
 model.
+
+## Rigor and mechanism budget
+
+The durable-risk classes listed under branch and integration discipline keep
+their independent evidence and fresh-context review gates. For all other work,
+process must not become a larger product than the seam it protects:
+
+- adapters, application surfaces, and private glue use typed boundaries plus
+  focused positive and falsifier tests; they do not automatically acquire an
+  RFC, schema, digest, dual derivation, registry, or security sandbox;
+- release-trust claims remain durable risk, but the first design is simple
+  authority separation or disposable validated copies. Freeze an OS isolation
+  mechanism only when the public claim promises that exact mechanism;
+- resource admission uses raw input caps and a deterministic,
+  implementation-independent abstract cost or step function. Live allocation,
+  allocator behavior, queue depth, or worklist lifetime is not an oracle unless
+  resource residency itself is the public claim; and
+- oracle independence normally means role separation, fresh context, sealed
+  inputs, and no writer-scratch sharing. Stable actor or control-plane identity
+  and lifetime receipts are required only when an actual adversarial
+  multi-party provenance or trust claim needs them, not for scientific
+  independence by default.
+
+If an oracle becomes more complex than the product seam, or needs a new OS
+trust mechanism to test a claim that does not expose one, stop and simplify
+the outcome contract or separate authority before adding machinery. This does
+not relax a gate: an inconsistent oracle still stops the lane, and a claim
+narrows to what independent evidence shows.
+
+This calibration is prospective. It does not retroactively widen an accepted
+claim or reinterpret its existing evidence. New lanes and any reopened or
+previously rejected lane use these rules when their contract is next frozen.
 
 ## Abstraction and public-API budget
 
