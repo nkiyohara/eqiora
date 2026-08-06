@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -720,18 +721,19 @@ class MiseTaskContractTests(unittest.TestCase):
     )
     DIRECT_GATE = re.compile(
         r"(?:/usr/bin/)?python3\s+tools/ci/local_verify\.py\s+"
-        r"(?:fast|affected|periodic)(?=[\s`\\]|$)"
+        r"(?:fast|affected|periodic)(?=[\s`\\;&]|\|\||$)"
     )
-    COMMAND_SEPARATOR = r"(?:[ \t]+|[ \t]*\\\n[ \t]*)"
-    VALUE_OPTION = (
-        r"--(?:base|case|cpu-slots|memory-mib|gpu-slots|scratch-root)"
-        rf"(?:=[^\s`\\]+|{COMMAND_SEPARATOR}[^\s`\\]+)"
+    PLANNER_VALUE_OPTIONS = frozenset(
+        (
+            "--base",
+            "--case",
+            "--cpu-slots",
+            "--memory-mib",
+            "--gpu-slots",
+            "--scratch-root",
+        )
     )
-    NONEXECUTING_PLAN_COMMAND = re.compile(
-        DIRECT_GATE.pattern
-        + rf"(?:{COMMAND_SEPARATOR}{VALUE_OPTION})*"
-        + rf"{COMMAND_SEPARATOR}--plan(?=[\s`\\]|$)"
-    )
+    PLANNER_VALUE = re.compile(r"[A-Za-z0-9_./:@+~^-]+")
     SETUP_FREE_DIAGNOSTIC_MARKER = (
         "# eqiora: setup-free-local-verify-diagnostic-only"
     )
@@ -774,9 +776,7 @@ class MiseTaskContractTests(unittest.TestCase):
                 self.assertEqual(self.tasks[task]["run"], command)
 
     def test_mise_forwards_arguments_after_setup_to_every_executable_gate(self) -> None:
-        mise = os.environ.get("MISE_EXE") or shutil.which("mise")
-        if mise is None:
-            self.skipTest("mise is not installed in this hosted unit-test context")
+        mise = self._required_mise_executable()
 
         environment = dict(os.environ)
         environment["COLUMNS"] = "240"
@@ -810,6 +810,23 @@ class MiseTaskContractTests(unittest.TestCase):
                     completed.stdout.index(setup),
                     completed.stdout.index(invocation),
                 )
+
+    @staticmethod
+    def _required_mise_executable() -> str:
+        mise = os.environ.get("MISE_EXE") or shutil.which("mise")
+        if mise is None:
+            raise AssertionError(
+                "mise is required to prove setup ordering and gate argument forwarding"
+            )
+        return mise
+
+    def test_missing_mise_fails_the_forwarding_contract(self) -> None:
+        with (
+            mock.patch.dict(os.environ, {}, clear=True),
+            mock.patch.object(shutil, "which", return_value=None),
+        ):
+            with self.assertRaisesRegex(AssertionError, "mise is required"):
+                self._required_mise_executable()
 
     def test_plan_is_setup_free_and_nonexecuting(self) -> None:
         plan = self.tasks["plan"]
@@ -850,12 +867,84 @@ class MiseTaskContractTests(unittest.TestCase):
         return commands
 
     @classmethod
+    def _direct_gate_tokens(cls, command: str) -> list[str] | None:
+        lexer = shlex.shlex(
+            command.replace("\\\n", " "),
+            posix=True,
+            punctuation_chars=";&|",
+        )
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        try:
+            tokens = list(lexer)
+        except ValueError:
+            return None
+        if len(tokens) < 3:
+            return None
+        if tokens[0] not in ("python3", "/usr/bin/python3"):
+            return None
+        if tokens[1] != "tools/ci/local_verify.py":
+            return None
+        if tokens[2] not in ("fast", "affected", "periodic"):
+            return None
+        return tokens
+
+    @classmethod
+    def _only_known_value_options(cls, arguments: list[str]) -> bool:
+        index = 0
+        while index < len(arguments):
+            argument = arguments[index]
+            if "=" in argument:
+                option, value = argument.split("=", maxsplit=1)
+                if option not in cls.PLANNER_VALUE_OPTIONS:
+                    return False
+                if cls.PLANNER_VALUE.fullmatch(value) is None:
+                    return False
+                index += 1
+                continue
+            if argument not in cls.PLANNER_VALUE_OPTIONS:
+                return False
+            if index + 1 >= len(arguments):
+                return False
+            value = arguments[index + 1]
+            if value.startswith("--") or value in (";", "&", "&&", "|", "||"):
+                return False
+            if cls.PLANNER_VALUE.fullmatch(value) is None:
+                return False
+            index += 2
+        return True
+
+    @classmethod
+    def _is_bounded_plan_command(cls, command: str) -> bool:
+        tokens = cls._direct_gate_tokens(command)
+        if tokens is None:
+            return False
+        arguments = tokens[3:]
+        if arguments.count("--plan") != 1:
+            return False
+        return cls._only_known_value_options(
+            [argument for argument in arguments if argument != "--plan"]
+        )
+
+    @classmethod
+    def _is_bounded_diagnostic_command(cls, command: str) -> bool:
+        stripped = command.rstrip()
+        marker = cls.SETUP_FREE_DIAGNOSTIC_MARKER
+        if not stripped.endswith(marker):
+            return False
+        prefix = stripped[: -len(marker)]
+        if not prefix or not prefix[-1].isspace():
+            return False
+        tokens = cls._direct_gate_tokens(prefix.rstrip())
+        return tokens is not None and cls._only_known_value_options(tokens[3:])
+
+    @classmethod
     def _direct_gate_violations(cls, markdown: str) -> list[tuple[int, str]]:
         violations = []
         for line, command in cls._direct_gate_commands(markdown):
-            if cls.NONEXECUTING_PLAN_COMMAND.match(command) is not None:
+            if cls._is_bounded_plan_command(command):
                 continue
-            if command.rstrip().endswith(cls.SETUP_FREE_DIAGNOSTIC_MARKER):
+            if cls._is_bounded_diagnostic_command(command):
                 continue
             violations.append((line, command))
         return violations
@@ -882,6 +971,9 @@ class MiseTaskContractTests(unittest.TestCase):
             "$ python3 tools/ci/local_verify.py fast --case example.case",
             "Run `python3 tools/ci/local_verify.py periodic`.",
             "python3 tools/ci/local_verify.py affected \\\n  --case example.case",
+            "python3 tools/ci/local_verify.py fast; echo executed",
+            "python3 tools/ci/local_verify.py fast&& echo executed",
+            "python3 tools/ci/local_verify.py fast|| echo executed",
         )
         for markdown in forbidden:
             with self.subTest(markdown=markdown):
@@ -892,7 +984,12 @@ class MiseTaskContractTests(unittest.TestCase):
         allowed = (
             "`python3 tools/ci/local_verify.py fast --plan` derives the case id",
             "python3 tools/ci/local_verify.py affected \\\n  --base origin/main --plan",
+            "python3 tools/ci/local_verify.py fast --plan --case example.case",
+            "python3 tools/ci/local_verify.py affected --case=example.case "
+            "--plan --cpu-slots 4",
             f"python3 tools/ci/local_verify.py periodic {marker}",
+            "python3 tools/ci/local_verify.py affected --case example.case "
+            f"--base=origin/main {marker}",
         )
         for markdown in allowed:
             with self.subTest(markdown=markdown):
@@ -902,8 +999,19 @@ class MiseTaskContractTests(unittest.TestCase):
             "`python3 tools/ci/local_verify.py fast` is not `--plan`",
             "Run python3 tools/ci/local_verify.py fast to compare with --plan",
             "python3 tools/ci/local_verify.py affected --planet",
+            "python3 tools/ci/local_verify.py fast --plan --unknown x",
+            "python3 tools/ci/local_verify.py fast --plan && echo executable-suffix",
+            "python3 tools/ci/local_verify.py fast --plan --plan",
+            "python3 tools/ci/local_verify.py fast --plan trailing-token",
+            "python3 tools/ci/local_verify.py fast --plan --base=$(echo-executed)",
             f"python3 tools/ci/local_verify.py periodic {marker}-extended",
             f"`python3 tools/ci/local_verify.py periodic` uses {marker}",
+            "python3 tools/ci/local_verify.py periodic --unknown x && echo "
+            f"diagnostic {marker}",
+            "python3 tools/ci/local_verify.py affected --base origin/main && echo "
+            f"diagnostic {marker}",
+            "python3 tools/ci/local_verify.py affected --base=$(echo-executed) "
+            f"{marker}",
         )
         for markdown in forbidden_near_misses:
             with self.subTest(markdown=markdown):
@@ -913,6 +1021,15 @@ class MiseTaskContractTests(unittest.TestCase):
             "python3 tools/ci/local_verify.py fast|affected cannot execute"
         )
         self.assertEqual(self._direct_gate_commands(historical_notation), [])
+
+    def test_tracked_markdown_inventory_fails_without_git(self) -> None:
+        with mock.patch.object(
+            subprocess,
+            "run",
+            side_effect=FileNotFoundError("git executable not found"),
+        ):
+            with self.assertRaisesRegex(FileNotFoundError, "git executable"):
+                self._tracked_markdown_documents()
 
     def test_authority_and_evidence_docs_reject_direct_executable_gates(self) -> None:
         authorities = {
