@@ -2,17 +2,19 @@
 
 Repository-owned local verification is Eqiora's technical acceptance
 authority: a hosted service does not replace or broaden the evidence of a
-locally closed slice. Public pull requests additionally require the two
-provider-bound identity and trust contexts described in
-[the public verification topology](ci-topology.md) before merge. Those hosted
-contexts protect the submitted commit and gate definitions; they do not become
-a second scientific acceptance authority.
+locally closed slice. High-risk public deltas additionally wait for their
+relevant provider-bound identity, trust, and execution contexts from
+[the public verification topology](ci-topology.md) before merge. Hosted
+contexts protect the submitted or integrated commit and gate definitions; they
+do not become a second scientific acceptance authority.
 
-The ordinary developer entry point is `mise run fast` while iterating and
-`mise run affected` before integration. `mise install` provisions the declared
-developer tools and `mise run setup` installs the locked Studio dependency
-tree. These tasks delegate to the commands below; `mise.toml` is neither a
-second dependency lock nor a second acceptance implementation.
+The only ordinary executable gate entry points are `mise run fast` while
+iterating and `mise run affected` before integration. Both depend on
+`mise run setup`; in each new worktree its first gate installs the locked
+Studio tree with `npm ci` before verification begins. `mise install` provisions
+the declared developer tools. `mise.toml` owns this setup and invocation
+ordering, but remains neither a dependency lock nor a second acceptance
+implementation.
 
 The repository-owned planner reuses the same path classification as CI and
 includes committed merge-base changes, staged changes, unstaged changes, and
@@ -20,22 +22,23 @@ untracked files:
 
 ```bash
 # Inner loop. Name semantic evidence explicitly.
-python3 tools/ci/local_verify.py fast \
-  --base origin/main \
-  --case packages.hierarchical-physical-boundary
+mise run fast -- --case packages.hierarchical-physical-boundary
 
 # Before integration: reverse-dependent Cargo closure plus affected clients.
-python3 tools/ci/local_verify.py affected \
-  --base origin/main \
-  --case packages.hierarchical-physical-boundary
+mise run affected -- --case packages.hierarchical-physical-boundary
 
 # Inspect the exact deterministic command plan without running it.
-python3 tools/ci/local_verify.py affected --base origin/main --plan
+mise run plan
 
 # Full local compatibility gate when the affected closure is unknown or a
 # release/integration boundary requires it. This is not a calendar ceremony.
-python3 tools/ci/local_verify.py periodic
+mise run periodic
 ```
+
+Direct `python3 tools/ci/local_verify.py` execution is limited to an explicitly
+setup-free `--plan` inspection or diagnostic and infrastructure debugging. It
+is not an ordinary executable gate entry point; use the mise tasks for an
+acceptance run so locked Studio setup cannot be skipped accidentally.
 
 Every plan prints its selected paths, Cargo packages, registered cases, exact
 commands, execution lanes, resource requests, and limitations. Execution is
@@ -247,6 +250,23 @@ hand-written `uv run --with .` can answer from a cached wheel, so tests may miss
 a Rust change that must be visible to Python. The repository gate does not have
 this problem: it passes `--reinstall-package eqiora`, which rebuilds the source
 tree even when its package version is unchanged.
+
+## Hosted integration timing
+
+Hosted waiting is proportional to durable risk. Scientific meaning or an
+oracle, public or versioned API and compatibility, persisted schema or exact
+artifact, security or data integrity, release or CI trust, governance, and
+architecture changes wait for every relevant hosted check before merge.
+
+A localized low-risk delta—including a one-line agent-capacity configuration,
+non-governance documentation, reproducible mechanical output, or private
+behavior-preserving work—need not wait for the entire hosted matrix after its
+applicable mise gate, scope and DCO audit, and required review pass, if GitHub
+reports it mergeable through an authorized integration path. Continue tracking
+checks already running as post-merge signals; on failure, immediately repair or
+assess rollback. This changes neither branch-protection requirements nor which
+checks are enforced, and never authorizes a bypass outside an allowed
+integration route.
 
 ## Integration loop
 

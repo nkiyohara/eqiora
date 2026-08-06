@@ -283,6 +283,15 @@ finding gets focused correction-only fresh review; if it changes claim,
 evidence, or compatibility, widens scope, or otherwise reopens accepted risk,
 review the reopened risky delta plus needed context as a new high-risk change.
 
+A missed historical pre-integration review remains a truthful noncompliance;
+post-hoc language cannot relabel the old head as compliant. It may be repaired
+prospectively by a new exact-current-head re-admission envelope: review the
+complete risky delta with fresh context and rerun its affected evidence, with
+acceptance beginning only at that new head. Revert or removal is required only
+when the current state cannot be safely reviewed and revalidated, or when
+migration or persisted-state semantics require reversal. This removes
+destructive ceremony, not review or evidence.
+
 ### A5 — Architecture predicates enter CI
 
 *Owner:* new `cargo xtask check-architecture` and `tools/ci/architecture-debt.toml`
@@ -349,6 +358,22 @@ machinery; do not relax an inconsistent oracle.
 This amendment is prospective. Existing accepted claims and evidence are not
 retroactively widened; new, reopened, and previously rejected lanes apply the
 calibrated rules at their next contract freeze.
+
+### A9 — Hosted waiting follows durable risk
+
+*Owners:* [contract-wave capability development](vertical-slice-development.md)
+and [local verification](local-verification.md)
+
+Waiting for an entire hosted matrix is an acceptance cost, so it follows A4's
+risk boundary rather than becoming a universal ceremony. Durable-risk deltas
+wait for every relevant hosted check before merge. A localized low-risk delta,
+such as a one-line agent-capacity configuration, non-governance documentation,
+mechanical output, or private behavior-preserving change, may merge after its
+applicable local gate, scope and DCO audit, and required review when GitHub
+reports an authorized merge path. Running nonrequired checks remain post-merge
+signals and are tracked to completion; failure triggers immediate repair or
+rollback assessment. This amendment neither weakens branch protection nor
+bypasses an enforced required check.
 
 ## Architecture predicates
 
@@ -482,7 +507,7 @@ progress.
 | Contract | The contract-cell owner, normally Codex, freezes claim, nonclaims, live consumer, derivation rules, stop condition, API budget, and registration deltas. | A non-writing route challenges bounded scientific ambiguity and cross-seam architecture before the writer is selected. |
 | Oracle | Fresh-context agents independent of the intended writer derive values, signs, mutants, and thresholds before reading implementation. New scientific formulations, expected values, and tolerances use two independent analytic and numerical or symbolic routes; the writer owns neither. | The contract owner checks that the oracle binds the executable seam without authoring or tuning expected values. |
 | Implementation | Codex owns the settled existing-architecture path; Fable owns an escalated long-horizon or visual path; Opus may own a narrow fully frozen path. | A fresh-context non-implementer owns the falsifier and, where durable risk requires it, reviews the complete risky delta. |
-| Acceptance | The per-envelope integrator rebases, runs `local_verify.py affected`, and audits registrations and environment limitations. It may merge after the applicable risk review; a localized high-risk correction gets focused fresh review, while reopened risk is reviewed as a new high-risk delta. | For high-risk deltas, a non-writing agent checks signs, indices, lineage, visual/runtime output where applicable, and every precommitted falsifier. Low-risk deltas need no fresh route absent an anomaly. |
+| Acceptance | The per-envelope integrator rebases, runs `mise run affected`, and audits registrations and environment limitations. It may merge after the applicable risk review; a localized high-risk correction gets focused fresh review, while reopened risk is reviewed as a new high-risk delta. | For high-risk deltas, a non-writing agent checks signs, indices, lineage, visual/runtime output where applicable, and every precommitted falsifier. Low-risk deltas need no fresh route absent an anomaly. |
 
 If the contract proves insufficient, the writer returns the missing requirement;
 the contract owner re-freezes it before implementation resumes.

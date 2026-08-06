@@ -105,10 +105,9 @@ values, tolerances, or falsifiers for its own implementation. Wiring a
 pre-committed fixture is permitted; owning the evidence content is not. Where
 an implementer believes a pre-committed oracle is wrong, it stops and returns
 the proof rather than adjusting the implementation to match.
-An exact-artifact oracle replays the producer's exact ordering: a geometrically
-equivalent fixture is not byte evidence when local order changes quality or digest.
-Every evidence package proves an ordinary positive end-to-end path first. A negative
-probe must prove non-vacuity: an earlier unrelated denial cannot count as rejection.
+An exact-artifact oracle replays producer ordering; geometric equivalence is not byte
+evidence when local order changes quality or digest. Every evidence package proves an
+ordinary positive path first; unrelated earlier denial cannot count as rejection.
 
 Fresh-context non-writer review is required before integration only for the complete delta that
 changes: governance, review, or evidence policy; scientific meaning or an oracle; a public or versioned API, compatibility, or migration;
@@ -120,6 +119,10 @@ and localized corrections to low-risk findings. These need no fresh reviewer abs
 A strictly localized correction to a reviewed high-risk finding gets focused fresh review of the correction,
 not whole-diff rereview. If it changes claim, evidence, or compatibility, widens scope, or otherwise reopens
 accepted risk, review the reopened risky delta plus needed context as a new high-risk change. The integrator's own high-risk work is not exempt; post-integration review does not satisfy this gate.
+A missed historical review remains noncompliant; never relabel it. Repair may use a new
+exact-current-head re-admission envelope with complete fresh risky-delta review and rerun
+evidence, accepted only from that head. Revert only when current state cannot be safely
+reviewed/revalidated or migration or persisted-state semantics require it.
 
 Independent derivation catches what one agent missed, not what both assumed. Only a new scientific
 formulation, expected value, or tolerance carries a **dual independent oracle gate**: two fresh-context
@@ -153,25 +156,21 @@ Issue queue, or the roadmap, and is never committed.
 
 ## Rigor in proportion to durable risk
 
-Outcome contracts freeze observable results and bounds, not Landlock, seccomp,
-allocator, worklist, or other internal mechanisms unless the mechanism is the claim.
-Reserve full contract-and-evidence ceremony for durable risk. Adapters, application
-surfaces, and private glue need typed boundaries and focused positive/falsifier tests,
+Outcome contracts freeze observable results and bounds, not Landlock, seccomp, allocator,
+worklist, or other internals unless claimed. Reserve full ceremony for durable risk;
+adapters, application surfaces, and private glue need typed boundaries and focused tests,
 not automatically an RFC, schema, digest, registry, dual derivation, or sandbox.
 
-Resource gates use raw input caps and a deterministic implementation-independent
-abstract cost or step function, not live allocation or worklist lifetime unless
-resource residency is the public claim. If an oracle grows beyond the product seam
-or needs a new OS trust mechanism, simplify the contract or separate authority;
-never relax an inconsistent oracle. Existing accepted claims are not widened:
+Resource gates use raw input caps and deterministic implementation-independent abstract
+cost, not live allocation or worklist lifetime unless residency is claimed. If an oracle
+outgrows the seam or needs new OS trust, simplify the contract or separate authority;
+never relax inconsistency. Existing accepted claims are not widened:
 new, reopened, and rejected lanes use this calibration at their next contract freeze.
 
-Apply the abstraction and public-API budget before adding a crate, public type,
-enum variant, trait, wire field, or registry. Structural predicates are checked,
-not judged: an ordinary pull request may only move `cargo xtask
-check-architecture` numbers down. Raising a ceiling or adding a debt entry is an
-architecture change, permitted but reviewed as one, and it carries a reason and
-a deletion condition.
+Apply the abstraction and public-API budget before adding a crate, public type, enum,
+trait, wire field, or registry. Ordinary changes only move `cargo xtask
+check-architecture` numbers down; raising a ceiling or debt is a reviewed architecture
+change with reason and deletion condition.
 
 Prefer the smallest conventional local tool. Put large build, candidate, and worktree scratch under home-backed
 `TMPDIR`, never OS `/tmp`. Keep maintainer-specific hosts/paths out of the repository. Add no protocol or durable contract to work around build, cache, sync, or editor-host limits.
@@ -179,22 +178,23 @@ Prefer the smallest conventional local tool. Put large build, candidate, and wor
 ## Gates
 
 ```bash
-python3 tools/ci/local_verify.py fast      # during implementation
-python3 tools/ci/local_verify.py affected  # before integration
+mise run fast      # during implementation
+mise run affected  # before integration
 ```
 
-Pass every semantically affected registered case explicitly with `--case`.
-Automatic Cargo closure is conservative assistance, not claim ownership. An
-evidence package is an executor, not semantic ownership.
+Pass every semantically affected case with `--case`; Cargo closure is conservative
+assistance, and an evidence package is an executor rather than semantic owner.
 
-Both tiers use default features. Optional MPI, CUDA, Diffsol, or other backend code is
-not covered by a passing default gate: it requires its own case or environment-specific check.
-Hosted media evidence installs native tools explicitly, and a long concurrent `uv run`
-owns a target-private cache; a binary or uncontended cache on one host proves neither.
+High-risk deltas wait for relevant hosted checks before merge. A localized low-risk change
+with local gates, scope/DCO, and required review complete may merge through an authorized
+GitHub path as soon as it is mergeable; track running nonrequired matrix jobs post-merge and
+repair or decide rollback immediately on failure. Never weaken branch protection or required
+checks. See [local verification](docs/development/local-verification.md) for classification.
+
+Default tiers exclude optional backends, which need their own case or environment check.
+Hosted media installs native tools; one cache or host proves neither contention nor portability.
 
 If a pull request supplies an implementation-agent configuration identifier,
-validate it before merging with `python3 tools/ci/check_implementation_agent.py
---base origin/main --pr-body-file <path>` against its final body. The identifier
-is optional; a supplied value must resolve to a current entry already present in
-the protected-base registry. Do not infer one from a visible model or provider
-name, and do not consume an entry introduced by the same pull request.
+validate its final body with `python3 tools/ci/check_implementation_agent.py --base
+origin/main --pr-body-file <path>`. A supplied value must already resolve in the
+protected-base registry; never infer or consume a candidate-added entry.

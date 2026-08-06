@@ -154,8 +154,8 @@ contract cell
    verification, and abstraction budget; obtains the risk-required independent
    review defined below; rebases the integration envelope on the current head;
    runs the affected gate and explicit semantic cases; marks the pull request
-   ready; and merges and removes the branch promptly after required hosted
-   checks pass. Agent-reported completion is not acceptance evidence.
+   ready; applies the risk-tiered hosted-wait rule below; and merges and removes
+   the branch promptly. Agent-reported completion is not acceptance evidence.
 
 Read-only design, prior-art, oracle, and adversarial audits may scale beyond
 writable lanes. More writers are added only for paths that consume a frozen
@@ -396,9 +396,8 @@ parent capability paths are accepted.
 Rebase the current integration head once before final local verification. The
 integrator records the exact local commands and limitations, merges only a
 passing affected closure with any required independent review, and deletes the
-merged branch. Required hosted checks validate the exact proposed merge on
-protected public branches; they complement rather than replace the
-repository-owned local acceptance decision.
+merged branch. Hosted checks validate the exact proposed or integrated revision
+but complement rather than replace repository-owned local acceptance.
 
 A pull request is the exact integration envelope for a closed capability, an
 accepted RFC or governance decision, or one of the bounded maintenance deltas
@@ -450,11 +449,29 @@ the claim, evidence, or compatibility, widens scope, or otherwise reopens the
 accepted risk, review the reopened risky delta plus needed context as a new
 high-risk change.
 
-Once the applicable review is closed, mark the pull request ready and merge it
-as soon as the protected branch's required hosted checks pass. No additional
-review is a default waiting condition. Stop when a protection rule requires
-another action, an anomaly remains unresolved, or a mandatory high-risk review
-has not accepted its bounded delta.
+A historical pre-integration review miss remains noncompliant and must not be
+relabeled. Repair may be prospective without a mandatory revert: create a new
+exact-current-head re-admission envelope, obtain complete fresh-context review
+of its risky delta, rerun all affected evidence, and begin acceptance only at
+that new head. Revert or removal is required when current state cannot be
+safely reviewed and revalidated, or migration or persisted-state semantics
+demand it. This replaces destructive ceremony, not review or evidence.
+
+Hosted waiting follows the same durable-risk boundary. A delta in the high-risk
+list above waits for every relevant hosted check before merge. A localized
+low-risk change—such as a one-line agent-capacity configuration,
+non-governance documentation, reproducible mechanical output, or private
+behavior-preserving work—may merge without waiting for the whole hosted matrix
+once its applicable local gate, scope and DCO audit, and any required review
+pass and GitHub reports it mergeable through an authorized integration path.
+Track already-running checks as post-merge signals; a failure triggers immediate
+repair or rollback assessment. This policy neither weakens branch protection
+nor bypasses an enforced required check.
+
+Once the applicable review and hosted-wait condition are closed, mark the pull
+request ready and merge promptly. Stop when protection requires another action,
+an anomaly remains unresolved, or mandatory high-risk review has not accepted
+its bounded delta.
 
 There is no calendar review or activity ledger. Revisit the development model
 only when an operational anomaly appears:

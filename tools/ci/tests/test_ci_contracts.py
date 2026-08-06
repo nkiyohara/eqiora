@@ -709,6 +709,71 @@ class AggregateGateTests(unittest.TestCase):
             self.assertIn(f'"{job}":"${{{{ needs.{job}.result }}}}"', gate)
 
 
+class MiseTaskContractTests(unittest.TestCase):
+    AUTHORITY_DOCS = (
+        "AGENTS.md",
+        "docs/development/ai-authored-platform-strategy.md",
+        "docs/development/local-verification.md",
+        "docs/development/vertical-slice-development.md",
+    )
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tasks = tomllib.loads(
+            (REPOSITORY_ROOT / "mise.toml").read_text(encoding="utf-8")
+        )["tasks"]
+
+    def test_executable_gates_and_studio_tasks_require_locked_setup(self) -> None:
+        setup = self.tasks["setup"]
+        self.assertEqual(setup["dir"], "{{config_root}}/studio")
+        self.assertEqual(setup["run"], "npm ci")
+        self.assertIn(
+            "{{config_root}}/studio/package-lock.json",
+            setup["sources"],
+        )
+        for task in (
+            "fast",
+            "affected",
+            "periodic",
+            "studio:check",
+            "studio:test",
+            "studio:dev",
+        ):
+            with self.subTest(task=task):
+                self.assertEqual(self.tasks[task]["depends"], ["setup"])
+
+    def test_standard_gates_wrap_exact_planner_modes_and_base(self) -> None:
+        for task, mode in (("fast", "fast"), ("affected", "affected")):
+            with self.subTest(task=task):
+                self.assertEqual(
+                    self.tasks[task]["run"],
+                    f"python3 tools/ci/local_verify.py {mode} --base origin/main",
+                )
+
+    def test_plan_is_setup_free_and_nonexecuting(self) -> None:
+        plan = self.tasks["plan"]
+        self.assertNotIn("depends", plan)
+        self.assertEqual(
+            plan["run"],
+            "python3 tools/ci/local_verify.py affected --base origin/main --plan",
+        )
+
+    def test_authorities_use_mise_for_executable_fast_and_affected_gates(self) -> None:
+        direct_gate = re.compile(
+            r"(?:/usr/bin/)?python3\s+tools/ci/local_verify\.py\s+(?:fast|affected)\b"
+        )
+        authorities = {
+            path: (REPOSITORY_ROOT / path).read_text(encoding="utf-8")
+            for path in self.AUTHORITY_DOCS
+        }
+        for path, contents in authorities.items():
+            with self.subTest(path=path):
+                self.assertIsNone(direct_gate.search(contents))
+        combined = "\n".join(authorities.values())
+        self.assertIn("mise run fast", combined)
+        self.assertIn("mise run affected", combined)
+
+
 if __name__ == "__main__":
     unittest.main()
 
