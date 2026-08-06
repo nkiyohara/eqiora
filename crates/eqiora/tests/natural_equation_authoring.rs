@@ -252,6 +252,16 @@ fn assert_zero_sentinel_and_collision_escape() {
     assert_ne!(sentinel, negative_zero);
     assert_ne!(zero, negative_zero);
 
+    for (statement, expected) in [
+        ("x = 1;", Shape::sub(Shape::name("x"), Shape::number(1.0))),
+        (
+            "x = -1;",
+            Shape::sub(Shape::name("x"), Shape::neg(Shape::number(1.0))),
+        ),
+    ] {
+        assert_bare_nonzero_numeric_rhs(statement, expected, &sentinel);
+    }
+
     let double_neg_zero = Shape::sub(Shape::name("x"), Shape::neg(Shape::neg(Shape::number(0.0))));
     for (statement, expected) in [
         (
@@ -286,6 +296,35 @@ fn assert_zero_sentinel_and_collision_escape() {
     );
     assert_eq!(format_statement(canonical_double_neg), canonical_double_neg);
     assert_eq!(format_statement("x = ((0));"), "x = (0);");
+}
+
+fn assert_bare_nonzero_numeric_rhs(statement: &str, expected: Shape, sentinel: &Shape) {
+    let source = format!(
+        "model m {{ field x: 1 = 1; parameter y: 1 = 0; relation r continuous {{ {statement} }} }}"
+    );
+    let document = parse("bare-nonzero.eqi", &source)
+        .into_document()
+        .unwrap_or_else(|diagnostics| {
+            panic!("bare-nonzero RHS admission mutant survived: {diagnostics:#?}")
+        });
+    let actual = relation_shapes(&document, "r")
+        .into_iter()
+        .next()
+        .expect("one bare-nonzero statement root");
+    assert_eq!(actual, expected, "zero-equality-guard mutant survived");
+    assert_ne!(
+        &actual, sentinel,
+        "finite nonzero Number was misclassified as the zero sentinel"
+    );
+    ModelDocument::compile("bare-nonzero.eqi", &source)
+        .expect("bare finite nonzero numeric RHS must compile in the dimensionless setup");
+
+    let canonical = format_statement(statement);
+    assert_eq!(canonical, statement);
+    let reparsed = parse_shape_for_statement(&canonical);
+    assert_eq!(reparsed, expected);
+    assert_ne!(&reparsed, sentinel);
+    assert_eq!(format_statement(&canonical), canonical);
 }
 
 fn assert_zero_case(statement: &str, expected: Shape, formatted: &str) {
