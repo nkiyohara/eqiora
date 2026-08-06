@@ -1,15 +1,16 @@
 # Private non-box transient Navier--Stokes oracle
 
-This pre-implementation case freezes the crate-private composition required by
-the future cylinder-wake gallery slice. It requires the already accepted
-transient MINI/P1 grammar to bind one exact circular-hole source, its
+This registered and verified case exercises the crate-private composition
+required by the future cylinder-wake gallery slice. It requires the already
+accepted transient MINI/P1 grammar to bind one exact circular-hole source, its
 deterministic chordal realization, its
 content-addressed simplicial mesh, and its authored correspondence before a
 single exact-zero backward-Euler step can execute.
 
-The case is intentionally RED on protected base `3dfb1086`: the production
-private module and therefore the exact library-test selector do not exist yet.
-After integration, run:
+The oracle originated as a pre-implementation case and was intentionally RED
+on protected base `3dfb1086`: at that historical revision, the production
+private module and exact library-test selector did not exist. The current case
+manifest registers the selector and records the case as verified. Run:
 
 ```bash
 mise run affected -- --case fluid.non-box-transient-navier-stokes-2d-private
