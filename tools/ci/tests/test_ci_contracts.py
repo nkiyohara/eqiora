@@ -156,7 +156,20 @@ class HostedTriggerTests(unittest.TestCase):
         self.assert_exact_pull_request_actions(workflow, "pull_request_target")
         self.assertNotIn("github.event.pull_request.draft", workflow)
         self.assertIn("github.event.pull_request.base.sha", workflow)
-        self.assertNotIn("github.event.pull_request.head.sha", workflow)
+        self.assertEqual(workflow.count("github.event.pull_request.head.sha"), 1)
+        self.assertIn(
+            '--head-sha "${{ github.event.pull_request.head.sha }}"', workflow
+        )
+        self.assertNotIn("ref: ${{ github.event.pull_request.head.sha }}", workflow)
+        head_sha_lines = [
+            line.strip()
+            for line in workflow.splitlines()
+            if "github.event.pull_request.head.sha" in line
+        ]
+        self.assertEqual(
+            head_sha_lines,
+            ['--head-sha "${{ github.event.pull_request.head.sha }}"'],
+        )
         self.assertEqual(workflow.count("uses: actions/checkout@"), 1)
         self.assertIn("pull-requests: read", workflow)
         self.assertNotIn("contents: write", workflow)
