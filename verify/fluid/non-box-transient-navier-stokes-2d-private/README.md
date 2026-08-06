@@ -12,8 +12,7 @@ private module and therefore the exact library-test selector do not exist yet.
 After integration, run:
 
 ```bash
-python3 tools/ci/local_verify.py affected \
-  --case fluid.non-box-transient-navier-stokes-2d-private
+mise run affected -- --case fluid.non-box-transient-navier-stokes-2d-private
 ```
 
 The oracle checks source and artifact identity, correspondence-only named-set

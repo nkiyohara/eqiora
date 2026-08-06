@@ -2,17 +2,19 @@
 
 Repository-owned local verification is Eqiora's technical acceptance
 authority: a hosted service does not replace or broaden the evidence of a
-locally closed slice. Public pull requests additionally require the two
-provider-bound identity and trust contexts described in
-[the public verification topology](ci-topology.md) before merge. Those hosted
-contexts protect the submitted commit and gate definitions; they do not become
-a second scientific acceptance authority.
+locally closed slice. High-risk public deltas additionally wait for their
+relevant provider-bound identity, trust, and execution contexts from
+[the public verification topology](ci-topology.md) before merge. Hosted
+contexts protect the submitted or integrated commit and gate definitions; they
+do not become a second scientific acceptance authority.
 
-The ordinary developer entry point is `mise run fast` while iterating and
-`mise run affected` before integration. `mise install` provisions the declared
-developer tools and `mise run setup` installs the locked Studio dependency
-tree. These tasks delegate to the commands below; `mise.toml` is neither a
-second dependency lock nor a second acceptance implementation.
+The only ordinary executable gate entry points are `mise run fast` while
+iterating and `mise run affected` before integration. Both depend on
+`mise run setup`; in each new worktree its first gate installs the locked
+Studio tree with `npm ci` before verification begins. `mise install` provisions
+the declared developer tools. `mise.toml` owns this setup and invocation
+ordering, but remains neither a dependency lock nor a second acceptance
+implementation.
 
 The repository-owned planner reuses the same path classification as CI and
 includes committed merge-base changes, staged changes, unstaged changes, and
@@ -20,22 +22,23 @@ untracked files:
 
 ```bash
 # Inner loop. Name semantic evidence explicitly.
-python3 tools/ci/local_verify.py fast \
-  --base origin/main \
-  --case packages.hierarchical-physical-boundary
+mise run fast -- --case packages.hierarchical-physical-boundary
 
 # Before integration: reverse-dependent Cargo closure plus affected clients.
-python3 tools/ci/local_verify.py affected \
-  --base origin/main \
-  --case packages.hierarchical-physical-boundary
+mise run affected -- --case packages.hierarchical-physical-boundary
 
 # Inspect the exact deterministic command plan without running it.
-python3 tools/ci/local_verify.py affected --base origin/main --plan
+mise run plan
 
 # Full local compatibility gate when the affected closure is unknown or a
 # release/integration boundary requires it. This is not a calendar ceremony.
-python3 tools/ci/local_verify.py periodic
+mise run periodic
 ```
+
+Direct `python3 tools/ci/local_verify.py` execution is limited to an explicitly
+setup-free `--plan` inspection or diagnostic and infrastructure debugging. It
+is not an ordinary executable gate entry point; use the mise tasks for an
+acceptance run so locked Studio setup cannot be skipped accidentally.
 
 Every plan prints its selected paths, Cargo packages, registered cases, exact
 commands, execution lanes, resource requests, and limitations. Execution is
@@ -74,6 +77,30 @@ it resolves the content-derived identifier only against the registry in the
 merge base, verifies score and expiry, and rejects malformed, unknown, stale,
 or candidate-added entries. See [RFC
 0068](../../rfcs/0068-optional-implementation-agent-attestations.md).
+
+## Positive path and non-vacuity
+
+An oracle or falsifier package counts as evidence only when its execution order
+first proves at least one ordinary positive end-to-end path. Negative probes
+then name the specific gate they target and demonstrate non-vacuity: the same
+package must fail if an earlier unrelated denial makes the capability unusable.
+A sandbox, parser, identity, or admission failure before the targeted boundary
+cannot be reported as successful rejection of the intended mutant. If the
+positive probe fails, the case fails; later negative outcomes do not rescue it.
+
+Local verification executes the case manifest and reports its technical result;
+a zero exit status cannot broaden a claim whose evidence package is vacuous.
+Case review therefore checks the positive-path ordering and targeted denial as
+part of the registered claim. The contract may require fail-closed behavior,
+authority separation, or a resource envelope without requiring one OS or
+allocator mechanism unless that mechanism is itself the claim.
+
+Resource probes use raw input caps plus a deterministic,
+implementation-independent abstract cost or step function. They do not sample
+live allocation, queue depth, or worklist lifetime unless resource residency is
+the declared public claim. When an oracle would become more complex than the
+product seam or require a new OS trust mechanism, stop and simplify the outcome
+contract or separate authority; never turn the mismatch into a passing gate.
 
 ## Tiers
 
@@ -209,9 +236,12 @@ Playwright expects Google Chrome at `/opt/google/chrome/chrome`, and
 every other Studio browser stage has passed. Say which stage failed in the
 change rather than reporting a clean gate, and rely on CI for that stage.
 
-**Studio's own dependencies are not installed by the gate.** Without
-`npm ci` in `studio/`, verification stops earlier still, at `biome: not found`.
-That failure looks like a lint error and is not one.
+**Studio's locked npm dependencies are installed automatically; browser and
+system dependencies are not.** Ordinary mise gates run their `setup`
+dependency first and execute locked `npm ci` when the worktree needs it. A
+missing Chrome executable or native system package remains an external
+prerequisite and is reported as a limitation. `biome: not found` after an
+ordinary gate therefore indicates skipped or invalid setup, not a lint result.
 
 **A whole-file hash cannot verify `icon.icns` regeneration.** The pinned
 Tauri CLI 2.11.4 may reorder the type-keyed ICNS chunks across identical
@@ -224,9 +254,25 @@ a Rust change that must be visible to Python. The repository gate does not have
 this problem: it passes `--reinstall-package eqiora`, which rebuilds the source
 tree even when its package version is unchanged.
 
+## Hosted integration timing
+
+Hosted waiting is proportional to durable risk. Scientific meaning or an
+oracle, public or versioned API and compatibility, persisted schema or exact
+artifact, security or data integrity, release or CI trust, governance, and
+architecture changes wait for every relevant hosted check before merge.
+
+A localized low-risk delta in the exact class defined by
+[the public verification topology](ci-topology.md) may use the live auditable
+owner/admin bypass after its exact-head mise gate, scope and DCO audit, and any
+required review pass. Prefer completion of the base-owned `CI definition trust`
+context. Record the bypass actor, reason, head, commands, and results; continue
+already-running checks as post-merge signals and immediately assess repair or
+rollback on failure. Normal and high-risk deltas wait for relevant required
+contexts. This changes neither the required contexts nor the ruleset.
+
 ## Integration loop
 
-After the affected plan and any applicable optional-provenance check pass,
+After the affected gate and any applicable optional-provenance check pass,
 record the exact commands and limitations in the pull request or issue, merge
 the short-lived integration branch, push the accepted main commit, and delete
 the merged branch. If a command fails, fix the same slice and rerun it; do not

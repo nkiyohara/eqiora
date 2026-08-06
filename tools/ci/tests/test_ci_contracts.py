@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
+import shutil
+import subprocess
 import sys
 import tomllib
 import unittest
@@ -77,6 +80,44 @@ class HostedTriggerTests(unittest.TestCase):
             concurrency,
             "  group: ci-${{ github.event.pull_request.number || inputs.commit }}\n"
             "  cancel-in-progress: true\n",
+        )
+
+    def test_change_ownership_stages_pinned_mise_without_reading_config(
+        self,
+    ) -> None:
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
+            encoding="utf-8"
+        )
+        changes = workflow.split("  changes:\n", maxsplit=1)[1].split(
+            "\n  documentation:\n", maxsplit=1
+        )[0]
+        setup = """      - name: Stage the checksum-pinned mise CLI
+        shell: bash
+        run: |
+          mise_bin_dir="${RUNNER_TEMP:?}/eqiora-mise/bin"
+          mise_bin="$mise_bin_dir/mise"
+          mkdir -p "$mise_bin_dir"
+          curl --fail --location --proto '=https' --tlsv1.2 --silent --show-error \\
+            --output "$mise_bin" \\
+            https://github.com/jdx/mise/releases/download/v2026.5.10/mise-v2026.5.10-linux-x64
+          printf '%s  %s\\n' \\
+            568e6074262804788f138fb8749865738e47dff739ebaa0d428134c45957b569 \\
+            "$mise_bin" | sha256sum --check --strict
+          chmod 0755 "$mise_bin"
+          printf '%s\\n' "$mise_bin_dir" >> "$GITHUB_PATH"
+"""
+
+        test_step = "      - name: Test CI ownership and aggregate contracts"
+        stage_step = "      - name: Stage the checksum-pinned mise CLI"
+        stage_start = changes.index(stage_step)
+        test_start = changes.index(test_step)
+
+        self.assertNotIn("jdx/mise-action@", workflow)
+        self.assertNotIn("github.token", changes)
+        self.assertNotIn("secrets.", changes)
+        self.assertEqual(
+            changes[stage_start:test_start],
+            setup,
         )
 
     def test_windows_compile_probe_is_visible_complete_and_non_gating(self) -> None:
@@ -707,6 +748,358 @@ class AggregateGateTests(unittest.TestCase):
         for job in conditional:
             self.assertIn(f"      - {job}\n", gate)
             self.assertIn(f'"{job}":"${{{{ needs.{job}.result }}}}"', gate)
+
+
+class MiseTaskContractTests(unittest.TestCase):
+    AUTHORITY_DOCS = (
+        "AGENTS.md",
+        "docs/development/ai-authored-platform-strategy.md",
+        "docs/development/local-verification.md",
+        "docs/development/vertical-slice-development.md",
+    )
+    DIRECT_GATE = re.compile(
+        r"(?:/usr/bin/)?python3\s+tools/ci/local_verify\.py\s+"
+        r"(?:fast|affected|periodic)(?=[\s`\\;&]|\|\||$)"
+    )
+    PLANNER_VALUE_OPTIONS = frozenset(
+        (
+            "--base",
+            "--case",
+            "--cpu-slots",
+            "--memory-mib",
+            "--gpu-slots",
+            "--scratch-root",
+        )
+    )
+    PLANNER_VALUE = re.compile(r"[A-Za-z0-9_./:@+~^-]+")
+    SETUP_FREE_DIAGNOSTIC_MARKER = (
+        "# eqiora: setup-free-local-verify-diagnostic-only"
+    )
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tasks = tomllib.loads(
+            (REPOSITORY_ROOT / "mise.toml").read_text(encoding="utf-8")
+        )["tasks"]
+
+    def test_executable_gates_and_studio_tasks_require_locked_setup(self) -> None:
+        setup = self.tasks["setup"]
+        self.assertEqual(setup["dir"], "{{config_root}}/studio")
+        self.assertEqual(setup["run"], "npm ci")
+        self.assertIn(
+            "{{config_root}}/studio/package-lock.json",
+            setup["sources"],
+        )
+        for task in (
+            "fast",
+            "affected",
+            "periodic",
+            "studio:check",
+            "studio:test",
+            "studio:dev",
+        ):
+            with self.subTest(task=task):
+                self.assertEqual(self.tasks[task]["depends"], ["setup"])
+
+    def test_standard_gates_wrap_exact_planner_commands(self) -> None:
+        expected = {
+            "fast": "python3 tools/ci/local_verify.py fast --base origin/main",
+            "affected": (
+                "python3 tools/ci/local_verify.py affected --base origin/main"
+            ),
+            "periodic": "python3 tools/ci/local_verify.py periodic",
+        }
+        for task, command in expected.items():
+            with self.subTest(task=task):
+                self.assertEqual(self.tasks[task]["run"], command)
+
+    def test_mise_forwards_arguments_after_setup_to_every_executable_gate(self) -> None:
+        mise = self._required_mise_executable()
+
+        environment = dict(os.environ)
+        environment["COLUMNS"] = "240"
+        environment.pop("FORCE_COLOR", None)
+        environment["NO_COLOR"] = "1"
+        for task, marker in (("fast", "f"), ("affected", "a"), ("periodic", "p")):
+            with self.subTest(task=task):
+                completed = subprocess.run(
+                    [
+                        mise,
+                        "run",
+                        "--dry-run",
+                        "--force",
+                        task,
+                        "--",
+                        f"--x={marker}",
+                    ],
+                    cwd=REPOSITORY_ROOT,
+                    env=environment,
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                )
+                self.assertEqual(completed.returncode, 0, completed.stdout)
+                setup = "[setup] $ npm ci"
+                invocation = f"[{task}] $ {self.tasks[task]['run']} --x={marker}"
+                self.assertIn(setup, completed.stdout)
+                self.assertIn(invocation, completed.stdout)
+                self.assertLess(
+                    completed.stdout.index(setup),
+                    completed.stdout.index(invocation),
+                )
+
+    @staticmethod
+    def _required_mise_executable() -> str:
+        mise = os.environ.get("MISE_EXE") or shutil.which("mise")
+        if mise is None:
+            raise AssertionError(
+                "mise is required to prove setup ordering and gate argument forwarding"
+            )
+        return mise
+
+    def test_missing_mise_fails_the_forwarding_contract(self) -> None:
+        with (
+            mock.patch.dict(os.environ, {}, clear=True),
+            mock.patch.object(shutil, "which", return_value=None),
+        ):
+            with self.assertRaisesRegex(AssertionError, "mise is required"):
+                self._required_mise_executable()
+
+    def test_plan_is_setup_free_and_nonexecuting(self) -> None:
+        plan = self.tasks["plan"]
+        self.assertNotIn("depends", plan)
+        self.assertEqual(
+            plan["run"],
+            "python3 tools/ci/local_verify.py affected --base origin/main --plan",
+        )
+
+    @classmethod
+    def _direct_gate_commands(cls, markdown: str) -> list[tuple[int, str]]:
+        lines = markdown.splitlines()
+        commands: list[tuple[int, str]] = []
+        index = 0
+        while index < len(lines):
+            first_line = index + 1
+            logical_line = lines[index]
+            while logical_line.rstrip().endswith("\\") and index + 1 < len(lines):
+                index += 1
+                logical_line = f"{logical_line}\n{lines[index]}"
+
+            inline_spans = tuple(
+                (match.start("body"), match.end("body"))
+                for match in re.finditer(
+                    r"(?P<delimiter>`+)(?P<body>.*?)(?P=delimiter)",
+                    logical_line,
+                    re.DOTALL,
+                )
+            )
+            for match in cls.DIRECT_GATE.finditer(logical_line):
+                command_end = len(logical_line)
+                for body_start, body_end in inline_spans:
+                    if body_start <= match.start() and match.end() <= body_end:
+                        command_end = body_end
+                        break
+                commands.append((first_line, logical_line[match.start() : command_end]))
+            index += 1
+        return commands
+
+    @classmethod
+    def _direct_gate_tokens(cls, command: str) -> list[str] | None:
+        lexer = shlex.shlex(
+            command.replace("\\\n", " "),
+            posix=True,
+            punctuation_chars=";&|",
+        )
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        try:
+            tokens = list(lexer)
+        except ValueError:
+            return None
+        if len(tokens) < 3:
+            return None
+        if tokens[0] not in ("python3", "/usr/bin/python3"):
+            return None
+        if tokens[1] != "tools/ci/local_verify.py":
+            return None
+        if tokens[2] not in ("fast", "affected", "periodic"):
+            return None
+        return tokens
+
+    @classmethod
+    def _only_known_value_options(cls, arguments: list[str]) -> bool:
+        index = 0
+        while index < len(arguments):
+            argument = arguments[index]
+            if "=" in argument:
+                option, value = argument.split("=", maxsplit=1)
+                if option not in cls.PLANNER_VALUE_OPTIONS:
+                    return False
+                if cls.PLANNER_VALUE.fullmatch(value) is None:
+                    return False
+                index += 1
+                continue
+            if argument not in cls.PLANNER_VALUE_OPTIONS:
+                return False
+            if index + 1 >= len(arguments):
+                return False
+            value = arguments[index + 1]
+            if value.startswith("--") or value in (";", "&", "&&", "|", "||"):
+                return False
+            if cls.PLANNER_VALUE.fullmatch(value) is None:
+                return False
+            index += 2
+        return True
+
+    @classmethod
+    def _is_bounded_plan_command(cls, command: str) -> bool:
+        tokens = cls._direct_gate_tokens(command)
+        if tokens is None:
+            return False
+        arguments = tokens[3:]
+        if arguments.count("--plan") != 1:
+            return False
+        return cls._only_known_value_options(
+            [argument for argument in arguments if argument != "--plan"]
+        )
+
+    @classmethod
+    def _is_bounded_diagnostic_command(cls, command: str) -> bool:
+        stripped = command.rstrip()
+        marker = cls.SETUP_FREE_DIAGNOSTIC_MARKER
+        if not stripped.endswith(marker):
+            return False
+        prefix = stripped[: -len(marker)]
+        if not prefix or not prefix[-1].isspace():
+            return False
+        tokens = cls._direct_gate_tokens(prefix.rstrip())
+        return tokens is not None and cls._only_known_value_options(tokens[3:])
+
+    @classmethod
+    def _direct_gate_violations(cls, markdown: str) -> list[tuple[int, str]]:
+        violations = []
+        for line, command in cls._direct_gate_commands(markdown):
+            if cls._is_bounded_plan_command(command):
+                continue
+            if cls._is_bounded_diagnostic_command(command):
+                continue
+            violations.append((line, command))
+        return violations
+
+    @staticmethod
+    def _tracked_markdown_documents() -> list[Path]:
+        completed = subprocess.run(
+            ["git", "ls-files", "-z", "--", "*.md"],
+            cwd=REPOSITORY_ROOT,
+            check=True,
+            stdout=subprocess.PIPE,
+        )
+        return [
+            REPOSITORY_ROOT / os.fsdecode(path)
+            for path in completed.stdout.split(b"\0")
+            if path
+        ]
+
+    def test_direct_gate_markdown_presentation_mutations_fail_closed(self) -> None:
+        forbidden = (
+            "python3 tools/ci/local_verify.py fast",
+            "```bash\npython3 tools/ci/local_verify.py periodic\n```",
+            "- `python3 tools/ci/local_verify.py affected --case example.case`",
+            "$ python3 tools/ci/local_verify.py fast --case example.case",
+            "Run `python3 tools/ci/local_verify.py periodic`.",
+            "python3 tools/ci/local_verify.py affected \\\n  --case example.case",
+            "python3 tools/ci/local_verify.py fast; echo executed",
+            "python3 tools/ci/local_verify.py fast&& echo executed",
+            "python3 tools/ci/local_verify.py fast|| echo executed",
+        )
+        for markdown in forbidden:
+            with self.subTest(markdown=markdown):
+                self.assertEqual(len(self._direct_gate_violations(markdown)), 1)
+
+    def test_only_bounded_direct_gate_exceptions_pass(self) -> None:
+        marker = self.SETUP_FREE_DIAGNOSTIC_MARKER
+        allowed = (
+            "`python3 tools/ci/local_verify.py fast --plan` derives the case id",
+            "python3 tools/ci/local_verify.py affected \\\n  --base origin/main --plan",
+            "python3 tools/ci/local_verify.py fast --plan --case example.case",
+            "python3 tools/ci/local_verify.py affected --case=example.case "
+            "--plan --cpu-slots 4",
+            f"python3 tools/ci/local_verify.py periodic {marker}",
+            "python3 tools/ci/local_verify.py affected --case example.case "
+            f"--base=origin/main {marker}",
+        )
+        for markdown in allowed:
+            with self.subTest(markdown=markdown):
+                self.assertEqual(self._direct_gate_violations(markdown), [])
+
+        forbidden_near_misses = (
+            "`python3 tools/ci/local_verify.py fast` is not `--plan`",
+            "Run python3 tools/ci/local_verify.py fast to compare with --plan",
+            "python3 tools/ci/local_verify.py affected --planet",
+            "python3 tools/ci/local_verify.py fast --plan --unknown x",
+            "python3 tools/ci/local_verify.py fast --plan && echo executable-suffix",
+            "python3 tools/ci/local_verify.py fast --plan --plan",
+            "python3 tools/ci/local_verify.py fast --plan trailing-token",
+            "python3 tools/ci/local_verify.py fast --plan --base=$(echo-executed)",
+            f"python3 tools/ci/local_verify.py periodic {marker}-extended",
+            f"`python3 tools/ci/local_verify.py periodic` uses {marker}",
+            "python3 tools/ci/local_verify.py periodic --unknown x && echo "
+            f"diagnostic {marker}",
+            "python3 tools/ci/local_verify.py affected --base origin/main && echo "
+            f"diagnostic {marker}",
+            "python3 tools/ci/local_verify.py affected --base=$(echo-executed) "
+            f"{marker}",
+        )
+        for markdown in forbidden_near_misses:
+            with self.subTest(markdown=markdown):
+                self.assertEqual(len(self._direct_gate_violations(markdown)), 1)
+
+        historical_notation = (
+            "python3 tools/ci/local_verify.py fast|affected cannot execute"
+        )
+        self.assertEqual(self._direct_gate_commands(historical_notation), [])
+
+    def test_tracked_markdown_inventory_fails_without_git(self) -> None:
+        with mock.patch.object(
+            subprocess,
+            "run",
+            side_effect=FileNotFoundError("git executable not found"),
+        ):
+            with self.assertRaisesRegex(FileNotFoundError, "git executable"):
+                self._tracked_markdown_documents()
+
+    def test_authority_and_evidence_docs_reject_direct_executable_gates(self) -> None:
+        authorities = {
+            path: (REPOSITORY_ROOT / path).read_text(encoding="utf-8")
+            for path in self.AUTHORITY_DOCS
+        }
+        instruction_documents = self._tracked_markdown_documents()
+        relative_documents = {
+            document.relative_to(REPOSITORY_ROOT) for document in instruction_documents
+        }
+        for expected in (
+            Path("README.md"),
+            Path("CONTRIBUTING.md"),
+            Path("experiments/cubecl-local-action/README.md"),
+            Path("studio/README.md"),
+        ):
+            self.assertIn(expected, relative_documents)
+
+        for document in instruction_documents:
+            contents = document.read_text(encoding="utf-8")
+            for line, command in self._direct_gate_violations(contents):
+                with self.subTest(
+                    path=document.relative_to(REPOSITORY_ROOT),
+                    line=line,
+                ):
+                    self.fail(
+                        "executable gates in tracked Markdown must use mise or an "
+                        f"exact bounded exception: {command}"
+                    )
+        combined = "\n".join(authorities.values())
+        self.assertIn("mise run fast", combined)
+        self.assertIn("mise run affected", combined)
 
 
 if __name__ == "__main__":

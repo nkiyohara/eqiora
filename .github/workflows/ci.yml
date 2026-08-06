@@ -45,6 +45,20 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || inputs.commit }}
           persist-credentials: false
+      - name: Stage the checksum-pinned mise CLI
+        shell: bash
+        run: |
+          mise_bin_dir="${RUNNER_TEMP:?}/eqiora-mise/bin"
+          mise_bin="$mise_bin_dir/mise"
+          mkdir -p "$mise_bin_dir"
+          curl --fail --location --proto '=https' --tlsv1.2 --silent --show-error \
+            --output "$mise_bin" \
+            https://github.com/jdx/mise/releases/download/v2026.5.10/mise-v2026.5.10-linux-x64
+          printf '%s  %s\n' \
+            568e6074262804788f138fb8749865738e47dff739ebaa0d428134c45957b569 \
+            "$mise_bin" | sha256sum --check --strict
+          chmod 0755 "$mise_bin"
+          printf '%s\n' "$mise_bin_dir" >> "$GITHUB_PATH"
       - name: Test CI ownership and aggregate contracts
         run: python3 -m unittest discover -s tools/ci/tests -v
       - name: Classify exact change surface

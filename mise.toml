@@ -1,8 +1,8 @@
 min_version = "2026.5.10"
 
-# mise owns developer-tool installation and task discovery only. Language and
-# application dependencies remain owned by Cargo.lock, uv.lock, and the Studio
-# package-lock.json; repository acceptance remains owned by local_verify.py.
+# mise owns developer-tool installation and required gate/setup orchestration.
+# Language and application dependencies remain owned by Cargo.lock, uv.lock,
+# and the Studio package-lock.json; local_verify.py owns the acceptance plan.
 [tools]
 rust = { version = "stable", profile = "default", components = ["rustfmt", "clippy"] }
 python = "3.13.14"
@@ -11,7 +11,7 @@ npm = "11.16.0"
 uv = "0.12.1"
 
 [tasks.setup]
-description = "Install locked Studio dependencies after mise installs developer tools"
+description = "Install locked Studio dependencies before executable gates and Studio tasks"
 dir = "{{config_root}}/studio"
 sources = [
   "{{config_root}}/mise.toml",
@@ -23,7 +23,7 @@ outputs = ["{{config_root}}/studio/node_modules/.package-lock.json"]
 run = "npm ci"
 
 [tasks.plan]
-description = "Print the affected verification plan without executing it"
+description = "Print the setup-free affected verification plan without executing it"
 run = "python3 tools/ci/local_verify.py affected --base origin/main --plan"
 
 [tasks.fast]
