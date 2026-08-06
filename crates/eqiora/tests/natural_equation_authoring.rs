@@ -252,6 +252,7 @@ fn assert_zero_sentinel_and_collision_escape() {
     assert_ne!(sentinel, negative_zero);
     assert_ne!(zero, negative_zero);
 
+    let double_neg_zero = Shape::sub(Shape::name("x"), Shape::neg(Shape::neg(Shape::number(0.0))));
     for (statement, expected) in [
         (
             "x = 0 * y;",
@@ -268,17 +269,22 @@ fn assert_zero_sentinel_and_collision_escape() {
                 Shape::Call("zero".to_owned(), vec![Shape::name("y")]),
             ),
         ),
-        (
-            "x = -(-0);",
-            Shape::sub(Shape::name("x"), Shape::neg(Shape::neg(Shape::number(0.0)))),
-        ),
+        ("x = -(-0);", double_neg_zero.clone()),
     ] {
         assert_eq!(parse_shape_for_statement(statement), expected);
     }
     assert_eq!(format_statement("x = 0 * y;"), "x = 0 * y;");
     assert_eq!(format_statement("x = y;"), "x = y;");
     assert_eq!(format_statement("x = zero(y);"), "x = zero(y);");
-    assert_eq!(format_statement("x = -(-0);"), "x = --0;");
+    let canonical_double_neg = "x = --0;";
+    assert_eq!(format_statement("x = -(-0);"), canonical_double_neg);
+    let reparsed_double_neg = parse_shape_for_statement(canonical_double_neg);
+    assert_eq!(reparsed_double_neg, double_neg_zero);
+    assert_ne!(
+        reparsed_double_neg, sentinel,
+        "sentinel-lookahead mutant survived"
+    );
+    assert_eq!(format_statement(canonical_double_neg), canonical_double_neg);
     assert_eq!(format_statement("x = ((0));"), "x = (0);");
 }
 
