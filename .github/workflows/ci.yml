@@ -128,6 +128,7 @@ jobs:
           CARGO_PROFILE_TEST_INCREMENTAL: "false"
           CARGO_PROFILE_TEST_OPT_LEVEL: "1"
           CARGO_PROFILE_TEST_OVERFLOW_CHECKS: "true"
+          TMPDIR: ${{ runner.temp }}
         run: cargo +stable test --workspace --all-targets --locked
       - name: Full feature tests
         if: needs.changes.outputs.full == 'true'
@@ -137,6 +138,7 @@ jobs:
           CARGO_PROFILE_TEST_INCREMENTAL: "false"
           CARGO_PROFILE_TEST_OPT_LEVEL: "1"
           CARGO_PROFILE_TEST_OVERFLOW_CHECKS: "true"
+          TMPDIR: ${{ runner.temp }}
         run: cargo +stable test --workspace --all-targets --all-features --locked
       - name: Dependency layers
         run: cargo +stable xtask check-layers
