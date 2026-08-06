@@ -214,10 +214,14 @@ should identify:
 The prompt must not freeze an internal isolation, allocation, scheduling, or
 worklist mechanism unless that mechanism is itself part of the bounded claim.
 
-Prefer lane, oracle, derivation, comparator, and evaluator names that expose
-the distinguishing method, authority, or observation. Avoid opaque labels such
+Prefer lane, oracle, derivation, comparator, and evaluator names that expose,
+where applicable, the role's distinguishing method, source authority, or
+observation. Avoid opaque labels such
 as `Route A`, `Oracle B`, or `Method 2` when a short semantic name is available;
 accepted historical identifiers may still be quoted without forcing a rename.
+A semantic name does not establish agent or provider independence; independence
+still comes from role separation, fresh context, sealed inputs, and no
+writer-scratch sharing.
 
 Do not copy this information into another machine-readable planning registry.
 The roadmap owns durable dependency order, Issues own transient closable work,
