@@ -344,6 +344,58 @@ class HostedTriggerTests(unittest.TestCase):
                 [command],
             )
 
+    def test_host_cpu_cargo_evidence_uses_step_scoped_runner_temp(self) -> None:
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
+            encoding="utf-8"
+        )
+        host_evidence = workflow.split("  host_evidence:\n", maxsplit=1)[1].split(
+            "\n  python_host_evidence:", maxsplit=1
+        )[0]
+        expected_job_contract = (
+            "    name: Host-CPU verification evidence\n"
+            "    needs: changes\n"
+            "    if: needs.changes.outputs.rust == 'true'\n"
+            "    runs-on: ubuntu-latest\n"
+            "    timeout-minutes: 120\n"
+        )
+        previous_marker = "      - name: Install stable Rust\n"
+        marker = "      - name: Run registered Cargo host evidence\n"
+        command = (
+            "cargo +stable run --locked -p eqiora-verify -- run "
+            "--environment host-cpu --runner-kind cargo"
+        )
+
+        self.assertEqual(
+            host_evidence.split("    steps:\n", maxsplit=1)[0],
+            expected_job_contract,
+        )
+        self.assertEqual(host_evidence.count(marker), 1)
+        self.assertLess(
+            host_evidence.index(previous_marker), host_evidence.index(marker)
+        )
+        self.assertNotRegex(
+            workflow.split("jobs:\n", maxsplit=1)[0],
+            r"(?m)^\s*TMPDIR:",
+        )
+        self.assertNotRegex(host_evidence, r"(?m)^ {0,8}TMPDIR:")
+
+        step = host_evidence.split(marker, maxsplit=1)[1]
+        self.assertNotRegex(step, r"(?m)^      - ")
+        self.assertNotRegex(step, r"(?m)^        if:")
+        environment = step.split("        env:\n", maxsplit=1)[1].split(
+            "        run:", maxsplit=1
+        )[0]
+        self.assertEqual(
+            re.findall(
+                r"(?m)^          TMPDIR:[ \t]*(.*?)[ \t]*$", environment
+            ),
+            ["${{ runner.temp }}"],
+        )
+        self.assertEqual(
+            re.findall(r"(?m)^        run: (.+)$", step),
+            [command],
+        )
+
     def test_studio_checks_its_independent_manifest_at_the_same_msrv(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
             encoding="utf-8"
