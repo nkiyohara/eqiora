@@ -273,7 +273,17 @@ process must not become a larger product than the seam it protects:
 - resource admission uses raw input caps and a deterministic,
   implementation-independent abstract cost or step function. Live allocation,
   allocator behavior, queue depth, or worklist lifetime is not an oracle unless
-  resource residency itself is the public claim; and
+  resource residency itself is the public claim;
+- total abstract work, peak simultaneous residency, durable retained storage,
+  and cumulative I/O are separate quantities. Charge a witness to peak memory
+  or persistent storage only when the public claim requires its overlap or
+  later availability; otherwise bounded streaming, aggregation, release, and
+  deterministic recomputation remain valid evidence strategies;
+- do not materialize every state, certificate, or mutant merely because it can
+  be enumerated. Require exhaustive generation only when completeness of that
+  exact finite set is part of the claim or no structural argument discharges
+  the obligation; otherwise combine the analytic or structural proof with
+  bounded representative and adversarial instances; and
 - oracle independence normally means role separation, fresh context, sealed
   inputs, and no writer-scratch sharing. Stable actor or control-plane identity
   and lifetime receipts are required only when an actual adversarial
@@ -284,7 +294,10 @@ If an oracle becomes more complex than the product seam, or needs a new OS
 trust mechanism to test a claim that does not expose one, stop and simplify
 the outcome contract or separate authority before adding machinery. This does
 not relax a gate: an inconsistent oracle still stops the lane, and a claim
-narrows to what independent evidence shows.
+narrows to what independent evidence shows. When the excess resource envelope
+comes from oracle bookkeeping rather than the claimed product operation, the
+terminal is oracle redesign, not a declaration that the target or product is
+resource-infeasible.
 
 This calibration is prospective. It does not retroactively widen an accepted
 claim or reinterpret its existing evidence. New lanes and any reopened or
