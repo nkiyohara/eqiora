@@ -242,17 +242,22 @@ class PlanTests(unittest.TestCase):
             "tools/ci/check_public_release_tree.py",
         }
         documentation_checks = tuple(
-            item.argv
-            for item in plan.commands
+            (index, item)
+            for index, item in enumerate(plan.commands)
             if len(item.argv) > 1 and item.argv[1] in checker_paths
         )
         self.assertEqual(
-            documentation_checks,
+            tuple(item.argv for _index, item in documentation_checks),
             (
                 (sys.executable, "tools/ci/check_docs.py", "."),
                 (sys.executable, "tools/ci/check_public_release_tree.py", "."),
             ),
         )
+        docs_index, docs_check = documentation_checks[0]
+        public_tree_index, public_tree_check = documentation_checks[1]
+        self.assertEqual(public_tree_index, docs_index + 1)
+        self.assertEqual(docs_check.lane.name, "repository")
+        self.assertIs(public_tree_check.lane, docs_check.lane)
 
     def test_ci_infrastructure_change_reuses_fail_closed_surface_mapping(self) -> None:
         plan = build_plan(
