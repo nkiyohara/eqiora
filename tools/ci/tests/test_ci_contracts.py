@@ -82,7 +82,7 @@ class HostedTriggerTests(unittest.TestCase):
             "  cancel-in-progress: true\n",
         )
 
-    def test_change_ownership_installs_pinned_mise_without_tools_or_cache(
+    def test_change_ownership_stages_pinned_mise_without_reading_config(
         self,
     ) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
@@ -91,23 +91,23 @@ class HostedTriggerTests(unittest.TestCase):
         changes = workflow.split("  changes:\n", maxsplit=1)[1].split(
             "\n  documentation:\n", maxsplit=1
         )[0]
-        action = (
-            "jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654"
-        )
-        setup = """      - name: Set up the pinned mise CLI
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
-        with:
-          version: "2026.5.10"
-          sha256: 568e6074262804788f138fb8749865738e47dff739ebaa0d428134c45957b569
-          install: false
-          cache: false
-          env: false
-          export_path: false
-          add_shims_to_path: false
-          github_token: ""
+        setup = """      - name: Stage the checksum-pinned mise CLI
+        shell: bash
+        run: |
+          mise_bin_dir="${RUNNER_TEMP:?}/eqiora-mise/bin"
+          mise_bin="$mise_bin_dir/mise"
+          mkdir -p "$mise_bin_dir"
+          curl --fail --location --proto '=https' --tlsv1.2 --silent --show-error \\
+            --output "$mise_bin" \\
+            https://github.com/jdx/mise/releases/download/v2026.5.10/mise-v2026.5.10-linux-x64
+          printf '%s  %s\\n' \\
+            568e6074262804788f138fb8749865738e47dff739ebaa0d428134c45957b569 \\
+            "$mise_bin" | sha256sum --check --strict
+          chmod 0755 "$mise_bin"
+          printf '%s\\n' "$mise_bin_dir" >> "$GITHUB_PATH"
 """
 
-        self.assertEqual(workflow.count(action), 1)
+        self.assertNotIn("jdx/mise-action@", workflow)
         self.assertIn(setup, changes)
         self.assertLess(
             changes.index(setup),
