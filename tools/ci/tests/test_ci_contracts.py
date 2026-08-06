@@ -82,6 +82,38 @@ class HostedTriggerTests(unittest.TestCase):
             "  cancel-in-progress: true\n",
         )
 
+    def test_change_ownership_installs_pinned_mise_without_tools_or_cache(
+        self,
+    ) -> None:
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
+            encoding="utf-8"
+        )
+        changes = workflow.split("  changes:\n", maxsplit=1)[1].split(
+            "\n  documentation:\n", maxsplit=1
+        )[0]
+        action = (
+            "jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654"
+        )
+        setup = """      - name: Set up the pinned mise CLI
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: "2026.5.10"
+          sha256: 568e6074262804788f138fb8749865738e47dff739ebaa0d428134c45957b569
+          install: false
+          cache: false
+          env: false
+          export_path: false
+          add_shims_to_path: false
+          github_token: ""
+"""
+
+        self.assertEqual(workflow.count(action), 1)
+        self.assertIn(setup, changes)
+        self.assertLess(
+            changes.index(setup),
+            changes.index("      - name: Test CI ownership and aggregate contracts"),
+        )
+
     def test_windows_compile_probe_is_visible_complete_and_non_gating(self) -> None:
         workflow = (
             REPOSITORY_ROOT / ".github/workflows/windows-compile-probe.yml"
