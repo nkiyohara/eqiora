@@ -235,6 +235,25 @@ class PlanTests(unittest.TestCase):
             any(label.startswith("Registered evidence ") for label in labels)
         )
 
+    def test_affected_documentation_contract_runs_both_hosted_checks_once(self) -> None:
+        plan = build_plan("affected", ["README.md"], [], workspace())
+        checker_paths = {
+            "tools/ci/check_docs.py",
+            "tools/ci/check_public_release_tree.py",
+        }
+        documentation_checks = tuple(
+            item.argv
+            for item in plan.commands
+            if len(item.argv) > 1 and item.argv[1] in checker_paths
+        )
+        self.assertEqual(
+            documentation_checks,
+            (
+                (sys.executable, "tools/ci/check_docs.py", "."),
+                (sys.executable, "tools/ci/check_public_release_tree.py", "."),
+            ),
+        )
+
     def test_ci_infrastructure_change_reuses_fail_closed_surface_mapping(self) -> None:
         plan = build_plan(
             "affected",
