@@ -1,7 +1,7 @@
 # References
 
-The semantic authority is Issue #438 cell A's accepted natural-equation
-contract together with [RFC 0003](../../../../rfcs/0003-language-frontend-v0.md).
+The semantic authority is the accepted natural-equation contract together with
+[RFC 0003](../../../../rfcs/0003-language-frontend-v0.md).
 The contract fixes direct source lowering to the existing ordered subtraction
 root, the exact signed-zero sentinel, collision-safe formatter projection,
 parser-owned ranges, and the nonclaims recorded by this case.
