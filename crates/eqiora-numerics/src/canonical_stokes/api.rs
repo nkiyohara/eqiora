@@ -8,6 +8,8 @@ use crate::canonical_boundary::CartesianBoundaryEntry;
 use crate::canonical_boundary::CartesianBoundaryInventory2d;
 use crate::spatial_expression::ScalarSpatialExpression;
 
+use super::prescribed_velocity::SteadyStokesPrescribedVelocityTrace2d;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum StokesBoundaryKey2d {
     CartesianSide { axis: usize, side: BoundarySide },
@@ -99,8 +101,8 @@ pub(super) struct SteadyIncompressibleStokesModel2d {
     pub(super) boundary_entries: BTreeMap<StokesBoundaryKey2d, SteadyStokesBoundaryEntry2d>,
     pub(super) boundary_relations: Vec<BoundaryRelationBinding2d>,
     pub(super) normal_pressures: BTreeMap<StokesBoundaryKey2d, SteadyStokesNormalPressure2d>,
-    pub(super) normal_velocity_expressions: BTreeMap<StokesBoundaryKey2d, ScalarSpatialExpression>,
-    pub(super) normal_velocity_coefficients: BTreeMap<StokesBoundaryKey2d, (RawId, RawId)>,
+    pub(super) prescribed_velocity_traces:
+        BTreeMap<StokesBoundaryKey2d, SteadyStokesPrescribedVelocityTrace2d>,
     pub(super) geometry_source_digest: Option<[u8; 32]>,
 }
 
@@ -204,13 +206,48 @@ impl SteadyIncompressibleStokesModel2d {
     }
 
     pub(super) fn normal_velocity_coefficients(&self) -> impl Iterator<Item = (RawId, RawId)> + '_ {
-        self.normal_velocity_coefficients.values().copied()
+        self.prescribed_velocity_traces
+            .values()
+            .filter_map(|trace| match trace {
+                SteadyStokesPrescribedVelocityTrace2d::Normal {
+                    coefficient_field,
+                    definition_relation,
+                    ..
+                } => Some((*coefficient_field, *definition_relation)),
+                SteadyStokesPrescribedVelocityTrace2d::CompleteAffinePotential { .. } => None,
+            })
     }
 
     pub(super) fn normal_velocity_expressions(
         &self,
     ) -> impl Iterator<Item = &ScalarSpatialExpression> {
-        self.normal_velocity_expressions.values()
+        self.prescribed_velocity_traces
+            .values()
+            .filter_map(|trace| match trace {
+                SteadyStokesPrescribedVelocityTrace2d::Normal { expression, .. } => {
+                    Some(expression)
+                }
+                SteadyStokesPrescribedVelocityTrace2d::CompleteAffinePotential { .. } => None,
+            })
+    }
+
+    pub(super) fn prescribed_velocity_trace(
+        &self,
+        key: &StokesBoundaryKey2d,
+    ) -> Option<&SteadyStokesPrescribedVelocityTrace2d> {
+        self.prescribed_velocity_traces.get(key)
+    }
+
+    pub(super) fn prescribed_velocity(
+        &self,
+        key: &StokesBoundaryKey2d,
+        outward_normal: Option<[f64; 2]>,
+        coordinates: &[f64],
+    ) -> Result<Option<[f64; 2]>, eqiora_core::Diagnostic> {
+        let Some(trace) = self.prescribed_velocity_traces.get(key) else {
+            return Ok(None);
+        };
+        trace.value(outward_normal, coordinates).map(Some)
     }
 
     pub(super) fn prescribed_normal_velocity(
@@ -219,13 +256,7 @@ impl SteadyIncompressibleStokesModel2d {
         outward_normal: [f64; 2],
         coordinates: &[f64],
     ) -> Result<Option<[f64; 2]>, eqiora_core::Diagnostic> {
-        let Some(expression) = self.normal_velocity_expressions.get(key) else {
-            return Ok(None);
-        };
-        let normal_speed = expression.evaluate(coordinates)?;
-        Ok(Some(
-            outward_normal.map(|component| component * normal_speed),
-        ))
+        self.prescribed_velocity(key, Some(outward_normal), coordinates)
     }
 
     pub(super) const fn geometry_source_digest(&self) -> Option<[u8; 32]> {

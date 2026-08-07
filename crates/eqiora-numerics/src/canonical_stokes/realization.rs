@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
@@ -428,6 +429,51 @@ where
     Ok(finalized)
 }
 
+/// Admit callback transport only after exact agreement with complete Model replay.
+pub(super) fn validate_model_owned_essential_transport<B>(
+    normalized_mesh: &SimplicialMesh,
+    replayed: &[Option<[f64; DIMENSION]>],
+    transport: &B,
+) -> Result<BTreeMap<(u64, u64), [f64; DIMENSION]>, Diagnostic>
+where
+    B: Fn([f64; DIMENSION]) -> Result<[f64; DIMENSION], Diagnostic> + Sync,
+{
+    if replayed.len() != normalized_mesh.vertices().len() {
+        return Err(invalid_realization(
+            "Model-owned essential replay does not cover the exact mesh vertex inventory",
+        ));
+    }
+    let mut lookup = BTreeMap::new();
+    for (coordinate, expected) in normalized_mesh.vertices().iter().zip(replayed) {
+        let Some(expected) = expected else {
+            continue;
+        };
+        let [x, y] = coordinate.as_slice() else {
+            return Err(invalid_realization(
+                "Model-owned essential replay requires intrinsic 2D coordinates",
+            ));
+        };
+        let coordinate = [*x, *y];
+        let carried = transport(coordinate)?;
+        if carried != *expected {
+            return Err(invalid_realization(
+                "essential callback value differs from the exhaustive Model-owned replay",
+            ));
+        }
+        if lookup.insert((x.to_bits(), y.to_bits()), carried).is_some() {
+            return Err(invalid_realization(
+                "essential callback coordinates are not unique in the accepted mesh",
+            ));
+        }
+    }
+    if lookup.is_empty() {
+        return Err(invalid_realization(
+            "Model-owned essential replay contains no accepted vertex",
+        ));
+    }
+    Ok(lookup)
+}
+
 /// Solve one resolved coherent-SI Stokes Model through reference assembly.
 ///
 /// # Errors
@@ -800,10 +846,10 @@ fn cartesian_essential_velocity(
                     };
                     Some(
                         model
-                            .prescribed_normal_velocity(&key, outward, &physical)?
+                            .prescribed_velocity(&key, Some(outward), &physical)?
                             .ok_or_else(|| {
                                 invalid_realization(format!(
-                                    "prescribed velocity Relation {} has no retained normal-velocity expression",
+                                    "prescribed velocity Relation {} has no retained trace expression",
                                     law.relation()
                                 ))
                             })?,
