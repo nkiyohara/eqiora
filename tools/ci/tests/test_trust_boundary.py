@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import copy
 import subprocess
 import sys
 import unittest
@@ -210,6 +211,12 @@ class FakeGitHub:
         self.files_content_type = "application/json"
         self.identity_reads = 0
         self.move_boundary: str | None = None
+        self.compare_files = copy.deepcopy(self.files)
+        self.compare_overrides: dict[str, object] = {}
+        self.compare_reads = 0
+        self.compare_http_error = False
+        self.compare_link: str | None = None
+        self.aba_restore_pending = False
 
     def _move_head(self) -> None:
         self.pull["head"]["sha"] = "c" * 40
@@ -232,6 +239,9 @@ class FakeGitHub:
             raise AssertionError("every API request must pin the GitHub API version")
 
         decoded_path = urllib.parse.unquote(parsed.path)
+        if self.aba_restore_pending:
+            self.pull["head"]["sha"] = HEAD_SHA
+            self.aba_restore_pending = False
         if self.http_failure_path and self.http_failure_path in decoded_path:
             raise urllib.error.HTTPError(full_url, 503, "unavailable", {}, None)
 
@@ -244,11 +254,37 @@ class FakeGitHub:
         if decoded_path == f"{prefix}/files":
             if self.move_boundary == "files":
                 self._move_head()
+            if self.move_boundary == "aba":
+                self._move_head()
+                self.aba_restore_pending = True
             page = urllib.parse.parse_qs(parsed.query).get("page", ["1"])[0]
             payload = self.files if page == "1" else []
             return self._response(
                 json.dumps(payload).encode(), content_type=self.files_content_type
             )
+
+        compare_path = f"/repos/{BASE_REPOSITORY}/compare/{BASE_SHA}...{HEAD_SHA}"
+        if decoded_path == compare_path and not parsed.query:
+            self.compare_reads += 1
+            if self.compare_http_error:
+                raise urllib.error.HTTPError(full_url, 503, "unavailable", {}, None)
+            payload: dict[str, object] = {
+                "status": "ahead",
+                "ahead_by": 1,
+                "behind_by": 0,
+                "total_commits": 1,
+                "base_commit": {"sha": BASE_SHA},
+                "merge_base_commit": {"sha": BASE_SHA},
+                "commits": [{"sha": HEAD_SHA}],
+                "files": self.compare_files,
+            }
+            payload.update(self.compare_overrides)
+            response = self._response(
+                json.dumps(payload).encode(), content_type="application/json"
+            )
+            if self.compare_link is not None:
+                response.headers["Link"] = self.compare_link
+            return response
 
         marker = "/contents/"
         if marker in decoded_path:
@@ -379,18 +415,107 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
     def test_05_changed_file_inventory_stays_bound_during_acquisition(self) -> None:
         stable = FakeGitHub()
         self.assert_certified(stable)
-        self.assertGreaterEqual(
-            stable.identity_reads,
-            2,
-            "mutable pull-file metadata requires a final identity observation",
+        self.assertEqual(stable.compare_reads, 1)
+        self.assertTrue(
+            any(
+                f"/compare/{BASE_SHA}...{HEAD_SHA}" in request.full_url
+                for request in stable.requests
+            )
         )
 
-        for boundary in ("files", "content"):
-            with self.subTest(head_moves_before=boundary):
-                moved = FakeGitHub()
-                moved.move_boundary = boundary
-                self.assert_rejected(moved)
-                self.assertGreaterEqual(moved.identity_reads, 2)
+        aba = FakeGitHub()
+        aba.move_boundary = "aba"
+        aba.compare_files[-1] = {
+            "filename": ".github/workflows/ci.yml",
+            "status": "modified",
+            "sha": "f" * 40,
+        }
+        self.assert_rejected(aba)
+        self.assertEqual(aba.pull["head"]["sha"], HEAD_SHA)
+        self.assertEqual(aba.compare_reads, 1)
+
+    def test_06_immutable_compare_identity_and_completeness_fail_closed(self) -> None:
+        mutants: list[tuple[str, FakeGitHub]] = []
+
+        omitted = FakeGitHub()
+        omitted.compare_files[0] = {
+            "filename": "docs/replacement-with-same-count.md",
+            "status": "modified",
+            "sha": "e" * 40,
+        }
+        mutants.append(("same-count omission", omitted))
+
+        truncated = FakeGitHub()
+        truncated.compare_files.pop()
+        mutants.append(("truncated files", truncated))
+
+        malformed = FakeGitHub()
+        del malformed.compare_files[0]["status"]
+        mutants.append(("malformed file entry", malformed))
+
+        renamed = FakeGitHub()
+        renamed.compare_files[0]["status"] = "renamed"
+        renamed.compare_files[0]["previous_filename"] = FORMATTER
+        mutants.append(("rename ambiguity", renamed))
+
+        for field, value in (
+            ("status", "diverged"),
+            ("base_commit", {"sha": HEAD_SHA}),
+            ("merge_base_commit", {"sha": HEAD_SHA}),
+            ("commits", [{"sha": "c" * 40}]),
+        ):
+            api = FakeGitHub()
+            api.compare_overrides[field] = value
+            mutants.append((f"wrong compare {field}", api))
+
+        swapped = FakeGitHub()
+        swapped.compare_overrides.update(
+            {
+                "base_commit": {"sha": HEAD_SHA},
+                "merge_base_commit": {"sha": HEAD_SHA},
+                "commits": [{"sha": BASE_SHA}],
+            }
+        )
+        mutants.append(("swapped compare refs", swapped))
+
+        paginated = FakeGitHub()
+        paginated.compare_link = '<https://api.github.test/next>; rel="next"'
+        mutants.append(("pagination ambiguity", paginated))
+
+        failed = FakeGitHub()
+        failed.compare_http_error = True
+        mutants.append(("compare HTTP error", failed))
+
+        for name, api in mutants:
+            with self.subTest(name=name):
+                self.assert_rejected(api)
+
+    def test_07_immutable_compare_inventory_has_a_300_file_boundary(self) -> None:
+        at_limit = FakeGitHub(include_parser=False)
+        at_limit.files.extend(
+            {
+                "filename": f"docs/limit-{index}.md",
+                "status": "modified",
+                "sha": f"{index + 100:040x}",
+            }
+            for index in range(298)
+        )
+        at_limit.pull["changed_files"] = 300
+        at_limit.compare_files = copy.deepcopy(at_limit.files)
+        self.assert_certified(at_limit)
+
+        over_limit = FakeGitHub(include_parser=False)
+        over_limit.files.extend(
+            {
+                "filename": f"docs/over-{index}.md",
+                "status": "modified",
+                "sha": f"{index + 100:040x}",
+            }
+            for index in range(299)
+        )
+        over_limit.pull["changed_files"] = 301
+        over_limit.compare_files = copy.deepcopy(over_limit.files)
+        self.assert_rejected(over_limit, expected_file_count=301)
 
     def test_10_non_decreasing_and_non_exact_numeric_changes_are_rejected(self) -> None:
         mutations = {
