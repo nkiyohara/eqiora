@@ -25,6 +25,6 @@ the independently generated box inventory
 `(2*2+1)(2*3+1)(2*4+1) = 315`. These are exact structural integers, not fitted
 values or producer output.
 
-Issue #412 Taylor--Green science and Issue #413 numerical execution remain
+[Taylor--Green science](../../../../docs/verification/benchmark-roadmap.md#incompressible-and-low-mach-flow-candidates) and [numerical execution](../../../../docs/verification/gallery/taylor-green-3d.md#capability-and-artifact-dependencies) remain
 downstream non-authorities for this case. No published CFD result, equation,
 solver, tolerance, or implementation scratch was consulted.
