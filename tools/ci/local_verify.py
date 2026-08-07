@@ -421,6 +421,12 @@ def build_plan(
                 "Documentation contract", sys.executable, "tools/ci/check_docs.py", "."
             ),
             command(
+                "Public release tree",
+                sys.executable,
+                "tools/ci/check_public_release_tree.py",
+                ".",
+            ),
+            command(
                 "Formatting",
                 "cargo",
                 "fmt",
@@ -554,6 +560,14 @@ def build_plan(
                     "Documentation contract",
                     sys.executable,
                     "tools/ci/check_docs.py",
+                    ".",
+                )
+            )
+            commands.append(
+                command(
+                    "Public release tree",
+                    sys.executable,
+                    "tools/ci/check_public_release_tree.py",
                     ".",
                 )
             )

@@ -235,6 +235,47 @@ class PlanTests(unittest.TestCase):
             any(label.startswith("Registered evidence ") for label in labels)
         )
 
+    def assert_documentation_contract(
+        self, tier: str, changed_paths: list[str]
+    ) -> None:
+        checker_paths = {
+            "tools/ci/check_docs.py",
+            "tools/ci/check_public_release_tree.py",
+        }
+        plan = build_plan(tier, changed_paths, [], workspace())
+        documentation_checks = tuple(
+            (index, item)
+            for index, item in enumerate(plan.commands)
+            if len(item.argv) > 1 and item.argv[1] in checker_paths
+        )
+        self.assertEqual(
+            tuple(item.argv for _index, item in documentation_checks),
+            (
+                (sys.executable, "tools/ci/check_docs.py", "."),
+                (sys.executable, "tools/ci/check_public_release_tree.py", "."),
+            ),
+        )
+        docs_index, docs_check = documentation_checks[0]
+        public_tree_index, public_tree_check = documentation_checks[1]
+        self.assertEqual(public_tree_index, docs_index + 1)
+        self.assertEqual(
+            (docs_check.label, public_tree_check.label),
+            ("Documentation contract", "Public release tree"),
+        )
+        self.assertEqual(docs_check.lane.name, "repository")
+        self.assertIs(public_tree_check.lane, docs_check.lane)
+
+    def test_fast_documentation_contract_runs_both_hosted_checks_once(self) -> None:
+        self.assert_documentation_contract("fast", ["README.md"])
+
+    def test_affected_documentation_contract_runs_both_hosted_checks_once(self) -> None:
+        self.assert_documentation_contract("affected", ["README.md"])
+
+    def test_periodic_documentation_contract_runs_both_hosted_checks_once(
+        self,
+    ) -> None:
+        self.assert_documentation_contract("periodic", [])
+
     def test_ci_infrastructure_change_reuses_fail_closed_surface_mapping(self) -> None:
         plan = build_plan(
             "affected",
