@@ -13,7 +13,7 @@ The eight retained flagship experiences are:
 1. [laminar cylinder wake](cylinder-wake.md);
 2. [thin cylindrical-shell collapse](shell-collapse.md);
 3. [Turek--Hron FSI3](turek-hron-fsi3.md);
-4. [Stokes minimum-drag shape optimization](stokes-shape-optimization.md);
+4. [Stokes exact-area dissipation shape optimization](stokes-shape-optimization.md);
 5. [three-dimensional Taylor--Green breakdown](taylor-green-3d.md);
 6. [notched-plate phase-field fracture](notched-plate-fracture.md);
 7. [dam break around an obstacle](dam-break-obstacle.md);
@@ -23,8 +23,10 @@ This is the intended public delivery order, not a serial implementation lock.
 Prerequisite verification lanes may run as soon as their contracts and
 writable seams are disjoint. The order keeps the visible result sequence
 dependency-closed: transient flow establishes the time-series path, nonlinear
-structure follows, FSI consumes both, shape optimization reuses the accepted
-flow, force, geometry-motion, and result-history seams, and the remaining
+structure follows, FSI consumes both, and shape optimization reuses accepted
+exact geometry, fixed-topology harmonic motion, bounded steady-Stokes Result
+and pressure, reduced-differentiation and immutable-history mechanics, and
+common presentation seams. It consumes no force or drag. The remaining
 experiences add independent physics and scale.
 
 ## Heavy result production
