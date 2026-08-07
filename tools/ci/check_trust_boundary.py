@@ -583,6 +583,20 @@ def main() -> int:
                 token=token,
                 opener=urllib.request.urlopen,
             )
+            final_pull = _fetch_json(
+                pull_url,
+                token=token,
+                opener=urllib.request.urlopen,
+            )
+            _require_exact_pull_identity(
+                final_pull,
+                repository=arguments.repository,
+                head_repository=arguments.head_repository,
+                pull_number=arguments.pull_number,
+                expected_file_count=arguments.expected_file_count,
+                base_sha=arguments.base_sha,
+                head_sha=arguments.head_sha,
+            )
             print("Coupled exact file-line ratchet certified by the protected base")
             return 0
     except (
