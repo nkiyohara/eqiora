@@ -42,7 +42,13 @@ const UNSUPPORTED_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: this N1 v
 const CORRUPT_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: the installed Eqiora Notebook presentation runtime or assets are incomplete. Reinstall eqiora[notebook].";
 
 /// Immutable source-bound accepted Mesh.
-#[pyclass(name = "Mesh", module = "eqiora._eqiora", frozen, skip_from_py_object)]
+#[pyclass(
+    name = "Mesh",
+    module = "eqiora._eqiora",
+    frozen,
+    skip_from_py_object,
+    weakref
+)]
 pub(crate) struct PyMesh {
     source: AcceptedMeshSource,
     lineage: MeshLineage,

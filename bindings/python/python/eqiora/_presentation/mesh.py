@@ -191,11 +191,15 @@ def _load_assets() -> tuple[str, str]:
 def _new_delegate(payload: dict[str, object], esm: str, css: str) -> object:
     import anywidget
     import traitlets
+    from ipywidgets import Layout, widget_serialization  # type: ignore[import-untyped]
 
-    class MeshWidget(anywidget.AnyWidget):
+    class _MeshWidget(anywidget.AnyWidget):
         _esm = esm
         _css = css
 
+        layout = traitlets.Instance(
+            Layout, default_value=None, allow_none=True
+        ).tag(sync=True, **widget_serialization)
         profile = traitlets.Unicode().tag(sync=True)
         mesh_digest = traitlets.Unicode().tag(sync=True)
         vertex_count = traitlets.Int().tag(sync=True)
@@ -224,7 +228,38 @@ def _new_delegate(payload: dict[str, object], esm: str, css: str) -> object:
                 raise traitlets.TraitError("Eqiora Mesh payload is immutable")
             super().set_state(sync_data)
 
-    return MeshWidget()
+        def _repr_mimebundle_(
+            self, **kwargs: dict[Any, Any]
+        ) -> tuple[dict[Any, Any], dict[Any, Any]] | None:
+            hook = super()._repr_mimebundle_(**kwargs)
+            if type(hook) is tuple and len(hook) == 2:
+                data, metadata = hook
+                if type(data) is dict and type(metadata) is dict:
+                    widget_view = data.get(_WIDGET_MIME)
+                    if (
+                        type(widget_view) is dict
+                        and set(widget_view) == {
+                            "version_major",
+                            "version_minor",
+                            "model_id",
+                        }
+                        and type(widget_view["version_major"]) is int
+                        and widget_view["version_major"] == 2
+                        and type(widget_view["version_minor"]) is int
+                        and widget_view["version_minor"] == 1
+                        and type(widget_view["model_id"]) is str
+                        and bool(widget_view["model_id"])
+                    ):
+                        # AnyWidget 0.11 emits protocol 2.1 while this closed
+                        # presentation contract deliberately publishes 2.0.
+                        normalized_view = dict(widget_view)
+                        normalized_view["version_minor"] = 0
+                        normalized_data = dict(data)
+                        normalized_data[_WIDGET_MIME] = normalized_view
+                        return (normalized_data, metadata)
+            return hook
+
+    return _MeshWidget()
 
 
 def mesh_mimebundle(
