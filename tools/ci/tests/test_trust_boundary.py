@@ -128,6 +128,17 @@ def exact_ratchet_ledger(*, include_parser: bool = True) -> bytes:
     return candidate
 
 
+def ordinary_files(count: int) -> list[dict[str, str]]:
+    return [
+        {
+            "filename": f"docs/ordinary-{index}.md",
+            "status": "modified",
+            "sha": f"{index + 1000:040x}",
+        }
+        for index in range(count)
+    ]
+
+
 class FakeGitHub:
     """Small authenticated GitHub API double; candidate URLs are never routes."""
 
@@ -217,6 +228,7 @@ class FakeGitHub:
         self.compare_http_error = False
         self.compare_link: str | None = None
         self.aba_restore_pending = False
+        self.pull_files_reads = 0
 
     def _move_head(self) -> None:
         self.pull["head"]["sha"] = "c" * 40
@@ -252,6 +264,7 @@ class FakeGitHub:
                 json.dumps(self.pull).encode(), content_type=self.pull_content_type
             )
         if decoded_path == f"{prefix}/files":
+            self.pull_files_reads += 1
             if self.move_boundary == "files":
                 self._move_head()
             if self.move_boundary == "aba":
@@ -352,18 +365,36 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
                 result = trust_boundary.main()
             except SystemExit as error:
                 result = int(error.code)
+        self.assertEqual(
+            api.pull_files_reads,
+            0,
+            "trust decisions must not consult mutable /pulls/{number}/files",
+        )
         return result, stdout.getvalue(), stderr.getvalue()
 
     def assert_certified(self, api: FakeGitHub) -> None:
         result, stdout, stderr = self.run_classifier(api)
         self.assertEqual(result, 0, stderr)
         self.assertIn("coupled exact file-line ratchet", stdout.lower())
+        self.assertEqual(api.compare_reads, 1)
+        self.assertEqual(
+            api.pull_files_reads,
+            0,
+            "mutable pull-file metadata cannot authorize any success path",
+        )
 
     def assert_rejected(self, api: FakeGitHub, **arguments: object) -> None:
         result, stdout, stderr = self.run_classifier(api, **arguments)
         self.assertNotEqual(result, 0, stdout)
         self.assertTrue(stderr.strip(), "a rejection must explain itself on stderr")
         self.assertNotIn("unrecognized arguments", stderr.lower())
+
+    def assert_ordinary_certified(self, api: FakeGitHub) -> None:
+        result, stdout, stderr = self.run_classifier(api)
+        self.assertEqual(result, 0, stderr)
+        self.assertIn("does not change protected", stdout.lower())
+        self.assertEqual(api.compare_reads, 1)
+        self.assertEqual(api.pull_files_reads, 0)
 
     def test_00_single_existing_file_line_ceiling_can_repay_exactly(self) -> None:
         api = FakeGitHub(include_parser=False)
@@ -521,6 +552,60 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
                     len(over_limit.compare_files), min(declared_count, 300)
                 )
                 self.assert_rejected(over_limit, expected_file_count=declared_count)
+
+    def test_08_ordinary_decisions_use_only_the_immutable_inventory(self) -> None:
+        docs = FakeGitHub(include_parser=False)
+        docs.files = ordinary_files(2)
+        docs.compare_files = copy.deepcopy(docs.files)
+        docs.pull["changed_files"] = 2
+        self.assert_ordinary_certified(docs)
+
+        mutable_safe = FakeGitHub(include_parser=False)
+        mutable_safe.files = ordinary_files(2)
+        mutable_safe.compare_files = [
+            ordinary_files(1)[0],
+            {
+                "filename": ".github/workflows/ci.yml",
+                "status": "modified",
+                "sha": "f" * 40,
+            },
+        ]
+        mutable_safe.pull["changed_files"] = 2
+        self.assert_rejected(mutable_safe)
+        self.assertEqual(mutable_safe.compare_reads, 1)
+        self.assertEqual(mutable_safe.pull_files_reads, 0)
+
+        immutable_safe = FakeGitHub(include_parser=False)
+        immutable_safe.files = [
+            {
+                "filename": ".github/workflows/ci.yml",
+                "status": "modified",
+                "sha": "f" * 40,
+            },
+            {
+                "filename": ARCHITECTURE_DEBT,
+                "status": "modified",
+                "sha": "e" * 40,
+            },
+        ]
+        immutable_safe.compare_files = ordinary_files(2)
+        immutable_safe.pull["changed_files"] = 2
+        self.assert_ordinary_certified(immutable_safe)
+
+    def test_09_ordinary_inventory_has_the_same_299_file_boundary(self) -> None:
+        at_limit = FakeGitHub(include_parser=False)
+        at_limit.files = ordinary_files(299)
+        at_limit.compare_files = copy.deepcopy(at_limit.files)
+        at_limit.pull["changed_files"] = 299
+        self.assert_ordinary_certified(at_limit)
+
+        capped = FakeGitHub(include_parser=False)
+        capped.files = ordinary_files(300)
+        capped.compare_files = copy.deepcopy(capped.files)
+        capped.pull["changed_files"] = 300
+        self.assert_rejected(capped, expected_file_count=300)
+        self.assertEqual(capped.compare_reads, 0)
+        self.assertEqual(capped.pull_files_reads, 0)
 
     def test_10_non_decreasing_and_non_exact_numeric_changes_are_rejected(self) -> None:
         mutations = {
