@@ -121,17 +121,19 @@ The intended visible delivery order is:
 1. laminar cylinder wake;
 2. thin cylindrical-shell collapse;
 3. Turek--Hron FSI3;
-4. Stokes minimum-drag shape optimization;
+4. Stokes exact-area dissipation shape optimization;
 5. three-dimensional Taylor--Green breakdown;
 6. notched-plate phase-field fracture;
 7. dam break around an obstacle;
 8. full electric-motor multiphysics.
 
 This revises the initial gallery proposal by moving the bounded Stokes design
-case immediately after FSI, where it can reuse accepted force,
-parameter-driven geometry, mesh-motion, and result-history seams. The final
-motor remains last because no single motor benchmark verifies its
-electromagnetic, circuit, rotating, thermal, and coolant composition.
+case immediately after FSI, where it can reuse accepted exact geometry,
+fixed-topology harmonic motion, bounded steady-Stokes Result and pressure,
+reduced-differentiation and immutable-history mechanics, and common
+presentation seams. It consumes no force or drag. The final motor remains last
+because no single motor benchmark verifies its electromagnetic, circuit,
+rotating, thermal, and coolant composition.
 
 Visible delivery order is not implementation serialization. Before the first
 film, the fluid line closes smooth transient verification, non-box transient

@@ -216,7 +216,7 @@ authority.
 | `fluid.natural-convection-cavity` | Differentially heated cavity | momentum/energy coupling and Nusselt number | `proposed` |
 | `fluid.oseen-mms` | Manufactured Oseen/Navier–Stokes flow | pressure/velocity convergence and inf-sup behavior | `proposed` |
 | `fluid.hydrostatic-balance` | Static fluid under gravity | pressure null space and well-balanced forcing | `proposed` |
-| `fluid.taylor-green-breakdown-3d` | Viscous 3D Taylor–Green breakdown | energy/dissipation identity, published histories, periodic 3D scale | `proposed` |
+| `fluid.taylor-green-breakdown-3d` | Viscous 3D Taylor–Green breakdown | analytic initial checks, reusable-class conformance, energy ledger, scalar-history refinement, periodic 3D scale | `proposed` |
 
 The native Studio `steady-flow-past-cylinder` example does not advance
 `fluid.flow-past-cylinder`: it is a bounded steady Stokes demonstration on one
@@ -306,6 +306,7 @@ error, overshoot/undershoot, and a norm appropriate to nonsmooth solutions.
 | `multiphysics.cooled-electric-motor` | Cooled rotating electric-motor system | explicit electromagnetic/circuit/rotational/thermal/fluid power balance | `proposed` |
 | `optimization.cantilever-compliance` | Cantilever compliance optimization | gradient and topology/shape update | `proposed` |
 | `optimization.cylinder-drag` | Cylinder drag reduction | PDE-constrained shape derivative | `proposed` |
+| `optimization.stokes-cell-dissipation` | Bounded-cell exact-area Stokes dissipation design | complete discrete reduced gradient, immutable trial history, refined-topology objective ordering | `proposed` |
 | `inverse.transient-heat` | Infer conductivity/source from temperatures | parameter sensitivity and uncertainty | `proposed` |
 | `multiscale.periodic-cell` | Periodic homogenization cell | periodic BC and effective tensor | `proposed` |
 | `multiscale.fe2-bar` | FE² bar/material point | nested solve, batching, surrogate fallback | `proposed` |
