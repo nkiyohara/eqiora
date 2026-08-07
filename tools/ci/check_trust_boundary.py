@@ -323,20 +323,6 @@ def _validate_exact_file_entries(
     return entries
 
 
-def _file_entry_identity(entries: list[dict[str, Any]]) -> tuple[tuple[str, ...], ...]:
-    return tuple(
-        sorted(
-            (
-                entry["filename"],
-                entry["status"],
-                entry["sha"],
-                entry.get("previous_filename", ""),
-            )
-            for entry in entries
-        )
-    )
-
-
 def _fetch_exact_compare_inventory(
     *,
     api_url: str,
@@ -673,10 +659,11 @@ def main() -> int:
             base_sha=arguments.base_sha,
             head_sha=arguments.head_sha,
         )
-        entries = _fetch_changed_file_entries(
+        entries = _fetch_exact_compare_inventory(
             api_url=arguments.api_url,
             repository=arguments.repository,
-            pull_number=arguments.pull_number,
+            base_sha=arguments.base_sha,
+            head_sha=arguments.head_sha,
             expected_file_count=arguments.expected_file_count,
             token=token,
             opener=urllib.request.urlopen,
@@ -684,37 +671,13 @@ def main() -> int:
         paths = changed_file_names(entries)
         rejected = protected_changes(paths)
         if rejected == [ARCHITECTURE_DEBT]:
-            mutable_entries = _validate_exact_file_entries(
-                entries, arguments.expected_file_count
-            )
-            compare_entries = _fetch_exact_compare_inventory(
-                api_url=arguments.api_url,
-                repository=arguments.repository,
-                base_sha=arguments.base_sha,
-                head_sha=arguments.head_sha,
-                expected_file_count=arguments.expected_file_count,
-                token=token,
-                opener=urllib.request.urlopen,
-            )
-            if _file_entry_identity(mutable_entries) != _file_entry_identity(
-                compare_entries
-            ):
-                raise ValueError(
-                    "mutable pull metadata differs from the immutable comparison"
-                )
-            if protected_changes(changed_file_names(compare_entries)) != [
-                ARCHITECTURE_DEBT
-            ]:
-                raise ValueError(
-                    "immutable compare contains an ineligible protected-path set"
-                )
             _certify_coupled_exact_ratchet(
                 api_url=arguments.api_url,
                 repository=arguments.repository,
                 head_repository=arguments.head_repository,
                 base_sha=arguments.base_sha,
                 head_sha=arguments.head_sha,
-                entries=compare_entries,
+                entries=entries,
                 token=token,
                 opener=urllib.request.urlopen,
             )
