@@ -20,20 +20,22 @@ const PRIMARY_RECIPE_SHA256: &str =
     "e53ec57c6c30f29a4441899bd50d9d530cde0bd33bac4cd45fce5f1e013d9b43";
 const BIAS_RECIPE_SHA256: &str = "4fb346431e1703e79ba3b1c16d4d22b3751f62ffb65c81d533ac960509872c66";
 const METHOD_SHA256: &str = "0d24c2b0719cab96a5443a383b5fb0b6a8f33226b23f5b1a119eacc306de0883";
+const FIXTURE_MINIMUM_MEAN_RATIO: f64 = 1.0e-8;
+const FIXTURE_MINIMUM_MEAN_RATIO_BITS: u64 = 0x3e45_798e_e230_8c3a;
 const REQUESTS: [f64; 3] = [4.0e-3, 1.0e-3, 2.5e-4];
 const SEEDS: [u64; 3] = [1008, 1016, 1032];
 
 const PRIMARY_L0: &[u8] = include_bytes!(
-    "../../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/primary-l0.msh"
+    "../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/primary-l0.msh"
 );
 const PRIMARY_L1: &[u8] = include_bytes!(
-    "../../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/primary-l1.msh"
+    "../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/primary-l1.msh"
 );
 const PRIMARY_L2: &[u8] = include_bytes!(
-    "../../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/primary-l2.msh"
+    "../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/primary-l2.msh"
 );
 const BIAS_FINE: &[u8] = include_bytes!(
-    "../../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/bias-fine.msh"
+    "../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/bias-fine.msh"
 );
 
 #[derive(Clone, Copy)]
@@ -100,6 +102,10 @@ const EXPECTED_BIAS: ExpectedMember = ExpectedMember {
 #[test]
 fn ordinary_positive_imports_binds_replays_and_crosses_three_by_three() {
     run_independent_oracle();
+    assert_eq!(
+        FIXTURE_MINIMUM_MEAN_RATIO.to_bits(),
+        FIXTURE_MINIMUM_MEAN_RATIO_BITS
+    );
     let accepted = admit_family(ordinary_candidate()).expect("ordinary MESH0 family");
     accepted.revalidate().expect("complete family replay");
     assert_eq!(accepted.source().digest_bytes(), hex32(SOURCE_SHA256));
@@ -577,6 +583,16 @@ fn cell(spatial: usize, time: usize) -> SpaceTimeCellInput {
 
 fn assert_member(member: &AcceptedCylinderMeshMember, expected: &ExpectedMember) {
     member.revalidate().expect("member replay");
+    assert_eq!(
+        member
+            .accepted()
+            .mesh()
+            .mesh()
+            .quality_gate()
+            .minimum_mean_ratio()
+            .to_bits(),
+        FIXTURE_MINIMUM_MEAN_RATIO_BITS
+    );
     assert_eq!(
         member.accepted().requested_max_boundary_error_m().to_bits(),
         expected.requested_bits

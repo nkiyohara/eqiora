@@ -9,6 +9,12 @@ Gmsh import → Mesh envelope → authored-region correspondence → conforming
 binding → complete replay → ordered family → identity-only 3×3 space/time
 association. Negative checks run only after that full positive succeeds.
 
+Every imported fixture uses the structural Mesh admission gate
+`minimum_mean_ratio = 1e-8` with exact binary64 bits
+`0x3e45798ee2308c3a`; the Rust evidence asserts that the accepted Mesh retains
+those bits. This is fixture-only admission input, not a scientific tolerance,
+production quality target, or gallery-resolution choice.
+
 The package proves private structural admission only. It does not prove DFG S1
 or S2, a solve, accuracy, convergence, production resolution, force, pressure,
 Strouhal, a pressure trace, a time method, or gallery readiness.

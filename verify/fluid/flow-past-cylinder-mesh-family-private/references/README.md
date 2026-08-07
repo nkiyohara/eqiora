@@ -13,6 +13,11 @@ Recipe and output hashes are authoritative in `expected/family-identities.toml`.
 Only Gmsh-emitted trailing ASCII blanks are removed. An immediate clean
 regeneration followed by that normalization produced byte-identical outputs.
 
+Importing these bytes into the frozen Mesh envelopes uses the fixture-only
+structural admission gate `minimum_mean_ratio = 1e-8`, binary64 bits
+`0x3e45798ee2308c3a`. The gate is not a Gmsh generation input, scientific
+tolerance, production quality target, or gallery-resolution choice.
+
 These files contain only coordinates, topology, and Gmsh entity syntax. They
 contain no canonical source-owner bytes, imported boundary meaning, source
 page, third-party mesh, or production-resolution claim. Boundary membership

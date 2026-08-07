@@ -28,6 +28,8 @@ CONTRACT_SHA256 = "52783dffb1164b1911167dcc64fc45ade81e7aaad14e93b51e7fd48f7b25d
 PRIMARY_RECIPE_SHA256 = "e53ec57c6c30f29a4441899bd50d9d530cde0bd33bac4cd45fce5f1e013d9b43"
 BIAS_RECIPE_SHA256 = "4fb346431e1703e79ba3b1c16d4d22b3751f62ffb65c81d533ac960509872c66"
 EXECUTABLE_SHA256 = "0a923f7069d3ab91d142ed7afcc9e933144c88034e2119067146d2dd87cb4cac"
+FIXTURE_MINIMUM_MEAN_RATIO = 1.0e-8
+FIXTURE_MINIMUM_MEAN_RATIO_BITS = "0x3e45798ee2308c3a"
 TIME_METHOD_SHA256 = hashlib.sha256(
     b"eqiora.mesh0.structural-time-method-identity/v1"
 ).hexdigest()
@@ -364,6 +366,16 @@ def main() -> int:
             "evidence schema")
     require(expected["contract_sha256"] == CONTRACT_SHA256, "accepted contract identity")
     require(expected["source_sha256"] == SOURCE_SHA256, "source identity")
+    require(
+        expected["fixture_minimum_mean_ratio"] == FIXTURE_MINIMUM_MEAN_RATIO,
+        "fixture-only minimum mean ratio",
+    )
+    require(
+        expected["fixture_minimum_mean_ratio_bits"]
+        == bits(expected["fixture_minimum_mean_ratio"])
+        == FIXTURE_MINIMUM_MEAN_RATIO_BITS,
+        "fixture-only minimum mean ratio exact bits",
+    )
     require(sha256(REFERENCES / "primary.geo") == PRIMARY_RECIPE_SHA256, "primary recipe hash")
     require(sha256(REFERENCES / "bias.geo") == BIAS_RECIPE_SHA256, "bias recipe hash")
 

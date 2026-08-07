@@ -12,5 +12,10 @@ accuracy targets. The time values are an identity-only fixture for finite,
 positive, strictly decreasing ordering and the complete Cartesian product;
 they are not DFG time-step choices and carry no method meaning.
 
+The exact-artifact identities also commit the fixture-only structural Mesh
+admission gate `minimum_mean_ratio = 1e-8`, binary64 bits
+`0x3e45798ee2308c3a`. This value is retained by each accepted Mesh and is not a
+scientific tolerance, production quality target, or gallery-resolution choice.
+
 No force, pressure, Strouhal, solution, tolerance, convergence order, solver,
 or production-resolution value appears here.

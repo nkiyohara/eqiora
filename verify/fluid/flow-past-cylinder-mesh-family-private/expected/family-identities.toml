@@ -3,6 +3,8 @@ contract_sha256 = "52783dffb1164b1911167dcc64fc45ade81e7aaad14e93b51e7fd48f7b25d
 source_sha256 = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
 relation = "independently-remeshed-ordered-refinement"
 bias_relation = "same-fine-geometry-distinct-provider-and-connectivity"
+fixture_minimum_mean_ratio = 1e-8
+fixture_minimum_mean_ratio_bits = "0x3e45798ee2308c3a"
 
 [primary_provider]
 family_role = "primary"
