@@ -42,6 +42,7 @@ MAX_VISIBLE_FILES = 3_000
 PAGE_SIZE = 100
 MAX_PAGES = MAX_VISIBLE_FILES // PAGE_SIZE + 1
 MAX_BLOB_BYTES = 1_048_576
+MAX_COMPARE_FILES = 299
 FULL_SHA = re.compile(r"[0-9a-f]{40}\Z")
 REPOSITORY_COMPONENT = re.compile(r"[A-Za-z0-9_.-]+\Z")
 RUST_SOURCE_PATH = re.compile(
@@ -51,6 +52,9 @@ FILE_LINE_SECTION = re.compile(
     rb"(?m)^\[\[file_lines\]\]\r?$.*?(?=^\[\[|\Z)", re.DOTALL
 )
 CEILING_LINE = re.compile(rb"(?m)^ceiling = ([1-9][0-9]*)\r?$")
+COMPARE_FILE_STATUSES = frozenset(
+    {"added", "removed", "modified", "renamed", "copied", "changed", "unchanged"}
+)
 
 
 def protected_path(path: str) -> bool:
@@ -279,6 +283,113 @@ def _require_exact_pull_identity(
     )
     if observed != expected:
         raise ValueError("GitHub pull identity differs from the bound event identity")
+
+
+def _validate_exact_file_entries(
+    payload: Any, expected_file_count: int
+) -> list[dict[str, Any]]:
+    if expected_file_count > MAX_COMPARE_FILES:
+        raise ValueError(
+            "coupled exact ratchets require fewer than the 300-file compare cap"
+        )
+    changed_file_names(payload)
+    if len(payload) != expected_file_count:
+        raise ValueError(
+            "GitHub compare file count differs: "
+            f"expected {expected_file_count}, observed {len(payload)}"
+        )
+
+    entries: list[dict[str, Any]] = payload
+    for index, entry in enumerate(entries):
+        status = entry.get("status")
+        sha = entry.get("sha")
+        if status not in COMPARE_FILE_STATUSES:
+            raise ValueError(f"compare file entry {index} has an invalid status")
+        if not isinstance(sha, str) or FULL_SHA.fullmatch(sha) is None:
+            raise ValueError(f"compare file entry {index} has an invalid blob SHA")
+        previous = entry.get("previous_filename")
+        if status == "renamed":
+            if not isinstance(previous, str) or not previous:
+                raise ValueError(
+                    f"renamed compare file entry {index} has no previous filename"
+                )
+        elif previous is not None:
+            raise ValueError(
+                f"non-renamed compare file entry {index} has a previous filename"
+            )
+    names = changed_file_names(entries)
+    if len(names) != len(set(names)):
+        raise ValueError("changed-file metadata has duplicate path identities")
+    return entries
+
+
+def _file_entry_identity(entries: list[dict[str, Any]]) -> tuple[tuple[str, ...], ...]:
+    return tuple(
+        sorted(
+            (
+                entry["filename"],
+                entry["status"],
+                entry["sha"],
+                entry.get("previous_filename", ""),
+            )
+            for entry in entries
+        )
+    )
+
+
+def _fetch_exact_compare_inventory(
+    *,
+    api_url: str,
+    repository: str,
+    base_sha: str,
+    head_sha: str,
+    expected_file_count: int,
+    token: str,
+    opener: Callable[..., Any],
+) -> list[dict[str, Any]]:
+    if expected_file_count > MAX_COMPARE_FILES:
+        raise ValueError(
+            "coupled exact ratchets require fewer than the 300-file compare cap"
+        )
+    root = _validated_api_root(api_url)
+    encoded_repository = _validated_repository(repository)
+    _require_full_sha(base_sha, "compare base SHA")
+    _require_full_sha(head_sha, "compare head SHA")
+    url = f"{root}/repos/{encoded_repository}/compare/{base_sha}...{head_sha}"
+    request = _request(url, token=token, accept="application/vnd.github+json")
+    with opener(request, timeout=30) as response:
+        if response.headers.get("Link") is not None:
+            raise ValueError("GitHub compare response is paginated")
+        body = _read_bounded_response(
+            response,
+            request_url=url,
+            allowed_content_types=frozenset(
+                {"application/json", "application/vnd.github+json"}
+            ),
+        )
+    payload = json.loads(body)
+    if not isinstance(payload, dict):
+        raise ValueError("GitHub compare response must be a JSON object")
+    try:
+        status = payload["status"]
+        observed_base = payload["base_commit"]["sha"]
+        observed_merge_base = payload["merge_base_commit"]["sha"]
+        commits = payload["commits"]
+        files = payload["files"]
+    except (KeyError, TypeError) as error:
+        raise ValueError("GitHub compare response has incomplete identity") from error
+    if status != "ahead":
+        raise ValueError("GitHub compare status is not exact base-to-head ancestry")
+    if observed_base != base_sha or observed_merge_base != base_sha:
+        raise ValueError("GitHub compare base or merge-base identity differs")
+    if (
+        not isinstance(commits, list)
+        or not commits
+        or not isinstance(commits[-1], dict)
+        or commits[-1].get("sha") != head_sha
+    ):
+        raise ValueError("GitHub compare does not terminate at the bound head")
+    return _validate_exact_file_entries(files, expected_file_count)
 
 
 def _fetch_blob(
@@ -573,29 +684,39 @@ def main() -> int:
         paths = changed_file_names(entries)
         rejected = protected_changes(paths)
         if rejected == [ARCHITECTURE_DEBT]:
+            mutable_entries = _validate_exact_file_entries(
+                entries, arguments.expected_file_count
+            )
+            compare_entries = _fetch_exact_compare_inventory(
+                api_url=arguments.api_url,
+                repository=arguments.repository,
+                base_sha=arguments.base_sha,
+                head_sha=arguments.head_sha,
+                expected_file_count=arguments.expected_file_count,
+                token=token,
+                opener=urllib.request.urlopen,
+            )
+            if _file_entry_identity(mutable_entries) != _file_entry_identity(
+                compare_entries
+            ):
+                raise ValueError(
+                    "mutable pull metadata differs from the immutable comparison"
+                )
+            if protected_changes(changed_file_names(compare_entries)) != [
+                ARCHITECTURE_DEBT
+            ]:
+                raise ValueError(
+                    "immutable compare contains an ineligible protected-path set"
+                )
             _certify_coupled_exact_ratchet(
                 api_url=arguments.api_url,
                 repository=arguments.repository,
                 head_repository=arguments.head_repository,
                 base_sha=arguments.base_sha,
                 head_sha=arguments.head_sha,
-                entries=entries,
+                entries=compare_entries,
                 token=token,
                 opener=urllib.request.urlopen,
-            )
-            final_pull = _fetch_json(
-                pull_url,
-                token=token,
-                opener=urllib.request.urlopen,
-            )
-            _require_exact_pull_identity(
-                final_pull,
-                repository=arguments.repository,
-                head_repository=arguments.head_repository,
-                pull_number=arguments.pull_number,
-                expected_file_count=arguments.expected_file_count,
-                base_sha=arguments.base_sha,
-                head_sha=arguments.head_sha,
             )
             print("Coupled exact file-line ratchet certified by the protected base")
             return 0
