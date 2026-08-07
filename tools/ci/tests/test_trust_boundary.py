@@ -197,6 +197,7 @@ class FakeGitHub:
                 "repo": {"full_name": head_repository},
             },
         }
+        self.event_file_count = len(self.files)
         self.blobs: dict[tuple[str, str, str], bytes] = {
             (BASE_REPOSITORY, BASE_SHA, ARCHITECTURE_DEBT): BASE_LEDGER,
             (
@@ -227,6 +228,7 @@ class FakeGitHub:
         self.compare_reads = 0
         self.compare_http_error = False
         self.compare_link: str | None = None
+        self.compare_content_type = "application/json"
         self.aba_restore_pending = False
         self.pull_files_reads = 0
 
@@ -293,7 +295,7 @@ class FakeGitHub:
             }
             payload.update(self.compare_overrides)
             response = self._response(
-                json.dumps(payload).encode(), content_type="application/json"
+                json.dumps(payload).encode(), content_type=self.compare_content_type
             )
             if self.compare_link is not None:
                 response.headers["Link"] = self.compare_link
@@ -332,7 +334,9 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
         pull_number: int = PULL_NUMBER,
         expected_file_count: int | None = None,
     ) -> tuple[int, str, str]:
-        count = len(api.files) if expected_file_count is None else expected_file_count
+        count = (
+            api.event_file_count if expected_file_count is None else expected_file_count
+        )
         arguments = [
             "check_trust_boundary.py",
             "--api-url",
@@ -531,7 +535,8 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
             }
             for index in range(297)
         )
-        at_limit.pull["changed_files"] = 299
+        at_limit.event_file_count = 299
+        at_limit.pull["changed_files"] = at_limit.event_file_count
         at_limit.compare_files = copy.deepcopy(at_limit.files)
         self.assert_certified(at_limit)
 
@@ -546,7 +551,8 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
                     }
                     for index in range(declared_count - 2)
                 )
-                over_limit.pull["changed_files"] = declared_count
+                over_limit.event_file_count = declared_count
+                over_limit.pull["changed_files"] = over_limit.event_file_count
                 over_limit.compare_files = copy.deepcopy(over_limit.files[:300])
                 self.assertEqual(
                     len(over_limit.compare_files), min(declared_count, 300)
@@ -557,7 +563,8 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
         docs = FakeGitHub(include_parser=False)
         docs.files = ordinary_files(2)
         docs.compare_files = copy.deepcopy(docs.files)
-        docs.pull["changed_files"] = 2
+        docs.event_file_count = 2
+        docs.pull["changed_files"] = docs.event_file_count
         self.assert_ordinary_certified(docs)
 
         mutable_safe = FakeGitHub(include_parser=False)
@@ -570,7 +577,8 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
                 "sha": "f" * 40,
             },
         ]
-        mutable_safe.pull["changed_files"] = 2
+        mutable_safe.event_file_count = 2
+        mutable_safe.pull["changed_files"] = mutable_safe.event_file_count
         self.assert_rejected(mutable_safe)
         self.assertEqual(mutable_safe.compare_reads, 1)
         self.assertEqual(mutable_safe.pull_files_reads, 0)
@@ -589,20 +597,23 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
             },
         ]
         immutable_safe.compare_files = ordinary_files(2)
-        immutable_safe.pull["changed_files"] = 2
+        immutable_safe.event_file_count = 2
+        immutable_safe.pull["changed_files"] = immutable_safe.event_file_count
         self.assert_ordinary_certified(immutable_safe)
 
     def test_09_ordinary_inventory_has_the_same_299_file_boundary(self) -> None:
         at_limit = FakeGitHub(include_parser=False)
         at_limit.files = ordinary_files(299)
         at_limit.compare_files = copy.deepcopy(at_limit.files)
-        at_limit.pull["changed_files"] = 299
+        at_limit.event_file_count = 299
+        at_limit.pull["changed_files"] = at_limit.event_file_count
         self.assert_ordinary_certified(at_limit)
 
         capped = FakeGitHub(include_parser=False)
         capped.files = ordinary_files(300)
         capped.compare_files = copy.deepcopy(capped.files)
-        capped.pull["changed_files"] = 300
+        capped.event_file_count = 300
+        capped.pull["changed_files"] = capped.event_file_count
         self.assert_rejected(capped, expected_file_count=300)
         self.assertEqual(capped.compare_reads, 0)
         self.assertEqual(capped.pull_files_reads, 0)
@@ -739,49 +750,55 @@ removal = "duplicate"\n"""
         mutations: list[tuple[str, FakeGitHub]] = []
 
         missing_source = FakeGitHub(include_parser=False)
-        missing_source.files = [
-            entry for entry in missing_source.files if entry["filename"] != FORMATTER
+        missing_source.compare_files = [
+            entry
+            for entry in missing_source.compare_files
+            if entry["filename"] != FORMATTER
         ]
-        missing_source.pull["changed_files"] = len(missing_source.files)
+        missing_source.event_file_count = len(missing_source.compare_files)
+        missing_source.pull["changed_files"] = missing_source.event_file_count
         mutations.append(("ratcheted source absent", missing_source))
 
         same_basename = FakeGitHub(include_parser=False)
-        same_basename.files[0]["filename"] = "crates/other/src/formatter.rs"
+        same_basename.compare_files[0]["filename"] = "crates/other/src/formatter.rs"
         mutations.append(("different path with same basename", same_basename))
 
         ledger_rename = FakeGitHub(include_parser=False)
-        ledger_rename.files[1]["previous_filename"] = ARCHITECTURE_DEBT
-        ledger_rename.files[1]["filename"] = "docs/architecture-debt.toml"
-        ledger_rename.files[1]["status"] = "renamed"
+        ledger_rename.compare_files[1]["previous_filename"] = ARCHITECTURE_DEBT
+        ledger_rename.compare_files[1]["filename"] = "docs/architecture-debt.toml"
+        ledger_rename.compare_files[1]["status"] = "renamed"
         mutations.append(("ledger rename", ledger_rename))
 
         source_rename = FakeGitHub(include_parser=False)
-        source_rename.files[0]["previous_filename"] = FORMATTER
-        source_rename.files[0]["filename"] = "crates/eqiora-lang/src/format.rs"
-        source_rename.files[0]["status"] = "renamed"
+        source_rename.compare_files[0]["previous_filename"] = FORMATTER
+        source_rename.compare_files[0]["filename"] = "crates/eqiora-lang/src/format.rs"
+        source_rename.compare_files[0]["status"] = "renamed"
         mutations.append(("source rename", source_rename))
 
         missing_status = FakeGitHub(include_parser=False)
-        del missing_status.files[0]["status"]
+        del missing_status.compare_files[0]["status"]
         mutations.append(("incomplete source metadata", missing_status))
 
         duplicate = FakeGitHub(include_parser=False)
-        duplicate.files.append(dict(duplicate.files[0]))
-        duplicate.pull["changed_files"] = len(duplicate.files)
+        duplicate.compare_files.append(dict(duplicate.compare_files[0]))
+        duplicate.event_file_count = len(duplicate.compare_files)
+        duplicate.pull["changed_files"] = duplicate.event_file_count
         mutations.append(("duplicate current filename", duplicate))
 
         mixed_protected = FakeGitHub(include_parser=False)
-        mixed_protected.files.append(
+        mixed_protected.compare_files.append(
             {"filename": ".github/workflows/ci.yml", "status": "modified"}
         )
-        mixed_protected.pull["changed_files"] = len(mixed_protected.files)
+        mixed_protected.event_file_count = len(mixed_protected.compare_files)
+        mixed_protected.pull["changed_files"] = mixed_protected.event_file_count
         mutations.append(("mixed protected path", mixed_protected))
 
         other_protected = FakeGitHub(include_parser=False)
-        other_protected.files = [
+        other_protected.compare_files = [
             {"filename": "tools/xtask/src/architecture.rs", "status": "modified"}
         ]
-        other_protected.pull["changed_files"] = 1
+        other_protected.event_file_count = 1
+        other_protected.pull["changed_files"] = other_protected.event_file_count
         mutations.append(("other protected path", other_protected))
 
         for name, api in mutations:
@@ -825,7 +842,7 @@ removal = "duplicate"\n"""
         self.assert_rejected(provider_count)
 
         truncated = FakeGitHub()
-        truncated.files.pop()
+        truncated.compare_files.pop()
         self.assert_rejected(truncated, expected_file_count=15)
 
     def test_16_missing_http_wrong_content_type_and_oversize_blobs_fail_closed(
@@ -851,9 +868,9 @@ removal = "duplicate"\n"""
         wrong_pull_type.pull_content_type = "text/html"
         self.assert_rejected(wrong_pull_type)
 
-        wrong_files_type = FakeGitHub(include_parser=False)
-        wrong_files_type.files_content_type = "text/html"
-        self.assert_rejected(wrong_files_type)
+        wrong_compare_type = FakeGitHub(include_parser=False)
+        wrong_compare_type.compare_content_type = "text/html"
+        self.assert_rejected(wrong_compare_type)
 
         wrong_type = FakeGitHub(include_parser=False)
         source_key = (HEAD_REPOSITORY, HEAD_SHA, FORMATTER)
