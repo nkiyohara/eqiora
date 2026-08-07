@@ -1,0 +1,118 @@
+id = "fluid.cartesian-periodic-topology-3d"
+status = "verified"
+scope = "one-exact-current-model-and-nonuniform-2x3x4-cartesian-mesh-periodic-topology-3d"
+reference_kind = "independent-model-boundary-and-mesh-axis-structural-replay"
+
+capabilities = [
+  "three-generator-cartesian-periodic-group-exact-2x3x4",
+  "cartesian-periodic-quotient-topology-exact-2x3x4",
+  "positive-axis-periodic-packets-exact-2x3x4",
+]
+
+[authority]
+semantic_profile = "RFC 0071 three-generator Cartesian 3D profile"
+model_identity = "current Model artifact domain, exact Model ID, and exact semantic revision"
+mesh_identity = "current CartesianMeshEnvelopeV1 content reference"
+pair_meaning = "existing semantic spatial-periodic pair composition"
+oracle_owner = "crates/eqiora-numerics/src/cartesian_periodic_3d/tests.rs"
+
+[ordinary_path]
+source = "models/periodic-box.eqi"
+permuted_source = "models/periodic-box-permuted.eqi"
+stages = [
+  "ordinary .eqi compiler",
+  "whole-Model semantic validation",
+  "current Transaction artifact round-trip",
+  "current Model artifact round-trip and replay",
+  "current Cartesian mesh v1 artifact round-trip",
+  "three existing spatial-periodic pair compositions",
+  "crate-private three-generator projection",
+  "independent full structural replay",
+]
+positive_precedes_mutants = true
+
+[sealed_instance]
+physical_axis_cell_counts = [2, 3, 4]
+parent_bounds = [[-2.0, 3.0], [1.0, 8.0], [-1.0, 10.0]]
+axis_0_coordinates = [-2.0, 0.0, 3.0]
+axis_1_coordinates = [1.0, 2.0, 4.5, 8.0]
+axis_2_coordinates = [-1.0, 0.0, 2.0, 6.0, 10.0]
+unequal_parent_side_lengths = true
+nonuniform_axis_coordinates = true
+another_model_or_mesh_artifact_is_equivalent = false
+
+[acceptance]
+cells = 24
+box_entities = 315
+quotient_strata = [24, 72, 72, 24]
+quotient_entities = 192
+quotient_closure_vertex_references = 648
+orbit_outputs = 192
+box_orbit_memberships = 315
+positive_packets = 72
+axis_seam_packets = [12, 8, 6]
+exterior_faces = 0
+observed_orbit_sizes = [1, 2, 4, 8]
+identity_orientation = true
+two_distinct_cells_per_face = true
+six_oriented_faces_per_cell = true
+connected_periodic_adjacency = true
+projection_is_private_and_nonpersisted = true
+
+[resource]
+admission_precedes_projection_allocation = true
+input_counts_are_exact_instance_counts = true
+live_heap_or_worklist_is_an_oracle = false
+generic_count_or_resource_class_claim = false
+
+[falsifiers]
+P3D-ONE-PAIR-REUSED = "three distinct Connection identities reject reuse"
+P3D-MISSING-AXIS = "two valid pairs reach group admission and fail exact axis coverage"
+P3D-DUPLICATE-AXIS = "distinct axis keys must be exactly 0, 1, and 2"
+P3D-CROSS-PARENT = "all three pairs must retain one exact parent identity"
+P3D-CROSS-CONNECTOR = "all six Ports must retain one exact nominal Connector identity"
+P3D-ENDPOINT-ORDER = "geometry-derived lower-to-upper orientation survives endpoint permutation"
+P3D-STORED-VECTOR = "translation authority remains exact parent bounds, without vector or tolerance input"
+P3D-NONCOMMUTING-FIBER = "pair and corner cycle receipts require identity fiber"
+P3D-PAIRWISE-ONLY = "three pair commutators do not replace all six corner-order receipts"
+P3D-ORDINARY-UNION = "ordinary conserving union cannot authorize noncoincident generators"
+P3D-FACE-ONLY-QUOTIENT = "complete vertex, edge, face, cell, orbit, and closure replay is required"
+P3D-CORNER-ORDER = "all six three-generator words retain one structural endpoint and incidence"
+P3D-TANGENTIAL-SHIFT = "exact nonsymmetric mesh-axis labels expose tangential shift or reflection"
+P3D-ORIENTATION-PERMUTE = "every local vertex permutation and orientation code is identity"
+P3D-OUTWARD-SAME-SIGN = "opposite parent-outward signs and equal-opposite scatter are retained"
+P3D-CELL-COLLAPSE = "all 24 cell orbits remain singleton with two-cell face incidence"
+P3D-SEAM-DOUBLE = "72 packet identities and seam counts reject reverse duplicates"
+P3D-SEAM-EXTERIOR = "two-cell incidence and zero exterior faces reject retained boundary work"
+P3D-LONG-SEAM = "lifted seam centre distance is exactly half the first-plus-last widths"
+P3D-X-FASTEST = "base, quotient, cell, face, and packet indices are last-axis-fastest"
+P3D-PERSISTED-QUOTIENT = "current Model, Transaction, and mesh decoders reject a quotient field"
+P3D-ALLOCATE-FIRST = "abstract inventory admission must precede allocation and rejected groups publish no state"
+
+[claim_boundary]
+exact_artifact_instance_only = true
+generic_three_dimensional_count_class = false
+another_axis_coordinate_sequence = false
+numerical_scalar_vector_or_tensor_execution = false
+incompressible_cfd_or_taylor_green_science = false
+time_integration_or_solver = false
+public_quotient_api = false
+persisted_quotient_or_packet_wire = false
+mpi_gpu_scale_or_performance = false
+rendering_or_publication = false
+tolerance = false
+
+[precommitment]
+precommitted = true
+authored_before_implementation_by_a_fresh_context_nonimplementer = true
+base_revision = "b364bec54f4ccc6d25586d8c02c6fcfed3ce1c5f"
+contract_sha256 = "f9f5e7aba211f125edc42ec4954552b8506f02e83d17c0a6ec470e93bfd88bd4"
+focused_contract_review_sha256 = "c163bf4d5f0321806f3d25952367e814c59c642e9290c73bc9d3db44838bdce2"
+implementation_read = false
+writer_scratch_read = false
+expected_predecessor_result = "the production-private module and crate-root registration are absent, so the exact library selector is intentionally red until implementation and integration compose it"
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "cartesian_periodic_3d::tests::registered_reference_slice_rejects_rfc0071_mutants"
