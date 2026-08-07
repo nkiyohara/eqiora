@@ -7,7 +7,7 @@ use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, Sim
 use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 
 use super::api::{MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d};
-use super::element::MiniNavierStokesCell;
+use super::element::{FixedDomainViscousForm, MiniNavierStokesCell};
 use super::{COMPONENTS, DIMENSION, invalid};
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
@@ -252,6 +252,7 @@ pub(super) fn assemble_step_residual<F, B>(
     plan: MiniNavierStokesStepPlan2d,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
+    viscous_form: FixedDomainViscousForm,
 ) -> Result<Vec<f64>, Diagnostic>
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
@@ -269,7 +270,7 @@ where
             let vertices = mesh
                 .entity_vertices(cell)
                 .expect("accepted simplex cell owns vertices");
-            MiniNavierStokesCell {
+            let cell = MiniNavierStokesCell {
                 cell: packet,
                 vertices: &vertices,
                 density: plan.density(),
@@ -279,8 +280,15 @@ where
                 candidate_velocity: &step.velocity,
                 candidate_pressure: step.pressure.vertex_values(),
                 body_force,
+            };
+            match viscous_form {
+                FixedDomainViscousForm::SymmetricNewtonian => {
+                    cell.residual(&geometry, cell_quadrature)?
+                }
+                FixedDomainViscousForm::DfgNonsymmetric => {
+                    cell.residual_dfg(&geometry, cell_quadrature)?
+                }
             }
-            .residual(&geometry, cell_quadrature)?
         } else if packet < step.constraint_end {
             let cell = MeshEntity::new(DIMENSION, packet - step.cell_count);
             let geometry = mesh
@@ -320,6 +328,7 @@ pub(super) fn assemble_step_linearization<F, B>(
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
+    viscous_form: FixedDomainViscousForm,
 ) -> Result<StepAssembly, Diagnostic>
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
@@ -345,7 +354,7 @@ where
             let vertices = mesh
                 .entity_vertices(cell)
                 .expect("accepted simplex cell owns vertices");
-            let linearization = MiniNavierStokesCell {
+            let cell = MiniNavierStokesCell {
                 cell: packet,
                 vertices: &vertices,
                 density: plan.density(),
@@ -355,8 +364,15 @@ where
                 candidate_velocity: &step.velocity,
                 candidate_pressure: step.pressure.vertex_values(),
                 body_force,
-            }
-            .linearize(&geometry, cell_quadrature)?;
+            };
+            let linearization = match viscous_form {
+                FixedDomainViscousForm::SymmetricNewtonian => {
+                    cell.linearize(&geometry, cell_quadrature)?
+                }
+                FixedDomainViscousForm::DfgNonsymmetric => {
+                    cell.linearize_dfg(&geometry, cell_quadrature)?
+                }
+            };
             let residual = linearization.residual().to_vec();
             let local = linearization.into_linear_contribution()?;
             let reduced = step.reduced_map(mesh, packet)?;

@@ -12,6 +12,7 @@ use super::api::{
 use super::assembly::{
     assemble_step_linearization, assemble_step_residual, build_step_jacobian_pattern,
 };
+use super::element::FixedDomainViscousForm;
 use super::{COMPONENTS, DIMENSION, solve_failed};
 use crate::jacobian_audit::{
     CenteredJacobianAuditEvidence, StructuralJacobianPattern, audit_centered_jacobian,
@@ -84,6 +85,75 @@ where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
+    advance_with_viscous_form(
+        mesh,
+        boundary,
+        essential_velocity,
+        body_force,
+        initial,
+        step_count,
+        plan,
+        cell_quadrature,
+        facet_quadrature,
+        assembly,
+        solver,
+        FixedDomainViscousForm::SymmetricNewtonian,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn advance_dfg_simplicial_mini_navier_stokes_2d_with_assembly<F, B>(
+    mesh: &SimplicialMesh,
+    boundary: &SimplicialMiniStokesBoundary2d,
+    essential_velocity: &B,
+    body_force: &F,
+    initial: SimplicialMiniNavierStokesState2d,
+    step_count: NonZeroStepCount,
+    plan: MiniNavierStokesStepPlan2d,
+    cell_quadrature: &QuadratureRule,
+    facet_quadrature: &QuadratureRule,
+    assembly: &dyn AssemblyBackend,
+    solver: &dyn LinearSolverBackend,
+) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic>
+where
+    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
+    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
+{
+    advance_with_viscous_form(
+        mesh,
+        boundary,
+        essential_velocity,
+        body_force,
+        initial,
+        step_count,
+        plan,
+        cell_quadrature,
+        facet_quadrature,
+        assembly,
+        solver,
+        FixedDomainViscousForm::DfgNonsymmetric,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn advance_with_viscous_form<F, B>(
+    mesh: &SimplicialMesh,
+    boundary: &SimplicialMiniStokesBoundary2d,
+    essential_velocity: &B,
+    body_force: &F,
+    initial: SimplicialMiniNavierStokesState2d,
+    step_count: NonZeroStepCount,
+    plan: MiniNavierStokesStepPlan2d,
+    cell_quadrature: &QuadratureRule,
+    facet_quadrature: &QuadratureRule,
+    assembly: &dyn AssemblyBackend,
+    solver: &dyn LinearSolverBackend,
+    viscous_form: FixedDomainViscousForm,
+) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic>
+where
+    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
+    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
+{
     super::element::require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
     let jacobian_pattern = build_step_jacobian_pattern(mesh, boundary, essential_velocity)?;
     let mut trajectory = SimplicialMiniNavierStokesTrajectory2d::new(initial);
@@ -104,6 +174,7 @@ where
             &jacobian_pattern,
             assembly,
             solver,
+            viscous_form,
         )?;
         trajectory.push(next, evidence)?;
     }
@@ -123,6 +194,7 @@ fn solve_one_step<F, B>(
     jacobian_pattern: &StructuralJacobianPattern,
     assembly_backend: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
+    viscous_form: FixedDomainViscousForm,
 ) -> Result<
     (
         SimplicialMiniNavierStokesState2d,
@@ -147,6 +219,7 @@ where
         cell_quadrature,
         facet_quadrature,
         assembly_backend,
+        viscous_form,
     )?;
     let initial_residual_norm = current.residual_norm()?;
     let residual_target = plan.nonlinear_target(initial_residual_norm)?;
@@ -162,6 +235,7 @@ where
             cell_quadrature,
             facet_quadrature,
             jacobian_pattern,
+            viscous_form,
         )?;
         return accept_step(
             mesh,
@@ -211,6 +285,7 @@ where
                 cell_quadrature,
                 facet_quadrature,
                 assembly_backend,
+                viscous_form,
             )?;
             let norm = assembled.residual_norm()?;
             if norm <= residual_target || norm < previous_norm {
@@ -238,6 +313,7 @@ where
                 cell_quadrature,
                 facet_quadrature,
                 jacobian_pattern,
+                viscous_form,
             )?;
             return accept_step(
                 mesh,
@@ -274,6 +350,7 @@ fn verify_analytic_jacobian<F, B>(
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
     jacobian_pattern: &StructuralJacobianPattern,
+    viscous_form: FixedDomainViscousForm,
 ) -> Result<CenteredJacobianAuditEvidence, Diagnostic>
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
@@ -296,6 +373,7 @@ where
                 plan,
                 cell_quadrature,
                 facet_quadrature,
+                viscous_form,
             )
         },
         |column, analytic| {

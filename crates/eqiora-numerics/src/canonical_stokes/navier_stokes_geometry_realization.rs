@@ -8,33 +8,36 @@ use std::collections::{BTreeMap, BTreeSet};
 use eqiora_artifact::AcceptedCircularHoleChordalRealizationV1;
 use eqiora_assembly::AssemblyBackend;
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DynQuantity};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, RawId};
 use eqiora_graph::EdgeKind;
 use eqiora_meshing::{MeshTopology, SimplicialMesh};
 use eqiora_realization::{
     NonlinearSolvePlan, ResolvedTransientFieldwiseRealization, TransientFieldwiseRealizationPlan,
     TransientFieldwiseRealizationRequirements,
 };
-use eqiora_schema::kernel::{DomainKind, KernelNode};
+use eqiora_schema::kernel::{DomainKind, ExprDag, ExprId, ExprNode, KernelNode, SymbolRef};
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearSolverBackend, SolverPlan};
 
 use self::boundary::CorrespondenceBoundary2d;
 use super::IncompressibleFlowScaleProfile2d;
 use super::boundary as semantic_boundary;
+use super::expression::{IncompressibleStressForm, load_definition_root};
 use super::inertial::parameters_referenced_by;
 use super::navier_stokes::{
-    TransientIncompressibleNavierStokesModel2d, lower_transient_volume, require_boundary_volume,
+    TransientIncompressibleNavierStokesModel2d, lower_dfg_transient_volume, lower_transient_volume,
+    require_boundary_volume,
 };
 use super::navier_stokes_realization::{
     require_exact_transient_plan, transient_navier_stokes_fieldwise_requirements_for_2d,
     transient_navier_stokes_mini_plan_for_2d,
 };
 use super::recognize::unique_circular_hole_domain;
-use super::support::{lowering_error, model_lowering_error};
+use super::support::{lowering_error, model_lowering_error, relation_expression, unique_root};
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_navier_stokes::{
     SimplicialMiniNavierStokesState2d, SimplicialMiniNavierStokesTrajectory2d,
+    advance_dfg_simplicial_mini_navier_stokes_2d_with_assembly,
     advance_simplicial_mini_navier_stokes_2d_with_assembly,
 };
 use crate::simplicial_stokes::SimplicialMiniVelocityField2d;
@@ -59,6 +62,25 @@ impl TransientNavierStokesGeometryBinding2d {
         program: &KernelProgram,
         accepted: AcceptedCircularHoleChordalRealizationV1,
     ) -> Result<Self, Diagnostic> {
+        Self::new_with_stress(
+            program,
+            accepted,
+            IncompressibleStressForm::SymmetricNewtonian,
+        )
+    }
+
+    pub(crate) fn new_dfg(
+        program: &KernelProgram,
+        accepted: AcceptedCircularHoleChordalRealizationV1,
+    ) -> Result<Self, Diagnostic> {
+        Self::new_with_stress(program, accepted, IncompressibleStressForm::DfgNonsymmetric)
+    }
+
+    fn new_with_stress(
+        program: &KernelProgram,
+        accepted: AcceptedCircularHoleChordalRealizationV1,
+        stress_form: IncompressibleStressForm,
+    ) -> Result<Self, Diagnostic> {
         accepted.revalidate()?;
         let source = accepted.source();
         let source_digest = source.digest_bytes();
@@ -71,14 +93,23 @@ impl TransientNavierStokesGeometryBinding2d {
                 "geometry-backed transient flow requires exact circular-hole geometry",
             )
         })?;
-        let volume = lower_transient_volume::<DIMENSION>(program, domain)?;
-        let lowered_boundary = semantic_boundary::lower_named(
+        let volume = match stress_form {
+            IncompressibleStressForm::SymmetricNewtonian => {
+                lower_transient_volume::<DIMENSION>(program, domain)?
+            }
+            IncompressibleStressForm::DfgNonsymmetric => {
+                lower_dfg_transient_volume::<DIMENSION>(program, domain)?
+            }
+        };
+        debug_assert_eq!(volume.stress_form, stress_form);
+        let lowered_boundary = semantic_boundary::lower_named_with_stress(
             program,
             domain,
             volume.velocity,
             volume.pressure,
             &volume.dynamic_viscosity,
             boundary_domains.clone(),
+            stress_form,
         )?;
         require_boundary_volume(
             &volume,
@@ -113,9 +144,13 @@ impl TransientNavierStokesGeometryBinding2d {
                         .map(|entry| (entry.boundary(), expression.clone()))
                 })
                 .collect(),
+            stress_form,
         };
+        if stress_form == IncompressibleStressForm::DfgNonsymmetric {
+            require_exact_dfg_tuple(program, &model, &lowered_boundary)?;
+        }
         require_closed_model(program, &model, volume.representation, &lowered_boundary)?;
-        boundary.require_dispositions(&model, &boundary_domains)?;
+        boundary.require_dispositions(&model, &boundary_domains, stress_form)?;
         Ok(Self {
             model,
             accepted,
@@ -157,6 +192,54 @@ impl TransientNavierStokesGeometryBinding2d {
         assembly: &dyn AssemblyBackend,
         solver: &dyn LinearSolverBackend,
     ) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic> {
+        self.advance_with_stress(
+            program,
+            resolved,
+            initial,
+            steps,
+            assembly,
+            solver,
+            IncompressibleStressForm::SymmetricNewtonian,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn advance_dfg_with_assembly(
+        &self,
+        program: &KernelProgram,
+        resolved: &ResolvedTransientFieldwiseRealization,
+        initial: SimplicialMiniNavierStokesState2d,
+        steps: NonZeroStepCount,
+        assembly: &dyn AssemblyBackend,
+        solver: &dyn LinearSolverBackend,
+    ) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic> {
+        self.advance_with_stress(
+            program,
+            resolved,
+            initial,
+            steps,
+            assembly,
+            solver,
+            IncompressibleStressForm::DfgNonsymmetric,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn advance_with_stress(
+        &self,
+        program: &KernelProgram,
+        resolved: &ResolvedTransientFieldwiseRealization,
+        initial: SimplicialMiniNavierStokesState2d,
+        steps: NonZeroStepCount,
+        assembly: &dyn AssemblyBackend,
+        solver: &dyn LinearSolverBackend,
+        stress_form: IncompressibleStressForm,
+    ) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic> {
+        if self.model.stress_form != stress_form {
+            return Err(invalid(
+                "transient numerical stress selection differs from the exact semantic binding",
+            ));
+        }
         if unique_source_digest(program) != Some(self.source_digest)
             || program.model() != resolved.model()
             || program.revision().0 != resolved.semantic_revision().get()
@@ -166,7 +249,7 @@ impl TransientNavierStokesGeometryBinding2d {
             ));
         }
         self.accepted.revalidate()?;
-        let replay = Self::new(program, self.accepted.clone())?;
+        let replay = Self::new_with_stress(program, self.accepted.clone(), stress_form)?;
         if replay.model != self.model || replay.mesh_reference != self.mesh_reference {
             return Err(invalid(
                 "transient semantic or accepted Geometry--Mesh binding changed before execution",
@@ -183,16 +266,21 @@ impl TransientNavierStokesGeometryBinding2d {
             ));
         }
         let normalized = normalize_mesh(&self.model.bounds, physical_mesh, scales.length_value())?;
-        let boundary =
-            self.boundary
-                .numerical_boundary(&self.model, &self.boundary_domains, &normalized)?;
+        let prepared_boundary = self.boundary.numerical_boundary(
+            &self.model,
+            &self.boundary_domains,
+            physical_mesh,
+            &normalized,
+            scales.velocity_value(),
+        )?;
+        let boundary = prepared_boundary.boundary();
         let numerical_initial = remesh_state(initial, normalized.clone())?;
         let block_system = super::block::transient_navier_stokes_block_system(
             program,
             &self.model,
             self.mesh_reference,
             &normalized,
-            &boundary,
+            boundary,
             resolved,
             scales,
         )?;
@@ -208,16 +296,38 @@ impl TransientNavierStokesGeometryBinding2d {
             let force = self.model.conservative_body_force(&physical)?;
             Ok([length * force[0] / pressure, length * force[1] / pressure])
         };
-        let trajectory = advance_simplicial_mini_navier_stokes_2d_with_assembly(
+        let cell_quadrature = eqiora_meshing::triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS)?;
+        let facet_quadrature = eqiora_meshing::simplex_duffy_gauss_legendre(DIMENSION - 1, 2)?;
+        if stress_form == IncompressibleStressForm::DfgNonsymmetric {
+            require_dfg_abstract_work(
+                physical_mesh,
+                &self.boundary,
+                steps,
+                numerical_plan,
+                &cell_quadrature,
+                &facet_quadrature,
+            )?;
+        }
+        let essential_velocity =
+            |coordinate| prepared_boundary.essential_velocity(&normalized, coordinate);
+        let advance = match stress_form {
+            IncompressibleStressForm::SymmetricNewtonian => {
+                advance_simplicial_mini_navier_stokes_2d_with_assembly
+            }
+            IncompressibleStressForm::DfgNonsymmetric => {
+                advance_dfg_simplicial_mini_navier_stokes_2d_with_assembly
+            }
+        };
+        let trajectory = advance(
             &normalized,
-            &boundary,
-            &|_| Ok([0.0; DIMENSION]),
+            boundary,
+            &essential_velocity,
             &body_force,
             numerical_initial,
             steps,
             numerical_plan,
-            &eqiora_meshing::triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS)?,
-            &eqiora_meshing::simplex_duffy_gauss_legendre(DIMENSION - 1, 2)?,
+            &cell_quadrature,
+            &facet_quadrature,
             &checked,
             solver,
         )?;
@@ -228,6 +338,207 @@ impl TransientNavierStokesGeometryBinding2d {
         }
         Ok(trajectory)
     }
+}
+
+fn require_exact_dfg_tuple(
+    program: &KernelProgram,
+    model: &TransientIncompressibleNavierStokesModel2d,
+    boundary: &semantic_boundary::LoweredNamedStokesBoundary2d,
+) -> Result<(), Diagnostic> {
+    if model.bounds != [[0.0, 2.2], [0.0, 0.41]]
+        || model.mass_density() != 1.0
+        || model.dynamic_viscosity() != 0.001
+        || model.force_potential_expression.constant_value() != Some(0.0)
+    {
+        return Err(lowering_error(
+            model.domain,
+            "private DFG binding requires the exact rho=1, mu=0.001, zero-force 2.2 by 0.41 tuple",
+        ));
+    }
+    if boundary.normal_velocity_coefficients.len() != 1 {
+        return Err(lowering_error(
+            model.domain,
+            "private DFG binding requires exactly one named inlet-profile coefficient",
+        ));
+    }
+    let Some((profile, definition)) = boundary.normal_velocity_coefficients.get("inlet") else {
+        return Err(lowering_error(
+            model.domain,
+            "private DFG binding requires its sole prescribed profile on `inlet`",
+        ));
+    };
+    let expression = relation_expression(program, *definition)?;
+    let root = unique_root(expression, *definition)?;
+    let source = load_definition_root(expression, root, *profile).ok_or_else(|| {
+        lowering_error(
+            *definition,
+            "DFG inlet profile requires one exact scalar definition",
+        )
+    })?;
+    let (speed, height) = exact_dfg_profile_parameters(expression, source).ok_or_else(|| {
+        lowering_error(
+            *definition,
+            "DFG inlet profile must be exactly `4 * Umax * y * (H - y) / H ^ 2`",
+        )
+    })?;
+    let speed = parameter_value(program, expression, speed, *definition)?;
+    let height = parameter_value(program, expression, height, *definition)?;
+    if speed != 0.3 || height != 0.41 {
+        return Err(lowering_error(
+            *definition,
+            "private DFG inlet requires exact Umax=0.3 and H=0.41 Parameter values",
+        ));
+    }
+    Ok(())
+}
+
+fn exact_dfg_profile_parameters(expression: &ExprDag, source: ExprId) -> Option<(ExprId, ExprId)> {
+    let ExprNode::Div(numerator, denominator) = expression.node(source)? else {
+        return None;
+    };
+    let ExprNode::PowI(height_squared, 2) = expression.node(*denominator)? else {
+        return None;
+    };
+    let height = parameter(expression, *height_squared)?;
+    let mut factors = Vec::new();
+    flatten_product(expression, *numerator, &mut factors);
+    if factors.len() != 4 {
+        return None;
+    }
+    let four = factors.iter().position(|factor| {
+        matches!(
+            expression.node(*factor),
+            Some(ExprNode::Constant(value))
+                if value.value() == 4.0 && value.dim() == DimExponents::DIMENSIONLESS
+        )
+    })?;
+    let coordinate = factors.iter().position(|factor| {
+        matches!(
+            expression.node(*factor),
+            Some(ExprNode::SpatialCoordinate(1))
+        )
+    })?;
+    let difference = factors.iter().position(|factor| {
+        let Some(ExprNode::Sub(left, right)) = expression.node(*factor) else {
+            return false;
+        };
+        parameter(expression, *left) == Some(height)
+            && matches!(
+                expression.node(*right),
+                Some(ExprNode::SpatialCoordinate(1))
+            )
+    })?;
+    let speed_index = (0..factors.len()).find(|index| {
+        ![four, coordinate, difference].contains(index)
+            && parameter(expression, factors[*index]).is_some()
+    })?;
+    let speed = parameter(expression, factors[speed_index])?;
+    (speed != height).then_some((factors[speed_index], *height_squared))
+}
+
+fn flatten_product(expression: &ExprDag, value: ExprId, factors: &mut Vec<ExprId>) {
+    if let Some(ExprNode::Mul(left, right)) = expression.node(value) {
+        flatten_product(expression, *left, factors);
+        flatten_product(expression, *right, factors);
+    } else {
+        factors.push(value);
+    }
+}
+
+fn parameter(expression: &ExprDag, value: ExprId) -> Option<RawId> {
+    match expression.node(value) {
+        Some(ExprNode::Symbol(SymbolRef::Parameter(parameter))) => Some(parameter.erase()),
+        _ => None,
+    }
+}
+
+fn parameter_value(
+    program: &KernelProgram,
+    expression: &ExprDag,
+    value: ExprId,
+    owner: RawId,
+) -> Result<f64, Diagnostic> {
+    crate::spatial_expression::lower(program, expression, value, owner, DIMENSION)?
+        .constant_value()
+        .ok_or_else(|| lowering_error(owner, "DFG profile Parameter is not a finite constant"))
+}
+
+fn require_dfg_abstract_work(
+    mesh: &SimplicialMesh,
+    boundary: &CorrespondenceBoundary2d,
+    steps: NonZeroStepCount,
+    plan: crate::simplicial_navier_stokes::MiniNavierStokesStepPlan2d,
+    cell_quadrature: &eqiora_meshing::QuadratureRule,
+    facet_quadrature: &eqiora_meshing::QuadratureRule,
+) -> Result<(), Diagnostic> {
+    let number = |value: usize, name: &str| {
+        u64::try_from(value)
+            .map_err(|_| invalid(format!("DFG {name} exceeds the abstract-work counter")))
+    };
+    let add = |left: u64, right: u64, name: &str| {
+        left.checked_add(right)
+            .ok_or_else(|| invalid(format!("DFG {name} overflows abstract work")))
+    };
+    let multiply = |left: u64, right: u64, name: &str| {
+        left.checked_mul(right)
+            .ok_or_else(|| invalid(format!("DFG {name} overflows abstract work")))
+    };
+    let vertices = number(mesh.vertices().len(), "vertex count")?;
+    let cells = number(mesh.cells().len(), "cell count")?;
+    let boundary_facets = number(boundary.boundary_facet_count(), "boundary-facet count")?;
+    let outlet_facets = number(boundary.outlet_facet_count(), "outlet-facet count")?;
+    let unknowns = add(
+        multiply(3, vertices, "vertex coefficient count")?,
+        multiply(2, cells, "bubble coefficient count")?,
+        "coefficient count",
+    )?;
+    let _packets = add(cells, outlet_facets, "packet count")?;
+    let audit = multiply(2, unknowns, "centered audit")?;
+    let sparse_nnz = multiply(unknowns, unknowns, "structural nonzero bound")?;
+    let line_trials = add(
+        number(plan.maximum_line_search_steps(), "line-search count")?,
+        1,
+        "line-search trial count",
+    )?;
+    let nonlinear = multiply(
+        number(plan.maximum_newton_iterations().get(), "Newton count")?,
+        line_trials,
+        "nonlinear factor",
+    )?;
+    let iteration_factor = add(
+        nonlinear,
+        add(audit, 1, "audit factor")?,
+        "iteration factor",
+    )?;
+    let cell_work = multiply(
+        cells,
+        number(cell_quadrature.points().len(), "cell quadrature count")?,
+        "cell work",
+    )?;
+    let facet_work = multiply(
+        boundary_facets,
+        number(facet_quadrature.points().len(), "facet quadrature count")?,
+        "facet work",
+    )?;
+    let linear_work = multiply(
+        number(
+            plan.linear_solver().maximum_iterations().get(),
+            "linear iteration count",
+        )?,
+        sparse_nnz,
+        "linear work",
+    )?;
+    let spatial_work = add(
+        add(cell_work, facet_work, "quadrature work")?,
+        linear_work,
+        "spatial work",
+    )?;
+    let _work = multiply(
+        number(steps.get(), "step count")?,
+        multiply(iteration_factor, spatial_work, "step work")?,
+        "campaign work",
+    )?;
+    Ok(())
 }
 
 fn require_closed_model(
