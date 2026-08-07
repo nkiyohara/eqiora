@@ -40,6 +40,27 @@ setup-free `--plan` inspection or diagnostic and infrastructure debugging. It
 is not an ordinary executable gate entry point; use the mise tasks for an
 acceptance run so locked Studio setup cannot be skipped accidentally.
 
+## Minimum sufficient verification
+
+Run the cheapest repository-owned check that can falsify the affected claim.
+`affected` remains the ordinary pre-integration gate for a complete patch, but
+it is not a reason to repeat an equivalent or broader run after that patch has
+already passed. For a low-risk delta only, reuse an earlier result after proving
+the complete candidate delta byte-identical, including paths, modes, and binary
+bytes, and proving the intervening base change disjoint from the gate definition,
+selected dependency closure, toolchain, authority, inputs, and claimed behavior.
+A stable patch ID and conflict-free rebase alone are insufficient. Otherwise
+rerun the affected surface. High-risk envelopes execute the exact-head mise gate
+and wait for relevant hosted checks. A permitted low-risk live bypass executes
+the exact-head mise gate and may track running hosted checks post-merge under
+the public verification topology.
+
+A localized correction reruns the check that exposed the defect plus its
+semantic case and directly affected contract checks. Escalate to another lane,
+the whole affected tier, `periodic`, or a hosted wait only when an anomaly or
+named durable risk can make that wider result change the integration decision.
+Do not use a full gate, clean rebuild, or repeated matrix as reassurance alone.
+
 Every plan prints its selected paths, Cargo packages, registered cases, exact
 commands, execution lanes, resource requests, and limitations. Execution is
 shell-free. Commands remain ordered and fail-fast inside one lane; independent

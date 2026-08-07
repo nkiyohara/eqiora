@@ -156,10 +156,13 @@ Issue queue, or the roadmap, and is never committed.
 
 ## Rigor in proportion to durable risk
 
-Outcome contracts freeze observable results and bounds, not Landlock, seccomp, allocator,
-worklist, or other internals unless claimed. Reserve full ceremony for durable risk;
-adapters, application surfaces, and private glue need typed boundaries and focused tests,
-not automatically an RFC, schema, digest, registry, dual derivation, or sandbox.
+Every check, review, lane split, artifact, and wait must name a decision it can change or a
+plausible defect it can expose. For low-risk work, reuse accepted evidence only after proving
+the complete delta byte-identical and the base change disjoint from its gate, closure, toolchain,
+authority, inputs, and behavior; patch-id alone is not proof. Use focused checks and merge promptly.
+Do not repeat broad gates or whole-delta review solely because a head moved. Durable risk retains
+independent evidence and hosted waiting; low-risk bypass retains exact-head mise and CI tracking.
+Outcome contracts freeze observable results and bounds, not internals; local glue needs no ceremony.
 
 Resource gates use raw input caps and deterministic implementation-independent abstract
 cost, not live allocation or worklist lifetime unless residency is claimed. If an oracle
@@ -167,10 +170,7 @@ outgrows the seam or needs new OS trust, simplify the contract or separate autho
 never relax inconsistency. Existing accepted claims are not widened:
 new, reopened, and rejected lanes use this calibration at their next contract freeze.
 
-Apply the abstraction and public-API budget before adding a crate, public type, enum,
-trait, wire field, or registry. Ordinary changes only move `cargo xtask
-check-architecture` numbers down; raising a ceiling or debt is a reviewed architecture
-change with reason and deletion condition.
+Apply the abstraction/API budget before any crate, public type, enum, trait, wire field, or registry; ordinary changes only lower architecture numbers, and raising a ceiling or debt is reviewed with reason and deletion condition.
 
 Prefer the smallest conventional local tool. Put large build, candidate, and worktree scratch under home-backed
 `TMPDIR`, never OS `/tmp`. Keep maintainer-specific hosts/paths out of the repository. Add no protocol or durable contract to work around build, cache, sync, or editor-host limits.

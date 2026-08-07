@@ -269,9 +269,28 @@ model.
 
 ## Rigor and mechanism budget
 
-The durable-risk classes listed under branch and integration discipline keep
-their independent evidence and fresh-context review gates. For all other work,
-process must not become a larger product than the seam it protects:
+The minimum sufficient process is a hard rule. Every check, review, lane split,
+artifact, and wait must name the decision it can change or a plausible defect
+it can expose. For a low-risk delta only, an earlier result may be reused after
+proving the complete candidate delta byte-identical, including paths, modes,
+and binary bytes, and proving the intervening base change disjoint from the
+gate definition, selected dependency closure, toolchain, authority, inputs, and claimed
+behavior. A stable patch ID and conflict-free rebase are supporting signals,
+not that proof. Durable-risk envelopes retain exact-head mise and relevant
+hosted checks before merge. A permitted low-risk live bypass retains exact-head
+mise and tracks already-running hosted checks as post-merge signals under the
+public verification topology.
+
+Do not repeat whole-delta review, widen a focused check to a broad gate, or wait
+for unrelated hosted work merely because a head moved or a routine template
+contains the step. A focused failure or anomaly escalates only to the smallest
+additional surface that can distinguish its cause.
+
+Localized low-risk deltas use focused checks and merge promptly. The
+durable-risk classes listed under branch and integration discipline retain
+independent evidence, fresh-context review, and relevant hosted gates only for
+the concrete risky surface the delta can affect. For all other work, process
+must not become a larger product than the seam it protects:
 
 - adapters, application surfaces, and private glue use typed boundaries plus
   focused positive and falsifier tests; they do not automatically acquire an
@@ -415,9 +434,11 @@ Branches are short-lived and scoped to one contract cell, capability closure,
 or independent outward lane. A high-fan-out predecessor merges before its
 consumer branches begin; composition evidence begins only after all of its
 parent capability paths are accepted.
-Rebase the current integration head once before final local verification. The
-integrator records the exact local commands and limitations, merges only a
-passing affected closure with any required independent review, and deletes the
+Rebase the current integration head once before final local verification. A
+low-risk lane may satisfy that final step through the exact reuse rule above;
+all other lanes execute the gate on the current head. The integrator records
+the exact local commands and limitations, merges only a passing or rule-admitted
+reused affected closure with any required independent review, and deletes the
 merged branch. Hosted checks validate the exact proposed or integrated revision
 but complement rather than replace repository-owned local acceptance.
 
