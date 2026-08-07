@@ -208,6 +208,11 @@ class FakeGitHub:
         self.http_failure_path: str | None = None
         self.pull_content_type = "application/json"
         self.files_content_type = "application/json"
+        self.identity_reads = 0
+        self.move_boundary: str | None = None
+
+    def _move_head(self) -> None:
+        self.pull["head"]["sha"] = "c" * 40
 
     def _response(self, payload: bytes, *, content_type: str) -> Response:
         return Response(payload, content_type=content_type)
@@ -232,10 +237,13 @@ class FakeGitHub:
 
         prefix = f"/repos/{BASE_REPOSITORY}/pulls/{PULL_NUMBER}"
         if decoded_path == prefix and not parsed.query:
+            self.identity_reads += 1
             return self._response(
                 json.dumps(self.pull).encode(), content_type=self.pull_content_type
             )
         if decoded_path == f"{prefix}/files":
+            if self.move_boundary == "files":
+                self._move_head()
             page = urllib.parse.parse_qs(parsed.query).get("page", ["1"])[0]
             payload = self.files if page == "1" else []
             return self._response(
@@ -244,6 +252,8 @@ class FakeGitHub:
 
         marker = "/contents/"
         if marker in decoded_path:
+            if self.move_boundary == "content":
+                self._move_head()
             repository_path, blob_path = decoded_path.split(marker, maxsplit=1)
             repository = repository_path.removeprefix("/repos/")
             ref = urllib.parse.parse_qs(parsed.query).get("ref", [""])[0]
@@ -365,6 +375,22 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
             },
             {"api.github.test"},
         )
+
+    def test_05_changed_file_inventory_stays_bound_during_acquisition(self) -> None:
+        stable = FakeGitHub()
+        self.assert_certified(stable)
+        self.assertGreaterEqual(
+            stable.identity_reads,
+            2,
+            "mutable pull-file metadata requires a final identity observation",
+        )
+
+        for boundary in ("files", "content"):
+            with self.subTest(head_moves_before=boundary):
+                moved = FakeGitHub()
+                moved.move_boundary = boundary
+                self.assert_rejected(moved)
+                self.assertGreaterEqual(moved.identity_reads, 2)
 
     def test_10_non_decreasing_and_non_exact_numeric_changes_are_rejected(self) -> None:
         mutations = {
