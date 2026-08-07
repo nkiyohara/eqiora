@@ -20,6 +20,16 @@ line-search residual, the analytic Jacobian, and the centered-Jacobian audit.
 Mass, energy-skew convection, pressure, continuity, source, traction,
 ordering, and essential elimination remain unchanged.
 
+The registered positive scopes a test-only probe around the actual
+source-bound advance. For every observed local pair it independently computes
+`mu delta_(r,c) grad(psi_a).grad(psi_b)`, checks the returned production pair,
+observes a P1 tuple with nonzero crossed action, and observes a nonzero
+`a=b=4` MINI-bubble action. On the P1 discriminator it explicitly distinguishes
+no subtraction (`direct+crossed`), one subtraction (`direct`), two
+subtractions (`direct-crossed`), and sign-reversed subtraction
+(`direct+2 crossed`). A second run poisons the probed return; accepted advance
+would prove the helper was unused and must fail the test.
+
 On the unit reference triangle, the exact discriminators are:
 
 - `u=(x,x)`, `v=(x+y,0)`: DFG/crossed/symmetric are `1/2, 1, 3/2`
@@ -68,15 +78,31 @@ nonsymmetric pure viscous matrix is wrong.
 16. An exact-zero-only package fails because the nonzero source-bound checked
     step is the first obligation.
 
-For raw counts `(V,C,B,Qc,Qf,S,N,L,K)`, the full coefficient width is
-`3V+2C`, packet count is `C+B_outlet <= C+B`, and abstract work is
+The exact finite structural witness freezes
 
 ```text
-O(S * (N*(L+1)+A+1) * (C*Qc+B*Qf+K*sparse_nnz)).
+(V,C,B,Qc,Qf,S,N,L,K) = (13,17,9,25,2,1,16,12,2000)
+unknowns = 3V+2C = 73
+A = 2*unknowns = 146
+sparse_nnz = unknowns^2 = 5329
 ```
 
-All count/product construction must be checked. These are deterministic
-abstract-operation and coefficient bounds, not reduced-width, allocation,
+Here `Qc=5*5` and `Qf=2` are the already selected quadrature point counts;
+`A` is the implementation-independent columnwise centered-audit upper bound;
+and `sparse_nnz` is the dense structural upper bound. Packet count is
+`C+B_outlet=19 <= C+B=26`. The exact abstract-work construction is
+
+```text
+S * (N*(L+1)+A+1) * (C*Qc+B*Qf+K*sparse_nnz)
+= 1 * (16*13+146+1) * (17*25+9*2+2000*5329)
+= 3,783,747,265.
+```
+
+The exact oracle performs checked construction of every addition and
+multiplication and supplies targeted overflow witnesses for `3V`, `2C`, their
+sum, `C+B_outlet`, `L+1`, `N*(L+1)`, `A+1`, their sum, `C*Qc`, `B*Qf`,
+`K*sparse_nnz`, both spatial sums, and the outer `S` product. These are
+deterministic abstract-operation and coefficient bounds, not reduced-width, allocation,
 residency, storage, wall-clock, production-scale, GPU, MPI, or performance
 claims. No numerical acceptance tolerance or benchmark expected value exists
 in this directory.

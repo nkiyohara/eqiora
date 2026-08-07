@@ -331,23 +331,126 @@ def checked_mul(left: int, right: int, maximum: int) -> int:
     return value
 
 
-def check_abstract_bounds() -> None:
-    maximum = 2**64 - 1
-    vertices, cells, boundary, outlet = 13, 17, 9, 2
+def abstract_work(
+    *,
+    cells: int,
+    boundary_facets: int,
+    cell_points: int,
+    facet_points: int,
+    steps: int,
+    newton: int,
+    line_searches: int,
+    linear_iterations: int,
+    audit: int,
+    sparse_nnz: int,
+    maximum: int,
+) -> int:
+    line_trials = checked_add(line_searches, 1, maximum)
+    nonlinear = checked_mul(newton, line_trials, maximum)
+    iteration_factor = checked_add(nonlinear, checked_add(audit, 1, maximum), maximum)
+    cell_work = checked_mul(cells, cell_points, maximum)
+    facet_work = checked_mul(boundary_facets, facet_points, maximum)
+    linear_work = checked_mul(linear_iterations, sparse_nnz, maximum)
+    spatial_work = checked_add(
+        checked_add(cell_work, facet_work, maximum), linear_work, maximum
+    )
+    return checked_mul(
+        steps, checked_mul(iteration_factor, spatial_work, maximum), maximum
+    )
+
+
+def coefficient_counts(
+    vertices: int, cells: int, outlet_facets: int, maximum: int
+) -> tuple[int, int]:
     unknowns = checked_add(
         checked_mul(3, vertices, maximum), checked_mul(2, cells, maximum), maximum
     )
-    packets = checked_add(cells, outlet, maximum)
+    return unknowns, checked_add(cells, outlet_facets, maximum)
+
+
+def check_abstract_bounds() -> None:
+    maximum = 2**64 - 1
+    vertices, cells, boundary, outlet = 13, 17, 9, 2
+    cell_points = checked_mul(5, 5, maximum)
+    facet_points, steps, newton, line_searches, linear_iterations = 2, 1, 16, 12, 2000
+    unknowns, packets = coefficient_counts(vertices, cells, outlet, maximum)
+    audit = checked_mul(2, unknowns, maximum)  # columnwise centered-audit upper bound
+    sparse_nnz = checked_mul(
+        unknowns, unknowns, maximum
+    )  # dense structural upper bound
+    raw_input = (
+        vertices,
+        cells,
+        boundary,
+        cell_points,
+        facet_points,
+        steps,
+        newton,
+        line_searches,
+        linear_iterations,
+    )
+    assert raw_input == (13, 17, 9, 25, 2, 1, 16, 12, 2000)
     assert unknowns == 3 * vertices + 2 * cells
     assert packets == cells + outlet <= cells + boundary
-    # Essential elimination may lower width; it may not create a gauge width.
-    assert unknowns < unknowns + 1
-    try:
-        checked_mul(maximum, 2, maximum)
-    except OverflowError:
-        pass
-    else:
-        raise AssertionError("raw/count arithmetic must fail closed on overflow")
+    assert (unknowns, audit, sparse_nnz) == (73, 146, 5329)
+    arguments = {
+        "cells": cells,
+        "boundary_facets": boundary,
+        "cell_points": cell_points,
+        "facet_points": facet_points,
+        "steps": steps,
+        "newton": newton,
+        "line_searches": line_searches,
+        "linear_iterations": linear_iterations,
+        "audit": audit,
+        "sparse_nnz": sparse_nnz,
+        "maximum": maximum,
+    }
+    work = abstract_work(**arguments)
+    assert work == 3_783_747_265
+
+    count_overflows = (
+        (maximum, 1, 1),
+        (1, maximum, 1),
+        (maximum // 3, 1, 1),
+        (0, maximum // 2, maximum // 2 + 2),
+    )
+    for counts in count_overflows:
+        try:
+            coefficient_counts(*counts, maximum)
+        except OverflowError:
+            continue
+        raise AssertionError(
+            f"coefficient/packet arithmetic accepted overflow witness {counts}"
+        )
+
+    overflow_witnesses = (
+        {"line_searches": maximum},
+        {"newton": maximum, "line_searches": 1},
+        {"newton": maximum - 1, "line_searches": 0, "audit": 1},
+        {"audit": maximum},
+        {"cells": maximum, "cell_points": 2},
+        {"boundary_facets": maximum, "facet_points": 2},
+        {"linear_iterations": maximum, "sparse_nnz": 2},
+        {"cells": maximum, "cell_points": 1, "boundary_facets": 1, "facet_points": 1},
+        {
+            "cells": maximum - 1,
+            "cell_points": 1,
+            "boundary_facets": 0,
+            "facet_points": 0,
+            "linear_iterations": 1,
+            "sparse_nnz": 2,
+        },
+        {"steps": maximum},
+    )
+    for changes in overflow_witnesses:
+        try:
+            abstract_work(**(arguments | changes))
+        except OverflowError:
+            continue
+        raise AssertionError(
+            f"abstract-work arithmetic accepted overflow witness {changes}"
+        )
 
 
 def main() -> None:

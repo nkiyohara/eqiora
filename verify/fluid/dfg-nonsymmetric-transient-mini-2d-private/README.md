@@ -18,13 +18,22 @@ substitute. The Rust selector must:
 4. independently obtain one finite, nonzero, weakly continuous MINI/P1
    initial state from the already accepted steady MINI solver on the same
    boundary data;
-5. advance exactly one checked backward-Euler/Newton step; and
+5. advance exactly one checked backward-Euler/Newton step while a scoped
+   test-only probe observes the actual DFG pair used by its local
+   assembly/linearization on both P1 and MINI-bubble actions; and
 6. return two finite states, one accepted step, advanced time,
    `BoundaryTraction`, no gauge coefficient, at least one checked packet, and
    a nonempty centered-Jacobian audit.
 
 Only after that positive does the selector execute the direct DFG local-pair
-discriminator and the linked mutant obligations. The standalone exact oracle
+discriminator and the linked mutant obligations. A second run makes the same
+scoped pair probe return non-finite data and must fail: this proves the
+source-bound advance consumes the observed pair rather than calling a correct
+unused helper before delegating to the symmetric path. The probe exists only
+under the crate-private test surface; it is not a public/runtime stress
+selector, product option, result DTO, or durable evidence channel.
+
+The standalone exact oracle
 uses `fractions.Fraction` to derive the direct block independently of the
 production symmetric-minus-crossed expression:
 
@@ -34,7 +43,8 @@ python3 verify/fluid/dfg-nonsymmetric-transient-mini-2d-private/oracle.py
 
 It fixes the affine P1, actual MINI-bubble, pressure/continuity, inlet,
 no-gauge, convection-identity, all-16-mutant, coefficient-count, packet-count,
-and checked-overflow outcomes with no floating tolerance. It chooses no DFG
+the exact finite abstract-work product, and targeted checked-overflow outcomes
+with no floating tolerance. It chooses no DFG
 benchmark result, comparison interval, mesh/refinement family, time-series
 observable, or solver acceptance tolerance.
 
@@ -67,6 +77,9 @@ coordinates.
 The evidence author read the accepted NUM0 contract and review and the sealed
 dual-derivation reconciliation at SHA-256
 `b5427867b7039d15e7a776a80a6a3a6bf9a34b0993850a640b6cdc416c5e9a78`.
+The four focused corrections answer the exact evidence review at SHA-256
+`98ce1eab3ce1d755412199e95f46631b27b758687595f1236bd6419069449f63`;
+they do not reopen or amend the scientific formulation.
 No NUM0 implementation, candidate output, implementation-writer scratch,
 benchmark value, or tuned tolerance was read. The finite positive inputs use
 the exact accepted DFG tuple, predecessor source/mesh owner, predecessor

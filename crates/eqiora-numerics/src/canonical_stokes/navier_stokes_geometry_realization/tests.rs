@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, HashSet};
 use std::num::{NonZeroU16, NonZeroUsize};
+use std::sync::atomic::{AtomicU8, Ordering};
 
 use eqiora_artifact::AcceptedCircularHoleChordalRealizationV1;
 use eqiora_assembly::{
@@ -60,6 +61,7 @@ const TIME: DimExponents = DimExponents {
     time: 1,
     ..DimExponents::DIMENSIONLESS
 };
+const BOUNDARY_NAMES: [&str; 4] = ["inlet", "outlet", "walls", "cylinder"];
 
 const SOURCE: &str = r#"
 public pure operator outer_product(left: spatial[1], right: spatial[1]) -> spatial[2]
@@ -109,7 +111,7 @@ model Main {
 fn source_bound_positive_executes_exact_zero_step() {
     let source = exact_source();
     let owner = owner(&source, 1.0e-4, 50, 1.0e-5);
-    let program = geometry_program(&source, SOURCE, ["inlet", "outlet", "walls", "cylinder"]);
+    let program = geometry_program(&source, SOURCE, BOUNDARY_NAMES);
 
     let cartesian_error = lower_transient_incompressible_navier_stokes_cartesian_2d(&program)
         .expect_err("the public Cartesian lowerer must reject GeometryRegion");
@@ -213,11 +215,7 @@ fn source_and_mesh_identity_mismatches_fail_before_materialization() {
     let source = exact_source();
     let accepted = owner(&source, 1.0e-4, 50, 1.0e-5);
     let cartesian = cartesian_program(SOURCE);
-    let program = geometry_program_from_cartesian(
-        &cartesian,
-        &source,
-        ["inlet", "outlet", "walls", "cylinder"],
-    );
+    let program = geometry_program_from_cartesian(&cartesian, &source, BOUNDARY_NAMES);
     let binding = TransientNavierStokesGeometryBinding2d::new(&program, accepted.clone()).unwrap();
     let resolved = resolve(&program, &binding);
     let initial = exact_zero_state(accepted.mesh().mesh());
@@ -233,11 +231,8 @@ fn source_and_mesh_identity_mismatches_fail_before_materialization() {
         ],
     );
     let foreign_owner = owner(&foreign_source, 1.0e-4, 50, 1.0e-5);
-    let foreign_program = geometry_program_from_cartesian(
-        &cartesian,
-        &foreign_source,
-        ["inlet", "outlet", "walls", "cylinder"],
-    );
+    let foreign_program =
+        geometry_program_from_cartesian(&cartesian, &foreign_source, BOUNDARY_NAMES);
     assert_eq!(foreign_program.model(), program.model());
     assert_eq!(foreign_program.revision(), program.revision());
     TransientNavierStokesGeometryBinding2d::new(&foreign_program, foreign_owner).unwrap();
@@ -311,7 +306,7 @@ fn authored_correspondence_names_and_partition_are_not_inferred() {
                     named("outlet", EDGE_DIMENSION, &[1]),
                 ],
             ),
-            ["inlet", "outlet", "walls", "cylinder"],
+            BOUNDARY_NAMES,
             "uncovered exterior facet",
         ),
     ] {
@@ -359,11 +354,7 @@ fn exact_boundary_dispositions_and_closed_grammar_fail_closed() {
             "relation cylinder_wall continuous on y_upper { trace(velocity) = 0; }",
             "relation cylinder_wall continuous on y_upper {\n    normal(\n      2 * dynamic_viscosity * symmetric_part(grad(velocity))\n      - isotropic_lift(pressure)\n    ) = 0;\n  }",
         );
-    let wrong_program = geometry_program(
-        &source,
-        &wrong_dispositions,
-        ["inlet", "outlet", "walls", "cylinder"],
-    );
+    let wrong_program = geometry_program(&source, &wrong_dispositions, BOUNDARY_NAMES);
     let boundary_error =
         TransientNavierStokesGeometryBinding2d::new(&wrong_program, accepted.clone())
             .expect_err("outlet traction cannot become essential or migrate to cylinder");
@@ -373,11 +364,7 @@ fn exact_boundary_dispositions_and_closed_grammar_fail_closed() {
         "relation outlet_traction continuous on x_upper {\n    normal(\n      2 * dynamic_viscosity * symmetric_part(grad(velocity))\n      - isotropic_lift(pressure)\n    ) = 0;\n  }",
         "relation outlet_traction continuous on x_upper { trace(velocity) = 0; }",
     );
-    let all_essential_program = geometry_program(
-        &source,
-        &all_essential,
-        ["inlet", "outlet", "walls", "cylinder"],
-    );
+    let all_essential_program = geometry_program(&source, &all_essential, BOUNDARY_NAMES);
     let gauge_error =
         TransientNavierStokesGeometryBinding2d::new(&all_essential_program, accepted.clone())
             .expect_err("the accepted path has BoundaryTraction and no gauge");
@@ -390,7 +377,7 @@ fn exact_boundary_dispositions_and_closed_grammar_fail_closed() {
         "  relation inlet_velocity continuous on x_lower { trace(velocity) = 0; }",
         "  relation inlet_velocity continuous on x_lower { trace(velocity) = 0; }\n  relation extra_value continuous on extra { trace(velocity) = 0; }",
     );
-    let extra_program = geometry_program(&source, &extra, ["inlet", "outlet", "walls", "cylinder"]);
+    let extra_program = geometry_program(&source, &extra, BOUNDARY_NAMES);
     let extra_error = TransientNavierStokesGeometryBinding2d::new(&extra_program, accepted)
         .expect_err("an additional GeometryBoundary/Relation is not ignored");
     assert_eq!(extra_error.code(), codes::INVALID_SPATIAL_LOWERING);
@@ -577,7 +564,7 @@ fn assert_named_partition(owner: &AcceptedCircularHoleChordalRealizationV1) {
             .collect::<Vec<_>>()
     );
     let mut owned = BTreeSet::new();
-    for name in ["inlet", "outlet", "walls", "cylinder"] {
+    for name in BOUNDARY_NAMES {
         let facets = correspondence
             .region_entity_set_entities(geometry, name)
             .unwrap();
@@ -821,27 +808,19 @@ impl AssemblyBackend for RejectAnyAssembly {
 }
 
 fn dfg_source_bound_nonzero_positive_executes_before_mutants() {
+    use crate::simplicial_navier_stokes::element::with_dfg_viscous_pair_probe;
+
     let source = exact_source();
     let accepted = owner(&source, 1.0e-4, 50, 1.0e-5);
-    let program = geometry_program(
-        &source,
-        &dfg_source(),
-        ["inlet", "outlet", "walls", "cylinder"],
-    );
+    let program = geometry_program(&source, &dfg_source(), BOUNDARY_NAMES);
     let binding = TransientNavierStokesGeometryBinding2d::new_dfg(&program, accepted.clone())
         .expect("the exact private DFG source binds");
     let resolved = resolve(&program, &binding);
     let initial = independent_nonzero_initial(&accepted);
-    assert!(
-        initial
-            .velocity()
-            .vertex_values()
-            .iter()
-            .flatten()
-            .any(|value| *value > 0.0)
-    );
-    let trajectory = binding
-        .advance_dfg_with_assembly(
+    let initial_vertices = initial.velocity().vertex_values();
+    assert!(initial_vertices.iter().flatten().any(|value| *value > 0.0));
+    let advance = |initial| {
+        binding.advance_dfg_with_assembly(
             &program,
             &resolved,
             initial,
@@ -849,55 +828,73 @@ fn dfg_source_bound_nonzero_positive_executes_before_mutants() {
             &REFERENCE_ASSEMBLY_BACKEND,
             &REFERENCE_LINEAR_SOLVER,
         )
+    };
+    let seen = AtomicU8::new(0);
+    let observe =
+        |basis: [usize; 2], component: [usize; 2], gradient: [[f64; 2]; 2], mu, actual| {
+            let direct = (component[0] == component[1])
+                .then(|| mu * (gradient[0][0] * gradient[1][0] + gradient[0][1] * gradient[1][1]))
+                .unwrap_or(0.0);
+            let crossed = mu * gradient[0][component[1]] * gradient[1][component[0]];
+            assert_eq!(actual, direct);
+            if basis.iter().all(|index| *index < 3) && crossed != 0.0 {
+                assert_ne!(direct + crossed, actual);
+                assert_ne!(direct - crossed, actual);
+                assert_ne!(direct + 2.0 * crossed, actual);
+                seen.fetch_or(1, Ordering::Relaxed);
+            }
+            if basis == [3, 3] && direct != 0.0 {
+                seen.fetch_or(2, Ordering::Relaxed);
+            }
+            actual
+        };
+    let trajectory = with_dfg_viscous_pair_probe(&observe, || advance(initial.clone()))
         .expect("one nonzero source-bound DFG step executes");
     assert_eq!(trajectory.states().len(), 2);
     assert_eq!(trajectory.steps().len(), 1);
     assert!(trajectory.states().iter().all(|state| {
-        state
-            .velocity()
-            .vertex_values()
-            .iter()
-            .chain(state.velocity().cell_bubble_values())
-            .flatten()
-            .copied()
-            .chain(state.pressure().vertex_values().iter().copied())
-            .all(f64::is_finite)
+        state.pressure_reference() == SimplicialMiniStokesPressureReference2d::BoundaryTraction
+            && state.pressure_reference().gauge_multiplier().is_none()
+            && state
+                .velocity()
+                .vertex_values()
+                .iter()
+                .chain(state.velocity().cell_bubble_values())
+                .flatten()
+                .copied()
+                .chain(state.pressure().vertex_values().iter().copied())
+                .all(f64::is_finite)
     }));
     assert!(trajectory.states()[1].time() > trajectory.states()[0].time());
     let step = &trajectory.steps()[0];
     assert!(step.assembly_report().packet_count() > 0);
     assert!(step.jacobian_residual_assembly_count() > 0);
-}
-
-fn direct_dfg_pair_rejects_symmetric_crossed_counts() {
-    use crate::simplicial_navier_stokes::element::dfg_viscous_pair;
-
-    assert_eq!(dfg_viscous_pair(1.0, [1.0, 0.0], 0, [1.0, 0.0], 0), 1.0);
-    assert_eq!(dfg_viscous_pair(1.0, [1.0, 0.0], 1, [0.0, 1.0], 0), 0.0);
-    assert_eq!(dfg_viscous_pair(2.0, [1.0, 0.0], 0, [1.0, 0.0], 0), 2.0);
+    assert_eq!(seen.load(Ordering::Relaxed), 3);
+    with_dfg_viscous_pair_probe(&|_, _, _, _, _| f64::NAN, || advance(initial))
+        .expect_err("a poisoned actual DFG pair must stop the source-bound advance");
 }
 
 fn dfg_semantic_pair_and_inlet_fail_closed() {
     let source = exact_source();
     let accepted = owner(&source, 1.0e-4, 50, 1.0e-5);
     let exact = dfg_source();
+    let dfg = "dynamic_viscosity * grad(velocity)";
+    let symmetric = "2 * dynamic_viscosity * symmetric_part(grad(velocity))";
+    let both_symmetric = exact.replacen(dfg, symmetric, 2);
     for wrong in [
         SOURCE.to_owned(),
-        exact.replace(
-            "dynamic_viscosity * grad(velocity)\n      - isotropic_lift(pressure)\n    ) = 0;",
-            "2 * dynamic_viscosity * symmetric_part(grad(velocity))\n      - isotropic_lift(pressure)\n    ) = 0;",
-        ),
+        both_symmetric.replacen(symmetric, dfg, 1),
+        exact.replacen(dfg, symmetric, 1),
         exact.replace(
             "trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0;",
             "trace(velocity) - normal(isotropic_lift(inlet_profile)) = 0;",
         ),
-        exact.replace("parameter inlet_speed: m / s = 0.3;", "parameter inlet_speed: m / s = 0.2;"),
+        exact.replace(
+            "parameter inlet_speed: m / s = 0.3;",
+            "parameter inlet_speed: m / s = 0.2;",
+        ),
     ] {
-        let program = geometry_program(
-            &source,
-            &wrong,
-            ["inlet", "outlet", "walls", "cylinder"],
-        );
+        let program = geometry_program(&source, &wrong, BOUNDARY_NAMES);
         TransientNavierStokesGeometryBinding2d::new_dfg(&program, accepted.clone())
             .expect_err("DFG volume/outlet/inlet identity must be exact");
     }
@@ -906,7 +903,6 @@ fn dfg_semantic_pair_and_inlet_fail_closed() {
 #[test]
 fn registered_dfg_nonsymmetric_transient_mini_oracle_executes_all_falsifiers() {
     dfg_source_bound_nonzero_positive_executes_before_mutants();
-    direct_dfg_pair_rejects_symmetric_crossed_counts();
     dfg_semantic_pair_and_inlet_fail_closed();
 }
 
@@ -991,8 +987,9 @@ fn independent_nonzero_initial(
         LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, solver_plan()),
     )
     .expect("accepted steady MINI path supplies independent nonzero initial data");
+    let pressure_reference = solution.pressure_reference();
     assert_eq!(
-        solution.pressure_reference(),
+        pressure_reference,
         SimplicialMiniStokesPressureReference2d::BoundaryTraction
     );
     SimplicialMiniNavierStokesState2d::from_stokes_solution(0.0, &solution).unwrap()

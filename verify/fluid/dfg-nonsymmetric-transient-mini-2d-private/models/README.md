@@ -24,3 +24,9 @@ constructs the correspondence-owned essential lookup, then uses the already
 accepted steady MINI/P1 solver with the same mesh, inlet trace, zero walls and
 cylinder, and traction-pressure closure. This independently produces a
 finite, nonzero, weakly continuous shaped state before the DFG advance exists.
+
+The scoped viscous-pair probe is compiled only for the crate test. It observes
+and can replace the return of the same local DFG pair consumed by the ordinary
+source-bound advance, allowing one poison run to prove use-site coupling. It
+does not select a product stress law: the exact private Model/source binding
+still owns DFG selection, while the public Cartesian path remains symmetric.
