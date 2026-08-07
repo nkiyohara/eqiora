@@ -23,11 +23,14 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
-      - name: Inspect changed-file metadata only
+      - name: Classify protected changes and exact ratchets
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: >-
           python3 tools/ci/check_trust_boundary.py
-          --repository "$GITHUB_REPOSITORY"
+          --repository "${{ github.event.pull_request.base.repo.full_name }}"
+          --head-repository "${{ github.event.pull_request.head.repo.full_name }}"
           --pull-number "${{ github.event.pull_request.number }}"
           --expected-file-count "${{ github.event.pull_request.changed_files }}"
+          --base-sha "${{ github.event.pull_request.base.sha }}"
+          --head-sha "${{ github.event.pull_request.head.sha }}"

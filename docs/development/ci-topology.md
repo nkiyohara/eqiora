@@ -14,11 +14,13 @@ Every pull request reports two independent required contexts:
    the affected Rust, MSRV, dependency, Python, Studio, and isolated-experiment
    jobs. Unknown paths fail closed to the complete surface.
 2. **CI definition trust** runs under `pull_request_target` from the exact
-   protected base revision. It reads changed-file metadata through the GitHub
-   API and never checks out, imports, or executes head code. A change to
-   workflow files, local CI/release tooling, the dependency policy, the
-   layer/facade checks, the registered-evidence runner, custom Actions, or
-   CODEOWNERS fails this context.
+   protected base revision. It reads complete changed-file metadata and only
+   the bounded inert blobs needed for the exact ratchet class below through the
+   authenticated GitHub API; it never checks out, imports, or executes head
+   code. Except for that narrow class, a change to workflow files, local
+   CI/release tooling, the dependency policy, the layer/facade checks, the
+   registered-evidence runner, custom Actions, or CODEOWNERS fails this
+   context.
 
 Both workflows start on `opened`, `reopened`, and `synchronize`. Opening a
 Draft therefore verifies its exact head immediately, while changing that same
@@ -33,6 +35,16 @@ that boundary; live Actions observation owns the provider side.
 Changed-file pagination must match the provider-owned pull-request count.
 Pull requests beyond the API's complete 3,000-file visibility boundary fail
 closed instead of trusting a truncated list.
+
+The protected-base trust classifier may approve a coupled exact file-line
+ratchet when the only changed protected path is
+`tools/ci/architecture-debt.toml`, its only byte changes strictly lower
+existing `[[file_lines]]` ceiling tokens, and protected-base code measures each
+bound-head source at exactly the new ceiling. The source reduction and ratchet
+remain in one pull request. This is a successful required trust check, not an
+owner bypass: architecture review, exact-head mise gates, and every relevant
+hosted context remain mandatory. Entries, limits, public surfaces, globs,
+prose, paths, and every other protected change remain fail-closed.
 
 The live main ruleset is active and strict, binds required `CI gate` and
 `CI definition trust` contexts to the GitHub Actions provider, rejects deletion
