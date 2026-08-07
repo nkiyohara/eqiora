@@ -24,9 +24,11 @@ use eqiora_schema::ModelView;
 use eqiora_schema::kernel::{BoundarySide, DomainDef, DomainKind, GeometryDigest, KernelNode};
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolveRequest, LinearSolver, PreconditionerPolicy,
-    REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability,
-    SolverPlan,
+    BackendId, ConvergenceReason, ExecutionReport, LinearOperator, LinearOperatorProperties,
+    LinearProblem, LinearSolution, LinearSolveRequest, LinearSolver, LinearSolverBackend,
+    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ReplicatedLinearExecution,
+    ScalarType, SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
+    accept_linear_solution_with_execution,
 };
 
 use super::TransientNavierStokesGeometryBinding2d;
@@ -807,6 +809,126 @@ impl AssemblyBackend for RejectAnyAssembly {
     }
 }
 
+/// Serial-host evidence executor for the production-mandated transient
+/// `BiCGSTAB / General / Identity / Fast / F64` tuple, which the
+/// Reproducible-only reference oracle deliberately does not declare
+/// (`SolverCapabilities::reference()`). It mirrors the accepted ALE/FSI
+/// `DenseGeneralSolver` evidence executor: the admitted plan is served by an
+/// exact dense partial-pivot elimination, and every solution passes the
+/// solver crate's independent true-residual acceptance against the unchanged
+/// plan tolerances and the frozen iteration bound.
+#[derive(Debug)]
+struct DenseGeneralSolver;
+
+impl LinearSolverBackend for DenseGeneralSolver {
+    fn provider(&self) -> SolverProvider {
+        SolverProvider::new(
+            BackendId::new("eqiora.test.dense-general"),
+            env!("CARGO_PKG_VERSION"),
+            &[],
+        )
+    }
+
+    fn capabilities(&self) -> SolverCapabilities {
+        SolverCapabilities::exact([SolverCapability {
+            algorithm: LinearSolver::BiConjugateGradientStabilized,
+            operator_properties: LinearOperatorProperties::General,
+            preconditioner: PreconditionerPolicy::Identity,
+            reduction: ReductionPolicy::Fast,
+            scalar_type: ScalarType::F64,
+        }])
+        .expect("the exact production transient solver tuple is admissible")
+    }
+
+    fn solve_with_execution(
+        &self,
+        problem: &LinearProblem<'_>,
+        plan: SolverPlan,
+        execution: &dyn ReplicatedLinearExecution,
+    ) -> Result<LinearSolution, Diagnostic> {
+        self.capabilities()
+            .require_problem(plan, ScalarType::F64, problem.properties())?;
+        if execution.report() != ExecutionReport::host_serial() {
+            return Err(Diagnostic::error(
+                codes::INVALID_REALIZATION,
+                "dense test solver requires serial-host execution",
+            ));
+        }
+        let dimension = problem.operator().columns();
+        let mut matrix = vec![0.0; dimension * dimension];
+        for column in 0..dimension {
+            let mut basis = vec![0.0; dimension];
+            basis[column] = 1.0;
+            let mut action = vec![0.0; dimension];
+            LinearOperator::apply(problem.operator(), &basis, &mut action)?;
+            for (row, value) in action.into_iter().enumerate() {
+                matrix[row * dimension + column] = value;
+            }
+        }
+        let values = solve_dense(matrix, problem.right_hand_side().to_vec())?;
+        accept_linear_solution_with_execution(
+            problem,
+            plan,
+            self.provider(),
+            ConvergenceReason::ResidualToleranceSatisfied,
+            1,
+            0.0,
+            values,
+            execution,
+        )
+    }
+}
+
+fn solve_dense(mut matrix: Vec<f64>, mut rhs: Vec<f64>) -> Result<Vec<f64>, Diagnostic> {
+    let solve_failed =
+        |message: &str| Diagnostic::error(codes::NUMERICAL_SOLVE_FAILED, message.to_owned());
+    let dimension = rhs.len();
+    for pivot in 0..dimension {
+        let selected = (pivot..dimension)
+            .max_by(|left, right| {
+                matrix[*left * dimension + pivot]
+                    .abs()
+                    .total_cmp(&matrix[*right * dimension + pivot].abs())
+            })
+            .expect("nonempty pivot suffix");
+        let pivot_value = matrix[selected * dimension + pivot];
+        if !pivot_value.is_finite() || pivot_value.abs() <= f64::MIN_POSITIVE {
+            return Err(solve_failed(
+                "dense test solver encountered a singular pivot",
+            ));
+        }
+        if selected != pivot {
+            for column in 0..dimension {
+                matrix.swap(pivot * dimension + column, selected * dimension + column);
+            }
+            rhs.swap(pivot, selected);
+        }
+        let diagonal = matrix[pivot * dimension + pivot];
+        for row in pivot + 1..dimension {
+            let factor = matrix[row * dimension + pivot] / diagonal;
+            matrix[row * dimension + pivot] = 0.0;
+            for column in pivot + 1..dimension {
+                matrix[row * dimension + column] -= factor * matrix[pivot * dimension + column];
+            }
+            rhs[row] -= factor * rhs[pivot];
+        }
+    }
+    let mut solution = vec![0.0; dimension];
+    for row in (0..dimension).rev() {
+        let remainder = (row + 1..dimension)
+            .map(|column| matrix[row * dimension + column] * solution[column])
+            .sum::<f64>();
+        solution[row] = (rhs[row] - remainder) / matrix[row * dimension + row];
+    }
+    if solution.iter().all(|value| value.is_finite()) {
+        Ok(solution)
+    } else {
+        Err(solve_failed(
+            "dense test solver produced a non-finite solution",
+        ))
+    }
+}
+
 fn dfg_source_bound_nonzero_positive_executes_before_mutants() {
     use crate::simplicial_navier_stokes::element::with_dfg_viscous_pair_probe;
 
@@ -826,7 +948,7 @@ fn dfg_source_bound_nonzero_positive_executes_before_mutants() {
             initial,
             NonZeroStepCount::new(NonZeroUsize::MIN),
             &REFERENCE_ASSEMBLY_BACKEND,
-            &REFERENCE_LINEAR_SOLVER,
+            &DenseGeneralSolver,
         )
     };
     let seen = AtomicU8::new(0);
