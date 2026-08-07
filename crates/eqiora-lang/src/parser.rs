@@ -4,9 +4,10 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, Span};
 
 mod domain;
+mod relation;
 
 use crate::ast::{
-    ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
+    BinaryOp, BoundaryConnectionDecl, BoundaryDecl, BoundaryFamilyBinderSyntax,
     BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax,
     BoundarySetBindingDecl, BoundarySetMemberSyntax, BoundarySideSyntax, ClockDecl, ComponentDecl,
     ComponentItem, ComponentParameterDecl, ComponentPortDecl, ComponentPortFamilyDecl,
@@ -15,11 +16,12 @@ use crate::ast::{
     FieldDecl, FieldSlotDecl, FrameSyntax, InstanceDecl, Item, ModelDecl, NamePath,
     ParameterBindingDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorBinaryOp,
     PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind, PureOperatorFormal,
-    PureValueClassSyntax, RationalSyntax, RelationDecl, RelationFamilyDecl, RepresentationDecl,
-    RepresentationSyntax, SignalDirectionSyntax, SupportBindingDecl, SupportSlotDecl,
-    SupportSlotSyntax, TextRange, UnaryOp, ValueShapeSyntax, VisibilitySyntax,
+    PureValueClassSyntax, RationalSyntax, RepresentationDecl, RepresentationSyntax,
+    SignalDirectionSyntax, SupportBindingDecl, SupportSlotDecl, SupportSlotSyntax, TextRange,
+    UnaryOp, ValueShapeSyntax, VisibilitySyntax,
 };
 use crate::lexer::{Token, TokenKind, lex};
+use relation::ParsedRelation;
 
 /// Parsed document, lossless tokens, and accumulated source diagnostics.
 #[derive(Debug, Clone, PartialEq)]
@@ -145,11 +147,6 @@ enum ParsedComponentItem {
 enum ParsedComponentPort {
     Ordinary(ComponentPortDecl),
     Family(ComponentPortFamilyDecl),
-}
-
-enum ParsedRelation {
-    Ordinary(RelationDecl),
-    Family(RelationFamilyDecl),
 }
 
 enum ParsedConnection {
@@ -1232,96 +1229,6 @@ impl Parser<'_> {
             phase,
             range: TextRange::new(start, end),
         })
-    }
-
-    fn parse_relation(&mut self) -> Option<RelationDecl> {
-        match self.parse_relation_inner(false)? {
-            ParsedRelation::Ordinary(relation) => Some(relation),
-            ParsedRelation::Family(_) => unreachable!("model Relations reject family binders"),
-        }
-    }
-
-    fn parse_component_relation(&mut self) -> Option<ParsedRelation> {
-        self.parse_relation_inner(true)
-    }
-
-    fn parse_relation_inner(&mut self, allow_family: bool) -> Option<ParsedRelation> {
-        let start = self.expect_keyword("relation")?.range().start();
-        let name = self.expect_identifier("Relation name")?.text().to_owned();
-        let binder = if self.at(TokenKind::LeftBracket) {
-            if !allow_family {
-                self.error_here("boundary family binders are allowed only in Components");
-                return None;
-            }
-            Some(self.parse_boundary_family_binder()?)
-        } else {
-            None
-        };
-        let activation = if self.at_keyword("continuous") {
-            self.bump();
-            ActivationSyntax::Continuous
-        } else if self.at_keyword("periodic") {
-            self.bump();
-            self.expect(TokenKind::LeftParen, "`(` after `periodic`")?;
-            let clock = self
-                .expect_identifier("periodic ClockDomain name")?
-                .text()
-                .to_owned();
-            self.expect(TokenKind::RightParen, "`)` after ClockDomain name")?;
-            ActivationSyntax::Periodic(clock)
-        } else {
-            self.error_here("expected `continuous` or `periodic(clock)` Activation");
-            return None;
-        };
-        let domain = if self.at_keyword("on") {
-            self.bump();
-            Some(self.expect_identifier("Relation Domain")?.text().to_owned())
-        } else {
-            None
-        };
-        self.expect(TokenKind::LeftBrace, "`{` before residuals")?;
-        let mut residuals = Vec::new();
-        while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
-            let residual = self.parse_expression(0)?;
-            self.expect(TokenKind::Equal, "`= 0` after residual expression")?;
-            let zero = self.parse_signed_number()?;
-            if zero != 0.0 {
-                self.error_previous("Relation right-hand side must be exactly zero");
-            }
-            self.expect(TokenKind::Semicolon, "`;` after residual")?;
-            residuals.push(residual);
-        }
-        if residuals.is_empty() {
-            self.error_here("Relation requires at least one residual");
-        }
-        let end = self
-            .expect(TokenKind::RightBrace, "`}` after Relation")?
-            .range()
-            .end();
-        let relation = RelationDecl {
-            name,
-            activation,
-            domain,
-            residuals,
-            range: TextRange::new(start, end),
-        };
-        let Some(binder) = binder else {
-            return Some(ParsedRelation::Ordinary(relation));
-        };
-        if !matches!(relation.activation(), ActivationSyntax::Continuous) {
-            self.error_here("a boundary Relation family must be continuous");
-            return None;
-        }
-        if relation.domain() != Some(binder.member()) {
-            self.error_here(
-                "a boundary Relation family must be declared on its bound boundary member",
-            );
-            return None;
-        }
-        Some(ParsedRelation::Family(RelationFamilyDecl {
-            relation,
-            binder,
-        }))
     }
 
     fn parse_connection(&mut self, allow_family: bool) -> Option<ParsedConnection> {

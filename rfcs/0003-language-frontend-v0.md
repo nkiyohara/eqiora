@@ -42,7 +42,7 @@ model thermal {
   clock control = periodic(period = 1 / 10, phase = 0 / 1);
 
   relation plant continuous {
-    derivative(temperature) - control_in = 0;
+    derivative(temperature) = control_in;
   }
 
   relation controller periodic(control) {
@@ -69,7 +69,14 @@ validates dimensions, and mints or recovers persistent graph identities.
 - Recovery synchronizes at declarations and model boundaries so tools can use
   a partial AST.
 - Numeric literals must be finite `f64`; clocks use unsigned `u64/u64` syntax.
+- A Relation statement may spell its ordered residual naturally as `lhs = rhs;`;
+  it lowers directly to the existing `lhs - rhs` residual structure. The
+  legacy exact signed numeric-zero form (`lhs = 0;`, including finite literals
+  that round to binary64 zero) continues to retain `lhs` as the residual.
 - The formatter emits one style and formatting canonical output is idempotent.
+  A top-level subtraction formats as natural equality with each side in an
+  independent expression context. Exact zero and negative-zero right operands
+  use `(0)` and `(-0)` so reparsing cannot collide with the legacy sentinel.
 - V0 comment tokens are lossless, but comment attachment to formatted AST
   nodes is deferred rather than guessed.
 

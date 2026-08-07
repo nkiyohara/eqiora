@@ -3,18 +3,19 @@
 use core::fmt::Write;
 
 mod cartesian;
+mod relation;
 
 use crate::ast::{
-    ActivationSyntax, BinaryOp, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax,
-    BoundaryPairingSyntax, BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax,
-    BoundarySideSyntax, ClockDecl, ComponentItem, ComponentPortFamilyDecl, ConnectionDecl,
-    ConnectionSyntax, ConnectorSyntax, Document, DomainSyntax, Expr, ExprKind, FieldDecl,
-    FrameSyntax, InstanceDecl, Item, NamePath, PortSyntax, PureOperatorBinaryOp, PureOperatorDecl,
-    PureOperatorExpr, PureOperatorExprKind, PureValueClassSyntax, RelationDecl, RelationFamilyDecl,
-    RepresentationSyntax, SignalDirectionSyntax, SupportSlotSyntax, UnaryOp, ValueShapeSyntax,
-    VisibilitySyntax,
+    BinaryOp, BoundaryConnectionDecl, BoundaryFamilyBinderSyntax, BoundaryPairingSyntax,
+    BoundaryPortReferenceSyntax, BoundaryPortSelectorSyntax, BoundarySideSyntax, ClockDecl,
+    ComponentItem, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorSyntax,
+    Document, DomainSyntax, Expr, ExprKind, FieldDecl, FrameSyntax, InstanceDecl, Item, NamePath,
+    PortSyntax, PureOperatorBinaryOp, PureOperatorDecl, PureOperatorExpr, PureOperatorExprKind,
+    PureValueClassSyntax, RepresentationSyntax, SignalDirectionSyntax, SupportSlotSyntax, UnaryOp,
+    ValueShapeSyntax, VisibilitySyntax,
 };
 use cartesian::format_cartesian_coordinate;
+use relation::{format_relation, format_relation_family};
 
 /// Format a syntax tree into canonical Eqiora Language source.
 #[must_use]
@@ -469,47 +470,6 @@ fn format_clock(declaration: &ClockDecl, indent: usize, output: &mut String) {
     .expect("String write");
 }
 
-fn format_relation(declaration: &RelationDecl, indent: usize, output: &mut String) {
-    write_indent(output, indent);
-    write!(output, "relation {} ", declaration.name).expect("String write");
-    match &declaration.activation {
-        ActivationSyntax::Continuous => output.push_str("continuous"),
-        ActivationSyntax::Periodic(clock) => {
-            write!(output, "periodic({clock})").expect("String write");
-        }
-    }
-    if let Some(domain) = &declaration.domain {
-        write!(output, " on {domain}").expect("String write");
-    }
-    output.push_str(" {\n");
-    for residual in &declaration.residuals {
-        write_indent(output, indent + 2);
-        format_expression(residual, 0, output);
-        output.push_str(" = 0;\n");
-    }
-    write_indent(output, indent);
-    output.push_str("}\n");
-}
-
-fn format_relation_family(declaration: &RelationFamilyDecl, indent: usize, output: &mut String) {
-    let relation = &declaration.relation;
-    write_indent(output, indent);
-    write!(output, "relation {}", relation.name).expect("String write");
-    format_boundary_family_binder(&declaration.binder, output);
-    output.push_str(" continuous");
-    if let Some(domain) = &relation.domain {
-        write!(output, " on {domain}").expect("String write");
-    }
-    output.push_str(" {\n");
-    for residual in &relation.residuals {
-        write_indent(output, indent + 2);
-        format_expression(residual, 0, output);
-        output.push_str(" = 0;\n");
-    }
-    write_indent(output, indent);
-    output.push_str("}\n");
-}
-
 fn format_connection(declaration: &ConnectionDecl, indent: usize, output: &mut String) {
     write_indent(output, indent);
     match declaration.syntax {
@@ -732,7 +692,7 @@ mod tests {
             .expect("formatted parse");
 
         assert_eq!(format(&second), formatted);
-        assert!(formatted.contains("derivative(x) - (1 + x * 2) = 0;"));
+        assert!(formatted.contains("derivative(x) = 1 + x * 2;"));
     }
 
     #[test]
