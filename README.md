@@ -46,6 +46,13 @@ structured diagnostics, array ownership, asynchronous runs, bounded PyTorch
 and JAX integrations, and optional Matplotlib presentation of accepted
 results.
 
+For a bounded local file check, the installed `eqiora` binary accepts
+`eqiora check <MODEL_PATH>`. It reads one UTF-8 regular file, prints only a
+structural comparison fingerprint when the current Model is accepted, and
+prints bounded normalized diagnostics when compilation rejects it. The
+command does not execute the Model, write an artifact, accept stdin or
+multiple files, expose JSON, or make Python or Studio a CLI subprocess client.
+
 Local agents can separately compile/check one in-memory Eqiora source through
 the `eqiora-mcp` subprocess. It exposes exactly one bounded MCP `2026-07-28`
 tool over newline-delimited stdio and returns either structured compiler

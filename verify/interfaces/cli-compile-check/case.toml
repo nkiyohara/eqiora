@@ -1,0 +1,30 @@
+id = "interfaces.cli-compile-check"
+status = "verified"
+scope = "local-path-bounded-current-model-compile-check-cli"
+reference_kind = "independent-direct-operation-and-black-box-terminal-parity"
+
+capabilities = [
+  "cli-bounded-local-compile-check",
+  "cli-direct-operation-parity",
+  "cli-fixed-terminal-projection",
+]
+
+conformance_kits = ["control-compile-check-v2"]
+
+[claim_boundary]
+compile_check = true
+model_owner = "current"
+local_filesystem_path = true
+preview = false
+execute = false
+solve = false
+render = false
+artifact_write = false
+scientific_data = false
+remote = false
+python = false
+studio = false
+
+[evidence]
+package = "eqiora"
+test = "cli_compile_check"

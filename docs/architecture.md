@@ -763,6 +763,15 @@ result Artifacts, free-threaded builds, `abi3`, zero-copy DLPack execution, GPU,
 distributed/sparse arrays, JAX, PyTorch double backward/batching/export, and
 general ML-framework interop require separate evidence under RFC 0012.
 
+The installed `eqiora check <MODEL_PATH>` command is a separate L4 terminal
+adapter over the transport-neutral `ModelDocument::compile` operation. It
+owns only bounded local-filesystem admission, exact UTF-8 decoding, fixed
+terminal projection and process exits. The accepted document remains the
+operation's same fresh occurrence; the CLI exposes only its structural
+comparison fingerprint and never routes through control-v2, MCP, Python or
+Studio. It writes no artifact and defines no reusable CLI, operation, schema,
+wire or registry abstraction.
+
 The local `eqiora-mcp` subprocess is a separate L4 projection of the accepted
 transport-neutral `ModelDocument::compile` operation. Its closed MCP
 `2026-07-28` surface uses newline-delimited stdio, requires version and client

@@ -24,6 +24,7 @@ package-filesystem = ["dep:cap-std", "eqiora-package/filesystem"]
 
 [dependencies]
 cap-std = { workspace = true, optional = true }
+clap = { workspace = true }
 eqiora-api = { workspace = true }
 eqiora-assembly = { workspace = true }
 eqiora-artifact = { workspace = true }
