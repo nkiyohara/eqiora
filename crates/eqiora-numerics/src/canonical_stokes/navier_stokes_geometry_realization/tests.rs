@@ -976,6 +976,9 @@ fn independent_nonzero_initial(
     };
     let cell_quadrature = eqiora_meshing::triangle_duffy_gauss_legendre(5).unwrap();
     let facet_quadrature = eqiora_meshing::simplex_duffy_gauss_legendre(1, 2).unwrap();
+    let iterations = NonZeroUsize::new(2000).unwrap();
+    let steady_solver =
+        SolverPlan::new(LinearSolver::MinimumResidual, 1.0e-11, 1.0e-12, iterations).unwrap();
     let solution = solve_simplicial_mini_stokes_2d_with_boundary(
         mesh,
         0.001,
@@ -984,7 +987,7 @@ fn independent_nonzero_initial(
         &essential,
         &cell_quadrature,
         &facet_quadrature,
-        LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, solver_plan()),
+        LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, steady_solver),
     )
     .expect("accepted steady MINI path supplies independent nonzero initial data");
     let pressure_reference = solution.pressure_reference();
