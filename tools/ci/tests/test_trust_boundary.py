@@ -490,7 +490,7 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assert_rejected(api)
 
-    def test_07_immutable_compare_inventory_has_a_300_file_boundary(self) -> None:
+    def test_07_immutable_compare_inventory_has_a_299_file_boundary(self) -> None:
         at_limit = FakeGitHub(include_parser=False)
         at_limit.files.extend(
             {
@@ -498,24 +498,29 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
                 "status": "modified",
                 "sha": f"{index + 100:040x}",
             }
-            for index in range(298)
+            for index in range(297)
         )
-        at_limit.pull["changed_files"] = 300
+        at_limit.pull["changed_files"] = 299
         at_limit.compare_files = copy.deepcopy(at_limit.files)
         self.assert_certified(at_limit)
 
-        over_limit = FakeGitHub(include_parser=False)
-        over_limit.files.extend(
-            {
-                "filename": f"docs/over-{index}.md",
-                "status": "modified",
-                "sha": f"{index + 100:040x}",
-            }
-            for index in range(299)
-        )
-        over_limit.pull["changed_files"] = 301
-        over_limit.compare_files = copy.deepcopy(over_limit.files)
-        self.assert_rejected(over_limit, expected_file_count=301)
+        for declared_count in (300, 301):
+            with self.subTest(declared_count=declared_count):
+                over_limit = FakeGitHub(include_parser=False)
+                over_limit.files.extend(
+                    {
+                        "filename": f"docs/over-{index}.md",
+                        "status": "modified",
+                        "sha": f"{index + 100:040x}",
+                    }
+                    for index in range(declared_count - 2)
+                )
+                over_limit.pull["changed_files"] = declared_count
+                over_limit.compare_files = copy.deepcopy(over_limit.files[:300])
+                self.assertEqual(
+                    len(over_limit.compare_files), min(declared_count, 300)
+                )
+                self.assert_rejected(over_limit, expected_file_count=declared_count)
 
     def test_10_non_decreasing_and_non_exact_numeric_changes_are_rejected(self) -> None:
         mutations = {
