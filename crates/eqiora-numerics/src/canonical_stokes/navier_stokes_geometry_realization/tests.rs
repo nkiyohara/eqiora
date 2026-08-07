@@ -23,8 +23,9 @@ use eqiora_schema::ModelView;
 use eqiora_schema::kernel::{BoundarySide, DomainDef, DomainKind, GeometryDigest, KernelNode};
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-    ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
+    LinearOperatorProperties, LinearSolveRequest, LinearSolver, PreconditionerPolicy,
+    REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability,
+    SolverPlan,
 };
 
 use super::TransientNavierStokesGeometryBinding2d;
@@ -34,7 +35,9 @@ use crate::canonical_stokes::{
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_navier_stokes::SimplicialMiniNavierStokesState2d;
 use crate::simplicial_stokes::{
-    SimplicialMiniStokesPressureReference2d, SimplicialMiniVelocityField2d,
+    SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
+    SimplicialMiniStokesBoundaryFacet2d, SimplicialMiniStokesPressureReference2d,
+    SimplicialMiniVelocityField2d, solve_simplicial_mini_stokes_2d_with_boundary,
 };
 use crate::step_count::NonZeroStepCount;
 
@@ -815,4 +818,182 @@ impl AssemblyBackend for RejectAnyAssembly {
     ) -> Result<AssemblyResult, Diagnostic> {
         panic!("identity mismatch reached materialization")
     }
+}
+
+fn dfg_source_bound_nonzero_positive_executes_before_mutants() {
+    let source = exact_source();
+    let accepted = owner(&source, 1.0e-4, 50, 1.0e-5);
+    let program = geometry_program(
+        &source,
+        &dfg_source(),
+        ["inlet", "outlet", "walls", "cylinder"],
+    );
+    let binding = TransientNavierStokesGeometryBinding2d::new_dfg(&program, accepted.clone())
+        .expect("the exact private DFG source binds");
+    let resolved = resolve(&program, &binding);
+    let initial = independent_nonzero_initial(&accepted);
+    assert!(
+        initial
+            .velocity()
+            .vertex_values()
+            .iter()
+            .flatten()
+            .any(|value| *value > 0.0)
+    );
+    let trajectory = binding
+        .advance_dfg_with_assembly(
+            &program,
+            &resolved,
+            initial,
+            NonZeroStepCount::new(NonZeroUsize::MIN),
+            &REFERENCE_ASSEMBLY_BACKEND,
+            &REFERENCE_LINEAR_SOLVER,
+        )
+        .expect("one nonzero source-bound DFG step executes");
+    assert_eq!(trajectory.states().len(), 2);
+    assert_eq!(trajectory.steps().len(), 1);
+    assert!(trajectory.states().iter().all(|state| {
+        state
+            .velocity()
+            .vertex_values()
+            .iter()
+            .chain(state.velocity().cell_bubble_values())
+            .flatten()
+            .copied()
+            .chain(state.pressure().vertex_values().iter().copied())
+            .all(f64::is_finite)
+    }));
+    assert!(trajectory.states()[1].time() > trajectory.states()[0].time());
+    let step = &trajectory.steps()[0];
+    assert!(step.assembly_report().packet_count() > 0);
+    assert!(step.jacobian_residual_assembly_count() > 0);
+}
+
+fn direct_dfg_pair_rejects_symmetric_crossed_counts() {
+    use crate::simplicial_navier_stokes::element::dfg_viscous_pair;
+
+    assert_eq!(dfg_viscous_pair(1.0, [1.0, 0.0], 0, [1.0, 0.0], 0), 1.0);
+    assert_eq!(dfg_viscous_pair(1.0, [1.0, 0.0], 1, [0.0, 1.0], 0), 0.0);
+    assert_eq!(dfg_viscous_pair(2.0, [1.0, 0.0], 0, [1.0, 0.0], 0), 2.0);
+}
+
+fn dfg_semantic_pair_and_inlet_fail_closed() {
+    let source = exact_source();
+    let accepted = owner(&source, 1.0e-4, 50, 1.0e-5);
+    let exact = dfg_source();
+    for wrong in [
+        SOURCE.to_owned(),
+        exact.replace(
+            "dynamic_viscosity * grad(velocity)\n      - isotropic_lift(pressure)\n    ) = 0;",
+            "2 * dynamic_viscosity * symmetric_part(grad(velocity))\n      - isotropic_lift(pressure)\n    ) = 0;",
+        ),
+        exact.replace(
+            "trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0;",
+            "trace(velocity) - normal(isotropic_lift(inlet_profile)) = 0;",
+        ),
+        exact.replace("parameter inlet_speed: m / s = 0.3;", "parameter inlet_speed: m / s = 0.2;"),
+    ] {
+        let program = geometry_program(
+            &source,
+            &wrong,
+            ["inlet", "outlet", "walls", "cylinder"],
+        );
+        TransientNavierStokesGeometryBinding2d::new_dfg(&program, accepted.clone())
+            .expect_err("DFG volume/outlet/inlet identity must be exact");
+    }
+}
+
+#[test]
+fn registered_dfg_nonsymmetric_transient_mini_oracle_executes_all_falsifiers() {
+    dfg_source_bound_nonzero_positive_executes_before_mutants();
+    direct_dfg_pair_rejects_symmetric_crossed_counts();
+    dfg_semantic_pair_and_inlet_fail_closed();
+}
+
+fn dfg_source() -> String {
+    SOURCE
+        .replace(
+            "  field force_potential on body as space: kg / (m * s ^ 2) = 0;",
+            "  field force_potential on body as space: kg / (m * s ^ 2) = 0;\n  field inlet_profile on body as space: m / s = 0;",
+        )
+        .replace(
+            "  parameter dynamic_viscosity: kg / (m * s) = 0.05;",
+            "  parameter dynamic_viscosity: kg / (m * s) = 0.001;\n  parameter inlet_speed: m / s = 0.3;\n  parameter channel_height: m = 0.41;",
+        )
+        .replace(
+            "  relation momentum continuous on body {",
+            "  relation inlet_profile_definition continuous on body {\n    inlet_profile - 4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1)) / channel_height ^ 2 = 0;\n  }\n  relation momentum continuous on body {",
+        )
+        .replace(
+            "2 * dynamic_viscosity * symmetric_part(grad(velocity))",
+            "dynamic_viscosity * grad(velocity)",
+        )
+        .replace(
+            "relation inlet_velocity continuous on x_lower { trace(velocity) = 0; }",
+            "relation inlet_velocity continuous on x_lower {\n    trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0;\n  }",
+        )
+}
+
+fn independent_nonzero_initial(
+    accepted: &AcceptedCircularHoleChordalRealizationV1,
+) -> SimplicialMiniNavierStokesState2d {
+    let mesh = accepted.mesh().mesh();
+    let correspondence = accepted.correspondence();
+    let geometry = accepted.realized_geometry();
+    let mut fixed = vec![None; mesh.vertices().len()];
+    let mut facets = Vec::new();
+    for name in ["inlet", "walls", "cylinder", "outlet"] {
+        let essential = name != "outlet";
+        let condition = if essential {
+            SimplicialMiniStokesBoundaryCondition2d::EssentialVelocity
+        } else {
+            SimplicialMiniStokesBoundaryCondition2d::ConstantTraction { value: [0.0; 2] }
+        };
+        for facet in correspondence
+            .region_entity_set_entities(geometry, name)
+            .unwrap()
+        {
+            facets.push(SimplicialMiniStokesBoundaryFacet2d::new(facet, condition));
+            if essential {
+                for vertex in mesh.entity_vertices(facet).unwrap() {
+                    let y = mesh.vertices()[vertex.index()][1];
+                    let value = if name == "inlet" {
+                        [4.0 * 0.3 * y * (0.41 - y) / 0.41_f64.powi(2), 0.0]
+                    } else {
+                        [0.0; 2]
+                    };
+                    assert!(fixed[vertex.index()].is_none_or(|prior| prior == value));
+                    fixed[vertex.index()] = Some(value);
+                }
+            }
+        }
+    }
+    let boundary = SimplicialMiniStokesBoundary2d::new(mesh, facets).unwrap();
+    let essential = |coordinate: [f64; 2]| {
+        mesh.vertices()
+            .iter()
+            .position(|point| *point == coordinate)
+            .and_then(|index| fixed[index])
+            .ok_or_else(|| {
+                Diagnostic::error(codes::INVALID_DISCRETIZATION, "unknown essential vertex")
+            })
+    };
+    let cell_quadrature = eqiora_meshing::triangle_duffy_gauss_legendre(5).unwrap();
+    let facet_quadrature = eqiora_meshing::simplex_duffy_gauss_legendre(1, 2).unwrap();
+    let solution = solve_simplicial_mini_stokes_2d_with_boundary(
+        mesh,
+        0.001,
+        &|_| Ok([0.0; 2]),
+        &boundary,
+        &essential,
+        &cell_quadrature,
+        &facet_quadrature,
+        LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, solver_plan()),
+    )
+    .expect("accepted steady MINI path supplies independent nonzero initial data");
+    assert_eq!(
+        solution.pressure_reference(),
+        SimplicialMiniStokesPressureReference2d::BoundaryTraction
+    );
+    SimplicialMiniNavierStokesState2d::from_stokes_solution(0.0, &solution).unwrap()
 }
