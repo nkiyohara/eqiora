@@ -389,6 +389,33 @@ fn require_exact_dfg_tuple(
             "private DFG inlet requires exact Umax=0.3 and H=0.41 Parameter values",
         ));
     }
+    let prescribed = boundary
+        .normal_velocity_expressions
+        .get("inlet")
+        .ok_or_else(|| {
+            lowering_error(
+                model.domain,
+                "private DFG binding requires its sole prescribed trace on `inlet`",
+            )
+        })?;
+    // The boundary lowering admits both `trace(u) + normal(lift(s)) = 0`
+    // (coefficient `-s`, so `u = -s n_parent`) and the sign-reversed
+    // `trace(u) - normal(lift(s)) = 0` (coefficient `+s`, so `u = +s n_parent`).
+    // The DFG inlet is exactly `u = -s n_parent = (s, 0)` on the parent-outward
+    // normal `(-1, 0)`: interior-directed, positive-x. Require the lowered
+    // coefficient to be exactly the negated profile; the reversed orientation
+    // is a different physical law, not an admissible variant.
+    let interior_directed =
+        crate::spatial_expression::lower(program, expression, source, *definition, DIMENSION)?
+            .multiply(
+                crate::spatial_expression::ScalarSpatialExpression::constant(DIMENSION, -1.0),
+            );
+    if *prescribed != interior_directed {
+        return Err(lowering_error(
+            *definition,
+            "private DFG inlet requires the exact interior-directed identity `trace(velocity) = -inlet_profile * parent_normal`",
+        ));
+    }
     Ok(())
 }
 
