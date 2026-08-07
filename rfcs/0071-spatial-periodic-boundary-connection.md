@@ -1,7 +1,10 @@
 # RFC 0071: Spatial-periodic boundary connection
 
-- Status: Implemented and verified for the bounded Cartesian FVM 2D slice;
-  three-generator Cartesian 3D profile specified but not implemented or verified
+- Status: Implemented and verified for the bounded Cartesian FVM 2D slice and
+  one exact nonuniform `2 x 3 x 4` structural reference slice with unequal
+  parent side lengths; the general arbitrary-count/axis-coordinate
+  three-generator profile remains specified but is not implemented or verified
+  as a class
 - Authors: Eqiora contributors
 - Created: 2026-07-22
 - Depends on: [RFC 0035](0035-field-valued-boundary-interfaces.md) and
@@ -533,9 +536,9 @@ The registered `fluid.cartesian-periodic-transport-fvm-2d` case must prove:
 
 ### Three-generator profile obligations
 
-The amendment is not implementation or evidence. Before any executable or
-user-visible claim may consume it, a later registered case must first prove
-one ordinary positive path that:
+The amendment itself is not implementation or evidence. The registered
+[`fluid.cartesian-periodic-topology-3d`](../verify/fluid/cartesian-periodic-topology-3d/README.md)
+exact reference case proves one ordinary positive path that:
 
 1. authors six field-physical Ports on the six sides of one 3D Cartesian
    parent and three ordinary `connect periodic` declarations through one
