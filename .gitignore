@@ -4,6 +4,11 @@
 /experiments/**/target/
 /bindings/python/.venv
 /bindings/python/dist
+/bindings/python/frontend/node_modules/
+/bindings/python/frontend/dist/
+/bindings/python/frontend/test-results/
+/bindings/python/frontend/playwright-report/
+/bindings/python/frontend/coverage/
 /bindings/python/python/eqiora/_eqiora.*
 /.venv
 .env

@@ -34,12 +34,16 @@ A candidate is accepted only from a clean source commit. The release gate:
 3. checks the declared wheel tags and metadata;
 4. installs each wheel into an isolated environment outside the source tree;
 5. runs the base, NumPy ownership, async/cancellation, typing, PyTorch, JAX,
-   and Matplotlib profiles within their exact declared boundaries;
+   Matplotlib, and exact CPython 3.13 Notebook profiles within their declared
+   boundaries;
 6. replays the public base quick start on every wheel and the public framework
    quick starts on the exact framework interpreter before upload;
 7. verifies NumPy 2.1.0 separately on CPython 3.12 while retaining the ordinary
    latest-resolution profiles;
-8. records source identity, artifact hashes, build-tool versions, the observed
+8. rebuilds the private Notebook frontend twice with exact Node 24.18.1 and
+   npm 11.16.0 in distinct home-backed scratch directories and records the
+   canonical detached H2 receipt; and
+9. records source identity, artifact hashes, build-tool versions, the observed
    NumPy floor, and passing profiles in the candidate manifest.
 
 Artifact construction, wheel inspection, interpreter resolution, and shared
@@ -76,9 +80,23 @@ so the verification runner may execute the target once while retaining a
 report for each case. The focused adapter scripts remain developer diagnostics;
 they are not a second candidate identity and may rebuild during standalone use.
 
-The manifest is provenance for one artifact set. It is not a reproducible-build
-claim, a signature, or evidence that another machine will produce identical
-bytes.
+N1 candidates use `eqiora.python-distribution-candidate/v3`. Selection is
+fail-closed across the complete sdist, four-wheel family, requested profiles,
+checks, and manifest: any native display hook, private presentation/frontend
+path, anywidget dependency, `notebook` extra/profile, Notebook check, or
+frontend schema requires v3. The v2 reader remains only for complete candidate
+families with none of those signals. Every v3 wheel declares exactly
+`anywidget==0.11.0` behind the `notebook` extra and carries the same three
+nonempty private assets.
+
+The canonical H2 receipt is retained beside the candidate manifest, outside
+the publishable artifact directory. Its detached SHA-256 binds the exact
+source commit, complete sdist/wheel inventory, lock graph, generated assets,
+license notices, Node/npm/browser identity, and resolved Python host
+environment. It proves only byte equality between the two declared frontend
+builds and the committed wheel assets in that exact environment. The manifest
+remains provenance for one artifact set; neither v3 nor H2 claims reproducible
+distribution bytes, signatures, or equality on another machine.
 
 Build into an empty directory outside the source tree:
 
@@ -101,8 +119,11 @@ release authority; ordinary feature work does not imply it.
 ## Dependencies and extras
 
 NumPy is the only mandatory Python runtime dependency. Importing `eqiora` must
-not eagerly import NumPy. PyTorch, JAX, and Matplotlib remain optional extras,
-and importing the base package must neither require nor import any of them.
+not eagerly import NumPy. PyTorch, JAX, Matplotlib, and anywidget remain
+optional extras, and importing the base package must neither require nor import
+any of them. The public `notebook` extra contains only exact
+`anywidget==0.11.0`; JupyterLab, marimo, Playwright, and Chromium are verified
+host/build inputs and do not become Eqiora runtime dependencies.
 The first Matplotlib adapter uses exact release 3.11.1 with the headless Agg
 backend. Its registered adapter profile runs on ordinary-GIL CPython 3.13;
 the other wheel interpreters are not Matplotlib adapter compatibility

@@ -33,6 +33,7 @@ jax = [
     "jaxlib==0.11.0; python_version >= '3.12'",
 ]
 matplotlib = ["matplotlib==3.11.1"]
+notebook = ["anywidget==0.11.0"]
 torch = ["torch>=2.13,<2.14"]
 
 [dependency-groups]
@@ -51,6 +52,14 @@ include = [
     { path = "steady-flow-past-cylinder.model.json", from = "out-dir", to = "eqiora/examples/" },
     { path = "mixed-boundary-elasticity.eqi", from = "out-dir", to = "eqiora/examples/" },
     { path = "fixed-reference-fsi.eqi", from = "out-dir", to = "eqiora/examples/" },
+    { path = "bindings/python/frontend/package.json", format = "sdist" },
+    { path = "bindings/python/frontend/package-lock.json", format = "sdist" },
+    { path = "bindings/python/frontend/biome.json", format = "sdist" },
+    { path = "bindings/python/frontend/tsconfig.json", format = "sdist" },
+    { path = "bindings/python/frontend/vite.config.ts", format = "sdist" },
+    { path = "bindings/python/frontend/playwright.config.ts", format = "sdist" },
+    { path = "bindings/python/frontend/src/**", format = "sdist" },
+    { path = "bindings/python/frontend/tests/**", format = "sdist" },
 ]
 # Do not exclude the repository-root target tree here: maturin applies these
 # patterns to explicit out-dir includes as well. The git sdist generator admits

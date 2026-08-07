@@ -1,5 +1,8 @@
 //! Immutable accepted Mesh publication and NumPy projections.
 
+use std::collections::HashSet;
+use std::sync::Mutex;
+
 use eqiora::Diagnostic;
 use eqiora::artifact::{
     AcceptedCircularHoleChordalRealizationV1, CartesianMeshEnvelopeV1, GeometryIdentityEnvelopeV1,
@@ -9,9 +12,10 @@ use eqiora::diagnostic::codes;
 use eqiora::geometry::NamedEntitySet;
 use eqiora::meshing::{MeshEntity, MeshTopology};
 use numpy::PyArray2;
-use pyo3::exceptions::{PyOverflowError, PyRuntimeError};
+use pyo3::exceptions::{PyOverflowError, PyRuntimeError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyTuple};
+use pyo3::types::{PyAny, PyBool, PyBytes, PyDict, PyTuple};
+use sha2::{Digest, Sha256};
 
 use super::plan::PyMeshPlan;
 use super::request_error;
@@ -19,6 +23,23 @@ use crate::error::{diagnostic_error, validation_error};
 use crate::geometry::{PyGeometry, digest_to_hex};
 use crate::matrix::ReadOnlyMatrix;
 use crate::panic_boundary;
+
+const TEXT_MIME: &str = "text/plain";
+const WIDGET_MIME: &str = "application/vnd.jupyter.widget-view+json";
+const REFERENCE_SOURCE_DIGEST: &str =
+    "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9";
+const REFERENCE_CANONICAL_BYTES: usize = 4_835;
+const REFERENCE_CANONICAL_RAW_SHA256: &str =
+    "d977d9125488fffee72deaf9a0f146bc42dc05a135692919a374d746da0f1079";
+const REFERENCE_MESH_DIGEST: &str =
+    "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a";
+const REFERENCE_COORDINATES_SHA256: &str =
+    "2aaf87276bf352faddfadc76e63c1f44340a362047b1399a2e081c798c5921aa";
+const REFERENCE_TRIANGLES_SHA256: &str =
+    "229392dc7faca769c88348cf41a810f29df3a22ad1276cb866783e5e04078a9f";
+const MESH_DIGEST_DOMAIN: &[u8] = b"eqiora.simplicial-mesh-envelope/v1\0";
+const UNSUPPORTED_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: this N1 viewer supports only the exact accepted 50-chord circular-hole reference Mesh (104 vertices, 104 triangles).";
+const CORRUPT_NOTEBOOK_MESSAGE: &str = "Notebook view unavailable: the installed Eqiora Notebook presentation runtime or assets are incomplete. Reinstall eqiora[notebook].";
 
 /// Immutable source-bound accepted Mesh.
 #[pyclass(name = "Mesh", module = "eqiora._eqiora", frozen, skip_from_py_object)]
@@ -28,6 +49,13 @@ pub(crate) struct PyMesh {
     canonical_bytes: Vec<u8>,
     coordinates: ReadOnlyMatrix<f64>,
     cells: ReadOnlyMatrix<u32>,
+    presentation: Mutex<PresentationState>,
+}
+
+enum PresentationState {
+    Empty,
+    Creating,
+    Ready(Py<PyAny>),
 }
 
 enum AcceptedMeshSource {
@@ -158,13 +186,118 @@ impl PyMesh {
     }
 
     fn __repr__(&self, _py: Python<'_>) -> PyResult<String> {
-        Ok(format!(
-            "Mesh(dimension={}, vertices={}, cells={}, digest={:?})",
-            self.dimension(),
-            self.vertex_count(),
-            self.cell_count(),
-            self.digest(),
-        ))
+        Ok(self.representation())
+    }
+
+    #[pyo3(signature = (include=None, exclude=None))]
+    fn _repr_mimebundle_(
+        slf: Py<Self>,
+        py: Python<'_>,
+        include: Option<&Bound<'_, PyAny>>,
+        exclude: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Py<PyDict>> {
+        let selected = select_mime_types(py, include, exclude)?;
+        let output = PyDict::new(py);
+        if selected.is_empty() {
+            return Ok(output.unbind());
+        }
+
+        let mesh = slf.get();
+        let representation = mesh.representation();
+        if !selected.contains(WIDGET_MIME) {
+            if selected.contains(TEXT_MIME) {
+                output.set_item(TEXT_MIME, representation)?;
+            }
+            return Ok(output.unbind());
+        }
+
+        if !mesh.is_exact_notebook_reference() {
+            if selected.contains(TEXT_MIME) {
+                output.set_item(
+                    TEXT_MIME,
+                    format!("{representation}\n{UNSUPPORTED_NOTEBOOK_MESSAGE}"),
+                )?;
+            }
+            return Ok(output.unbind());
+        }
+
+        let coordinates = mesh.coordinates.numpy(py)?;
+        let triangles = mesh.cells.numpy(py)?;
+        let token = PyDict::new(py);
+        token.set_item("source_digest", &mesh.lineage.source_digest)?;
+        token.set_item("canonical_bytes", PyBytes::new(py, &mesh.canonical_bytes))?;
+        token.set_item("canonical_raw_sha256", REFERENCE_CANONICAL_RAW_SHA256)?;
+        token.set_item("mesh_digest", &mesh.lineage.mesh_digest)?;
+        token.set_item("coordinates", coordinates.bind(py))?;
+        token.set_item("triangles", triangles.bind(py))?;
+        token.set_item("coordinates_sha256", REFERENCE_COORDINATES_SHA256)?;
+        token.set_item("triangles_sha256", REFERENCE_TRIANGLES_SHA256)?;
+
+        let current = {
+            let mut state = mesh
+                .presentation
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("Mesh presentation lock is poisoned"))?;
+            match std::mem::replace(&mut *state, PresentationState::Creating) {
+                PresentationState::Empty => None,
+                PresentationState::Ready(delegate) => Some(delegate),
+                PresentationState::Creating => {
+                    *state = PresentationState::Creating;
+                    if selected.contains(TEXT_MIME) {
+                        output.set_item(
+                            TEXT_MIME,
+                            format!("{representation}\n{CORRUPT_NOTEBOOK_MESSAGE}"),
+                        )?;
+                    }
+                    return Ok(output.unbind());
+                }
+            }
+        };
+
+        let outcome = call_presentation_adapter(py, slf.bind(py), &token, current.as_ref());
+        match outcome {
+            Ok(AdapterOutcome::Absent) => {
+                mesh.set_presentation_state(PresentationState::Empty)?;
+                if selected.contains(TEXT_MIME) {
+                    output.set_item(TEXT_MIME, representation)?;
+                }
+            }
+            Ok(AdapterOutcome::Unsupported) => {
+                if let Some(delegate) = current {
+                    close_delegate(py, &delegate);
+                }
+                mesh.set_presentation_state(PresentationState::Empty)?;
+                if selected.contains(TEXT_MIME) {
+                    output.set_item(
+                        TEXT_MIME,
+                        format!("{representation}\n{UNSUPPORTED_NOTEBOOK_MESSAGE}"),
+                    )?;
+                }
+            }
+            Ok(AdapterOutcome::Rich {
+                delegate,
+                widget_view,
+            }) => {
+                mesh.set_presentation_state(PresentationState::Ready(delegate))?;
+                if selected.contains(TEXT_MIME) {
+                    output.set_item(TEXT_MIME, representation)?;
+                }
+                output.set_item(WIDGET_MIME, widget_view)?;
+            }
+            Err(delegate) => {
+                if let Some(delegate) = delegate.or(current) {
+                    close_delegate(py, &delegate);
+                }
+                mesh.set_presentation_state(PresentationState::Empty)?;
+                if selected.contains(TEXT_MIME) {
+                    output.set_item(
+                        TEXT_MIME,
+                        format!("{representation}\n{CORRUPT_NOTEBOOK_MESSAGE}"),
+                    )?;
+                }
+            }
+        }
+        Ok(output.unbind())
     }
 }
 
@@ -219,6 +352,7 @@ impl PyMesh {
             canonical_bytes,
             coordinates,
             cells,
+            presentation: Mutex::new(PresentationState::Empty),
         })
     }
 
@@ -273,6 +407,7 @@ impl PyMesh {
             canonical_bytes,
             coordinates,
             cells,
+            presentation: Mutex::new(PresentationState::Empty),
         })
     }
 
@@ -288,6 +423,205 @@ impl PyMesh {
             )),
         }
     }
+
+    fn representation(&self) -> String {
+        format!(
+            "Mesh(dimension={}, vertices={}, cells={}, digest={:?})",
+            self.dimension(),
+            self.vertex_count(),
+            self.cell_count(),
+            self.digest(),
+        )
+    }
+
+    fn is_exact_notebook_reference(&self) -> bool {
+        if !matches!(self.source, AcceptedMeshSource::Chordal(_))
+            || self.lineage.source_digest != REFERENCE_SOURCE_DIGEST
+            || self.canonical_bytes.len() != REFERENCE_CANONICAL_BYTES
+            || self.lineage.mesh_digest != REFERENCE_MESH_DIGEST
+        {
+            return false;
+        }
+        let raw = Sha256::digest(&self.canonical_bytes);
+        if hex_digest(&raw) != REFERENCE_CANONICAL_RAW_SHA256 {
+            return false;
+        }
+        let mut framed = Sha256::new();
+        framed.update(MESH_DIGEST_DOMAIN);
+        framed.update(&self.canonical_bytes);
+        hex_digest(&framed.finalize()) == REFERENCE_MESH_DIGEST
+    }
+
+    fn set_presentation_state(&self, next: PresentationState) -> PyResult<()> {
+        let mut state = self
+            .presentation
+            .lock()
+            .map_err(|_| PyRuntimeError::new_err("Mesh presentation lock is poisoned"))?;
+        *state = next;
+        Ok(())
+    }
+}
+
+enum AdapterOutcome {
+    Absent,
+    Unsupported,
+    Rich {
+        delegate: Py<PyAny>,
+        widget_view: Py<PyAny>,
+    },
+}
+
+fn select_mime_types(
+    py: Python<'_>,
+    include: Option<&Bound<'_, PyAny>>,
+    exclude: Option<&Bound<'_, PyAny>>,
+) -> PyResult<HashSet<&'static str>> {
+    let mut selected = HashSet::from([TEXT_MIME, WIDGET_MIME]);
+    if let Some(include) = include {
+        let include = mime_collection(py, include, "include")?;
+        selected.retain(|mime| include.contains(*mime));
+    }
+    if let Some(exclude) = exclude {
+        let exclude = mime_collection(py, exclude, "exclude")?;
+        selected.retain(|mime| !exclude.contains(*mime));
+    }
+    Ok(selected)
+}
+
+fn mime_collection(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    name: &str,
+) -> PyResult<HashSet<String>> {
+    let collection = py.import("collections.abc")?.getattr("Collection")?;
+    if !value.is_instance(&collection)? {
+        return Err(PyTypeError::new_err(format!(
+            "{name} must be None or a collection of MIME strings"
+        )));
+    }
+    let mut members = HashSet::new();
+    for member in value.try_iter()? {
+        let member = member?.extract::<String>().map_err(|_| {
+            PyTypeError::new_err(format!(
+                "{name} must be None or a collection of MIME strings"
+            ))
+        })?;
+        members.insert(member);
+    }
+    Ok(members)
+}
+
+fn call_presentation_adapter(
+    py: Python<'_>,
+    mesh: &Bound<'_, PyMesh>,
+    token: &Bound<'_, PyDict>,
+    current: Option<&Py<PyAny>>,
+) -> Result<AdapterOutcome, Option<Py<PyAny>>> {
+    let module = py.import("eqiora._presentation").map_err(|_| None)?;
+    let adapter = module.getattr("mesh_mimebundle").map_err(|_| None)?;
+    let current = current.map_or_else(|| py.None(), |value| value.clone_ref(py));
+    let result = adapter.call1((mesh, token, current)).map_err(|_| None)?;
+    let tuple = result.cast::<PyTuple>().map_err(|_| None)?;
+    if tuple.len() != 3 {
+        return Err(tuple.get_item(1).ok().map(Bound::unbind));
+    }
+    let status = tuple
+        .get_item(0)
+        .and_then(|value| value.extract::<String>())
+        .map_err(|_| tuple.get_item(1).ok().map(Bound::unbind))?;
+    if status == "absent"
+        && tuple.get_item(1).is_ok_and(|value| value.is_none())
+        && tuple.get_item(2).is_ok_and(|value| value.is_none())
+    {
+        return Ok(AdapterOutcome::Absent);
+    }
+    if status == "unsupported"
+        && tuple.get_item(1).is_ok_and(|value| value.is_none())
+        && tuple.get_item(2).is_ok_and(|value| value.is_none())
+    {
+        return Ok(AdapterOutcome::Unsupported);
+    }
+    if status != "rich" {
+        return Err(tuple.get_item(1).ok().and_then(|value| {
+            if value.is_none() {
+                None
+            } else {
+                Some(value.unbind())
+            }
+        }));
+    }
+    let delegate = tuple.get_item(1).map_err(|_| None)?;
+    if delegate.is_none() {
+        return Err(None);
+    }
+    let delegate = delegate.unbind();
+    let hook_result = tuple
+        .get_item(2)
+        .map_err(|_| Some(delegate.clone_ref(py)))?;
+    let hook_tuple = hook_result
+        .cast::<PyTuple>()
+        .map_err(|_| Some(delegate.clone_ref(py)))?;
+    if hook_tuple.len() != 2
+        || !hook_tuple
+            .get_item(1)
+            .is_ok_and(|value| value.is_instance_of::<PyDict>())
+    {
+        return Err(Some(delegate));
+    }
+    let data = hook_tuple
+        .get_item(0)
+        .map_err(|_| Some(delegate.clone_ref(py)))?
+        .cast_into::<PyDict>()
+        .map_err(|_| Some(delegate.clone_ref(py)))?;
+    let widget_view = data
+        .get_item(WIDGET_MIME)
+        .map_err(|_| Some(delegate.clone_ref(py)))?
+        .ok_or_else(|| Some(delegate.clone_ref(py)))?;
+    let widget = widget_view
+        .cast::<PyDict>()
+        .map_err(|_| Some(delegate.clone_ref(py)))?;
+    if widget.len() != 3
+        || widget
+            .get_item("version_major")
+            .ok()
+            .flatten()
+            .and_then(exact_u8)
+            != Some(2)
+        || widget
+            .get_item("version_minor")
+            .ok()
+            .flatten()
+            .and_then(exact_u8)
+            != Some(0)
+        || widget
+            .get_item("model_id")
+            .ok()
+            .flatten()
+            .and_then(|value| value.extract::<String>().ok())
+            .is_none_or(|model_id| model_id.is_empty())
+    {
+        return Err(Some(delegate));
+    }
+    Ok(AdapterOutcome::Rich {
+        delegate,
+        widget_view: widget_view.unbind(),
+    })
+}
+
+fn close_delegate(py: Python<'_>, delegate: &Py<PyAny>) {
+    let _ = delegate.bind(py).call_method0("close");
+}
+
+fn exact_u8(value: Bound<'_, PyAny>) -> Option<u8> {
+    if value.is_instance_of::<PyBool>() {
+        None
+    } else {
+        value.extract::<u8>().ok()
+    }
+}
+
+fn hex_digest(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn project_simplicial_mesh(

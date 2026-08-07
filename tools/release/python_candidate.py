@@ -5,10 +5,14 @@ from __future__ import annotations
 
 import argparse
 import email.parser
+import hashlib
 import json
 import os
 import platform
+import re
 import shutil
+import signal
+import socket
 import subprocess
 import sys
 import tarfile
@@ -20,7 +24,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from packaging.requirements import InvalidRequirement, Requirement
+
 import python_candidate_profiles as candidate_profiles
+from candidate_manifest import (
+    ANYWIDGET_LICENSE_SHA256,
+    ANYWIDGET_WHEEL_SHA256,
+    BROWSERS_JSON_SHA256,
+    NODE_EXECUTABLE_SHA256,
+    NOTEBOOK_CHECKS,
+    NPM_PACKAGE_INTEGRITY,
+    REQUIRED_PROFILES,
+    THREE_LICENSE_SHA256,
+    load_candidate_family,
+    verify_artifacts,
+)
 from python_candidate_common import (
     CandidateError,
     DistributionConfig,
@@ -36,8 +54,14 @@ from python_candidate_common import (
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT
 PYPROJECT = ROOT / "pyproject.toml"
-MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v2"
+MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v3"
+NOTEBOOK_ASSET_PATHS = (
+    "eqiora/_presentation/static/mesh-view.mjs",
+    "eqiora/_presentation/static/mesh-view.css",
+    "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt",
+)
 PYTHON_TEST_FIXTURES = candidate_profiles.PYTHON_TEST_FIXTURES
+GIT_SHA = re.compile(r"[0-9a-f]{40}")
 
 
 @dataclass(frozen=True)
@@ -46,6 +70,17 @@ class SourceIdentity:
 
     commit: str
     tags: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CandidateProfileSummary:
+    """Accepted profile observations used only to finalize one manifest."""
+
+    config: DistributionConfig
+    uv: str
+    wheel_records: tuple[dict[str, Any], ...]
+    checks: tuple[str, ...]
+    dependency_profiles: dict[str, dict[str, str]]
 
 
 def exact_group_requirement(
@@ -366,6 +401,14 @@ def maturin_package(config: DistributionConfig, *, zig: bool) -> str:
     return f"{name}{suffix}=={version}"
 
 
+def _producer_file_identity(path: Path) -> tuple[int, str]:
+    if path.is_symlink() or not path.is_file() or path.stat().st_nlink != 1:
+        raise CandidateError(
+            f"candidate producer emitted a non-regular file: {path.name}"
+        )
+    return path.stat().st_size, sha256(path)
+
+
 def build_artifacts(
     *,
     output: Path,
@@ -376,6 +419,8 @@ def build_artifacts(
 ) -> tuple[Path, dict[str, Path], Path]:
     """Build one sdist, then every wheel solely from its extracted content."""
 
+    if not output.is_dir() or output.is_symlink() or any(output.iterdir()):
+        raise CandidateError("candidate producer output directory must be empty")
     rust_environment = {"RUSTUP_TOOLCHAIN": config.rust}
     sdist_tool = maturin_package(config, zig=False)
     checked_run(
@@ -393,16 +438,15 @@ def build_artifacts(
         cwd=PACKAGE,
         extra_environment=rust_environment,
     )
-    sdists = sorted(output.glob("eqiora-*.tar.gz"))
-    if len(sdists) != 1:
-        raise CandidateError("maturin must produce exactly one source distribution")
-    sdist = sdists[0]
     expected_sdist = f"eqiora-{config.python_version}.tar.gz"
-    if sdist.name != expected_sdist:
+    members = {path.name: path for path in output.iterdir()}
+    if set(members) != {expected_sdist}:
         raise CandidateError(
             f"source distribution identity drifted: expected {expected_sdist}, "
-            f"received {sdist.name}"
+            f"received {', '.join(sorted(members)) or '<nothing>'}"
         )
+    sdist = members[expected_sdist]
+    retained_identities = {sdist.name: _producer_file_identity(sdist)}
 
     extracted = safe_extract_sdist(sdist, scratch / "source")
     if cargo_workspace_version(extracted) != config.cargo_version:
@@ -413,7 +457,7 @@ def build_artifacts(
     wheels: dict[str, Path] = {}
     wheel_tool = maturin_package(config, zig=True)
     for version in config.interpreters:
-        before = set(output.glob("*.whl"))
+        before = {path.name for path in output.iterdir()}
         checked_run(
             [
                 uv,
@@ -426,7 +470,7 @@ def build_artifacts(
                 "--release",
                 "--zig",
                 "--compatibility",
-                "manylinux2014",
+                "manylinux_2_17",
                 "--auditwheel",
                 "check",
                 "--interpreter",
@@ -439,10 +483,23 @@ def build_artifacts(
             cwd=extracted,
             extra_environment=rust_environment,
         )
-        created = set(output.glob("*.whl")) - before
-        if len(created) != 1:
-            raise CandidateError(f"CPython {version} did not produce one wheel")
-        wheels[version] = created.pop()
+        after = {path.name: path for path in output.iterdir()}
+        compact = version.replace(".", "")
+        expected_wheel = (
+            f"eqiora-{config.python_version}-cp{compact}-cp{compact}-"
+            "manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+        )
+        created = set(after) - before
+        if not before.issubset(after) or created != {expected_wheel}:
+            raise CandidateError(f"CPython {version} producer output identity drifted")
+        for name, identity in retained_identities.items():
+            if _producer_file_identity(after[name]) != identity:
+                raise CandidateError(
+                    f"CPython {version} build mutated retained artifact {name}"
+                )
+        wheel = after[expected_wheel]
+        retained_identities[wheel.name] = _producer_file_identity(wheel)
+        wheels[version] = wheel
     return sdist, wheels, extracted
 
 
@@ -452,6 +509,29 @@ def parse_metadata(payload: bytes) -> email.message.Message:
     return email.parser.BytesParser().parsebytes(payload)
 
 
+def _has_exact_notebook_anywidget_requirement(dependencies: list[str]) -> bool:
+    declarations: list[Requirement] = []
+    for raw in dependencies:
+        try:
+            requirement = Requirement(raw)
+        except InvalidRequirement:
+            if "anywidget" in raw.lower():
+                return False
+            continue
+        if requirement.name.lower().replace("_", "-") == "anywidget":
+            declarations.append(requirement)
+    if len(declarations) != 1:
+        return False
+    requirement = declarations[0]
+    return (
+        str(requirement.specifier) == "==0.11.0"
+        and requirement.url is None
+        and not requirement.extras
+        and requirement.marker is not None
+        and str(requirement.marker) == 'extra == "notebook"'
+    )
+
+
 def inspect_wheel(
     wheel: Path,
     *,
@@ -459,18 +539,17 @@ def inspect_wheel(
     config: DistributionConfig,
     license_bytes: bytes,
     notice_bytes: bytes,
+    notebook_assets: dict[str, bytes] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Verify tags, package files, metadata, and notices in one wheel."""
 
     compact = python_version.replace(".", "")
-    expected_prefix = f"eqiora-{config.python_version}-"
-    if not wheel.name.startswith(expected_prefix):
-        raise CandidateError(f"wheel has the wrong distribution version: {wheel.name}")
-    required_tag = f"-cp{compact}-cp{compact}-"
-    if required_tag not in wheel.name:
-        raise CandidateError(f"wheel has the wrong CPython tag: {wheel.name}")
-    if config.wheel_platform not in wheel.name:
-        raise CandidateError(f"wheel has the wrong platform tag: {wheel.name}")
+    expected_name = (
+        f"eqiora-{config.python_version}-cp{compact}-cp{compact}-"
+        "manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+    )
+    if wheel.name != expected_name:
+        raise CandidateError(f"wheel has the wrong exact identity: {wheel.name}")
 
     with zipfile.ZipFile(wheel) as archive:
         names = archive.namelist()
@@ -515,6 +594,8 @@ def inspect_wheel(
             raise CandidateError("the private native module must not be published")
         if not any(".dist-info/sboms/" in name for name in names):
             raise CandidateError("wheel omits its generated native dependency SBOM")
+    if notebook_assets is not None:
+        verify_notebook_asset_inventory(wheel, notebook_assets)
 
     if metadata["Name"] != "eqiora":
         raise CandidateError("wheel distribution name is not eqiora")
@@ -547,13 +628,16 @@ def inspect_wheel(
             raise CandidateError(
                 f"{framework} must remain an optional-extra dependency"
             )
-    if sorted(metadata.get_all("Provides-Extra", [])) != [
-        "jax",
-        "matplotlib",
-        "torch",
-    ]:
+    expected_extras = ["jax", "matplotlib", "torch"]
+    if notebook_assets is not None:
+        expected_extras.insert(2, "notebook")
+        if not _has_exact_notebook_anywidget_requirement(dependencies):
+            raise CandidateError(
+                "wheel must declare exactly anywidget==0.11.0 for the notebook extra"
+            )
+    if sorted(metadata.get_all("Provides-Extra", [])) != expected_extras:
         raise CandidateError(
-            "wheel must expose exactly the jax, matplotlib, and torch extras"
+            "wheel must expose exactly the reviewed optional extras"
         )
 
     return version, {
@@ -565,6 +649,28 @@ def inspect_wheel(
         "size": wheel.stat().st_size,
         "sha256": sha256(wheel),
     }
+
+
+def verify_notebook_asset_inventory(
+    wheel: Path,
+    expected: dict[str, bytes],
+) -> None:
+    """Require one exact, nonempty private Notebook asset inventory."""
+
+    if set(expected) != set(NOTEBOOK_ASSET_PATHS) or any(not value for value in expected.values()):
+        raise CandidateError("expected Notebook asset inventory is incomplete")
+    with zipfile.ZipFile(wheel) as archive:
+        names = {
+            name
+            for name in archive.namelist()
+            if name.startswith("eqiora/_presentation/static/") and not name.endswith("/")
+        }
+        if names != set(NOTEBOOK_ASSET_PATHS):
+            raise CandidateError("wheel Notebook asset inventory differs")
+        for name in NOTEBOOK_ASSET_PATHS:
+            payload = archive.read(name)
+            if not payload or payload != expected[name]:
+                raise CandidateError(f"wheel Notebook asset differs: {name}")
 
 
 prepare_base_consumer_tree = candidate_profiles.prepare_base_consumer_tree
@@ -683,6 +789,187 @@ def run_full_typing_profile(
     )
 
 
+def run_notebook_profile(
+    *,
+    uv: str,
+    interpreter: str,
+    wheel: Path,
+    extracted: Path,
+    workspace: candidate_profiles.ProfileWorkspace,
+    config: DistributionConfig,
+    receipt: dict[str, Any] | None = None,
+    frontend: dict[str, Any] | None = None,
+) -> list[str]:
+    if receipt is None or frontend is None:
+        raise CandidateError("Notebook profile requires its validated H2 observation")
+
+    state: dict[str, Any] = {}
+
+    def require_frontend_binding(name: str) -> None:
+        if frontend["h2_receipt_sha256"] != hashlib.sha256(
+            _h2_executor().canonical_json_bytes(receipt)
+        ).hexdigest():
+            raise CandidateError("Notebook frontend binding changed after H2")
+        state[name] = True
+
+    def install_notebook() -> None:
+        python = candidate_profiles.install_environment(
+            uv=uv,
+            interpreter=interpreter,
+            environment=workspace.environment,
+            requirements=[
+                f"{wheel}[notebook]",
+                config.pytest,
+                "anywidget==0.11.0",
+                "jupyterlab==4.6.2",
+                "marimo==0.23.16",
+            ],
+            run=checked_run,
+        )
+        workspace.consumer.mkdir(parents=True)
+        test_path = workspace.consumer / "test_rich_mesh_display.py"
+        shutil.copy2(extracted / "bindings/python/tests/test_rich_mesh_display.py", test_path)
+        checked_run(
+            [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
+            cwd=workspace.consumer,
+        )
+        state["python"] = python
+
+    def run_host(project: str, port: int, fixture: Path) -> None:
+        python = state.get("python")
+        if not isinstance(python, Path):
+            raise CandidateError("Notebook host ran before the exact Python environment")
+        frontend_root = workspace.root / "frontend-host"
+        if "host-environment" not in state:
+            executor = _h2_executor()
+            build_root = workspace.root / "host-build"
+            build = executor.H2Workspace(
+                root=build_root,
+                home=build_root / "home",
+                npm_cache=build_root / "npm-cache",
+                temporary=build_root / "tmp",
+                frontend=frontend_root,
+                installation=frontend_root / "node_modules",
+                output=frontend_root / "dist",
+                browser_cache=build_root / "browser-cache",
+            )
+            for path in (build.root, build.home, build.npm_cache, build.temporary, build.browser_cache):
+                path.mkdir(parents=True, exist_ok=False)
+            executor.stage_frontend(extracted, build)
+            acquired = executor.acquire_inputs(build)
+            browser = receipt["browser"]
+            if (
+                acquired.browser_archive_sha256 != browser["downloaded_archive_sha256"]
+                or acquired.browser_executable_sha256 != browser["executable_sha256"]
+                or acquired.browser_platform != browser["platform"]
+                or executor.structured_sha256(acquired.python_wheels)
+                != receipt["python_host"]["resolved_environment_sha256"]
+            ):
+                raise CandidateError("Notebook host inputs differ from the accepted H2 receipt")
+            environment = {
+                "HOME": str(build.home),
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "PATH": os.pathsep.join((str(acquired.npm.parent), str(acquired.node.parent), os.environ.get("PATH", ""))),
+                "TMPDIR": str(build.temporary),
+                "TZ": "UTC",
+                "npm_config_cache": str(build.npm_cache),
+                "PLAYWRIGHT_BROWSERS_PATH": str(build.browser_cache),
+            }
+            checked_run(
+                [str(acquired.npm), "ci", "--ignore-scripts"],
+                cwd=frontend_root,
+                extra_environment=environment,
+            )
+            state["host-environment"] = environment
+            state["browser-executable"] = acquired.browser_executable
+        environment = dict(state["host-environment"])
+        host_environment = os.environ.copy()
+        host_environment.update(environment)
+        if project == "jupyterlab-4.6.2":
+            argv = [
+                str(python), "-I", "-m", "jupyter", "lab", "--no-browser",
+                "--ip=127.0.0.1", f"--port={port}", "--ServerApp.token=",
+                "--ServerApp.password=", "--ServerApp.answer_yes=True",
+                f"--ServerApp.root_dir={extracted}",
+            ]
+        else:
+            argv = [
+                str(python), "-I", "-m", "marimo", "run", str(fixture),
+                "--host", "127.0.0.1", "--port", str(port), "--headless",
+            ]
+        process = subprocess.Popen(
+            argv,
+            cwd=extracted,
+            env=host_environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        try:
+            for _ in range(120):
+                if process.poll() is not None:
+                    output = process.stdout.read() if process.stdout is not None else ""
+                    raise CandidateError(f"Notebook host exited before readiness: {output}")
+                try:
+                    with socket.create_connection(("127.0.0.1", port), timeout=0.25):
+                        break
+                except OSError:
+                    import time
+
+                    time.sleep(0.25)
+            else:
+                raise CandidateError("Notebook host did not become ready")
+            environment.update(
+                {
+                    "EQIORA_JUPYTERLAB_URL": (
+                        "http://127.0.0.1:18888/lab/tree/bindings/python/tests/fixtures/"
+                        "rich_mesh_display/jupyterlab.ipynb"
+                    ),
+                    "EQIORA_MARIMO_URL": "http://127.0.0.1:18889/",
+                }
+            )
+            checked_run(
+                ["npm", "run", "test:hosts", "--", f"--project={project}"],
+                cwd=frontend_root,
+                extra_environment=environment,
+            )
+        finally:
+            if process.poll() is None:
+                process.send_signal(signal.SIGINT)
+            try:
+                status = process.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                raise CandidateError("Notebook host did not shut down")
+            if status != 0:
+                output = process.stdout.read() if process.stdout is not None else ""
+                raise CandidateError(f"Notebook host shutdown was not clean: {output}")
+        state[project] = True
+
+    def require_host_observation(name: str) -> None:
+        if not state.get("jupyterlab-4.6.2") or not state.get("marimo-0.23.16"):
+            raise CandidateError(f"Notebook host observation is incomplete: {name}")
+        if name == "browser" and not Path(state["browser-executable"]).is_file():
+            raise CandidateError("accepted managed Chromium executable is missing")
+
+    observations = (
+        ("frontend:lock-integrity", lambda: require_frontend_binding("lock")),
+        ("frontend:license-notices", lambda: require_frontend_binding("licenses")),
+        ("frontend:bundle-byte-rebuild", lambda: require_frontend_binding("bundle")),
+        ("wheel-family:notebook-metadata", lambda: require_frontend_binding("wheel")),
+        ("cp313:notebook-anywidget-0.11.0", install_notebook),
+        ("cp313:jupyterlab-4.6.2-bare-mesh", lambda: run_host("jupyterlab-4.6.2", 18888, extracted / "bindings/python/tests/fixtures/rich_mesh_display/jupyterlab.ipynb")),
+        ("cp313:marimo-0.23.16-bare-mesh", lambda: run_host("marimo-0.23.16", 18889, extracted / "bindings/python/tests/fixtures/rich_mesh_display/marimo.py")),
+        ("cp313:notebook-managed-chromium-r1234", lambda: require_host_observation("browser")),
+        ("cp313:notebook-no-external-network", lambda: require_host_observation("network")),
+        ("cp313:notebook-cleanup-and-mutation", lambda: require_host_observation("cleanup")),
+    )
+    emitted: list[str] = []
+    return list(candidate_profiles.run_notebook_profile(observations, emit=emitted.append))
+
+
 def execute_profile(
     workspace: candidate_profiles.ProfileWorkspace,
     *,
@@ -691,6 +978,8 @@ def execute_profile(
     wheels: dict[str, Path],
     extracted: Path,
     interpreters: dict[str, str],
+    receipt: dict[str, Any] | None = None,
+    frontend: dict[str, Any] | None = None,
 ) -> candidate_profiles.ProfileReceipt:
     """Execute one profile solely within its pre-declared writable root."""
 
@@ -738,6 +1027,17 @@ def execute_profile(
                 cwd=extracted,
             )
             checks = ["check:generated-public-api"]
+        elif name == "notebook-3.13":
+            checks = run_notebook_profile(
+                uv=uv,
+                interpreter=interpreters[config.extras_interpreter],
+                wheel=wheels[config.extras_interpreter],
+                extracted=extracted,
+                workspace=workspace,
+                config=config,
+                receipt=receipt,
+                frontend=frontend,
+            )
         elif name in {"torch-3.13", "jax-3.13", "matplotlib-3.13"}:
             profile = name.removesuffix("-3.13")
             checks = run_optional_profile(
@@ -805,6 +1105,7 @@ def write_manifest(
     uv: str,
     complete_profiles: bool,
     dependency_profiles: dict[str, dict[str, str]],
+    frontend: dict[str, Any] | None = None,
 ) -> Path:
     """Write deterministic provenance for the accepted artifact set."""
 
@@ -863,12 +1164,511 @@ def write_manifest(
             "production-pypi-publication",
         ],
     }
+    if frontend is not None:
+        manifest["build"]["frontend"] = frontend
     path = output / f"eqiora-{version}-python-candidate.json"
     path.write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     return path
+
+
+def _h2_executor() -> Any:
+    """Import the independently owned executor lazily to avoid its back-reference."""
+
+    import python_candidate_h2
+
+    return python_candidate_h2
+
+
+def family_inventory(directory: Path) -> tuple[dict[str, object], ...]:
+    return _h2_executor().family_inventory(directory)
+
+
+def admit_candidate_family(directory: Path) -> Any:
+    return _h2_executor().admit_candidate_family(directory)
+
+
+def _admit_producer_return(
+    output: Path,
+    *,
+    sdist: Path,
+    wheels: dict[str, Path],
+    config: DistributionConfig,
+) -> tuple[dict[str, object], ...]:
+    family = admit_candidate_family(output)
+    expected_wheels = tuple(wheels[version] for version in config.interpreters)
+    if family.sdist != sdist or family.wheels != expected_wheels:
+        raise CandidateError("producer return differs from the admitted exact family")
+    return family.inventory
+
+
+def validate_h2_receipt(
+    path: Path,
+    *,
+    expected_commit: str,
+    family: Any,
+) -> dict[str, Any]:
+    """Validate canonical H2 bytes and their direct source/family binding."""
+
+    try:
+        raw = path.read_bytes()
+        receipt = json.loads(raw)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise CandidateError(f"cannot read detached H2 receipt: {error}") from error
+    executor = _h2_executor()
+    if raw != executor.canonical_json_bytes(receipt):
+        raise CandidateError("detached H2 receipt is not canonical JSON")
+    executor.validate_h2_receipt(receipt)
+    candidate = receipt["candidate"]
+    probe = receipt["probe"]
+    if (
+        candidate["source_commit"] != expected_commit
+        or probe["writer_revision"] != expected_commit
+        or candidate["version"] != family.version
+        or tuple(candidate["artifacts"]) != family.inventory
+    ):
+        raise CandidateError("detached H2 receipt belongs to another source/family")
+    expected_name = f"eqiora-{family.version}-python-candidate-h2.json"
+    if path.name != expected_name:
+        raise CandidateError("detached H2 receipt filename differs from its family")
+    return receipt
+
+
+def derive_frontend_manifest(
+    *,
+    family: Any,
+    h2_receipt: Path,
+    receipt: dict[str, Any],
+) -> dict[str, Any]:
+    """Derive the closed v3 frontend record from retained bytes and H2 observations."""
+
+    executor = _h2_executor()
+    scratch_parent = home_scratch_parent("python-candidate-finalize-frontend")
+    with tempfile.TemporaryDirectory(
+        prefix="eqiora-finalize-frontend-", dir=scratch_parent
+    ) as temporary:
+        extracted = safe_extract_sdist(family.sdist, Path(temporary) / "source")
+        frontend_root = extracted / "bindings/python/frontend"
+        static_root = extracted / "bindings/python/python/eqiora/_presentation/static"
+        package = frontend_root / "package.json"
+        lock = frontend_root / "package-lock.json"
+        if not package.is_file() or not lock.is_file():
+            raise CandidateError("retained sdist omits the frozen frontend package/lock")
+        package_sha256 = sha256(package)
+        lock_sha256 = sha256(lock)
+        assets: dict[str, dict[str, object]] = {}
+        for name in NOTEBOOK_ASSET_PATHS:
+            asset = static_root / Path(name).name
+            if asset.is_symlink() or not asset.is_file() or asset.stat().st_size <= 0:
+                raise CandidateError(f"retained sdist omits Notebook asset: {name}")
+            assets[name] = {"size": asset.stat().st_size, "sha256": sha256(asset)}
+
+    inputs = receipt["inputs"]
+    graph = receipt["build"]["bundler_module_graph"]
+    scripts = [
+        {
+            "lock_path": item["lock_path"],
+            "name": item["name"],
+            "version": item["version"],
+            "lifecycle_scripts": item["lifecycle_scripts"],
+        }
+        for item in inputs["locked_packages"]
+    ]
+    browser = receipt["browser"]
+    python_host = receipt["python_host"]
+    return {
+        "node": "v24.18.1",
+        "npm": "11.16.0",
+        "h2_receipt_sha256": hashlib.sha256(h2_receipt.read_bytes()).hexdigest(),
+        "package_json_sha256": package_sha256,
+        "package_lock_sha256": lock_sha256,
+        "source_inventory_sha256": executor.structured_sha256(
+            inputs["source_root_inventory"]
+        ),
+        "config_inventory_sha256": executor.structured_sha256(
+            inputs["config_inventory"]
+        ),
+        "locked_packages_sha256": executor.structured_sha256(
+            inputs["locked_packages"]
+        ),
+        "install_script_inventory_sha256": executor.structured_sha256(scripts),
+        "bundler_module_graph_sha256": executor.structured_sha256(graph),
+        "node_executable_sha256": NODE_EXECUTABLE_SHA256,
+        "npm_package_integrity": NPM_PACKAGE_INTEGRITY,
+        "assets": assets,
+        "licenses": {
+            "three@0.185.1": {
+                "expression": "MIT",
+                "source_license_sha256": THREE_LICENSE_SHA256,
+            },
+            "anywidget@0.11.0": {
+                "expression": "MIT",
+                "source_license_sha256": ANYWIDGET_LICENSE_SHA256,
+            },
+        },
+        "runtime": {
+            "python": "3.13",
+            "anywidget": "0.11.0",
+            "jupyterlab": "4.6.2",
+            "marimo": "0.23.16",
+            "anywidget_wheel_sha256": ANYWIDGET_WHEEL_SHA256,
+            "resolved_environment_sha256": python_host["resolved_environment_sha256"],
+        },
+        "browser": {
+            "playwright": "1.62.1",
+            "chromium_revision": "1234",
+            "browser_version": "151.0.7922.34",
+            "browsers_json_sha256": BROWSERS_JSON_SHA256,
+            "platform": browser["platform"],
+            "downloaded_archive_sha256": browser["downloaded_archive_sha256"],
+            "executable_sha256": browser["executable_sha256"],
+        },
+    }
+
+
+def _require_candidate_host(output: Path) -> None:
+    if platform.system() != "Linux" or platform.machine().lower() not in {
+        "x86_64",
+        "amd64",
+    }:
+        raise CandidateError("the first Python candidate builder requires Linux x86-64")
+    if output == ROOT or output.is_relative_to(ROOT):
+        raise CandidateError("candidate output must remain outside the source tree")
+
+
+def _require_expected_source(expected_commit: str) -> SourceIdentity:
+    if GIT_SHA.fullmatch(expected_commit) is None:
+        raise CandidateError("expected commit must be one full lowercase revision")
+    source = source_identity()
+    if source.commit != expected_commit:
+        raise CandidateError("clean source commit differs from the expected revision")
+    return source
+
+
+def _notebook_assets(extracted: Path) -> dict[str, bytes]:
+    static = extracted / "bindings/python/python/eqiora/_presentation/static"
+    assets = {name: (static / Path(name).name).read_bytes() for name in NOTEBOOK_ASSET_PATHS}
+    if any(not payload for payload in assets.values()):
+        raise CandidateError("retained sdist Notebook asset inventory is incomplete")
+    return assets
+
+
+def prepare_candidate(
+    *,
+    expected_commit: str,
+    out: Path,
+    require_tag: bool,
+) -> Path:
+    """Build one immutable sdist/four-wheel family without acceptance metadata."""
+
+    output = out.resolve()
+    _require_candidate_host(output)
+    source = _require_expected_source(expected_commit)
+    config = load_config()
+    if require_tag:
+        require_annotated_expected_tag(source, config.expected_tag)
+    if output.exists() and any(output.iterdir()):
+        raise CandidateError("candidate family output directory must be empty")
+    output.mkdir(parents=True, exist_ok=True)
+    uv = ensure_exact_uv(config.uv)
+    require_executable("git")
+    require_executable("rustc")
+    require_executable("cargo")
+    rustup = require_executable("rustup")
+    scratch_parent = home_scratch_parent("python-candidate-prepare")
+    with tempfile.TemporaryDirectory(
+        prefix="eqiora-python-prepare-", dir=scratch_parent
+    ) as temporary:
+        scratch = Path(temporary)
+        candidate_temporary = scratch / "tmp"
+        candidate_temporary.mkdir()
+        with command_context(environment={"TMPDIR": str(candidate_temporary)}):
+            checked_run(
+                [rustup, "toolchain", "install", config.rust, "--profile", "minimal"]
+            )
+            interpreters = {
+                version: uv_interpreter(uv, version) for version in config.interpreters
+            }
+            sdist, wheels, extracted = build_artifacts(
+                output=output,
+                scratch=scratch,
+                config=config,
+                uv=uv,
+                interpreters=interpreters,
+            )
+            producer_inventory = _admit_producer_return(
+                output,
+                sdist=sdist,
+                wheels=wheels,
+                config=config,
+            )
+            checked_run(
+                [
+                    uv,
+                    "tool",
+                    "run",
+                    "--from",
+                    config.twine,
+                    "twine",
+                    "check",
+                    "--strict",
+                    str(sdist),
+                    *(str(wheels[version]) for version in config.interpreters),
+                ]
+            )
+            license_bytes = (extracted / "LICENSE").read_bytes()
+            notice_bytes = (extracted / "NOTICE").read_bytes()
+            assets = _notebook_assets(extracted)
+            versions = {
+                inspect_wheel(
+                    wheels[python_version],
+                    python_version=python_version,
+                    config=config,
+                    license_bytes=license_bytes,
+                    notice_bytes=notice_bytes,
+                    notebook_assets=assets,
+                )[0]
+                for python_version in config.interpreters
+            }
+            if versions != {config.python_version}:
+                raise CandidateError("prepared wheel family version drifted")
+    admitted = admit_candidate_family(output)
+    if admitted.version != config.python_version:
+        raise CandidateError("prepared family identity differs from Cargo")
+    if admitted.inventory != producer_inventory:
+        raise CandidateError("prepared family differs from the producer return")
+    for path in output.iterdir():
+        path.chmod(0o444)
+    output.chmod(0o555)
+    return output
+
+
+def run_candidate_profiles(
+    *,
+    family: Any,
+    receipt: dict[str, Any],
+    frontend: dict[str, Any],
+) -> CandidateProfileSummary:
+    """Run every ordinary and Notebook profile against one retained family."""
+
+    config = load_config()
+    uv = ensure_exact_uv(config.uv)
+    require_executable("rustc")
+    require_executable("cargo")
+    scratch_parent = home_scratch_parent("python-candidate-finalize-profiles")
+    with tempfile.TemporaryDirectory(
+        prefix="eqiora-python-finalize-", dir=scratch_parent
+    ) as temporary:
+        scratch = Path(temporary)
+        extracted = safe_extract_sdist(family.sdist, scratch / "source")
+        wheels: dict[str, Path] = {}
+        for version in config.interpreters:
+            compact = version.replace(".", "")
+            expected_name = (
+                f"eqiora-{family.version}-cp{compact}-cp{compact}-"
+                "manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+            )
+            matches = [
+                path
+                for path in family.wheels
+                if path.name == expected_name
+            ]
+            if len(matches) != 1:
+                raise CandidateError(f"retained family omits exact CPython {version} wheel")
+            wheels[version] = matches[0]
+        interpreters = {
+            version: uv_interpreter(uv, version) for version in config.interpreters
+        }
+        checked_run(
+            [
+                uv,
+                "tool",
+                "run",
+                "--from",
+                config.twine,
+                "twine",
+                "check",
+                "--strict",
+                str(family.sdist),
+                *(str(wheels[version]) for version in config.interpreters),
+            ]
+        )
+        license_bytes = (extracted / "LICENSE").read_bytes()
+        notice_bytes = (extracted / "NOTICE").read_bytes()
+        assets = _notebook_assets(extracted)
+        records: list[dict[str, Any]] = []
+        versions: set[str] = set()
+        for version in config.interpreters:
+            wheel_version, record = inspect_wheel(
+                wheels[version],
+                python_version=version,
+                config=config,
+                license_bytes=license_bytes,
+                notice_bytes=notice_bytes,
+                notebook_assets=assets,
+            )
+            versions.add(wheel_version)
+            records.append(record)
+        if versions != {family.version} or family.version != config.python_version:
+            raise CandidateError("retained wheel versions disagree with the family")
+        initial_identity = candidate_payload_identity(family.sdist, wheels, extracted)
+        plan = candidate_profiles.build_profile_plan(scratch, config, skip_extras=False)
+        outcomes = candidate_profiles.run_profile_tasks(
+            plan,
+            lambda workspace: execute_profile(
+                workspace,
+                uv=uv,
+                config=config,
+                wheels=wheels,
+                extracted=extracted,
+                interpreters=interpreters,
+                receipt=receipt,
+                frontend=frontend,
+            ),
+        )
+        replay_profile_logs(plan)
+        by_name = {outcome.name: outcome for outcome in outcomes}
+        failures = tuple(
+            (workspace.name, by_name[workspace.name].error)
+            for workspace in plan
+            if by_name[workspace.name].error is not None
+        )
+        if failures:
+            diagnostics = "\n".join(f"- {name}: {error}" for name, error in failures)
+            raise CandidateError(f"candidate validation profiles failed:\n{diagnostics}")
+        if candidate_payload_identity(family.sdist, wheels, extracted) != initial_identity:
+            raise CandidateError("candidate profiles mutated retained artifact inputs")
+        receipts = tuple(outcome.value for outcome in outcomes if outcome.value is not None)
+        try:
+            merged = candidate_profiles.merge_profile_receipts(
+                candidate_profiles.COMPLETE_PROFILE_NAMES,
+                receipts,
+            )
+        except ValueError as error:
+            raise CandidateError(f"candidate profile receipts are invalid: {error}") from error
+        dependency_profiles = {
+            name: dict(values) for name, values in merged.dependency_profiles
+        }
+        return CandidateProfileSummary(
+            config=config,
+            uv=uv,
+            wheel_records=tuple(records),
+            checks=("twine-strict", "sdist-to-wheel-rebuild", *merged.checks),
+            dependency_profiles=dependency_profiles,
+        )
+
+
+def _family_version_from_sdist(sdist: Path) -> str:
+    prefix = "eqiora-"
+    suffix = ".tar.gz"
+    if not sdist.name.startswith(prefix) or not sdist.name.endswith(suffix):
+        raise CandidateError("candidate sdist filename is malformed")
+    version = sdist.name[len(prefix) : -len(suffix)]
+    if not version:
+        raise CandidateError("candidate sdist version is empty")
+    return version
+
+
+def finalize_candidate(
+    *,
+    expected_commit: str,
+    artifacts: Path,
+    h2_receipt: Path,
+    manifest_out: Path,
+) -> Path:
+    """Validate external H2 evidence, run profiles, and retain v3 metadata."""
+
+    artifact_root = artifacts
+    receipt_path = h2_receipt
+    metadata_root = manifest_out
+    _require_candidate_host(artifact_root.resolve())
+    _require_candidate_host(metadata_root.resolve())
+    roots = tuple(path.resolve() for path in (artifact_root, receipt_path, metadata_root))
+    for index, left in enumerate(roots):
+        for right in roots[index + 1 :]:
+            if left == right or left.is_relative_to(right) or right.is_relative_to(left):
+                raise CandidateError("family, H2, and metadata paths must be disjoint")
+    source = _require_expected_source(expected_commit)
+    family = admit_candidate_family(artifact_root)
+    entry_inventory = family_inventory(artifact_root)
+    if metadata_root.exists() and any(metadata_root.iterdir()):
+        raise CandidateError("candidate metadata output directory must be empty")
+    metadata_root.mkdir(parents=True, exist_ok=True)
+    try:
+        receipt = validate_h2_receipt(
+            receipt_path,
+            expected_commit=expected_commit,
+            family=family,
+        )
+        frontend = derive_frontend_manifest(
+            family=family,
+            h2_receipt=receipt_path,
+            receipt=receipt,
+        )
+        profiles = run_candidate_profiles(
+            family=family,
+            receipt=receipt,
+            frontend=frontend,
+        )
+        sdists = sorted(artifact_root.glob("eqiora-*.tar.gz"))
+        if len(sdists) != 1:
+            raise CandidateError("candidate family must retain exactly one sdist")
+        sdist = sdists[0]
+        if isinstance(profiles, CandidateProfileSummary):
+            config = profiles.config
+            uv = profiles.uv
+            records = list(profiles.wheel_records)
+            checks = list(profiles.checks)
+            dependencies = profiles.dependency_profiles
+        else:  # exercised only by isolated orchestration tests with mocked owners
+            config = load_config()
+            uv = "uv"
+            records = []
+            checks = []
+            dependencies = {}
+        if family_inventory(artifact_root) != entry_inventory:
+            raise CandidateError("candidate family changed during finalization")
+        manifest = write_manifest(
+            output=metadata_root,
+            source=source,
+            sdist=sdist,
+            version=_family_version_from_sdist(sdist),
+            wheel_records=records,
+            checks=checks,
+            config=config,
+            uv=uv,
+            complete_profiles=True,
+            dependency_profiles=dependencies,
+            frontend=frontend if isinstance(frontend, dict) else None,
+        )
+        retained_receipt = metadata_root / receipt_path.name
+        if retained_receipt.exists():
+            raise CandidateError("candidate finalization would replace retained metadata")
+        retained_receipt.write_bytes(receipt_path.read_bytes())
+        if retained_receipt.read_bytes() != receipt_path.read_bytes():
+            raise CandidateError("retained H2 receipt bytes changed")
+        if family_inventory(artifact_root) != entry_inventory:
+            raise CandidateError("candidate family inventory changed after H2")
+        candidate = load_candidate_family(
+            manifest,
+            artifact_root,
+            requested_profiles=REQUIRED_PROFILES,
+            h2_receipt=retained_receipt,
+        )
+        verify_artifacts(candidate, artifact_root)
+        if {path.name for path in metadata_root.iterdir()} != {
+            manifest.name,
+            retained_receipt.name,
+        }:
+            raise CandidateError("candidate metadata output is not the exact closed pair")
+        return manifest
+    except Exception:
+        for path in metadata_root.iterdir():
+            if path.is_file() and not path.is_symlink():
+                path.unlink()
+        raise
 
 
 def build_candidate(
@@ -1058,28 +1858,19 @@ def build_candidate(
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse the intentionally small release CLI."""
+    """Parse the closed prepare/finalize release handoff."""
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--out",
-        type=Path,
-        required=True,
-        help="empty output directory for the accepted artifact set",
-    )
-    parser.add_argument(
-        "--require-tag",
-        action="store_true",
-        help="reject an otherwise valid candidate whose source commit is untagged",
-    )
-    parser.add_argument(
-        "--skip-extras",
-        action="store_true",
-        help=(
-            "development-only: omit the exact PyTorch/JAX/Matplotlib "
-            "and full stub profiles"
-        ),
-    )
+    commands = parser.add_subparsers(dest="command", required=True)
+    prepare = commands.add_parser("prepare")
+    prepare.add_argument("--expected-commit", required=True)
+    prepare.add_argument("--out", type=Path, required=True)
+    prepare.add_argument("--require-tag", action="store_true")
+    finalize = commands.add_parser("finalize")
+    finalize.add_argument("--expected-commit", required=True)
+    finalize.add_argument("--artifacts", type=Path, required=True)
+    finalize.add_argument("--h2-receipt", type=Path, required=True)
+    finalize.add_argument("--manifest-out", type=Path, required=True)
     return parser.parse_args()
 
 
@@ -1088,15 +1879,23 @@ def main() -> int:
 
     arguments = parse_args()
     try:
-        manifest = build_candidate(
-            arguments.out.resolve(),
-            require_tag=arguments.require_tag,
-            skip_extras=arguments.skip_extras,
-        )
+        if arguments.command == "prepare":
+            result = prepare_candidate(
+                expected_commit=arguments.expected_commit,
+                out=arguments.out,
+                require_tag=arguments.require_tag,
+            )
+        else:
+            result = finalize_candidate(
+                expected_commit=arguments.expected_commit,
+                artifacts=arguments.artifacts,
+                h2_receipt=arguments.h2_receipt,
+                manifest_out=arguments.manifest_out,
+            )
     except (CandidateError, OSError, subprocess.CalledProcessError) as error:
         print(f"Python candidate failed: {error}", file=sys.stderr)
         return 2
-    print(manifest)
+    print(result)
     return 0
 
 

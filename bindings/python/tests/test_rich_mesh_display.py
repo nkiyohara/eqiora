@@ -1,0 +1,445 @@
+"""Independent installed-wheel oracle for the bounded native Mesh display hook."""
+
+from __future__ import annotations
+
+import gc
+import hashlib
+import importlib.util
+import inspect
+import sys
+import weakref
+from collections.abc import Collection, Mapping
+from dataclasses import dataclass
+from typing import Any
+
+import numpy as np
+import pytest
+
+import eqiora
+
+
+PLAIN_MIME = "text/plain"
+WIDGET_MIME = "application/vnd.jupyter.widget-view+json"
+SUPPORTED_MIMES = frozenset((PLAIN_MIME, WIDGET_MIME))
+
+SOURCE_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
+CANONICAL_BYTES = 4_835
+CANONICAL_RAW_SHA256 = (
+    "d977d9125488fffee72deaf9a0f146bc42dc05a135692919a374d746da0f1079"
+)
+MESH_DIGEST = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
+PROFILE = "circular-hole-chordal-reference-50/v1"
+VERTEX_COUNT = 104
+TRIANGLE_COUNT = 104
+COORDINATE_BYTES = 1_664
+TRIANGLE_BYTES = 1_248
+
+UNSUPPORTED_DIAGNOSTIC = (
+    "Notebook view unavailable: this N1 viewer supports only the exact accepted "
+    "50-chord circular-hole reference Mesh (104 vertices, 104 triangles)."
+)
+CORRUPT_DIAGNOSTIC = (
+    "Notebook view unavailable: the installed Eqiora Notebook presentation "
+    "runtime or assets are incomplete. Reinstall eqiora[notebook]."
+)
+
+STANDARD_ARGUMENTS: dict[str, Any] = {
+    "classification_tolerance": 1e-12,
+    "x_lower": "inlet",
+    "x_upper": "outlet",
+}
+
+
+def _geometry(**overrides: object) -> object:
+    arguments = STANDARD_ARGUMENTS | overrides
+    graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+        x_bounds=(0.0, 2.2),
+        y_bounds=(0.0, 0.41),
+        plane_z=0.0,
+        depth=1.0,
+        modeling_tolerance=1e-10,
+    ).circular_through_cut(
+        center=(0.2, 0.2),
+        radius=0.05,
+        boolean_tolerance=1e-10,
+    )
+    return graph.planar_circular_section(
+        classification_tolerance=arguments["classification_tolerance"],
+        region="fluid",
+        x_lower=arguments["x_lower"],
+        x_upper=arguments["x_upper"],
+        y_lower="walls",
+        y_upper="walls",
+        hole="cylinder",
+    )
+
+
+def _mesh(authored: object | None = None) -> object:
+    source = _geometry() if authored is None else authored
+    request = eqiora.meshing.MeshRequest(
+        maximum_boundary_error=1e-4,
+        minimum_mean_ratio=1e-5,
+        maximum_boundary_facets=50,
+    )
+    plan = eqiora.meshing.resolve(source, request)
+    return eqiora.meshing.generate(source, plan=plan)
+
+
+def _bundle(
+    mesh: object,
+    *,
+    include: Collection[str] | None = None,
+    exclude: Collection[str] | None = None,
+) -> dict[str, object]:
+    result = mesh._repr_mimebundle_(include=include, exclude=exclude)
+    assert type(result) is dict
+    assert set(result) <= SUPPORTED_MIMES
+    return result
+
+
+def _model_id(bundle: Mapping[str, object]) -> str:
+    value = bundle[WIDGET_MIME]
+    assert type(value) is dict
+    assert value.keys() == {"version_major", "version_minor", "model_id"}
+    assert value["version_major"] == 2
+    assert value["version_minor"] == 0
+    model_id = value["model_id"]
+    assert isinstance(model_id, str) and model_id
+    return model_id
+
+
+def _widget_registry() -> Mapping[str, object]:
+    from ipywidgets import Widget
+
+    registry = Widget.widgets
+    assert isinstance(registry, Mapping)
+    return registry
+
+
+def _delegate(model_id: str) -> object:
+    delegate = _widget_registry().get(model_id)
+    assert delegate is not None
+    return delegate
+
+
+def _bytes(value: object) -> bytes:
+    if isinstance(value, bytes):
+        return value
+    if isinstance(value, bytearray):
+        return bytes(value)
+    if isinstance(value, memoryview):
+        return value.tobytes()
+    tobytes = getattr(value, "tobytes", None)
+    assert callable(tobytes)
+    encoded = tobytes()
+    assert isinstance(encoded, bytes)
+    return encoded
+
+
+@dataclass(frozen=True)
+class _MeshSnapshot:
+    text: str
+    source_digest: str
+    realized_geometry_digest: str
+    mesh_digest: str
+    correspondence_digest: str
+    realization_digest: str
+    canonical: bytes
+    coordinate_object: object
+    coordinate_bytes: bytes
+    coordinate_shape: tuple[int, ...]
+    coordinate_dtype: str
+    coordinate_writeable: bool
+    cell_object: object
+    cell_bytes: bytes
+    cell_shape: tuple[int, ...]
+    cell_dtype: str
+    cell_writeable: bool
+
+
+def _snapshot(mesh: object) -> _MeshSnapshot:
+    coordinates = mesh.coordinates
+    cells = mesh.cells
+    return _MeshSnapshot(
+        text=repr(mesh),
+        source_digest=mesh.source_digest,
+        realized_geometry_digest=mesh.realized_geometry_digest,
+        mesh_digest=mesh.digest,
+        correspondence_digest=mesh.correspondence_digest,
+        realization_digest=mesh.realization_digest,
+        canonical=mesh.canonical_bytes,
+        coordinate_object=coordinates,
+        coordinate_bytes=coordinates.tobytes(order="C"),
+        coordinate_shape=coordinates.shape,
+        coordinate_dtype=coordinates.dtype.str,
+        coordinate_writeable=coordinates.flags.writeable,
+        cell_object=cells,
+        cell_bytes=cells.tobytes(order="C"),
+        cell_shape=cells.shape,
+        cell_dtype=cells.dtype.str,
+        cell_writeable=cells.flags.writeable,
+    )
+
+
+def _assert_unchanged(mesh: object, expected: _MeshSnapshot) -> None:
+    assert repr(mesh) == expected.text
+    assert mesh.source_digest == expected.source_digest
+    assert mesh.realized_geometry_digest == expected.realized_geometry_digest
+    assert mesh.digest == expected.mesh_digest
+    assert mesh.correspondence_digest == expected.correspondence_digest
+    assert mesh.realization_digest == expected.realization_digest
+    assert mesh.canonical_bytes == expected.canonical
+    assert mesh.coordinates is expected.coordinate_object
+    assert mesh.coordinates.tobytes(order="C") == expected.coordinate_bytes
+    assert mesh.coordinates.shape == expected.coordinate_shape
+    assert mesh.coordinates.dtype.str == expected.coordinate_dtype
+    assert mesh.coordinates.flags.writeable is expected.coordinate_writeable
+    assert mesh.cells is expected.cell_object
+    assert mesh.cells.tobytes(order="C") == expected.cell_bytes
+    assert mesh.cells.shape == expected.cell_shape
+    assert mesh.cells.dtype.str == expected.cell_dtype
+    assert mesh.cells.flags.writeable is expected.cell_writeable
+
+
+def _assert_exact_reference(mesh: object) -> None:
+    assert mesh.source_digest == SOURCE_DIGEST
+    assert mesh.digest == MESH_DIGEST
+    assert len(mesh.canonical_bytes) == CANONICAL_BYTES
+    assert hashlib.sha256(mesh.canonical_bytes).hexdigest() == CANONICAL_RAW_SHA256
+    assert mesh.dimension == 2
+    assert mesh.vertex_count == VERTEX_COUNT
+    assert mesh.cell_count == TRIANGLE_COUNT
+    assert mesh.coordinates.shape == (VERTEX_COUNT, 2)
+    assert mesh.coordinates.dtype == np.dtype(np.float64)
+    assert not mesh.coordinates.flags.writeable
+    assert mesh.cells.shape == (TRIANGLE_COUNT, 3)
+    assert mesh.cells.dtype == np.dtype(np.uint32)
+    assert not mesh.cells.flags.writeable
+
+
+def test_hook_signature_invalid_arguments_and_plain_filtering_are_exact() -> None:
+    mesh = _mesh()
+    _assert_exact_reference(mesh)
+    text = repr(mesh)
+    signature = inspect.signature(mesh._repr_mimebundle_)
+    assert tuple(signature.parameters) == ("include", "exclude")
+    assert all(parameter.default is None for parameter in signature.parameters.values())
+
+    presentation_before = {
+        name
+        for name in sys.modules
+        if name == "anywidget"
+        or name.startswith("anywidget.")
+        or name == "eqiora._presentation"
+        or name.startswith("eqiora._presentation.")
+    }
+    cases = (
+        (None, {WIDGET_MIME}, {PLAIN_MIME: text}),
+        ({PLAIN_MIME}, None, {PLAIN_MIME: text}),
+        ({PLAIN_MIME}, {PLAIN_MIME}, {}),
+        (set(), None, {}),
+        ({"application/x-foreign"}, None, {}),
+        ({PLAIN_MIME, "application/x-foreign"}, None, {PLAIN_MIME: text}),
+        (None, SUPPORTED_MIMES, {}),
+    )
+    for include, exclude, expected in cases:
+        assert _bundle(mesh, include=include, exclude=exclude) == expected
+
+    presentation_after = {
+        name
+        for name in sys.modules
+        if name == "anywidget"
+        or name.startswith("anywidget.")
+        or name == "eqiora._presentation"
+        or name.startswith("eqiora._presentation.")
+    }
+    assert presentation_after == presentation_before
+
+    for keyword, value in (
+        ("include", 7),
+        ("exclude", object()),
+        ("include", [PLAIN_MIME, 1]),
+        ("exclude", [WIDGET_MIME, None]),
+    ):
+        with pytest.raises(TypeError):
+            mesh._repr_mimebundle_(**{keyword: value})
+    presentation_after_invalid = {
+        name
+        for name in sys.modules
+        if name == "anywidget"
+        or name.startswith("anywidget.")
+        or name == "eqiora._presentation"
+        or name.startswith("eqiora._presentation.")
+    }
+    assert presentation_after_invalid == presentation_before
+
+
+def test_absent_optional_runtime_is_plain_and_zero_comm() -> None:
+    if importlib.util.find_spec("anywidget") is not None:
+        pytest.skip("the exact base-only candidate profile owns this observation")
+
+    mesh = _mesh()
+    text = repr(mesh)
+    assert _bundle(mesh) == {PLAIN_MIME: text}
+    assert _bundle(mesh, include={WIDGET_MIME}) == {}
+    assert not any(
+        name == "anywidget" or name.startswith("anywidget.") for name in sys.modules
+    )
+
+
+def test_same_shape_foreign_source_is_unsupported_before_optional_import() -> None:
+    accepted = _mesh()
+    swapped = _mesh(_geometry(x_lower="outlet", x_upper="inlet"))
+    assert swapped.source_digest != accepted.source_digest
+    assert swapped.canonical_bytes == accepted.canonical_bytes
+    assert swapped.digest == accepted.digest
+    assert swapped.coordinates.shape == accepted.coordinates.shape == (104, 2)
+    assert swapped.cells.shape == accepted.cells.shape == (104, 3)
+
+    before = set(_widget_registry()) if importlib.util.find_spec("anywidget") else set()
+    expected = f"{repr(swapped)}\n{UNSUPPORTED_DIAGNOSTIC}"
+    assert _bundle(swapped) == {PLAIN_MIME: expected}
+    assert _bundle(swapped, include={WIDGET_MIME}) == {}
+    if importlib.util.find_spec("anywidget"):
+        assert set(_widget_registry()) == before
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("anywidget") is None,
+    reason="the exact eqiora[notebook] candidate profile owns rich protocol evidence",
+)
+def test_rich_hook_filtering_reuses_open_delegate_and_refreshes_after_close() -> None:
+    import anywidget
+
+    assert anywidget.__version__ == "0.11.0"
+    mesh = _mesh()
+    expected = _snapshot(mesh)
+    registry = _widget_registry()
+    before = set(registry)
+
+    # Filtering precedes delegate construction even when the extra is installed.
+    assert _bundle(mesh, include={PLAIN_MIME}) == {PLAIN_MIME: repr(mesh)}
+    assert _bundle(mesh, include={WIDGET_MIME}, exclude={WIDGET_MIME}) == {}
+    assert set(registry) == before
+
+    first = _bundle(mesh)
+    first_id = _model_id(first)
+    assert first[PLAIN_MIME] == repr(mesh)
+    assert first_id not in before
+    assert _model_id(_bundle(mesh, include={WIDGET_MIME})) == first_id
+    assert _model_id(_bundle(mesh)) == first_id
+    assert set(registry) == before | {first_id}
+
+    delegate = _delegate(first_id)
+    delegate.close()
+    refreshed = _bundle(mesh)
+    refreshed_id = _model_id(refreshed)
+    assert refreshed_id != first_id
+    assert refreshed[PLAIN_MIME] == repr(mesh)
+    assert refreshed_id in registry
+    _assert_unchanged(mesh, expected)
+    _delegate(refreshed_id).close()
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("anywidget") is None,
+    reason="the exact eqiora[notebook] candidate profile owns rich protocol evidence",
+)
+def test_delegates_are_per_mesh_and_outlive_collected_mesh_wrappers() -> None:
+    first = _mesh()
+    second = _mesh()
+    first_id = _model_id(_bundle(first))
+    second_id = _model_id(_bundle(second))
+    assert first_id != second_id
+
+    delegate = _delegate(first_id)
+    first_reference = weakref.ref(first)
+    del first
+    gc.collect()
+    assert first_reference() is None
+    assert _delegate(first_id) is delegate
+    assert _model_id(delegate._repr_mimebundle_()[0]) == first_id
+
+    delegate.close()
+    _delegate(second_id).close()
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("anywidget") is None,
+    reason="the exact eqiora[notebook] candidate profile owns private payload evidence",
+)
+def test_private_payload_is_exact_little_endian_immutable_and_mesh_preserving() -> None:
+    from traitlets import TraitError
+
+    mesh = _mesh()
+    expected = _snapshot(mesh)
+    model_id = _model_id(_bundle(mesh))
+    delegate = _delegate(model_id)
+    state = delegate.get_state()
+    payload_keys = {
+        "profile",
+        "mesh_digest",
+        "vertex_count",
+        "triangle_count",
+        "coordinates_f64_le",
+        "triangles_u32_le",
+    }
+    assert payload_keys <= state.keys()
+    assert state["profile"] == PROFILE
+    assert state["mesh_digest"] == MESH_DIGEST
+    assert state["vertex_count"] == VERTEX_COUNT
+    assert state["triangle_count"] == TRIANGLE_COUNT
+
+    coordinate_bytes = _bytes(state["coordinates_f64_le"])
+    triangle_bytes = _bytes(state["triangles_u32_le"])
+    assert len(coordinate_bytes) == COORDINATE_BYTES
+    assert len(triangle_bytes) == TRIANGLE_BYTES
+    assert coordinate_bytes == np.asarray(mesh.coordinates, dtype="<f8").tobytes(
+        order="C"
+    )
+    assert triangle_bytes == np.asarray(mesh.cells, dtype="<u4").tobytes(order="C")
+
+    mutations: dict[str, object] = {
+        "profile": "foreign/v1",
+        "mesh_digest": "f" * 64,
+        "vertex_count": 103,
+        "triangle_count": 103,
+        "coordinates_f64_le": bytes(COORDINATE_BYTES),
+        "triangles_u32_le": bytes(TRIANGLE_BYTES),
+    }
+    for name, mutation in mutations.items():
+        original = delegate.get_state()[name]
+        with pytest.raises((TraitError, TypeError, ValueError)):
+            delegate.set_state({name: mutation})
+        current = delegate.get_state()[name]
+        if name.endswith("_le"):
+            assert _bytes(current) == _bytes(original)
+        else:
+            assert current == original
+
+    callbacks = getattr(getattr(delegate, "_msg_callbacks", None), "callbacks", ())
+    assert tuple(callbacks) == ()
+    _assert_unchanged(mesh, expected)
+    delegate.close()
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("anywidget") is None,
+    reason="the exact eqiora[notebook] candidate profile owns corrupt-runtime evidence",
+)
+def test_unexpected_delegate_shape_closes_comm_and_returns_exact_corrupt_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mesh = _mesh()
+    first_id = _model_id(_bundle(mesh))
+    delegate = _delegate(first_id)
+    delegate_type = type(delegate)
+
+    monkeypatch.setattr(
+        delegate_type,
+        "_repr_mimebundle_",
+        lambda self, *args, **kwargs: {WIDGET_MIME: {"model_id": first_id}},
+    )
+    expected = f"{repr(mesh)}\n{CORRUPT_DIAGNOSTIC}"
+    assert _bundle(mesh) == {PLAIN_MIME: expected}
+    assert first_id not in _widget_registry()

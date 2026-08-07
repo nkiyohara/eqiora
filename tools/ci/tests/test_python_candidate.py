@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+import base64
+import builtins
 import contextlib
+import hashlib
 import importlib
+import inspect
 import io
+import json
+import os
+import shutil
+import stat
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -11,12 +20,16 @@ import time
 import tomllib
 import types
 import unittest
+import urllib.request
+import warnings
 import zipfile
 from collections import Counter
 from collections.abc import Callable, Iterator
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 from unittest import mock
+
+from packaging.utils import parse_wheel_filename
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -39,6 +52,295 @@ from python_candidate import (  # noqa: E402
     run_public_smoke,
     safe_extract_sdist,
 )
+
+
+EXACT_WHEEL_INTERPRETERS = ("311", "312", "313", "314")
+EXACT_PHYSICAL_PLATFORM = "manylinux_2_17_x86_64.manylinux2014_x86_64"
+EXACT_WHEEL_PAYLOAD_SHA256 = {
+    "311": "ed43ac65d3c530f6bcbeaefeecb1ffb2c71ea095526acac884cae5aa95ede8b0",
+    "312": "c5e3da21766d0e72af45ff0d32b3b67a77ca97b6891d3f9fe3274b05a38b67c1",
+    "313": "ec165fa06dd8f506937c232afdfb13d3be2bdaab9cee2698ac4526fefb922094",
+    "314": "1b85bc509658486a6c068cc33ad9306c802d469a25096a557faeb0a55595fc6b",
+}
+EXACT_WHEEL_MEMBER = "eqiora-0.1.0a1.dist-info/WHEEL"
+EXACT_RECORD_MEMBER = "eqiora-0.1.0a1.dist-info/RECORD"
+PLAYWRIGHT_CORE_LOCK_SHA256 = (
+    "3f3dbc5711a4feb4499bee358f042a3a10b194824dcd9b9350212d75ec363416"
+)
+PLAYWRIGHT_CORE_PACKAGE_SHA256 = (
+    "07c47543631fef9508760365dee9fbe958c562093ec8d122543949ed231f233f"
+)
+PLAYWRIGHT_CORE_BROWSERS_SHA256 = (
+    "f306eed529599b1eaf2f8a85db9de2b23e1a3fe36c2b66434b7c9434fb627a99"
+)
+PLAYWRIGHT_CORE_BUNDLE_SHA256 = (
+    "9393fa79e1c67c74edc26b610d65a4f7ed73d345a762465cc88340a33a2454ac"
+)
+PLAYWRIGHT_CORE_INTEGRITY = (
+    "sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/"
+    "rhDMjXGqHewDZ68nYZVw=="
+)
+PLAYWRIGHT_CORE_URL = (
+    "https://registry.npmjs.org/playwright-core/-/playwright-core-1.62.1.tgz"
+)
+PLAYWRIGHT_BROWSER_URL = (
+    "https://cdn.playwright.dev/builds/cft/151.0.7922.34/linux64/"
+    "chrome-headless-shell-linux64.zip"
+)
+PLAYWRIGHT_BROWSER_MEMBER = "chrome-headless-shell-linux64/chrome-headless-shell"
+CONTENT_BOUND_BROWSER_PROFILE = {
+    "platform": "linux-x86_64",
+    "browser": "Chromium Headless Shell 151.0.7922.34",
+    "playwright_revision": "1234",
+    "url": PLAYWRIGHT_BROWSER_URL,
+    "raw_archive_bytes": 120_231_126,
+    "raw_archive_sha256": (
+        "3cfc2bd00d1bafcf8a68dc74c9c92bb7150ddc8d26ade948a776316e1cec4f14"
+    ),
+    "zip_member_count": 287,
+    "total_expanded_bytes": 273_378_828,
+    "largest_expanded_member_bytes": 196_975_952,
+    "largest_member": PLAYWRIGHT_BROWSER_MEMBER,
+    "executable_sha256": (
+        "e11fc9ce65c96313476f7ee9844b6fb6a9220fb048693cfe9eee00acf4170a9f"
+    ),
+    "closed_member_inventory_sha256": (
+        "960a12d7e14cd59583eb0dd74065ed111d48167f7867ace8ff4ce578f2b64f3a"
+    ),
+}
+CONTENT_BOUND_RESOURCE_LIMITS = {
+    "family_member_count": 5,
+    "family_member_bytes": 16_777_216,
+    "family_total_bytes": 67_108_864,
+    "source_member_count": 50_000,
+    "source_member_bytes": 67_108_864,
+    "source_total_bytes": 536_870_912,
+    "locked_package_count": 2_048,
+    "locked_package_bytes": 1_073_741_824,
+    "resolved_python_wheel_count": 256,
+    "resolved_python_wheel_bytes": 1_073_741_824,
+    "build_output_count": 3,
+    "build_output_bytes": 16_777_216,
+    "host_scenarios": 2,
+    "member_steps": 104_652,
+    "byte_steps": 4_789_240_546,
+}
+NOTEBOOK_PROFILE_CHECKS = (
+    "frontend:lock-integrity",
+    "frontend:license-notices",
+    "frontend:bundle-byte-rebuild",
+    "wheel-family:notebook-metadata",
+    "cp313:notebook-anywidget-0.11.0",
+    "cp313:jupyterlab-4.6.2-bare-mesh",
+    "cp313:marimo-0.23.16-bare-mesh",
+    "cp313:notebook-managed-chromium-r1234",
+    "cp313:notebook-no-external-network",
+    "cp313:notebook-cleanup-and-mutation",
+)
+
+
+def exact_wheel_name(compact_python: str, *, version: str = "0.1.0a1") -> str:
+    return (
+        f"eqiora-{version}-cp{compact_python}-cp{compact_python}-"
+        f"{EXACT_PHYSICAL_PLATFORM}.whl"
+    )
+
+
+def exact_wheel_tags(compact_python: str) -> tuple[str, str]:
+    prefix = f"cp{compact_python}-cp{compact_python}-"
+    return (
+        f"{prefix}manylinux_2_17_x86_64",
+        f"{prefix}manylinux2014_x86_64",
+    )
+
+
+def maturin_wheel_payload(
+    compact_python: str,
+    *,
+    tags: tuple[str, ...] | None = None,
+) -> bytes:
+    observed_tags = exact_wheel_tags(compact_python) if tags is None else tags
+    tag_lines = "".join(f"Tag: {tag}\n" for tag in observed_tags)
+    return (
+        "Wheel-Version: 1.0\n"
+        "Generator: maturin (1.14.1)\n"
+        "Root-Is-Purelib: false\n"
+        f"{tag_lines}"
+    ).encode("utf-8")
+
+
+def record_payload_for_wheel(
+    wheel_member: str,
+    wheel: bytes,
+    record_member: str,
+) -> bytes:
+    digest = base64.urlsafe_b64encode(hashlib.sha256(wheel).digest()).rstrip(b"=")
+    return (
+        wheel_member.encode("utf-8")
+        + b",sha256="
+        + digest
+        + f",{len(wheel)}\n".encode("ascii")
+        + record_member.encode("utf-8")
+        + b",,\n"
+    )
+
+
+def maturin_record_payload(compact_python: str) -> bytes:
+    return record_payload_for_wheel(
+        EXACT_WHEEL_MEMBER,
+        maturin_wheel_payload(compact_python),
+        EXACT_RECORD_MEMBER,
+    )
+
+
+def write_maturin_wheel(
+    path: Path,
+    compact_python: str,
+    *,
+    tags: tuple[str, ...] | None = None,
+    members: tuple[tuple[str, bytes], ...] | None = None,
+) -> None:
+    entries = members or (
+        (EXACT_WHEEL_MEMBER, maturin_wheel_payload(compact_python, tags=tags)),
+    )
+    if not any(name.endswith(".dist-info/RECORD") for name, _payload in entries):
+        wheels = tuple(
+            (name, payload)
+            for name, payload in entries
+            if name.endswith(".dist-info/WHEEL")
+        )
+        if wheels:
+            wheel_member, wheel_payload = wheels[0]
+            record_member = f"{wheel_member.removesuffix('/WHEEL')}/RECORD"
+            record_payload = record_payload_for_wheel(
+                wheel_member,
+                wheel_payload,
+                record_member,
+            )
+        else:
+            record_member = EXACT_RECORD_MEMBER
+            record_payload = maturin_record_payload(compact_python)
+        entries = (*entries, (record_member, record_payload))
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", message="Duplicate name:", category=UserWarning
+        )
+        with zipfile.ZipFile(path, mode="w") as archive:
+            for name, payload in entries:
+                member = zipfile.ZipInfo(name)
+                member.create_system = 3
+                member.external_attr = 0o100644 << 16
+                member.compress_type = zipfile.ZIP_STORED
+                archive.writestr(member, payload)
+
+
+def wheel_byte_identity(path: Path) -> tuple[bytes, bytes, bytes]:
+    archive_bytes = path.read_bytes()
+    with zipfile.ZipFile(path, mode="r") as archive:
+        wheel_bytes = archive.read(EXACT_WHEEL_MEMBER)
+        record_bytes = archive.read(EXACT_RECORD_MEMBER)
+    return archive_bytes, wheel_bytes, record_bytes
+
+
+@contextlib.contextmanager
+def reject_post_producer_wheel_writes(
+    sealed_paths: set[Path],
+) -> Iterator[None]:
+    real_builtin_open = builtins.open
+    real_io_open = io.open
+    real_os_open = os.open
+    real_os_rename = os.rename
+    real_os_replace = os.replace
+    real_path_write_bytes = Path.write_bytes
+    real_zipfile = zipfile.ZipFile
+
+    def key(value: object) -> Path | None:
+        candidate = value
+        if not isinstance(candidate, (str, bytes, os.PathLike)):
+            candidate = getattr(candidate, "name", None)
+        if not isinstance(candidate, (str, bytes, os.PathLike)):
+            return None
+        try:
+            return Path(candidate).resolve()
+        except (OSError, TypeError, ValueError):
+            return None
+
+    def reject(value: object, operation: str) -> None:
+        observed = key(value)
+        if observed is not None and observed in sealed_paths:
+            raise AssertionError(
+                f"post-producer wheel rewrite is forbidden: {operation}: {observed}"
+            )
+
+    def opens_for_write(mode: object) -> bool:
+        return any(token in str(mode) for token in ("w", "a", "x", "+"))
+
+    def guarded_builtin_open(
+        file: object, mode: str = "r", *args: object, **kwargs: object
+    ) -> object:
+        if opens_for_write(mode):
+            reject(file, f"builtins.open({mode})")
+        return real_builtin_open(file, mode, *args, **kwargs)
+
+    def guarded_io_open(
+        file: object, mode: str = "r", *args: object, **kwargs: object
+    ) -> object:
+        if opens_for_write(mode):
+            reject(file, f"io.open({mode})")
+        return real_io_open(file, mode, *args, **kwargs)
+
+    def guarded_os_open(
+        file: object, flags: int, *args: object, **kwargs: object
+    ) -> int:
+        write_flags = os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND
+        if flags & write_flags:
+            reject(file, f"os.open({flags})")
+        return real_os_open(file, flags, *args, **kwargs)
+
+    def guarded_write_bytes(path: Path, data: bytes) -> int:
+        reject(path, "Path.write_bytes")
+        return real_path_write_bytes(path, data)
+
+    def guarded_rename(
+        source: object,
+        destination: object,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        reject(source, "os.rename(source)")
+        reject(destination, "os.rename(destination)")
+        real_os_rename(source, destination, *args, **kwargs)
+
+    def guarded_replace(
+        source: object,
+        destination: object,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        reject(source, "os.replace(source)")
+        reject(destination, "os.replace(destination)")
+        real_os_replace(source, destination, *args, **kwargs)
+
+    def guarded_zipfile(
+        file: object,
+        mode: str = "r",
+        *args: object,
+        **kwargs: object,
+    ) -> zipfile.ZipFile:
+        if opens_for_write(mode):
+            reject(file, f"zipfile.ZipFile({mode})")
+        return real_zipfile(file, mode, *args, **kwargs)
+
+    with (
+        mock.patch.object(builtins, "open", side_effect=guarded_builtin_open),
+        mock.patch.object(io, "open", side_effect=guarded_io_open),
+        mock.patch.object(os, "open", side_effect=guarded_os_open),
+        mock.patch.object(os, "rename", side_effect=guarded_rename),
+        mock.patch.object(os, "replace", side_effect=guarded_replace),
+        mock.patch.object(Path, "write_bytes", new=guarded_write_bytes),
+        mock.patch.object(zipfile, "ZipFile", side_effect=guarded_zipfile),
+    ):
+        yield
 
 
 class PythonCandidateTests(unittest.TestCase):
@@ -99,6 +401,30 @@ class PythonCandidateTests(unittest.TestCase):
         self.assertEqual(
             document["dependency-groups"]["release-tools"],
             [config.twine, config.uv],
+        )
+
+    def test_notebook_is_one_exact_optional_dependency_and_never_mandatory(
+        self,
+    ) -> None:
+        document = tomllib.loads(
+            (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        )
+        project = document["project"]
+
+        self.assertEqual(
+            project["optional-dependencies"]["notebook"],
+            ["anywidget==0.11.0"],
+        )
+        self.assertFalse(
+            any(
+                requirement.partition(";")[0]
+                .partition("[")[0]
+                .split("=", maxsplit=1)[0]
+                .strip()
+                .lower()
+                == "anywidget"
+                for requirement in project["dependencies"]
+            )
         )
 
     @mock.patch("python_candidate.tool_version", return_value="uv 0.12.1")
@@ -209,9 +535,7 @@ Requires-Dist: matplotlib==3.11.1; extra == "matplotlib"
 typed candidate
 """
         with tempfile.TemporaryDirectory() as temporary:
-            wheel = (
-                Path(temporary) / "eqiora-0.1.0a1-cp313-cp313-manylinux_2_17_x86_64.whl"
-            )
+            wheel = Path(temporary) / exact_wheel_name("313")
             dist_info = "eqiora-0.1.0a1.dist-info/"
             with zipfile.ZipFile(wheel, mode="w") as archive:
                 for name in (
@@ -232,6 +556,10 @@ typed candidate
                 ):
                     archive.writestr(name, b"")
                 archive.writestr(f"{dist_info}METADATA", metadata)
+                archive.writestr(
+                    f"{dist_info}WHEEL",
+                    maturin_wheel_payload("313"),
+                )
                 archive.writestr(f"{dist_info}licenses/LICENSE", license_bytes)
                 archive.writestr(f"{dist_info}licenses/NOTICE", notice_bytes)
 
@@ -244,6 +572,7 @@ typed candidate
             )
 
         self.assertEqual(version, "0.1.0a1")
+        self.assertEqual(record["filename"], exact_wheel_name("313"))
         self.assertEqual(record["python"], "3.13")
         self.assertEqual(record["platform"], "manylinux_2_17_x86_64")
         self.assertRegex(record["sha256"], r"^[0-9a-f]{64}$")
@@ -271,9 +600,7 @@ Requires-Dist: matplotlib==3.11.1; extra == "matplotlib"
 invalid candidate
 """
         with tempfile.TemporaryDirectory() as temporary:
-            wheel = (
-                Path(temporary) / "eqiora-0.1.0a1-cp313-cp313-manylinux_2_17_x86_64.whl"
-            )
+            wheel = Path(temporary) / exact_wheel_name("313")
             dist_info = "eqiora-0.1.0a1.dist-info/"
             with zipfile.ZipFile(wheel, mode="w") as archive:
                 for name in (
@@ -294,6 +621,10 @@ invalid candidate
                 ):
                     archive.writestr(name, b"")
                 archive.writestr(f"{dist_info}METADATA", metadata)
+                archive.writestr(
+                    f"{dist_info}WHEEL",
+                    maturin_wheel_payload("313"),
+                )
                 archive.writestr(f"{dist_info}licenses/LICENSE", license_bytes)
                 archive.writestr(f"{dist_info}licenses/NOTICE", notice_bytes)
 
@@ -308,6 +639,599 @@ invalid candidate
                     license_bytes=license_bytes,
                     notice_bytes=notice_bytes,
                 )
+
+    def test_notebook_wheel_contract_requires_exact_metadata_and_assets(self) -> None:
+        license_bytes = b"license\n"
+        notice_bytes = b"notice\n"
+        metadata = b"""\
+Metadata-Version: 2.4
+Name: eqiora
+Version: 0.1.0a1
+Requires-Python: <3.15,>=3.11
+License-Expression: Apache-2.0
+License-File: LICENSE
+License-File: NOTICE
+Provides-Extra: jax
+Provides-Extra: matplotlib
+Provides-Extra: notebook
+Provides-Extra: torch
+Requires-Dist: numpy<3,>=2.1
+Requires-Dist: torch>=2.13,<2.14; extra == "torch"
+Requires-Dist: jax==0.11.0; python_version >= "3.12" and extra == "jax"
+Requires-Dist: jaxlib==0.11.0; python_version >= "3.12" and extra == "jax"
+Requires-Dist: matplotlib==3.11.1; extra == "matplotlib"
+Requires-Dist: anywidget == 0.11.0 ; extra == "notebook"
+
+N1 candidate
+"""
+        notebook_assets = {
+            "eqiora/_presentation/static/mesh-view.mjs": b"module\n",
+            "eqiora/_presentation/static/mesh-view.css": b"style\n",
+            "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt": b"notice\n",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            wheel = Path(temporary) / exact_wheel_name("313")
+            dist_info = "eqiora-0.1.0a1.dist-info/"
+            with zipfile.ZipFile(wheel, mode="w") as archive:
+                for name in (
+                    "eqiora/__init__.py",
+                    "eqiora/__init__.pyi",
+                    "eqiora/diff.pyi",
+                    "eqiora/fsi.pyi",
+                    "eqiora/jax.pyi",
+                    "eqiora/matplotlib.pyi",
+                    "eqiora/solid.pyi",
+                    "eqiora/torch.pyi",
+                    "eqiora/py.typed",
+                    "eqiora/examples/steady-flow-past-cylinder.model.json",
+                    "eqiora/examples/mixed-boundary-elasticity.eqi",
+                    "eqiora/examples/fixed-reference-fsi.eqi",
+                    "eqiora/_eqiora.cpython-313-x86_64-linux-gnu.so",
+                    f"{dist_info}sboms/eqiora-python.cyclonedx.json",
+                ):
+                    archive.writestr(name, b"")
+                for name, payload in notebook_assets.items():
+                    archive.writestr(name, payload)
+                archive.writestr(f"{dist_info}METADATA", metadata)
+                archive.writestr(
+                    f"{dist_info}WHEEL",
+                    maturin_wheel_payload("313"),
+                )
+                archive.writestr(f"{dist_info}licenses/LICENSE", license_bytes)
+                archive.writestr(f"{dist_info}licenses/NOTICE", notice_bytes)
+
+            version, _ = inspect_wheel(
+                wheel,
+                python_version="3.13",
+                config=self.config(),
+                license_bytes=license_bytes,
+                notice_bytes=notice_bytes,
+                notebook_assets=notebook_assets,
+            )
+
+        self.assertEqual(version, "0.1.0a1")
+
+    def test_notebook_requirement_parses_equivalent_quotes_and_rejects_drift(
+        self,
+    ) -> None:
+        for declaration in (
+            "anywidget==0.11.0; extra == 'notebook'",
+            'anywidget == 0.11.0 ; extra == "notebook"',
+        ):
+            with self.subTest(accepted=declaration):
+                self.assertTrue(
+                    python_candidate_module._has_exact_notebook_anywidget_requirement(
+                        [declaration]
+                    )
+                )
+
+        rejected = {
+            "wrong-name": "another-widget==0.11.0; extra == 'notebook'",
+            "wrong-specifier": "anywidget==0.11.1; extra == 'notebook'",
+            "url": "anywidget @ https://example.invalid/anywidget.whl; extra == 'notebook'",
+            "extras": "anywidget[testing]==0.11.0; extra == 'notebook'",
+            "missing-marker": "anywidget==0.11.0",
+            "wrong-marker": "anywidget==0.11.0; extra == 'studio'",
+            "duplicate": "anywidget==0.11.0; extra == 'notebook'",
+        }
+        for name, declaration in rejected.items():
+            dependencies = [declaration]
+            if name == "duplicate":
+                dependencies.append(declaration)
+            with self.subTest(rejected=name):
+                self.assertFalse(
+                    python_candidate_module._has_exact_notebook_anywidget_requirement(
+                        dependencies
+                    )
+                )
+
+    def test_wheel_build_retains_exact_maturin_compressed_names_and_bytes(
+        self,
+    ) -> None:
+        config = self.config()
+        interpreters = {
+            version: f"/managed/python{version}" for version in config.interpreters
+        }
+        commands: list[list[str]] = []
+        producer_hashes: dict[str, str] = {}
+        build_return_hashes: dict[str, str] = {}
+        admission_hashes: dict[str, str] = {}
+        producer_identities: dict[str, tuple[bytes, bytes, bytes]] = {}
+        build_return_identities: dict[str, tuple[bytes, bytes, bytes]] = {}
+        admission_identities: dict[str, tuple[bytes, bytes, bytes]] = {}
+        sealed_wheel_paths: set[Path] = set()
+        returned_wheel_names: tuple[str, ...] = ()
+        expected_inventory: tuple[dict[str, object], ...] = ()
+        wheel_contract_observations: dict[
+            str, tuple[int, tuple[str, ...], set[str], str]
+        ] = {}
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            output = root / "artifacts"
+            output.mkdir()
+            scratch = root / "scratch"
+            extracted = root / "source" / f"eqiora-{config.python_version}"
+            extracted.mkdir(parents=True)
+
+            def checked_run(arguments: list[str], **_kwargs: object) -> str:
+                commands.append(arguments)
+                if "sdist" in arguments:
+                    (output / f"eqiora-{config.python_version}.tar.gz").write_bytes(
+                        b"sdist"
+                    )
+                    return ""
+                compatibility = arguments[arguments.index("--compatibility") + 1]
+                interpreter = arguments[arguments.index("--interpreter") + 1]
+                version = next(
+                    name for name, path in interpreters.items() if path == interpreter
+                )
+                compact = version.replace(".", "")
+                self.assertEqual(compatibility, "manylinux_2_17")
+                wheel = output / exact_wheel_name(
+                    compact,
+                    version=config.python_version,
+                )
+                write_maturin_wheel(wheel, compact)
+                producer_identities[version] = wheel_byte_identity(wheel)
+                producer_hashes[version] = hashlib.sha256(
+                    producer_identities[version][0]
+                ).hexdigest()
+                sealed_wheel_paths.add(wheel.resolve())
+                return ""
+
+            with (
+                reject_post_producer_wheel_writes(sealed_wheel_paths),
+                mock.patch.object(
+                    python_candidate_module, "checked_run", side_effect=checked_run
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "safe_extract_sdist",
+                    return_value=extracted,
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "cargo_workspace_version",
+                    return_value=config.cargo_version,
+                ),
+                mock.patch.object(
+                    Path,
+                    "rename",
+                    side_effect=AssertionError("wheel rename is forbidden"),
+                ),
+                mock.patch.object(
+                    Path,
+                    "replace",
+                    side_effect=AssertionError("wheel replace is forbidden"),
+                ),
+                mock.patch.object(
+                    Path,
+                    "hardlink_to",
+                    side_effect=AssertionError("wheel link is forbidden"),
+                ),
+                mock.patch.object(
+                    Path,
+                    "symlink_to",
+                    side_effect=AssertionError("wheel link is forbidden"),
+                ),
+                mock.patch.object(
+                    os,
+                    "rename",
+                    side_effect=AssertionError("wheel rename is forbidden"),
+                ),
+                mock.patch.object(
+                    os,
+                    "replace",
+                    side_effect=AssertionError("wheel replace is forbidden"),
+                ),
+                mock.patch.object(
+                    os,
+                    "link",
+                    side_effect=AssertionError("wheel link is forbidden"),
+                ),
+                mock.patch.object(
+                    os,
+                    "symlink",
+                    side_effect=AssertionError("wheel link is forbidden"),
+                ),
+                mock.patch(
+                    "shutil.copy",
+                    side_effect=AssertionError("wheel copy is forbidden"),
+                ),
+                mock.patch(
+                    "shutil.copy2",
+                    side_effect=AssertionError("wheel copy is forbidden"),
+                ),
+                mock.patch(
+                    "shutil.copyfile",
+                    side_effect=AssertionError("wheel copy is forbidden"),
+                ),
+                mock.patch(
+                    "shutil.copytree",
+                    side_effect=AssertionError("wheel copy is forbidden"),
+                ),
+            ):
+                _sdist, wheels, _extracted = python_candidate_module.build_artifacts(
+                    output=output,
+                    scratch=scratch,
+                    config=config,
+                    uv="/managed/uv",
+                    interpreters=interpreters,
+                )
+                build_return_identities = {
+                    version: wheel_byte_identity(wheel)
+                    for version, wheel in wheels.items()
+                }
+                build_return_hashes = {
+                    version: hashlib.sha256(identity[0]).hexdigest()
+                    for version, identity in build_return_identities.items()
+                }
+                executor = importlib.import_module("python_candidate_h2")
+                admitted = executor.admit_candidate_family(output)
+                admitted_inventory = admitted.inventory
+                expected_inventory = H2ExecutionBoundaryTests.expected_family_inventory(
+                    output
+                )
+                returned_wheel_names = tuple(path.name for path in wheels.values())
+                admission_identities = {
+                    version: wheel_byte_identity(wheel)
+                    for version, wheel in wheels.items()
+                }
+                admission_hashes = {
+                    version: hashlib.sha256(identity[0]).hexdigest()
+                    for version, identity in admission_identities.items()
+                }
+                for version, wheel in wheels.items():
+                    compact = version.replace(".", "")
+                    _name, _parsed_version, _build, filename_tags = (
+                        parse_wheel_filename(wheel.name)
+                    )
+                    payload = admission_identities[version][1]
+                    internal_tags = tuple(
+                        line.removeprefix("Tag: ")
+                        for line in payload.decode("utf-8").splitlines()
+                        if line.startswith("Tag: ")
+                    )
+                    wheel_contract_observations[version] = (
+                        len(payload),
+                        internal_tags,
+                        {str(tag) for tag in filename_tags},
+                        hashlib.sha256(payload).hexdigest(),
+                    )
+
+        wheel_commands = [arguments for arguments in commands if "build" in arguments]
+        self.assertEqual(len(wheel_commands), 4)
+        for version, arguments in zip(config.interpreters, wheel_commands, strict=True):
+            with self.subTest(interpreter=version):
+                build_index = arguments.index("build")
+                target_dir = str(scratch / "cargo-target")
+                self.assertEqual(
+                    arguments[:build_index],
+                    [
+                        "/managed/uv",
+                        "tool",
+                        "run",
+                        "--from",
+                        "maturin[zig]==1.14.1",
+                        "maturin",
+                    ],
+                )
+                self.assertEqual(
+                    arguments[build_index:],
+                    [
+                        "build",
+                        "--release",
+                        "--zig",
+                        "--compatibility",
+                        "manylinux_2_17",
+                        "--auditwheel",
+                        "check",
+                        "--interpreter",
+                        interpreters[version],
+                        "--target-dir",
+                        target_dir,
+                        "--out",
+                        str(output),
+                    ],
+                )
+                self.assertNotIn("manylinux2014", arguments)
+                self.assertEqual(Path(target_dir), scratch / "cargo-target")
+        self.assertEqual(
+            returned_wheel_names,
+            tuple(
+                exact_wheel_name(
+                    version.replace(".", ""),
+                    version=config.python_version,
+                )
+                for version in config.interpreters
+            ),
+        )
+        self.assertEqual(producer_hashes, build_return_hashes)
+        self.assertEqual(build_return_hashes, admission_hashes)
+        self.assertEqual(producer_identities, build_return_identities)
+        self.assertEqual(build_return_identities, admission_identities)
+        self.assertEqual(
+            admitted_inventory,
+            expected_inventory,
+        )
+        for version in config.interpreters:
+            compact = version.replace(".", "")
+            (
+                payload_size,
+                internal_tags,
+                filename_tags,
+                payload_sha256,
+            ) = wheel_contract_observations[version]
+            self.assertEqual(payload_size, 147)
+            self.assertEqual(internal_tags, exact_wheel_tags(compact))
+            self.assertEqual(
+                filename_tags,
+                set(internal_tags),
+            )
+            self.assertEqual(
+                payload_sha256,
+                EXACT_WHEEL_PAYLOAD_SHA256[compact],
+            )
+            self.assertEqual(
+                admission_identities[version][2],
+                maturin_record_payload(compact),
+            )
+
+    def test_post_producer_observer_rejects_byte_identical_wheel_rewrites(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            wheel = Path(temporary) / exact_wheel_name("311")
+            write_maturin_wheel(wheel, "311")
+            expected = wheel_byte_identity(wheel)
+            sealed = {wheel.resolve()}
+            rename_source = Path(temporary) / "byte-identical-rename-source.whl"
+            replace_source = Path(temporary) / "byte-identical-replace-source.whl"
+            rename_source.write_bytes(expected[0])
+            replace_source.write_bytes(expected[0])
+
+            def write_with_builtin_open() -> None:
+                with builtins.open(wheel, mode="r+b") as destination:
+                    destination.write(expected[0])
+
+            def write_with_io_open() -> None:
+                with io.open(wheel, mode="r+b") as destination:
+                    destination.write(expected[0])
+
+            def write_with_os_open() -> None:
+                descriptor = os.open(wheel, os.O_WRONLY)
+                os.close(descriptor)
+
+            def write_with_zipfile() -> None:
+                with zipfile.ZipFile(wheel, mode="a"):
+                    pass
+
+            rewrites: dict[str, Callable[[], object]] = {
+                "Path.write_bytes": lambda: wheel.write_bytes(expected[0]),
+                "builtins.open": write_with_builtin_open,
+                "io.open": write_with_io_open,
+                "os.open": write_with_os_open,
+                "os.rename": lambda: os.rename(rename_source, wheel),
+                "os.replace": lambda: os.replace(replace_source, wheel),
+                "zipfile.ZipFile": write_with_zipfile,
+            }
+            for operation, rewrite in rewrites.items():
+                with (
+                    self.subTest(operation=operation),
+                    reject_post_producer_wheel_writes(sealed),
+                ):
+                    with self.assertRaisesRegex(
+                        AssertionError,
+                        "post-producer wheel rewrite is forbidden",
+                    ):
+                        rewrite()
+                self.assertEqual(wheel_byte_identity(wheel), expected)
+
+    def test_producer_rejects_nonexact_physical_name_before_twine_or_rewrite(
+        self,
+    ) -> None:
+        config = self.config()
+        interpreters = {
+            version: f"/managed/python{version}" for version in config.interpreters
+        }
+        mutant_names = {
+            "old-canonical-only-optional-alias": (
+                "eqiora-0.1.0a1-cp311-cp311-manylinux_2_17_x86_64.whl"
+            ),
+            "alias-first": (
+                "eqiora-0.1.0a1-cp311-cp311-"
+                "manylinux2014_x86_64.manylinux_2_17_x86_64.whl"
+            ),
+            "broadened-dotted-suffix": (
+                "eqiora-0.1.0a1-cp311-cp311-"
+                f"{EXACT_PHYSICAL_PLATFORM}.manylinux_2_28_x86_64.whl"
+            ),
+        }
+        for mutant, filename in mutant_names.items():
+            with (
+                self.subTest(mutant=mutant),
+                tempfile.TemporaryDirectory(dir=Path.home()) as temporary,
+            ):
+                root = Path(temporary)
+                output = root / "artifacts"
+                output.mkdir()
+                scratch = root / "scratch"
+                extracted = root / "source" / f"eqiora-{config.python_version}"
+                extracted.mkdir(parents=True)
+                commands: list[list[str]] = []
+
+                def checked_run(arguments: list[str], **_kwargs: object) -> str:
+                    commands.append(arguments)
+                    if "sdist" in arguments:
+                        (output / f"eqiora-{config.python_version}.tar.gz").write_bytes(
+                            b"sdist"
+                        )
+                    elif "build" in arguments:
+                        write_maturin_wheel(output / filename, "311")
+                    return ""
+
+                with (
+                    mock.patch.object(
+                        python_candidate_module,
+                        "checked_run",
+                        side_effect=checked_run,
+                    ),
+                    mock.patch.object(
+                        python_candidate_module,
+                        "safe_extract_sdist",
+                        return_value=extracted,
+                    ),
+                    mock.patch.object(
+                        python_candidate_module,
+                        "cargo_workspace_version",
+                        return_value=config.cargo_version,
+                    ),
+                    mock.patch.object(
+                        Path,
+                        "rename",
+                        side_effect=AssertionError("rename cannot repair the mutant"),
+                    ),
+                    mock.patch.object(
+                        Path,
+                        "replace",
+                        side_effect=AssertionError("replace cannot repair the mutant"),
+                    ),
+                    mock.patch.object(
+                        os,
+                        "rename",
+                        side_effect=AssertionError("rename cannot repair the mutant"),
+                    ),
+                    mock.patch.object(
+                        os,
+                        "replace",
+                        side_effect=AssertionError("replace cannot repair the mutant"),
+                    ),
+                    mock.patch.object(
+                        os,
+                        "link",
+                        side_effect=AssertionError("link cannot repair the mutant"),
+                    ),
+                    mock.patch(
+                        "shutil.copy",
+                        side_effect=AssertionError("copy cannot repair the mutant"),
+                    ),
+                    mock.patch(
+                        "shutil.copy2",
+                        side_effect=AssertionError("copy cannot repair the mutant"),
+                    ),
+                    mock.patch(
+                        "shutil.copyfile",
+                        side_effect=AssertionError("copy cannot repair the mutant"),
+                    ),
+                ):
+                    with self.assertRaises(CandidateError):
+                        python_candidate_module.build_artifacts(
+                            output=output,
+                            scratch=scratch,
+                            config=config,
+                            uv="/managed/uv",
+                            interpreters=interpreters,
+                        )
+
+                wheel_builds = [call for call in commands if "build" in call]
+                twine_calls = [call for call in commands if "twine" in call]
+                self.assertEqual(len(wheel_builds), 1)
+                self.assertEqual(twine_calls, [])
+                self.assertEqual(
+                    {path.name for path in output.iterdir()},
+                    {f"eqiora-{config.python_version}.tar.gz", filename},
+                )
+
+    def test_producer_output_collision_fails_without_overwrite_or_cleanup(self) -> None:
+        config = self.config()
+        collisions = (
+            "eqiora-0.1.0a1-cp311-cp311-manylinux_2_17_x86_64.whl",
+            exact_wheel_name("311"),
+            ".eqiora-0.1.0a1-cp311.partial.whl",
+        )
+        for filename in collisions:
+            with (
+                self.subTest(filename=filename),
+                tempfile.TemporaryDirectory(dir=Path.home()) as temporary,
+            ):
+                root = Path(temporary)
+                output = root / "artifacts"
+                output.mkdir()
+                collision = output / filename
+                collision.write_bytes(b"pre-existing bytes")
+                checked = mock.Mock()
+                with mock.patch.object(
+                    python_candidate_module,
+                    "checked_run",
+                    checked,
+                ):
+                    with self.assertRaises(CandidateError):
+                        python_candidate_module.build_artifacts(
+                            output=output,
+                            scratch=root / "scratch",
+                            config=config,
+                            uv="/managed/uv",
+                            interpreters={
+                                version: f"/managed/python{version}"
+                                for version in config.interpreters
+                            },
+                        )
+
+                checked.assert_not_called()
+                self.assertEqual(collision.read_bytes(), b"pre-existing bytes")
+                self.assertEqual(tuple(output.iterdir()), (collision,))
+
+    def test_notebook_wheel_asset_inventory_is_closed(self) -> None:
+        expected = {
+            "eqiora/_presentation/static/mesh-view.mjs": b"module\n",
+            "eqiora/_presentation/static/mesh-view.css": b"style\n",
+            "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt": b"notice\n",
+        }
+        for mutation in ("missing", "empty", "extra", "modified"):
+            with (
+                self.subTest(mutation=mutation),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                wheel = Path(temporary) / exact_wheel_name("313")
+                members = dict(expected)
+                if mutation == "missing":
+                    members.pop("eqiora/_presentation/static/mesh-view.css")
+                elif mutation == "empty":
+                    members["eqiora/_presentation/static/mesh-view.css"] = b""
+                elif mutation == "extra":
+                    members["eqiora/_presentation/static/unreviewed.js"] = b"x"
+                else:
+                    members["eqiora/_presentation/static/mesh-view.mjs"] = b"changed"
+                with zipfile.ZipFile(wheel, mode="w") as archive:
+                    for name, payload in members.items():
+                        archive.writestr(name, payload)
+
+                validator = getattr(
+                    python_candidate_module,
+                    "verify_notebook_asset_inventory",
+                )
+                with self.assertRaises(CandidateError):
+                    validator(wheel, expected)
 
     def test_sdist_extraction_rejects_parent_traversal(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -361,6 +1285,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
         "base-3.14",
         "numpy-floor-3.12",
         "generated-public-api",
+        "notebook-3.13",
         "torch-3.13",
         "jax-3.13",
         "matplotlib-3.13",
@@ -424,6 +1349,93 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 f"heavy profile {name} cannot overlap a fitting light profile",
             )
         self.assertTrue(self.can_overlap(by_name["base-3.11"], by_name["base-3.12"]))
+
+    def test_base_profile_dispatch_excludes_notebook_authority_inputs(self) -> None:
+        profiles = self.profiles_module()
+        config = self.config()
+        base = mock.create_autospec(
+            python_candidate_module.run_base_profile,
+            return_value=["check:base-3.11"],
+        )
+
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            workspace = profiles.build_profile_plan(
+                root, config, skip_extras=False
+            )[0]
+            extracted = root / "source"
+            wheel = root / "candidate-cp311.whl"
+            with mock.patch.object(
+                python_candidate_module,
+                "run_base_profile",
+                new=base,
+            ):
+                profile_receipt = python_candidate_module.execute_profile(
+                    workspace,
+                    uv="/reviewed/uv",
+                    config=config,
+                    wheels={"3.11": wheel},
+                    extracted=extracted,
+                    interpreters={"3.11": "/reviewed/python3.11"},
+                    receipt=mock.sentinel.validated_receipt,
+                    frontend=mock.sentinel.derived_frontend,
+                )
+
+        self.assertEqual(profile_receipt.checks, ("check:base-3.11",))
+        base.assert_called_once_with(
+            uv="/reviewed/uv",
+            interpreter="/reviewed/python3.11",
+            python_version="3.11",
+            wheel=wheel,
+            extracted=extracted,
+            workspace=workspace,
+            config=config,
+        )
+
+    def test_notebook_profile_dispatch_requires_validated_authority_pair(self) -> None:
+        profiles = self.profiles_module()
+        config = self.config()
+        validated_receipt = mock.sentinel.validated_receipt
+        derived_frontend = mock.sentinel.derived_frontend
+        notebook = mock.create_autospec(
+            python_candidate_module.run_notebook_profile,
+            return_value=["check:notebook-3.13"],
+        )
+
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            notebook_workspace = profiles.build_profile_plan(
+                root, config, skip_extras=False
+            )[6]
+            source = root / "source"
+            candidate_wheel = root / "candidate-cp313.whl"
+            with mock.patch.object(
+                python_candidate_module,
+                "run_notebook_profile",
+                new=notebook,
+            ):
+                profile_receipt = python_candidate_module.execute_profile(
+                    notebook_workspace,
+                    uv="/reviewed/uv",
+                    config=config,
+                    wheels={"3.13": candidate_wheel},
+                    extracted=source,
+                    interpreters={"3.13": "/reviewed/python3.13"},
+                    receipt=validated_receipt,
+                    frontend=derived_frontend,
+                )
+
+        self.assertEqual(profile_receipt.checks, ("check:notebook-3.13",))
+        notebook.assert_called_once_with(
+            uv="/reviewed/uv",
+            interpreter="/reviewed/python3.13",
+            wheel=candidate_wheel,
+            extracted=source,
+            workspace=notebook_workspace,
+            config=config,
+            receipt=validated_receipt,
+            frontend=derived_frontend,
+        )
 
     def config(self) -> DistributionConfig:
         return PythonCandidateTests().config()
@@ -524,6 +1536,11 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
             profile_callback(name, observations)
             return [f"check:{name}"]
 
+        def notebook(**_kwargs: object) -> list[str]:
+            name = "notebook-3.13"
+            profile_callback(name, observations)
+            return [f"check:{name}"]
+
         def typing(**_kwargs: object) -> str:
             name = "typing-3.13"
             profile_callback(name, observations)
@@ -583,6 +1600,12 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
             ),
             mock.patch.object(
                 python_candidate_module, "run_optional_profile", side_effect=optional
+            ),
+            mock.patch.object(
+                python_candidate_module,
+                "run_notebook_profile",
+                side_effect=notebook,
+                create=True,
             ),
             mock.patch.object(
                 python_candidate_module, "run_full_typing_profile", side_effect=typing
@@ -891,6 +1914,3510 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 profiles.merge_profile_receipts(
                     ("base-3.11", "numpy-floor-3.12"), invalid
                 )
+
+
+class H2ExecutionBoundaryTests(unittest.TestCase):
+    REVISION = "1" * 40
+    H2_EXECUTOR = REPOSITORY_ROOT / "tools/release/python_candidate_h2.py"
+    playwright_core_archive_bytes: bytes | None = None
+
+    def playwright_workspace(self, root: Path) -> object:
+        executor = importlib.import_module("python_candidate_h2")
+        workspace = executor.create_isolated_build_workspaces(root / "builds")[0]
+        workspace.frontend.mkdir()
+        return workspace
+
+    def install_locked_playwright_core(
+        self, workspace: object
+    ) -> tuple[dict[str, object], Path, Path]:
+        lock_path = REPOSITORY_ROOT / "bindings/python/frontend/package-lock.json"
+        self.assertEqual(
+            hashlib.sha256(lock_path.read_bytes()).hexdigest(),
+            PLAYWRIGHT_CORE_LOCK_SHA256,
+        )
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        entry = lock["packages"]["node_modules/playwright-core"]
+        self.assertEqual(
+            entry,
+            {
+                "version": "1.62.1",
+                "resolved": PLAYWRIGHT_CORE_URL,
+                "integrity": PLAYWRIGHT_CORE_INTEGRITY,
+                "dev": True,
+                "license": "Apache-2.0",
+                "bin": {"playwright-core": "cli.js"},
+                "engines": {"node": ">=20"},
+            },
+        )
+        package_archive = type(self).playwright_core_archive_bytes
+        if package_archive is None:
+            with urllib.request.urlopen(PLAYWRIGHT_CORE_URL, timeout=60) as response:
+                package_archive = response.read()
+            type(self).playwright_core_archive_bytes = package_archive
+        observed_integrity = "sha512-" + base64.b64encode(
+            hashlib.sha512(package_archive).digest()
+        ).decode("ascii")
+        self.assertEqual(observed_integrity, PLAYWRIGHT_CORE_INTEGRITY)
+
+        archive_path = Path(workspace.root) / "playwright-core-1.62.1.tgz"
+        archive_path.write_bytes(package_archive)
+        extraction_root = Path(workspace.root) / "playwright-core-package"
+        extraction_root.mkdir()
+        with tarfile.open(
+            fileobj=io.BytesIO(package_archive),
+            mode="r:gz",
+        ) as archive:
+            members = archive.getmembers()
+            for member in members:
+                relative = Path(member.name)
+                self.assertFalse(relative.is_absolute())
+                self.assertNotIn("..", relative.parts)
+                self.assertTrue(member.isdir() or member.isfile())
+                target = extraction_root / relative
+                if member.isdir():
+                    target.mkdir(parents=True, exist_ok=True)
+                    continue
+                source = archive.extractfile(member)
+                self.assertIsNotNone(source)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with target.open("wb") as output:
+                    shutil.copyfileobj(source, output)  # type: ignore[arg-type]
+
+        package = extraction_root / "package"
+        self.assertTrue(package.is_dir())
+        self.assertFalse(package.is_symlink())
+        self.assertEqual(
+            hashlib.sha256((package / "package.json").read_bytes()).hexdigest(),
+            PLAYWRIGHT_CORE_PACKAGE_SHA256,
+        )
+        self.assertEqual(
+            hashlib.sha256((package / "browsers.json").read_bytes()).hexdigest(),
+            PLAYWRIGHT_CORE_BROWSERS_SHA256,
+        )
+        self.assertEqual(
+            hashlib.sha256((package / "lib/coreBundle.js").read_bytes()).hexdigest(),
+            PLAYWRIGHT_CORE_BUNDLE_SHA256,
+        )
+        self.assertFalse((package / "lib/server/registry/index.js").exists())
+        return lock, package, archive_path
+
+    @staticmethod
+    def expected_playwright_observation(browser_cache: Path) -> dict[str, object]:
+        directory = browser_cache / "chromium_headless_shell-1234"
+        return {
+            "name": "chromium-headless-shell",
+            "browserName": "chromium",
+            "revision": "1234",
+            "browserVersion": "151.0.7922.34",
+            "installType": "download-by-default",
+            "directory": str(directory),
+            "executablePath": str(directory / PLAYWRIGHT_BROWSER_MEMBER),
+            "downloadURLs": [PLAYWRIGHT_BROWSER_URL],
+        }
+
+    @staticmethod
+    def playwright_probe(
+        node: Path,
+        package: Path,
+        browser_cache: Path,
+        program: str,
+    ) -> subprocess.CompletedProcess[str]:
+        environment = {
+            "HOME": str(browser_cache.parent / "home"),
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "PATH": os.environ.get("PATH", ""),
+            "PLAYWRIGHT_BROWSERS_PATH": str(browser_cache),
+            "TZ": "UTC",
+        }
+        return subprocess.run(
+            [str(node), "-e", program, str(package)],
+            check=False,
+            text=True,
+            capture_output=True,
+            env=environment,
+        )
+
+    @staticmethod
+    def instrumented_playwright_process(
+        real_run: Callable[..., subprocess.CompletedProcess[str]],
+        argv: list[str],
+        kwargs: dict[str, object],
+        mutation: tuple[str, object] | None = None,
+    ) -> tuple[subprocess.CompletedProcess[str], tuple[str, ...]]:
+        harness = r"""
+const p=require('path'),program=process.argv[1],root=process.argv[2];
+const mutation=JSON.parse(process.argv[3]);
+const registry=require(p.join(root,'lib/coreBundle.js')).registry.registry;
+const find=registry.findExecutable,calls=[];
+registry.findExecutable=function(name){
+  calls.push(name); const executable=find.call(this,name);
+  if(mutation===null)return executable;
+  return new Proxy(executable,{get(target,key,receiver){
+    if(key===mutation.key)return key==='executablePath'?()=>mutation.value:mutation.value;
+    return Reflect.get(target,key,receiver);
+  }});
+};
+const argv=process.argv,write=process.stdout.write.bind(process.stdout); let output='',failure=null;
+process.argv=[argv[0],root]; process.stdout.write=chunk=>{output+=String(chunk);return true;};
+try{eval(program);}catch(error){failure=error&&error.stack?error.stack:String(error);}
+finally{process.argv=argv;process.stdout.write=write;}
+write(JSON.stringify({calls,output,failure}));
+"""
+        completed = real_run(
+            [
+                argv[0],
+                "-e",
+                harness,
+                argv[2],
+                argv[3],
+                json.dumps(
+                    None
+                    if mutation is None
+                    else {"key": mutation[0], "value": mutation[1]}
+                ),
+            ],
+            **{**kwargs, "check": False},
+        )
+        if completed.returncode != 0:
+            raise subprocess.CalledProcessError(
+                completed.returncode,
+                completed.args,
+                output=completed.stdout,
+                stderr=completed.stderr,
+            )
+        trace = json.loads(completed.stdout)
+        if trace["failure"] is not None:
+            raise subprocess.CalledProcessError(
+                1, argv, output=trace["output"], stderr=trace["failure"]
+            )
+        return (
+            subprocess.CompletedProcess(
+                argv, 0, stdout=trace["output"], stderr=completed.stderr
+            ),
+            tuple(trace["calls"]),
+        )
+
+    @staticmethod
+    def write_browser_archive(
+        destination: Path,
+        members: tuple[tuple[str, bytes, int], ...] | None = None,
+    ) -> None:
+        executable = b"#!/bin/sh\nprintf '%s\\n' 'HeadlessChrome 151.0.7922.34'\n"
+        entries = members or ((PLAYWRIGHT_BROWSER_MEMBER, executable, 0o100755),)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="Duplicate name:", category=UserWarning
+            )
+            with zipfile.ZipFile(destination, mode="w") as archive:
+                for name, payload, mode in entries:
+                    member = zipfile.ZipInfo(name)
+                    member.create_system = 3
+                    member.external_attr = mode << 16
+                    archive.writestr(member, payload)
+
+    @staticmethod
+    def structural_browser_inventory(
+        archive_path: Path,
+    ) -> tuple[dict[str, object], ...]:
+        with zipfile.ZipFile(archive_path) as archive:
+            records = (
+                {
+                    "path": member.filename,
+                    "kind": "directory" if member.is_dir() else "file",
+                    "external_attr": member.external_attr,
+                    "compression": member.compress_type,
+                    "compressed_size": member.compress_size,
+                    "expanded_size": member.file_size,
+                    "crc32": f"{member.CRC:08x}",
+                }
+                for member in archive.infolist()
+            )
+            return tuple(
+                sorted(records, key=lambda record: str(record["path"]).encode())
+            )
+
+    @staticmethod
+    def acquired_inputs(
+        executor: object,
+        root: Path,
+        *,
+        archive_sha256: str = "a" * 64,
+        executable_sha256: str = "b" * 64,
+    ) -> object:
+        return executor.AcquiredInputs(
+            node=root / "node",
+            npm=root / "npm",
+            npm_tarball=root / "npm.tgz",
+            browser_archive=root / "browser.zip",
+            browser_executable=root
+            / "chromium_headless_shell-1234"
+            / PLAYWRIGHT_BROWSER_MEMBER,
+            browser_archive_sha256=archive_sha256,
+            browser_executable_sha256=executable_sha256,
+            browser_platform="linux-x86_64",
+            playwright_test_integrity="sha512-test",
+            playwright_core_integrity=PLAYWRIGHT_CORE_INTEGRITY,
+            python_wheels=({"name": "anywidget", "sha256": "c" * 64},),
+            anywidget_license_sha256="d" * 64,
+            package_manifests=(
+                ("node_modules/playwright-core", {"version": "1.62.1"}),
+            ),
+            locked_package_bytes=1,
+            python_wheel_bytes=1,
+            browser_member_count=287,
+            browser_expanded_regular_bytes=273_378_828,
+        )
+
+    def test_exact_content_bound_browser_and_abstract_resource_profile(self) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        self.assertEqual(
+            dict(executor.CONTENT_BOUND_BROWSER_PROFILE),
+            CONTENT_BOUND_BROWSER_PROFILE,
+        )
+        self.assertEqual(
+            dict(executor.CONTENT_BOUND_RESOURCE_LIMITS),
+            CONTENT_BOUND_RESOURCE_LIMITS,
+        )
+
+        observed = {
+            "family_member_count": 5,
+            "family_largest_member_bytes": 16_777_216,
+            "family_bytes": 67_108_864,
+            "source_member_count": 50_000,
+            "source_largest_member_bytes": 67_108_864,
+            "source_bytes": 536_870_912,
+            "locked_package_count": 2_047,
+            "locked_package_bytes": 1_073_741_824,
+            "build_output_count": 3,
+            "build_output_bytes": 16_777_216,
+            "resolved_python_wheel_count": 256,
+            "resolved_python_wheel_bytes": 1_073_741_824,
+            "browser_archive_bytes": CONTENT_BOUND_BROWSER_PROFILE[
+                "raw_archive_bytes"
+            ],
+            "browser_archive_sha256": CONTENT_BOUND_BROWSER_PROFILE[
+                "raw_archive_sha256"
+            ],
+            "browser_archive_member_count": CONTENT_BOUND_BROWSER_PROFILE[
+                "zip_member_count"
+            ],
+            "browser_extracted_regular_bytes": CONTENT_BOUND_BROWSER_PROFILE[
+                "total_expanded_bytes"
+            ],
+            "browser_largest_expanded_member_bytes": (
+                CONTENT_BOUND_BROWSER_PROFILE["largest_expanded_member_bytes"]
+            ),
+            "browser_largest_member": CONTENT_BOUND_BROWSER_PROFILE[
+                "largest_member"
+            ],
+            "browser_member_inventory_sha256": CONTENT_BOUND_BROWSER_PROFILE[
+                "closed_member_inventory_sha256"
+            ],
+            "browser_executable_sha256": CONTENT_BOUND_BROWSER_PROFILE[
+                "executable_sha256"
+            ],
+            "host_scenarios": 2,
+        }
+        equality = executor.require_content_bound_resources(dict(observed))
+        self.assertEqual(
+            equality,
+            {"member_steps": 104_650, "byte_steps": 4_789_240_546},
+        )
+        alternate_equality = dict(observed)
+        alternate_equality["source_member_count"] = 49_999
+        alternate_equality["locked_package_count"] = 2_048
+        self.assertEqual(
+            executor.require_content_bound_resources(alternate_equality),
+            {"member_steps": 104_650, "byte_steps": 4_789_240_546},
+        )
+        aggregate_equality = dict(observed)
+        aggregate_equality["locked_package_count"] = 2_048
+        self.assertEqual(
+            executor.require_content_bound_resources(aggregate_equality),
+            {"member_steps": 104_652, "byte_steps": 4_789_240_546},
+        )
+
+        component_maxima = {
+            "family_member_count": 5,
+            "family_largest_member_bytes": 16_777_216,
+            "family_bytes": 67_108_864,
+            "source_member_count": 50_000,
+            "source_largest_member_bytes": 67_108_864,
+            "source_bytes": 536_870_912,
+            "locked_package_count": 2_048,
+            "locked_package_bytes": 1_073_741_824,
+            "build_output_count": 3,
+            "build_output_bytes": 16_777_216,
+            "resolved_python_wheel_count": 256,
+            "resolved_python_wheel_bytes": 1_073_741_824,
+            "browser_archive_bytes": 120_231_126,
+            "browser_archive_member_count": 287,
+            "browser_extracted_regular_bytes": 273_378_828,
+            "browser_largest_expanded_member_bytes": 196_975_952,
+            "host_scenarios": 2,
+        }
+        for name, maximum in component_maxima.items():
+            with self.subTest(first_excess=name):
+                mutant = dict(observed)
+                mutant[name] = maximum + 1
+                with self.assertRaises((CandidateError, RuntimeError)):
+                    executor.require_content_bound_resources(mutant)
+
+        for name in (
+            "browser_archive_sha256",
+            "browser_member_inventory_sha256",
+            "browser_executable_sha256",
+        ):
+            with self.subTest(identity=name):
+                mutant = dict(observed)
+                mutant[name] = "0" * 64
+                with self.assertRaises((CandidateError, RuntimeError)):
+                    executor.require_content_bound_resources(mutant)
+
+        for name in (
+            "family_member_count",
+            "build_output_count",
+            "browser_archive_bytes",
+            "browser_archive_member_count",
+            "browser_extracted_regular_bytes",
+            "browser_largest_expanded_member_bytes",
+            "host_scenarios",
+        ):
+            with self.subTest(exact_identity=name):
+                mutant = dict(observed)
+                mutant[name] = int(mutant[name]) - 1
+                with self.assertRaises((CandidateError, RuntimeError)):
+                    executor.require_content_bound_resources(mutant)
+
+    def test_ordinary_default_candidate_then_live_bound_falsifiers(self) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        transport = importlib.import_module(
+            "tools.ci.tests.test_release_transport"
+        )
+        expected_commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=REPOSITORY_ROOT,
+            text=True,
+        ).strip()
+        self.assertRegex(expected_commit, r"\A[0-9a-f]{40}\Z")
+        launched: list[tuple[str, ...]] = []
+        real_popen = subprocess.Popen
+
+        def observe_launch(
+            argv: object,
+            *args: object,
+            **kwargs: object,
+        ) -> subprocess.Popen[str]:
+            if isinstance(argv, (str, bytes)):
+                vector = (os.fsdecode(argv),)
+            else:
+                vector = tuple(  # type: ignore[union-attr]
+                    os.fsdecode(os.fspath(value)) for value in argv
+                )
+            launched.append(vector)
+            return real_popen(argv, *args, **kwargs)  # type: ignore[arg-type]
+
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            family_path = root / "family"
+            h2_output = root / "h2"
+            metadata = root / "metadata"
+            with mock.patch.object(
+                subprocess,
+                "Popen",
+                side_effect=observe_launch,
+            ):
+                prepared = python_candidate_module.prepare_candidate(
+                    expected_commit=expected_commit,
+                    out=family_path,
+                    require_tag=False,
+                )
+                receipt_path = executor.execute_h2(
+                    expected_commit=expected_commit,
+                    artifacts=prepared,
+                    out=h2_output,
+                )
+                manifest = python_candidate_module.finalize_candidate(
+                    expected_commit=expected_commit,
+                    artifacts=prepared,
+                    h2_receipt=receipt_path,
+                    manifest_out=metadata,
+                )
+
+            family = executor.admit_candidate_family(prepared)
+            expected_names = (
+                "eqiora-0.1.0a1.tar.gz",
+                *(exact_wheel_name(version) for version in EXACT_WHEEL_INTERPRETERS),
+            )
+            self.assertEqual(len(family.inventory), 5)
+            self.assertEqual(
+                tuple(record["filename"] for record in family.inventory),
+                tuple(sorted(expected_names, key=lambda name: name.encode("utf-8"))),
+            )
+            self.assertTrue(all(int(record["size"]) > 0 for record in family.inventory))
+            family_after = executor.family_inventory(prepared)
+            self.assertEqual(family_after, family.inventory)
+
+            receipt_bytes = receipt_path.read_bytes()
+            receipt = json.loads(receipt_bytes)
+            self.assertEqual(receipt_bytes, executor.canonical_json_bytes(receipt))
+            executor.validate_h2_receipt(receipt)
+            self.assertEqual(tuple(h2_output.iterdir()), (receipt_path,))
+            retained_receipt = metadata / receipt_path.name
+            self.assertEqual(retained_receipt.read_bytes(), receipt_bytes)
+            self.assertEqual(
+                {path.name for path in metadata.iterdir()},
+                {manifest.name, retained_receipt.name},
+            )
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            self.assertEqual(
+                set(document["checks"]).intersection(NOTEBOOK_PROFILE_CHECKS),
+                set(NOTEBOOK_PROFILE_CHECKS),
+            )
+            accepted = transport.load_candidate_family(
+                manifest,
+                prepared,
+                requested_profiles=("notebook",),
+                h2_receipt=retained_receipt,
+            )
+            transport.verify_artifacts(accepted, prepared)
+            self.assertEqual(executor.family_inventory(prepared), family.inventory)
+
+            encoded_commands = tuple(
+                json.dumps(list(command))
+                for command in (
+                    ("npm", "ci", "--ignore-scripts"),
+                    ("npm", "run", "typecheck"),
+                    ("npm", "run", "lint"),
+                    ("npm", "run", "test"),
+                    ("npm", "run", "build"),
+                )
+            )
+            rendered_launches = tuple(" ".join(vector) for vector in launched)
+            for encoded in encoded_commands:
+                self.assertGreaterEqual(
+                    sum(encoded in rendered for rendered in rendered_launches),
+                    2,
+                )
+            for exact_host in (
+                ("-I", "-m", "jupyter", "lab"),
+                ("-I", "-m", "marimo", "run"),
+                ("npm", "run", "test:hosts", "--", "--project=jupyterlab-4.6.2"),
+                ("npm", "run", "test:hosts", "--", "--project=marimo-0.23.16"),
+            ):
+                self.assertTrue(
+                    any(
+                        any(
+                            vector[index : index + len(exact_host)] == exact_host
+                            for index in range(len(vector) - len(exact_host) + 1)
+                        )
+                        for vector in launched
+                    ),
+                    exact_host,
+                )
+
+            receipt_mutations = {
+                "visible-nonloopback-request": lambda value: value[
+                    "clean_run_1"
+                ].__setitem__("external_request_count_after_npm_ci", 1),
+                "cdn-import": lambda value: value["clean_run_1"].__setitem__(
+                    "emitted_imports", ["https://cdn.invalid/eqiora-h2.js"]
+                ),
+            }
+            for name, mutate in receipt_mutations.items():
+                with self.subTest(live_bound_falsifier=name):
+                    mutant_root = root / name
+                    mutant_root.mkdir()
+                    mutant_receipt = json.loads(receipt_bytes)
+                    mutate(mutant_receipt)
+                    mutant_receipt_path = mutant_root / receipt_path.name
+                    mutant_receipt_bytes = executor.canonical_json_bytes(
+                        mutant_receipt
+                    )
+                    mutant_receipt_path.write_bytes(mutant_receipt_bytes)
+                    mutant_document = json.loads(
+                        manifest.read_text(encoding="utf-8")
+                    )
+                    mutant_document["build"]["frontend"][
+                        "h2_receipt_sha256"
+                    ] = hashlib.sha256(mutant_receipt_bytes).hexdigest()
+                    mutant_manifest = mutant_root / manifest.name
+                    mutant_manifest.write_text(
+                        json.dumps(mutant_document), encoding="utf-8"
+                    )
+                    with self.assertRaises(transport.ManifestError):
+                        transport.load_candidate_family(
+                            mutant_manifest,
+                            prepared,
+                            requested_profiles=("notebook",),
+                            h2_receipt=mutant_receipt_path,
+                        )
+
+            no_op_output = root / "no-op-h2"
+            with mock.patch.object(
+                executor,
+                "_run_process",
+                return_value=("", 0),
+            ) as no_op_launch:
+                with self.assertRaises((CandidateError, RuntimeError)):
+                    executor.execute_h2(
+                        expected_commit=expected_commit,
+                        artifacts=prepared,
+                        out=no_op_output,
+                    )
+            self.assertGreater(no_op_launch.call_count, 0)
+            if no_op_output.exists():
+                self.assertEqual(tuple(no_op_output.iterdir()), ())
+
+            for omitted in NOTEBOOK_PROFILE_CHECKS[5:7]:
+                with self.subTest(omitted_host=omitted):
+                    omitted_output = root / f"omitted-{omitted.split(':')[1]}"
+                    forged = python_candidate_module.CandidateProfileSummary(
+                        config=python_candidate_module.load_config(),
+                        uv="/reviewed/uv",
+                        wheel_records=(),
+                        checks=(
+                            "twine-strict",
+                            "sdist-to-wheel-rebuild",
+                            *(
+                                name
+                                for name in NOTEBOOK_PROFILE_CHECKS
+                                if name != omitted
+                            ),
+                        ),
+                        dependency_profiles={},
+                    )
+                    with (
+                        mock.patch.object(
+                            python_candidate_module,
+                            "run_candidate_profiles",
+                            return_value=forged,
+                        ) as profiles,
+                        mock.patch.object(
+                            python_candidate_module,
+                            "write_manifest",
+                            wraps=python_candidate_module.write_manifest,
+                        ) as write_manifest,
+                    ):
+                        with self.assertRaises(CandidateError):
+                            python_candidate_module.finalize_candidate(
+                                expected_commit=expected_commit,
+                                artifacts=prepared,
+                                h2_receipt=receipt_path,
+                                manifest_out=omitted_output,
+                            )
+                    profiles.assert_called_once()
+                    write_manifest.assert_not_called()
+                    if omitted_output.exists():
+                        self.assertEqual(tuple(omitted_output.iterdir()), ())
+
+            bypass_output = root / "finalizer-bypass"
+            with (
+                mock.patch.object(
+                    python_candidate_module,
+                    "run_candidate_profiles",
+                    return_value=mock.sentinel.false_success,
+                ) as profiles,
+                mock.patch.object(
+                    python_candidate_module,
+                    "write_manifest",
+                    wraps=python_candidate_module.write_manifest,
+                ) as write_manifest,
+            ):
+                with self.assertRaises(CandidateError):
+                    python_candidate_module.finalize_candidate(
+                        expected_commit=expected_commit,
+                        artifacts=prepared,
+                        h2_receipt=receipt_path,
+                        manifest_out=bypass_output,
+                    )
+            profiles.assert_called_once()
+            write_manifest.assert_not_called()
+            if bypass_output.exists():
+                self.assertEqual(tuple(bypass_output.iterdir()), ())
+
+    def test_cross_family_receipt_substitution_rejects_two_valid_families(
+        self,
+    ) -> None:
+        transport = importlib.import_module(
+            "tools.ci.tests.test_release_transport"
+        )
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            (root / "candidate-a").mkdir()
+            manifest_a, artifacts_a, _, receipt_a, _ = (
+                transport.complete_v3_candidate_document(root / "candidate-a")
+            )
+            accepted_a = transport.load_candidate_family(
+                manifest_a,
+                artifacts_a,
+                requested_profiles=("notebook",),
+                h2_receipt=receipt_a,
+            )
+            transport.verify_artifacts(accepted_a, artifacts_a)
+
+            (root / "candidate-b").mkdir()
+            manifest_b, artifacts_b, document_b, receipt_b, receipt_document_b = (
+                transport.complete_v3_candidate_document(root / "candidate-b")
+            )
+            wheel_b = sorted(artifacts_b.glob("*.whl"))[0]
+            with zipfile.ZipFile(wheel_b, mode="a") as archive:
+                archive.comment = b"independently valid candidate B"
+            transport._bind_receipt(
+                manifest_b,
+                artifacts_b,
+                document_b,
+                receipt_b,
+                receipt_document_b,
+            )
+            accepted_b = transport.load_candidate_family(
+                manifest_b,
+                artifacts_b,
+                requested_profiles=("notebook",),
+                h2_receipt=receipt_b,
+            )
+            transport.verify_artifacts(accepted_b, artifacts_b)
+
+            receipt_b.write_bytes(receipt_a.read_bytes())
+            document_b["build"]["frontend"]["h2_receipt_sha256"] = hashlib.sha256(
+                receipt_b.read_bytes()
+            ).hexdigest()
+            manifest_b.write_text(json.dumps(document_b), encoding="utf-8")
+            with self.assertRaises(transport.ManifestError):
+                transport.load_candidate_family(
+                    manifest_b,
+                    artifacts_b,
+                    requested_profiles=("notebook",),
+                    h2_receipt=receipt_b,
+                )
+
+    def test_locked_playwright_core_compatibility_and_connected_acquisition(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        node_location = shutil.which("node")
+        if node_location is None:
+            self.fail("the locked Playwright compatibility oracle requires Node")
+        node = Path(node_location).resolve()
+
+        class ExactBrowserAcquisitionReached(Exception):
+            pass
+
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            workspace = self.playwright_workspace(root)
+            lock, package, package_archive = self.install_locked_playwright_core(
+                workspace
+            )
+            browser_cache = Path(workspace.browser_cache).resolve()
+            expected = self.expected_playwright_observation(browser_cache)
+            observed = self.playwright_probe(
+                node,
+                package,
+                browser_cache,
+                "const p=require('path'),r=process.argv[1];"
+                "const e=require(p.join(r,'lib/coreBundle.js')).registry.registry"
+                ".findExecutable('chromium-headless-shell');"
+                "process.stdout.write(JSON.stringify({name:e.name,"
+                "browserName:e.browserName,revision:e.revision,"
+                "browserVersion:e.browserVersion,installType:e.installType,"
+                "directory:e.directory,executablePath:e.executablePath(),"
+                "downloadURLs:e.downloadURLs}));",
+            )
+            self.assertEqual(observed.returncode, 0, observed.stderr)
+            self.assertEqual(json.loads(observed.stdout), expected)
+            self.assertEqual(tuple(browser_cache.iterdir()), ())
+
+            expected_archive = (
+                Path(workspace.root) / "chromium-headless-shell-1234.zip"
+            )
+            exact_downloads: list[Path] = []
+
+            def stop_at_exact_browser(destination: Path) -> None:
+                exact_downloads.append(destination)
+                raise ExactBrowserAcquisitionReached
+
+            real_run = subprocess.run
+            registry_invocations: list[tuple[str, ...]] = []
+
+            def run(argv: list[str], **kwargs: object) -> object:
+                if tuple(str(value) for value in argv[:2]) != (str(node), "-e"):
+                    return real_run(argv, **kwargs)
+                completed, calls = self.instrumented_playwright_process(
+                    real_run, argv, dict(kwargs)
+                )
+                registry_invocations.append(calls)
+                return completed
+
+            with (
+                mock.patch.object(
+                    executor,
+                    "_download_exact_browser",
+                    side_effect=stop_at_exact_browser,
+                    create=True,
+                ) as exact_download,
+                mock.patch.object(executor, "_download") as generic_download,
+                mock.patch.object(executor.subprocess, "run", side_effect=run),
+                mock.patch.object(executor, "_safe_extract_zip") as extract,
+            ):
+                with self.assertRaises(ExactBrowserAcquisitionReached):
+                    executor._acquire_browser(workspace, node, lock, package)
+
+            self.assertTrue(package_archive.is_file())
+            self.assertEqual(
+                registry_invocations,
+                [("chromium-headless-shell",)],
+            )
+            self.assertEqual(exact_downloads, [expected_archive])
+            exact_download.assert_called_once_with(expected_archive)
+            generic_download.assert_not_called()
+            extract.assert_not_called()
+            self.assertFalse(expected_archive.exists())
+            self.assertEqual(tuple(browser_cache.iterdir()), ())
+
+    def _obsolete_one_member_playwright_acquisition_unit(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        node_location = shutil.which("node")
+        if node_location is None:
+            self.fail("the locked Playwright compatibility oracle requires Node")
+        node = Path(node_location).resolve()
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            workspace = self.playwright_workspace(root)
+            lock, package, package_archive = self.install_locked_playwright_core(
+                workspace
+            )
+            browser_cache = Path(workspace.browser_cache).resolve()
+            expected = self.expected_playwright_observation(browser_cache)
+
+            reference_program = (
+                "const p=require('path'),r=process.argv[1];"
+                "const e=require(p.join(r,'lib/coreBundle.js')).registry.registry"
+                ".findExecutable('chromium-headless-shell');"
+                "process.stdout.write(JSON.stringify({name:e.name,"
+                "browserName:e.browserName,revision:e.revision,"
+                "browserVersion:e.browserVersion,installType:e.installType,"
+                "directory:e.directory,executablePath:e.executablePath(),"
+                "downloadURLs:e.downloadURLs}));"
+            )
+            observed = self.playwright_probe(
+                node, package, browser_cache, reference_program
+            )
+            self.assertEqual(observed.returncode, 0, observed.stderr)
+            self.assertEqual(json.loads(observed.stdout), expected)
+            self.assertEqual(tuple(browser_cache.iterdir()), ())
+
+            old_module = self.playwright_probe(
+                node,
+                package,
+                browser_cache,
+                "const p=require('path'),r=process.argv[1];"
+                "require(p.join(r,'lib/server/registry/index.js'));",
+            )
+            self.assertNotEqual(old_module.returncode, 0)
+            self.assertIn("lib/server/registry/index.js", old_module.stderr)
+
+            missing_nested_registry = self.playwright_probe(
+                node,
+                package,
+                browser_cache,
+                "const p=require('path'),r=process.argv[1];"
+                "require(p.join(r,'lib/coreBundle.js')).registry"
+                ".findExecutable('chromium-headless-shell');",
+            )
+            self.assertNotEqual(missing_nested_registry.returncode, 0)
+            self.assertRegex(missing_nested_registry.stderr, "findExecutable")
+
+            old_property = self.playwright_probe(
+                node,
+                package,
+                browser_cache,
+                "const p=require('path'),r=process.argv[1];"
+                "const e=require(p.join(r,'lib/coreBundle.js')).registry.registry"
+                ".findExecutable('chromium-headless-shell');"
+                "process.stdout.write(JSON.stringify({"
+                "own:Object.prototype.hasOwnProperty.call(e,'_downloadURLs'),"
+                "value:e._downloadURLs??null}));",
+            )
+            self.assertEqual(old_property.returncode, 0, old_property.stderr)
+            self.assertEqual(
+                json.loads(old_property.stdout), {"own": False, "value": None}
+            )
+
+            expected_directory = Path(str(expected["directory"]))
+            expected_executable = Path(str(expected["executablePath"]))
+            downloads: list[tuple[str, Path]] = []
+
+            def download(url: str, destination: Path) -> None:
+                downloads.append((url, destination))
+                self.assertEqual(url, PLAYWRIGHT_BROWSER_URL)
+                self.write_browser_archive(destination)
+
+            real_run = subprocess.run
+            processes: list[tuple[tuple[str, ...], bool, dict[str, object], str]] = []
+            registry_invocations: list[tuple[str, ...]] = []
+
+            def run(argv: list[str], **kwargs: object) -> object:
+                command = tuple(str(value) for value in argv)
+                present = expected_executable.exists()
+                if command[:2] == (str(node), "-e"):
+                    completed, calls = self.instrumented_playwright_process(
+                        real_run, argv, dict(kwargs)
+                    )
+                    registry_invocations.append(calls)
+                else:
+                    completed = real_run(argv, **kwargs)
+                processes.append(
+                    (command, present, dict(kwargs), str(completed.stdout))
+                )
+                return completed
+
+            real_extract = executor._safe_extract_zip
+            with (
+                mock.patch.object(executor, "_download", side_effect=download),
+                mock.patch.object(
+                    executor, "_safe_extract_zip", wraps=real_extract
+                ) as extract,
+                mock.patch.object(executor.subprocess, "run", side_effect=run),
+            ):
+                acquisition = executor._acquire_browser(
+                    workspace,
+                    node,
+                    lock,
+                    package,
+                )
+
+            expected_archive = Path(workspace.root) / "chromium-headless-shell-1234.zip"
+            test_integrity = lock["packages"]["node_modules/@playwright/test"][
+                "integrity"
+            ]
+            self.assertEqual(
+                acquisition,
+                (
+                    expected_archive,
+                    expected_executable,
+                    "linux-x86_64",
+                    test_integrity,
+                    PLAYWRIGHT_CORE_INTEGRITY,
+                ),
+            )
+            self.assertEqual(downloads, [(PLAYWRIGHT_BROWSER_URL, expected_archive)])
+            extract.assert_called_once_with(expected_archive, expected_directory)
+            self.assertTrue(package_archive.is_file())
+            self.assertTrue(expected_archive.is_file())
+            self.assertTrue(expected_executable.is_file())
+            self.assertFalse(expected_executable.is_symlink())
+            self.assertFalse((browser_cache / "chromium-headless-shell-1234").exists())
+            node_processes = [
+                (command, present, kwargs, stdout)
+                for command, present, kwargs, stdout in processes
+                if command[:2] == (str(node), "-e")
+            ]
+            self.assertEqual(len(node_processes), 2)
+            self.assertEqual(
+                [present for _command, present, _kwargs, _stdout in node_processes],
+                [False, True],
+            )
+            self.assertEqual(
+                registry_invocations,
+                [
+                    ("chromium-headless-shell",),
+                    ("chromium-headless-shell",),
+                ],
+            )
+            for index, (command, _present, kwargs, stdout) in enumerate(node_processes):
+                self.assertIn("lib/coreBundle.js", command[2])
+                self.assertNotIn("lib/server/registry/index.js", command[2])
+                self.assertIn(".registry.registry", command[2])
+                self.assertNotIn("_downloadURLs", command[2])
+                self.assertEqual(
+                    kwargs["env"]["PLAYWRIGHT_BROWSERS_PATH"],  # type: ignore[index]
+                    str(browser_cache),
+                )
+                if index == 0:
+                    self.assertEqual(json.loads(stdout), expected)
+                    self.assertIn("downloadURLs", command[2])
+                else:
+                    self.assertIn(str(expected_executable), stdout)
+            self.assertIn(
+                (str(expected_executable), "--version"),
+                [command for command, _present, _kwargs, _stdout in processes],
+            )
+
+            shutil.copyfile(
+                REPOSITORY_ROOT / "bindings/python/frontend/package-lock.json",
+                Path(workspace.frontend) / "package-lock.json",
+            )
+            manifests = (("node_modules/playwright-core", {"version": "1.62.1"}),)
+            with (
+                mock.patch.object(
+                    executor,
+                    "_node_and_npm_identity",
+                    return_value=(
+                        node,
+                        Path(workspace.root) / "npm-11.16.0.tgz",
+                        Path(workspace.root) / "npm",
+                    ),
+                ),
+                mock.patch.object(
+                    executor,
+                    "_prefetch_lock_packages",
+                    return_value=(manifests, package),
+                ) as prefetch,
+                mock.patch.object(
+                    executor,
+                    "_acquire_python_wheels",
+                    return_value=((), "d" * 64),
+                ),
+                mock.patch.object(
+                    executor, "_acquire_browser", return_value=acquisition
+                ) as acquire_browser,
+            ):
+                connected = executor.acquire_inputs(workspace)
+            prefetch.assert_called_once()
+            acquire_browser.assert_called_once_with(
+                workspace,
+                node,
+                mock.ANY,
+                package,
+            )
+            self.assertEqual(connected.browser_archive, expected_archive)
+            self.assertEqual(connected.browser_executable, expected_executable)
+            self.assertEqual(
+                connected.browser_archive_sha256,
+                hashlib.sha256(expected_archive.read_bytes()).hexdigest(),
+            )
+            self.assertEqual(
+                connected.browser_executable_sha256,
+                hashlib.sha256(expected_executable.read_bytes()).hexdigest(),
+            )
+            self.assertEqual(connected.package_manifests, manifests)
+            self.assertEqual(
+                expected_executable.parents[1],
+                Path(workspace.browser_cache) / "chromium_headless_shell-1234",
+            )
+
+    def test_implementation_uses_both_exact_find_executable_results(self) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        node_location = shutil.which("node")
+        if node_location is None:
+            self.fail("the locked Playwright compatibility oracle requires Node")
+        node = Path(node_location).resolve()
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            workspace = self.playwright_workspace(root)
+            lock, package, _package_archive = self.install_locked_playwright_core(
+                workspace
+            )
+            browser_cache = Path(workspace.browser_cache).resolve()
+            expected = self.expected_playwright_observation(browser_cache)
+            real_run = subprocess.run
+            mutations = (
+                ("name", "chromium"),
+                ("browserName", "firefox"),
+                ("revision", "1235"),
+                ("browserVersion", "151.0.7922.35"),
+                ("installType", "install-by-default"),
+                ("directory", str(root / "hard-coded-directory")),
+                ("executablePath", str(root / "hard-coded-executable")),
+                ("downloadURLs", [PLAYWRIGHT_BROWSER_URL + "?drift=1"]),
+            )
+
+            for field, mutant in mutations:
+                with self.subTest(field=field):
+                    calls: list[tuple[str, ...]] = []
+
+                    def run(argv: list[str], **kwargs: object) -> object:
+                        completed, invocation = self.instrumented_playwright_process(
+                            real_run, argv, dict(kwargs), (field, mutant)
+                        )
+                        calls.append(invocation)
+                        return completed
+
+                    with (
+                        mock.patch.object(executor.subprocess, "run", side_effect=run),
+                        mock.patch.object(
+                            executor,
+                            "_download",
+                            side_effect=AssertionError(
+                                "hard-coded probe output reached browser download"
+                            ),
+                        ) as download,
+                        mock.patch.object(
+                            executor,
+                            "_download_exact_browser",
+                            side_effect=AssertionError(
+                                "hard-coded probe output reached exact browser download"
+                            ),
+                            create=True,
+                        ) as exact_download,
+                    ):
+                        with self.assertRaises(CandidateError):
+                            executor._acquire_browser(workspace, node, lock, package)
+                    self.assertEqual(calls, [("chromium-headless-shell",)])
+                    download.assert_not_called()
+                    exact_download.assert_not_called()
+                    self.assertEqual(tuple(browser_cache.iterdir()), ())
+                    self.assertNotEqual(mutant, expected[field])
+
+            calls = []
+            expected_archive = (
+                Path(workspace.root) / "chromium-headless-shell-1234.zip"
+            )
+            expected_executable = Path(str(expected["executablePath"]))
+            identity_paths: list[Path] = []
+            real_file_sha256 = executor.file_sha256
+
+            def download_exact(destination: Path) -> None:
+                self.write_browser_archive(destination)
+
+            def frozen_structural_identity(path: Path) -> str:
+                observed = Path(path)
+                if observed == expected_archive:
+                    identity_paths.append(observed)
+                    return str(
+                        CONTENT_BOUND_BROWSER_PROFILE["raw_archive_sha256"]
+                    )
+                if observed == expected_executable:
+                    identity_paths.append(observed)
+                    return str(
+                        CONTENT_BOUND_BROWSER_PROFILE["executable_sha256"]
+                    )
+                return real_file_sha256(observed)
+
+            def run(argv: list[str], **kwargs: object) -> object:
+                command = tuple(str(value) for value in argv)
+                if command[:2] != (str(node), "-e"):
+                    return real_run(argv, **kwargs)
+                mutation = (
+                    None
+                    if not calls
+                    else ("executablePath", str(root / "hard-coded-executable"))
+                )
+                completed, invocation = self.instrumented_playwright_process(
+                    real_run, argv, dict(kwargs), mutation
+                )
+                calls.append(invocation)
+                return completed
+
+            with (
+                mock.patch.object(
+                    executor,
+                    "_download_exact_browser",
+                    side_effect=download_exact,
+                    create=True,
+                ) as exact_download,
+                mock.patch.object(
+                    executor,
+                    "_browser_archive_inventory",
+                    side_effect=self.structural_browser_inventory,
+                    create=True,
+                ) as inventory,
+                mock.patch.object(
+                    executor,
+                    "file_sha256",
+                    side_effect=frozen_structural_identity,
+                    create=True,
+                ) as identity,
+                mock.patch.object(executor, "_download") as generic_download,
+                mock.patch.object(executor.subprocess, "run", side_effect=run),
+            ):
+                with self.assertRaises(CandidateError):
+                    executor._acquire_browser(workspace, node, lock, package)
+            exact_download.assert_called_once_with(expected_archive)
+            self.assertGreaterEqual(inventory.call_count, 1)
+            identity.assert_has_calls(
+                [mock.call(expected_archive), mock.call(expected_executable)],
+                any_order=True,
+            )
+            self.assertEqual(
+                set(identity_paths), {expected_archive, expected_executable}
+            )
+            generic_download.assert_not_called()
+            self.assertEqual(
+                calls,
+                [
+                    ("chromium-headless-shell",),
+                    ("chromium-headless-shell",),
+                ],
+            )
+            self.assertTrue(expected_executable.is_file())
+
+    def test_playwright_probe_rejects_closed_observation_and_package_drift(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        node_location = shutil.which("node")
+        if node_location is None:
+            self.fail("the locked Playwright compatibility oracle requires Node")
+        node = Path(node_location).resolve()
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            workspace = self.playwright_workspace(root)
+            lock, package, _package_archive = self.install_locked_playwright_core(
+                workspace
+            )
+            browser_cache = Path(workspace.browser_cache).resolve()
+            expected = self.expected_playwright_observation(browser_cache)
+            expected_directory = Path(str(expected["directory"]))
+
+            invalid_observations: list[tuple[str, dict[str, object]]] = []
+
+            def observation(name: str, key: str, value: object) -> None:
+                mutated = dict(expected)
+                mutated[key] = value
+                invalid_observations.append((name, mutated))
+
+            missing = dict(expected)
+            missing.pop("browserName")
+            invalid_observations.append(("missing-key", missing))
+            invalid_observations.append(("extra-key", {**expected, "extra": True}))
+            observation("wrong-executable-name", "name", "chromium")
+            observation("wrong-browser-family", "browserName", "firefox")
+            observation("wrong-revision", "revision", "1235")
+            observation("wrong-browser-version", "browserVersion", "151.0.7922.35")
+            observation("wrong-install-type", "installType", "install-by-default")
+            observation("directory-not-string", "directory", 1)
+            observation(
+                "relative-directory", "directory", "chromium_headless_shell-1234"
+            )
+            observation(
+                "parent-escaping-directory",
+                "directory",
+                str(browser_cache / ".." / "chromium_headless_shell-1234"),
+            )
+            observation(
+                "hyphen-directory",
+                "directory",
+                str(browser_cache / "chromium-headless-shell-1234"),
+            )
+            alternate = root / "ambient-cache" / "chromium_headless_shell-1234"
+            observation("ambient-directory", "directory", str(alternate))
+            observation(
+                "relative-executable", "executablePath", PLAYWRIGHT_BROWSER_MEMBER
+            )
+            observation(
+                "recursive-basename",
+                "executablePath",
+                str(expected_directory / "other" / "chrome-headless-shell"),
+            )
+            observation(
+                "parent-escaping-executable",
+                "executablePath",
+                str(expected_directory / ".." / PLAYWRIGHT_BROWSER_MEMBER),
+            )
+            observation("missing-url-value", "downloadURLs", None)
+            observation("non-array-url-value", "downloadURLs", PLAYWRIGHT_BROWSER_URL)
+            observation("empty-url-vector", "downloadURLs", [])
+            observation(
+                "extra-url",
+                "downloadURLs",
+                [PLAYWRIGHT_BROWSER_URL, "https://example.invalid/extra.zip"],
+            )
+            observation(
+                "reordered-urls",
+                "downloadURLs",
+                ["https://example.invalid/extra.zip", PLAYWRIGHT_BROWSER_URL],
+            )
+            observation(
+                "non-https-url",
+                "downloadURLs",
+                [PLAYWRIGHT_BROWSER_URL.replace("https://", "http://")],
+            )
+            observation(
+                "url-byte-drift",
+                "downloadURLs",
+                [PLAYWRIGHT_BROWSER_URL + "?mirror=1"],
+            )
+
+            linked_root = root / "linked-browser-cache"
+            linked_root.symlink_to(browser_cache, target_is_directory=True)
+            observation(
+                "symlinked-directory",
+                "directory",
+                str(linked_root / "chromium_headless_shell-1234"),
+            )
+            observation(
+                "symlinked-executable",
+                "executablePath",
+                str(
+                    linked_root
+                    / "chromium_headless_shell-1234"
+                    / PLAYWRIGHT_BROWSER_MEMBER
+                ),
+            )
+
+            for name, mutated in invalid_observations:
+                with self.subTest(observation=name):
+                    completed = subprocess.CompletedProcess(
+                        [str(node), "-e", "probe", str(package)],
+                        0,
+                        stdout=json.dumps(mutated),
+                        stderr="",
+                    )
+                    with (
+                        mock.patch.object(
+                            executor.subprocess, "run", return_value=completed
+                        ),
+                        mock.patch.object(executor, "_download") as download,
+                        mock.patch.object(
+                            executor,
+                            "_download_exact_browser",
+                            side_effect=AssertionError(
+                                "invalid observation reached exact browser download"
+                            ),
+                            create=True,
+                        ) as exact_download,
+                    ):
+                        with self.assertRaises(CandidateError):
+                            executor._acquire_browser(workspace, node, lock, package)
+                    download.assert_not_called()
+                    exact_download.assert_not_called()
+                    self.assertFalse(expected_directory.exists())
+
+            package_json = package / "package.json"
+            browsers_json = package / "browsers.json"
+            core_bundle = package / "lib/coreBundle.js"
+            file_drifts = (
+                (
+                    "package-json",
+                    package_json,
+                    package_json.read_bytes().replace(b'"1.62.1"', b'"1.62.2"'),
+                ),
+                (
+                    "browsers-json",
+                    browsers_json,
+                    browsers_json.read_bytes() + b"\n",
+                ),
+                ("core-bundle", core_bundle, core_bundle.read_bytes() + b"\n"),
+            )
+            for name, path, mutant in file_drifts:
+                with self.subTest(package_file=name):
+                    original = path.read_bytes()
+                    path.write_bytes(mutant)
+                    try:
+                        with (
+                            mock.patch.object(
+                                executor.subprocess,
+                                "run",
+                                side_effect=AssertionError(
+                                    "a drifted package reached the registry probe"
+                                ),
+                            ) as run,
+                            mock.patch.object(executor, "_download") as download,
+                            mock.patch.object(
+                                executor,
+                                "_download_exact_browser",
+                                side_effect=AssertionError(
+                                    "drifted package reached exact browser download"
+                                ),
+                                create=True,
+                            ) as exact_download,
+                        ):
+                            with self.assertRaises(CandidateError):
+                                executor._acquire_browser(
+                                    workspace, node, lock, package
+                                )
+                        run.assert_not_called()
+                        download.assert_not_called()
+                        exact_download.assert_not_called()
+                    finally:
+                        path.write_bytes(original)
+
+            lock_drifts = (
+                ("core-version", "node_modules/playwright-core", "version", "1.62.2"),
+                (
+                    "core-integrity",
+                    "node_modules/playwright-core",
+                    "integrity",
+                    "sha512-" + "A" * 88,
+                ),
+                ("test-version", "node_modules/@playwright/test", "version", "1.62.2"),
+            )
+            for name, lock_path, key, value in lock_drifts:
+                with self.subTest(lock=name):
+                    mutated_lock = json.loads(json.dumps(lock))
+                    mutated_lock["packages"][lock_path][key] = value
+                    with (
+                        mock.patch.object(
+                            executor.subprocess,
+                            "run",
+                            side_effect=AssertionError(
+                                "a drifted lock reached the registry probe"
+                            ),
+                        ) as run,
+                        mock.patch.object(executor, "_download") as download,
+                        mock.patch.object(
+                            executor,
+                            "_download_exact_browser",
+                            side_effect=AssertionError(
+                                "drifted lock reached exact browser download"
+                            ),
+                            create=True,
+                        ) as exact_download,
+                    ):
+                        with self.assertRaises(CandidateError):
+                            executor._acquire_browser(
+                                workspace, node, mutated_lock, package
+                            )
+                    run.assert_not_called()
+                    download.assert_not_called()
+                    exact_download.assert_not_called()
+
+            ambient_packages = (
+                (
+                    "checkout-node-modules",
+                    Path(workspace.frontend) / "node_modules/playwright-core",
+                ),
+                (
+                    "workspace-home-cache",
+                    Path(workspace.home) / ".cache/playwright/packages/playwright-core",
+                ),
+                ("parent-installation", root / "ambient/playwright-core"),
+            )
+            for name, ambient_package in ambient_packages:
+                with self.subTest(package_root=name):
+                    ambient_package.parent.mkdir(parents=True, exist_ok=True)
+                    package.rename(ambient_package)
+                    try:
+                        with (
+                            mock.patch.object(
+                                executor.subprocess,
+                                "run",
+                                side_effect=AssertionError(
+                                    "an ambient package reached the registry probe"
+                                ),
+                            ) as run,
+                            mock.patch.object(executor, "_download") as download,
+                            mock.patch.object(
+                                executor,
+                                "_download_exact_browser",
+                                side_effect=AssertionError(
+                                    "ambient package reached exact browser download"
+                                ),
+                                create=True,
+                            ) as exact_download,
+                        ):
+                            with self.assertRaises(CandidateError):
+                                executor._acquire_browser(
+                                    workspace, node, lock, ambient_package
+                                )
+                        run.assert_not_called()
+                        download.assert_not_called()
+                        exact_download.assert_not_called()
+                    finally:
+                        ambient_package.rename(package)
+
+            real_package = package.parent / "verified-package"
+            package.rename(real_package)
+            package.symlink_to(real_package, target_is_directory=True)
+            try:
+                with (
+                    mock.patch.object(executor.subprocess, "run") as run,
+                    mock.patch.object(executor, "_download") as download,
+                    mock.patch.object(
+                        executor,
+                        "_download_exact_browser",
+                        side_effect=AssertionError(
+                            "symlinked package reached exact browser download"
+                        ),
+                        create=True,
+                    ) as exact_download,
+                ):
+                    with self.assertRaises(CandidateError):
+                        executor._acquire_browser(workspace, node, lock, package)
+                run.assert_not_called()
+                download.assert_not_called()
+                exact_download.assert_not_called()
+            finally:
+                package.unlink()
+                real_package.rename(package)
+
+    def test_playwright_core_is_never_extracted_before_lock_sri_verification(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            workspace = self.playwright_workspace(Path(temporary))
+            lock = {
+                "packages": {
+                    "node_modules/playwright-core": {
+                        "version": "1.62.1",
+                        "resolved": PLAYWRIGHT_CORE_URL,
+                        "integrity": PLAYWRIGHT_CORE_INTEGRITY,
+                    }
+                }
+            }
+
+            def download(_url: str, destination: Path) -> None:
+                destination.write_bytes(b"unverified package bytes")
+
+            with (
+                mock.patch.object(executor, "_download", side_effect=download),
+                mock.patch.object(
+                    executor,
+                    "_verify_sri",
+                    side_effect=CandidateError("forced SRI mismatch"),
+                ),
+                mock.patch.object(
+                    executor, "_safe_extract_registry_package"
+                ) as extract,
+            ):
+                with self.assertRaisesRegex(CandidateError, "SRI"):
+                    executor._prefetch_lock_packages(workspace, lock)
+            extract.assert_not_called()
+            self.assertFalse(
+                (Path(workspace.root) / "playwright-core-package").exists()
+            )
+
+    def test_playwright_archive_layout_version_and_post_extract_registry_fail_closed(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        node_location = shutil.which("node")
+        if node_location is None:
+            self.fail("the locked Playwright compatibility oracle requires Node")
+        node = Path(node_location).resolve()
+        valid_executable = b"#!/bin/sh\nprintf '%s\\n' 'HeadlessChrome 151.0.7922.34'\n"
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            workspace = self.playwright_workspace(root)
+            lock, package, _package_archive = self.install_locked_playwright_core(
+                workspace
+            )
+            browser_cache = Path(workspace.browser_cache).resolve()
+            expected = self.expected_playwright_observation(browser_cache)
+            expected_directory = Path(str(expected["directory"]))
+            expected_executable = Path(str(expected["executablePath"]))
+            expected_archive = Path(workspace.root) / "chromium-headless-shell-1234.zip"
+            real_run = subprocess.run
+
+            structural_archive = root / "structural-browser-fixture.zip"
+            structural_output = root / "structural-browser-output"
+            self.write_browser_archive(structural_archive)
+            with mock.patch.object(
+                executor,
+                "_browser_archive_inventory",
+                side_effect=self.structural_browser_inventory,
+                create=True,
+            ) as inventory:
+                executor._safe_extract_zip(structural_archive, structural_output)
+            inventory.assert_called_once_with(structural_archive)
+            structural_executable = structural_output / PLAYWRIGHT_BROWSER_MEMBER
+            self.assertTrue(structural_executable.is_file())
+            self.assertFalse(structural_executable.is_symlink())
+            self.assertEqual(structural_executable.read_bytes(), valid_executable)
+
+            def clean_acquisition() -> None:
+                if expected_directory.exists() or expected_directory.is_symlink():
+                    if expected_directory.is_symlink():
+                        expected_directory.unlink()
+                    else:
+                        shutil.rmtree(expected_directory)
+                expected_archive.unlink(missing_ok=True)
+
+            def successful_process(
+                argv: list[str], **kwargs: object
+            ) -> subprocess.CompletedProcess[str]:
+                if tuple(str(value) for value in argv[:2]) == (str(node), "-e"):
+                    return real_run(argv, **kwargs)
+                self.assertEqual(
+                    tuple(str(value) for value in argv),
+                    (
+                        str(expected_executable),
+                        "--version",
+                    ),
+                )
+                return subprocess.CompletedProcess(
+                    argv,
+                    0,
+                    stdout="HeadlessChrome 151.0.7922.34\n",
+                    stderr="",
+                )
+
+            invalid_archives = (
+                (
+                    "missing-executable",
+                    (("chrome-headless-shell-linux64/README", b"missing", 0o100644),),
+                ),
+                (
+                    "recursive-basename-only",
+                    (
+                        (
+                            "other/nested/chrome-headless-shell",
+                            valid_executable,
+                            0o100755,
+                        ),
+                    ),
+                ),
+                (
+                    "duplicate-exact-member",
+                    (
+                        (PLAYWRIGHT_BROWSER_MEMBER, valid_executable, 0o100755),
+                        (PLAYWRIGHT_BROWSER_MEMBER, valid_executable, 0o100755),
+                    ),
+                ),
+                (
+                    "duplicate-basename-elsewhere",
+                    (
+                        (PLAYWRIGHT_BROWSER_MEMBER, valid_executable, 0o100755),
+                        (
+                            "other/chrome-headless-shell",
+                            valid_executable,
+                            0o100755,
+                        ),
+                    ),
+                ),
+                (
+                    "symlink-executable",
+                    ((PLAYWRIGHT_BROWSER_MEMBER, b"elsewhere", 0o120777),),
+                ),
+                (
+                    "non-regular-executable",
+                    ((PLAYWRIGHT_BROWSER_MEMBER, valid_executable, 0o060644),),
+                ),
+            )
+            for name, members in invalid_archives:
+                with self.subTest(archive=name):
+                    clean_acquisition()
+
+                    def download_exact(destination: Path) -> None:
+                        self.write_browser_archive(destination, members)
+
+                    with (
+                        mock.patch.object(
+                            executor,
+                            "_download_exact_browser",
+                            side_effect=download_exact,
+                            create=True,
+                        ) as exact_download,
+                        mock.patch.object(
+                            executor,
+                            "_browser_archive_inventory",
+                            side_effect=self.structural_browser_inventory,
+                            create=True,
+                        ) as inventory,
+                        mock.patch.object(executor, "_download") as generic_download,
+                        mock.patch.object(
+                            executor.subprocess,
+                            "run",
+                            side_effect=successful_process,
+                        ),
+                    ):
+                        with self.assertRaises(CandidateError):
+                            executor._acquire_browser(workspace, node, lock, package)
+                    exact_download.assert_called_once_with(expected_archive)
+                    self.assertGreaterEqual(inventory.call_count, 1)
+                    generic_download.assert_not_called()
+
+            clean_acquisition()
+            expected_directory.mkdir()
+            with (
+                mock.patch.object(
+                    executor.subprocess,
+                    "run",
+                    side_effect=successful_process,
+                ),
+                mock.patch.object(executor, "_download") as download,
+                mock.patch.object(
+                    executor,
+                    "_download_exact_browser",
+                    side_effect=AssertionError(
+                        "pre-existing directory reached exact browser download"
+                    ),
+                    create=True,
+                ) as exact_download,
+            ):
+                with self.assertRaisesRegex(CandidateError, "absent|exist|directory"):
+                    executor._acquire_browser(workspace, node, lock, package)
+            download.assert_not_called()
+            exact_download.assert_not_called()
+            clean_acquisition()
+
+            symlink_target = root / "symlinked-browser-directory"
+            symlink_target.mkdir()
+            expected_directory.symlink_to(symlink_target, target_is_directory=True)
+            with (
+                mock.patch.object(
+                    executor.subprocess,
+                    "run",
+                    side_effect=successful_process,
+                ),
+                mock.patch.object(executor, "_download") as download,
+                mock.patch.object(
+                    executor,
+                    "_download_exact_browser",
+                    side_effect=AssertionError(
+                        "symlinked directory reached exact browser download"
+                    ),
+                    create=True,
+                ) as exact_download,
+            ):
+                with self.assertRaises(CandidateError):
+                    executor._acquire_browser(workspace, node, lock, package)
+            download.assert_not_called()
+            exact_download.assert_not_called()
+            clean_acquisition()
+
+            def valid_exact_download(destination: Path) -> None:
+                self.write_browser_archive(destination)
+
+            identity_paths: list[Path] = []
+            real_file_sha256 = executor.file_sha256
+
+            def frozen_structural_identity(path: Path) -> str:
+                observed = Path(path)
+                if observed == expected_archive:
+                    identity_paths.append(observed)
+                    return str(
+                        CONTENT_BOUND_BROWSER_PROFILE["raw_archive_sha256"]
+                    )
+                if observed == expected_executable:
+                    identity_paths.append(observed)
+                    return str(
+                        CONTENT_BOUND_BROWSER_PROFILE["executable_sha256"]
+                    )
+                return real_file_sha256(observed)
+
+            def wrong_version(
+                argv: list[str], **kwargs: object
+            ) -> subprocess.CompletedProcess[str]:
+                if tuple(str(value) for value in argv[:2]) == (str(node), "-e"):
+                    return real_run(argv, **kwargs)
+                return subprocess.CompletedProcess(
+                    argv,
+                    0,
+                    stdout="HeadlessChrome 151.0.7922.35\n",
+                    stderr="",
+                )
+
+            with (
+                mock.patch.object(
+                    executor,
+                    "_download_exact_browser",
+                    side_effect=valid_exact_download,
+                    create=True,
+                ) as exact_download,
+                mock.patch.object(
+                    executor,
+                    "_browser_archive_inventory",
+                    side_effect=self.structural_browser_inventory,
+                    create=True,
+                ) as inventory,
+                mock.patch.object(
+                    executor,
+                    "file_sha256",
+                    side_effect=frozen_structural_identity,
+                    create=True,
+                ) as identity,
+                mock.patch.object(executor, "_download") as generic_download,
+                mock.patch.object(
+                    executor.subprocess, "run", side_effect=wrong_version
+                ),
+            ):
+                with self.assertRaisesRegex(CandidateError, "version"):
+                    executor._acquire_browser(workspace, node, lock, package)
+            exact_download.assert_called_once_with(expected_archive)
+            self.assertGreaterEqual(inventory.call_count, 1)
+            identity.assert_has_calls(
+                [mock.call(expected_archive), mock.call(expected_executable)],
+                any_order=True,
+            )
+            self.assertEqual(
+                set(identity_paths), {expected_archive, expected_executable}
+            )
+            generic_download.assert_not_called()
+            clean_acquisition()
+            identity_paths.clear()
+
+            def launch_failure(argv: list[str], **kwargs: object) -> object:
+                if tuple(str(value) for value in argv[:2]) == (str(node), "-e"):
+                    return real_run(argv, **kwargs)
+                raise subprocess.CalledProcessError(7, argv, output="launch failed")
+
+            with (
+                mock.patch.object(
+                    executor,
+                    "_download_exact_browser",
+                    side_effect=valid_exact_download,
+                    create=True,
+                ) as exact_download,
+                mock.patch.object(
+                    executor,
+                    "_browser_archive_inventory",
+                    side_effect=self.structural_browser_inventory,
+                    create=True,
+                ) as inventory,
+                mock.patch.object(
+                    executor,
+                    "file_sha256",
+                    side_effect=frozen_structural_identity,
+                    create=True,
+                ) as identity,
+                mock.patch.object(executor, "_download") as generic_download,
+                mock.patch.object(
+                    executor.subprocess, "run", side_effect=launch_failure
+                ),
+            ):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    executor._acquire_browser(workspace, node, lock, package)
+            exact_download.assert_called_once_with(expected_archive)
+            self.assertGreaterEqual(inventory.call_count, 1)
+            identity.assert_has_calls(
+                [mock.call(expected_archive), mock.call(expected_executable)],
+                any_order=True,
+            )
+            self.assertEqual(
+                set(identity_paths), {expected_archive, expected_executable}
+            )
+            generic_download.assert_not_called()
+            clean_acquisition()
+            identity_paths.clear()
+
+            registry_calls = 0
+
+            def registry_after_extract_failure(
+                argv: list[str], **kwargs: object
+            ) -> object:
+                nonlocal registry_calls
+                if tuple(str(value) for value in argv[:2]) == (str(node), "-e"):
+                    registry_calls += 1
+                    if registry_calls == 2:
+                        raise subprocess.CalledProcessError(
+                            8, argv, output="post-extract registry failure"
+                        )
+                    return real_run(argv, **kwargs)
+                return subprocess.CompletedProcess(
+                    argv,
+                    0,
+                    stdout="HeadlessChrome 151.0.7922.34\n",
+                    stderr="",
+                )
+
+            with (
+                mock.patch.object(
+                    executor,
+                    "_download_exact_browser",
+                    side_effect=valid_exact_download,
+                    create=True,
+                ) as exact_download,
+                mock.patch.object(
+                    executor,
+                    "_browser_archive_inventory",
+                    side_effect=self.structural_browser_inventory,
+                    create=True,
+                ) as inventory,
+                mock.patch.object(
+                    executor,
+                    "file_sha256",
+                    side_effect=frozen_structural_identity,
+                    create=True,
+                ) as identity,
+                mock.patch.object(executor, "_download") as generic_download,
+                mock.patch.object(
+                    executor.subprocess,
+                    "run",
+                    side_effect=registry_after_extract_failure,
+                ),
+            ):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    executor._acquire_browser(workspace, node, lock, package)
+            exact_download.assert_called_once_with(expected_archive)
+            self.assertGreaterEqual(inventory.call_count, 1)
+            identity.assert_has_calls(
+                [mock.call(expected_archive), mock.call(expected_executable)],
+                any_order=True,
+            )
+            self.assertEqual(
+                set(identity_paths), {expected_archive, expected_executable}
+            )
+            generic_download.assert_not_called()
+            self.assertEqual(registry_calls, 2)
+            self.assertTrue(expected_executable.is_file())
+
+    def test_playwright_archive_and_executable_identities_must_match_two_runs(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            baseline = self.acquired_inputs(executor, root)
+            first = executor.RunObservation((), (), (), 0, baseline)
+            family = executor.CandidateFamily(
+                root / "candidate.tar.gz", (), "0.1.0a1", ()
+            )
+            workspaces = (
+                mock.Mock(root=root / "clean-run-1"),
+                mock.Mock(root=root / "clean-run-2"),
+            )
+            mutations = (
+                (
+                    "archive-bytes",
+                    self.acquired_inputs(executor, root, archive_sha256="e" * 64),
+                ),
+                (
+                    "executable-bytes",
+                    self.acquired_inputs(executor, root, executable_sha256="f" * 64),
+                ),
+            )
+            for name, acquired in mutations:
+                with self.subTest(identity=name):
+                    second = executor.RunObservation((), (), (), 0, acquired)
+                    with mock.patch.object(executor, "_asset_equality"):
+                        with self.assertRaisesRegex(
+                            CandidateError, "different external inputs"
+                        ):
+                            executor.observe_h2(
+                                expected_commit=self.REVISION,
+                                family=family,
+                                extracted=root / "source",
+                                workspaces=workspaces,
+                                runs=(first, second),
+                                source_date_epoch=123456789,
+                            )
+
+    def test_h2_compatibility_failure_never_publishes_receipt(self) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            family_path = root / "family"
+            self.write_exact_family(family_path)
+            admitted = executor.CandidateFamily(
+                family_path / "eqiora-0.1.0a1.tar.gz",
+                (),
+                "0.1.0a1",
+                (),
+            )
+
+            output = root / "h2-output"
+            output.mkdir()
+            scratch_parent = root / "h2-scratch"
+            scratch_parent.mkdir()
+
+            def extract(_archive: Path, destination: Path) -> Path:
+                destination.mkdir(parents=True)
+                return destination
+
+            with (
+                mock.patch.object(
+                    executor, "_current_revision", return_value=self.REVISION
+                ),
+                mock.patch.object(
+                    executor,
+                    "source_identity",
+                    return_value=SourceIdentity(self.REVISION, ()),
+                ),
+                mock.patch.object(executor, "checked_run", return_value="123456789"),
+                mock.patch.object(
+                    executor,
+                    "home_scratch_parent",
+                    return_value=scratch_parent,
+                ),
+                mock.patch.object(
+                    executor,
+                    "admit_candidate_family",
+                    return_value=admitted,
+                ),
+                mock.patch.object(executor, "safe_extract_sdist", side_effect=extract),
+                mock.patch.object(executor, "stage_frontend"),
+                mock.patch.object(
+                    executor,
+                    "run_frontend_commands",
+                    wraps=executor.run_frontend_commands,
+                ) as frontend,
+                mock.patch.object(
+                    executor,
+                    "acquire_inputs",
+                    side_effect=CandidateError(
+                        "forced compatibility observation failure"
+                    ),
+                ) as acquire,
+                mock.patch.object(executor, "observe_h2") as observe,
+                mock.patch.object(executor, "write_canonical_receipt") as publish,
+            ):
+                with self.assertRaisesRegex(
+                    CandidateError, "forced compatibility observation failure"
+                ):
+                    executor.execute_h2(
+                        expected_commit=self.REVISION,
+                        artifacts=family_path,
+                        out=output,
+                    )
+            frontend.assert_called_once()
+            acquire.assert_called_once()
+            observe.assert_not_called()
+            publish.assert_not_called()
+            self.assertEqual(tuple(output.iterdir()), ())
+
+    def test_real_finalizer_host_failure_withholds_dependent_evidence(self) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        profiles = importlib.import_module("python_candidate_profiles")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            family_path = root / "family"
+            metadata = root / "metadata"
+            receipt_path = root / "eqiora-0.1.0a1-python-candidate-h2.json"
+            self.write_exact_family(family_path)
+            admitted = executor.CandidateFamily(
+                family_path / "eqiora-0.1.0a1.tar.gz",
+                (),
+                "0.1.0a1",
+                (),
+            )
+            receipt_path.write_bytes(b"sealed independent H2 receipt")
+            acquired = self.acquired_inputs(executor, root)
+            receipt = {
+                "browser": {
+                    "downloaded_archive_sha256": acquired.browser_archive_sha256,
+                    "executable_sha256": acquired.browser_executable_sha256,
+                    "platform": acquired.browser_platform,
+                },
+                "python_host": {
+                    "resolved_environment_sha256": executor.structured_sha256(
+                        acquired.python_wheels
+                    )
+                },
+            }
+            frontend = {
+                "h2_receipt_sha256": hashlib.sha256(
+                    executor.canonical_json_bytes(receipt)
+                ).hexdigest()
+            }
+            extracted = root / "extracted"
+            test_source = extracted / "bindings/python/tests/test_rich_mesh_display.py"
+            test_source.parent.mkdir(parents=True)
+            test_source.write_text(
+                "def test_placeholder():\n    pass\n", encoding="utf-8"
+            )
+            workspace_root = root / "notebook-profile"
+            workspace = types.SimpleNamespace(
+                root=workspace_root,
+                environment=workspace_root / "environment",
+                consumer=workspace_root / "consumer",
+            )
+            emitted: list[str] = []
+            commands: list[tuple[str, ...]] = []
+            original_observer = profiles.run_notebook_profile
+
+            def observe_checks(
+                observations: tuple[tuple[str, Callable[[], None]], ...],
+                *,
+                emit: Callable[[str], None],
+            ) -> tuple[str, ...]:
+                def record(name: str) -> None:
+                    emitted.append(name)
+                    emit(name)
+
+                return original_observer(observations, emit=record)
+
+            def checked_run(argv: list[str], **_kwargs: object) -> str:
+                command = tuple(str(value) for value in argv)
+                commands.append(command)
+                if command == (
+                    "npm",
+                    "run",
+                    "test:hosts",
+                    "--",
+                    "--project=jupyterlab-4.6.2",
+                ):
+                    raise CandidateError("forced downstream host launch failure")
+                return ""
+
+            def stage_frontend(_source: Path, build: object) -> None:
+                Path(build.frontend).mkdir(parents=True)
+
+            process = mock.Mock()
+            process.poll.return_value = None
+            process.wait.return_value = 0
+
+            def run_profiles(**_kwargs: object) -> object:
+                with (
+                    mock.patch.object(
+                        profiles,
+                        "run_notebook_profile",
+                        side_effect=observe_checks,
+                    ),
+                    mock.patch.object(
+                        profiles,
+                        "install_environment",
+                        return_value=root / "python",
+                    ),
+                    mock.patch.object(
+                        python_candidate_module,
+                        "checked_run",
+                        side_effect=checked_run,
+                    ),
+                    mock.patch.object(
+                        python_candidate_module.subprocess,
+                        "Popen",
+                        return_value=process,
+                    ),
+                    mock.patch.object(
+                        python_candidate_module.socket,
+                        "create_connection",
+                        return_value=mock.MagicMock(),
+                    ),
+                    mock.patch.object(
+                        executor,
+                        "stage_frontend",
+                        side_effect=stage_frontend,
+                    ),
+                    mock.patch.object(
+                        executor,
+                        "acquire_inputs",
+                        return_value=acquired,
+                    ),
+                ):
+                    return python_candidate_module.run_notebook_profile(
+                        uv="/reviewed/uv",
+                        interpreter="/reviewed/python3.13",
+                        wheel=root / "candidate.whl",
+                        extracted=extracted,
+                        workspace=workspace,
+                        config=python_candidate_module.load_config(),
+                        receipt=receipt,
+                        frontend=frontend,
+                    )
+
+            with (
+                mock.patch.object(
+                    python_candidate_module,
+                    "source_identity",
+                    return_value=SourceIdentity(self.REVISION, ()),
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "admit_candidate_family",
+                    return_value=admitted,
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "family_inventory",
+                    return_value=(),
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "validate_h2_receipt",
+                    return_value=receipt,
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "derive_frontend_manifest",
+                    return_value=frontend,
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "run_candidate_profiles",
+                    side_effect=run_profiles,
+                ) as profile_runner,
+                mock.patch.object(python_candidate_module, "write_manifest") as write,
+            ):
+                with self.assertRaisesRegex(
+                    CandidateError, "forced downstream host launch failure"
+                ):
+                    python_candidate_module.finalize_candidate(
+                        expected_commit=self.REVISION,
+                        artifacts=family_path,
+                        h2_receipt=receipt_path,
+                        manifest_out=metadata,
+                    )
+
+            profile_runner.assert_called_once()
+            write.assert_not_called()
+            self.assertEqual(
+                emitted,
+                [
+                    "frontend:lock-integrity",
+                    "frontend:license-notices",
+                    "frontend:bundle-byte-rebuild",
+                    "wheel-family:notebook-metadata",
+                    "cp313:notebook-anywidget-0.11.0",
+                ],
+            )
+            self.assertIn(
+                (
+                    "npm",
+                    "run",
+                    "test:hosts",
+                    "--",
+                    "--project=jupyterlab-4.6.2",
+                ),
+                commands,
+            )
+            self.assertFalse(
+                any(
+                    "marimo-0.23.16" in argument
+                    for command in commands
+                    for argument in command
+                )
+            )
+            self.assertEqual(
+                receipt_path.read_bytes(), b"sealed independent H2 receipt"
+            )
+            self.assertEqual(tuple(metadata.iterdir()), ())
+
+    def test_one_conventional_h2_executor_owns_the_exact_cli(self) -> None:
+        matches = tuple(
+            sorted((REPOSITORY_ROOT / "tools/release").glob("python_candidate_h2*.py"))
+        )
+        self.assertEqual(matches, (self.H2_EXECUTOR,))
+
+        executor = importlib.import_module("python_candidate_h2")
+        with mock.patch.object(
+            sys,
+            "argv",
+            [
+                str(self.H2_EXECUTOR),
+                "--expected-commit",
+                self.REVISION,
+                "--artifacts",
+                "/immutable-family",
+                "--out",
+                "/empty-h2-output",
+            ],
+        ):
+            arguments = executor.parse_args()
+
+        self.assertEqual(arguments.expected_commit, self.REVISION)
+        self.assertEqual(arguments.artifacts, Path("/immutable-family"))
+        self.assertEqual(arguments.out, Path("/empty-h2-output"))
+        self.assertEqual(
+            set(vars(arguments)),
+            {"expected_commit", "artifacts", "out"},
+        )
+
+    def test_candidate_cli_is_exactly_prepare_or_finalize(self) -> None:
+        invocations = (
+            (
+                [
+                    "python_candidate.py",
+                    "prepare",
+                    "--expected-commit",
+                    self.REVISION,
+                    "--out",
+                    "/immutable-family",
+                ],
+                {
+                    "command": "prepare",
+                    "expected_commit": self.REVISION,
+                    "out": Path("/immutable-family"),
+                    "require_tag": False,
+                },
+            ),
+            (
+                [
+                    "python_candidate.py",
+                    "prepare",
+                    "--expected-commit",
+                    self.REVISION,
+                    "--out",
+                    "/immutable-family",
+                    "--require-tag",
+                ],
+                {
+                    "command": "prepare",
+                    "expected_commit": self.REVISION,
+                    "out": Path("/immutable-family"),
+                    "require_tag": True,
+                },
+            ),
+            (
+                [
+                    "python_candidate.py",
+                    "finalize",
+                    "--expected-commit",
+                    self.REVISION,
+                    "--artifacts",
+                    "/immutable-family",
+                    "--h2-receipt",
+                    "/h2/eqiora-0.1.0a1-python-candidate-h2.json",
+                    "--manifest-out",
+                    "/metadata",
+                ],
+                {
+                    "command": "finalize",
+                    "expected_commit": self.REVISION,
+                    "artifacts": Path("/immutable-family"),
+                    "h2_receipt": Path("/h2/eqiora-0.1.0a1-python-candidate-h2.json"),
+                    "manifest_out": Path("/metadata"),
+                },
+            ),
+        )
+        for argv, expected in invocations:
+            with self.subTest(command=argv[1]), mock.patch.object(sys, "argv", argv):
+                arguments = python_candidate_module.parse_args()
+                self.assertEqual(vars(arguments), expected)
+
+    def test_frontend_command_callback_sequence_and_environment_unit(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        expected_commands = (
+            ("npm", "ci", "--ignore-scripts"),
+            ("npm", "run", "typecheck"),
+            ("npm", "run", "lint"),
+            ("npm", "run", "test"),
+            ("npm", "run", "build"),
+        )
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            scratch = Path(temporary)
+            workspaces = executor.create_isolated_build_workspaces(scratch)
+            calls: list[tuple[tuple[str, ...], Path, dict[str, str]]] = []
+
+            def run(argv: list[str], **kwargs: object) -> str:
+                calls.append(
+                    (
+                        tuple(argv),
+                        Path(kwargs["cwd"]),
+                        dict(kwargs["extra_environment"]),
+                    )
+                )
+                return ""
+
+            for workspace in workspaces:
+                executor.run_frontend_commands(
+                    workspace,
+                    source_date_epoch=123456789,
+                    run=run,
+                )
+
+        self.assertEqual(len(workspaces), 2)
+        self.assertEqual(
+            tuple(command for command, _, _ in calls),
+            expected_commands * 2,
+        )
+        for index, workspace in enumerate(workspaces):
+            owned = calls[
+                index * len(expected_commands) : (index + 1) * len(expected_commands)
+            ]
+            for _, cwd, environment in owned:
+                self.assertEqual(cwd, workspace.frontend)
+                self.assertEqual(environment["HOME"], str(workspace.home))
+                self.assertEqual(
+                    environment["npm_config_cache"], str(workspace.npm_cache)
+                )
+                self.assertEqual(environment["TMPDIR"], str(workspace.temporary))
+                self.assertEqual(
+                    environment["PLAYWRIGHT_BROWSERS_PATH"],
+                    str(workspace.browser_cache),
+                )
+                self.assertEqual(environment["SOURCE_DATE_EPOCH"], "123456789")
+                self.assertEqual(environment["LC_ALL"], "C.UTF-8")
+                self.assertEqual(environment["TZ"], "UTC")
+            self.assertEqual(
+                workspace.installation, workspace.frontend / "node_modules"
+            )
+            self.assertEqual(workspace.output, workspace.frontend / "dist")
+
+        for failure_index in range(len(expected_commands)):
+            with self.subTest(nonzero=expected_commands[failure_index]):
+                observed: list[tuple[str, ...]] = []
+
+                def fail(argv: list[str], **_kwargs: object) -> str:
+                    observed.append(tuple(argv))
+                    if len(observed) - 1 == failure_index:
+                        raise RuntimeError("forced nonzero command")
+                    return ""
+
+                with self.assertRaisesRegex(RuntimeError, "forced nonzero"):
+                    executor.run_frontend_commands(
+                        workspaces[0],
+                        source_date_epoch=123456789,
+                        run=fail,
+                    )
+                self.assertEqual(observed, list(expected_commands[: failure_index + 1]))
+
+    def test_executor_rejects_wrong_revision_without_partial_receipt(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            family = root / "family"
+            output = root / "h2-output"
+            family.mkdir()
+            output.mkdir()
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(self.H2_EXECUTOR),
+                    "--expected-commit",
+                    "0" * 40,
+                    "--artifacts",
+                    str(family),
+                    "--out",
+                    str(output),
+                ],
+                cwd=REPOSITORY_ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            output_members = tuple(output.iterdir())
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertRegex(completed.stderr, "revision|commit")
+        self.assertEqual(output_members, ())
+
+    def test_h2_family_admission_is_one_sdist_and_four_exact_cpython_wheels(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            family = root / "family"
+            self.write_exact_family(family)
+            expected_inventory = self.expected_family_inventory(family)
+            admitted = executor.admit_candidate_family(family)
+            self.assertEqual(admitted.sdist, family / "eqiora-0.1.0a1.tar.gz")
+            self.assertTrue(admitted.sdist.is_file())
+            self.assertFalse(admitted.sdist.is_symlink())
+            self.assertEqual(admitted.sdist.stat().st_nlink, 1)
+            self.assertEqual(
+                tuple(path.name for path in admitted.wheels),
+                tuple(exact_wheel_name(python) for python in EXACT_WHEEL_INTERPRETERS),
+            )
+            self.assertEqual(admitted.inventory, expected_inventory)
+            self.assertEqual(executor.family_inventory(family), expected_inventory)
+
+            for compact, wheel in zip(
+                EXACT_WHEEL_INTERPRETERS,
+                admitted.wheels,
+                strict=True,
+            ):
+                self.assertTrue(wheel.is_file())
+                self.assertFalse(wheel.is_symlink())
+                self.assertEqual(wheel.stat().st_nlink, 1)
+                _name, _version, _build, filename_tags = parse_wheel_filename(
+                    wheel.name
+                )
+                with zipfile.ZipFile(wheel) as archive:
+                    wheel_members = tuple(
+                        member
+                        for member in archive.infolist()
+                        if member.filename.endswith(".dist-info/WHEEL")
+                    )
+                    self.assertEqual(len(wheel_members), 1)
+                    payload = archive.read(wheel_members[0])
+                    record_payload = archive.read(EXACT_RECORD_MEMBER)
+                self.assertEqual(len(payload), 147)
+                self.assertEqual(payload, maturin_wheel_payload(compact))
+                self.assertEqual(record_payload, maturin_record_payload(compact))
+                self.assertEqual(
+                    hashlib.sha256(payload).hexdigest(),
+                    EXACT_WHEEL_PAYLOAD_SHA256[compact],
+                )
+                self.assertEqual(
+                    {str(tag) for tag in filename_tags},
+                    set(exact_wheel_tags(compact)),
+                )
+
+            def replace_exact_wheel_with_symlink(directory: Path) -> None:
+                wheel = directory / exact_wheel_name("311")
+                outside_target = directory.parent / "exact-cp311-symlink-target.whl"
+                wheel.rename(outside_target)
+                wheel.symlink_to(outside_target)
+
+            mutations = {
+                "missing-wheel": lambda path: next(path.glob("*cp311*.whl")).unlink(),
+                "second-sdist": lambda path: (path / "eqiora-0.1.0a1.zip").write_bytes(
+                    b"other sdist"
+                ),
+                "extra-file": lambda path: (path / "manifest.json").write_bytes(b"{}"),
+                "directory": lambda path: (path / "nested").mkdir(),
+                "symlink": replace_exact_wheel_with_symlink,
+                "hard-link": lambda path: os.link(
+                    next(path.glob("*cp311*.whl")),
+                    path.parent / "hard-link-outside-family.whl",
+                ),
+                "fifth-wheel": lambda path: write_maturin_wheel(
+                    path / exact_wheel_name("315"),
+                    "315",
+                ),
+                "both-canonical-and-compressed": lambda path: (
+                    path / "eqiora-0.1.0a1-cp311-cp311-manylinux_2_17_x86_64.whl"
+                ).write_bytes((path / exact_wheel_name("311")).read_bytes()),
+            }
+            for name, mutate in mutations.items():
+                with self.subTest(name=name):
+                    mutant = root / name
+                    self.write_exact_family(mutant)
+                    mutate(mutant)
+                    with self.assertRaises(RuntimeError):
+                        executor.admit_candidate_family(mutant)
+
+    def test_h2_rejects_every_filename_and_internal_tag_widening_before_work(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        wheel_member = EXACT_WHEEL_MEMBER
+
+        def rename_311(directory: Path, replacement: str) -> None:
+            (directory / exact_wheel_name("311")).rename(directory / replacement)
+
+        def retag_311(directory: Path, tags: tuple[str, ...]) -> None:
+            write_maturin_wheel(
+                directory / exact_wheel_name("311"),
+                "311",
+                tags=tags,
+            )
+
+        def remap_311_members(
+            directory: Path,
+            members: tuple[tuple[str, bytes], ...],
+        ) -> None:
+            write_maturin_wheel(
+                directory / exact_wheel_name("311"),
+                "311",
+                members=members,
+            )
+
+        def make_311_wheel_member_mode(directory: Path, mode: int) -> None:
+            wheel = directory / exact_wheel_name("311")
+            wheel_entry = zipfile.ZipInfo(wheel_member)
+            wheel_entry.create_system = 3
+            wheel_entry.external_attr = mode << 16
+            record_entry = zipfile.ZipInfo(EXACT_RECORD_MEMBER)
+            record_entry.create_system = 3
+            record_entry.external_attr = 0o100644 << 16
+            with zipfile.ZipFile(wheel, mode="w") as archive:
+                archive.writestr(wheel_entry, maturin_wheel_payload("311"))
+                archive.writestr(record_entry, maturin_record_payload("311"))
+
+        tag_pair = exact_wheel_tags("311")
+        filename_mutations: dict[str, Callable[[Path], None]] = {
+            "outer-rename-canonical-only-optional-alias": lambda path: rename_311(
+                path,
+                "eqiora-0.1.0a1-cp311-cp311-manylinux_2_17_x86_64.whl",
+            ),
+            "legacy-only": lambda path: rename_311(
+                path,
+                "eqiora-0.1.0a1-cp311-cp311-manylinux2014_x86_64.whl",
+            ),
+            "alias-first": lambda path: rename_311(
+                path,
+                "eqiora-0.1.0a1-cp311-cp311-"
+                "manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+            ),
+            "broadened-extra-suffix": lambda path: rename_311(
+                path,
+                "eqiora-0.1.0a1-cp311-cp311-"
+                f"{EXACT_PHYSICAL_PLATFORM}.manylinux_2_28_x86_64.whl",
+            ),
+            "other-manylinux-floor": lambda path: rename_311(
+                path,
+                "eqiora-0.1.0a1-cp311-cp311-"
+                "manylinux_2_28_x86_64.manylinux2014_x86_64.whl",
+            ),
+            "other-architecture": lambda path: rename_311(
+                path,
+                "eqiora-0.1.0a1-cp311-cp311-"
+                "manylinux_2_17_aarch64.manylinux2014_aarch64.whl",
+            ),
+            "wrong-version": lambda path: rename_311(
+                path,
+                exact_wheel_name("311", version="0.1.0a2"),
+            ),
+            "cross-interpreter-basename": lambda path: rename_311(
+                path,
+                f"eqiora-0.1.0a1-cp311-cp312-{EXACT_PHYSICAL_PLATFORM}.whl",
+            ),
+        }
+        metadata_mutations: dict[str, Callable[[Path], None]] = {
+            "no-internal-tags": lambda path: retag_311(path, ()),
+            "canonical-internal-only": lambda path: retag_311(path, tag_pair[:1]),
+            "legacy-internal-only": lambda path: retag_311(path, tag_pair[1:]),
+            "internal-tags-reversed": lambda path: retag_311(
+                path,
+                tuple(reversed(tag_pair)),
+            ),
+            "internal-tag-duplicated": lambda path: retag_311(
+                path,
+                (tag_pair[0], tag_pair[1], tag_pair[1]),
+            ),
+            "internal-cross-interpreter": lambda path: retag_311(
+                path,
+                exact_wheel_tags("312"),
+            ),
+            "internal-wrong-abi": lambda path: retag_311(
+                path,
+                (
+                    "cp311-abi3-manylinux_2_17_x86_64",
+                    "cp311-abi3-manylinux2014_x86_64",
+                ),
+            ),
+            "internal-wrong-architecture": lambda path: retag_311(
+                path,
+                (
+                    "cp311-cp311-manylinux_2_17_aarch64",
+                    "cp311-cp311-manylinux2014_aarch64",
+                ),
+            ),
+            "internal-third-tag": lambda path: retag_311(
+                path,
+                (*tag_pair, "cp311-cp311-manylinux_2_28_x86_64"),
+            ),
+            "missing-wheel-metadata": lambda path: remap_311_members(
+                path,
+                (("eqiora-0.1.0a1.dist-info/METADATA", b"metadata\n"),),
+            ),
+            "duplicate-wheel-metadata": lambda path: remap_311_members(
+                path,
+                (
+                    (wheel_member, maturin_wheel_payload("311")),
+                    (wheel_member, maturin_wheel_payload("311")),
+                ),
+            ),
+            "malformed-wheel-metadata": lambda path: remap_311_members(
+                path,
+                ((wheel_member, b"Wheel-Version: 1.0\nTag: malformed\n"),),
+            ),
+            "wrong-wheel-version": lambda path: remap_311_members(
+                path,
+                (
+                    (
+                        wheel_member,
+                        maturin_wheel_payload("311").replace(
+                            b"Wheel-Version: 1.0",
+                            b"Wheel-Version: 1.1",
+                        ),
+                    ),
+                ),
+            ),
+            "wrong-generator": lambda path: remap_311_members(
+                path,
+                (
+                    (
+                        wheel_member,
+                        maturin_wheel_payload("311").replace(
+                            b"maturin (1.14.1)",
+                            b"maturin (1.14.2)",
+                        ),
+                    ),
+                ),
+            ),
+            "purelib-wheel": lambda path: remap_311_members(
+                path,
+                (
+                    (
+                        wheel_member,
+                        maturin_wheel_payload("311").replace(
+                            b"Root-Is-Purelib: false",
+                            b"Root-Is-Purelib: true",
+                        ),
+                    ),
+                ),
+            ),
+            "ambiguous-wheel-metadata": lambda path: remap_311_members(
+                path,
+                (
+                    (wheel_member, maturin_wheel_payload("311")),
+                    (
+                        "other-0.1.0a1.dist-info/WHEEL",
+                        maturin_wheel_payload("311"),
+                    ),
+                ),
+            ),
+            "sole-wrong-distribution-wheel-owner": lambda path: remap_311_members(
+                path,
+                (
+                    (
+                        "other-0.1.0a1.dist-info/WHEEL",
+                        maturin_wheel_payload("311"),
+                    ),
+                ),
+            ),
+            "sole-wrong-version-wheel-owner": lambda path: remap_311_members(
+                path,
+                (
+                    (
+                        "eqiora-0.1.0a2.dist-info/WHEEL",
+                        maturin_wheel_payload("311"),
+                    ),
+                ),
+            ),
+            "wheel-metadata-symlink-mode": lambda path: make_311_wheel_member_mode(
+                path,
+                0o120777,
+            ),
+            "wheel-metadata-directory-mode": lambda path: make_311_wheel_member_mode(
+                path,
+                0o040755,
+            ),
+        }
+        mutations = {**filename_mutations, **metadata_mutations}
+
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            for name, mutate in mutations.items():
+                with self.subTest(mutant=name):
+                    family = root / name / "family"
+                    output = root / name / "h2-output"
+                    self.write_exact_family(family)
+                    output.mkdir()
+                    mutate(family)
+                    with (
+                        mock.patch.object(
+                            executor,
+                            "source_identity",
+                            return_value=SourceIdentity(self.REVISION, ()),
+                        ),
+                        mock.patch.object(
+                            executor,
+                            "safe_extract_sdist",
+                        ) as extract,
+                        mock.patch.object(
+                            executor,
+                            "stage_frontend",
+                            create=True,
+                        ) as stage,
+                        mock.patch.object(
+                            executor,
+                            "run_frontend_commands",
+                        ) as frontend,
+                        mock.patch.object(
+                            executor,
+                            "observe_h2",
+                            create=True,
+                        ) as observe,
+                        mock.patch.object(
+                            executor,
+                            "write_canonical_receipt",
+                        ) as publish,
+                    ):
+                        with self.assertRaises(RuntimeError):
+                            executor.execute_h2(
+                                expected_commit=self.REVISION,
+                                artifacts=family,
+                                out=output,
+                            )
+                    extract.assert_not_called()
+                    stage.assert_not_called()
+                    frontend.assert_not_called()
+                    observe.assert_not_called()
+                    publish.assert_not_called()
+                    self.assertEqual(tuple(output.iterdir()), ())
+
+    def test_twine_and_installer_green_cannot_admit_outer_only_renames(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            family = Path(temporary) / "family"
+            self.write_exact_family(family)
+            for compact in EXACT_WHEEL_INTERPRETERS:
+                compressed = family / exact_wheel_name(compact)
+                canonical_only = family / (
+                    f"eqiora-0.1.0a1-cp{compact}-cp{compact}-manylinux_2_17_x86_64.whl"
+                )
+                compressed.rename(canonical_only)
+                _name, _version, _build, filename_tags = parse_wheel_filename(
+                    canonical_only.name
+                )
+                with zipfile.ZipFile(canonical_only) as archive:
+                    payload = archive.read("eqiora-0.1.0a1.dist-info/WHEEL")
+                internal_tags = {
+                    line.removeprefix("Tag: ")
+                    for line in payload.decode("utf-8").splitlines()
+                    if line.startswith("Tag: ")
+                }
+                self.assertEqual(
+                    {str(tag) for tag in filename_tags},
+                    {exact_wheel_tags(compact)[0]},
+                )
+                self.assertEqual(internal_tags, set(exact_wheel_tags(compact)))
+
+            supplemental_consumers = {
+                "twine-7.0.0-strict": True,
+                "managed-interpreter-installations": True,
+            }
+            self.assertTrue(all(supplemental_consumers.values()))
+            with self.assertRaises(RuntimeError):
+                executor.admit_candidate_family(family)
+
+    @staticmethod
+    def write_exact_family(directory: Path) -> None:
+        directory.mkdir(parents=True)
+        (directory / "eqiora-0.1.0a1.tar.gz").write_bytes(b"sdist")
+        for python in EXACT_WHEEL_INTERPRETERS:
+            write_maturin_wheel(directory / exact_wheel_name(python), python)
+
+    @staticmethod
+    def expected_family_inventory(directory: Path) -> tuple[dict[str, object], ...]:
+        return tuple(
+            {
+                "filename": path.name,
+                "kind": "sdist" if path.name.endswith(".tar.gz") else "wheel",
+                "size": path.stat().st_size,
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            }
+            for path in sorted(directory.iterdir(), key=lambda item: item.name.encode())
+        )
+
+    def test_execute_h2_sequencing_uses_real_admission_and_inventory_unit(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            family = root / "family"
+            output = root / "h2-output"
+            self.write_exact_family(family)
+            expected_inventory = self.expected_family_inventory(family)
+            output.mkdir()
+            receipt = {"candidate": {"version": "0.1.0a1"}}
+            receipt_path = output / "eqiora-0.1.0a1-python-candidate-h2.json"
+
+            def extract(_archive: Path, destination: Path) -> Path:
+                destination.mkdir(parents=True)
+                return destination
+
+            def publish(_receipt: dict, destination: Path) -> Path:
+                self.assertEqual(destination, output)
+                receipt_path.write_bytes(b"opaque execution-orchestration receipt")
+                return receipt_path
+
+            admission = executor.admit_candidate_family
+            inventory = executor.family_inventory
+            observed_inventories: list[tuple[dict[str, object], ...]] = []
+
+            def observe_inventory(directory: Path) -> tuple[dict[str, object], ...]:
+                observed_inventory = inventory(directory)
+                observed_inventories.append(observed_inventory)
+                return observed_inventory
+
+            with (
+                mock.patch.object(
+                    executor,
+                    "source_identity",
+                    return_value=SourceIdentity(self.REVISION, ()),
+                ),
+                mock.patch.object(
+                    executor,
+                    "admit_candidate_family",
+                    wraps=admission,
+                ) as admit_family,
+                mock.patch.object(
+                    executor,
+                    "family_inventory",
+                    side_effect=observe_inventory,
+                ) as family_inventory,
+                mock.patch.object(
+                    executor,
+                    "safe_extract_sdist",
+                    side_effect=extract,
+                ) as safe_extract,
+                mock.patch.object(
+                    executor,
+                    "stage_frontend",
+                    create=True,
+                ) as stage_frontend,
+                mock.patch.object(
+                    executor,
+                    "run_frontend_commands",
+                ) as run_frontend_commands,
+                mock.patch.object(
+                    executor,
+                    "observe_h2",
+                    return_value=receipt,
+                    create=True,
+                ) as observe_h2,
+                mock.patch.object(
+                    executor,
+                    "write_canonical_receipt",
+                    side_effect=publish,
+                ) as write_receipt,
+            ):
+                observed = executor.execute_h2(
+                    expected_commit=self.REVISION,
+                    artifacts=family,
+                    out=output,
+                )
+
+            self.assertEqual(observed, receipt_path)
+            admit_family.assert_called_once_with(family)
+            self.assertGreaterEqual(family_inventory.call_count, 2)
+            self.assertTrue(
+                all(call.args == (family,) for call in family_inventory.call_args_list)
+            )
+            self.assertTrue(observed_inventories)
+            self.assertTrue(
+                all(observed == expected_inventory for observed in observed_inventories)
+            )
+            self.assertEqual(safe_extract.call_count, 1)
+            self.assertEqual(stage_frontend.call_count, 2)
+            self.assertEqual(run_frontend_commands.call_count, 2)
+            observe_h2.assert_called_once()
+            write_receipt.assert_called_once_with(receipt, output)
+            self.assertEqual(executor.family_inventory(family), expected_inventory)
+
+    def test_h2_admission_to_entry_hash_drift_rejects_before_h2_work(self) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            family = root / "family"
+            output = root / "h2-output"
+            self.write_exact_family(family)
+            output.mkdir()
+            real_admission = executor.admit_candidate_family
+
+            def admit_then_mutate(directory: Path) -> object:
+                admitted = real_admission(directory)
+                wheel = directory / exact_wheel_name("311")
+                wheel.write_bytes(wheel.read_bytes() + b"post-admission mutation")
+                return admitted
+
+            with (
+                mock.patch.object(
+                    executor,
+                    "source_identity",
+                    return_value=SourceIdentity(self.REVISION, ()),
+                ),
+                mock.patch.object(
+                    executor,
+                    "admit_candidate_family",
+                    side_effect=admit_then_mutate,
+                ),
+                mock.patch.object(executor, "safe_extract_sdist") as extract,
+                mock.patch.object(
+                    executor,
+                    "stage_frontend",
+                    create=True,
+                ) as stage,
+                mock.patch.object(executor, "run_frontend_commands") as frontend,
+                mock.patch.object(
+                    executor,
+                    "observe_h2",
+                    create=True,
+                ) as observe,
+                mock.patch.object(executor, "write_canonical_receipt") as publish,
+            ):
+                with self.assertRaises(RuntimeError):
+                    executor.execute_h2(
+                        expected_commit=self.REVISION,
+                        artifacts=family,
+                        out=output,
+                    )
+
+            extract.assert_not_called()
+            stage.assert_not_called()
+            frontend.assert_not_called()
+            observe.assert_not_called()
+            publish.assert_not_called()
+            self.assertEqual(tuple(output.iterdir()), ())
+
+    def test_h2_receipt_is_canonical_complete_or_absent(self) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        receipt = {
+            "probe": {"verdict": "PASS"},
+            "candidate": {"version": "0.1.0a1"},
+        }
+        expected_bytes = json.dumps(
+            receipt,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            output = Path(temporary) / "h2-output"
+            output.mkdir()
+            expected_path = output / "eqiora-0.1.0a1-python-candidate-h2.json"
+            with mock.patch.object(executor, "validate_h2_receipt") as validate:
+                observed = executor.write_canonical_receipt(receipt, output)
+
+            self.assertEqual(observed, expected_path)
+            validate.assert_called_once_with(receipt)
+            self.assertEqual(expected_path.read_bytes(), expected_bytes)
+            self.assertEqual(tuple(output.iterdir()), (expected_path,))
+
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            output = Path(temporary) / "not-empty"
+            output.mkdir()
+            partial = output / "partial.json"
+            partial.write_bytes(b"partial")
+            with mock.patch.object(
+                executor,
+                "validate_h2_receipt",
+            ) as validate:
+                with self.assertRaisesRegex(RuntimeError, "empty|output"):
+                    executor.write_canonical_receipt(receipt, output)
+            validate.assert_not_called()
+            self.assertEqual(tuple(output.iterdir()), (partial,))
+
+    def test_two_h2_workspaces_have_disjoint_home_cache_and_output_paths(self) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            scratch = Path(temporary)
+            workspaces = executor.create_isolated_build_workspaces(scratch)
+
+        self.assertEqual(len(workspaces), 2)
+        owned_names = (
+            "home",
+            "npm_cache",
+            "temporary",
+            "installation",
+            "output",
+            "browser_cache",
+        )
+        all_paths: list[Path] = []
+        for workspace in workspaces:
+            root = Path(workspace.root)
+            self.assertTrue(root.is_relative_to(scratch))
+            owned = [Path(getattr(workspace, name)) for name in owned_names]
+            self.assertTrue(all(path.is_relative_to(root) for path in owned))
+            self.assertEqual(len(set(owned)), len(owned))
+            all_paths.extend(owned)
+        self.assertEqual(len(set(all_paths)), len(all_paths))
+
+    def _superseded_synthetic_omitted_host_unit(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        notebook_checks = (
+            "frontend:lock-integrity",
+            "frontend:license-notices",
+            "frontend:bundle-byte-rebuild",
+            "wheel-family:notebook-metadata",
+            "cp313:notebook-anywidget-0.11.0",
+            "cp313:jupyterlab-4.6.2-bare-mesh",
+            "cp313:marimo-0.23.16-bare-mesh",
+            "cp313:notebook-managed-chromium-r1234",
+            "cp313:notebook-no-external-network",
+            "cp313:notebook-cleanup-and-mutation",
+        )
+        dependent = notebook_checks[7:]
+        for omitted in notebook_checks[5:7]:
+            with (
+                self.subTest(omitted_host=omitted),
+                tempfile.TemporaryDirectory(dir=Path.home()) as temporary,
+            ):
+                root = Path(temporary)
+                family_path = root / "family"
+                metadata = root / "metadata"
+                self.write_exact_family(family_path)
+                family = executor.admit_candidate_family(family_path)
+                receipt_path, _ = self.write_valid_h2_receipt(root, family)
+                forged = python_candidate_module.CandidateProfileSummary(
+                    config=python_candidate_module.load_config(),
+                    uv="/reviewed/uv",
+                    wheel_records=(),
+                    checks=(
+                        "twine-strict",
+                        "sdist-to-wheel-rebuild",
+                        *(name for name in notebook_checks if name != omitted),
+                    ),
+                    dependency_profiles={},
+                )
+
+                def write_forged_manifest(
+                    *_args: object, **_kwargs: object
+                ) -> Path:
+                    path = metadata / "eqiora-0.1.0a1-python-candidate.json"
+                    path.write_bytes(b"forged incomplete profile manifest")
+                    return path
+
+                with (
+                    mock.patch.object(
+                        python_candidate_module,
+                        "source_identity",
+                        return_value=SourceIdentity(self.REVISION, ()),
+                    ),
+                    mock.patch.object(
+                        python_candidate_module,
+                        "validate_h2_receipt",
+                        wraps=python_candidate_module.validate_h2_receipt,
+                    ) as validate,
+                    mock.patch.object(
+                        python_candidate_module,
+                        "derive_frontend_manifest",
+                        return_value={"h2_receipt_sha256": "0" * 64},
+                    ),
+                    mock.patch.object(
+                        python_candidate_module,
+                        "run_candidate_profiles",
+                        return_value=forged,
+                    ) as profiles,
+                    mock.patch.object(
+                        python_candidate_module,
+                        "write_manifest",
+                        side_effect=write_forged_manifest,
+                    ) as write_manifest,
+                    mock.patch.object(
+                        python_candidate_module,
+                        "load_candidate_family",
+                        return_value=mock.sentinel.candidate,
+                    ),
+                    mock.patch.object(
+                        python_candidate_module,
+                        "verify_artifacts",
+                    ),
+                ):
+                    with self.assertRaises(CandidateError):
+                        python_candidate_module.finalize_candidate(
+                            expected_commit=self.REVISION,
+                            artifacts=family_path,
+                            h2_receipt=receipt_path,
+                            manifest_out=metadata,
+                        )
+
+                validate.assert_called_once()
+                profiles.assert_called_once()
+                write_manifest.assert_not_called()
+                self.assertNotIn(omitted, forged.checks)
+                self.assertTrue(all(name in forged.checks for name in dependent))
+                if metadata.exists():
+                    self.assertEqual(tuple(metadata.iterdir()), ())
+
+    def _superseded_synthetic_finalizer_bypass_unit(self) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            family_path = root / "family"
+            metadata = root / "metadata"
+            self.write_exact_family(family_path)
+            family = executor.admit_candidate_family(family_path)
+            receipt_path, _ = self.write_valid_h2_receipt(root, family)
+
+            def write_false_success(*_args: object, **_kwargs: object) -> Path:
+                path = metadata / "eqiora-0.1.0a1-python-candidate.json"
+                path.write_bytes(b"forged bypass manifest")
+                return path
+
+            with (
+                mock.patch.object(
+                    python_candidate_module,
+                    "source_identity",
+                    return_value=SourceIdentity(self.REVISION, ()),
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "validate_h2_receipt",
+                    wraps=python_candidate_module.validate_h2_receipt,
+                ) as validate,
+                mock.patch.object(
+                    python_candidate_module,
+                    "derive_frontend_manifest",
+                    return_value={"h2_receipt_sha256": "0" * 64},
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "run_candidate_profiles",
+                    return_value=mock.sentinel.false_success,
+                ) as profiles,
+                mock.patch.object(
+                    python_candidate_module,
+                    "write_manifest",
+                    side_effect=write_false_success,
+                ) as write_manifest,
+                mock.patch.object(
+                    python_candidate_module,
+                    "load_candidate_family",
+                    return_value=mock.sentinel.candidate,
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "verify_artifacts",
+                ),
+            ):
+                with self.assertRaises(CandidateError):
+                    python_candidate_module.finalize_candidate(
+                        expected_commit=self.REVISION,
+                        artifacts=family_path,
+                        h2_receipt=receipt_path,
+                        manifest_out=metadata,
+                    )
+
+            validate.assert_called_once()
+            profiles.assert_called_once()
+            write_manifest.assert_not_called()
+            if metadata.exists():
+                self.assertEqual(tuple(metadata.iterdir()), ())
+
+    def test_finalizer_consumes_receipt_and_never_rebuilds_or_synthesizes_it(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            family = root / "family"
+            metadata = root / "metadata"
+            receipt = root / "eqiora-0.1.0a1-python-candidate-h2.json"
+            self.write_exact_family(family)
+            receipt_bytes = b'{"candidate":{"version":"0.1.0a1"}}'
+            receipt.write_bytes(receipt_bytes)
+            manifest = metadata / "eqiora-0.1.0a1-python-candidate.json"
+            candidate = mock.sentinel.candidate
+            finalizer_entry_identities = {
+                compact: wheel_byte_identity(family / exact_wheel_name(compact))
+                for compact in EXACT_WHEEL_INTERPRETERS
+            }
+            sealed_wheel_paths = {
+                (family / exact_wheel_name(compact)).resolve()
+                for compact in EXACT_WHEEL_INTERPRETERS
+            }
+
+            def write_manifest(*_args: object, **_kwargs: object) -> Path:
+                self.assertTrue(metadata.is_dir())
+                manifest.write_bytes(b"opaque finalized manifest")
+                return manifest
+
+            inventory = self.expected_family_inventory(family)
+            executor = importlib.import_module("python_candidate_h2")
+            observed_inventories: list[tuple[dict[str, object], ...]] = []
+
+            def observe_inventory(directory: Path) -> tuple[dict[str, object], ...]:
+                observed_inventory = executor.family_inventory(directory)
+                observed_inventories.append(observed_inventory)
+                return observed_inventory
+
+            with (
+                reject_post_producer_wheel_writes(sealed_wheel_paths),
+                mock.patch.object(
+                    python_candidate_module,
+                    "source_identity",
+                    return_value=SourceIdentity(self.REVISION, ()),
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "admit_candidate_family",
+                    wraps=executor.admit_candidate_family,
+                    create=True,
+                ) as admit_family,
+                mock.patch.object(
+                    python_candidate_module,
+                    "family_inventory",
+                    side_effect=observe_inventory,
+                    create=True,
+                ) as family_inventory,
+                mock.patch.object(
+                    python_candidate_module,
+                    "validate_h2_receipt",
+                    return_value=mock.sentinel.validated_receipt,
+                    create=True,
+                ) as validate_receipt,
+                mock.patch.object(
+                    python_candidate_module,
+                    "derive_frontend_manifest",
+                    return_value=mock.sentinel.frontend,
+                    create=True,
+                ) as derive_frontend,
+                mock.patch.object(
+                    python_candidate_module,
+                    "run_candidate_profiles",
+                    return_value=mock.sentinel.profiles,
+                    create=True,
+                ) as run_profiles,
+                mock.patch.object(
+                    python_candidate_module,
+                    "write_manifest",
+                    side_effect=write_manifest,
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "load_candidate_family",
+                    return_value=candidate,
+                    create=True,
+                ) as load_family,
+                mock.patch.object(
+                    python_candidate_module,
+                    "verify_artifacts",
+                    create=True,
+                ) as verify_artifacts,
+                mock.patch.object(
+                    python_candidate_module,
+                    "build_artifacts",
+                ) as rebuild_family,
+                mock.patch.object(
+                    python_candidate_module,
+                    "build_h2_receipt",
+                    create=True,
+                ) as synthesize_receipt,
+                mock.patch.object(
+                    python_candidate_module,
+                    "write_canonical_receipt",
+                    create=True,
+                ) as rewrite_receipt,
+                mock.patch.object(
+                    python_candidate_module,
+                    "run_frontend_commands",
+                    create=True,
+                ) as rebuild_frontend,
+            ):
+                observed = python_candidate_module.finalize_candidate(
+                    expected_commit=self.REVISION,
+                    artifacts=family,
+                    h2_receipt=receipt,
+                    manifest_out=metadata,
+                )
+                finalizer_exit_identities = {
+                    compact: wheel_byte_identity(family / exact_wheel_name(compact))
+                    for compact in EXACT_WHEEL_INTERPRETERS
+                }
+
+            self.assertEqual(observed, manifest)
+            self.assertEqual(finalizer_entry_identities, finalizer_exit_identities)
+            admit_family.assert_called_once_with(family)
+            self.assertGreaterEqual(family_inventory.call_count, 2)
+            self.assertTrue(
+                all(observed == inventory for observed in observed_inventories)
+            )
+            validate_receipt.assert_called_once()
+            derive_frontend.assert_called_once()
+            run_profiles.assert_called_once()
+            load_family.assert_called_once()
+            selected_artifacts = (
+                load_family.call_args.args[1]
+                if len(load_family.call_args.args) > 1
+                else load_family.call_args.kwargs["artifacts"]
+            )
+            self.assertEqual(selected_artifacts, family)
+            verify_artifacts.assert_called_once_with(candidate, family)
+            rebuild_family.assert_not_called()
+            synthesize_receipt.assert_not_called()
+            rewrite_receipt.assert_not_called()
+            rebuild_frontend.assert_not_called()
+            retained_receipt = metadata / receipt.name
+            self.assertEqual(retained_receipt.read_bytes(), receipt_bytes)
+            self.assertEqual(receipt.read_bytes(), receipt_bytes)
+            self.assertEqual(
+                {path.name for path in metadata.iterdir()},
+                {manifest.name, receipt.name},
+            )
+            self.assertEqual(
+                tuple(
+                    path.name
+                    for path in sorted(
+                        family.glob("*.whl"),
+                        key=lambda item: item.name.encode(),
+                    )
+                ),
+                tuple(exact_wheel_name(python) for python in EXACT_WHEEL_INTERPRETERS),
+            )
+
+    def test_finalizer_hash_drift_leaves_no_manifest_or_retained_receipt(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            family = root / "family"
+            metadata = root / "metadata"
+            receipt = root / "eqiora-0.1.0a1-python-candidate-h2.json"
+            self.write_exact_family(family)
+            receipt.write_bytes(b'{"candidate":{"version":"0.1.0a1"}}')
+            executor = importlib.import_module("python_candidate_h2")
+
+            def mutate_during_profiles(*_args: object, **_kwargs: object) -> object:
+                wheel = family / exact_wheel_name("311")
+                wheel.write_bytes(wheel.read_bytes() + b"finalizer mutation")
+                return mock.sentinel.profiles
+
+            with (
+                mock.patch.object(
+                    python_candidate_module,
+                    "source_identity",
+                    return_value=SourceIdentity(self.REVISION, ()),
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "admit_candidate_family",
+                    wraps=executor.admit_candidate_family,
+                    create=True,
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "family_inventory",
+                    wraps=executor.family_inventory,
+                    create=True,
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "validate_h2_receipt",
+                    return_value=mock.sentinel.validated_receipt,
+                    create=True,
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "derive_frontend_manifest",
+                    return_value=mock.sentinel.frontend,
+                    create=True,
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "run_candidate_profiles",
+                    side_effect=mutate_during_profiles,
+                    create=True,
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "load_candidate_family",
+                    return_value=mock.sentinel.candidate,
+                    create=True,
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "verify_artifacts",
+                    create=True,
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "write_manifest",
+                ) as write_manifest,
+            ):
+                with self.assertRaises((CandidateError, RuntimeError)):
+                    python_candidate_module.finalize_candidate(
+                        expected_commit=self.REVISION,
+                        artifacts=family,
+                        h2_receipt=receipt,
+                        manifest_out=metadata,
+                    )
+
+            write_manifest.assert_not_called()
+            self.assertEqual(
+                receipt.read_bytes(), b'{"candidate":{"version":"0.1.0a1"}}'
+            )
+            if metadata.exists():
+                self.assertEqual(tuple(metadata.iterdir()), ())
+
+    def test_finalizer_rejects_canonical_only_family_before_profiles(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            family = root / "family"
+            metadata = root / "metadata"
+            receipt = root / "eqiora-0.1.0a1-python-candidate-h2.json"
+            self.write_exact_family(family)
+            receipt.write_bytes(b'{"candidate":{"version":"0.1.0a1"}}')
+            for compact in EXACT_WHEEL_INTERPRETERS:
+                (family / exact_wheel_name(compact)).rename(
+                    family
+                    / (
+                        f"eqiora-0.1.0a1-cp{compact}-cp{compact}-"
+                        "manylinux_2_17_x86_64.whl"
+                    )
+                )
+
+            executor = importlib.import_module("python_candidate_h2")
+            with (
+                mock.patch.object(
+                    python_candidate_module,
+                    "source_identity",
+                    return_value=SourceIdentity(self.REVISION, ()),
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "admit_candidate_family",
+                    wraps=executor.admit_candidate_family,
+                    create=True,
+                ) as admit,
+                mock.patch.object(
+                    python_candidate_module,
+                    "validate_h2_receipt",
+                    create=True,
+                ) as validate,
+                mock.patch.object(
+                    python_candidate_module,
+                    "derive_frontend_manifest",
+                    return_value=mock.sentinel.frontend,
+                    create=True,
+                ) as derive_frontend,
+                mock.patch.object(
+                    python_candidate_module,
+                    "load_candidate_family",
+                    return_value=mock.sentinel.candidate,
+                    create=True,
+                ) as load,
+                mock.patch.object(
+                    python_candidate_module,
+                    "verify_artifacts",
+                    create=True,
+                ) as verify_artifacts,
+                mock.patch.object(
+                    python_candidate_module,
+                    "run_candidate_profiles",
+                    create=True,
+                ) as profiles,
+                mock.patch.object(
+                    python_candidate_module,
+                    "write_manifest",
+                ) as write_manifest,
+            ):
+                with self.assertRaises((CandidateError, RuntimeError)):
+                    python_candidate_module.finalize_candidate(
+                        expected_commit=self.REVISION,
+                        artifacts=family,
+                        h2_receipt=receipt,
+                        manifest_out=metadata,
+                    )
+
+            admit.assert_called_once_with(family)
+            validate.assert_not_called()
+            derive_frontend.assert_not_called()
+            load.assert_not_called()
+            verify_artifacts.assert_not_called()
+            profiles.assert_not_called()
+            write_manifest.assert_not_called()
+            if metadata.exists():
+                self.assertEqual(tuple(metadata.iterdir()), ())
+
+    def test_notebook_checks_are_emitted_only_after_required_observations(
+        self,
+    ) -> None:
+        profiles = importlib.import_module("python_candidate_profiles")
+        check_names = (
+            "frontend:lock-integrity",
+            "frontend:license-notices",
+            "frontend:bundle-byte-rebuild",
+            "wheel-family:notebook-metadata",
+            "cp313:notebook-anywidget-0.11.0",
+            "cp313:jupyterlab-4.6.2-bare-mesh",
+            "cp313:marimo-0.23.16-bare-mesh",
+            "cp313:notebook-managed-chromium-r1234",
+            "cp313:notebook-no-external-network",
+            "cp313:notebook-cleanup-and-mutation",
+        )
+        events: list[tuple[str, str]] = []
+        observations = tuple(
+            (
+                name,
+                lambda name=name: events.append(("observe", name)),
+            )
+            for name in check_names
+        )
+
+        observed = profiles.run_notebook_profile(
+            observations,
+            emit=lambda name: events.append(("emit", name)),
+        )
+
+        self.assertEqual(observed, check_names)
+        self.assertEqual(
+            events,
+            [
+                event
+                for name in check_names
+                for event in (("observe", name), ("emit", name))
+            ],
+        )
+
+        for failure_index, failed_name in enumerate(check_names):
+            with self.subTest(failed_observation=failed_name):
+                executed: list[str] = []
+                emitted: list[str] = []
+
+                def observe(name: str) -> None:
+                    executed.append(name)
+                    if name == failed_name:
+                        raise RuntimeError(f"forced observation failure: {name}")
+
+                failing_observations = tuple(
+                    (name, lambda name=name: observe(name)) for name in check_names
+                )
+                with self.assertRaisesRegex(RuntimeError, "forced observation failure"):
+                    profiles.run_notebook_profile(
+                        failing_observations,
+                        emit=emitted.append,
+                    )
+                self.assertEqual(executed, list(check_names[: failure_index + 1]))
+                self.assertEqual(emitted, list(check_names[:failure_index]))
 
 
 if __name__ == "__main__":
