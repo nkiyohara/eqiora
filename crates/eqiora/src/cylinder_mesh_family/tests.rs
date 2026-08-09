@@ -100,6 +100,18 @@ const EXPECTED_BIAS: ExpectedMember = ExpectedMember {
 };
 
 #[test]
+fn registered_cylinder_mesh_family_oracle_executes_all_falsifiers() {
+    ordinary_positive_imports_binds_replays_and_crosses_three_by_three();
+    s1_spatial_only_positive_has_no_time_family_or_cells();
+    fixed_polygon_and_fake_refinement_mutants_are_rejected_after_positive();
+    lineage_design_and_primary_bias_swaps_are_rejected_after_positive();
+    byte_index_and_signed_zero_aliases_cannot_fake_the_bias_family();
+    exact_source_names_and_probe_inventory_reject_every_substitution();
+    provider_metadata_and_import_boundary_reject_each_bad_input();
+    time_identity_product_and_s1_prohibition_reject_every_alias();
+}
+
+#[test]
 fn ordinary_positive_imports_binds_replays_and_crosses_three_by_three() {
     run_independent_oracle();
     assert_eq!(
