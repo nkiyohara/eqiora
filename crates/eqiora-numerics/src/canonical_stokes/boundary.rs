@@ -351,6 +351,13 @@ fn direct_disposition(
             normal_pressure: None,
         }));
     }
+    let stress_context = StressBoundaryContext {
+        program,
+        velocity,
+        pressure,
+        volume_viscosity,
+        stress_form,
+    };
     match expression.node(*root) {
         Some(ExprNode::Trace(value)) if is_field(expression, *value, velocity) => {
             Ok(Some(BoundaryCandidate {
@@ -359,35 +366,15 @@ fn direct_disposition(
             }))
         }
         Some(ExprNode::NormalComponent(stress)) => {
-            require_matching_stress(
-                program,
-                expression,
-                *stress,
-                velocity,
-                pressure,
-                relation,
-                volume_viscosity,
-                stress_form,
-            )?;
+            require_matching_stress(expression, *stress, relation, stress_context)?;
             Ok(Some(BoundaryCandidate {
                 disposition: PhysicalBoundaryDisposition::FluxZero,
                 normal_pressure: Some(NormalPressureSource2d::Zero),
             }))
         }
         Some(ExprNode::Add(left, right)) => {
-            let Some(field) = direct_normal_pressure_field(
-                expression,
-                *left,
-                *right,
-                relation,
-                StressBoundaryContext {
-                    program,
-                    velocity,
-                    pressure,
-                    volume_viscosity,
-                    stress_form,
-                },
-            )?
+            let Some(field) =
+                direct_normal_pressure_field(expression, *left, *right, relation, stress_context)?
             else {
                 return Ok(None);
             };
@@ -422,16 +409,7 @@ fn direct_normal_pressure_field(
         let Some(ExprNode::NormalComponent(stress)) = expression.node(traction) else {
             continue;
         };
-        require_matching_stress(
-            context.program,
-            expression,
-            *stress,
-            context.velocity,
-            context.pressure,
-            relation,
-            context.volume_viscosity,
-            context.stress_form,
-        )?;
+        require_matching_stress(expression, *stress, relation, context)?;
         return Ok(Some(field));
     }
     Ok(None)
@@ -682,6 +660,13 @@ fn interface_port(
     let [first, second] = expression.roots() else {
         return Ok(None);
     };
+    let stress_context = StressBoundaryContext {
+        program,
+        velocity,
+        pressure,
+        volume_viscosity,
+        stress_form,
+    };
     let mut trace_port = None;
     let mut flux_port = None;
     for root in [*first, *second] {
@@ -696,16 +681,7 @@ fn interface_port(
         if let Some(ExprNode::NormalComponent(stress)) = expression.node(*left)
             && let Some(port) = port_flux(expression, *right)
         {
-            require_matching_stress(
-                program,
-                expression,
-                *stress,
-                velocity,
-                pressure,
-                relation,
-                volume_viscosity,
-                stress_form,
-            )?;
+            require_matching_stress(expression, *stress, relation, stress_context)?;
             flux_port = Some(port);
         }
     }
@@ -720,30 +696,26 @@ fn interface_port(
 }
 
 fn require_matching_stress(
-    program: &KernelProgram,
     expression: &ExprDag,
     stress: ExprId,
-    velocity: RawId,
-    pressure: RawId,
     relation: RawId,
-    volume_viscosity: &ScalarSpatialExpression,
-    stress_form: IncompressibleStressForm,
+    context: StressBoundaryContext<'_>,
 ) -> Result<(), Diagnostic> {
-    let typed = typed_relation(program, relation)?;
+    let typed = typed_relation(context.program, relation)?;
     debug_assert_eq!(typed.expression(), expression);
     let viscosity = lower_incompressible_stress_viscosity(
-        program,
+        context.program,
         &typed,
         stress,
-        velocity,
-        pressure,
+        context.velocity,
+        context.pressure,
         relation,
-        stress_form,
+        context.stress_form,
     )?
     .ok_or_else(|| {
         lowering_error(
             relation,
-            match stress_form {
+            match context.stress_form {
                 IncompressibleStressForm::SymmetricNewtonian => {
                     "boundary traction must use the exact incompressible Newtonian stress"
                 }
@@ -753,7 +725,7 @@ fn require_matching_stress(
             },
         )
     })?;
-    if !viscosity.is_same_coefficient_as(volume_viscosity) {
+    if !viscosity.is_same_coefficient_as(context.volume_viscosity) {
         return Err(lowering_error(
             relation,
             "boundary and volume dynamic viscosity coefficients differ",
