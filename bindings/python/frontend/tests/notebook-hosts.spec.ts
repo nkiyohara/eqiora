@@ -88,11 +88,18 @@ async function prepareHost(page: Page): Promise<void> {
   await page.goto("");
   if (hostName() === "jupyterlab") {
     await expect(page.locator(".jp-Notebook")).toBeVisible({ timeout: 60_000 });
+    // Make the notebook the current widget before opening the Run menu:
+    // JupyterLab 4.6.2 labels these semantic commands "Run All" / "Restart Kernel
+    // and Run All" until a notebook is current, and the labels do not change while
+    // the menu stays open.
+    await page.locator(".jp-Notebook .jp-Cell").first().click();
     const runMenu = page.locator(".lm-MenuBar-item").filter({ hasText: /^Run$/ });
     await runMenu.click();
+    // Anchor the label: the unanchored /Run All Cells/ also matches
+    // "Restart Kernel and Run All Cells…", which strict mode refuses to click.
     await page
       .locator(".lm-Menu-item")
-      .filter({ hasText: /Run All Cells/ })
+      .filter({ hasText: /^Run All Cells$/ })
       .click();
     await expect(page.getByText("EQIORA_TEMPORARY_MESH_COLLECTED", { exact: true })).toBeVisible({
       timeout: 60_000,

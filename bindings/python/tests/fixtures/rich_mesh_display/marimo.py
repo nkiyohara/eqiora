@@ -11,8 +11,7 @@ def _():
     import weakref
 
     import eqiora
-
-    mo = marimo
+    import marimo as mo
 
     return eqiora, gc, mo, weakref
 
