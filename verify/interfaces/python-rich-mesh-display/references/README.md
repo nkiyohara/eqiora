@@ -27,6 +27,8 @@ Three.js, distribution, or scientific evidence. This case converts those
 precommitted host observations into installed-wheel falsifiers without copying
 the probe implementation.
 
-The accepted Issue #312 N1 contract body has SHA-256
+The accepted N1 contract body for this case has SHA-256
 `3f3a9f1a5b54bf5b874d996c8807bbb7e88439737fd245d69e7a8aeb7a1a87c1`
 and exact predecessor `3dfb1086168afc6f9fb61f9ca43d21ca9953048b`.
+That content-addressed body, not a tracking number, is the authority; the
+case manifest's `[contract]` block records the tracking entry.
