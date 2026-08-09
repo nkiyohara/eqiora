@@ -237,6 +237,7 @@ fn normal_velocity_projection<K: Clone + Ord>(
             coefficient_field,
             definition_relation,
             expression,
+            ..
         } = trace
         {
             expressions.insert(key.clone(), expression.clone());
@@ -335,7 +336,13 @@ fn lower_entries<const D: usize, K: Clone + Ord>(
         if let PhysicalBoundaryDisposition::Prescribed(law) = candidate.disposition
             && law.quantity() == PhysicalBoundaryQuantity::Trace
         {
-            let trace = prescribed_velocity_trace::<D>(program, law.relation(), velocity, domain)?;
+            let trace = prescribed_velocity_trace::<D>(
+                program,
+                law.relation(),
+                velocity,
+                domain,
+                boundary,
+            )?;
             prescribed_velocity_fields.insert(trace.coefficient_field());
             prescribed_velocity_definitions.insert(trace.definition_relation());
             prescribed_velocity_traces.insert(key.clone(), trace);
@@ -427,11 +434,24 @@ fn direct_disposition(
     }
 }
 
+/// Two-dimensional entry point for the single retained trace owner.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(super) fn prescribed_velocity_trace_2d(
+    program: &KernelProgram,
+    relation: RawId,
+    velocity: RawId,
+    domain: RawId,
+    boundary: RawId,
+) -> Result<SteadyStokesPrescribedVelocityTrace2d, Diagnostic> {
+    prescribed_velocity_trace::<2>(program, relation, velocity, domain, boundary)
+}
+
 fn prescribed_velocity_trace<const D: usize>(
     program: &KernelProgram,
     relation: RawId,
     velocity: RawId,
     domain: RawId,
+    boundary: RawId,
 ) -> Result<SteadyStokesPrescribedVelocityTrace2d, Diagnostic> {
     let expression = relation_expression(program, relation)?;
     let [root] = expression.roots() else {
@@ -501,6 +521,8 @@ fn prescribed_velocity_trace<const D: usize>(
             ));
         }
         return SteadyStokesPrescribedVelocityTrace2d::complete_affine_potential(
+            boundary,
+            relation,
             potential,
             definition,
             speed_parameter,
@@ -512,7 +534,7 @@ fn prescribed_velocity_trace<const D: usize>(
     let (expression, field, definition) =
         prescribed_normal_velocity_expression::<D>(program, relation, velocity, domain)?;
     Ok(SteadyStokesPrescribedVelocityTrace2d::normal(
-        field, definition, expression,
+        boundary, relation, field, definition, expression,
     ))
 }
 

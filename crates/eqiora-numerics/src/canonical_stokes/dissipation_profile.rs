@@ -1,50 +1,67 @@
 //! Private exact-area profile and one-way Stokes design binding.
-use super::api::{SteadyIncompressibleStokesModel2d, StokesBoundaryKey2d};
+//!
+//! The complete private cell is consumed only by its precommitted `cfg(test)`
+//! evidence until the accepted successor product path starts, so production
+//! builds relax the unused-item lint exactly as the sibling geometry
+//! realization module does. Under `cfg(test)` the lint stays denied.
+#![cfg_attr(not(test), allow(dead_code))]
+
+mod model_association;
+mod topology_content;
+
+#[cfg(test)]
+mod e1_evidence;
+#[cfg(test)]
+mod e1_sealed_input;
+
+use super::api::SteadyIncompressibleStokesModel2d;
 use super::geometry_realization::require_stokes_dissipation_mesh_predicates;
 use super::recognize::lower_stokes_dissipation_profile_model_2d;
-use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
 use crate::simplicial_ale_fsi::P1HarmonicMeshMotionAction2d;
 use crate::simplicial_fsi::FixedReferenceFsiPartition2d;
 use eqiora_artifact::{
     CanonicalModelArtifact, GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1,
     ModelArtifactReference, ModelEnvelope, SimplicialMeshEnvelopeV1,
 };
-use eqiora_core::{Diagnostic, DimExponents, RawId};
-use eqiora_geometry::{EDGE_DIMENSION, FACE_DIMENSION, NamedEntitySet, PlanarFace, PlanarRegion};
+use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::{
-    CellId, FacetId, FixedTopologyGeometryState2d, MeshEntity, MeshQualityGate, MeshTopology,
-    SimplicialMesh,
+    CellId, FacetId, FixedTopologyGeometryState2d, MeshEntity, MeshQualityGate, SimplicialMesh,
 };
-use eqiora_schema::kernel::KernelNode;
 use eqiora_sem::KernelProgram;
 use eqiora_solver::LinearSolveRequest;
+use model_association::{require_complete_boundary_model, require_profile_parameters};
 use std::collections::{BTreeMap, BTreeSet};
+use topology_content::{
+    chordal_geometry, mesh_facet_for_vertices, reference_vertices, require_topology_content,
+    require_topology_indices, semantic_role,
+};
+
+#[cfg(test)]
+pub(super) use e1_evidence::{E1ProfileTopologyEvidenceMutation2d, E1ProfileTopologyRejection2d};
+#[cfg(test)]
+pub(super) use e1_sealed_input::e1_stokes_dissipation_sealed_inputs_v1;
 
 const PROFILE_FORMULA_VERSION: &str = "stokes-dissipation-two-mode-exact-area-v1";
 const REFERENCE_TOPOLOGY_ID: &str = "stokes-square-ring-reference-n32-m4-v1";
 const REFINED_TOPOLOGY_ID: &str = "stokes-square-ring-refined-n64-m8-v1";
-const LENGTH: DimExponents = DimExponents {
-    length: 1,
-    ..DimExponents::DIMENSIONLESS
-};
-const VELOCITY: DimExponents = DimExponents {
-    length: 1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
-const VISCOSITY: DimExponents = DimExponents {
-    mass: 1,
-    length: -1,
-    time: -1,
-    ..DimExponents::DIMENSIONLESS
-};
+
+/// The exact entity-set roles owned by one admitted chordal Geometry.
+const ENTITY_SET_ROLES: [&str; 6] = [
+    "fluid",
+    "body",
+    "outer_x_lower",
+    "outer_x_upper",
+    "outer_y_lower",
+    "outer_y_upper",
+];
+
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct StokesDissipationProfileGeometry2d {
     formula_version: &'static str,
     area_radius_parameter: RawId,
     a2_parameter: RawId,
     a4_parameter: RawId,
-    pub(super) area_radius_m: f64,
+    area_radius_m: f64,
     a2: f64,
     a4: f64,
 }
@@ -98,20 +115,37 @@ impl StokesDissipationProfileGeometry2d {
     pub(super) const fn values(&self) -> [f64; 3] {
         [self.area_radius_m, self.a2, self.a4]
     }
+    /// Exact private analytic design identity: formula revision plus canonical
+    /// coherent-SI `r_A` and dimensionless `(a_2, a_4)` bits.
+    pub(super) fn identity(&self) -> (&'static str, [u64; 3]) {
+        (self.formula_version, self.values().map(f64::to_bits))
+    }
+    /// Exact coherent-SI equal-area radius owned by this analytic profile.
+    pub(super) const fn area_radius_m(&self) -> f64 {
+        self.area_radius_m
+    }
+    /// Exact dimensionless two-mode coefficients in sealed order.
+    pub(super) const fn coefficients(&self) -> [f64; 2] {
+        [self.a2, self.a4]
+    }
+    /// The sole analytic radial formula `rho_a(theta)`.
+    pub(super) fn radial_coordinate_m(&self, angle: f64) -> f64 {
+        let denominator = (1.0 + 0.5 * (self.a2 * self.a2 + self.a4 * self.a4)).sqrt();
+        self.area_radius_m * (1.0 + self.a2 * (2.0 * angle).cos() + self.a4 * (4.0 * angle).cos())
+            / denominator
+    }
     pub(super) fn radius(&self, angle: f64) -> Result<f64, Diagnostic> {
         if !angle.is_finite() {
             return Err(invalid("profile angle must be finite"));
         }
-        let denominator = (1.0 + 0.5 * (self.a2 * self.a2 + self.a4 * self.a4)).sqrt();
-        let radius = self.area_radius_m
-            * (1.0 + self.a2 * (2.0 * angle).cos() + self.a4 * (4.0 * angle).cos())
-            / denominator;
+        let radius = self.radial_coordinate_m(angle);
         if !radius.is_finite() || radius <= 0.0 {
             return Err(invalid("profile evaluation is not finite and positive"));
         }
         Ok(radius)
     }
-    pub(super) fn analytic_area(&self) -> f64 {
+    /// Exact analytic area `pi r_A^2`, never the chordal polygon diagnostic.
+    pub(super) fn analytic_area_m2(&self) -> f64 {
         std::f64::consts::PI * self.area_radius_m * self.area_radius_m
     }
     pub(super) fn bounds(&self) -> [[f64; 2]; 2] {
@@ -125,7 +159,7 @@ pub(super) enum StokesDissipationTopologyRole2d {
     Refined,
 }
 impl StokesDissipationTopologyRole2d {
-    fn contract(self) -> (&'static str, usize, usize) {
+    const fn contract(self) -> (&'static str, usize, usize) {
         match self {
             Self::Reference => (REFERENCE_TOPOLOGY_ID, 32, 4),
             Self::Refined => (REFINED_TOPOLOGY_ID, 64, 8),
@@ -154,12 +188,43 @@ pub(super) struct StokesDissipationBoundaryFacetSource2d {
     pub(super) label: String,
     pub(super) orientation: String,
 }
+impl StokesDissipationBoundaryFacetSource2d {
+    pub(super) const fn id(&self) -> usize {
+        self.id
+    }
+    pub(super) const fn vertices(&self) -> [usize; 2] {
+        self.vertices
+    }
+    pub(super) fn kind_name(&self) -> &str {
+        &self.kind
+    }
+    pub(super) fn source_label(&self) -> &str {
+        &self.label
+    }
+    pub(super) fn orientation_name(&self) -> &str {
+        &self.orientation
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct StokesDissipationBodyCorrespondence2d {
     pub(super) angle_index: usize,
     pub(super) angle_turns: String,
     pub(super) body_vertex: usize,
     pub(super) body_facet: usize,
+}
+impl StokesDissipationBodyCorrespondence2d {
+    pub(super) const fn angle_index(&self) -> usize {
+        self.angle_index
+    }
+    pub(super) fn angle_turns(&self) -> &str {
+        &self.angle_turns
+    }
+    pub(super) const fn body_vertex_id(&self) -> usize {
+        self.body_vertex
+    }
+    pub(super) const fn body_facet_id(&self) -> usize {
+        self.body_facet
+    }
 }
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct StokesDissipationTopologySource2d {
@@ -188,6 +253,8 @@ pub(super) struct StokesDissipationTopology2d {
     content_identity: String,
     sector_count: usize,
     radial_interval_count: usize,
+    body_vertex_ids: Vec<usize>,
+    outer_vertex_ids: Vec<usize>,
     reference_mesh: SimplicialMesh,
     entity_sets: BTreeMap<String, Vec<MeshEntity>>,
 }
@@ -218,69 +285,17 @@ impl StokesDissipationTopology2d {
                 "topology acceptance predicates must be finite and positive",
             ));
         }
-        let vertex_count = sectors * (intervals + 1);
-        if source.vertex_count != vertex_count
-            || source.cell_count != 2 * sectors * intervals
-            || source.facet_count != 2 * sectors
-            || source.membership_counts != [sectors, sectors * (intervals - 1), sectors]
-            || source.vertices.len() != vertex_count
-            || source.vertices.iter().enumerate().any(|(id, record)| {
-                record.id != id
-                    || record.ring_index != id / sectors
-                    || record.angle_index != id % sectors
-                    || record.ring_fraction != format!("{}/{}", record.ring_index, intervals)
-                    || record.angle_turns != format!("{}/{}", record.angle_index, sectors)
-                    || record.classification
-                        != match record.ring_index {
-                            0 => "body_boundary",
-                            ring if ring == intervals => "outer_boundary",
-                            _ => "fluid_interior",
-                        }
-            })
-        {
-            return Err(invalid(
-                "topology counts or vertex records differ from exact symbolic ring/angle content",
-            ));
-        }
-        let expected_cells = expected_cells(sectors, intervals);
-        if source.cells.len() != source.cell_count || source.cells != expected_cells {
-            return Err(invalid(
-                "topology connectivity differs from the exact ordered square-ring triangulation",
-            ));
-        }
-        if source.ordered_body_angles
-            != (0..sectors)
-                .map(|angle| format!("{angle}/{sectors}"))
-                .collect::<Vec<_>>()
-            || source.correspondence.len() != sectors
-            || source
-                .correspondence
-                .iter()
-                .enumerate()
-                .any(|(angle, entry)| {
-                    entry.angle_index != angle
-                        || entry.angle_turns != format!("{angle}/{sectors}")
-                        || entry.body_vertex != angle
-                        || entry.body_facet != angle
-                })
-        {
-            return Err(invalid(
-                "ordered body angle/correspondence identity differs from exact same-index content",
-            ));
-        }
+        require_topology_indices(&source, sectors)?;
+        require_topology_content(&source, sectors, intervals)?;
         let vertices = reference_vertices(area_radius_m, sectors, intervals)?;
-        let expected_facets = expected_boundary_facets(sectors, intervals)?;
-        if source.boundary_facets != expected_facets {
-            return Err(invalid(
-                "boundary facets differ from the exact oriented five-label inventory",
-            ));
-        }
+        let body_vertex_ids = classified_vertex_ids(&source, "body_boundary");
+        let outer_vertex_ids = classified_vertex_ids(&source, "outer_boundary");
         let mesh = SimplicialMesh::new(
             2,
             vertices,
             source
                 .cells
-                .into_iter()
+                .iter()
                 .map(|cell| Vec::from(cell.vertices))
                 .collect(),
             source.quality_gate,
@@ -294,13 +309,10 @@ impl StokesDissipationTopology2d {
                 .or_default()
                 .push(mesh_facet);
         }
-        let required = BTreeSet::from([
-            "body".to_owned(),
-            "outer_x_lower".to_owned(),
-            "outer_x_upper".to_owned(),
-            "outer_y_lower".to_owned(),
-            "outer_y_upper".to_owned(),
-        ]);
+        let required = ENTITY_SET_ROLES[1..]
+            .iter()
+            .map(|role| (*role).to_owned())
+            .collect::<BTreeSet<_>>();
         if entity_sets.keys().cloned().collect::<BTreeSet<_>>() != required
             || entity_sets.values().any(Vec::is_empty)
         {
@@ -314,9 +326,14 @@ impl StokesDissipationTopology2d {
             content_identity: source.content_identity,
             sector_count: sectors,
             radial_interval_count: intervals,
+            body_vertex_ids,
+            outer_vertex_ids,
             reference_mesh: mesh,
             entity_sets,
         })
+    }
+    pub(super) const fn entity_sets(&self) -> &BTreeMap<String, Vec<MeshEntity>> {
+        &self.entity_sets
     }
     fn realize(
         &self,
@@ -347,14 +364,7 @@ impl StokesDissipationTopology2d {
         let mesh = SimplicialMeshEnvelopeV1::from_mesh(&mesh)?;
         let correspondence = GeometryMeshCorrespondenceEnvelopeV1::from_region(&geometry, &mesh)?;
         let mut entity_sets = BTreeMap::new();
-        for role in [
-            "fluid",
-            "body",
-            "outer_x_lower",
-            "outer_x_upper",
-            "outer_y_lower",
-            "outer_y_upper",
-        ] {
+        for role in ENTITY_SET_ROLES {
             entity_sets.insert(
                 role.to_owned(),
                 correspondence.region_entity_set_entities(&geometry, role)?,
@@ -434,6 +444,17 @@ impl StokesDissipationTopology2d {
         Ok((augmented, partition, original_vertices))
     }
 }
+fn classified_vertex_ids(
+    source: &StokesDissipationTopologySource2d,
+    classification: &str,
+) -> Vec<usize> {
+    source
+        .vertices
+        .iter()
+        .filter(|record| record.classification == classification)
+        .map(|record| record.id)
+        .collect()
+}
 #[derive(Debug, Clone, PartialEq)]
 struct RealizedStokesDissipationGeometry2d {
     motion_action: P1HarmonicMeshMotionAction2d,
@@ -451,10 +472,14 @@ pub(super) struct StokesDissipationGeometryModelBinding2d {
     state: FixedTopologyGeometryState2d,
     geometry: GeometryDefinitionV1,
     mesh: SimplicialMeshEnvelopeV1,
+    mesh_artifact: [u8; 32],
     correspondence: GeometryMeshCorrespondenceEnvelopeV1,
     entity_sets: BTreeMap<String, Vec<MeshEntity>>,
+    program: KernelProgram,
     model: SteadyIncompressibleStokesModel2d,
     model_artifact: ModelArtifactReference,
+    model_profile_values: [f64; 3],
+    sealed_input: Option<[u8; 32]>,
 }
 impl StokesDissipationGeometryModelBinding2d {
     pub(super) fn new<F>(
@@ -462,13 +487,14 @@ impl StokesDissipationGeometryModelBinding2d {
         topology: &StokesDissipationTopology2d,
         harmonic_solver: LinearSolveRequest<'_>,
         build_model: F,
-    ) -> Result<(KernelProgram, Self), Diagnostic>
+        sealed_input: Option<[u8; 32]>,
+    ) -> Result<Self, Diagnostic>
     where
         F: FnOnce(&GeometryDefinitionV1) -> Result<KernelProgram, Diagnostic>,
     {
         let realized = topology.realize(&profile, harmonic_solver)?;
         let program = build_model(&realized.geometry)?;
-        require_profile_parameters(&program, &profile)?;
+        let model_profile_values = require_profile_parameters(&program, &profile)?;
         let model = lower_stokes_dissipation_profile_model_2d(
             &program,
             &realized.geometry,
@@ -484,19 +510,22 @@ impl StokesDissipationGeometryModelBinding2d {
                 "Model artifact identity differs from the exact semantic revision",
             ));
         }
-        let binding = Self {
+        Ok(Self {
             profile,
             topology: topology.clone(),
             motion_action: realized.motion_action,
             state: realized.state,
+            mesh_artifact: realized.mesh.digest()?.sha256_bytes(),
             geometry: realized.geometry,
             mesh: realized.mesh,
             correspondence: realized.correspondence,
             entity_sets: realized.entity_sets,
+            program,
             model,
             model_artifact,
-        };
-        Ok((program, binding))
+            model_profile_values,
+            sealed_input,
+        })
     }
     pub(super) const fn mesh(&self) -> &SimplicialMeshEnvelopeV1 {
         &self.mesh
@@ -504,23 +533,113 @@ impl StokesDissipationGeometryModelBinding2d {
     pub(super) const fn model(&self) -> &SteadyIncompressibleStokesModel2d {
         &self.model
     }
+    /// The exact Model program this binding was admitted from.
+    pub(super) const fn program(&self) -> &KernelProgram {
+        &self.program
+    }
+    /// Exact analytic design owner retained by value.
+    pub(super) const fn profile(&self) -> &StokesDissipationProfileGeometry2d {
+        &self.profile
+    }
+    /// Exact analytic design identity retained by the binding.
+    pub(super) fn profile_identity(&self) -> (&'static str, [u64; 3]) {
+        self.profile.identity()
+    }
+    /// Exact `r_A`, `a_2`, and `a_4` values read from the admitted Model.
+    pub(super) const fn model_profile_values(&self) -> [f64; 3] {
+        self.model_profile_values
+    }
+    /// The same analytic identity, formed only from Model Parameter values.
+    pub(super) fn model_profile_identity(&self) -> (&'static str, [u64; 3]) {
+        (
+            PROFILE_FORMULA_VERSION,
+            self.model_profile_values.map(f64::to_bits),
+        )
+    }
+    /// Digest of the derived straight-edged finite-element realization.
+    pub(super) fn chordal_geometry_digest(&self) -> [u8; 32] {
+        self.geometry.canonical().digest_bytes()
+    }
+    /// Digest the admitted Model's `GeometryRegion` Domain names.
+    pub(super) fn model_geometry_region_digest(&self) -> [u8; 32] {
+        self.model
+            .geometry_source_digest()
+            .expect("an admitted binding retains one exact GeometryRegion digest")
+    }
+    /// Exact Mesh artifact digest of the realized fixed-topology state.
+    pub(super) const fn mesh_artifact_digest(&self) -> [u8; 32] {
+        self.mesh_artifact
+    }
+    /// Exact Model artifact digest of the admitted trial Model.
+    pub(super) fn model_artifact_digest(&self) -> [u8; 32] {
+        self.model_artifact.artifact().sha256_bytes()
+    }
+    /// Complete exact entity-set inventory of the derived chordal Geometry.
+    pub(super) fn entity_set_names(&self) -> Vec<&str> {
+        self.entity_sets.keys().map(String::as_str).collect()
+    }
+    /// Explicit content-bound topology role; never inferred.
+    pub(super) const fn topology_role(&self) -> StokesDissipationTopologyRole2d {
+        self.topology.role
+    }
+    /// Exact sealed topology content identity.
+    pub(super) fn topology_content_identity(&self) -> &str {
+        &self.topology.content_identity
+    }
+    /// The unchanged start-design connectivity and reference coordinates.
+    pub(super) const fn reference_topology(&self) -> &SimplicialMesh {
+        &self.topology.reference_mesh
+    }
+    /// The accepted fixed-reference harmonic state for this design.
+    pub(super) const fn fixed_topology_state(&self) -> &FixedTopologyGeometryState2d {
+        &self.state
+    }
+    /// Ordered exact body-boundary vertex identities.
+    pub(super) fn body_vertex_ids(&self) -> &[usize] {
+        &self.topology.body_vertex_ids
+    }
+    /// Ordered exact outer-boundary vertex identities.
+    pub(super) fn outer_vertex_ids(&self) -> &[usize] {
+        &self.topology.outer_vertex_ids
+    }
+    /// Exact sealed ordered body angles as rational turn strings.
+    pub(super) fn ordered_body_angle_turns(&self) -> &[String] {
+        &self.topology.source.ordered_body_angles
+    }
+    /// Exact sealed same-index body correspondence.
+    pub(super) fn correspondence(&self) -> &[StokesDissipationBodyCorrespondence2d] {
+        &self.topology.source.correspondence
+    }
+    /// Exact sealed oriented boundary-facet inventory.
+    pub(super) fn boundary_facets(&self) -> &[StokesDissipationBoundaryFacetSource2d] {
+        &self.topology.source.boundary_facets
+    }
     pub(super) fn entities(&self, role: &str) -> Result<&[MeshEntity], Diagnostic> {
         self.entity_sets
             .get(role)
             .map(Vec::as_slice)
             .ok_or_else(|| invalid(format!("binding has no exact entity-set role `{role}`")))
     }
-    pub(super) fn revalidate(&self, program: &KernelProgram) -> Result<(), Diagnostic> {
+    pub(super) fn revalidate(&self) -> Result<(), Diagnostic> {
         let admitted = StokesDissipationTopology2d::admit(
             self.topology.source.clone(),
-            self.profile.area_radius_m,
+            self.profile.area_radius_m(),
         )?;
         if admitted != self.topology {
             return Err(invalid(
                 "binding topology differs from complete exact-content replay",
             ));
         }
-        require_profile_parameters(program, &self.profile)?;
+        if require_profile_parameters(&self.program, &self.profile)? != self.model_profile_values {
+            return Err(invalid(
+                "binding retained Model design values differ from exact Parameter replay",
+            ));
+        }
+        if self.model.geometry_source_digest() != Some(self.geometry.canonical().digest_bytes()) {
+            return Err(invalid(
+                "binding Model GeometryRegion digest differs from the derived chordal Geometry",
+            ));
+        }
         if self
             .topology
             .harmonic_state(&self.profile, &self.motion_action)?
@@ -531,7 +650,8 @@ impl StokesDissipationGeometryModelBinding2d {
             ));
         }
         let replayed_mesh = self.state.reconstruct_mesh(&self.topology.reference_mesh)?;
-        if SimplicialMeshEnvelopeV1::from_mesh(&replayed_mesh)? != self.mesh {
+        let mesh = SimplicialMeshEnvelopeV1::from_mesh(&replayed_mesh)?;
+        if mesh != self.mesh || mesh.digest()?.sha256_bytes() != self.mesh_artifact {
             return Err(invalid(
                 "binding fixed-topology state and retained Mesh identity differ",
             ));
@@ -564,14 +684,7 @@ impl StokesDissipationGeometryModelBinding2d {
                 "binding chordal Geometry and retained Mesh correspondence differ",
             ));
         }
-        for role in [
-            "fluid",
-            "body",
-            "outer_x_lower",
-            "outer_x_upper",
-            "outer_y_lower",
-            "outer_y_upper",
-        ] {
+        for role in ENTITY_SET_ROLES {
             if correspondence.region_entity_set_entities(&geometry, role)?
                 != *self.entities(role)?
             {
@@ -581,13 +694,13 @@ impl StokesDissipationGeometryModelBinding2d {
             }
         }
         let model = lower_stokes_dissipation_profile_model_2d(
-            program,
+            &self.program,
             &geometry,
             self.profile.bounds(),
             self.profile.parameters(),
         )?;
-        require_complete_boundary_model(program, &model, &self.profile)?;
-        let model_artifact = ModelEnvelope::from_program(program)?.artifact_reference()?;
+        require_complete_boundary_model(&self.program, &model, &self.profile)?;
+        let model_artifact = ModelEnvelope::from_program(&self.program)?.artifact_reference()?;
         if model != self.model || model_artifact != self.model_artifact {
             return Err(invalid(
                 "binding retained Model meaning or exact Model artifact differs from replay",
@@ -595,364 +708,6 @@ impl StokesDissipationGeometryModelBinding2d {
         }
         Ok(())
     }
-}
-fn require_profile_parameters(
-    program: &KernelProgram,
-    profile: &StokesDissipationProfileGeometry2d,
-) -> Result<(), Diagnostic> {
-    for ((parameter, expected), dimension) in
-        profile.parameters().into_iter().zip(profile.values()).zip([
-            LENGTH,
-            DimExponents::DIMENSIONLESS,
-            DimExponents::DIMENSIONLESS,
-        ])
-    {
-        let Some(KernelNode::Parameter(definition)) = program.node(parameter) else {
-            return Err(invalid("profile identity names a non-Parameter Model node"));
-        };
-        let value = program.value(parameter).unwrap_or(definition.value());
-        if value.dim() != dimension || value.value() != expected {
-            return Err(invalid(
-                "profile identity and exact Model Parameter value/dimension differ",
-            ));
-        }
-    }
-    Ok(())
-}
-fn require_complete_boundary_model(
-    program: &KernelProgram,
-    model: &SteadyIncompressibleStokesModel2d,
-    profile: &StokesDissipationProfileGeometry2d,
-) -> Result<(), Diagnostic> {
-    if model.bounds() != &profile.bounds()
-        || model.geometry_source_digest().is_none()
-        || model.boundary_entries().count() != 5
-    {
-        return Err(invalid(
-            "profile Model bounds, geometry identity, or boundary inventory differ",
-        ));
-    }
-    let relation_by_boundary = model
-        .boundary_relations()
-        .iter()
-        .copied()
-        .map(|binding| (binding.boundary(), binding.relation()))
-        .collect::<BTreeMap<_, _>>();
-    if model.boundary_relations().len() != 5
-        || relation_by_boundary.len() != 5
-        || relation_by_boundary
-            .values()
-            .copied()
-            .collect::<BTreeSet<_>>()
-            .len()
-            != 5
-    {
-        return Err(invalid(
-            "profile Model must retain five distinct exact Boundary Relation identities",
-        ));
-    }
-    let body_key = StokesBoundaryKey2d::NamedEntitySet("body".to_owned());
-    if model.boundary_entry(&body_key).is_none_or(|entry| {
-        entry.disposition != PhysicalBoundaryDisposition::TraceZero
-            || !relation_by_boundary.contains_key(&entry.boundary)
-    }) {
-        return Err(invalid("profile Model body is not exact trace zero"));
-    }
-    let mut common = None;
-    for role in [
-        "outer_x_lower",
-        "outer_x_upper",
-        "outer_y_lower",
-        "outer_y_upper",
-    ] {
-        let key = StokesBoundaryKey2d::NamedEntitySet(role.to_owned());
-        let entry = model
-            .boundary_entry(&key)
-            .ok_or_else(|| invalid("profile Model omits an exact outer Boundary"))?;
-        if !matches!(
-            entry.disposition,
-            PhysicalBoundaryDisposition::Prescribed(law)
-                if law.quantity() == PhysicalBoundaryQuantity::Trace
-                    && relation_by_boundary.get(&entry.boundary) == Some(&law.relation())
-        ) {
-            return Err(invalid(
-                "profile Model outer Boundary is not prescribed trace",
-            ));
-        }
-        let trace = model
-            .prescribed_velocity_trace(&key)
-            .filter(|trace| trace.is_complete())
-            .ok_or_else(|| invalid("profile Model outer trace is not complete affine potential"))?;
-        if common.as_ref().is_some_and(|accepted| accepted != trace) {
-            return Err(invalid(
-                "outer Boundaries do not retain one exact chi/definition/U identity",
-            ));
-        }
-        common = Some(trace.clone());
-    }
-    let common = common.expect("four exact outer roles produce one trace");
-    let speed = common
-        .speed_parameter()
-        .expect("complete trace owns one speed Parameter");
-    let Some(KernelNode::Parameter(speed_definition)) = program.node(speed) else {
-        return Err(invalid("complete trace speed identity is not a Parameter"));
-    };
-    let speed_value = program.value(speed).unwrap_or(speed_definition.value());
-    if speed_value.dim() != VELOCITY || speed_value.value() <= 0.0 {
-        return Err(invalid(
-            "complete trace speed must be finite positive velocity",
-        ));
-    }
-    let [viscosity] = model.dynamic_viscosity_expression().parameter_fields() else {
-        return Err(invalid(
-            "profile Model viscosity must retain exactly one Parameter",
-        ));
-    };
-    let viscosity = viscosity.erase();
-    let Some(KernelNode::Parameter(viscosity_definition)) = program.node(viscosity) else {
-        return Err(invalid("viscosity identity is not a Parameter"));
-    };
-    let viscosity_value = program
-        .value(viscosity)
-        .unwrap_or(viscosity_definition.value());
-    let mut identities = profile.parameters().into_iter().collect::<BTreeSet<_>>();
-    identities.insert(speed);
-    identities.insert(viscosity);
-    if identities.len() != 5
-        || viscosity_value.dim() != VISCOSITY
-        || !viscosity_value.value().is_finite()
-        || viscosity_value.value() <= 0.0
-    {
-        return Err(invalid(
-            "r_A/a_2/a_4/U/mu identities must be distinct and physically valid",
-        ));
-    }
-    Ok(())
-}
-fn expected_cells(sectors: usize, intervals: usize) -> Vec<StokesDissipationCellRecord2d> {
-    let mut cells = Vec::with_capacity(2 * sectors * intervals);
-    for ring in 0..intervals {
-        for angle in 0..sectors {
-            let next = (angle + 1) % sectors;
-            let inner = ring * sectors + angle;
-            let inner_next = ring * sectors + next;
-            let outer = (ring + 1) * sectors + angle;
-            let outer_next = (ring + 1) * sectors + next;
-            cells.push(StokesDissipationCellRecord2d {
-                id: cells.len(),
-                vertices: [inner, outer, outer_next],
-            });
-            cells.push(StokesDissipationCellRecord2d {
-                id: cells.len(),
-                vertices: [inner, outer_next, inner_next],
-            });
-        }
-    }
-    cells
-}
-fn reference_vertices(
-    area_radius_m: f64,
-    sectors: usize,
-    intervals: usize,
-) -> Result<Vec<Vec<f64>>, Diagnostic> {
-    if !area_radius_m.is_finite() || area_radius_m <= 0.0 {
-        return Err(invalid("topology requires finite positive r_A"));
-    }
-    let half_width = 10.0 * area_radius_m;
-    let mut vertices = Vec::with_capacity(sectors * (intervals + 1));
-    for ring in 0..=intervals {
-        let fraction = ring as f64 / intervals as f64;
-        for angle_index in 0..sectors {
-            let angle = std::f64::consts::TAU * angle_index as f64 / sectors as f64;
-            let direction = [angle.cos(), angle.sin()];
-            let outer_scale = half_width / direction[0].abs().max(direction[1].abs());
-            let body = [area_radius_m * direction[0], area_radius_m * direction[1]];
-            let outer = [outer_scale * direction[0], outer_scale * direction[1]];
-            vertices.push(vec![
-                (1.0 - fraction) * body[0] + fraction * outer[0],
-                (1.0 - fraction) * body[1] + fraction * outer[1],
-            ]);
-        }
-    }
-    Ok(vertices)
-}
-fn expected_boundary_facets(
-    sectors: usize,
-    intervals: usize,
-) -> Result<Vec<StokesDissipationBoundaryFacetSource2d>, Diagnostic> {
-    let mut facets = Vec::with_capacity(2 * sectors);
-    for angle in 0..sectors {
-        facets.push(StokesDissipationBoundaryFacetSource2d {
-            id: facets.len(),
-            vertices: [(angle + 1) % sectors, angle],
-            kind: "body".to_owned(),
-            label: "body_no_slip".to_owned(),
-            orientation: "fluid_domain_boundary_clockwise".to_owned(),
-        });
-    }
-    let outer_start = intervals * sectors;
-    for angle in 0..sectors {
-        let endpoints = [outer_start + angle, outer_start + (angle + 1) % sectors];
-        facets.push(StokesDissipationBoundaryFacetSource2d {
-            id: facets.len(),
-            vertices: endpoints,
-            kind: "outer".to_owned(),
-            label: outer_source_label(angle, sectors)?.to_owned(),
-            orientation: "fluid_domain_boundary_counterclockwise".to_owned(),
-        });
-    }
-    Ok(facets)
-}
-fn outer_source_label(angle: usize, sectors: usize) -> Result<&'static str, Diagnostic> {
-    if !sectors.is_multiple_of(8) || angle >= sectors {
-        return Err(invalid(
-            "outer facet has no exact indexed square-side label",
-        ));
-    }
-    match 8 * angle / sectors {
-        0 | 7 => Ok("outer_x_plus"),
-        1 | 2 => Ok("outer_y_plus"),
-        3 | 4 => Ok("outer_x_minus"),
-        5 | 6 => Ok("outer_y_minus"),
-        _ => unreachable!("angle is in exact sector range"),
-    }
-}
-fn semantic_role(source: &str) -> Result<&'static str, Diagnostic> {
-    match source {
-        "body_no_slip" => Ok("body"),
-        "outer_x_minus" => Ok("outer_x_lower"),
-        "outer_x_plus" => Ok("outer_x_upper"),
-        "outer_y_minus" => Ok("outer_y_lower"),
-        "outer_y_plus" => Ok("outer_y_upper"),
-        _ => Err(invalid(
-            "topology contains an unknown source boundary label",
-        )),
-    }
-}
-fn mesh_facet_for_vertices(
-    mesh: &SimplicialMesh,
-    endpoints: [usize; 2],
-) -> Result<MeshEntity, Diagnostic> {
-    let target = BTreeSet::from(endpoints);
-    let facet_count = mesh
-        .entity_count(1)
-        .ok_or_else(|| invalid("topology has no facet stratum"))?;
-    let matches = (0..facet_count)
-        .map(|index| MeshEntity::new(1, index))
-        .filter(|facet| {
-            mesh.entity_vertices(*facet).is_some_and(|vertices| {
-                vertices
-                    .into_iter()
-                    .map(|vertex| vertex.index())
-                    .collect::<BTreeSet<_>>()
-                    == target
-            })
-        })
-        .collect::<Vec<_>>();
-    match matches.as_slice() {
-        [facet] => Ok(*facet),
-        _ => Err(invalid(
-            "boundary source facet is missing or duplicated in exact topology",
-        )),
-    }
-}
-fn realized_facet_role<'a>(
-    topology: &'a StokesDissipationTopology2d,
-    mesh: &SimplicialMesh,
-    coordinates: &[[f64; 2]],
-    endpoints: [usize; 2],
-) -> Result<&'a str, Diagnostic> {
-    let expected = [coordinates[endpoints[0]], coordinates[endpoints[1]]];
-    let facets = (0..mesh.entity_count(1).expect("2D mesh facets"))
-        .map(|index| MeshEntity::new(1, index))
-        .filter(|facet| {
-            let vertices = mesh.entity_vertices(*facet).expect("mesh facet vertices");
-            let actual = [
-                mesh.vertices()[vertices[0].index()].as_slice(),
-                mesh.vertices()[vertices[1].index()].as_slice(),
-            ];
-            (actual[0] == expected[0] && actual[1] == expected[1])
-                || (actual[0] == expected[1] && actual[1] == expected[0])
-        })
-        .collect::<Vec<_>>();
-    let [facet] = facets.as_slice() else {
-        return Err(invalid(
-            "chordal Geometry edge has no unique topology facet",
-        ));
-    };
-    let roles = topology
-        .entity_sets
-        .iter()
-        .filter_map(|(role, members)| members.contains(facet).then_some(role.as_str()))
-        .collect::<Vec<_>>();
-    match roles.as_slice() {
-        [role] => Ok(*role),
-        _ => Err(invalid(
-            "chordal Geometry facet has no unique semantic role",
-        )),
-    }
-}
-fn chordal_geometry(
-    profile: &StokesDissipationProfileGeometry2d,
-    topology: &StokesDissipationTopology2d,
-    mesh: &SimplicialMesh,
-    sectors: usize,
-    coordinate_tolerance_m: f64,
-) -> Result<GeometryDefinitionV1, Diagnostic> {
-    let outer_start = mesh.vertices().len() - sectors;
-    let outer = (0..sectors).map(|index| outer_start + index);
-    let body = 0..sectors;
-    let mut compact = outer
-        .chain(body)
-        .map(|index| [mesh.vertices()[index][0], mesh.vertices()[index][1]])
-        .collect::<Vec<_>>();
-    let first = PlanarRegion::new(
-        compact.clone(),
-        vec![PlanarFace::new(
-            (0..sectors).collect(),
-            vec![(sectors..2 * sectors).collect()],
-        )],
-        Vec::new(),
-        coordinate_tolerance_m,
-    )?;
-    compact = first.vertices().to_vec();
-    let face = first.faces()[0].clone();
-    let outer_loop = face.outer();
-    let body_loop = &face.holes()[0];
-    let mut sets = BTreeMap::<String, Vec<usize>>::new();
-    for edge in 0..outer_loop.len() {
-        let endpoints = [outer_loop[edge], outer_loop[(edge + 1) % outer_loop.len()]];
-        let role = realized_facet_role(topology, mesh, &compact, endpoints)?;
-        if role == "body" {
-            return Err(invalid(
-                "chordal outer loop is associated with the body role",
-            ));
-        }
-        sets.entry(role.to_owned()).or_default().push(edge);
-    }
-    for edge in 0..body_loop.len() {
-        let endpoints = [body_loop[edge], body_loop[(edge + 1) % body_loop.len()]];
-        if realized_facet_role(topology, mesh, &compact, endpoints)? != "body" {
-            return Err(invalid(
-                "chordal body loop is associated with an outer role",
-            ));
-        }
-    }
-    sets.insert(
-        "body".to_owned(),
-        (outer_loop.len()..outer_loop.len() + body_loop.len()).collect(),
-    );
-    let mut named = sets
-        .into_iter()
-        .map(|(name, members)| NamedEntitySet::new(name, EDGE_DIMENSION, members))
-        .collect::<Vec<_>>();
-    named.push(NamedEntitySet::new("fluid", FACE_DIMENSION, vec![0]));
-    let region = PlanarRegion::new(compact, vec![face], named, coordinate_tolerance_m)?;
-    let geometry = GeometryDefinitionV1::from_region(&region);
-    if profile.analytic_area() <= 0.0 {
-        return Err(invalid("analytic profile area is not positive"));
-    }
-    Ok(geometry)
 }
 
 fn invalid(message: impl Into<String>) -> Diagnostic {

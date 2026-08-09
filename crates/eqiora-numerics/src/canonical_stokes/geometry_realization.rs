@@ -232,6 +232,10 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
 /// `transport` is the already existing MINI essential callback shape.  Its
 /// values are compared exactly with every retained Model-owned boundary value
 /// before any value is admitted to assembly.
+// The accepted E1 contract owns this finalized boundary/system step, whose
+// first consumer is the stopped successor optimization path. Remove this
+// attribute when that path calls it.
+#[allow(dead_code)]
 pub(super) fn finalize_resolved_stokes_dissipation_profile_mini_2d_with_transport<B>(
     program: &KernelProgram,
     resolved: &ResolvedFieldwiseRealization,
@@ -241,7 +245,12 @@ pub(super) fn finalize_resolved_stokes_dissipation_profile_mini_2d_with_transpor
 where
     B: Fn([f64; DIMENSION]) -> Result<[f64; DIMENSION], Diagnostic> + Sync,
 {
-    binding.revalidate(program)?;
+    if program != binding.program() {
+        return Err(invalid(
+            "profile binding was admitted from another exact Model program",
+        ));
+    }
+    binding.revalidate()?;
     let model = binding.model();
     let physical = binding.mesh().mesh();
     let mesh_reference = binding.mesh().artifact_reference()?;
@@ -437,7 +446,7 @@ pub(super) fn require_stokes_dissipation_mesh_predicates(
             0.5 * ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]))
         })
         .fold(f64::INFINITY, f64::min);
-    let half_width = 10.0 * profile.area_radius_m;
+    let half_width = 10.0 * profile.area_radius_m();
     let clearance = mesh.vertices()[..sectors]
         .iter()
         .map(|point| half_width - point[0].abs().max(point[1].abs()))
@@ -445,7 +454,7 @@ pub(super) fn require_stokes_dissipation_mesh_predicates(
     if !minimum_signed_area.is_finite()
         || minimum_signed_area <= minimum_signed_area_m2
         || !clearance.is_finite()
-        || clearance <= minimum_clearance_radius_multiple * profile.area_radius_m
+        || clearance <= minimum_clearance_radius_multiple * profile.area_radius_m()
     {
         return Err(invalid(
             "realized topology violates signed-area or body-clearance predicate",
