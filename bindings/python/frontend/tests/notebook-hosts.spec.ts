@@ -288,7 +288,13 @@ async function clearOneMainView(page: Page, view: Locator): Promise<void> {
   if (hostName() === "jupyterlab") {
     const cell = view.locator("xpath=ancestor::*[contains(@class, 'jp-CodeCell')]");
     await cell.click();
-    await runJupyterCommand(page, /Clear Outputs of Selected Cells/);
+    // JupyterLab 4.6.2 has exactly two notebook clear commands: "Clear Cell
+    // Output" (notebook:clear-cell-output, caption "Clear outputs for the
+    // selected cells") and "Clear Outputs of All Cells". Only the former clears
+    // the one selected cell, which is what this flow needs; the latter would
+    // clear every view. The palette item's text is label + caption, so the
+    // pattern stays unanchored.
+    await runJupyterCommand(page, /Clear Cell Output/);
   } else {
     await page.getByRole("checkbox", { name: "Show third Mesh", exact: true }).uncheck();
   }
@@ -420,7 +426,11 @@ test("WebGL construction failure is an accessible failure rather than a blank pa
     };
   });
   await prepareHost(page);
-  const diagnostics = page.locator('[role="alert"]');
+  // Scope to the Eqiora views: JupyterLab 4.6.2 ships its own page-wide
+  // role="alert" chrome (the react-toastify news-opt-in notification), so a
+  // page-wide count would bind this oracle to an incidental host detail rather
+  // than to the four view diagnostics the claim is about.
+  const diagnostics = page.locator(VIEW_SELECTOR).locator('[role="alert"]');
   await expect(diagnostics).toHaveCount(4);
   for (let index = 0; index < 4; index += 1) {
     await expect(diagnostics.nth(index)).toContainText("WebGL");
