@@ -20,7 +20,8 @@ use crate::spatial_expression::{self, ScalarSpatialExpression};
 
 use super::boundary::{self, LoweredStokesBoundary};
 use super::expression::{
-    is_divergence_of_field, load_definition_root, lower_newtonian_stress_viscosity,
+    IncompressibleStressForm, is_divergence_of_field, load_definition_root,
+    lower_incompressible_stress_viscosity,
 };
 use super::inertial::{parameters_referenced_by, require_positive_constant};
 use super::recognize::unique_box;
@@ -93,6 +94,7 @@ pub(super) struct TransientIncompressibleNavierStokesModel2d {
     pub(super) boundary_dispositions: BTreeMap<RawId, PhysicalBoundaryDisposition>,
     pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
     pub(super) normal_velocity_expressions: BTreeMap<RawId, ScalarSpatialExpression>,
+    pub(super) stress_form: IncompressibleStressForm,
 }
 
 impl TransientIncompressibleNavierStokesModel2d {
@@ -287,6 +289,7 @@ impl TransientIncompressibleNavierStokesCartesianModel2d {
                         .map(|entry| (entry.boundary(), expression.clone()))
                 })
                 .collect(),
+            stress_form: IncompressibleStressForm::SymmetricNewtonian,
         }
     }
 }
@@ -488,11 +491,31 @@ pub(super) struct TransientVolume<const D: usize> {
     pub(super) normal_velocity_fields: BTreeSet<RawId>,
     pub(super) representation: RawId,
     pub(super) volume_relations: Vec<RawId>,
+    pub(super) stress_form: IncompressibleStressForm,
 }
 
 pub(super) fn lower_transient_volume<const D: usize>(
     program: &KernelProgram,
     domain: RawId,
+) -> Result<TransientVolume<D>, Diagnostic> {
+    lower_transient_volume_with_stress(
+        program,
+        domain,
+        IncompressibleStressForm::SymmetricNewtonian,
+    )
+}
+
+pub(super) fn lower_dfg_transient_volume<const D: usize>(
+    program: &KernelProgram,
+    domain: RawId,
+) -> Result<TransientVolume<D>, Diagnostic> {
+    lower_transient_volume_with_stress(program, domain, IncompressibleStressForm::DfgNonsymmetric)
+}
+
+fn lower_transient_volume_with_stress<const D: usize>(
+    program: &KernelProgram,
+    domain: RawId,
+    stress_form: IncompressibleStressForm,
 ) -> Result<TransientVolume<D>, Diagnostic> {
     let (velocity, scalar_fields, normal_velocity_fields, representation) =
         transient_fields_for_dimension::<D>(program, domain)?;
@@ -634,18 +657,22 @@ pub(super) fn lower_transient_volume<const D: usize>(
         ));
     }
     require_positive_constant(&mass_density, momentum_relation, "mass density")?;
-    let dynamic_viscosity = lower_newtonian_stress_viscosity(
+    let dynamic_viscosity = lower_incompressible_stress_viscosity(
         program,
         momentum_typed,
         momentum.stress,
         velocity,
         pressure,
         momentum_relation,
+        stress_form,
     )?
     .ok_or_else(|| {
         lowering_error(
             momentum_relation,
-            "fluid stress must be exactly `2 * mu * symmetric_part(grad(velocity)) - isotropic_lift(pressure)`",
+            match stress_form {
+                IncompressibleStressForm::SymmetricNewtonian => "fluid stress must be exactly `2 * mu * symmetric_part(grad(velocity)) - isotropic_lift(pressure)`",
+                IncompressibleStressForm::DfgNonsymmetric => "DFG fluid stress must be exactly `mu * grad(velocity) - isotropic_lift(pressure)`",
+            },
         )
     })?;
     require_positive_constant(&dynamic_viscosity, momentum_relation, "dynamic viscosity")?;
@@ -663,6 +690,7 @@ pub(super) fn lower_transient_volume<const D: usize>(
         normal_velocity_fields,
         representation,
         volume_relations,
+        stress_form,
     })
 }
 

@@ -17,6 +17,124 @@ use crate::simplicial_stokes::{
     VELOCITY_BASIS_COUNT,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum FixedDomainViscousForm {
+    SymmetricNewtonian,
+    DfgNonsymmetric,
+}
+
+#[cfg(test)]
+type DfgViscousPairProbe<'a> = dyn Fn([usize; 2], [usize; 2], [[f64; 2]; 2], f64, f64) -> f64 + 'a;
+
+#[cfg(test)]
+#[derive(Clone, Copy)]
+struct DfgViscousPairObservation {
+    basis: [usize; 2],
+    component: [usize; 2],
+    gradient: [[f64; 2]; 2],
+    viscosity: f64,
+    actual: f64,
+}
+
+#[cfg(test)]
+thread_local! {
+    static DFG_VISCOUS_PAIR_OBSERVATIONS: std::cell::RefCell<Option<Vec<DfgViscousPairObservation>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Scope one crate-test-only observation of the actual private DFG pair.
+#[cfg(test)]
+pub(crate) fn with_dfg_viscous_pair_probe<R>(
+    probe: &DfgViscousPairProbe<'_>,
+    action: impl FnOnce() -> Result<R, Diagnostic>,
+) -> Result<R, Diagnostic> {
+    let previous = DFG_VISCOUS_PAIR_OBSERVATIONS.with(|slot| slot.replace(Some(Vec::new())));
+    struct Restore(Option<Vec<DfgViscousPairObservation>>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            DFG_VISCOUS_PAIR_OBSERVATIONS.with(|slot| slot.replace(self.0.take()));
+        }
+    }
+    let restore = Restore(previous);
+    let result = action();
+    let observations = DFG_VISCOUS_PAIR_OBSERVATIONS
+        .with(|slot| slot.borrow_mut().take())
+        .expect("DFG observation scope remains installed through its action");
+    drop(restore);
+    if observations.len() != 2 {
+        return Err(invalid(
+            "DFG execution did not expose both P1-crossed and MINI-bubble production pairs",
+        ));
+    }
+    for observation in observations {
+        if !probe(
+            observation.basis,
+            observation.component,
+            observation.gradient,
+            observation.viscosity,
+            observation.actual,
+        )
+        .is_finite()
+        {
+            return Err(invalid("DFG viscous-pair observation was rejected"));
+        }
+    }
+    result
+}
+
+#[cfg(test)]
+fn observe_dfg_viscous_pair(
+    basis: [usize; 2],
+    component: [usize; 2],
+    gradient: [[f64; 2]; 2],
+    viscosity: f64,
+    actual: f64,
+) -> f64 {
+    DFG_VISCOUS_PAIR_OBSERVATIONS.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        let Some(observations) = slot.as_mut() else {
+            return actual;
+        };
+        let crossed = viscosity * gradient[0][component[1]] * gradient[1][component[0]];
+        let role = if basis.iter().all(|index| *index < P1_BASIS_COUNT) && crossed != 0.0 {
+            0
+        } else if basis == [3, 3] && actual != 0.0 {
+            1
+        } else {
+            return actual;
+        };
+        let already_recorded = observations.iter().any(|observation| {
+            (role == 0
+                && observation
+                    .basis
+                    .iter()
+                    .all(|index| *index < P1_BASIS_COUNT))
+                || (role == 1 && observation.basis == [3, 3])
+        });
+        if !already_recorded {
+            observations.push(DfgViscousPairObservation {
+                basis,
+                component,
+                gradient,
+                viscosity,
+                actual,
+            });
+        }
+        actual
+    })
+}
+
+#[cfg(not(test))]
+fn observe_dfg_viscous_pair(
+    _basis: [usize; 2],
+    _component: [usize; 2],
+    _gradient: [[f64; 2]; 2],
+    _viscosity: f64,
+    actual: f64,
+) -> f64 {
+    actual
+}
+
 pub(crate) struct MiniNavierStokesCell<'a, F> {
     pub(crate) cell: usize,
     pub(crate) vertices: &'a [eqiora_meshing::MeshEntity],
@@ -115,6 +233,92 @@ where
             residual,
             point: local_point(&candidate, &pressure),
         })
+    }
+
+    pub(crate) fn residual_dfg(
+        &self,
+        geometry: &AffineGeometryMap,
+        quadrature: &QuadratureRule,
+    ) -> Result<Vec<f64>, Diagnostic> {
+        let mut residual = self.residual(geometry, quadrature)?;
+        self.apply_dfg_viscous_correction(geometry, quadrature, &mut residual, None)?;
+        Ok(residual)
+    }
+
+    pub(crate) fn linearize_dfg(
+        &self,
+        geometry: &AffineGeometryMap,
+        quadrature: &QuadratureRule,
+    ) -> Result<MiniNavierStokesLocalLinearization, Diagnostic> {
+        let mut linearization = self.linearize(geometry, quadrature)?;
+        self.apply_dfg_viscous_correction(
+            geometry,
+            quadrature,
+            &mut linearization.residual,
+            Some(&mut linearization.jacobian),
+        )?;
+        Ok(linearization)
+    }
+
+    fn apply_dfg_viscous_correction(
+        &self,
+        geometry: &AffineGeometryMap,
+        quadrature: &QuadratureRule,
+        residual: &mut [f64],
+        mut jacobian: Option<&mut [f64]>,
+    ) -> Result<(), Diagnostic> {
+        let inverse = geometry.inverse_jacobian()?;
+        let spaces = MiniSpaces::new()?;
+        let (candidate, _, _) = self.local_state();
+        for point in quadrature.points() {
+            let basis = spaces.tabulate(&point.coordinates)?;
+            let gradients = physical_gradients(&basis, &inverse);
+            let measure = point.weight * geometry.measure_scale();
+            for row_basis in 0..VELOCITY_BASIS_COUNT {
+                for row_component in 0..COMPONENTS {
+                    let row = row_basis * COMPONENTS + row_component;
+                    for column_basis in 0..VELOCITY_BASIS_COUNT {
+                        for column_component in 0..COMPONENTS {
+                            let column = column_basis * COMPONENTS + column_component;
+                            let direct = if row_component == column_component {
+                                self.viscosity
+                                    * (gradients[row_basis][0] * gradients[column_basis][0]
+                                        + gradients[row_basis][1] * gradients[column_basis][1])
+                            } else {
+                                0.0
+                            };
+                            let observed = observe_dfg_viscous_pair(
+                                [row_basis, column_basis],
+                                [row_component, column_component],
+                                [gradients[row_basis], gradients[column_basis]],
+                                self.viscosity,
+                                direct,
+                            );
+                            let crossed = self.viscosity
+                                * gradients[row_basis][column_component]
+                                * gradients[column_basis][row_component];
+                            let correction = -crossed + (observed - direct);
+                            residual[row] +=
+                                measure * correction * candidate[column_basis][column_component];
+                            if let Some(jacobian) = jacobian.as_deref_mut() {
+                                jacobian[row * CELL_LOCAL_DOF_COUNT + column] +=
+                                    measure * correction;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if residual.iter().any(|value| !value.is_finite())
+            || jacobian
+                .as_deref()
+                .is_some_and(|entries| entries.iter().any(|value| !value.is_finite()))
+        {
+            return Err(invalid(
+                "DFG fixed-domain viscous correction produced a non-finite value",
+            ));
+        }
+        Ok(())
     }
 
     fn local_state(

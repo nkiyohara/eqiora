@@ -1,0 +1,45 @@
+id = "fluid.dfg-nonsymmetric-transient-mini-2d-private"
+status = "verified"
+scope = "crate-private-exact-source-bound-dfg-nonsymmetric-transient-mini-one-nonzero-step-2d"
+reference_kind = "independent-exact-affine-mini-operator-and-source-bound-mutants"
+
+capabilities = [
+  "private-exact-source-bound-dfg-nonsymmetric-transient-mini-mechanics-2d",
+]
+
+[authority]
+source = "the accepted exact DFG rectangle-minus-circle source and chordal realization owner"
+stress = "sigma_DFG = mu grad(velocity) - pressure I"
+boundary_names = ["fluid", "inlet", "outlet", "walls", "cylinder"]
+positive_and_falsifier_owner = "crates/eqiora-numerics/src/canonical_stokes/navier_stokes_geometry_realization/tests.rs"
+independent_oracle = "oracle.py"
+
+[claim_boundary]
+crate_private = true
+exact_source_bound_witness_only = true
+nonzero_backward_euler_steps = 1
+dfg2d_1_or_2_benchmark_acceptance = false
+dfg_s1_or_s2_acceptance = false
+scientific_value_tolerance_accuracy_or_convergence = false
+drag_lift_pressure_difference_strouhal_or_vorticity = false
+stationary_periodic_or_long_trajectory = false
+production_mesh_campaign_or_solver_policy = false
+general_nonsymmetric_stress_or_do_nothing_boundary = false
+public_api_schema_wire_artifact_or_registry = false
+python_studio_gallery_media_or_publication = false
+gpu_mpi_scale_or_performance = false
+
+[precommitment]
+precommitted = true
+authored_before_implementation_by_a_fresh_context_nonimplementer = true
+base_revision = "4de2a24cc41dbe1f1cc72e4bfafda61b551224f1"
+contract_sha256 = "96e63d87a7c7686cc87662ca7ede8eeb378611a252303f5414aed3f33e082f23"
+focused_contract_review_sha256 = "400bed8531ca6a9b0215d250859be35830ebfc0792161635ad3e4512c875ef34"
+implementation_read = false
+writer_scratch_read = false
+expected_predecessor_result = "the private DFG binding and advance entry and the production DFG viscous-pair action are absent until implementation and integration compose the accepted evidence"
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "canonical_stokes::navier_stokes_geometry_realization::tests::registered_dfg_nonsymmetric_transient_mini_oracle_executes_all_falsifiers"
