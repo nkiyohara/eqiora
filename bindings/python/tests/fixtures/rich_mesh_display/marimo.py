@@ -91,14 +91,17 @@ def _(mo):
 
 
 @app.cell
-def _(mesh, show_third):
-    mesh if show_third.value else None
+def _(mesh):
+    mesh
     return
 
 
 @app.cell
-def _(mesh):
-    mesh
+def _(mesh, show_third):
+    # This checkbox is labelled "Show third Mesh", so it gates the third Mesh
+    # view in document order, which is the view the host oracle clears and
+    # re-runs.
+    mesh if show_third.value else None
     return
 
 
