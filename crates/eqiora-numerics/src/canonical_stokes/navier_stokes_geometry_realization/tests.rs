@@ -954,9 +954,11 @@ fn dfg_source_bound_nonzero_positive_executes_before_mutants() {
     let seen = AtomicU8::new(0);
     let observe =
         |basis: [usize; 2], component: [usize; 2], gradient: [[f64; 2]; 2], mu, actual| {
-            let direct = (component[0] == component[1])
-                .then(|| mu * (gradient[0][0] * gradient[1][0] + gradient[0][1] * gradient[1][1]))
-                .unwrap_or(0.0);
+            let direct = if component[0] == component[1] {
+                mu * (gradient[0][0] * gradient[1][0] + gradient[0][1] * gradient[1][1])
+            } else {
+                0.0
+            };
             let crossed = mu * gradient[0][component[1]] * gradient[1][component[0]];
             assert_eq!(actual, direct);
             if basis.iter().all(|index| *index < 3) && crossed != 0.0 {
