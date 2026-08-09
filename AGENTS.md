@@ -10,8 +10,8 @@ their authoritative owners:
 
 ## One primary agent, independent roles
 
-Codex GPT-5.6 Sol defaults to contract ownership, implementation, integration, review,
-and gates. The maintainer directs without reading diffs; roles stay independent.
+Codex GPT-5.6 Sol is the default primary; pick each lane's agent by fit, not habit. The
+maintainer directs without reading diffs; roles stay independent.
 
 A writer never authors or tunes its oracle. Durable risk gets complete-delta review by a
 fresh-context non-writer; same-provider lineage is permitted. Bind handoffs by frozen claim,
@@ -140,6 +140,8 @@ fan-out lane consumes its accepted contract and does not extend it for local
 convenience — if the contract cannot express a discovered requirement, stop the
 lane and return the requirement to the contract owner.
 
+Evidence precommitted against an implementation under isolation needs its exact consumed interface frozen in the contract, or its wiring waits for acceptance; frozen type names alone let isolated writers diverge until integration.
+
 Writable branches belong to mergeable lanes rather than to agents, and use
 separate worktrees. The integrator is a per-integration-envelope role, not a standing one.
 
@@ -157,7 +159,7 @@ Issue queue, or the roadmap, and is never committed.
 ## Rigor in proportion to durable risk
 
 Every check, review, lane split, artifact, and wait must name a decision it can change or a
-plausible defect it can expose. For low-risk work, reuse accepted evidence only after proving
+plausible defect it can expose — the chain, not each link; once a choice cannot change what evidence catches, collapse the rest. For low-risk work, reuse accepted evidence only after proving
 the complete delta byte-identical and the base change disjoint from its gate, closure, toolchain,
 authority, inputs, and behavior; patch-id alone is not proof. Use focused checks and merge promptly.
 Do not repeat broad gates or whole-delta review solely because a head moved. Durable risk retains
@@ -194,7 +196,5 @@ the ruleset remain unchanged.
 Default tiers exclude optional backends, which need their own case or environment check.
 Hosted media installs native tools; one cache or host proves neither contention nor portability.
 
-If a pull request supplies an implementation-agent configuration identifier,
-validate its final body with `python3 tools/ci/check_implementation_agent.py --base
-origin/main --pr-body-file <path>`. A supplied value must already resolve in the
-protected-base registry; never infer or consume a candidate-added entry.
+Before merging a pull request that supplies an implementation-agent configuration identifier, run the
+manual protected-base check in [local verification](docs/development/local-verification.md); no CI job performs it.
