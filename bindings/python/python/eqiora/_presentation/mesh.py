@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import uuid
 from importlib import resources
 from typing import Any, Final
 
@@ -34,6 +35,7 @@ _TRIANGLE_SHA256: Final = (
     "229392dc7faca769c88348cf41a810f29df3a22ad1276cb866783e5e04078a9f"
 )
 _WIDGET_MIME: Final = "application/vnd.jupyter.widget-view+json"
+_ORACLE_CLOSE_MESSAGE: Final = "eqiora:n1-oracle-close"
 _PAYLOAD_FIELDS: Final = (
     "profile",
     "mesh_digest",
@@ -206,10 +208,12 @@ def _new_delegate(payload: dict[str, object], esm: str, css: str) -> object:
         triangle_count = traitlets.Int().tag(sync=True)
         coordinates_f64_le = traitlets.Bytes().tag(sync=True)
         triangles_u32_le = traitlets.Bytes().tag(sync=True)
+        _eqiora_n1_model_id = traitlets.Unicode().tag(sync=True)
 
         def __init__(self) -> None:
             self._eqiora_sealed = False
-            super().__init__(**payload)
+            model_id = uuid.uuid4().hex
+            super().__init__(model_id=model_id, _eqiora_n1_model_id=model_id, **payload)
             self._eqiora_values = {
                 name: getattr(self, name) for name in _PAYLOAD_FIELDS
             }
@@ -224,9 +228,24 @@ def _new_delegate(payload: dict[str, object], esm: str, css: str) -> object:
             return proposal["value"]
 
         def set_state(self, sync_data: dict[str, object]) -> None:
-            if self._eqiora_sealed and set(sync_data).intersection(_PAYLOAD_FIELDS):
-                raise traitlets.TraitError("Eqiora Mesh payload is immutable")
+            if self._eqiora_sealed:
+                if set(sync_data).intersection(_PAYLOAD_FIELDS):
+                    raise traitlets.TraitError("Eqiora Mesh payload is immutable")
+                if "_eqiora_n1_model_id" in sync_data:
+                    raise traitlets.TraitError(
+                        "Eqiora Mesh model identity is immutable"
+                    )
             super().set_state(sync_data)
+
+        def _handle_custom_msg(self, content: object, buffers: list[object]) -> None:
+            if (
+                type(content) is dict
+                and content == {"kind": _ORACLE_CLOSE_MESSAGE}
+                and not buffers
+            ):
+                self.close()
+                return
+            super()._handle_custom_msg(content, buffers)
 
         def _repr_mimebundle_(
             self, **kwargs: dict[Any, Any]

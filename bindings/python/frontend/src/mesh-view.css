@@ -41,7 +41,7 @@
 }
 
 .eqiora-mesh-button:focus-visible,
-.eqiora-mesh-canvas:focus-visible {
+.eqiora-mesh-canvas:focus {
 	outline: 3px solid var(--eqiora-focus);
 	outline-offset: 2px;
 }
