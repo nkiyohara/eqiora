@@ -48,6 +48,7 @@ from python_candidate_common import (
     home_scratch_parent,
     python_distribution_version as python_distribution_version,
     sha256 as sha256,
+    source_tree_sha256,
 )
 
 
@@ -789,6 +790,14 @@ def run_full_typing_profile(
     )
 
 
+def _reserve_loopback_port() -> int:
+    """Return one loopback port this process just held itself."""
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
+
+
 def run_notebook_profile(
     *,
     uv: str,
@@ -835,7 +844,20 @@ def run_notebook_profile(
         )
         state["python"] = python
 
-    def run_host(project: str, port: int, fixture: Path) -> None:
+    def served_source_tree() -> Path:
+        """Serve a proven copy so no host writes into the retained inputs."""
+
+        served = state.get("served-source")
+        if isinstance(served, Path):
+            return served
+        served = workspace.root / "served-source"
+        shutil.copytree(extracted, served, symlinks=False)
+        if source_tree_sha256(served) != source_tree_sha256(extracted):
+            raise CandidateError("Notebook host tree is not an exact candidate copy")
+        state["served-source"] = served
+        return served
+
+    def run_host(project: str, fixture: str) -> None:
         python = state.get("python")
         if not isinstance(python, Path):
             raise CandidateError("Notebook host ran before the exact Python environment")
@@ -886,21 +908,27 @@ def run_notebook_profile(
         environment = dict(state["host-environment"])
         host_environment = os.environ.copy()
         host_environment.update(environment)
+        served = served_source_tree()
+        port = _reserve_loopback_port()
         if project == "jupyterlab-4.6.2":
             argv = [
                 str(python), "-I", "-m", "jupyter", "lab", "--no-browser",
-                "--ip=127.0.0.1", f"--port={port}", "--ServerApp.token=",
-                "--ServerApp.password=", "--ServerApp.answer_yes=True",
-                f"--ServerApp.root_dir={extracted}",
+                "--ip=127.0.0.1", f"--port={port}", "--ServerApp.port_retries=0",
+                "--ServerApp.token=", "--ServerApp.password=",
+                "--ServerApp.answer_yes=True", f"--ServerApp.root_dir={served}",
             ]
+            url_variable = "EQIORA_JUPYTERLAB_URL"
+            url_value = f"http://127.0.0.1:{port}/lab/tree/{fixture}"
         else:
             argv = [
-                str(python), "-I", "-m", "marimo", "run", str(fixture),
+                str(python), "-I", "-m", "marimo", "run", str(served / fixture),
                 "--host", "127.0.0.1", "--port", str(port), "--headless",
             ]
+            url_variable = "EQIORA_MARIMO_URL"
+            url_value = f"http://127.0.0.1:{port}/"
         process = subprocess.Popen(
             argv,
-            cwd=extracted,
+            cwd=served,
             env=host_environment,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -920,15 +948,7 @@ def run_notebook_profile(
                     time.sleep(0.25)
             else:
                 raise CandidateError("Notebook host did not become ready")
-            environment.update(
-                {
-                    "EQIORA_JUPYTERLAB_URL": (
-                        "http://127.0.0.1:18888/lab/tree/bindings/python/tests/fixtures/"
-                        "rich_mesh_display/jupyterlab.ipynb"
-                    ),
-                    "EQIORA_MARIMO_URL": "http://127.0.0.1:18889/",
-                }
-            )
+            environment[url_variable] = url_value
             checked_run(
                 ["npm", "run", "test:hosts", "--", f"--project={project}"],
                 cwd=frontend_root,
@@ -960,8 +980,8 @@ def run_notebook_profile(
         ("frontend:bundle-byte-rebuild", lambda: require_frontend_binding("bundle")),
         ("wheel-family:notebook-metadata", lambda: require_frontend_binding("wheel")),
         ("cp313:notebook-anywidget-0.11.0", install_notebook),
-        ("cp313:jupyterlab-4.6.2-bare-mesh", lambda: run_host("jupyterlab-4.6.2", 18888, extracted / "bindings/python/tests/fixtures/rich_mesh_display/jupyterlab.ipynb")),
-        ("cp313:marimo-0.23.16-bare-mesh", lambda: run_host("marimo-0.23.16", 18889, extracted / "bindings/python/tests/fixtures/rich_mesh_display/marimo.py")),
+        ("cp313:jupyterlab-4.6.2-bare-mesh", lambda: run_host("jupyterlab-4.6.2", "bindings/python/tests/fixtures/rich_mesh_display/jupyterlab.ipynb")),
+        ("cp313:marimo-0.23.16-bare-mesh", lambda: run_host("marimo-0.23.16", "bindings/python/tests/fixtures/rich_mesh_display/marimo.py")),
         ("cp313:notebook-managed-chromium-r1234", lambda: require_host_observation("browser")),
         ("cp313:notebook-no-external-network", lambda: require_host_observation("network")),
         ("cp313:notebook-cleanup-and-mutation", lambda: require_host_observation("cleanup")),
