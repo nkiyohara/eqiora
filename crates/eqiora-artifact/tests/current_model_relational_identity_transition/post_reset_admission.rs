@@ -34,7 +34,7 @@ const IDENTITY_FREE_PATH_ORDER: [&str; 17] = [
     "crates/eqiora/src/bin/eqiora-mcp/tool.rs",
 ];
 
-const FIXTURE_PATH_ORDER: [&str; 15] = [
+const FIXTURE_PATH_ORDER: [&str; 17] = [
     "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/model.json",
     "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/\
      geometry-identity.json",
@@ -58,6 +58,8 @@ const FIXTURE_PATH_ORDER: [&str; 15] = [
     "verify/interfaces/mcp-stdio-compile-check/expected/tool-definition.json",
     "crates/eqiora-numerics/src/canonical_stokes/dissipation_profile/\
      e1-sealed-inputs-v1.json",
+    "crates/eqiora-numerics/src/cartesian_periodic_3d/collocated_tests.rs",
+    "verify/fluid/cartesian-periodic-collocated-view-3d/case.toml",
 ];
 
 fn rows_have_exact_unique_path_order(rows: &[PostResetAdmitted], expected: &[&str]) -> bool {
@@ -429,12 +431,42 @@ fn stokes_e1_sealed_input_fixture() -> ExpectedAdmission {
     }
 }
 
+fn taylor_collocated_fixtures() -> Vec<ExpectedAdmission> {
+    let identity = "e".repeat(64);
+    vec![
+        ExpectedAdmission {
+            path: "crates/eqiora-numerics/src/cartesian_periodic_3d/collocated_tests.rs",
+            class: "delegated-current-owner-evidence",
+            owner: "fluid.cartesian-periodic-collocated-view-3d independent structural oracle",
+            note: "the independent structural oracle pins the accepted current Model artifact \
+                   identity once on its `MODEL_SHA256` line and carries no recorded search \
+                   token. Admission owns only this exact path, empty search shape, and one \
+                   Model-derived occurrence; the evidence authority owns the value and \
+                   assertions."
+                .to_owned(),
+            source: format!("const MODEL_SHA256: &str = \"{identity}\";\n"),
+        },
+        ExpectedAdmission {
+            path: "verify/fluid/cartesian-periodic-collocated-view-3d/case.toml",
+            class: "delegated-current-owner-evidence",
+            owner: "fluid.cartesian-periodic-collocated-view-3d registered evidence manifest",
+            note: "the registered evidence manifest pins the same accepted current Model \
+                   artifact identity once on `model_artifact_sha256` and carries no recorded \
+                   search token. Admission owns only this exact path, empty search shape, and \
+                   one Model-derived occurrence; the registered case owns the claim and value."
+                .to_owned(),
+            source: format!("model_artifact_sha256 = \"{identity}\"\n"),
+        },
+    ]
+}
+
 fn all_fixtures() -> Vec<ExpectedAdmission> {
     let mut rows = rfc85_fixtures();
     rows.extend(issue118_fixtures());
     rows.push(package_conformance_fixture());
     rows.push(issue79_fixture());
     rows.push(stokes_e1_sealed_input_fixture());
+    rows.extend(taylor_collocated_fixtures());
     rows
 }
 
@@ -530,14 +562,14 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
             .unwrap()
     );
     assert_eq!(identity_free.len(), 17);
-    assert_eq!(fixtures.len(), 15);
+    assert_eq!(fixtures.len(), 17);
     assert_eq!(
         contract
             .post_reset_fixture_admitted
             .iter()
             .map(|entry| entry.identity_literals)
             .sum::<usize>(),
-        33
+        35
     );
 
     // Every historical count is still its own. Listing an admitted path in the
@@ -617,8 +649,8 @@ fn admission_arrays_reject_row_reorder_and_duplicate_paths() {
             "fixture",
             contract.post_reset_fixture_admitted.as_slice(),
             FIXTURE_PATH_ORDER.as_slice(),
-            13,
-            14,
+            15,
+            16,
             13,
         ),
     ] {
@@ -963,6 +995,13 @@ fn no_glob_directory_suffix_or_proximity_admission_exists() {
         "verify/interfaces/mcp-stdio-compile-check/expected/tool-definition-copy.json",
         "verify/interfaces/mcp-stdio-compile-check/expected/nested/tool-definition.json",
         "verify/interfaces/mcp-stdio-compile-check/expected/contract.json",
+        "crates/eqiora-numerics/src/cartesian_periodic_3d/collocated_tests.rs.bak",
+        "crates/eqiora-numerics/src/cartesian_periodic_3d/collocated_tests_copy.rs",
+        "crates/eqiora-numerics/src/cartesian_periodic_3d/collocated_tests/helper.rs",
+        "verify/fluid/cartesian-periodic-collocated-view-3d/case.toml.bak",
+        "verify/fluid/cartesian-periodic-collocated-view-3d/case-copy.toml",
+        "verify/fluid/cartesian-periodic-collocated-view-3d/nested/case.toml",
+        "verify/fluid/cartesian-periodic-collocated-view-2d/case.toml",
     ] {
         refused(
             classify_transition(&contract, &reset().signalling(&[path])),
