@@ -465,6 +465,144 @@ class HostedTriggerTests(unittest.TestCase):
             release.index("  publish_testpypi:"),
         )
 
+    def test_candidate_replay_and_production_publish_share_one_verified_family(
+        self,
+    ) -> None:
+        candidate = (
+            REPOSITORY_ROOT / ".github/workflows/python-release-candidate.yml"
+        ).read_text(encoding="utf-8")
+        production = (
+            REPOSITORY_ROOT / ".github/workflows/python-production-publish.yml"
+        ).read_text(encoding="utf-8")
+
+        def job(workflow: str, name: str) -> str:
+            match = re.search(
+                rf"(?ms)^  {re.escape(name)}:\n(.*?)(?=^  [a-z][a-z0-9_-]*:\n|\Z)",
+                workflow.split("jobs:\n", maxsplit=1)[1],
+            )
+            self.assertIsNotNone(match, f"missing release job {name}")
+            assert match is not None
+            return match.group(1)
+
+        def transfers(section: str, action: str) -> list[dict[str, str]]:
+            observed = []
+            for match in re.finditer(
+                rf"(?m)^        uses: {re.escape(action)}@[^\n]+\n"
+                rf"        with:\n(?P<body>(?:^          [^\n]+\n)+)",
+                section,
+            ):
+                values = {}
+                for line in match.group("body").splitlines():
+                    key, separator, value = line.strip().partition(":")
+                    self.assertEqual(separator, ":")
+                    values[key] = value.strip()
+                observed.append(values)
+            return observed
+
+        finalized_family = "eqiora-python-finalized-family"
+        candidate_metadata = "eqiora-python-candidate-metadata"
+        finalize = job(candidate, "finalize-candidate")
+        replay = job(candidate, "replay_download")
+        verify = job(production, "verify")
+        publish = job(production, "publish")
+
+        uploads = {
+            transfer["name"]: transfer
+            for transfer in transfers(finalize, "actions/upload-artifact")
+        }
+        self.assertEqual(set(uploads), {finalized_family, candidate_metadata})
+
+        with self.subTest(stage="candidate-replay"):
+            replay_downloads = {
+                transfer["name"]: transfer
+                for transfer in transfers(replay, "actions/download-artifact")
+            }
+            self.assertEqual(
+                set(replay_downloads),
+                {finalized_family, candidate_metadata},
+            )
+            self.assertEqual(
+                replay_downloads[finalized_family]["path"], "candidate-dist"
+            )
+            self.assertEqual(
+                replay_downloads[candidate_metadata]["path"], "candidate-metadata"
+            )
+            self.assertIn("*-python-candidate.json", replay)
+            self.assertIn("*-python-candidate-h2.json", replay)
+            self.assertIn('test "${#manifests[@]}" -eq 1', replay)
+            self.assertIn('test "${#receipts[@]}" -eq 1', replay)
+            replay_command = " ".join(replay.split())
+            self.assertIn("python3 tools/release/testpypi_replay.py", replay_command)
+            self.assertIn('--artifacts "candidate-dist"', replay_command)
+            self.assertIn('--h2-receipt "${receipts[0]}"', replay_command)
+            self.assertIn('--manifest-sha256 "$MANIFEST_SHA256"', replay_command)
+
+        with self.subTest(stage="production-verification"):
+            verify_downloads = {
+                transfer["name"]: transfer
+                for transfer in transfers(verify, "actions/download-artifact")
+            }
+            self.assertEqual(
+                set(verify_downloads),
+                {finalized_family, candidate_metadata},
+            )
+            self.assertEqual(
+                verify_downloads[finalized_family]["path"], "candidate-dist"
+            )
+            self.assertEqual(
+                verify_downloads[candidate_metadata]["path"], "candidate-metadata"
+            )
+            for transfer in verify_downloads.values():
+                self.assertEqual(transfer["run-id"], "${{ inputs.candidate_run_id }}")
+                self.assertEqual(transfer["github-token"], "${{ github.token }}")
+
+            self.assertIn("*-python-candidate.json", verify)
+            self.assertIn("*-python-candidate-h2.json", verify)
+            self.assertIn('test "${#manifests[@]}" -eq 1', verify)
+            self.assertIn('test "${#receipts[@]}" -eq 1', verify)
+            verify_command = " ".join(verify.split())
+            self.assertIn("python3 tools/release/candidate_manifest.py", verify_command)
+            self.assertIn('--artifacts "candidate-dist"', verify_command)
+            self.assertIn('--h2-receipt "${receipts[0]}"', verify_command)
+            self.assertIn('--manifest-sha256 "$MANIFEST_SHA256"', verify_command)
+            self.assertIn('--expected-commit "$RELEASE_COMMIT"', verify_command)
+            self.assertIn('--expected-tag "$RELEASE_TAG"', verify_command)
+
+        with self.subTest(stage="production-publication"):
+            publish_downloads = transfers(publish, "actions/download-artifact")
+            self.assertEqual(len(publish_downloads), 1)
+            self.assertEqual(publish_downloads[0]["name"], finalized_family)
+            self.assertEqual(publish_downloads[0]["path"], "candidate-dist")
+            self.assertEqual(
+                publish_downloads[0]["run-id"], "${{ inputs.candidate_run_id }}"
+            )
+            self.assertEqual(
+                publish_downloads[0]["github-token"], "${{ github.token }}"
+            )
+            self.assertRegex(publish, r"(?m)^    needs: verify$")
+            self.assertIn("packages-dir: candidate-dist", publish)
+
+    def test_rich_display_claim_names_candidate_level_bounded_host_teardown(
+        self,
+    ) -> None:
+        case = tomllib.loads(
+            (
+                REPOSITORY_ROOT / "verify/interfaces/python-rich-mesh-display/case.toml"
+            ).read_text(encoding="utf-8")
+        )
+        claim = case["acceptance"]
+        self.assertNotIn(
+            "host_shutdown_and_kernel_or_wrapper_finalization_exit_zero",
+            claim,
+        )
+        self.assertIs(
+            claim.get(
+                "candidate_accepts_bounded_host_teardown_status_zero_or_"
+                "runner_sent_sigterm_only"
+            ),
+            True,
+        )
+
     def test_hosted_test_profile_is_compact_and_test_scoped(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
             encoding="utf-8"

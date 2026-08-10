@@ -12,12 +12,14 @@ import unittest
 import zipfile
 from dataclasses import replace
 from pathlib import Path
+from unittest import mock
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPOSITORY_ROOT / "tools/release"))
 
 import candidate_manifest as candidate_manifest_module  # noqa: E402
+import testpypi_replay as testpypi_replay_module  # noqa: E402
 from candidate_manifest import (  # noqa: E402
     ManifestError,
     PROFILE_CHECKS,
@@ -902,6 +904,175 @@ class CandidateManifestTests(unittest.TestCase):
             payload["urls"][0]["url"] = "https://example.invalid/file"
             with self.assertRaisesRegex(ManifestError, "unexpected host"):
                 release_files(payload, candidate)
+
+    def test_testpypi_replay_admits_v3_with_retained_family_and_receipt_and_v2(
+        self,
+    ) -> None:
+        for schema in ("v3", "v2"):
+            with (
+                self.subTest(schema=schema),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                root = Path(temporary)
+                if schema == "v3":
+                    manifest, artifacts, document, receipt, _ = (
+                        complete_v3_candidate_document(root)
+                    )
+                else:
+                    manifest, artifacts, document = candidate_document(root)
+                    receipt = None
+                replay = root / "testpypi-replay"
+                retained = {
+                    path.name: path.read_bytes() for path in artifacts.iterdir()
+                }
+                payload = {
+                    "info": {"name": "eqiora", "version": document["version"]},
+                    "urls": [
+                        {
+                            "filename": record["filename"],
+                            "url": (
+                                "https://test-files.pythonhosted.org/"
+                                f"{record['filename']}"
+                            ),
+                            "size": record["size"],
+                            "digests": {"sha256": record["sha256"]},
+                        }
+                        for record in document["artifacts"]
+                    ],
+                }
+                events: list[str] = []
+                real_loader = candidate_manifest_module.load_candidate_family
+
+                def observed_loader(*args: object, **kwargs: object) -> object:
+                    events.append("load-retained-family")
+                    return real_loader(*args, **kwargs)
+
+                def observed_fetch(*args: object, **kwargs: object) -> object:
+                    events.append("fetch-testpypi-metadata")
+                    return payload
+
+                def observed_download(
+                    candidate: object,
+                    urls: dict[str, str],
+                    output: Path,
+                ) -> None:
+                    events.append("download-testpypi-family")
+                    output.mkdir()
+                    for filename in sorted(urls):
+                        (output / filename).write_bytes(retained[filename])
+                    verify_artifacts(candidate, output)  # type: ignore[arg-type]
+
+                argv = [
+                    "testpypi_replay.py",
+                    "--manifest",
+                    str(manifest),
+                    "--manifest-sha256",
+                    file_sha256(manifest),
+                    "--artifacts",
+                    str(artifacts),
+                    "--out",
+                    str(replay),
+                    "--attempts",
+                    "1",
+                    "--wait-seconds",
+                    "0",
+                ]
+                if receipt is not None:
+                    argv.extend(("--h2-receipt", str(receipt)))
+
+                with (
+                    mock.patch.object(
+                        testpypi_replay_module,
+                        "load_candidate_family",
+                        side_effect=observed_loader,
+                        create=True,
+                    ) as loader,
+                    mock.patch.object(
+                        testpypi_replay_module,
+                        "fetch_json",
+                        side_effect=observed_fetch,
+                    ),
+                    mock.patch.object(
+                        testpypi_replay_module,
+                        "download_files",
+                        side_effect=observed_download,
+                    ),
+                    mock.patch.object(sys, "argv", argv),
+                ):
+                    self.assertEqual(testpypi_replay_module.main(), 0)
+
+                self.assertEqual(
+                    events,
+                    [
+                        "load-retained-family",
+                        "fetch-testpypi-metadata",
+                        "download-testpypi-family",
+                    ],
+                )
+                self.assertEqual(loader.call_args.args[:2], (manifest, artifacts))
+                self.assertEqual(loader.call_args.kwargs.get("h2_receipt"), receipt)
+                self.assertEqual(
+                    {path.name: path.read_bytes() for path in replay.iterdir()},
+                    retained,
+                )
+
+    def test_v3_reader_and_cli_reject_substituted_nonfrontend_wheel_bytes(
+        self,
+    ) -> None:
+        for entrypoint in ("reader", "cli"):
+            with (
+                self.subTest(entrypoint=entrypoint),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                root = Path(temporary)
+                manifest, artifacts, document, receipt, _ = (
+                    complete_v3_candidate_document(root)
+                )
+                candidate = load_candidate_family(
+                    manifest,
+                    artifacts,
+                    h2_receipt=receipt,
+                )
+                self.assertEqual(candidate.version, "0.1.0a1")
+                if entrypoint == "cli":
+                    argv = [
+                        "candidate_manifest.py",
+                        "--manifest",
+                        str(manifest),
+                        "--artifacts",
+                        str(artifacts),
+                        "--h2-receipt",
+                        str(receipt),
+                        "--manifest-sha256",
+                        file_sha256(manifest),
+                        "--expected-commit",
+                        candidate.commit,
+                        "--expected-tag",
+                        candidate.expected_tag,
+                    ]
+                    with mock.patch.object(sys, "argv", argv):
+                        self.assertEqual(candidate_manifest_module.main(), 0)
+
+                wheel = artifacts / document["artifacts"][1]["filename"]
+                _rewrite_wheel(
+                    wheel,
+                    extra_members={
+                        "eqiora/__init__.py": b"substituted non-frontend bytes\n"
+                    },
+                )
+                if entrypoint == "reader":
+                    with self.assertRaisesRegex(
+                        ManifestError,
+                        "artifact (size|SHA-256) differs",
+                    ):
+                        load_candidate_family(
+                            manifest,
+                            artifacts,
+                            h2_receipt=receipt,
+                        )
+                else:
+                    with mock.patch.object(sys, "argv", argv):
+                        self.assertEqual(candidate_manifest_module.main(), 2)
 
     def test_signal_free_v2_family_remains_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
