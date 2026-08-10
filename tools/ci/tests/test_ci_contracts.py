@@ -1340,6 +1340,7 @@ class MiseTaskContractTests(unittest.TestCase):
                 completed = subprocess.run(
                     [
                         mise,
+                        "--locked",
                         "run",
                         "--dry-run",
                         "--force",
