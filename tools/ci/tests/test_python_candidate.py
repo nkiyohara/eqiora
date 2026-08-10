@@ -2865,23 +2865,28 @@ write(JSON.stringify({calls,output,failure}));
             if no_op_output.exists():
                 self.assertEqual(tuple(no_op_output.iterdir()), ())
 
+            accepted_config = python_candidate_module.load_config()
+            accepted_uv = python_candidate_module.ensure_exact_uv(accepted_config.uv)
+            accepted_wheel_records = tuple(
+                record
+                for record in document["artifacts"]
+                if record["kind"] == "wheel"
+            )
+            accepted_dependency_profiles = {
+                name: dict(values)
+                for name, values in document["build"]["dependency_profiles"].items()
+            }
             for omitted in NOTEBOOK_PROFILE_CHECKS[5:7]:
                 with self.subTest(omitted_host=omitted):
                     omitted_output = root / f"omitted-{omitted.split(':')[1]}"
                     forged = python_candidate_module.CandidateProfileSummary(
-                        config=python_candidate_module.load_config(),
-                        uv="/reviewed/uv",
-                        wheel_records=(),
-                        checks=(
-                            "twine-strict",
-                            "sdist-to-wheel-rebuild",
-                            *(
-                                name
-                                for name in NOTEBOOK_PROFILE_CHECKS
-                                if name != omitted
-                            ),
+                        config=accepted_config,
+                        uv=accepted_uv,
+                        wheel_records=accepted_wheel_records,
+                        checks=tuple(
+                            name for name in document["checks"] if name != omitted
                         ),
-                        dependency_profiles={},
+                        dependency_profiles=accepted_dependency_profiles,
                     )
                     with (
                         mock.patch.object(
@@ -2895,7 +2900,10 @@ write(JSON.stringify({calls,output,failure}));
                             wraps=python_candidate_module.write_manifest,
                         ) as write_manifest,
                     ):
-                        with self.assertRaises(CandidateError):
+                        with self.assertRaisesRegex(
+                            transport.ManifestError,
+                            "Notebook checks must be the exact closed set",
+                        ):
                             python_candidate_module.finalize_candidate(
                                 expected_commit=expected_commit,
                                 artifacts=prepared,
@@ -2903,7 +2911,7 @@ write(JSON.stringify({calls,output,failure}));
                                 manifest_out=omitted_output,
                             )
                     profiles.assert_called_once()
-                    write_manifest.assert_not_called()
+                    write_manifest.assert_called_once()
                     if omitted_output.exists():
                         self.assertEqual(tuple(omitted_output.iterdir()), ())
 
@@ -2920,7 +2928,10 @@ write(JSON.stringify({calls,output,failure}));
                     wraps=python_candidate_module.write_manifest,
                 ) as write_manifest,
             ):
-                with self.assertRaises(CandidateError):
+                with self.assertRaisesRegex(
+                    transport.ManifestError,
+                    "candidate family must contain one sdist and four wheels",
+                ):
                     python_candidate_module.finalize_candidate(
                         expected_commit=expected_commit,
                         artifacts=prepared,
@@ -2928,7 +2939,7 @@ write(JSON.stringify({calls,output,failure}));
                         manifest_out=bypass_output,
                     )
             profiles.assert_called_once()
-            write_manifest.assert_not_called()
+            write_manifest.assert_called_once()
             if bypass_output.exists():
                 self.assertEqual(tuple(bypass_output.iterdir()), ())
 
