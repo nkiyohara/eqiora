@@ -2671,6 +2671,16 @@ write(JSON.stringify({calls,output,failure}));
         transport = importlib.import_module(
             "tools.ci.tests.test_release_transport"
         )
+        source_status = subprocess.check_output(
+            ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+            cwd=REPOSITORY_ROOT,
+            text=True,
+        )
+        self.assertEqual(
+            source_status,
+            "",
+            f"real H2 aggregate requires a clean source tree:\n{source_status}",
+        )
         expected_commit = subprocess.check_output(
             ["git", "rev-parse", "HEAD"],
             cwd=REPOSITORY_ROOT,
