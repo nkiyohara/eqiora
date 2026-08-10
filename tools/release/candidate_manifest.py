@@ -43,6 +43,31 @@ ANYWIDGET_WHEEL_SHA256 = "c574d9acc6503ad27b37a9acea48f957a8ba7c9c9876cfcb378989
 BROWSERS_JSON_SHA256 = "f306eed529599b1eaf2f8a85db9de2b23e1a3fe36c2b66434b7c9434fb627a99"
 THREE_LICENSE_SHA256 = "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
 ANYWIDGET_LICENSE_SHA256 = "22c698b6e5f3878c292471980ffd352ee0fad053f9428c2281f34b5e28a6151f"
+INSTALL_SCRIPT_INVENTORY_SHA256 = (
+    "fbcb5664380f1ace34322bd129219741abdf9be79be17cb8861d57e2c6e4c4dc"
+)
+PACKUMENT_INSTALL_SCRIPT_ADMISSIONS = (
+    (
+        "node_modules/fsevents",
+        "fsevents",
+        "2.3.2",
+        "install",
+        "node-gyp rebuild",
+        "packument",
+    ),
+    (
+        "node_modules/vite/node_modules/fsevents",
+        "fsevents",
+        "2.3.3",
+        "install",
+        "node-gyp rebuild",
+        "packument",
+    ),
+)
+INSTALL_CLASS_LIFECYCLE_NAMES = frozenset(
+    {"preinstall", "install", "postinstall"}
+)
+LIFECYCLE_SOURCES = frozenset({"lockfile", "packument", "tarball"})
 NOTEBOOK_ASSETS = (
     "eqiora/_presentation/static/mesh-view.mjs",
     "eqiora/_presentation/static/mesh-view.css",
@@ -600,6 +625,7 @@ def _validate_frontend(value: Any) -> dict[str, Any]:
         "npm": "11.16.0",
         "node_executable_sha256": NODE_EXECUTABLE_SHA256,
         "npm_package_integrity": NPM_PACKAGE_INTEGRITY,
+        "install_script_inventory_sha256": INSTALL_SCRIPT_INVENTORY_SHA256,
     }
     for name, expected in fixed.items():
         if frontend.get(name) != expected:
@@ -747,10 +773,48 @@ def _pin_record(value: Any, location: str) -> dict[str, Any]:
 
 
 def _script_record(value: Any, location: str) -> dict[str, Any]:
-    record = _exact_keys(value, {"name", "command"}, location)
+    record = _exact_keys(value, {"name", "command", "sources"}, location)
     _text(record["name"], f"{location}.name")
     _text(record["command"], f"{location}.command")
+    sources = _string_array(record["sources"], f"{location}.sources")
+    if not sources or not set(sources).issubset(LIFECYCLE_SOURCES):
+        raise ManifestError(f"{location}.sources contains an unsupported authority")
     return record
+
+
+def _validate_install_script_record(
+    record: dict[str, Any], script: dict[str, Any], location: str
+) -> None:
+    hook = script["name"]
+    if hook not in INSTALL_CLASS_LIFECYCLE_NAMES:
+        if "lockfile" in script["sources"]:
+            raise ManifestError(
+                f"{record['lock_path']} lifecycle hook {hook} has invalid lockfile provenance"
+            )
+        return
+    if "tarball" in script["sources"]:
+        raise ManifestError(
+            f"H2 rejects install-class lifecycle script: "
+            f"path={record['lock_path']} hook={hook} source=tarball"
+        )
+    if script["sources"] != ["lockfile", "packument"]:
+        raise ManifestError(
+            f"H2 install-class lifecycle provenance is partial: "
+            f"path={record['lock_path']} hook={hook} source=lockfile/packument"
+        )
+    admission = (
+        record["lock_path"],
+        record["name"],
+        record["version"],
+        hook,
+        script["command"],
+        "packument",
+    )
+    if admission not in PACKUMENT_INSTALL_SCRIPT_ADMISSIONS:
+        raise ManifestError(
+            f"H2 rejects packument install-class lifecycle script: "
+            f"path={record['lock_path']} hook={hook} source=packument"
+        )
 
 
 def _locked_record(value: Any, location: str) -> dict[str, Any]:
@@ -770,9 +834,39 @@ def _locked_record(value: Any, location: str) -> dict[str, Any]:
     _boolean(record["selected_optional"], f"{location}.selected_optional")
     scripts = [_script_record(item, f"{location}.lifecycle_scripts") for item in _array(record["lifecycle_scripts"], f"{location}.lifecycle_scripts")]
     _sorted_unique(scripts, lambda item: (item["name"].encode(), item["command"].encode()), f"{location}.lifecycle_scripts")
-    if scripts:
-        raise ManifestError("H2 contains an unreviewed lifecycle script")
+    for script in scripts:
+        _validate_install_script_record(record, script, location)
     return record
+
+
+def _validate_install_script_inventory(locked: list[dict[str, Any]]) -> None:
+    inventory = [
+        {
+            "lock_path": item["lock_path"],
+            "name": item["name"],
+            "version": item["version"],
+            "lifecycle_scripts": item["lifecycle_scripts"],
+        }
+        for item in locked
+    ]
+    if _structured_sha256(inventory) != INSTALL_SCRIPT_INVENTORY_SHA256:
+        raise ManifestError("H2 install-script inventory differs from its fixed identity")
+    admissions = tuple(
+        (
+            item["lock_path"],
+            item["name"],
+            item["version"],
+            script["name"],
+            script["command"],
+            "packument",
+        )
+        for item in locked
+        for script in item["lifecycle_scripts"]
+        if script["name"] in INSTALL_CLASS_LIFECYCLE_NAMES
+        and "packument" in script["sources"]
+    )
+    if admissions != PACKUMENT_INSTALL_SCRIPT_ADMISSIONS:
+        raise ManifestError("H2 packument install-script admissions differ")
 
 
 def _module_record(value: Any, location: str) -> dict[str, Any]:
@@ -893,6 +987,7 @@ def _validate_receipt(
     _sorted_unique(pins, lambda item: (item["name"].encode(), item["version"].encode()), "receipt.inputs.direct_pins")
     locked = [_locked_record(item, "receipt.inputs.locked_packages") for item in _array(inputs["locked_packages"], "receipt.inputs.locked_packages")]
     _sorted_unique(locked, lambda item: item["lock_path"].encode(), "receipt.inputs.locked_packages")
+    _validate_install_script_inventory(locked)
     if _integer(inputs["lockfile_version"], "receipt.inputs.lockfile_version") != 3:
         raise ManifestError("H2 lockfile version drifted")
     for name in ("package_json_sha256", "package_lock_sha256"):

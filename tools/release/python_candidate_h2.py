@@ -18,6 +18,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from collections.abc import Callable, Iterable
@@ -176,6 +177,10 @@ LIFECYCLE_NAMES = frozenset(
         "postprepare",
     }
 )
+INSTALL_CLASS_LIFECYCLE_NAMES = frozenset(
+    {"preinstall", "install", "postinstall"}
+)
+LIFECYCLE_SOURCES = frozenset({"lockfile", "packument", "tarball"})
 
 
 @dataclass(frozen=True)
@@ -221,6 +226,7 @@ class AcquiredInputs:
     python_wheels: tuple[dict[str, object], ...]
     anywidget_license_sha256: str
     package_manifests: tuple[tuple[str, dict[str, Any]], ...]
+    package_packuments: tuple[tuple[str, dict[str, Any]], ...]
     locked_package_bytes: int
     python_wheel_bytes: int
     browser_member_count: int
@@ -1176,7 +1182,12 @@ def _safe_extract_registry_package(archive: Path, destination: Path) -> Path:
 
 def _prefetch_lock_packages(
     workspace: H2Workspace, lock: dict[str, Any]
-) -> tuple[tuple[tuple[str, dict[str, Any]], ...], Path, int]:
+) -> tuple[
+    tuple[tuple[str, dict[str, Any]], ...],
+    tuple[tuple[str, dict[str, Any]], ...],
+    Path,
+    int,
+]:
     packages = lock.get("packages")
     if not isinstance(packages, dict):
         raise CandidateError("H2 package lock omits its package inventory")
@@ -1186,8 +1197,43 @@ def _prefetch_lock_packages(
     archive_root = workspace.root / "lock-packages"
     archive_root.mkdir()
     manifests: list[tuple[str, dict[str, Any]]] = []
+    packuments: list[tuple[str, dict[str, Any]]] = []
     playwright_core: Path | None = None
     acquired_bytes = 0
+    package_names: set[str] = set()
+    for lock_path, value in packages.items():
+        if lock_path == "":
+            continue
+        if not isinstance(value, dict):
+            raise CandidateError(f"H2 lock entry is not an object: {lock_path}")
+        package_names.add(_package_name(lock_path, value))
+    packument_root = workspace.root / "lock-packuments"
+    packument_root.mkdir()
+    for package_name in sorted(package_names, key=_utf8):
+        destination = packument_root / (
+            hashlib.sha256(package_name.encode("utf-8")).hexdigest() + ".json"
+        )
+        encoded_name = urllib.parse.quote(package_name, safe="@")
+        _download(f"https://registry.npmjs.org/{encoded_name}", destination)
+        acquired_bytes += destination.stat().st_size
+        if acquired_bytes > LOCKED_PACKAGE_BYTES_LIMIT:
+            destination.unlink(missing_ok=True)
+            raise CandidateError("H2 lock acquisition exceeds the raw byte ceiling")
+        try:
+            packument = json.loads(destination.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise CandidateError(
+                f"H2 registry packument is malformed: {package_name}"
+            ) from error
+        if (
+            not isinstance(packument, dict)
+            or packument.get("name") != package_name
+            or not isinstance(packument.get("versions"), dict)
+        ):
+            raise CandidateError(
+                f"H2 registry packument identity differs: {package_name}"
+            )
+        packuments.append((package_name, packument))
     for lock_path, value in sorted(packages.items(), key=lambda item: _utf8(item[0])):
         if lock_path == "":
             continue
@@ -1219,7 +1265,7 @@ def _prefetch_lock_packages(
             )
     if playwright_core is None:
         raise CandidateError("H2 lock prefetch omits playwright-core")
-    return tuple(manifests), playwright_core, acquired_bytes
+    return tuple(manifests), tuple(packuments), playwright_core, acquired_bytes
 
 
 def _browser_archive_inventory(
@@ -1496,9 +1542,12 @@ def acquire_inputs(workspace: H2Workspace) -> AcquiredInputs:
     lock = json.loads(
         (workspace.frontend / "package-lock.json").read_text(encoding="utf-8")
     )
-    package_manifests, playwright_core, locked_package_bytes = _prefetch_lock_packages(
-        workspace, lock
-    )
+    (
+        package_manifests,
+        package_packuments,
+        playwright_core,
+        locked_package_bytes,
+    ) = _prefetch_lock_packages(workspace, lock)
     python_wheels, anywidget_license, python_wheel_bytes = _acquire_python_wheels(
         workspace
     )
@@ -1520,6 +1569,7 @@ def acquire_inputs(workspace: H2Workspace) -> AcquiredInputs:
         python_wheels=python_wheels,
         anywidget_license_sha256=anywidget_license,
         package_manifests=package_manifests,
+        package_packuments=package_packuments,
         locked_package_bytes=locked_package_bytes,
         python_wheel_bytes=python_wheel_bytes,
         browser_member_count=len(browser_records),
@@ -1616,10 +1666,30 @@ def _package_manifest(
     return cached
 
 
+def _lifecycle_declarations(
+    manifest: dict[str, Any], lock_path: str, source: str
+) -> tuple[tuple[str, str], ...]:
+    scripts = manifest.get("scripts", {})
+    if not isinstance(scripts, dict):
+        raise CandidateError(f"H2 {source} package scripts are malformed: {lock_path}")
+    declarations: list[tuple[str, str]] = []
+    for hook, command in scripts.items():
+        if hook not in LIFECYCLE_NAMES:
+            continue
+        if not isinstance(command, str) or not command:
+            raise CandidateError(
+                f"H2 {source} lifecycle command is malformed: {lock_path} {hook}"
+            )
+        declarations.append((hook, command))
+    declarations.sort(key=lambda item: (_utf8(item[0]), _utf8(item[1])))
+    return tuple(declarations)
+
+
 def _frontend_inputs(
     extracted: Path,
     workspace: H2Workspace,
     prefetched_manifests: tuple[tuple[str, dict[str, Any]], ...],
+    prefetched_packuments: tuple[tuple[str, dict[str, Any]], ...],
 ) -> tuple[
     tuple[dict[str, object], ...],
     tuple[dict[str, object], ...],
@@ -1628,6 +1698,13 @@ def _frontend_inputs(
 ]:
     root = extracted / FRONTEND
     prefetched = dict(prefetched_manifests)
+    packuments = dict(prefetched_packuments)
+    packument_names = [name for name, _ in prefetched_packuments]
+    if (
+        packument_names != sorted(packument_names, key=_utf8)
+        or len(packument_names) != len(set(packument_names))
+    ):
+        raise CandidateError("H2 registry packument authority is unsorted or duplicate")
     inventory = _regular_tree_inventory(root)
     configs = tuple(
         {"relative_path": name, "sha256": file_sha256(root / name)}
@@ -1665,6 +1742,13 @@ def _frontend_inputs(
         or root_lock.get("devDependencies") != dev_dependencies
     ):
         raise CandidateError("H2 frontend lock root differs from package.json")
+    expected_packument_names = {
+        _package_name(lock_path, value)
+        for lock_path, value in lock["packages"].items()
+        if lock_path != "" and isinstance(value, dict)
+    }
+    if set(packuments) != expected_packument_names:
+        raise CandidateError("H2 registry packument authority is incomplete")
     locked: list[dict[str, object]] = []
     for lock_path, value in sorted(
         lock["packages"].items(), key=lambda item: _utf8(item[0])
@@ -1692,15 +1776,59 @@ def _frontend_inputs(
         manifest = _package_manifest(workspace, lock_path, prefetched)
         if manifest.get("name") != name or manifest.get("version") != version:
             raise CandidateError(f"H2 installed package differs from lock: {lock_path}")
-        scripts = manifest.get("scripts", {})
-        if not isinstance(scripts, dict):
-            raise CandidateError(f"H2 package scripts are malformed: {lock_path}")
-        lifecycle = tuple(
-            {"name": key, "command": command}
-            for key, command in sorted(
-                scripts.items(), key=lambda item: (_utf8(item[0]), _utf8(str(item[1])))
+        packument = packuments[name]
+        versions = packument.get("versions")
+        packument_manifest = (
+            versions.get(version) if isinstance(versions, dict) else None
+        )
+        if (
+            not isinstance(packument_manifest, dict)
+            or packument_manifest.get("name") != name
+            or packument_manifest.get("version") != version
+        ):
+            raise CandidateError(
+                f"H2 registry packument omits exact version authority: {lock_path}"
             )
-            if key in LIFECYCLE_NAMES and isinstance(command, str)
+        merged: dict[tuple[str, str], set[str]] = {}
+        for source, source_manifest in (
+            ("packument", packument_manifest),
+            ("tarball", manifest),
+        ):
+            for identity in _lifecycle_declarations(
+                source_manifest, lock_path, source
+            ):
+                merged.setdefault(identity, set()).add(source)
+        has_install_script = value.get("hasInstallScript", False)
+        if not isinstance(has_install_script, bool):
+            raise CandidateError(
+                f"H2 lockfile hasInstallScript is malformed: {lock_path}"
+            )
+        packument_install = tuple(
+            identity
+            for identity, sources in merged.items()
+            if identity[0] in INSTALL_CLASS_LIFECYCLE_NAMES
+            and "packument" in sources
+        )
+        if has_install_script and not packument_install:
+            raise CandidateError(
+                f"H2 lockfile install provenance lacks a packument command: {lock_path}"
+            )
+        if packument_install and not has_install_script:
+            raise CandidateError(
+                f"H2 packument install provenance lacks a lockfile marker: {lock_path}"
+            )
+        if has_install_script:
+            for identity in packument_install:
+                merged[identity].add("lockfile")
+        lifecycle = tuple(
+            {
+                "name": hook,
+                "command": command,
+                "sources": sorted(sources, key=_utf8),
+            }
+            for (hook, command), sources in sorted(
+                merged.items(), key=lambda item: (_utf8(item[0][0]), _utf8(item[0][1]))
+            )
         )
         locked.append(
             {
@@ -1891,6 +2019,7 @@ def observe_h2(
             run.acquisition.python_wheels,
             run.acquisition.anywidget_license_sha256,
             run.acquisition.package_manifests,
+            run.acquisition.package_packuments,
             run.acquisition.locked_package_bytes,
             run.acquisition.python_wheel_bytes,
             run.acquisition.browser_member_count,
@@ -1906,6 +2035,7 @@ def observe_h2(
         extracted,
         workspaces[0],
         runs[0].acquisition.package_manifests,
+        runs[0].acquisition.package_packuments,
     )
     graph = _module_graph(workspaces[0], family.version)
     three_license = workspaces[0].installation / "three/LICENSE"
@@ -2230,7 +2360,34 @@ def validate_h2_receipt(receipt: object) -> None:
             raise CandidateError("H2 receipt lock record is invalid")
         scripts = _array(value["lifecycle_scripts"], "lifecycle_scripts")
         for script in scripts:
-            _keys(script, ("name", "command"), "lifecycle_scripts[]")
+            script_record = _keys(
+                script, ("name", "command", "sources"), "lifecycle_scripts[]"
+            )
+            sources = _array(script_record["sources"], "lifecycle_scripts[].sources")
+            if (
+                not sources
+                or any(
+                    not isinstance(source, str) or source not in LIFECYCLE_SOURCES
+                    for source in sources
+                )
+            ):
+                raise CandidateError("H2 receipt lifecycle source is invalid")
+            _sorted_unique(
+                sources, _utf8, "lifecycle_scripts[].sources"
+            )
+            if script_record["name"] in INSTALL_CLASS_LIFECYCLE_NAMES:
+                if "tarball" in sources:
+                    raise CandidateError(
+                        "H2 receipt contains a tarball install-class lifecycle script"
+                    )
+                if sources != ["lockfile", "packument"]:
+                    raise CandidateError(
+                        "H2 receipt install-class lifecycle provenance is partial"
+                    )
+            elif "lockfile" in sources:
+                raise CandidateError(
+                    "H2 receipt non-install lifecycle has lockfile provenance"
+                )
         _sorted_unique(
             scripts,
             lambda script: (_utf8(script["name"]), _utf8(script["command"])),
