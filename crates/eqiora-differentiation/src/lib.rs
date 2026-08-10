@@ -11,8 +11,8 @@ use eqiora_ir::{
     RelationTangent, ScalarObjectiveLinearization,
 };
 use eqiora_solver::{
-    LinearOperator, LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolveRequest,
-    TransposeLinearOperator, Transposed,
+    CanonicalCsrSystemView, LinearOperator, LinearOperatorOrientation, LinearOperatorProperties,
+    LinearProblem, LinearSolution, LinearSolveRequest, TransposeLinearOperator, Transposed,
 };
 
 /// A linearization whose primal residual has been independently accepted.
@@ -37,6 +37,7 @@ pub struct AcceptedOutputLinearization<
 > {
     relation: AcceptedLinearization<'a, R>,
     output: &'a O,
+    state_jacobian: Option<&'a CanonicalCsrSystemView>,
 }
 
 impl<'a, R, O> AcceptedOutputLinearization<'a, R, O>
@@ -63,7 +64,46 @@ where
                 "accepted output primal contains a non-finite value",
             ));
         }
-        Ok(Self { relation, output })
+        Ok(Self {
+            relation,
+            output,
+            state_jacobian: None,
+        })
+    }
+
+    /// Accept one relation/output pair with its exact materialized state
+    /// Jacobian coefficient source.
+    ///
+    /// The borrowed source carries its primal right-hand side unchanged.
+    /// Forward and adjoint analysis supply their separately derived right-hand
+    /// sides and independently replay the solved action through the relation.
+    /// Exact Model/Realization/accepted-point association remains the
+    /// responsibility of the application provenance owner.
+    ///
+    /// # Errors
+    /// Returns `EQ0704` when the residual is not accepted, either layout is
+    /// inconsistent, the output primal is invalid, or the canonical source
+    /// does not match the relation's state shape.
+    pub fn new_with_canonical_state_jacobian(
+        relation: &'a R,
+        output: &'a O,
+        state_jacobian: &'a CanonicalCsrSystemView,
+        residual_tolerance: f64,
+    ) -> Result<Self, Diagnostic> {
+        let mut accepted = Self::new(relation, output, residual_tolerance)?;
+        if state_jacobian.rows() != relation.residual_dimension()
+            || state_jacobian.columns() != relation.unknown_dimension()
+        {
+            return Err(invalid_linearization(format!(
+                "canonical state Jacobian shape {}x{} differs from relation residual/unknown dimensions {}/{}",
+                state_jacobian.rows(),
+                state_jacobian.columns(),
+                relation.residual_dimension(),
+                relation.unknown_dimension(),
+            )));
+        }
+        accepted.state_jacobian = Some(state_jacobian);
+        Ok(accepted)
     }
 
     /// Accepted residual relation.
@@ -205,6 +245,16 @@ pub fn forward_sensitivity<R: LinearizedRelation<f64> + ?Sized>(
     properties: LinearOperatorProperties,
     solver: LinearSolveRequest<'_>,
 ) -> Result<LinearSolution, Diagnostic> {
+    forward_sensitivity_with_canonical(linearization, parameter_tangent, properties, solver, None)
+}
+
+fn forward_sensitivity_with_canonical<R: LinearizedRelation<f64> + ?Sized>(
+    linearization: &AcceptedLinearization<'_, R>,
+    parameter_tangent: &[f64],
+    properties: LinearOperatorProperties,
+    solver: LinearSolveRequest<'_>,
+    state_jacobian: Option<&CanonicalCsrSystemView>,
+) -> Result<LinearSolution, Diagnostic> {
     let relation = linearization.relation();
     if parameter_tangent.len() != relation.parameter_dimension()
         || parameter_tangent.iter().any(|value| !value.is_finite())
@@ -220,9 +270,25 @@ pub fn forward_sensitivity<R: LinearizedRelation<f64> + ?Sized>(
     for value in &mut right_hand_side {
         *value = -*value;
     }
-    let state_jacobian = StateJacobian::new(relation);
-    let problem = LinearProblem::new(&state_jacobian, &right_hand_side, properties)?;
-    solver.solve(&problem)
+    if let Some(state_jacobian) = state_jacobian {
+        require_canonical_properties(state_jacobian, properties)?;
+        let solution = solver.solve_canonical_oriented(
+            state_jacobian,
+            &right_hand_side,
+            LinearOperatorOrientation::Normal,
+        )?;
+        replay_state_solution(
+            relation,
+            &right_hand_side,
+            LinearOperatorOrientation::Normal,
+            &solution,
+        )?;
+        Ok(solution)
+    } else {
+        let state_jacobian = StateJacobian::new(relation);
+        let problem = LinearProblem::new(&state_jacobian, &right_hand_side, properties)?;
+        solver.solve(&problem)
+    }
 }
 
 /// Accepted implicit state sensitivity and its selected output projection.
@@ -268,7 +334,13 @@ pub fn forward_output_sensitivity<
 ) -> Result<ForwardOutputSensitivity, Diagnostic> {
     let relation = linearization.relation();
     let output = linearization.output();
-    let state = forward_sensitivity(relation, parameter_tangent, properties, solver)?;
+    let state = forward_sensitivity_with_canonical(
+        relation,
+        parameter_tangent,
+        properties,
+        solver,
+        linearization.state_jacobian,
+    )?;
     let mut output_tangent = vec![0.0; output.output_dimension()];
     output.jvp(state.values(), parameter_tangent, &mut output_tangent)?;
     Ok(ForwardOutputSensitivity {
@@ -319,6 +391,24 @@ pub fn adjoint_gradient<R: LinearizedRelation<f64> + ?Sized>(
     properties: LinearOperatorProperties,
     solver: LinearSolveRequest<'_>,
 ) -> Result<AdjointGradient, Diagnostic> {
+    adjoint_gradient_with_canonical(
+        linearization,
+        objective_unknown_cotangent,
+        objective_parameter_cotangent,
+        properties,
+        solver,
+        None,
+    )
+}
+
+fn adjoint_gradient_with_canonical<R: LinearizedRelation<f64> + ?Sized>(
+    linearization: &AcceptedLinearization<'_, R>,
+    objective_unknown_cotangent: &[f64],
+    objective_parameter_cotangent: &[f64],
+    properties: LinearOperatorProperties,
+    solver: LinearSolveRequest<'_>,
+    state_jacobian: Option<&CanonicalCsrSystemView>,
+) -> Result<AdjointGradient, Diagnostic> {
     let relation = linearization.relation();
     if objective_parameter_cotangent.len() != relation.parameter_dimension()
         || objective_parameter_cotangent
@@ -330,10 +420,26 @@ pub fn adjoint_gradient<R: LinearizedRelation<f64> + ?Sized>(
             relation.parameter_dimension()
         )));
     }
-    let state_jacobian = StateJacobian::new(relation);
-    let transposed = Transposed::new(&state_jacobian);
-    let problem = LinearProblem::new(&transposed, objective_unknown_cotangent, properties)?;
-    let adjoint = solver.solve(&problem)?;
+    let adjoint = if let Some(state_jacobian) = state_jacobian {
+        require_canonical_properties(state_jacobian, properties)?;
+        let solution = solver.solve_canonical_oriented(
+            state_jacobian,
+            objective_unknown_cotangent,
+            LinearOperatorOrientation::Transposed,
+        )?;
+        replay_state_solution(
+            relation,
+            objective_unknown_cotangent,
+            LinearOperatorOrientation::Transposed,
+            &solution,
+        )?;
+        solution
+    } else {
+        let state_jacobian = StateJacobian::new(relation);
+        let transposed = Transposed::new(&state_jacobian);
+        let problem = LinearProblem::new(&transposed, objective_unknown_cotangent, properties)?;
+        solver.solve(&problem)?
+    };
 
     let parameter_jacobian = ParameterJacobian::new(relation);
     let parameter_transposed = Transposed::new(&parameter_jacobian);
@@ -385,13 +491,61 @@ pub fn adjoint_output_gradient<
         &mut unknown_cotangent,
         &mut parameter_cotangent,
     )?;
-    adjoint_gradient(
+    adjoint_gradient_with_canonical(
         accepted_relation,
         &unknown_cotangent,
         &parameter_cotangent,
         properties,
         solver,
+        linearization.state_jacobian,
     )
+}
+
+fn require_canonical_properties(
+    state_jacobian: &CanonicalCsrSystemView,
+    properties: LinearOperatorProperties,
+) -> Result<(), Diagnostic> {
+    if properties != state_jacobian.properties() {
+        return Err(invalid_linearization(format!(
+            "requested state Jacobian properties {properties:?} differ from canonical source properties {:?}",
+            state_jacobian.properties(),
+        )));
+    }
+    Ok(())
+}
+
+fn replay_state_solution<R: LinearizedRelation<f64> + ?Sized>(
+    relation: &R,
+    right_hand_side: &[f64],
+    orientation: LinearOperatorOrientation,
+    solution: &LinearSolution,
+) -> Result<(), Diagnostic> {
+    if solution.report().orientation() != orientation {
+        return Err(invalid_linearization(format!(
+            "state solve reported {:?} orientation for a {orientation:?} derivative problem",
+            solution.report().orientation(),
+        )));
+    }
+    let mut applied = vec![0.0; right_hand_side.len()];
+    match orientation {
+        LinearOperatorOrientation::Normal => {
+            relation.jvp(RelationTangent::Unknown(solution.values()), &mut applied)?;
+        }
+        LinearOperatorOrientation::Transposed => {
+            relation.vjp(solution.values(), RelationCotangent::Unknown(&mut applied))?;
+        }
+    }
+    for (applied, right_hand_side) in applied.iter_mut().zip(right_hand_side) {
+        *applied = right_hand_side - *applied;
+    }
+    let replay_residual = euclidean_norm(&applied)?;
+    if replay_residual > solution.report().residual_target() {
+        return Err(invalid_linearization(format!(
+            "relation {orientation:?} replay residual {replay_residual:e} exceeds solve target {:e}",
+            solution.report().residual_target(),
+        )));
+    }
+    Ok(())
 }
 
 fn validate_output_layout(

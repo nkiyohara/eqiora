@@ -6,23 +6,30 @@ use eqiora_solver::{
     accept_linear_solution,
 };
 
-use crate::sparse_lu_factor::{factor_numeric, factor_symbolic, solve_factored};
+use crate::sparse_lu_factor::{factor_numeric, factor_symbolic, solve_factored_oriented};
 
 pub(super) fn solve_sparse_lu(
     provider: SolverProvider,
     problem: &LinearProblem<'_>,
     plan: SolverPlan,
 ) -> Result<LinearSolution, Diagnostic> {
-    if problem.operator().orientation() != LinearOperatorOrientation::Normal {
+    let system = problem.canonical_csr_system().ok_or_else(|| {
+        if problem.operator().orientation() == LinearOperatorOrientation::Transposed {
+            invalid_realization(
+                "faer sparse LU requires a normal-orientation canonical CSR problem or an oriented request with an exact canonical source",
+            )
+        } else {
+            invalid_realization("faer sparse LU requires an exact canonical CSR coefficient source")
+        }
+    })?;
+    if problem.operator().rows() != system.rows()
+        || problem.operator().columns() != system.columns()
+        || problem.properties() != system.properties()
+    {
         return Err(invalid_realization(
-            "faer sparse LU requires a normal-orientation canonical CSR problem",
+            "faer sparse LU action, properties, and canonical CSR source disagree",
         ));
     }
-    let system = problem.canonical_csr_system().ok_or_else(|| {
-        invalid_realization(
-            "faer sparse LU requires a LinearProblem created from CanonicalCsrSystemView",
-        )
-    })?;
 
     let initial = problem
         .initial_guess()
@@ -42,7 +49,11 @@ pub(super) fn solve_sparse_lu(
         );
     }
 
-    let values = factor_and_solve(system)?;
+    let values = factor_and_solve(
+        system,
+        problem.right_hand_side(),
+        problem.operator().orientation(),
+    )?;
     let reported_residual_norm = fixed_residual_norm(problem, &values)?;
     accept_linear_solution(
         problem,
@@ -57,10 +68,12 @@ pub(super) fn solve_sparse_lu(
 
 fn factor_and_solve(
     system: &eqiora_solver::CanonicalCsrSystemView,
+    right_hand_side: &[f64],
+    orientation: LinearOperatorOrientation,
 ) -> Result<Vec<f64>, Diagnostic> {
     let symbolic = factor_symbolic(system)?;
     let numeric = factor_numeric(&symbolic, system)?;
-    solve_factored(&symbolic, &numeric, system.right_hand_side())
+    solve_factored_oriented(&symbolic, &numeric, right_hand_side, orientation)
 }
 
 pub(super) fn fixed_residual_norm(

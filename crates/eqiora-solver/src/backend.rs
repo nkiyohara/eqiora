@@ -5,9 +5,9 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
 use crate::{
-    LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolver, PreconditionerPolicy,
-    ReductionPolicy, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, ScalarType, SolverPlan,
-    SolverProvider,
+    CanonicalCsrSystemView, LinearOperatorOrientation, LinearOperatorProperties, LinearProblem,
+    LinearSolution, LinearSolver, PreconditionerPolicy, ReductionPolicy, ReplicatedLinearExecution,
+    SERIAL_LINEAR_EXECUTION, ScalarType, SolverPlan, SolverProvider, Transposed,
 };
 
 /// One exact numerical-policy tuple implemented by a solver adapter.
@@ -355,6 +355,42 @@ impl<'a> LinearSolveRequest<'a> {
     /// Returns the backend's structured capability or numerical diagnostic.
     pub fn solve(&self, problem: &LinearProblem<'_>) -> Result<LinearSolution, Diagnostic> {
         self.backend.solve(problem, self.plan)
+    }
+
+    /// Solve one derivative right-hand side against an exact canonical CSR
+    /// coefficient source in the requested orientation.
+    ///
+    /// The source's captured right-hand side remains its primal provenance;
+    /// `right_hand_side` is the distinct right-hand side for this solve.
+    ///
+    /// # Errors
+    /// Returns a structured shape, capability, or numerical diagnostic from
+    /// problem validation or the selected backend.
+    pub fn solve_canonical_oriented(
+        &self,
+        state_jacobian: &CanonicalCsrSystemView,
+        right_hand_side: &[f64],
+        orientation: LinearOperatorOrientation,
+    ) -> Result<LinearSolution, Diagnostic> {
+        match orientation {
+            LinearOperatorOrientation::Normal => {
+                let problem = LinearProblem::from_oriented_canonical(
+                    state_jacobian,
+                    state_jacobian,
+                    right_hand_side,
+                )?;
+                self.solve(&problem)
+            }
+            LinearOperatorOrientation::Transposed => {
+                let transposed = Transposed::new(state_jacobian);
+                let problem = LinearProblem::from_oriented_canonical(
+                    &transposed,
+                    state_jacobian,
+                    right_hand_side,
+                )?;
+                self.solve(&problem)
+            }
+        }
     }
 
     /// Resolved adapter.

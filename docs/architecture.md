@@ -650,6 +650,15 @@ them with the sole solver plan for forward and adjoint analysis. Transpose is a
 separate operator capability; an Eqiora-owned oriented view sends an actual
 VJP action through the same solver and independent true-residual acceptance
 path. The smooth implicit claim is currently static, host-local `f64`. A
+separate materialized direct-output reference binds an accepted relation/output
+pair to its exact canonical CSR coefficient source while keeping the primal
+source RHS distinct from derivative RHS values. The solver request applies a
+faer sparse-LU factorization of those coefficients in normal or transposed
+orientation; after backend true-residual acceptance, differentiation
+independently replays the solution
+through the accepted relation JVP or VJP. Existing accepted-output pairs remain
+matrix-free. This adds no prepared-factor lifecycle, explicit transpose CSR,
+cross-call reuse, or identity inference from matching algebra. A
 spatial slice now retains canonical Parameter identity and analytic Parameter
 JVPs in the method-neutral scalar spatial-expression tape. An analysis
 explicitly selects and orders its design Parameters; all other model

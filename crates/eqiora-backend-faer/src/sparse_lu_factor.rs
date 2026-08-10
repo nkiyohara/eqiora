@@ -1,7 +1,9 @@
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_execution::DeploymentBinding;
-use eqiora_solver::{CanonicalCsrSystemView, SolverPlan, SolverProvider};
+use eqiora_solver::{
+    CanonicalCsrSystemView, LinearOperatorOrientation, SolverPlan, SolverProvider,
+};
 use faer::dyn_stack::{MemBuffer, MemStack};
 use faer::sparse::linalg::lu::{LuRef, NumericLu, SymbolicLu, factorize_symbolic_lu};
 use faer::sparse::{SparseRowMat, SymbolicSparseRowMat};
@@ -96,6 +98,15 @@ pub(super) fn solve_factored(
     numeric: &SparseLuNumericFactor,
     right_hand_side: &[f64],
 ) -> Result<Vec<f64>, Diagnostic> {
+    let orientation = LinearOperatorOrientation::Normal;
+    solve_factored_oriented(symbolic, numeric, right_hand_side, orientation)
+}
+pub(super) fn solve_factored_oriented(
+    symbolic: &SparseLuSymbolicFactor,
+    numeric: &SparseLuNumericFactor,
+    right_hand_side: &[f64],
+    orientation: LinearOperatorOrientation,
+) -> Result<Vec<f64>, Diagnostic> {
     if right_hand_side.len() != symbolic.factor.nrows()
         || symbolic.factor.nrows() != symbolic.factor.ncols()
     {
@@ -105,17 +116,35 @@ pub(super) fn solve_factored(
     }
     let parallelism = Par::Seq;
     let mut output = Mat::from_fn(right_hand_side.len(), 1, |row, _| right_hand_side[row]);
-    let scratch = symbolic
-        .factor
-        .solve_in_place_scratch::<f64>(1, parallelism);
+    let scratch = match orientation {
+        LinearOperatorOrientation::Normal => symbolic
+            .factor
+            .solve_in_place_scratch::<f64>(1, parallelism),
+        LinearOperatorOrientation::Transposed => symbolic
+            .factor
+            .solve_transpose_in_place_scratch::<f64>(1, parallelism),
+    };
     let mut buffer = MemBuffer::try_new(scratch)
         .map_err(|error| solve_failed(format!("faer sparse LU solve workspace failed: {error}")))?;
-    LuRef::new_unchecked(&symbolic.factor, &numeric.factor).solve_in_place_with_conj(
-        Conj::No,
-        output.as_mut(),
-        parallelism,
-        MemStack::new(&mut buffer),
-    );
+    match orientation {
+        LinearOperatorOrientation::Normal => {
+            LuRef::new_unchecked(&symbolic.factor, &numeric.factor).solve_in_place_with_conj(
+                Conj::No,
+                output.as_mut(),
+                parallelism,
+                MemStack::new(&mut buffer),
+            );
+        }
+        LinearOperatorOrientation::Transposed => {
+            LuRef::new_unchecked(&symbolic.factor, &numeric.factor)
+                .solve_transpose_in_place_with_conj(
+                    Conj::No,
+                    output.as_mut(),
+                    parallelism,
+                    MemStack::new(&mut buffer),
+                );
+        }
+    }
     let values = output.col_as_slice(0).to_vec();
     if values.iter().any(|value| !value.is_finite()) {
         return Err(solve_failed(
@@ -124,7 +153,6 @@ pub(super) fn solve_factored(
     }
     Ok(values)
 }
-
 pub(super) fn identities(
     system: &CanonicalCsrSystemView,
     plan: SolverPlan,
