@@ -485,6 +485,9 @@ fn assert_harmonic_residual(binding: &StokesDissipationGeometryModelBinding2d) {
         if boundary.contains(&vertex) {
             continue;
         }
+        // The inner sum varies the outer vertex index while this loop selects
+        // one component; iterating `displacement` would swap those axes.
+        #[allow(clippy::needless_range_loop)]
         for component in 0..2 {
             let value = (0..vertex_count)
                 .map(|column| {
