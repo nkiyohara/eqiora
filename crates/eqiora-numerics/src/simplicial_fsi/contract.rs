@@ -1,6 +1,7 @@
 //! State, material, scale, load, and boundary contracts.
 
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{
@@ -256,10 +257,36 @@ pub type FixedReferenceFsiLoad2d = FixedReferenceFsiLoad;
 /// Three-dimensional load name over the same semantic policy.
 pub type FixedReferenceFsiLoad3d = FixedReferenceFsiLoad;
 
+/// Private complete exterior-facet role stored by an admitted prepared step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PreparedFsiExteriorFacetDisposition {
+    EssentialVelocity,
+    NaturalOutflow,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct PreparedFsiBoundaryData<const D: usize> {
+    previous_endpoint_words: [u64; 4],
+    previous_time_bits: u64,
+    current_endpoint_words: [u64; 4],
+    current_time_bits: u64,
+    previous_physical: Vec<[Option<f64>; D]>,
+    current_physical: Vec<[Option<f64>; D]>,
+    previous_quotient: Vec<[Option<f64>; D]>,
+    current_quotient: Vec<[Option<f64>; D]>,
+    exterior_facets: Vec<(MeshEntity, PreparedFsiExteriorFacetDisposition)>,
+    canonical_velocity_scale: bool,
+}
+
+// Construction in the prepared-boundary owner rejects every non-finite word,
+// so derived `PartialEq` is reflexive for every admitted value.
+impl<const D: usize> Eq for PreparedFsiBoundaryData<D> {}
+
 /// Homogeneous essential velocity closure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedReferenceFsiBoundary<const D: usize> {
     fixed_zero_velocity_vertices: Vec<VertexId>,
+    prepared_velocity: Option<Arc<PreparedFsiBoundaryData<D>>>,
 }
 
 impl<const D: usize> FixedReferenceFsiBoundary<D> {
@@ -281,6 +308,7 @@ impl<const D: usize> FixedReferenceFsiBoundary<D> {
             .collect();
         Ok(Self {
             fixed_zero_velocity_vertices,
+            prepared_velocity: None,
         })
     }
 
@@ -294,7 +322,122 @@ impl<const D: usize> FixedReferenceFsiBoundary<D> {
     pub(super) fn from_fixed_zero_velocity_vertices(vertices: Vec<VertexId>) -> Self {
         Self {
             fixed_zero_velocity_vertices: vertices,
+            prepared_velocity: None,
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn from_prepared_velocity(
+        previous_endpoint_words: [u64; 4],
+        previous_time_bits: u64,
+        current_endpoint_words: [u64; 4],
+        current_time_bits: u64,
+        previous_physical: Vec<[Option<f64>; D]>,
+        current_physical: Vec<[Option<f64>; D]>,
+        previous_quotient: Vec<[Option<f64>; D]>,
+        current_quotient: Vec<[Option<f64>; D]>,
+        exterior_facets: Vec<(MeshEntity, bool)>,
+        canonical_velocity_scale: bool,
+    ) -> Self {
+        let prepared = Arc::new(PreparedFsiBoundaryData {
+            previous_endpoint_words,
+            previous_time_bits,
+            current_endpoint_words,
+            current_time_bits,
+            previous_physical,
+            current_physical,
+            previous_quotient,
+            current_quotient,
+            exterior_facets: exterior_facets
+                .into_iter()
+                .map(|(facet, essential)| {
+                    (
+                        facet,
+                        if essential {
+                            PreparedFsiExteriorFacetDisposition::EssentialVelocity
+                        } else {
+                            PreparedFsiExteriorFacetDisposition::NaturalOutflow
+                        },
+                    )
+                })
+                .collect(),
+            canonical_velocity_scale,
+        });
+        let fixed_zero_velocity_vertices = prepared
+            .current_quotient
+            .iter()
+            .enumerate()
+            .filter_map(|(vertex, components)| {
+                components
+                    .iter()
+                    .any(Option::is_some)
+                    .then_some(VertexId::new(vertex))
+            })
+            .collect();
+        Self {
+            fixed_zero_velocity_vertices,
+            prepared_velocity: Some(prepared),
+        }
+    }
+
+    pub(crate) fn prepared_previous_endpoint(&self) -> Option<([u64; 4], u64)> {
+        self.prepared_velocity.as_ref().map(|prepared| {
+            (
+                prepared.previous_endpoint_words,
+                prepared.previous_time_bits,
+            )
+        })
+    }
+
+    pub(crate) fn prepared_current_endpoint(&self) -> Option<([u64; 4], u64)> {
+        self.prepared_velocity
+            .as_ref()
+            .map(|prepared| (prepared.current_endpoint_words, prepared.current_time_bits))
+    }
+
+    pub(crate) fn prepared_previous_physical(&self) -> Option<&[[Option<f64>; D]]> {
+        self.prepared_velocity
+            .as_deref()
+            .map(|prepared| prepared.previous_physical.as_slice())
+    }
+
+    pub(crate) fn prepared_current_physical(&self) -> Option<&[[Option<f64>; D]]> {
+        self.prepared_velocity
+            .as_deref()
+            .map(|prepared| prepared.current_physical.as_slice())
+    }
+
+    pub(crate) fn prepared_previous_quotient(&self) -> Option<&[[Option<f64>; D]]> {
+        self.prepared_velocity
+            .as_deref()
+            .map(|prepared| prepared.previous_quotient.as_slice())
+    }
+
+    pub(crate) fn prepared_current_quotient(&self) -> Option<&[[Option<f64>; D]]> {
+        self.prepared_velocity
+            .as_deref()
+            .map(|prepared| prepared.current_quotient.as_slice())
+    }
+
+    pub(crate) fn prepared_uses_canonical_velocity_scale(&self) -> bool {
+        self.prepared_velocity
+            .as_ref()
+            .is_some_and(|prepared| prepared.canonical_velocity_scale)
+    }
+
+    pub(crate) fn prepared_exterior_facets(&self) -> Option<Vec<(MeshEntity, bool)>> {
+        self.prepared_velocity.as_deref().map(|prepared| {
+            prepared
+                .exterior_facets
+                .iter()
+                .map(|(facet, disposition)| {
+                    (
+                        *facet,
+                        *disposition == PreparedFsiExteriorFacetDisposition::EssentialVelocity,
+                    )
+                })
+                .collect()
+        })
     }
 }
 
@@ -399,30 +542,9 @@ pub(crate) fn validate_problem<const D: usize>(
     config: FixedReferenceFsiStepConfig<D>,
     quadrature: &QuadratureRule,
 ) -> Result<(), Diagnostic> {
-    require_mesh_dimension::<D>(mesh)?;
-    let replayed = FixedReferenceFsiPartition::<D>::new(
-        mesh,
-        partition.fluid_cells().to_vec(),
-        partition.solid_cells().to_vec(),
-        partition.interface_facets().to_vec(),
-    )?;
-    if &replayed != partition {
-        return Err(invalid(
-            "fixed-reference FSI partition cache differs from exact mesh replay",
-        ));
-    }
-    if config.load != FixedReferenceFsiLoad::Zero {
-        return Err(invalid(
-            "fixed-reference FSI v1 admits only the explicit zero-load policy",
-        ));
-    }
-    let required_exactness = required_quadrature_exactness::<D>();
-    if quadrature.reference_cell() != eqiora_meshing::ReferenceCell::simplex(D)?
-        || quadrature.polynomial_exactness().unwrap_or(0) < required_exactness
-    {
-        return Err(invalid(format!(
-            "fixed-reference FSI requires matching simplex quadrature exact through degree {required_exactness}",
-        )));
+    validate_problem_common(mesh, partition, previous, config, quadrature)?;
+    if boundary.prepared_velocity.is_some() {
+        return Ok(());
     }
     let fixed = boundary
         .fixed_zero_velocity_vertices
@@ -447,13 +569,49 @@ pub(crate) fn validate_problem<const D: usize>(
             ));
         }
     }
-    if fixed
-        .iter()
-        .any(|&vertex| previous.vertex_velocity[vertex] != [0.0; D])
-    {
+    if fixed.iter().any(|&vertex| {
+        previous.vertex_velocity[vertex]
+            .iter()
+            .any(|value| value.to_bits() != 0.0_f64.to_bits())
+    }) {
         return Err(invalid(
             "fixed-reference FSI previous state violates the homogeneous velocity closure",
         ));
+    }
+    Ok(())
+}
+
+fn validate_problem_common<const D: usize>(
+    mesh: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<D>,
+    previous: &FixedReferenceFsiState<D>,
+    config: FixedReferenceFsiStepConfig<D>,
+    quadrature: &QuadratureRule,
+) -> Result<(), Diagnostic> {
+    require_mesh_dimension::<D>(mesh)?;
+    let replayed = FixedReferenceFsiPartition::<D>::new(
+        mesh,
+        partition.fluid_cells().to_vec(),
+        partition.solid_cells().to_vec(),
+        partition.interface_facets().to_vec(),
+    )?;
+    if &replayed != partition {
+        return Err(invalid(
+            "fixed-reference FSI partition cache differs from exact mesh replay",
+        ));
+    }
+    if config.load != FixedReferenceFsiLoad::Zero {
+        return Err(invalid(
+            "fixed-reference FSI v1 admits only the explicit zero-load policy",
+        ));
+    }
+    let required_exactness = required_quadrature_exactness::<D>();
+    if quadrature.reference_cell() != eqiora_meshing::ReferenceCell::simplex(D)?
+        || quadrature.polynomial_exactness().unwrap_or(0) < required_exactness
+    {
+        return Err(invalid(format!(
+            "fixed-reference FSI requires matching simplex quadrature exact through degree {required_exactness}",
+        )));
     }
     FixedReferenceFsiState::<D>::new(
         mesh,
