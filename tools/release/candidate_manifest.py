@@ -1142,6 +1142,7 @@ def load_candidate_family(
     if h2_receipt is None:
         raise ManifestError("v3 candidate requires its detached H2 receipt")
     _validate_receipt(h2_receipt, document, candidate, frontend, scan)
+    verify_artifacts(candidate, artifacts)
     for profile in requested_profiles:
         require_candidate_profile(candidate, profile)
     return candidate
