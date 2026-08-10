@@ -6,6 +6,9 @@
 //! stays denied.
 #![cfg_attr(not(test), allow(dead_code))]
 
+#[cfg(test)]
+mod tests;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::{Diagnostic, DimExponents, RawId};

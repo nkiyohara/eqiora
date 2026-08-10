@@ -1,0 +1,117 @@
+{
+  "authority": {
+    "analytic_discrete_route_sha256": "a8a5b8d46cd47beb8e61afb1ee13bf47812688437fff09be8702f608d3b98758",
+    "independent_numerical_route_sha256": "b6c706e1d6a100b9c3fffb3da0b430ee7ee3374ac99d0959598156cec8d8acbf",
+    "reconciliation_sha256": "88bb687d8c1d01ab874cf0f0010f0ffde36c70c538c3b88c79586fb9a23a6150",
+    "scientific_contract_sha256": "0129d3cd9d011ac320bf9461b259e00923a1403fe03fee356ba658dee059f0b0",
+    "sealed_inputs_sha256": "478235237851d70f2c5d411b57d0d068ea2786b44005d17b6ad089a21a28c463"
+  },
+  "comparison_predicates": {
+    "source": "../references/sealed-inputs-v2.json",
+    "json_pointers": [
+      "/acceptance_predicates",
+      "/cross_route_output_schema_v2"
+    ]
+  },
+  "coordinate_record_sha256": {
+    "reference/accepted-final/fd/coordinate-a2/1e-3/minus": "aeb2b6dbbcfd0eb7b2234b096d2b69358215e144e5b566128dd6f06639dcd846",
+    "reference/accepted-final/fd/coordinate-a2/1e-3/plus": "92fbb5d86ef3f919f364a0d4f498e603e7ac812aa6302b68f14933f96c7eaab4",
+    "reference/accepted-final/fd/coordinate-a2/2e-3/minus": "7f67607eac7d9ed9d5a963f634df51feba9232dca77787887ec70d57cea20ae1",
+    "reference/accepted-final/fd/coordinate-a2/2e-3/plus": "6fd4ae66766b73924da406b5a0e29f38c3fda083edbc988161345702e9d726d6",
+    "reference/accepted-final/fd/coordinate-a2/5e-4/minus": "9706cf49c74302c14a59ffabe60ac09f09b13acbcbdfff6a238b8df25535f698",
+    "reference/accepted-final/fd/coordinate-a2/5e-4/plus": "5b02a97ec4a3b6a451a1dd6b32c95abb0b8cfc552fdfbb7f315233cbba504264",
+    "reference/accepted-final/fd/coordinate-a4/1e-3/minus": "e3e6f56f6d019ff275cb69c7ce28ae996d2f485a9ed84e3f9f82fb325845efe0",
+    "reference/accepted-final/fd/coordinate-a4/1e-3/plus": "ffad00617cdf1ac36a2f21422a24529ee21def5faff5a9f2e5cc016c056f6985",
+    "reference/accepted-final/fd/coordinate-a4/2e-3/minus": "8ee1953a6a3578decad6d4fd51a8532126183d89bc723c8f54ccca88bc3c13ba",
+    "reference/accepted-final/fd/coordinate-a4/2e-3/plus": "39efc20c63df4dffbbc14eb0439857a7bbaa8470cc3888cd0b52b890ab8fb995",
+    "reference/accepted-final/fd/coordinate-a4/5e-4/minus": "4b6fac9d4972dd59b40b1aba71c5b4ae24f61f1f44d8b7bee34528480e2dd932",
+    "reference/accepted-final/fd/coordinate-a4/5e-4/plus": "cd49a2f4f82035b855b4769ae4aa4cf80a3493e08dd7b6d931df93a110e3ae0a",
+    "reference/history/trial/1": "4fb6ea75c4dc8105da559946c2d33fbef577cc51813fb0f734bde7ff8ae9d61d",
+    "reference/start": "9a2ad1df81f299365a24aa95b3544a16709ba37c717fee0543ccb1167d72c0bc",
+    "reference/start/fd/coordinate-a2/1e-3/minus": "18a4c39d4b8fd4c5ac9c65793712b1282ed0b63915df4aa0ffd1041aa64ca9a5",
+    "reference/start/fd/coordinate-a2/1e-3/plus": "a4d90d734a35d3015cc5f2eb1e672d14db9ded8b680bc92adf05b8a7bb892267",
+    "reference/start/fd/coordinate-a2/2e-3/minus": "c8c00863924754c44936e883ff414f866fb1da5838bea750d4fdfc42983db4e5",
+    "reference/start/fd/coordinate-a2/2e-3/plus": "22a95abe529bae287245722002356b329ef4d921194ff138889519792852e73e",
+    "reference/start/fd/coordinate-a2/5e-4/minus": "62e4570293b8d30cbf5a7cca77cec5b0427540a9146596def37073902e3bfe6e",
+    "reference/start/fd/coordinate-a2/5e-4/plus": "3b8136416a0fee01f750643148e5552cfffa47ce4e0042a280cc64ecc91cfae4",
+    "reference/start/fd/coordinate-a4/1e-3/minus": "6f8950a1edaa422fb3be85023b0c72d078a4a84dfb19c53bb084c2cc2ec08d04",
+    "reference/start/fd/coordinate-a4/1e-3/plus": "afb97dae321b828218b4facc156f4db6a46cae2bd751412072fcbe84f362534f",
+    "reference/start/fd/coordinate-a4/2e-3/minus": "cb99b75e72c9d95e376592d9069c6499c0f4b244fd191e059ad1927b6edd1ed4",
+    "reference/start/fd/coordinate-a4/2e-3/plus": "81aa63a4f934477eb492e0f0250126839f8dcb5f3003717bba56523272d68352",
+    "reference/start/fd/coordinate-a4/5e-4/minus": "0909886955bf9559c1dbf347d3e7f970cbb802419b43afd78fa20ab3bac17f0f",
+    "reference/start/fd/coordinate-a4/5e-4/plus": "f87181246f9600e5523a8846522530a5a87692343275e0e6c120fe64757d1faf",
+    "reference/start/fd/direction-3-4-5/1e-3/minus": "408db491f525ff3407139682aa5ed01d2c0953128cf248ce8e0cd7a4c67cc081",
+    "reference/start/fd/direction-3-4-5/1e-3/plus": "64b193d72efd4625959dd4380f8ce1cefa85a6a909589fd37bdc5b7aafebe87e",
+    "reference/start/fd/direction-3-4-5/2e-3/minus": "ea66b0f43b042788431a78ba581c22c6c10e32278e2add3770b49a63a5f4c2f9",
+    "reference/start/fd/direction-3-4-5/2e-3/plus": "615d7a60c28356e0fd5e8c7672624bbee1208a12842dc165aefaa757481327d8",
+    "reference/start/fd/direction-3-4-5/5e-4/minus": "be7041bef31b92907345ef3d12a8be8b982babf1fc2b4c92b8f3fef1e32db203",
+    "reference/start/fd/direction-3-4-5/5e-4/plus": "5d1d8a8a7ca94cfb2c063e41bfce72f7cbce21cdfc25ed8e2dd522bb535bba61",
+    "reference/start/fd/direction-minus4-3-5/1e-3/minus": "a385d28266c2d870a15dc0094e5ff91cb1ed681736a44a53f18298e0035777fb",
+    "reference/start/fd/direction-minus4-3-5/1e-3/plus": "10a47eb0748aac87857a4b9fe0dc222d48c27715b20307e2f6413a03de161d2a",
+    "reference/start/fd/direction-minus4-3-5/2e-3/minus": "e2e7f4801a2d401f07ca461e1352f4a9ec14705cd2b47f6c76da73bbcabbfe7c",
+    "reference/start/fd/direction-minus4-3-5/2e-3/plus": "05a4bb49b50906b52fd549502ebdcf6296e83eb5d9b8a43a267f7d6f865610d4",
+    "reference/start/fd/direction-minus4-3-5/5e-4/minus": "ecdbf7ca1e0d3cfee26b32386f012e58fae9d479dc9fc688656d4c8da5b63bf9",
+    "reference/start/fd/direction-minus4-3-5/5e-4/plus": "2af61d0a2b64868a81db2f3877489c52dbf121ffeb919ab837ea1db58a13da68",
+    "refined/accepted-final": "bb3b9b768ca2345a2bff23754005157523bb5f04c742a9bb147ba1c58f31a5a3",
+    "refined/start": "f5b064f5f0356e9c66b2912217c69716922974697a92caea582e573636a717fa"
+  },
+  "history": {
+    "accepted_design": ["3/8", "0"],
+    "accepted_orders": [1],
+    "mutated_order_sha256": "d48d383c05855234bdde0151ac3e4dc8cb51e023d4cd8ad2a7e2ced4e6a746c9",
+    "positive_sha256": "dfc1c9f568a1c71c75c32023cd8dc7b773e07e5130949fa9cd8056ea62baf669",
+    "schema": "issue407-stokes-history-identity-v2",
+    "terminal_disposition": "budget exhaustion",
+    "trial_dispositions": ["outside design set", "accepted"]
+  },
+  "mutants": {
+    "area-normalization-denominator-sign-or-omission": "analytic area/profile check before meshing",
+    "body-expansion-uses-fluid-normal-sign": "analytic/discrete sign comparison",
+    "budget-exhaustion-relabelled-stationarity": "stationarity predicate and terminal disposition",
+    "decreasing-objective-bypasses-invalid-mesh": "geometry/mesh admission before solve or sufficient decrease",
+    "dissipation-factor-from-2mu-epsilon-epsilon-omitted": "objective formula/unit and independent value comparison",
+    "geometry-map-quadrature-or-state-held-fixed-in-derivative": "complete reduced-gradient comparison",
+    "outer-side-inlet-outlet-or-traction-substitution": "boundary-contract admission before solve",
+    "perturb-deformed-polygon-not-analytic-rho": "exact geometry identity before finite-difference comparison",
+    "pressure-gauge-omitted-or-duplicated": "gauge/residual admission before objective use",
+    "reference-aliased-as-refined-or-designs-swapped": "distinct topology identities and correct design/objective association before refined ordering",
+    "rejected-trial-deleted-overwritten-or-reordered": "immutable complete-history order and digest",
+    "stale-parent-state-run-or-result": "exact child Geometry/Mesh/Run/Result association and independently replayed child-state residual before objective or acceptance",
+    "swap-a2-a4-or-wrong-harmonic-angle": "regenerated geometry and coordinate/directional derivative comparison"
+  },
+  "observations": {
+    "reference_start": {
+      "dissipation_W_per_m": ["14.194422058758359", "14.194422058758370"],
+      "direction_3_4_5_derivative_W_per_m": ["-6.3803631052235126", "-6.3803631053061709"],
+      "direction_minus4_3_5_derivative_W_per_m": ["2.3909936394847926", "2.3909936394046483"],
+      "gradient_a2_W_per_m": ["-5.7410127747219413", "-5.7410127747242372"],
+      "gradient_a4_W_per_m": ["-3.6696943004879352", "-3.6696943004178215"],
+      "gradient_dot_search_direction_W_per_m": ["-5.7410127747219413", "-5.7410127747242372"],
+      "pressure_gauge": ["1.118954915617531e-16", "1.6224846276454103e-17"],
+      "state_residual": ["5.1955515310647503e-15", "2.5174607198162076e-15"]
+    },
+    "refined": {
+      "accepted_final_dissipation_W_per_m": ["10.339394919857694", "10.339394919857593"],
+      "accepted_final_state_residual": ["7.0320298345158903e-15", "4.708931160204648e-15"],
+      "decrease_W_per_m": ["0.54534012252095287", "0.54534012252115538"],
+      "required_margin_W_per_m": ["1.0884735042378647e-5", "1.0884735042378747e-5"],
+      "start_dissipation_W_per_m": ["10.884735042378647", "10.884735042378749"],
+      "start_state_residual": ["3.8371747751130437e-15", "5.013973380960068e-15"]
+    },
+    "terminal": {
+      "gradient_a2_W_per_m": ["1.5584049861836824", "1.5584049861034899"],
+      "gradient_a4_W_per_m": ["-11.673011086134991", "-11.673011086060706"],
+      "gradient_infinity_norm_W_per_m": ["11.673011086134991", "11.673011086060706"]
+    },
+    "trial_1": {
+      "analytic_area_m2": ["3.1415926535897931", "3.1415926535897931"],
+      "armijo_margin_W_per_m": ["0.81994152365871997", "0.81994152365867023"],
+      "dissipation_W_per_m": ["13.374265247120587", "13.374265247120647"],
+      "polygonal_area_m2": ["3.1058360078925609", "3.1058360078925609"],
+      "pressure_gauge": ["9.3988516364647481e-17", "7.0491387273485392e-17"],
+      "state_residual": ["4.5087917749511199e-15", "3.2776038872277526e-15"]
+    }
+  },
+  "route_value_order": ["analytic_discrete", "independent_numerical"],
+  "version": "issue407-stokes-cell-dissipation-oracle-v1"
+}

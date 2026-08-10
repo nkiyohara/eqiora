@@ -10,6 +10,9 @@ mod model_association;
 mod topology_content;
 
 #[cfg(test)]
+mod tests;
+
+#[cfg(test)]
 mod e1_evidence;
 #[cfg(test)]
 mod e1_sealed_input;

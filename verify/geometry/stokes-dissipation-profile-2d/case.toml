@@ -1,0 +1,44 @@
+id = "geometry.stokes-dissipation-profile-2d"
+status = "verified"
+scope = "one-private-exact-area-two-mode-profile-bound-to-two-precommitted-fixed-topology-stokes-models"
+reference_kind = "dual-independent-structural-profile-topology-and-complete-vector-model-oracles"
+
+capabilities = [
+  "private-exact-area-stokes-profile-identity-2d",
+  "private-fixed-topology-profile-geometry-model-association-2d",
+  "private-complete-model-owned-stokes-essential-velocity-replay-2d",
+]
+
+[authority]
+contract_sha256 = "7bd057e7b4833a9c8001515f98205299e09080b28bb72fc2dc05737f92122d22"
+contract_review_sha256 = "792ad25a79624b5ac7007c7844ab4db206c35e22b7f4b4253daef9e2eb63c0b8"
+sealed_input_sha256 = "da3223d51caf11f6e627540f9284c2bb307518f7d87a62e2897a9f3732bbf620"
+complete_vector_evidence_sha256 = "8460475ef10855055e287bd99da078d40d651f84eb49a0b8843ed3f063a48f72"
+profile_topology_evidence_sha256 = "c680c63616b37c04b51a2baddb1f8430f2af3c18e7b57ad915c063b37e8628c2"
+reconciliation_sha256 = "942cc539d2f91dcb7c84fb924a7c14145d74b731dae831d165dc5111edfc9fc3"
+
+[positive]
+design = ["2e-3", "0"]
+reference_topology = "stokes-square-ring-reference-n32-m4-v1"
+refined_topology = "stokes-square-ring-refined-n64-m8-v1"
+analytic_area_owner = "exact normalized polar profile"
+outer_velocity = "complete Model-owned U e_x on all four outer roles"
+body_velocity = "zero"
+
+[claim_boundary]
+crate_private = true
+spatial_dimensions = 2
+exact_area_profile_identity = true
+fixed_topology_harmonic_binding = true
+complete_model_owned_boundary_velocity = true
+stokes_state_or_dissipation = false
+gradient_history_or_refined_objective_ordering = false
+continuous_shape_derivative_force_or_drag = false
+public_api_schema_wire_artifact_or_registry = false
+python_studio_gallery_media_or_publication = false
+performance_portability_or_resource_residency = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "canonical_stokes::"
