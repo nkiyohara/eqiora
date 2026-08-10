@@ -521,19 +521,31 @@ class HostedTriggerTests(unittest.TestCase):
                 set(replay_downloads),
                 {finalized_family, candidate_metadata},
             )
-            self.assertEqual(
-                replay_downloads[finalized_family]["path"], "candidate-dist"
-            )
-            self.assertEqual(
-                replay_downloads[candidate_metadata]["path"], "candidate-metadata"
-            )
+            replay_family_path = replay_downloads[finalized_family]["path"]
+            replay_metadata_path = replay_downloads[candidate_metadata]["path"]
+            self.assertNotIn(replay_family_path, {"", ".", "./"})
+            self.assertNotIn(replay_metadata_path, {"", ".", "./"})
             self.assertIn("*-python-candidate.json", replay)
             self.assertIn("*-python-candidate-h2.json", replay)
             self.assertIn('test "${#manifests[@]}" -eq 1', replay)
             self.assertIn('test "${#receipts[@]}" -eq 1', replay)
             replay_command = " ".join(replay.split())
             self.assertIn("python3 tools/release/testpypi_replay.py", replay_command)
-            self.assertIn('--artifacts "candidate-dist"', replay_command)
+            self.assertRegex(
+                replay_command,
+                rf"--artifacts [\"']?{re.escape(replay_family_path)}[\"']?(?:\s|$)",
+            )
+            self.assertRegex(
+                replay,
+                rf"find\s+[\"']?{re.escape(replay_metadata_path)}[\"']?\s+"
+                r"-maxdepth 1\s+-type f\s+-name\s+[\"']\*-python-candidate\.json[\"']",
+            )
+            self.assertRegex(
+                replay,
+                rf"find\s+[\"']?{re.escape(replay_metadata_path)}[\"']?\s+"
+                r"-maxdepth 1\s+-type f\s+-name\s+"
+                r"[\"']\*-python-candidate-h2\.json[\"']",
+            )
             self.assertIn('--h2-receipt "${receipts[0]}"', replay_command)
             self.assertIn('--manifest-sha256 "$MANIFEST_SHA256"', replay_command)
 
@@ -546,12 +558,10 @@ class HostedTriggerTests(unittest.TestCase):
                 set(verify_downloads),
                 {finalized_family, candidate_metadata},
             )
-            self.assertEqual(
-                verify_downloads[finalized_family]["path"], "candidate-dist"
-            )
-            self.assertEqual(
-                verify_downloads[candidate_metadata]["path"], "candidate-metadata"
-            )
+            verify_family_path = verify_downloads[finalized_family]["path"]
+            verify_metadata_path = verify_downloads[candidate_metadata]["path"]
+            self.assertNotIn(verify_family_path, {"", ".", "./"})
+            self.assertNotIn(verify_metadata_path, {"", ".", "./"})
             for transfer in verify_downloads.values():
                 self.assertEqual(transfer["run-id"], "${{ inputs.candidate_run_id }}")
                 self.assertEqual(transfer["github-token"], "${{ github.token }}")
@@ -562,7 +572,21 @@ class HostedTriggerTests(unittest.TestCase):
             self.assertIn('test "${#receipts[@]}" -eq 1', verify)
             verify_command = " ".join(verify.split())
             self.assertIn("python3 tools/release/candidate_manifest.py", verify_command)
-            self.assertIn('--artifacts "candidate-dist"', verify_command)
+            self.assertRegex(
+                verify_command,
+                rf"--artifacts [\"']?{re.escape(verify_family_path)}[\"']?(?:\s|$)",
+            )
+            self.assertRegex(
+                verify,
+                rf"find\s+[\"']?{re.escape(verify_metadata_path)}[\"']?\s+"
+                r"-maxdepth 1\s+-type f\s+-name\s+[\"']\*-python-candidate\.json[\"']",
+            )
+            self.assertRegex(
+                verify,
+                rf"find\s+[\"']?{re.escape(verify_metadata_path)}[\"']?\s+"
+                r"-maxdepth 1\s+-type f\s+-name\s+"
+                r"[\"']\*-python-candidate-h2\.json[\"']",
+            )
             self.assertIn('--h2-receipt "${receipts[0]}"', verify_command)
             self.assertIn('--manifest-sha256 "$MANIFEST_SHA256"', verify_command)
             self.assertIn('--expected-commit "$RELEASE_COMMIT"', verify_command)
@@ -572,7 +596,8 @@ class HostedTriggerTests(unittest.TestCase):
             publish_downloads = transfers(publish, "actions/download-artifact")
             self.assertEqual(len(publish_downloads), 1)
             self.assertEqual(publish_downloads[0]["name"], finalized_family)
-            self.assertEqual(publish_downloads[0]["path"], "candidate-dist")
+            publish_family_path = publish_downloads[0]["path"]
+            self.assertNotIn(publish_family_path, {"", ".", "./"})
             self.assertEqual(
                 publish_downloads[0]["run-id"], "${{ inputs.candidate_run_id }}"
             )
@@ -580,7 +605,7 @@ class HostedTriggerTests(unittest.TestCase):
                 publish_downloads[0]["github-token"], "${{ github.token }}"
             )
             self.assertRegex(publish, r"(?m)^    needs: verify$")
-            self.assertIn("packages-dir: candidate-dist", publish)
+            self.assertIn(f"packages-dir: {publish_family_path}", publish)
 
     def test_rich_display_claim_names_candidate_level_bounded_host_teardown(
         self,
@@ -595,12 +620,11 @@ class HostedTriggerTests(unittest.TestCase):
             "host_shutdown_and_kernel_or_wrapper_finalization_exit_zero",
             claim,
         )
-        self.assertIs(
-            claim.get(
-                "candidate_accepts_bounded_host_teardown_status_zero_or_"
-                "runner_sent_sigterm_only"
-            ),
-            True,
+        self.assertEqual(
+            claim.get("candidate_host_teardown"),
+            "within timeout; accepts status 0 or exactly -SIGTERM only when the "
+            "candidate runner sent SIGTERM; unsolicited signals, other nonzero "
+            "statuses, timeout, and forced kill reject",
         )
 
     def test_hosted_test_profile_is_compact_and_test_scoped(self) -> None:
