@@ -16,8 +16,7 @@ from typing import Any, Callable
 from candidate_manifest import (
     Candidate,
     ManifestError,
-    file_sha256,
-    load_candidate,
+    load_candidate_family,
     verify_artifacts,
     verify_manifest_hash,
 )
@@ -139,6 +138,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--manifest-sha256", required=True)
+    parser.add_argument("--artifacts", required=True, type=Path)
+    parser.add_argument("--h2-receipt", type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--attempts", type=int, default=12)
     parser.add_argument("--wait-seconds", type=float, default=10.0)
@@ -148,7 +149,11 @@ def main() -> int:
         if arguments.attempts <= 0 or not (0.0 <= arguments.wait_seconds <= 60.0):
             raise ManifestError("retry bounds are invalid")
         verify_manifest_hash(arguments.manifest, arguments.manifest_sha256)
-        candidate = load_candidate(arguments.manifest)
+        candidate = load_candidate_family(
+            arguments.manifest,
+            arguments.artifacts,
+            h2_receipt=arguments.h2_receipt,
+        )
         payload = fetch_json(
             TEST_PYPI_JSON.format(version=candidate.version),
             attempts=arguments.attempts,

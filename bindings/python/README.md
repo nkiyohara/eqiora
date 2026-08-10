@@ -25,12 +25,20 @@ Optional first-order framework adapters are explicit:
 python -m pip install "eqiora[torch]==0.1.0a1"
 python -m pip install "eqiora[jax]==0.1.0a1"
 python -m pip install "eqiora[matplotlib]==0.1.0a1"
+python -m pip install "eqiora[notebook]==0.1.0a1"
 ```
 
 The base package imports none of these optional libraries. The PyTorch extra
 declares `torch>=2.13,<2.14`; this release verifies exactly PyTorch 2.13.0. It
 also verifies the exact JAX/JAXLIB 0.11.0 pair and Matplotlib 3.11.1 on
 CPython 3.13. The JAX extra requires Python 3.12 or newer.
+
+The exact `notebook` extra installs anywidget 0.11.0 and keeps the complete
+private Three.js frontend inside the Eqiora wheel. In the verified Linux
+x86-64 CPython 3.13 profile, a bare exact accepted 50-chord circular-hole
+`Mesh` renders interactively in JupyterLab 4.6.2 and marimo 0.23.16. Other
+meshes and hosts retain deterministic text; this does not add Mesh selection,
+field display, saved widget state, a public viewer API, or Studio coupling.
 
 ## Five-minute model and run
 

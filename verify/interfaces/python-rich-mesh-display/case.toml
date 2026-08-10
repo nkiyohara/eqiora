@@ -1,0 +1,163 @@
+id = "interfaces.python-rich-mesh-display"
+status = "verified"
+scope = "installed-python-bare-interactive-notebook-display-of-one-exact-source-bound-reference-mesh"
+reference_kind = "accepted-mesh-identity-replay-plus-independent-hook-transport-lifecycle-and-real-host-falsifiers"
+
+capabilities = [
+  "python-native-mesh-rich-display-hook",
+  "python-private-read-only-notebook-mesh-view",
+  "python-exact-jupyterlab-and-marimo-bare-object-display",
+  "python-bundled-offline-threejs-mesh-presentation",
+]
+
+[contract]
+issue = 312
+body_sha256 = "3f3a9f1a5b54bf5b874d996c8807bbb7e88439737fd245d69e7a8aeb7a1a87c1"
+protected_predecessor = "3dfb1086168afc6f9fb61f9ca43d21ca9953048b"
+h1_receipt_sha256 = "14727f12f8c6b50b4753af08c5d678591b74f91462678d6db5677de42a9abc21"
+h1_evidence_boundary = "bare-object anywidget host/lifetime feasibility only; not installed Eqiora, Mesh identity, frontend, packaging, or science"
+h2 = "mandatory candidate-bound post-writer pre-integration release-trust receipt"
+
+[problem]
+entry = "bare native eqiora.meshing.Mesh._repr_mimebundle_ last expression"
+installed_extra = "eqiora[notebook]"
+accepted_mesh_case = "interfaces.python-circular-hole-chordal-mesh"
+profile = "circular-hole-chordal-reference-50/v1"
+source_digest = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
+canonical_bytes = 4835
+canonical_raw_sha256 = "d977d9125488fffee72deaf9a0f146bc42dc05a135692919a374d746da0f1079"
+mesh_digest = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
+dimension = 2
+vertices = 104
+triangles = 104
+
+[oracle]
+identity = "exact values reused verbatim from interfaces.python-circular-hole-chordal-mesh"
+hook = "independent installed-wheel include/exclude, fallback, comm-lifetime, payload-immutability, and unchanged-Mesh tests"
+transport = "independent exact accepted little-endian payload plus malformed and same-size-drift frontend fixtures"
+host = "independent bare-object JupyterLab and marimo Playwright observations with state rather than pixel acceptance"
+distribution = "separate independent release-trust oracle owns v2/v3 activation, H2, lock, assets, licenses, notices, and browser identity"
+scientific_values_added = false
+tolerances_added = false
+
+[expected]
+plain_mime = "text/plain"
+widget_mime = "application/vnd.jupyter.widget-view+json"
+widget_version_major = 2
+widget_version_minor = 0
+payload_profile = "circular-hole-chordal-reference-50/v1"
+coordinate_encoding = "f64-le"
+coordinate_bytes = 1664
+coordinate_bytes_sha256 = "2aaf87276bf352faddfadc76e63c1f44340a362047b1399a2e081c798c5921aa"
+triangle_encoding = "u32-le"
+triangle_bytes = 1248
+triangle_bytes_sha256 = "229392dc7faca769c88348cf41a810f29df3a22ad1276cb866783e5e04078a9f"
+unsupported_diagnostic = "Notebook view unavailable: this N1 viewer supports only the exact accepted 50-chord circular-hole reference Mesh (104 vertices, 104 triangles)."
+corrupt_diagnostic = "Notebook view unavailable: the installed Eqiora Notebook presentation runtime or assets are incomplete. Reinstall eqiora[notebook]."
+camera_operations = ["orbit", "pan", "zoom", "reset"]
+named_views = ["top", "isometric"]
+presentation_modes = ["surface", "wireframe", "points"]
+
+[host_profile]
+python = "3.13"
+anywidget = "0.11.0"
+jupyterlab = "4.6.2"
+marimo = "0.23.16"
+playwright = "1.62.1"
+chromium_revision = "1234"
+browser_version = "151.0.7922.34"
+operating_system = "linux"
+architecture = "x86_64"
+network = "zero non-loopback runtime requests; exact host HTTP/WebSocket is 127.0.0.1 only"
+
+[acceptance]
+native_hook_on_every_mesh = true
+return_is_one_data_dictionary_never_tuple = true
+include_then_exclude_and_exclusion_wins = true
+filtering_precedes_optional_import_or_comm = true
+widget_excluded_and_failure_paths_create_zero_comms = true
+base_import_and_repr_are_optional_runtime_free = true
+optional_absence_preserves_exact_plain_repr = true
+unsupported_and_corrupt_diagnostics_are_distinct_and_exact = true
+only_exact_source_canonical_raw_and_domain_digest_identity_is_admitted = true
+same_shape_source_drift_is_rejected = true
+one_open_delegate_per_mesh_and_no_cross_mesh_cache = true
+multiple_views_reuse_open_model_and_comm = true
+closed_delegate_is_never_reinvoked = true
+redisplay_after_close_creates_fresh_model_and_comm = true
+delegate_payload_outlives_collected_mesh_wrapper = true
+payload_has_six_exact_immutable_members = true
+payload_is_owned_c_order_little_endian_copy = true
+incoming_payload_writes_and_custom_messages_reject = true
+frontend_uses_literal_accepted_digest_authority = true
+frontend_rejects_endian_length_value_index_degeneracy_and_same_size_drift = true
+frontend_sends_no_model_write_callback_or_custom_message = true
+orbit_pan_zoom_and_reset_have_distinct_state_invariants = true
+top_and_isometric_views_are_distinct = true
+exactly_three_local_representation_modes = true
+keyboard_and_pointer_controls_are_accessible = true
+canvas_alternative_names_mesh_and_exact_digest = true
+mode_state_is_not_color_only = true
+no_permanent_animation_loop = true
+per_view_clear_cleans_once_without_closing_shared_comm = true
+comm_close_cleans_every_remaining_view_once = true
+listener_frame_control_geometry_material_and_renderer_cleanup = true
+webgl_failure_is_visible_and_accessible = true
+bare_outer_object_runs_in_both_exact_hosts = true
+host_runtime_is_loopback_only = true
+candidate_host_teardown = "within timeout; accepts status 0 or exactly -SIGTERM only when the candidate runner sent SIGTERM; unsolicited signals, other nonzero statuses, timeout, and forced kill reject"
+pre_and_post_mesh_identity_bytes_arrays_and_flags_are_exact = true
+assets_are_wheel_local_and_distribution_receipted = true
+
+[falsifiers]
+ipython_formatter_only = "real marimo bare-object fixture has no IPython formatter registration"
+explicit_display_or_wrapper = "both host fixtures leave the native Mesh itself as the display expression"
+eager_optional_import = "base import, repr, and text-only hook remain anywidget/IPython/Jupyter/marimo free"
+include_exclude_order = "closed filter matrix requires exclusion to win before delegate creation"
+invalid_argument_side_effect = "non-collection and non-string-member inputs raise TypeError before presentation import or comm"
+dict_versus_tuple = "public hook result is exactly one data dictionary"
+comm_on_failure = "unsupported, absent, corrupt, widget-excluded, and empty selections retain zero comms"
+source_kind_shape_or_count_admission = "same 2D/104/104 Chordal bytes and Mesh digest with swapped source roles rejects"
+raw_digest_substitution = "raw canonical SHA differs from literal domain-separated Mesh digest"
+mutable_or_aliased_payload = "incoming writes reject and exact Mesh array objects, bytes, dtypes, and flags remain unchanged"
+native_endian = "byte-swapped f64/u32 payloads reject and exact values decode explicitly little-endian"
+same_size_payload_drift = "one-byte coordinate or connectivity changes reject under the original digest"
+client_generated_topology = "reordered, incomplete, out-of-range, or degenerate connectivity rejects"
+digest_syntax_authority = "another valid lowercase 64-hex digest rejects"
+client_write_or_bridge = "model.set, save_changes, send, custom messages, callbacks, and Studio bridges remain zero"
+cdn_or_external_runtime = "browser request and WebSocket inventory is non-loopback empty"
+generic_camera_change = "orbit, pan, zoom, and reset each have separate exact camera/target predicates"
+swapped_camera_operation = "each operation's target, direction, distance, or displacement predicate differs"
+mode_or_named_view_omission = "top, isometric, surface, wireframe, and points are separately activated and observed"
+pointer_only_or_color_only = "keyboard activation, focus visibility, aria-pressed, and exact accessible alternative are required"
+permanent_frame_or_resource_leak = "retained per-view oracle state records zero frames/listeners and disposed GPU owners after cleanup"
+fresh_comm_per_view = "three simultaneous views share one model ID while view IDs differ"
+closed_delegate_reuse = "close removes all views and subsequent display has a distinct model ID"
+blank_webgl_success = "forced context construction failure must expose four accessible diagnostics"
+pixel_only_pass = "camera, mode, identity, lifecycle, and traffic state probes are normative; screenshots are not"
+
+[claim_boundary]
+candidate_profile = "notebook"
+exact_source_bound_reference_mesh_only = true
+bare_native_mesh = true
+read_only_presentation = true
+private_nonversioned_widget_payload = true
+public_viewer_or_widget_type = false
+explicit_view_function = false
+public_renderer_registry_or_dto = false
+geometry_or_cartesian_or_arbitrary_mesh = false
+field_result_series_or_trajectory = false
+selection_picking_or_entity_inspection = false
+field_color_legend_probe_contour_glyph_or_derived_value = false
+saved_html_screenshot_gallery_or_media_artifact = false
+scientific_validation_from_pixels = false
+exact_pixels_or_gpu_correctness = false
+scale_lod_performance_or_production_browser_support = false
+host_support_beyond_exact_profile = false
+runtime_external_network = false
+studio_or_shared_renderer_package = false
+model_geometry_mesh_realization_field_or_artifact_identity_change = false
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_distribution_gate.py"

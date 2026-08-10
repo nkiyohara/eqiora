@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import sys
 import tempfile
@@ -16,26 +17,100 @@ from candidate_manifest import (  # noqa: E402
     Candidate,
     REQUIRED_PROFILES,
     load_candidate,
+    load_candidate_family,
     require_candidate_profile,
     verify_artifacts,
 )
 from python_candidate import build_candidate  # noqa: E402
-from python_candidate_common import home_scratch_parent  # noqa: E402
+from python_candidate import source_identity  # noqa: E402
+from python_candidate_common import checked_run, home_scratch_parent  # noqa: E402
+
+
+def _family_inventory(directory: Path) -> tuple[tuple[str, int, str], ...]:
+    """Capture the immutable distribution family without interpreting metadata."""
+
+    if not directory.is_dir():
+        raise RuntimeError("candidate family directory is missing")
+    records: list[tuple[str, int, str]] = []
+    for path in sorted(directory.iterdir(), key=lambda item: item.name.encode()):
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError("candidate family contains a non-regular entry")
+        payload = path.read_bytes()
+        records.append((path.name, len(payload), hashlib.sha256(payload).hexdigest()))
+    return tuple(records)
 
 
 def build_and_verify_candidate(root: Path) -> Candidate:
-    """Build once, then project every required profile from one manifest."""
+    """Replay prepare, independent H2, and finalization in disjoint roots."""
 
-    artifacts = root / "artifacts"
-    manifest_path = build_candidate(
-        artifacts,
-        require_tag=False,
-        skip_extras=False,
+    revision = source_identity().commit
+    artifacts = root / "family"
+    h2_output = root / "h2"
+    metadata = root / "metadata"
+    checked_run(
+        [
+            "python3",
+            "tools/release/python_candidate.py",
+            "prepare",
+            "--expected-commit",
+            revision,
+            "--out",
+            str(artifacts),
+        ],
+        cwd=ROOT,
     )
-    candidate = load_candidate(manifest_path)
-    retained_manifest = root / "manifest" / manifest_path.name
-    retained_manifest.parent.mkdir()
-    manifest_path.replace(retained_manifest)
+    entry_inventory = _family_inventory(artifacts)
+    checked_run(
+        [
+            "python3",
+            "tools/release/python_candidate_h2.py",
+            "--expected-commit",
+            revision,
+            "--artifacts",
+            str(artifacts),
+            "--out",
+            str(h2_output),
+        ],
+        cwd=ROOT,
+    )
+    receipts = sorted(h2_output.glob("*-python-candidate-h2.json"))
+    if len(receipts) != 1:
+        raise RuntimeError("independent H2 did not publish exactly one receipt")
+    h2_receipt = receipts[0]
+    checked_run(
+        [
+            "python3",
+            "tools/release/python_candidate.py",
+            "finalize",
+            "--expected-commit",
+            revision,
+            "--artifacts",
+            str(artifacts),
+            "--h2-receipt",
+            str(h2_receipt),
+            "--manifest-out",
+            str(metadata),
+        ],
+        cwd=ROOT,
+    )
+    manifests = sorted(metadata.glob("*-python-candidate.json"))
+    retained_receipts = sorted(metadata.glob("*-python-candidate-h2.json"))
+    if len(manifests) != 1:
+        raise RuntimeError("finalization did not retain exactly one candidate manifest")
+    if len(retained_receipts) != 1:
+        raise RuntimeError("finalization omitted the retained H2 receipt")
+    manifest_path = manifests[0]
+    retained_receipt = retained_receipts[0]
+    if retained_receipt.read_bytes() != h2_receipt.read_bytes():
+        raise RuntimeError("retained H2 receipt bytes changed during finalization")
+    if _family_inventory(artifacts) != entry_inventory:
+        raise RuntimeError("candidate family inventory changed after H2")
+    candidate = load_candidate_family(
+        manifest_path,
+        artifacts,
+        requested_profiles=REQUIRED_PROFILES,
+        h2_receipt=retained_receipt,
+    )
     verify_artifacts(candidate, artifacts)
     for profile in REQUIRED_PROFILES:
         require_candidate_profile(candidate, profile)

@@ -65,10 +65,24 @@ COMPLETE_PROFILE_NAMES = (
     "base-3.14",
     "numpy-floor-3.12",
     "generated-public-api",
+    "notebook-3.13",
     "torch-3.13",
     "jax-3.13",
     "matplotlib-3.13",
     "typing-3.13",
+)
+
+NOTEBOOK_CHECK_NAMES = (
+    "frontend:lock-integrity",
+    "frontend:license-notices",
+    "frontend:bundle-byte-rebuild",
+    "wheel-family:notebook-metadata",
+    "cp313:notebook-anywidget-0.11.0",
+    "cp313:jupyterlab-4.6.2-bare-mesh",
+    "cp313:marimo-0.23.16-bare-mesh",
+    "cp313:notebook-managed-chromium-r1234",
+    "cp313:notebook-no-external-network",
+    "cp313:notebook-cleanup-and-mutation",
 )
 DEVELOPMENT_PROFILE_NAMES = COMPLETE_PROFILE_NAMES[:6]
 
@@ -149,6 +163,8 @@ def _request(name: str) -> ResourceRequest:
         return _HEAVY
     if name == "matplotlib-3.13":
         return _MATPLOTLIB
+    if name == "notebook-3.13":
+        return ResourceRequest(1, 2 * 1024, locks=("python-notebook-profile",))
     if name == "generated-public-api":
         return _DOCS
     return _BASE
@@ -222,6 +238,7 @@ def scheduled_profile_tasks(
         "base-3.12",
         "torch-3.13",
         "base-3.13",
+        "notebook-3.13",
         "jax-3.13",
         "base-3.14",
         "typing-3.13",
@@ -617,6 +634,24 @@ def run_optional_profile(
     ]
 
 
+def run_notebook_profile(
+    observations: tuple[tuple[str, Callable[[], None]], ...],
+    *,
+    emit: Callable[[str], None],
+) -> tuple[str, ...]:
+    """Emit each frozen Notebook check only after its observation succeeds."""
+
+    names = tuple(name for name, _ in observations)
+    if names != NOTEBOOK_CHECK_NAMES:
+        raise ValueError("Notebook observations must use the exact frozen order")
+    emitted: list[str] = []
+    for name, observe in observations:
+        observe()
+        emit(name)
+        emitted.append(name)
+    return tuple(emitted)
+
+
 def run_numpy_floor_profile(
     *,
     uv: str,
@@ -689,7 +724,7 @@ def run_full_typing_profile(
         interpreter=interpreter,
         environment=workspace.environment,
         requirements=[
-            f"{wheel}[torch,jax,matplotlib]",
+            f"{wheel}[torch,jax,matplotlib,notebook]",
             config.mypy,
             config.torch,
             *config.jax,
