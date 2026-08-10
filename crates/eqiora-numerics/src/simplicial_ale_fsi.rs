@@ -9,6 +9,7 @@ mod element;
 mod motion;
 mod newton;
 
+#[allow(unused_imports)]
 pub(crate) use boundary_step::{
     AleFsiBoundaryEndpointIdentity, AleFsiExteriorFacetDisposition, PreparedAleFsiBoundaryStep,
     advance_simplicial_ale_fsi_prepared_step,
