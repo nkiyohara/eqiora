@@ -955,16 +955,20 @@ def run_notebook_profile(
                 extra_environment=environment,
             )
         finally:
+            sent_sigterm = False
             try:
                 if process.poll() is None:
                     process.send_signal(signal.SIGTERM)
+                    sent_sigterm = True
                 try:
                     status = process.wait(timeout=30)
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
                     raise CandidateError("Notebook host did not shut down")
-                if status != 0:
+                if status != 0 and not (
+                    sent_sigterm and status == -signal.SIGTERM
+                ):
                     output = process.stdout.read() if process.stdout is not None else ""
                     raise CandidateError(f"Notebook host shutdown was not clean: {output}")
             finally:
