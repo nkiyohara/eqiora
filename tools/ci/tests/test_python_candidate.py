@@ -2227,6 +2227,7 @@ write(JSON.stringify({calls,output,failure}));
             package_manifests=(
                 ("node_modules/playwright-core", {"version": "1.62.1"}),
             ),
+            package_packuments=(),
             locked_package_bytes=1,
             python_wheel_bytes=1,
             browser_member_count=287,
