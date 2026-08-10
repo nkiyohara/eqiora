@@ -60,6 +60,8 @@ jobs:
           chmod 0755 "$mise_bin"
           printf '%s\n' "$mise_bin_dir" >> "$GITHUB_PATH"
       - name: Test CI ownership and aggregate contracts
+        env:
+          EQIORA_CI_CONTRACT_ONLY: "1"
         run: python3 -m unittest discover -s tools/ci/tests -v
       - name: Classify exact change surface
         id: classify

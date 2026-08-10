@@ -119,6 +119,11 @@ class HostedTriggerTests(unittest.TestCase):
             changes[stage_start:test_start],
             setup,
         )
+        contract_step = changes[test_start:].split(
+            "      - name: Classify exact change surface", maxsplit=1
+        )[0]
+        self.assertIn('EQIORA_CI_CONTRACT_ONLY: "1"', contract_step)
+        self.assertEqual(workflow.count("EQIORA_CI_CONTRACT_ONLY"), 1)
 
     def test_windows_compile_probe_is_visible_complete_and_non_gating(self) -> None:
         workflow = (

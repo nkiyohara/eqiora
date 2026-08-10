@@ -2666,6 +2666,10 @@ write(JSON.stringify({calls,output,failure}));
                 with self.assertRaises((CandidateError, RuntimeError)):
                     executor.require_content_bound_resources(mutant)
 
+    @unittest.skipIf(
+        os.environ.get("EQIORA_CI_CONTRACT_ONLY") == "1",
+        "the change-ownership lane runs contract tests, not the registered real H2 aggregate",
+    )
     def test_ordinary_default_candidate_then_live_bound_falsifiers(self) -> None:
         executor = importlib.import_module("python_candidate_h2")
         transport = importlib.import_module(
