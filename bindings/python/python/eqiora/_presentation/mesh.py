@@ -218,9 +218,13 @@ def _new_delegate(payload: dict[str, object], esm: str, css: str) -> object:
             }
             self._eqiora_sealed = True
 
-        @traitlets.validate(*_PAYLOAD_FIELDS)
+        @traitlets.validate(*_PAYLOAD_FIELDS, "_eqiora_n1_model_id")
         def _immutable_payload(self, proposal: dict[str, Any]) -> object:
             if getattr(self, "_eqiora_sealed", False):
+                if proposal["trait"].name == "_eqiora_n1_model_id":
+                    raise traitlets.TraitError(
+                        "Eqiora Mesh model identity is immutable"
+                    )
                 raise traitlets.TraitError(
                     f"Eqiora Mesh payload member {proposal['trait'].name!r} is immutable"
                 )
