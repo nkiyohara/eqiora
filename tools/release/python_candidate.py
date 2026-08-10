@@ -955,17 +955,21 @@ def run_notebook_profile(
                 extra_environment=environment,
             )
         finally:
-            if process.poll() is None:
-                process.send_signal(signal.SIGINT)
             try:
-                status = process.wait(timeout=30)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
-                raise CandidateError("Notebook host did not shut down")
-            if status != 0:
-                output = process.stdout.read() if process.stdout is not None else ""
-                raise CandidateError(f"Notebook host shutdown was not clean: {output}")
+                if process.poll() is None:
+                    process.send_signal(signal.SIGTERM)
+                try:
+                    status = process.wait(timeout=30)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+                    raise CandidateError("Notebook host did not shut down")
+                if status != 0:
+                    output = process.stdout.read() if process.stdout is not None else ""
+                    raise CandidateError(f"Notebook host shutdown was not clean: {output}")
+            finally:
+                if process.stdout is not None:
+                    process.stdout.close()
         state[project] = True
 
     def require_host_observation(name: str) -> None:
