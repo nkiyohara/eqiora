@@ -3,10 +3,16 @@
 mod acceptance;
 mod api;
 mod assembly;
+mod boundary_step;
 mod contract;
 mod element;
 mod motion;
 mod newton;
+
+pub(crate) use boundary_step::{
+    AleFsiBoundaryEndpointIdentity, AleFsiExteriorFacetDisposition, PreparedAleFsiBoundaryStep,
+    advance_simplicial_ale_fsi_prepared_step,
+};
 
 pub use api::{
     AleFsiInterfaceAction, AleFsiInterfaceAction2d, AleFsiInterfaceAction3d, AleFsiStepEvidence,
