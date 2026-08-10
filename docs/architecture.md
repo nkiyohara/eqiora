@@ -1852,3 +1852,11 @@ CSR storage/view vocabulary, assembly implements only the solver storage
 projection, and spatial distribution composes exact mesh ownership with that
 assembly vocabulary and distributed partition identities. The solver-owned
 view implements the operator action. No reverse edge is permitted.
+
+One exact same-L3 edge, `eqiora-numerics -> eqiora-io-gmsh`, lets the
+crate-private cylinder MESH0 owner reside beside the DFG execution owner while
+consuming the bounded Gmsh importer. It authorizes no other
+numerics-to-adapter dependency. Remove this edge if the private cylinder
+MESH0/P2 owner is removed, or if a separately reviewed lower-layer
+accepted-mesh provider replaces bounded Gmsh import without a public receipt
+bridge.

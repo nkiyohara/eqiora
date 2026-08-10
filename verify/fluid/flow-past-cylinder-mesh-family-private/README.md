@@ -50,7 +50,7 @@ python3 verify/fluid/flow-past-cylinder-mesh-family-private/oracle.py
 After production registration, the exact library-test selector is:
 
 ```bash
-cargo test -p eqiora --features gmsh --lib cylinder_mesh_family::tests:: -- --nocapture
+cargo test -p eqiora-numerics --lib canonical_stokes::navier_stokes_geometry_realization::mesh_family::tests:: -- --nocapture
 ```
 
 The registered `case.toml` and capability-matrix entry are integrator-owned

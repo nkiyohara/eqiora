@@ -11,7 +11,7 @@ capabilities = [
 source = "the accepted exact DFG rectangle-minus-circle CanonicalGeometryV1"
 boundary_names = ["fluid", "inlet", "outlet", "walls", "cylinder"]
 probe_inventory = "the exact ordered analytic-source front/rear identities"
-private_falsifier_owner = "crates/eqiora/src/cylinder_mesh_family/tests.rs"
+private_falsifier_owner = "crates/eqiora-numerics/src/canonical_stokes/navier_stokes_geometry_realization/mesh_family/tests.rs"
 independent_oracle = "oracle.py"
 
 [claim_boundary]
@@ -42,6 +42,5 @@ expected_predecessor_result = "the production-private module and exact library-t
 
 [evidence]
 runner = "cargo-library-test"
-package = "eqiora"
-test = "cylinder_mesh_family::tests::registered_cylinder_mesh_family_oracle_executes_all_falsifiers"
-features = ["gmsh"]
+package = "eqiora-numerics"
+test = "canonical_stokes::navier_stokes_geometry_realization::mesh_family::tests::registered_cylinder_mesh_family_oracle_executes_all_falsifiers"

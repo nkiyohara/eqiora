@@ -178,6 +178,11 @@ fn same_layer_dependency_is_allowed(package: &str, dependency: &str) -> bool {
             // immutable mesh envelope as one authenticated revision instead
             // of accepting independently forgeable digest and mesh values.
             | ("eqiora-numerics", "eqiora-artifact")
+            // Issue 165 OBS0 P2 Wave B: the crate-private cylinder MESH0
+            // owner resides beside DFG execution and consumes only the
+            // bounded Gmsh importer. The architecture document owns the
+            // exact deletion condition for this one named edge.
+            | ("eqiora-numerics", "eqiora-io-gmsh")
             // RFC 0063: this single L3 composition owns the joint lifecycle
             // of otherwise isolated MPI transport and CUDA action adapters.
             | ("eqiora-backend-mpi-cuda", "eqiora-backend-mpi")

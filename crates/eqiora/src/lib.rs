@@ -17,9 +17,6 @@ mod release_identity {
     pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 }
 
-#[cfg(feature = "gmsh")]
-mod cylinder_mesh_family;
-
 pub use eqiora_core::diagnostic::{self, Code, Diagnostic, GraphPath, Patch, Severity, Span};
 pub use eqiora_core::entity::{self, Entity, EntityKind, GraphClass, GraphKind, kinds};
 pub use eqiora_core::id::{Id, RawId};

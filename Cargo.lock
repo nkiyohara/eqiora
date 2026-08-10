@@ -973,6 +973,7 @@ dependencies = [
  "eqiora-execution",
  "eqiora-geometry",
  "eqiora-graph",
+ "eqiora-io-gmsh",
  "eqiora-ir",
  "eqiora-meshing",
  "eqiora-realization",
