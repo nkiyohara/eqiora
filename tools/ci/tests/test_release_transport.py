@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import copy
 import hashlib
 import io
@@ -51,6 +50,54 @@ THREE_LICENSE_SHA256 = (
 )
 ANYWIDGET_LICENSE_SHA256 = (
     "22c698b6e5f3878c292471980ffd352ee0fad053f9428c2281f34b5e28a6151f"
+)
+FRONTEND_PACKAGE_LOCK_SHA256 = (
+    "3f3dbc5711a4feb4499bee358f042a3a10b194824dcd9b9350212d75ec363416"
+)
+INSTALL_SCRIPT_INVENTORY_SHA256 = (
+    "fbcb5664380f1ace34322bd129219741abdf9be79be17cb8861d57e2c6e4c4dc"
+)
+LIFECYCLE_SCRIPT_SOURCE_UNION = (
+    (
+        "node_modules/@tweenjs/tween.js",
+        "@tweenjs/tween.js",
+        "23.1.3",
+        "prepare",
+        "npm run build",
+        ("packument", "tarball"),
+    ),
+    (
+        "node_modules/fsevents",
+        "fsevents",
+        "2.3.2",
+        "install",
+        "node-gyp rebuild",
+        ("lockfile", "packument"),
+    ),
+    (
+        "node_modules/lightningcss",
+        "lightningcss",
+        "1.33.0",
+        "prepare",
+        "patch-package",
+        ("packument", "tarball"),
+    ),
+    (
+        "node_modules/tinyexec",
+        "tinyexec",
+        "1.3.0",
+        "prepare",
+        "npm run build",
+        ("packument", "tarball"),
+    ),
+    (
+        "node_modules/vite/node_modules/fsevents",
+        "fsevents",
+        "2.3.3",
+        "install",
+        "node-gyp rebuild",
+        ("lockfile", "packument"),
+    ),
 )
 NOTEBOOK_CHECKS = frozenset(
     {
@@ -418,15 +465,23 @@ def complete_v3_candidate_document(
                 extra_members=ASSET_BYTES,
             )
 
-    package_json = b'{"private":true,"packageManager":"npm@11.16.0"}\n'
-    package_lock = b'{"lockfileVersion":3,"packages":{}}\n'
+    package_json = (
+        REPOSITORY_ROOT / "bindings/python/frontend/package.json"
+    ).read_bytes()
+    package_lock = (
+        REPOSITORY_ROOT / "bindings/python/frontend/package-lock.json"
+    ).read_bytes()
+    assert hashlib.sha256(package_lock).hexdigest() == FRONTEND_PACKAGE_LOCK_SHA256
     source = b"export const renderer = 'synthetic-oracle-only';\n"
     config = b"export default {build: {sourcemap: false}};\n"
-    pyproject = BASE_PYPROJECT + b"""\
+    pyproject = (
+        BASE_PYPROJECT
+        + b"""\
 
 [project.optional-dependencies]
 notebook = ["anywidget==0.11.0"]
 """
+    )
     sdist_members = {
         "bindings/python/frontend/package.json": package_json,
         "bindings/python/frontend/package-lock.json": package_lock,
@@ -460,38 +515,60 @@ notebook = ["anywidget==0.11.0"]
             "sha256": hashlib.sha256(config).hexdigest(),
         }
     ]
+    package_document = json.loads(package_json)
     direct_pins = sorted(
         (
-            {"name": "three", "version": "0.185.1"},
-            {"name": "@types/three", "version": "0.185.4"},
-            {"name": "@anywidget/types", "version": "0.4.0"},
-            {"name": "typescript", "version": "7.0.2"},
-            {"name": "vite", "version": "8.2.0"},
-            {"name": "vitest", "version": "4.1.10"},
-            {"name": "@biomejs/biome", "version": "2.5.6"},
-            {"name": "@playwright/test", "version": "1.62.1"},
+            {"name": name, "version": version}
+            for name, version in {
+                **package_document["dependencies"],
+                **package_document["devDependencies"],
+            }.items()
         ),
-        key=lambda item: (item["name"].encode("utf-8"), item["version"].encode("utf-8")),
+        key=lambda item: (
+            item["name"].encode("utf-8"),
+            item["version"].encode("utf-8"),
+        ),
     )
-    integrity = "sha512-" + base64.b64encode(bytes(64)).decode("ascii")
-    locked_packages = sorted(
-        (
+    script_inventory: dict[str, list[dict[str, object]]] = {}
+    for (
+        lock_path,
+        _name,
+        _version,
+        hook,
+        command,
+        sources,
+    ) in LIFECYCLE_SCRIPT_SOURCE_UNION:
+        script_inventory.setdefault(lock_path, []).append(
+            {"name": hook, "command": command, "sources": list(sources)}
+        )
+    lock_document = json.loads(package_lock)
+    playwright_test_integrity = lock_document["packages"][
+        "node_modules/@playwright/test"
+    ]["integrity"]
+    playwright_core_integrity = lock_document["packages"][
+        "node_modules/playwright-core"
+    ]["integrity"]
+    locked_packages = []
+    for lock_path, entry in sorted(
+        lock_document["packages"].items(), key=lambda item: item[0].encode("utf-8")
+    ):
+        if lock_path == "":
+            continue
+        suffix = lock_path.removeprefix("node_modules/")
+        parts = suffix.split("node_modules/")[-1].split("/")
+        fallback_name = "/".join(parts[:2]) if parts[0].startswith("@") else parts[0]
+        locked_packages.append(
             {
-                "lock_path": f"node_modules/{pin['name']}",
-                "name": pin["name"],
-                "version": pin["version"],
-                "resolved": (
-                    f"https://registry.npmjs.org/{pin['name']}/-/"
-                    f"package-{pin['version']}.tgz"
-                ),
-                "integrity": integrity,
+                "lock_path": lock_path,
+                "name": entry.get("name", fallback_name),
+                "version": entry["version"],
+                "resolved": entry["resolved"],
+                "integrity": entry["integrity"],
                 "selected_optional": False,
-                "lifecycle_scripts": [],
+                "lifecycle_scripts": script_inventory.get(lock_path, []),
             }
-            for pin in direct_pins
-        ),
-        key=lambda item: item["lock_path"].encode("utf-8"),
-    )
+        )
+    assert len(locked_packages) == 111
     module_graph = [
         {
             "output": "mesh-view.mjs",
@@ -529,6 +606,7 @@ notebook = ["anywidget==0.11.0"]
         }
         for item in locked_packages
     ]
+    assert structured_sha256(install_script_inventory) == INSTALL_SCRIPT_INVENTORY_SHA256
     frontend = {
         "node": "v24.18.1",
         "npm": "11.16.0",
@@ -538,9 +616,7 @@ notebook = ["anywidget==0.11.0"]
         "source_inventory_sha256": structured_sha256(source_inventory),
         "config_inventory_sha256": structured_sha256(config_inventory),
         "locked_packages_sha256": structured_sha256(locked_packages),
-        "install_script_inventory_sha256": structured_sha256(
-            install_script_inventory
-        ),
+        "install_script_inventory_sha256": structured_sha256(install_script_inventory),
         "bundler_module_graph_sha256": structured_sha256(module_graph),
         "node_executable_sha256": NODE_EXECUTABLE_SHA256,
         "npm_package_integrity": NPM_PACKAGE_INTEGRITY,
@@ -669,8 +745,8 @@ notebook = ["anywidget==0.11.0"]
             "unmapped_emitted_modules": [],
         },
         "browser": {
-            "playwright_test_integrity": integrity,
-            "playwright_core_integrity": integrity,
+            "playwright_test_integrity": playwright_test_integrity,
+            "playwright_core_integrity": playwright_core_integrity,
             "browsers_json_sha256": BROWSERS_JSON_SHA256,
             "browser_name": "chromium",
             "revision": "1234",
@@ -1624,9 +1700,14 @@ class CandidateManifestTests(unittest.TestCase):
             receipt["inputs"]["locked_packages"][0]["integrity"] = "sha256-bad"
 
         def changed_script_inventory(receipt: dict) -> None:
-            receipt["inputs"]["locked_packages"][0]["lifecycle_scripts"] = [
-                {"name": "postinstall", "command": "unreviewed"}
-            ]
+            lightningcss = next(
+                item
+                for item in receipt["inputs"]["locked_packages"]
+                if item["lock_path"] == "node_modules/lightningcss"
+            )
+            lightningcss["lifecycle_scripts"][0]["command"] = (
+                "patch-package --changed"
+            )
 
         def unequal_bytes(receipt: dict) -> None:
             receipt["comparison"]["sha256_bytes_equal"] = False

@@ -35,6 +35,7 @@ from packaging.utils import parse_wheel_filename
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPOSITORY_ROOT / "tools/release"))
 
+import candidate_manifest as candidate_manifest_module  # noqa: E402
 import python_candidate as python_candidate_module  # noqa: E402
 
 from python_candidate import (  # noqa: E402
@@ -82,6 +83,69 @@ PLAYWRIGHT_CORE_INTEGRITY = (
 )
 PLAYWRIGHT_CORE_URL = (
     "https://registry.npmjs.org/playwright-core/-/playwright-core-1.62.1.tgz"
+)
+INSTALL_SCRIPT_INVENTORY_SHA256 = (
+    "fbcb5664380f1ace34322bd129219741abdf9be79be17cb8861d57e2c6e4c4dc"
+)
+LIFECYCLE_SCRIPT_SOURCE_UNION = (
+    (
+        "node_modules/@tweenjs/tween.js",
+        "@tweenjs/tween.js",
+        "23.1.3",
+        "prepare",
+        "npm run build",
+        ("packument", "tarball"),
+    ),
+    (
+        "node_modules/fsevents",
+        "fsevents",
+        "2.3.2",
+        "install",
+        "node-gyp rebuild",
+        ("lockfile", "packument"),
+    ),
+    (
+        "node_modules/lightningcss",
+        "lightningcss",
+        "1.33.0",
+        "prepare",
+        "patch-package",
+        ("packument", "tarball"),
+    ),
+    (
+        "node_modules/tinyexec",
+        "tinyexec",
+        "1.3.0",
+        "prepare",
+        "npm run build",
+        ("packument", "tarball"),
+    ),
+    (
+        "node_modules/vite/node_modules/fsevents",
+        "fsevents",
+        "2.3.3",
+        "install",
+        "node-gyp rebuild",
+        ("lockfile", "packument"),
+    ),
+)
+PACKUMENT_INSTALL_SCRIPT_ADMISSIONS = (
+    (
+        "node_modules/fsevents",
+        "fsevents",
+        "2.3.2",
+        "install",
+        "node-gyp rebuild",
+        "packument",
+    ),
+    (
+        "node_modules/vite/node_modules/fsevents",
+        "fsevents",
+        "2.3.3",
+        "install",
+        "node-gyp rebuild",
+        "packument",
+    ),
 )
 PLAYWRIGHT_BROWSER_URL = (
     "https://cdn.playwright.dev/builds/cft/151.0.7922.34/linux64/"
@@ -2168,6 +2232,317 @@ write(JSON.stringify({calls,output,failure}));
             browser_member_count=287,
             browser_expanded_regular_bytes=273_378_828,
         )
+
+    @staticmethod
+    def lifecycle_authority_inputs(
+        lock: dict[str, object],
+    ) -> tuple[
+        tuple[tuple[str, dict[str, object]], ...],
+        tuple[tuple[str, dict[str, object]], ...],
+    ]:
+        packages = lock["packages"]
+        assert isinstance(packages, dict)
+        scripts_by_source: dict[tuple[str, str], dict[str, str]] = {}
+        for (
+            lock_path,
+            _name,
+            _version,
+            hook,
+            command,
+            sources,
+        ) in LIFECYCLE_SCRIPT_SOURCE_UNION:
+            for source in sources:
+                if source in {"tarball", "packument"}:
+                    scripts_by_source.setdefault((lock_path, source), {})[hook] = (
+                        command
+                    )
+
+        tarball_manifests: list[tuple[str, dict[str, object]]] = []
+        packument_versions: dict[str, dict[str, dict[str, object]]] = {}
+        for lock_path, raw_entry in sorted(
+            packages.items(), key=lambda item: item[0].encode("utf-8")
+        ):
+            if lock_path == "":
+                continue
+            assert isinstance(raw_entry, dict)
+            suffix = lock_path.removeprefix("node_modules/")
+            parts = suffix.split("node_modules/")[-1].split("/")
+            fallback_name = (
+                "/".join(parts[:2]) if parts[0].startswith("@") else parts[0]
+            )
+            name = raw_entry.get("name", fallback_name)
+            version = raw_entry["version"]
+            assert isinstance(name, str)
+            assert isinstance(version, str)
+            tarball_manifests.append(
+                (
+                    lock_path,
+                    {
+                        "name": name,
+                        "version": version,
+                        "scripts": scripts_by_source.get((lock_path, "tarball"), {}),
+                    },
+                )
+            )
+            packument_versions.setdefault(name, {})[version] = {
+                "name": name,
+                "version": version,
+                "scripts": scripts_by_source.get((lock_path, "packument"), {}),
+            }
+        packuments = tuple(
+            (name, {"name": name, "versions": versions})
+            for name, versions in sorted(
+                packument_versions.items(), key=lambda item: item[0].encode("utf-8")
+            )
+        )
+        return tuple(tarball_manifests), packuments
+
+    @staticmethod
+    def lifecycle_receipt_record(
+        identity: tuple[str, str, str, str, str, tuple[str, ...]],
+    ) -> dict[str, object]:
+        lock_path, name, version, hook, command, sources = identity
+        return {
+            "lock_path": lock_path,
+            "name": name,
+            "version": version,
+            "resolved": (f"https://registry.npmjs.org/{name}/-/package-{version}.tgz"),
+            "integrity": "sha512-" + base64.b64encode(bytes(64)).decode("ascii"),
+            "selected_optional": False,
+            "lifecycle_scripts": [
+                {
+                    "name": hook,
+                    "command": command,
+                    "sources": list(sources),
+                }
+            ],
+        }
+
+    def exact_lifecycle_inventory(
+        self,
+    ) -> tuple[
+        object,
+        tuple[dict[str, object], ...],
+        tuple[tuple[str, dict[str, object]], ...],
+    ]:
+        executor = importlib.import_module("python_candidate_h2")
+        lock_path = REPOSITORY_ROOT / "bindings/python/frontend/package-lock.json"
+        self.assertEqual(
+            hashlib.sha256(lock_path.read_bytes()).hexdigest(),
+            PLAYWRIGHT_CORE_LOCK_SHA256,
+        )
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        tarball_manifests, packuments = self.lifecycle_authority_inputs(lock)
+        workspace = types.SimpleNamespace(
+            frontend=REPOSITORY_ROOT / ".absent-lifecycle-oracle-node-modules"
+        )
+        _source, _configs, _pins, locked = executor._frontend_inputs(
+            REPOSITORY_ROOT,
+            workspace,
+            tarball_manifests,
+            packuments,
+        )
+        return executor, locked, packuments
+
+    def test_lifecycle_inventory_is_the_full_lock_identity_and_source_union(
+        self,
+    ) -> None:
+        executor, locked, packuments = self.exact_lifecycle_inventory()
+        lock = json.loads(
+            (REPOSITORY_ROOT / "bindings/python/frontend/package-lock.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        expected_scripts: dict[str, list[dict[str, object]]] = {}
+        for (
+            lock_path,
+            _name,
+            _version,
+            hook,
+            command,
+            sources,
+        ) in LIFECYCLE_SCRIPT_SOURCE_UNION:
+            expected_scripts.setdefault(lock_path, []).append(
+                {"name": hook, "command": command, "sources": list(sources)}
+            )
+        expected_inventory = []
+        for lock_path, raw_entry in sorted(
+            lock["packages"].items(), key=lambda item: item[0].encode("utf-8")
+        ):
+            if lock_path == "":
+                continue
+            suffix = lock_path.removeprefix("node_modules/")
+            parts = suffix.split("node_modules/")[-1].split("/")
+            fallback_name = (
+                "/".join(parts[:2]) if parts[0].startswith("@") else parts[0]
+            )
+            expected_inventory.append(
+                {
+                    "lock_path": lock_path,
+                    "name": raw_entry.get("name", fallback_name),
+                    "version": raw_entry["version"],
+                    "lifecycle_scripts": expected_scripts.get(lock_path, []),
+                }
+            )
+        observed_inventory = [
+            {
+                "lock_path": item["lock_path"],
+                "name": item["name"],
+                "version": item["version"],
+                "lifecycle_scripts": item["lifecycle_scripts"],
+            }
+            for item in locked
+        ]
+        self.assertEqual(len(locked), 111)
+        self.assertEqual(len(locked), len(lock["packages"]) - 1)
+        self.assertEqual(observed_inventory, expected_inventory)
+        self.assertEqual(
+            tuple(
+                (
+                    item["lock_path"],
+                    item["name"],
+                    item["version"],
+                    script["name"],
+                    script["command"],
+                    tuple(script["sources"]),
+                )
+                for item in observed_inventory
+                for script in item["lifecycle_scripts"]
+            ),
+            LIFECYCLE_SCRIPT_SOURCE_UNION,
+        )
+        self.assertEqual(
+            executor.structured_sha256(observed_inventory),
+            INSTALL_SCRIPT_INVENTORY_SHA256,
+        )
+        self.assertEqual(
+            candidate_manifest_module.INSTALL_SCRIPT_INVENTORY_SHA256,
+            INSTALL_SCRIPT_INVENTORY_SHA256,
+        )
+
+        partial_packuments = tuple(item for item in packuments if item[0] != "fsevents")
+        tarball_manifests, _packuments = self.lifecycle_authority_inputs(lock)
+        with self.assertRaisesRegex(
+            CandidateError,
+            "fsevents|packument|registry metadata|source",
+        ):
+            executor._frontend_inputs(
+                REPOSITORY_ROOT,
+                types.SimpleNamespace(
+                    frontend=(REPOSITORY_ROOT / ".absent-lifecycle-oracle-node-modules")
+                ),
+                tarball_manifests,
+                partial_packuments,
+            )
+
+    def test_lifecycle_gate_admits_only_noninstall_and_two_exact_packument_hits(
+        self,
+    ) -> None:
+        self.assertEqual(
+            tuple(candidate_manifest_module.PACKUMENT_INSTALL_SCRIPT_ADMISSIONS),
+            PACKUMENT_INSTALL_SCRIPT_ADMISSIONS,
+        )
+        ordinary = self.lifecycle_receipt_record(
+            (
+                "node_modules/ordinary",
+                "ordinary",
+                "1.0.0",
+                "prepare",
+                "npm run build",
+                ("packument", "tarball"),
+            )
+        )
+        self.assertEqual(
+            candidate_manifest_module._locked_record(
+                ordinary, "receipt.inputs.locked_packages"
+            ),
+            ordinary,
+        )
+        for identity in PACKUMENT_INSTALL_SCRIPT_ADMISSIONS:
+            record_identity = (*identity[:5], ("lockfile", identity[5]))
+            record = self.lifecycle_receipt_record(record_identity)
+            self.assertEqual(
+                candidate_manifest_module._locked_record(
+                    record, "receipt.inputs.locked_packages"
+                ),
+                record,
+            )
+
+        identity = PACKUMENT_INSTALL_SCRIPT_ADMISSIONS[0]
+        fields = ("lock_path", "name", "version", "hook", "command", "source")
+        replacements: tuple[object, ...] = (
+            "node_modules/other/fsevents",
+            "other",
+            "2.3.3",
+            "postinstall",
+            "node-gyp rebuild --changed",
+            "tarball",
+        )
+        for field, replacement in zip(fields, replacements, strict=True):
+            with self.subTest(drift=field):
+                mutant = list(identity)
+                mutant[fields.index(field)] = replacement
+                sources = (
+                    ("lockfile", str(mutant[5]))
+                    if field != "source"
+                    else ("lockfile", str(replacement))
+                )
+                record = self.lifecycle_receipt_record((*mutant[:5], sources))
+                with self.assertRaises(candidate_manifest_module.ManifestError):
+                    candidate_manifest_module._locked_record(
+                        record, "receipt.inputs.locked_packages"
+                    )
+
+        for missing_sources in (("packument",), ("lockfile",)):
+            with self.subTest(partial_sources=missing_sources):
+                record = self.lifecycle_receipt_record((*identity[:5], missing_sources))
+                with self.assertRaises(candidate_manifest_module.ManifestError):
+                    candidate_manifest_module._locked_record(
+                        record, "receipt.inputs.locked_packages"
+                    )
+
+    def test_tarball_install_hooks_are_absolute_rejections_with_identity(
+        self,
+    ) -> None:
+        accepted = PACKUMENT_INSTALL_SCRIPT_ADMISSIONS[0]
+        for hook in ("preinstall", "install", "postinstall"):
+            with self.subTest(hook=hook):
+                record = self.lifecycle_receipt_record(
+                    (*accepted[:3], hook, accepted[4], ("tarball",))
+                )
+                with self.assertRaises(
+                    candidate_manifest_module.ManifestError
+                ) as raised:
+                    candidate_manifest_module._locked_record(
+                        record, "receipt.inputs.locked_packages"
+                    )
+                message = str(raised.exception)
+                self.assertIn(str(record["lock_path"]), message)
+                self.assertIn(hook, message)
+                self.assertIn("tarball", message)
+
+    def test_lifecycle_inventory_pin_rejects_drift_and_partial_receipts(
+        self,
+    ) -> None:
+        _executor, locked, _packuments = self.exact_lifecycle_inventory()
+        candidate_manifest_module._validate_install_script_inventory(locked)
+
+        drifted = json.loads(json.dumps(locked))
+        lightningcss = next(
+            item for item in drifted if item["lock_path"] == "node_modules/lightningcss"
+        )
+        lightningcss["lifecycle_scripts"][0]["command"] = "patch-package --changed"
+        with self.assertRaisesRegex(
+            candidate_manifest_module.ManifestError, "inventory|identity|drift"
+        ):
+            candidate_manifest_module._validate_install_script_inventory(drifted)
+
+        partial = json.loads(json.dumps(locked))
+        partial.pop()
+        with self.assertRaisesRegex(
+            candidate_manifest_module.ManifestError, "inventory|identity|drift"
+        ):
+            candidate_manifest_module._validate_install_script_inventory(partial)
 
     def test_exact_content_bound_browser_and_abstract_resource_profile(self) -> None:
         executor = importlib.import_module("python_candidate_h2")
