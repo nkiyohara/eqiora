@@ -18,6 +18,7 @@ use crate::spatial_expression::ScalarSpatialExpression;
 use super::expression::{
     IncompressibleStressForm, load_definition_root, lower_incompressible_stress_viscosity,
 };
+use super::prescribed_velocity::SteadyStokesPrescribedVelocityTrace2d;
 use super::support::{
     is_field, lowering_error, relation_expression, relations_on, require_continuous_relation,
     typed_relation, unique_root,
@@ -28,10 +29,14 @@ pub(crate) struct LoweredStokesBoundary<const D: usize> {
     pub(crate) inventory: CartesianBoundaryInventory<D>,
     pub(crate) normal_pressure_sources:
         BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), NormalPressureSource2d>,
+    pub(crate) prescribed_velocity_traces: BTreeMap<
+        (usize, eqiora_schema::kernel::BoundarySide),
+        SteadyStokesPrescribedVelocityTrace2d,
+    >,
+    pub(crate) prescribed_velocity_fields: BTreeSet<RawId>,
+    pub(crate) prescribed_velocity_definitions: BTreeSet<RawId>,
     pub(crate) normal_velocity_expressions:
         BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), ScalarSpatialExpression>,
-    pub(crate) normal_velocity_coefficients:
-        BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), (RawId, RawId)>,
     pub(crate) normal_velocity_fields: BTreeSet<RawId>,
     pub(crate) normal_velocity_definitions: BTreeSet<RawId>,
     pub(crate) relations: BTreeSet<RawId>,
@@ -48,6 +53,9 @@ pub(crate) type LoweredStokesBoundary2d = LoweredStokesBoundary<2>;
 pub(super) struct LoweredNamedStokesBoundary2d {
     pub(super) entries: BTreeMap<String, CartesianBoundaryEntry>,
     pub(super) normal_pressure_sources: BTreeMap<String, NormalPressureSource2d>,
+    pub(super) prescribed_velocity_traces: BTreeMap<String, SteadyStokesPrescribedVelocityTrace2d>,
+    pub(super) prescribed_velocity_fields: BTreeSet<RawId>,
+    pub(super) prescribed_velocity_definitions: BTreeSet<RawId>,
     pub(super) normal_velocity_expressions: BTreeMap<String, ScalarSpatialExpression>,
     pub(super) normal_velocity_coefficients: BTreeMap<String, (RawId, RawId)>,
     pub(super) normal_velocity_fields: BTreeSet<RawId>,
@@ -62,16 +70,22 @@ pub(super) struct LoweredNamedStokesBoundary2d {
 struct LoweredBoundaryEntries<K> {
     entries: BTreeMap<K, CartesianBoundaryEntry>,
     normal_pressure_sources: BTreeMap<K, NormalPressureSource2d>,
-    normal_velocity_expressions: BTreeMap<K, ScalarSpatialExpression>,
-    normal_velocity_coefficients: BTreeMap<K, (RawId, RawId)>,
-    normal_velocity_fields: BTreeSet<RawId>,
-    normal_velocity_definitions: BTreeSet<RawId>,
+    prescribed_velocity_traces: BTreeMap<K, SteadyStokesPrescribedVelocityTrace2d>,
+    prescribed_velocity_fields: BTreeSet<RawId>,
+    prescribed_velocity_definitions: BTreeSet<RawId>,
     relations: BTreeSet<RawId>,
     boundary_relations: Vec<BoundaryRelationBinding>,
     ports: BTreeSet<RawId>,
     connections: BTreeSet<RawId>,
     connector_domains: BTreeSet<RawId>,
     uninterpreted_live_relations: BTreeSet<RawId>,
+}
+
+struct NormalVelocityProjection<K> {
+    expressions: BTreeMap<K, ScalarSpatialExpression>,
+    coefficients: BTreeMap<K, (RawId, RawId)>,
+    fields: BTreeSet<RawId>,
+    definitions: BTreeSet<RawId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -140,13 +154,16 @@ fn lower_dimension_with_stress<const D: usize>(
         exact_boundaries,
         stress_form,
     )?;
+    let normal_velocity = normal_velocity_projection(&lowered.prescribed_velocity_traces);
     Ok(LoweredStokesBoundary {
         inventory: CartesianBoundaryInventory::new(lowered.entries),
         normal_pressure_sources: lowered.normal_pressure_sources,
-        normal_velocity_expressions: lowered.normal_velocity_expressions,
-        normal_velocity_coefficients: lowered.normal_velocity_coefficients,
-        normal_velocity_fields: lowered.normal_velocity_fields,
-        normal_velocity_definitions: lowered.normal_velocity_definitions,
+        prescribed_velocity_traces: lowered.prescribed_velocity_traces,
+        prescribed_velocity_fields: lowered.prescribed_velocity_fields,
+        prescribed_velocity_definitions: lowered.prescribed_velocity_definitions,
+        normal_velocity_expressions: normal_velocity.expressions,
+        normal_velocity_fields: normal_velocity.fields,
+        normal_velocity_definitions: normal_velocity.definitions,
         relations: lowered.relations,
         boundary_relations: lowered.boundary_relations,
         ports: lowered.ports,
@@ -193,19 +210,52 @@ pub(super) fn lower_named_with_stress(
         exact_boundaries,
         stress_form,
     )?;
+    let normal_velocity = normal_velocity_projection(&lowered.prescribed_velocity_traces);
     Ok(LoweredNamedStokesBoundary2d {
         entries: lowered.entries,
         normal_pressure_sources: lowered.normal_pressure_sources,
-        normal_velocity_expressions: lowered.normal_velocity_expressions,
-        normal_velocity_coefficients: lowered.normal_velocity_coefficients,
-        normal_velocity_fields: lowered.normal_velocity_fields,
-        normal_velocity_definitions: lowered.normal_velocity_definitions,
+        prescribed_velocity_traces: lowered.prescribed_velocity_traces,
+        prescribed_velocity_fields: lowered.prescribed_velocity_fields,
+        prescribed_velocity_definitions: lowered.prescribed_velocity_definitions,
+        normal_velocity_expressions: normal_velocity.expressions,
+        normal_velocity_coefficients: normal_velocity.coefficients,
+        normal_velocity_fields: normal_velocity.fields,
+        normal_velocity_definitions: normal_velocity.definitions,
         boundary_relations: lowered.boundary_relations,
         ports: lowered.ports,
         connections: lowered.connections,
         connector_domains: lowered.connector_domains,
         uninterpreted_live_relations: lowered.uninterpreted_live_relations,
     })
+}
+
+fn normal_velocity_projection<K: Clone + Ord>(
+    traces: &BTreeMap<K, SteadyStokesPrescribedVelocityTrace2d>,
+) -> NormalVelocityProjection<K> {
+    let mut expressions = BTreeMap::new();
+    let mut coefficients = BTreeMap::new();
+    let mut fields = BTreeSet::new();
+    let mut definitions = BTreeSet::new();
+    for (key, trace) in traces {
+        if let SteadyStokesPrescribedVelocityTrace2d::Normal {
+            coefficient_field,
+            definition_relation,
+            expression,
+            ..
+        } = trace
+        {
+            expressions.insert(key.clone(), expression.clone());
+            coefficients.insert(key.clone(), (*coefficient_field, *definition_relation));
+            fields.insert(*coefficient_field);
+            definitions.insert(*definition_relation);
+        }
+    }
+    NormalVelocityProjection {
+        expressions,
+        coefficients,
+        fields,
+        definitions,
+    }
 }
 
 fn lower_entries<const D: usize, K: Clone + Ord>(
@@ -219,10 +269,9 @@ fn lower_entries<const D: usize, K: Clone + Ord>(
 ) -> Result<LoweredBoundaryEntries<K>, Diagnostic> {
     let mut entries = BTreeMap::new();
     let mut normal_pressure_sources = BTreeMap::new();
-    let mut normal_velocity_expressions = BTreeMap::new();
-    let mut normal_velocity_coefficients = BTreeMap::new();
-    let mut normal_velocity_fields = BTreeSet::new();
-    let mut normal_velocity_definitions = BTreeSet::new();
+    let mut prescribed_velocity_traces = BTreeMap::new();
+    let mut prescribed_velocity_fields = BTreeSet::new();
+    let mut prescribed_velocity_definitions = BTreeSet::new();
     let mut admitted_relations = BTreeSet::new();
     let mut boundary_relations = BTreeSet::new();
     let mut admitted_ports = BTreeSet::new();
@@ -297,16 +346,16 @@ fn lower_entries<const D: usize, K: Clone + Ord>(
         if let PhysicalBoundaryDisposition::Prescribed(law) = candidate.disposition
             && law.quantity() == PhysicalBoundaryQuantity::Trace
         {
-            let (expression, field, definition) = prescribed_normal_velocity_expression::<D>(
+            let trace = prescribed_velocity_trace::<D>(
                 program,
                 law.relation(),
                 velocity,
                 domain,
+                boundary,
             )?;
-            normal_velocity_expressions.insert(key.clone(), expression);
-            normal_velocity_coefficients.insert(key.clone(), (field, definition));
-            normal_velocity_fields.insert(field);
-            normal_velocity_definitions.insert(definition);
+            prescribed_velocity_fields.insert(trace.coefficient_field());
+            prescribed_velocity_definitions.insert(trace.definition_relation());
+            prescribed_velocity_traces.insert(key.clone(), trace);
         }
         entries.insert(
             key,
@@ -317,10 +366,9 @@ fn lower_entries<const D: usize, K: Clone + Ord>(
     Ok(LoweredBoundaryEntries {
         entries,
         normal_pressure_sources,
-        normal_velocity_expressions,
-        normal_velocity_coefficients,
-        normal_velocity_fields,
-        normal_velocity_definitions,
+        prescribed_velocity_traces,
+        prescribed_velocity_fields,
+        prescribed_velocity_definitions,
         relations: admitted_relations,
         boundary_relations: boundary_relations.into_iter().collect(),
         ports: admitted_ports,
@@ -342,7 +390,10 @@ fn direct_disposition(
     let [root] = expression.roots() else {
         return Ok(None);
     };
-    if prescribed_normal_velocity_parts(program, expression, *root, velocity, relation)?.is_some() {
+    if prescribed_complete_velocity_parts(expression, *root, velocity).is_some()
+        || prescribed_normal_velocity_parts(program, expression, *root, velocity, relation)?
+            .is_some()
+    {
         return Ok(Some(BoundaryCandidate {
             disposition: PhysicalBoundaryDisposition::Prescribed(PrescribedBoundaryLaw::new(
                 PhysicalBoundaryQuantity::Trace,
@@ -391,6 +442,154 @@ fn direct_disposition(
         }
         _ => Ok(None),
     }
+}
+
+/// Two-dimensional entry point for the single retained trace owner.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(super) fn prescribed_velocity_trace_2d(
+    program: &KernelProgram,
+    relation: RawId,
+    velocity: RawId,
+    domain: RawId,
+    boundary: RawId,
+) -> Result<SteadyStokesPrescribedVelocityTrace2d, Diagnostic> {
+    prescribed_velocity_trace::<2>(program, relation, velocity, domain, boundary)
+}
+
+fn prescribed_velocity_trace<const D: usize>(
+    program: &KernelProgram,
+    relation: RawId,
+    velocity: RawId,
+    domain: RawId,
+    boundary: RawId,
+) -> Result<SteadyStokesPrescribedVelocityTrace2d, Diagnostic> {
+    let expression = relation_expression(program, relation)?;
+    let [root] = expression.roots() else {
+        return Err(lowering_error(
+            relation,
+            "prescribed velocity trace requires exactly one residual root",
+        ));
+    };
+    if let Some(potential) = prescribed_complete_velocity_parts(expression, *root, velocity) {
+        if D != 2 {
+            return Err(lowering_error(
+                relation,
+                "complete affine-potential Stokes trace is restricted to two dimensions",
+            ));
+        }
+        let potential = match expression.node(potential) {
+            Some(ExprNode::Symbol(SymbolRef::Field(field))) => field.erase(),
+            _ => unreachable!("complete trace matcher returns one Field symbol"),
+        };
+        let candidates = relations_on(program, domain)
+            .into_iter()
+            .filter_map(|definition| {
+                let definition_expression = relation_expression(program, definition).ok()?;
+                let root = unique_root(definition_expression, definition).ok()?;
+                load_definition_root(definition_expression, root, potential)
+                    .map(|source| (definition, source))
+            })
+            .collect::<Vec<_>>();
+        if candidates.len() != 1 {
+            return Err(lowering_error(
+                potential,
+                format!(
+                    "complete velocity potential requires exactly one scalar definition Relation, found {}",
+                    candidates.len()
+                ),
+            ));
+        }
+        let (definition, source) = candidates[0];
+        require_continuous_relation(program, definition)?;
+        let speed_parameter = exact_complete_potential_source(
+            relation_expression(program, definition)?,
+            source,
+        )
+        .ok_or_else(|| {
+            lowering_error(
+                definition,
+                "complete velocity potential definition must be exactly `U * coordinate(0)`",
+            )
+        })?;
+        let tape = crate::spatial_expression::lower(
+            program,
+            relation_expression(program, definition)?,
+            source,
+            definition,
+            D,
+        )?;
+        let [retained_speed] = tape.parameter_fields() else {
+            return Err(lowering_error(
+                definition,
+                "complete velocity potential must retain exactly one speed Parameter",
+            ));
+        };
+        if retained_speed.erase() != speed_parameter {
+            return Err(lowering_error(
+                definition,
+                "complete velocity potential Parameter identity differs after tape lowering",
+            ));
+        }
+        return SteadyStokesPrescribedVelocityTrace2d::complete_affine_potential(
+            boundary,
+            relation,
+            potential,
+            definition,
+            speed_parameter,
+            tape,
+        )
+        .map_err(|error| lowering_error(relation, error.message()));
+    }
+
+    let (expression, field, definition) =
+        prescribed_normal_velocity_expression::<D>(program, relation, velocity, domain)?;
+    Ok(SteadyStokesPrescribedVelocityTrace2d::normal(
+        boundary, relation, field, definition, expression,
+    ))
+}
+
+fn exact_complete_potential_source(expression: &ExprDag, source: ExprId) -> Option<RawId> {
+    let ExprNode::Mul(left, right) = expression.node(source)? else {
+        return None;
+    };
+    [(*left, *right), (*right, *left)]
+        .into_iter()
+        .find_map(|(parameter, coordinate)| {
+            match (expression.node(parameter), expression.node(coordinate)) {
+                (
+                    Some(ExprNode::Symbol(SymbolRef::Parameter(parameter))),
+                    Some(ExprNode::SpatialCoordinate(0)),
+                ) => Some(parameter.erase()),
+                _ => None,
+            }
+        })
+}
+
+fn prescribed_complete_velocity_parts(
+    expression: &ExprDag,
+    root: ExprId,
+    velocity: RawId,
+) -> Option<ExprId> {
+    let ExprNode::Sub(left, right) = expression.node(root)? else {
+        return None;
+    };
+    let ExprNode::Trace(velocity_value) = expression.node(*left)? else {
+        return None;
+    };
+    if !is_field(expression, *velocity_value, velocity) {
+        return None;
+    }
+    let ExprNode::Trace(gradient) = expression.node(*right)? else {
+        return None;
+    };
+    let ExprNode::Gradient(potential) = expression.node(*gradient)? else {
+        return None;
+    };
+    matches!(
+        expression.node(*potential),
+        Some(ExprNode::Symbol(SymbolRef::Field(_)))
+    )
+    .then_some(*potential)
 }
 
 fn direct_normal_pressure_field(

@@ -3,6 +3,7 @@
 mod api;
 mod block;
 mod boundary;
+mod dissipation_profile;
 mod expression;
 mod geometry_realization;
 mod inertial;
@@ -11,6 +12,7 @@ mod navier_stokes_fvm_realization;
 mod navier_stokes_geometry_realization;
 mod navier_stokes_realization;
 mod physical;
+mod prescribed_velocity;
 mod realization;
 mod recognize;
 mod support;

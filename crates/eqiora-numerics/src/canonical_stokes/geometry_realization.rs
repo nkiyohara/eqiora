@@ -1,6 +1,6 @@
 //! Exact-geometry binding for the shared steady MINI/P1 Stokes path.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_artifact::AcceptedCircularHoleChordalRealizationV1;
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
@@ -16,11 +16,15 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::{LinearSolverBackend, SolverPlan};
 
 use super::api::{SteadyIncompressibleStokesModel2d, StokesBoundaryKey2d};
+use super::dissipation_profile::{
+    StokesDissipationGeometryModelBinding2d, StokesDissipationProfileGeometry2d,
+};
+use super::physical::FinalizedSteadyStokesMini2dProblem;
 use super::physical::SteadyStokesMiniSolution2d;
 use super::realization::{
     SteadyStokesScaleProfile2d, finalize_lowered_steady_stokes_mini_2d_with_assembly,
     resolved_stokes_scales, steady_stokes_fieldwise_requirements_for_model_2d,
-    steady_stokes_mini_plan_for_model_2d,
+    steady_stokes_mini_plan_for_model_2d, validate_model_owned_essential_transport,
 };
 use super::recognize::lower_steady_incompressible_stokes_geometry_2d;
 use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
@@ -221,6 +225,242 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
     solution.with_named_boundary_fluxes(named_boundary_fluxes)
+}
+
+/// Finalize the private profile-owned Stokes binding after exhaustive Model replay.
+///
+/// `transport` is the already existing MINI essential callback shape.  Its
+/// values are compared exactly with every retained Model-owned boundary value
+/// before any value is admitted to assembly.
+// The accepted E1 contract owns this finalized boundary/system step, whose
+// first consumer is the stopped successor optimization path. Remove this
+// attribute when that path calls it.
+#[allow(dead_code)]
+pub(super) fn finalize_resolved_stokes_dissipation_profile_mini_2d_with_transport<B>(
+    program: &KernelProgram,
+    resolved: &ResolvedFieldwiseRealization,
+    binding: &StokesDissipationGeometryModelBinding2d,
+    transport: &B,
+) -> Result<FinalizedSteadyStokesMini2dProblem, Diagnostic>
+where
+    B: Fn([f64; DIMENSION]) -> Result<[f64; DIMENSION], Diagnostic> + Sync,
+{
+    if program != binding.program() {
+        return Err(invalid(
+            "profile binding was admitted from another exact Model program",
+        ));
+    }
+    binding.revalidate()?;
+    let model = binding.model();
+    let physical = binding.mesh().mesh();
+    let mesh_reference = binding.mesh().artifact_reference()?;
+    let scales = resolved_stokes_scales(program, resolved, mesh_reference, model)?;
+    let normalized = normalize_geometry_mesh(model.bounds(), physical, scales.length_value())?;
+    let geometry_boundary =
+        dissipation_profile_boundary(model, binding, physical, &normalized, scales)?;
+    let carried = validate_model_owned_essential_transport(
+        &normalized,
+        &geometry_boundary.fixed_velocity,
+        transport,
+    )?;
+    let essential_velocity = |coordinate: [f64; DIMENSION]| {
+        carried
+            .get(&(coordinate[0].to_bits(), coordinate[1].to_bits()))
+            .copied()
+            .ok_or_else(|| {
+                invalid("an essential profile vertex is absent from the validated Model replay")
+            })
+    };
+    finalize_lowered_steady_stokes_mini_2d_with_assembly(
+        resolved,
+        mesh_reference,
+        model,
+        physical,
+        &normalized,
+        &geometry_boundary.boundary,
+        scales,
+        &essential_velocity,
+        &REFERENCE_ASSEMBLY_BACKEND,
+    )
+}
+
+fn dissipation_profile_boundary(
+    model: &SteadyIncompressibleStokesModel2d,
+    binding: &StokesDissipationGeometryModelBinding2d,
+    physical: &SimplicialMesh,
+    normalized: &SimplicialMesh,
+    scales: SteadyStokesScaleProfile2d,
+) -> Result<GeometryBoundary2d, Diagnostic> {
+    let roles = [
+        "body",
+        "outer_x_lower",
+        "outer_x_upper",
+        "outer_y_lower",
+        "outer_y_upper",
+    ];
+    let mut facet_owners = BTreeMap::new();
+    let mut vertex_roles = BTreeMap::<usize, BTreeSet<&str>>::new();
+    let mut fixed_velocity = vec![None; physical.vertices().len()];
+    for role in roles {
+        let key = StokesBoundaryKey2d::NamedEntitySet(role.to_owned());
+        let entry = model
+            .boundary_entry(&key)
+            .ok_or_else(|| invalid(format!("profile Model omits exact Boundary `{role}`")))?;
+        let body = role == "body";
+        if (body && entry.disposition != PhysicalBoundaryDisposition::TraceZero)
+            || (!body
+                && !matches!(
+                    entry.disposition,
+                    PhysicalBoundaryDisposition::Prescribed(law)
+                        if law.quantity() == PhysicalBoundaryQuantity::Trace
+                ))
+        {
+            return Err(invalid(format!(
+                "profile Boundary `{role}` does not retain its exact trace disposition"
+            )));
+        }
+        for &facet in binding.entities(role)? {
+            if facet.dimension() != DIMENSION - 1
+                || !physical
+                    .is_boundary_entity(facet)
+                    .is_some_and(|boundary| boundary)
+                || facet_owners.insert(facet, role).is_some()
+            {
+                return Err(invalid(
+                    "profile boundary membership overlaps or contains a non-boundary facet",
+                ));
+            }
+            let outward = facet_outward_unit_normal(physical, facet)?;
+            for vertex in physical
+                .entity_vertices(facet)
+                .expect("accepted profile facet owns vertices")
+            {
+                let index = vertex.index();
+                vertex_roles.entry(index).or_default().insert(role);
+                let value = if body {
+                    [0.0; DIMENSION]
+                } else {
+                    model
+                        .prescribed_velocity(&key, Some(outward), &physical.vertices()[index])?
+                        .ok_or_else(|| {
+                            invalid(format!(
+                                "profile Boundary `{role}` has no retained complete trace"
+                            ))
+                        })?
+                }
+                .map(|component| component / scales.velocity_value());
+                if fixed_velocity[index].is_some_and(|existing| existing != value) {
+                    return Err(invalid(
+                        "Model-owned profile traces disagree at a shared essential vertex",
+                    ));
+                }
+                fixed_velocity[index] = Some(value);
+            }
+        }
+    }
+    if vertex_roles
+        .values()
+        .any(|owned| owned.contains("body") && owned.iter().any(|role| role.starts_with("outer_")))
+    {
+        return Err(invalid(
+            "profile body and outer roles share an essential mesh vertex",
+        ));
+    }
+    let boundary_facets = (0..physical.entity_count(DIMENSION - 1).expect("2D facets"))
+        .map(|index| MeshEntity::new(DIMENSION - 1, index))
+        .filter(|facet| {
+            physical
+                .is_boundary_entity(*facet)
+                .expect("mesh owns every facet")
+        })
+        .collect::<BTreeSet<_>>();
+    if facet_owners.keys().copied().collect::<BTreeSet<_>>() != boundary_facets
+        || (0..physical.vertices().len()).any(|index| {
+            physical
+                .is_boundary_entity(MeshEntity::new(0, index))
+                .expect("mesh owns every vertex")
+                != fixed_velocity[index].is_some()
+        })
+    {
+        return Err(invalid(
+            "profile boundary roles do not exhaust the exact boundary exactly once",
+        ));
+    }
+    let facets = facet_owners
+        .keys()
+        .copied()
+        .map(|facet| {
+            SimplicialMiniStokesBoundaryFacet2d::new(
+                facet,
+                SimplicialMiniStokesBoundaryCondition2d::EssentialVelocity,
+            )
+        })
+        .collect::<Vec<_>>();
+    let boundary = SimplicialMiniStokesBoundary2d::new(normalized, facets)
+        .map_err(|error| invalid(error.message()))?;
+    Ok(GeometryBoundary2d {
+        boundary,
+        fixed_velocity,
+    })
+}
+
+pub(super) fn require_stokes_dissipation_mesh_predicates(
+    profile: &StokesDissipationProfileGeometry2d,
+    mesh: &SimplicialMesh,
+    reference: &SimplicialMesh,
+    sectors: usize,
+    minimum_signed_area_m2: f64,
+    minimum_clearance_radius_multiple: f64,
+    coordinate_tolerance_m: f64,
+) -> Result<(), Diagnostic> {
+    if mesh.vertices().len() != reference.vertices().len() {
+        return Err(invalid(
+            "realized topology has a different vertex inventory",
+        ));
+    }
+    for angle_index in 0..sectors {
+        let angle = std::f64::consts::TAU * angle_index as f64 / sectors as f64;
+        let radius = profile.radius(angle)?;
+        let expected_body = [radius * angle.cos(), radius * angle.sin()];
+        if mesh.vertices()[angle_index]
+            .iter()
+            .zip(expected_body)
+            .any(|(actual, expected)| (actual - expected).abs() > coordinate_tolerance_m)
+            || mesh.vertices()[mesh.vertices().len() - sectors + angle_index]
+                != reference.vertices()[reference.vertices().len() - sectors + angle_index]
+        {
+            return Err(invalid(
+                "realized body samples or fixed outer vertices differ from exact ownership",
+            ));
+        }
+    }
+    let minimum_signed_area = mesh
+        .cells()
+        .iter()
+        .map(|cell| {
+            let (a, b, c) = (
+                &mesh.vertices()[cell[0]],
+                &mesh.vertices()[cell[1]],
+                &mesh.vertices()[cell[2]],
+            );
+            0.5 * ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]))
+        })
+        .fold(f64::INFINITY, f64::min);
+    let half_width = 10.0 * profile.area_radius_m();
+    let clearance = mesh.vertices()[..sectors]
+        .iter()
+        .map(|point| half_width - point[0].abs().max(point[1].abs()))
+        .fold(f64::INFINITY, f64::min);
+    if !minimum_signed_area.is_finite()
+        || minimum_signed_area <= minimum_signed_area_m2
+        || !clearance.is_finite()
+        || clearance <= minimum_clearance_radius_multiple * profile.area_radius_m()
+    {
+        return Err(invalid(
+            "realized topology violates signed-area or body-clearance predicate",
+        ));
+    }
+    Ok(())
 }
 
 fn boundary_flux(
