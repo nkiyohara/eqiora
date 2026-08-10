@@ -1,16 +1,31 @@
 use std::collections::BTreeMap;
+use std::num::NonZeroUsize;
 
 use eqiora_compiler::compile;
-use eqiora_core::RawId;
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, RawId};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
+use eqiora_realization::{
+    FieldwiseRealizationRequest, RealizationCapabilities, RealizationRevision,
+    ResolvedFieldwiseRealization, SemanticRevision, resolve_fieldwise,
+};
 use eqiora_schema::kernel::{BoundarySide, DomainKind, KernelNode};
 use eqiora_sem::KernelProgram;
+use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan};
 
 use super::{
     ModelOwnedEssentialVelocityReplay2d, SteadyStokesPrescribedVelocityTrace2d,
     admit_model_owned_essential_velocity_2d, lower_prescribed_velocity_trace_2d,
 };
-use crate::canonical_stokes::dissipation_profile::StokesDissipationGeometryModelBinding2d;
+use crate::canonical_stokes::api::StokesBoundaryKey2d;
+use crate::canonical_stokes::dissipation_profile::{
+    StokesDissipationGeometryModelBinding2d, StokesDissipationTopologyRole2d,
+    e1_stokes_dissipation_sealed_inputs_v1,
+};
+use crate::canonical_stokes::geometry_realization::finalize_resolved_stokes_dissipation_profile_mini_2d_with_transport;
+use crate::canonical_stokes::realization::{
+    SteadyStokesScaleProfile2d, steady_stokes_fieldwise_requirements_for_model_2d,
+    steady_stokes_mini_plan_for_model_2d,
+};
 use crate::canonical_stokes::support::relations_on;
 
 const SEALED_INPUT_SHA256: &str =
@@ -24,6 +39,22 @@ const ROLE_NAMES: [&str; 5] = [
     "outer_y_minus",
     "outer_y_plus",
 ];
+
+const LENGTH: DimExponents = DimExponents {
+    length: 1,
+    ..DimExponents::DIMENSIONLESS
+};
+const VELOCITY: DimExponents = DimExponents {
+    length: 1,
+    time: -1,
+    ..DimExponents::DIMENSIONLESS
+};
+const PRESSURE: DimExponents = DimExponents {
+    mass: 1,
+    length: -1,
+    time: -2,
+    ..DimExponents::DIMENSIONLESS
+};
 
 const SOURCE: &str = r#"
 model stokes_e1_prescribed_velocity {
@@ -230,6 +261,210 @@ fn sealed_selector_and_complete_model_trace_reach_the_ordinary_positive_first() 
         .expect("the callback transports only replayed Model values");
 }
 
+type EssentialTransport = BTreeMap<(u64, u64), [f64; 2]>;
+
+fn real_profile_bindings_reach_finalized_system_admission() {
+    for role in [
+        StokesDissipationTopologyRole2d::Reference,
+        StokesDissipationTopologyRole2d::Refined,
+    ] {
+        let _ = finalized_profile_context(role);
+    }
+}
+
+fn real_profile_finalizer_rejects_transport_mutants_after_usable_positives() {
+    let (binding, resolved, mut callback_mismatch) =
+        finalized_profile_context(StokesDissipationTopologyRole2d::Reference);
+    let mismatched = callback_mismatch
+        .values_mut()
+        .find(|value| **value != [0.0; 2])
+        .expect("the admitted outer trace is nonzero");
+    *mismatched = [mismatched[1], mismatched[0]];
+    assert!(
+        finalize_profile_with_transport(&binding, &resolved, &callback_mismatch).is_err(),
+        "a caller-owned rotated vector must not reach finalized system admission"
+    );
+
+    let (binding, resolved, mut normal_only) =
+        finalized_profile_context(StokesDissipationTopologyRole2d::Refined);
+    let (lower_y, upper_y) = normal_only
+        .iter()
+        .filter(|(_, value)| **value != [0.0; 2])
+        .map(|((_, y), _)| f64::from_bits(*y))
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lower, upper), y| {
+            (lower.min(y), upper.max(y))
+        });
+    let mut horizontal_vertices = 0;
+    for ((_, y), value) in &mut normal_only {
+        let y = f64::from_bits(*y);
+        if *value != [0.0; 2] && (y == lower_y || y == upper_y) {
+            *value = [0.0; 2];
+            horizontal_vertices += 1;
+        }
+    }
+    assert!(
+        horizontal_vertices > 0,
+        "the normal projection must erase a horizontal tangential trace"
+    );
+    assert!(
+        finalize_profile_with_transport(&binding, &resolved, &normal_only).is_err(),
+        "a normal-only projection must not reach finalized system admission"
+    );
+}
+
+fn finalized_profile_context(
+    role: StokesDissipationTopologyRole2d,
+) -> (
+    StokesDissipationGeometryModelBinding2d,
+    ResolvedFieldwiseRealization,
+    EssentialTransport,
+) {
+    let binding = StokesDissipationGeometryModelBinding2d::from_e1_sealed_inputs_v1(
+        e1_stokes_dissipation_sealed_inputs_v1(),
+        role,
+    )
+    .expect("the exact profile/topology binding is admitted");
+    binding
+        .revalidate_e1_profile_topology()
+        .expect("the exact binding replays before Realization");
+    let scales = profile_scales(&binding);
+    let resolved = resolved_profile_realization(&binding, scales);
+    let transport = exact_model_transport(&binding, scales);
+    finalize_profile_with_transport(&binding, &resolved, &transport)
+        .expect("the exact Model-derived transport reaches finalized system admission");
+    (binding, resolved, transport)
+}
+
+fn profile_scales(binding: &StokesDissipationGeometryModelBinding2d) -> SteadyStokesScaleProfile2d {
+    let model = binding.model();
+    let mesh = binding.mesh().mesh();
+    let facet = binding.entities("outer_x_lower").unwrap()[0];
+    let vertex = mesh
+        .entity_vertices(facet)
+        .expect("an admitted outer facet owns vertices")[0]
+        .index();
+    let velocity = model
+        .prescribed_velocity(
+            &StokesBoundaryKey2d::NamedEntitySet("outer_x_lower".to_owned()),
+            None,
+            &mesh.vertices()[vertex],
+        )
+        .expect("the retained complete trace evaluates")
+        .expect("the outer role owns a prescribed trace")[0];
+    let length = binding.profile().area_radius_m();
+    let pressure = model.dynamic_viscosity() * velocity / length;
+    SteadyStokesScaleProfile2d::new(
+        DynQuantity::new(length, LENGTH),
+        DynQuantity::new(velocity, VELOCITY),
+        DynQuantity::new(pressure, PRESSURE),
+    )
+    .expect("the sealed Model/profile derive positive coherent-SI scales")
+}
+
+fn resolved_profile_realization(
+    binding: &StokesDissipationGeometryModelBinding2d,
+    scales: SteadyStokesScaleProfile2d,
+) -> ResolvedFieldwiseRealization {
+    let solver = SolverPlan::new(
+        LinearSolver::MinimumResidual,
+        1.0e-11,
+        1.0e-13,
+        NonZeroUsize::new(10_000).expect("positive solver plan bound"),
+    )
+    .expect("the existing reference MINI solver tuple is valid")
+    .with_preconditioner(PreconditionerPolicy::Identity)
+    .with_reduction(ReductionPolicy::Reproducible);
+    let plan = steady_stokes_mini_plan_for_model_2d(
+        binding.model(),
+        binding.mesh().artifact_reference().expect("mesh identity"),
+        scales,
+        solver,
+    )
+    .expect("the private profile Model admits the existing MINI plan");
+    resolve_fieldwise(
+        &FieldwiseRealizationRequest::explicit(
+            binding.program().model(),
+            SemanticRevision::new(binding.program().revision().0),
+            RealizationRevision::new(407),
+            plan,
+        ),
+        steady_stokes_fieldwise_requirements_for_model_2d(binding.model()),
+        &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
+    )
+    .expect("the ordinary reference capability resolves the profile plan")
+}
+
+fn exact_model_transport(
+    binding: &StokesDissipationGeometryModelBinding2d,
+    scales: SteadyStokesScaleProfile2d,
+) -> EssentialTransport {
+    let model = binding.model();
+    let mesh = binding.mesh().mesh();
+    let mut transport = BTreeMap::new();
+    for role in [
+        "body",
+        "outer_x_lower",
+        "outer_x_upper",
+        "outer_y_lower",
+        "outer_y_upper",
+    ] {
+        let key = StokesBoundaryKey2d::NamedEntitySet(role.to_owned());
+        for &facet in binding.entities(role).expect("the exact role is retained") {
+            for vertex in mesh
+                .entity_vertices(facet)
+                .expect("an admitted boundary facet owns vertices")
+            {
+                let coordinate = &mesh.vertices()[vertex.index()];
+                let value = if role == "body" {
+                    [0.0; 2]
+                } else {
+                    model
+                        .prescribed_velocity(&key, None, coordinate)
+                        .expect("the retained complete Model law evaluates")
+                        .expect("the outer role owns a prescribed trace")
+                        .map(|component| component / scales.velocity_value())
+                };
+                let normalized = (
+                    ((coordinate[0] - model.bounds()[0][0]) / scales.length_value()).to_bits(),
+                    ((coordinate[1] - model.bounds()[1][0]) / scales.length_value()).to_bits(),
+                );
+                if let Some(previous) = transport.insert(normalized, value) {
+                    assert_eq!(
+                        previous, value,
+                        "adjacent exact Model roles must agree before vertex deduplication"
+                    );
+                }
+            }
+        }
+    }
+    transport
+}
+
+fn finalize_profile_with_transport(
+    binding: &StokesDissipationGeometryModelBinding2d,
+    resolved: &ResolvedFieldwiseRealization,
+    transport: &EssentialTransport,
+) -> Result<(), Diagnostic> {
+    let callback = |coordinate: [f64; 2]| {
+        transport
+            .get(&(coordinate[0].to_bits(), coordinate[1].to_bits()))
+            .copied()
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    eqiora_core::diagnostic::codes::INVALID_REALIZATION,
+                    "transport omitted an exact Model-owned essential vertex",
+                )
+            })
+    };
+    finalize_resolved_stokes_dissipation_profile_mini_2d_with_transport(
+        binding.program(),
+        resolved,
+        binding,
+        &callback,
+    )
+    .map(|_| ())
+}
+
 fn normal_only_incomplete_and_equal_value_identity_mutants_fail_closed() {
     let normal_source = SOURCE
         .replace(
@@ -346,12 +581,14 @@ fn registered_evidence() {
             StokesDissipationGeometryModelBinding2d::run_e1_profile_topology_ordinary_positives,
         );
         scope.spawn(sealed_selector_and_complete_model_trace_reach_the_ordinary_positive_first);
+        scope.spawn(real_profile_bindings_reach_finalized_system_admission);
     });
 
     std::thread::scope(|scope| {
         scope.spawn(StokesDissipationGeometryModelBinding2d::run_e1_profile_topology_falsifiers);
         scope.spawn(normal_only_incomplete_and_equal_value_identity_mutants_fail_closed);
         scope.spawn(ownership_corner_and_callback_mutants_reject_without_partial_admission);
+        scope.spawn(real_profile_finalizer_rejects_transport_mutants_after_usable_positives);
     });
 }
 
