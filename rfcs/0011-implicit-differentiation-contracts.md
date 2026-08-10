@@ -356,6 +356,32 @@ versioned operator/linearization identity; no cache may guess identity from a
 pointer or matrix shape. The prepared-solver lifecycle is introduced with
 that artifact identity rather than added now as an uncheckable cache hint.
 
+### Materialized canonical direct-output composition
+
+An accepted relation/output pair may additionally borrow its exact
+`CanonicalCsrSystemView` through
+`AcceptedOutputLinearization::new_with_canonical_state_jacobian`. This is an
+application-established association, not identity inferred from CSR bytes,
+shape, allocation, or solution agreement. Construction validates the accepted
+primal and complete relation/output/source layout.
+
+`LinearSolveRequest::solve_canonical_oriented` combines that coefficient
+source with one separately derived right-hand side and an existing
+`LinearOperatorOrientation`. The source retains its captured primal right-hand
+side; it is never substituted for `-R_p dp` or `J_w^T`. The bounded faer
+`SparseLu` path factors the original canonical coefficients and applies the
+normal or transpose solve of that factor. It reports and independently checks
+the submitted orientation and derivative problem.
+
+Backend acceptance is necessary but not sufficient because a same-shape
+foreign canonical source can satisfy its own residual. Before publishing an
+output tangent or gradient, differentiation therefore replays the returned
+vector through the accepted relation's JVP or VJP and compares that residual
+with the solve report's target. Existing pairs constructed with `new` retain
+the matrix-free route. This composition adds no explicit transpose CSR,
+prepared-factor lifecycle, cross-call factor reuse, Stokes symmetry shortcut,
+or general materialization requirement.
+
 ### Jacobian operator views
 
 At one `LinearizedRelation`, four views follow mechanically:
@@ -542,6 +568,14 @@ construction changes internally to record orientation. External backends
 already return Eqiora-owned reports through the acceptance function and do not
 construct reports directly.
 
+The additive canonical-oriented request permits a canonical coefficient
+source, derivative-specific right-hand side, and transposed orientation to
+coexist. External backends may reject that combination with their existing
+structured capability diagnostic; they must not substitute the source's
+primal right-hand side, relabel the orientation, or materialize a second source.
+The old accepted-output constructor and all matrix-free callers remain
+source-compatible.
+
 The scalar implicit case, one assembled spatial residual under two
 discretizations, and one time-step residual now have independent evidence.
 The spatial application API additionally separates one static program identity
@@ -567,6 +601,12 @@ Realization/run-provenance RFC.
 - Require a nonsymmetric `R_w` so a mistaken normal solve cannot pass.
 - Verify normal and transposed true residuals independently through the same
   solver acceptance path.
+- Bind a nonsymmetric canonical 5x5 relation whose primal right-hand side is
+  zero and whose distinct derivative right-hand side is nonzero; run ordinary
+  direct normal and transposed output differentiation first, then reject a
+  provider reading the primal RHS, a transpose route returning the normal
+  solution, and a same-shape foreign canonical source at their named residual
+  boundaries.
 - Differentiate one canonical 2D Poisson problem with explicitly selected
   coefficient, source, and essential-boundary Parameters. Under both Q1 FEM
   and TPFA FVM, compare every forward state component and an adjoint objective
@@ -590,6 +630,10 @@ Realization/run-provenance RFC.
 The smooth verification capability is named
 `differentiation.implicit-relation`; it does not imply spatial, time-dependent,
 hybrid, GPU, or distributed differentiation. The separate
+`differentiation.materialized-direct-output` capability covers only one
+host-local real-`f64` faer `SparseLu` reference with independently replayed
+normal/transposed relation actions; it does not claim prepared factors,
+reuse, other backends, or Stokes E2. The separate
 `differentiation.spatial-poisson-fem-fvm` capability covers only the Cartesian
 Poisson boundary and discretizations stated above. The separate
 `differentiation.discrete-implicit-step` capability covers only the accepted

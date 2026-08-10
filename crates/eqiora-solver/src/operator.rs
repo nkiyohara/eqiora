@@ -208,6 +208,21 @@ impl<'a> LinearProblem<'a> {
         Ok(problem)
     }
 
+    pub(crate) fn from_oriented_canonical(
+        operator: &'a dyn LinearOperator,
+        system: &'a CanonicalCsrSystemView,
+        right_hand_side: &'a [f64],
+    ) -> Result<Self, Diagnostic> {
+        if operator.rows() != system.rows() || operator.columns() != system.columns() {
+            return Err(solve_failed(
+                "oriented canonical action and captured CSR source must have identical dimensions",
+            ));
+        }
+        let mut problem = Self::new(operator, right_hand_side, system.properties())?;
+        problem.canonical_csr_system = Some(system);
+        Ok(problem)
+    }
+
     /// Attach an explicit initial guess.
     ///
     /// # Errors
@@ -248,11 +263,12 @@ impl<'a> LinearProblem<'a> {
         self.properties
     }
 
-    /// Exact captured CSR system when the problem was created from that single
-    /// canonical owner.
+    /// Exact captured CSR coefficient source associated with this problem.
     ///
-    /// Hand-built and transposed problems return `None`; a backend requiring
-    /// materialized sparse storage must fail closed in that case.
+    /// The problem right-hand side may be derivative-specific and therefore
+    /// differ from the source's captured primal right-hand side. Hand-built
+    /// problems return `None`; a backend requiring materialized sparse storage
+    /// must fail closed in that case.
     #[must_use]
     pub const fn canonical_csr_system(&self) -> Option<&'a CanonicalCsrSystemView> {
         self.canonical_csr_system

@@ -1,0 +1,65 @@
+id = "differentiation.materialized-direct-output"
+status = "verified"
+scope = "one-host-local-real-f64-faer-sparse-lu-materialized-direct-output-pair"
+reference_kind = "precommitted-exact-rational-normal-transpose-and-three-mutants"
+
+capabilities = [
+  "canonical-coefficient-source-with-derivative-rhs",
+  "materialized-direct-forward-output-sensitivity",
+  "materialized-direct-adjoint-output-gradient",
+  "sparse-lu-normal-and-transposed-orientation",
+  "post-solve-relation-jvp-vjp-replay",
+  "wrong-source-rhs-falsifier",
+  "wrong-transpose-result-falsifier",
+  "foreign-canonical-source-falsifier",
+]
+
+[problem]
+relation = "R(w,p) = A w - b p at structural w=p=0"
+output = "J(w,p) = b^T w"
+state_dimension = 5
+parameter_dimension = 1
+output_dimension = 1
+scalar = "host-local real f64"
+backend = "faer 0.24.4 SparseLu"
+operator_property = "General"
+primal_rhs = "structural zero q"
+derivative_rhs = "nonzero b from the bound sparse-LU fixture"
+
+[oracle]
+fixture = "verify/numerics/linear-backends/expected/sparse-lu-contract.json"
+fixture_sha256 = "666309634cca3d6be5d16d8e90e6ad01d0b92694cbb70fd03acce38ef8e98780"
+reference = "references/README.md"
+stores_reduced_expected_scalar = false
+new_tolerance = false
+
+[acceptance]
+ordinary_positive_pair_precedes_falsifiers = true
+normal_solution_uses_bound_x = true
+transposed_solution_uses_bound_y = true
+componentwise_ceiling_uses_bound_fixture = true
+output_tangent_and_gradient_are_symbolic_projections = true
+backend_and_relation_residuals_must_pass = true
+
+[falsifiers]
+wrong_source_rhs = "after derivative admission, solve the source primal q and reject the zero result against derivative b"
+wrong_transpose_result = "preserve transposed reporting while returning the normal x and reject by relation VJP replay"
+foreign_source = "solve the admitted same-shape cyclic-row source and reject by relation JVP replay"
+
+[claim_boundary]
+matrix_free_old_constructor_preserved = true
+stokes_e2 = false
+prepared_factorization = false
+factor_reuse = false
+explicit_transpose_csr = false
+general_materialization = false
+other_backends = false
+complex = false
+device = false
+distributed = false
+performance = false
+persistence = false
+
+[evidence]
+package = "eqiora"
+test = "materialized_direct_differentiation"
