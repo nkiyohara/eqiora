@@ -49,7 +49,7 @@ by hand.
 | `preserved_evidence` | 40 | invariant evidence — the same path in both states — whose deletion the reset must never reach |
 | `promoted_evidence` | 1 | evidence whose bytes survive at a different path, so it is invariant at neither |
 | `post_reset_admitted` | 17 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
-| `post_reset_fixture_admitted` | 14 | later fixtures discovered by exact search signals or positive same-line identity-literal counts, admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
+| `post_reset_fixture_admitted` | 15 | later fixtures discovered by exact search signals or positive same-line identity-literal counts, admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
 
 **44, 304 and 13 are not one partition of 338.** What partitions the inventory
 is 34 + 304: the retired paths that are inventory members, plus the preserved
@@ -271,10 +271,19 @@ Its bytes and wire meaning remain owned by that independent oracle; this
 transition permission owns only the exact fixture path, ordered signal list,
 and zero count. The fourteen rows still carry 28 occurrences in aggregate.
 
+The `geometry.stokes-dissipation-profile-2d` independent evidence authority
+adds the exact minified
+`crates/eqiora-numerics/src/canonical_stokes/dissipation_profile/e1-sealed-inputs-v1.json`
+path. It contains no recorded search token and carries five source, contract,
+and review SHA-256 identities on its single `scientific_model`-bearing line.
+Those are source identities, not Model artifact identities; this permission
+owns only the exact path, empty search shape, and count. The fifteenth row
+raises the aggregate to 33 without creating a Model artifact identity claim.
+
 `search.transition.post_reset_fixture_admitted` therefore records a second
 containment-only permission:
 
-- each of the fourteen exact paths is optional after the reset and absent before it;
+- each of the fifteen exact paths is optional after the reset and absent before it;
 - a present path must carry its exact ordered search-signal list and exact
   same-line lower-hex-64 literal occurrence count; the signal list may be empty
   only when the occurrence count is positive, and every non-overlapping
@@ -284,13 +293,14 @@ containment-only permission:
 - no row joins the inventory, retired, required, preserved-evidence, promoted,
   promotion, identity-free admitted, or later-classified set; and
 - no glob, directory, suffix, expected-file naming convention, or sibling
-  proximity admits a fifteenth fixture.
+  proximity admits a sixteenth fixture.
 
-Every subset of the seventeen identity-free paths and every subset of the fourteen
+Every subset of the seventeen identity-free paths and every subset of the fifteen
 fixture paths is accepted independently, including neither set being present.
 Synthetic mutants remove, add, substitute, or reorder a search signal; change
-the #116 two-occurrence row to one or three; change the other zero, one, four,
-or thirteen counts; substitute a path; alter every metadata field; swap the MCP
+the #116 two-occurrence row or the Stokes E1 five-occurrence row; change the
+other zero, one, four, or thirteen counts; substitute a path; alter every
+metadata field; swap the MCP
 production and fixture classes; and attempt overlap with both historical and
 later-classified paths. Another digest in the same store, a backup or alternate
 suffix, a nested or sibling store, another package-conformance fixture, a
@@ -577,8 +587,9 @@ identity-free paths and the RFC exist in this checkout, so the live tree
 exercises their exact observed signals and zero-literal counts; the other three
 RFC 0085 identity-free paths, all six
 `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` identity-free
-paths, the MCP production path, and all fourteen fixtures remain optional
-successor paths.
+paths and the MCP production path remain optional successors. All fifteen
+fixture rows remain optional; the Stokes E1 sealed input is the newly observed
+exact path in this checkout.
 Synthetic post-reset states additionally exercise every optional subset and the
 mutants through the same byte reader.
 

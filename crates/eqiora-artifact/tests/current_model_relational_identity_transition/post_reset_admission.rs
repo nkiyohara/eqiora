@@ -34,7 +34,7 @@ const IDENTITY_FREE_PATH_ORDER: [&str; 17] = [
     "crates/eqiora/src/bin/eqiora-mcp/tool.rs",
 ];
 
-const FIXTURE_PATH_ORDER: [&str; 14] = [
+const FIXTURE_PATH_ORDER: [&str; 15] = [
     "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/model.json",
     "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/\
      geometry-identity.json",
@@ -56,6 +56,8 @@ const FIXTURE_PATH_ORDER: [&str; 14] = [
     "verify/interfaces/python-package-conformance/models/false-scientific-claim/store/\
      d1e08b039c49c53cb963f314d424277a49e959b7d14a64208a86be972d06caf7.json",
     "verify/interfaces/mcp-stdio-compile-check/expected/tool-definition.json",
+    "crates/eqiora-numerics/src/canonical_stokes/dissipation_profile/\
+     e1-sealed-inputs-v1.json",
 ];
 
 fn rows_have_exact_unique_path_order(rows: &[PostResetAdmitted], expected: &[&str]) -> bool {
@@ -405,11 +407,34 @@ fn package_conformance_fixture() -> ExpectedAdmission {
     }
 }
 
+fn stokes_e1_sealed_input_fixture() -> ExpectedAdmission {
+    ExpectedAdmission {
+        path: "crates/eqiora-numerics/src/canonical_stokes/dissipation_profile/\
+               e1-sealed-inputs-v1.json",
+        class: "source-or-package-identity",
+        owner: "geometry.stokes-dissipation-profile-2d independent evidence authority",
+        note: "the exact minified E1 sealed input has no recorded search token and carries five \
+               source, contract, and review SHA-256 identities on its single \
+               `scientific_model`-bearing line. Admission owns only this path, empty search \
+               shape, and occurrence count; the sealed-input authority retains ownership of \
+               those bytes and identities, and this creates no Model artifact identity claim."
+            .to_owned(),
+        source: format!(
+            "{{\"scientific_model\":{{}},\"authority_sha256\":[{}]}}\n",
+            (0..5)
+                .map(|_| format!("\"{}\"", "e".repeat(64)))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+    }
+}
+
 fn all_fixtures() -> Vec<ExpectedAdmission> {
     let mut rows = rfc85_fixtures();
     rows.extend(issue118_fixtures());
     rows.push(package_conformance_fixture());
     rows.push(issue79_fixture());
+    rows.push(stokes_e1_sealed_input_fixture());
     rows
 }
 
@@ -505,14 +530,14 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
             .unwrap()
     );
     assert_eq!(identity_free.len(), 17);
-    assert_eq!(fixtures.len(), 14);
+    assert_eq!(fixtures.len(), 15);
     assert_eq!(
         contract
             .post_reset_fixture_admitted
             .iter()
             .map(|entry| entry.identity_literals)
             .sum::<usize>(),
-        28
+        33
     );
 
     // Every historical count is still its own. Listing an admitted path in the
@@ -579,19 +604,21 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
 #[test]
 fn admission_arrays_reject_row_reorder_and_duplicate_paths() {
     let contract = TransitionContract::from_classification();
-    for (name, rows, expected, predecessor, appended) in [
+    for (name, rows, expected, predecessor, appended, zero_literal) in [
         (
             "identity-free",
             contract.post_reset_admitted.as_slice(),
             IDENTITY_FREE_PATH_ORDER.as_slice(),
             15,
             16,
+            16,
         ),
         (
             "fixture",
             contract.post_reset_fixture_admitted.as_slice(),
             FIXTURE_PATH_ORDER.as_slice(),
-            12,
+            13,
+            14,
             13,
         ),
     ] {
@@ -607,10 +634,7 @@ fn admission_arrays_reject_row_reorder_and_duplicate_paths() {
             "the {name} appended row must not move before its accepted predecessor"
         );
 
-        let zero_literal_row = rows
-            .last()
-            .expect("each permission has one appended row")
-            .clone();
+        let zero_literal_row = rows[zero_literal].clone();
         assert_eq!(zero_literal_row.identity_literals, 0);
 
         let mut extra_duplicate = rows.to_vec();
@@ -915,6 +939,12 @@ fn no_glob_directory_suffix_or_proximity_admission_exists() {
          navier_stokes_geometry_realization/tests_copy.rs",
         "crates/eqiora-numerics/src/canonical_stokes/\
          navier_stokes_geometry_realization/tests/helpers.rs",
+        "crates/eqiora-numerics/src/canonical_stokes/dissipation_profile/\
+         e1-sealed-inputs-v2.json",
+        "crates/eqiora-numerics/src/canonical_stokes/dissipation_profile/\
+         e1-sealed-inputs-v1.json.bak",
+        "crates/eqiora-numerics/src/canonical_stokes/dissipation_profile/expected/\
+         e1-sealed-inputs-v1.json",
         "verify/interfaces/python-package-conformance/models/false-scientific-claim/store/\
          ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.json",
         "verify/interfaces/python-package-conformance/models/false-scientific-claim/store/\
