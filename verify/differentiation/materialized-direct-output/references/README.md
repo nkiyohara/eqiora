@@ -13,7 +13,7 @@ the proof to an independent reference owner.
 
 The controlling authorities are:
 
-- the sealed Issue #408 direct-solver composition decision v2, SHA-256
+- the sealed direct-solver composition decision v2, SHA-256
   `4e59db8e841137e81a1b014afc1ade8239b8dd4c9cfd839f19a5f5b8eebc26ac`;
 - its accepted focused fresh review, SHA-256
   `ede0a38fb3635ae2c08b9c7792f3735a012fba175438de8212c28e787b8bae36`;
