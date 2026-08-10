@@ -33,7 +33,8 @@ type ViewSnapshot = {
   };
 };
 
-// Snapshot-only by decision (issue #312 H2, O8): the shipped view exposes an
+// `interfaces.python-rich-mesh-display` evidence O8 keeps the shipped view
+// snapshot-only. It exposes an
 // observation seam and no client-side control seam. The comm-close triggers
 // that previously lived here as `closeComm()` are host-driven kernel actions
 // in the fixtures; see closeMainDelegate/closeTemporaryDelegate below.
@@ -80,7 +81,8 @@ class RuntimeTraffic {
   }
 }
 
-// O9 (issue #312 H2): `client_write_or_bridge` is discharged by observing the
+// `interfaces.python-rich-mesh-display` evidence O9 discharges
+// `client_write_or_bridge` by observing the
 // transport itself, not the view's self-reported counters. Any client model
 // write, save, send, or state bridge must serialize the model identity into a
 // client-to-server payload (a Jupyter `comm_msg` names its comm_id, which is
@@ -394,7 +396,8 @@ async function assertPythonMeshUnchanged(page: Page): Promise<void> {
   }
 }
 
-// O7 (issue #312 H2): the comm-close triggers are kernel-side affordances in
+// `interfaces.python-rich-mesh-display` evidence O7 keeps the comm-close
+// triggers as kernel-side affordances in
 // the fixtures, driven through host UI this spec already drives (JupyterLab
 // cell click + Control+Enter; a marimo button). The kernel names the target
 // delegate solely from kernel-side state — the Mesh object the fixture holds,
@@ -539,7 +542,8 @@ test("bare Mesh owns exact interaction, lifecycle, identity, and loopback-only o
   expect(flagged.length).toBeGreaterThan(0);
 });
 
-// Precommitted falsifier for the O6 write-half deletion (issue #312 H2): the
+// Precommitted falsifier for `interfaces.python-rich-mesh-display` evidence O6:
+// the
 // shipped per-view oracle must be snapshot-only. Expected RED on any build
 // whose oracle still carries the retired `closeComm` client-to-kernel control
 // member; GREEN once the write half is deleted. Kept as its own test so the

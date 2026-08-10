@@ -454,7 +454,9 @@ def test_unexpected_delegate_shape_closes_comm_and_returns_exact_corrupt_fallbac
     reason="the exact eqiora[notebook] candidate profile owns private payload evidence",
 )
 def test_model_identity_trait_is_exact_and_rejects_incoming_mutation() -> None:
-    """Issue #312 H2 O12: the identity trait's client-facing immutability.
+    """Evidence O12: client-facing identity immutability.
+
+    The stable owner is ``interfaces.python-rich-mesh-display``.
 
     Precommitted by the non-writer evidence owner from the accepted decision
     (`issue312-h2-returned-judgements-decision-v1.md` §3.3); the implementer
@@ -493,7 +495,9 @@ def test_model_identity_trait_is_exact_and_rejects_incoming_mutation() -> None:
     reason="the exact eqiora[notebook] candidate profile owns private payload evidence",
 )
 def test_model_identity_kernel_side_assignment_is_rejected_symmetrically() -> None:
-    """Issue #312 H2 O12: the accepted symmetric identity guard.
+    """Evidence O12: the accepted symmetric identity guard.
+
+    The stable owner is ``interfaces.python-rich-mesh-display``.
 
     This precommitted evidence is an ordinary RED on the predecessor, where a
     kernel-side assignment silently diverges the synced identity from the comm
@@ -518,7 +522,9 @@ def test_model_identity_kernel_side_assignment_is_rejected_symmetrically() -> No
     reason="the exact eqiora[notebook] candidate profile owns rich protocol evidence",
 )
 def test_shipped_view_module_text_declares_no_write_or_custom_message_bridge() -> None:
-    """Issue #312 H2 O9, static half over the artifact the client executes.
+    """Evidence O9, the static half over the client artifact.
+
+    The stable owner is ``interfaces.python-rich-mesh-display``.
 
     The synced ``_esm`` state is the exact module text every host runs, so
     literal membership here measures the shipped artifact rather than a source
@@ -556,7 +562,9 @@ def test_shipped_view_module_text_declares_no_write_or_custom_message_bridge() -
     reason="the exact eqiora[notebook] candidate profile owns rich protocol evidence",
 )
 def test_incoming_custom_messages_are_inert_and_leave_delegate_open() -> None:
-    """Issue #312 H2 O9: resolves how the custom-message half of
+    """Evidence O9 resolves the custom-message half.
+
+    The stable owner is ``interfaces.python-rich-mesh-display``. It defines how
     ``incoming_payload_writes_and_custom_messages_reject`` is discharged.
 
     Recorded reading (per the accepted review's finding 4): the Jupyter comm

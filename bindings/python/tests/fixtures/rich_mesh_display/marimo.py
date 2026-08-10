@@ -53,7 +53,8 @@ def _(eqiora):
 @app.cell
 def _():
     def current_delegate_model_id(target_mesh):
-        # Issue #312 H2 O7: the kernel names the close target from the Mesh
+        # `interfaces.python-rich-mesh-display` evidence O7: the kernel names
+        # the close target from the Mesh
         # object it holds. The display hook reuses the open delegate, so this
         # returns the current delegate's model id without any browser-supplied
         # value.
@@ -211,7 +212,8 @@ def _(mo):
 
 @app.cell
 def _(close_delegate, close_main_button, current_delegate_model_id, mesh, mo):
-    # Kernel-side close affordance (issue #312 H2 O7): each press closes the
+    # Kernel-side close affordance from `interfaces.python-rich-mesh-display`
+    # evidence O7: each press closes the
     # accepted Mesh's current delegate, named only from the kernel-held Mesh
     # object — no browser-supplied identifier is read — so the same trigger
     # also closes a fresh delegate created by a later redisplay. The counter
@@ -238,7 +240,8 @@ def _(mo):
 
 @app.cell
 def _(close_delegate, close_temporary_button, mo, temporary_model_id):
-    # Kernel-side close affordance (issue #312 H2 O7): the target is the model
+    # Kernel-side close affordance from `interfaces.python-rich-mesh-display`
+    # evidence O7: the target is the model
     # id this app recorded at display time. Note the reactive bound: toggling
     # "Show temporary Mesh" re-runs this cell with a fresh recorded id, so the
     # trigger addresses whichever temporary delegate is current.
