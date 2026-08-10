@@ -26,16 +26,16 @@ const REQUESTS: [f64; 3] = [4.0e-3, 1.0e-3, 2.5e-4];
 const SEEDS: [u64; 3] = [1008, 1016, 1032];
 
 const PRIMARY_L0: &[u8] = include_bytes!(
-    "../../../../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/primary-l0.msh"
+    "../../../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/primary-l0.msh"
 );
 const PRIMARY_L1: &[u8] = include_bytes!(
-    "../../../../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/primary-l1.msh"
+    "../../../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/primary-l1.msh"
 );
 const PRIMARY_L2: &[u8] = include_bytes!(
-    "../../../../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/primary-l2.msh"
+    "../../../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/primary-l2.msh"
 );
 const BIAS_FINE: &[u8] = include_bytes!(
-    "../../../../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/bias-fine.msh"
+    "../../../../../../verify/fluid/flow-past-cylinder-mesh-family-private/references/bias-fine.msh"
 );
 
 #[derive(Clone, Copy)]
