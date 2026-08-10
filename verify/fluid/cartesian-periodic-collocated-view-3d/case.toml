@@ -1,0 +1,141 @@
+id = "fluid.cartesian-periodic-collocated-view-3d"
+status = "verified"
+scope = "one-exact-current-model-and-route-sealed-uniform-4x6x8-cartesian-mesh-collocated-periodic-view-3d"
+reference_kind = "independent-model-boundary-route-sealed-mesh-and-packet-structural-replay"
+
+capabilities = [
+  "cartesian-periodic-collocated-view-exact-current-model-route-sealed-4x6x8",
+]
+
+[authority]
+semantic_profile = "RFC 0071 three-generator Cartesian 3D profile"
+model_identity = "exact current Model artifact, Model ID, and semantic revision"
+mesh_identity = "ordinary CartesianMeshEnvelopeV1 producer over section-4.2 hex literals"
+packet_oracle = "independent last-axis-fastest and modulo replay of accepted evidence-contract-v3 section 7.1"
+oracle_owner = "crates/eqiora-numerics/src/cartesian_periodic_3d/collocated_tests.rs"
+
+[ordinary_path]
+source = "../cartesian-periodic-topology-3d/models/periodic-box.eqi"
+permuted_source = "../cartesian-periodic-topology-3d/models/periodic-box-permuted.eqi"
+stages = [
+  "ordinary .eqi compiler",
+  "whole-Model semantic validation",
+  "current Transaction artifact round-trip",
+  "current Model artifact round-trip and replay",
+  "route-sealed Cartesian mesh v1 artifact round-trip",
+  "three existing spatial-periodic pair compositions",
+  "crate-private collocated 4x6x8 projection view",
+  "independent complete 576-packet structural replay",
+  "private event and inventory receipt",
+]
+positive_precedes_mutants = true
+
+[sealed_instance]
+physical_axis_cell_counts = [4, 6, 8]
+parent_bounds = [[-2.0, 3.0], [1.0, 8.0], [-1.0, 10.0]]
+axis_0_coordinates = [-2.0, -0.75, 0.5, 1.75, 3.0]
+axis_1_coordinates = [1.0, 2.166666666666667, 3.3333333333333335, 4.5, 5.666666666666667, 6.833333333333334, 8.0]
+axis_2_coordinates = [-1.0, 0.375, 1.75, 3.125, 4.5, 5.875, 7.25, 8.625, 10.0]
+unequal_parent_side_lengths = true
+nonuniform_axis_coordinates = false
+coordinate_route = "c[k] = fl(a + fl(k * fl(fl(b - a) / N)))"
+coordinate_authority = "section-4.2-hex-literals"
+axis_coordinates_are_route_unique = false
+axis_0_distinct_widths = 1
+axis_1_distinct_widths = 3
+axis_2_distinct_widths = 1
+axis_1_is_bit_uniform = false
+another_model_or_mesh_artifact_is_equivalent = false
+
+[acceptance]
+model_artifact_sha256 = "5d5ef599d426103a15ced2b2ad859d69739204ffc912e9e21a49b5cd611b7738"
+model_id = "06BWXYZM2HZNYK7HQ87V3YSFY6"
+semantic_revision = 1
+collocated_mesh_digest_is_producer_derived = true
+predecessor_2x3x4_mesh_digest_is_rejected = true
+cells = 192
+box_entities = 1989
+quotient_strata = [192, 576, 576, 192]
+quotient_entities = 1536
+quotient_closure_vertex_references = 5184
+orbit_outputs = 1536
+box_orbit_memberships = 1989
+positive_packets = 576
+axis_seam_packets = [48, 32, 24]
+packet_and_quotient_face_bijections = true
+three_owner_and_three_neighbor_packets_per_cell = true
+exact_axis_partitioned_face_area_bits = true
+exact_nominal_axis_spacing_bits = true
+supply_order_invariant = true
+packet_container_order_is_not_identity = true
+declaration_permutation_invariant = true
+projection_is_private_and_nonpersisted = true
+event_order_is_pair3_group_inventory_allocate_publish = true
+
+[resource]
+admission_precedes_projection_allocation = true
+input_counts_are_exact_instance_counts = true
+live_heap_or_worklist_is_an_oracle = false
+generic_count_or_resource_class_claim = false
+
+[falsifiers]
+CV4-GRID-SUBSTITUTE-234 = "the accepted 2x3x4 mesh cannot stand in for this exact instance"
+CV4-COUNT-TRANSPOSE-864 = "the same aggregate counts cannot replace the axis-bound 4x6x8 tuple"
+CV4-NONUNIFORM-ONE-ULP = "one axis-2 coordinate ulp is rejected at mesh admission"
+CV4-BOUNDS-ONE-ULP = "one axis-1 parent-bound ulp is rejected at mesh admission"
+CV4-TWO-PAIR-GROUP = "two valid Connections do not admit the three-generator group"
+CV4-DUPLICATE-AXIS-GROUP = "a valid repeated pair does not admit exact axis coverage"
+CV4-FAIL-BEFORE-ALLOCATE = "all six rejected inputs publish neither allocation nor projection"
+CV4-OBS-PACKET-DROP = "the independent oracle rejects a missing packet"
+CV4-OBS-SEAM-FLAG = "the independent oracle rejects a wrong seam flag"
+CV4-OBS-TANGENTIAL-SHIFT = "the independent oracle rejects a tangential neighbor shift"
+CV4-OBS-SEAM-DOUBLE = "the independent oracle rejects a reverse duplicate"
+CV4-OBS-AREA-SWAP = "the independent oracle rejects cross-axis face-area exchange"
+CV4-OBS-DISTANCE-ULP = "the independent oracle rejects one nominal-distance ulp"
+CV4-OBS-NORMAL-SIGN = "the independent oracle rejects a wrong observed normal"
+CV4-OBS-FACE-FAMILY = "the independent oracle rejects a shifted quotient-face family"
+CV4-OBS-CONNECTION-ORDER = "the independent oracle rejects a non-axis-ordered returned group"
+CV4-OBS-MESH-IDENTITY = "the independent oracle rejects the predecessor mesh identity"
+CV4-OBS-MODEL-REVISION = "the independent oracle rejects another semantic revision"
+CV4-OBS-PARENT-CONNECTOR-SWAP = "the independent oracle rejects swapped parent and Connector identities"
+CV4-OBS-PACKET-ID-RENUMBER = "the independent oracle rejects neighbor-based packet numbering"
+
+[claim_boundary]
+exact_artifact_instance_only = true
+generic_three_dimensional_count_class = false
+another_axis_coordinate_sequence = false
+coordinate_route_uniqueness = false
+mesh_faithful_axis_1_seam_distance = false
+lifted_seam_point_sets_or_exterior_faces = false
+stored_scatter_falsification = false
+numerical_scalar_vector_or_tensor_execution = false
+incompressible_cfd_or_taylor_green_science = false
+time_integration_solver_campaign_or_trajectory = false
+public_quotient_api = false
+persisted_quotient_or_packet_wire = false
+literal_collocated_mesh_digest = false
+mpi_gpu_scale_or_performance = false
+rendering_gallery_or_publication = false
+tolerance = false
+
+[precommitment]
+precommitted = true
+authored_by_a_fresh_context_nonimplementer = true
+authored_before_implementation = false
+implementation_read = true
+implementation_read_scope = "consumed-interface-names-and-signatures-only"
+implementation_derived_expected_values = false
+implementation_derived_comparisons_tolerances_or_falsifiers = false
+writer_scratch_read = false
+base_revision = "1b0f7056b505e76b1a5c4b2d31ef1fa4c40a7c82"
+contract_sha256 = "43c389e6b12b57c3363dc1670bddabd2d250d0d7ef8cfdc5846961086af29b3d"
+focused_contract_review_sha256 = "7c7208e5f62f2d8ffa5f39459518c383fd73c21745110f6bd35ff37e64f297d1"
+current_head_readmission_sha256 = "09770644563a8436f077bd21b0d4efeb7e4a2ec344a9a3bafb3fad5d0edacb67"
+current_head_readmission_review_sha256 = "a0b0f8eb6d7ac687bda6a1404c7ba60b8233736fa773b005d1b7dbdfc928e61a"
+departs_from_accepted_convention_field_set = true
+departure_reason = "implementation-read-is-required-by-agents-md-consumed-interface-freeze"
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "cartesian_periodic_3d::collocated_tests::registered_collocated_4x6x8_view_rejects_class_mutants"
