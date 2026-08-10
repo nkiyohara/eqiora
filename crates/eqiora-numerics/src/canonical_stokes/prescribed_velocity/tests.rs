@@ -10,6 +10,7 @@ use super::{
     ModelOwnedEssentialVelocityReplay2d, SteadyStokesPrescribedVelocityTrace2d,
     admit_model_owned_essential_velocity_2d, lower_prescribed_velocity_trace_2d,
 };
+use crate::canonical_stokes::dissipation_profile::StokesDissipationGeometryModelBinding2d;
 use crate::canonical_stokes::support::relations_on;
 
 const SEALED_INPUT_SHA256: &str =
@@ -170,7 +171,6 @@ impl Fixture {
     }
 }
 
-#[test]
 fn sealed_selector_and_complete_model_trace_reach_the_ordinary_positive_first() {
     assert_eq!(SEALED_INPUT_SHA256.len(), 64);
     assert!(
@@ -230,7 +230,6 @@ fn sealed_selector_and_complete_model_trace_reach_the_ordinary_positive_first() 
         .expect("the callback transports only replayed Model values");
 }
 
-#[test]
 fn normal_only_incomplete_and_equal_value_identity_mutants_fail_closed() {
     let normal_source = SOURCE
         .replace(
@@ -291,7 +290,6 @@ fn normal_only_incomplete_and_equal_value_identity_mutants_fail_closed() {
     assert!(permuted.admit().is_err());
 }
 
-#[test]
 fn ownership_corner_and_callback_mutants_reject_without_partial_admission() {
     let fixture = Fixture::from_source(SOURCE);
     fixture
@@ -339,6 +337,22 @@ fn ownership_corner_and_callback_mutants_reject_without_partial_admission() {
             .is_err(),
         "a distinct caller-owned speed is rejected before finalization"
     );
+}
+
+#[test]
+fn registered_evidence() {
+    std::thread::scope(|scope| {
+        scope.spawn(
+            StokesDissipationGeometryModelBinding2d::run_e1_profile_topology_ordinary_positives,
+        );
+        scope.spawn(sealed_selector_and_complete_model_trace_reach_the_ordinary_positive_first);
+    });
+
+    std::thread::scope(|scope| {
+        scope.spawn(StokesDissipationGeometryModelBinding2d::run_e1_profile_topology_falsifiers);
+        scope.spawn(normal_only_incomplete_and_equal_value_identity_mutants_fail_closed);
+        scope.spawn(ownership_corner_and_callback_mutants_reject_without_partial_admission);
+    });
 }
 
 fn compile_program(source: &str) -> KernelProgram {

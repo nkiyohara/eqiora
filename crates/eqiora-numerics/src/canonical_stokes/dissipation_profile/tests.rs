@@ -32,7 +32,6 @@ const HARMONIC_RESIDUAL_UPPER_BOUND: f64 = 2.0e-11;
 const MINIMUM_SIGNED_AREA_M2: f64 = 1.0e-8;
 const MINIMUM_SCALED_JACOBIAN: f64 = 1.5e-2;
 
-#[test]
 fn sealed_positive_binds_the_same_nonzero_profile_to_distinct_topologies() {
     let reference = admitted_binding(StokesDissipationTopologyRole2d::Reference);
     let refined = admitted_binding(StokesDissipationTopologyRole2d::Refined);
@@ -67,7 +66,6 @@ fn sealed_positive_binds_the_same_nonzero_profile_to_distinct_topologies() {
     assert_topology_and_harmonic_state(&refined);
 }
 
-#[test]
 fn exact_area_is_owned_by_the_profile_not_the_chordal_polygon() {
     for role in roles() {
         let binding = admitted_binding(role);
@@ -92,7 +90,6 @@ fn exact_area_is_owned_by_the_profile_not_the_chordal_polygon() {
     }
 }
 
-#[test]
 fn circle_and_exact_conjugate_design_aliases_are_rejected_after_positive() {
     // `CircleAlias` replaces plus-profile coordinates/Geometry while retaining
     // the plus identity. `DesignSwap` substitutes the exact sealed minus
@@ -112,7 +109,6 @@ fn circle_and_exact_conjugate_design_aliases_are_rejected_after_positive() {
     }
 }
 
-#[test]
 fn reference_cannot_be_relabelled_or_reused_as_refined() {
     // `FakeRefinement` reuses the complete reference association under the
     // refined role. Counts, filenames, and objective values are not consulted.
@@ -125,7 +121,6 @@ fn reference_cannot_be_relabelled_or_reused_as_refined() {
     }
 }
 
-#[test]
 fn area_geometry_model_mesh_and_correspondence_swaps_are_rejected() {
     // These variants change exactly one already-admitted association member:
     // analytic-area owner, Model GeometryRegion, or Mesh/correspondence/state.
@@ -149,7 +144,6 @@ fn area_geometry_model_mesh_and_correspondence_swaps_are_rejected() {
     }
 }
 
-#[test]
 fn facet_role_and_endpoint_mutants_are_rejected() {
     for role in roles() {
         for mutation in [
@@ -176,7 +170,6 @@ fn facet_role_and_endpoint_mutants_are_rejected() {
     }
 }
 
-#[test]
 fn correspondence_angle_and_cell_index_mutants_are_rejected() {
     // Every index mutation forks after the exact topology passed. It changes
     // one existing index/order entry (or uses vertex_count as the first invalid
@@ -190,6 +183,25 @@ fn correspondence_angle_and_cell_index_mutants_are_rejected() {
         ] {
             assert_mutant_rejected(role, mutation, E1ProfileTopologyRejection2d::TopologyIndex);
         }
+    }
+}
+
+impl StokesDissipationGeometryModelBinding2d {
+    pub(in crate::canonical_stokes) fn run_e1_profile_topology_ordinary_positives() {
+        std::thread::scope(|scope| {
+            scope.spawn(sealed_positive_binds_the_same_nonzero_profile_to_distinct_topologies);
+            scope.spawn(exact_area_is_owned_by_the_profile_not_the_chordal_polygon);
+        });
+    }
+
+    pub(in crate::canonical_stokes) fn run_e1_profile_topology_falsifiers() {
+        std::thread::scope(|scope| {
+            scope.spawn(circle_and_exact_conjugate_design_aliases_are_rejected_after_positive);
+            scope.spawn(reference_cannot_be_relabelled_or_reused_as_refined);
+            scope.spawn(area_geometry_model_mesh_and_correspondence_swaps_are_rejected);
+            scope.spawn(facet_role_and_endpoint_mutants_are_rejected);
+            scope.spawn(correspondence_angle_and_cell_index_mutants_are_rejected);
+        });
     }
 }
 
