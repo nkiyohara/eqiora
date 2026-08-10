@@ -2760,20 +2760,25 @@ write(JSON.stringify({calls,output,failure}));
             transport.verify_artifacts(accepted, prepared)
             self.assertEqual(executor.family_inventory(prepared), family.inventory)
 
-            encoded_commands = tuple(
-                json.dumps(list(command))
-                for command in (
-                    ("npm", "ci", "--ignore-scripts"),
-                    ("npm", "run", "typecheck"),
-                    ("npm", "run", "lint"),
-                    ("npm", "run", "test"),
-                    ("npm", "run", "build"),
-                )
+            exact_commands = (
+                ("npm", "ci", "--ignore-scripts"),
+                ("npm", "run", "typecheck"),
+                ("npm", "run", "lint"),
+                ("npm", "run", "test"),
+                ("npm", "run", "build"),
             )
-            rendered_launches = tuple(" ".join(vector) for vector in launched)
-            for encoded in encoded_commands:
+            for exact_command in exact_commands:
                 self.assertGreaterEqual(
-                    sum(encoded in rendered for rendered in rendered_launches),
+                    sum(
+                        any(
+                            vector[index : index + len(exact_command)]
+                            == exact_command
+                            for index in range(
+                                len(vector) - len(exact_command) + 1
+                            )
+                        )
+                        for vector in launched
+                    ),
                     2,
                 )
             for exact_host in (
