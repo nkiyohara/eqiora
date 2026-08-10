@@ -10,9 +10,10 @@ use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolverBackend
 use super::acceptance::{NewtonEvidence, accept_step};
 use super::api::{AleFsiStepEvidence, AleFsiTrajectory, AleFsiTrajectory2d, AleFsiTrajectory3d};
 use super::assembly::{
-    StepAssembly, assemble_step_linearization, assemble_step_residual, build_step_jacobian_pattern,
-    initial_point,
+    StepAssembly, assemble_step_linearization_prepared, assemble_step_residual_prepared,
+    build_step_jacobian_pattern, initial_point_prepared,
 };
+use super::boundary_step::PreparedAleFsiBoundaryStep;
 use super::contract::{
     AleFsiBoundary, AleFsiBoundary2d, AleFsiBoundary3d, AleFsiState, AleFsiState2d, AleFsiState3d,
     AleFsiStepPlan, AleFsiStepPlan2d, AleFsiStepPlan3d,
@@ -186,7 +187,7 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn solve_one_step<const D: usize>(
+pub(super) fn solve_one_step<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     boundary: &AleFsiBoundary<D>,
@@ -198,13 +199,23 @@ fn solve_one_step<const D: usize>(
     assembly_backend: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
-    let mut point = initial_point(
-        reference, partition, boundary, motion, previous, plan, quadrature,
+    let prepared = match PreparedAleFsiBoundaryStep::from_boundary(boundary) {
+        Some(prepared) => prepared,
+        None => PreparedAleFsiBoundaryStep::homogeneous(
+            reference,
+            boundary,
+            previous.time(),
+            previous.time() + plan.time_step(),
+            plan.scale().velocity(),
+        )?,
+    };
+    let mut point = initial_point_prepared(
+        reference, partition, &prepared, motion, previous, plan, quadrature,
     )?;
-    let mut current = assemble_step_linearization(
+    let mut current = assemble_step_linearization_prepared(
         reference,
         partition,
-        boundary,
+        &prepared,
         motion,
         previous,
         &point,
@@ -218,7 +229,7 @@ fn solve_one_step<const D: usize>(
         let jacobian_audit = verify_analytic_jacobian::<D>(
             reference,
             partition,
-            boundary,
+            &prepared,
             motion,
             previous,
             &current,
@@ -269,10 +280,10 @@ fn solve_one_step<const D: usize>(
                 .zip(&proposed)
                 .map(|(point, proposed)| point + scale * (proposed - point))
                 .collect::<Vec<_>>();
-            match assemble_step_linearization(
+            match assemble_step_linearization_prepared(
                 reference,
                 partition,
-                boundary,
+                &prepared,
                 motion,
                 previous,
                 &candidate,
@@ -307,7 +318,7 @@ fn solve_one_step<const D: usize>(
             let jacobian_audit = verify_analytic_jacobian::<D>(
                 reference,
                 partition,
-                boundary,
+                &prepared,
                 motion,
                 previous,
                 &current,
@@ -343,7 +354,7 @@ fn solve_one_step<const D: usize>(
 fn verify_analytic_jacobian<const D: usize>(
     reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
-    boundary: &AleFsiBoundary<D>,
+    boundary: &PreparedAleFsiBoundaryStep<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     accepted: &StepAssembly<D>,
@@ -358,7 +369,7 @@ fn verify_analytic_jacobian<const D: usize>(
         2.0e-5,
         "ALE FSI",
         |candidate| {
-            assemble_step_residual::<D>(
+            assemble_step_residual_prepared::<D>(
                 reference, partition, boundary, motion, previous, candidate, plan, quadrature,
             )
         },

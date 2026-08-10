@@ -20,7 +20,7 @@ pub(crate) struct FsiLayout<const D: usize = 2> {
     full_size: usize,
     pressure_vertices: Vec<VertexId>,
     pressure_position: Vec<Option<usize>>,
-    fixed_velocity: Vec<bool>,
+    fixed_velocity: Vec<[Option<f64>; D]>,
 }
 
 type ReconstructedFsiFields<const D: usize> = (Vec<[f64; D]>, Vec<[f64; D]>, Vec<f64>);
@@ -31,29 +31,51 @@ impl<const D: usize> FsiLayout<D> {
         partition: &FixedReferenceFsiPartition<D>,
         boundary: &FixedReferenceFsiBoundary<D>,
     ) -> Result<Self, Diagnostic> {
+        if let Some(prescribed) = boundary.prepared_current_quotient() {
+            return Self::with_prescribed_velocity(mesh, partition, prescribed);
+        }
+        let mut prescribed = vec![[None; D]; mesh.vertices().len()];
+        for vertex in boundary.fixed_zero_velocity_vertices() {
+            let values = prescribed.get_mut(vertex.index()).ok_or_else(|| {
+                invalid("fixed-reference FSI boundary vertex is outside the mesh revision")
+            })?;
+            if values.iter().any(Option::is_some) {
+                return Err(invalid(
+                    "fixed-reference FSI boundary inventory contains a duplicate vertex",
+                ));
+            }
+            *values = [Some(0.0); D];
+        }
+        Self::with_prescribed_velocity(mesh, partition, &prescribed)
+    }
+
+    fn with_prescribed_velocity(
+        mesh: &SimplicialMesh,
+        partition: &FixedReferenceFsiPartition<D>,
+        prescribed: &[[Option<f64>; D]],
+    ) -> Result<Self, Diagnostic> {
         if !matches!(D, 2 | 3) || mesh.topological_dimension() != D {
             return Err(invalid(
                 "fixed-reference FSI layout requires dimension two or three matching its mesh",
             ));
         }
         let vertex_count = mesh.vertices().len();
-        let mut fixed_velocity = vec![false; vertex_count];
-        for vertex in boundary.fixed_zero_velocity_vertices() {
-            let fixed = fixed_velocity.get_mut(vertex.index()).ok_or_else(|| {
-                invalid("fixed-reference FSI boundary vertex is outside the mesh revision")
-            })?;
-            if *fixed {
-                return Err(invalid(
-                    "fixed-reference FSI boundary inventory contains a duplicate vertex",
-                ));
-            }
-            *fixed = true;
+        if prescribed.len() != vertex_count
+            || prescribed
+                .iter()
+                .flatten()
+                .flatten()
+                .any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "fixed-reference FSI prescribed velocity must be finite and match the mesh vertex inventory",
+            ));
         }
         let mut reduced_vertex_velocity = vec![[None; D]; vertex_count];
         let mut next = 0_usize;
         for (vertex, dofs) in reduced_vertex_velocity.iter_mut().enumerate() {
-            if !fixed_velocity[vertex] {
-                for dof in dofs {
+            for (component, dof) in dofs.iter_mut().enumerate() {
+                if prescribed[vertex][component].is_none() {
                     *dof = Some(DofId::new(next));
                     next = checked_add(next, 1, "free shared velocity width")?;
                 }
@@ -96,7 +118,7 @@ impl<const D: usize> FsiLayout<D> {
             full_size,
             pressure_vertices,
             pressure_position,
-            fixed_velocity,
+            fixed_velocity: prescribed.to_vec(),
         })
     }
 
@@ -162,7 +184,10 @@ impl<const D: usize> FsiLayout<D> {
                         }
                         None => {
                             equations.push(None);
-                            unknowns.push(LocalUnknown::Fixed(0.0));
+                            unknowns.push(LocalUnknown::Fixed(
+                                self.fixed_velocity[vertex.index()][component]
+                                    .expect("eliminated velocity owns a prescribed value"),
+                            ));
                         }
                     }
                 } else {
@@ -207,7 +232,7 @@ impl<const D: usize> FsiLayout<D> {
     }
 
     pub(crate) fn fixed_velocity(&self, vertex: usize) -> bool {
-        self.fixed_velocity[vertex]
+        self.fixed_velocity[vertex].iter().any(Option::is_some)
     }
 
     pub(crate) const fn full_bubble_velocity(
@@ -223,7 +248,7 @@ impl<const D: usize> FsiLayout<D> {
             + self.pressure_position[vertex].expect("fluid vertex owns pressure position")
     }
 
-    pub(crate) fn reconstruct(
+    pub(crate) fn reconstruct_primal(
         &self,
         values: &[f64],
         fluid_cell_count: usize,
@@ -231,6 +256,45 @@ impl<const D: usize> FsiLayout<D> {
         if values.len() != self.reduced_size {
             return Err(invalid(
                 "fixed-reference FSI solution width differs from its finalized layout",
+            ));
+        }
+        let vertex_velocity = self
+            .reduced_vertex_velocity
+            .iter()
+            .enumerate()
+            .map(|(vertex, dofs)| {
+                std::array::from_fn(|component| {
+                    dofs[component].map_or_else(
+                        || {
+                            self.fixed_velocity[vertex][component]
+                                .expect("eliminated velocity owns a prescribed value")
+                        },
+                        |dof| values[dof.index()],
+                    )
+                })
+            })
+            .collect();
+        let fluid_bubbles = (0..fluid_cell_count)
+            .map(|cell| {
+                std::array::from_fn(|component| {
+                    values[self.reduced_bubble_offset + cell * D + component]
+                })
+            })
+            .collect();
+        let pressure = values[self.reduced_pressure_offset
+            ..self.reduced_pressure_offset + self.pressure_vertices.len()]
+            .to_vec();
+        Ok((vertex_velocity, fluid_bubbles, pressure))
+    }
+
+    pub(crate) fn reconstruct_direction(
+        &self,
+        values: &[f64],
+        fluid_cell_count: usize,
+    ) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
+        if values.len() != self.reduced_size {
+            return Err(invalid(
+                "fixed-reference FSI direction width differs from its finalized layout",
             ));
         }
         let vertex_velocity = self
@@ -255,6 +319,14 @@ impl<const D: usize> FsiLayout<D> {
         Ok((vertex_velocity, fluid_bubbles, pressure))
     }
 
+    pub(crate) fn reconstruct(
+        &self,
+        values: &[f64],
+        fluid_cell_count: usize,
+    ) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
+        self.reconstruct_primal(values, fluid_cell_count)
+    }
+
     pub(crate) fn reduce(
         &self,
         vertex_velocity: &[[f64; D]],
@@ -277,14 +349,16 @@ impl<const D: usize> FsiLayout<D> {
                 "FSI field values must be finite and match the exact reduced layout",
             ));
         }
-        if vertex_velocity
-            .iter()
-            .enumerate()
-            .any(|(vertex, value)| self.fixed_velocity[vertex] && *value != [0.0; D])
-        {
-            return Err(invalid(
-                "FSI reduced layout requires exact zero velocity at every eliminated vertex",
-            ));
+        for (vertex, value) in vertex_velocity.iter().enumerate() {
+            for (component, value) in value.iter().enumerate() {
+                if self.fixed_velocity[vertex][component]
+                    .is_some_and(|fixed| fixed.to_bits() != value.to_bits())
+                {
+                    return Err(invalid(
+                        "FSI reduced layout requires each eliminated velocity to match its exact prescribed word",
+                    ));
+                }
+            }
         }
         let mut values = vec![0.0; self.reduced_size];
         for (vertex, vector) in vertex_velocity.iter().enumerate() {
