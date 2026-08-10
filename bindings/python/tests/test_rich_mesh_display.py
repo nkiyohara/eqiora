@@ -492,21 +492,14 @@ def test_model_identity_trait_is_exact_and_rejects_incoming_mutation() -> None:
     importlib.util.find_spec("anywidget") is None,
     reason="the exact eqiora[notebook] candidate profile owns private payload evidence",
 )
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "O12 decision (issue #312 H2, recorded by the non-writer evidence "
-        "owner): identity immutability must become symmetric — the trait "
-        "should share the @traitlets.validate guard the six payload members "
-        "already have. It is the sole client-side basis for fresh_comm_per_view "
-        "and closed_delegate_reuse, it has no legitimate kernel-side writer "
-        "after construction, and today a kernel-side assignment silently "
-        "diverges the synced identity from the comm identity. Production is "
-        "deliberately not edited here; when a writer extends the guard this "
-        "test XPASSes strictly and the marker must be removed."
-    ),
-)
 def test_model_identity_kernel_side_assignment_is_rejected_symmetrically() -> None:
+    """Issue #312 H2 O12: the accepted symmetric identity guard.
+
+    This precommitted evidence is an ordinary RED on the predecessor, where a
+    kernel-side assignment silently diverges the synced identity from the comm
+    identity. It becomes GREEN only when production extends the accepted
+    ``@traitlets.validate`` guard to the identity trait.
+    """
     from traitlets import TraitError
 
     mesh = _mesh()
