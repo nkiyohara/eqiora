@@ -2,6 +2,7 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
 mod boundary;
+mod execution_owner;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -192,7 +193,7 @@ impl TransientNavierStokesGeometryBinding2d {
         assembly: &dyn AssemblyBackend,
         solver: &dyn LinearSolverBackend,
     ) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic> {
-        self.advance_with_stress(
+        let (trajectory, _) = self.advance_with_stress(
             program,
             resolved,
             initial,
@@ -200,7 +201,8 @@ impl TransientNavierStokesGeometryBinding2d {
             assembly,
             solver,
             IncompressibleStressForm::SymmetricNewtonian,
-        )
+        )?;
+        Ok(trajectory)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -213,15 +215,10 @@ impl TransientNavierStokesGeometryBinding2d {
         assembly: &dyn AssemblyBackend,
         solver: &dyn LinearSolverBackend,
     ) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic> {
-        self.advance_with_stress(
-            program,
-            resolved,
-            initial,
-            steps,
-            assembly,
-            solver,
-            IncompressibleStressForm::DfgNonsymmetric,
-        )
+        let execution = execution_owner::execute_dfg_with_assembly(
+            self, program, resolved, initial, steps, assembly, solver,
+        )?;
+        Ok(execution.into_trajectory())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -234,7 +231,13 @@ impl TransientNavierStokesGeometryBinding2d {
         assembly: &dyn AssemblyBackend,
         solver: &dyn LinearSolverBackend,
         stress_form: IncompressibleStressForm,
-    ) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic> {
+    ) -> Result<
+        (
+            SimplicialMiniNavierStokesTrajectory2d,
+            IncompressibleFlowScaleProfile2d,
+        ),
+        Diagnostic,
+    > {
         if self.model.stress_form != stress_form {
             return Err(invalid(
                 "transient numerical stress selection differs from the exact semantic binding",
@@ -336,7 +339,7 @@ impl TransientNavierStokesGeometryBinding2d {
                 "transient execution returned without a validated block materialization",
             ));
         }
-        Ok(trajectory)
+        Ok((trajectory, scales))
     }
 }
 
