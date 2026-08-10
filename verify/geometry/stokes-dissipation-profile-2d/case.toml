@@ -41,4 +41,4 @@ performance_portability_or_resource_residency = false
 [evidence]
 runner = "cargo-library-test"
 package = "eqiora-numerics"
-test = "canonical_stokes::"
+test = "canonical_stokes::prescribed_velocity::tests::registered_evidence"
