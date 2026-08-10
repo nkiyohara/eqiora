@@ -11467,12 +11467,12 @@ async function Tl(e) {
 }
 //#endregion
 //#region src/mesh-view.ts
-var El = "Eqiora could not create the WebGL Mesh view. The exact text representation remains available.", Dl = "eqiora:n1-oracle-close", Ol = 0, kl = /* @__PURE__ */ new Set();
-function Al(e, t, n, r) {
+var El = "Eqiora could not create the WebGL Mesh view. The exact text representation remains available.", Dl = 0;
+function Ol(e, t, n, r) {
 	let i = document.createElement("button");
 	return i.type = "button", i.className = "eqiora-mesh-button", i.textContent = e, i.setAttribute("aria-label", e), i.addEventListener("click", r), n.push(() => i.removeEventListener("click", r)), t.append(i), i;
 }
-function jl(e) {
+function kl(e) {
 	let t = Infinity, n = Infinity, r = -Infinity, i = -Infinity;
 	for (let a = 0; a < e.coordinates.length; a += 2) t = Math.min(t, e.coordinates[a]), r = Math.max(r, e.coordinates[a]), n = Math.min(n, e.coordinates[a + 1]), i = Math.max(i, e.coordinates[a + 1]);
 	let a = Math.max(r - t, i - n);
@@ -11481,7 +11481,7 @@ function jl(e) {
 	for (let t = 0; t < e.coordinates.length / 2; t += 1) c[t * 3] = 2 * (e.coordinates[t * 2] - o) / a, c[t * 3 + 1] = 2 * (e.coordinates[t * 2 + 1] - s) / a, c[t * 3 + 2] = 0;
 	return c;
 }
-function Ml(e, t) {
+function Al(e, t) {
 	let n = document.createElement("section");
 	n.className = "eqiora-mesh-view", n.setAttribute("aria-label", `Mesh ${e.digest}`), n.setAttribute("data-eqiora-mesh-digest", e.digest);
 	let r = document.createElement("div");
@@ -11493,9 +11493,9 @@ function Ml(e, t) {
 		viewport: i
 	};
 }
-function Nl(e) {
+function jl(e) {
 	let t = new wr();
-	t.setAttribute("position", new lr(jl(e), 3)), t.setIndex(new lr(e.triangles, 1)), t.computeBoundingSphere();
+	t.setAttribute("position", new lr(kl(e), 3)), t.setIndex(new lr(e.triangles, 1)), t.computeBoundingSphere();
 	let n = new Fr({
 		color: 5210043,
 		side: 2,
@@ -11523,7 +11523,7 @@ function Nl(e) {
 		scene: c
 	};
 }
-function Pl(e) {
+function Ml(e) {
 	let t = new Zi(40, 1, .01, 100);
 	t.up.set(0, 1, 0);
 	let n = new q(0, 0, 0);
@@ -11537,7 +11537,7 @@ function Pl(e) {
 		initialUp: t.up.clone()
 	};
 }
-function Fl(e, t, n, r) {
+function Nl(e, t, n, r) {
 	let i = () => {
 		r.frame = 0, !r.cleaned && !r.contextFailed && e.render(t, n);
 	};
@@ -11545,7 +11545,7 @@ function Fl(e, t, n, r) {
 		!r.cleaned && !r.contextFailed && r.frame === 0 && (r.frame = requestAnimationFrame(i));
 	};
 }
-function Il(e, t, n) {
+function Pl(e, t, n) {
 	let { camera: r, controls: i, initialPosition: a, initialTarget: o, initialUp: s } = e, c = (e, a, o) => {
 		r.position.copy(e), i.target.copy(a), r.lookAt(a), i.update(), t.preset = o, n();
 	}, l = (e, t) => {
@@ -11576,8 +11576,8 @@ function Il(e, t, n) {
 		}
 	};
 }
-function Ll(e, t, n, r, i, a) {
-	Al("Orbit camera", e, a, r.orbit), Al("Pan camera", e, a, r.pan), Al("Zoom camera", e, a, r.zoom), Al("Zoom out", e, a, r.zoomOut), Al("Reset camera", e, a, r.reset), Al("Top view", e, a, r.top), Al("Isometric view", e, a, r.isometric);
+function Fl(e, t, n, r, i, a) {
+	Ol("Orbit camera", e, a, r.orbit), Ol("Pan camera", e, a, r.pan), Ol("Zoom camera", e, a, r.zoom), Ol("Zoom out", e, a, r.zoomOut), Ol("Reset camera", e, a, r.reset), Ol("Top view", e, a, r.top), Ol("Isometric view", e, a, r.isometric);
 	let o = /* @__PURE__ */ new Map(), s = (e) => {
 		let r = Cl(e);
 		n.mode = r, t.surface.visible = r === "surface", t.wireframe.visible = r === "wireframe", t.points.visible = r === "points";
@@ -11589,19 +11589,19 @@ function Ll(e, t, n, r, i, a) {
 		"wireframe",
 		"points"
 	]) {
-		let n = Al(`${t[0].toUpperCase()}${t.slice(1)}`, e, a, () => s(t));
+		let n = Ol(`${t[0].toUpperCase()}${t.slice(1)}`, e, a, () => s(t));
 		n.setAttribute("aria-pressed", "false"), o.set(t, n);
 	}
 	s("surface");
 }
-function Rl(e, t, n) {
+function Il(e, t, n) {
 	let r = (e) => {
 		let n = !0;
 		e.key === "ArrowLeft" ? t.orbit() : e.key === "ArrowRight" && e.shiftKey ? t.pan() : e.key === "+" || e.key === "=" ? t.zoom() : e.key === "-" ? t.zoomOut() : e.key.toLowerCase() === "r" ? t.reset() : e.key.toLowerCase() === "t" ? t.top() : e.key.toLowerCase() === "i" ? t.isometric() : n = !1, n && e.preventDefault();
 	};
 	e.addEventListener("keydown", r), n.push(() => e.removeEventListener("keydown", r));
 }
-function zl(e, t, n, r, i) {
+function Ll(e, t, n, r, i) {
 	let a = new ResizeObserver((a) => {
 		let o = a.find((t) => t.target === e);
 		if (o === void 0 || r.cleaned) return;
@@ -11610,39 +11610,34 @@ function zl(e, t, n, r, i) {
 	});
 	return a.observe(e), a;
 }
-function Bl(e, t) {
+function Rl(e, t) {
 	let n = document.createElement("p");
 	n.className = "eqiora-mesh-diagnostic", n.setAttribute("role", "alert"), n.textContent = t === void 0 ? El : `${El} Mesh digest ${t}.`, e.replaceChildren(n);
 }
-function Vl(e, t, n, r, i) {
+function zl(e, t, n, r, i) {
 	let a = t.model.get("_eqiora_n1_model_id");
 	if (typeof a != "string" || a.length === 0) throw Error("Eqiora Mesh delegate omitted its private model identity");
-	let o = `${a}:${++Ol}`;
-	e.__eqioraN1Oracle = {
-		snapshot: () => ({
-			modelId: a,
-			viewId: o,
-			mode: n.mode,
-			transport: { ...n.transport },
-			camera: {
-				position: r.camera.position.toArray(),
-				target: r.controls.target.toArray(),
-				initialPosition: r.initialPosition.toArray(),
-				initialTarget: r.initialTarget.toArray(),
-				preset: n.preset
-			},
-			lifecycle: {
-				...n.lifecycle,
-				activeListeners: i.length,
-				pendingAnimationFrames: n.frame === 0 ? 0 : 1
-			}
-		}),
-		closeComm: () => {
-			kl.has(a) || (kl.add(a), n.transport.sendCalls += 1, t.model.send({ kind: Dl }));
+	let o = `${a}:${++Dl}`;
+	e.__eqioraN1Oracle = { snapshot: () => ({
+		modelId: a,
+		viewId: o,
+		mode: n.mode,
+		transport: { ...n.transport },
+		camera: {
+			position: r.camera.position.toArray(),
+			target: r.controls.target.toArray(),
+			initialPosition: r.initialPosition.toArray(),
+			initialTarget: r.initialTarget.toArray(),
+			preset: n.preset
+		},
+		lifecycle: {
+			...n.lifecycle,
+			activeListeners: i.length,
+			pendingAnimationFrames: n.frame === 0 ? 0 : 1
 		}
-	};
+	}) };
 }
-function Hl(e, t, n, r, i, a, o) {
+function Bl(e, t, n, r, i, a, o) {
 	return () => {
 		if (!a.cleaned) {
 			a.cleaned = !0, a.lifecycle.cleanupCount += 1, t.disconnect(), a.frame !== 0 && (cancelAnimationFrame(a.frame), a.frame = 0);
@@ -11653,20 +11648,20 @@ function Hl(e, t, n, r, i, a, o) {
 		}
 	};
 }
-function Ul(e, t) {
-	let n = [], { root: r, toolbar: i, viewport: a } = Ml(e, t), o;
+function Vl(e, t) {
+	let n = [], { root: r, toolbar: i, viewport: a } = Al(e, t), o;
 	try {
 		o = new Fc({
 			antialias: !0,
 			alpha: !1
 		});
 	} catch {
-		return Bl(a, e.digest), () => r.remove();
+		return Rl(a, e.digest), () => r.remove();
 	}
 	o.setClearColor(16251130, 1), o.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, 2));
 	let s = o.domElement;
 	s.tabIndex = 0, s.className = "eqiora-mesh-canvas", s.setAttribute("role", "img"), s.setAttribute("aria-label", `Mesh interactive view, digest ${e.digest}`), a.append(s);
-	let c = Nl(e), l = Pl(s), u = {
+	let c = jl(e), l = Ml(s), u = {
 		mode: "surface",
 		preset: "initial",
 		cleaned: !1,
@@ -11685,29 +11680,29 @@ function Ul(e, t) {
 			materialsDisposed: !1,
 			rendererDisposed: !1
 		}
-	}, d = Fl(o, c.scene, l.camera, u);
+	}, d = Nl(o, c.scene, l.camera, u);
 	l.controls.addEventListener("change", d), n.push(() => l.controls.removeEventListener("change", d));
-	let f = Il(l, u, d);
-	Ll(i, c, u, f, d, n), Rl(s, f, n);
-	let p = zl(a, o, l.camera, u, d), m = (t) => {
-		t.preventDefault(), u.contextFailed = !0, Bl(a, e.digest);
+	let f = Pl(l, u, d);
+	Fl(i, c, u, f, d, n), Il(s, f, n);
+	let p = Ll(a, o, l.camera, u, d), m = (t) => {
+		t.preventDefault(), u.contextFailed = !0, Rl(a, e.digest);
 	};
 	s.addEventListener("webglcontextlost", m), n.push(() => s.removeEventListener("webglcontextlost", m));
-	let h = Hl(r, p, l, c, o, u, n);
-	t.model.on?.("destroy", h), t.model.on?.("comm:close", h), n.push(() => t.model.off?.("destroy", h)), n.push(() => t.model.off?.("comm:close", h)), Vl(r, t, u, l, n);
+	let h = Bl(r, p, l, c, o, u, n);
+	t.model.on?.("destroy", h), t.model.on?.("comm:close", h), n.push(() => t.model.off?.("destroy", h)), n.push(() => t.model.off?.("comm:close", h)), zl(r, t, u, l, n);
 	let g = a.getBoundingClientRect();
 	return o.setSize(Math.max(1, g.width), Math.max(1, g.height), !1), l.camera.aspect = Math.max(1, g.width) / Math.max(1, g.height), l.camera.updateProjectionMatrix(), d(), h;
 }
-function Wl(e) {
+function Hl(e) {
 	let t, n = !1;
 	return Tl(e.model).then((r) => {
-		n || (t = Ul(r, e));
+		n || (t = Vl(r, e));
 	}).catch(() => {
-		n || Bl(e.el);
+		n || Rl(e.el);
 	}), () => {
 		n = !0, t?.(), t = void 0;
 	};
 }
-var Gl = { render: Wl };
+var Ul = { render: Hl };
 //#endregion
-export { Gl as default };
+export { Ul as default };

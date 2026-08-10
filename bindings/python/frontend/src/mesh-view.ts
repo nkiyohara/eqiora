@@ -101,7 +101,6 @@ interface ViewSnapshot {
 
 interface ViewOracle {
 	snapshot(): ViewSnapshot;
-	closeComm(): void;
 }
 
 interface OracleElement extends HTMLElement {
@@ -110,9 +109,7 @@ interface OracleElement extends HTMLElement {
 
 const FAILURE_MESSAGE =
 	"Eqiora could not create the WebGL Mesh view. The exact text representation remains available.";
-const ORACLE_CLOSE_MESSAGE = "eqiora:n1-oracle-close";
 let nextOracleViewId = 0;
-const oracleCloseRequests = new Set<string>();
 
 function button(
 	label: string,
@@ -476,13 +473,6 @@ function attachOracle(
 				pendingAnimationFrames: state.frame === 0 ? 0 : 1,
 			},
 		}),
-		closeComm: () => {
-			if (!oracleCloseRequests.has(modelId)) {
-				oracleCloseRequests.add(modelId);
-				state.transport.sendCalls += 1;
-				context.model.send({ kind: ORACLE_CLOSE_MESSAGE });
-			}
-		},
 	};
 }
 

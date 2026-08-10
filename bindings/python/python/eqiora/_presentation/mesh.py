@@ -35,7 +35,6 @@ _TRIANGLE_SHA256: Final = (
     "229392dc7faca769c88348cf41a810f29df3a22ad1276cb866783e5e04078a9f"
 )
 _WIDGET_MIME: Final = "application/vnd.jupyter.widget-view+json"
-_ORACLE_CLOSE_MESSAGE: Final = "eqiora:n1-oracle-close"
 _PAYLOAD_FIELDS: Final = (
     "profile",
     "mesh_digest",
@@ -236,16 +235,6 @@ def _new_delegate(payload: dict[str, object], esm: str, css: str) -> object:
                         "Eqiora Mesh model identity is immutable"
                     )
             super().set_state(sync_data)
-
-        def _handle_custom_msg(self, content: object, buffers: list[object]) -> None:
-            if (
-                type(content) is dict
-                and content == {"kind": _ORACLE_CLOSE_MESSAGE}
-                and not buffers
-            ):
-                self.close()
-                return
-            super()._handle_custom_msg(content, buffers)
 
         def _repr_mimebundle_(
             self, **kwargs: dict[Any, Any]
