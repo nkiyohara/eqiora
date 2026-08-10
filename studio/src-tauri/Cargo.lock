@@ -1208,6 +1208,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "eqiora-io-gmsh"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "eqiora-core",
+ "eqiora-meshing",
+]
+
+[[package]]
 name = "eqiora-ir"
 version = "0.1.0-alpha.1"
 dependencies = [
@@ -1244,6 +1252,7 @@ dependencies = [
  "eqiora-execution",
  "eqiora-geometry",
  "eqiora-graph",
+ "eqiora-io-gmsh",
  "eqiora-ir",
  "eqiora-meshing",
  "eqiora-realization",
