@@ -3733,8 +3733,26 @@ write(JSON.stringify({calls,output,failure}));
                 }
             }
 
-            def download(_url: str, destination: Path) -> None:
-                destination.write_bytes(b"unverified package bytes")
+            def download(url: str, destination: Path) -> None:
+                if url == "https://registry.npmjs.org/playwright-core":
+                    destination.write_text(
+                        json.dumps(
+                            {
+                                "name": "playwright-core",
+                                "versions": {
+                                    "1.62.1": {
+                                        "name": "playwright-core",
+                                        "version": "1.62.1",
+                                    }
+                                },
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                elif url == PLAYWRIGHT_CORE_URL:
+                    destination.write_bytes(b"unverified package bytes")
+                else:
+                    raise AssertionError(f"unexpected registry URL: {url}")
 
             with (
                 mock.patch.object(executor, "_download", side_effect=download),
@@ -3742,13 +3760,17 @@ write(JSON.stringify({calls,output,failure}));
                     executor,
                     "_verify_sri",
                     side_effect=CandidateError("forced SRI mismatch"),
-                ),
+                ) as verify_sri,
                 mock.patch.object(
                     executor, "_safe_extract_registry_package"
                 ) as extract,
             ):
                 with self.assertRaisesRegex(CandidateError, "SRI"):
                     executor._prefetch_lock_packages(workspace, lock)
+            verify_sri.assert_called_once_with(
+                mock.ANY,
+                PLAYWRIGHT_CORE_INTEGRITY,
+            )
             extract.assert_not_called()
             self.assertFalse(
                 (Path(workspace.root) / "playwright-core-package").exists()
