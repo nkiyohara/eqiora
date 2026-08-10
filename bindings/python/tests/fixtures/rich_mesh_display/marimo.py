@@ -51,6 +51,25 @@ def _(eqiora):
 
 
 @app.cell
+def _():
+    def current_delegate_model_id(target_mesh):
+        # Issue #312 H2 O7: the kernel names the close target from the Mesh
+        # object it holds. The display hook reuses the open delegate, so this
+        # returns the current delegate's model id without any browser-supplied
+        # value.
+        widget_view_mime = "application/vnd.jupyter.widget-view+json"
+        bundle = target_mesh._repr_mimebundle_(include={widget_view_mime})
+        return bundle[widget_view_mime]["model_id"]
+
+    def close_delegate(model_id):
+        from ipywidgets import Widget
+
+        Widget.widgets[model_id].close()
+
+    return close_delegate, current_delegate_model_id
+
+
+@app.cell
 def _(make_mesh):
     mesh = make_mesh()
     coordinates = mesh.coordinates
@@ -113,8 +132,9 @@ def _(mo):
 
 
 @app.cell
-def _(gc, make_mesh, show_temporary, weakref):
+def _(current_delegate_model_id, gc, make_mesh, show_temporary, weakref):
     temporary_output = None
+    temporary_model_id = None
     if show_temporary.value:
         temporary_mesh = make_mesh()
         weakref.finalize(
@@ -124,10 +144,12 @@ def _(gc, make_mesh, show_temporary, weakref):
             flush=True,
         )
         temporary_output = temporary_mesh
+        # Recorded at display time, kernel-side, for the close trigger below.
+        temporary_model_id = current_delegate_model_id(temporary_mesh)
     else:
         gc.collect()
     temporary_output
-    return
+    return (temporary_model_id,)
 
 
 @app.cell
@@ -173,6 +195,59 @@ def _(accepted_snapshot, assert_unchanged_button, mesh, mo):
     else:
         identity_result = mo.md("Mesh identity check is ready.")
     identity_result
+    return
+
+
+@app.cell
+def _(mo):
+    close_main_button = mo.ui.button(
+        label="Close accepted Mesh delegate",
+        value=0,
+        on_click=lambda value: value + 1,
+    )
+    close_main_button
+    return (close_main_button,)
+
+
+@app.cell
+def _(close_delegate, close_main_button, current_delegate_model_id, mesh, mo):
+    # Kernel-side close affordance (issue #312 H2 O7): each press closes the
+    # accepted Mesh's current delegate, named only from the kernel-held Mesh
+    # object — no browser-supplied identifier is read — so the same trigger
+    # also closes a fresh delegate created by a later redisplay. The counter
+    # button re-runs this cell on every press.
+    if close_main_button.value:
+        close_delegate(current_delegate_model_id(mesh))
+        close_main_result = mo.md("**EQIORA_MAIN_DELEGATE_CLOSED**")
+    else:
+        close_main_result = mo.md("Main delegate close trigger is ready.")
+    close_main_result
+    return
+
+
+@app.cell
+def _(mo):
+    close_temporary_button = mo.ui.button(
+        label="Close temporary Mesh delegate",
+        value=0,
+        on_click=lambda value: value + 1,
+    )
+    close_temporary_button
+    return (close_temporary_button,)
+
+
+@app.cell
+def _(close_delegate, close_temporary_button, mo, temporary_model_id):
+    # Kernel-side close affordance (issue #312 H2 O7): the target is the model
+    # id this app recorded at display time. Note the reactive bound: toggling
+    # "Show temporary Mesh" re-runs this cell with a fresh recorded id, so the
+    # trigger addresses whichever temporary delegate is current.
+    if close_temporary_button.value and temporary_model_id is not None:
+        close_delegate(temporary_model_id)
+        close_temporary_result = mo.md("**EQIORA_TEMPORARY_DELEGATE_CLOSED**")
+    else:
+        close_temporary_result = mo.md("Temporary delegate close trigger is ready.")
+    close_temporary_result
     return
 
 

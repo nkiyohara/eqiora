@@ -33,9 +33,12 @@ type ViewSnapshot = {
   };
 };
 
+// Snapshot-only by decision (issue #312 H2, O8): the shipped view exposes an
+// observation seam and no client-side control seam. The comm-close triggers
+// that previously lived here as `closeComm()` are host-driven kernel actions
+// in the fixtures; see closeMainDelegate/closeTemporaryDelegate below.
 type ViewOracle = {
   snapshot(): ViewSnapshot;
-  closeComm(): Promise<void> | void;
 };
 
 type OracleElement = HTMLElement & {
@@ -75,6 +78,70 @@ class RuntimeTraffic {
       expect(new URL(raw).hostname).toBe("127.0.0.1");
     }
   }
+}
+
+// O9 (issue #312 H2): `client_write_or_bridge` is discharged by observing the
+// transport itself, not the view's self-reported counters. Any client model
+// write, save, send, or state bridge must serialize the model identity into a
+// client-to-server payload (a Jupyter `comm_msg` names its comm_id, which is
+// the model id; a host model update must name its model), so a client payload
+// containing a mesh model id is the observable that could be nonzero. The
+// `ViewSnapshot.transport` assertions below remain only as implementation-
+// reported corroboration; they are written by the implementation and cannot
+// falsify it.
+// Bounds: the predicate is literal containment of the kernel-generated 32-hex
+// model ids in utf8-decoded payloads. A write path that never serializes the
+// model identity in any client payload would evade it; the declared-handler
+// half that produces no traffic (msg:custom registration, save_changes) is
+// covered by the static module-text probes in test_rich_mesh_display.py.
+class ClientPayloadTraffic {
+  readonly payloads: string[] = [];
+
+  constructor(page: Page) {
+    page.on("request", (request) => {
+      const body = request.postData();
+      this.payloads.push(body === null ? request.url() : `${request.url()}\n${body}`);
+    });
+    page.on("websocket", (socket) => {
+      socket.on("framesent", (frame) => {
+        const payload = frame.payload;
+        this.payloads.push(typeof payload === "string" ? payload : payload.toString("utf8"));
+      });
+    });
+  }
+
+  naming(modelIds: readonly string[]): string[] {
+    const ids = modelIds.filter((id) => id !== "");
+    return this.payloads.filter((payload) => ids.some((id) => payload.includes(id)));
+  }
+}
+
+const OBSERVER_POSITIVE_PROBE = "/eqiora-issue312-o9-observer-positive/";
+
+// Ordinary positive path before any negative probe: a deliberate loopback
+// request naming the model id must be visible to the observer before its
+// zeroes are trusted. The host answers 404; only the request matters.
+async function proveClientPayloadObserverSees(
+  page: Page,
+  traffic: ClientPayloadTraffic,
+  modelId: string,
+): Promise<void> {
+  await page.evaluate(
+    (probe) =>
+      fetch(probe).then(
+        () => undefined,
+        () => undefined,
+      ),
+    `${OBSERVER_POSITIVE_PROBE}${modelId}`,
+  );
+  await expect
+    .poll(
+      () =>
+        traffic
+          .naming([modelId])
+          .filter((payload) => payload.includes(OBSERVER_POSITIVE_PROBE)).length,
+    )
+    .toBeGreaterThan(0);
 }
 
 function hostName(): "jupyterlab" | "marimo" {
@@ -127,10 +194,6 @@ async function snapshot(view: Locator): Promise<ViewSnapshot> {
 
 async function handleSnapshot(handle: JSHandle<ViewOracle>): Promise<ViewSnapshot> {
   return handle.evaluate((oracle) => oracle.snapshot());
-}
-
-async function closeComm(handle: JSHandle<ViewOracle>): Promise<void> {
-  await handle.evaluate(async (oracle) => oracle.closeComm());
 }
 
 function subtract(left: Vector3, right: Vector3): Vector3 {
@@ -302,6 +365,11 @@ async function clearOneMainView(page: Page, view: Locator): Promise<void> {
 
 async function rerunOneMainView(page: Page): Promise<void> {
   if (hostName() === "jupyterlab") {
+    // Select the third main-view cell explicitly: the kernel-side close
+    // triggers below run other cells, so the selection no longer stays on
+    // this cell across the whole flow. The cell carries a source marker
+    // because after a comm close it holds no view element to anchor on.
+    await page.locator(".jp-CodeCell").filter({ hasText: "EQIORA_THIRD_MAIN_VIEW" }).click();
     await page.keyboard.press("Control+Enter");
   } else {
     const checkbox = page.getByRole("checkbox", { name: "Show third Mesh", exact: true });
@@ -326,15 +394,62 @@ async function assertPythonMeshUnchanged(page: Page): Promise<void> {
   }
 }
 
+// O7 (issue #312 H2): the comm-close triggers are kernel-side affordances in
+// the fixtures, driven through host UI this spec already drives (JupyterLab
+// cell click + Control+Enter; a marimo button). The kernel names the target
+// delegate solely from kernel-side state — the Mesh object the fixture holds,
+// or a model id the fixture recorded at display time. The browser supplies
+// only the activation gesture, never an identifier or any other value.
+async function runJupyterTriggerCell(
+  page: Page,
+  sourceMarker: string,
+  outputMarker: string,
+): Promise<void> {
+  const cell = page.locator(".jp-CodeCell").filter({ hasText: sourceMarker });
+  await cell.click();
+  await page.keyboard.press("Control+Enter");
+  await expect(cell.getByText(outputMarker, { exact: true })).toBeVisible();
+}
+
+async function closeMainDelegate(page: Page): Promise<void> {
+  if (hostName() === "jupyterlab") {
+    await runJupyterTriggerCell(
+      page,
+      "EQIORA_CLOSE_MAIN_TRIGGER",
+      "EQIORA_MAIN_DELEGATE_CLOSED",
+    );
+  } else {
+    await page
+      .getByRole("button", { name: "Close accepted Mesh delegate", exact: true })
+      .click();
+  }
+}
+
+async function closeTemporaryDelegate(page: Page): Promise<void> {
+  if (hostName() === "jupyterlab") {
+    await runJupyterTriggerCell(
+      page,
+      "EQIORA_CLOSE_TEMPORARY_TRIGGER",
+      "EQIORA_TEMPORARY_DELEGATE_CLOSED",
+    );
+  } else {
+    await page
+      .getByRole("button", { name: "Close temporary Mesh delegate", exact: true })
+      .click();
+  }
+}
+
 test("bare Mesh owns exact interaction, lifecycle, identity, and loopback-only observations", async ({
   page,
 }) => {
   const traffic = new RuntimeTraffic(page);
+  const clientTraffic = new ClientPayloadTraffic(page);
   await prepareHost(page);
   const views = page.locator(VIEW_SELECTOR);
   const initialStates = await Promise.all([0, 1, 2, 3].map((index) => snapshot(views.nth(index))));
   const mainModelId = initialStates[0].modelId;
   expect(mainModelId).not.toBe("");
+  await proveClientPayloadObserverSees(page, clientTraffic, mainModelId);
   expect(initialStates.slice(0, 3).map((state) => state.modelId)).toEqual([
     mainModelId,
     mainModelId,
@@ -383,8 +498,10 @@ test("bare Mesh owns exact interaction, lifecycle, identity, and loopback-only o
   expect(rerunStates.filter((state) => state.modelId === mainModelId)).toHaveLength(3);
 
   // A comm close cleans every remaining view exactly once. Redisplay of the
-  // same outer Mesh must then create a distinct fresh delegate/model.
-  await closeComm(firstHandle);
+  // same outer Mesh must then create a distinct fresh delegate/model. The
+  // close originates kernel-side (O7); from the kernel's self.close() onward
+  // this is the same propagation path the accepted evidence already observed.
+  await closeMainDelegate(page);
   await expect(views).toHaveCount(1);
   expectDisposed(await handleSnapshot(firstHandle));
   expectDisposed(await handleSnapshot(secondHandle));
@@ -401,14 +518,54 @@ test("bare Mesh owns exact interaction, lifecycle, identity, and loopback-only o
   expect(fresh.modelId).not.toBe(mainModelId);
   const freshHandle = await oracleHandle(views.nth(freshIndex));
 
-  await closeComm(temporaryHandle);
+  await closeTemporaryDelegate(page);
   await expect(views).toHaveCount(1);
   expectDisposed(await handleSnapshot(temporaryHandle));
-  await closeComm(freshHandle);
+  // The main-close trigger names whatever delegate the kernel-held Mesh
+  // currently owns, so the same affordance closes the fresh redisplayed one.
+  await closeMainDelegate(page);
   await expect(views).toHaveCount(0);
   expectDisposed(await handleSnapshot(freshHandle));
 
   traffic.expectLoopbackOnly();
+
+  // O9 negative, after the positive probe above proved the observer decodes
+  // and matches: across the whole run — every render, camera and mode
+  // interaction, clear, rerun, and all three kernel-side closes — no client
+  // payload named any mesh model id except the deliberate probe.
+  const meshModelIds = [mainModelId, initialStates[3].modelId, fresh.modelId];
+  const flagged = clientTraffic.naming(meshModelIds);
+  expect(flagged.filter((payload) => !payload.includes(OBSERVER_POSITIVE_PROBE))).toEqual([]);
+  expect(flagged.length).toBeGreaterThan(0);
+});
+
+// Precommitted falsifier for the O6 write-half deletion (issue #312 H2): the
+// shipped per-view oracle must be snapshot-only. Expected RED on any build
+// whose oracle still carries the retired `closeComm` client-to-kernel control
+// member; GREEN once the write half is deleted. Kept as its own test so the
+// pre-O6 failure stays precisely isolated from the flow above.
+test("shipped view oracle is snapshot-only", async ({ page }) => {
+  await prepareHost(page);
+  const memberNames = await page
+    .locator(VIEW_SELECTOR)
+    .first()
+    .evaluate((element: OracleElement) => {
+      const oracle = element.__eqioraN1Oracle;
+      if (oracle === undefined) {
+        throw new Error("N1 view omitted its private oracle observation seam");
+      }
+      const names: string[] = [];
+      for (
+        let current: object | null = oracle;
+        current !== null && current !== Object.prototype;
+        current = Object.getPrototypeOf(current)
+      ) {
+        names.push(...Object.getOwnPropertyNames(current));
+      }
+      return names;
+    });
+  expect(memberNames).toContain("snapshot");
+  expect(memberNames).not.toContain("closeComm");
 });
 
 test("WebGL construction failure is an accessible failure rather than a blank pass", async ({

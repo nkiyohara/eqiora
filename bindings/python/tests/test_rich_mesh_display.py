@@ -49,6 +49,10 @@ STANDARD_ARGUMENTS: dict[str, Any] = {
     "x_upper": "outlet",
 }
 
+IDENTITY_TRAIT = "_eqiora_n1_model_id"
+IDENTITY_REJECTION = "Eqiora Mesh model identity is immutable"
+RETIRED_ORACLE_CLOSE_KIND = "eqiora:n1-oracle-close"
+
 
 def _geometry(**overrides: object) -> object:
     arguments = STANDARD_ARGUMENTS | overrides
@@ -443,3 +447,180 @@ def test_unexpected_delegate_shape_closes_comm_and_returns_exact_corrupt_fallbac
     expected = f"{repr(mesh)}\n{CORRUPT_DIAGNOSTIC}"
     assert _bundle(mesh) == {PLAIN_MIME: expected}
     assert first_id not in _widget_registry()
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("anywidget") is None,
+    reason="the exact eqiora[notebook] candidate profile owns private payload evidence",
+)
+def test_model_identity_trait_is_exact_and_rejects_incoming_mutation() -> None:
+    """Issue #312 H2 O12: the identity trait's client-facing immutability.
+
+    Precommitted by the non-writer evidence owner from the accepted decision
+    (`issue312-h2-returned-judgements-decision-v1.md` §3.3); the implementer
+    did not author these expectations.
+    """
+    from traitlets import TraitError
+
+    mesh = _mesh()
+    expected = _snapshot(mesh)
+    model_id = _model_id(_bundle(mesh))
+    delegate = _delegate(model_id)
+
+    # Ordinary positive path: the identity trait exists, syncs, and equals both
+    # the advertised widget-view model id and ipywidgets' own model identity.
+    state = delegate.get_state()
+    assert IDENTITY_TRAIT in state
+    identity = state[IDENTITY_TRAIT]
+    assert isinstance(identity, str)
+    assert identity == model_id
+    assert delegate.model_id == identity
+    assert len(identity) == 32
+    assert set(identity) <= set("0123456789abcdef")
+
+    # Incoming (client-to-kernel) mutation is rejected with the identity's own
+    # distinct diagnostic, and rejection leaves the trait and Mesh unchanged.
+    for mutation in ("f" * 32, "", identity.upper()):
+        with pytest.raises(TraitError, match=IDENTITY_REJECTION):
+            delegate.set_state({IDENTITY_TRAIT: mutation})
+        assert delegate.get_state()[IDENTITY_TRAIT] == identity
+    _assert_unchanged(mesh, expected)
+    delegate.close()
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("anywidget") is None,
+    reason="the exact eqiora[notebook] candidate profile owns private payload evidence",
+)
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "O12 decision (issue #312 H2, recorded by the non-writer evidence "
+        "owner): identity immutability must become symmetric — the trait "
+        "should share the @traitlets.validate guard the six payload members "
+        "already have. It is the sole client-side basis for fresh_comm_per_view "
+        "and closed_delegate_reuse, it has no legitimate kernel-side writer "
+        "after construction, and today a kernel-side assignment silently "
+        "diverges the synced identity from the comm identity. Production is "
+        "deliberately not edited here; when a writer extends the guard this "
+        "test XPASSes strictly and the marker must be removed."
+    ),
+)
+def test_model_identity_kernel_side_assignment_is_rejected_symmetrically() -> None:
+    from traitlets import TraitError
+
+    mesh = _mesh()
+    model_id = _model_id(_bundle(mesh))
+    delegate = _delegate(model_id)
+    try:
+        with pytest.raises(TraitError, match=IDENTITY_REJECTION):
+            delegate._eqiora_n1_model_id = "f" * 32
+        assert delegate.get_state()[IDENTITY_TRAIT] == model_id
+    finally:
+        delegate.close()
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("anywidget") is None,
+    reason="the exact eqiora[notebook] candidate profile owns rich protocol evidence",
+)
+def test_shipped_view_module_text_declares_no_write_or_custom_message_bridge() -> None:
+    """Issue #312 H2 O9, static half over the artifact the client executes.
+
+    The synced ``_esm`` state is the exact module text every host runs, so
+    literal membership here measures the shipped artifact rather than a source
+    tree. Bounds: these are literal-membership probes only; a dynamically
+    constructed method or event name would evade them. The runtime half —
+    observing every client-to-server payload for a mesh model id — lives in
+    ``notebook-hosts.spec.ts``.
+
+    The final assertion is the precommitted falsifier for the O6 write-half
+    deletion: expected RED while the shipped module still carries the retired
+    kernel-close custom-message kind, GREEN once it is deleted.
+    """
+    mesh = _mesh()
+    delegate = _delegate(_model_id(_bundle(mesh)))
+    esm = delegate.get_state()["_esm"]
+    delegate.close()
+    assert isinstance(esm, str)
+
+    # Ordinary positive path: this is the real shipped module, carrying the
+    # observation seam the host evidence drives.
+    assert "__eqioraN1Oracle" in esm
+    assert "snapshot" in esm
+
+    # Negative probes: no custom-message handler registration and no model
+    # save/write helper is even named by the shipped module text.
+    assert "msg:custom" not in esm
+    assert "save_changes" not in esm
+
+    # Precommitted O6 falsifier: the kernel-close message kind must vanish.
+    assert RETIRED_ORACLE_CLOSE_KIND not in esm
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("anywidget") is None,
+    reason="the exact eqiora[notebook] candidate profile owns rich protocol evidence",
+)
+def test_incoming_custom_messages_are_inert_and_leave_delegate_open() -> None:
+    """Issue #312 H2 O9: resolves how the custom-message half of
+    ``incoming_payload_writes_and_custom_messages_reject`` is discharged.
+
+    Recorded reading (per the accepted review's finding 4): the Jupyter comm
+    protocol has no rejection frame for a custom message, so refusal to act —
+    the delegate stays open, its state and the Mesh stay unchanged, and no
+    registered consumer exists afterwards — is the strongest observable
+    rejection, and this evidence adopts proven inertness as the discharge.
+    The payload-write half remains discharged by ``set_state`` raising (the
+    payload and identity tests above).
+
+    A capture callback is registered only to prove the ordinary positive path:
+    each probe traverses the real incoming dispatch into the custom-message
+    branch before its inertness is asserted. Expected RED before the O6
+    kernel-side deletion, whose override still intercepts the retired close
+    kind and closes the delegate; GREEN once incoming custom messages fall
+    through to the base handler.
+    """
+    mesh = _mesh()
+    expected = _snapshot(mesh)
+    model_id = _model_id(_bundle(mesh))
+    delegate = _delegate(model_id)
+
+    received: list[tuple[object, tuple[object, ...]]] = []
+
+    def _capture(_widget: object, content: object, buffers: object) -> None:
+        received.append((content, tuple(buffers)))
+
+    delegate.on_msg(_capture)
+    probes: tuple[tuple[object, list[bytes]], ...] = (
+        ({"kind": "probe"}, []),
+        ({"kind": "probe-with-buffer"}, [b"\x00\x01"]),
+        ({"kind": RETIRED_ORACLE_CLOSE_KIND}, []),
+        ({"kind": RETIRED_ORACLE_CLOSE_KIND}, [b"\x00"]),
+        (RETIRED_ORACLE_CLOSE_KIND, []),
+        ({}, []),
+    )
+    try:
+        for index, (content, buffers) in enumerate(probes):
+            delegate._handle_msg(
+                {
+                    "content": {"data": {"method": "custom", "content": content}},
+                    "buffers": buffers,
+                }
+            )
+            # Ordinary positive path: the probe reached the custom branch.
+            assert len(received) == index + 1, (
+                "an incoming custom message was consumed before the "
+                "base dispatch instead of falling through untouched"
+            )
+            assert received[index] == (content, tuple(buffers))
+            # ...and was refused: the delegate stays open and unchanged.
+            assert _delegate(model_id) is delegate
+            assert delegate.get_state()[IDENTITY_TRAIT] == model_id
+    finally:
+        delegate.on_msg(_capture, remove=True)
+
+    callbacks = getattr(getattr(delegate, "_msg_callbacks", None), "callbacks", ())
+    assert tuple(callbacks) == ()
+    _assert_unchanged(mesh, expected)
+    delegate.close()
