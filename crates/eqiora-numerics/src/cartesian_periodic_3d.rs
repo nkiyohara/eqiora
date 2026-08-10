@@ -592,4 +592,6 @@ fn to_evidence_observation(
 }
 
 #[cfg(test)]
+mod collocated_tests;
+#[cfg(test)]
 mod tests;
