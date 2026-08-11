@@ -8,7 +8,6 @@ capabilities = [
   "relation-body-natural-equation-authoring",
 ]
 
-[runner]
-kind = "cargo-test"
+[evidence]
 package = "eqiora"
 test = "natural_equation_authoring"
