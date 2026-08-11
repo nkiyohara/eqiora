@@ -1,7 +1,11 @@
-model NaturalEquation {
-  field lhs: 1 = 3;
-  parameter rhs: 1 = 2;
+model natural_equation_oracle {
+  field a: 1 = 4;
+  field b: 1 = 3;
+  field c: 1 = 2;
+  field d: 1 = 1;
   relation balance continuous {
-    lhs - rhs = 0;
+    a - b = 0;
+    a - (b - c) - d = 0;
+    -a - -b = 0;
   }
 }

@@ -1,35 +1,33 @@
 # Natural equation authoring
 
-This case verifies the narrow Relation-body source extension in which
-`lhs = rhs;` is the natural spelling of the existing ordered equality
-residual `Sub(lhs, rhs)`. It introduces no equation node or second semantic
-path. The ordinary nonzero natural source must compile through the public
-facade before any denial or mutant is evaluated.
+This case proves the bounded Relation-body authoring rule: a valid non-sentinel
+`lhs = rhs;` becomes one ordered residual root `Sub(lhs, rhs)`, with source
+statement order retained. It first admits the ordinary nonzero natural model,
+then compares the equivalent explicit residual only through public structural
+equivalence and the structural semantic fingerprint.
 
-The evidence inspects the source AST and accepted Semantic Kernel expression
-DAG to preserve left operand, right operand, subtraction node, and root order.
-It then proves exact canonical formatting, structural format/reparse
-roundtrip, parser-owned ranges, the legacy dimensionful signed-zero sentinel,
-and the mandatory `(0)` and `(-0)` collision escapes. Precedence, statement
-order, intrinsic-error order, type/support rejection, malformed grammar, and
-span-presence mutants make the package non-vacuous.
+The same fixed sequence checks collision-safe formatting (`(0)` and `(-0)`),
+parse/format topology and byte idempotence, exact parser-owned ranges, the
+legacy finite-binary64-zero sentinel including three dimensionful witnesses,
+paired public diagnostic routes and actual optional spans, one-field mutants,
+the exact locked-package path, and a native explicit residual.
 
-Separately compiled natural and explicit sources are compared only through
-the public alpha-normalized structural fingerprint and structural-equivalence
-operation. Fresh occurrence IDs and their Model bytes, references, and
-digests are expected to remain different. The natural fixture also traverses
-compiler-derived package preparation, exact resolution, retained in-memory
-store replay, locked compilation, and compilation-record validation. A native
-explicit residual supplies the third structural route.
-
-Run:
+Run it through the repository gate:
 
 ```bash
-cargo test --locked -p eqiora --test natural_equation_authoring
-cargo run -p eqiora-verify -- run --case language.natural-equation-authoring
+mise run fast -- --case language.natural-equation-authoring
+mise run affected -- --case language.natural-equation-authoring
 ```
 
-This case does not claim algebraic equivalence, equation solving, comparison
-values, functionals, constraints, execution, numerical results, uniform
-downstream source spans, or equality of independently minted artifacts or
-package lineage.
+The finite oracle contains exactly 38 distinct raw sources and 5,313 raw UTF-8
+bytes, exactly 36 ordered one-field mutants, and at most 262 charged public
+operations. It caps formatter comparisons at 8 KiB aggregate and 1 KiB per
+document, diagnostics at two per source and 40 aggregate, private expected
+records at 64, and the two direct canonical Model vectors at 256 KiB each.
+
+This case does not claim equality of fresh occurrence-bearing identities,
+canonical bytes, references, digests, package/native provenance, or source
+spelling. It does not claim uniform downstream spans, algebraic or numerical
+equivalence, solving, execution, performance, residency, inequalities,
+constraints, Cell B/C meaning, Python, Studio, LSP, a new public abstraction,
+or a schema/wire/migration.
