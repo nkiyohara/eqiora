@@ -2,6 +2,12 @@ id = "language.natural-equation-authoring"
 status = "verified"
 scope = "Relation-body ordered structural/static equality plus collision-safe formatter roundtrip, parser-owned ranges, public structural comparison, exact locked package, and native explicit residual"
 
+reference_kind = "public-rust-fingerprint-and-comparison"
+
+capabilities = [
+  "relation-body-natural-equation-authoring",
+]
+
 [runner]
 kind = "cargo-test"
 package = "eqiora"
