@@ -911,7 +911,16 @@ fn revised_oracle_sequence() {
     let diagnostic_specs = diagnostic_specs();
     assert_eq!(statement_specs.len(), 16);
     assert_eq!(diagnostic_specs.len(), 8);
-    assert!(16 + 8 + 2 + 3 <= 64, "private expected-record cap exceeded");
+    let expected_record_count = statement_specs
+        .len()
+        .checked_add(diagnostic_specs.len())
+        .and_then(|count| count.checked_add(2))
+        .and_then(|count| count.checked_add(3))
+        .expect("private expected-record count overflow");
+    assert!(
+        expected_record_count <= 64,
+        "private expected-record cap exceeded"
+    );
 
     // Stage 1: exact positive receipts and the complete fixed raw-source envelope.
     assert_eq!(NATURAL.len(), 187);
