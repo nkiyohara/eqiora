@@ -202,9 +202,9 @@ fn only_relation(document: &Document) -> &RelationDecl {
     relation
 }
 
-fn parse_document(source: &str, accounting: &mut Accounting) -> Document {
+fn parse_document(file: &str, source: &str, accounting: &mut Accounting) -> Document {
     accounting.operation();
-    parse(source)
+    parse(file, source)
         .into_document()
         .unwrap_or_else(|diagnostics| panic!("positive parse rejected: {diagnostics:?}"))
 }
@@ -699,7 +699,7 @@ fn observe_dimensionful_sentinel(
     assert_eq!(source.len(), expected_len);
     assert_eq!(sha256_hex(source.as_bytes()), expected_sha256);
 
-    let document = parse_document(source, accounting);
+    let document = parse_document(logical_name, source, accounting);
     let model = only_model(&document);
     assert_eq!(model.name(), "dimensionful_sentinel_probe");
     assert_eq!(model.items().len(), 2);
@@ -955,8 +955,8 @@ fn revised_oracle_sequence() {
     let natural_model = compile_document("natural.eqi", NATURAL, &mut accounting);
 
     // Stage 3: exact trees/ranges, explicit compile, structural meaning, and identity guards.
-    let natural_document = parse_document(NATURAL, &mut accounting);
-    let explicit_document = parse_document(EXPLICIT, &mut accounting);
+    let natural_document = parse_document("natural.eqi", NATURAL, &mut accounting);
+    let explicit_document = parse_document("explicit-residual.eqi", EXPLICIT, &mut accounting);
     let positive_trees = vec![
         sub(n("a"), n("b")),
         sub(sub(n("a"), sub(n("b"), n("c"))), n("d")),
@@ -1098,14 +1098,18 @@ fn revised_oracle_sequence() {
     // Stage 4: both positives converge to the exact golden and are byte-idempotent.
     let natural_formatted = format_document(&natural_document, &mut accounting);
     assert_eq!(natural_formatted, NATURAL);
-    let natural_reparsed = parse_document(&natural_formatted, &mut accounting);
+    let natural_reparsed = parse_document("natural.eqi", &natural_formatted, &mut accounting);
     assert_eq!(roots(&natural_reparsed), positive_trees);
     assert_eq!(ranged_roots(&natural_reparsed), expected_natural_ranged);
     assert_eq!(format_document(&natural_reparsed, &mut accounting), NATURAL);
 
     let explicit_formatted = format_document(&explicit_document, &mut accounting);
     assert_eq!(explicit_formatted, NATURAL);
-    let explicit_reparsed = parse_document(&explicit_formatted, &mut accounting);
+    let explicit_reparsed = parse_document(
+        "explicit-residual.eqi",
+        &explicit_formatted,
+        &mut accounting,
+    );
     assert_eq!(roots(&explicit_reparsed), positive_trees);
     assert_eq!(ranged_roots(&explicit_reparsed), expected_natural_ranged);
     assert_eq!(
@@ -1118,7 +1122,7 @@ fn revised_oracle_sequence() {
     let mut statement_observations = Vec::with_capacity(statement_specs.len());
     for spec in &statement_specs {
         let source = statement_source(spec.input);
-        let document = parse_document(&source, &mut accounting);
+        let document = parse_document("statement.eqi", &source, &mut accounting);
         let relation = only_relation(&document);
         assert_eq!(relation.name(), "r");
         assert_eq!(
@@ -1140,7 +1144,7 @@ fn revised_oracle_sequence() {
         let formatted = format_document(&document, &mut accounting);
         assert_eq!(formatted, golden);
         let formatted_statement = first_line_statement(&formatted, 5);
-        let reparsed = parse_document(&formatted, &mut accounting);
+        let reparsed = parse_document("statement.eqi", &formatted, &mut accounting);
         assert_eq!(
             projected_tree(&only_relation(&reparsed).residuals()[0]),
             spec.first_root
