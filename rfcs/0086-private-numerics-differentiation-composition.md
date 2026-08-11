@@ -1,6 +1,6 @@
-# RFC 0000: Private numerics--differentiation composition
+# RFC 0086: Private numerics--differentiation composition
 
-- Status: Draft
+- Status: Accepted
 - Authors: Eqiora contributors
 - Created: 2026-08-11
 - Related RFCs and evidence: [RFC 0011](0011-implicit-differentiation-contracts.md),
