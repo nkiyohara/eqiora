@@ -1,45 +1,8 @@
 id = "language.natural-equation-authoring"
 status = "verified"
-scope = "relation-body-natural-equality-to-ordered-existing-subtraction"
-reference_kind = "independent-source-ast-formatter-structural-and-locked-package-oracle"
+scope = "Relation-body ordered structural/static equality plus collision-safe formatter roundtrip, parser-owned ranges, public structural comparison, exact locked package, and native explicit residual"
 
-capabilities = [
-  "natural-relation-equality-authoring",
-  "ordered-subtraction-lowering",
-  "legacy-signed-zero-sentinel-preservation",
-  "collision-safe-zero-rhs-formatting",
-  "structural-format-reparse-roundtrip",
-  "public-structural-semantic-equivalence",
-  "exact-locked-package-natural-source-compilation",
-  "native-explicit-residual-structural-equivalence",
-]
-
-[canonical_contract]
-ordinary_statement = "lhs = rhs;"
-residual_topology = "ordered Sub(lhs, rhs), one root per statement"
-legacy_sentinel = "optional minus plus one finite binary64-zero Number before semicolon"
-zero_escape = "direct Number zero -> (0); Neg(Number zero) -> (-0)"
-underflow_zero_spelling = "1e-400"
-formatter_context = "each equality side independently starts at precedence zero"
-structural_fingerprint = "e7662b36983484f8385eb4d5f595f86c87d6aed3e4c6276c569049dc033e9cc5"
-
-[claim_boundary]
-relation_body_only = true
-current_equality_residual_meaning = true
-fresh_occurrence_model_identity_equal = false
-canonical_model_or_transaction_bytes_equal = false
-artifact_reference_or_digest_equal = false
-cross_spelling_package_identity_equal = false
-cross_spelling_internal_source_identity_equal = false
-downstream_whole_equation_diagnostic_spans = false
-parser_owned_ranges = true
-algebraic_simplification_or_equation_solving = false
-functional_or_observable_semantics = false
-inequality_or_constraint_semantics = false
-python_studio_lsp_or_incremental_parsing = false
-new_ast_kernel_schema_wire_or_public_type = false
-numerical_execution_or_performance = false
-
-[evidence]
+[runner]
+kind = "cargo-test"
 package = "eqiora"
 test = "natural_equation_authoring"

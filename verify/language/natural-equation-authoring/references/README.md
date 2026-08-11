@@ -1,21 +1,23 @@
-# References
+# Observation reference
 
-The semantic authority is the accepted natural-equation contract together with
-[RFC 0003](../../../../rfcs/0003-language-frontend-v0.md).
-The contract fixes direct source lowering to the existing ordered subtraction
-root, the exact signed-zero sentinel, collision-safe formatter projection,
-parser-owned ranges, and the nonclaims recorded by this case.
+The oracle observes only the current public facade:
 
-The public comparison boundary reuses
-[`interfaces.structural-semantic-fingerprint`](../../../interfaces/structural-semantic-fingerprint/README.md):
-alpha-normalized structure may compare equal while occurrence-bearing
-artifacts remain distinct. Native comparison reuses
-[`language.native-modeling`](../../native-modeling/README.md), and exact
-package traversal reuses
-[`packages.offline-model-package`](../../../packages/offline-model-package/README.md)
-without widening any of those cases.
+- `eqiora::language::{parse, format, Document, Item, RelationDecl, Expr,
+  ExprKind, BinaryOp, UnaryOp, TextRange}` for ordered trees and parser-owned
+  ranges;
+- `eqiora::api::ModelDocument` compilation, native definition, public
+  structural comparison, fingerprint, and the bounded fresh-identity guards;
+- the public package authoring, preparation, in-memory store, exact resolution,
+  and locked compilation sequence; and
+- public diagnostic code, message, graph-path, and optional source-span
+  accessors.
 
-No numerical or scientific reference value is involved. The oracle is exact
-source structure, canonical formatter bytes, parser ranges, public structural
-comparison, existing diagnostic routing, and exact lineage replay for each
-independent package artifact.
+Private `Tree`, `RangedTree`, `DiagnosticClass`, `Observation`, and fixed
+mutant records are test-local assertion vocabulary, not public APIs or durable
+schemas. No implementation field, source map, parser/compiler sidecar, exact
+producer replay, snapshot, generated output, or second registry is used.
+
+Structural equivalence is intentionally narrower than algebraic or numerical
+equivalence and intentionally independent of occurrence-bearing artifact
+identity. Package and native probes retain their own exact lineage and are
+compared only for the same ordered structural/static meaning.
