@@ -114,3 +114,4 @@ implementation or capability claim.
 - [RFC 0083: One current Model artifact epoch before 1.0](0083-current-model-artifact-epoch.md)
 - [RFC 0084: Contract-wave capability development](0084-contract-wave-capability-development.md)
 - [RFC 0085: Standalone prescribed dynamic-solid artifacts](0085-standalone-prescribed-dynamic-solid-artifacts.md)
+- [RFC 0000: Private numerics--differentiation composition](0000-private-numerics-differentiation-composition.md)
