@@ -40,11 +40,15 @@ It proposes the same ownership-aligned edge only after the accepted RFC 0011
 successor removed the named executable blocker.
 
 The current manifests contain no `eqiora-numerics` to
-`eqiora-differentiation` edge and no reverse edge. The latter crate's normal
-workspace closure is only `eqiora-core`, `eqiora-ir`, and `eqiora-solver`, so
-the proposed direction creates no cycle at the proposal base. The layer
-checker has no matching exception and therefore fails closed until an accepted
-numbered version of this RFC is cited by the exact allowlist pair.
+`eqiora-differentiation` edge and no reverse edge. The latter crate's direct
+normal workspace dependencies are `eqiora-core`, `eqiora-ir`, and
+`eqiora-solver`; because `eqiora-ir` normally depends on `eqiora-schema`, its
+complete normal workspace closure is `eqiora-core`, `eqiora-ir`,
+`eqiora-schema`, and `eqiora-solver`. Neither that closure nor the current
+`eqiora-numerics` normal closure contains the other sibling in a reverse
+direction, so the proposed direction creates no cycle at the proposal base.
+The layer checker has no matching exception and therefore fails closed until
+an accepted numbered version of this RFC is cited by the exact allowlist pair.
 
 The separate
 `Dunavant-degree-6-12-point-normalized-area-v1` Realization identity remains
@@ -57,9 +61,12 @@ capability claim.
 
 ### Exact permission
 
-After this draft is independently accepted and assigned a permanent RFC
-number, the later Stokes E2 capability closure may add exactly this normal
-workspace dependency:
+The RFC-only lifecycle first reviews and accepts this draft, assigns its
+permanent RFC number, and merges the numbered RFC without any dependency,
+source, implementation, or evidence change. That accepted numbered RFC must
+predate the corrected E2 outcome contract, which binds its exact path,
+revision, and content before source work starts. Only then may the later
+Stokes E2 capability closure add exactly this normal workspace dependency:
 
 ```text
 eqiora-numerics (L3) -> eqiora-differentiation (L3)
@@ -108,10 +115,14 @@ and returns the missing requirement to that contract's owner.
 
 ### Exact later registration delta
 
-RFC acceptance does not itself add the dependency. The accepted numbered RFC
-and the sole first executable consumer must land together in the later E2
-capability-closure envelope. Only this dependency-registration and
-architecture delta is authorized:
+RFC acceptance, numbering, and merge do not themselves add the dependency or
+any E2 source. In the later E2 capability-closure envelope, after the accepted
+numbered RFC has been bound by the corrected outcome contract, the manifest
+dependency, mechanical lockfile relationship, exact allowlist pair, and
+architecture text authorized by that RFC must land with the sole first
+executable consumer. This prevents both a dormant dependency edge and dormant
+E2 code. Only this dependency-registration and architecture delta is
+authorized:
 
 ```text
 crates/eqiora-numerics/Cargo.toml
