@@ -12,15 +12,13 @@ use eqiora::package::{
 };
 use eqiora::{Diagnostic, DimExponents};
 
-const NATURAL: &str = include_str!(
-    "../../../verify/language/natural-equation-authoring/models/natural.eqi"
-);
+const NATURAL: &str =
+    include_str!("../../../verify/language/natural-equation-authoring/models/natural.eqi");
 const EXPLICIT: &str = include_str!(
     "../../../verify/language/natural-equation-authoring/models/explicit-residual.eqi"
 );
 const FINGERPRINT: &str = "eqiora.structural-semantic-fingerprint/v2:cbf66d30cfa131310de20b5432bcdab36ae3da375892fa99b7e0c456944ca0df";
-const MALFORMED: &str =
-    "model d { field x: 1 = 1; field y: 1 = 2; field z: 1 = 3; relation r continuous { x = y = z; } }";
+const MALFORMED: &str = "model d { field x: 1 = 1; field y: 1 = 2; field z: 1 = 3; relation r continuous { x = y = z; } }";
 const DIMENSIONFUL_POSITIVE_ZERO: &str = "model dimensionful_sentinel_probe {\n  field force: m = 1;\n  relation balance continuous {\n    force = 0;\n  }\n}\n";
 const DIMENSIONFUL_NEGATIVE_ZERO: &str = "model dimensionful_sentinel_probe {\n  field force: m = 1;\n  relation balance continuous {\n    force = -0;\n  }\n}\n";
 const DIMENSIONFUL_UNDERFLOW_ZERO: &str = "model dimensionful_sentinel_probe {\n  field force: m = 1;\n  relation balance continuous {\n    force = 1e-324;\n  }\n}\n";
@@ -57,7 +55,10 @@ impl Accounting {
             .public_operations
             .checked_add(1)
             .expect("public-operation accounting overflow");
-        assert!(self.public_operations <= 262, "public-operation cap exceeded");
+        assert!(
+            self.public_operations <= 262,
+            "public-operation cap exceeded"
+        );
     }
 
     fn formatted(&mut self, bytes: usize) {
@@ -66,7 +67,10 @@ impl Accounting {
             .formatter_bytes
             .checked_add(bytes)
             .expect("formatter-byte accounting overflow");
-        assert!(self.formatter_bytes <= 8192, "aggregate formatter cap exceeded");
+        assert!(
+            self.formatter_bytes <= 8192,
+            "aggregate formatter cap exceeded"
+        );
     }
 
     fn diagnostics(&mut self, count: usize) {
@@ -205,11 +209,7 @@ fn parse_document(source: &str, accounting: &mut Accounting) -> Document {
         .unwrap_or_else(|diagnostics| panic!("positive parse rejected: {diagnostics:?}"))
 }
 
-fn compile_document(
-    filename: &str,
-    source: &str,
-    accounting: &mut Accounting,
-) -> ModelDocument {
+fn compile_document(filename: &str, source: &str, accounting: &mut Accounting) -> ModelDocument {
     accounting.operation();
     ModelDocument::compile(filename, source)
         .unwrap_or_else(|diagnostics| panic!("positive compilation rejected: {diagnostics:?}"))
@@ -808,21 +808,20 @@ fn sha256_hex(bytes: &[u8]) -> String {
 
 fn sha256(bytes: &[u8]) -> [u8; 32] {
     const INITIAL: [u32; 8] = [
-        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c,
-        0x1f83d9ab, 0x5be0cd19,
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+        0x5be0cd19,
     ];
     const ROUND: [u32; 64] = [
-        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
-        0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-        0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
-        0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
-        0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-        0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
-        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
-        0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-        0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
+        0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+        0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+        0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
+        0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+        0xc67178f2,
     ];
 
     let bit_len = (bytes.len() as u64)
@@ -1102,10 +1101,7 @@ fn revised_oracle_sequence() {
     let natural_reparsed = parse_document(&natural_formatted, &mut accounting);
     assert_eq!(roots(&natural_reparsed), positive_trees);
     assert_eq!(ranged_roots(&natural_reparsed), expected_natural_ranged);
-    assert_eq!(
-        format_document(&natural_reparsed, &mut accounting),
-        NATURAL
-    );
+    assert_eq!(format_document(&natural_reparsed, &mut accounting), NATURAL);
 
     let explicit_formatted = format_document(&explicit_document, &mut accounting);
     assert_eq!(explicit_formatted, NATURAL);
@@ -1145,7 +1141,10 @@ fn revised_oracle_sequence() {
         assert_eq!(formatted, golden);
         let formatted_statement = first_line_statement(&formatted, 5);
         let reparsed = parse_document(&formatted, &mut accounting);
-        assert_eq!(projected_tree(&only_relation(&reparsed).residuals()[0]), spec.first_root);
+        assert_eq!(
+            projected_tree(&only_relation(&reparsed).residuals()[0]),
+            spec.first_root
+        );
         assert_eq!(format_document(&reparsed, &mut accounting), golden);
         statement_observations.push((first, formatted_statement));
     }
@@ -1188,7 +1187,10 @@ fn revised_oracle_sequence() {
     assert_eq!(malformed[0].message(), "expected `;` after residual");
     accounting.operation();
     let span0 = malformed[0].source_span().expect("first malformed span");
-    assert_eq!((&*span0.file, span0.start, span0.end), ("malformed.eqi", 88, 89));
+    assert_eq!(
+        (&*span0.file, span0.start, span0.end),
+        ("malformed.eqi", 88, 89)
+    );
     accounting.operation();
     assert_eq!(malformed[1].code().to_string(), "EQ0602");
     accounting.operation();
@@ -1198,7 +1200,10 @@ fn revised_oracle_sequence() {
     );
     accounting.operation();
     let span1 = malformed[1].source_span().expect("second malformed span");
-    assert_eq!((&*span1.file, span1.start, span1.end), ("malformed.eqi", 95, 96));
+    assert_eq!(
+        (&*span1.file, span1.start, span1.end),
+        ("malformed.eqi", 95, 96)
+    );
 
     let mut diagnostic_observations = Vec::with_capacity(diagnostic_specs.len());
     for spec in &diagnostic_specs {
@@ -1522,12 +1527,9 @@ fn revised_oracle_sequence() {
     let resolution =
         ResolutionRecordV1::from_exact_releases(&release, &[]).expect("exact resolution");
     accounting.operation();
-    let packaged = PackagedModelDocument::compile_locked(
-        &store,
-        &resolution,
-        "natural_equation_oracle",
-    )
-    .expect("locked package compilation");
+    let packaged =
+        PackagedModelDocument::compile_locked(&store, &resolution, "natural_equation_oracle")
+            .expect("locked package compilation");
     accounting.operation();
     assert!(
         packaged
@@ -1558,13 +1560,7 @@ fn revised_oracle_sequence() {
     let relation = DraftRelation::continuous("balance", native_roots);
     let draft = ModelDraft::new(
         "natural_equation_oracle",
-        vec![
-            a.into(),
-            b.into(),
-            c.into(),
-            d.into(),
-            relation.into(),
-        ],
+        vec![a.into(), b.into(), c.into(), d.into(), relation.into()],
     )
     .expect("native Model draft");
     accounting.operation();
