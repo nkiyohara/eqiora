@@ -5071,6 +5071,92 @@ write(JSON.stringify({calls,output,failure}));
             for path in sorted(directory.iterdir(), key=lambda item: item.name.encode())
         )
 
+    @staticmethod
+    def complete_candidate_profile_checks() -> tuple[str, ...]:
+        base_checks = tuple(
+            check
+            for compact in EXACT_WHEEL_INTERPRETERS
+            for check in (
+                f"cp{compact}:installed-wheel",
+                f"cp{compact}:base-and-numpy",
+                f"cp{compact}:packaged-exact-cylinder-model-demo",
+                f"cp{compact}:packaged-mixed-boundary-elasticity-demo",
+                f"cp{compact}:packaged-fixed-reference-fsi-demo",
+                f"cp{compact}:async-and-cancellation",
+                f"cp{compact}:strict-base-typing",
+                f"cp{compact}:public-smoke-base",
+                f"cp{compact}:matplotlib-free-base",
+            )
+        )
+        return (
+            "twine-strict",
+            "sdist-to-wheel-rebuild",
+            *base_checks,
+            "cp312:numpy-2.1.0-floor",
+            "check:generated-public-api",
+            *NOTEBOOK_PROFILE_CHECKS,
+            "cp313:torch",
+            "cp313:public-smoke-torch",
+            "cp313:jax",
+            "cp313:public-smoke-jax",
+            "cp313:matplotlib",
+            "cp313:packaged-exact-cylinder-pressure-demo",
+            "cp313:packaged-mixed-boundary-displacement-demo",
+            "cp313:packaged-fixed-reference-fsi-still",
+            "cp313:complete-public-typing",
+        )
+
+    @classmethod
+    def complete_candidate_profile_summary(
+        cls,
+        family: object,
+        *,
+        uv: str = "uv",
+        checks: tuple[str, ...] | None = None,
+        wheel_records: tuple[dict[str, object], ...] | None = None,
+    ) -> object:
+        config = python_candidate_module.load_config()
+        if wheel_records is None:
+            wheel_records = tuple(
+                {
+                    "filename": wheel.name,
+                    "kind": "wheel",
+                    "python": f"{compact[0]}.{compact[1:]}",
+                    "abi": f"cp{compact}",
+                    "platform": config.wheel_platform,
+                    "size": wheel.stat().st_size,
+                    "sha256": hashlib.sha256(wheel.read_bytes()).hexdigest(),
+                }
+                for compact, wheel in zip(
+                    EXACT_WHEEL_INTERPRETERS,
+                    family.wheels,
+                    strict=True,
+                )
+            )
+        numpy_version = config.numpy_floor.split("==", maxsplit=1)[1]
+        return python_candidate_module.CandidateProfileSummary(
+            config=config,
+            uv=uv,
+            wheel_records=wheel_records,
+            checks=(
+                cls.complete_candidate_profile_checks()
+                if checks is None
+                else checks
+            ),
+            dependency_profiles={
+                "numpy_floor": {
+                    "python": config.numpy_floor_interpreter,
+                    "requirement": config.numpy_floor,
+                    "observed": numpy_version,
+                    "profile": (
+                        "cp"
+                        f"{config.numpy_floor_interpreter.replace('.', '')}:"
+                        f"numpy-{numpy_version}-floor"
+                    ),
+                }
+            },
+        )
+
     def test_execute_h2_sequencing_uses_real_admission_and_inventory_unit(
         self,
     ) -> None:
@@ -5451,6 +5537,205 @@ write(JSON.stringify({calls,output,failure}));
             if metadata.exists():
                 self.assertEqual(tuple(metadata.iterdir()), ())
 
+    def test_finalizer_admits_complete_profile_summary_before_publication(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            family_path = root / "family"
+            receipt_path = root / "eqiora-0.1.0a1-python-candidate-h2.json"
+            self.write_exact_family(family_path)
+            receipt_bytes = b'{"candidate":{"version":"0.1.0a1"}}'
+            receipt_path.write_bytes(receipt_bytes)
+            executor = importlib.import_module("python_candidate_h2")
+            family = executor.admit_candidate_family(family_path)
+            entry_inventory = executor.family_inventory(family_path)
+            complete = self.complete_candidate_profile_summary(family)
+            expected_manifest_name = "eqiora-0.1.0a1-python-candidate.json"
+
+            positive_metadata = root / "positive-metadata"
+            positive_manifest = positive_metadata / expected_manifest_name
+
+            def write_positive_manifest(
+                *_args: object, **_kwargs: object
+            ) -> Path:
+                positive_manifest.write_bytes(b"complete profile manifest")
+                return positive_manifest
+
+            with (
+                mock.patch.object(
+                    python_candidate_module,
+                    "source_identity",
+                    return_value=SourceIdentity(self.REVISION, ()),
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "validate_h2_receipt",
+                    return_value={"validated": True},
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "derive_frontend_manifest",
+                    return_value={"h2_receipt_sha256": "0" * 64},
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "run_candidate_profiles",
+                    return_value=complete,
+                ) as profiles,
+                mock.patch.object(
+                    python_candidate_module,
+                    "write_manifest",
+                    side_effect=write_positive_manifest,
+                ) as write_manifest,
+                mock.patch.object(
+                    python_candidate_module,
+                    "load_candidate_family",
+                    return_value=mock.sentinel.candidate,
+                ) as load_family,
+                mock.patch.object(
+                    python_candidate_module,
+                    "verify_artifacts",
+                ) as verify_artifacts,
+            ):
+                observed = python_candidate_module.finalize_candidate(
+                    expected_commit=self.REVISION,
+                    artifacts=family_path,
+                    h2_receipt=receipt_path,
+                    manifest_out=positive_metadata,
+                )
+
+            self.assertEqual(observed, positive_manifest)
+            profiles.assert_called_once()
+            write_manifest.assert_called_once()
+            load_family.assert_called_once()
+            verify_artifacts.assert_called_once_with(
+                mock.sentinel.candidate,
+                family_path,
+            )
+            self.assertEqual(
+                {path.name for path in positive_metadata.iterdir()},
+                {expected_manifest_name, receipt_path.name},
+            )
+            self.assertEqual(
+                (positive_metadata / receipt_path.name).read_bytes(),
+                receipt_bytes,
+            )
+            self.assertEqual(executor.family_inventory(family_path), entry_inventory)
+            self.assertEqual(receipt_path.read_bytes(), receipt_bytes)
+
+            invalid_summaries = (
+                *(
+                    (
+                        f"omitted-{host}",
+                        self.complete_candidate_profile_summary(
+                            family,
+                            uv="/reviewed/uv",
+                            checks=tuple(
+                                check
+                                for check in complete.checks
+                                if check != host
+                            ),
+                        ),
+                        (
+                            "candidate profile summary does not contain the exact "
+                            "complete check set"
+                        ),
+                    )
+                    for host in NOTEBOOK_PROFILE_CHECKS[5:7]
+                ),
+                (
+                    "non-summary-false-success",
+                    mock.sentinel.false_success,
+                    "candidate profile owner did not return CandidateProfileSummary",
+                ),
+                (
+                    "omitted-wheel-record",
+                    self.complete_candidate_profile_summary(
+                        family,
+                        uv="/reviewed/uv",
+                        wheel_records=complete.wheel_records[:-1],
+                    ),
+                    (
+                        "candidate profile summary does not bind the exact "
+                        "four-wheel family"
+                    ),
+                ),
+            )
+
+            def forbidden_manifest_write(
+                *_args: object, **_kwargs: object
+            ) -> Path:
+                raise AssertionError(
+                    "write_manifest reached before profile-summary rejection"
+                )
+
+            for name, invalid, message in invalid_summaries:
+                with self.subTest(profile_summary_mutant=name):
+                    metadata = root / name
+                    with (
+                        mock.patch.object(
+                            python_candidate_module,
+                            "source_identity",
+                            return_value=SourceIdentity(self.REVISION, ()),
+                        ),
+                        mock.patch.object(
+                            python_candidate_module,
+                            "validate_h2_receipt",
+                            return_value={"validated": True},
+                        ),
+                        mock.patch.object(
+                            python_candidate_module,
+                            "derive_frontend_manifest",
+                            return_value={"h2_receipt_sha256": "0" * 64},
+                        ),
+                        mock.patch.object(
+                            python_candidate_module,
+                            "run_candidate_profiles",
+                            return_value=invalid,
+                        ) as profiles,
+                        mock.patch.object(
+                            python_candidate_module,
+                            "write_manifest",
+                            side_effect=forbidden_manifest_write,
+                        ) as write_manifest,
+                        mock.patch.object(
+                            python_candidate_module,
+                            "tool_version",
+                        ) as tool_version,
+                        mock.patch.object(
+                            python_candidate_module,
+                            "load_candidate_family",
+                        ) as load_family,
+                        mock.patch.object(
+                            python_candidate_module,
+                            "verify_artifacts",
+                        ) as verify_artifacts,
+                    ):
+                        with self.assertRaisesRegex(
+                            CandidateError,
+                            rf"\A{message}\Z",
+                        ):
+                            python_candidate_module.finalize_candidate(
+                                expected_commit=self.REVISION,
+                                artifacts=family_path,
+                                h2_receipt=receipt_path,
+                                manifest_out=metadata,
+                            )
+
+                    profiles.assert_called_once()
+                    write_manifest.assert_not_called()
+                    tool_version.assert_not_called()
+                    load_family.assert_not_called()
+                    verify_artifacts.assert_not_called()
+                    if metadata.exists():
+                        self.assertEqual(tuple(metadata.iterdir()), ())
+                    self.assertEqual(
+                        executor.family_inventory(family_path),
+                        entry_inventory,
+                    )
+                    self.assertEqual(receipt_path.read_bytes(), receipt_bytes)
+
     def test_finalizer_consumes_receipt_and_never_rebuilds_or_synthesizes_it(
         self,
     ) -> None:
@@ -5472,6 +5757,10 @@ write(JSON.stringify({calls,output,failure}));
                 (family / exact_wheel_name(compact)).resolve()
                 for compact in EXACT_WHEEL_INTERPRETERS
             }
+            executor = importlib.import_module("python_candidate_h2")
+            profile_summary = self.complete_candidate_profile_summary(
+                executor.admit_candidate_family(family)
+            )
 
             def write_manifest(*_args: object, **_kwargs: object) -> Path:
                 self.assertTrue(metadata.is_dir())
@@ -5479,7 +5768,6 @@ write(JSON.stringify({calls,output,failure}));
                 return manifest
 
             inventory = self.expected_family_inventory(family)
-            executor = importlib.import_module("python_candidate_h2")
             observed_inventories: list[tuple[dict[str, object], ...]] = []
 
             def observe_inventory(directory: Path) -> tuple[dict[str, object], ...]:
@@ -5521,7 +5809,7 @@ write(JSON.stringify({calls,output,failure}));
                 mock.patch.object(
                     python_candidate_module,
                     "run_candidate_profiles",
-                    return_value=mock.sentinel.profiles,
+                    return_value=profile_summary,
                     create=True,
                 ) as run_profiles,
                 mock.patch.object(
