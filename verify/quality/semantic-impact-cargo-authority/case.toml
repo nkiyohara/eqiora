@@ -1,0 +1,34 @@
+id = "quality.semantic-impact-cargo-authority"
+status = "verified"
+scope = "exact-c1-head-bounded-repository-derived-cargo-authority-s1"
+reference_kind = "precommitted-typed-record-arrays-certificates-and-causal-falsifiers"
+
+capabilities = [
+  "complete-cargo-manifest-graph-authority",
+  "exact-per-profile-record-and-certificate-equality",
+  "added-overlay-carrier-replay",
+  "persistent-per-side-canonical-byte-cap",
+  "required-target-root-coverage",
+  "unambiguous-target-root-authority",
+  "exact-changed-member-manifest-join",
+]
+
+[claim_boundary]
+cargo_only = true
+exact_c1_head = true
+complete_empty_s1_projection = true
+commit_and_added_overlay_heads = true
+selection_or_case_id_result = false
+semantic_reference_module_or_facade_graph = false
+modified_or_deleted_overlay = false
+target_specific_cfg = false
+external_dependency_resolution = false
+cargo_or_rustc_subprocess = false
+general_cargo_equivalence = false
+public_or_persisted_api = false
+aggregate_authority_artifact = false
+performance_or_portability = false
+
+[evidence]
+package = "xtask"
+test = "semantic_impact_cargo_authority"
