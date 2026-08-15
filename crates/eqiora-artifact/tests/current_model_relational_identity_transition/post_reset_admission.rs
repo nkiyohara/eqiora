@@ -34,7 +34,7 @@ const IDENTITY_FREE_PATH_ORDER: [&str; 17] = [
     "crates/eqiora/src/bin/eqiora-mcp/tool.rs",
 ];
 
-const FIXTURE_PATH_ORDER: [&str; 17] = [
+const FIXTURE_PATH_ORDER: [&str; 18] = [
     "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/model.json",
     "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/\
      geometry-identity.json",
@@ -60,6 +60,7 @@ const FIXTURE_PATH_ORDER: [&str; 17] = [
      e1-sealed-inputs-v1.json",
     "crates/eqiora-numerics/src/cartesian_periodic_3d/collocated_tests.rs",
     "verify/fluid/cartesian-periodic-collocated-view-3d/case.toml",
+    "tools/xtask/tests/semantic_impact_cargo_authority.rs",
 ];
 
 fn rows_have_exact_unique_path_order(rows: &[PostResetAdmitted], expected: &[&str]) -> bool {
@@ -460,6 +461,30 @@ fn taylor_collocated_fixtures() -> Vec<ExpectedAdmission> {
     ]
 }
 
+fn semantic_impact_cargo_authority_fixture() -> ExpectedAdmission {
+    let identities = (0..2544)
+        .map(|_| format!("\"{}\"", "e".repeat(64)))
+        .collect::<Vec<_>>()
+        .join(",");
+    ExpectedAdmission {
+        path: "tools/xtask/tests/semantic_impact_cargo_authority.rs",
+        class: "source-or-package-identity",
+        owner: "tools/xtask semantic-impact Cargo authority integration-test oracle",
+        note: "the exact Cargo authority test records Cargo manifest, source, package, \
+               dependency, target, commit, tree, overlay, blob, and content identities; its \
+               2,544 same-line lower-hex-64 occurrences are Cargo, source, package, and \
+               revision records on Model/Transaction-bearing serialized authority lines, not \
+               current Model artifact identities. Admission owns only this exact path, empty \
+               search shape, and occurrence count; the Cargo authority oracle retains ownership \
+               of its bytes and values, and this creates no current Model artifact identity \
+               authority."
+            .to_owned(),
+        source: format!(
+            "const CARGO_MODEL_SOURCE_PACKAGE_REVISION_RECORDS: &[&str] = &[{identities}];\n"
+        ),
+    }
+}
+
 fn all_fixtures() -> Vec<ExpectedAdmission> {
     let mut rows = rfc85_fixtures();
     rows.extend(issue118_fixtures());
@@ -467,6 +492,7 @@ fn all_fixtures() -> Vec<ExpectedAdmission> {
     rows.push(issue79_fixture());
     rows.push(stokes_e1_sealed_input_fixture());
     rows.extend(taylor_collocated_fixtures());
+    rows.push(semantic_impact_cargo_authority_fixture());
     rows
 }
 
@@ -562,14 +588,14 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
             .unwrap()
     );
     assert_eq!(identity_free.len(), 17);
-    assert_eq!(fixtures.len(), 17);
+    assert_eq!(fixtures.len(), 18);
     assert_eq!(
         contract
             .post_reset_fixture_admitted
             .iter()
             .map(|entry| entry.identity_literals)
             .sum::<usize>(),
-        35
+        2579
     );
 
     // Every historical count is still its own. Listing an admitted path in the
@@ -649,8 +675,8 @@ fn admission_arrays_reject_row_reorder_and_duplicate_paths() {
             "fixture",
             contract.post_reset_fixture_admitted.as_slice(),
             FIXTURE_PATH_ORDER.as_slice(),
-            15,
             16,
+            17,
             13,
         ),
     ] {
@@ -1002,6 +1028,11 @@ fn no_glob_directory_suffix_or_proximity_admission_exists() {
         "verify/fluid/cartesian-periodic-collocated-view-3d/case-copy.toml",
         "verify/fluid/cartesian-periodic-collocated-view-3d/nested/case.toml",
         "verify/fluid/cartesian-periodic-collocated-view-2d/case.toml",
+        "tools/xtask/tests/semantic_impact_cargo_authority.rs.bak",
+        "tools/xtask/tests/semantic_impact_cargo_authority_copy.rs",
+        "tools/xtask/tests/semantic_impact_cargo_authority/helper.rs",
+        "tools/xtask/tests/semantic_impact_package_authority.rs",
+        "tools/xtask/tests/semantic_impact.rs",
     ] {
         refused(
             classify_transition(&contract, &reset().signalling(&[path])),

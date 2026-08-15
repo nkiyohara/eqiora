@@ -103,6 +103,8 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.target_sha }}
           persist-credentials: false
+      - name: Fetch frozen semantic-impact Cargo authority revision
+        run: git fetch --no-tags --depth=1 origin 8e9aec96d5170cb7ab7b7a5f52281e0a0ef09582
       - name: Install MPI build and runtime dependencies
         run: |
           sudo apt-get update
@@ -164,6 +166,8 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.target_sha }}
           persist-credentials: false
+      - name: Fetch frozen semantic-impact Cargo authority revision
+        run: git fetch --no-tags --depth=1 origin 8e9aec96d5170cb7ab7b7a5f52281e0a0ef09582
       - name: Install evidence build and runtime dependencies
         run: |
           sudo apt-get update
