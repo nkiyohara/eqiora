@@ -1,5 +1,5 @@
 id = "interfaces.python-exact-cylinder-stokes-marimo"
-status = "specified"
+status = "verified"
 scope = "installed-python-one-exact-cylinder-steady-stokes-marimo-composition"
 reference_kind = "accepted-owner-composition-plus-clean-candidate-marimo-reachability"
 
