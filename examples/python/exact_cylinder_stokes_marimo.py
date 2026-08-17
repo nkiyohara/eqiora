@@ -110,7 +110,6 @@ def _(
     mesh_plan,
     mo,
     model,
-    pressure_figure,
     result,
     run,
     stokes_plan,
@@ -149,8 +148,26 @@ def _(
         </div>
         """
     )
-    ready = mo.md("**EQIORA_EXACT_CYLINDER_STOKES_READY**")
-    mo.vstack([summary, pressure_figure, ready])
+    summary_presented = True
+    summary
+    return (summary_presented,)
+
+
+@app.cell
+def _(pressure_figure, summary_presented):
+    pressure_figure_presented = summary_presented
+    pressure_figure
+    return (pressure_figure_presented,)
+
+
+@app.cell
+def _(mo, pressure_figure_presented):
+    ready = (
+        mo.md("**EQIORA_EXACT_CYLINDER_STOKES_READY**")
+        if pressure_figure_presented
+        else mo.md("")
+    )
+    ready
     return
 
 
