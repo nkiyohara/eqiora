@@ -42,6 +42,25 @@ struct AttributePlan {
     item: DataItem,
 }
 
+impl XdmfImportPlan {
+    /// Parse bounded XDMF 3 metadata into canonical typed array requests.
+    ///
+    /// No path or URL is opened. Requests are normalized to Geometry,
+    /// Topology, then caller-selected Attributes regardless of XML order.
+    ///
+    /// # Errors
+    /// Returns `EQ0810` for malformed XML, an unsupported construct, an
+    /// invalid structural selection, or a resource-budget violation.
+    pub fn parse(
+        metadata: &[u8],
+        selection: XdmfSelection,
+        limits: XdmfImportLimits,
+    ) -> Result<Self, Diagnostic> {
+        let limits = limits.validate()?;
+        parse_document(metadata, selection, limits)
+    }
+}
+
 pub(crate) fn parse_document(
     metadata: &[u8],
     selection: XdmfSelection,
