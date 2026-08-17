@@ -6,7 +6,7 @@
 //! This module therefore loads only the Generic API symbols used by Eqiora.
 //! The library and all descriptors share one owned lifetime.
 
-use std::ffi::{c_char, c_void};
+use std::ffi::c_void;
 use std::fmt;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
@@ -508,8 +508,3 @@ impl SpmvPlan {
         }
     }
 }
-
-// Keep the symbol type in the same module as the ABI declarations so a
-// future toolkit update cannot silently change it through an inferred cast.
-#[allow(dead_code)]
-type ErrorName = unsafe extern "C" fn(Status) -> *const c_char;
