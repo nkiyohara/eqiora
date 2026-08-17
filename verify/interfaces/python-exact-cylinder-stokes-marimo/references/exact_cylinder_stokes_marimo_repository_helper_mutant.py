@@ -17,6 +17,6 @@ def _():
     return (result,)
 
 
-# There is deliberately no app.run() entry point. The candidate executes this
+# There is deliberately no Marimo execution entry point. The candidate executes this
 # source only as a dependency-resolution falsifier; if the helper unexpectedly
 # resolves, the process exits without executing a Marimo cell or Eqiora Run.
