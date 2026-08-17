@@ -2276,6 +2276,14 @@ write(JSON.stringify({calls,output,failure}));
                         "private": "manifest-secret-canary",
                     },
                 ),
+                (
+                    "node_modules/three",
+                    {
+                        "name": "three",
+                        "version": "0.185.1",
+                        "description": "unchanged-manifest-peer-雪",
+                    },
+                ),
             ),
             package_packuments=(
                 (
@@ -2294,6 +2302,19 @@ write(JSON.stringify({calls,output,failure}));
                                     )
                                 },
                                 "authorization": "header-secret-canary",
+                            }
+                        },
+                    },
+                ),
+                (
+                    "three",
+                    {
+                        "name": "three",
+                        "description": "unchanged-packument-peer-雪",
+                        "versions": {
+                            "0.185.1": {
+                                "name": "three",
+                                "version": "0.185.1",
                             }
                         },
                     },
@@ -4334,7 +4355,7 @@ write(JSON.stringify({calls,output,failure}));
                     "scripts": {"prepare": "manifest-mutant-secret-canary"},
                 },
             )
-            mutant_manifests = (mutant_manifest,)
+            mutant_manifests = (mutant_manifest, baseline.package_manifests[1])
             baseline_packument = baseline.package_packuments[0]
             mutant_packument = (
                 baseline_packument[0],
@@ -4343,11 +4364,17 @@ write(JSON.stringify({calls,output,failure}));
                     "dist-tags": {"latest": "packument-mutant-secret-canary"},
                 },
             )
-            mutant_packuments = (mutant_packument,)
+            mutant_packuments = (mutant_packument, baseline.package_packuments[1])
             mutations = (
                 ("browser_archive_sha256", "1" * 64, None, None, None),
                 ("browser_executable_sha256", "2" * 64, None, None, None),
-                ("browser_platform", "private-platform-canary", None, None, None),
+                (
+                    "browser_platform",
+                    "private-platform-雪-canary",
+                    None,
+                    None,
+                    None,
+                ),
                 (
                     "playwright_test_integrity",
                     "sha512-test-mutant-secret-canary",
@@ -4415,6 +4442,7 @@ write(JSON.stringify({calls,output,failure}));
                 "sha512-",
                 "linux-x86_64",
                 "private-platform-canary",
+                "雪",
                 "a" * 64,
                 "b" * 64,
                 "c" * 64,
@@ -4461,6 +4489,178 @@ write(JSON.stringify({calls,output,failure}));
                     validate_resources.assert_not_called()
                     for secret in forbidden:
                         self.assertNotIn(secret, str(raised.exception))
+
+    def test_h2_collection_membership_drift_marks_only_added_or_removed_member(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            baseline = self.diagnostic_acquired_inputs(executor, root)
+            added_wheel = {
+                "name": "zeta-widget",
+                "version": "1.0.0",
+                "filename": "zeta_widget-1.0.0-py3-none-any.whl",
+                "sha256": "4" * 64,
+            }
+            added_manifest = (
+                "node_modules/zeta-widget",
+                {
+                    "name": "zeta-widget",
+                    "version": "1.0.0",
+                    "description": "added-manifest-secret-雪",
+                },
+            )
+            added_packument = (
+                "zeta-widget",
+                {
+                    "name": "zeta-widget",
+                    "description": "added-packument-secret-雪",
+                    "versions": {
+                        "1.0.0": {"name": "zeta-widget", "version": "1.0.0"}
+                    },
+                },
+            )
+            membership_mutations = (
+                (
+                    "python_wheels",
+                    baseline.python_wheels[1:],
+                    str(baseline.python_wheels[0]["filename"]),
+                    baseline.python_wheels[0],
+                    None,
+                ),
+                (
+                    "python_wheels",
+                    (*baseline.python_wheels, added_wheel),
+                    str(added_wheel["filename"]),
+                    None,
+                    added_wheel,
+                ),
+                (
+                    "package_manifests",
+                    baseline.package_manifests[1:],
+                    str(baseline.package_manifests[0][0]),
+                    baseline.package_manifests[0],
+                    None,
+                ),
+                (
+                    "package_manifests",
+                    (*baseline.package_manifests, added_manifest),
+                    str(added_manifest[0]),
+                    None,
+                    added_manifest,
+                ),
+                (
+                    "package_packuments",
+                    baseline.package_packuments[1:],
+                    str(baseline.package_packuments[0][0]),
+                    baseline.package_packuments[0],
+                    None,
+                ),
+                (
+                    "package_packuments",
+                    (*baseline.package_packuments, added_packument),
+                    str(added_packument[0]),
+                    None,
+                    added_packument,
+                ),
+            )
+            family = executor.CandidateFamily(
+                root / "candidate.tar.gz", (), "0.1.0a1", ()
+            )
+            workspaces = (
+                mock.Mock(root=root / "clean-run-1"),
+                mock.Mock(root=root / "clean-run-2"),
+            )
+            first = executor.RunObservation((), (), (), 0, baseline)
+            for field, value, identity, first_member, second_member in (
+                membership_mutations
+            ):
+                with self.subTest(field=field, identity=identity):
+                    acquired = replace(baseline, **{field: value})
+                    second = executor.RunObservation((), (), (), 0, acquired)
+                    expected = self.expected_acquisition_drift_message(
+                        field,
+                        getattr(baseline, field),
+                        value,
+                        member_identity=identity,
+                        first_member=first_member,
+                        second_member=second_member,
+                    )
+                    with (
+                        mock.patch.object(executor, "_asset_equality"),
+                        mock.patch.object(
+                            executor, "_validate_abstract_resources"
+                        ) as validate_resources,
+                    ):
+                        with self.assertRaises(CandidateError) as raised:
+                            executor.observe_h2(
+                                expected_commit=self.REVISION,
+                                family=family,
+                                extracted=root / "source",
+                                workspaces=workspaces,
+                                runs=(first, second),
+                                source_date_epoch=123456789,
+                            )
+                    self.assertEqual(str(raised.exception), expected)
+                    validate_resources.assert_not_called()
+                    self.assertIn('"absent"', str(raised.exception))
+                    self.assertNotIn(str(root), str(raised.exception))
+                    self.assertNotIn("secret-雪", str(raised.exception))
+
+    def test_h2_multi_field_diagnostic_uses_existing_comparison_order(self) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            baseline = self.diagnostic_acquired_inputs(executor, root)
+            changes = (
+                ("browser_executable_sha256", "5" * 64),
+                ("python_wheel_bytes", 21),
+                ("browser_member_count", 288),
+            )
+            acquired = replace(baseline, **dict(changes))
+            prefix = "H2 isolated runs acquired different external inputs: "
+            differences = []
+            for field, value in changes:
+                one = self.expected_acquisition_drift_message(
+                    field, getattr(baseline, field), value
+                )
+                differences.append(
+                    json.loads(one.removeprefix(prefix))["differences"][0]
+                )
+            expected = prefix + json.dumps(
+                {"differences": differences},
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            first = executor.RunObservation((), (), (), 0, baseline)
+            second = executor.RunObservation((), (), (), 0, acquired)
+            family = executor.CandidateFamily(
+                root / "candidate.tar.gz", (), "0.1.0a1", ()
+            )
+            workspaces = (
+                mock.Mock(root=root / "clean-run-1"),
+                mock.Mock(root=root / "clean-run-2"),
+            )
+            with (
+                mock.patch.object(executor, "_asset_equality"),
+                mock.patch.object(
+                    executor, "_validate_abstract_resources"
+                ) as validate_resources,
+            ):
+                with self.assertRaises(CandidateError) as raised:
+                    executor.observe_h2(
+                        expected_commit=self.REVISION,
+                        family=family,
+                        extracted=root / "source",
+                        workspaces=workspaces,
+                        runs=(first, second),
+                        source_date_epoch=123456789,
+                    )
+            self.assertEqual(str(raised.exception), expected)
+            validate_resources.assert_not_called()
 
     def test_h2_compatibility_failure_never_publishes_receipt(self) -> None:
         executor = importlib.import_module("python_candidate_h2")
