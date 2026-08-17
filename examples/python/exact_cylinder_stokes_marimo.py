@@ -9,12 +9,13 @@ app = marimo.App(width="medium")
 @app.cell
 def _():
     from importlib.resources import files
+    from io import BytesIO
 
     import eqiora
     import eqiora.matplotlib as eqplot
     import marimo as mo
 
-    return eqiora, eqplot, files, mo
+    return BytesIO, eqiora, eqplot, files, mo
 
 
 @app.cell
@@ -154,9 +155,16 @@ def _(
 
 
 @app.cell
-def _(pressure_figure, summary_presented):
+def _(BytesIO, mo, pressure_figure, summary_presented):
+    pressure_png = BytesIO()
+    pressure_figure.savefig(pressure_png, format="png")
+    pressure_png.seek(0)
+    pressure_image = mo.image(
+        pressure_png,
+        alt="Steady Stokes pressure field",
+    )
     pressure_figure_presented = summary_presented
-    pressure_figure
+    pressure_image
     return (pressure_figure_presented,)
 
 
