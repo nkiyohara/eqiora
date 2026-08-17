@@ -43,7 +43,7 @@ discoverable_from_examples_readme = true
 installed_eqiora_import_only = true
 installed_model_resource_only = true
 exact_repository_example_helper_absent = true
-one_submit_and_one_result_occurrence = true
+direct_call_inventory = "eqiora.submit=1; attribute .result=1; eqiora.run=0"
 geometry_mesh_plan_mesh_model_plan_run_result_types_visible = true
 typed_steady_stokes_evidence_visible = true
 pressure_force_flux_units_visible = true
@@ -61,7 +61,7 @@ ordinary_positive_path_precedes_falsifiers = true
 missing_application = "source oracle rejects before candidate construction"
 repository_example_helper = "after the ordinary live app succeeds, the exact mutant importing examples.python.exact_cylinder_stokes fails under the same installed CPython 3.13 -I environment because its closed negative consumer contains only the mutant app"
 unrelated_negative_failure = "a denial other than ModuleNotFoundError for the exact examples helper cannot satisfy the falsifier"
-second_run = "the canonical source contains exactly one submit and one result occurrence; the exact negative mutant contains neither and fails during its top-level helper import"
+second_run = "after the canonical direct-call inventory passes, adding exact direct eqiora.run(model, plan=plan) changes only that inventory from (1,1,0) to (1,1,1) and rejects; aliases and dynamically constructed calls are not claimed"
 missing_or_foreign_owner = "existing public Geometry, Mesh, Model, Plan, Run, Result, snapshot, and Field boundaries remain fail-closed"
 missing_installed_model = "the one ordinary app fails before readiness"
 missing_matplotlib_or_marimo = "the exact candidate profile fails before readiness"

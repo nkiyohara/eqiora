@@ -12,7 +12,11 @@ Figure in one Marimo flow.
 ## Independent positive path
 
 The evidence first checks the exact canonical source as one public
-composition. It requires exactly one `eqiora.submit(...)`, one `.result()`,
+composition. A narrow AST inventory requires exactly one direct
+`eqiora.submit(...)` call, one direct attribute `.result()` call, and zero
+direct `eqiora.run(...)` calls. After that positive source passes, adding one
+direct `eqiora.run(model, plan=plan)` must fail only this inventory. This makes
+no claim about aliases or dynamically constructed calls. The source also has
 one `steady_stokes_evidence(...)`, one `plot_scalar_field(...)`, and one
 `importlib.resources.files(eqiora)` occurrence. This is not a generic Python
 import, file-access, or isolation policy. It freezes no digest, physical
@@ -23,7 +27,8 @@ wheel with its existing exact `notebook` and `matplotlib` extras. It copies
 only the application into a dedicated clean positive consumer and requires
 its complete recursive inventory to be exactly that one regular file, with no
 directory or symlink member. It launches exact Marimo 0.23.16 under
-`python -I`. The browser waits for the application
+`python -I`, with the resolved script target exactly equal to the copied file
+in that consumer. The browser waits for the application
 readiness marker only after observing live rows named by the public carrier
 types: Geometry, MeshPlan, Mesh, Model, SteadyStokesPlan, Run, Result, and
 SteadyStokesEvidence. It compares only the Run and Result identity

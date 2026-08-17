@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import importlib
 import re
@@ -45,6 +46,31 @@ def _recursive_regular_inventory(root: Path) -> tuple[str, ...]:
     return tuple(members)
 
 
+def _require_one_direct_run(source: str) -> None:
+    """Check only direct calls in the one canonical app source."""
+
+    tree = ast.parse(source, filename=APP_PATH.as_posix())
+    submit = 0
+    result = 0
+    run = 0
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if isinstance(node.func.value, ast.Name) and node.func.value.id == "eqiora":
+            if node.func.attr == "submit":
+                submit += 1
+            elif node.func.attr == "run":
+                run += 1
+        if node.func.attr == "result":
+            result += 1
+    observed = (submit, result, run)
+    if observed != (1, 1, 0):
+        raise AssertionError(
+            "canonical app direct calls must be "
+            f"eqiora.submit=1, .result=1, eqiora.run=0; observed {observed}"
+        )
+
+
 class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
     def test_canonical_app_is_one_run_without_the_exact_repository_helper(self) -> None:
         self.assertTrue(APP.is_file(), f"missing canonical app: {APP_PATH}")
@@ -52,8 +78,6 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
 
         # This is an exact-source check for the one canonical app, not a generic
         # Python import, file-access, or isolation policy.
-        self.assertEqual(source.count("eqiora.submit("), 1)
-        self.assertEqual(source.count(".result()"), 1)
         self.assertEqual(source.count("steady_stokes_evidence("), 1)
         self.assertEqual(source.count("plot_scalar_field("), 1)
         self.assertEqual(source.count("files(eqiora)"), 1)
@@ -76,6 +100,14 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
             "EQIORA_EXACT_CYLINDER_STOKES_READY",
         ):
             self.assertIn(marker, source)
+
+        _require_one_direct_run(source)
+        second_run_mutant = source + "\neqiora.run(model, plan=plan)\n"
+        with self.assertRaisesRegex(
+            AssertionError,
+            r"eqiora\.submit=1, \.result=1, eqiora\.run=0; observed \(1, 1, 1\)",
+        ):
+            _require_one_direct_run(second_run_mutant)
 
         self.assertTrue(MUTANT.is_file(), f"missing exact mutant: {MUTANT_PATH}")
         mutant = MUTANT.read_text(encoding="utf-8")
@@ -325,8 +357,13 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
             self.assertEqual(len(positive_launches), 1)
             positive_argv, positive_cwd = positive_launches[0]
             self.assertEqual(
-                positive_argv[:4],
-                (str(python), "-I", "-m", "marimo"),
+                positive_argv[:5],
+                (str(python), "-I", "-m", "marimo", "run"),
+            )
+            self.assertGreaterEqual(len(positive_argv), 6)
+            self.assertEqual(
+                Path(positive_argv[5]).resolve(strict=True),
+                (positive_cwd / APP_PATH.name).resolve(strict=True),
             )
             self.assertEqual(
                 _recursive_regular_inventory(positive_cwd),
@@ -347,6 +384,10 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
             self.assertEqual(
                 negative_argv,
                 (str(python), "-I", str(negative_cwd / MUTANT_PATH.name)),
+            )
+            self.assertEqual(
+                Path(negative_argv[2]).resolve(strict=True),
+                (negative_cwd / MUTANT_PATH.name).resolve(strict=True),
             )
             self.assertNotEqual(positive_cwd, negative_cwd)
             self.assertEqual(
