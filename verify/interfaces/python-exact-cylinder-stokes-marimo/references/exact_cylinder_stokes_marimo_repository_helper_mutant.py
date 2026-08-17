@@ -4,7 +4,7 @@ from examples.python.exact_cylinder_stokes import solve as repository_solve
 import marimo
 
 
-__generated_with__ = "0.23.16"
+__generated_with = "0.23.16"
 app = marimo.App(width="medium")
 
 

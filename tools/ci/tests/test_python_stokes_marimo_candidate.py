@@ -86,7 +86,7 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
             source,
         )
         self.assertIsNone(HEX_SHA256.search(source))
-        self.assertIn('__generated_with__ = "0.23.16"', source)
+        self.assertIn('__generated_with = "0.23.16"', source)
         self.assertIn("steady-flow-past-cylinder.model.json", source)
         for marker in (
             "eqiora-stokes-geometry",
