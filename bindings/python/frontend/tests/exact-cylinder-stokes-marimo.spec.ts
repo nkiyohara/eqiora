@@ -57,9 +57,12 @@ test.describe("exact-cylinder steady-Stokes Marimo composition", () => {
 		expect(evidence).toMatch(/force.+N\/m/i);
 		expect(evidence).toMatch(/flux.+m(?:\^2|²)\/s/i);
 
-		const figures = page.locator("main img");
-		await expect(figures.last()).toBeVisible();
-		const dimensions = await figures.last().evaluate((image) => {
+		const pressureFigure = page.getByRole("img", {
+			name: "Steady Stokes pressure field",
+			exact: true,
+		});
+		await expect(pressureFigure).toBeVisible();
+		const dimensions = await pressureFigure.evaluate((image) => {
 			if (!(image instanceof HTMLImageElement)) return [0, 0];
 			return [image.naturalWidth, image.naturalHeight];
 		});
