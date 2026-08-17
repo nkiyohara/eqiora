@@ -82,6 +82,7 @@ NOTEBOOK_CHECKS = frozenset(
         "cp313:notebook-anywidget-0.11.0",
         "cp313:jupyterlab-4.6.2-bare-mesh",
         "cp313:marimo-0.23.16-bare-mesh",
+        "cp313:marimo-0.23.16-exact-cylinder-stokes",
         "cp313:notebook-managed-chromium-r1234",
         "cp313:notebook-no-external-network",
         "cp313:notebook-cleanup-and-mutation",

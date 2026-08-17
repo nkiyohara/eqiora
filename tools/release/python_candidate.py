@@ -62,6 +62,21 @@ NOTEBOOK_ASSET_PATHS = (
     "eqiora/_presentation/static/mesh-view.css",
     "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt",
 )
+EXACT_CYLINDER_STOKES_MARIMO_APP = Path(
+    "examples/python/exact_cylinder_stokes_marimo.py"
+)
+EXACT_CYLINDER_STOKES_MARIMO_MUTANT = Path(
+    "verify/interfaces/python-exact-cylinder-stokes-marimo/references/exact_cylinder_stokes_marimo_repository_helper_mutant.py"
+)
+EXACT_CYLINDER_STOKES_MARIMO_CHECK = (
+    "cp313:marimo-0.23.16-exact-cylinder-stokes"
+)
+EXACT_CYLINDER_STOKES_MARIMO_ORACLE_FLAG = (
+    "EQIORA_EXACT_CYLINDER_STOKES_MARIMO_ORACLE"
+)
+EXACT_CYLINDER_STOKES_MARIMO_MUTANT_FAILURE = (
+    "ModuleNotFoundError: No module named 'examples'"
+)
 PYTHON_TEST_FIXTURES = candidate_profiles.PYTHON_TEST_FIXTURES
 GIT_SHA = re.compile(r"[0-9a-f]{40}")
 
@@ -828,7 +843,7 @@ def run_notebook_profile(
             interpreter=interpreter,
             environment=workspace.environment,
             requirements=[
-                f"{wheel}[notebook]",
+                f"{wheel}[matplotlib,notebook]",
                 config.pytest,
                 "anywidget==0.11.0",
                 "jupyterlab==4.6.2",
@@ -858,7 +873,32 @@ def run_notebook_profile(
         state["served-source"] = served
         return served
 
-    def run_host(project: str, fixture: str) -> None:
+    def stage_single_file(source: Path, root: Path) -> Path:
+        """Copy one reviewed input into an otherwise empty consumer."""
+
+        if root.exists():
+            raise CandidateError(f"Notebook consumer already exists: {root}")
+        root.mkdir(parents=True)
+        target = root / source.name
+        shutil.copy2(source, target)
+        members = tuple(root.iterdir())
+        if (
+            members != (target,)
+            or target.is_symlink()
+            or not target.is_file()
+            or target.read_bytes() != source.read_bytes()
+        ):
+            raise CandidateError(f"Notebook consumer is not one exact file: {root}")
+        return target
+
+    def run_host(
+        project: str,
+        fixture: str,
+        *,
+        source_root: Path | None = None,
+        test_spec: str | None = None,
+        extra_environment: dict[str, str] | None = None,
+    ) -> None:
         python = state.get("python")
         if not isinstance(python, Path):
             raise CandidateError("Notebook host ran before the exact Python environment")
@@ -909,7 +949,7 @@ def run_notebook_profile(
         environment = dict(state["host-environment"])
         host_environment = os.environ.copy()
         host_environment.update(environment)
-        served = served_source_tree()
+        served = served_source_tree() if source_root is None else source_root
         port = _reserve_loopback_port()
         if project == "jupyterlab-4.6.2":
             argv = [
@@ -950,8 +990,19 @@ def run_notebook_profile(
             else:
                 raise CandidateError("Notebook host did not become ready")
             environment[url_variable] = url_value
+            if extra_environment is not None:
+                environment.update(extra_environment)
+            host_command = [
+                "npm",
+                "run",
+                "test:hosts",
+                "--",
+                f"--project={project}",
+            ]
+            if test_spec is not None:
+                host_command.append(test_spec)
             checked_run(
-                ["npm", "run", "test:hosts", "--", f"--project={project}"],
+                host_command,
                 cwd=frontend_root,
                 extra_environment=environment,
             )
@@ -977,6 +1028,48 @@ def run_notebook_profile(
                     process.stdout.close()
         state[project] = True
 
+    def run_exact_cylinder_stokes_marimo() -> None:
+        python = state.get("python")
+        if not isinstance(python, Path):
+            raise CandidateError(
+                "Exact-cylinder Stokes Marimo app ran before the Python environment"
+            )
+
+        positive_app = stage_single_file(
+            extracted / EXACT_CYLINDER_STOKES_MARIMO_APP,
+            workspace.root / "exact-cylinder-stokes-marimo-positive",
+        )
+        run_host(
+            "marimo-0.23.16",
+            positive_app.name,
+            source_root=positive_app.parent,
+            test_spec="tests/exact-cylinder-stokes-marimo.spec.ts",
+            extra_environment={EXACT_CYLINDER_STOKES_MARIMO_ORACLE_FLAG: "1"},
+        )
+
+        negative_app = stage_single_file(
+            extracted / EXACT_CYLINDER_STOKES_MARIMO_MUTANT,
+            workspace.root / "exact-cylinder-stokes-marimo-negative",
+        )
+        try:
+            output = checked_run(
+                [str(python), "-I", str(negative_app)],
+                cwd=negative_app.parent,
+                capture=True,
+            )
+        except subprocess.CalledProcessError as error:
+            output = str(error.output or "")
+            if EXACT_CYLINDER_STOKES_MARIMO_MUTANT_FAILURE not in output:
+                raise CandidateError(
+                    "Exact-cylinder Stokes repository-helper mutant failed at "
+                    "an unrelated boundary"
+                ) from error
+        else:
+            raise CandidateError(
+                "Exact-cylinder Stokes repository helper unexpectedly resolved: "
+                f"{output}"
+            )
+
     def require_host_observation(name: str) -> None:
         if not state.get("jupyterlab-4.6.2") or not state.get("marimo-0.23.16"):
             raise CandidateError(f"Notebook host observation is incomplete: {name}")
@@ -991,6 +1084,7 @@ def run_notebook_profile(
         ("cp313:notebook-anywidget-0.11.0", install_notebook),
         ("cp313:jupyterlab-4.6.2-bare-mesh", lambda: run_host("jupyterlab-4.6.2", "bindings/python/tests/fixtures/rich_mesh_display/jupyterlab.ipynb")),
         ("cp313:marimo-0.23.16-bare-mesh", lambda: run_host("marimo-0.23.16", "bindings/python/tests/fixtures/rich_mesh_display/marimo.py")),
+        (EXACT_CYLINDER_STOKES_MARIMO_CHECK, run_exact_cylinder_stokes_marimo),
         ("cp313:notebook-managed-chromium-r1234", lambda: require_host_observation("browser")),
         ("cp313:notebook-no-external-network", lambda: require_host_observation("network")),
         ("cp313:notebook-cleanup-and-mutation", lambda: require_host_observation("cleanup")),
