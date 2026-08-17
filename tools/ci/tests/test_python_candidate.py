@@ -2348,15 +2348,39 @@ write(JSON.stringify({calls,output,failure}));
         first_member: object | None = None,
         second_member: object | None = None,
     ) -> str:
+        members = ()
+        if member_identity is not None:
+            members = ((member_identity, first_member, second_member),)
+        difference = cls.independent_acquisition_difference(
+            field, first, second, members=members
+        )
+        document = json.dumps(
+            {"differences": [difference]},
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return f"H2 isolated runs acquired different external inputs: {document}"
+
+    @classmethod
+    def independent_acquisition_difference(
+        cls,
+        field: str,
+        first: object,
+        second: object,
+        *,
+        members: tuple[tuple[str, object | None, object | None], ...] = (),
+    ) -> dict[str, object]:
         difference: dict[str, object] = {
             "field": field,
             "run_1_sha256": cls.independent_diagnostic_sha256(first),
             "run_2_sha256": cls.independent_diagnostic_sha256(second),
         }
-        if member_identity is not None:
+        if members:
             difference["members"] = [
                 {
-                    "identity": member_identity,
+                    "identity": identity,
                     "run_1_sha256": (
                         "absent"
                         if first_member is None
@@ -2368,15 +2392,9 @@ write(JSON.stringify({calls,output,failure}));
                         else cls.independent_diagnostic_sha256(second_member)
                     ),
                 }
+                for identity, first_member, second_member in members
             ]
-        document = json.dumps(
-            {"differences": [difference]},
-            ensure_ascii=False,
-            allow_nan=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        return f"H2 isolated runs acquired different external inputs: {document}"
+        return difference
 
     @staticmethod
     def lifecycle_authority_inputs(
@@ -4613,21 +4631,90 @@ write(JSON.stringify({calls,output,failure}));
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             root = Path(temporary)
             baseline = self.diagnostic_acquired_inputs(executor, root)
+            mutant_wheels = tuple(
+                {**record, "sha256": str(index + 6) * 64}
+                for index, record in enumerate(baseline.python_wheels)
+            )
+            mutant_manifests = tuple(
+                (
+                    identity,
+                    {
+                        **record,
+                        "ordering_mutant": f"manifest-order-{index}-雪",
+                    },
+                )
+                for index, (identity, record) in enumerate(
+                    baseline.package_manifests
+                )
+            )
+            mutant_packuments = tuple(
+                (
+                    identity,
+                    {
+                        **record,
+                        "ordering_mutant": f"packument-order-{index}-雪",
+                    },
+                )
+                for index, (identity, record) in enumerate(
+                    baseline.package_packuments
+                )
+            )
             changes = (
+                ("browser_archive_sha256", "4" * 64),
                 ("browser_executable_sha256", "5" * 64),
+                ("browser_platform", "ordered-platform-雪"),
+                ("playwright_test_integrity", "sha512-ordered-test-雪"),
+                ("playwright_core_integrity", "sha512-ordered-core-雪"),
+                ("python_wheels", mutant_wheels),
+                ("anywidget_license_sha256", "8" * 64),
+                ("package_manifests", mutant_manifests),
+                ("package_packuments", mutant_packuments),
+                ("locked_package_bytes", 11),
                 ("python_wheel_bytes", 21),
                 ("browser_member_count", 288),
+                ("browser_expanded_regular_bytes", 273_378_829),
             )
             acquired = replace(baseline, **dict(changes))
             prefix = "H2 isolated runs acquired different external inputs: "
-            differences = []
+            collection_members = {
+                "python_wheels": tuple(
+                    (
+                        str(first["filename"]),
+                        first,
+                        second,
+                    )
+                    for first, second in zip(
+                        baseline.python_wheels, mutant_wheels, strict=True
+                    )
+                ),
+                "package_manifests": tuple(
+                    (str(first[0]), first, second)
+                    for first, second in zip(
+                        baseline.package_manifests,
+                        mutant_manifests,
+                        strict=True,
+                    )
+                ),
+                "package_packuments": tuple(
+                    (str(first[0]), first, second)
+                    for first, second in zip(
+                        baseline.package_packuments,
+                        mutant_packuments,
+                        strict=True,
+                    )
+                ),
+            }
             for field, value in changes:
-                one = self.expected_acquisition_drift_message(
-                    field, getattr(baseline, field), value
+                self.assertNotEqual(getattr(baseline, field), value)
+            differences = [
+                self.independent_acquisition_difference(
+                    field,
+                    getattr(baseline, field),
+                    value,
+                    members=collection_members.get(field, ()),
                 )
-                differences.append(
-                    json.loads(one.removeprefix(prefix))["differences"][0]
-                )
+                for field, value in changes
+            ]
             expected = prefix + json.dumps(
                 {"differences": differences},
                 ensure_ascii=False,
@@ -4661,6 +4748,8 @@ write(JSON.stringify({calls,output,failure}));
                     )
             self.assertEqual(str(raised.exception), expected)
             validate_resources.assert_not_called()
+            self.assertNotIn(str(root), str(raised.exception))
+            self.assertNotIn("雪", str(raised.exception))
 
     def test_h2_compatibility_failure_never_publishes_receipt(self) -> None:
         executor = importlib.import_module("python_candidate_h2")
