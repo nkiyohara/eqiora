@@ -242,6 +242,27 @@ class RunObservation:
     acquisition: AcquiredInputs
 
 
+_ACQUISITION_IDENTITY_FIELDS = (
+    "browser_archive_sha256",
+    "browser_executable_sha256",
+    "browser_platform",
+    "playwright_test_integrity",
+    "playwright_core_integrity",
+    "python_wheels",
+    "anywidget_license_sha256",
+    "package_manifests",
+    "package_packuments",
+    "locked_package_bytes",
+    "python_wheel_bytes",
+    "browser_member_count",
+    "browser_expanded_regular_bytes",
+)
+_ACQUISITION_COLLECTION_FIELDS = frozenset(
+    {"python_wheels", "package_manifests", "package_packuments"}
+)
+_ABSENT_MEMBER = object()
+
+
 def canonical_json_bytes(value: object) -> bytes:
     return json.dumps(
         value,
@@ -1948,6 +1969,87 @@ def _asset_equality(
             raise CandidateError(f"H2 rebuild differs from committed asset {relative}")
 
 
+def _acquisition_member_map(
+    field: str, value: object
+) -> dict[str, object] | None:
+    if not isinstance(value, tuple):
+        return None
+    members: dict[str, object] = {}
+    for member in value:
+        if field == "python_wheels":
+            if not isinstance(member, dict) or not isinstance(
+                member.get("filename"), str
+            ):
+                return None
+            identity = member["filename"]
+        else:
+            if (
+                not isinstance(member, tuple)
+                or len(member) != 2
+                or not isinstance(member[0], str)
+            ):
+                return None
+            identity = member[0]
+        if identity in members:
+            return None
+        members[identity] = member
+    return members
+
+
+def _acquisition_member_differences(
+    field: str, first: object, second: object
+) -> list[dict[str, str]]:
+    first_members = _acquisition_member_map(field, first)
+    second_members = _acquisition_member_map(field, second)
+    if first_members is None or second_members is None:
+        return []
+    differences = []
+    identities = sorted(first_members.keys() | second_members.keys(), key=_utf8)
+    for identity in identities:
+        first_member = first_members.get(identity, _ABSENT_MEMBER)
+        second_member = second_members.get(identity, _ABSENT_MEMBER)
+        if first_member == second_member:
+            continue
+        differences.append(
+            {
+                "identity": identity,
+                "run_1_sha256": (
+                    "absent"
+                    if first_member is _ABSENT_MEMBER
+                    else structured_sha256(first_member)
+                ),
+                "run_2_sha256": (
+                    "absent"
+                    if second_member is _ABSENT_MEMBER
+                    else structured_sha256(second_member)
+                ),
+            }
+        )
+    return differences
+
+
+def _acquisition_differences(
+    first: AcquiredInputs, second: AcquiredInputs
+) -> list[dict[str, object]]:
+    differences = []
+    for field in _ACQUISITION_IDENTITY_FIELDS:
+        first_value = getattr(first, field)
+        second_value = getattr(second, field)
+        if first_value == second_value:
+            continue
+        difference: dict[str, object] = {
+            "field": field,
+            "run_1_sha256": structured_sha256(first_value),
+            "run_2_sha256": structured_sha256(second_value),
+        }
+        if field in _ACQUISITION_COLLECTION_FIELDS:
+            difference["members"] = _acquisition_member_differences(
+                field, first_value, second_value
+            )
+        differences.append(difference)
+    return differences
+
+
 def _validate_abstract_resources(
     family: CandidateFamily,
     runs: tuple[RunObservation, RunObservation],
@@ -2010,25 +2112,19 @@ def observe_h2(
 ) -> dict[str, object]:
     _asset_equality(extracted, runs)
     acquired_identities = tuple(
-        (
-            run.acquisition.browser_archive_sha256,
-            run.acquisition.browser_executable_sha256,
-            run.acquisition.browser_platform,
-            run.acquisition.playwright_test_integrity,
-            run.acquisition.playwright_core_integrity,
-            run.acquisition.python_wheels,
-            run.acquisition.anywidget_license_sha256,
-            run.acquisition.package_manifests,
-            run.acquisition.package_packuments,
-            run.acquisition.locked_package_bytes,
-            run.acquisition.python_wheel_bytes,
-            run.acquisition.browser_member_count,
-            run.acquisition.browser_expanded_regular_bytes,
-        )
+        tuple(getattr(run.acquisition, field) for field in _ACQUISITION_IDENTITY_FIELDS)
         for run in runs
     )
     if acquired_identities[0] != acquired_identities[1]:
-        raise CandidateError("H2 isolated runs acquired different external inputs")
+        document = {
+            "differences": _acquisition_differences(
+                runs[0].acquisition, runs[1].acquisition
+            )
+        }
+        diagnostic = canonical_json_bytes(document).decode("utf-8")
+        raise CandidateError(
+            f"H2 isolated runs acquired different external inputs: {diagnostic}"
+        )
     _validate_abstract_resources(family, runs)
     acquired = runs[0].acquisition
     source_inventory, configs, pins, locked = _frontend_inputs(
