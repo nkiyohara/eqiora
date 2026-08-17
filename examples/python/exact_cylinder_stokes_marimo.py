@@ -2,8 +2,7 @@
 
 import marimo
 
-
-__generated_with__ = "0.23.16"
+__generated_with = "0.23.16"
 app = marimo.App(width="medium")
 
 
@@ -20,7 +19,9 @@ def _():
 
 @app.cell
 def _(mo):
-    mo.md("# Exact-cylinder steady Stokes")
+    mo.md(r"""
+    # Exact-cylinder steady Stokes
+    """)
     return
 
 
