@@ -10,6 +10,7 @@ capabilities = [
 ]
 
 [contract]
+issue = 499
 parent_issue = 245
 body_sha256 = "a282a340b20c95c80ee3a512d34bd7d352054014116f6acd88e1d1943e862f97"
 predecessor_commit = "61fd5108feed1d45f563486e499bf595bebd4bcb"
@@ -34,36 +35,37 @@ new_scientific_values = false
 new_tolerances = false
 new_image_baseline = false
 browser = "independent live Marimo DOM readiness, typed carrier names, relational Run/Result identity, unit labels, and nonempty Figure observation"
-source = "independent AST admission of the exact public composition, installed resource access, and one submit/result occurrence"
+source = "exact canonical-app occurrence checks plus one precommitted repository-helper mutant executed after the live positive"
 
 [acceptance]
 canonical_checked_in_application = true
 discoverable_from_examples_readme = true
 installed_eqiora_import_only = true
 installed_model_resource_only = true
-repository_module_imports_absent = true
-repository_file_reads_absent = true
-editable_path_bypass_absent = true
+exact_repository_example_helper_absent = true
 one_submit_and_one_result_occurrence = true
 geometry_mesh_plan_mesh_model_plan_run_result_types_visible = true
 typed_steady_stokes_evidence_visible = true
 pressure_force_flux_units_visible = true
 run_and_result_identity_equal_relationally = true
 caller_owned_pressure_figure_visible_and_nonempty = true
-clean_consumer_stages_only_the_application = true
+positive_consumer_recursive_inventory = ["exact_cylinder_stokes_marimo.py"]
+negative_consumer_recursive_inventory = ["exact_cylinder_stokes_marimo_repository_helper_mutant.py"]
+consumer_members_are_regular_files_without_symlinks = true
+negative_missing_helper_fails_before_run = true
 isolated_interpreter_flag = true
 exact_marimo_candidate_host = true
 ordinary_positive_path_precedes_falsifiers = true
 
 [falsifiers]
 missing_application = "source oracle rejects before candidate construction"
-repository_sentinel_read = "source admission rejects the same composition before Marimo or Run; the candidate clean consumer does not stage the sentinel"
-editable_package_bypass = "source admission rejects sys.path/PYTHONPATH repository injection; exact host uses the fresh candidate environment under -I"
-second_run = "source admission rejects a second submit occurrence before execution"
+repository_example_helper = "after the ordinary live app succeeds, the exact mutant importing examples.python.exact_cylinder_stokes fails under the same installed CPython 3.13 -I environment because its closed negative consumer contains only the mutant app"
+unrelated_negative_failure = "a denial other than ModuleNotFoundError for the exact examples helper cannot satisfy the falsifier"
+second_run = "the canonical source contains exactly one submit and one result occurrence; the exact negative mutant contains neither and fails during its top-level helper import"
 missing_or_foreign_owner = "existing public Geometry, Mesh, Model, Plan, Run, Result, snapshot, and Field boundaries remain fail-closed"
 missing_installed_model = "the one ordinary app fails before readiness"
 missing_matplotlib_or_marimo = "the exact candidate profile fails before readiness"
-hardcoded_identity = "source admission rejects literal SHA-256 identities"
+hardcoded_identity = "the exact canonical app contains no literal SHA-256 identity"
 unrelated_text_only_success = "browser requires all live typed rows, equal Run/Result identity, unit-bearing evidence, and the Figure before readiness counts"
 blank_figure = "browser requires a visible image with positive decoded natural dimensions"
 

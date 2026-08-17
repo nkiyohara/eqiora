@@ -11,17 +11,19 @@ Figure in one Marimo flow.
 
 ## Independent positive path
 
-The evidence first admits the checked-in source as one public composition. It
-requires exactly one `eqiora.submit(...)`, one `.result()`, one
-`steady_stokes_evidence(...)`, and one `plot_scalar_field(...)` call. It
-requires `importlib.resources.files(eqiora)` and admits only absolute imports
-from `eqiora`, `eqiora.matplotlib`, `importlib.resources`, and `marimo`. It
-freezes no digest, physical observation, tolerance, or image baseline.
+The evidence first checks the exact canonical source as one public
+composition. It requires exactly one `eqiora.submit(...)`, one `.result()`,
+one `steady_stokes_evidence(...)`, one `plot_scalar_field(...)`, and one
+`importlib.resources.files(eqiora)` occurrence. This is not a generic Python
+import, file-access, or isolation policy. It freezes no digest, physical
+observation, tolerance, or image baseline.
 
 The candidate profile then installs one non-editable Linux x86-64 CPython 3.13
 wheel with its existing exact `notebook` and `matplotlib` extras. It copies
-only the application into a clean consumer directory and launches exact
-Marimo 0.23.16 under `python -I`. The browser waits for the application
+only the application into a dedicated clean positive consumer and requires
+its complete recursive inventory to be exactly that one regular file, with no
+directory or symlink member. It launches exact Marimo 0.23.16 under
+`python -I`. The browser waits for the application
 readiness marker only after observing live rows named by the public carrier
 types: Geometry, MeshPlan, Mesh, Model, SteadyStokesPlan, Run, Result, and
 SteadyStokesEvidence. It compares only the Run and Result identity
@@ -30,18 +32,22 @@ pressure Figure. It does not compare scientific scalars or pixels.
 
 ## Causal falsifiers
 
-Only after the ordinary source is admitted, the source oracle applies three
-same-shaped mutations. A repository-sentinel read and an editable-source
-`sys.path` insertion are rejected before Marimo or a Run can exist. A second
-`submit` is rejected by the one-Run predicate. The real candidate launch adds
-the complementary causal boundary: its working directory contains the exact
-copied application, not the extracted repository tree or its sentinel, and
-`-I` prevents an ambient editable import from satisfying `import eqiora`.
+Only after that live browser positive succeeds, the same installed CPython
+3.13 environment executes one exact precommitted wrong app under `python -I`.
+That app substitutes
+`from examples.python.exact_cylinder_stokes import solve` for the installed
+composition. Its separate clean negative consumer has the exact recursive
+inventory
+`exact_cylinder_stokes_marimo_repository_helper_mutant.py` and nothing else.
+The expected outcome is specifically
+`ModuleNotFoundError: No module named 'examples'`; an unrelated denial or an
+unexpectedly resolved helper rejects. The import fails before the mutant can
+create an Eqiora Run, so the one ordinary positive remains the only Run.
 
-This uses simple clean staging rather than introducing an OS sandbox, public
-loader, application protocol, or new durable receipt. The candidate source
-and installed wheel remain protected by the existing distribution-candidate
-authority.
+This is one exact plausible wrong application, not a generic claim about
+arbitrary Python imports, file reads, editable environments, or security
+isolation. It uses simple clean staging rather than an OS sandbox, public
+loader, application protocol, or new durable receipt.
 
 ## Authority and non-claims
 
