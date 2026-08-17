@@ -270,10 +270,11 @@ fn cfg_attr_contains_rustfmt_skip(list: &syn::MetaList) -> syn::Result<bool> {
         if is_rustfmt_skip(argument.path()) {
             return Ok(true);
         }
-        if let Meta::List(nested) = argument {
-            if nested.path.is_ident("cfg_attr") && cfg_attr_contains_rustfmt_skip(&nested)? {
-                return Ok(true);
-            }
+        if let Meta::List(nested) = argument
+            && nested.path.is_ident("cfg_attr")
+            && cfg_attr_contains_rustfmt_skip(&nested)?
+        {
+            return Ok(true);
         }
     }
     Ok(false)
