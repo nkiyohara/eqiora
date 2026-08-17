@@ -14,15 +14,13 @@ mod glob_reexport;
 mod package_map;
 mod public_surface;
 mod rfc_numbering;
+mod source_shape;
 
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use proc_macro2::{TokenStream, TokenTree};
 use serde::Deserialize;
-use syn::punctuated::Punctuated;
-use syn::{Attribute, Item, Meta, Token};
 
 use glob_reexport::GlobReexport;
 use package_map::PackageMap;
@@ -49,61 +47,6 @@ struct Limits {
     source_token_trees: usize,
     source_line_bytes: usize,
     public_items_per_crate: usize,
-}
-
-#[derive(Default)]
-struct SourceShape {
-    files: usize,
-    max_bytes: FileMaximum,
-    max_token_trees: FileMaximum,
-    max_line_bytes: LineMaximum,
-    whole_module_skips: usize,
-}
-
-#[derive(Default)]
-struct FileMaximum {
-    value: usize,
-    path: String,
-}
-
-impl FileMaximum {
-    fn observe(&mut self, path: &str, value: usize) {
-        if self.path.is_empty() || value > self.value {
-            self.value = value;
-            self.path = path.to_owned();
-        }
-    }
-}
-
-#[derive(Default)]
-struct LineMaximum {
-    value: usize,
-    path: String,
-    line: usize,
-}
-
-impl LineMaximum {
-    fn observe(&mut self, path: &str, line: usize, value: usize) {
-        if self.path.is_empty() || value > self.value {
-            self.value = value;
-            self.path = path.to_owned();
-            self.line = line;
-        }
-    }
-}
-
-struct FileShape {
-    bytes: usize,
-    token_trees: usize,
-    max_line_bytes: usize,
-    max_line: usize,
-    module_skips: Vec<ModuleSkip>,
-}
-
-struct ModuleSkip {
-    line: usize,
-    module: String,
-    conditional: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -185,8 +128,8 @@ pub fn check() -> Result<(), String> {
     collect_rust_sources(&root.join("tools"), &root, &mut scanned)?;
     scanned.sort();
 
-    let (mut violations, source_shape) = source_shape_violations(&ledger, &root, &scanned)?;
-    violations.extend(file_line_violations(&ledger, &root, &sources)?);
+    let (mut violations, source_shape) = source_shape::violations(&ledger.limits, &root, &scanned)?;
+    violations.extend(file_line_violations(&ledger, &root, &scanned)?);
 
     let surfaces = public_surface::measure(&root)?;
     violations.extend(public_surface_violations(&ledger, &surfaces));
@@ -216,7 +159,6 @@ pub fn check() -> Result<(), String> {
             &source_shape,
             &surfaces,
             &globs,
-            &sources,
             &scanned,
             &cycles,
             &rfcs,
@@ -239,10 +181,9 @@ pub fn check() -> Result<(), String> {
 /// stopped looking at anything.
 fn report(
     ledger: &Ledger,
-    source_shape: &SourceShape,
+    source_shape: &source_shape::Summary,
     surfaces: &[CrateSurface],
     globs: &[GlobReexport],
-    sources: &[String],
     scanned: &[String],
     cycles: &dependency_graph::Cycles,
     rfcs: &rfc_numbering::RfcNumbering,
@@ -271,12 +212,9 @@ fn report(
         source_shape.max_line_bytes.line,
         source_shape.whole_module_skips,
     );
-    // `sources` is `crates/` only, which remains the line-debt predicate's
-    // scope; the absolute source-shape predicate above uses `scanned`, which
-    // adds `tools/`.
     println!(
-        "file lines: {} crate files within their ceilings ({} frozen exceptions)",
-        sources.len(),
+        "file lines: {} Rust files within their role ceilings ({} frozen exceptions)",
+        scanned.len(),
         ledger.file_lines.len()
     );
     println!(
@@ -301,208 +239,6 @@ fn report(
         "RFC numbering: {} RFC files and {} indexed numbers, no duplicate number or index drift",
         rfcs.files, rfcs.indexed
     );
-}
-
-fn source_shape_violations(
-    ledger: &Ledger,
-    root: &Path,
-    sources: &[String],
-) -> Result<(Vec<String>, SourceShape), String> {
-    let mut violations = Vec::new();
-    let mut summary = SourceShape {
-        files: sources.len(),
-        ..SourceShape::default()
-    };
-
-    for relative in sources {
-        let absolute = root.join(relative);
-        let bytes = fs::read(&absolute)
-            .map_err(|error| format!("cannot read {}: {error}", absolute.display()))?;
-        let shape = measure_source(relative, &bytes)?;
-        summary.max_bytes.observe(relative, shape.bytes);
-        summary.max_token_trees.observe(relative, shape.token_trees);
-        summary
-            .max_line_bytes
-            .observe(relative, shape.max_line, shape.max_line_bytes);
-        summary.whole_module_skips += shape.module_skips.len();
-        violations.extend(file_shape_violations(relative, &shape, &ledger.limits));
-    }
-
-    Ok((violations, summary))
-}
-
-fn measure_source(relative: &str, bytes: &[u8]) -> Result<FileShape, String> {
-    let source = std::str::from_utf8(bytes)
-        .map_err(|error| format!("cannot decode {relative} as UTF-8 Rust source: {error}"))?;
-    let tokens = source
-        .parse::<TokenStream>()
-        .map_err(|error| format!("cannot tokenize {relative}: {error}"))?;
-    let parsed =
-        syn::parse_file(source).map_err(|error| format!("cannot parse {relative}: {error}"))?;
-    let (max_line_bytes, max_line) = maximum_physical_line(bytes);
-    let mut module_skips = Vec::new();
-    collect_module_skips(&parsed.items, "", &mut module_skips)
-        .map_err(|error| format!("cannot inspect module attributes in {relative}: {error}"))?;
-
-    Ok(FileShape {
-        bytes: bytes.len(),
-        token_trees: recursive_token_tree_count(tokens),
-        max_line_bytes,
-        max_line,
-        module_skips,
-    })
-}
-
-fn file_shape_violations(relative: &str, shape: &FileShape, limits: &Limits) -> Vec<String> {
-    let mut violations = Vec::new();
-    if shape.bytes > limits.source_file_bytes {
-        violations.push(format!(
-            "{relative}: {} raw source bytes exceeds the no-debt limit of {} bytes; split the \
-             file by responsibility.",
-            shape.bytes, limits.source_file_bytes
-        ));
-    }
-    if shape.token_trees > limits.source_token_trees {
-        violations.push(format!(
-            "{relative}: {} recursive proc_macro2 token trees exceeds the no-debt limit of {}; \
-             split the file by responsibility.",
-            shape.token_trees, limits.source_token_trees
-        ));
-    }
-    if shape.max_line_bytes > limits.source_line_bytes {
-        violations.push(format!(
-            "{relative}:{}: physical line content is {} bytes, exceeding the no-debt limit of {} \
-             bytes. LF is excluded and a preceding CR remains content; reflow or extract the \
-             representation.",
-            shape.max_line, shape.max_line_bytes, limits.source_line_bytes
-        ));
-    }
-    violations.extend(shape.module_skips.iter().map(|skip| {
-        let form = if skip.conditional {
-            "a cfg_attr containing rustfmt::skip"
-        } else {
-            "#[rustfmt::skip]"
-        };
-        format!(
-            "{relative}:{}: module `{}` carries {form}, which disables formatting for the whole \
-             module; split or format the module. Individual non-module rustfmt skips remain \
-             permitted.",
-            skip.line, skip.module
-        )
-    }));
-    violations
-}
-
-/// Counts every leaf `TokenTree` once and every `Group` once in addition to
-/// recursively counting the trees inside it. proc_macro2 discards whitespace
-/// and comments before this walk.
-fn recursive_token_tree_count(tokens: TokenStream) -> usize {
-    tokens
-        .into_iter()
-        .map(|token| match token {
-            TokenTree::Group(group) => 1 + recursive_token_tree_count(group.stream()),
-            TokenTree::Ident(_) | TokenTree::Punct(_) | TokenTree::Literal(_) => 1,
-        })
-        .sum()
-}
-
-/// The content of a physical line excludes its terminating LF. A CR before
-/// that LF is ordinary source content and therefore counts toward the limit.
-/// Equal maxima keep the first physical line for deterministic reporting.
-fn maximum_physical_line(bytes: &[u8]) -> (usize, usize) {
-    if bytes.is_empty() {
-        return (0, 0);
-    }
-
-    let mut maximum = 0;
-    let mut maximum_line = 1;
-    let mut start = 0;
-    let mut line = 1;
-    for (index, byte) in bytes.iter().enumerate() {
-        if *byte == b'\n' {
-            let length = index - start;
-            if length > maximum {
-                maximum = length;
-                maximum_line = line;
-            }
-            start = index + 1;
-            line += 1;
-        }
-    }
-    if start < bytes.len() {
-        let length = bytes.len() - start;
-        if length > maximum {
-            maximum = length;
-            maximum_line = line;
-        }
-    }
-    (maximum, maximum_line)
-}
-
-fn collect_module_skips(
-    items: &[Item],
-    parent: &str,
-    found: &mut Vec<ModuleSkip>,
-) -> syn::Result<()> {
-    for item in items {
-        let Item::Mod(module) = item else {
-            continue;
-        };
-        let name = if parent.is_empty() {
-            module.ident.to_string()
-        } else {
-            format!("{parent}::{}", module.ident)
-        };
-        if let Some(conditional) = module_skip_kind(&module.attrs)? {
-            found.push(ModuleSkip {
-                line: module.ident.span().start().line,
-                module: name.clone(),
-                conditional,
-            });
-        }
-        if let Some((_, nested)) = &module.content {
-            collect_module_skips(nested, &name, found)?;
-        }
-    }
-    Ok(())
-}
-
-/// `false` is a direct `#[rustfmt::skip]`; `true` is a conditional one.
-fn module_skip_kind(attrs: &[Attribute]) -> syn::Result<Option<bool>> {
-    for attr in attrs {
-        if is_rustfmt_skip(attr.path()) {
-            return Ok(Some(false));
-        }
-        let Meta::List(list) = &attr.meta else {
-            continue;
-        };
-        if list.path.is_ident("cfg_attr") && cfg_attr_contains_rustfmt_skip(list)? {
-            return Ok(Some(true));
-        }
-    }
-    Ok(None)
-}
-
-fn cfg_attr_contains_rustfmt_skip(list: &syn::MetaList) -> syn::Result<bool> {
-    let arguments = list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
-    for argument in arguments {
-        if is_rustfmt_skip(argument.path()) {
-            return Ok(true);
-        }
-        if let Meta::List(nested) = argument {
-            if nested.path.is_ident("cfg_attr") && cfg_attr_contains_rustfmt_skip(&nested)? {
-                return Ok(true);
-            }
-        }
-    }
-    Ok(false)
-}
-
-fn is_rustfmt_skip(path: &syn::Path) -> bool {
-    path.leading_colon.is_none()
-        && path.segments.len() == 2
-        && path.segments[0].ident == "rustfmt"
-        && path.segments[1].ident == "skip"
 }
 
 fn file_line_violations(
@@ -847,9 +583,7 @@ fn collect_rust_sources(
             .map_err(|error| format!("cannot stat {}: {error}", path.display()))?;
 
         if file_type.is_dir() {
-            if entry.file_name() != "target" {
-                collect_rust_sources(&path, root, sources)?;
-            }
+            collect_rust_sources(&path, root, sources)?;
         } else if path.extension().is_some_and(|extension| extension == "rs") {
             let relative = path
                 .strip_prefix(root)
@@ -888,111 +622,49 @@ fn repository_root() -> Result<PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
-    fn permissive_limits() -> Limits {
-        Limits {
-            production_file_lines: usize::MAX,
-            test_file_lines: usize::MAX,
-            source_file_bytes: usize::MAX,
-            source_token_trees: usize::MAX,
-            source_line_bytes: usize::MAX,
-            public_items_per_crate: usize::MAX,
+    static NEXT_SCRATCH: AtomicU64 = AtomicU64::new(0);
+
+    struct Scratch(PathBuf);
+
+    impl Scratch {
+        fn create() -> Self {
+            let base = std::env::var_os("TMPDIR")
+                .or_else(|| std::env::var_os("HOME"))
+                .map(PathBuf::from)
+                .expect("TMPDIR or HOME is set for test scratch");
+            let unique = format!(
+                "eqiora-xtask-source-discovery-{}-{}",
+                std::process::id(),
+                NEXT_SCRATCH.fetch_add(1, Ordering::Relaxed)
+            );
+            let path = base.join(unique);
+            fs::create_dir(&path).expect("unique test scratch is created");
+            Self(path)
         }
     }
 
-    fn fixture_shape(source: &str) -> FileShape {
-        measure_source("fixture.rs", source.as_bytes()).expect("test source measures")
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            fs::remove_dir_all(&self.0).expect("test scratch is removed");
+        }
     }
 
     #[test]
-    fn raw_source_bytes_at_the_limit_pass_and_one_over_fails() {
-        let shape = fixture_shape("fn accepted() {}\n");
-        let mut limits = permissive_limits();
-        limits.source_file_bytes = shape.bytes;
-        assert!(file_shape_violations("fixture.rs", &shape, &limits).is_empty());
+    fn source_discovery_does_not_exclude_a_directory_named_target() {
+        let scratch = Scratch::create();
+        let hidden = scratch.0.join("crates/example/target/x.rs");
+        fs::create_dir_all(hidden.parent().expect("fixture has a parent"))
+            .expect("fixture directory is created");
+        fs::write(&hidden, "fn discovered() {}\n").expect("fixture source is written");
 
-        limits.source_file_bytes -= 1;
-        let violations = file_shape_violations("fixture.rs", &shape, &limits);
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].contains("raw source bytes"), "{violations:?}");
-    }
+        let mut sources = Vec::new();
+        collect_rust_sources(&scratch.0.join("crates"), &scratch.0, &mut sources)
+            .expect("fixture sources are discovered");
+        sources.sort();
 
-    #[test]
-    fn recursive_token_trees_at_the_limit_pass_and_one_over_fails() {
-        let shape = fixture_shape("fn accepted() {}\n");
-        let mut limits = permissive_limits();
-        limits.source_token_trees = shape.token_trees;
-        assert!(file_shape_violations("fixture.rs", &shape, &limits).is_empty());
-
-        limits.source_token_trees -= 1;
-        let violations = file_shape_violations("fixture.rs", &shape, &limits);
-        assert_eq!(violations.len(), 1);
-        assert!(
-            violations[0].contains("recursive proc_macro2 token trees"),
-            "{violations:?}"
-        );
-    }
-
-    #[test]
-    fn recursive_token_count_charges_groups_and_their_contents() {
-        let tokens = "f(a)"
-            .parse::<TokenStream>()
-            .expect("test source tokenizes");
-        assert_eq!(recursive_token_tree_count(tokens), 3);
-    }
-
-    #[test]
-    fn physical_line_bytes_at_the_limit_pass_and_one_over_fails() {
-        let shape = fixture_shape("fn accepted() {}\n");
-        let mut limits = permissive_limits();
-        limits.source_line_bytes = shape.max_line_bytes;
-        assert!(file_shape_violations("fixture.rs", &shape, &limits).is_empty());
-
-        limits.source_line_bytes -= 1;
-        let violations = file_shape_violations("fixture.rs", &shape, &limits);
-        assert_eq!(violations.len(), 1);
-        assert!(
-            violations[0].contains("physical line content"),
-            "{violations:?}"
-        );
-    }
-
-    #[test]
-    fn physical_lines_exclude_lf_but_retain_cr() {
-        let shape = fixture_shape("// x\r\n// y\n");
-        assert_eq!((shape.max_line_bytes, shape.max_line), (5, 1));
-    }
-
-    #[test]
-    fn a_direct_skip_on_an_external_module_is_rejected() {
-        let shape = fixture_shape("#[rustfmt::skip]\nmod generated;\n");
-        let violations = file_shape_violations("fixture.rs", &shape, &permissive_limits());
-        assert_eq!(violations.len(), 1);
-        assert!(
-            violations[0].contains("module `generated`"),
-            "{violations:?}"
-        );
-        assert!(violations[0].contains("#[rustfmt::skip]"), "{violations:?}");
-    }
-
-    #[test]
-    fn a_cfg_attr_skip_on_a_nested_inline_module_is_rejected() {
-        let shape = fixture_shape(
-            "mod outer {\n    #[cfg_attr(feature = \"fixture\", rustfmt::skip)]\n    mod generated {}\n}\n",
-        );
-        let violations = file_shape_violations("fixture.rs", &shape, &permissive_limits());
-        assert_eq!(violations.len(), 1);
-        assert!(
-            violations[0].contains("module `outer::generated`"),
-            "{violations:?}"
-        );
-        assert!(violations[0].contains("cfg_attr"), "{violations:?}");
-    }
-
-    #[test]
-    fn a_skip_on_a_non_module_item_remains_permitted() {
-        let shape = fixture_shape("#[rustfmt::skip]\nfn generated() { let x=1; }\n");
-        assert!(file_shape_violations("fixture.rs", &shape, &permissive_limits()).is_empty());
+        assert_eq!(sources, ["crates/example/target/x.rs"]);
     }
 
     fn surface(name: &str, items: usize) -> CrateSurface {

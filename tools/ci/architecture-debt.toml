@@ -67,7 +67,8 @@
 # See docs/development/ai-authored-platform-strategy.md, amendment A5.
 
 [limits]
-# Physical lines. A file with no entry below must satisfy these.
+# Physical lines for every Rust source discovered under `crates/` and `tools/`.
+# A file with no entry below must satisfy its role limit.
 production_file_lines = 1000
 test_file_lines = 2000
 # Absolute, no-debt limits for every Rust source discovered under `crates/`
