@@ -25,7 +25,7 @@ import warnings
 import zipfile
 from collections import Counter
 from collections.abc import Callable, Iterator
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 from unittest import mock
 
@@ -2236,6 +2236,128 @@ write(JSON.stringify({calls,output,failure}));
         )
 
     @staticmethod
+    def diagnostic_acquired_inputs(executor: object, root: Path) -> object:
+        return executor.AcquiredInputs(
+            node=root / "private-host-canary" / "node",
+            npm=root / "private-host-canary" / "npm",
+            npm_tarball=root / "private-host-canary" / "npm.tgz",
+            browser_archive=root / "private-host-canary" / "browser.zip",
+            browser_executable=root
+            / "private-host-canary"
+            / "chromium_headless_shell-1234"
+            / PLAYWRIGHT_BROWSER_MEMBER,
+            browser_archive_sha256="a" * 64,
+            browser_executable_sha256="b" * 64,
+            browser_platform="linux-x86_64",
+            playwright_test_integrity="sha512-playwright-test-canary",
+            playwright_core_integrity="sha512-playwright-core-canary",
+            python_wheels=(
+                {
+                    "name": "anywidget",
+                    "version": "0.11.0",
+                    "filename": "anywidget-0.11.0-py3-none-any.whl",
+                    "sha256": "c" * 64,
+                },
+                {
+                    "name": "jupyterlab",
+                    "version": "4.6.2",
+                    "filename": "jupyterlab-4.6.2-py3-none-any.whl",
+                    "sha256": "d" * 64,
+                },
+            ),
+            anywidget_license_sha256="e" * 64,
+            package_manifests=(
+                (
+                    "node_modules/playwright-core",
+                    {
+                        "name": "playwright-core",
+                        "version": "1.62.1",
+                        "scripts": {},
+                        "private": "manifest-secret-canary",
+                    },
+                ),
+            ),
+            package_packuments=(
+                (
+                    "playwright-core",
+                    {
+                        "name": "playwright-core",
+                        "dist-tags": {"latest": "1.62.1"},
+                        "versions": {
+                            "1.62.1": {
+                                "name": "playwright-core",
+                                "version": "1.62.1",
+                                "dist": {
+                                    "tarball": (
+                                        "https://registry.invalid/"
+                                        "registry-token-canary/package.tgz"
+                                    )
+                                },
+                                "authorization": "header-secret-canary",
+                            }
+                        },
+                    },
+                ),
+            ),
+            locked_package_bytes=10,
+            python_wheel_bytes=20,
+            browser_member_count=287,
+            browser_expanded_regular_bytes=273_378_828,
+        )
+
+    @staticmethod
+    def independent_diagnostic_sha256(value: object) -> str:
+        payload = json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
+
+    @classmethod
+    def expected_acquisition_drift_message(
+        cls,
+        field: str,
+        first: object,
+        second: object,
+        *,
+        member_identity: str | None = None,
+        first_member: object | None = None,
+        second_member: object | None = None,
+    ) -> str:
+        difference: dict[str, object] = {
+            "field": field,
+            "run_1_sha256": cls.independent_diagnostic_sha256(first),
+            "run_2_sha256": cls.independent_diagnostic_sha256(second),
+        }
+        if member_identity is not None:
+            difference["members"] = [
+                {
+                    "identity": member_identity,
+                    "run_1_sha256": (
+                        "absent"
+                        if first_member is None
+                        else cls.independent_diagnostic_sha256(first_member)
+                    ),
+                    "run_2_sha256": (
+                        "absent"
+                        if second_member is None
+                        else cls.independent_diagnostic_sha256(second_member)
+                    ),
+                }
+            ]
+        document = json.dumps(
+            {"differences": [difference]},
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return f"H2 isolated runs acquired different external inputs: {document}"
+
+    @staticmethod
     def lifecycle_authority_inputs(
         lock: dict[str, object],
     ) -> tuple[
@@ -4156,14 +4278,17 @@ write(JSON.stringify({calls,output,failure}));
             self.assertEqual(registry_calls, 2)
             self.assertTrue(expected_executable.is_file())
 
-    def test_playwright_archive_and_executable_identities_must_match_two_runs(
-        self,
-    ) -> None:
+    def test_equal_h2_acquisition_identities_reach_existing_receipt_path(self) -> None:
         executor = importlib.import_module("python_candidate_h2")
+
+        class ExistingReceiptPathReached(Exception):
+            pass
+
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             root = Path(temporary)
-            baseline = self.acquired_inputs(executor, root)
+            baseline = self.diagnostic_acquired_inputs(executor, root)
             first = executor.RunObservation((), (), (), 0, baseline)
+            second = executor.RunObservation((), (), (), 0, baseline)
             family = executor.CandidateFamily(
                 root / "candidate.tar.gz", (), "0.1.0a1", ()
             )
@@ -4171,23 +4296,156 @@ write(JSON.stringify({calls,output,failure}));
                 mock.Mock(root=root / "clean-run-1"),
                 mock.Mock(root=root / "clean-run-2"),
             )
+            with (
+                mock.patch.object(executor, "_asset_equality") as asset_equality,
+                mock.patch.object(
+                    executor,
+                    "_validate_abstract_resources",
+                    side_effect=ExistingReceiptPathReached,
+                ) as validate_resources,
+            ):
+                with self.assertRaises(ExistingReceiptPathReached):
+                    executor.observe_h2(
+                        expected_commit=self.REVISION,
+                        family=family,
+                        extracted=root / "source",
+                        workspaces=workspaces,
+                        runs=(first, second),
+                        source_date_epoch=123456789,
+                    )
+            asset_equality.assert_called_once_with(root / "source", (first, second))
+            validate_resources.assert_called_once_with(family, (first, second))
+
+    def test_every_h2_acquisition_field_drift_is_exact_secret_free_and_closed(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            baseline = self.diagnostic_acquired_inputs(executor, root)
+            baseline_wheel = baseline.python_wheels[1]
+            mutant_wheel = {**baseline_wheel, "sha256": "f" * 64}
+            mutant_wheels = (baseline.python_wheels[0], mutant_wheel)
+            baseline_manifest = baseline.package_manifests[0]
+            mutant_manifest = (
+                baseline_manifest[0],
+                {
+                    **baseline_manifest[1],
+                    "scripts": {"prepare": "manifest-mutant-secret-canary"},
+                },
+            )
+            mutant_manifests = (mutant_manifest,)
+            baseline_packument = baseline.package_packuments[0]
+            mutant_packument = (
+                baseline_packument[0],
+                {
+                    **baseline_packument[1],
+                    "dist-tags": {"latest": "packument-mutant-secret-canary"},
+                },
+            )
+            mutant_packuments = (mutant_packument,)
             mutations = (
+                ("browser_archive_sha256", "1" * 64, None, None, None),
+                ("browser_executable_sha256", "2" * 64, None, None, None),
+                ("browser_platform", "private-platform-canary", None, None, None),
                 (
-                    "archive-bytes",
-                    self.acquired_inputs(executor, root, archive_sha256="e" * 64),
+                    "playwright_test_integrity",
+                    "sha512-test-mutant-secret-canary",
+                    None,
+                    None,
+                    None,
                 ),
                 (
-                    "executable-bytes",
-                    self.acquired_inputs(executor, root, executable_sha256="f" * 64),
+                    "playwright_core_integrity",
+                    "sha512-core-mutant-secret-canary",
+                    None,
+                    None,
+                    None,
+                ),
+                (
+                    "python_wheels",
+                    mutant_wheels,
+                    str(baseline_wheel["filename"]),
+                    baseline_wheel,
+                    mutant_wheel,
+                ),
+                ("anywidget_license_sha256", "3" * 64, None, None, None),
+                (
+                    "package_manifests",
+                    mutant_manifests,
+                    str(baseline_manifest[0]),
+                    baseline_manifest,
+                    mutant_manifest,
+                ),
+                (
+                    "package_packuments",
+                    mutant_packuments,
+                    str(baseline_packument[0]),
+                    baseline_packument,
+                    mutant_packument,
+                ),
+                ("locked_package_bytes", 11, None, None, None),
+                ("python_wheel_bytes", 21, None, None, None),
+                ("browser_member_count", 288, None, None, None),
+                (
+                    "browser_expanded_regular_bytes",
+                    273_378_829,
+                    None,
+                    None,
+                    None,
                 ),
             )
-            for name, acquired in mutations:
-                with self.subTest(identity=name):
+            family = executor.CandidateFamily(
+                root / "candidate.tar.gz", (), "0.1.0a1", ()
+            )
+            workspaces = (
+                mock.Mock(root=root / "clean-run-1"),
+                mock.Mock(root=root / "clean-run-2"),
+            )
+            first = executor.RunObservation((), (), (), 0, baseline)
+            forbidden = (
+                str(root),
+                "private-host-canary",
+                "manifest-secret-canary",
+                "manifest-mutant-secret-canary",
+                "registry-token-canary",
+                "header-secret-canary",
+                "packument-mutant-secret-canary",
+                "https://",
+                "sha512-",
+                "linux-x86_64",
+                "private-platform-canary",
+                "a" * 64,
+                "b" * 64,
+                "c" * 64,
+                "d" * 64,
+                "e" * 64,
+                "f" * 64,
+                "1" * 64,
+                "2" * 64,
+                "3" * 64,
+            )
+            for field, value, identity, first_member, second_member in mutations:
+                with self.subTest(field=field):
+                    acquired = replace(baseline, **{field: value})
                     second = executor.RunObservation((), (), (), 0, acquired)
-                    with mock.patch.object(executor, "_asset_equality"):
-                        with self.assertRaisesRegex(
-                            CandidateError, "different external inputs"
-                        ):
+                    expected = self.expected_acquisition_drift_message(
+                        field,
+                        getattr(baseline, field),
+                        value,
+                        member_identity=identity,
+                        first_member=first_member,
+                        second_member=second_member,
+                    )
+                    with (
+                        mock.patch.object(
+                            executor, "_asset_equality"
+                        ) as asset_equality,
+                        mock.patch.object(
+                            executor, "_validate_abstract_resources"
+                        ) as validate_resources,
+                    ):
+                        with self.assertRaises(CandidateError) as raised:
                             executor.observe_h2(
                                 expected_commit=self.REVISION,
                                 family=family,
@@ -4196,6 +4454,13 @@ write(JSON.stringify({calls,output,failure}));
                                 runs=(first, second),
                                 source_date_epoch=123456789,
                             )
+                    self.assertEqual(str(raised.exception), expected)
+                    asset_equality.assert_called_once_with(
+                        root / "source", (first, second)
+                    )
+                    validate_resources.assert_not_called()
+                    for secret in forbidden:
+                        self.assertNotIn(secret, str(raised.exception))
 
     def test_h2_compatibility_failure_never_publishes_receipt(self) -> None:
         executor = importlib.import_module("python_candidate_h2")
