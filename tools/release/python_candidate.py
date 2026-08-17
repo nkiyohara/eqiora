@@ -34,6 +34,7 @@ from candidate_manifest import (
     NODE_EXECUTABLE_SHA256,
     NOTEBOOK_CHECKS,
     NPM_PACKAGE_INTEGRITY,
+    PROFILE_CHECKS,
     REQUIRED_PROFILES,
     THREE_LICENSE_SHA256,
     load_candidate_family,
@@ -1599,6 +1600,169 @@ def _family_version_from_sdist(sdist: Path) -> str:
     return version
 
 
+def _admit_candidate_profile_summary(
+    profiles: object,
+    *,
+    artifact_root: Path,
+    family: Any,
+    entry_inventory: tuple[dict[str, object], ...],
+) -> CandidateProfileSummary:
+    """Admit one complete profile-owner result before publication side effects."""
+
+    if not isinstance(profiles, CandidateProfileSummary):
+        raise CandidateError(
+            "candidate profile owner did not return CandidateProfileSummary"
+        )
+
+    try:
+        current_inventory = family_inventory(artifact_root)
+    except (CandidateError, OSError) as error:
+        raise CandidateError("candidate family changed during finalization") from error
+    if current_inventory != entry_inventory or family.inventory != entry_inventory:
+        raise CandidateError("candidate family changed during finalization")
+
+    try:
+        sdist = family.sdist
+        wheels = tuple(family.wheels)
+        version = family.version
+        family_paths = tuple(artifact_root.iterdir())
+    except (AttributeError, OSError, TypeError) as error:
+        raise CandidateError(
+            "candidate family is not the exact one-sdist/four-wheel set"
+        ) from error
+    if (
+        not isinstance(sdist, Path)
+        or not isinstance(version, str)
+        or not version
+        or len(wheels) != 4
+        or len(family_paths) != 5
+        or set(family_paths) != {sdist, *wheels}
+        or sdist.name != f"eqiora-{version}.tar.gz"
+        or any(
+            not isinstance(wheel, Path) or wheel.suffix != ".whl" for wheel in wheels
+        )
+    ):
+        raise CandidateError(
+            "candidate family is not the exact one-sdist/four-wheel set"
+        )
+
+    try:
+        config = profiles.config
+        uv = profiles.uv
+        reviewed = load_config()
+    except (AttributeError, CandidateError, OSError, TypeError, ValueError) as error:
+        raise CandidateError(
+            "candidate profile summary has invalid configuration"
+        ) from error
+    if (
+        not isinstance(config, DistributionConfig)
+        or config != reviewed
+        or config.python_version != version
+        or config.interpreters != ("3.11", "3.12", "3.13", "3.14")
+        or config.wheel_platform != "manylinux_2_17_x86_64"
+        or not isinstance(uv, str)
+        or not uv
+    ):
+        raise CandidateError("candidate profile summary has invalid configuration")
+
+    record_members = {
+        "filename",
+        "kind",
+        "python",
+        "abi",
+        "platform",
+        "size",
+        "sha256",
+    }
+    expected_by_python = dict(zip(config.interpreters, wheels, strict=True))
+    seen_python: set[str] = set()
+    try:
+        records = profiles.wheel_records
+        valid_records = isinstance(records, tuple) and len(records) == 4
+        if valid_records:
+            for record in records:
+                if not isinstance(record, dict) or set(record) != record_members:
+                    valid_records = False
+                    break
+                python = record.get("python")
+                wheel = expected_by_python.get(python)
+                compact = python.replace(".", "") if isinstance(python, str) else ""
+                if (
+                    wheel is None
+                    or python in seen_python
+                    or record.get("filename") != wheel.name
+                    or record.get("kind") != "wheel"
+                    or record.get("abi") != f"cp{compact}"
+                    or record.get("platform") != config.wheel_platform
+                    or not isinstance(record.get("size"), int)
+                    or isinstance(record.get("size"), bool)
+                    or record.get("size") != wheel.stat().st_size
+                    or record.get("size", 0) <= 0
+                    or record.get("sha256") != sha256(wheel)
+                ):
+                    valid_records = False
+                    break
+                seen_python.add(python)
+        if seen_python != set(config.interpreters):
+            valid_records = False
+    except (AttributeError, OSError, TypeError, ValueError) as error:
+        raise CandidateError(
+            "candidate profile summary does not bind the exact four-wheel family"
+        ) from error
+    if not valid_records:
+        raise CandidateError(
+            "candidate profile summary does not bind the exact four-wheel family"
+        )
+
+    try:
+        checks = profiles.checks
+        if (
+            not isinstance(checks, tuple)
+            or any(not isinstance(check, str) or not check for check in checks)
+            or len(set(checks)) != len(checks)
+        ):
+            raise ValueError
+        normalized_checks = tuple(
+            "generated-public-api" if check == "check:generated-public-api" else check
+            for check in checks
+        )
+        if len(set(normalized_checks)) != len(normalized_checks):
+            raise ValueError
+        required_checks = set().union(
+            *(PROFILE_CHECKS[profile] for profile in REQUIRED_PROFILES)
+        )
+        producer_checks = required_checks | {
+            f"cp{python.replace('.', '')}:packaged-exact-cylinder-model-demo"
+            for python in config.interpreters
+        }
+        if set(normalized_checks) != producer_checks or not NOTEBOOK_CHECKS.issubset(
+            normalized_checks
+        ):
+            raise ValueError
+    except (AttributeError, KeyError, TypeError, ValueError) as error:
+        raise CandidateError(
+            "candidate profile summary does not contain the exact complete check set"
+        ) from error
+
+    numpy_version = config.numpy_floor.split("==", maxsplit=1)[1]
+    expected_dependency_profiles = {
+        "numpy_floor": {
+            "python": config.numpy_floor_interpreter,
+            "requirement": config.numpy_floor,
+            "observed": numpy_version,
+            "profile": (
+                f"cp{config.numpy_floor_interpreter.replace('.', '')}:"
+                f"numpy-{numpy_version}-floor"
+            ),
+        }
+    }
+    if profiles.dependency_profiles != expected_dependency_profiles:
+        raise CandidateError(
+            "candidate profile summary has invalid dependency profiles"
+        )
+    return profiles
+
+
 def finalize_candidate(
     *,
     expected_commit: str,
@@ -1640,35 +1804,24 @@ def finalize_candidate(
             receipt=receipt,
             frontend=frontend,
         )
-        sdists = sorted(artifact_root.glob("eqiora-*.tar.gz"))
-        if len(sdists) != 1:
-            raise CandidateError("candidate family must retain exactly one sdist")
-        sdist = sdists[0]
-        if isinstance(profiles, CandidateProfileSummary):
-            config = profiles.config
-            uv = profiles.uv
-            records = list(profiles.wheel_records)
-            checks = list(profiles.checks)
-            dependencies = profiles.dependency_profiles
-        else:  # exercised only by isolated orchestration tests with mocked owners
-            config = load_config()
-            uv = "uv"
-            records = []
-            checks = []
-            dependencies = {}
-        if family_inventory(artifact_root) != entry_inventory:
-            raise CandidateError("candidate family changed during finalization")
+        profiles = _admit_candidate_profile_summary(
+            profiles,
+            artifact_root=artifact_root,
+            family=family,
+            entry_inventory=entry_inventory,
+        )
+        sdist = family.sdist
         manifest = write_manifest(
             output=metadata_root,
             source=source,
             sdist=sdist,
             version=_family_version_from_sdist(sdist),
-            wheel_records=records,
-            checks=checks,
-            config=config,
-            uv=uv,
+            wheel_records=list(profiles.wheel_records),
+            checks=list(profiles.checks),
+            config=profiles.config,
+            uv=profiles.uv,
             complete_profiles=True,
-            dependency_profiles=dependencies,
+            dependency_profiles=profiles.dependency_profiles,
             frontend=frontend if isinstance(frontend, dict) else None,
         )
         retained_receipt = metadata_root / receipt_path.name
