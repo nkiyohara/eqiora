@@ -1219,16 +1219,32 @@ class _NotebookOwnedProcessObserver:
         except CandidateError:
             root = None
             self.initial_error = "observer-unavailable"
-        self.root_session = (
-            self.root_pid if root is None else int(root["session"])
-        )
+        if root is None and self.initial_error is None:
+            self.initial_error = "observer-unavailable"
+        self.root_session = None if root is None else int(root["session"])
         self.isolated_session = (
             self.initial_error is None and self.root_session == self.root_pid
         )
+        self.owned_sessions: dict[int, int] = {}
+        if self.isolated_session and root is not None:
+            self.owned_sessions[self.root_pid] = int(root["start_time"])
         self.known: dict[tuple[int, int], dict[str, object]] = {}
         self.last_survivors: tuple[dict[str, object], ...] = ()
         if root is not None:
             self._admit(root, role="host")
+
+    def add_isolated_session(self, *, pid: int, start_time: int) -> None:
+        """Admit a directly launched helper session by stable leader identity."""
+
+        if pid <= 0 or start_time <= 0:
+            self.initial_error = "observer-unavailable"
+            return
+        self.owned_sessions[pid] = start_time
+
+    def mark_incomplete(self, reason: str) -> None:
+        """Make a malformed direct-launch admission a fail-closed terminal."""
+
+        self.initial_error = reason
 
     @staticmethod
     def _read_process(pid: int) -> dict[str, object] | None:
@@ -1317,14 +1333,26 @@ class _NotebookOwnedProcessObserver:
             return "incomplete(observer-unavailable)", survivors
 
         if self.isolated_session:
+            by_pid = {int(process["pid"]): process for process in table}
+            active_sessions: set[int] = set()
+            for session, start_time in self.owned_sessions.items():
+                leader = by_pid.get(session)
+                if leader is not None and int(leader["start_time"]) != start_time:
+                    continue
+                active_sessions.add(session)
             for process in table:
-                if int(process["session"]) == self.root_session:
+                process_session = int(process["session"])
+                if process_session in active_sessions:
                     self._admit(
                         process,
                         role=(
                             "host"
                             if int(process["pid"]) == self.root_pid
-                            else "profile-helper"
+                            else (
+                                "browser-helper"
+                                if process_session != self.root_session
+                                else "profile-helper"
+                            )
                         ),
                     )
         else:
@@ -1548,6 +1576,7 @@ def run_notebook_profile(
             )
             state["host-environment"] = environment
             state["browser-executable"] = acquired.browser_executable
+            state["npm-executable"] = acquired.npm
         environment = dict(state["host-environment"])
         host_environment = os.environ.copy()
         host_environment.update(environment)
@@ -1699,11 +1728,55 @@ def run_notebook_profile(
             ]
             if test_spec is not None:
                 host_command.append(test_spec)
-            checked_run(
-                host_command,
-                cwd=frontend_root,
-                extra_environment=environment,
+            launch_number = int(state.get("host-launch-number", 0)) + 1
+            state["host-launch-number"] = launch_number
+            launcher_root = workspace.root / f"host-launch-{launch_number}"
+            launcher_root.mkdir()
+            launcher = launcher_root / "npm"
+            launcher_identity = launcher_root / "session.identity"
+            npm_executable = Path(state["npm-executable"])
+            launcher.write_text(
+                "#!/usr/bin/env python3\n"
+                "import os\n"
+                "import sys\n"
+                "\n"
+                "os.setsid()\n"
+                "record = open(f'/proc/{os.getpid()}/stat', "
+                "encoding='ascii').read()\n"
+                "fields = record[record.rfind(')') + 2:].split()\n"
+                f"identity = {str(launcher_identity)!r}\n"
+                "with open(identity, 'x', encoding='ascii') as stream:\n"
+                "    stream.write(f'{os.getpid()} {int(fields[19])}\\n')\n"
+                f"os.environ['PATH'] = {environment['PATH']!r}\n"
+                f"executable = {str(npm_executable)!r}\n"
+                "os.execv(executable, [executable, *sys.argv[1:]])\n",
+                encoding="utf-8",
             )
+            launcher.chmod(0o700)
+            host_test_environment = dict(environment)
+            host_test_environment["PATH"] = os.pathsep.join(
+                (str(launcher_root), environment["PATH"])
+            )
+            try:
+                checked_run(
+                    host_command,
+                    cwd=frontend_root,
+                    extra_environment=host_test_environment,
+                )
+            finally:
+                if launcher_identity.is_file():
+                    try:
+                        values = launcher_identity.read_text(
+                            encoding="ascii"
+                        ).split()
+                        if len(values) != 2:
+                            raise ValueError("expected PID and Linux start time")
+                        observer.add_isolated_session(
+                            pid=int(values[0]),
+                            start_time=int(values[1]),
+                        )
+                    except (OSError, ValueError):
+                        observer.mark_incomplete("observer-unavailable")
         except BaseException as error:
             primary_error = error
 
