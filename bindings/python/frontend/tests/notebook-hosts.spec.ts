@@ -2,6 +2,338 @@ import { expect, type JSHandle, type Locator, type Page, test } from "@playwrigh
 
 const MESH_DIGEST = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a";
 const VIEW_SELECTOR = `[data-eqiora-mesh-digest="${MESH_DIGEST}"]`;
+const BARE_MESH_TEST_TITLE =
+  "bare Mesh owns exact interaction, lifecycle, identity, and loopback-only observations";
+const COLLECTOR_MARKER = "EQIORA_TEMPORARY_MESH_COLLECTED";
+const IDENTITY_MARKER = "EQIORA_MESH_UNCHANGED";
+const COLLECTOR_ASSERTION = "assert temporary_mesh_reference() is None";
+const COLLECTOR_SOURCE = [
+  "# Claim: displaying a Mesh adds no Eqiora-owned strong reference to it. The",
+  "# widget delegate outlives this cell inside ipywidgets' global registry, so a",
+  "# delegate, comm, or Eqiora module that retained the Mesh fails this assertion.",
+  "# Nothing is claimed here about a Mesh that the host's own caches still hold.",
+  "gc.collect()",
+  COLLECTOR_ASSERTION,
+  `print('${COLLECTOR_MARKER}')`,
+].join("\n");
+const IDENTITY_SOURCE = [
+  "assert_unchanged(mesh, accepted_snapshot)",
+  `print('${IDENTITY_MARKER}')`,
+].join("\n");
+
+type MarkerObservation = {
+  pageCount: number;
+  ownerCount: number;
+  ownerVisibleCount: number;
+};
+
+type JupyterDomSnapshot = {
+  cellCount: number;
+  collectorCellVisible: boolean;
+  identityCellVisible: boolean;
+  collectorSource: string | null;
+  identitySource: string | null;
+  collectorPrompt: string | null;
+  identityPrompt: string | null;
+  collectorPromptVisible: boolean;
+  identityPromptVisible: boolean;
+  collectorMarker: MarkerObservation;
+  identityMarker: MarkerObservation;
+  stderrCount: number;
+  collectorStderrCount: number;
+  collectorAssertionStderrCount: number;
+  collectorAssertionVisibleStderrCount: number;
+};
+
+type JupyterClassificationSnapshot = {
+  before: JupyterDomSnapshot;
+  after: JupyterDomSnapshot;
+};
+
+type JupyterFailureAtom =
+  | "collector-assertion"
+  | "collector-not-terminal"
+  | "collector-success-dom-propagation"
+  | "contradiction";
+
+type JupyterClassification = JupyterFailureAtom | "ordinary-success";
+
+type PromptState =
+  | { kind: "blank" }
+  | { kind: "running" }
+  | { kind: "completed"; count: number }
+  | { kind: "invalid" };
+
+function parsePrompt(prompt: string | null): PromptState {
+  if (prompt === "[ ]:") return { kind: "blank" };
+  if (prompt === "[*]:") return { kind: "running" };
+  const completed = /^\[(\d+)\]:$/.exec(prompt ?? "");
+  if (completed === null) return { kind: "invalid" };
+  return { kind: "completed", count: Number(completed[1]) };
+}
+
+function promptTransition(
+  before: string | null,
+  after: string | null,
+): "advanced" | "waiting" | "invalid" {
+  const previous = parsePrompt(before);
+  const current = parsePrompt(after);
+  if (
+    previous.kind === "invalid" ||
+    previous.kind === "running" ||
+    current.kind === "invalid"
+  ) {
+    return "invalid";
+  }
+  if (current.kind === "completed") {
+    if (previous.kind === "blank") return "advanced";
+    if (current.count > previous.count) return "advanced";
+    if (current.count === previous.count) return "waiting";
+    return "invalid";
+  }
+  if (current.kind === "running") return "waiting";
+  return previous.kind === "blank" ? "waiting" : "invalid";
+}
+
+function exactAbsent(marker: MarkerObservation): boolean {
+  return (
+    marker.pageCount === 0 && marker.ownerCount === 0 && marker.ownerVisibleCount === 0
+  );
+}
+
+function exactVisibleOwner(marker: MarkerObservation): boolean {
+  return (
+    marker.pageCount === 1 && marker.ownerCount === 1 && marker.ownerVisibleCount === 1
+  );
+}
+
+function exactHiddenOwner(marker: MarkerObservation): boolean {
+  return (
+    marker.pageCount === 1 && marker.ownerCount === 1 && marker.ownerVisibleCount === 0
+  );
+}
+
+function exactSourceTopology(snapshot: JupyterDomSnapshot): boolean {
+  return (
+    snapshot.cellCount === 9 &&
+    snapshot.collectorCellVisible &&
+    snapshot.identityCellVisible &&
+    snapshot.collectorSource === COLLECTOR_SOURCE &&
+    snapshot.identitySource === IDENTITY_SOURCE &&
+    snapshot.collectorPromptVisible &&
+    snapshot.identityPromptVisible
+  );
+}
+
+function cleanBefore(snapshot: JupyterDomSnapshot): boolean {
+  return (
+    exactSourceTopology(snapshot) &&
+    parsePrompt(snapshot.collectorPrompt).kind !== "invalid" &&
+    parsePrompt(snapshot.collectorPrompt).kind !== "running" &&
+    parsePrompt(snapshot.identityPrompt).kind !== "invalid" &&
+    parsePrompt(snapshot.identityPrompt).kind !== "running" &&
+    exactAbsent(snapshot.collectorMarker) &&
+    exactAbsent(snapshot.identityMarker) &&
+    snapshot.stderrCount === 0 &&
+    snapshot.collectorStderrCount === 0 &&
+    snapshot.collectorAssertionStderrCount === 0 &&
+    snapshot.collectorAssertionVisibleStderrCount === 0
+  );
+}
+
+function classifyJupyterSnapshot(
+  snapshot: JupyterClassificationSnapshot,
+): JupyterClassification {
+  const { before, after } = snapshot;
+  if (!cleanBefore(before) || !exactSourceTopology(after)) return "contradiction";
+
+  const collector = promptTransition(before.collectorPrompt, after.collectorPrompt);
+  const identity = promptTransition(before.identityPrompt, after.identityPrompt);
+  if (collector === "invalid" || identity === "invalid") return "contradiction";
+
+  const noErrors =
+    after.stderrCount === 0 &&
+    after.collectorStderrCount === 0 &&
+    after.collectorAssertionStderrCount === 0 &&
+    after.collectorAssertionVisibleStderrCount === 0;
+  if (
+    collector === "advanced" &&
+    identity === "advanced" &&
+    noErrors &&
+    exactVisibleOwner(after.collectorMarker) &&
+    exactVisibleOwner(after.identityMarker)
+  ) {
+    return "ordinary-success";
+  }
+
+  if (
+    collector === "advanced" &&
+    identity === "waiting" &&
+    exactAbsent(after.collectorMarker) &&
+    exactAbsent(after.identityMarker) &&
+    after.stderrCount === 1 &&
+    after.collectorStderrCount === 1 &&
+    after.collectorAssertionStderrCount === 1 &&
+    after.collectorAssertionVisibleStderrCount === 1
+  ) {
+    return "collector-assertion";
+  }
+
+  if (
+    collector === "waiting" &&
+    identity === "waiting" &&
+    noErrors &&
+    exactAbsent(after.collectorMarker) &&
+    exactAbsent(after.identityMarker)
+  ) {
+    return "collector-not-terminal";
+  }
+
+  if (
+    collector === "advanced" &&
+    identity === "advanced" &&
+    noErrors &&
+    exactVisibleOwner(after.identityMarker) &&
+    (exactAbsent(after.collectorMarker) || exactHiddenOwner(after.collectorMarker))
+  ) {
+    return "collector-success-dom-propagation";
+  }
+
+  return "contradiction";
+}
+
+function isInlineJupyterClassificationTarget(): boolean {
+  const info = test.info();
+  return (
+    info.project.name === "jupyterlab-4.6.2" && info.title === BARE_MESH_TEST_TITLE
+  );
+}
+
+async function collectJupyterDomSnapshot(page: Page): Promise<JupyterDomSnapshot> {
+  return page.evaluate(
+    ({ collectorAssertion, collectorMarker, identityMarker }) => {
+      const cells = Array.from(
+        document.querySelectorAll<HTMLElement>(".jp-Notebook .jp-CodeCell"),
+      );
+      const collector = cells[5];
+      const identity = cells[8];
+
+      const isVisible = (element: HTMLElement): boolean => {
+        const style = window.getComputedStyle(element);
+        return (
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          element.getClientRects().length > 0
+        );
+      };
+
+      const source = (cell: HTMLElement | undefined): string | null => {
+        if (cell === undefined) return null;
+        const lines = Array.from(
+          cell.querySelectorAll<HTMLElement>(
+            ".jp-InputArea-editor .cm-content .cm-line",
+          ),
+        );
+        if (lines.length === 0) return null;
+        return lines.map((line) => line.textContent ?? "").join("\n");
+      };
+      const prompt = (cell: HTMLElement | undefined): string | null => {
+        if (cell === undefined) return null;
+        const prompts = cell.querySelectorAll<HTMLElement>(".jp-InputPrompt");
+        return prompts.length === 1 ? prompts[0].textContent : null;
+      };
+      const promptVisible = (cell: HTMLElement | undefined): boolean => {
+        if (cell === undefined) return false;
+        const prompts = cell.querySelectorAll<HTMLElement>(".jp-InputPrompt");
+        return prompts.length === 1 && isVisible(prompts[0]);
+      };
+      const exactLineCount = (text: string, marker: string): number =>
+        text.split(/\r?\n/).filter((line) => line === marker).length;
+      const pageExactLineCount = (value: string): number => {
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        let count = 0;
+        for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+          count += exactLineCount(node.textContent ?? "", value);
+        }
+        return count;
+      };
+      const marker = (
+        owner: HTMLElement | undefined,
+        value: string,
+      ): MarkerObservation => {
+        const ownerOutputs =
+          owner === undefined
+            ? []
+            : Array.from(
+                owner.querySelectorAll<HTMLElement>(
+                  ".jp-Cell-outputArea .jp-OutputArea-output",
+                ),
+              );
+        const count = (elements: readonly HTMLElement[]): number =>
+          elements.reduce(
+            (total, element) =>
+              total + exactLineCount(element.textContent ?? "", value),
+            0,
+          );
+        const visibleCount = ownerOutputs.reduce(
+          (total, element) =>
+            total +
+            (isVisible(element) ? exactLineCount(element.textContent ?? "", value) : 0),
+          0,
+        );
+        return {
+          pageCount: pageExactLineCount(value),
+          ownerCount: count(ownerOutputs),
+          ownerVisibleCount: visibleCount,
+        };
+      };
+      const stderrSelector =
+        '.jp-Cell-outputArea .jp-RenderedText[data-mime-type="application/vnd.jupyter.stderr"]';
+      const stderr = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          `.jp-Notebook .jp-CodeCell ${stderrSelector}`,
+        ),
+      );
+      const collectorStderr =
+        collector === undefined
+          ? []
+          : Array.from(collector.querySelectorAll<HTMLElement>(stderrSelector));
+
+      return {
+        cellCount: cells.length,
+        collectorCellVisible: collector !== undefined && isVisible(collector),
+        identityCellVisible: identity !== undefined && isVisible(identity),
+        collectorSource: source(collector),
+        identitySource: source(identity),
+        collectorPrompt: prompt(collector),
+        identityPrompt: prompt(identity),
+        collectorPromptVisible: promptVisible(collector),
+        identityPromptVisible: promptVisible(identity),
+        collectorMarker: marker(collector, collectorMarker),
+        identityMarker: marker(identity, identityMarker),
+        stderrCount: stderr.length,
+        collectorStderrCount: collectorStderr.length,
+        collectorAssertionStderrCount: collectorStderr.filter((node) => {
+          const text = node.textContent ?? "";
+          return text.includes(collectorAssertion) && text.includes("AssertionError");
+        }).length,
+        collectorAssertionVisibleStderrCount: collectorStderr.filter((node) => {
+          const text = node.textContent ?? "";
+          return (
+            isVisible(node) &&
+            text.includes(collectorAssertion) &&
+            text.includes("AssertionError")
+          );
+        }).length,
+      };
+    },
+    {
+      collectorAssertion: COLLECTOR_ASSERTION,
+      collectorMarker: COLLECTOR_MARKER,
+      identityMarker: IDENTITY_MARKER,
+    },
+  );
+}
 
 type Vector3 = [number, number, number];
 
@@ -157,6 +489,15 @@ async function prepareHost(page: Page): Promise<void> {
   await page.goto("");
   if (hostName() === "jupyterlab") {
     await expect(page.locator(".jp-Notebook")).toBeVisible({ timeout: 60_000 });
+    const classifyInlineFailure = isInlineJupyterClassificationTarget();
+    let before: JupyterDomSnapshot | null = null;
+    if (classifyInlineFailure) {
+      try {
+        before = await collectJupyterDomSnapshot(page);
+      } catch {
+        before = null;
+      }
+    }
     // Make the notebook the current widget before opening the Run menu:
     // JupyterLab 4.6.2 labels these semantic commands "Run All" / "Restart Kernel
     // and Run All" until a notebook is current, and the labels do not change while
@@ -170,10 +511,27 @@ async function prepareHost(page: Page): Promise<void> {
       .locator(".lm-Menu-item")
       .filter({ hasText: /^Run All Cells$/ })
       .click();
-    await expect(page.getByText("EQIORA_TEMPORARY_MESH_COLLECTED", { exact: true })).toBeVisible({
-      timeout: 60_000,
-    });
-    await expect(page.getByText("EQIORA_MESH_UNCHANGED", { exact: true })).toBeVisible();
+    try {
+      await expect(page.getByText(COLLECTOR_MARKER, { exact: true })).toBeVisible({
+        timeout: 60_000,
+      });
+    } catch (error) {
+      if (!classifyInlineFailure) throw error;
+      let atom: JupyterFailureAtom = "contradiction";
+      if (before !== null) {
+        try {
+          const selected = classifyJupyterSnapshot({
+            before,
+            after: await collectJupyterDomSnapshot(page),
+          });
+          atom = selected === "ordinary-success" ? "contradiction" : selected;
+        } catch {
+          atom = "contradiction";
+        }
+      }
+      throw new Error(atom);
+    }
+    await expect(page.getByText(IDENTITY_MARKER, { exact: true })).toBeVisible();
   }
   await expect(page.locator(VIEW_SELECTOR)).toHaveCount(4, { timeout: 60_000 });
 }
@@ -442,7 +800,7 @@ async function closeTemporaryDelegate(page: Page): Promise<void> {
   }
 }
 
-test("bare Mesh owns exact interaction, lifecycle, identity, and loopback-only observations", async ({
+test(BARE_MESH_TEST_TITLE, async ({
   page,
 }) => {
   const traffic = new RuntimeTraffic(page);
@@ -540,6 +898,180 @@ test("bare Mesh owns exact interaction, lifecycle, identity, and loopback-only o
   const flagged = clientTraffic.naming(meshModelIds);
   expect(flagged.filter((payload) => !payload.includes(OBSERVER_POSITIVE_PROBE))).toEqual([]);
   expect(flagged.length).toBeGreaterThan(0);
+});
+
+test("Jupyter collector marker failure classification is complete and fail-closed", () => {
+  test.skip(
+    test.info().project.name !== "jupyterlab-4.6.2",
+    "Jupyter-only classification",
+  );
+
+  const absent = (): MarkerObservation => ({
+    pageCount: 0,
+    ownerCount: 0,
+    ownerVisibleCount: 0,
+  });
+  const visible = (): MarkerObservation => ({
+    pageCount: 1,
+    ownerCount: 1,
+    ownerVisibleCount: 1,
+  });
+  const dom = (overrides: Partial<JupyterDomSnapshot> = {}): JupyterDomSnapshot => ({
+    cellCount: 9,
+    collectorCellVisible: true,
+    identityCellVisible: true,
+    collectorSource: COLLECTOR_SOURCE,
+    identitySource: IDENTITY_SOURCE,
+    collectorPrompt: "[ ]:",
+    identityPrompt: "[ ]:",
+    collectorPromptVisible: true,
+    identityPromptVisible: true,
+    collectorMarker: absent(),
+    identityMarker: absent(),
+    stderrCount: 0,
+    collectorStderrCount: 0,
+    collectorAssertionStderrCount: 0,
+    collectorAssertionVisibleStderrCount: 0,
+    ...overrides,
+  });
+  const before = dom();
+  const classify = (
+    after: JupyterDomSnapshot,
+    initial = before,
+  ): JupyterClassification => classifyJupyterSnapshot({ before: initial, after });
+
+  expect(
+    classify(
+      dom({
+        collectorPrompt: "[1]:",
+        identityPrompt: "[2]:",
+        collectorMarker: visible(),
+        identityMarker: visible(),
+      }),
+    ),
+  ).toBe("ordinary-success");
+
+  expect(
+    classify(
+      dom({
+        collectorPrompt: "[1]:",
+        stderrCount: 1,
+        collectorStderrCount: 1,
+        collectorAssertionStderrCount: 1,
+        collectorAssertionVisibleStderrCount: 1,
+      }),
+    ),
+  ).toBe("collector-assertion");
+
+  expect(classify(dom({ collectorPrompt: "[*]:" }))).toBe("collector-not-terminal");
+
+  expect(
+    classify(
+      dom({
+        collectorPrompt: "[1]:",
+        identityPrompt: "[2]:",
+        identityMarker: visible(),
+      }),
+    ),
+  ).toBe("collector-success-dom-propagation");
+
+  expect(
+    classify(
+      dom({
+        collectorPrompt: "[1]:",
+        identityPrompt: "[2]:",
+        collectorMarker: { pageCount: 1, ownerCount: 1, ownerVisibleCount: 0 },
+        identityMarker: visible(),
+      }),
+    ),
+  ).toBe("collector-success-dom-propagation");
+
+  expect(
+    classify(
+      dom({
+        collectorPrompt: "[1]:",
+        stderrCount: 1,
+        collectorStderrCount: 1,
+        collectorAssertionStderrCount: 0,
+      }),
+    ),
+  ).toBe("contradiction");
+
+  for (const identity of [
+    { identityPrompt: "[2]:" },
+    { identityMarker: visible() },
+  ] satisfies Partial<JupyterDomSnapshot>[]) {
+    expect(
+      classify(
+        dom({
+          collectorPrompt: "[1]:",
+          stderrCount: 1,
+          collectorStderrCount: 1,
+          collectorAssertionStderrCount: 1,
+          collectorAssertionVisibleStderrCount: 1,
+          ...identity,
+        }),
+      ),
+    ).toBe("contradiction");
+  }
+
+  for (const contamination of [
+    { collectorMarker: visible() },
+    {
+      stderrCount: 1,
+      collectorStderrCount: 1,
+      collectorAssertionStderrCount: 1,
+      collectorAssertionVisibleStderrCount: 1,
+    },
+  ] satisfies Partial<JupyterDomSnapshot>[]) {
+    expect(classify(dom({ collectorPrompt: "[*]:", ...contamination }))).toBe(
+      "contradiction",
+    );
+  }
+
+  expect(classify(dom({ collectorPrompt: "[1]:" }))).toBe("contradiction");
+
+  for (const misplaced of [
+    { collectorMarker: { pageCount: 1, ownerCount: 0, ownerVisibleCount: 0 } },
+    { identityMarker: { pageCount: 1, ownerCount: 0, ownerVisibleCount: 0 } },
+    { collectorMarker: { pageCount: 2, ownerCount: 2, ownerVisibleCount: 2 } },
+    { identityMarker: { pageCount: 2, ownerCount: 1, ownerVisibleCount: 1 } },
+  ] satisfies Partial<JupyterDomSnapshot>[]) {
+    expect(
+      classify(
+        dom({
+          collectorPrompt: "[1]:",
+          identityPrompt: "[2]:",
+          collectorMarker: visible(),
+          identityMarker: visible(),
+          ...misplaced,
+        }),
+      ),
+    ).toBe("contradiction");
+  }
+
+  expect(classify(dom({ identityMarker: visible() }))).toBe("contradiction");
+
+  for (const invalidAfter of [
+    { cellCount: 8 },
+    { collectorSource: `${COLLECTOR_SOURCE}\npass` },
+    { identitySource: `${IDENTITY_SOURCE}\npass` },
+    { collectorCellVisible: false },
+    { identityPromptVisible: false },
+    { collectorPrompt: "1" },
+    { identityPrompt: "2" },
+  ] satisfies Partial<JupyterDomSnapshot>[]) {
+    expect(classify(dom(invalidAfter))).toBe("contradiction");
+  }
+  for (const invalidBefore of [
+    { collectorMarker: visible() },
+    { identityMarker: visible() },
+    { stderrCount: 1 },
+    { collectorPrompt: "1" },
+    { identityPrompt: "2" },
+  ] satisfies Partial<JupyterDomSnapshot>[]) {
+    expect(classify(dom(), dom(invalidBefore))).toBe("contradiction");
+  }
 });
 
 // Precommitted falsifier for `interfaces.python-rich-mesh-display` evidence O6:
