@@ -488,6 +488,8 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--freetype-version", required=True)
     parser.add_argument("--libpng-library", type=Path, required=True)
     parser.add_argument("--libpng-version", required=True)
+    parser.add_argument("--zlib-library", type=Path, required=True)
+    parser.add_argument("--zlib-version", required=True)
     return parser.parse_args()
 
 
@@ -509,6 +511,7 @@ def _produce(arguments: argparse.Namespace) -> None:
     native_inputs = [
         _native_input("FreeType", arguments.freetype_version, arguments.freetype_library),
         _native_input("libpng", arguments.libpng_version, arguments.libpng_library),
+        _native_input("zlib", arguments.zlib_version, arguments.zlib_library),
     ]
     python_input = {
         "kind": "runtime",
