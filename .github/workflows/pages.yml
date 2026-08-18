@@ -315,9 +315,37 @@ jobs:
           python3 - <<'PY'
           import os
           import re
-          import shutil
+          import secrets
           import stat
           from pathlib import Path
+
+          def identity(details):
+              return (details.st_dev, details.st_ino)
+
+          def clear_directory(directory_fd):
+              for name in os.listdir(directory_fd):
+                  details = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+                  if not stat.S_ISDIR(details.st_mode):
+                      os.unlink(name, dir_fd=directory_fd)
+                      continue
+                  child_fd = os.open(
+                      name,
+                      os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                      dir_fd=directory_fd,
+                  )
+                  try:
+                      opened = os.fstat(child_fd)
+                      if identity(opened) != identity(details):
+                          raise SystemExit(f"directory identity changed during cleanup: {name}")
+                      clear_directory(child_fd)
+                      current = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+                      if identity(current) != identity(opened):
+                          raise SystemExit(f"directory entry changed during cleanup: {name}")
+                      os.rmdir(name, dir_fd=directory_fd)
+                      if os.fstat(child_fd).st_nlink != 0:
+                          raise SystemExit(f"directory remained linked after cleanup: {name}")
+                  finally:
+                      os.close(child_fd)
 
           candidate_text = os.environ.get("EQIORA_API_SCRATCH")
           runner_temp_text = os.environ.get("RUNNER_TEMP")
@@ -331,9 +359,6 @@ jobs:
               r"eqiora-site\.[A-Za-z0-9]{8}", candidate.name
           ) is None:
               raise SystemExit(f"refusing unsafe site scratch cleanup: {candidate}")
-          if not shutil.rmtree.avoids_symlink_attacks:
-              raise SystemExit("platform lacks symlink-safe recursive cleanup")
-
           device_text = os.environ.get("EQIORA_SITE_SCRATCH_DEVICE", "")
           inode_text = os.environ.get("EQIORA_SITE_SCRATCH_INODE", "")
           if not device_text.isascii() or not device_text.isdecimal():
@@ -350,10 +375,59 @@ jobs:
               if not stat.S_ISDIR(candidate_details.st_mode):
                   raise SystemExit(f"site scratch is not a real directory: {candidate}")
               expected_identity = (int(device_text), int(inode_text))
-              observed_identity = (candidate_details.st_dev, candidate_details.st_ino)
-              if observed_identity != expected_identity:
+              if identity(candidate_details) != expected_identity:
                   raise SystemExit(f"site scratch identity changed: {candidate}")
-              shutil.rmtree(candidate.name, dir_fd=runner_fd)
+
+              quarantine = f".{candidate.name}.cleanup-{secrets.token_hex(16)}"
+              try:
+                  os.stat(quarantine, dir_fd=runner_fd, follow_symlinks=False)
+              except FileNotFoundError:
+                  pass
+              else:
+                  raise SystemExit(f"site scratch quarantine already exists: {quarantine}")
+              os.rename(
+                  candidate.name,
+                  quarantine,
+                  src_dir_fd=runner_fd,
+                  dst_dir_fd=runner_fd,
+              )
+
+              quarantine_fd = None
+              try:
+                  captured = os.stat(quarantine, dir_fd=runner_fd, follow_symlinks=False)
+                  if not stat.S_ISDIR(captured.st_mode) or identity(captured) != expected_identity:
+                      raise RuntimeError("captured site scratch identity changed")
+                  quarantine_fd = os.open(
+                      quarantine,
+                      os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                      dir_fd=runner_fd,
+                  )
+                  if identity(os.fstat(quarantine_fd)) != expected_identity:
+                      raise RuntimeError("opened site scratch identity changed")
+              except BaseException as error:
+                  if quarantine_fd is not None:
+                      os.close(quarantine_fd)
+                  try:
+                      os.stat(candidate.name, dir_fd=runner_fd, follow_symlinks=False)
+                  except FileNotFoundError:
+                      os.rename(
+                          quarantine,
+                          candidate.name,
+                          src_dir_fd=runner_fd,
+                          dst_dir_fd=runner_fd,
+                      )
+                  raise SystemExit(f"refusing changed site scratch: {candidate}") from error
+
+              try:
+                  clear_directory(quarantine_fd)
+                  current = os.stat(quarantine, dir_fd=runner_fd, follow_symlinks=False)
+                  if identity(current) != expected_identity:
+                      raise SystemExit(f"captured site scratch entry changed: {candidate}")
+                  os.rmdir(quarantine, dir_fd=runner_fd)
+                  if os.fstat(quarantine_fd).st_nlink != 0:
+                      raise SystemExit(f"captured site scratch remained linked: {candidate}")
+              finally:
+                  os.close(quarantine_fd)
           finally:
               os.close(runner_fd)
           PY
