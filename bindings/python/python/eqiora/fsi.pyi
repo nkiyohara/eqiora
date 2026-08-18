@@ -1,3 +1,8 @@
+"""Fixed-mesh monolithic FSI intent, plan, and typed evidence.
+
+Authority: ``bindings/python/python/eqiora/fsi.py``.
+"""
+
 from typing import final
 
 import numpy as np
@@ -8,6 +13,11 @@ from .trajectory import TrajectoryState
 
 @final
 class FixedMeshMonolithic:
+    """Complete fixed-mesh monolithic FSI request without hidden state.
+
+    Authority: ``crates/eqiora-python/src/fsi.rs::PyFixedMeshMonolithic``.
+    """
+
     def __new__(
         cls,
         *,
@@ -47,6 +57,11 @@ class FixedMeshMonolithic:
 
 @final
 class FixedMeshMonolithicPlan:
+    """Immutable fully resolved fixed-mesh monolithic FSI plan.
+
+    Authority: ``crates/eqiora-python/src/fsi.rs::PyFixedMeshMonolithicPlan``.
+    """
+
     @property
     def model_digest(self) -> str: ...
     @property
@@ -118,6 +133,11 @@ class FixedMeshMonolithicPlan:
 
 @final
 class FixedMeshMonolithicStateEvidence:
+    """Solver and scientific observations for one accepted FSI state.
+
+    Authority: ``crates/eqiora-python/src/fsi.rs::PyFixedMeshMonolithicStateEvidence``.
+    """
+
     @property
     def state_digest(self) -> str: ...
     @property
@@ -163,6 +183,11 @@ class FixedMeshMonolithicStateEvidence:
 
 @final
 class FixedMeshMonolithicEvidence:
+    """Typed evidence for one fixed-mesh monolithic FSI result.
+
+    Authority: ``crates/eqiora-python/src/fsi.rs::PyFixedMeshMonolithicEvidence``.
+    """
+
     @property
     def trajectory_digest(self) -> str: ...
     @property
@@ -189,11 +214,24 @@ def resolve(
     model: Model,
     intent: FixedMeshMonolithic,
     /,
-) -> FixedMeshMonolithicPlan: ...
+) -> FixedMeshMonolithicPlan:
+    """Resolve a complete FSI intent without executing it.
+
+    Authority: ``crates/eqiora-python/src/fsi.rs::resolve``.
+    """
+
+    ...
+
 def fixed_mesh_monolithic_evidence(
     result: Result,
     /,
-) -> FixedMeshMonolithicEvidence: ...
+) -> FixedMeshMonolithicEvidence:
+    """Select typed fixed-mesh monolithic evidence from its result.
+
+    Authority: ``crates/eqiora-python/src/fsi.rs::fixed_mesh_monolithic_evidence``.
+    """
+
+    ...
 
 __all__ = [
     "FixedMeshMonolithic",

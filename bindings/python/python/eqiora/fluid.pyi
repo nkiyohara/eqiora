@@ -1,3 +1,8 @@
+"""Narrow fluid applications composed by Eqiora's shared native layer.
+
+Authority: ``bindings/python/python/eqiora/fluid.py``.
+"""
+
 from typing import final
 
 from . import LinearSolveSummary, Model, Result
@@ -5,6 +10,11 @@ from .meshing import Mesh
 
 @final
 class SteadyStokes:
+    """Complete steady-Stokes request with no hidden numerical defaults.
+
+    Authority: ``crates/eqiora-python/src/steady_stokes.rs::PySteadyStokes``.
+    """
+
     def __new__(
         cls,
         *,
@@ -32,6 +42,11 @@ class SteadyStokes:
 
 @final
 class SteadyStokesPlan:
+    """Immutable steady-Stokes plan resolved before submission.
+
+    Authority: ``crates/eqiora-python/src/steady_stokes.rs::PySteadyStokesPlan``.
+    """
+
     @property
     def model_digest(self) -> str: ...
     @property
@@ -83,6 +98,11 @@ class SteadyStokesPlan:
 
 @final
 class SteadyStokesEvidence:
+    """Scientific evidence selected from an accepted steady-Stokes result.
+
+    Authority: ``crates/eqiora-python/src/steady_stokes.rs::PySteadyStokesEvidence``.
+    """
+
     @property
     def run_digest(self) -> str: ...
     @property
@@ -118,8 +138,21 @@ def resolve(
     /,
     *,
     mesh: Mesh,
-) -> SteadyStokesPlan: ...
-def steady_stokes_evidence(result: Result, /) -> SteadyStokesEvidence: ...
+) -> SteadyStokesPlan:
+    """Resolve a steady-Stokes intent without executing it.
+
+    Authority: ``crates/eqiora-python/src/steady_stokes.rs::resolve``.
+    """
+
+    ...
+
+def steady_stokes_evidence(result: Result, /) -> SteadyStokesEvidence:
+    """Select typed steady-Stokes evidence from its accepted result.
+
+    Authority: ``crates/eqiora-python/src/steady_stokes.rs::steady_stokes_evidence``.
+    """
+
+    ...
 
 __all__ = [
     "SteadyStokes",

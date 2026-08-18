@@ -1,9 +1,19 @@
+"""Typed structural intents, plans, and scientific evidence.
+
+Authority: ``bindings/python/python/eqiora/solid.py``.
+"""
+
 from typing import final
 
 from . import LinearSolveSummary, Model, Result
 
 @final
 class LinearElasticity:
+    """Complete linear-elasticity request without hidden numerical defaults.
+
+    Authority: ``crates/eqiora-python/src/elasticity.rs::PyLinearElasticity``.
+    """
+
     def __new__(
         cls,
         *,
@@ -25,6 +35,11 @@ class LinearElasticity:
 
 @final
 class LinearElasticityPlan:
+    """Immutable linear-elasticity plan resolved before submission.
+
+    Authority: ``crates/eqiora-python/src/elasticity.rs::PyLinearElasticityPlan``.
+    """
+
     @property
     def model_digest(self) -> str: ...
     @property
@@ -86,6 +101,11 @@ class LinearElasticityPlan:
 
 @final
 class LinearElasticityEvidence:
+    """Scientific evidence selected from an accepted structural result.
+
+    Authority: ``crates/eqiora-python/src/elasticity.rs::PyLinearElasticityEvidence``.
+    """
+
     @property
     def run_digest(self) -> str: ...
     @property
@@ -101,13 +121,34 @@ class LinearElasticityEvidence:
     @property
     def exact_bounds(self) -> tuple[tuple[float, float], tuple[float, float]]: ...
 
-def resolve(model: Model, intent: LinearElasticity, /) -> LinearElasticityPlan: ...
-def linear_elasticity_evidence(result: Result, /) -> LinearElasticityEvidence: ...
+def resolve(model: Model, intent: LinearElasticity, /) -> LinearElasticityPlan:
+    """Resolve a structural intent without executing it.
 
-# One-prerelease compatibility spellings; runtime access emits DeprecationWarning.
+    Authority: ``crates/eqiora-python/src/elasticity.rs::resolve``.
+    """
+
+    ...
+
+def linear_elasticity_evidence(result: Result, /) -> LinearElasticityEvidence:
+    """Select typed linear-elasticity evidence from its result.
+
+    Authority: ``crates/eqiora-python/src/elasticity.rs::linear_elasticity_evidence``.
+    """
+
+    ...
+
+#: Deprecated one-prerelease alias for the common :class:`Result` type.
+#:
+#: Authority: ``bindings/python/python/eqiora/solid.py::__getattr__``.
 MixedBoundaryElasticityResult = Result
 
-def solve_mixed_boundary_elasticity(model: Model, /) -> Result: ...
+def solve_mixed_boundary_elasticity(model: Model, /) -> Result:
+    """Delegate the legacy solve to the explicit plan and result path.
+
+    Authority: ``bindings/python/python/eqiora/solid.py::solve_mixed_boundary_elasticity``.
+    """
+
+    ...
 
 __all__ = [
     "LinearElasticity",

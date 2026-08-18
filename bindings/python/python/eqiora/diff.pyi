@@ -1,3 +1,8 @@
+"""Accepted implicit differentiation over exact Eqiora programs.
+
+Authority: ``bindings/python/python/eqiora/diff.py``.
+"""
+
 from collections.abc import Sequence
 
 from . import (
@@ -22,7 +27,13 @@ def compile(
     *,
     inputs: Sequence[ParameterRef],
     output: FieldRef,
-) -> DifferentiableProgram: ...
+) -> DifferentiableProgram:
+    """Compile a program over an ordered parameter-coordinate set.
+
+    Authority: ``bindings/python/python/eqiora/diff.py::compile``.
+    """
+
+    ...
 
 __all__ = [
     "DerivativeImplementation",

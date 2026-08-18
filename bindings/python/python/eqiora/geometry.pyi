@@ -1,7 +1,17 @@
+"""Bounded exact geometry values owned by the native implementation.
+
+Authority: ``bindings/python/python/eqiora/geometry.py``.
+"""
+
 from typing import final
 
 @final
 class CadAuthoredFaceHandle:
+    """Authored-face provenance bound to one exact graph digest.
+
+    Authority: ``crates/eqiora-python/src/cad_authored.rs::PyCadAuthoredFaceHandle``.
+    """
+
     @staticmethod
     def decode_canonical(data: bytes) -> CadAuthoredFaceHandle: ...
     @property
@@ -15,6 +25,11 @@ class CadAuthoredFaceHandle:
 
 @final
 class CadAuthoredBuild:
+    """Read-only receipt from the bounded native analytic CAD profile.
+
+    Authority: ``crates/eqiora-python/src/cad_authored.rs::PyCadAuthoredBuild``.
+    """
+
     @property
     def graph_digest(self) -> str: ...
     @property
@@ -49,6 +64,11 @@ class CadAuthoredBuild:
 
 @final
 class CadAuthoredGraph:
+    """Immutable native-owned authored-CAD operation graph.
+
+    Authority: ``crates/eqiora-python/src/cad_authored.rs::PyCadAuthoredGraph``.
+    """
+
     @staticmethod
     def rectangle_extrusion(
         *,
@@ -148,6 +168,11 @@ class CadAuthoredGraph:
 
 @final
 class CadAuthoredSketch:
+    """Opaque native-owned input for closed authored-CAD operations.
+
+    Authority: ``crates/eqiora-python/src/cad_authored.rs::PyCadAuthoredSketch``.
+    """
+
     @staticmethod
     def rectangle_xy(
         *,
@@ -173,6 +198,11 @@ class CadAuthoredSketch:
 
 @final
 class Geometry:
+    """Immutable exact geometry produced by an accepted authored graph.
+
+    Authority: ``crates/eqiora-python/src/geometry.rs::PyGeometry``.
+    """
+
     @property
     def dimension(self) -> int: ...
     @property

@@ -1,3 +1,8 @@
+"""Read-only projections of accepted Eqiora spatial trajectories.
+
+Authority: ``bindings/python/python/eqiora/trajectory.py``.
+"""
+
 from typing import final
 
 import numpy as np
@@ -7,6 +12,11 @@ from . import FieldRef
 
 @final
 class FieldSnapshot:
+    """Exact semantic field observation in an accepted trajectory state.
+
+    Authority: ``crates/eqiora-python/src/trajectory.rs::PyFieldSnapshot``.
+    """
+
     @property
     def digest(self) -> str: ...
     @property
@@ -32,6 +42,11 @@ class FieldSnapshot:
 
 @final
 class TrajectoryState:
+    """Accepted physical state in exact trajectory order.
+
+    Authority: ``crates/eqiora-python/src/trajectory.rs::PyTrajectoryState``.
+    """
+
     @property
     def digest(self) -> str: ...
     @property
@@ -46,6 +61,11 @@ class TrajectoryState:
 
 @final
 class Trajectory:
+    """Immutable installed-Python projection of an accepted trajectory.
+
+    Authority: ``crates/eqiora-python/src/trajectory.rs::PyTrajectory``.
+    """
+
     @property
     def model_digest(self) -> str: ...
     @property
