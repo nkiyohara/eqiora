@@ -7146,6 +7146,7 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
             )
         )
         actions: list[tuple[object, ...]] = []
+        identity_calls: list[tuple[float, object]] = []
 
         def wait(*, stage: str, deadline: float, timeout: float) -> str:
             actions.append(("wait", stage, deadline, timeout))
@@ -7163,12 +7164,23 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
             actions.append(("observe", stage, deadline, timeout, clock.now))
             return next(observations)
 
+        def observe_identity(
+            *, expected: dict[str, object]
+        ) -> dict[str, object]:
+            identity_calls.append((clock.now, expected["start_time"]))
+            self.assertLess(
+                clock.now,
+                135.0,
+                "identity observation may not begin at an exhausted deadline",
+            )
+            return dict(expected)
+
         with self.assertRaises(CandidateError) as raised:
             lifecycle(
                 scenario=NotebookOwnedProcessDecisionTests.SCENARIO,
                 primary_error=None,
                 observe=observe,
-                observe_identity=lambda *, expected: dict(expected),
+                observe_identity=observe_identity,
                 request_stage=request_stage,
                 wait=wait,
                 monotonic=lambda: clock.now,
@@ -7198,6 +7210,7 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
                 ("observe", "final", 135.0, 0.0, 135.0),
             ],
         )
+        self.assertEqual(identity_calls, [(100.0, 908_172)])
 
     def test_pid_reuse_is_revalidated_immediately_before_each_action(self) -> None:
         lifecycle = self.lifecycle()
@@ -7392,6 +7405,7 @@ while True:
         cascade: bool = False,
         operation_error: BaseException | None = None,
         capture: dict[str, object] | None = None,
+        guard_lifecycle_actions: bool = False,
     ) -> int:
         executor = importlib.import_module("python_candidate_h2")
         profiles = importlib.import_module("python_candidate_profiles")
@@ -7441,7 +7455,13 @@ while True:
         )
         child_pid_path = root / "owned-child.pid"
         real_popen = subprocess.Popen
+        real_os_kill = os.kill
         launched_root: subprocess.Popen[str] | None = None
+        callback_state = {
+            "request_depth": 0,
+            "wait_depth": 0,
+            "harness_cleanup": False,
+        }
 
         def launch_root(
             _argv: list[str],
@@ -7485,7 +7505,60 @@ while True:
                         self.process_is_live(int(capture["child_pid"])),
                     )
                 )
+            real_send_signal = launched_root.send_signal
+            real_wait = launched_root.wait
+
+            def guarded_send_signal(signum: int) -> None:
+                if callback_state["harness_cleanup"]:
+                    real_send_signal(signum)
+                    return
+                event_log.append(
+                    (
+                        "host-signal"
+                        if callback_state["request_depth"]
+                        else "bypass-signal",
+                        launched_root.pid,
+                        signum,
+                    )
+                )
+                real_send_signal(signum)
+
+            def guarded_wait(
+                *args: object,
+                **kwargs: object,
+            ) -> int:
+                if callback_state["harness_cleanup"]:
+                    return real_wait(*args, **kwargs)
+                event_log.append(
+                    (
+                        "host-wait"
+                        if callback_state["wait_depth"]
+                        else "bypass-wait",
+                        launched_root.pid,
+                        kwargs.get("timeout"),
+                    )
+                )
+                return real_wait(*args, **kwargs)
+
+            if guard_lifecycle_actions:
+                launched_root.send_signal = guarded_send_signal
+                launched_root.wait = guarded_wait
             return launched_root
+
+        def guarded_os_kill(pid: int, signum: int) -> None:
+            if callback_state["harness_cleanup"]:
+                real_os_kill(pid, signum)
+                return
+            event_log.append(
+                (
+                    "os-signal"
+                    if callback_state["request_depth"]
+                    else "bypass-os-signal",
+                    pid,
+                    signum,
+                )
+            )
+            real_os_kill(pid, signum)
 
         def checked_run(argv: list[str], **_kwargs: object) -> str:
             if tuple(argv[:4]) == ("npm", "run", "test:hosts", "--"):
@@ -7566,6 +7639,14 @@ while True:
                         return_value=acquired,
                     )
                 )
+                if guard_lifecycle_actions:
+                    stack.enter_context(
+                        mock.patch.object(
+                            python_candidate_module.os,
+                            "kill",
+                            side_effect=guarded_os_kill,
+                        )
+                    )
 
                 decision = getattr(
                     python_candidate_module,
@@ -7614,6 +7695,7 @@ while True:
                         **kwargs: object,
                     ) -> None:
                         lifecycle_calls.append((args, dict(kwargs)))
+                        wrapped = dict(kwargs)
                         if capture is not None:
                             root_pid = int(capture["root_pid"])
                             child_pid = int(capture["child_pid"])
@@ -7626,8 +7708,118 @@ while True:
                                     self.process_is_live(child_pid),
                                 )
                             )
+                            observe = kwargs["observe"]
+                            observe_identity = kwargs["observe_identity"]
+                            request_stage = kwargs["request_stage"]
+                            wait = kwargs["wait"]
+
+                            def record_observe(
+                                *, stage: str, deadline: float, timeout: float
+                            ) -> tuple[str, tuple[dict[str, object], ...]]:
+                                event_log.append(
+                                    (
+                                        "observe-enter",
+                                        stage,
+                                        deadline,
+                                        timeout,
+                                        self.process_is_live(root_pid),
+                                        self.process_is_live(child_pid),
+                                    )
+                                )
+                                terminal, survivors = observe(
+                                    stage=stage,
+                                    deadline=deadline,
+                                    timeout=timeout,
+                                )
+                                membership = tuple(
+                                    sorted(
+                                        (
+                                            int(survivor["pid"]),
+                                            int(survivor["start_time"]),
+                                        )
+                                        for survivor in survivors
+                                    )
+                                )
+                                event_log.append(
+                                    (
+                                        "observe-exit",
+                                        terminal,
+                                        membership,
+                                        self.process_is_live(root_pid),
+                                        self.process_is_live(child_pid),
+                                    )
+                                )
+                                return terminal, survivors
+
+                            def record_identity(
+                                *, expected: dict[str, object]
+                            ) -> dict[str, object] | None:
+                                observed = observe_identity(expected=expected)
+                                event_log.append(
+                                    (
+                                        "identity",
+                                        int(expected["pid"]),
+                                        int(expected["start_time"]),
+                                        None
+                                        if observed is None
+                                        else int(observed["pid"]),
+                                        None
+                                        if observed is None
+                                        else int(observed["start_time"]),
+                                    )
+                                )
+                                return observed
+
+                            def record_request(
+                                *, stage: str, identity: dict[str, object]
+                            ) -> str:
+                                event_log.append(
+                                    (
+                                        "request-enter",
+                                        stage,
+                                        int(identity["pid"]),
+                                        int(identity["start_time"]),
+                                    )
+                                )
+                                callback_state["request_depth"] += 1
+                                try:
+                                    result = request_stage(
+                                        stage=stage,
+                                        identity=identity,
+                                    )
+                                finally:
+                                    callback_state["request_depth"] -= 1
+                                event_log.append(("request-exit", stage, result))
+                                return result
+
+                            def record_wait(
+                                *, stage: str, deadline: float, timeout: float
+                            ) -> str:
+                                event_log.append(
+                                    ("wait-enter", stage, deadline, timeout)
+                                )
+                                callback_state["wait_depth"] += 1
+                                try:
+                                    result = wait(
+                                        stage=stage,
+                                        deadline=deadline,
+                                        timeout=timeout,
+                                    )
+                                finally:
+                                    callback_state["wait_depth"] -= 1
+                                event_log.append(("wait-exit", stage, result))
+                                return result
+
+                            wrapped.update(
+                                {
+                                    "observe": record_observe,
+                                    "observe_identity": record_identity,
+                                    "request_stage": record_request,
+                                    "wait": record_wait,
+                                }
+                            )
                         try:
-                            return lifecycle(*args, **kwargs)
+                            return lifecycle(*args, **wrapped)
                         finally:
                             event_log.append(("lifecycle-exit",))
 
@@ -7651,6 +7843,7 @@ while True:
                 )
         finally:
             if launched_root is not None and launched_root.poll() is None:
+                callback_state["harness_cleanup"] = True
                 launched_root.kill()
                 launched_root.wait(timeout=1.0)
 
@@ -7666,15 +7859,21 @@ while True:
                     Path(temporary),
                     cascade=True,
                     capture=capture,
+                    guard_lifecycle_actions=True,
                 )
                 root_pid = int(capture["root_pid"])
                 self.assertFalse(self.process_is_live(root_pid))
                 self.assertFalse(self.process_is_live(owned_pid))
                 events = capture["events"]
+                event_names = [event[0] for event in events]
                 self.assertEqual(
-                    [event[0] for event in events],
-                    ["launch", "lifecycle-enter", "decision", "lifecycle-exit"],
+                    event_names[:2],
+                    ["launch", "lifecycle-enter"],
                 )
+                self.assertEqual(event_names[-1], "lifecycle-exit")
+                self.assertNotIn("bypass-signal", event_names)
+                self.assertNotIn("bypass-os-signal", event_names)
+                self.assertNotIn("bypass-wait", event_names)
                 self.assertEqual(
                     events[0],
                     ("launch", root_pid, owned_pid, True, True),
@@ -7683,8 +7882,65 @@ while True:
                     events[1],
                     ("lifecycle-enter", root_pid, owned_pid, True, True),
                 )
+
+                observations = [
+                    event for event in events if event[0] == "observe-exit"
+                ]
                 self.assertEqual(
-                    events[2],
+                    observations[0],
+                    (
+                        "observe-exit",
+                        "complete-nonempty",
+                        observations[0][2],
+                        True,
+                        True,
+                    ),
+                )
+                self.assertEqual(
+                    {pid for pid, _start_time in observations[0][2]},
+                    {root_pid, owned_pid},
+                )
+                self.assertEqual(
+                    observations[-1],
+                    ("observe-exit", "complete-empty", (), False, False),
+                )
+
+                identities = [event for event in events if event[0] == "identity"]
+                self.assertTrue(identities)
+                self.assertTrue(
+                    all(
+                        expected_pid == observed_pid
+                        and expected_start == observed_start
+                        and expected_pid in {root_pid, owned_pid}
+                        for (
+                            _event,
+                            expected_pid,
+                            expected_start,
+                            observed_pid,
+                            observed_start,
+                        ) in identities
+                    )
+                )
+                requests = [
+                    event for event in events if event[0] == "request-enter"
+                ]
+                self.assertTrue(requests)
+                self.assertTrue(
+                    all(request[2] in {root_pid, owned_pid} for request in requests)
+                )
+                self.assertIn("wait-enter", event_names)
+                self.assertIn("request-exit", event_names)
+                self.assertIn("wait-exit", event_names)
+
+                decision_events = [
+                    (index, event)
+                    for index, event in enumerate(events)
+                    if event[0] == "decision"
+                ]
+                self.assertEqual(len(decision_events), 1)
+                decision_index, decision_event = decision_events[0]
+                self.assertEqual(
+                    decision_event,
                     (
                         "decision",
                         root_pid,
@@ -7694,6 +7950,13 @@ while True:
                         "complete-empty",
                     ),
                 )
+                last_observation = max(
+                    index
+                    for index, event in enumerate(events)
+                    if event[0] == "observe-exit"
+                )
+                self.assertLess(last_observation, decision_index)
+                self.assertLess(decision_index, len(events) - 1)
                 lifecycle_calls = capture["lifecycle_calls"]
                 decision_calls = capture["decision_calls"]
                 self.assertEqual(len(lifecycle_calls), 1)
