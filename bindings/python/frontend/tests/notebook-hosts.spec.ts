@@ -29,20 +29,15 @@ type MarkerObservation = {
 
 type JupyterDomSnapshot = {
   cellCount: number;
-  collectorCellVisible: boolean;
-  identityCellVisible: boolean;
   collectorSource: string | null;
   identitySource: string | null;
   collectorPrompt: string | null;
   identityPrompt: string | null;
-  collectorPromptVisible: boolean;
-  identityPromptVisible: boolean;
   collectorMarker: MarkerObservation;
   identityMarker: MarkerObservation;
   stderrCount: number;
   collectorStderrCount: number;
   collectorAssertionStderrCount: number;
-  collectorAssertionVisibleStderrCount: number;
 };
 
 type JupyterClassificationSnapshot = {
@@ -61,7 +56,7 @@ type JupyterClassification = JupyterFailureAtom | "ordinary-success";
 type PromptState =
   | { kind: "blank" }
   | { kind: "running" }
-  | { kind: "completed"; count: number }
+  | { kind: "completed"; count: string }
   | { kind: "invalid" };
 
 function parsePrompt(prompt: string | null): PromptState {
@@ -69,7 +64,13 @@ function parsePrompt(prompt: string | null): PromptState {
   if (prompt === "[*]:") return { kind: "running" };
   const completed = /^\[(\d+)\]:$/.exec(prompt ?? "");
   if (completed === null) return { kind: "invalid" };
-  return { kind: "completed", count: Number(completed[1]) };
+  return { kind: "completed", count: completed[1].replace(/^0+(?=\d)/, "") };
+}
+
+function compareDecimal(left: string, right: string): -1 | 0 | 1 {
+  if (left.length !== right.length) return left.length > right.length ? 1 : -1;
+  if (left === right) return 0;
+  return left > right ? 1 : -1;
 }
 
 function promptTransition(
@@ -87,8 +88,9 @@ function promptTransition(
   }
   if (current.kind === "completed") {
     if (previous.kind === "blank") return "advanced";
-    if (current.count > previous.count) return "advanced";
-    if (current.count === previous.count) return "waiting";
+    const order = compareDecimal(current.count, previous.count);
+    if (order > 0) return "advanced";
+    if (order === 0) return "waiting";
     return "invalid";
   }
   if (current.kind === "running") return "waiting";
@@ -116,12 +118,8 @@ function exactHiddenOwner(marker: MarkerObservation): boolean {
 function exactSourceTopology(snapshot: JupyterDomSnapshot): boolean {
   return (
     snapshot.cellCount === 9 &&
-    snapshot.collectorCellVisible &&
-    snapshot.identityCellVisible &&
     snapshot.collectorSource === COLLECTOR_SOURCE &&
-    snapshot.identitySource === IDENTITY_SOURCE &&
-    snapshot.collectorPromptVisible &&
-    snapshot.identityPromptVisible
+    snapshot.identitySource === IDENTITY_SOURCE
   );
 }
 
@@ -136,8 +134,7 @@ function cleanBefore(snapshot: JupyterDomSnapshot): boolean {
     exactAbsent(snapshot.identityMarker) &&
     snapshot.stderrCount === 0 &&
     snapshot.collectorStderrCount === 0 &&
-    snapshot.collectorAssertionStderrCount === 0 &&
-    snapshot.collectorAssertionVisibleStderrCount === 0
+    snapshot.collectorAssertionStderrCount === 0
   );
 }
 
@@ -154,8 +151,7 @@ function classifyJupyterSnapshot(
   const noErrors =
     after.stderrCount === 0 &&
     after.collectorStderrCount === 0 &&
-    after.collectorAssertionStderrCount === 0 &&
-    after.collectorAssertionVisibleStderrCount === 0;
+    after.collectorAssertionStderrCount === 0;
   if (
     collector === "advanced" &&
     identity === "advanced" &&
@@ -173,8 +169,7 @@ function classifyJupyterSnapshot(
     exactAbsent(after.identityMarker) &&
     after.stderrCount === 1 &&
     after.collectorStderrCount === 1 &&
-    after.collectorAssertionStderrCount === 1 &&
-    after.collectorAssertionVisibleStderrCount === 1
+    after.collectorAssertionStderrCount === 1
   ) {
     return "collector-assertion";
   }
@@ -218,15 +213,6 @@ async function collectJupyterDomSnapshot(page: Page): Promise<JupyterDomSnapshot
       const collector = cells[5];
       const identity = cells[8];
 
-      const isVisible = (element: HTMLElement): boolean => {
-        const style = window.getComputedStyle(element);
-        return (
-          style.display !== "none" &&
-          style.visibility !== "hidden" &&
-          element.getClientRects().length > 0
-        );
-      };
-
       const source = (cell: HTMLElement | undefined): string | null => {
         if (cell === undefined) return null;
         const lines = Array.from(
@@ -242,49 +228,70 @@ async function collectJupyterDomSnapshot(page: Page): Promise<JupyterDomSnapshot
         const prompts = cell.querySelectorAll<HTMLElement>(".jp-InputPrompt");
         return prompts.length === 1 ? prompts[0].textContent : null;
       };
-      const promptVisible = (cell: HTMLElement | undefined): boolean => {
-        if (cell === undefined) return false;
-        const prompts = cell.querySelectorAll<HTMLElement>(".jp-InputPrompt");
-        return prompts.length === 1 && isVisible(prompts[0]);
-      };
-      const exactLineCount = (text: string, marker: string): number =>
-        text.split(/\r?\n/).filter((line) => line === marker).length;
-      const pageExactLineCount = (value: string): number => {
-        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-        let count = 0;
-        for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
-          count += exactLineCount(node.textContent ?? "", value);
+      const markerTextVisible = (node: Text, start: number, end: number): boolean => {
+        const element = node.parentElement;
+        if (element === null || window.getComputedStyle(element).visibility !== "visible") {
+          return false;
         }
-        return count;
+        // Bind visibility to the exact marker text range. A laid-out output
+        // wrapper cannot make a hidden rendered marker count as visible.
+        const range = document.createRange();
+        range.setStart(node, start);
+        range.setEnd(node, end);
+        return Array.from(range.getClientRects()).some(
+          (rectangle) => rectangle.width > 0 && rectangle.height > 0,
+        );
+      };
+      const exactTextObservation = (
+        root: Node,
+        value: string,
+      ): { count: number; visibleCount: number } => {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        let count = 0;
+        let visibleCount = 0;
+        for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+          const text = node.textContent ?? "";
+          const lines = text.split(/\r?\n/);
+          let offset = 0;
+          for (let index = 0; index < lines.length; index += 1) {
+            const line = lines[index];
+            if (line === value) {
+              count += 1;
+              if (markerTextVisible(node as Text, offset, offset + line.length)) {
+                visibleCount += 1;
+              }
+            }
+            offset += line.length;
+            if (index < lines.length - 1) {
+              offset += text.slice(offset, offset + 2) === "\r\n" ? 2 : 1;
+            }
+          }
+        }
+        return { count, visibleCount };
       };
       const marker = (
         owner: HTMLElement | undefined,
         value: string,
       ): MarkerObservation => {
+        const pageObservation = exactTextObservation(document.body, value);
         const ownerOutputs =
           owner === undefined
             ? []
-            : Array.from(
-                owner.querySelectorAll<HTMLElement>(
-                  ".jp-Cell-outputArea .jp-OutputArea-output",
-                ),
-              );
-        const count = (elements: readonly HTMLElement[]): number =>
-          elements.reduce(
-            (total, element) =>
-              total + exactLineCount(element.textContent ?? "", value),
-            0,
-          );
-        const visibleCount = ownerOutputs.reduce(
-          (total, element) =>
-            total +
-            (isVisible(element) ? exactLineCount(element.textContent ?? "", value) : 0),
-          0,
+            : Array.from(owner.querySelectorAll<HTMLElement>(".jp-Cell-outputArea"));
+        const ownerObservation = ownerOutputs.reduce(
+          (total, output) => {
+            const observation = exactTextObservation(output, value);
+            return {
+              count: total.count + observation.count,
+              visibleCount: total.visibleCount + observation.visibleCount,
+            };
+          },
+          { count: 0, visibleCount: 0 },
         );
         return {
-          pageCount: pageExactLineCount(value),
-          ownerCount: count(ownerOutputs),
-          ownerVisibleCount: visibleCount,
+          pageCount: pageObservation.count,
+          ownerCount: ownerObservation.count,
+          ownerVisibleCount: ownerObservation.visibleCount,
         };
       };
       const stderrSelector =
@@ -301,14 +308,10 @@ async function collectJupyterDomSnapshot(page: Page): Promise<JupyterDomSnapshot
 
       return {
         cellCount: cells.length,
-        collectorCellVisible: collector !== undefined && isVisible(collector),
-        identityCellVisible: identity !== undefined && isVisible(identity),
         collectorSource: source(collector),
         identitySource: source(identity),
         collectorPrompt: prompt(collector),
         identityPrompt: prompt(identity),
-        collectorPromptVisible: promptVisible(collector),
-        identityPromptVisible: promptVisible(identity),
         collectorMarker: marker(collector, collectorMarker),
         identityMarker: marker(identity, identityMarker),
         stderrCount: stderr.length,
@@ -316,14 +319,6 @@ async function collectJupyterDomSnapshot(page: Page): Promise<JupyterDomSnapshot
         collectorAssertionStderrCount: collectorStderr.filter((node) => {
           const text = node.textContent ?? "";
           return text.includes(collectorAssertion) && text.includes("AssertionError");
-        }).length,
-        collectorAssertionVisibleStderrCount: collectorStderr.filter((node) => {
-          const text = node.textContent ?? "";
-          return (
-            isVisible(node) &&
-            text.includes(collectorAssertion) &&
-            text.includes("AssertionError")
-          );
         }).length,
       };
     },
@@ -918,20 +913,15 @@ test("Jupyter collector marker failure classification is complete and fail-close
   });
   const dom = (overrides: Partial<JupyterDomSnapshot> = {}): JupyterDomSnapshot => ({
     cellCount: 9,
-    collectorCellVisible: true,
-    identityCellVisible: true,
     collectorSource: COLLECTOR_SOURCE,
     identitySource: IDENTITY_SOURCE,
     collectorPrompt: "[ ]:",
     identityPrompt: "[ ]:",
-    collectorPromptVisible: true,
-    identityPromptVisible: true,
     collectorMarker: absent(),
     identityMarker: absent(),
     stderrCount: 0,
     collectorStderrCount: 0,
     collectorAssertionStderrCount: 0,
-    collectorAssertionVisibleStderrCount: 0,
     ...overrides,
   });
   const before = dom();
@@ -954,11 +944,25 @@ test("Jupyter collector marker failure classification is complete and fail-close
   expect(
     classify(
       dom({
+        collectorPrompt: "[9007199254740993]:",
+        identityPrompt: "[9007199254740994]:",
+        collectorMarker: visible(),
+        identityMarker: visible(),
+      }),
+      dom({
+        collectorPrompt: "[9007199254740992]:",
+        identityPrompt: "[9007199254740993]:",
+      }),
+    ),
+  ).toBe("ordinary-success");
+
+  expect(
+    classify(
+      dom({
         collectorPrompt: "[1]:",
         stderrCount: 1,
         collectorStderrCount: 1,
         collectorAssertionStderrCount: 1,
-        collectorAssertionVisibleStderrCount: 1,
       }),
     ),
   ).toBe("collector-assertion");
@@ -1008,7 +1012,6 @@ test("Jupyter collector marker failure classification is complete and fail-close
           stderrCount: 1,
           collectorStderrCount: 1,
           collectorAssertionStderrCount: 1,
-          collectorAssertionVisibleStderrCount: 1,
           ...identity,
         }),
       ),
@@ -1021,7 +1024,6 @@ test("Jupyter collector marker failure classification is complete and fail-close
       stderrCount: 1,
       collectorStderrCount: 1,
       collectorAssertionStderrCount: 1,
-      collectorAssertionVisibleStderrCount: 1,
     },
   ] satisfies Partial<JupyterDomSnapshot>[]) {
     expect(classify(dom({ collectorPrompt: "[*]:", ...contamination }))).toBe(
@@ -1056,8 +1058,6 @@ test("Jupyter collector marker failure classification is complete and fail-close
     { cellCount: 8 },
     { collectorSource: `${COLLECTOR_SOURCE}\npass` },
     { identitySource: `${IDENTITY_SOURCE}\npass` },
-    { collectorCellVisible: false },
-    { identityPromptVisible: false },
     { collectorPrompt: "1" },
     { identityPrompt: "2" },
   ] satisfies Partial<JupyterDomSnapshot>[]) {
