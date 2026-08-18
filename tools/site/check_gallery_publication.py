@@ -27,11 +27,8 @@ RECEIPT_ID = "exact-cylinder-steady-stokes-publication-admission-v1"
 FINAL_RECORD = "docs/site/src/data/gallery/exact-cylinder-steady-stokes.publication.json"
 FINAL_MEDIA = "docs/site/src/assets/gallery/exact-cylinder-pressure.png"
 
-MAX_JSON_BYTES = 512 * 1024
-MAX_MEDIA_BYTES = 16 * 1024 * 1024
-WIDTH = 1280
-HEIGHT = 832
-DPI = 160
+MAX_JSON_BYTES, MAX_MEDIA_BYTES = 512 * 1024, 16 * 1024 * 1024
+WIDTH, HEIGHT, DPI = 1280, 832, 160
 PNG_SOFTWARE = "Eqiora exact-cylinder gallery publication v1"
 
 ALT_TEXT = (
@@ -44,19 +41,11 @@ PUBLIC_CLAIM = (
     "one frozen 2D steady incompressible Stokes exact-cylinder demonstration, "
     "rendered from its accepted public Result path and linked evidence."
 )
-NONCLAIMS = [
-    "no curved elements",
-    "no mesh/PDE convergence",
-    "no drag/lift coefficient, scaled or mesh-independent force, or DFG value",
-    "no transient or Navier–Stokes behavior",
-    "no vortex shedding",
-    "no 3D",
-    "no production mesher",
-    "no performance claim",
-    "no cross-platform/byte-reproducible result",
-    "no pixel validation",
-    "API presence is neither verification nor maturity",
-]
+NONCLAIMS = (
+    "no curved elements|no mesh/PDE convergence|no drag/lift coefficient, scaled or mesh-independent force, or DFG value|"
+    "no transient or Navier–Stokes behavior|no vortex shedding|no 3D|no production mesher|no performance claim|"
+    "no cross-platform/byte-reproducible result|no pixel validation|API presence is neither verification nor maturity"
+).split("|")
 
 SOURCE_ROLES = {
     "bindings/python/python/eqiora/matplotlib.py": ["plotting-adapter"],
@@ -86,22 +75,29 @@ CASE_ROLES = {
     "interfaces.python-exact-cylinder-stokes-marimo": "evidence",
     "interfaces.python-exact-cylinder-stokes-result": "evidence",
 }
+LINEAGE_METHODS = {
+    "correspondence_digest": "Result.mesh(FieldRef).correspondence_digest",
+    "evidence_run_digest": "fluid.steady_stokes_evidence(Result).run_digest",
+    "geometry_digest": "Result.mesh(FieldRef).source_digest",
+    "mesh_digest": "Result.mesh(FieldRef).digest",
+    "model_digest": "Result.model_digest",
+    "pressure_blocks": "Result.field(FieldRef).block_digests",
+    "pressure_output": "Result.run_manifest().output_digests",
+    "pressure_snapshot": "Result.field(FieldRef).digest",
+    "realization_digest": "Result.run_manifest().realization_digest",
+    "run_manifest_digest": "Result.run_manifest().digest",
+}
 
-RECEIPT_CHECKS = [
-    "canonical-payload-and-wrapper",
-    "source-revision-tree-and-source-file-digests",
-    "registered-case-identities-and-presentation-only-boundary",
-    "model-realization-run-result-pressure-lineage",
-    "png-structure-crc-decode-dimensions-and-digests",
-    "exact-alt-caption-and-link-digests",
-    "renderer-scene-profile-and-environment-identities",
-    "claim-nonclaims-and-evidence-routes",
-]
-RECEIPT_NONCHECKS = [
-    "image pixels are not scientific validation",
-    "no cross-platform or byte-reproducible Result claim",
-    "no new scientific oracle or equality",
-]
+RECEIPT_CHECKS = (
+    "canonical-payload-and-wrapper|source-revision-tree-and-source-file-digests|"
+    "registered-case-identities-and-presentation-only-boundary|model-realization-run-result-pressure-lineage|"
+    "png-structure-crc-decode-dimensions-and-digests|exact-alt-caption-and-link-digests|"
+    "renderer-scene-profile-and-environment-identities|claim-nonclaims-and-evidence-routes"
+).split("|")
+RECEIPT_NONCHECKS = (
+    "image pixels are not scientific validation|no cross-platform or byte-reproducible Result claim|"
+    "no new scientific oracle or equality"
+).split("|")
 
 
 class AdmissionError(ValueError):
@@ -170,7 +166,7 @@ def _load_canonical(path: Path, label: str) -> tuple[dict[str, Any], bytes]:
         )
     except AdmissionError:
         raise
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError) as error:
         _fail("json-parse", f"invalid {label}: {error}")
     if type(value) is not dict:
         _fail("json-type", f"{label} root must be an object")
@@ -216,7 +212,10 @@ def _hex(value: Any, label: str, length: int = 64) -> str:
 def _number(value: Any, label: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         _fail("shape", f"{label} must be a finite number")
-    converted = float(value)
+    try:
+        converted = float(value)
+    except (OverflowError, ValueError):
+        _fail("shape", f"{label} must fit a finite binary64 value")
     if not math.isfinite(converted):
         _fail("shape", f"{label} must be finite")
     return converted
@@ -326,6 +325,8 @@ def _check_cases(payload: dict[str, Any], root: Path, revision: str) -> None:
             f"evidence_cases[{index}]",
         )
         case_id = _text(item["id"], f"evidence_cases[{index}].id", 128)
+        if case_id not in CASE_ROLES:
+            _fail("case-set", f"unknown evidence case {case_id}")
         manifest = _relative(item["manifest_path"], f"evidence_cases[{index}].manifest_path")
         role = _text(item["role"], f"evidence_cases[{index}].role", 32)
         if manifest != _case_path(case_id):
@@ -344,10 +345,13 @@ def _check_cases(payload: dict[str, Any], root: Path, revision: str) -> None:
             _fail("case-manifest", f"manifest id differs for {case_id}")
         if case_id == "interfaces.python-exact-cylinder-pressure-still":
             boundary = document.get("claim_boundary", {})
+            if type(boundary) is not dict:
+                _fail("case-manifest", "pressure-still claim_boundary must be a table")
             for key in (
                 "media_admission",
                 "durable_image_provenance",
                 "reproducible_image_bytes",
+                "exact_pixels_or_dimensions",
                 "scientific_validation_from_pixels",
             ):
                 if boundary.get(key) is not False:
@@ -384,13 +388,11 @@ def _check_lineage(lineage: Any) -> None:
     )
     for key, value in identities.items():
         _hex(value, f"lineage.identities.{key}")
-    methods = _closed(
-        item["methods"],
-        set(identities) | {"pressure_blocks", "pressure_output", "pressure_snapshot"},
-        "lineage.methods",
-    )
-    for key, value in methods.items():
-        _text(value, f"lineage.methods.{key}", 256)
+    methods = _closed(item["methods"], set(LINEAGE_METHODS), "lineage.methods")
+    if methods != LINEAGE_METHODS:
+        _fail("lineage-method", "lineage methods differ from the accepted public Result owners")
+    if identities["evidence_run_digest"] != identities["run_manifest_digest"]:
+        _fail("lineage", "ResultEvidence Run digest does not equal the Run manifest digest")
 
     source_result = _closed(item["source_result"], {"digest_kind", "digest"}, "lineage.source_result")
     if source_result["digest_kind"] != "Result.run_manifest().digest":
@@ -406,6 +408,7 @@ def _check_lineage(lineage: Any) -> None:
             "field",
             "frame_selection",
             "mesh_digest",
+            "model_digest",
             "ordered_block_digests",
             "ordered_output_digests",
             "snapshot_digest",
@@ -426,6 +429,8 @@ def _check_lineage(lineage: Any) -> None:
             _fail("lineage", f"pressure {key} differs")
     if pressure["mesh_digest"] != identities["mesh_digest"]:
         _fail("lineage", "pressure snapshot mesh does not bind lineage mesh")
+    if pressure["model_digest"] != identities["model_digest"]:
+        _fail("lineage", "pressure FieldRef does not bind the Result Model")
     _hex(pressure["snapshot_digest"], "lineage.pressure.snapshot_digest")
     for key in ("ordered_block_digests", "ordered_output_digests"):
         values = _list(pressure[key], f"lineage.pressure.{key}", 256)
@@ -433,6 +438,8 @@ def _check_lineage(lineage: Any) -> None:
             _fail("lineage", f"lineage.pressure.{key} must not be empty")
         for index, digest in enumerate(values):
             _hex(digest, f"lineage.pressure.{key}[{index}]")
+    if pressure["ordered_output_digests"] != [pressure["snapshot_digest"]]:
+        _fail("lineage", "Run manifest output order does not contain the one pressure snapshot")
     value_range = _closed(pressure["value_range"], {"maximum", "minimum"}, "lineage.pressure.value_range")
     if _number(value_range["minimum"], "pressure minimum") > _number(value_range["maximum"], "pressure maximum"):
         _fail("lineage", "pressure value range is reversed")
@@ -569,7 +576,7 @@ def _decode_png(raw: bytes) -> tuple[dict[str, Any], bytes, list[str]]:
     previous = bytearray(row_size)
     decoded = bytearray()
     cursor = 0
-    distinct: set[bytes] = set()
+    visible_colors: set[bytes] = set()
     for _ in range(HEIGHT):
         filter_type = filtered[cursor]
         encoded = filtered[cursor + 1 : cursor + 1 + row_size]
@@ -585,13 +592,15 @@ def _decode_png(raw: bytes) -> tuple[dict[str, Any], bytes, list[str]]:
                 predictor = (left, above, (left + above) // 2, _paeth(left, above, upper_left))[filter_type - 1]
                 row[index] = (byte + predictor) & 0xFF
         for index in range(0, row_size, 4):
-            distinct.add(bytes(row[index : index + 4]))
-            if len(distinct) > 1:
+            red, green, blue, alpha = row[index : index + 4]
+            composed = bytes(((channel * alpha + 255 * (255 - alpha) + 127) // 255 for channel in (red, green, blue)))
+            visible_colors.add(composed)
+            if len(visible_colors) > 1:
                 break
         decoded.extend(row)
         previous = row
-    if len(distinct) < 2:
-        _fail("png", "PNG decoded pixels are blank/uniform")
+    if len(visible_colors) < 2:
+        _fail("png", "PNG is blank/uniform after RGBA composition over its frozen white scene")
     return (
         {
             "bit_depth": depth,
@@ -951,16 +960,17 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     try:
-        root = arguments.repository_root.resolve()
+        root_input = Path(os.path.abspath(arguments.repository_root))
+        root = root_input.resolve()
         record = Path(os.path.abspath(arguments.record))
         if arguments.mode == "verify-installed":
-            expected_record = Path(os.path.abspath(root / FINAL_RECORD))
+            expected_record = Path(os.path.abspath(root_input / FINAL_RECORD))
             if record != expected_record:
                 _fail("path", f"installed record must be {FINAL_RECORD}")
             result = check_publication(
                 repository_root=root,
                 record_path=record,
-                media_path=Path(os.path.abspath(root / FINAL_MEDIA)),
+                media_path=Path(os.path.abspath(root_input / FINAL_MEDIA)),
                 receipt_path=None,
             )
         else:
@@ -971,7 +981,14 @@ def main(argv: list[str] | None = None) -> int:
                 receipt_path=Path(os.path.abspath(arguments.receipt)),
             )
     except AdmissionError as error:
-        print(f"gallery publication check: {error.code}: {error}", file=sys.stderr)
+        detail = str(error).encode("unicode_escape", "backslashreplace").decode("ascii")
+        print(f"gallery publication check: {error.code}: {detail}", file=sys.stderr)
+        return 1
+    except (IndexError, KeyError, OverflowError, TypeError, ValueError):
+        print(
+            "gallery publication check: malformed-input: bounded input has an unsupported shape",
+            file=sys.stderr,
+        )
         return 1
     print(_canonical_value(result).decode("utf-8"))
     return 0

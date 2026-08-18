@@ -117,9 +117,11 @@ def chunk(kind: bytes, data: bytes) -> bytes:
 
 
 @functools.cache
-def png_bytes() -> tuple[bytes, bytes, tuple[str, ...]]:
+def png_bytes(alpha: int = 255) -> tuple[bytes, bytes, tuple[str, ...]]:
     first = bytes((35, 90, 80, 255))
     second = bytes((245, 120, 75, 255))
+    first = first[:3] + bytes((alpha,))
+    second = second[:3] + bytes((alpha,))
     row_a = first * (WIDTH // 2) + second * (WIDTH - WIDTH // 2)
     row_b = second * (WIDTH // 2) + first * (WIDTH - WIDTH // 2)
     rows = [row_a if index % 2 == 0 else row_b for index in range(HEIGHT)]
@@ -182,6 +184,7 @@ class PublicationFixture:
                     "media_admission = false\n"
                     "durable_image_provenance = false\n"
                     "reproducible_image_bytes = false\n"
+                    "exact_pixels_or_dimensions = false\n"
                     "scientific_validation_from_pixels = false\n"
                 )
             target.write_text(body, encoding="utf-8")
@@ -213,6 +216,42 @@ class PublicationFixture:
         self.revision = subprocess.check_output(["git", "-C", self.root, "rev-parse", "HEAD"], text=True).strip()
         self.tree = subprocess.check_output(["git", "-C", self.root, "rev-parse", "HEAD^{tree}"], text=True).strip()
 
+    def commit_source_mutation(self, message: str) -> None:
+        subprocess.run(["git", "-C", self.root, "add", "."], check=True)
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "GIT_AUTHOR_NAME": "Independent Fixture",
+                "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+                "GIT_COMMITTER_NAME": "Independent Fixture",
+                "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+            }
+        )
+        subprocess.run(
+            ["git", "-C", self.root, "commit", "-q", "-m", message],
+            check=True,
+            env=environment,
+        )
+        self.revision = subprocess.check_output(["git", "-C", self.root, "rev-parse", "HEAD"], text=True).strip()
+        self.tree = subprocess.check_output(["git", "-C", self.root, "rev-parse", "HEAD^{tree}"], text=True).strip()
+        for item in self.payload["source_files"]:
+            item["sha256"] = sha((self.root / item["path"]).read_bytes())
+        for item in self.payload["evidence_cases"]:
+            item["dossier_route"] = dossier_route(item["id"], self.revision)
+            item["manifest_sha256"] = sha((self.root / item["manifest_path"]).read_bytes())
+        caption = (
+            "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at "
+            f"{self.revision}; presentation only, not validation."
+        )
+        self.payload["text"]["caption"] = caption
+        self.payload["text"]["caption_sha256"] = sha(caption.encode())
+        for link in self.payload["text"]["caption_links"]:
+            link["route"] = dossier_route(link["case_id"], self.revision)
+        self.payload["claim"]["case_dossier_routes"] = [
+            dossier_route(case_id, self.revision) for case_id in sorted(CASE_ROLES)
+        ]
+        self.refresh_and_write_external()
+
     def _payload(self):
         source_files = []
         for path, roles in sorted(SOURCE_ROLES.items()):
@@ -237,21 +276,25 @@ class PublicationFixture:
             )
         digests = {
             "correspondence_digest": identity("correspondence"),
-            "evidence_run_digest": identity("evidence-run"),
+            "evidence_run_digest": identity("run-manifest"),
             "geometry_digest": identity("geometry"),
             "mesh_digest": identity("mesh"),
             "model_digest": identity("model"),
             "realization_digest": identity("realization"),
             "run_manifest_digest": identity("run-manifest"),
         }
-        methods = {key: f"accepted.{key}" for key in digests}
-        methods.update(
-            {
-                "pressure_blocks": "Result.field(FieldRef).ordered_block_digests",
-                "pressure_output": "Result.field(FieldRef).ordered_output_digests",
-                "pressure_snapshot": "Result.field(FieldRef).digest",
-            }
-        )
+        methods = {
+            "correspondence_digest": "Result.mesh(FieldRef).correspondence_digest",
+            "evidence_run_digest": "fluid.steady_stokes_evidence(Result).run_digest",
+            "geometry_digest": "Result.mesh(FieldRef).source_digest",
+            "mesh_digest": "Result.mesh(FieldRef).digest",
+            "model_digest": "Result.model_digest",
+            "pressure_blocks": "Result.field(FieldRef).block_digests",
+            "pressure_output": "Result.run_manifest().output_digests",
+            "pressure_snapshot": "Result.field(FieldRef).digest",
+            "realization_digest": "Result.run_manifest().realization_digest",
+            "run_manifest_digest": "Result.run_manifest().digest",
+        }
         caption = (
             "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at "
             f"{self.revision}; presentation only, not validation."
@@ -316,8 +359,9 @@ class PublicationFixture:
                     "field": "pressure",
                     "frame_selection": "single steady result; temporal interval not applicable",
                     "mesh_digest": digests["mesh_digest"],
+                    "model_digest": digests["model_digest"],
                     "ordered_block_digests": [identity("block-0")],
-                    "ordered_output_digests": [identity("output-0")],
+                    "ordered_output_digests": [identity("pressure-snapshot")],
                     "snapshot_digest": identity("pressure-snapshot"),
                     "source_unit": "kg/(m*s^2)",
                     "value_range": {"maximum": 0.25, "minimum": -0.125},
