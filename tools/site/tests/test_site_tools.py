@@ -50,18 +50,28 @@ def entry(capability="spatial.solve", case="numerics.example"):
 
 
 class EvidenceCatalogTests(unittest.TestCase):
-    def test_render_is_sorted_and_stable(self):
-        document = index(
+    def test_render_requires_canonical_order_and_is_stable(self):
+        canonical = index(
             [
-                entry("z.capability", "case-z"),
                 entry("a.capability", "case-a"),
+                entry("a.capability", "case-z"),
             ]
         )
-        first = catalog.render_catalog(document)
-        second = catalog.render_catalog(json.loads(json.dumps(document)))
+        first = catalog.render_catalog(canonical)
+        second = catalog.render_catalog(json.loads(json.dumps(canonical)))
         self.assertEqual(first, second)
-        self.assertLess(first.index("`a.capability`"), first.index("`z.capability`"))
+        self.assertLess(first.index("case-a"), first.index("case-z"))
         self.assertIn("verify/numerics/example/case.toml", first)
+
+        reversed_entries = index(list(reversed(canonical["entries"])))
+        with self.assertRaises(catalog.CatalogError):
+            catalog.render_catalog(reversed_entries)
+
+        retargeted = json.loads(json.dumps(canonical))
+        retargeted["entries"][0]["case"] = "case-zz"
+        retargeted["entries"][0]["manifest"] = "verify/retargeted/case.toml"
+        with self.assertRaises(catalog.CatalogError):
+            catalog.render_catalog(retargeted)
 
     def test_failed_or_filtered_index_is_rejected(self):
         failed = index([])
