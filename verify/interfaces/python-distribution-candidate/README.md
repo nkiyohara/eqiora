@@ -40,6 +40,10 @@ post-writer, pre-integration gate.
 For each Notebook host scenario, success additionally requires the bounded
 cleanup decision to observe the complete owned notebook, kernel, browser, and
 profile-helper membership as empty. Cleanup begins from one monotonic epoch:
+the existing host-status predicate still accepts status 0, or exactly
+`-SIGTERM` after the candidate runner requested SIGTERM; unsolicited signals,
+every other nonzero status, timeout, and forced kill reject. The cleanup
+predicate is an additional conjunct, not a replacement for that status rule.
 graceful shutdown and observation receive at most 30.0 seconds, and forced
 escalation, reaping, and the final observation share only the remaining time
 through the absolute 35.0-second decision deadline. Forced escalation always

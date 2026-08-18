@@ -631,8 +631,14 @@ class HostedTriggerTests(unittest.TestCase):
             "host_shutdown_and_kernel_or_wrapper_finalization_exit_zero",
             claim,
         )
+        host_status = (
+            "within timeout; accepts status 0 or exactly -SIGTERM only when the "
+            "candidate runner sent SIGTERM; unsolicited signals, other nonzero "
+            "statuses, timeout, and forced kill reject"
+        )
         teardown = (
-            "success requires bounded cleanup without forced escalation and a "
+            f"{host_status}; success additionally requires bounded cleanup "
+            "without forced escalation and a "
             "complete-empty owned notebook, kernel, browser, and profile-helper "
             "observation before the absolute 35.0-second decision deadline; "
             "failure still performs bounded cleanup and rejects with stable "
@@ -643,6 +649,7 @@ class HostedTriggerTests(unittest.TestCase):
             claim.get("candidate_host_teardown"),
             teardown,
         )
+        self.assertTrue(teardown.startswith(f"{host_status}; "))
         distribution = distribution_case["claim_boundary"]
         self.assertEqual(distribution.get("notebook_host_teardown"), teardown)
         self.assertEqual(

@@ -60,6 +60,9 @@ profile; it creates no second build identity.
 
 That shared candidate runner accepts host teardown only after bounded cleanup
 returns a complete-empty owned-process observation without forced escalation.
+The preserved host-status predicate accepts status 0, or exactly `-SIGTERM`
+only when the candidate runner requested SIGTERM; an unsolicited signal, any
+other nonzero status, timeout, or forced kill still rejects.
 The graceful phase is bounded by 30.0 seconds and all later escalation,
 reaping, and observation share the same absolute 35.0-second cleanup decision
 deadline. On a primary host failure cleanup still runs; a survivor, incomplete
