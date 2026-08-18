@@ -173,6 +173,13 @@ RUNTIME_PINS = {
 DEVELOPMENT_PINS = {
     name: version for name, version in DIRECT_PINS.items() if name not in RUNTIME_PINS
 }
+ROOT_DEPENDENCY_SECTIONS = {
+    "dependencies": RUNTIME_PINS,
+    "devDependencies": DEVELOPMENT_PINS,
+    "optionalDependencies": {},
+    "peerDependencies": {},
+}
+FORBIDDEN_CLIENT_PACKAGES = {"react", "react-dom"}
 PROVIDER_PATHS = (
     "docs/site/src/components/site/ExactSourceLink.astro",
     "docs/site/src/components/site/ReleaseIdentity.astro",
@@ -185,7 +192,7 @@ CURRENT_VERSION_SOURCE_EXCEPTIONS = {
     "docs/site/src/content/docs/reference/mcp/index.mdx",
 }
 EXECUTION_CONTROL_LABEL = re.compile(
-    r"^\s*(?:run|submit|solve|execute)(?:\s+(?:now|model|example|job))?\s*$",
+    r"\b(?:run|submit|solve|execute|simulate|simulation|compute|calculate|calculation|launch)\b",
     re.IGNORECASE,
 )
 REQUIRED_TRIGGER_PATTERNS = {
@@ -839,12 +846,14 @@ def check_source(
     else:
         dependencies = package_data.get("dependencies")
         development = package_data.get("devDependencies")
-        if dependencies != RUNTIME_PINS:
-            errors.append("site runtime dependencies differ from the exact direct set")
-        if development != DEVELOPMENT_PINS:
-            errors.append(
-                "site development dependencies differ from the exact direct set"
-            )
+        lock_packages = lock_data.get("packages", {})
+        lock_root = lock_packages.get("", {})
+        for label, document in (("package", package_data), ("lock root", lock_root)):
+            for section, expected in ROOT_DEPENDENCY_SECTIONS.items():
+                if document.get(section, {}) != expected:
+                    errors.append(
+                        f"site {label} {section} differs from the exact direct set"
+                    )
         declared = {
             **(dependencies if isinstance(dependencies, dict) else {}),
             **(development if isinstance(development, dict) else {}),
@@ -852,7 +861,7 @@ def check_source(
         for name, expected in DIRECT_PINS.items():
             if declared.get(name) != expected:
                 errors.append(f"site package must pin {name} exactly to {expected}")
-            entry = lock_data.get("packages", {}).get(f"node_modules/{name}", {})
+            entry = lock_packages.get(f"node_modules/{name}", {})
             if entry.get("version") != expected:
                 errors.append(f"site lock must resolve {name} exactly to {expected}")
             if not isinstance(entry.get("integrity"), str) or not entry[
@@ -863,17 +872,21 @@ def check_source(
                 )
         if package_data.get("engines") != {"node": "24.18.1", "npm": "11.16.0"}:
             errors.append("site package must pin Node 24.18.1 and npm 11.16.0")
-        lock_root = lock_data.get("packages", {}).get("", {})
-        if lock_root.get("dependencies") != RUNTIME_PINS:
-            errors.append(
-                "site lock root runtime dependencies differ from package.json"
-            )
-        if lock_root.get("devDependencies") != DEVELOPMENT_PINS:
-            errors.append(
-                "site lock root development dependencies differ from package.json"
-            )
         if lock_root.get("engines") != package_data.get("engines"):
             errors.append("site lock root engines differ from package.json")
+        for package_path, entry in lock_packages.items():
+            if re.search(r"(?:^|/)node_modules/(?:react|react-dom)$", package_path):
+                errors.append(f"site lock realizes client framework {package_path!r}")
+            for section in ROOT_DEPENDENCY_SECTIONS:
+                edges = entry.get(section, {})
+                if isinstance(edges, dict) and any(
+                    name in FORBIDDEN_CLIENT_PACKAGES
+                    or str(specification).startswith(("npm:react@", "npm:react-dom@"))
+                    for name, specification in edges.items()
+                ):
+                    errors.append(
+                        f"site lock {package_path!r} has forbidden {section} edge"
+                    )
 
     workflow = root / ".github/workflows/pages.yml"
     try:
@@ -1178,12 +1191,12 @@ def check_artifact(
                 errors.append(
                     f"Cylinder route contains a fake link control labelled {label!r}"
                 )
-            if EXECUTION_CONTROL_LABEL.fullmatch(label):
+            if EXECUTION_CONTROL_LABEL.search(label):
                 errors.append(
                     f"Cylinder route contains an uncontracted execution link {label!r}"
                 )
         for _, _, label in case.interactives:
-            if EXECUTION_CONTROL_LABEL.fullmatch(label):
+            if EXECUTION_CONTROL_LABEL.search(label):
                 errors.append(
                     f"Cylinder route contains an uncontracted execution control {label!r}"
                 )

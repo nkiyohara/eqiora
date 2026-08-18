@@ -13,7 +13,7 @@ import {
 
 const positive = `<!doctype html><html lang="en"><head><title>Fixture</title><style>
 html,body{margin:0;max-width:100%;overflow-wrap:anywhere}main{padding:16px}.target{display:inline-flex;min-width:44px;min-height:44px;align-items:center;justify-content:center}.target:focus{outline:3px solid CanvasText;outline-offset:2px}
-</style></head><body><main><h1>Ordinary semantic fixture</h1><p>This positive path is usable without client JavaScript.</p><a class="target" href="/">Home</a></main></body></html>`;
+</style></head><body><main><h1>Ordinary semantic fixture</h1><h2>Submit and result</h2><p>This positive path is usable without client JavaScript.</p><a class="target" href="/">Home</a></main></body></html>`;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -58,6 +58,16 @@ test('small target, page overflow, hidden core, focus, contrast, and fake contro
 
   await page.setContent(positive.replace('</main>', '<a href="/real-route/">Run now</a></main>'));
   await expect(assertNoFakeExecutionControls(page)).rejects.toThrow();
+
+  for (const label of [
+    'Run simulation',
+    'Execute calculation',
+    'Launch computation',
+    'Submit and result',
+  ]) {
+    await page.setContent(positive.replace('</main>', `<a href="/real-route/">${label}</a></main>`));
+    await expect(assertNoFakeExecutionControls(page), label).rejects.toThrow();
+  }
 });
 
 test('forced-colour hidden core and dark-scheme external requests are rejected', async ({ page }) => {

@@ -84,6 +84,21 @@ class CompleteContractTests(unittest.TestCase):
                 "</main>",
                 '<a href="/get-started/">Run now</a></main>',
             ),
+            "fake simulation link": lambda root, artifact: self._replace(
+                artifact / "gallery/exact-cylinder-steady-stokes/index.html",
+                "</main>",
+                '<a href="/get-started/">Run simulation</a></main>',
+            ),
+            "fake calculation link": lambda root, artifact: self._replace(
+                artifact / "gallery/exact-cylinder-steady-stokes/index.html",
+                "</main>",
+                '<a href="/get-started/">Execute calculation</a></main>',
+            ),
+            "fake stage-label link": lambda root, artifact: self._replace(
+                artifact / "gallery/exact-cylinder-steady-stokes/index.html",
+                "</main>",
+                '<a href="/get-started/">Submit and result</a></main>',
+            ),
             "missing social": lambda root, artifact: (
                 artifact / "social-card.svg"
             ).unlink(),
