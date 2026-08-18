@@ -49,7 +49,7 @@ by hand.
 | `preserved_evidence` | 40 | invariant evidence — the same path in both states — whose deletion the reset must never reach |
 | `promoted_evidence` | 1 | evidence whose bytes survive at a different path, so it is invariant at neither |
 | `post_reset_admitted` | 17 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
-| `post_reset_fixture_admitted` | 15 | later fixtures discovered by exact search signals or positive same-line identity-literal counts, admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
+| `post_reset_fixture_admitted` | 26 | later exact evidence representations admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
 
 **44, 304 and 13 are not one partition of 338.** What partitions the inventory
 is 34 + 304: the retired paths that are inventory members, plus the preserved
@@ -280,35 +280,72 @@ Those are source identities, not Model artifact identities; this permission
 owns only the exact path, empty search shape, and count. The fifteenth row
 raises the aggregate to 33 without creating a Model artifact identity claim.
 
+The `fluid.cartesian-periodic-collocated-view-3d` structural oracle and its
+registered case manifest add two exact empty-signal paths. Each carries one
+same-line occurrence of the already accepted current Model artifact identity,
+raising the first seventeen rows' aggregate to 35. Their evidence owner, not
+this transition record, owns the value and its assertions.
+
+The `quality.semantic-impact-cargo-authority` independent exact-record oracle
+then moved its serialized runtime payload out of
+`tools/xtask/tests/semantic_impact_cargo_authority.rs` and into nine JSONL files.
+In deterministic filename order their empty-signal occurrence counts are:
+
+| Exact JSONL path below `verify/quality/semantic-impact-cargo-authority/fixtures/` | Count |
+| --- | ---: |
+| `p-bin-head-test.jsonl` | 17 |
+| `p-head-nontest.jsonl` | 17 |
+| `p-head-test.jsonl` | 17 |
+| `r-base-nontest.jsonl` | 0 |
+| `r-base-test.jsonl` | 0 |
+| `r-head-nontest.jsonl` | 0 |
+| `r-head-test.jsonl` | 0 |
+| `t-all-head-test.jsonl` | 17 |
+| `t-auto-head-test.jsonl` | 17 |
+
+Those 85 qualifying occurrences are Cargo, source, package, and revision
+records on Model/Transaction-bearing serialized authority lines, not current
+Model artifact identities. The four zero-count files are exact members of the
+same externally owned nine-file runtime representation; they receive no
+general empty-file or directory admission. The old Rust host now observes no
+search signal and no qualifying occurrence, so it retains no fixture-admission
+permission. Externalization changed text placement, not the JSONL bytes
+consumed at runtime or any scientific meaning. The complete twenty-six-row
+aggregate is 120.
+
 `search.transition.post_reset_fixture_admitted` therefore records a second
 containment-only permission:
 
-- each of the fifteen exact paths is optional after the reset and absent before it;
+- each of the twenty-six exact paths is optional after the reset and absent before it;
 - a present path must carry its exact ordered search-signal list and exact
-  same-line lower-hex-64 literal occurrence count; the signal list may be empty
-  only when the occurrence count is positive, and every non-overlapping
-  identity on one qualifying line is counted;
+  same-line lower-hex-64 literal occurrence count. The four exact zero-count
+  semantic-impact rows are the only empty-signal exception to the normally
+  positive-count shape, and every non-overlapping identity on one qualifying
+  line is counted;
 - every row has the exact delegated fixture class, owner, and note frozen by
   the independent transition oracle;
 - no row joins the inventory, retired, required, preserved-evidence, promoted,
   promotion, identity-free admitted, or later-classified set; and
 - no glob, directory, suffix, expected-file naming convention, or sibling
-  proximity admits a sixteenth fixture.
+  proximity admits a twenty-seventh fixture.
 
-Every subset of the seventeen identity-free paths and every subset of the fifteen
+Every subset of the seventeen identity-free paths and every subset of the twenty-six
 fixture paths is accepted independently, including neither set being present.
 Synthetic mutants remove, add, substitute, or reorder a search signal; change
-the #116 two-occurrence row or the Stokes E1 five-occurrence row; change the
-other zero, one, four, or thirteen counts; substitute a path; alter every
-metadata field; swap the MCP
+the #116 two-occurrence row, the Stokes E1 five-occurrence row, or either an
+external semantic-impact zero- or 17-occurrence row; change the other zero,
+one, four, or thirteen counts; omit, add, duplicate, reorder, or substitute a
+path; alter every metadata field; swap the MCP
 production and fixture classes; and attempt overlap with both historical and
 later-classified paths. Another digest in the same store, a backup or alternate
 suffix, a nested or sibling store, another package-conformance fixture, a
 copied or nearby MCP tool or tool-definition path, and a signal-bearing
 `expected/contract.json` remain unclassified alongside the existing nearby
 RFC, Rust, protocol, provider, documentation, derivation, and expected-file
-paths. This keeps both permissions optional and fail-closed without making one
-a relaxation of the other.
+paths. The old semantic-impact Rust host and JSONL backups, copies, nested
+paths, siblings, and alternate extensions receive no permission. This keeps
+both permissions optional and fail-closed without making one a relaxation of
+the other.
 
 ## Later mixed identity evidence uses exact classification
 
@@ -587,9 +624,10 @@ identity-free paths and the RFC exist in this checkout, so the live tree
 exercises their exact observed signals and zero-literal counts; the other three
 RFC 0085 identity-free paths, all six
 `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` identity-free
-paths and the MCP production path remain optional successors. All fifteen
-fixture rows remain optional; the Stokes E1 sealed input is the newly observed
-exact path in this checkout.
+paths and the MCP production path remain optional successors. All twenty-six
+fixture rows remain optional; the observed tree now exercises the exact Stokes,
+collocated, and nine-file semantic-impact shapes, including both zero- and
+17-count external JSONLs.
 Synthetic post-reset states additionally exercise every optional subset and the
 mutants through the same byte reader.
 

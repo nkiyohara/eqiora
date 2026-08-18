@@ -1595,9 +1595,6 @@ pub(crate) fn solve_failed(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::NUMERICAL_SOLVE_FAILED, message)
 }
 
-#[allow(dead_code)]
-fn _assert_cuda_slice_is_send_sync<T: Send + Sync>(_: &CudaSlice<T>) {}
-
 #[cfg(test)]
 mod tests {
     use super::*;

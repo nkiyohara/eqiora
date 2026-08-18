@@ -1,0 +1,99 @@
+id = "interfaces.python-exact-cylinder-stokes-marimo"
+status = "verified"
+scope = "installed-python-one-exact-cylinder-steady-stokes-marimo-composition"
+reference_kind = "accepted-owner-composition-plus-clean-candidate-marimo-reachability"
+
+capabilities = [
+  "python-exact-cylinder-steady-stokes-marimo-app",
+  "python-installed-candidate-marimo-scientific-composition",
+  "python-typed-stokes-summary-and-pressure-figure-flow",
+]
+
+[contract]
+issue = 499
+parent_issue = 245
+body_sha256 = "a282a340b20c95c80ee3a512d34bd7d352054014116f6acd88e1d1943e862f97"
+predecessor_commit = "61fd5108feed1d45f563486e499bf595bebd4bcb"
+predecessor_tree = "d3558dae9ebb476d9167f536447e060120fbf079"
+
+[problem]
+application = "examples/python/exact_cylinder_stokes_marimo.py"
+entry = "marimo 0.23.16 checked-in Python application"
+environment = "exact Linux x86-64 CPython 3.13 candidate notebook profile"
+package = "one non-editable installed eqiora candidate with its exact notebook and Matplotlib extras"
+model = "installed eqiora/examples/steady-flow-past-cylinder.model.json package resource"
+composition = "exact Geometry -> MeshRequest -> MeshPlan -> Mesh -> Model -> SteadyStokes -> SteadyStokesPlan -> one Run -> common Result"
+presentation = "typed identity and evidence summary plus the existing caller-owned pressure Figure"
+
+[oracle]
+geometry = "interfaces.python-exact-circular-hole-geometry"
+mesh = "interfaces.python-circular-hole-chordal-mesh"
+run_result_and_evidence = "interfaces.python-exact-cylinder-stokes-result"
+pressure_figure = "interfaces.python-exact-cylinder-pressure-still"
+science = "fluid.exact-circular-hole-stokes-2d"
+new_scientific_values = false
+new_tolerances = false
+new_image_baseline = false
+browser = "independent live Marimo DOM readiness, typed carrier names, relational Run/Result identity, unit labels, and nonempty Figure observation"
+source = "exact canonical-app occurrence checks plus one precommitted repository-helper mutant executed after the live positive"
+
+[acceptance]
+canonical_checked_in_application = true
+discoverable_from_examples_readme = true
+installed_eqiora_import_only = true
+installed_model_resource_only = true
+exact_repository_example_helper_absent = true
+direct_call_inventory = "eqiora.submit=1; attribute .result=1; eqiora.run=0"
+geometry_mesh_plan_mesh_model_plan_run_result_types_visible = true
+typed_steady_stokes_evidence_visible = true
+pressure_force_flux_units_visible = true
+run_and_result_identity_equal_relationally = true
+caller_owned_pressure_figure_visible_and_nonempty = true
+positive_consumer_recursive_inventory = ["exact_cylinder_stokes_marimo.py"]
+negative_consumer_recursive_inventory = ["exact_cylinder_stokes_marimo_repository_helper_mutant.py"]
+consumer_members_are_regular_files_without_symlinks = true
+negative_missing_helper_fails_before_run = true
+isolated_interpreter_flag = true
+exact_marimo_candidate_host = true
+ordinary_positive_path_precedes_falsifiers = true
+
+[falsifiers]
+missing_application = "source oracle rejects before candidate construction"
+repository_example_helper = "after the ordinary live app succeeds, the exact mutant importing examples.python.exact_cylinder_stokes fails under the same installed CPython 3.13 -I environment because its closed negative consumer contains only the mutant app"
+unrelated_negative_failure = "a denial other than ModuleNotFoundError for the exact examples helper cannot satisfy the falsifier"
+second_run = "after the canonical direct-call inventory passes, adding exact direct eqiora.run(model, plan=plan) changes only that inventory from (1,1,0) to (1,1,1) and rejects; aliases and dynamically constructed calls are not claimed"
+missing_or_foreign_owner = "existing public Geometry, Mesh, Model, Plan, Run, Result, snapshot, and Field boundaries remain fail-closed"
+missing_installed_model = "the one ordinary app fails before readiness"
+missing_matplotlib_or_marimo = "the exact candidate profile fails before readiness"
+hardcoded_identity = "the exact canonical app contains no literal SHA-256 identity"
+unrelated_text_only_success = "browser requires all live typed rows, equal Run/Result identity, unit-bearing evidence, and the Figure before readiness counts"
+blank_figure = "browser requires a visible image with positive decoded natural dimensions"
+
+[claim_boundary]
+candidate_profile = "notebook"
+ordinary_gil_cpython = "3.13"
+operating_system = "linux"
+architecture = "x86_64"
+marimo = "0.23.16"
+matplotlib = "3.11.1"
+one_exact_geometry = true
+one_exact_mesh = true
+one_exact_model = true
+one_steady_stokes_run = true
+one_pressure_field = true
+one_pressure_figure = true
+new_geometry_mesh_or_scientific_meaning = false
+new_public_python_api = false
+new_private_message_or_scene_schema = false
+new_dependency_or_lockfile = false
+transient_navier_stokes_or_cylinder_wake = false
+drag_lift_strouhal_or_reynolds_claim = false
+trajectory_animation_or_field_selection = false
+pixel_or_image_byte_oracle = false
+jupyterlab_or_studio_parity = false
+general_notebook_result_workflow = false
+performance_or_production_scale = false
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_distribution_gate.py"

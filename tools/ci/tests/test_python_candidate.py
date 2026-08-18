@@ -25,7 +25,7 @@ import warnings
 import zipfile
 from collections import Counter
 from collections.abc import Callable, Iterator
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 from unittest import mock
 
@@ -197,6 +197,7 @@ NOTEBOOK_PROFILE_CHECKS = (
     "cp313:notebook-anywidget-0.11.0",
     "cp313:jupyterlab-4.6.2-bare-mesh",
     "cp313:marimo-0.23.16-bare-mesh",
+    "cp313:marimo-0.23.16-exact-cylinder-stokes",
     "cp313:notebook-managed-chromium-r1234",
     "cp313:notebook-no-external-network",
     "cp313:notebook-cleanup-and-mutation",
@@ -2235,6 +2236,167 @@ write(JSON.stringify({calls,output,failure}));
         )
 
     @staticmethod
+    def diagnostic_acquired_inputs(executor: object, root: Path) -> object:
+        return executor.AcquiredInputs(
+            node=root / "private-host-canary" / "node",
+            npm=root / "private-host-canary" / "npm",
+            npm_tarball=root / "private-host-canary" / "npm.tgz",
+            browser_archive=root / "private-host-canary" / "browser.zip",
+            browser_executable=root
+            / "private-host-canary"
+            / "chromium_headless_shell-1234"
+            / PLAYWRIGHT_BROWSER_MEMBER,
+            browser_archive_sha256="a" * 64,
+            browser_executable_sha256="b" * 64,
+            browser_platform="linux-x86_64",
+            playwright_test_integrity="sha512-playwright-test-canary",
+            playwright_core_integrity="sha512-playwright-core-canary",
+            python_wheels=(
+                {
+                    "name": "anywidget",
+                    "version": "0.11.0",
+                    "filename": "anywidget-0.11.0-py3-none-any.whl",
+                    "sha256": "c" * 64,
+                },
+                {
+                    "name": "jupyterlab",
+                    "version": "4.6.2",
+                    "filename": "jupyterlab-4.6.2-py3-none-any.whl",
+                    "sha256": "d" * 64,
+                },
+            ),
+            anywidget_license_sha256="e" * 64,
+            package_manifests=(
+                (
+                    "node_modules/playwright-core",
+                    {
+                        "name": "playwright-core",
+                        "version": "1.62.1",
+                        "scripts": {},
+                        "private": "manifest-secret-canary",
+                    },
+                ),
+                (
+                    "node_modules/three",
+                    {
+                        "name": "three",
+                        "version": "0.185.1",
+                        "description": "unchanged-manifest-peer-雪",
+                    },
+                ),
+            ),
+            package_packuments=(
+                (
+                    "playwright-core",
+                    {
+                        "name": "playwright-core",
+                        "dist-tags": {"latest": "1.62.1"},
+                        "versions": {
+                            "1.62.1": {
+                                "name": "playwright-core",
+                                "version": "1.62.1",
+                                "dist": {
+                                    "tarball": (
+                                        "https://registry.invalid/"
+                                        "registry-token-canary/package.tgz"
+                                    )
+                                },
+                                "authorization": "header-secret-canary",
+                            }
+                        },
+                    },
+                ),
+                (
+                    "three",
+                    {
+                        "name": "three",
+                        "description": "unchanged-packument-peer-雪",
+                        "versions": {
+                            "0.185.1": {
+                                "name": "three",
+                                "version": "0.185.1",
+                            }
+                        },
+                    },
+                ),
+            ),
+            locked_package_bytes=10,
+            python_wheel_bytes=20,
+            browser_member_count=287,
+            browser_expanded_regular_bytes=273_378_828,
+        )
+
+    @staticmethod
+    def independent_diagnostic_sha256(value: object) -> str:
+        payload = json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
+
+    @classmethod
+    def expected_acquisition_drift_message(
+        cls,
+        field: str,
+        first: object,
+        second: object,
+        *,
+        member_identity: str | None = None,
+        first_member: object | None = None,
+        second_member: object | None = None,
+    ) -> str:
+        members = ()
+        if member_identity is not None:
+            members = ((member_identity, first_member, second_member),)
+        difference = cls.independent_acquisition_difference(
+            field, first, second, members=members
+        )
+        document = json.dumps(
+            {"differences": [difference]},
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return f"H2 isolated runs acquired different external inputs: {document}"
+
+    @classmethod
+    def independent_acquisition_difference(
+        cls,
+        field: str,
+        first: object,
+        second: object,
+        *,
+        members: tuple[tuple[str, object | None, object | None], ...] = (),
+    ) -> dict[str, object]:
+        difference: dict[str, object] = {
+            "field": field,
+            "run_1_sha256": cls.independent_diagnostic_sha256(first),
+            "run_2_sha256": cls.independent_diagnostic_sha256(second),
+        }
+        if members:
+            difference["members"] = [
+                {
+                    "identity": identity,
+                    "run_1_sha256": (
+                        "absent"
+                        if first_member is None
+                        else cls.independent_diagnostic_sha256(first_member)
+                    ),
+                    "run_2_sha256": (
+                        "absent"
+                        if second_member is None
+                        else cls.independent_diagnostic_sha256(second_member)
+                    ),
+                }
+                for identity, first_member, second_member in members
+            ]
+        return difference
+
+    @staticmethod
     def lifecycle_authority_inputs(
         lock: dict[str, object],
     ) -> tuple[
@@ -4155,14 +4317,17 @@ write(JSON.stringify({calls,output,failure}));
             self.assertEqual(registry_calls, 2)
             self.assertTrue(expected_executable.is_file())
 
-    def test_playwright_archive_and_executable_identities_must_match_two_runs(
-        self,
-    ) -> None:
+    def test_equal_h2_acquisition_identities_reach_existing_receipt_path(self) -> None:
         executor = importlib.import_module("python_candidate_h2")
+
+        class ExistingReceiptPathReached(Exception):
+            pass
+
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             root = Path(temporary)
-            baseline = self.acquired_inputs(executor, root)
+            baseline = self.diagnostic_acquired_inputs(executor, root)
             first = executor.RunObservation((), (), (), 0, baseline)
+            second = executor.RunObservation((), (), (), 0, baseline)
             family = executor.CandidateFamily(
                 root / "candidate.tar.gz", (), "0.1.0a1", ()
             )
@@ -4170,23 +4335,163 @@ write(JSON.stringify({calls,output,failure}));
                 mock.Mock(root=root / "clean-run-1"),
                 mock.Mock(root=root / "clean-run-2"),
             )
+            with (
+                mock.patch.object(executor, "_asset_equality") as asset_equality,
+                mock.patch.object(
+                    executor,
+                    "_validate_abstract_resources",
+                    side_effect=ExistingReceiptPathReached,
+                ) as validate_resources,
+            ):
+                with self.assertRaises(ExistingReceiptPathReached):
+                    executor.observe_h2(
+                        expected_commit=self.REVISION,
+                        family=family,
+                        extracted=root / "source",
+                        workspaces=workspaces,
+                        runs=(first, second),
+                        source_date_epoch=123456789,
+                    )
+            asset_equality.assert_called_once_with(root / "source", (first, second))
+            validate_resources.assert_called_once_with(family, (first, second))
+
+    def test_every_h2_acquisition_field_drift_is_exact_secret_free_and_closed(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            baseline = self.diagnostic_acquired_inputs(executor, root)
+            baseline_wheel = baseline.python_wheels[1]
+            mutant_wheel = {**baseline_wheel, "sha256": "f" * 64}
+            mutant_wheels = (baseline.python_wheels[0], mutant_wheel)
+            baseline_manifest = baseline.package_manifests[0]
+            mutant_manifest = (
+                baseline_manifest[0],
+                {
+                    **baseline_manifest[1],
+                    "scripts": {"prepare": "manifest-mutant-secret-canary"},
+                },
+            )
+            mutant_manifests = (mutant_manifest, baseline.package_manifests[1])
+            baseline_packument = baseline.package_packuments[0]
+            mutant_packument = (
+                baseline_packument[0],
+                {
+                    **baseline_packument[1],
+                    "dist-tags": {"latest": "packument-mutant-secret-canary"},
+                },
+            )
+            mutant_packuments = (mutant_packument, baseline.package_packuments[1])
             mutations = (
+                ("browser_archive_sha256", "1" * 64, None, None, None),
+                ("browser_executable_sha256", "2" * 64, None, None, None),
                 (
-                    "archive-bytes",
-                    self.acquired_inputs(executor, root, archive_sha256="e" * 64),
+                    "browser_platform",
+                    "private-platform-雪-canary",
+                    None,
+                    None,
+                    None,
                 ),
                 (
-                    "executable-bytes",
-                    self.acquired_inputs(executor, root, executable_sha256="f" * 64),
+                    "playwright_test_integrity",
+                    "sha512-test-mutant-secret-canary",
+                    None,
+                    None,
+                    None,
+                ),
+                (
+                    "playwright_core_integrity",
+                    "sha512-core-mutant-secret-canary",
+                    None,
+                    None,
+                    None,
+                ),
+                (
+                    "python_wheels",
+                    mutant_wheels,
+                    str(baseline_wheel["filename"]),
+                    baseline_wheel,
+                    mutant_wheel,
+                ),
+                ("anywidget_license_sha256", "3" * 64, None, None, None),
+                (
+                    "package_manifests",
+                    mutant_manifests,
+                    str(baseline_manifest[0]),
+                    baseline_manifest,
+                    mutant_manifest,
+                ),
+                (
+                    "package_packuments",
+                    mutant_packuments,
+                    str(baseline_packument[0]),
+                    baseline_packument,
+                    mutant_packument,
+                ),
+                ("locked_package_bytes", 11, None, None, None),
+                ("python_wheel_bytes", 21, None, None, None),
+                ("browser_member_count", 288, None, None, None),
+                (
+                    "browser_expanded_regular_bytes",
+                    273_378_829,
+                    None,
+                    None,
+                    None,
                 ),
             )
-            for name, acquired in mutations:
-                with self.subTest(identity=name):
+            family = executor.CandidateFamily(
+                root / "candidate.tar.gz", (), "0.1.0a1", ()
+            )
+            workspaces = (
+                mock.Mock(root=root / "clean-run-1"),
+                mock.Mock(root=root / "clean-run-2"),
+            )
+            first = executor.RunObservation((), (), (), 0, baseline)
+            forbidden = (
+                str(root),
+                "private-host-canary",
+                "manifest-secret-canary",
+                "manifest-mutant-secret-canary",
+                "registry-token-canary",
+                "header-secret-canary",
+                "packument-mutant-secret-canary",
+                "https://",
+                "sha512-",
+                "linux-x86_64",
+                "private-platform-canary",
+                "雪",
+                "a" * 64,
+                "b" * 64,
+                "c" * 64,
+                "d" * 64,
+                "e" * 64,
+                "f" * 64,
+                "1" * 64,
+                "2" * 64,
+                "3" * 64,
+            )
+            for field, value, identity, first_member, second_member in mutations:
+                with self.subTest(field=field):
+                    acquired = replace(baseline, **{field: value})
                     second = executor.RunObservation((), (), (), 0, acquired)
-                    with mock.patch.object(executor, "_asset_equality"):
-                        with self.assertRaisesRegex(
-                            CandidateError, "different external inputs"
-                        ):
+                    expected = self.expected_acquisition_drift_message(
+                        field,
+                        getattr(baseline, field),
+                        value,
+                        member_identity=identity,
+                        first_member=first_member,
+                        second_member=second_member,
+                    )
+                    with (
+                        mock.patch.object(
+                            executor, "_asset_equality"
+                        ) as asset_equality,
+                        mock.patch.object(
+                            executor, "_validate_abstract_resources"
+                        ) as validate_resources,
+                    ):
+                        with self.assertRaises(CandidateError) as raised:
                             executor.observe_h2(
                                 expected_commit=self.REVISION,
                                 family=family,
@@ -4195,6 +4500,256 @@ write(JSON.stringify({calls,output,failure}));
                                 runs=(first, second),
                                 source_date_epoch=123456789,
                             )
+                    self.assertEqual(str(raised.exception), expected)
+                    asset_equality.assert_called_once_with(
+                        root / "source", (first, second)
+                    )
+                    validate_resources.assert_not_called()
+                    for secret in forbidden:
+                        self.assertNotIn(secret, str(raised.exception))
+
+    def test_h2_collection_membership_drift_marks_only_added_or_removed_member(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            baseline = self.diagnostic_acquired_inputs(executor, root)
+            added_wheel = {
+                "name": "zeta-widget",
+                "version": "1.0.0",
+                "filename": "zeta_widget-1.0.0-py3-none-any.whl",
+                "sha256": "4" * 64,
+            }
+            added_manifest = (
+                "node_modules/zeta-widget",
+                {
+                    "name": "zeta-widget",
+                    "version": "1.0.0",
+                    "description": "added-manifest-secret-雪",
+                },
+            )
+            added_packument = (
+                "zeta-widget",
+                {
+                    "name": "zeta-widget",
+                    "description": "added-packument-secret-雪",
+                    "versions": {
+                        "1.0.0": {"name": "zeta-widget", "version": "1.0.0"}
+                    },
+                },
+            )
+            membership_mutations = (
+                (
+                    "python_wheels",
+                    baseline.python_wheels[1:],
+                    str(baseline.python_wheels[0]["filename"]),
+                    baseline.python_wheels[0],
+                    None,
+                ),
+                (
+                    "python_wheels",
+                    (*baseline.python_wheels, added_wheel),
+                    str(added_wheel["filename"]),
+                    None,
+                    added_wheel,
+                ),
+                (
+                    "package_manifests",
+                    baseline.package_manifests[1:],
+                    str(baseline.package_manifests[0][0]),
+                    baseline.package_manifests[0],
+                    None,
+                ),
+                (
+                    "package_manifests",
+                    (*baseline.package_manifests, added_manifest),
+                    str(added_manifest[0]),
+                    None,
+                    added_manifest,
+                ),
+                (
+                    "package_packuments",
+                    baseline.package_packuments[1:],
+                    str(baseline.package_packuments[0][0]),
+                    baseline.package_packuments[0],
+                    None,
+                ),
+                (
+                    "package_packuments",
+                    (*baseline.package_packuments, added_packument),
+                    str(added_packument[0]),
+                    None,
+                    added_packument,
+                ),
+            )
+            family = executor.CandidateFamily(
+                root / "candidate.tar.gz", (), "0.1.0a1", ()
+            )
+            workspaces = (
+                mock.Mock(root=root / "clean-run-1"),
+                mock.Mock(root=root / "clean-run-2"),
+            )
+            first = executor.RunObservation((), (), (), 0, baseline)
+            for field, value, identity, first_member, second_member in (
+                membership_mutations
+            ):
+                with self.subTest(field=field, identity=identity):
+                    acquired = replace(baseline, **{field: value})
+                    second = executor.RunObservation((), (), (), 0, acquired)
+                    expected = self.expected_acquisition_drift_message(
+                        field,
+                        getattr(baseline, field),
+                        value,
+                        member_identity=identity,
+                        first_member=first_member,
+                        second_member=second_member,
+                    )
+                    with (
+                        mock.patch.object(executor, "_asset_equality"),
+                        mock.patch.object(
+                            executor, "_validate_abstract_resources"
+                        ) as validate_resources,
+                    ):
+                        with self.assertRaises(CandidateError) as raised:
+                            executor.observe_h2(
+                                expected_commit=self.REVISION,
+                                family=family,
+                                extracted=root / "source",
+                                workspaces=workspaces,
+                                runs=(first, second),
+                                source_date_epoch=123456789,
+                            )
+                    self.assertEqual(str(raised.exception), expected)
+                    validate_resources.assert_not_called()
+                    self.assertIn('"absent"', str(raised.exception))
+                    self.assertNotIn(str(root), str(raised.exception))
+                    self.assertNotIn("secret-雪", str(raised.exception))
+
+    def test_h2_multi_field_diagnostic_uses_existing_comparison_order(self) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            baseline = self.diagnostic_acquired_inputs(executor, root)
+            mutant_wheels = tuple(
+                {**record, "sha256": str(index + 6) * 64}
+                for index, record in enumerate(baseline.python_wheels)
+            )
+            mutant_manifests = tuple(
+                (
+                    identity,
+                    {
+                        **record,
+                        "ordering_mutant": f"manifest-order-{index}-雪",
+                    },
+                )
+                for index, (identity, record) in enumerate(
+                    baseline.package_manifests
+                )
+            )
+            mutant_packuments = tuple(
+                (
+                    identity,
+                    {
+                        **record,
+                        "ordering_mutant": f"packument-order-{index}-雪",
+                    },
+                )
+                for index, (identity, record) in enumerate(
+                    baseline.package_packuments
+                )
+            )
+            changes = (
+                ("browser_archive_sha256", "4" * 64),
+                ("browser_executable_sha256", "5" * 64),
+                ("browser_platform", "ordered-platform-雪"),
+                ("playwright_test_integrity", "sha512-ordered-test-雪"),
+                ("playwright_core_integrity", "sha512-ordered-core-雪"),
+                ("python_wheels", mutant_wheels),
+                ("anywidget_license_sha256", "8" * 64),
+                ("package_manifests", mutant_manifests),
+                ("package_packuments", mutant_packuments),
+                ("locked_package_bytes", 11),
+                ("python_wheel_bytes", 21),
+                ("browser_member_count", 288),
+                ("browser_expanded_regular_bytes", 273_378_829),
+            )
+            acquired = replace(baseline, **dict(changes))
+            prefix = "H2 isolated runs acquired different external inputs: "
+            collection_members = {
+                "python_wheels": tuple(
+                    (
+                        str(first["filename"]),
+                        first,
+                        second,
+                    )
+                    for first, second in zip(
+                        baseline.python_wheels, mutant_wheels, strict=True
+                    )
+                ),
+                "package_manifests": tuple(
+                    (str(first[0]), first, second)
+                    for first, second in zip(
+                        baseline.package_manifests,
+                        mutant_manifests,
+                        strict=True,
+                    )
+                ),
+                "package_packuments": tuple(
+                    (str(first[0]), first, second)
+                    for first, second in zip(
+                        baseline.package_packuments,
+                        mutant_packuments,
+                        strict=True,
+                    )
+                ),
+            }
+            for field, value in changes:
+                self.assertNotEqual(getattr(baseline, field), value)
+            differences = [
+                self.independent_acquisition_difference(
+                    field,
+                    getattr(baseline, field),
+                    value,
+                    members=collection_members.get(field, ()),
+                )
+                for field, value in changes
+            ]
+            expected = prefix + json.dumps(
+                {"differences": differences},
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            first = executor.RunObservation((), (), (), 0, baseline)
+            second = executor.RunObservation((), (), (), 0, acquired)
+            family = executor.CandidateFamily(
+                root / "candidate.tar.gz", (), "0.1.0a1", ()
+            )
+            workspaces = (
+                mock.Mock(root=root / "clean-run-1"),
+                mock.Mock(root=root / "clean-run-2"),
+            )
+            with (
+                mock.patch.object(executor, "_asset_equality"),
+                mock.patch.object(
+                    executor, "_validate_abstract_resources"
+                ) as validate_resources,
+            ):
+                with self.assertRaises(CandidateError) as raised:
+                    executor.observe_h2(
+                        expected_commit=self.REVISION,
+                        family=family,
+                        extracted=root / "source",
+                        workspaces=workspaces,
+                        runs=(first, second),
+                        source_date_epoch=123456789,
+                    )
+            self.assertEqual(str(raised.exception), expected)
+            validate_resources.assert_not_called()
+            self.assertNotIn(str(root), str(raised.exception))
+            self.assertNotIn("雪", str(raised.exception))
 
     def test_h2_compatibility_failure_never_publishes_receipt(self) -> None:
         executor = importlib.import_module("python_candidate_h2")
@@ -5071,6 +5626,92 @@ write(JSON.stringify({calls,output,failure}));
             for path in sorted(directory.iterdir(), key=lambda item: item.name.encode())
         )
 
+    @staticmethod
+    def complete_candidate_profile_checks() -> tuple[str, ...]:
+        base_checks = tuple(
+            check
+            for compact in EXACT_WHEEL_INTERPRETERS
+            for check in (
+                f"cp{compact}:installed-wheel",
+                f"cp{compact}:base-and-numpy",
+                f"cp{compact}:packaged-exact-cylinder-model-demo",
+                f"cp{compact}:packaged-mixed-boundary-elasticity-demo",
+                f"cp{compact}:packaged-fixed-reference-fsi-demo",
+                f"cp{compact}:async-and-cancellation",
+                f"cp{compact}:strict-base-typing",
+                f"cp{compact}:public-smoke-base",
+                f"cp{compact}:matplotlib-free-base",
+            )
+        )
+        return (
+            "twine-strict",
+            "sdist-to-wheel-rebuild",
+            *base_checks,
+            "cp312:numpy-2.1.0-floor",
+            "check:generated-public-api",
+            *NOTEBOOK_PROFILE_CHECKS,
+            "cp313:torch",
+            "cp313:public-smoke-torch",
+            "cp313:jax",
+            "cp313:public-smoke-jax",
+            "cp313:matplotlib",
+            "cp313:packaged-exact-cylinder-pressure-demo",
+            "cp313:packaged-mixed-boundary-displacement-demo",
+            "cp313:packaged-fixed-reference-fsi-still",
+            "cp313:complete-public-typing",
+        )
+
+    @classmethod
+    def complete_candidate_profile_summary(
+        cls,
+        family: object,
+        *,
+        uv: str = "uv",
+        checks: tuple[str, ...] | None = None,
+        wheel_records: tuple[dict[str, object], ...] | None = None,
+    ) -> object:
+        config = python_candidate_module.load_config()
+        if wheel_records is None:
+            wheel_records = tuple(
+                {
+                    "filename": wheel.name,
+                    "kind": "wheel",
+                    "python": f"{compact[0]}.{compact[1:]}",
+                    "abi": f"cp{compact}",
+                    "platform": config.wheel_platform,
+                    "size": wheel.stat().st_size,
+                    "sha256": hashlib.sha256(wheel.read_bytes()).hexdigest(),
+                }
+                for compact, wheel in zip(
+                    EXACT_WHEEL_INTERPRETERS,
+                    family.wheels,
+                    strict=True,
+                )
+            )
+        numpy_version = config.numpy_floor.split("==", maxsplit=1)[1]
+        return python_candidate_module.CandidateProfileSummary(
+            config=config,
+            uv=uv,
+            wheel_records=wheel_records,
+            checks=(
+                cls.complete_candidate_profile_checks()
+                if checks is None
+                else checks
+            ),
+            dependency_profiles={
+                "numpy_floor": {
+                    "python": config.numpy_floor_interpreter,
+                    "requirement": config.numpy_floor,
+                    "observed": numpy_version,
+                    "profile": (
+                        "cp"
+                        f"{config.numpy_floor_interpreter.replace('.', '')}:"
+                        f"numpy-{numpy_version}-floor"
+                    ),
+                }
+            },
+        )
+
     def test_execute_h2_sequencing_uses_real_admission_and_inventory_unit(
         self,
     ) -> None:
@@ -5299,6 +5940,7 @@ write(JSON.stringify({calls,output,failure}));
             "cp313:notebook-anywidget-0.11.0",
             "cp313:jupyterlab-4.6.2-bare-mesh",
             "cp313:marimo-0.23.16-bare-mesh",
+            "cp313:marimo-0.23.16-exact-cylinder-stokes",
             "cp313:notebook-managed-chromium-r1234",
             "cp313:notebook-no-external-network",
             "cp313:notebook-cleanup-and-mutation",
@@ -5451,6 +6093,205 @@ write(JSON.stringify({calls,output,failure}));
             if metadata.exists():
                 self.assertEqual(tuple(metadata.iterdir()), ())
 
+    def test_finalizer_admits_complete_profile_summary_before_publication(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            family_path = root / "family"
+            receipt_path = root / "eqiora-0.1.0a1-python-candidate-h2.json"
+            self.write_exact_family(family_path)
+            receipt_bytes = b'{"candidate":{"version":"0.1.0a1"}}'
+            receipt_path.write_bytes(receipt_bytes)
+            executor = importlib.import_module("python_candidate_h2")
+            family = executor.admit_candidate_family(family_path)
+            entry_inventory = executor.family_inventory(family_path)
+            complete = self.complete_candidate_profile_summary(family)
+            expected_manifest_name = "eqiora-0.1.0a1-python-candidate.json"
+
+            positive_metadata = root / "positive-metadata"
+            positive_manifest = positive_metadata / expected_manifest_name
+
+            def write_positive_manifest(
+                *_args: object, **_kwargs: object
+            ) -> Path:
+                positive_manifest.write_bytes(b"complete profile manifest")
+                return positive_manifest
+
+            with (
+                mock.patch.object(
+                    python_candidate_module,
+                    "source_identity",
+                    return_value=SourceIdentity(self.REVISION, ()),
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "validate_h2_receipt",
+                    return_value={"validated": True},
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "derive_frontend_manifest",
+                    return_value={"h2_receipt_sha256": "0" * 64},
+                ),
+                mock.patch.object(
+                    python_candidate_module,
+                    "run_candidate_profiles",
+                    return_value=complete,
+                ) as profiles,
+                mock.patch.object(
+                    python_candidate_module,
+                    "write_manifest",
+                    side_effect=write_positive_manifest,
+                ) as write_manifest,
+                mock.patch.object(
+                    python_candidate_module,
+                    "load_candidate_family",
+                    return_value=mock.sentinel.candidate,
+                ) as load_family,
+                mock.patch.object(
+                    python_candidate_module,
+                    "verify_artifacts",
+                ) as verify_artifacts,
+            ):
+                observed = python_candidate_module.finalize_candidate(
+                    expected_commit=self.REVISION,
+                    artifacts=family_path,
+                    h2_receipt=receipt_path,
+                    manifest_out=positive_metadata,
+                )
+
+            self.assertEqual(observed, positive_manifest)
+            profiles.assert_called_once()
+            write_manifest.assert_called_once()
+            load_family.assert_called_once()
+            verify_artifacts.assert_called_once_with(
+                mock.sentinel.candidate,
+                family_path,
+            )
+            self.assertEqual(
+                {path.name for path in positive_metadata.iterdir()},
+                {expected_manifest_name, receipt_path.name},
+            )
+            self.assertEqual(
+                (positive_metadata / receipt_path.name).read_bytes(),
+                receipt_bytes,
+            )
+            self.assertEqual(executor.family_inventory(family_path), entry_inventory)
+            self.assertEqual(receipt_path.read_bytes(), receipt_bytes)
+
+            invalid_summaries = (
+                *(
+                    (
+                        f"omitted-{host}",
+                        self.complete_candidate_profile_summary(
+                            family,
+                            uv="/reviewed/uv",
+                            checks=tuple(
+                                check
+                                for check in complete.checks
+                                if check != host
+                            ),
+                        ),
+                        (
+                            "candidate profile summary does not contain the exact "
+                            "complete check set"
+                        ),
+                    )
+                    for host in NOTEBOOK_PROFILE_CHECKS[5:7]
+                ),
+                (
+                    "non-summary-false-success",
+                    mock.sentinel.false_success,
+                    "candidate profile owner did not return CandidateProfileSummary",
+                ),
+                (
+                    "omitted-wheel-record",
+                    self.complete_candidate_profile_summary(
+                        family,
+                        uv="/reviewed/uv",
+                        wheel_records=complete.wheel_records[:-1],
+                    ),
+                    (
+                        "candidate profile summary does not bind the exact "
+                        "four-wheel family"
+                    ),
+                ),
+            )
+
+            def forbidden_manifest_write(
+                *_args: object, **_kwargs: object
+            ) -> Path:
+                raise AssertionError(
+                    "write_manifest reached before profile-summary rejection"
+                )
+
+            for name, invalid, message in invalid_summaries:
+                with self.subTest(profile_summary_mutant=name):
+                    metadata = root / name
+                    with (
+                        mock.patch.object(
+                            python_candidate_module,
+                            "source_identity",
+                            return_value=SourceIdentity(self.REVISION, ()),
+                        ),
+                        mock.patch.object(
+                            python_candidate_module,
+                            "validate_h2_receipt",
+                            return_value={"validated": True},
+                        ),
+                        mock.patch.object(
+                            python_candidate_module,
+                            "derive_frontend_manifest",
+                            return_value={"h2_receipt_sha256": "0" * 64},
+                        ),
+                        mock.patch.object(
+                            python_candidate_module,
+                            "run_candidate_profiles",
+                            return_value=invalid,
+                        ) as profiles,
+                        mock.patch.object(
+                            python_candidate_module,
+                            "write_manifest",
+                            side_effect=forbidden_manifest_write,
+                        ) as write_manifest,
+                        mock.patch.object(
+                            python_candidate_module,
+                            "tool_version",
+                        ) as tool_version,
+                        mock.patch.object(
+                            python_candidate_module,
+                            "load_candidate_family",
+                        ) as load_family,
+                        mock.patch.object(
+                            python_candidate_module,
+                            "verify_artifacts",
+                        ) as verify_artifacts,
+                    ):
+                        with self.assertRaisesRegex(
+                            CandidateError,
+                            rf"\A{message}\Z",
+                        ):
+                            python_candidate_module.finalize_candidate(
+                                expected_commit=self.REVISION,
+                                artifacts=family_path,
+                                h2_receipt=receipt_path,
+                                manifest_out=metadata,
+                            )
+
+                    profiles.assert_called_once()
+                    write_manifest.assert_not_called()
+                    tool_version.assert_not_called()
+                    load_family.assert_not_called()
+                    verify_artifacts.assert_not_called()
+                    if metadata.exists():
+                        self.assertEqual(tuple(metadata.iterdir()), ())
+                    self.assertEqual(
+                        executor.family_inventory(family_path),
+                        entry_inventory,
+                    )
+                    self.assertEqual(receipt_path.read_bytes(), receipt_bytes)
+
     def test_finalizer_consumes_receipt_and_never_rebuilds_or_synthesizes_it(
         self,
     ) -> None:
@@ -5472,6 +6313,10 @@ write(JSON.stringify({calls,output,failure}));
                 (family / exact_wheel_name(compact)).resolve()
                 for compact in EXACT_WHEEL_INTERPRETERS
             }
+            executor = importlib.import_module("python_candidate_h2")
+            profile_summary = self.complete_candidate_profile_summary(
+                executor.admit_candidate_family(family)
+            )
 
             def write_manifest(*_args: object, **_kwargs: object) -> Path:
                 self.assertTrue(metadata.is_dir())
@@ -5479,7 +6324,6 @@ write(JSON.stringify({calls,output,failure}));
                 return manifest
 
             inventory = self.expected_family_inventory(family)
-            executor = importlib.import_module("python_candidate_h2")
             observed_inventories: list[tuple[dict[str, object], ...]] = []
 
             def observe_inventory(directory: Path) -> tuple[dict[str, object], ...]:
@@ -5521,7 +6365,7 @@ write(JSON.stringify({calls,output,failure}));
                 mock.patch.object(
                     python_candidate_module,
                     "run_candidate_profiles",
-                    return_value=mock.sentinel.profiles,
+                    return_value=profile_summary,
                     create=True,
                 ) as run_profiles,
                 mock.patch.object(
@@ -5787,6 +6631,7 @@ write(JSON.stringify({calls,output,failure}));
             "cp313:notebook-anywidget-0.11.0",
             "cp313:jupyterlab-4.6.2-bare-mesh",
             "cp313:marimo-0.23.16-bare-mesh",
+            "cp313:marimo-0.23.16-exact-cylinder-stokes",
             "cp313:notebook-managed-chromium-r1234",
             "cp313:notebook-no-external-network",
             "cp313:notebook-cleanup-and-mutation",

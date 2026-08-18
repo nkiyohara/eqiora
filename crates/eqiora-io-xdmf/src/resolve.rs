@@ -52,6 +52,22 @@ impl XdmfImport {
     }
 }
 
+impl XdmfImportPlan {
+    /// Admit one exact response per request and reconstruct shared mesh/field values.
+    ///
+    /// # Errors
+    /// Returns `EQ0810` for a missing, extra, reordered, cross-wired, wrongly
+    /// typed/shaped, non-finite, or over-budget response. Shared mesh and field
+    /// invariants retain their own diagnostics.
+    pub fn accept(
+        &self,
+        responses: &[XdmfArrayResponse],
+        quality_gate: MeshQualityGate,
+    ) -> Result<XdmfImport, Diagnostic> {
+        accept_plan(self, responses, quality_gate)
+    }
+}
+
 pub(crate) fn accept_plan(
     plan: &XdmfImportPlan,
     responses: &[XdmfArrayResponse],

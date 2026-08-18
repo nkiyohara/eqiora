@@ -1683,10 +1683,6 @@ h2 {
   grid-template-rows: auto 1fr;
 }
 
-.results > .result-workspace {
-  min-height: 0;
-}
-
 .empty-state {
   min-height: 142px;
   display: grid;
@@ -1818,6 +1814,7 @@ h2 {
 
 .result-workspace {
   min-width: 0;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(360px, 1fr) minmax(240px, 300px);
   gap: 15px;

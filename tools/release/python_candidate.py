@@ -34,6 +34,7 @@ from candidate_manifest import (
     NODE_EXECUTABLE_SHA256,
     NOTEBOOK_CHECKS,
     NPM_PACKAGE_INTEGRITY,
+    PROFILE_CHECKS,
     REQUIRED_PROFILES,
     THREE_LICENSE_SHA256,
     load_candidate_family,
@@ -60,6 +61,21 @@ NOTEBOOK_ASSET_PATHS = (
     "eqiora/_presentation/static/mesh-view.mjs",
     "eqiora/_presentation/static/mesh-view.css",
     "eqiora/_presentation/static/THIRD_PARTY_NOTICES.txt",
+)
+EXACT_CYLINDER_STOKES_MARIMO_APP = Path(
+    "examples/python/exact_cylinder_stokes_marimo.py"
+)
+EXACT_CYLINDER_STOKES_MARIMO_MUTANT = Path(
+    "verify/interfaces/python-exact-cylinder-stokes-marimo/references/exact_cylinder_stokes_marimo_repository_helper_mutant.py"
+)
+EXACT_CYLINDER_STOKES_MARIMO_CHECK = (
+    "cp313:marimo-0.23.16-exact-cylinder-stokes"
+)
+EXACT_CYLINDER_STOKES_MARIMO_ORACLE_FLAG = (
+    "EQIORA_EXACT_CYLINDER_STOKES_MARIMO_ORACLE"
+)
+EXACT_CYLINDER_STOKES_MARIMO_MUTANT_FAILURE = (
+    "ModuleNotFoundError: No module named 'examples'"
 )
 PYTHON_TEST_FIXTURES = candidate_profiles.PYTHON_TEST_FIXTURES
 GIT_SHA = re.compile(r"[0-9a-f]{40}")
@@ -827,7 +843,7 @@ def run_notebook_profile(
             interpreter=interpreter,
             environment=workspace.environment,
             requirements=[
-                f"{wheel}[notebook]",
+                f"{wheel}[matplotlib,notebook]",
                 config.pytest,
                 "anywidget==0.11.0",
                 "jupyterlab==4.6.2",
@@ -857,7 +873,32 @@ def run_notebook_profile(
         state["served-source"] = served
         return served
 
-    def run_host(project: str, fixture: str) -> None:
+    def stage_single_file(source: Path, root: Path) -> Path:
+        """Copy one reviewed input into an otherwise empty consumer."""
+
+        if root.exists():
+            raise CandidateError(f"Notebook consumer already exists: {root}")
+        root.mkdir(parents=True)
+        target = root / source.name
+        shutil.copy2(source, target)
+        members = tuple(root.iterdir())
+        if (
+            members != (target,)
+            or target.is_symlink()
+            or not target.is_file()
+            or target.read_bytes() != source.read_bytes()
+        ):
+            raise CandidateError(f"Notebook consumer is not one exact file: {root}")
+        return target
+
+    def run_host(
+        project: str,
+        fixture: str,
+        *,
+        source_root: Path | None = None,
+        test_spec: str | None = None,
+        extra_environment: dict[str, str] | None = None,
+    ) -> None:
         python = state.get("python")
         if not isinstance(python, Path):
             raise CandidateError("Notebook host ran before the exact Python environment")
@@ -908,7 +949,7 @@ def run_notebook_profile(
         environment = dict(state["host-environment"])
         host_environment = os.environ.copy()
         host_environment.update(environment)
-        served = served_source_tree()
+        served = served_source_tree() if source_root is None else source_root
         port = _reserve_loopback_port()
         if project == "jupyterlab-4.6.2":
             argv = [
@@ -949,8 +990,19 @@ def run_notebook_profile(
             else:
                 raise CandidateError("Notebook host did not become ready")
             environment[url_variable] = url_value
+            if extra_environment is not None:
+                environment.update(extra_environment)
+            host_command = [
+                "npm",
+                "run",
+                "test:hosts",
+                "--",
+                f"--project={project}",
+            ]
+            if test_spec is not None:
+                host_command.append(test_spec)
             checked_run(
-                ["npm", "run", "test:hosts", "--", f"--project={project}"],
+                host_command,
                 cwd=frontend_root,
                 extra_environment=environment,
             )
@@ -976,6 +1028,48 @@ def run_notebook_profile(
                     process.stdout.close()
         state[project] = True
 
+    def run_exact_cylinder_stokes_marimo() -> None:
+        python = state.get("python")
+        if not isinstance(python, Path):
+            raise CandidateError(
+                "Exact-cylinder Stokes Marimo app ran before the Python environment"
+            )
+
+        positive_app = stage_single_file(
+            extracted / EXACT_CYLINDER_STOKES_MARIMO_APP,
+            workspace.root / "exact-cylinder-stokes-marimo-positive",
+        )
+        run_host(
+            "marimo-0.23.16",
+            positive_app.name,
+            source_root=positive_app.parent,
+            test_spec="tests/exact-cylinder-stokes-marimo.spec.ts",
+            extra_environment={EXACT_CYLINDER_STOKES_MARIMO_ORACLE_FLAG: "1"},
+        )
+
+        negative_app = stage_single_file(
+            extracted / EXACT_CYLINDER_STOKES_MARIMO_MUTANT,
+            workspace.root / "exact-cylinder-stokes-marimo-negative",
+        )
+        try:
+            output = checked_run(
+                [str(python), "-I", str(negative_app)],
+                cwd=negative_app.parent,
+                capture=True,
+            )
+        except subprocess.CalledProcessError as error:
+            output = str(error.output or "")
+            if EXACT_CYLINDER_STOKES_MARIMO_MUTANT_FAILURE not in output:
+                raise CandidateError(
+                    "Exact-cylinder Stokes repository-helper mutant failed at "
+                    "an unrelated boundary"
+                ) from error
+        else:
+            raise CandidateError(
+                "Exact-cylinder Stokes repository helper unexpectedly resolved: "
+                f"{output}"
+            )
+
     def require_host_observation(name: str) -> None:
         if not state.get("jupyterlab-4.6.2") or not state.get("marimo-0.23.16"):
             raise CandidateError(f"Notebook host observation is incomplete: {name}")
@@ -990,6 +1084,7 @@ def run_notebook_profile(
         ("cp313:notebook-anywidget-0.11.0", install_notebook),
         ("cp313:jupyterlab-4.6.2-bare-mesh", lambda: run_host("jupyterlab-4.6.2", "bindings/python/tests/fixtures/rich_mesh_display/jupyterlab.ipynb")),
         ("cp313:marimo-0.23.16-bare-mesh", lambda: run_host("marimo-0.23.16", "bindings/python/tests/fixtures/rich_mesh_display/marimo.py")),
+        (EXACT_CYLINDER_STOKES_MARIMO_CHECK, run_exact_cylinder_stokes_marimo),
         ("cp313:notebook-managed-chromium-r1234", lambda: require_host_observation("browser")),
         ("cp313:notebook-no-external-network", lambda: require_host_observation("network")),
         ("cp313:notebook-cleanup-and-mutation", lambda: require_host_observation("cleanup")),
@@ -1599,6 +1694,169 @@ def _family_version_from_sdist(sdist: Path) -> str:
     return version
 
 
+def _admit_candidate_profile_summary(
+    profiles: object,
+    *,
+    artifact_root: Path,
+    family: Any,
+    entry_inventory: tuple[dict[str, object], ...],
+) -> CandidateProfileSummary:
+    """Admit one complete profile-owner result before publication side effects."""
+
+    if not isinstance(profiles, CandidateProfileSummary):
+        raise CandidateError(
+            "candidate profile owner did not return CandidateProfileSummary"
+        )
+
+    try:
+        current_inventory = family_inventory(artifact_root)
+    except (CandidateError, OSError) as error:
+        raise CandidateError("candidate family changed during finalization") from error
+    if current_inventory != entry_inventory or family.inventory != entry_inventory:
+        raise CandidateError("candidate family changed during finalization")
+
+    try:
+        sdist = family.sdist
+        wheels = tuple(family.wheels)
+        version = family.version
+        family_paths = tuple(artifact_root.iterdir())
+    except (AttributeError, OSError, TypeError) as error:
+        raise CandidateError(
+            "candidate family is not the exact one-sdist/four-wheel set"
+        ) from error
+    if (
+        not isinstance(sdist, Path)
+        or not isinstance(version, str)
+        or not version
+        or len(wheels) != 4
+        or len(family_paths) != 5
+        or set(family_paths) != {sdist, *wheels}
+        or sdist.name != f"eqiora-{version}.tar.gz"
+        or any(
+            not isinstance(wheel, Path) or wheel.suffix != ".whl" for wheel in wheels
+        )
+    ):
+        raise CandidateError(
+            "candidate family is not the exact one-sdist/four-wheel set"
+        )
+
+    try:
+        config = profiles.config
+        uv = profiles.uv
+        reviewed = load_config()
+    except (AttributeError, CandidateError, OSError, TypeError, ValueError) as error:
+        raise CandidateError(
+            "candidate profile summary has invalid configuration"
+        ) from error
+    if (
+        not isinstance(config, DistributionConfig)
+        or config != reviewed
+        or config.python_version != version
+        or config.interpreters != ("3.11", "3.12", "3.13", "3.14")
+        or config.wheel_platform != "manylinux_2_17_x86_64"
+        or not isinstance(uv, str)
+        or not uv
+    ):
+        raise CandidateError("candidate profile summary has invalid configuration")
+
+    record_members = {
+        "filename",
+        "kind",
+        "python",
+        "abi",
+        "platform",
+        "size",
+        "sha256",
+    }
+    expected_by_python = dict(zip(config.interpreters, wheels, strict=True))
+    seen_python: set[str] = set()
+    try:
+        records = profiles.wheel_records
+        valid_records = isinstance(records, tuple) and len(records) == 4
+        if valid_records:
+            for record in records:
+                if not isinstance(record, dict) or set(record) != record_members:
+                    valid_records = False
+                    break
+                python = record.get("python")
+                wheel = expected_by_python.get(python)
+                compact = python.replace(".", "") if isinstance(python, str) else ""
+                if (
+                    wheel is None
+                    or python in seen_python
+                    or record.get("filename") != wheel.name
+                    or record.get("kind") != "wheel"
+                    or record.get("abi") != f"cp{compact}"
+                    or record.get("platform") != config.wheel_platform
+                    or not isinstance(record.get("size"), int)
+                    or isinstance(record.get("size"), bool)
+                    or record.get("size") != wheel.stat().st_size
+                    or record.get("size", 0) <= 0
+                    or record.get("sha256") != sha256(wheel)
+                ):
+                    valid_records = False
+                    break
+                seen_python.add(python)
+        if seen_python != set(config.interpreters):
+            valid_records = False
+    except (AttributeError, OSError, TypeError, ValueError) as error:
+        raise CandidateError(
+            "candidate profile summary does not bind the exact four-wheel family"
+        ) from error
+    if not valid_records:
+        raise CandidateError(
+            "candidate profile summary does not bind the exact four-wheel family"
+        )
+
+    try:
+        checks = profiles.checks
+        if (
+            not isinstance(checks, tuple)
+            or any(not isinstance(check, str) or not check for check in checks)
+            or len(set(checks)) != len(checks)
+        ):
+            raise ValueError
+        normalized_checks = tuple(
+            "generated-public-api" if check == "check:generated-public-api" else check
+            for check in checks
+        )
+        if len(set(normalized_checks)) != len(normalized_checks):
+            raise ValueError
+        required_checks = set().union(
+            *(PROFILE_CHECKS[profile] for profile in REQUIRED_PROFILES)
+        )
+        producer_checks = required_checks | {
+            f"cp{python.replace('.', '')}:packaged-exact-cylinder-model-demo"
+            for python in config.interpreters
+        }
+        if set(normalized_checks) != producer_checks or not NOTEBOOK_CHECKS.issubset(
+            normalized_checks
+        ):
+            raise ValueError
+    except (AttributeError, KeyError, TypeError, ValueError) as error:
+        raise CandidateError(
+            "candidate profile summary does not contain the exact complete check set"
+        ) from error
+
+    numpy_version = config.numpy_floor.split("==", maxsplit=1)[1]
+    expected_dependency_profiles = {
+        "numpy_floor": {
+            "python": config.numpy_floor_interpreter,
+            "requirement": config.numpy_floor,
+            "observed": numpy_version,
+            "profile": (
+                f"cp{config.numpy_floor_interpreter.replace('.', '')}:"
+                f"numpy-{numpy_version}-floor"
+            ),
+        }
+    }
+    if profiles.dependency_profiles != expected_dependency_profiles:
+        raise CandidateError(
+            "candidate profile summary has invalid dependency profiles"
+        )
+    return profiles
+
+
 def finalize_candidate(
     *,
     expected_commit: str,
@@ -1640,35 +1898,24 @@ def finalize_candidate(
             receipt=receipt,
             frontend=frontend,
         )
-        sdists = sorted(artifact_root.glob("eqiora-*.tar.gz"))
-        if len(sdists) != 1:
-            raise CandidateError("candidate family must retain exactly one sdist")
-        sdist = sdists[0]
-        if isinstance(profiles, CandidateProfileSummary):
-            config = profiles.config
-            uv = profiles.uv
-            records = list(profiles.wheel_records)
-            checks = list(profiles.checks)
-            dependencies = profiles.dependency_profiles
-        else:  # exercised only by isolated orchestration tests with mocked owners
-            config = load_config()
-            uv = "uv"
-            records = []
-            checks = []
-            dependencies = {}
-        if family_inventory(artifact_root) != entry_inventory:
-            raise CandidateError("candidate family changed during finalization")
+        profiles = _admit_candidate_profile_summary(
+            profiles,
+            artifact_root=artifact_root,
+            family=family,
+            entry_inventory=entry_inventory,
+        )
+        sdist = family.sdist
         manifest = write_manifest(
             output=metadata_root,
             source=source,
             sdist=sdist,
             version=_family_version_from_sdist(sdist),
-            wheel_records=records,
-            checks=checks,
-            config=config,
-            uv=uv,
+            wheel_records=list(profiles.wheel_records),
+            checks=list(profiles.checks),
+            config=profiles.config,
+            uv=profiles.uv,
             complete_profiles=True,
-            dependency_profiles=dependencies,
+            dependency_profiles=profiles.dependency_profiles,
             frontend=frontend if isinstance(frontend, dict) else None,
         )
         retained_receipt = metadata_root / receipt_path.name

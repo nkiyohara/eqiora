@@ -2,10 +2,6 @@ use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_meshing::MeshQualityGate;
-
-use crate::resolve::{XdmfImport, accept_plan};
-use crate::xml::parse_document;
 
 /// Stable identity recorded by the L4 external-import manifest.
 pub const XDMF_ADAPTER_ID: &str = "eqiora.xdmf";
@@ -258,23 +254,6 @@ pub struct XdmfImportPlan {
 }
 
 impl XdmfImportPlan {
-    /// Parse bounded XDMF 3 metadata into canonical typed array requests.
-    ///
-    /// No path or URL is opened. Requests are normalized to Geometry,
-    /// Topology, then caller-selected Attributes regardless of XML order.
-    ///
-    /// # Errors
-    /// Returns `EQ0810` for malformed XML, an unsupported construct, an
-    /// invalid structural selection, or a resource-budget violation.
-    pub fn parse(
-        metadata: &[u8],
-        selection: XdmfSelection,
-        limits: XdmfImportLimits,
-    ) -> Result<Self, Diagnostic> {
-        let limits = limits.validate()?;
-        parse_document(metadata, selection, limits)
-    }
-
     /// Complete metadata bytes parsed by this plan.
     #[must_use]
     pub fn metadata_bytes(&self) -> &[u8] {
@@ -299,20 +278,6 @@ impl XdmfImportPlan {
     #[must_use]
     pub fn grid_name(&self) -> Option<&str> {
         self.grid_name.as_deref()
-    }
-
-    /// Admit one exact response per request and reconstruct shared mesh/field values.
-    ///
-    /// # Errors
-    /// Returns `EQ0810` for a missing, extra, reordered, cross-wired, wrongly
-    /// typed/shaped, non-finite, or over-budget response. Shared mesh and field
-    /// invariants retain their own diagnostics.
-    pub fn accept(
-        &self,
-        responses: &[XdmfArrayResponse],
-        quality_gate: MeshQualityGate,
-    ) -> Result<XdmfImport, Diagnostic> {
-        accept_plan(self, responses, quality_gate)
     }
 }
 

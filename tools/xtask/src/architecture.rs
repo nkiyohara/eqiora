@@ -14,6 +14,7 @@ mod glob_reexport;
 mod package_map;
 mod public_surface;
 mod rfc_numbering;
+mod source_shape;
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -42,6 +43,9 @@ struct Ledger {
 struct Limits {
     production_file_lines: usize,
     test_file_lines: usize,
+    source_file_bytes: usize,
+    source_token_trees: usize,
+    source_line_bytes: usize,
     public_items_per_crate: usize,
 }
 
@@ -119,7 +123,13 @@ pub fn check() -> Result<(), String> {
     let mut sources = Vec::new();
     collect_rust_sources(&root.join("crates"), &root, &mut sources)?;
     sources.sort();
-    let mut violations = file_line_violations(&ledger, &root, &sources)?;
+
+    let mut scanned = sources.clone();
+    collect_rust_sources(&root.join("tools"), &root, &mut scanned)?;
+    scanned.sort();
+
+    let (mut violations, source_shape) = source_shape::violations(&ledger.limits, &root, &scanned)?;
+    violations.extend(file_line_violations(&ledger, &root, &scanned)?);
 
     let surfaces = public_surface::measure(&root)?;
     violations.extend(public_surface_violations(&ledger, &surfaces));
@@ -132,9 +142,6 @@ pub fn check() -> Result<(), String> {
 
     // A glob re-export is a defect in the repository's own tooling as much as
     // in a published crate, so this scan is not limited to `crates/`.
-    let mut scanned = sources.clone();
-    collect_rust_sources(&root.join("tools"), &root, &mut scanned)?;
-    scanned.sort();
     let globs = glob_reexport::scan(&root, &scanned, &packages)?;
     violations.extend(glob_violations(&ledger, &globs));
 
@@ -148,7 +155,13 @@ pub fn check() -> Result<(), String> {
 
     if violations.is_empty() {
         report(
-            &ledger, &surfaces, &globs, &sources, &scanned, &cycles, &rfcs,
+            &ledger,
+            &source_shape,
+            &surfaces,
+            &globs,
+            &scanned,
+            &cycles,
+            &rfcs,
         );
         return Ok(());
     }
@@ -168,9 +181,9 @@ pub fn check() -> Result<(), String> {
 /// stopped looking at anything.
 fn report(
     ledger: &Ledger,
+    source_shape: &source_shape::Summary,
     surfaces: &[CrateSurface],
     globs: &[GlobReexport],
-    sources: &[String],
     scanned: &[String],
     cycles: &dependency_graph::Cycles,
     rfcs: &rfc_numbering::RfcNumbering,
@@ -182,12 +195,26 @@ fn report(
         .filter(|debt| debt.ceiling > budget)
         .count();
 
-    // `sources` is `crates/` only, which is the file-size predicate's scope;
-    // `scanned` adds `tools/` for the glob scan. The two counts differ and the
-    // summary should not imply otherwise.
     println!(
-        "file size: {} files within their ceilings ({} frozen exceptions)",
-        sources.len(),
+        "source shape: {} Rust files within {}/{}/{} byte/token-tree/line-byte limits; maxima {} \
+         bytes at {}, {} recursive token trees at {}, {} line bytes at {}:{}; {} whole-module \
+         rustfmt skips",
+        source_shape.files,
+        ledger.limits.source_file_bytes,
+        ledger.limits.source_token_trees,
+        ledger.limits.source_line_bytes,
+        source_shape.max_bytes.value,
+        source_shape.max_bytes.path,
+        source_shape.max_token_trees.value,
+        source_shape.max_token_trees.path,
+        source_shape.max_line_bytes.value,
+        source_shape.max_line_bytes.path,
+        source_shape.max_line_bytes.line,
+        source_shape.whole_module_skips,
+    );
+    println!(
+        "file lines: {} Rust files within their role ceilings ({} frozen exceptions)",
+        scanned.len(),
         ledger.file_lines.len()
     );
     println!(
@@ -556,9 +583,7 @@ fn collect_rust_sources(
             .map_err(|error| format!("cannot stat {}: {error}", path.display()))?;
 
         if file_type.is_dir() {
-            if entry.file_name() != "target" {
-                collect_rust_sources(&path, root, sources)?;
-            }
+            collect_rust_sources(&path, root, sources)?;
         } else if path.extension().is_some_and(|extension| extension == "rs") {
             let relative = path
                 .strip_prefix(root)
@@ -597,6 +622,50 @@ fn repository_root() -> Result<PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_SCRATCH: AtomicU64 = AtomicU64::new(0);
+
+    struct Scratch(PathBuf);
+
+    impl Scratch {
+        fn create() -> Self {
+            let base = std::env::var_os("TMPDIR")
+                .or_else(|| std::env::var_os("HOME"))
+                .map(PathBuf::from)
+                .expect("TMPDIR or HOME is set for test scratch");
+            let unique = format!(
+                "eqiora-xtask-source-discovery-{}-{}",
+                std::process::id(),
+                NEXT_SCRATCH.fetch_add(1, Ordering::Relaxed)
+            );
+            let path = base.join(unique);
+            fs::create_dir(&path).expect("unique test scratch is created");
+            Self(path)
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            fs::remove_dir_all(&self.0).expect("test scratch is removed");
+        }
+    }
+
+    #[test]
+    fn source_discovery_does_not_exclude_a_directory_named_target() {
+        let scratch = Scratch::create();
+        let hidden = scratch.0.join("crates/example/target/x.rs");
+        fs::create_dir_all(hidden.parent().expect("fixture has a parent"))
+            .expect("fixture directory is created");
+        fs::write(&hidden, "fn discovered() {}\n").expect("fixture source is written");
+
+        let mut sources = Vec::new();
+        collect_rust_sources(&scratch.0.join("crates"), &scratch.0, &mut sources)
+            .expect("fixture sources are discovered");
+        sources.sort();
+
+        assert_eq!(sources, ["crates/example/target/x.rs"]);
+    }
 
     fn surface(name: &str, items: usize) -> CrateSurface {
         CrateSurface {
