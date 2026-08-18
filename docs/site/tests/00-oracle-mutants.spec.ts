@@ -8,6 +8,7 @@ import {
   assertNoPageOverflow,
   assertNoSeriousAxeViolations,
   assertTextContrast,
+  rejectExternalRequests,
 } from './support';
 
 const positive = `<!doctype html><html lang="en"><head><title>Fixture</title><style>
@@ -54,4 +55,22 @@ test('small target, page overflow, hidden core, focus, contrast, and fake contro
 
   await page.setContent(positive.replace('</main>', '<button>Run now</button></main>'));
   await expect(assertNoFakeExecutionControls(page)).rejects.toThrow();
+
+  await page.setContent(positive.replace('</main>', '<a href="/real-route/">Run now</a></main>'));
+  await expect(assertNoFakeExecutionControls(page)).rejects.toThrow();
+});
+
+test('forced-colour hidden core and dark-scheme external requests are rejected', async ({ page }) => {
+  await page.emulateMedia({ forcedColors: 'active' });
+  await page.setContent(
+    positive.replace('</style>', '@media (forced-colors: active){main{display:none}}</style>'),
+  );
+  await expect(assertCoreVisible(page)).rejects.toThrow();
+
+  await page.emulateMedia({ forcedColors: 'none', colorScheme: 'dark' });
+  const external = await rejectExternalRequests(page);
+  await page.setContent(
+    positive.replace('</main>', '<img src="https://example.com/dark-only.png" alt="mutant"></main>'),
+  );
+  await expect.poll(() => external.length).toBeGreaterThan(0);
 });

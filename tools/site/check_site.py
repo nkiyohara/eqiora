@@ -5,12 +5,14 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import mimetypes
 import os
 import re
 import stat
 import sys
+import tomllib
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -60,6 +62,12 @@ class SiteIdentities:
     social: str = SOCIAL_SHA256
     favicon: str = FAVICON_SHA256
     apple_touch: str = APPLE_TOUCH_SHA256
+
+
+@dataclass(frozen=True)
+class ReleaseIdentity:
+    cargo: str
+    python: str
 
 
 PRODUCTION_IDENTITIES = SiteIdentities()
@@ -120,7 +128,7 @@ HOME_COPY = (
     "Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces. API presence is not verification or maturity.",
     "Evidence",
     "Inspect the generated capability-to-case index and the manifests that own each bounded claim.",
-    "Alpha 0.1.0a1",
+    "{release_identity}",
     "Eqiora is alpha research software under active development. The capability matrix and generated evidence catalog bound what is currently supported; this site does not widen those claims.",
     "One source of truth",
     "This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository's architecture, RFCs, capability matrix, and validated verify manifests.",
@@ -157,6 +165,29 @@ DIRECT_PINS = {
     "@playwright/test": "1.62.1",
     "@axe-core/playwright": "4.13.0",
 }
+RUNTIME_PINS = {
+    name: version
+    for name, version in DIRECT_PINS.items()
+    if name not in {"@playwright/test", "@axe-core/playwright"}
+}
+DEVELOPMENT_PINS = {
+    name: version for name, version in DIRECT_PINS.items() if name not in RUNTIME_PINS
+}
+PROVIDER_PATHS = (
+    "docs/site/src/components/site/ExactSourceLink.astro",
+    "docs/site/src/components/site/ReleaseIdentity.astro",
+)
+CURRENT_VERSION = re.compile(
+    r"(?<![A-Za-z0-9_.-])(?:\d+\.\d+\.\d+-alpha\.\d+|\d+\.\d+\.\d+a\d+)(?![A-Za-z0-9_.-])"
+)
+CURRENT_VERSION_SOURCE_EXCEPTIONS = {
+    "docs/site/src/content/docs/reference/cli/index.mdx",
+    "docs/site/src/content/docs/reference/mcp/index.mdx",
+}
+EXECUTION_CONTROL_LABEL = re.compile(
+    r"^\s*(?:run|submit|solve|execute)(?:\s+(?:now|model|example|job))?\s*$",
+    re.IGNORECASE,
+)
 REQUIRED_TRIGGER_PATTERNS = {
     ".github/workflows/pages.yml",
     ".cargo/config.toml",
@@ -255,6 +286,9 @@ OFFLINE_WORKFLOW_TOKENS = (
     "npm_config_offline=true",
     "CARGO_NET_OFFLINE=true",
     "UV_OFFLINE=1",
+    'git archive --format=tar "$GITHUB_SHA"',
+    "EQIORA_SITE_SOURCE_ROOT=$scratch/source",
+    'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"',
 )
 
 
@@ -562,6 +596,53 @@ def _exact_source(path: Path, expected: str, label: str) -> list[str]:
     )
 
 
+def derive_release_identity(
+    root: Path,
+) -> tuple[ReleaseIdentity | None, list[str]]:
+    cargo_path = root / "Cargo.toml"
+    mapper_path = root / "tools/release/python_candidate_common.py"
+    if (
+        not cargo_path.is_file()
+        or cargo_path.is_symlink()
+        or not mapper_path.is_file()
+        or mapper_path.is_symlink()
+    ):
+        return None, ["Cargo version or accepted Python release mapper is absent"]
+    try:
+        cargo_document = tomllib.loads(cargo_path.read_text(encoding="utf-8"))
+        cargo_version = cargo_document["workspace"]["package"]["version"]
+        module_name = (
+            "_eqiora_site_release_mapper_"
+            + hashlib.sha256(str(mapper_path).encode("utf-8")).hexdigest()
+        )
+        specification = importlib.util.spec_from_file_location(module_name, mapper_path)
+        if specification is None or specification.loader is None:
+            raise ValueError("release mapper cannot be loaded")
+        module = importlib.util.module_from_spec(specification)
+        sys.modules[module_name] = module
+        previous_bytecode_policy = sys.dont_write_bytecode
+        sys.dont_write_bytecode = True
+        try:
+            specification.loader.exec_module(module)
+        finally:
+            sys.dont_write_bytecode = previous_bytecode_policy
+        python_version = module.python_distribution_version(cargo_version)
+    except Exception as error:  # noqa: BLE001 - a source mapper failure is a denial
+        return None, [f"release identity derivation failed: {error}"]
+    finally:
+        if "module_name" in locals():
+            sys.modules.pop(module_name, None)
+    if not isinstance(cargo_version, str) or not re.fullmatch(
+        r"\d+\.\d+\.\d+-alpha\.\d+", cargo_version
+    ):
+        return None, ["Cargo version is not the required alpha SemVer identity"]
+    if not isinstance(python_version, str) or not re.fullmatch(
+        r"\d+\.\d+\.\d+a\d+", python_version
+    ):
+        return None, ["Python mapper did not produce the required alpha identity"]
+    return ReleaseIdentity(cargo_version, python_version), []
+
+
 def _workflow_paths(text: str, event: str) -> list[str]:
     lines = text.splitlines()
     event_indent = None
@@ -646,9 +727,14 @@ def check_workflow_text(text: str) -> list[str]:
 
 
 def check_source(
-    root: Path, identities: SiteIdentities = PRODUCTION_IDENTITIES
+    root: Path,
+    identities: SiteIdentities = PRODUCTION_IDENTITIES,
+    release_identity: ReleaseIdentity | None = None,
 ) -> list[str]:
     errors: list[str] = []
+    if release_identity is None:
+        release_identity, release_errors = derive_release_identity(root)
+        errors.extend(release_errors)
     site = root / "docs/site"
     for obsolete in (root / "mkdocs.yml", site / "assets/social-card.svg"):
         if obsolete.exists() or obsolete.is_symlink():
@@ -684,6 +770,64 @@ def check_source(
             "apple touch icon",
         )
     )
+    provider_requirements = {
+        site / "src/components/site/ExactSourceLink.astro": (
+            "EQIORA_SITE_SOURCE_SHA",
+            "blob",
+            "tree",
+        ),
+        site / "src/components/site/ReleaseIdentity.astro": (
+            "EQIORA_SITE_CARGO_VERSION",
+            "EQIORA_SITE_PYTHON_VERSION",
+        ),
+    }
+    for provider, tokens in provider_requirements.items():
+        try:
+            if provider.is_symlink() or not provider.is_file():
+                raise OSError("not a regular file")
+            provider_text = provider.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as error:
+            errors.append(
+                f"accepted provider is missing or invalid: {provider.relative_to(root)}: {error}"
+            )
+            continue
+        for token in tokens:
+            if token not in provider_text:
+                errors.append(
+                    f"accepted provider {provider.relative_to(root)} omits {token!r}"
+                )
+
+    provider_consumers = {
+        site / "src/content/docs/index.mdx": (
+            "@components/site/ExactSourceLink.astro",
+            "@components/site/ReleaseIdentity.astro",
+            "<ExactSourceLink",
+            "<ReleaseIdentity",
+        ),
+        site / "src/content/docs/evidence/index.mdx": (
+            "@components/site/ExactSourceLink.astro",
+            "<ExactSourceLink",
+        ),
+        site / "astro.config.mjs": (
+            "src/components/site/ExactSourceLink.astro",
+            "src/components/site/ReleaseIdentity.astro",
+        ),
+    }
+    for consumer, tokens in provider_consumers.items():
+        try:
+            if consumer.is_symlink() or not consumer.is_file():
+                raise OSError("not a regular file")
+            consumer_text = consumer.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as error:
+            errors.append(
+                f"provider consumer is missing or invalid: {consumer.relative_to(root)}: {error}"
+            )
+            continue
+        for token in tokens:
+            if token not in consumer_text:
+                errors.append(
+                    f"provider consumer {consumer.relative_to(root)} omits {token!r}"
+                )
 
     package = site / "package.json"
     lock = site / "package-lock.json"
@@ -693,9 +837,17 @@ def check_source(
     except (OSError, json.JSONDecodeError) as error:
         errors.append(f"site package/lock is missing or invalid: {error}")
     else:
+        dependencies = package_data.get("dependencies")
+        development = package_data.get("devDependencies")
+        if dependencies != RUNTIME_PINS:
+            errors.append("site runtime dependencies differ from the exact direct set")
+        if development != DEVELOPMENT_PINS:
+            errors.append(
+                "site development dependencies differ from the exact direct set"
+            )
         declared = {
-            **package_data.get("dependencies", {}),
-            **package_data.get("devDependencies", {}),
+            **(dependencies if isinstance(dependencies, dict) else {}),
+            **(development if isinstance(development, dict) else {}),
         }
         for name, expected in DIRECT_PINS.items():
             if declared.get(name) != expected:
@@ -711,6 +863,17 @@ def check_source(
                 )
         if package_data.get("engines") != {"node": "24.18.1", "npm": "11.16.0"}:
             errors.append("site package must pin Node 24.18.1 and npm 11.16.0")
+        lock_root = lock_data.get("packages", {}).get("", {})
+        if lock_root.get("dependencies") != RUNTIME_PINS:
+            errors.append(
+                "site lock root runtime dependencies differ from package.json"
+            )
+        if lock_root.get("devDependencies") != DEVELOPMENT_PINS:
+            errors.append(
+                "site lock root development dependencies differ from package.json"
+            )
+        if lock_root.get("engines") != package_data.get("engines"):
+            errors.append("site lock root engines differ from package.json")
 
     workflow = root / ".github/workflows/pages.yml"
     try:
@@ -743,6 +906,7 @@ def check_source(
             "UV_OFFLINE",
             "EQIORA_SITE_CARGO_VERSION",
             "EQIORA_SITE_PYTHON_VERSION",
+            "tools.site.tests.test_site_tools",
         )
         for token in runner_tokens:
             if token not in runner_text:
@@ -767,14 +931,14 @@ def check_source(
     ]
     for source in sorted(source_files):
         text = source.read_text(encoding="utf-8")
+        relative = source.relative_to(root).as_posix()
         is_release_history = "release-notes" in source.relative_to(site).parts
-        if not is_release_history:
-            for forbidden_version in ("0.1.0a1", "0.1.0a2", "0.1.0-alpha.1"):
-                if forbidden_version in text:
-                    errors.append(
-                        f"site source hard-codes product version {forbidden_version!r}: "
-                        f"{source.relative_to(root)}"
-                    )
+        if not is_release_history and relative not in CURRENT_VERSION_SOURCE_EXCEPTIONS:
+            for forbidden_version in CURRENT_VERSION.findall(text):
+                errors.append(
+                    f"site source hard-codes product version {forbidden_version!r}: "
+                    f"{source.relative_to(root)}"
+                )
             if OLD_SOCIAL_LINE in text:
                 errors.append(
                     f"site source retains deprecated social-card copy: {source.relative_to(root)}"
@@ -793,6 +957,7 @@ def check_source(
 def check_artifact(
     artifact: Path,
     source_sha: str,
+    expected_python_version: str,
     identities: SiteIdentities = PRODUCTION_IDENTITIES,
 ) -> list[str]:
     errors: list[str] = []
@@ -801,7 +966,7 @@ def check_artifact(
         return ["source SHA must be exactly 40 lowercase hexadecimal characters"]
     files, inventory_errors = _artifact_inventory(artifact)
     errors.extend(inventory_errors)
-    if inventory_errors and not files:
+    if inventory_errors:
         return errors
     file_digests = {path: sha256(path) for path in files}
     digest_paths: dict[str, list[Path]] = {}
@@ -909,7 +1074,11 @@ def check_artifact(
     home_path = artifact / ROUTES["/"]
     if home_path in inspections:
         home = inspections[home_path][1]
-        errors.extend(_ordered(home.visible_text, HOME_COPY, "/"))
+        home_copy = tuple(
+            fragment.format(release_identity=f"Alpha {expected_python_version}")
+            for fragment in HOME_COPY
+        )
+        errors.extend(_ordered(home.visible_text, home_copy, "/"))
         featured_start = home.visible_text.find("Featured walkthrough")
         featured_end = home.visible_text.find("Docs", featured_start + 1)
         featured_text = home.visible_text[featured_start:featured_end].casefold()
@@ -1009,8 +1178,12 @@ def check_artifact(
                 errors.append(
                     f"Cylinder route contains a fake link control labelled {label!r}"
                 )
+            if EXECUTION_CONTROL_LABEL.fullmatch(label):
+                errors.append(
+                    f"Cylinder route contains an uncontracted execution link {label!r}"
+                )
         for _, _, label in case.interactives:
-            if re.search(r"\b(?:run|submit|solve|execute)\b", label, re.IGNORECASE):
+            if EXECUTION_CONTROL_LABEL.fullmatch(label):
                 errors.append(
                     f"Cylinder route contains an uncontracted execution control {label!r}"
                 )
@@ -1194,9 +1367,15 @@ def check_site(
     source_sha: str,
     identities: SiteIdentities = PRODUCTION_IDENTITIES,
 ) -> list[str]:
+    release_identity, _ = derive_release_identity(root)
     return [
         *check_source(root, identities),
-        *check_artifact(artifact, source_sha, identities),
+        *check_artifact(
+            artifact,
+            source_sha,
+            release_identity.python if release_identity is not None else "",
+            identities,
+        ),
     ]
 
 

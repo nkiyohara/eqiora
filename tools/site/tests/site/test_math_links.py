@@ -7,6 +7,12 @@ from pathlib import Path
 from fixture import SOURCE_SHA, checker, make_fixture
 
 
+def artifact_errors(root: Path, artifact: Path, identities):
+    release, release_errors = checker.derive_release_identity(root)
+    assert release is not None, release_errors
+    return checker.check_artifact(artifact, SOURCE_SHA, release.python, identities)
+
+
 class MathAndLinkMutantTests(unittest.TestCase):
     def test_math_node_kind_fallback_and_local_font_mutants_fail(self) -> None:
         mutations = (
@@ -22,14 +28,14 @@ class MathAndLinkMutantTests(unittest.TestCase):
                 page.write_text(
                     page.read_text(encoding="utf-8").replace(old, new), encoding="utf-8"
                 )
-                errors = checker.check_artifact(artifact, SOURCE_SHA, identities)
+                errors = artifact_errors(root, artifact, identities)
                 self.assertTrue(errors)
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             artifact, identities = make_fixture(root)
             (artifact / "assets/KaTeX_Main-Regular.woff2").unlink()
-            errors = checker.check_artifact(artifact, SOURCE_SHA, identities)
+            errors = artifact_errors(root, artifact, identities)
             self.assertTrue(any("CSS asset" in error for error in errors))
 
         with tempfile.TemporaryDirectory() as temporary:
@@ -40,7 +46,7 @@ class MathAndLinkMutantTests(unittest.TestCase):
                 stylesheet.read_text(encoding="utf-8").replace("KaTeX", "Site"),
                 encoding="utf-8",
             )
-            errors = checker.check_artifact(artifact, SOURCE_SHA, identities)
+            errors = artifact_errors(root, artifact, identities)
             self.assertTrue(any("KaTeX CSS" in error for error in errors))
 
     def test_exact_sha_link_and_external_runtime_request_mutants_fail(self) -> None:
@@ -54,7 +60,7 @@ class MathAndLinkMutantTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            errors = checker.check_artifact(artifact, SOURCE_SHA, identities)
+            errors = artifact_errors(root, artifact, identities)
             self.assertTrue(
                 any("exact-head source/evidence link" in error for error in errors)
             )
@@ -70,7 +76,7 @@ class MathAndLinkMutantTests(unittest.TestCase):
                 page.read_text(encoding="utf-8").replace(SOURCE_SHA, "b" * 40),
                 encoding="utf-8",
             )
-            errors = checker.check_artifact(artifact, SOURCE_SHA, identities)
+            errors = artifact_errors(root, artifact, identities)
             self.assertTrue(any("exact asserted SHA" in error for error in errors))
 
         with tempfile.TemporaryDirectory() as temporary:
@@ -84,7 +90,7 @@ class MathAndLinkMutantTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            errors = checker.check_artifact(artifact, SOURCE_SHA, identities)
+            errors = artifact_errors(root, artifact, identities)
             self.assertTrue(
                 any("external runtime request" in error for error in errors)
             )
@@ -99,7 +105,7 @@ class MathAndLinkMutantTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            errors = checker.check_artifact(artifact, SOURCE_SHA, identities)
+            errors = artifact_errors(root, artifact, identities)
             self.assertTrue(any("broken or escaping link" in error for error in errors))
 
 

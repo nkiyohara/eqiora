@@ -27,6 +27,11 @@ jobs:
           echo 'HeadlessChrome 151.0.7922.34'
           unshare --net sh -c 'ip link set lo up; setpriv true'
           export npm_config_offline=true CARGO_NET_OFFLINE=true UV_OFFLINE=1
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          scratch="$RUNNER_TEMP/eqiora-site.fixture"
+          mkdir -p "$scratch/source"
+          git archive --format=tar "$GITHUB_SHA" | tar -xf - -C "$scratch/source"
+          echo "EQIORA_SITE_SOURCE_ROOT=$scratch/source"
 """
 
 

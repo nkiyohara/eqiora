@@ -164,8 +164,9 @@ export async function assertAccessibleTooltip(
 }
 
 export async function assertNoFakeExecutionControls(page: Page): Promise<void> {
-  const fake = page.getByRole('button', { name: /\b(run|submit|solve|execute)\b/i });
-  expect(await fake.count()).toBe(0);
+  const executionLabel = /^\s*(run|submit|solve|execute)(\s+(now|model|example|job))?\s*$/i;
+  expect(await page.getByRole('button', { name: executionLabel }).count()).toBe(0);
+  expect(await page.getByRole('link', { name: executionLabel }).count()).toBe(0);
   const links = page.getByRole('link');
   for (let offset = 0; offset < (await links.count()); offset += 1) {
     const href = (await links.nth(offset).getAttribute('href'))?.trim().toLowerCase();

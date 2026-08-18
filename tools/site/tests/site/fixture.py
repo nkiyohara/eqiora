@@ -50,6 +50,11 @@ jobs:
     steps:
       - uses: actions/checkout@{"1" * 40}
       - run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          scratch="$RUNNER_TEMP/eqiora-site.fixture"
+          mkdir -p "$scratch/source"
+          git archive --format=tar "$GITHUB_SHA" | tar -xf - -C "$scratch/source"
+          echo "EQIORA_SITE_SOURCE_ROOT=$scratch/source"
           echo eqiora-pw-1.62.1-r1234
           npx playwright install --with-deps --only-shell chromium
           echo 'HeadlessChrome 151.0.7922.34'
@@ -64,6 +69,7 @@ def _runner() -> str:
     return """#!/usr/bin/env bash
 export npm_config_offline=true CARGO_NET_OFFLINE=true UV_OFFLINE=1
 export EQIORA_SITE_CARGO_VERSION=0.1.0-alpha.1 EQIORA_SITE_PYTHON_VERSION=0.1.0a1
+python3 -m unittest tools.site.tests.test_site_tools -v
 python3 tools/docs/generate_interface_reference.py --repository . --eqiora-binary bin/eqiora --mcp-binary bin/eqiora-mcp --check
 python3 tools/site/build_rust_reference.py --rustdoc-root rustdoc/doc --output rustdoc-stage
 python3 tools/site/generate_evidence_catalog.py
@@ -73,27 +79,30 @@ python3 tools/site/check_site.py serve
 
 
 def _package_files(root: Path) -> None:
-    dependencies = {
-        name: version
-        for name, version in checker.DIRECT_PINS.items()
-        if not name.startswith("@playwright") and name != "@axe-core/playwright"
-    }
-    dev_dependencies = {
-        name: version
-        for name, version in checker.DIRECT_PINS.items()
-        if name not in dependencies
-    }
+    dependencies = checker.RUNTIME_PINS
+    dev_dependencies = checker.DEVELOPMENT_PINS
     package = {
         "engines": {"node": "24.18.1", "npm": "11.16.0"},
         "dependencies": dependencies,
         "devDependencies": dev_dependencies,
     }
-    lock = {
-        "packages": {
-            f"node_modules/{name}": {"version": version, "integrity": "sha512-fixture"}
-            for name, version in checker.DIRECT_PINS.items()
+    lock_packages = {
+        "": {
+            "dependencies": dependencies,
+            "devDependencies": dev_dependencies,
+            "engines": package["engines"],
         }
     }
+    lock_packages.update(
+        {
+            f"node_modules/{name}": {
+                "version": version,
+                "integrity": "sha512-fixture",
+            }
+            for name, version in checker.DIRECT_PINS.items()
+        }
+    )
+    lock = {"packages": lock_packages}
     _write(root / "docs/site/package.json", json.dumps(package))
     _write(root / "docs/site/package-lock.json", json.dumps(lock))
 
@@ -170,11 +179,11 @@ def _home_body() -> str:
 <article><h2>Docs</h2><p>Learn the Model–Realization boundary and start from bounded examples.</p></article>
 <article><h2>Reference</h2><p>Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces. API presence is not verification or maturity.</p></article>
 <article><h2>Evidence</h2><p>Inspect the generated capability-to-case index and the manifests that own each bounded claim.</p></article>
-<p>Alpha 0.1.0a1</p><p>Eqiora is alpha research software under active development. The capability matrix and generated evidence catalog bound what is currently supported; this site does not widen those claims.</p>
+<p>Alpha {{python_version}}</p><p>Eqiora is alpha research software under active development. The capability matrix and generated evidence catalog bound what is currently supported; this site does not widen those claims.</p>
 <h2>One source of truth</h2><p>This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository's architecture, RFCs, capability matrix, and validated verify manifests.</p>"""
 
 
-def _artifact(root: Path, blobs: dict[str, bytes]) -> Path:
+def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
     artifact = root / "artifact"
     _write(artifact / "social-card.svg", blobs["social"])
     _write(artifact / "favicon.svg", blobs["favicon"])
@@ -192,7 +201,7 @@ def _artifact(root: Path, blobs: dict[str, bytes]) -> Path:
     )
 
     pages = {
-        "/": _home_body(),
+        "/": _home_body().format(python_version=python_version),
         "/gallery/": '<h1>Gallery</h1><a href="/gallery/exact-cylinder-steady-stokes/">Exact-cylinder steady Stokes</a>',
         "/gallery/exact-cylinder-steady-stokes/": _case_body(),
         "/reference/": '<h1>Reference</h1><p>Python Rust CLI control-v2 MCP</p><p>API presence is not verification or maturity.</p><form action="/reference/"><input aria-label="Search"></form>',
@@ -238,7 +247,8 @@ def _artifact(root: Path, blobs: dict[str, bytes]) -> Path:
     return artifact
 
 
-def make_fixture(root: Path):
+def make_fixture(root: Path, cargo_version: str = "0.1.0-alpha.1"):
+    python_version = cargo_version.replace("-alpha.", "a")
     blobs = {
         "pressure": b"fixture admitted pressure",
         "publication": b'{"fixture":"publication"}\n',
@@ -247,8 +257,47 @@ def make_fixture(root: Path):
         "apple": b"fixture apple png",
     }
     _package_files(root)
+    _write(
+        root / "Cargo.toml",
+        f'[workspace]\nmembers = []\n[workspace.package]\nversion = "{cargo_version}"\n',
+    )
+    _write(
+        root / "tools/release/python_candidate_common.py",
+        "def python_distribution_version(version):\n"
+        "    return version.replace('-alpha.', 'a')\n",
+    )
     _write(root / ".github/workflows/pages.yml", _workflow())
     _write(root / "tools/site/run_offline_site_checks.sh", _runner())
+    _write(
+        root / "docs/site/src/components/site/ExactSourceLink.astro",
+        "---\nconst source = import.meta.env.EQIORA_SITE_SOURCE_SHA;\n"
+        "const kinds = ['blob', 'tree'];\n---\n<a href={source}>{Astro.slots}</a>\n",
+    )
+    _write(
+        root / "docs/site/src/components/site/ReleaseIdentity.astro",
+        "---\nconst cargo = import.meta.env.EQIORA_SITE_CARGO_VERSION;\n"
+        "const python = import.meta.env.EQIORA_SITE_PYTHON_VERSION;\n---\n"
+        "<span>{cargo}{python}</span>\n",
+    )
+    _write(
+        root / "docs/site/src/content/docs/index.mdx",
+        "import ExactSourceLink from '@components/site/ExactSourceLink.astro';\n"
+        "import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';\n"
+        '<ExactSourceLink path="AGENTS.md" kind="blob">AGENTS</ExactSourceLink>\n'
+        "<ReleaseIdentity />\n",
+    )
+    _write(
+        root / "docs/site/src/content/docs/evidence/index.mdx",
+        "import ExactSourceLink from '@components/site/ExactSourceLink.astro';\n"
+        '<ExactSourceLink path="verify/example/case.toml" kind="blob">case</ExactSourceLink>\n',
+    )
+    _write(
+        root / "docs/site/astro.config.mjs",
+        "const required = [\n"
+        "  'src/components/site/ExactSourceLink.astro',\n"
+        "  'src/components/site/ReleaseIdentity.astro',\n"
+        "];\n",
+    )
     _write(
         root / "docs/site/src/assets/gallery/exact-cylinder-pressure.png",
         blobs["pressure"],
@@ -273,5 +322,5 @@ def make_fixture(root: Path):
         favicon=checker.sha256(root / "docs/site/public/favicon.svg"),
         apple_touch=checker.sha256(root / "docs/site/public/apple-touch-icon.png"),
     )
-    artifact = _artifact(root, blobs)
+    artifact = _artifact(root, blobs, python_version)
     return artifact, identities

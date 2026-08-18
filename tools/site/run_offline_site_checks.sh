@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+case "${1:-}" in
+  "") ;;
+  --preflight-only) ;;
+  *) echo "usage: $0 [--preflight-only]" >&2; exit 2 ;;
+esac
+test "$#" -le 1
+
 for variable in \
   EQIORA_API_SCRATCH \
   EQIORA_SITE_SOURCE_ROOT \
@@ -14,35 +21,71 @@ do
   test -n "${!variable:-}"
 done
 
+test "$LC_ALL" = C
+test "$TZ" = UTC
+test -d "$EQIORA_SITE_SOURCE_ROOT"
+test ! -L "$EQIORA_SITE_SOURCE_ROOT"
+test -d "$EQIORA_API_SCRATCH"
+test ! -L "$EQIORA_API_SCRATCH"
+scratch_real="$(realpath "$EQIORA_API_SCRATCH")"
+source_real="$(realpath "$EQIORA_SITE_SOURCE_ROOT")"
+test "$scratch_real" = "$EQIORA_API_SCRATCH"
+test "$source_real" = "$EQIORA_SITE_SOURCE_ROOT"
+[[ "$EQIORA_SITE_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+test "$EQIORA_SITE_SOURCE_ROOT" = "$EQIORA_API_SCRATCH/source"
+test "$EQIORA_SITE_ASTRO_OUT_DIR" = "$EQIORA_API_SCRATCH/astro"
+test "$EQIORA_SITE_RUSTDOC_TARGET" = "$EQIORA_API_SCRATCH/rustdoc-target"
+test "$EQIORA_SITE_RUSTDOC_STAGE" = "$EQIORA_API_SCRATCH/rustdoc-stage"
+test "$EQIORA_SITE_ARTIFACT" = "$EQIORA_API_SCRATCH/build/site"
+case "$PLAYWRIGHT_BROWSERS_PATH" in */eqiora-pw-1.62.1-r1234) ;; *) exit 1 ;; esac
+
+test -d "$EQIORA_API_SCRATCH/build"
+test ! -L "$EQIORA_API_SCRATCH/build"
+test -d "$EQIORA_API_SCRATCH/uv-cache"
+test ! -L "$EQIORA_API_SCRATCH/uv-cache"
+test -z "$(find "$EQIORA_API_SCRATCH/build" -mindepth 1 -print -quit)"
+test "$(find "$EQIORA_API_SCRATCH" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort)" = $'build\nsource\nuv-cache'
+test ! -e "$EQIORA_SITE_SOURCE_ROOT/.git"
+test -f "$EQIORA_SITE_SOURCE_ROOT/Cargo.toml"
+test -f "$EQIORA_SITE_SOURCE_ROOT/docs/site/package.json"
+test -d "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules"
+test ! -L "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules"
+test -x "$EQIORA_SITE_SOURCE_ROOT/tools/site/run_offline_site_checks.sh"
+for output in \
+  "$EQIORA_SITE_ASTRO_OUT_DIR" \
+  "$EQIORA_SITE_RUSTDOC_TARGET" \
+  "$EQIORA_SITE_RUSTDOC_STAGE" \
+  "$EQIORA_SITE_ARTIFACT"
+do
+  test ! -e "$output"
+  test ! -L "$output"
+done
+
+if test "${1:-}" = --preflight-only; then
+  exit 0
+fi
+
 test "$npm_config_offline" = true
 test "$CARGO_NET_OFFLINE" = true
 test "$UV_OFFLINE" = 1
-test "$LC_ALL" = C
-test "$TZ" = UTC
 test "$(uname -m)" = x86_64
 test "$(node --version)" = v24.18.1
 test "$(npm --version)" = 11.16.0
 test "$(python3 --version)" = "Python 3.13.14"
 test "$(uv --version)" = "uv 0.12.1 (x86_64-unknown-linux-musl)"
 test "$(rustc -Vv)" = "$(rustc +stable -Vv)"
-test -d "$EQIORA_SITE_SOURCE_ROOT"
-test ! -L "$EQIORA_SITE_SOURCE_ROOT"
-test -d "$EQIORA_API_SCRATCH"
-test ! -L "$EQIORA_API_SCRATCH"
-test "$(realpath "$EQIORA_SITE_SOURCE_ROOT")" = "$EQIORA_SITE_SOURCE_ROOT"
-test "$(realpath "$EQIORA_API_SCRATCH")" = "$EQIORA_API_SCRATCH"
-[[ "$EQIORA_SITE_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
-case "$EQIORA_SITE_ASTRO_OUT_DIR" in "$EQIORA_API_SCRATCH"/*) ;; *) exit 1 ;; esac
-case "$EQIORA_SITE_RUSTDOC_TARGET" in "$EQIORA_API_SCRATCH"/*) ;; *) exit 1 ;; esac
-case "$EQIORA_SITE_RUSTDOC_STAGE" in "$EQIORA_API_SCRATCH"/*) ;; *) exit 1 ;; esac
-case "$EQIORA_SITE_ARTIFACT" in "$EQIORA_API_SCRATCH"/*) ;; *) exit 1 ;; esac
-case "$PLAYWRIGHT_BROWSERS_PATH" in */eqiora-pw-1.62.1-r1234) ;; *) exit 1 ;; esac
+export PYTHONDONTWRITEBYTECODE=1
+
+source_manifest_before="$EQIORA_API_SCRATCH/source-sha256.before"
+source_manifest_after="$EQIORA_API_SCRATCH/source-sha256.after"
+test -z "$(find "$EQIORA_SITE_SOURCE_ROOT" \
+  -path "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules" -prune -o \
+  -type l -print -quit)"
+find "$EQIORA_SITE_SOURCE_ROOT" \
+  -path "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules" -prune -o \
+  -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > "$source_manifest_before"
 
 cd "$EQIORA_SITE_SOURCE_ROOT"
-test "$(git rev-parse --show-toplevel)" = "$EQIORA_SITE_SOURCE_ROOT"
-test "$(git rev-parse HEAD)" = "$EQIORA_SITE_SOURCE_SHA"
-test -z "$(git status --porcelain=v1 --untracked-files=all)"
-test -z "$(find "$EQIORA_API_SCRATCH" -mindepth 1 -maxdepth 1 -print -quit)"
 
 python3 - <<'PY'
 import socket
@@ -98,7 +141,25 @@ test "$($browser_executable --version)" = "HeadlessChrome 151.0.7922.34"
 dpkg-query -W libclang-dev libffi-dev libopenmpi-dev openmpi-bin >/dev/null
 
 # The oracle package proves its ordinary synthetic path before any mutant or product check.
+PYTHONPATH=tools/site/tests/site \
+python3 -m unittest \
+  test_contract.CompleteContractTests.test_00_synthetic_ordinary_site_passes_before_mutants \
+  -v
 python3 -m unittest discover -s tools/site/tests/site -p 'test_*.py' -v
+python3 -m unittest tools.site.tests.test_site_tools -v
+
+# Real-source provider, identity, supply, and trigger gates precede every consumer build.
+python3 - <<'PY'
+from pathlib import Path
+
+from tools.site.check_site import check_source
+
+errors = check_source(Path.cwd())
+if errors:
+    for error in errors:
+        print(f"site source: {error}")
+    raise SystemExit(1)
+PY
 
 read -r cargo_version python_version < <(
   python3 - <<'PY'
@@ -230,10 +291,19 @@ invalid_repository="$EQIORA_API_SCRATCH/invalid-math-repository"
 invalid_site="$invalid_repository/docs/site"
 invalid_output="$EQIORA_API_SCRATCH/invalid-math-output"
 invalid_log="$EQIORA_API_SCRATCH/invalid-math.log"
-mkdir "$invalid_repository"
-git archive --format=tar --output="$EQIORA_API_SCRATCH/invalid-math-source.tar" HEAD
-tar -xf "$EQIORA_API_SCRATCH/invalid-math-source.tar" -C "$invalid_repository"
-ln -s "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules" "$invalid_site/node_modules"
+python3 - "$EQIORA_SITE_SOURCE_ROOT" "$invalid_repository" <<'PY'
+import shutil
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+destination = Path(sys.argv[2])
+shutil.copytree(
+    source,
+    destination,
+    symlinks=True,
+)
+PY
 python3 - "$invalid_site/src/content/docs/__invalid_math_sentinel__.mdx" <<'PY'
 import sys
 from pathlib import Path
@@ -253,7 +323,8 @@ then
   echo "invalid TeX unexpectedly built successfully" >&2
   exit 1
 fi
-grep -Eiq 'katex|parse error|unexpected end|expected' "$invalid_log"
+grep -Fq '__invalid_math_sentinel__.mdx' "$invalid_log"
+grep -Eiq '(KaTeX.*(parse error|ParseError|Expected)|(parse error|ParseError|Expected).*KaTeX)' "$invalid_log"
 
 server_log="$EQIORA_API_SCRATCH/site-server.log"
 python3 tools/site/check_site.py serve \
@@ -287,7 +358,12 @@ npx --prefix docs/site playwright test --config docs/site/playwright.config.ts
 cleanup_server
 trap - EXIT
 
-test "$(git rev-parse HEAD)" = "$EQIORA_SITE_SOURCE_SHA"
-test -z "$(git status --porcelain=v1 --untracked-files=all)"
+test -z "$(find "$EQIORA_SITE_SOURCE_ROOT" \
+  -path "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules" -prune -o \
+  -type l -print -quit)"
+find "$EQIORA_SITE_SOURCE_ROOT" \
+  -path "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules" -prune -o \
+  -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > "$source_manifest_after"
+cmp --silent "$source_manifest_before" "$source_manifest_after"
 
 echo "offline site checks: exact artifact, browser, and accessibility contract passed"

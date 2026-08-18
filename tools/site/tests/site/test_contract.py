@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -78,6 +79,11 @@ class CompleteContractTests(unittest.TestCase):
                 "</main>",
                 "<button>Run now</button></main>",
             ),
+            "fake run link": lambda root, artifact: self._replace(
+                artifact / "gallery/exact-cylinder-steady-stokes/index.html",
+                "</main>",
+                '<a href="/get-started/">Run now</a></main>',
+            ),
             "missing social": lambda root, artifact: (
                 artifact / "social-card.svg"
             ).unlink(),
@@ -122,6 +128,82 @@ class CompleteContractTests(unittest.TestCase):
             source = root / "docs/site/src/content/docs/current.mdx"
             source.parent.mkdir(parents=True, exist_ok=True)
             source.write_text("Alpha 0.1.0a1", encoding="utf-8")
+            errors = checker.check_source(root, identities)
+            self.assertTrue(
+                any("hard-codes product version" in error for error in errors)
+            )
+
+    def test_provider_dependency_and_release_identity_mutants_fail(self) -> None:
+        for relative in checker.PROVIDER_PATHS:
+            with (
+                self.subTest(provider=relative),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                root = Path(temporary)
+                _, identities = make_fixture(root)
+                (root / relative).unlink()
+                errors = checker.check_source(root, identities)
+                self.assertTrue(any("accepted provider" in error for error in errors))
+
+        provider_mutations = (
+            (
+                "docs/site/src/components/site/ExactSourceLink.astro",
+                "EQIORA_SITE_SOURCE_SHA",
+            ),
+            (
+                "docs/site/src/components/site/ReleaseIdentity.astro",
+                "EQIORA_SITE_PYTHON_VERSION",
+            ),
+            (
+                "docs/site/src/content/docs/index.mdx",
+                "@components/site/ReleaseIdentity.astro",
+            ),
+            (
+                "docs/site/astro.config.mjs",
+                "src/components/site/ExactSourceLink.astro",
+            ),
+        )
+        for relative, token in provider_mutations:
+            with (
+                self.subTest(provider_token=f"{relative}:{token}"),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                root = Path(temporary)
+                _, identities = make_fixture(root)
+                source = root / relative
+                source.write_text(
+                    source.read_text(encoding="utf-8").replace(token, "removed"),
+                    encoding="utf-8",
+                )
+                errors = checker.check_source(root, identities)
+                self.assertTrue(any("provider" in error for error in errors))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _, identities = make_fixture(root)
+            package = root / "docs/site/package.json"
+            document = json.loads(package.read_text(encoding="utf-8"))
+            document["dependencies"]["react"] = "19.2.4"
+            package.write_text(json.dumps(document), encoding="utf-8")
+            lock = root / "docs/site/package-lock.json"
+            lock_document = json.loads(lock.read_text(encoding="utf-8"))
+            lock_document["packages"][""]["dependencies"]["react"] = "19.2.4"
+            lock_document["packages"]["node_modules/react"] = {
+                "version": "19.2.4",
+                "integrity": "sha512-fixture",
+            }
+            lock.write_text(json.dumps(lock_document), encoding="utf-8")
+            errors = checker.check_source(root, identities)
+            self.assertTrue(any("exact direct set" in error for error in errors))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact, identities = make_fixture(root, "0.1.0-alpha.2")
+            self.assertEqual(
+                checker.check_site(root, artifact, SOURCE_SHA, identities), []
+            )
+            source = root / "docs/site/src/content/docs/current.mdx"
+            source.write_text("0.1.0-alpha.2", encoding="utf-8")
             errors = checker.check_source(root, identities)
             self.assertTrue(
                 any("hard-codes product version" in error for error in errors)
