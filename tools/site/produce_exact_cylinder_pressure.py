@@ -136,7 +136,10 @@ def _require_environment() -> None:
         raise ProducerError("MPLBACKEND must be exactly Agg")
     if os.environ.get("TZ") != "UTC" or time.tzname != ("UTC", "UTC"):
         raise ProducerError("producer timezone must be exactly UTC")
-    observed_locale = locale.setlocale(locale.LC_ALL, None)
+    requested_locale = os.environ.get("LC_ALL")
+    if requested_locale not in {"C.UTF-8", "C.utf8"}:
+        raise ProducerError("LC_ALL must be C.UTF-8")
+    observed_locale = locale.setlocale(locale.LC_ALL, requested_locale)
     if observed_locale not in {"C.UTF-8", "C.utf8"}:
         raise ProducerError("producer locale must be C.UTF-8")
     if os.environ.get("PYTHONPATH"):
