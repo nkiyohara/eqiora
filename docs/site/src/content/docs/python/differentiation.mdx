@@ -1,0 +1,12 @@
+---
+title: Differentiation and framework adapters
+description: The bounded differentiable program and its PyTorch and JAX projections.
+---
+
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+
+Eqiora differentiates an accepted implicit relation through primal, JVP, and VJP contracts. Python receives an opaque `DifferentiableProgram` bound to exact Model, Realization, input Parameter, and output Field identities.
+
+The first alpha verifies one host-CPU rank-one `float64` scalar-elliptic path. The optional PyTorch adapter uses the accepted VJP in first-order backward; the optional JAX adapter uses typed native CPU FFI for primal, JVP, and VJP. Base `import eqiora` imports neither framework, and no device transfer is hidden.
+
+Read the maintained <ExactSourceLink path="docs/python/differentiation.md" kind="blob">differentiation contract</ExactSourceLink> for exact versions, examples, transformations, and explicit nonclaims.
