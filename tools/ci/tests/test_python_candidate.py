@@ -7157,11 +7157,17 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
             actions.append(("request", stage, identity["start_time"]))
             return f"{stage}=accepted-unique-41"
 
+        def observe(
+            *, stage: str, deadline: float, timeout: float
+        ) -> tuple[str, tuple[dict[str, object], ...]]:
+            actions.append(("observe", stage, deadline, timeout, clock.now))
+            return next(observations)
+
         with self.assertRaises(CandidateError) as raised:
             lifecycle(
                 scenario=NotebookOwnedProcessDecisionTests.SCENARIO,
                 primary_error=None,
-                observe=lambda *, stage, deadline, timeout: next(observations),
+                observe=observe,
                 observe_identity=lambda *, expected: dict(expected),
                 request_stage=request_stage,
                 wait=wait,
@@ -7182,6 +7188,15 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
         self.assertEqual(
             [action[1] for action in actions if action[0] == "wait"],
             ["graceful"],
+        )
+        self.assertEqual(
+            actions,
+            [
+                ("observe", "graceful", 135.0, 30.0, 100.0),
+                ("request", "sigterm", 908_172),
+                ("wait", "graceful", 135.0, 30.0),
+                ("observe", "final", 135.0, 0.0, 135.0),
+            ],
         )
 
     def test_pid_reuse_is_revalidated_immediately_before_each_action(self) -> None:
@@ -7245,7 +7260,19 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
                 ("identity", 908_173),
             ],
         )
-        self.assertNotIn("sigkill", tuple(action[1] for action in actions))
+        self.assertEqual(
+            [action for action in actions if action[0] == "request"],
+            [("request", "sigterm", 908_172)],
+        )
+        replacement_observation = actions.index(("identity", 908_173))
+        self.assertEqual(
+            [
+                action
+                for action in actions[replacement_observation + 1 :]
+                if action[0] == "request"
+            ],
+            [],
+        )
         self.assertEqual(
             checked_identity.call_args_list,
             [
@@ -7448,6 +7475,16 @@ while True:
                 raise AssertionError("controlled host did not publish its child PID")
             if capture is not None:
                 capture["child_pid"] = int(child_pid_path.read_text(encoding="ascii"))
+                event_log = capture["events"]
+                event_log.append(
+                    (
+                        "launch",
+                        launched_root.pid,
+                        capture["child_pid"],
+                        self.process_is_live(launched_root.pid),
+                        self.process_is_live(int(capture["child_pid"])),
+                    )
+                )
             return launched_root
 
         def checked_run(argv: list[str], **_kwargs: object) -> str:
@@ -7472,9 +7509,11 @@ while True:
 
         decision_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
         lifecycle_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+        event_log: list[tuple[object, ...]] = []
         if capture is not None:
             capture["decision_calls"] = decision_calls
             capture["lifecycle_calls"] = lifecycle_calls
+            capture["events"] = event_log
 
         try:
             with contextlib.ExitStack() as stack:
@@ -7540,6 +7579,19 @@ while True:
                         **kwargs: object,
                     ) -> None:
                         decision_calls.append((args, dict(kwargs)))
+                        if capture is not None:
+                            root_pid = int(capture["root_pid"])
+                            child_pid = int(capture["child_pid"])
+                            event_log.append(
+                                (
+                                    "decision",
+                                    root_pid,
+                                    child_pid,
+                                    self.process_is_live(root_pid),
+                                    self.process_is_live(child_pid),
+                                    kwargs.get("observation"),
+                                )
+                            )
                         return decision(*args, **kwargs)
 
                     stack.enter_context(
@@ -7562,7 +7614,22 @@ while True:
                         **kwargs: object,
                     ) -> None:
                         lifecycle_calls.append((args, dict(kwargs)))
-                        return lifecycle(*args, **kwargs)
+                        if capture is not None:
+                            root_pid = int(capture["root_pid"])
+                            child_pid = int(capture["child_pid"])
+                            event_log.append(
+                                (
+                                    "lifecycle-enter",
+                                    root_pid,
+                                    child_pid,
+                                    self.process_is_live(root_pid),
+                                    self.process_is_live(child_pid),
+                                )
+                            )
+                        try:
+                            return lifecycle(*args, **kwargs)
+                        finally:
+                            event_log.append(("lifecycle-exit",))
 
                     stack.enter_context(
                         mock.patch.object(
@@ -7603,6 +7670,30 @@ while True:
                 root_pid = int(capture["root_pid"])
                 self.assertFalse(self.process_is_live(root_pid))
                 self.assertFalse(self.process_is_live(owned_pid))
+                events = capture["events"]
+                self.assertEqual(
+                    [event[0] for event in events],
+                    ["launch", "lifecycle-enter", "decision", "lifecycle-exit"],
+                )
+                self.assertEqual(
+                    events[0],
+                    ("launch", root_pid, owned_pid, True, True),
+                )
+                self.assertEqual(
+                    events[1],
+                    ("lifecycle-enter", root_pid, owned_pid, True, True),
+                )
+                self.assertEqual(
+                    events[2],
+                    (
+                        "decision",
+                        root_pid,
+                        owned_pid,
+                        False,
+                        False,
+                        "complete-empty",
+                    ),
+                )
                 lifecycle_calls = capture["lifecycle_calls"]
                 decision_calls = capture["decision_calls"]
                 self.assertEqual(len(lifecycle_calls), 1)
