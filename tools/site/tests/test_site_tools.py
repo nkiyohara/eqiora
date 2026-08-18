@@ -130,6 +130,7 @@ class EvidenceCatalogTests(unittest.TestCase):
             output = Path(temporary) / "index.mdx"
             original = catalog.render_catalog(canonical)
             output.write_text(original, encoding="utf-8")
+            self.assertEqual(self.invoke_check(canonical, output), 0)
             self.assertNotEqual(self.invoke_check(retargeted, output), 0)
             self.assertEqual(output.read_text(encoding="utf-8"), original)
 
