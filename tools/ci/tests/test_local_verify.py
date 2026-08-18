@@ -855,6 +855,93 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
                 "overlong-path diagnostic omitted the actual encoded length",
             )
 
+    def test_07a_partial_scope_rejection_prevents_every_lane_child(self) -> None:
+        plan = self.plan(
+            PlannedCommand("lane A", ("lane-a",), lane=self.lane("lane-a")),
+            PlannedCommand("lane B", ("lane-b",), lane=self.lane("lane-b")),
+        )
+        home = Path.home().resolve()
+        with tempfile.TemporaryDirectory(prefix="x", dir=home) as directory:
+            authority = Path(directory)
+            controlled_107, controlled_108 = self.real_boundary_tmpdirs(authority)
+            boundaries = (controlled_107, controlled_108)
+            self.assertEqual(
+                [len(os.fsencode(self.socket_candidate(path))) for path in boundaries],
+                [107, 108],
+            )
+            allocation_lock = threading.Lock()
+            allocated: list[Path] = []
+            admission_attempts: list[Path] = []
+            entered: list[Path] = []
+            released: list[Path] = []
+            child_attempted = threading.Event()
+
+            @contextlib.contextmanager
+            def controlled_scope(
+                received_authority: Path, admit: Callable[[Path], None]
+            ) -> Iterator[Path]:
+                self.assertEqual(received_authority, authority)
+                with allocation_lock:
+                    candidate = boundaries[len(allocated)]
+                    candidate.mkdir()
+                    allocated.append(candidate)
+                    admission_attempts.append(candidate)
+                try:
+                    if candidate == controlled_108:
+                        child_attempted.wait(timeout=1.0)
+                    admit(candidate)
+                    with allocation_lock:
+                        entered.append(candidate)
+                    yield candidate
+                finally:
+                    if candidate.exists():
+                        candidate.rmdir()
+                    with allocation_lock:
+                        released.append(candidate)
+
+            def execute(
+                argv: tuple[str, ...], **kwargs: object
+            ) -> subprocess.CompletedProcess[bytes]:
+                child_attempted.set()
+                return subprocess.CompletedProcess(argv, 0)
+
+            rejection: Exception | None = None
+            with (
+                mock.patch(
+                    "verification_scheduler._lane_tmp_scope",
+                    side_effect=controlled_scope,
+                    create=True,
+                ) as scope,
+                mock.patch(
+                    "verification_scheduler.subprocess.run", side_effect=execute
+                ) as child,
+            ):
+                try:
+                    run_plan(
+                        plan,
+                        authority,
+                        budget=ResourceBudget(2, 2),
+                        scratch_root=authority,
+                    )
+                except Exception as caught:  # rejection type is not contractual
+                    rejection = caught
+
+            self.assertEqual(
+                scope.call_count,
+                2,
+                "run_plan did not request every lane scope before task execution",
+            )
+            self.assertCountEqual(allocated, boundaries)
+            self.assertCountEqual(admission_attempts, boundaries)
+            self.assertEqual(entered, [controlled_107])
+            child.assert_not_called()
+            self.assertCountEqual(released, [controlled_107, controlled_108])
+            self.assertTrue(all(not path.exists() for path in allocated))
+            self.assertIsNotNone(rejection)
+            assert rejection is not None
+            self.assertRegex(str(rejection), r"108")
+            self.assertRegex(str(rejection), r"107")
+
     def test_08_child_failure_cleans_tmp_but_preserves_cargo_root(self) -> None:
         observed: dict[str, Path] = {}
 
