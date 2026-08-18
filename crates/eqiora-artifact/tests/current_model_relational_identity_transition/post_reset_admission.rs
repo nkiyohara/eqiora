@@ -34,7 +34,7 @@ const IDENTITY_FREE_PATH_ORDER: [&str; 17] = [
     "crates/eqiora/src/bin/eqiora-mcp/tool.rs",
 ];
 
-const FIXTURE_PATH_ORDER: [&str; 18] = [
+const FIXTURE_PATH_ORDER: [&str; 26] = [
     "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/model.json",
     "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/\
      geometry-identity.json",
@@ -60,7 +60,54 @@ const FIXTURE_PATH_ORDER: [&str; 18] = [
      e1-sealed-inputs-v1.json",
     "crates/eqiora-numerics/src/cartesian_periodic_3d/collocated_tests.rs",
     "verify/fluid/cartesian-periodic-collocated-view-3d/case.toml",
-    "tools/xtask/tests/semantic_impact_cargo_authority.rs",
+    "verify/quality/semantic-impact-cargo-authority/fixtures/p-bin-head-test.jsonl",
+    "verify/quality/semantic-impact-cargo-authority/fixtures/p-head-nontest.jsonl",
+    "verify/quality/semantic-impact-cargo-authority/fixtures/p-head-test.jsonl",
+    "verify/quality/semantic-impact-cargo-authority/fixtures/r-base-nontest.jsonl",
+    "verify/quality/semantic-impact-cargo-authority/fixtures/r-base-test.jsonl",
+    "verify/quality/semantic-impact-cargo-authority/fixtures/r-head-nontest.jsonl",
+    "verify/quality/semantic-impact-cargo-authority/fixtures/r-head-test.jsonl",
+    "verify/quality/semantic-impact-cargo-authority/fixtures/t-all-head-test.jsonl",
+    "verify/quality/semantic-impact-cargo-authority/fixtures/t-auto-head-test.jsonl",
+];
+
+const SEMANTIC_IMPACT_FIXTURES: [(&str, usize); 9] = [
+    (
+        "verify/quality/semantic-impact-cargo-authority/fixtures/p-bin-head-test.jsonl",
+        17,
+    ),
+    (
+        "verify/quality/semantic-impact-cargo-authority/fixtures/p-head-nontest.jsonl",
+        17,
+    ),
+    (
+        "verify/quality/semantic-impact-cargo-authority/fixtures/p-head-test.jsonl",
+        17,
+    ),
+    (
+        "verify/quality/semantic-impact-cargo-authority/fixtures/r-base-nontest.jsonl",
+        0,
+    ),
+    (
+        "verify/quality/semantic-impact-cargo-authority/fixtures/r-base-test.jsonl",
+        0,
+    ),
+    (
+        "verify/quality/semantic-impact-cargo-authority/fixtures/r-head-nontest.jsonl",
+        0,
+    ),
+    (
+        "verify/quality/semantic-impact-cargo-authority/fixtures/r-head-test.jsonl",
+        0,
+    ),
+    (
+        "verify/quality/semantic-impact-cargo-authority/fixtures/t-all-head-test.jsonl",
+        17,
+    ),
+    (
+        "verify/quality/semantic-impact-cargo-authority/fixtures/t-auto-head-test.jsonl",
+        17,
+    ),
 ];
 
 fn rows_have_exact_unique_path_order(rows: &[PostResetAdmitted], expected: &[&str]) -> bool {
@@ -461,28 +508,37 @@ fn taylor_collocated_fixtures() -> Vec<ExpectedAdmission> {
     ]
 }
 
-fn semantic_impact_cargo_authority_fixture() -> ExpectedAdmission {
-    let identities = (0..2544)
-        .map(|_| format!("\"{}\"", "e".repeat(64)))
-        .collect::<Vec<_>>()
-        .join(",");
-    ExpectedAdmission {
-        path: "tools/xtask/tests/semantic_impact_cargo_authority.rs",
-        class: "source-or-package-identity",
-        owner: "tools/xtask semantic-impact Cargo authority integration-test oracle",
-        note: "the exact Cargo authority test records Cargo manifest, source, package, \
-               dependency, target, commit, tree, overlay, blob, and content identities; its \
-               2,544 same-line lower-hex-64 occurrences are Cargo, source, package, and \
-               revision records on Model/Transaction-bearing serialized authority lines, not \
-               current Model artifact identities. Admission owns only this exact path, empty \
-               search shape, and occurrence count; the Cargo authority oracle retains ownership \
-               of its bytes and values, and this creates no current Model artifact identity \
-               authority."
-            .to_owned(),
-        source: format!(
-            "const CARGO_MODEL_SOURCE_PACKAGE_REVISION_RECORDS: &[&str] = &[{identities}];\n"
-        ),
-    }
+fn semantic_impact_cargo_authority_fixtures() -> Vec<ExpectedAdmission> {
+    SEMANTIC_IMPACT_FIXTURES
+        .iter()
+        .copied()
+        .map(|(path, count)| {
+            let identities = (0..count)
+                .map(|_| format!("\"{}\"", "e".repeat(64)))
+                .collect::<Vec<_>>()
+                .join(",");
+            let name = path.rsplit('/').next().unwrap();
+            ExpectedAdmission {
+                path,
+                class: "source-or-package-identity",
+                owner: "quality.semantic-impact-cargo-authority independent exact-record oracle",
+                note: format!(
+                    "the exact external `{name}` fixture records Cargo manifest, source, \
+                     package, dependency, target, commit, tree, overlay, blob, and content \
+                     identities; its {count} same-line lower-hex-64 occurrences are Cargo, \
+                     source, package, and revision records on Model/Transaction-bearing \
+                     serialized authority lines, not current Model artifact identities. \
+                     Admission owns only this exact path, empty search shape, and occurrence \
+                     count; the Cargo authority oracle retains ownership of its bytes and \
+                     values. Externalization moved the serialized authority text without \
+                     changing the JSONL bytes consumed at runtime or any scientific meaning."
+                ),
+                source: format!(
+                    "CARGO MODEL TRANSACTION SOURCE PACKAGE REVISION RECORDS [{identities}]\n"
+                ),
+            }
+        })
+        .collect()
 }
 
 fn all_fixtures() -> Vec<ExpectedAdmission> {
@@ -492,7 +548,7 @@ fn all_fixtures() -> Vec<ExpectedAdmission> {
     rows.push(issue79_fixture());
     rows.push(stokes_e1_sealed_input_fixture());
     rows.extend(taylor_collocated_fixtures());
-    rows.push(semantic_impact_cargo_authority_fixture());
+    rows.extend(semantic_impact_cargo_authority_fixtures());
     rows
 }
 
@@ -588,14 +644,14 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
             .unwrap()
     );
     assert_eq!(identity_free.len(), 17);
-    assert_eq!(fixtures.len(), 18);
+    assert_eq!(fixtures.len(), 26);
     assert_eq!(
         contract
             .post_reset_fixture_admitted
             .iter()
             .map(|entry| entry.identity_literals)
             .sum::<usize>(),
-        2579
+        120
     );
 
     // Every historical count is still its own. Listing an admitted path in the
@@ -644,7 +700,11 @@ fn later_classified_paths_are_admitted_by_exact_path_and_join_no_frozen_set() {
             .map(|signal| SEARCH_TOKENS.iter().position(|token| token == signal))
             .collect::<Option<Vec<_>>>();
         assert!(
-            (!entry.signals.is_empty() || entry.identity_literals > 0)
+            (!entry.signals.is_empty()
+                || entry.identity_literals > 0
+                || SEMANTIC_IMPACT_FIXTURES
+                    .iter()
+                    .any(|(path, _)| *path == entry.path))
                 && places.is_some_and(|at| at.windows(2).all(|pair| pair[0] < pair[1]))
         );
     }
@@ -675,9 +735,9 @@ fn admission_arrays_reject_row_reorder_and_duplicate_paths() {
             "fixture",
             contract.post_reset_fixture_admitted.as_slice(),
             FIXTURE_PATH_ORDER.as_slice(),
-            16,
-            17,
-            13,
+            24,
+            25,
+            20,
         ),
     ] {
         assert!(
@@ -690,6 +750,29 @@ fn admission_arrays_reject_row_reorder_and_duplicate_paths() {
         assert!(
             !rows_have_exact_unique_path_order(&reordered, expected),
             "the {name} appended row must not move before its accepted predecessor"
+        );
+
+        let mut missing = rows.to_vec();
+        missing.pop();
+        assert!(
+            !rows_have_exact_unique_path_order(&missing, expected),
+            "a missing {name} row must be refused"
+        );
+
+        let mut extra = rows.to_vec();
+        let mut extra_row = rows.last().unwrap().clone();
+        extra_row.path.push_str(".extra");
+        extra.push(extra_row);
+        assert!(
+            !rows_have_exact_unique_path_order(&extra, expected),
+            "an extra {name} row must be refused"
+        );
+
+        let mut wrong_path = rows.to_vec();
+        wrong_path[0].path.push_str(".wrong");
+        assert!(
+            !rows_have_exact_unique_path_order(&wrong_path, expected),
+            "a wrong {name} path must be refused"
         );
 
         let zero_literal_row = rows[zero_literal].clone();
@@ -707,6 +790,21 @@ fn admission_arrays_reject_row_reorder_and_duplicate_paths() {
         assert!(
             !rows_have_exact_unique_path_order(&same_length_collision, expected),
             "a duplicate {name} path replacing another row must be refused"
+        );
+    }
+
+    let semantic = &contract.post_reset_fixture_admitted[17..];
+    assert_eq!(semantic[0].identity_literals, 17);
+    assert_eq!(semantic[3].identity_literals, 0);
+    for (index, expected) in [(0, 16), (0, 18), (3, 1)] {
+        let mut wrong_count = semantic[index].clone();
+        wrong_count.identity_literals = expected;
+        assert!(
+            !row_matches(
+                &wrong_count,
+                &semantic_impact_cargo_authority_fixtures()[index]
+            ),
+            "a semantic-impact zero- or 17-count row must reject count drift"
         );
     }
 }
@@ -846,22 +944,34 @@ fn both_admission_permissions_are_optional_exact_and_fail_closed() {
         .map(|row| (row.path, row.source.clone()))
         .collect::<Vec<_>>();
 
-    // Optional independently: every subset, including none and all, remains a
-    // complete post-reset state for each permission.
+    // Optional independently: the empty, full, singleton, and one-omitted
+    // boundaries remain complete post-reset states for each permission. The
+    // predicate checks rows independently, so these linear boundaries expose
+    // either possible coupling without enumerating 2^26 fixture subsets.
     for sources in [&identity_free, &fixture_sources] {
-        for mask in 0..(1usize << sources.len()) {
-            let observed =
+        assert_eq!(classify(reset()), Ok(TransitionState::PostReset));
+        assert_eq!(
+            classify(admitting_all(reset(), sources)),
+            Ok(TransitionState::PostReset)
+        );
+        for omitted in 0..sources.len() {
+            let singleton = &sources[omitted];
+            assert_eq!(
+                classify(reset().admitting(singleton.0, &singleton.1)),
+                Ok(TransitionState::PostReset)
+            );
+            let all_but_one =
                 sources
                     .iter()
                     .enumerate()
                     .fold(reset(), |state, (index, (path, source))| {
-                        if mask & (1 << index) == 0 {
+                        if index == omitted {
                             state
                         } else {
                             state.admitting(path, source)
                         }
                     });
-            assert_eq!(classify(observed), Ok(TransitionState::PostReset));
+            assert_eq!(classify(all_but_one), Ok(TransitionState::PostReset));
         }
     }
 
@@ -961,6 +1071,17 @@ fn both_admission_permissions_are_optional_exact_and_fail_closed() {
         classify(admitting_all(reset(), &fixture_sources)),
         Ok(TransitionState::PostReset)
     );
+
+    let old_host = "tools/xtask/tests/semantic_impact_cargo_authority.rs";
+    assert!(
+        !contract
+            .post_reset_fixture_admitted
+            .iter()
+            .any(|entry| entry.path == old_host),
+        "the identity-free old Rust host retains no fixture permission"
+    );
+    let old_host_bytes = fs::read(repository_root().join(old_host)).unwrap();
+    assert_eq!(observe_admitted(&old_host_bytes), (Vec::new(), 0));
 }
 
 /// Exact means no sibling, descendant, alternate extension, nearby RFC, or
@@ -1028,6 +1149,11 @@ fn no_glob_directory_suffix_or_proximity_admission_exists() {
         "verify/fluid/cartesian-periodic-collocated-view-3d/case-copy.toml",
         "verify/fluid/cartesian-periodic-collocated-view-3d/nested/case.toml",
         "verify/fluid/cartesian-periodic-collocated-view-2d/case.toml",
+        "verify/quality/semantic-impact-cargo-authority/fixtures/p-bin-head-test.jsonl.bak",
+        "verify/quality/semantic-impact-cargo-authority/fixtures/p-bin-head-test-copy.jsonl",
+        "verify/quality/semantic-impact-cargo-authority/fixtures/nested/p-bin-head-test.jsonl",
+        "verify/quality/semantic-impact-cargo-authority/fixtures/p-bin-head-test.toml",
+        "verify/quality/semantic-impact-cargo-authority/fixtures/sibling.jsonl",
         "tools/xtask/tests/semantic_impact_cargo_authority.rs.bak",
         "tools/xtask/tests/semantic_impact_cargo_authority_copy.rs",
         "tools/xtask/tests/semantic_impact_cargo_authority/helper.rs",
