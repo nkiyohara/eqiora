@@ -1307,7 +1307,9 @@ class SchedulerTests(unittest.TestCase):
             self.assertEqual(len(set(roots.values())), 2)
             for name, root in roots.items():
                 self.assertTrue(root.is_relative_to(scratch_root))
-                self.assertTrue(Path(environments[name]["TMPDIR"]).is_relative_to(root))
+                self.assertTrue(
+                    Path(environments[name]["TMPDIR"]).is_relative_to(scratch_root)
+                )
                 self.assertTrue(
                     Path(environments[name]["CARGO_TARGET_DIR"]).is_relative_to(root)
                 )
