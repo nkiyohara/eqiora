@@ -220,6 +220,10 @@ jobs:
           test -d "$RUNNER_TEMP"
           test ! -L "$RUNNER_TEMP"
           scratch="$(mktemp -d "$RUNNER_TEMP/eqiora-site.XXXXXXXX")"
+          test ! -L "$scratch"
+          test "$(stat -c %a -- "$scratch")" = "700"
+          scratch_device="$(stat -c %d -- "$scratch")"
+          scratch_inode="$(stat -c %i -- "$scratch")"
           scratch="$(realpath "$scratch")"
           case "$scratch" in
             "$RUNNER_TEMP"/eqiora-site.*) ;;
@@ -245,8 +249,8 @@ jobs:
             echo "EQIORA_RUNNER_GID=$(id -g)"
             echo "EQIORA_RUNNER_HOME=$HOME"
             echo "EQIORA_RUNNER_PATH=$PATH"
-            echo "EQIORA_SITE_SCRATCH_DEVICE=$(stat -c %d -- "$scratch")"
-            echo "EQIORA_SITE_SCRATCH_INODE=$(stat -c %i -- "$scratch")"
+            echo "EQIORA_SITE_SCRATCH_DEVICE=$scratch_device"
+            echo "EQIORA_SITE_SCRATCH_INODE=$scratch_inode"
           } >> "$GITHUB_ENV"
 
       - name: Build and verify with only loopback networking
@@ -308,26 +312,55 @@ jobs:
         with:
           path: ${{ env.EQIORA_SITE_ARTIFACT }}
 
-      - name: Remove the resolved site scratch child
+      - name: Retain an authenticated empty site scratch for runner teardown
         if: always()
         shell: bash
         run: |
           python3 - <<'PY'
+          import hashlib
+          import json
           import os
           import re
           import secrets
           import stat
           from pathlib import Path
 
+          ARTIFACT_MANIFEST = "eqiora-site-artifact-sha256.txt"
+          RECEIPT = "eqiora-site-cleanup-receipt.json"
+          RECEIPT_SCHEMA = "eqiora.site.scratch-cleanup-receipt/v1"
+
           def identity(details):
               return (details.st_dev, details.st_ino)
 
-          def clear_directory(directory_fd):
-              for name in os.listdir(directory_fd):
+          def write_all(file_descriptor, contents):
+              remaining = memoryview(contents)
+              while remaining:
+                  written = os.write(file_descriptor, remaining)
+                  if written <= 0:
+                      raise OSError("short cleanup receipt write")
+                  remaining = remaining[written:]
+
+          def canonical_decimal(name):
+              value = os.environ.get(name, "")
+              if (
+                  not value
+                  or not value.isascii()
+                  or not value.isdecimal()
+                  or str(int(value)) != value
+              ):
+                  raise SystemExit(f"missing or noncanonical {name} receipt")
+              return int(value)
+
+          def clear_directory(directory_fd, scratch_device):
+              operations = 0
+              for name in sorted(os.listdir(directory_fd)):
                   details = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
                   if not stat.S_ISDIR(details.st_mode):
                       os.unlink(name, dir_fd=directory_fd)
+                      operations += 1
                       continue
+                  if details.st_dev != scratch_device:
+                      raise SystemExit(f"refusing cross-device site scratch child: {name}")
                   child_fd = os.open(
                       name,
                       os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
@@ -337,20 +370,105 @@ jobs:
                       opened = os.fstat(child_fd)
                       if identity(opened) != identity(details):
                           raise SystemExit(f"directory identity changed during cleanup: {name}")
-                      clear_directory(child_fd)
+                      if opened.st_dev != scratch_device:
+                          raise SystemExit(f"refusing cross-device site scratch child: {name}")
+                      operations += clear_directory(child_fd, scratch_device)
                       current = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
                       if identity(current) != identity(opened):
                           raise SystemExit(f"directory entry changed during cleanup: {name}")
                       os.rmdir(name, dir_fd=directory_fd)
-                      if os.fstat(child_fd).st_nlink != 0:
-                          raise SystemExit(f"directory remained linked after cleanup: {name}")
+                      operations += 1
                   finally:
                       os.close(child_fd)
+              return operations
+
+          def read_regular_file(parent_fd, name):
+              observed = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+              if not stat.S_ISREG(observed.st_mode):
+                  raise SystemExit(f"required cleanup input is not a regular file: {name}")
+              file_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent_fd)
+              try:
+                  opened = os.fstat(file_fd)
+                  if identity(opened) != identity(observed) or not stat.S_ISREG(opened.st_mode):
+                      raise SystemExit(f"required cleanup input changed while opening: {name}")
+                  chunks = []
+                  while True:
+                      chunk = os.read(file_fd, 1024 * 1024)
+                      if not chunk:
+                          break
+                      chunks.append(chunk)
+                  return b"".join(chunks)
+              finally:
+                  os.close(file_fd)
+
+          def artifact_manifest_digest(parent_fd):
+              manifest = read_regular_file(parent_fd, ARTIFACT_MANIFEST)
+              try:
+                  text = manifest.decode("utf-8")
+              except UnicodeDecodeError as error:
+                  raise SystemExit("artifact manifest is not UTF-8") from error
+              lines = text.splitlines(keepends=True)
+              if (
+                  not lines
+                  or any(not line.endswith("\n") or line.endswith("\r\n") for line in lines)
+                  or any(
+                      re.fullmatch(r"(?:\\)?[0-9a-f]{64} [ *].+\n", line) is None
+                      for line in lines
+                  )
+              ):
+                  raise SystemExit("artifact manifest is malformed")
+              return hashlib.sha256(manifest).hexdigest()
+
+          def write_receipt(parent_fd, receipt):
+              encoded = (
+                  json.dumps(receipt, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+                  + "\n"
+              ).encode("utf-8")
+              temporary = f".{RECEIPT}.{secrets.token_hex(16)}"
+              temporary_fd = None
+              installed = False
+              try:
+                  temporary_fd = os.open(
+                      temporary,
+                      os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                      0o600,
+                      dir_fd=parent_fd,
+                  )
+                  write_all(temporary_fd, encoded)
+                  os.fsync(temporary_fd)
+                  os.close(temporary_fd)
+                  temporary_fd = None
+                  os.replace(
+                      temporary,
+                      RECEIPT,
+                      src_dir_fd=parent_fd,
+                      dst_dir_fd=parent_fd,
+                  )
+                  installed = True
+                  os.fsync(parent_fd)
+              finally:
+                  if temporary_fd is not None:
+                      os.close(temporary_fd)
+                  if not installed:
+                      try:
+                          os.unlink(temporary, dir_fd=parent_fd)
+                      except FileNotFoundError:
+                          pass
+              write_all(1, encoded)
 
           candidate_text = os.environ.get("EQIORA_API_SCRATCH")
           runner_temp_text = os.environ.get("RUNNER_TEMP")
-          if not candidate_text or not runner_temp_text:
+          device_text = os.environ.get("EQIORA_SITE_SCRATCH_DEVICE")
+          inode_text = os.environ.get("EQIORA_SITE_SCRATCH_INODE")
+          if not candidate_text and not device_text and not inode_text:
+              if runner_temp_text and os.path.lexists(
+                  os.path.join(runner_temp_text, ARTIFACT_MANIFEST)
+              ):
+                  raise SystemExit("normal site build has no scratch cleanup receipt")
+              print("site scratch cleanup: not-created")
               raise SystemExit(0)
+          if not candidate_text or not runner_temp_text or not device_text or not inode_text:
+              raise SystemExit("partial site scratch cleanup receipt")
           candidate = Path(candidate_text)
           runner_temp = Path(runner_temp_text)
           if not candidate.is_absolute() or not runner_temp.is_absolute():
@@ -359,75 +477,83 @@ jobs:
               r"eqiora-site\.[A-Za-z0-9]{8}", candidate.name
           ) is None:
               raise SystemExit(f"refusing unsafe site scratch cleanup: {candidate}")
-          device_text = os.environ.get("EQIORA_SITE_SCRATCH_DEVICE", "")
-          inode_text = os.environ.get("EQIORA_SITE_SCRATCH_INODE", "")
-          if not device_text.isascii() or not device_text.isdecimal():
-              raise SystemExit("missing or invalid site scratch device receipt")
-          if not inode_text.isascii() or not inode_text.isdecimal():
-              raise SystemExit("missing or invalid site scratch inode receipt")
+          expected_identity = (
+              canonical_decimal("EQIORA_SITE_SCRATCH_DEVICE"),
+              canonical_decimal("EQIORA_SITE_SCRATCH_INODE"),
+          )
 
           runner_details = os.stat(runner_temp, follow_symlinks=False)
           if not stat.S_ISDIR(runner_details.st_mode):
               raise SystemExit(f"runner temp is not a real directory: {runner_temp}")
           runner_fd = os.open(runner_temp, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
           try:
+              if identity(os.fstat(runner_fd)) != identity(runner_details):
+                  raise SystemExit(f"runner temp identity changed while opening: {runner_temp}")
               candidate_details = os.stat(candidate.name, dir_fd=runner_fd, follow_symlinks=False)
               if not stat.S_ISDIR(candidate_details.st_mode):
                   raise SystemExit(f"site scratch is not a real directory: {candidate}")
-              expected_identity = (int(device_text), int(inode_text))
               if identity(candidate_details) != expected_identity:
                   raise SystemExit(f"site scratch identity changed: {candidate}")
-
-              quarantine = f".{candidate.name}.cleanup-{secrets.token_hex(16)}"
-              try:
-                  os.stat(quarantine, dir_fd=runner_fd, follow_symlinks=False)
-              except FileNotFoundError:
-                  pass
-              else:
-                  raise SystemExit(f"site scratch quarantine already exists: {quarantine}")
-              os.rename(
+              if stat.S_IMODE(candidate_details.st_mode) != 0o700:
+                  raise SystemExit(f"site scratch mode changed: {candidate}")
+              scratch_fd = os.open(
                   candidate.name,
-                  quarantine,
-                  src_dir_fd=runner_fd,
-                  dst_dir_fd=runner_fd,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                  dir_fd=runner_fd,
               )
-
-              quarantine_fd = None
               try:
-                  captured = os.stat(quarantine, dir_fd=runner_fd, follow_symlinks=False)
-                  if not stat.S_ISDIR(captured.st_mode) or identity(captured) != expected_identity:
-                      raise RuntimeError("captured site scratch identity changed")
-                  quarantine_fd = os.open(
-                      quarantine,
-                      os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
-                      dir_fd=runner_fd,
-                  )
-                  if identity(os.fstat(quarantine_fd)) != expected_identity:
-                      raise RuntimeError("opened site scratch identity changed")
-              except BaseException as error:
-                  if quarantine_fd is not None:
-                      os.close(quarantine_fd)
-                  try:
-                      os.stat(candidate.name, dir_fd=runner_fd, follow_symlinks=False)
-                  except FileNotFoundError:
-                      os.rename(
-                          quarantine,
-                          candidate.name,
-                          src_dir_fd=runner_fd,
-                          dst_dir_fd=runner_fd,
+                  opened = os.fstat(scratch_fd)
+                  if identity(opened) != expected_identity:
+                      raise SystemExit(f"opened site scratch identity changed: {candidate}")
+                  if stat.S_IMODE(opened.st_mode) != 0o700:
+                      raise SystemExit(f"opened site scratch mode changed: {candidate}")
+
+                  operations = clear_directory(scratch_fd, expected_identity[0])
+                  observed_entries = sorted(os.listdir(scratch_fd))
+                  if observed_entries:
+                      raise SystemExit(
+                          "site scratch cleanup failed: stage=final-empty "
+                          f"observed_entries={json.dumps(observed_entries[:32])}"
                       )
-                  raise SystemExit(f"refusing changed site scratch: {candidate}") from error
+                  final_details = os.stat(
+                      candidate.name,
+                      dir_fd=runner_fd,
+                      follow_symlinks=False,
+                  )
+                  if (
+                      not stat.S_ISDIR(final_details.st_mode)
+                      or identity(final_details) != expected_identity
+                      or stat.S_IMODE(final_details.st_mode) != 0o700
+                  ):
+                      raise SystemExit(f"site scratch final identity changed: {candidate}")
+                  confirmed_entries = sorted(os.listdir(scratch_fd))
+                  if confirmed_entries:
+                      raise SystemExit(
+                          "site scratch cleanup failed: stage=final-confirmation "
+                          f"observed_entries={json.dumps(confirmed_entries[:32])}"
+                      )
 
-              try:
-                  clear_directory(quarantine_fd)
-                  current = os.stat(quarantine, dir_fd=runner_fd, follow_symlinks=False)
-                  if identity(current) != expected_identity:
-                      raise SystemExit(f"captured site scratch entry changed: {candidate}")
-                  os.rmdir(quarantine, dir_fd=runner_fd)
-                  if os.fstat(quarantine_fd).st_nlink != 0:
-                      raise SystemExit(f"captured site scratch remained linked: {candidate}")
+                  source_revision = os.environ.get("GITHUB_SHA", "")
+                  if re.fullmatch(r"[0-9a-f]{40}", source_revision) is None:
+                      raise SystemExit("missing or malformed source revision")
+                  manifest_sha256 = artifact_manifest_digest(runner_fd)
+                  receipt = {
+                      "artifact_manifest_sha256": manifest_sha256,
+                      "candidate_basename": candidate.name,
+                      "cleanup_disposition": "retained-empty-for-runner-teardown",
+                      "descendant_operations": operations,
+                      "final_destroy_observed": False,
+                      "final_empty_observed": True,
+                      "mode_octal": "0700",
+                      "schema": RECEIPT_SCHEMA,
+                      "source_revision": source_revision,
+                      "scratch_device": expected_identity[0],
+                      "scratch_inode": expected_identity[1],
+                      "top_removal_attempted": False,
+                  }
+                  write_receipt(runner_fd, receipt)
               finally:
-                  os.close(quarantine_fd)
+                  os.close(scratch_fd)
           finally:
               os.close(runner_fd)
           PY
