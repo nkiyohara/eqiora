@@ -615,21 +615,48 @@ class HostedTriggerTests(unittest.TestCase):
     def test_rich_display_claim_names_candidate_level_bounded_host_teardown(
         self,
     ) -> None:
-        case = tomllib.loads(
+        rich_case = tomllib.loads(
             (
                 REPOSITORY_ROOT / "verify/interfaces/python-rich-mesh-display/case.toml"
             ).read_text(encoding="utf-8")
         )
-        claim = case["acceptance"]
+        distribution_case = tomllib.loads(
+            (
+                REPOSITORY_ROOT
+                / "verify/interfaces/python-distribution-candidate/case.toml"
+            ).read_text(encoding="utf-8")
+        )
+        claim = rich_case["acceptance"]
         self.assertNotIn(
             "host_shutdown_and_kernel_or_wrapper_finalization_exit_zero",
             claim,
         )
+        teardown = (
+            "success requires bounded cleanup without forced escalation and a "
+            "complete-empty owned notebook, kernel, browser, and profile-helper "
+            "observation before the absolute 35.0-second decision deadline; "
+            "failure still performs bounded cleanup and rejects with stable "
+            "survivor or incomplete-observation diagnostics; no fixed-time "
+            "survivor-disappearance claim"
+        )
         self.assertEqual(
             claim.get("candidate_host_teardown"),
-            "within timeout; accepts status 0 or exactly -SIGTERM only when the "
-            "candidate runner sent SIGTERM; unsolicited signals, other nonzero "
-            "statuses, timeout, and forced kill reject",
+            teardown,
+        )
+        distribution = distribution_case["claim_boundary"]
+        self.assertEqual(distribution.get("notebook_host_teardown"), teardown)
+        self.assertEqual(
+            distribution.get("notebook_cleanup_graceful_seconds"),
+            30.0,
+        )
+        self.assertEqual(
+            distribution.get("notebook_cleanup_decision_seconds"),
+            35.0,
+        )
+        self.assertEqual(distribution.get("notebook_cleanup_identity_limit"), 256)
+        self.assertEqual(
+            distribution.get("notebook_cleanup_diagnostic_bytes"),
+            65_536,
         )
 
     def test_hosted_test_profile_is_compact_and_test_scoped(self) -> None:
