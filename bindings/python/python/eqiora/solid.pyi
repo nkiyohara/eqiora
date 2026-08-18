@@ -137,7 +137,7 @@ def linear_elasticity_evidence(result: Result, /) -> LinearElasticityEvidence:
 
     ...
 
-#: Deprecated one-prerelease alias for the common :class:`Result` type.
+#: Deprecated alias for the common :class:`Result` type.
 #:
 #: Authority: ``bindings/python/python/eqiora/solid.py::__getattr__``.
 MixedBoundaryElasticityResult = Result

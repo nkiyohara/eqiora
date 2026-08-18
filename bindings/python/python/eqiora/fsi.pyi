@@ -13,7 +13,7 @@ from .trajectory import TrajectoryState
 
 @final
 class FixedMeshMonolithic:
-    """Complete fixed-mesh monolithic FSI request without hidden state.
+    """Complete fixed-mesh monolithic FSI request with no hidden numerical state.
 
     Authority: ``crates/eqiora-python/src/fsi.rs::PyFixedMeshMonolithic``.
     """
