@@ -426,6 +426,7 @@ jobs:
               ).encode("utf-8")
               temporary = f".{RECEIPT}.{secrets.token_hex(16)}"
               temporary_fd = None
+              installed_identity = None
               installed = False
               try:
                   temporary_fd = os.open(
@@ -436,6 +437,7 @@ jobs:
                   )
                   write_all(temporary_fd, encoded)
                   os.fsync(temporary_fd)
+                  installed_identity = identity(os.fstat(temporary_fd))
                   os.close(temporary_fd)
                   temporary_fd = None
                   os.replace(
@@ -445,7 +447,25 @@ jobs:
                       dst_dir_fd=parent_fd,
                   )
                   installed = True
-                  os.fsync(parent_fd)
+                  try:
+                      os.fsync(parent_fd)
+                      write_all(1, encoded)
+                  except BaseException:
+                      try:
+                          observed = os.stat(
+                              RECEIPT,
+                              dir_fd=parent_fd,
+                              follow_symlinks=False,
+                          )
+                      except FileNotFoundError:
+                          pass
+                      else:
+                          if identity(observed) != installed_identity:
+                              raise RuntimeError(
+                                  "installed cleanup receipt changed before rollback"
+                              )
+                          os.unlink(RECEIPT, dir_fd=parent_fd)
+                      raise
               finally:
                   if temporary_fd is not None:
                       os.close(temporary_fd)
@@ -454,7 +474,6 @@ jobs:
                           os.unlink(temporary, dir_fd=parent_fd)
                       except FileNotFoundError:
                           pass
-              write_all(1, encoded)
 
           candidate_text = os.environ.get("EQIORA_API_SCRATCH")
           runner_temp_text = os.environ.get("RUNNER_TEMP")
