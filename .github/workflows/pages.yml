@@ -245,6 +245,8 @@ jobs:
             echo "EQIORA_RUNNER_GID=$(id -g)"
             echo "EQIORA_RUNNER_HOME=$HOME"
             echo "EQIORA_RUNNER_PATH=$PATH"
+            echo "EQIORA_SITE_SCRATCH_DEVICE=$(stat -c %d -- "$scratch")"
+            echo "EQIORA_SITE_SCRATCH_INODE=$(stat -c %i -- "$scratch")"
           } >> "$GITHUB_ENV"
 
       - name: Build and verify with only loopback networking
@@ -312,18 +314,48 @@ jobs:
         run: |
           python3 - <<'PY'
           import os
+          import re
           import shutil
+          import stat
           from pathlib import Path
 
           candidate_text = os.environ.get("EQIORA_API_SCRATCH")
           runner_temp_text = os.environ.get("RUNNER_TEMP")
           if not candidate_text or not runner_temp_text:
               raise SystemExit(0)
-          candidate = Path(candidate_text).resolve(strict=True)
-          runner_temp = Path(runner_temp_text).resolve(strict=True)
-          if candidate.parent != runner_temp or not candidate.name.startswith("eqiora-site."):
+          candidate = Path(candidate_text)
+          runner_temp = Path(runner_temp_text)
+          if not candidate.is_absolute() or not runner_temp.is_absolute():
+              raise SystemExit("refusing non-absolute site scratch cleanup")
+          if candidate.parent != runner_temp or re.fullmatch(
+              r"eqiora-site\.[A-Za-z0-9]{8}", candidate.name
+          ) is None:
               raise SystemExit(f"refusing unsafe site scratch cleanup: {candidate}")
-          shutil.rmtree(candidate)
+          if not shutil.rmtree.avoids_symlink_attacks:
+              raise SystemExit("platform lacks symlink-safe recursive cleanup")
+
+          device_text = os.environ.get("EQIORA_SITE_SCRATCH_DEVICE", "")
+          inode_text = os.environ.get("EQIORA_SITE_SCRATCH_INODE", "")
+          if not device_text.isascii() or not device_text.isdecimal():
+              raise SystemExit("missing or invalid site scratch device receipt")
+          if not inode_text.isascii() or not inode_text.isdecimal():
+              raise SystemExit("missing or invalid site scratch inode receipt")
+
+          runner_details = os.stat(runner_temp, follow_symlinks=False)
+          if not stat.S_ISDIR(runner_details.st_mode):
+              raise SystemExit(f"runner temp is not a real directory: {runner_temp}")
+          runner_fd = os.open(runner_temp, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+          try:
+              candidate_details = os.stat(candidate.name, dir_fd=runner_fd, follow_symlinks=False)
+              if not stat.S_ISDIR(candidate_details.st_mode):
+                  raise SystemExit(f"site scratch is not a real directory: {candidate}")
+              expected_identity = (int(device_text), int(inode_text))
+              observed_identity = (candidate_details.st_dev, candidate_details.st_ino)
+              if observed_identity != expected_identity:
+                  raise SystemExit(f"site scratch identity changed: {candidate}")
+              shutil.rmtree(candidate.name, dir_fd=runner_fd)
+          finally:
+              os.close(runner_fd)
           PY
 
   deploy:

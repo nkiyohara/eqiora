@@ -77,6 +77,10 @@ def _collision_key(path: PurePosixPath) -> str:
     return unicodedata.normalize("NFC", path.as_posix()).casefold()
 
 
+def _paths_overlap(left: Path, right: Path) -> bool:
+    return left == right or left in right.parents or right in left.parents
+
+
 def _manifest(entries: list[CopyEntry]) -> list[CopyEntry]:
     exact: dict[PurePosixPath, Path] = {}
     portable: dict[str, PurePosixPath] = {}
@@ -127,6 +131,36 @@ def assemble(
     schema = _regular_file(control_schema, "control-v2 schema")
     scratch = _directory(scratch_root, "assembly scratch root")
 
+    raw_output = output
+    if os.path.lexists(raw_output):
+        raise AssemblyError(f"refusing to replace an existing output path: {raw_output}")
+    resolved_parent = _directory(raw_output.parent, "output parent")
+    output_path = resolved_parent / raw_output.name
+    stage = scratch / "assembled-site"
+    if os.path.lexists(stage):
+        raise AssemblyError(f"assembly scratch child already exists: {stage}")
+    if os.stat(scratch).st_dev != os.stat(resolved_parent).st_dev:
+        raise AssemblyError("assembly scratch and output must share a filesystem for atomic installation")
+
+    sources = (
+        ("Astro output", astro),
+        ("rustdoc output", rustdoc),
+        ("control-v2 schema", schema),
+    )
+    for index, (left_label, left) in enumerate(sources):
+        for right_label, right in sources[index + 1 :]:
+            if _paths_overlap(left, right):
+                raise AssemblyError(
+                    f"assembly inputs overlap: {left_label} {left} and {right_label} {right}"
+                )
+    for label, source in sources:
+        if _paths_overlap(source, output_path):
+            raise AssemblyError(f"assembly input overlaps the output path: {label} {source}")
+        if _paths_overlap(source, stage):
+            raise AssemblyError(f"assembly input overlaps the scratch child: {label} {source}")
+    if _paths_overlap(stage, output_path):
+        raise AssemblyError(f"assembly scratch child overlaps the output path: {stage}")
+
     for required in (
         astro / "index.html",
         astro / "404.html",
@@ -146,17 +180,6 @@ def assemble(
     if schema_document.get("$id") != "urn:eqiora:schema:control:compile-v2":
         raise AssemblyError("control-v2 schema has the wrong $id")
 
-    output_path = output.resolve(strict=False)
-    if output_path.exists() or output_path.is_symlink():
-        raise AssemblyError(f"refusing to replace an existing output path: {output_path}")
-    output_parent = output_path.parent
-    if not output_parent.is_dir() or output_parent.is_symlink():
-        raise AssemblyError(f"output parent must be an existing real directory: {output_parent}")
-    resolved_parent = output_parent.resolve(strict=True)
-    for source in (astro, rustdoc, schema):
-        if source == resolved_parent or resolved_parent in source.parents or source in resolved_parent.parents:
-            raise AssemblyError(f"assembly source overlaps the output tree: {source}")
-
     entries = _manifest(
         _tree_entries(astro, PurePosixPath())
         + _tree_entries(rustdoc, PurePosixPath("reference/rust/api"))
@@ -167,12 +190,6 @@ def assemble(
             )
         ]
     )
-
-    stage = scratch / "assembled-site"
-    if stage.exists() or stage.is_symlink():
-        raise AssemblyError(f"assembly scratch child already exists: {stage}")
-    if os.stat(scratch).st_dev != os.stat(resolved_parent).st_dev:
-        raise AssemblyError("assembly scratch and output must share a filesystem for atomic installation")
 
     stage.mkdir(mode=0o755)
     try:
