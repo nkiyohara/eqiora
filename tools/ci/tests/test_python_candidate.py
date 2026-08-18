@@ -7377,6 +7377,17 @@ while True:
             return False
         return state != "Z"
 
+    @staticmethod
+    def linux_start_identity(pid: int) -> int:
+        stat_record = (Path("/proc") / str(pid) / "stat").read_text(
+            encoding="ascii"
+        )
+        comm_end = stat_record.rfind(")")
+        if comm_end < 0:
+            raise AssertionError(f"missing comm terminator in /proc/{pid}/stat")
+        fields_from_state = stat_record[comm_end + 2 :].split()
+        return int(fields_from_state[19])
+
     @classmethod
     def bounded_test_cleanup(cls, *pids: int) -> None:
         for pid in pids:
@@ -7487,22 +7498,33 @@ while True:
             if capture is not None:
                 capture["root_pid"] = launched_root.pid
             deadline = time.monotonic() + 2.0
-            while not child_pid_path.is_file() and time.monotonic() < deadline:
+            child_pid = None
+            while time.monotonic() < deadline:
                 if launched_root.poll() is not None:
                     break
+                try:
+                    child_pid = int(child_pid_path.read_text(encoding="ascii"))
+                except (FileNotFoundError, ValueError):
+                    pass
+                else:
+                    break
                 time.sleep(0.01)
-            if not child_pid_path.is_file():
+            if child_pid is None:
                 raise AssertionError("controlled host did not publish its child PID")
             if capture is not None:
-                capture["child_pid"] = int(child_pid_path.read_text(encoding="ascii"))
+                capture["child_pid"] = child_pid
+                capture["owned_identities"] = (
+                    (launched_root.pid, self.linux_start_identity(launched_root.pid)),
+                    (child_pid, self.linux_start_identity(child_pid)),
+                )
                 event_log = capture["events"]
                 event_log.append(
                     (
                         "launch",
                         launched_root.pid,
-                        capture["child_pid"],
+                        child_pid,
                         self.process_is_live(launched_root.pid),
-                        self.process_is_live(int(capture["child_pid"])),
+                        self.process_is_live(child_pid),
                     )
                 )
             real_send_signal = launched_root.send_signal
@@ -7862,6 +7884,8 @@ while True:
                     guard_lifecycle_actions=True,
                 )
                 root_pid = int(capture["root_pid"])
+                owned_identities = set(capture["owned_identities"])
+                self.assertEqual(len(owned_identities), 2)
                 self.assertFalse(self.process_is_live(root_pid))
                 self.assertFalse(self.process_is_live(owned_pid))
                 events = capture["events"]
@@ -7896,10 +7920,7 @@ while True:
                         True,
                     ),
                 )
-                self.assertEqual(
-                    {pid for pid, _start_time in observations[0][2]},
-                    {root_pid, owned_pid},
-                )
+                self.assertEqual(set(observations[0][2]), owned_identities)
                 self.assertEqual(
                     observations[-1],
                     ("observe-exit", "complete-empty", (), False, False),
@@ -7911,7 +7932,8 @@ while True:
                     all(
                         expected_pid == observed_pid
                         and expected_start == observed_start
-                        and expected_pid in {root_pid, owned_pid}
+                        and (expected_pid, expected_start) in owned_identities
+                        and (observed_pid, observed_start) in owned_identities
                         for (
                             _event,
                             expected_pid,
@@ -7926,7 +7948,10 @@ while True:
                 ]
                 self.assertTrue(requests)
                 self.assertTrue(
-                    all(request[2] in {root_pid, owned_pid} for request in requests)
+                    all(
+                        (request[2], request[3]) in owned_identities
+                        for request in requests
+                    )
                 )
                 self.assertIn("wait-enter", event_names)
                 self.assertIn("request-exit", event_names)
