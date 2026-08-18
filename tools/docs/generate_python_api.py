@@ -30,9 +30,9 @@ GENERATED_BANNER = (
 SOURCE_LINK_IMPORT = (
     "import ExactSourceLink from '@components/site/ExactSourceLink.astro';"
 )
-EXPECTED_EXPORT_BYTES = 3_139
-EXPECTED_EXPORT_SHA256 = (
-    "73fa54d8a621b1e2124fca46bd7859d713222fa8ac47c3956652b31d9bd1e03c"
+EXPECTED_EXPORT_RECORD_BYTES = 19_689
+EXPECTED_EXPORT_RECORD_SHA256 = (
+    "b4646ccbdb2ffd386d360bbb87a2d782b6a416cc1ad51cca42ee157995bff6f1"
 )
 EXPECTED_COUNTS = {
     "modules": 11,
@@ -56,60 +56,31 @@ EXPECTED_COUNTS = {
 
 @dataclass(frozen=True)
 class ModuleSpec:
-    """One contract-listed public stub module and its output slug."""
-
     name: str
     source: Path
     slug: str
 
 
-MODULES = (
-    ModuleSpec("eqiora", Path("bindings/python/python/eqiora/__init__.pyi"), "eqiora"),
-    ModuleSpec(
-        "eqiora.geometry",
-        Path("bindings/python/python/eqiora/geometry.pyi"),
-        "geometry",
-    ),
-    ModuleSpec(
-        "eqiora.meshing", Path("bindings/python/python/eqiora/meshing.pyi"), "meshing"
-    ),
-    ModuleSpec(
-        "eqiora.fluid", Path("bindings/python/python/eqiora/fluid.pyi"), "fluid"
-    ),
-    ModuleSpec(
-        "eqiora.trajectory",
-        Path("bindings/python/python/eqiora/trajectory.pyi"),
-        "trajectory",
-    ),
-    ModuleSpec("eqiora.fsi", Path("bindings/python/python/eqiora/fsi.pyi"), "fsi"),
-    ModuleSpec(
-        "eqiora.solid", Path("bindings/python/python/eqiora/solid.pyi"), "solid"
-    ),
-    ModuleSpec(
-        "eqiora.matplotlib",
-        Path("bindings/python/python/eqiora/matplotlib.pyi"),
-        "matplotlib",
-    ),
-    ModuleSpec("eqiora.diff", Path("bindings/python/python/eqiora/diff.pyi"), "diff"),
-    ModuleSpec(
-        "eqiora.torch", Path("bindings/python/python/eqiora/torch.pyi"), "torch"
-    ),
-    ModuleSpec("eqiora.jax", Path("bindings/python/python/eqiora/jax.pyi"), "jax"),
-)
+def module_spec(slug: str) -> ModuleSpec:
+    stem = "__init__" if slug == "eqiora" else slug
+    name = "eqiora" if slug == "eqiora" else f"eqiora.{slug}"
+    return ModuleSpec(name, Path(f"bindings/python/python/eqiora/{stem}.pyi"), slug)
+
+
+MODULE_SLUGS = (
+    "eqiora geometry meshing fluid trajectory fsi solid matplotlib diff torch jax"
+).split()
+MODULES = tuple(module_spec(slug) for slug in MODULE_SLUGS)
 
 
 @dataclass(frozen=True)
 class Documentation:
-    """Reviewed summary and its repository authority."""
-
     summary: str
     authority: str
 
 
 @dataclass
 class Declaration:
-    """One canonical grouped class, function, or alias declaration."""
-
     kind: str
     module: str
     name: str
@@ -123,16 +94,12 @@ class Declaration:
 
 @dataclass(frozen=True)
 class ImportBinding:
-    """One relative import that may back a public module or re-export."""
-
     canonical: str
     kind: str
 
 
 @dataclass
 class ModuleData:
-    """Parsed authority for one shipped public module."""
-
     spec: ModuleSpec
     source: str
     tree: ast.Module
@@ -140,12 +107,11 @@ class ModuleData:
     exports: tuple[str, ...]
     declarations: dict[str, Declaration]
     imports: dict[str, ImportBinding]
+    version: ast.AnnAssign | None
 
 
 @dataclass(frozen=True)
 class Export:
-    """One literal public spelling and its canonical classification."""
-
     module: str
     name: str
     qualified: str
@@ -158,12 +124,10 @@ ROLE_RE = re.compile(r":(?:class|func|meth|attr|mod):`([^`]+)`")
 
 
 def fail(message: str) -> ValueError:
-    """Return one consistently prefixed fail-closed validation error."""
     return ValueError(f"Python API projection refused: {message}")
 
 
 def normalized_summary(text: str) -> str:
-    """Translate the small reviewed stub-doc markup subset to Markdown."""
     text = ROLE_RE.sub(r"`\1`", text)
     return text.replace("``", "`")
 
@@ -182,7 +146,6 @@ def parse_documentation(text: str | None, owner: str) -> Documentation:
 
 
 def authority_path(authority: str) -> str:
-    """Return the repository path portion of ``path::symbol`` authority."""
     return authority.split("::", 1)[0]
 
 
@@ -234,13 +197,48 @@ def literal_all(tree: ast.Module, owner: str) -> tuple[str, ...]:
 
 
 def assignment_names(node: ast.Assign | ast.AnnAssign) -> list[str]:
-    """Return simple names bound by one assignment."""
     targets: list[ast.expr]
     if isinstance(node, ast.AnnAssign):
         targets = [node.target]
     else:
         targets = node.targets
     return [target.id for target in targets if isinstance(target, ast.Name)]
+
+
+def version_declaration(
+    spec: ModuleSpec, tree: ast.Module, exports: tuple[str, ...]
+) -> ast.AnnAssign | None:
+    """Require the one source-derived, non-value root version declaration."""
+    nodes = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.Assign, ast.AnnAssign))
+        and "__version__" in assignment_names(node)
+    ]
+    expected = spec.name == "eqiora" and "__version__" in exports
+    if not expected:
+        if nodes or "__version__" in exports:
+            raise fail(f"{spec.name} has an unsupported version declaration/export")
+        return None
+    if len(nodes) != 1:
+        raise fail(f"{spec.name} must have exactly one __version__ declaration")
+    node = nodes[0]
+    if (
+        not isinstance(node, ast.AnnAssign)
+        or not isinstance(node.target, ast.Name)
+        or node.target.id != "__version__"
+        or node.value is not None
+    ):
+        raise fail(f"{spec.name} __version__ must be one annotation without a value")
+    return node
+
+
+def overload(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    return any(
+        (isinstance(item, ast.Name) and item.id == "overload")
+        or (isinstance(item, ast.Attribute) and item.attr == "overload")
+        for item in node.decorator_list
+    )
 
 
 def alias_documentation(
@@ -265,6 +263,8 @@ def declaration_map(
     declarations: dict[str, Declaration] = {}
     for node in tree.body:
         if isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
+            if node.name in declarations:
+                raise fail(f"{spec.name}.{node.name} is declared more than once")
             documentation = parse_documentation(
                 ast.get_docstring(node, clean=True), f"{spec.name}.{node.name}"
             )
@@ -282,7 +282,16 @@ def declaration_map(
                 declarations[node.name] = Declaration(
                     "function", spec.name, node.name, [node], documentation
                 )
-            elif prior.kind != "function" or prior.documentation != documentation:
+            elif prior.kind != "function" or not (
+                overload(node)
+                and all(
+                    isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and overload(item)
+                    for item in prior.nodes
+                )
+            ):
+                raise fail(f"{spec.name}.{node.name} is a duplicate non-overload")
+            elif prior.documentation != documentation:
                 raise fail(f"{spec.name}.{node.name} overload prose disagrees")
             else:
                 prior.nodes.append(node)
@@ -290,6 +299,8 @@ def declaration_map(
             for name in assignment_names(node):
                 if name.startswith("_"):
                     continue
+                if name in declarations:
+                    raise fail(f"{spec.name}.{name} is declared more than once")
                 documentation = alias_documentation(source, node, f"{spec.name}.{name}")
                 declarations[name] = Declaration(
                     "alias", spec.name, name, [node], documentation
@@ -343,6 +354,7 @@ def discover_modules() -> tuple[ModuleData, ...]:
         if "\r" in source:
             raise fail(f"{spec.source} is not LF-only")
         tree = ast.parse(source, filename=spec.source.as_posix())
+        exports = literal_all(tree, spec.name)
         modules.append(
             ModuleData(
                 spec=spec,
@@ -351,9 +363,10 @@ def discover_modules() -> tuple[ModuleData, ...]:
                 documentation=parse_documentation(
                     ast.get_docstring(tree, clean=True), spec.name
                 ),
-                exports=literal_all(tree, spec.name),
+                exports=exports,
                 declarations=declaration_map(spec, source, tree),
                 imports=import_map(tree),
+                version=version_declaration(spec, tree, exports),
             )
         )
     return tuple(modules)
@@ -373,6 +386,8 @@ def classify_exports(modules: tuple[ModuleData, ...]) -> tuple[Export, ...]:
         for name in module.exports:
             qualified = f"{module.spec.name}.{name}"
             if name == "__version__" and module.spec.name == "eqiora":
+                if module.version is None:
+                    raise fail(f"{qualified} has no supported source declaration")
                 export = Export(module.spec.name, name, qualified, qualified, "version")
             elif name in module.declarations:
                 export = Export(
@@ -399,12 +414,10 @@ def classify_exports(modules: tuple[ModuleData, ...]) -> tuple[Export, ...]:
 
 
 def visible_member(name: str) -> bool:
-    """Return whether a class member belongs in the public signature index."""
     return not name.startswith("_") or (name.startswith("__") and name.endswith("__"))
 
 
 def dunder(name: str) -> bool:
-    """Return whether a name is a Python double-underscore protocol name."""
     return name.startswith("__") and name.endswith("__")
 
 
@@ -473,21 +486,35 @@ def validate_inventory(
             f"sealed count mismatch; expected={EXPECTED_COUNTS}, actual={actual}"
         )
 
-    serialization = "".join(
-        f"{item.module}\t{item.name}\n"
-        for item in sorted(exports, key=lambda item: (item.module, item.name))
-    ).encode()
+    ordered = sorted(exports, key=lambda item: item.qualified.encode("utf-8"))
+    if len({item.qualified for item in ordered}) != len(ordered):
+        raise fail("duplicate qualified export identity")
+    records = [
+        dict(
+            canonical=item.canonical,
+            canonical_kind=item.kind,
+            module=item.module,
+            name=item.name,
+            qualified=item.qualified,
+        )
+        for item in ordered
+    ]
+    serialization = (
+        json.dumps(records, ensure_ascii=False, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
     digest = hashlib.sha256(serialization).hexdigest()
-    if len(serialization) != EXPECTED_EXPORT_BYTES or digest != EXPECTED_EXPORT_SHA256:
+    if (
+        len(serialization) != EXPECTED_EXPORT_RECORD_BYTES
+        or digest != EXPECTED_EXPORT_RECORD_SHA256
+    ):
         raise fail(
-            "qualified export identity mismatch; "
+            "sealed five-field export record mismatch; "
             f"bytes={len(serialization)}, sha256={digest}"
         )
     return actual
 
 
 def expression(node: ast.AST | None) -> str:
-    """Render one annotation/default expression without evaluating it."""
     return "None" if node is None else ast.unparse(node)
 
 
@@ -569,12 +596,10 @@ def declaration_signature(declaration: Declaration) -> list[str]:
 
 
 def anchor(qualified: str) -> str:
-    """Return a stable explicit fragment independent of renderer slug rules."""
     return "api-" + qualified.replace(".", "-")
 
 
 def module_route(module: str) -> str:
-    """Return the stable Starlight route for one public module."""
     spec = next(item for item in MODULES if item.name == module)
     return f"/reference/python/{spec.slug}/"
 
@@ -607,7 +632,6 @@ def mdx_frontmatter(title: str, description: str) -> list[str]:
 
 
 def module_lookup(modules: tuple[ModuleData, ...]) -> dict[str, ModuleData]:
-    """Build a unique module lookup."""
     return {module.spec.name: module for module in modules}
 
 
@@ -657,12 +681,15 @@ def render_mdx_export(
         )
         return lines
     if export.kind == "version":
+        version = modules[export.module].version
+        if version is None:
+            raise AssertionError("version export has no source declaration")
         lines.extend(
             [
                 "**Version export.** The current value is intentionally not hard-coded in this generated page.",
                 "",
                 "```python",
-                "__version__: str",
+                *assignment_signature(version),
                 "```",
                 "",
             ]
@@ -811,12 +838,15 @@ def render_markdown_export(
         )
         return lines
     if export.kind == "version":
+        version = modules[export.module].version
+        if version is None:
+            raise AssertionError("version export has no source declaration")
         lines.extend(
             [
                 "**Version export.** The current value is intentionally not hard-coded here.",
                 "",
                 "```python",
-                "__version__: str",
+                *assignment_signature(version),
                 "```",
                 "",
             ]
