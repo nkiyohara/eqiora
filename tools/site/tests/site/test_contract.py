@@ -44,6 +44,54 @@ class CompleteContractTests(unittest.TestCase):
             self.assertNotIn("site package must pin", joined)
             self.assertNotIn("Pages path filters", joined)
 
+    def test_02_execution_control_visible_and_accessible_labels_agree(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact, identities = make_fixture(root)
+            case = artifact / "gallery/exact-cylinder-steady-stokes/index.html"
+            self._replace(
+                case,
+                "</main>",
+                "<p>Documentation may discuss Start computation, Evaluate model, "
+                "and Begin processing without making prose interactive.</p></main>",
+            )
+            self.assertEqual(
+                checker.check_site(root, artifact, SOURCE_SHA, identities), []
+            )
+
+        controls = {
+            "accessible anchor label": (
+                '<a href="/get-started/" aria-label="Run simulation">Documentation</a>'
+            ),
+            "visible anchor label overriding benign accessibility label": (
+                '<a href="/get-started/" aria-label="Documentation">Run simulation</a>'
+            ),
+            "explicit button role": (
+                '<div role="button" aria-label="Execute calculation">Details</div>'
+            ),
+            "native input button": '<input type="button" value="Launch computation">',
+            "aria-labelledby anchor": (
+                '<a href="/get-started/" aria-labelledby="execution-label">Docs</a>'
+                '<span id="execution-label">Start computation</span>'
+            ),
+            "evaluate synonym": '<a href="/get-started/">Evaluate model</a>',
+            "processing synonym": '<a href="/get-started/">Begin processing</a>',
+            "generate synonym": "<button>Generate result</button>",
+            "analyse synonym": "<button>Analyse case</button>",
+            "predict synonym": "<button>Predict flow</button>",
+        }
+        for label, control in controls.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                artifact, identities = make_fixture(root)
+                case = artifact / "gallery/exact-cylinder-steady-stokes/index.html"
+                self._replace(case, "</main>", f"{control}</main>")
+                errors = checker.check_site(root, artifact, SOURCE_SHA, identities)
+                self.assertTrue(
+                    any("uncontracted execution control" in error for error in errors),
+                    errors,
+                )
+
     def test_route_canonical_media_and_claim_mutants_fail(self) -> None:
         mutations = {
             "missing route": lambda root, artifact: (

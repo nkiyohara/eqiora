@@ -164,13 +164,17 @@ export async function assertAccessibleTooltip(
 }
 
 export async function assertNoFakeExecutionControls(page: Page): Promise<void> {
-  const executionLabel = /\b(run|submit|solve|execute|simulate|simulation|compute|calculate|calculation|launch)\b/i;
+  const executionLabel = /\b(run|submit|reset|start|begin|try|solv\w*|execut\w*|simulat\w*|comput\w*|calculat\w*|launch\w*|evaluat\w*|process\w*|generat\w*|analy[sz]\w*|predict\w*)\b/i;
   expect(await page.getByRole('button', { name: executionLabel }).count()).toBe(0);
   expect(await page.getByRole('link', { name: executionLabel }).count()).toBe(0);
-  const links = page.getByRole('link');
+  const controls = page.locator('a, button, [role="button"], [role="link"], input[type="button"], input[type="submit"], input[type="reset"], input[type="image"]');
+  for (let offset = 0; offset < (await controls.count()); offset += 1) {
+    expect((await controls.nth(offset).innerText()).trim()).not.toMatch(executionLabel);
+  }
+  const links = page.locator('a, [role="link"]');
   for (let offset = 0; offset < (await links.count()); offset += 1) {
     const href = (await links.nth(offset).getAttribute('href'))?.trim().toLowerCase();
-    expect(['', '#', 'javascript:void(0)']).not.toContain(href);
+    expect(['', '#', 'javascript:void(0)']).not.toContain(href ?? '');
   }
 }
 

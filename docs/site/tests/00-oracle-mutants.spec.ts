@@ -13,7 +13,7 @@ import {
 
 const positive = `<!doctype html><html lang="en"><head><title>Fixture</title><style>
 html,body{margin:0;max-width:100%;overflow-wrap:anywhere}main{padding:16px}.target{display:inline-flex;min-width:44px;min-height:44px;align-items:center;justify-content:center}.target:focus{outline:3px solid CanvasText;outline-offset:2px}
-</style></head><body><main><h1>Ordinary semantic fixture</h1><h2>Submit and result</h2><p>This positive path is usable without client JavaScript.</p><a class="target" href="/">Home</a></main></body></html>`;
+</style></head><body><main><h1>Ordinary semantic fixture</h1><h2>Submit and result</h2><p>This positive path is usable without client JavaScript. Prose may discuss Start computation, Evaluate model, and Begin processing.</p><a class="target" href="/">Home</a></main></body></html>`;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -64,9 +64,26 @@ test('small target, page overflow, hidden core, focus, contrast, and fake contro
     'Execute calculation',
     'Launch computation',
     'Submit and result',
+    'Start computation',
+    'Evaluate model',
+    'Begin processing',
+    'Generate result',
+    'Analyse case',
+    'Predict flow',
   ]) {
     await page.setContent(positive.replace('</main>', `<a href="/real-route/">${label}</a></main>`));
     await expect(assertNoFakeExecutionControls(page), label).rejects.toThrow();
+  }
+
+  for (const control of [
+    '<a href="/real-route/" aria-label="Run simulation">Documentation</a>',
+    '<a href="/real-route/" aria-label="Documentation">Run simulation</a>',
+    '<div role="button" aria-label="Execute calculation">Details</div>',
+    '<input type="button" value="Launch computation">',
+    '<a href="/real-route/" aria-labelledby="execution-label">Docs</a><span id="execution-label">Start computation</span>',
+  ]) {
+    await page.setContent(positive.replace('</main>', `${control}</main>`));
+    await expect(assertNoFakeExecutionControls(page), control).rejects.toThrow();
   }
 });
 

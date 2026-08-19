@@ -14,12 +14,27 @@ import stat
 import sys
 import tomllib
 from dataclasses import dataclass
-from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
 from typing import Iterable
 from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
+
+try:
+    import tools.site.check_site_html as _site_html
+except ModuleNotFoundError as error:
+    if error.name not in {"tools", "tools.site", "tools.site.check_site_html"}:
+        raise
+    import check_site_html as _site_html
+
+_EXPECTED_HTML_HELPER = Path(__file__).with_name("check_site_html.py").resolve()
+if Path(_site_html.__file__ or "").resolve() != _EXPECTED_HTML_HELPER:
+    raise ImportError("site checker HTML observer did not resolve to its exact sibling")
+if _site_html.__all__ != ("HtmlInspection", "normalize", "read_html"):
+    raise ImportError("site checker HTML observer exposes an unexpected interface")
+HtmlInspection = _site_html.HtmlInspection
+normalize = _site_html.normalize
+read_html = _site_html.read_html
 
 SITE_ORIGIN = "https://eqiora.org"
 SOURCE_SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -192,7 +207,7 @@ CURRENT_VERSION_SOURCE_EXCEPTIONS = {
     "docs/site/src/content/docs/reference/mcp/index.mdx",
 }
 EXECUTION_CONTROL_LABEL = re.compile(
-    r"\b(?:run|submit|solve|execute|simulate|simulation|compute|calculate|calculation|launch)\b",
+    r"\b(?:run|submit|reset|start|begin|try|solv\w*|execut\w*|simulat\w*|comput\w*|calculat\w*|launch\w*|evaluat\w*|process\w*|generat\w*|analy[sz]\w*|predict\w*)\b",
     re.IGNORECASE,
 )
 REQUIRED_TRIGGER_PATTERNS = {
@@ -307,10 +322,6 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def normalize(text: str) -> str:
-    return " ".join(text.split())
-
-
 def _destination(raw: str) -> str:
     destination = raw.strip()
     if destination.startswith("<") and ">" in destination:
@@ -365,117 +376,6 @@ def check_markdown_links(site_root: Path) -> list[str]:
             if not candidate.exists():
                 errors.append(f"{document}: missing local link target: {destination}")
     return errors
-
-
-class HtmlInspection(HTMLParser):
-    """Collect semantic HTML observations without assuming component DOM."""
-
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.stack: list[tuple[str, dict[str, str], bool]] = []
-        self.collectors: list[list[object]] = []
-        self.text: list[str] = []
-        self.headings: list[tuple[int, str]] = []
-        self.anchors: list[tuple[str, str]] = []
-        self.interactives: list[tuple[str, dict[str, str], str]] = []
-        self.images: list[dict[str, str]] = []
-        self.metas: list[dict[str, str]] = []
-        self.links: list[dict[str, str]] = []
-        self.references: list[tuple[str, str, str]] = []
-        self.ids: set[str] = set()
-        self.math: list[tuple[str, bool]] = []
-        self.inline_handlers: list[str] = []
-        self.forms = 0
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        values = {name.lower(): value or "" for name, value in attrs}
-        classes = set(values.get("class", "").split())
-        parent_hidden = self.stack[-1][2] if self.stack else False
-        hidden = (
-            parent_hidden
-            or tag in {"script", "style", "template", "svg"}
-            or "hidden" in values
-            or values.get("aria-hidden") == "true"
-        )
-        self.stack.append((tag, values, hidden))
-        if identifier := values.get("id"):
-            self.ids.add(identifier)
-        for name in values:
-            if name.startswith("on"):
-                self.inline_handlers.append(f"{tag}[{name}]")
-        if tag in {"h1", "h2", "h3", "h4", "h5", "h6", "a", "button"} or values.get(
-            "role"
-        ) in {"button", "link"}:
-            self.collectors.append([tag, values, []])
-        if tag == "img":
-            for ancestor, ancestor_values, _ in reversed(self.stack[:-1]):
-                if ancestor == "a":
-                    values["_ancestor_href"] = ancestor_values.get("href", "")
-                    break
-            self.images.append(values)
-        if tag == "meta":
-            self.metas.append(values)
-        if tag == "link":
-            self.links.append(values)
-        if tag == "form":
-            self.forms += 1
-        if tag == "math":
-            in_display = any(
-                "katex-display" in item[1].get("class", "").split()
-                for item in self.stack[:-1]
-            )
-            self.math.append((values.get("display", "inline"), in_display))
-        for attribute in ("href", "src", "poster", "action"):
-            if attribute in values:
-                self.references.append((tag, attribute, values[attribute]))
-        if "srcset" in values:
-            for item in values["srcset"].split(","):
-                self.references.append((tag, "srcset", item.strip().split()[0]))
-        if "katex-display" in classes and tag not in {"div", "span"}:
-            self.references.append((tag, "invalid-katex-display-owner", ""))
-
-    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        self.handle_starttag(tag, attrs)
-        self.handle_endtag(tag)
-
-    def handle_endtag(self, tag: str) -> None:
-        for index in range(len(self.collectors) - 1, -1, -1):
-            collector = self.collectors[index]
-            if collector[0] != tag:
-                continue
-            _, attrs, chunks = self.collectors.pop(index)
-            collected = normalize("".join(chunks))
-            if tag.startswith("h") and len(tag) == 2 and tag[1].isdigit():
-                self.headings.append((int(tag[1]), collected))
-            elif tag == "a":
-                self.anchors.append((str(attrs.get("href", "")), collected))
-            else:
-                self.interactives.append((tag, attrs, collected))
-            break
-        for index in range(len(self.stack) - 1, -1, -1):
-            if self.stack[index][0] == tag:
-                del self.stack[index:]
-                break
-
-    def handle_data(self, data: str) -> None:
-        if not (self.stack and self.stack[-1][2]):
-            self.text.append(data)
-            for collector in self.collectors:
-                collector[2].append(data)
-
-    @property
-    def visible_text(self) -> str:
-        return normalize("".join(self.text))
-
-
-def _read_html(path: Path) -> tuple[str, HtmlInspection]:
-    if path.stat().st_size > MAX_HTML_BYTES:
-        raise ValueError(f"HTML exceeds {MAX_HTML_BYTES} bytes")
-    text = path.read_text(encoding="utf-8")
-    parser = HtmlInspection()
-    parser.feed(text)
-    parser.close()
-    return text, parser
 
 
 def _ordered(text: str, fragments: Iterable[str], label: str) -> list[str]:
@@ -1033,7 +933,7 @@ def check_artifact(
         if path.suffix.lower() != ".html":
             continue
         try:
-            inspections[path] = _read_html(path)
+            inspections[path] = read_html(path, MAX_HTML_BYTES)
         except (OSError, UnicodeDecodeError, ValueError) as error:
             errors.append(f"invalid HTML {path.relative_to(artifact)}: {error}")
 
@@ -1191,14 +1091,19 @@ def check_artifact(
                 errors.append(
                     f"Cylinder route contains a fake link control labelled {label!r}"
                 )
-            if EXECUTION_CONTROL_LABEL.search(label):
+        for _, attrs, label in case.interactives:
+            labelled = " ".join(
+                normalize("".join(case.id_text.get(item, [])))
+                for item in attrs.get("aria-labelledby", "").split()
+            )
+            accessible = (
+                labelled or attrs.get("aria-label") or label or attrs.get("title", "")
+            )
+            if any(
+                EXECUTION_CONTROL_LABEL.search(item) for item in (label, accessible)
+            ):
                 errors.append(
-                    f"Cylinder route contains an uncontracted execution link {label!r}"
-                )
-        for _, _, label in case.interactives:
-            if EXECUTION_CONTROL_LABEL.search(label):
-                errors.append(
-                    f"Cylinder route contains an uncontracted execution control {label!r}"
+                    f"Cylinder route contains an uncontracted execution control {(label, accessible)!r}"
                 )
         if (
             PRESSURE_CAPTION not in case.visible_text
@@ -1330,10 +1235,13 @@ def check_artifact(
                 target_parser = parsed_html.get(target)
                 if target_parser is None:
                     try:
-                        _, target_parser = _read_html(target)
+                        _, target_parser = read_html(target, MAX_HTML_BYTES)
                     except (OSError, UnicodeDecodeError, ValueError):
                         target_parser = None
-                if target_parser is None or unquote(fragment) not in target_parser.ids:
+                if (
+                    target_parser is None
+                    or unquote(fragment) not in target_parser.id_text
+                ):
                     errors.append(
                         f"{page_path.relative_to(artifact)}: missing fragment target {value!r}"
                     )
@@ -1485,8 +1393,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     errors = check_site(args.root.resolve(), args.artifact.resolve(), args.source_sha)
     if errors:
-        for error in errors:
-            print(f"site check: {error}", file=sys.stderr)
+        print("\n".join(f"site check: {error}" for error in errors), file=sys.stderr)
         return 1
     print("site check: exact static artifact satisfies the bounded public contract")
     return 0
