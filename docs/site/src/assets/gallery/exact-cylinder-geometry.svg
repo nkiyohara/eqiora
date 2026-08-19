@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 330" role="img" aria-labelledby="title description">
+  <title id="title">Exact-cylinder channel geometry</title>
+  <desc id="description">A 2.2 metre by 0.41 metre channel. The inlet is the left edge, the outlet is the right edge, the top and bottom edges are walls, and an exact circle of radius 0.05 metre centred at 0.2 metre, 0.2 metre is labelled cylinder.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/>
+    </marker>
+  </defs>
+  <style>
+    .canvas { fill: #f6faf8; }
+    .fluid { fill: #edf5f1; stroke: #28684f; stroke-width: 3; }
+    .obstacle { fill: #ffffff; stroke: #b94e38; stroke-width: 4; }
+    .boundary { fill: none; stroke: #14221c; stroke-width: 3; }
+    .dimension { fill: none; stroke: #4a6358; stroke-width: 2; marker-start: url(#arrow); marker-end: url(#arrow); }
+    .guide { fill: none; stroke: #8ca59a; stroke-width: 1.5; stroke-dasharray: 6 5; }
+    .flow { fill: none; stroke: #28684f; stroke-width: 4; marker-end: url(#arrow); }
+    text { fill: #14221c; font: 600 17px system-ui, sans-serif; }
+    .muted { fill: #4a6358; font-size: 15px; font-weight: 500; }
+    .accent { fill: #8e3d2d; }
+    @media (prefers-color-scheme: dark) {
+      .canvas { fill: #0b100d; }
+      .fluid { fill: #19251f; stroke: #9ed2b7; }
+      .obstacle { fill: #111a16; stroke: #ef866f; }
+      .boundary { stroke: #f2f8f5; }
+      .dimension { stroke: #b8c9c0; }
+      .guide { stroke: #6f8a7c; }
+      .flow { stroke: #9ed2b7; }
+      text { fill: #f2f8f5; }
+      .muted { fill: #b8c9c0; }
+      .accent { fill: #ef866f; }
+    }
+  </style>
+
+  <rect class="canvas" width="1080" height="330" rx="18"/>
+
+  <path class="fluid" d="M 60 82 H 1020 V 261 H 60 Z M 169.1 171.4 A 21.8 21.8 0 1 0 125.5 171.4 A 21.8 21.8 0 1 0 169.1 171.4 Z" fill-rule="evenodd"/>
+  <rect class="boundary" x="60" y="82" width="960" height="179"/>
+  <circle class="obstacle" cx="147.3" cy="171.4" r="21.8"/>
+
+  <path class="flow" d="M 17 171.4 H 49"/>
+  <text x="60" y="62">walls</text>
+  <text x="60" y="291">walls</text>
+  <text x="18" y="207">inlet</text>
+  <text x="971" y="207">outlet</text>
+  <text class="accent" x="181" y="178">cylinder</text>
+
+  <line class="guide" x1="60" y1="261" x2="60" y2="316"/>
+  <line class="guide" x1="1020" y1="261" x2="1020" y2="316"/>
+  <line class="dimension" x1="65" y1="309" x2="1015" y2="309"/>
+  <text class="muted" x="508" y="303">2.2 m</text>
+
+  <line class="guide" x1="1020" y1="82" x2="1064" y2="82"/>
+  <line class="guide" x1="1020" y1="261" x2="1064" y2="261"/>
+  <line class="dimension" x1="1055" y1="87" x2="1055" y2="256"/>
+  <text class="muted" x="1004" y="177" transform="rotate(-90 1004 177)">0.41 m</text>
+
+  <line class="guide" x1="147.3" y1="171.4" x2="147.3" y2="122"/>
+  <line class="dimension" x1="147.3" y1="171.4" x2="147.3" y2="151"/>
+  <text class="muted" x="177" y="128">r = 0.05 m</text>
+  <text class="muted" x="177" y="148">centre [0.2, 0.2] m</text>
+</svg>
