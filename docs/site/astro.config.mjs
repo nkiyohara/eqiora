@@ -46,6 +46,8 @@ if (process.env.EQIORA_SITE_BUILD_PROFILE === 'complete') {
   const requiredSuccessorInputs = [
     'src/assets/brand/eqiora-mark.svg',
     'src/assets/gallery/exact-cylinder-pressure.png',
+    'src/components/site/ExactSourceLink.astro',
+    'src/components/site/ReleaseIdentity.astro',
     'src/content/docs/index.mdx',
     'src/content/docs/evidence/index.mdx',
     'src/content/docs/gallery/index.mdx',
