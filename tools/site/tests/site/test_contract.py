@@ -15,19 +15,9 @@ class CompleteContractTests(unittest.TestCase):
     )
 
     def test_00_publication_provenance_positives_then_mutants(self) -> None:
-        # The real, fixed-production record is the first positive. Until the
-        # checker correction lands, its extra hard-coded-version diagnostic is
-        # the sole expected RED and stops this test before any mutant runs.
-        self.assertEqual(
-            checker.check_source(REPOSITORY),
-            [
-                "obsolete successor source remains: docs/site/assets/social-card.svg",
-                "provider consumer docs/site/astro.config.mjs omits "
-                "'src/components/site/ExactSourceLink.astro'",
-                "provider consumer docs/site/astro.config.mjs omits "
-                "'src/components/site/ReleaseIdentity.astro'",
-            ],
-        )
+        # The real, fixed-production record in the post-B source tree is the
+        # first positive. All source checks pass before any provenance mutant runs.
+        self.assertEqual(checker.check_source(REPOSITORY), [])
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
