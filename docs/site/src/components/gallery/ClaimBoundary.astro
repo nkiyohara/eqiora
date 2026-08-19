@@ -1,0 +1,109 @@
+---
+/**
+ * ClaimBoundary — separates supported statements from explicit nonclaims. The
+ * two panels are labelled in text ("Supported", "Not claimed") and by colour
+ * and icon; neither is a maturity, status, or capability claim.
+ *
+ * Props (private site-component binding v1):
+ *   title?: string (default 'Verified boundary')
+ *
+ * Named slots, each required exactly once:
+ *   slot="supported"   supported statements and evidence links
+ *   slot="notClaimed"  explicit nonclaims / remaining boundary
+ *
+ * There is no default slot. Unknown props, a missing or empty required slot,
+ * a default slot, or any other named slot fail the build.
+ */
+import { Icon } from '@astrojs/starlight/components';
+
+interface Props {
+  title?: string;
+}
+
+const COMPONENT = 'ClaimBoundary';
+const ALLOWED_PROPS: ReadonlySet<string> = new Set(['title']);
+const rawProps = Astro.props as unknown as Record<string, unknown>;
+
+for (const key of Object.keys(rawProps)) {
+  if (!ALLOWED_PROPS.has(key)) {
+    throw new Error(`${COMPONENT}: unknown prop "${key}"`);
+  }
+}
+
+const titleValue = rawProps.title;
+if (titleValue !== undefined && (typeof titleValue !== 'string' || titleValue.trim().length === 0)) {
+  throw new Error(`${COMPONENT}: prop "title" must be a non-empty string when supplied`);
+}
+const title = (titleValue as string | undefined) ?? 'Verified boundary';
+
+const REQUIRED_SLOTS = ['supported', 'notClaimed'] as const;
+const slotNames = Object.keys(Astro.slots);
+for (const name of slotNames) {
+  if (name === 'default') {
+    const rendered = await Astro.slots.render('default');
+    if (rendered.trim().length > 0) {
+      throw new Error(`${COMPONENT}: has no default slot; use slot="supported" and slot="notClaimed"`);
+    }
+    continue;
+  }
+  if (!(REQUIRED_SLOTS as readonly string[]).includes(name)) {
+    throw new Error(`${COMPONENT}: unknown slot "${name}"`);
+  }
+}
+
+async function requiredSlot(name: (typeof REQUIRED_SLOTS)[number]): Promise<string> {
+  if (!Astro.slots.has(name)) {
+    throw new Error(`${COMPONENT}: slot "${name}" is required`);
+  }
+  const rendered = await Astro.slots.render(name);
+  // Text carries the meaning: markup without any text is an empty slot.
+  if (rendered.replace(/<[^>]*>/g, '').trim().length === 0) {
+    throw new Error(`${COMPONENT}: slot "${name}" must not be empty`);
+  }
+  return rendered;
+}
+
+const supported = await requiredSlot('supported');
+const notClaimed = await requiredSlot('notClaimed');
+
+const slug = title
+  .toLowerCase()
+  .replace(/[^\p{L}\p{N}]+/gu, '-')
+  .replace(/^-+|-+$/g, '');
+const baseId = `eq-claim-boundary-${slug || 'boundary'}`;
+const titleId = `${baseId}-title`;
+const supportedId = `${baseId}-supported`;
+const notClaimedId = `${baseId}-not-claimed`;
+---
+
+<section class="eq-claim-boundary" aria-labelledby={titleId}>
+  <h3 class="eq-claim-boundary__title" id={titleId}>{title}</h3>
+  <div class="eq-claim-boundary__panels">
+    <div
+      class="eq-claim-boundary__panel eq-claim-boundary__panel--supported"
+      role="group"
+      aria-labelledby={supportedId}
+    >
+      <h4 class="eq-claim-boundary__label" id={supportedId}>
+        <span class="eq-claim-boundary__icon"><Icon name="approve-check-circle" /></span>
+        Supported
+      </h4>
+      <div class="eq-claim-boundary__content">
+        <Fragment set:html={supported} />
+      </div>
+    </div>
+    <div
+      class="eq-claim-boundary__panel eq-claim-boundary__panel--not-claimed"
+      role="group"
+      aria-labelledby={notClaimedId}
+    >
+      <h4 class="eq-claim-boundary__label" id={notClaimedId}>
+        <span class="eq-claim-boundary__icon"><Icon name="close" /></span>
+        Not claimed
+      </h4>
+      <div class="eq-claim-boundary__content">
+        <Fragment set:html={notClaimed} />
+      </div>
+    </div>
+  </div>
+</section>

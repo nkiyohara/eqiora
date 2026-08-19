@@ -1,0 +1,209 @@
+/*
+ * Eqiora site design tokens.
+ *
+ * The palette, type, spacing, radius, and motion values below are the frozen
+ * visual language of the accepted site contract. Starlight variables are mapped
+ * onto the Eqiora tokens so the shell, sidebar, search, asides, and code blocks
+ * adopt the same calm dark-green / mint / coral language without forking any
+ * Starlight component.
+ *
+ * Theme resolution mirrors Starlight exactly: `:root` carries the dark scheme
+ * and `[data-theme='light']` the light scheme, so the no-JavaScript page stays
+ * one consistent (dark) scheme rather than a hybrid.
+ */
+
+:root {
+  /* Eqiora palette — dark */
+  --eq-color-canvas: #0b100d;
+  --eq-color-surface: #111a16;
+  --eq-color-surface-muted: #19251f;
+  --eq-color-text: #f2f8f5;
+  --eq-color-text-muted: #b8c9c0;
+  --eq-color-brand: #9ed2b7;
+  --eq-color-brand-hover: #c1ead3;
+  --eq-color-accent: #ef866f;
+  --eq-color-border: #2b4036;
+
+  /* Derived roles */
+  --eq-color-accent-text: var(--eq-color-accent);
+  --eq-color-text-subtle: #7e978a;
+  --eq-color-border-strong: #3d5648;
+  --eq-color-action-bg: var(--eq-color-brand-hover);
+  --eq-color-action-text: var(--eq-color-canvas);
+  --eq-color-focus: var(--eq-color-brand-hover);
+  --eq-color-brand-tint: rgb(158 210 183 / 0.12);
+  --eq-color-accent-tint: rgb(239 134 111 / 0.14);
+  --eq-color-code-bg: var(--eq-color-surface-muted);
+
+  /* Shadow is an affordance only; every boundary also has a border. */
+  --eq-shadow-card: 0 1px 2px rgb(0 0 0 / 0.28), 0 8px 24px rgb(0 0 0 / 0.22);
+  --eq-shadow-card-raised: 0 2px 4px rgb(0 0 0 / 0.32), 0 14px 32px rgb(0 0 0 / 0.28);
+
+  /* Spacing scale: 4/8/12/16/24/32/48/72 px */
+  --eq-space-1: 0.25rem;
+  --eq-space-2: 0.5rem;
+  --eq-space-3: 0.75rem;
+  --eq-space-4: 1rem;
+  --eq-space-6: 1.5rem;
+  --eq-space-8: 2rem;
+  --eq-space-12: 3rem;
+  --eq-space-18: 4.5rem;
+
+  /* Radii: controls / notebook cells / feature cards */
+  --eq-radius-control: 0.5rem;
+  --eq-radius-cell: 0.75rem;
+  --eq-radius-card: 1.125rem;
+
+  /* Layout */
+  --eq-shell-max: 80rem;
+  --eq-measure: 70ch;
+  --eq-target-min: 2.75rem;
+  --eq-rail-width: 10rem;
+
+  /* Type: system UI and ui-monospace only; no downloaded font. */
+  --eq-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    'Noto Sans', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
+  --eq-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  --eq-line-height: 1.65;
+  --eq-line-height-tight: 1.2;
+  --eq-text-display: clamp(2rem, 1.4rem + 2.4vw, 3rem);
+  --eq-text-h1: clamp(1.9rem, 1.45rem + 1.8vw, 2.625rem);
+  --eq-text-h2: clamp(1.45rem, 1.2rem + 1vw, 1.875rem);
+  --eq-text-h3: clamp(1.2rem, 1.05rem + 0.6vw, 1.45rem);
+  --eq-text-h4: 1.125rem;
+  --eq-text-lead: clamp(1.0625rem, 1rem + 0.35vw, 1.25rem);
+  --eq-text-body: 1rem;
+  --eq-text-small: 0.875rem;
+  --eq-text-micro: 0.8125rem;
+  --eq-tracking-display: -0.02em;
+
+  /* Motion: affordance only, 160–220 ms, removed under reduced motion. */
+  --eq-motion-fast: 160ms;
+  --eq-motion-base: 200ms;
+  --eq-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Starlight mapping — dark */
+  --sl-color-white: var(--eq-color-text);
+  --sl-color-gray-1: #dce8e1;
+  --sl-color-gray-2: var(--eq-color-text-muted);
+  --sl-color-gray-3: var(--eq-color-text-subtle);
+  --sl-color-gray-4: var(--eq-color-border);
+  --sl-color-gray-5: var(--eq-color-surface-muted);
+  --sl-color-gray-6: var(--eq-color-surface);
+  --sl-color-black: var(--eq-color-canvas);
+
+  --sl-color-accent-low: #1e513d;
+  --sl-color-accent: var(--eq-color-brand);
+  --sl-color-accent-high: var(--eq-color-brand-hover);
+
+  --sl-color-text: var(--eq-color-text);
+  --sl-color-text-accent: var(--eq-color-brand);
+  --sl-color-text-invert: var(--eq-color-canvas);
+  --sl-color-bg: var(--eq-color-canvas);
+  --sl-color-bg-nav: var(--eq-color-surface);
+  --sl-color-bg-sidebar: var(--eq-color-canvas);
+  --sl-color-bg-inline-code: var(--eq-color-surface-muted);
+  --sl-color-bg-accent: var(--eq-color-brand);
+  --sl-color-hairline-light: var(--eq-color-border);
+  --sl-color-hairline: var(--eq-color-border);
+  --sl-color-hairline-shade: var(--eq-color-border);
+  --sl-color-backdrop-overlay: rgb(11 16 13 / 0.72);
+
+  --sl-hue-green: 152;
+  --sl-hue-orange: 14;
+
+  --sl-shadow-sm: 0 1px 1px rgb(0 0 0 / 0.2), 0 2px 2px rgb(0 0 0 / 0.18);
+  --sl-shadow-md: var(--eq-shadow-card);
+  --sl-shadow-lg: var(--eq-shadow-card-raised);
+
+  --sl-font: var(--eq-font-sans);
+  --sl-font-mono: var(--eq-font-mono);
+  --sl-line-height: var(--eq-line-height);
+  --sl-line-height-headings: var(--eq-line-height-tight);
+  --sl-text-h1: var(--eq-text-h1);
+  --sl-text-h2: var(--eq-text-h2);
+  --sl-text-h3: var(--eq-text-h3);
+  --sl-text-h4: var(--eq-text-h4);
+  --sl-text-h5: 1rem;
+  --sl-text-body: var(--eq-text-body);
+  --sl-text-code: 0.9rem;
+  --sl-text-code-sm: 0.85em;
+
+  --sl-content-width: var(--eq-shell-max);
+  --sl-content-pad-x: var(--eq-space-4);
+  --sl-content-gap-y: var(--eq-space-4);
+  --sl-sidebar-width: 16rem;
+}
+
+:root[data-theme='light'] {
+  /* Eqiora palette — light */
+  --eq-color-canvas: #f6faf8;
+  --eq-color-surface: #ffffff;
+  --eq-color-surface-muted: #edf5f1;
+  --eq-color-text: #14221c;
+  --eq-color-text-muted: #4a6358;
+  --eq-color-brand: #28684f;
+  --eq-color-brand-hover: #1e513d;
+  --eq-color-accent: #b94e38;
+  --eq-color-border: #d3e2da;
+
+  --eq-color-accent-text: #9c4030;
+  --eq-color-text-subtle: #5a7266;
+  --eq-color-border-strong: #a9bfb4;
+  --eq-color-action-bg: var(--eq-color-brand-hover);
+  --eq-color-action-text: #ffffff;
+  --eq-color-focus: var(--eq-color-brand-hover);
+  --eq-color-brand-tint: rgb(40 104 79 / 0.1);
+  --eq-color-accent-tint: rgb(185 78 56 / 0.1);
+  --eq-color-code-bg: var(--eq-color-surface-muted);
+
+  --eq-shadow-card: 0 1px 2px rgb(20 34 28 / 0.06), 0 8px 24px rgb(20 34 28 / 0.08);
+  --eq-shadow-card-raised: 0 2px 4px rgb(20 34 28 / 0.08), 0 14px 32px rgb(20 34 28 / 0.12);
+
+  /* Starlight mapping — light */
+  --sl-color-white: var(--eq-color-text);
+  --sl-color-gray-1: #2a3d34;
+  --sl-color-gray-2: var(--eq-color-text-muted);
+  --sl-color-gray-3: var(--eq-color-text-subtle);
+  --sl-color-gray-4: var(--eq-color-border-strong);
+  --sl-color-gray-5: var(--eq-color-border);
+  --sl-color-gray-6: var(--eq-color-surface-muted);
+  --sl-color-gray-7: var(--eq-color-canvas);
+  --sl-color-black: var(--eq-color-surface);
+
+  --sl-color-accent-low: #d9ebe2;
+  --sl-color-accent: var(--eq-color-brand);
+  --sl-color-accent-high: var(--eq-color-brand-hover);
+
+  --sl-color-text: var(--eq-color-text);
+  --sl-color-text-accent: var(--eq-color-brand);
+  --sl-color-text-invert: #ffffff;
+  --sl-color-bg: var(--eq-color-canvas);
+  --sl-color-bg-nav: var(--eq-color-surface);
+  --sl-color-bg-sidebar: var(--eq-color-canvas);
+  --sl-color-bg-inline-code: var(--eq-color-surface-muted);
+  --sl-color-bg-accent: var(--eq-color-brand);
+  --sl-color-hairline-light: var(--eq-color-border);
+  --sl-color-hairline: var(--eq-color-border);
+  --sl-color-hairline-shade: var(--eq-color-border);
+  --sl-color-backdrop-overlay: rgb(20 34 28 / 0.5);
+
+  --sl-shadow-sm: 0 1px 1px rgb(20 34 28 / 0.05), 0 2px 2px rgb(20 34 28 / 0.05);
+  --sl-shadow-md: var(--eq-shadow-card);
+  --sl-shadow-lg: var(--eq-shadow-card-raised);
+}
+
+@media (min-width: 72rem) {
+  :root {
+    --sl-content-pad-x: var(--eq-space-6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --eq-motion-fast: 0ms;
+    --eq-motion-base: 0ms;
+  }
+}

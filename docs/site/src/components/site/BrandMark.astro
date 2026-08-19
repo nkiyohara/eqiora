@@ -1,0 +1,59 @@
+---
+/**
+ * BrandMark — the exact accepted Eqiora mark plus the visible word, in one
+ * ordinary anchor that links home.
+ *
+ * Props (private site-component binding v1):
+ *   href?: string   default '/'
+ *   label?: string  default 'Eqiora'
+ *
+ * No slots. Unknown props, wrong types, or any slot content fail the build.
+ * The mark is inlined byte-for-byte from `src/assets/brand/eqiora-mark.svg`
+ * inside an `aria-hidden` wrapper; the visible label carries the name.
+ */
+import markSource from '../../assets/brand/eqiora-mark.svg?raw';
+
+interface Props {
+  href?: string;
+  label?: string;
+}
+
+const COMPONENT = 'BrandMark';
+const ALLOWED_PROPS: ReadonlySet<string> = new Set(['href', 'label']);
+const rawProps = Astro.props as unknown as Record<string, unknown>;
+
+for (const key of Object.keys(rawProps)) {
+  if (!ALLOWED_PROPS.has(key)) {
+    throw new Error(`${COMPONENT}: unknown prop "${key}"`);
+  }
+}
+
+function optionalText(name: 'href' | 'label', fallback: string): string {
+  const value = rawProps[name];
+  if (value === undefined) return fallback;
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${COMPONENT}: prop "${name}" must be a non-empty string when supplied`);
+  }
+  return value;
+}
+
+const href = optionalText('href', '/');
+const label = optionalText('label', 'Eqiora');
+
+const slotNames = Object.keys(Astro.slots);
+if (slotNames.length > 0) {
+  const rendered = await Promise.all(slotNames.map((name) => Astro.slots.render(name)));
+  if (slotNames.some((name) => name !== 'default') || rendered.some((html) => html.trim().length > 0)) {
+    throw new Error(`${COMPONENT}: accepts no slot content`);
+  }
+}
+
+if (!markSource.trimStart().startsWith('<svg')) {
+  throw new Error(`${COMPONENT}: brand mark asset is not an SVG document`);
+}
+---
+
+<a class="eq-brand" href={href}>
+  <span class="eq-brand__mark" aria-hidden="true" set:html={markSource} />
+  <span class="eq-brand__label">{label}</span>
+</a>

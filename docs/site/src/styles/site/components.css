@@ -1,0 +1,663 @@
+/*
+ * Eqiora site components.
+ *
+ * Styles for the static Astro components under `src/components/site` and
+ * `src/components/gallery`: BrandMark, ReferenceCard, GalleryGrid, GalleryCard,
+ * NotebookStage, StageMarker, ResultFigure, and ClaimBoundary. Every boundary is
+ * a border; shadows, colour, and motion are affordances only. Nothing here
+ * requires JavaScript.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Shared chips (tags, units, presentation boundary, reference family)
+ * ------------------------------------------------------------------------- */
+
+.eq-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  min-height: 1.75rem;
+  padding: 0.125rem 0.625rem;
+  border: 1px solid var(--eq-color-border);
+  border-radius: 999rem;
+  background-color: var(--eq-color-surface-muted);
+  color: var(--eq-color-text-muted);
+  font-size: var(--eq-text-micro);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.eq-chip--brand {
+  border-color: color-mix(in srgb, var(--eq-color-brand) 45%, var(--eq-color-border));
+  background-color: var(--eq-color-brand-tint);
+  color: var(--eq-color-brand-hover);
+}
+
+.eq-chip--accent {
+  border-color: color-mix(in srgb, var(--eq-color-accent) 55%, var(--eq-color-border));
+  background-color: var(--eq-color-accent-tint);
+  color: var(--eq-color-accent-text);
+}
+
+/* ---------------------------------------------------------------------------
+ * BrandMark: exact Eqiora mark + visible word, one ordinary anchor
+ * ------------------------------------------------------------------------- */
+
+.eq-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eq-space-3);
+  min-height: var(--eq-target-min);
+  padding-inline-end: var(--eq-space-2);
+  border-radius: var(--eq-radius-control);
+  color: var(--eq-color-text);
+  font-weight: 650;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  transition: color var(--eq-motion-fast) var(--eq-ease);
+}
+
+.eq-brand:hover {
+  color: var(--eq-color-brand);
+}
+
+.eq-brand__mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+}
+
+.eq-brand__mark > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 22%;
+}
+
+.eq-brand__label {
+  line-height: 1;
+}
+
+/* ---------------------------------------------------------------------------
+ * ReferenceCard: one ordinary anchor per family; presence is not maturity
+ * ------------------------------------------------------------------------- */
+
+.eq-reference-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'badge badge'
+    'title icon'
+    'description description';
+  gap: var(--eq-space-2) var(--eq-space-3);
+  align-items: start;
+  min-height: var(--eq-target-min);
+  padding: var(--eq-space-4) var(--eq-space-6);
+  border: 1px solid var(--eq-color-border);
+  border-radius: var(--eq-radius-cell);
+  background-color: var(--eq-color-surface);
+  box-shadow: var(--sl-shadow-sm);
+  color: var(--eq-color-text);
+  text-decoration: none;
+  transition: border-color var(--eq-motion-fast) var(--eq-ease),
+    box-shadow var(--eq-motion-fast) var(--eq-ease);
+}
+
+.eq-reference-card:hover {
+  border-color: var(--eq-color-brand);
+  box-shadow: var(--eq-shadow-card);
+}
+
+.eq-reference-card__badge {
+  grid-area: badge;
+  justify-self: start;
+}
+
+.eq-reference-card__title {
+  grid-area: title;
+  font-size: var(--eq-text-h4);
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--eq-color-text);
+}
+
+.eq-reference-card:hover .eq-reference-card__title {
+  color: var(--eq-color-brand-hover);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.eq-reference-card__icon {
+  grid-area: icon;
+  align-self: center;
+  color: var(--eq-color-text-subtle);
+  font-size: 1.25rem;
+  transition: transform var(--eq-motion-fast) var(--eq-ease),
+    color var(--eq-motion-fast) var(--eq-ease);
+}
+
+.eq-reference-card:hover .eq-reference-card__icon {
+  color: var(--eq-color-brand);
+  transform: translateX(0.125rem);
+}
+
+.eq-reference-card__description {
+  grid-area: description;
+  color: var(--eq-color-text-muted);
+  font-size: var(--eq-text-small);
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------------------------
+ * GalleryGrid / GalleryCard: media-led whole-card anchors, source order
+ * ------------------------------------------------------------------------- */
+
+.eq-gallery-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--eq-space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eq-gallery-grid > li {
+  margin: 0;
+  min-width: 0;
+}
+
+@media (min-width: 40rem) {
+  .eq-gallery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .eq-gallery-grid > .eq-gallery-card[data-featured] {
+    grid-column: span 2;
+  }
+}
+
+@media (min-width: 64rem) {
+  .eq-gallery-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.eq-gallery-card__link {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--eq-color-border);
+  border-radius: var(--eq-radius-card);
+  background-color: var(--eq-color-surface);
+  box-shadow: var(--sl-shadow-sm);
+  color: var(--eq-color-text);
+  text-decoration: none;
+  overflow: hidden;
+  transition: border-color var(--eq-motion-base) var(--eq-ease),
+    box-shadow var(--eq-motion-base) var(--eq-ease),
+    transform var(--eq-motion-base) var(--eq-ease);
+}
+
+.eq-gallery-card__link:hover {
+  border-color: var(--eq-color-brand);
+  box-shadow: var(--eq-shadow-card-raised);
+  transform: translateY(-2px);
+}
+
+.eq-gallery-card__link:focus-visible {
+  outline: 3px solid var(--eq-color-focus);
+  outline-offset: 3px;
+  border-color: var(--eq-color-brand);
+}
+
+.eq-gallery-card__media {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  background-color: var(--eq-color-surface-muted);
+  border-bottom: 1px solid var(--eq-color-border);
+  overflow: hidden;
+}
+
+.eq-gallery-card__media > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+.eq-gallery-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eq-space-2);
+  flex-grow: 1;
+  padding: var(--eq-space-4) var(--eq-space-6) var(--eq-space-6);
+}
+
+.eq-gallery-card__title {
+  display: block;
+  font-size: var(--eq-text-h4);
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--eq-color-text);
+  text-wrap: balance;
+}
+
+.eq-gallery-card__link:hover .eq-gallery-card__title {
+  color: var(--eq-color-brand-hover);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.eq-gallery-card__description {
+  display: block;
+  color: var(--eq-color-text-muted);
+  font-size: var(--eq-text-small);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.eq-gallery-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eq-space-2);
+  margin-top: auto;
+  padding-top: var(--eq-space-2);
+}
+
+.eq-gallery-card[data-featured] .eq-gallery-card__title {
+  font-size: var(--eq-text-h3);
+}
+
+.eq-gallery-card[data-featured] .eq-gallery-card__body {
+  padding: var(--eq-space-6) var(--eq-space-8) var(--eq-space-8);
+}
+
+.eq-gallery-card[data-featured] .eq-gallery-card__description {
+  font-size: var(--eq-text-body);
+  max-width: var(--eq-measure);
+}
+
+/* ---------------------------------------------------------------------------
+ * NotebookStage / StageMarker: ordered landmarks with a responsive rail
+ * ------------------------------------------------------------------------- */
+
+.eq-stage {
+  position: relative;
+  padding-block: var(--eq-space-8) var(--eq-space-12);
+  border-top: 1px solid var(--eq-color-border);
+  scroll-margin-top: calc(var(--sl-nav-height) + var(--sl-mobile-toc-height) + var(--eq-space-4));
+}
+
+.eq-stage:first-of-type {
+  border-top: 0;
+}
+
+.eq-stage + .eq-stage {
+  margin-top: 0;
+}
+
+.eq-stage__header {
+  margin: 0 0 var(--eq-space-6);
+}
+
+.eq-stage .eq-stage__title {
+  margin: 0;
+  font-size: var(--eq-text-h2);
+  font-weight: 650;
+  line-height: var(--eq-line-height-tight);
+  letter-spacing: var(--eq-tracking-display);
+  color: var(--eq-color-text);
+}
+
+.eq-stage-marker {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--eq-space-4);
+  min-height: var(--eq-target-min);
+  border-radius: var(--eq-radius-control);
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--eq-motion-fast) var(--eq-ease);
+}
+
+.eq-stage-marker:hover {
+  color: var(--eq-color-brand-hover);
+}
+
+.eq-stage-marker:hover .eq-stage-marker__title {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 0.06em;
+}
+
+.eq-stage-marker__step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--eq-target-min);
+  height: var(--eq-target-min);
+  border: 1px solid color-mix(in srgb, var(--eq-color-brand) 45%, var(--eq-color-border));
+  border-radius: 50%;
+  background-color: var(--eq-color-brand-tint);
+  color: var(--eq-color-brand-hover);
+  font-family: var(--eq-font-mono);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.eq-stage-marker__label {
+  display: block;
+  padding-top: calc((var(--eq-target-min) - 1.2em) / 2);
+  min-width: 0;
+}
+
+.eq-stage-marker__emoji {
+  display: inline;
+  margin-inline-end: 0.4em;
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji',
+    var(--eq-font-sans);
+  font-size: 0.9em;
+  line-height: 1;
+}
+
+.eq-stage-marker__title {
+  min-width: 0;
+  overflow-wrap: normal;
+  hyphens: manual;
+}
+
+.eq-stage__body {
+  min-width: 0;
+}
+
+.eq-stage__body > :is(p, ul, ol, dl, blockquote, h3, h4, h5, h6) {
+  max-width: var(--eq-measure);
+}
+
+.eq-stage__body > :first-child {
+  margin-top: 0;
+}
+
+.eq-stage__body > .expressive-code,
+.eq-stage__body > .eqiora-math-region,
+.eq-stage__body > .starlight-aside,
+.eq-stage__body > table {
+  max-width: min(100%, calc(var(--eq-measure) + 6rem));
+}
+
+/* Rail layout: only at >=1024px the header becomes an adjacent sticky rail. */
+@media (min-width: 64rem) {
+  .eq-stage {
+    display: grid;
+    grid-template-columns: var(--eq-rail-width) minmax(0, 1fr);
+    column-gap: var(--eq-space-6);
+    align-items: start;
+  }
+
+  .eq-stage::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--eq-target-min) / 2 - 1px);
+    width: 2px;
+    background-color: var(--eq-color-border);
+  }
+
+  .eq-stage:first-of-type::before {
+    top: var(--eq-space-8);
+  }
+
+  .eq-stage:last-of-type::before {
+    bottom: auto;
+    height: var(--eq-space-8);
+  }
+
+  .eq-stage__header {
+    position: sticky;
+    top: calc(var(--sl-nav-height) + var(--eq-space-4));
+    z-index: 1;
+    margin: 0;
+  }
+
+  .eq-stage .eq-stage__title {
+    font-size: var(--eq-text-h4);
+    line-height: 1.3;
+  }
+
+  .eq-stage-marker {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--eq-space-3);
+  }
+
+  .eq-stage-marker__label {
+    padding-top: 0;
+  }
+
+  .eq-stage-marker__step {
+    background-color: var(--eq-color-surface);
+    box-shadow: 0 0 0 4px var(--eq-color-canvas);
+  }
+
+  .eq-stage-marker:hover .eq-stage-marker__step {
+    background-color: var(--eq-color-brand-tint);
+  }
+
+  .eq-stage__body {
+    grid-column: 2;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * ResultFigure: exact image, visible caption, units, presentation boundary
+ * ------------------------------------------------------------------------- */
+
+.eq-result-figure {
+  margin: 0;
+  padding: var(--eq-space-4);
+  border: 1px solid var(--eq-color-border);
+  border-radius: var(--eq-radius-card);
+  background-color: var(--eq-color-surface);
+  box-shadow: var(--sl-shadow-sm);
+}
+
+.eq-result-figure__media {
+  margin: 0;
+}
+
+/* The source image is shown whole: no crop, filter, canvas, or object-fit. */
+.eq-result-figure__media > img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+}
+
+.eq-result-figure__caption {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eq-space-3);
+  margin-top: var(--eq-space-4);
+  padding-top: var(--eq-space-4);
+  border-top: 1px solid var(--eq-color-border);
+  color: var(--eq-color-text-muted);
+  font-size: var(--eq-text-small);
+  line-height: 1.55;
+}
+
+.eq-result-figure__labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eq-space-2);
+}
+
+.eq-result-figure__text {
+  display: block;
+  max-width: var(--eq-measure);
+  color: var(--eq-color-text);
+}
+
+.eq-result-figure__source {
+  display: block;
+}
+
+.eq-result-figure__source > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--eq-target-min);
+  color: var(--eq-color-brand);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  text-decoration-color: color-mix(in srgb, var(--eq-color-brand) 55%, transparent);
+}
+
+.eq-result-figure__source > a:hover {
+  color: var(--eq-color-brand-hover);
+  text-decoration-color: currentColor;
+}
+
+/* ---------------------------------------------------------------------------
+ * ClaimBoundary: supported vs not claimed, labelled in text, not status
+ * ------------------------------------------------------------------------- */
+
+.eq-claim-boundary {
+  padding: var(--eq-space-6);
+  border: 1px solid var(--eq-color-border);
+  border-radius: var(--eq-radius-card);
+  background-color: var(--eq-color-surface);
+}
+
+.eq-claim-boundary__title {
+  margin: 0 0 var(--eq-space-4);
+  font-size: var(--eq-text-h3);
+  font-weight: 650;
+  letter-spacing: var(--eq-tracking-display);
+  color: var(--eq-color-text);
+}
+
+.eq-claim-boundary__panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--eq-space-4);
+  margin: 0;
+}
+
+@media (min-width: 40rem) {
+  .eq-claim-boundary__panels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--eq-space-6);
+  }
+}
+
+.eq-claim-boundary__panel {
+  margin: 0;
+  padding: var(--eq-space-4) var(--eq-space-4) var(--eq-space-4) var(--eq-space-6);
+  border: 1px solid var(--eq-color-border);
+  border-inline-start: 4px solid var(--eq-color-border-strong);
+  border-radius: var(--eq-radius-cell);
+  background-color: var(--eq-color-canvas);
+  min-width: 0;
+}
+
+.eq-claim-boundary__panel--supported {
+  border-inline-start-color: var(--eq-color-brand);
+}
+
+.eq-claim-boundary__panel--not-claimed {
+  border-inline-start-color: var(--eq-color-accent);
+}
+
+.eq-claim-boundary__label {
+  display: flex;
+  align-items: center;
+  gap: var(--eq-space-2);
+  margin: 0 0 var(--eq-space-3);
+  font-size: var(--eq-text-body);
+  font-weight: 650;
+  color: var(--eq-color-text);
+}
+
+.eq-claim-boundary__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 1.25rem;
+}
+
+.eq-claim-boundary__panel--supported .eq-claim-boundary__icon {
+  color: var(--eq-color-brand);
+}
+
+.eq-claim-boundary__panel--not-claimed .eq-claim-boundary__icon {
+  color: var(--eq-color-accent);
+}
+
+.eq-claim-boundary__content {
+  font-size: var(--eq-text-small);
+  line-height: 1.55;
+  color: var(--eq-color-text);
+}
+
+.eq-claim-boundary__content > :first-child {
+  margin-top: 0;
+}
+
+.eq-claim-boundary__content :is(ul, ol) {
+  padding-inline-start: 1.25rem;
+}
+
+/* ---------------------------------------------------------------------------
+ * Forced colours: every card, chip, badge and panel keeps a visible boundary
+ * ------------------------------------------------------------------------- */
+
+@media (forced-colors: active) {
+  .eq-chip,
+  .eq-reference-card,
+  .eq-gallery-card__link,
+  .eq-gallery-card__media,
+  .eq-stage-marker__step,
+  .eq-result-figure,
+  .eq-result-figure__caption,
+  .eq-claim-boundary,
+  .eq-claim-boundary__panel {
+    border-color: CanvasText;
+    box-shadow: none;
+  }
+
+  .eq-stage::before {
+    background-color: CanvasText;
+  }
+
+  .eq-claim-boundary__panel--supported,
+  .eq-claim-boundary__panel--not-claimed {
+    border-inline-start-color: CanvasText;
+  }
+
+  .eq-gallery-card__link,
+  .eq-reference-card,
+  .eq-result-figure__source > a,
+  .eq-stage-marker,
+  .eq-brand {
+    color: LinkText;
+  }
+
+  .eq-gallery-card__link:hover,
+  .eq-reference-card:hover,
+  .eq-gallery-card__link:focus-visible,
+  .eq-reference-card:focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
+    transform: none;
+  }
+}

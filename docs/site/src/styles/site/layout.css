@@ -1,0 +1,734 @@
+/*
+ * Eqiora site layout.
+ *
+ * Shell, reading measure, header brand, navigation targets, focus, code and
+ * equation regions, motion, forced-colors, and print. Everything here restyles
+ * Starlight's existing shell through tokens; no Starlight component is forked
+ * and no behaviour depends on JavaScript.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Base
+ * ------------------------------------------------------------------------- */
+
+html {
+  scroll-padding-top: calc(var(--sl-nav-height) + var(--sl-mobile-toc-height) + var(--eq-space-4));
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overflow-wrap: break-word;
+}
+
+body {
+  font-family: var(--eq-font-sans);
+  line-height: var(--eq-line-height);
+  color: var(--eq-color-text);
+  background-color: var(--eq-color-canvas);
+  font-feature-settings: 'kern', 'liga', 'calt';
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--eq-font-mono);
+  font-variant-ligatures: none;
+}
+
+img,
+svg,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Visually hidden text that still names things for assistive technology. */
+.eq-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Focus: always visible, never colour-only, never clipped
+ * ------------------------------------------------------------------------- */
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--eq-color-focus);
+  outline-offset: 2px;
+  border-radius: var(--eq-radius-control);
+}
+
+/* ---------------------------------------------------------------------------
+ * Header: exact Eqiora mark, visible word, 44px controls
+ * ------------------------------------------------------------------------- */
+
+:root {
+  --sl-menu-button-size: var(--eq-target-min);
+}
+
+header.header {
+  background-color: var(--eq-color-surface);
+  border-bottom: 1px solid var(--eq-color-border);
+}
+
+.site-title {
+  color: var(--eq-color-text);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  gap: var(--eq-space-3);
+  min-height: var(--eq-target-min);
+  align-items: center;
+  border-radius: var(--eq-radius-control);
+}
+
+.site-title img {
+  height: 2rem;
+  width: 2rem;
+  border-radius: 22%;
+  flex-shrink: 0;
+}
+
+.site-title:hover {
+  color: var(--eq-color-brand);
+}
+
+.social-icons a,
+starlight-theme-select label,
+starlight-theme-select select,
+site-search button[data-open-modal],
+starlight-menu-button button {
+  min-width: var(--eq-target-min);
+  min-height: var(--eq-target-min);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--eq-radius-control);
+}
+
+.social-icons a {
+  display: inline-flex;
+  padding: 0;
+  margin: 0;
+}
+
+starlight-menu-button button {
+  border-radius: 50%;
+  box-shadow: none;
+  border: 1px solid var(--eq-color-border);
+}
+
+site-search button[data-open-modal] {
+  height: var(--eq-target-min);
+}
+
+@media (min-width: 50rem) {
+  site-search button[data-open-modal] {
+    border-color: var(--eq-color-border);
+    background-color: var(--eq-color-canvas);
+    color: var(--eq-color-text-muted);
+    transition: border-color var(--eq-motion-fast) var(--eq-ease),
+      color var(--eq-motion-fast) var(--eq-ease);
+  }
+  site-search button[data-open-modal]:hover {
+    border-color: var(--eq-color-brand);
+    color: var(--eq-color-text);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Skip link and heading anchor links
+ * ------------------------------------------------------------------------- */
+
+.sl-skip-link:focus {
+  display: flex;
+  align-items: center;
+  min-height: var(--eq-target-min);
+  border-radius: var(--eq-radius-control);
+  font-weight: 600;
+  outline: 3px solid var(--eq-color-focus);
+  outline-offset: 2px;
+}
+
+.sl-anchor-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--eq-target-min);
+  min-height: var(--eq-target-min);
+  border-radius: var(--eq-radius-control);
+}
+
+/* ---------------------------------------------------------------------------
+ * Sidebar and table of contents: 44px rows, calm hierarchy
+ * ------------------------------------------------------------------------- */
+
+nav.sidebar .sidebar-pane {
+  background-color: var(--eq-color-canvas);
+  border-inline-end: 1px solid var(--eq-color-border);
+}
+
+nav.sidebar .sidebar-content ul a,
+nav.sidebar .sidebar-content summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--eq-target-min);
+  padding-block: var(--eq-space-2);
+  border-radius: var(--eq-radius-control);
+  line-height: 1.35;
+  transition: background-color var(--eq-motion-fast) var(--eq-ease),
+    color var(--eq-motion-fast) var(--eq-ease);
+}
+
+nav.sidebar .sidebar-content ul a:hover {
+  background-color: var(--eq-color-brand-tint);
+  color: var(--eq-color-text);
+}
+
+nav.sidebar .sidebar-content .large:not([aria-current='page']) {
+  color: var(--eq-color-text);
+}
+
+nav.sidebar .sidebar-content a[aria-current='page'],
+nav.sidebar .sidebar-content a[aria-current='page']:hover,
+nav.sidebar .sidebar-content a[aria-current='page']:focus {
+  background-color: var(--eq-color-action-bg);
+  color: var(--eq-color-action-text);
+  font-weight: 600;
+}
+
+.right-sidebar {
+  border-inline-start: 1px solid var(--eq-color-border);
+}
+
+.right-sidebar-panel h2 {
+  color: var(--eq-color-text);
+  font-size: var(--eq-text-small);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+starlight-toc a {
+  display: flex;
+  align-items: center;
+  min-height: var(--eq-target-min);
+  padding-block: var(--eq-space-2);
+  border-radius: var(--eq-radius-control);
+  color: var(--eq-color-text-muted);
+  line-height: 1.35;
+}
+
+starlight-toc a:hover {
+  color: var(--eq-color-text);
+}
+
+starlight-toc a[aria-current='true'] {
+  color: var(--eq-color-brand);
+  font-weight: 600;
+}
+
+mobile-starlight-toc nav {
+  background-color: var(--eq-color-surface);
+  border-top-color: var(--eq-color-border);
+}
+
+mobile-starlight-toc summary {
+  min-height: var(--eq-target-min);
+  border-bottom-color: var(--eq-color-border);
+}
+
+mobile-starlight-toc .toggle {
+  min-height: 2.25rem;
+  border-color: var(--eq-color-border);
+  background-color: var(--eq-color-canvas);
+}
+
+mobile-starlight-toc .dropdown a {
+  display: flex;
+  align-items: center;
+  min-height: var(--eq-target-min);
+}
+
+/* ---------------------------------------------------------------------------
+ * Content shell and reading measure
+ * ------------------------------------------------------------------------- */
+
+.content-panel .sl-container {
+  max-width: var(--eq-shell-max);
+}
+
+.content-panel + .content-panel {
+  border-top-color: var(--eq-color-border);
+}
+
+/* Prose keeps a 68–72ch measure; opted-in media and component blocks span the shell. */
+.sl-markdown-content
+  > :not(.eq-wide, .eq-gallery-grid, .eq-stage, .eq-result-figure, .eq-claim-boundary, .card-grid, .expressive-code, table, hr) {
+  max-width: var(--eq-measure);
+}
+
+.sl-markdown-content > .expressive-code,
+.sl-markdown-content > table,
+.sl-markdown-content > .starlight-aside,
+.sl-markdown-content > .eqiora-math-region {
+  max-width: min(100%, calc(var(--eq-measure) + 6rem));
+}
+
+.sl-markdown-content > hr {
+  max-width: var(--eq-measure);
+  margin-inline: 0;
+  border: 0;
+  border-top: 1px solid var(--eq-color-border);
+}
+
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--eq-color-text);
+  letter-spacing: var(--eq-tracking-display);
+  font-weight: 650;
+  text-wrap: balance;
+}
+
+.sl-markdown-content h1,
+h1[data-page-title] {
+  font-size: var(--eq-text-h1);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--eq-color-text);
+}
+
+.sl-markdown-content h2 {
+  font-size: var(--eq-text-h2);
+}
+
+.sl-markdown-content h3 {
+  font-size: var(--eq-text-h3);
+}
+
+.sl-markdown-content h4 {
+  font-size: var(--eq-text-h4);
+}
+
+.sl-markdown-content p,
+.sl-markdown-content li {
+  text-wrap: pretty;
+}
+
+/* Ordinary prose links. Component anchors (cards, stage markers, brand) style themselves. */
+.sl-markdown-content
+  a:not(:where(.not-content *, .eq-stage-marker, .eq-gallery-card__link, .eq-reference-card, .eq-brand)) {
+  color: var(--eq-color-brand);
+  text-decoration: underline;
+  text-decoration-thickness: 0.075em;
+  text-underline-offset: 0.18em;
+  text-decoration-color: color-mix(in srgb, var(--eq-color-brand) 55%, transparent);
+  transition: color var(--eq-motion-fast) var(--eq-ease),
+    text-decoration-color var(--eq-motion-fast) var(--eq-ease);
+}
+
+.sl-markdown-content
+  a:hover:not(:where(.not-content *, .eq-stage-marker, .eq-gallery-card__link, .eq-reference-card, .eq-brand)) {
+  color: var(--eq-color-brand-hover);
+  text-decoration-color: currentColor;
+}
+
+.sl-markdown-content a:focus-visible {
+  text-decoration-thickness: 0.125em;
+}
+
+.sl-markdown-content code:not(:where(.not-content *)) {
+  background-color: var(--eq-color-code-bg);
+  border-radius: 0.3rem;
+  color: var(--eq-color-text);
+}
+
+.sl-markdown-content blockquote:not(:where(.not-content *)) {
+  border-inline-start: 3px solid var(--eq-color-border-strong);
+  color: var(--eq-color-text-muted);
+}
+
+.sl-markdown-content table:not(:where(.not-content *)) {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.sl-markdown-content :is(th, td):not(:where(.not-content *)) {
+  border: 1px solid var(--eq-color-border);
+  padding: var(--eq-space-2) var(--eq-space-3);
+}
+
+.sl-markdown-content th:not(:where(.not-content *)) {
+  background-color: var(--eq-color-surface-muted);
+  color: var(--eq-color-text);
+}
+
+/* Page title and lead paragraph */
+h1[data-page-title] {
+  margin-top: var(--eq-space-2);
+}
+
+.sl-markdown-content > p:first-child,
+.hero .tagline {
+  font-size: var(--eq-text-lead);
+  color: var(--eq-color-text-muted);
+  line-height: 1.55;
+}
+
+/* Hero (Starlight splash) */
+.hero {
+  padding-block: clamp(1.5rem, 1rem + 4vmin, 4.5rem) var(--eq-space-6);
+}
+
+.hero h1 {
+  font-size: var(--eq-text-display);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--eq-color-text);
+}
+
+.hero .tagline {
+  max-width: 52ch;
+}
+
+.hero > img,
+.hero > .hero-html {
+  border-radius: var(--eq-radius-card);
+}
+
+/* Starlight buttons: filled action colours, 44px height */
+.sl-link-button {
+  min-height: var(--eq-target-min);
+  font-weight: 600;
+  font-size: var(--eq-text-body);
+  padding-inline: var(--eq-space-6);
+  border-radius: 999rem;
+  transition: background-color var(--eq-motion-fast) var(--eq-ease),
+    border-color var(--eq-motion-fast) var(--eq-ease),
+    color var(--eq-motion-fast) var(--eq-ease);
+}
+
+.sl-link-button.primary,
+.sl-link-button.primary:hover {
+  background: var(--eq-color-action-bg);
+  border-color: var(--eq-color-action-bg);
+  color: var(--eq-color-action-text);
+}
+
+.sl-link-button.primary:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.sl-link-button.secondary {
+  border-color: var(--eq-color-border-strong);
+  color: var(--eq-color-text);
+  background: var(--eq-color-surface);
+}
+
+.sl-link-button.secondary:hover {
+  border-color: var(--eq-color-brand);
+  color: var(--eq-color-brand-hover);
+}
+
+.sl-link-button.minimal {
+  color: var(--eq-color-brand);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* Starlight cards, link cards, asides, badges */
+.card,
+.sl-link-card {
+  border-color: var(--eq-color-border);
+  border-radius: var(--eq-radius-cell);
+  background-color: var(--eq-color-surface);
+  box-shadow: var(--sl-shadow-sm);
+}
+
+.sl-link-card {
+  min-height: var(--eq-target-min);
+}
+
+.sl-link-card:hover {
+  background: var(--eq-color-surface);
+  border-color: var(--eq-color-brand);
+}
+
+.sl-link-card .description {
+  color: var(--eq-color-text-muted);
+}
+
+.card .title {
+  color: var(--eq-color-text);
+}
+
+.starlight-aside {
+  border-radius: 0 var(--eq-radius-control) var(--eq-radius-control) 0;
+}
+
+.sl-badge {
+  border-radius: 999rem;
+  font-weight: 600;
+}
+
+/* Pagination */
+.pagination-links a {
+  border-color: var(--eq-color-border);
+  border-radius: var(--eq-radius-cell);
+  background-color: var(--eq-color-surface);
+  color: var(--eq-color-text-muted);
+  box-shadow: var(--sl-shadow-sm);
+  min-height: var(--eq-target-min);
+  transition: border-color var(--eq-motion-fast) var(--eq-ease);
+}
+
+.pagination-links a:hover {
+  border-color: var(--eq-color-brand);
+}
+
+.pagination-links .link-title {
+  color: var(--eq-color-text);
+  font-size: var(--eq-text-h4);
+}
+
+/* ---------------------------------------------------------------------------
+ * Code regions: local scroll, visible language label, notebook-cell radius
+ * ------------------------------------------------------------------------- */
+
+.expressive-code {
+  --ec-brdRad: var(--eq-radius-cell);
+  --ec-brdCol: var(--eq-color-border);
+  --ec-codeFontFml: var(--eq-font-mono);
+  --ec-codeFontSize: var(--sl-text-code);
+  --ec-codeLineHt: 1.6;
+  --ec-frm-frameBoxShdCssVal: none;
+  --ec-frm-edBg: var(--eq-color-surface);
+  --ec-frm-edTabBarBg: var(--eq-color-surface-muted);
+  --ec-frm-edTabBarBrdCol: var(--eq-color-border);
+  --ec-frm-edActTabBg: var(--eq-color-surface);
+  --ec-frm-edActTabFg: var(--eq-color-text);
+  --ec-frm-edActTabIndTopCol: var(--eq-color-brand);
+  --ec-frm-edActTabIndBtmCol: var(--eq-color-surface);
+  --ec-frm-edTabsMargInlStart: var(--eq-space-3);
+  --ec-frm-trmTtbBg: var(--eq-color-surface-muted);
+  --ec-frm-trmTtbDotsFg: var(--eq-color-border-strong);
+  --ec-frm-trmTtbBrdBtmCol: var(--eq-color-border);
+  --ec-frm-trmBg: var(--eq-color-surface);
+  --ec-frm-inlBtnBg: var(--eq-color-surface);
+  --ec-frm-inlBtnBrd: var(--eq-color-border-strong);
+  --ec-frm-inlBtnFg: var(--eq-color-text);
+  --ec-frm-tooltipSuccessBg: var(--eq-color-brand-hover);
+  --ec-frm-tooltipSuccessFg: var(--eq-color-action-text);
+}
+
+.expressive-code .frame {
+  border-radius: var(--eq-radius-cell);
+}
+
+.expressive-code pre {
+  scrollbar-width: thin;
+  scrollbar-color: var(--eq-color-border-strong) transparent;
+}
+
+.expressive-code pre:focus-visible {
+  outline: 3px solid var(--eq-color-focus);
+  outline-offset: -3px;
+}
+
+/* Visible language label on untitled frames so every code region is labelled.
+   The label is a full-width header row inside the scroll container and stays
+   pinned while the code scrolls horizontally. */
+.expressive-code .frame:not(.has-title):not(.is-terminal) > pre {
+  flex-wrap: wrap;
+}
+
+.expressive-code .frame:not(.has-title):not(.is-terminal) > pre::before {
+  content: attr(data-language);
+  position: sticky;
+  left: 0;
+  flex: 0 0 100%;
+  box-sizing: border-box;
+  padding: 0.3rem 1rem;
+  border-bottom: 1px solid var(--eq-color-border);
+  background-color: var(--eq-color-surface-muted);
+  color: var(--eq-color-text-muted);
+  font-family: var(--eq-font-sans);
+  font-size: var(--eq-text-micro);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.expressive-code .copy button {
+  width: var(--eq-target-min);
+  height: var(--eq-target-min);
+  min-width: var(--eq-target-min);
+  min-height: var(--eq-target-min);
+  border-radius: var(--eq-radius-control);
+}
+
+/* Plain <pre> fallback (non-Expressive-Code) */
+.sl-markdown-content pre:not(:where(.expressive-code *)) {
+  border: 1px solid var(--eq-color-border);
+  border-radius: var(--eq-radius-cell);
+  background-color: var(--eq-color-surface);
+  overflow-x: auto;
+  padding: var(--eq-space-4);
+}
+
+/* ---------------------------------------------------------------------------
+ * KaTeX: build-time HTML+MathML, labelled overflow region, readable source
+ * ------------------------------------------------------------------------- */
+
+.eqiora-math-region {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 var(--eq-space-4) var(--eq-space-3);
+  border: 1px solid var(--eq-color-border);
+  border-radius: var(--eq-radius-cell);
+  background-color: var(--eq-color-surface);
+  scrollbar-width: thin;
+  scrollbar-color: var(--eq-color-border-strong) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Visible label row that stays pinned while a wide equation scrolls. */
+.eqiora-math-region::before {
+  content: attr(aria-label);
+  position: sticky;
+  left: 0;
+  display: block;
+  margin: 0 calc(-1 * var(--eq-space-4)) var(--eq-space-2);
+  padding: 0.3rem var(--eq-space-4);
+  border-bottom: 1px solid var(--eq-color-border);
+  background-color: var(--eq-color-surface-muted);
+  color: var(--eq-color-text-muted);
+  font-size: var(--eq-text-micro);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.5;
+}
+
+.eqiora-math-region:focus-visible {
+  outline: 3px solid var(--eq-color-focus);
+  outline-offset: -3px;
+}
+
+.eqiora-math-region .katex-display {
+  margin: var(--eq-space-2) 0;
+  overflow: visible;
+}
+
+.katex {
+  font-size: 1.12em;
+  color: var(--eq-color-text);
+}
+
+.katex-display > .katex {
+  font-size: 1.2em;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.sl-markdown-content .katex-display .katex-html,
+.eqiora-math-region .katex-html {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Inline math should wrap with the sentence, not force overflow. */
+.sl-markdown-content p .katex {
+  white-space: normal;
+}
+
+.sl-markdown-content p .katex .katex-html {
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+ * Motion: affordance only, disabled with prefers-reduced-motion
+ * ------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Forced colours (Windows High Contrast): boundaries stay visible as borders
+ * ------------------------------------------------------------------------- */
+
+@media (forced-colors: active) {
+  header.header,
+  nav.sidebar .sidebar-pane,
+  .right-sidebar,
+  .eqiora-math-region,
+  .sl-markdown-content pre:not(:where(.expressive-code *)) {
+    border-color: CanvasText;
+  }
+
+  .sl-link-button,
+  .sl-link-card,
+  .card,
+  .pagination-links a,
+  starlight-menu-button button,
+  site-search button[data-open-modal] {
+    border: 1px solid ButtonText;
+  }
+
+  .sl-link-button.primary {
+    forced-color-adjust: none;
+    background: ButtonText;
+    color: Canvas;
+    border-color: ButtonText;
+  }
+
+  nav.sidebar .sidebar-content a[aria-current='page'] {
+    forced-color-adjust: none;
+    background-color: Highlight;
+    color: HighlightText;
+  }
+
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible,
+  .expressive-code pre:focus-visible,
+  .eqiora-math-region:focus-visible {
+    outline: 3px solid Highlight;
+  }
+
+  .expressive-code .frame:not(.has-title):not(.is-terminal) > pre::before,
+  .eqiora-math-region::before {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Print
+ * ------------------------------------------------------------------------- */
+
+@media print {
+  .eqiora-math-region,
+  .expressive-code pre {
+    overflow: visible;
+  }
+}

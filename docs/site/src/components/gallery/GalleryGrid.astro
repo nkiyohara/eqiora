@@ -1,0 +1,41 @@
+---
+/**
+ * GalleryGrid — one semantic list container for GalleryCard children.
+ * Three columns at >=1024px, two at 640–1023px, one below 640px. It renders the
+ * slotted cards in source order and never reorders them.
+ *
+ * Props: none. Default slot: one or more GalleryCard children (required).
+ * Unknown props, named slots, an empty default slot, or non-GalleryCard
+ * children fail the build.
+ */
+const COMPONENT = 'GalleryGrid';
+const rawProps = Astro.props as unknown as Record<string, unknown>;
+
+for (const key of Object.keys(rawProps)) {
+  throw new Error(`${COMPONENT}: unknown prop "${key}"`);
+}
+
+const slotNames = Object.keys(Astro.slots);
+for (const name of slotNames) {
+  if (name !== 'default') {
+    throw new Error(`${COMPONENT}: unknown slot "${name}"`);
+  }
+}
+
+const cards = Astro.slots.has('default') ? await Astro.slots.render('default') : '';
+if (cards.trim().length === 0) {
+  throw new Error(`${COMPONENT}: default slot must contain at least one GalleryCard`);
+}
+
+// Every rendered child must be a GalleryCard list item; anything else is a
+// foreign child and fails closed.
+const CARD_PATTERN = /<li class="eq-gallery-card"(?: data-featured(?:="")?)?>[\s\S]*?<\/li>/g;
+const remainder = cards.replace(CARD_PATTERN, '').trim();
+if (remainder.length > 0) {
+  throw new Error(`${COMPONENT}: default slot may contain only GalleryCard children`);
+}
+---
+
+<ul class="eq-gallery-grid" role="list">
+  <Fragment set:html={cards} />
+</ul>
