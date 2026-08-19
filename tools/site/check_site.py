@@ -655,13 +655,11 @@ def check_source(
             "admitted pressure media",
         )
     )
-    errors.extend(
-        _exact_source(
-            site / "src/data/gallery/exact-cylinder-steady-stokes.publication.json",
-            identities.publication,
-            "admitted publication record",
-        )
-    )
+    record = site / "src/data/gallery" / "exact-cylinder-steady-stokes.publication.json"
+    publication_label = "admitted publication record"
+    record_errors = _exact_source(record, identities.publication, publication_label)
+    errors.extend(record_errors)
+    fixed = identities.publication == PUBLICATION_SHA256 and not record_errors
     errors.extend(
         _exact_source(
             site / "public/social-card.svg", identities.social, "timeless social card"
@@ -848,6 +846,8 @@ def check_source(
         is_release_history = "release-notes" in source.relative_to(site).parts
         if not is_release_history and relative not in CURRENT_VERSION_SOURCE_EXCEPTIONS:
             for forbidden_version in CURRENT_VERSION.findall(text):
+                if fixed and source == record and forbidden_version == "0.1.0a1":
+                    continue
                 errors.append(
                     f"site source hard-codes product version {forbidden_version!r}: "
                     f"{source.relative_to(root)}"
