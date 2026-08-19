@@ -162,6 +162,7 @@ _MDX_TEXT_ESCAPES = str.maketrans(
         "\\": "&#92;",
         "`": "&#96;",
         "*": "&#42;",
+        "$": "&#36;",
         "{": "&#123;",
         "}": "&#125;",
         "[": "&#91;",
@@ -173,7 +174,18 @@ _MDX_TEXT_ESCAPES = str.maketrans(
 
 
 def _cell(value: str) -> str:
-    return value.translate(_MDX_TEXT_ESCAPES)
+    escaped = []
+    for offset, character in enumerate(value):
+        if character == "_" and not (
+            offset > 0
+            and offset + 1 < len(value)
+            and value[offset - 1].isalnum()
+            and value[offset + 1].isalnum()
+        ):
+            escaped.append("&#95;")
+        else:
+            escaped.append(character.translate(_MDX_TEXT_ESCAPES))
+    return "".join(escaped)
 
 
 def _jsx_string(value: str) -> str:
