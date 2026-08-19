@@ -282,35 +282,27 @@ and do not establish flow quality.
 
 <NotebookStage id="verified-boundary" step={6} title="Verified and not claimed" emoji="✅">
 
-<ClaimBoundary title="Verified boundary">
-  <div slot="supported">
-
-- One frozen 2D steady incompressible Stokes exact-cylinder demonstration,
-  rendered from its accepted public Result path and linked evidence.
-- The exact geometry, source-bound chordal realization, packaged model,
-  Plan-to-Run composition, and Marimo application each have a directly linked
-  registered dossier.
-- The installed publication record binds the admitted PNG, exact source
-  revision, Result lineage, caption, alternative text, and presentation-only
-  boundary.
-
-  </div>
-  <div slot="notClaimed">
-
-- No curved elements.
-- No mesh/PDE convergence.
-- No drag/lift coefficient, scaled or mesh-independent force, or DFG value.
-- No transient or Navier–Stokes behavior.
-- No vortex shedding.
-- No 3D.
-- No production mesher.
-- No performance claim.
-- No cross-platform/byte-reproducible result.
-- No pixel validation.
-- API presence is neither verification nor maturity.
-
-  </div>
-</ClaimBoundary>
+<ClaimBoundary
+  title="Verified boundary"
+  supported={[
+    'One frozen 2D steady incompressible Stokes exact-cylinder demonstration, rendered from its accepted public Result path and linked evidence.',
+    'The exact geometry, source-bound chordal realization, packaged model, Plan-to-Run composition, and Marimo application each have a directly linked registered dossier.',
+    'The installed publication record binds the admitted PNG, exact source revision, Result lineage, caption, alternative text, and presentation-only boundary.',
+  ]}
+  notClaimed={[
+    'No curved elements.',
+    'No mesh/PDE convergence.',
+    'No drag/lift coefficient, scaled or mesh-independent force, or DFG value.',
+    'No transient or Navier–Stokes behavior.',
+    'No vortex shedding.',
+    'No 3D.',
+    'No production mesher.',
+    'No performance claim.',
+    'No cross-platform/byte-reproducible result.',
+    'No pixel validation.',
+    'API presence is neither verification nor maturity.',
+  ]}
+/>
 
 [Browse the evidence catalog](/evidence/)
 · <ExactSourceLink path="verify/geometry/exact-circular-hole-geometry/README.md" kind="blob">exact geometry</ExactSourceLink>
