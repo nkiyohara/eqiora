@@ -140,6 +140,13 @@ _native.__name__ = "eqiora.not_the_native_module"
 
         if mutation in {"top-level-only", "both-top-level-and-package-local"}:
             shutil.copy2(self._native, site / f"_eqiora{self._extension_suffix}")
+        elif mutation == "top-level-unrelated-import-failure":
+            _write(
+                site / "_eqiora.py",
+                'error = ModuleNotFoundError("ambient dependency is absent")\n'
+                "error.name = 'ambient_dependency'\n"
+                "raise error\n",
+            )
 
         distribution_version = (
             "0.1.0a2" if mutation == "wrong-distribution-version" else "0.1.0a1"
@@ -247,20 +254,54 @@ _native.__name__ = "eqiora.not_the_native_module"
                     wheels = Path(os.environ["WHEELS_ROOT"])
                     if mutation == "control-transition-to-symlink":
                         control = wheels / ".gitignore"
-                        control.unlink()
+                        control.unlink(missing_ok=True)
                         backing = wheels.parent / "transitioned-control"
                         backing.write_bytes(b"*")
                         control.symlink_to(backing)
+                        record("transition-applied")
+                    elif mutation == "control-transition-to-regular":
+                        control = wheels / ".gitignore"
+                        replacement = wheels / ".gitignore.replacement"
+                        replacement.write_bytes(b"*")
+                        os.replace(replacement, control)
+                        record("transition-applied")
                     elif mutation == "wheel-transition-to-symlink":
-                        wheel = next(wheels.glob("*.whl"))
-                        wheel.unlink()
+                        wheel = wheels / "eqiora-0.1.0a1-cp313-cp313-linux_x86_64.whl"
+                        wheel.unlink(missing_ok=True)
                         backing = wheels.parent / "transitioned-wheel.whl"
                         backing.write_bytes(b"wheel")
                         wheel.symlink_to(backing)
+                        record("transition-applied")
+                    elif mutation == "wheel-transition-to-regular":
+                        wheel = wheels / "eqiora-0.1.0a1-cp313-cp313-linux_x86_64.whl"
+                        replacement = wheels / "wheel.replacement"
+                        replacement.write_bytes(b"wheel")
+                        os.replace(replacement, wheel)
+                        record("transition-applied")
                     raise SystemExit(0)
 
                 if args[:2] == ["pip", "install"]:
-                    python = option("--python")
+                    if args.count("--python") != 1:
+                        raise SystemExit("install did not name one interpreter")
+                    python_index = args.index("--python")
+                    if python_index + 1 >= len(args):
+                        raise SystemExit("install omitted the interpreter value")
+                    python = Path(args[python_index + 1])
+                    expected_venv = Path(os.environ["EQIORA_API_SCRATCH"]) / "venv"
+                    if python != expected_venv / "bin/python":
+                        raise SystemExit("install escaped the fresh venv interpreter")
+                    if args.count("--no-index") != 1 or args.count("--no-deps") != 1:
+                        raise SystemExit("install relaxed no-index/no-deps")
+                    consumed = {{0, 1, python_index, python_index + 1}}
+                    consumed.add(args.index("--no-index"))
+                    consumed.add(args.index("--no-deps"))
+                    inputs = [value for index, value in enumerate(args) if index not in consumed]
+                    expected_wheel = (
+                        Path(os.environ["WHEELS_ROOT"])
+                        / "eqiora-0.1.0a1-cp313-cp313-linux_x86_64.whl"
+                    )
+                    if inputs != [str(expected_wheel)]:
+                        raise SystemExit("install did not consume only the admitted wheel")
                     venv = python.parent.parent
                     major_minor = f"python{{sys.version_info.major}}.{{sys.version_info.minor}}"
                     site = venv / "lib" / major_minor / "site-packages"
@@ -558,7 +599,9 @@ exit 0
     def test_w01_transition_mutants_fail_after_venv_before_install(self) -> None:
         for mutation in (
             "control-transition-to-symlink",
+            "control-transition-to-regular",
             "wheel-transition-to-symlink",
+            "wheel-transition-to-regular",
         ):
             with self.subTest(mutation=mutation):
                 result, observations = self._run(w_mutant=mutation)
@@ -566,6 +609,7 @@ exit 0
                 self.assertNotEqual(result.returncode, POST_IDENTITY_SENTINEL)
                 self.assertIn("build-ok", observations)
                 self.assertIn("venv", observations)
+                self.assertIn("transition-applied", observations)
                 self.assertNotIn("install", observations, observations)
 
     def test_p01_identity_mutants_reach_installed_public_package_gate(self) -> None:
@@ -573,6 +617,7 @@ exit 0
         mutations = (
             "top-level-only",
             "both-top-level-and-package-local",
+            "top-level-unrelated-import-failure",
             "missing-native",
             "wrong-package-version",
             "wrong-native-version",
