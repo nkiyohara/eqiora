@@ -1,0 +1,88 @@
+---
+import { posix, win32 } from 'node:path';
+
+interface Props {
+  path: string;
+  kind: 'blob' | 'tree';
+  fragment?: string;
+}
+
+const SOURCE_SHA = /^[0-9a-f]{40}$/;
+const SINGLE_LINE_FRAGMENT = /^L[1-9][0-9]*$/;
+const LINE_RANGE_FRAGMENT = /^L([1-9][0-9]*)-L([1-9][0-9]*)$/;
+const FORBIDDEN_PATH_CHARACTER = /[\\?#\u0000-\u001f\u007f]/;
+
+function fail(reason: string): never {
+  throw new Error(`ExactSourceLink: ${reason}`);
+}
+
+const props = Astro.props as Readonly<Record<string, unknown>>;
+for (const key of Object.keys(props)) {
+  if (key !== 'path' && key !== 'kind' && key !== 'fragment') {
+    fail(`unknown prop \`${key}\``);
+  }
+}
+for (const name of Object.keys(Astro.slots)) {
+  if (name !== 'default') {
+    fail(`named slot \`${name}\` is not allowed`);
+  }
+}
+if (!Astro.slots.has('default')) {
+  fail('the visible link label must be supplied as the default slot');
+}
+
+const path = props.path;
+if (typeof path !== 'string') {
+  fail('`path` must be supplied as a string');
+}
+const kind = props.kind;
+if (kind !== 'blob' && kind !== 'tree') {
+  fail("`kind` must be supplied as exactly 'blob' or 'tree'");
+}
+if (path.length === 0) {
+  fail('`path` must be a nonempty repository-relative path');
+}
+if (posix.isAbsolute(path) || win32.isAbsolute(path)) {
+  fail('`path` must be repository-relative under POSIX and Windows rules');
+}
+if (FORBIDDEN_PATH_CHARACTER.test(path)) {
+  fail('`path` must not contain a backslash, `?`, `#`, or control character');
+}
+for (const segment of path.split('/')) {
+  if (segment === '' || segment === '.' || segment === '..') {
+    fail('`path` must not contain an empty, `.`, or `..` segment');
+  }
+}
+if (posix.normalize(path) !== path) {
+  fail('`path` must already be in POSIX-normalized form');
+}
+
+let lineFragment = '';
+if ('fragment' in props) {
+  const fragment = props.fragment;
+  if (typeof fragment !== 'string') {
+    fail('`fragment` must be a string when supplied');
+  }
+  if (kind === 'tree') {
+    fail('`fragment` is forbidden for kind="tree"');
+  }
+  const range = LINE_RANGE_FRAGMENT.exec(fragment);
+  if (range !== null) {
+    if (BigInt(range[2]) < BigInt(range[1])) {
+      fail('`fragment` range end line must not be smaller than its start line');
+    }
+  } else if (!SINGLE_LINE_FRAGMENT.test(fragment)) {
+    fail('`fragment` must be `L<line>` or `L<first>-L<last>` with no leading zero');
+  }
+  lineFragment = `#${fragment}`;
+}
+
+const sourceSha = process.env.EQIORA_SITE_SOURCE_SHA;
+if (typeof sourceSha !== 'string' || !SOURCE_SHA.test(sourceSha)) {
+  fail('EQIORA_SITE_SOURCE_SHA must be the exact 40-character lowercase build source commit');
+}
+
+const encodedPath = path.split('/').map(encodeURIComponent).join('/');
+const href = `https://github.com/nkiyohara/eqiora/${kind}/${sourceSha}/${encodedPath}${lineFragment}`;
+---
+<a href={href}><slot /></a>
