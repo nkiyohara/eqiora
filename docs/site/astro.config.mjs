@@ -7,6 +7,7 @@ import { satteri } from '@astrojs/markdown-satteri';
 import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
 
+import { codeRegionAccessibilityPlugin } from './src/plugins/code-region-accessibility.ts';
 import { katexMathPlugin } from './src/plugins/katex.ts';
 
 const SOURCE_SHA = /^[0-9a-f]{40}$/;
@@ -93,6 +94,9 @@ export default defineConfig({
         replacesTitle: false,
       },
       favicon: '/favicon.svg',
+      expressiveCode: {
+        plugins: [codeRegionAccessibilityPlugin],
+      },
       social: [
         {
           icon: 'github',

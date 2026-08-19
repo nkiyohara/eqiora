@@ -1,0 +1,64 @@
+---
+/**
+ * ReferenceCard — one ordinary anchor for a reference family (Python, Rust,
+ * CLI, control-v2, MCP). It presents only a family badge, title, and
+ * description; API presence is neither verification nor maturity and the card
+ * carries no status semantics.
+ *
+ * Props (private site-component binding v1):
+ *   href: string; title: string; description: string; badge?: string
+ *
+ * No slots. Unknown props, wrong types, or any slot content fail the build.
+ */
+import { Icon } from '@astrojs/starlight/components';
+
+interface Props {
+  href: string;
+  title: string;
+  description: string;
+  badge?: string;
+}
+
+const COMPONENT = 'ReferenceCard';
+const ALLOWED_PROPS: ReadonlySet<string> = new Set(['href', 'title', 'description', 'badge']);
+const rawProps = Astro.props as unknown as Record<string, unknown>;
+
+for (const key of Object.keys(rawProps)) {
+  if (!ALLOWED_PROPS.has(key)) {
+    throw new Error(`${COMPONENT}: unknown prop "${key}"`);
+  }
+}
+
+function requiredText(name: 'href' | 'title' | 'description'): string {
+  const value = rawProps[name];
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${COMPONENT}: prop "${name}" must be a non-empty string`);
+  }
+  return value;
+}
+
+const href = requiredText('href');
+const title = requiredText('title');
+const description = requiredText('description');
+
+const badgeValue = rawProps.badge;
+if (badgeValue !== undefined && (typeof badgeValue !== 'string' || badgeValue.trim().length === 0)) {
+  throw new Error(`${COMPONENT}: prop "badge" must be a non-empty string when supplied`);
+}
+const badge = badgeValue as string | undefined;
+
+const slotNames = Object.keys(Astro.slots);
+if (slotNames.length > 0) {
+  const rendered = await Promise.all(slotNames.map((name) => Astro.slots.render(name)));
+  if (slotNames.some((name) => name !== 'default') || rendered.some((html) => html.trim().length > 0)) {
+    throw new Error(`${COMPONENT}: accepts no slot content`);
+  }
+}
+---
+
+<a class="eq-reference-card" href={href}>
+  {badge && <span class="eq-chip eq-reference-card__badge">{badge}</span>}
+  <span class="eq-reference-card__title">{title}</span>
+  <span class="eq-reference-card__icon"><Icon name="right-arrow" class="rtl:flip" /></span>
+  <span class="eq-reference-card__description">{description}</span>
+</a>

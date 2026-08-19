@@ -1,0 +1,116 @@
+---
+/**
+ * ResultFigure — one semantic figure for an admitted result image: the exact
+ * image (no transform, crop, filter, or canvas rendering), its text
+ * alternative, a visible caption, a units label, the visible boundary
+ * "Presentation, not evidence.", and optionally one ordinary exact-source
+ * anchor rendered through the site's ExactSourceLink provider.
+ *
+ * Props (component binding v1 + accepted provider binding successor v1/v2):
+ *   src: string; alt: string; caption: string; units: string;
+ *   sourcePath?: string; sourceFragment?: string; sourceLabel?: string
+ *
+ * `sourcePath` and `sourceLabel` are supplied together or omitted together;
+ * `sourceFragment` is allowed only with that pair. The obsolete `sourceHref`
+ * and every other unknown prop fail the build. No slots.
+ */
+import ExactSourceLink from '../site/ExactSourceLink.astro';
+
+interface Props {
+  src: string;
+  alt: string;
+  caption: string;
+  units: string;
+  sourcePath?: string;
+  sourceFragment?: string;
+  sourceLabel?: string;
+}
+
+const COMPONENT = 'ResultFigure';
+const ALLOWED_PROPS: ReadonlySet<string> = new Set([
+  'src',
+  'alt',
+  'caption',
+  'units',
+  'sourcePath',
+  'sourceFragment',
+  'sourceLabel',
+]);
+const rawProps = Astro.props as unknown as Record<string, unknown>;
+
+for (const key of Object.keys(rawProps)) {
+  if (!ALLOWED_PROPS.has(key)) {
+    throw new Error(`${COMPONENT}: unknown prop "${key}"`);
+  }
+}
+
+function requiredText(name: 'src' | 'alt' | 'caption' | 'units'): string {
+  const value = rawProps[name];
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${COMPONENT}: prop "${name}" must be a non-empty string`);
+  }
+  return value;
+}
+
+function optionalText(name: 'sourcePath' | 'sourceFragment' | 'sourceLabel'): string | undefined {
+  const value = rawProps[name];
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${COMPONENT}: prop "${name}" must be a non-empty string when supplied`);
+  }
+  return value;
+}
+
+const src = requiredText('src');
+const alt = requiredText('alt');
+const caption = requiredText('caption');
+const units = requiredText('units');
+
+const sourcePath = optionalText('sourcePath');
+const sourceFragment = optionalText('sourceFragment');
+const sourceLabel = optionalText('sourceLabel');
+
+if ((sourcePath === undefined) !== (sourceLabel === undefined)) {
+  throw new Error(`${COMPONENT}: "sourcePath" and "sourceLabel" must be supplied together`);
+}
+if (sourceFragment !== undefined && sourcePath === undefined) {
+  throw new Error(`${COMPONENT}: "sourceFragment" requires "sourcePath" and "sourceLabel"`);
+}
+const hasSource = sourcePath !== undefined && sourceLabel !== undefined;
+
+const slotNames = Object.keys(Astro.slots);
+if (slotNames.length > 0) {
+  const rendered = await Promise.all(slotNames.map((name) => Astro.slots.render(name)));
+  if (slotNames.some((name) => name !== 'default') || rendered.some((html) => html.trim().length > 0)) {
+    throw new Error(`${COMPONENT}: accepts no slot content`);
+  }
+}
+---
+
+<figure class="eq-result-figure">
+  <div class="eq-result-figure__media">
+    <img src={src} alt={alt} loading="eager" decoding="async" />
+  </div>
+  <figcaption class="eq-result-figure__caption">
+    <span class="eq-result-figure__labels">
+      <span class="eq-chip eq-chip--accent">Presentation, not evidence.</span>
+      <span class="eq-chip">Units: {units}</span>
+    </span>
+    <span class="eq-result-figure__text">{caption}</span>
+    {
+      hasSource && (
+        <span class="eq-result-figure__source">
+          {sourceFragment !== undefined ? (
+            <ExactSourceLink path={sourcePath} kind="blob" fragment={sourceFragment}>
+              {sourceLabel}
+            </ExactSourceLink>
+          ) : (
+            <ExactSourceLink path={sourcePath} kind="blob">
+              {sourceLabel}
+            </ExactSourceLink>
+          )}
+        </span>
+      )
+    }
+  </figcaption>
+</figure>
