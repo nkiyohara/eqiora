@@ -273,6 +273,7 @@ class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
         repository: Path,
         source_sha: str,
         *,
+        include_environment_sha: bool = True,
         environment: dict[str, str] | None = None,
     ) -> None:
         self._assert_accepted_output_identity(repository)
@@ -282,7 +283,7 @@ class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
             fixture,
             repository,
             source_sha,
-            environment_sha=source_sha,
+            environment_sha=source_sha if include_environment_sha else _MISSING,
             environment=environment,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -324,12 +325,42 @@ class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
             fixture = InterfaceReferenceFixture(Path(temporary))
             self._assert_positive(fixture, fixture.producer, fixture.source_sha)
 
-    def test_02_same_root_same_head_copied_metadata_is_worktree_mode(self) -> None:
+    def test_02_environment_absent_archive_and_worktree_are_admitted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = InterfaceReferenceFixture(Path(temporary))
+            for repository in (fixture.archive(), fixture.producer):
+                with self.subTest(repository=repository.name):
+                    self._assert_positive(
+                        fixture,
+                        repository,
+                        fixture.source_sha,
+                        include_environment_sha=False,
+                    )
+
+    def test_03_same_root_same_head_copied_metadata_is_worktree_mode(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             fixture = InterfaceReferenceFixture(Path(temporary))
             copied = fixture.archive("copied-metadata")
             shutil.copytree(fixture.producer / ".git", copied / ".git")
             self._assert_positive(fixture, copied, fixture.source_sha)
+
+    def test_04_same_observation_gitfile_and_symlink_are_worktree_mode(self) -> None:
+        for kind in ("gitfile", "symlink"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                fixture = InterfaceReferenceFixture(Path(temporary))
+                admitted = fixture.archive(f"same-observation-{kind}")
+                if kind == "gitfile":
+                    _write(admitted / ".git", f"gitdir: {fixture.producer / '.git'}\n")
+                else:
+                    (admitted / ".git").symlink_to(
+                        fixture.producer / ".git", target_is_directory=True
+                    )
+                self._assert_positive(
+                    fixture,
+                    admitted,
+                    fixture.source_sha,
+                    include_environment_sha=False,
+                )
 
     def test_archive_source_sha_shape_and_environment_mismatch_fail_closed(self) -> None:
         invalid = (
@@ -370,12 +401,35 @@ class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
     def test_archive_never_falls_back_to_parent_or_ambient_git(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             fixture = InterfaceReferenceFixture(Path(temporary))
-            archive = fixture.archive("producer/nested-archive")
+            ambient = fixture.root / "ambient"
+            ambient.mkdir()
+            _run_command(["git", "init", "-q"], cwd=ambient)
+            _run_command(["git", "config", "user.name", "ambient"], cwd=ambient)
+            _run_command(
+                ["git", "config", "user.email", "ambient@example.invalid"],
+                cwd=ambient,
+            )
+            _write(ambient / "ambient.txt", "different ambient HEAD\n")
+            _run_command(["git", "add", "."], cwd=ambient)
+            _run_command(
+                ["git", "-c", "commit.gpgsign=false", "commit", "-qm", "ambient"],
+                cwd=ambient,
+            )
+            self.assertNotEqual(
+                _run_command(["git", "rev-parse", "HEAD"], cwd=ambient),
+                fixture.source_sha,
+            )
+            archive = fixture.archive("ambient/nested-archive")
             fake_bin = fixture.root / "fake-bin"
             fake_bin.mkdir()
+            git_marker = fixture.observed / "git"
             _write(
                 fake_bin / "git",
-                f"#!{sys.executable}\nraise SystemExit(97)\n",
+                f"#!{sys.executable}\n"
+                "import os\n"
+                "import pathlib\n"
+                "pathlib.Path(os.environ['EQIORA_I01_CAPTURE_ROOT'], 'git').touch()\n"
+                "raise SystemExit(97)\n",
                 executable=True,
             )
             path = os.pathsep.join((str(fake_bin), os.environ.get("PATH", "")))
@@ -385,6 +439,7 @@ class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
                 fixture.source_sha,
                 environment={"PATH": path},
             )
+            self.assertFalse(git_marker.exists(), "archive mode invoked Git")
 
     def test_worktree_head_and_environment_mismatches_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
