@@ -156,7 +156,7 @@ class CompleteContractTests(unittest.TestCase):
             document["unexpected_eqiora_version"] = "0.1.0-alpha.9"
             self._write_publication(publication, document)
             self._assert_publication_mutant(
-                root, identities, publication, "0.1.0-alpha.9"
+                root, identities, publication, "0.1.0a1", "0.1.0-alpha.9"
             )
 
         object_mutations = {
@@ -523,32 +523,34 @@ class CompleteContractTests(unittest.TestCase):
         root: Path,
         identities: checker.SiteIdentities,
         publication: Path,
-        rejected_version: str,
+        *rejected_versions: str,
     ) -> None:
         errors = checker.check_source(root, identities)
         self.assertTrue(
             any("publication record digest mismatch" in error for error in errors),
             errors,
         )
-        self.assertTrue(
-            any(
-                f"hard-codes product version {rejected_version!r}: "
-                f"{self.PUBLICATION_RELATIVE.as_posix()}" in error
-                for error in errors
-            ),
-            errors,
-        )
+        for rejected_version in rejected_versions:
+            self.assertTrue(
+                any(
+                    f"hard-codes product version {rejected_version!r}: "
+                    f"{self.PUBLICATION_RELATIVE.as_posix()}" in error
+                    for error in errors
+                ),
+                errors,
+            )
 
         caller_identity = replace(identities, publication=checker.sha256(publication))
         caller_errors = checker.check_source(root, caller_identity)
-        self.assertTrue(
-            any(
-                f"hard-codes product version {rejected_version!r}: "
-                f"{self.PUBLICATION_RELATIVE.as_posix()}" in error
-                for error in caller_errors
-            ),
-            caller_errors,
-        )
+        for rejected_version in rejected_versions:
+            self.assertTrue(
+                any(
+                    f"hard-codes product version {rejected_version!r}: "
+                    f"{self.PUBLICATION_RELATIVE.as_posix()}" in error
+                    for error in caller_errors
+                ),
+                caller_errors,
+            )
 
 
 if __name__ == "__main__":
