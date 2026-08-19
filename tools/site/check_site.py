@@ -1096,7 +1096,7 @@ def check_artifact(
                 normalize("".join(case.id_text.get(item, [])))
                 for item in attrs.get("aria-labelledby", "").split()
             )
-            accessible = (
+            accessible = normalize(
                 labelled or attrs.get("aria-label") or label or attrs.get("title", "")
             )
             if any(

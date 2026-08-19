@@ -59,6 +59,26 @@ test('small target, page overflow, hidden core, focus, contrast, and fake contro
   await page.setContent(positive.replace('</main>', '<a href="/real-route/">Run now</a></main>'));
   await expect(assertNoFakeExecutionControls(page)).rejects.toThrow();
 
+  for (const [ordinary, mutant] of [
+    [
+      '<input type="button" value="Documentation" aria-label="Documentation">',
+      '<input type="button" value="Start computation" aria-label="Documentation">',
+    ],
+    [
+      '<button><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Documentation"></button>',
+      '<button><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Start computation"></button>',
+    ],
+    [
+      '<input type="text" value="Start computation">',
+      '<input type="BUTTON" value="Start computation">',
+    ],
+  ]) {
+    await page.setContent(positive.replace('</main>', `${ordinary}</main>`));
+    await assertNoFakeExecutionControls(page);
+    await page.setContent(positive.replace('</main>', `${mutant}</main>`));
+    await expect(assertNoFakeExecutionControls(page), mutant).rejects.toThrow();
+  }
+
   for (const label of [
     'Run simulation',
     'Execute calculation',

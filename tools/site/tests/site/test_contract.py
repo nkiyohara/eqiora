@@ -59,6 +59,40 @@ class CompleteContractTests(unittest.TestCase):
                 checker.check_site(root, artifact, SOURCE_SHA, identities), []
             )
 
+        pairs = {
+            "native rendered value with benign ARIA override": (
+                '<input type="button" value="Documentation" '
+                'aria-label="Documentation">',
+                '<input type="button" value="Start computation" '
+                'aria-label="Documentation">',
+            ),
+            "descendant image alternative": (
+                '<button><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" '
+                'alt="Documentation"></button>',
+                '<button><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" '
+                'alt="Start computation"></button>',
+            ),
+            "ASCII-case-insensitive native type": (
+                '<input type="text" value="Start computation">',
+                '<input type="BUTTON" value="Start computation">',
+            ),
+        }
+        for label, (ordinary, mutant) in pairs.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                artifact, identities = make_fixture(root)
+                case = artifact / "gallery/exact-cylinder-steady-stokes/index.html"
+                self._replace(case, "</main>", f"{ordinary}</main>")
+                self.assertEqual(
+                    checker.check_site(root, artifact, SOURCE_SHA, identities), []
+                )
+                self._replace(case, ordinary, mutant)
+                errors = checker.check_site(root, artifact, SOURCE_SHA, identities)
+                self.assertTrue(
+                    any("uncontracted execution control" in error for error in errors),
+                    errors,
+                )
+
         controls = {
             "accessible anchor label": (
                 '<a href="/get-started/" aria-label="Run simulation">Documentation</a>'

@@ -165,11 +165,25 @@ export async function assertAccessibleTooltip(
 
 export async function assertNoFakeExecutionControls(page: Page): Promise<void> {
   const executionLabel = /\b(run|submit|reset|start|begin|try|solv\w*|execut\w*|simulat\w*|comput\w*|calculat\w*|launch\w*|evaluat\w*|process\w*|generat\w*|analy[sz]\w*|predict\w*)\b/i;
+  const normalize = (value: string) => value.trim().split(/\s+/u).filter(Boolean).join(' ');
   expect(await page.getByRole('button', { name: executionLabel }).count()).toBe(0);
   expect(await page.getByRole('link', { name: executionLabel }).count()).toBe(0);
-  const controls = page.locator('a, button, [role="button"], [role="link"], input[type="button"], input[type="submit"], input[type="reset"], input[type="image"]');
+  const controls = page.locator('a, button, [role="button"], [role="link"], input[type="button" i], input[type="submit" i], input[type="reset" i], input[type="image" i]');
   for (let offset = 0; offset < (await controls.count()); offset += 1) {
-    expect((await controls.nth(offset).innerText()).trim()).not.toMatch(executionLabel);
+    const control = controls.nth(offset);
+    expect(normalize(await control.innerText())).not.toMatch(executionLabel);
+    const alternatives = await control.locator('img').evaluateAll((images) =>
+      images
+        .filter((image) => !image.closest('[hidden], [aria-hidden="true"]'))
+        .map((image) => (image as HTMLImageElement).alt),
+    );
+    for (const alternative of alternatives) {
+      expect(normalize(alternative)).not.toMatch(executionLabel);
+    }
+  }
+  const inputs = page.locator('input[type="button" i], input[type="submit" i], input[type="reset" i], input[type="image" i]');
+  for (let offset = 0; offset < (await inputs.count()); offset += 1) {
+    expect(normalize(await inputs.nth(offset).inputValue())).not.toMatch(executionLabel);
   }
   const links = page.locator('a, [role="link"]');
   for (let offset = 0; offset < (await links.count()); offset += 1) {

@@ -53,6 +53,10 @@ class HtmlInspection(HTMLParser):
         ) in {"button", "link"}:
             self.collectors.append([tag, values, []])
         if tag == "img":
+            if not hidden and values.get("alt"):
+                for collector in self.collectors:
+                    if collector[0] not in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+                        collector[2].extend((" ", values["alt"], " "))
             for ancestor, ancestor_values, _ in reversed(self.stack[:-1]):
                 if ancestor == "a":
                     values["_ancestor_href"] = ancestor_values.get("href", "")
@@ -64,7 +68,7 @@ class HtmlInspection(HTMLParser):
             self.links.append(values)
         if tag == "form":
             self.forms += 1
-        if tag == "input" and values.get("type", "text") in {
+        if tag == "input" and values.get("type", "text").lower() in {
             "button",
             "submit",
             "reset",
@@ -74,7 +78,7 @@ class HtmlInspection(HTMLParser):
                 (
                     tag,
                     values,
-                    values.get("value") or values.get("alt") or values["type"],
+                    values.get("value") or values.get("alt") or values["type"].lower(),
                 )
             )
         if tag == "math":
@@ -91,10 +95,6 @@ class HtmlInspection(HTMLParser):
                 self.references.append((tag, "srcset", item.strip().split()[0]))
         if "katex-display" in classes and tag not in {"div", "span"}:
             self.references.append((tag, "invalid-katex-display-owner", ""))
-
-    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        self.handle_starttag(tag, attrs)
-        self.handle_endtag(tag)
 
     def handle_endtag(self, tag: str) -> None:
         for index in range(len(self.collectors) - 1, -1, -1):
