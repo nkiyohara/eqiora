@@ -1,0 +1,29 @@
+---
+title: Gallery
+description: Source-traced, static walkthroughs built from admitted Eqiora results.
+---
+
+import GalleryGrid from '../../../components/gallery/GalleryGrid.astro';
+import pressureImage from '../../../assets/gallery/exact-cylinder-pressure.png';
+import publication from '../../../data/gallery/exact-cylinder-steady-stokes.publication.json';
+
+Explore bounded demonstrations from model definition to a linked result. Gallery
+media helps explain a run; it does not replace the registered evidence behind the
+claim.
+
+<GalleryGrid
+  cards={[
+    {
+      href: '/gallery/exact-cylinder-steady-stokes/',
+      title: 'Exact-cylinder steady Stokes',
+      description: 'A static, source-traced walkthrough of one frozen 2D steady incompressible Stokes demonstration.',
+      imageSrc: pressureImage.src,
+      imageAlt: publication.publication_payload.text.alt,
+      tags: ['Python', '2D', 'steady Stokes'],
+      featured: true,
+    },
+  ]}
+/>
+
+The featured image is presentation only. Open the walkthrough for its exact
+source revision, Result lineage, registered cases, and explicit nonclaims.
