@@ -54,7 +54,8 @@ function validateCard(value: unknown, index: number): GalleryCardData {
     throw new Error(`${COMPONENT}: ${where} must be a card record object`);
   }
   const record = value as Record<string, unknown>;
-  for (const key of Object.keys(record)) {
+  // Every own string-keyed property, enumerable or not, must be an allowed field.
+  for (const key of Object.getOwnPropertyNames(record)) {
     if (!ALLOWED_FIELDS.has(key)) {
       throw new Error(`${COMPONENT}: ${where} has unknown field "${key}"`);
     }
