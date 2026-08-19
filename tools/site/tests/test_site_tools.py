@@ -34,10 +34,11 @@ def index(entries):
 
 
 def entry(capability="spatial.solve", case="numerics.example", manifest=None):
+    area, name = case.split(".", 1)
     return {
         "capability": capability,
         "case": case,
-        "manifest": manifest or f"verify/numerics/{case}/case.toml",
+        "manifest": manifest or f"verify/{area}/{name}/case.toml",
         "status": "verified",
         "reference_kind": "independent-analytic",
         "conformance_kits": ["linear-v1"],
@@ -72,8 +73,8 @@ class EvidenceCatalogTests(unittest.TestCase):
     def test_00_complete_canonical_projection_passes_first_and_is_stable(self):
         canonical = index(
             [
-                entry("a.capability", "case-a", "verify/numerics/case-a/case.toml"),
-                entry("a.capability", "case-z", "verify/numerics/case-z/case.toml"),
+                entry("a.capability", "numerics.case-a"),
+                entry("a.capability", "numerics.case-z"),
             ]
         )
         first = catalog.render_catalog(canonical)
@@ -89,10 +90,20 @@ class EvidenceCatalogTests(unittest.TestCase):
             ),
             first.index(self.BANNER),
         )
-        self.assertLess(first.index(self.BANNER), first.index("# Evidence catalog"))
+        self.assertTrue(
+            first.startswith(
+                "---\n"
+                "title: Evidence catalog\n"
+                "description: Exact capability-to-case projection; manifests remain authoritative.\n"
+                "---\n\n"
+                "import ExactSourceLink from '@components/site/ExactSourceLink.astro';\n\n"
+                f"{self.BANNER}\n\n"
+            )
+        )
         self.assertLess(first.index("case-a"), first.index("case-z"))
         self.assertIn(
-            '<ExactSourceLink path="verify/numerics/case-a/case.toml" kind="blob">',
+            '<ExactSourceLink path={"verify/numerics/case-a/case.toml"} '
+            'kind="blob"><code>numerics.case-a</code></ExactSourceLink>',
             first,
         )
         self.assertNotIn("/main/", first)
@@ -107,8 +118,8 @@ class EvidenceCatalogTests(unittest.TestCase):
     def test_reversed_noncanonical_order_is_rejected(self):
         canonical = index(
             [
-                entry("a.capability", "case-a", "verify/numerics/case-a/case.toml"),
-                entry("a.capability", "case-z", "verify/numerics/case-z/case.toml"),
+                entry("a.capability", "numerics.case-a"),
+                entry("a.capability", "numerics.case-z"),
             ]
         )
         reversed_entries = index(list(reversed(canonical["entries"])))
@@ -118,14 +129,12 @@ class EvidenceCatalogTests(unittest.TestCase):
     def test_canonical_retarget_fails_check_without_writing(self):
         canonical = index(
             [
-                entry("a.capability", "case-a", "verify/numerics/case-a/case.toml"),
-                entry("a.capability", "case-z", "verify/numerics/case-z/case.toml"),
+                entry("a.capability", "numerics.case-a"),
+                entry("a.capability", "numerics.case-z"),
             ]
         )
         retargeted = json.loads(json.dumps(canonical))
-        retargeted["entries"][0] = entry(
-            "a.capability", "case-b", "verify/numerics/case-b/case.toml"
-        )
+        retargeted["entries"][0]["manifest"] = "verify/numerics/case-b/case.toml"
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "index.mdx"
             original = catalog.render_catalog(canonical)
@@ -170,8 +179,8 @@ class EvidenceCatalogTests(unittest.TestCase):
     def test_missing_input_entry_is_stale_not_a_smaller_complete_projection(self):
         complete = index(
             [
-                entry("a.capability", "case-a", "verify/numerics/case-a/case.toml"),
-                entry("a.capability", "case-z", "verify/numerics/case-z/case.toml"),
+                entry("a.capability", "numerics.case-a"),
+                entry("a.capability", "numerics.case-z"),
             ]
         )
         missing = index(complete["entries"][:-1])
