@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -70,6 +71,40 @@ class EvidenceCatalogTests(unittest.TestCase):
             except SystemExit as error:
                 return int(error.code)
 
+    @staticmethod
+    def render_reference_row(document):
+        rendered = catalog.render_catalog(document)
+        row = next(
+            line
+            for line in rendered.splitlines()
+            if line.startswith("| <ExactSourceLink ")
+        )
+        source = (
+            "| Case | Status | Reference | Conformance kits | Target |\n"
+            "|---|---|---|---|---|\n"
+            f"{row}\n"
+        )
+        script = """
+import { markdownToHtml } from 'satteri';
+import { katexMathPlugin } from './src/plugins/katex.ts';
+let source = '';
+process.stdin.setEncoding('utf8');
+for await (const chunk of process.stdin) source += chunk;
+const { html } = markdownToHtml(source, {
+  features: { math: true },
+  mdastPlugins: [katexMathPlugin],
+});
+process.stdout.write(html);
+"""
+        return subprocess.run(
+            ["node", "--input-type=module", "--eval", script],
+            cwd=TOOLS.parents[1] / "docs/site",
+            input=source,
+            text=True,
+            capture_output=True,
+            check=True,
+        ).stdout
+
     def test_00_complete_canonical_projection_passes_first_and_is_stable(self):
         canonical = index(
             [
@@ -114,6 +149,21 @@ class EvidenceCatalogTests(unittest.TestCase):
             output.write_text(first, encoding="utf-8")
             self.assertEqual(self.invoke_check(canonical, output), 0)
             self.assertEqual(output.read_text(encoding="utf-8"), first)
+
+    def test_01_reference_metacharacters_remain_literal_through_site_processor(self):
+        ordinary_html = self.render_reference_row(index([entry()]))
+        self.assertIn("<td>independent-analytic</td>", ordinary_html)
+        self.assertNotIn("<em", ordinary_html)
+        self.assertNotIn("<math", ordinary_html)
+        self.assertNotIn('class="katex"', ordinary_html)
+
+        metacharacters = entry()
+        metacharacters["reference_kind"] = "_em_ $x$"
+        rendered_html = self.render_reference_row(index([metacharacters]))
+        self.assertIn("<td>_em_ $x$</td>", rendered_html)
+        self.assertNotIn("<em", rendered_html)
+        self.assertNotIn("<math", rendered_html)
+        self.assertNotIn('class="katex"', rendered_html)
 
     def test_reversed_noncanonical_order_is_rejected(self):
         canonical = index(
