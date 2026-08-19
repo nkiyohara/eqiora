@@ -4,12 +4,17 @@ import contextlib
 import importlib
 import inspect
 import io
+import os
+import re
+import socket
 import subprocess
 import sys
 import tempfile
 import threading
 import time
 import unittest
+from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest import mock
 
@@ -375,6 +380,629 @@ class PlanTests(unittest.TestCase):
         )
 
 
+class Issue496UnixSocketScratchTests(unittest.TestCase):
+    SYNTHETIC_HOME = Path("/home/user1")
+    SOCKET_RELATIVE = Path("eqiora-cli-filesystem-4294967295-8") / "socket"
+    UNIX_PATHNAME_MAX = 107
+
+    @staticmethod
+    def plan(*commands: PlannedCommand) -> VerificationPlan:
+        return VerificationPlan("affected", (), (), (), commands, ())
+
+    @staticmethod
+    def lane(name: str) -> VerificationLane:
+        return VerificationLane(name, ResourceRequest(1, 1))
+
+    @classmethod
+    def socket_candidate(cls, tmpdir: Path) -> Path:
+        return tmpdir / cls.SOCKET_RELATIVE
+
+    @classmethod
+    def utf8_boundary_paths(cls) -> tuple[Path, Path, Path]:
+        configured_root = cls.SYNTHETIC_HOME / "é"
+        tmpdir_107 = configured_root / ("a" * 50)
+        tmpdir_108 = configured_root / ("a" * 51)
+        return configured_root, tmpdir_107, tmpdir_108
+
+    @staticmethod
+    def filesystem_snapshot(root: Path) -> tuple[tuple[str, str], ...]:
+        entries = []
+        for path in root.rglob("*"):
+            kind = (
+                "symlink" if path.is_symlink() else "dir" if path.is_dir() else "file"
+            )
+            entries.append((path.relative_to(root).as_posix(), kind))
+        return tuple(sorted(entries))
+
+    @classmethod
+    def real_boundary_tmpdirs(cls, authority: Path) -> tuple[Path, Path]:
+        authority_characters = len(str(authority))
+        authority_bytes = len(os.fsencode(authority))
+        if authority_characters != authority_bytes:
+            raise AssertionError("boundary authority must have an ASCII spelling")
+        padding = 65 - authority_bytes - len(os.fsencode("/é"))
+        if padding < 0:
+            raise AssertionError("home-backed authority is too long for C107")
+        tmpdir_107 = authority / ("é" + "a" * padding)
+        tmpdir_108 = authority / ("é" + "a" * (padding + 1))
+        return tmpdir_107, tmpdir_108
+
+    def test_00_default_path_plan_is_host_neutral_and_bounded(self) -> None:
+        observed: list[dict[str, str]] = []
+
+        def execute(
+            argv: tuple[str, ...], **kwargs: object
+        ) -> subprocess.CompletedProcess[bytes]:
+            observed.append(dict(kwargs["env"]))
+            return subprocess.CompletedProcess(argv, 0)
+
+        plan = self.plan(
+            PlannedCommand(
+                "default path witness",
+                ("default-path-witness",),
+                lane=self.lane("root-cargo"),
+            )
+        )
+        real_home = Path.home().resolve()
+        with tempfile.TemporaryDirectory(prefix="h", dir=real_home) as home_directory:
+            home = Path(home_directory)
+            with mock.patch.dict(os.environ, {"HOME": str(home)}):
+                worktree = home / ("w" * 120)
+                worktree.mkdir()
+                with mock.patch(
+                    "verification_scheduler.subprocess.run", side_effect=execute
+                ) as child:
+                    run_plan(plan, worktree, budget=ResourceBudget(1, 1))
+
+                child.assert_called_once()
+                self.assertEqual(len(observed), 1)
+                tmpdir = Path(observed[0]["TMPDIR"])
+                self.assertTrue(tmpdir.is_absolute())
+                self.assertTrue(tmpdir.resolve().is_relative_to(home.resolve()))
+                self.assertFalse(tmpdir.exists())
+                self.assertNotIn(worktree.name, str(tmpdir))
+                lexical_relative = tmpdir.relative_to(home)
+                synthetic_tmpdir = self.SYNTHETIC_HOME / lexical_relative
+                candidate = self.socket_candidate(synthetic_tmpdir)
+                self.assertEqual(len(os.fsencode(self.SYNTHETIC_HOME)), 11)
+                self.assertLessEqual(
+                    len(os.fsencode(candidate)),
+                    self.UNIX_PATHNAME_MAX,
+                    f"default TMPDIR shape leaves a "
+                    f"{len(os.fsencode(candidate))}-byte Unix-socket candidate",
+                )
+
+    def test_01_default_positive_binds_once_and_cleans_tmpdir(self) -> None:
+        observed_tmpdirs: list[Path] = []
+
+        def bind_socket(
+            argv: tuple[str, ...], **kwargs: object
+        ) -> subprocess.CompletedProcess[bytes]:
+            tmpdir = Path(dict(kwargs["env"])["TMPDIR"])
+            observed_tmpdirs.append(tmpdir)
+            self.assertTrue(tmpdir.exists())
+            socket_path = self.socket_candidate(tmpdir)
+            socket_path.parent.mkdir()
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+                listener.bind(str(socket_path))
+            return subprocess.CompletedProcess(argv, 0)
+
+        plan = self.plan(
+            PlannedCommand(
+                "default socket bind",
+                ("bind-default-socket",),
+                lane=self.lane("root-cargo"),
+            )
+        )
+        real_home = Path.home().resolve()
+        with tempfile.TemporaryDirectory(prefix="h", dir=real_home) as home_directory:
+            home = Path(home_directory)
+            with mock.patch.dict(os.environ, {"HOME": str(home)}):
+                worktree = home / ("w" * 120)
+                worktree.mkdir()
+                with mock.patch(
+                    "verification_scheduler.subprocess.run", side_effect=bind_socket
+                ) as child:
+                    run_plan(plan, worktree, budget=ResourceBudget(1, 1))
+
+                child.assert_called_once()
+                self.assertEqual(len(observed_tmpdirs), 1)
+                tmpdir = observed_tmpdirs[0]
+                self.assertTrue(tmpdir.resolve().is_relative_to(home.resolve()))
+                self.assertLessEqual(
+                    len(os.fsencode(self.socket_candidate(tmpdir))),
+                    self.UNIX_PATHNAME_MAX,
+                )
+                self.assertFalse(tmpdir.exists())
+
+    def test_02_two_lanes_get_disjoint_tmp_and_persistent_cargo_roots(self) -> None:
+        barrier = threading.Barrier(2)
+        environments: dict[str, dict[str, str]] = {}
+        environment_lock = threading.Lock()
+
+        def execute(
+            argv: tuple[str, ...], **kwargs: object
+        ) -> subprocess.CompletedProcess[bytes]:
+            environment = dict(kwargs["env"])
+            with environment_lock:
+                environments[argv[0]] = environment
+            self.assertTrue(Path(environment["TMPDIR"]).exists())
+            barrier.wait(timeout=1.0)
+            return subprocess.CompletedProcess(argv, 0)
+
+        plan = self.plan(
+            PlannedCommand("first lane", ("first",), lane=self.lane("first")),
+            PlannedCommand("second lane", ("second",), lane=self.lane("second")),
+        )
+        with (
+            tempfile.TemporaryDirectory(prefix="e496-", dir=Path.home()) as directory,
+            mock.patch("verification_scheduler.subprocess.run", side_effect=execute),
+        ):
+            scratch_root = Path(directory)
+            run_plan(
+                plan,
+                scratch_root,
+                budget=ResourceBudget(2, 2),
+                scratch_root=scratch_root,
+            )
+            self.assertEqual(set(environments), {"first", "second"})
+            tmpdirs = {Path(env["TMPDIR"]) for env in environments.values()}
+            lane_roots = {
+                Path(env["EQIORA_VERIFY_LANE_ROOT"]) for env in environments.values()
+            }
+            cargo_roots = {
+                Path(env["CARGO_TARGET_DIR"]) for env in environments.values()
+            }
+            self.assertEqual(len(tmpdirs), 2)
+            self.assertEqual(len(lane_roots), 2)
+            self.assertEqual(len(cargo_roots), 2)
+            self.assertTrue(all(not path.exists() for path in tmpdirs))
+            self.assertTrue(all(path.exists() for path in cargo_roots))
+            for environment in environments.values():
+                lane_root = Path(environment["EQIORA_VERIFY_LANE_ROOT"])
+                self.assertTrue(lane_root.is_relative_to(scratch_root))
+                self.assertTrue(
+                    Path(environment["TMPDIR"]).is_relative_to(scratch_root)
+                )
+                self.assertTrue(
+                    Path(environment["CARGO_TARGET_DIR"]).is_relative_to(lane_root)
+                )
+
+    def test_03_overlapping_same_lane_invocations_keep_distinct_tmpdirs(self) -> None:
+        observed_tmpdirs: dict[str, Path] = {}
+        observed_lock = threading.Lock()
+        first_started = threading.Event()
+        second_started = threading.Event()
+        release_first = threading.Event()
+        release_second = threading.Event()
+
+        def execute(
+            argv: tuple[str, ...], **kwargs: object
+        ) -> subprocess.CompletedProcess[bytes]:
+            tmpdir = Path(dict(kwargs["env"])["TMPDIR"])
+            with observed_lock:
+                observed_tmpdirs[argv[0]] = tmpdir
+            self.assertTrue(tmpdir.exists())
+            if argv[0] == "first":
+                first_started.set()
+                self.assertTrue(second_started.wait(timeout=2.0))
+                self.assertTrue(release_first.wait(timeout=2.0))
+            else:
+                second_started.set()
+                self.assertTrue(first_started.wait(timeout=2.0))
+                self.assertTrue(release_second.wait(timeout=2.0))
+            return subprocess.CompletedProcess(argv, 0)
+
+        lane = self.lane("shared")
+        first_plan = self.plan(
+            PlannedCommand("shared lane first", ("first",), lane=lane)
+        )
+        second_plan = self.plan(
+            PlannedCommand("shared lane second", ("second",), lane=lane)
+        )
+        with (
+            tempfile.TemporaryDirectory(prefix="e496-", dir=Path.home()) as directory,
+            mock.patch("verification_scheduler.subprocess.run", side_effect=execute),
+        ):
+            scratch_root = Path(directory)
+
+            def invoke(plan: VerificationPlan) -> None:
+                run_plan(
+                    plan,
+                    scratch_root,
+                    budget=ResourceBudget(1, 1),
+                    scratch_root=scratch_root,
+                )
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                second_future = pool.submit(invoke, second_plan)
+                first_future = pool.submit(invoke, first_plan)
+                try:
+                    self.assertTrue(first_started.wait(timeout=2.0))
+                    self.assertTrue(second_started.wait(timeout=2.0))
+                    with observed_lock:
+                        self.assertEqual(set(observed_tmpdirs), {"first", "second"})
+                        first_tmpdir = observed_tmpdirs["first"]
+                        second_tmpdir = observed_tmpdirs["second"]
+                    self.assertNotEqual(first_tmpdir, second_tmpdir)
+                    self.assertTrue(first_tmpdir.exists())
+                    self.assertTrue(second_tmpdir.exists())
+
+                    release_first.set()
+                    first_future.result(timeout=2.0)
+                    self.assertFalse(first_tmpdir.exists())
+                    self.assertFalse(second_future.done())
+                    self.assertTrue(second_tmpdir.exists())
+                    live_witness = second_tmpdir / "still-live"
+                    live_witness.write_text("second", encoding="ascii")
+                    self.assertEqual(live_witness.read_text(encoding="ascii"), "second")
+                finally:
+                    release_first.set()
+                    release_second.set()
+
+                second_future.result(timeout=2.0)
+                self.assertFalse(second_tmpdir.exists())
+
+    def test_04_old_default_shape_exceeds_the_frozen_socket_budget(self) -> None:
+        home = self.SYNTHETIC_HOME
+        base = home / ".cache" / "eqiora" / "local-verify" / ("0" * 16)
+        old_tmpdir = base / "lanes" / f"root-cargo-{'0' * 8}" / "tmp" / f"run-{'0' * 8}"
+        candidate = self.socket_candidate(old_tmpdir)
+        self.assertEqual(len(os.fsencode(old_tmpdir)), 98)
+        self.assertEqual(len(os.fsencode(candidate)), 140)
+        self.assertGreater(len(os.fsencode(candidate)), self.UNIX_PATHNAME_MAX)
+        self.assertEqual(len(os.fsencode("/" + self.SOCKET_RELATIVE.as_posix())), 42)
+
+    def test_05_controlled_real_65_byte_tmpdir_is_admitted_and_cleaned(self) -> None:
+        configured_root, tmpdir_107, tmpdir_108 = self.utf8_boundary_paths()
+        self.assertEqual(len(str(self.SYNTHETIC_HOME)), 11)
+        self.assertEqual(len(os.fsencode(self.SYNTHETIC_HOME)), 11)
+        self.assertEqual(len(str(configured_root)), 13)
+        self.assertEqual(len(os.fsencode(configured_root)), 14)
+        self.assertEqual(len(str(tmpdir_107)), 64)
+        self.assertEqual(len(os.fsencode(tmpdir_107)), 65)
+        self.assertEqual(len(str(self.socket_candidate(tmpdir_107))), 106)
+        self.assertEqual(len(os.fsencode(self.socket_candidate(tmpdir_107))), 107)
+        self.assertEqual(len(str(tmpdir_108)), 65)
+        self.assertEqual(len(os.fsencode(tmpdir_108)), 66)
+        self.assertEqual(len(str(self.socket_candidate(tmpdir_108))), 107)
+        self.assertEqual(len(os.fsencode(self.socket_candidate(tmpdir_108))), 108)
+
+        plan = self.plan(
+            PlannedCommand("C107 boundary", ("c107",), lane=self.lane("utf8"))
+        )
+        home = Path.home().resolve()
+        with tempfile.TemporaryDirectory(prefix="x", dir=home) as directory:
+            authority = Path(directory)
+            controlled_107, _controlled_108 = self.real_boundary_tmpdirs(authority)
+            candidate = self.socket_candidate(controlled_107)
+            self.assertEqual(len(str(controlled_107)), 64)
+            self.assertEqual(len(os.fsencode(controlled_107)), 65)
+            self.assertEqual(len(str(candidate)), 106)
+            self.assertEqual(len(os.fsencode(candidate)), 107)
+            submitted: list[Path] = []
+            observed: list[tuple[Path, bool]] = []
+
+            @contextlib.contextmanager
+            def controlled_scope(
+                received_authority: Path, admit: Callable[[Path], None]
+            ) -> Iterator[Path]:
+                self.assertEqual(received_authority, authority)
+                submitted.append(controlled_107)
+                admit(controlled_107)
+                controlled_107.mkdir()
+                try:
+                    yield controlled_107
+                finally:
+                    controlled_107.rmdir()
+
+            def execute(
+                argv: tuple[str, ...], **kwargs: object
+            ) -> subprocess.CompletedProcess[bytes]:
+                tmpdir = Path(dict(kwargs["env"])["TMPDIR"])
+                observed.append((tmpdir, tmpdir.exists()))
+                return subprocess.CompletedProcess(argv, 0)
+
+            with (
+                mock.patch(
+                    "verification_scheduler._lane_tmp_scope",
+                    side_effect=controlled_scope,
+                    create=True,
+                ) as scope,
+                mock.patch(
+                    "verification_scheduler.subprocess.run", side_effect=execute
+                ) as child,
+            ):
+                run_plan(
+                    plan,
+                    authority,
+                    budget=ResourceBudget(1, 1),
+                    scratch_root=authority,
+                )
+
+            child.assert_called_once()
+            self.assertEqual(
+                scope.call_count,
+                1,
+                "run_plan did not consume the frozen lane TMP scope",
+            )
+            self.assertEqual(submitted, [controlled_107])
+            self.assertEqual(observed, [(controlled_107, True)])
+            self.assertFalse(controlled_107.exists())
+
+    def test_06_controlled_real_66_byte_tmpdir_rejects_and_cleans(self) -> None:
+        plan = self.plan(
+            PlannedCommand("C108 boundary", ("c108",), lane=self.lane("utf8"))
+        )
+        home = Path.home().resolve()
+        with tempfile.TemporaryDirectory(prefix="x", dir=home) as directory:
+            authority = Path(directory)
+            _controlled_107, controlled_108 = self.real_boundary_tmpdirs(authority)
+            candidate = self.socket_candidate(controlled_108)
+            self.assertEqual(len(str(controlled_108)), 65)
+            self.assertEqual(len(os.fsencode(controlled_108)), 66)
+            self.assertEqual(len(str(candidate)), 107)
+            self.assertEqual(len(os.fsencode(candidate)), 108)
+            submitted: list[Path] = []
+
+            @contextlib.contextmanager
+            def controlled_scope(
+                received_authority: Path, admit: Callable[[Path], None]
+            ) -> Iterator[Path]:
+                self.assertEqual(received_authority, authority)
+                submitted.append(controlled_108)
+                controlled_108.mkdir()
+                try:
+                    admit(controlled_108)
+                    yield controlled_108
+                finally:
+                    if controlled_108.exists():
+                        controlled_108.rmdir()
+
+            rejection: Exception | None = None
+            with (
+                mock.patch(
+                    "verification_scheduler._lane_tmp_scope",
+                    side_effect=controlled_scope,
+                    create=True,
+                ) as scope,
+                mock.patch("verification_scheduler.subprocess.run") as child,
+            ):
+                try:
+                    run_plan(
+                        plan,
+                        authority,
+                        budget=ResourceBudget(1, 1),
+                        scratch_root=authority,
+                    )
+                except Exception as caught:  # rejection type is not contractual
+                    rejection = caught
+
+            self.assertEqual(
+                scope.call_count,
+                1,
+                "run_plan did not consume the frozen lane TMP scope",
+            )
+            self.assertEqual(submitted, [controlled_108])
+            child.assert_not_called()
+            self.assertFalse(controlled_108.exists())
+            self.assertIsNotNone(rejection)
+            assert rejection is not None
+            self.assertRegex(str(rejection), r"108")
+            self.assertRegex(str(rejection), r"107")
+
+    def test_07_unpatched_65_byte_root_rejects_every_strict_descendant(self) -> None:
+        plan = self.plan(
+            PlannedCommand(
+                "overlong provider falsifier", ("forbidden",), lane=self.lane("utf8")
+            )
+        )
+        home = Path.home().resolve()
+        with tempfile.TemporaryDirectory(prefix="x", dir=home) as directory:
+            container = Path(directory)
+            padding = 65 - len(os.fsencode(container)) - 1
+            self.assertGreaterEqual(padding, 1)
+            scratch_root = container / ("a" * padding)
+            scratch_root.mkdir()
+            self.assertEqual(len(os.fsencode(scratch_root)), 65)
+            before_rejection = self.filesystem_snapshot(scratch_root)
+            started: list[Path] = []
+
+            def forbidden(
+                argv: tuple[str, ...], **kwargs: object
+            ) -> subprocess.CompletedProcess[bytes]:
+                started.append(Path(dict(kwargs["env"])["TMPDIR"]))
+                return subprocess.CompletedProcess(argv, 0)
+
+            rejection: Exception | None = None
+            with mock.patch(
+                "verification_scheduler.subprocess.run", side_effect=forbidden
+            ) as child:
+                try:
+                    run_plan(
+                        plan,
+                        container,
+                        budget=ResourceBudget(1, 1),
+                        scratch_root=scratch_root,
+                    )
+                except Exception as caught:  # rejection type is not contractual
+                    rejection = caught
+
+            after_rejection = self.filesystem_snapshot(scratch_root)
+            if started:
+                self.assertEqual(len(started), 1)
+                self.assertNotEqual(started[0], scratch_root)
+                self.assertTrue(started[0].is_relative_to(scratch_root))
+                self.assertGreater(
+                    len(os.fsencode(self.socket_candidate(started[0]))),
+                    self.UNIX_PATHNAME_MAX,
+                )
+            self.assertEqual(
+                child.call_count,
+                0,
+                "the production provider ignored the strict-descendant budget",
+            )
+            self.assertEqual(after_rejection, before_rejection)
+            self.assertIsNotNone(rejection)
+            assert rejection is not None
+            diagnostic = str(rejection)
+            self.assertRegex(diagnostic, r"107")
+            self.assertTrue(
+                any(
+                    int(value) > self.UNIX_PATHNAME_MAX
+                    for value in re.findall(r"\d+", diagnostic)
+                ),
+                "overlong-path diagnostic omitted the actual encoded length",
+            )
+
+    def test_07a_partial_scope_rejection_prevents_every_lane_child(self) -> None:
+        plan = self.plan(
+            PlannedCommand("lane A", ("lane-a",), lane=self.lane("lane-a")),
+            PlannedCommand("lane B", ("lane-b",), lane=self.lane("lane-b")),
+        )
+        home = Path.home().resolve()
+        with tempfile.TemporaryDirectory(prefix="x", dir=home) as directory:
+            authority = Path(directory)
+            controlled_107, controlled_108 = self.real_boundary_tmpdirs(authority)
+            boundaries = (controlled_107, controlled_108)
+            self.assertEqual(
+                [len(os.fsencode(self.socket_candidate(path))) for path in boundaries],
+                [107, 108],
+            )
+            allocation_lock = threading.Lock()
+            allocated: list[Path] = []
+            admission_attempts: list[Path] = []
+            entered: list[Path] = []
+            released: list[Path] = []
+            child_attempted = threading.Event()
+
+            @contextlib.contextmanager
+            def controlled_scope(
+                received_authority: Path, admit: Callable[[Path], None]
+            ) -> Iterator[Path]:
+                self.assertEqual(received_authority, authority)
+                with allocation_lock:
+                    candidate = boundaries[len(allocated)]
+                    candidate.mkdir()
+                    allocated.append(candidate)
+                    admission_attempts.append(candidate)
+                try:
+                    if candidate == controlled_108:
+                        child_attempted.wait(timeout=1.0)
+                    admit(candidate)
+                    with allocation_lock:
+                        entered.append(candidate)
+                    yield candidate
+                finally:
+                    if candidate.exists():
+                        candidate.rmdir()
+                    with allocation_lock:
+                        released.append(candidate)
+
+            def execute(
+                argv: tuple[str, ...], **kwargs: object
+            ) -> subprocess.CompletedProcess[bytes]:
+                child_attempted.set()
+                return subprocess.CompletedProcess(argv, 0)
+
+            rejection: Exception | None = None
+            with (
+                mock.patch(
+                    "verification_scheduler._lane_tmp_scope",
+                    side_effect=controlled_scope,
+                    create=True,
+                ) as scope,
+                mock.patch(
+                    "verification_scheduler.subprocess.run", side_effect=execute
+                ) as child,
+            ):
+                try:
+                    run_plan(
+                        plan,
+                        authority,
+                        budget=ResourceBudget(2, 2),
+                        scratch_root=authority,
+                    )
+                except Exception as caught:  # rejection type is not contractual
+                    rejection = caught
+
+            self.assertEqual(
+                scope.call_count,
+                2,
+                "run_plan did not request every lane scope before task execution",
+            )
+            self.assertCountEqual(allocated, boundaries)
+            self.assertCountEqual(admission_attempts, boundaries)
+            self.assertEqual(entered, [controlled_107])
+            child.assert_not_called()
+            self.assertCountEqual(released, [controlled_107, controlled_108])
+            self.assertTrue(all(not path.exists() for path in allocated))
+            self.assertIsNotNone(rejection)
+            assert rejection is not None
+            self.assertRegex(str(rejection), r"108")
+            self.assertRegex(str(rejection), r"107")
+
+    def test_08_child_failure_cleans_tmp_but_preserves_cargo_root(self) -> None:
+        observed: dict[str, Path] = {}
+
+        def fail(
+            argv: tuple[str, ...], **kwargs: object
+        ) -> subprocess.CompletedProcess[bytes]:
+            environment = dict(kwargs["env"])
+            observed.update(
+                tmpdir=Path(environment["TMPDIR"]),
+                lane_root=Path(environment["EQIORA_VERIFY_LANE_ROOT"]),
+                cargo_root=Path(environment["CARGO_TARGET_DIR"]),
+            )
+            self.assertTrue(observed["tmpdir"].exists())
+            raise subprocess.CalledProcessError(23, argv)
+
+        plan = self.plan(
+            PlannedCommand(
+                "reported child failure", ("fail",), lane=self.lane("failure")
+            )
+        )
+        with tempfile.TemporaryDirectory(prefix="e496-", dir=Path.home()) as directory:
+            scratch_root = Path(directory)
+            with (
+                mock.patch("verification_scheduler.subprocess.run", side_effect=fail),
+                self.assertRaises(VerificationFailure) as raised,
+            ):
+                run_plan(
+                    plan,
+                    scratch_root,
+                    budget=ResourceBudget(1, 1),
+                    scratch_root=scratch_root,
+                )
+
+            self.assertEqual(
+                [failure.returncode for failure in raised.exception.failures], [23]
+            )
+            self.assertFalse(observed["tmpdir"].exists())
+            self.assertTrue(observed["lane_root"].exists())
+            self.assertTrue(observed["cargo_root"].exists())
+
+    def test_09_outside_home_configured_root_rejects_before_child(self) -> None:
+        plan = self.plan(
+            PlannedCommand("must not start", ("forbidden",), lane=self.lane("outside"))
+        )
+        rejection: Exception | None = None
+        with mock.patch("verification_scheduler.subprocess.run") as child:
+            try:
+                run_plan(
+                    plan,
+                    Path.home(),
+                    budget=ResourceBudget(1, 1),
+                    scratch_root=Path("/var/lib/eqiora-issue496-scratch"),
+                )
+            except Exception as caught:  # rejection type is not contractual
+                rejection = caught
+        child.assert_not_called()
+        self.assertIsNotNone(rejection)
+        assert rejection is not None
+        self.assertRegex(str(rejection), "below the home directory")
+
+
 class SchedulerTests(unittest.TestCase):
     @staticmethod
     def plan(*commands: PlannedCommand) -> VerificationPlan:
@@ -679,7 +1307,9 @@ class SchedulerTests(unittest.TestCase):
             self.assertEqual(len(set(roots.values())), 2)
             for name, root in roots.items():
                 self.assertTrue(root.is_relative_to(scratch_root))
-                self.assertTrue(Path(environments[name]["TMPDIR"]).is_relative_to(root))
+                self.assertTrue(
+                    Path(environments[name]["TMPDIR"]).is_relative_to(scratch_root)
+                )
                 self.assertTrue(
                     Path(environments[name]["CARGO_TARGET_DIR"]).is_relative_to(root)
                 )

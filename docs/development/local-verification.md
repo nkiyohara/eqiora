@@ -151,13 +151,14 @@ only work selected by one local-verification plan; it does not reuse a result
 from another invocation or source revision.
 
 Root Cargo, installed-Python, Studio, CubeCL, dependency policy, and lightweight
-repository checks are separate local lanes. Every lane receives an explicit
-build root and per-invocation temporary directory below
-`~/.cache/eqiora/local-verify/<checkout>/`; the temporary directory is removed
-after reporting. Build roots remain as recomputable Cargo products so a later
-invocation does not pay for a clean rebuild. Set `--scratch-root` only to an
-equivalent home-backed location. The runner never uses OS `/tmp` for these
-artifacts.
+repository checks are separate local lanes. Persistent checkout-fingerprinted
+lane/build roots and reusable `CARGO_TARGET_DIR` products remain below
+`~/.cache/eqiora/local-verify/<checkout>/` by default. Per-invocation temporary
+directories instead use the compact home-backed authority
+`~/.cache/eqiora/local-verify-tmp` and are removed after reporting. With
+`--scratch-root`, persistent roots and per-invocation temporary directories
+remain below the selected equivalent home-backed location. The runner never
+uses OS `/tmp` for these artifacts.
 
 Fast and affected Clippy use default features. Optional MPI, CUDA, Diffsol, or
 other backend features run through their explicitly selected evidence command

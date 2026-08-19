@@ -5,9 +5,10 @@ from __future__ import annotations
 import hashlib
 import os
 import shlex
-import shutil
 import subprocess
 import tempfile
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, ExitStack, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -21,6 +22,8 @@ from resource_scheduler import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
+_CLI_FILESYSTEM_SOCKET_SUFFIX = Path("eqiora-cli-filesystem-4294967295-8") / "socket"
+_UNIX_PATHNAME_MAX = 107
 
 
 # The Cargo test profile the hosted workflow runs under. A local gate that does
@@ -176,6 +179,21 @@ def _lane_directory(base: Path, lane: VerificationLane) -> Path:
     return base / "lanes" / f"{slug}-{suffix}"
 
 
+def _lane_tmp_scope(
+    authority: Path,
+    admit: Callable[[Path], None],
+) -> AbstractContextManager[Path]:
+    @contextmanager
+    def allocated_scope() -> Iterator[Path]:
+        authority.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="r-", dir=authority) as directory:
+            candidate = Path(directory)
+            admit(candidate)
+            yield candidate
+
+    return allocated_scope()
+
+
 def _validate_lanes(
     plan: VerificationPlan, budget: ResourceBudget
 ) -> tuple[tuple[VerificationLane, tuple[tuple[int, PlannedCommand], ...]], ...]:
@@ -313,37 +331,58 @@ def run_plan(
         return
 
     base = _scratch_base(root, scratch_root)
-    run_parent = base / "runs"
-    run_parent.mkdir(parents=True, exist_ok=True)
-    lane_directories: dict[str, Path] = {}
-    lane_tmp_directories: dict[str, Path] = {}
+    tmp_authority = (
+        base
+        if scratch_root is not None
+        else Path.home() / ".cache" / "eqiora" / "local-verify-tmp"
+    )
+
+    def admit_lane_tmp(candidate: Path) -> None:
+        if not candidate.is_absolute() or not candidate.is_relative_to(tmp_authority):
+            raise ValueError("lane TMPDIR must be an absolute path below its authority")
+        candidate_length = len(os.fsencode(candidate / _CLI_FILESYSTEM_SOCKET_SUFFIX))
+        if candidate_length > _UNIX_PATHNAME_MAX:
+            raise ValueError(
+                "lane TMPDIR produces a "
+                f"{candidate_length}-byte Unix-socket pathname; "
+                f"maximum is {_UNIX_PATHNAME_MAX} bytes"
+            )
+
     cargo_jobs = cpu_allocations(
         tuple(lane for lane, _commands in lanes), admitted_budget
     )
 
-    with tempfile.TemporaryDirectory(prefix="run-", dir=run_parent) as run_directory:
-        run_path = Path(run_directory)
-        log_paths = {
-            index: run_path / f"{index:04d}.log"
-            for index, _item in enumerate(plan.commands)
+    with ExitStack() as lane_scopes:
+        lane_tmp_directories = {
+            lane.name: lane_scopes.enter_context(
+                _lane_tmp_scope(tmp_authority, admit_lane_tmp)
+            )
+            for lane, _commands in lanes
         }
+
+        run_parent = base / "runs"
+        run_parent.mkdir(parents=True, exist_ok=True)
+        lane_directories: dict[str, Path] = {}
         for lane, _commands in lanes:
             lane_root = _lane_directory(base, lane)
             (lane_root / "cargo-target").mkdir(parents=True, exist_ok=True)
-            tmp_parent = lane_root / "tmp"
-            tmp_parent.mkdir(parents=True, exist_ok=True)
-            lane_tmp = Path(tempfile.mkdtemp(prefix="run-", dir=tmp_parent))
             lane_directories[lane.name] = lane_root
-            lane_tmp_directories[lane.name] = lane_tmp
 
-        results: list[tuple[int, _LaneResult]] = []
-        unexpected: list[tuple[int, Exception]] = []
+        with tempfile.TemporaryDirectory(
+            prefix="run-", dir=run_parent
+        ) as run_directory:
+            run_path = Path(run_directory)
+            log_paths = {
+                index: run_path / f"{index:04d}.log"
+                for index, _item in enumerate(plan.commands)
+            }
+            results: list[tuple[int, _LaneResult]] = []
+            unexpected: list[tuple[int, Exception]] = []
 
-        print(
-            "==> starting lanes: " + ", ".join(lane.name for lane, _ in lanes),
-            flush=True,
-        )
-        try:
+            print(
+                "==> starting lanes: " + ", ".join(lane.name for lane, _ in lanes),
+                flush=True,
+            )
             tasks = tuple(
                 ScheduledTask(
                     lane.name,
@@ -386,6 +425,3 @@ def run_plan(
             )
             if failures:
                 raise VerificationFailure(failures)
-        finally:
-            for lane_tmp in lane_tmp_directories.values():
-                shutil.rmtree(lane_tmp, ignore_errors=True)
