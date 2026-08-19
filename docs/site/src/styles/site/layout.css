@@ -543,22 +543,13 @@ h1[data-page-title] {
   outline-offset: -3px;
 }
 
-/* Visible language label on untitled frames so every code region is labelled.
-   The label is a full-width header row inside the scroll container and stays
-   pinned while the code scrolls horizontally. */
-.expressive-code .frame:not(.has-title):not(.is-terminal) > pre {
-  flex-wrap: wrap;
-}
-
-.expressive-code .frame:not(.has-title):not(.is-terminal) > pre::before {
-  content: attr(data-language);
-  position: sticky;
-  left: 0;
-  flex: 0 0 100%;
-  box-sizing: border-box;
-  padding: 0.3rem 1rem;
-  border-bottom: 1px solid var(--eq-color-border);
-  background-color: var(--eq-color-surface-muted);
+/* Real language label on untitled frames. The private code-region plugin
+   (src/plugins/code-region-accessibility.ts) renders it server-side into the
+   frame header as `.eq-code-region-label` and marks the frame
+   `has-code-region-label`; the same text is the `pre`'s accessible name. On
+   editor frames the header is otherwise hidden, so it becomes a header row above
+   the scroll container; terminal frames keep their own header and chrome. */
+.eq-code-region-label {
   color: var(--eq-color-text-muted);
   font-family: var(--eq-font-sans);
   font-size: var(--eq-text-micro);
@@ -566,7 +557,26 @@ h1[data-page-title] {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   line-height: 1.5;
-  pointer-events: none;
+}
+
+.expressive-code .frame.has-code-region-label:not(.is-terminal) {
+  /* Keep the copy control below the label row (Expressive Code positions it by this variable). */
+  --button-spacing: 2.4rem;
+}
+
+.expressive-code .frame.has-code-region-label:not(.is-terminal) > .header {
+  display: flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 1rem;
+  border: 1px solid var(--eq-color-border);
+  background-color: var(--eq-color-surface-muted);
+}
+
+.expressive-code .frame.has-code-region-label:not(.is-terminal) > pre {
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 .expressive-code .copy button {
@@ -714,7 +724,7 @@ h1[data-page-title] {
     outline: 3px solid Highlight;
   }
 
-  .expressive-code .frame:not(.has-title):not(.is-terminal) > pre::before,
+  .expressive-code .frame.has-code-region-label:not(.is-terminal) > .header,
   .eqiora-math-region::before {
     border-color: CanvasText;
     background: Canvas;

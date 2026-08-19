@@ -4,25 +4,35 @@
  * two panels are labelled in text ("Supported", "Not claimed") and by colour
  * and icon; neither is a maturity, status, or capability claim.
  *
- * Props (private site-component binding v1):
- *   title?: string (default 'Verified boundary')
+ * Props (private site-component binding v1 + F-03 successor v2):
+ *   title?: string               default 'Verified boundary'
+ *   supported: readonly string[] dense, at least one non-empty string
+ *   notClaimed: readonly string[] dense, at least one non-empty string
  *
- * Named slots, each required exactly once:
- *   slot="supported"   supported statements and evidence links
- *   slot="notClaimed"  explicit nonclaims / remaining boundary
- *
- * There is no default slot. Unknown props, a missing or empty required slot,
- * a default slot, or any other named slot fail the build.
+ * No slots. Unknown props, a missing/non-array/empty/sparse list, an empty or
+ * non-string entry, an empty title, or any enumerated slot fail the build. Each
+ * list becomes exactly one semantic `ul` with one escaped `li` per entry in
+ * input order. Accessible names are direct `aria-label` values equal to the
+ * visible headings; the component emits no `id` and no IDREF, so repeated
+ * instances never collide.
  */
 import { Icon } from '@astrojs/starlight/components';
 
 interface Props {
   title?: string;
+  supported: readonly string[];
+  notClaimed: readonly string[];
 }
 
 const COMPONENT = 'ClaimBoundary';
-const ALLOWED_PROPS: ReadonlySet<string> = new Set(['title']);
+const ALLOWED_PROPS: ReadonlySet<string> = new Set(['title', 'supported', 'notClaimed']);
 const rawProps = Astro.props as unknown as Record<string, unknown>;
+
+// Slots are rejected before props: the locked MDX adapter replaces a same-named
+// prop with a slot callback, so this gate must be the one that reports.
+if (Object.keys(Astro.slots).length > 0) {
+  throw new Error(`${COMPONENT}: accepts no slots; pass "supported" and "notClaimed" string arrays`);
+}
 
 for (const key of Object.keys(rawProps)) {
   if (!ALLOWED_PROPS.has(key)) {
@@ -36,73 +46,57 @@ if (titleValue !== undefined && (typeof titleValue !== 'string' || titleValue.tr
 }
 const title = (titleValue as string | undefined) ?? 'Verified boundary';
 
-const REQUIRED_SLOTS = ['supported', 'notClaimed'] as const;
-const slotNames = Object.keys(Astro.slots);
-for (const name of slotNames) {
-  if (name === 'default') {
-    const rendered = await Astro.slots.render('default');
-    if (rendered.trim().length > 0) {
-      throw new Error(`${COMPONENT}: has no default slot; use slot="supported" and slot="notClaimed"`);
+/** A dense, non-empty real array of non-empty strings; holes and inherited indices are rejected. */
+function requiredStatements(name: 'supported' | 'notClaimed'): readonly string[] {
+  const value = rawProps[name];
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${COMPONENT}: prop "${name}" must be a non-empty array of strings`);
+  }
+  const statements: string[] = [];
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.prototype.hasOwnProperty.call(value, index)) {
+      throw new Error(`${COMPONENT}: prop "${name}" must be a dense array (index ${index} is absent)`);
     }
-    continue;
+    const entry: unknown = value[index];
+    if (typeof entry !== 'string' || entry.trim().length === 0) {
+      throw new Error(`${COMPONENT}: prop "${name}" entry ${index} must be a non-empty string`);
+    }
+    statements.push(entry);
   }
-  if (!(REQUIRED_SLOTS as readonly string[]).includes(name)) {
-    throw new Error(`${COMPONENT}: unknown slot "${name}"`);
-  }
+  return statements;
 }
 
-async function requiredSlot(name: (typeof REQUIRED_SLOTS)[number]): Promise<string> {
-  if (!Astro.slots.has(name)) {
-    throw new Error(`${COMPONENT}: slot "${name}" is required`);
-  }
-  const rendered = await Astro.slots.render(name);
-  // Text carries the meaning: markup without any text is an empty slot.
-  if (rendered.replace(/<[^>]*>/g, '').trim().length === 0) {
-    throw new Error(`${COMPONENT}: slot "${name}" must not be empty`);
-  }
-  return rendered;
-}
-
-const supported = await requiredSlot('supported');
-const notClaimed = await requiredSlot('notClaimed');
-
-const slug = title
-  .toLowerCase()
-  .replace(/[^\p{L}\p{N}]+/gu, '-')
-  .replace(/^-+|-+$/g, '');
-const baseId = `eq-claim-boundary-${slug || 'boundary'}`;
-const titleId = `${baseId}-title`;
-const supportedId = `${baseId}-supported`;
-const notClaimedId = `${baseId}-not-claimed`;
+const supported = requiredStatements('supported');
+const notClaimed = requiredStatements('notClaimed');
 ---
 
-<section class="eq-claim-boundary" aria-labelledby={titleId}>
-  <h3 class="eq-claim-boundary__title" id={titleId}>{title}</h3>
+<section class="eq-claim-boundary" aria-label={title}>
+  <h3 class="eq-claim-boundary__title">{title}</h3>
   <div class="eq-claim-boundary__panels">
-    <div
-      class="eq-claim-boundary__panel eq-claim-boundary__panel--supported"
-      role="group"
-      aria-labelledby={supportedId}
-    >
-      <h4 class="eq-claim-boundary__label" id={supportedId}>
+    <div class="eq-claim-boundary__panel eq-claim-boundary__panel--supported" role="group" aria-label="Supported">
+      <h4 class="eq-claim-boundary__label">
         <span class="eq-claim-boundary__icon"><Icon name="approve-check-circle" /></span>
         Supported
       </h4>
       <div class="eq-claim-boundary__content">
-        <Fragment set:html={supported} />
+        <ul>
+          {supported.map((statement) => <li>{statement}</li>)}
+        </ul>
       </div>
     </div>
     <div
       class="eq-claim-boundary__panel eq-claim-boundary__panel--not-claimed"
       role="group"
-      aria-labelledby={notClaimedId}
+      aria-label="Not claimed"
     >
-      <h4 class="eq-claim-boundary__label" id={notClaimedId}>
+      <h4 class="eq-claim-boundary__label">
         <span class="eq-claim-boundary__icon"><Icon name="close" /></span>
         Not claimed
       </h4>
       <div class="eq-claim-boundary__content">
-        <Fragment set:html={notClaimed} />
+        <ul>
+          {notClaimed.map((statement) => <li>{statement}</li>)}
+        </ul>
       </div>
     </div>
   </div>

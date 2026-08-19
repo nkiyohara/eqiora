@@ -1,41 +1,115 @@
 ---
 /**
- * GalleryGrid — one semantic list container for GalleryCard children.
- * Three columns at >=1024px, two at 640–1023px, one below 640px. It renders the
- * slotted cards in source order and never reorders them.
+ * GalleryGrid — one semantic list container that renders one GalleryCard per
+ * validated card record, in input order. Three columns at >=1024px, two at
+ * 640–1023px, one below 640px. It never reorders cards.
  *
- * Props: none. Default slot: one or more GalleryCard children (required).
- * Unknown props, named slots, an empty default slot, or non-GalleryCard
- * children fail the build.
+ * Props (private site-component binding F-03 successor v2):
+ *   cards: readonly GalleryCardData[]  dense, at least one record
+ *
+ * No slots. Unknown props, a missing/non-array/empty/sparse `cards` array, a
+ * null/array/non-object record, a missing/extra/inherited/mistyped record field,
+ * or any enumerated slot fail the build. Child identity comes from this
+ * component creating every GalleryCard itself; no rendered HTML is inspected.
  */
-const COMPONENT = 'GalleryGrid';
-const rawProps = Astro.props as unknown as Record<string, unknown>;
+import GalleryCard from './GalleryCard.astro';
 
-for (const key of Object.keys(rawProps)) {
-  throw new Error(`${COMPONENT}: unknown prop "${key}"`);
+interface GalleryCardData {
+  href: string;
+  title: string;
+  description: string;
+  imageSrc: string;
+  imageAlt: string;
+  tags: readonly string[];
+  featured?: boolean;
 }
 
-const slotNames = Object.keys(Astro.slots);
-for (const name of slotNames) {
-  if (name !== 'default') {
-    throw new Error(`${COMPONENT}: unknown slot "${name}"`);
+interface Props {
+  cards: readonly GalleryCardData[];
+}
+
+const COMPONENT = 'GalleryGrid';
+const ALLOWED_PROPS: ReadonlySet<string> = new Set(['cards']);
+const TEXT_FIELDS = ['href', 'title', 'description', 'imageSrc', 'imageAlt'] as const;
+const ALLOWED_FIELDS: ReadonlySet<string> = new Set([...TEXT_FIELDS, 'tags', 'featured']);
+const rawProps = Astro.props as unknown as Record<string, unknown>;
+
+// Slots are rejected before props: the locked MDX adapter replaces a same-named
+// prop with a slot callback, so this gate must be the one that reports.
+if (Object.keys(Astro.slots).length > 0) {
+  throw new Error(`${COMPONENT}: accepts no slots; pass the "cards" array`);
+}
+
+for (const key of Object.keys(rawProps)) {
+  if (!ALLOWED_PROPS.has(key)) {
+    throw new Error(`${COMPONENT}: unknown prop "${key}"`);
   }
 }
 
-const cards = Astro.slots.has('default') ? await Astro.slots.render('default') : '';
-if (cards.trim().length === 0) {
-  throw new Error(`${COMPONENT}: default slot must contain at least one GalleryCard`);
+const hasOwn = (object: object, key: PropertyKey): boolean => Object.prototype.hasOwnProperty.call(object, key);
+
+function validateCard(value: unknown, index: number): GalleryCardData {
+  const where = `prop "cards" entry ${index}`;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`${COMPONENT}: ${where} must be a card record object`);
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!ALLOWED_FIELDS.has(key)) {
+      throw new Error(`${COMPONENT}: ${where} has unknown field "${key}"`);
+    }
+  }
+  const text = {} as Record<(typeof TEXT_FIELDS)[number], string>;
+  for (const field of TEXT_FIELDS) {
+    const fieldValue = hasOwn(record, field) ? record[field] : undefined;
+    if (typeof fieldValue !== 'string' || fieldValue.trim().length === 0) {
+      throw new Error(`${COMPONENT}: ${where} field "${field}" must be a non-empty string`);
+    }
+    text[field] = fieldValue;
+  }
+  const tagsValue = hasOwn(record, 'tags') ? record['tags'] : undefined;
+  if (!Array.isArray(tagsValue)) {
+    throw new Error(`${COMPONENT}: ${where} field "tags" must be an array of non-empty strings`);
+  }
+  for (let tagIndex = 0; tagIndex < tagsValue.length; tagIndex += 1) {
+    if (!hasOwn(tagsValue, tagIndex)) continue;
+    const tag: unknown = tagsValue[tagIndex];
+    if (typeof tag !== 'string' || tag.trim().length === 0) {
+      throw new Error(`${COMPONENT}: ${where} tag ${tagIndex} must be a non-empty string`);
+    }
+  }
+  const featuredValue = hasOwn(record, 'featured') ? record['featured'] : undefined;
+  if (featuredValue !== undefined && typeof featuredValue !== 'boolean') {
+    throw new Error(`${COMPONENT}: ${where} field "featured" must be a boolean when supplied`);
+  }
+  return { ...text, tags: tagsValue as readonly string[], featured: featuredValue };
 }
 
-// Every rendered child must be a GalleryCard list item; anything else is a
-// foreign child and fails closed.
-const CARD_PATTERN = /<li class="eq-gallery-card"(?: data-featured(?:="")?)?>[\s\S]*?<\/li>/g;
-const remainder = cards.replace(CARD_PATTERN, '').trim();
-if (remainder.length > 0) {
-  throw new Error(`${COMPONENT}: default slot may contain only GalleryCard children`);
+const cardsValue = rawProps.cards;
+if (!Array.isArray(cardsValue) || cardsValue.length === 0) {
+  throw new Error(`${COMPONENT}: prop "cards" must be a non-empty array of card records`);
+}
+const cards: GalleryCardData[] = [];
+for (let index = 0; index < cardsValue.length; index += 1) {
+  if (!hasOwn(cardsValue, index)) {
+    throw new Error(`${COMPONENT}: prop "cards" must be a dense array (index ${index} is absent)`);
+  }
+  cards.push(validateCard(cardsValue[index], index));
 }
 ---
 
 <ul class="eq-gallery-grid" role="list">
-  <Fragment set:html={cards} />
+  {
+    cards.map((card) => (
+      <GalleryCard
+        href={card.href}
+        title={card.title}
+        description={card.description}
+        imageSrc={card.imageSrc}
+        imageAlt={card.imageAlt}
+        tags={card.tags}
+        featured={card.featured}
+      />
+    ))
+  }
 </ul>

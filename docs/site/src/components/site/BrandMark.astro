@@ -8,11 +8,10 @@
  *   label?: string  default 'Eqiora'
  *
  * No slots. Unknown props, wrong types, or any slot content fail the build.
- * The mark is inlined byte-for-byte from `src/assets/brand/eqiora-mark.svg`
- * inside an `aria-hidden` wrapper; the visible label carries the name.
+ * The mark is the same-origin image `/favicon.svg` (the accepted mark bytes,
+ * served unchanged from `public/`), decorative because the visible label names
+ * the anchor. Nothing is inlined, so repeated instances share no document ID.
  */
-import markSource from '../../assets/brand/eqiora-mark.svg?raw';
-
 interface Props {
   href?: string;
   label?: string;
@@ -47,13 +46,11 @@ if (slotNames.length > 0) {
     throw new Error(`${COMPONENT}: accepts no slot content`);
   }
 }
-
-if (!markSource.trimStart().startsWith('<svg')) {
-  throw new Error(`${COMPONENT}: brand mark asset is not an SVG document`);
-}
 ---
 
 <a class="eq-brand" href={href}>
-  <span class="eq-brand__mark" aria-hidden="true" set:html={markSource} />
+  <span class="eq-brand__mark" aria-hidden="true">
+    <img src="/favicon.svg" alt="" aria-hidden="true" />
+  </span>
   <span class="eq-brand__label">{label}</span>
 </a>
