@@ -1,0 +1,58 @@
+:root {
+  --eqiora-brand: #28684f;
+  --eqiora-brand-hover: #1e513d;
+  --eqiora-focus: #b94e38;
+  --eqiora-return-bg: #edf5f1;
+  --eqiora-return-text: #14221c;
+}
+
+body {
+  border-top: 0.25rem solid var(--eqiora-brand);
+}
+
+.eqiora-return {
+  display: block;
+  padding: 0.625rem 1rem;
+  color: var(--eqiora-return-text);
+  background: var(--eqiora-return-bg);
+  font-weight: 600;
+  text-decoration-thickness: 0.1em;
+  text-underline-offset: 0.18em;
+}
+
+.eqiora-return:hover {
+  color: var(--eqiora-brand-hover);
+}
+
+.eqiora-return:focus-visible,
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 0.1875rem solid var(--eqiora-focus);
+  outline-offset: 0.1875rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --eqiora-brand: #9ed2b7;
+    --eqiora-brand-hover: #c1ead3;
+    --eqiora-focus: #ef866f;
+    --eqiora-return-bg: #19251f;
+    --eqiora-return-text: #f2f8f5;
+  }
+}
+
+@media (forced-colors: active) {
+  body {
+    border-top-color: CanvasText;
+  }
+
+  .eqiora-return:focus-visible,
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible {
+    outline-color: Highlight;
+  }
+}
