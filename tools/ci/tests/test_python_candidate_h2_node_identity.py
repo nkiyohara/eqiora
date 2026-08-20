@@ -17,9 +17,10 @@ import python_candidate_h2 as h2  # noqa: E402
 VERSION = b"v24.18.1\n"
 URL = "https://registry.npmjs.org/npm/-/npm-11.16.0.tgz"
 REJECTIONS = (h2.CandidateError, OSError, subprocess.SubprocessError)
-MODES = ("extra-before", "extra-after", "version-on-stderr", "stderr", "wrong-version", "nonzero")  # fmt: skip
+MODES = ("extra-before", "extra-after", "version-on-stderr", "stderr", "wrong-version", "nonzero", "no-newline")  # fmt: skip
 ENV_MUTATIONS = ("keep-force", "drop-no-color", "blank-no-color", "rewrite-no-color", "drop-sentinel", "rewrite-sentinel")  # fmt: skip
-EXPECTED_CHILD = {"argv": ["--version"], "FORCE_COLOR": None, "NO_COLOR": "1", "sentinel": "unchanged"}  # fmt: skip
+EXPECTED_CHILD = {"argv": ["--version"], "FORCE_COLOR": None, "sentinel": "unchanged"}  # fmt: skip
+CUSTOM_COLORS = ("custom-no-color-雪", "custom-force-color-ß")
 NODE = r"""#!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
@@ -30,7 +31,7 @@ record = {"argv0": sys.argv[0], "argv": sys.argv[1:], "NO_COLOR": os.environ.get
 with Path(os.environ["H2_IDENTITY_OBSERVATION"]).open("a", encoding="utf-8") as out:
     out.write(json.dumps(record, sort_keys=True) + "\n")
 expected = {"argv0": os.environ["H2_IDENTITY_EXPECTED_NODE"],
-            "argv": ["--version"], "NO_COLOR": "1", "FORCE_COLOR": None,
+            "argv": ["--version"], "NO_COLOR": os.environ["H2_IDENTITY_EXPECTED_NO_COLOR"], "FORCE_COLOR": None,
             "sentinel": "unchanged"}
 if record != expected:
     sys.stderr.write("identity environment differs\n"); raise SystemExit(11)
@@ -43,6 +44,7 @@ stdout, stderr, status = {
     "stderr": ("v24.18.1\n", "diagnostic\n", 0),
     "wrong-version": ("v0.0.0\n", "", 0),
     "nonzero": ("v24.18.1\n", "", 7),
+    "no-newline": ("v24.18.1", "", 0),
 }[mode]
 sys.stdout.write(stdout); sys.stderr.write(stderr); raise SystemExit(status)
 """
@@ -113,21 +115,20 @@ class NodeIdentityContractTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def environment(self, *, conflict: bool = True) -> mock._patch_dict:
+    def environment(self, no_color: str = "1", force_color: str | None = "1") -> mock._patch_dict:  # fmt: skip
         values = {
             "PATH": str(Path(sys.executable).resolve().parent),
-            "NO_COLOR": "1",
+            "NO_COLOR": no_color,
             "H2_IDENTITY_SENTINEL": "unchanged",
             "H2_IDENTITY_OBSERVATION": str(self.observation),
             "H2_IDENTITY_EXPECTED_NODE": str(self.node.resolve()),
+            "H2_IDENTITY_EXPECTED_NO_COLOR": no_color,
         }
-        if conflict:
-            values["FORCE_COLOR"] = "1"
+        if force_color is not None:
+            values["FORCE_COLOR"] = force_color
         return mock.patch.dict(os.environ, values, clear=True)
 
-    def run_product(
-        self, node: Path | None, expected_digest: str, network: mock.Mock
-    ) -> None:
+    def run_product(self, node: Path | None, expected_digest: str, network: mock.Mock) -> None:  # fmt: skip
         selected = None if node is None else str(node)
         with (
             mock.patch.object(h2.shutil, "which", return_value=selected) as which,
@@ -139,39 +140,53 @@ class NodeIdentityContractTests(unittest.TestCase):
             finally:
                 self.assertEqual(which.call_args_list, [mock.call("node")])
 
-    def assert_exact_child(self) -> None:
+    def assert_exact_child(self, no_color: str = "1") -> None:
         records = [
             json.loads(line) for line in self.observation.read_text().splitlines()
         ]
-        self.assertEqual(
-            records, [{**EXPECTED_CHILD, "argv0": str(self.node.resolve())}]
-        )
+        expected = {**EXPECTED_CHILD, "argv0": str(self.node.resolve()), "NO_COLOR": no_color}  # fmt: skip
+        self.assertEqual(records, [expected])
 
-    def assert_parent_and_sibling(self) -> None:
+    def assert_parent_and_sibling(self, no_color: str = "1", force_color: str = "1") -> None:  # fmt: skip
         keys = ["NO_COLOR", "FORCE_COLOR", "H2_IDENTITY_SENTINEL"]
-        expected = ["1", "1", "unchanged"]
+        expected = [no_color, force_color, "unchanged"]
         self.assertEqual([os.environ.get(key) for key in keys], expected)
         code = "import json,os; print(json.dumps([os.environ.get(k) for k in "
         child = subprocess.run([sys.executable, "-c", code + repr(keys) + "]))"], check=True, text=True, capture_output=True)  # fmt: skip
         self.assertEqual(json.loads(child.stdout), expected)
 
-    def test_00_reference_conflicting_parent_positive_reaches_network(self) -> None:
+    def assert_positive(self, product: bool, no_color: str = "1", force_color: str = "1") -> None:  # fmt: skip
+        self.observation.unlink(missing_ok=True)
         network = mock.Mock(side_effect=NetworkBoundary)
-        with self.environment():
+        with self.environment(no_color, force_color):
             with self.assertRaises(NetworkBoundary):
-                reference_identity(self.selected, digest(self.node), network)
-            self.assert_exact_child()
-            self.assert_parent_and_sibling()
+                if product:
+                    self.run_product(self.selected, digest(self.node), network)
+                else:
+                    reference_identity(self.selected, digest(self.node), network)
+            self.assert_exact_child(no_color)
+            self.assert_parent_and_sibling(no_color, force_color)
         network.assert_called_once_with(URL, self.root / "npm-11.16.0.tgz")
 
-    def test_01_product_conflicting_parent_positive_reaches_network(self) -> None:
+    def assert_product_rejected(self, node: Path | None, expected: str, mode: str = "exact") -> None:  # fmt: skip
+        self.observation.unlink(missing_ok=True)
         network = mock.Mock(side_effect=NetworkBoundary)
-        with self.environment():
-            with self.assertRaises(NetworkBoundary):
-                self.run_product(self.selected, digest(self.node), network)
+        with self.environment(force_color=None):
+            os.environ["H2_IDENTITY_MODE"] = mode
+            with self.assertRaises(REJECTIONS):
+                self.run_product(node, expected, network)
+        if node is not None and node.exists():
             self.assert_exact_child()
-            self.assert_parent_and_sibling()
-        network.assert_called_once_with(URL, self.root / "npm-11.16.0.tgz")
+        network.assert_not_called()
+
+    def test_00_reference_conflicting_parent_positive_reaches_network(self) -> None:
+        self.assert_positive(False)
+        self.assert_positive(False, *CUSTOM_COLORS)
+
+    def test_01_product_conflicting_parent_positive_reaches_network(self) -> None:
+        self.assert_positive(True)
+        self.assert_positive(True, *CUSTOM_COLORS)
+        self.assert_product_rejected(self.selected, digest(self.node), "no-newline")
 
     def test_02_reference_rejects_environment_and_parent_mutants(self) -> None:
         for mutation in ENV_MUTATIONS:
@@ -179,12 +194,7 @@ class NodeIdentityContractTests(unittest.TestCase):
             network = mock.Mock(side_effect=NetworkBoundary)
             with self.subTest(mutation=mutation), self.environment():
                 with self.assertRaises(h2.CandidateError):
-                    reference_identity(
-                        self.selected,
-                        digest(self.node),
-                        network,
-                        child_mutation=mutation,
-                    )
+                    reference_identity(self.selected, digest(self.node), network, child_mutation=mutation)  # fmt: skip
             network.assert_not_called()
         network = mock.Mock(side_effect=NetworkBoundary)
         with self.environment():
@@ -200,32 +210,25 @@ class NodeIdentityContractTests(unittest.TestCase):
         for mode in MODES:
             self.observation.unlink(missing_ok=True)
             network = mock.Mock(side_effect=NetworkBoundary)
-            with self.subTest(mode=mode), self.environment(conflict=False):
+            with self.subTest(mode=mode), self.environment(force_color=None):
                 os.environ["H2_IDENTITY_MODE"] = mode
                 with self.assertRaises(h2.CandidateError):
                     reference_identity(self.selected, digest(self.node), network)
             network.assert_not_called()
         for node, expected in ((self.selected, digest(self.decoy)), (self.root / "missing", "0" * 64)):  # fmt: skip
             network = mock.Mock(side_effect=NetworkBoundary)
-            with self.environment(conflict=False), self.assertRaises(h2.CandidateError):
+            with self.environment(force_color=None), self.assertRaises(h2.CandidateError):  # fmt: skip
                 reference_identity(node, expected, network)
             network.assert_not_called()
 
     def test_04_product_rejects_identity_mutants_before_network(self) -> None:
-        cases = (*((mode, digest(self.node)) for mode in MODES), ("exact", digest(self.decoy)))  # fmt: skip
+        cases = (*((mode, digest(self.node)) for mode in MODES[:-1]), ("exact", digest(self.decoy)))  # fmt: skip
         for mode, expected in cases:
-            self.observation.unlink(missing_ok=True)
-            network = mock.Mock(side_effect=NetworkBoundary)
-            with self.subTest(mode=mode), self.environment(conflict=False):
-                os.environ["H2_IDENTITY_MODE"] = mode
-                with self.assertRaises(REJECTIONS):
-                    self.run_product(self.selected, expected, network)
-            self.assert_exact_child()
-            network.assert_not_called()
-        network = mock.Mock(side_effect=NetworkBoundary)
-        with self.environment(conflict=False), self.assertRaises(REJECTIONS):
-            self.run_product(self.root / "missing", "0" * 64, network)
-        network.assert_not_called()
+            with self.subTest(mode=mode):
+                self.assert_product_rejected(self.selected, expected, mode)
+        for node in (self.root / "missing", None):
+            with self.subTest(node=node):
+                self.assert_product_rejected(node, "0" * 64)
 
 
 if __name__ == "__main__":
