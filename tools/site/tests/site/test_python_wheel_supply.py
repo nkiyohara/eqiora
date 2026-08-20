@@ -120,6 +120,140 @@ import importlib
 _native = importlib.import_module("eqiora._eqiora")
 _native.__name__ = "eqiora.not_the_native_module"
 """
+        if mutation in {
+            "top-level-wrong-exception-name-after-positives",
+            "top-level-closure-before-positives",
+        }:
+            package_source += r"""
+import importlib as _probe_importlib
+import importlib.machinery as _probe_importlib_machinery
+import importlib.metadata as _probe_metadata
+import os as _probe_os
+import sys as _probe_sys
+import types as _probe_types
+
+_PROBE_POSITIVES = {
+    "positive-public-version",
+    "positive-public-origin",
+    "positive-native-version",
+    "positive-native-origin",
+    "positive-distribution-version",
+    "positive-distribution-origin",
+}
+
+
+def _probe_record(value):
+    with open(_probe_os.environ["TRACE_FILE"], "a", encoding="utf-8") as stream:
+        stream.write(value + "\n")
+
+
+def _probe_positives_complete():
+    with open(_probe_os.environ["TRACE_FILE"], encoding="utf-8") as stream:
+        observed = set(stream.read().splitlines())
+    return _PROBE_POSITIVES <= observed
+
+
+class _TrackedModule(_probe_types.ModuleType):
+    def __getattribute__(self, name):
+        value = super().__getattribute__(name)
+        role = super().__getattribute__("_probe_role")
+        if name == "__version__":
+            _probe_record(f"positive-{role}-version")
+        elif name == "__file__":
+            _probe_record(f"positive-{role}-origin")
+        return value
+
+
+class _TrackedDistribution:
+    def __init__(self, distribution):
+        self._distribution = distribution
+
+    @property
+    def version(self):
+        value = self._distribution.version
+        _probe_record("positive-distribution-version")
+        return value
+
+    def locate_file(self, path):
+        value = self._distribution.locate_file(path)
+        _probe_record("positive-distribution-origin")
+        return value
+
+    def __getattr__(self, name):
+        value = getattr(self._distribution, name)
+        if name == "_path":
+            _probe_record("positive-distribution-origin")
+        return value
+
+
+_probe_original_from_name = _probe_metadata.Distribution.from_name
+
+
+def _probe_from_name(_class, name):
+    return _TrackedDistribution(_probe_original_from_name(name))
+
+
+_probe_metadata.Distribution.from_name = classmethod(_probe_from_name)
+
+
+class _TopLevelLoader:
+    def __init__(self, wrong_name=False):
+        self._wrong_name = wrong_name
+
+    def create_module(self, spec):
+        return None
+
+    def exec_module(self, module):
+        if not self._wrong_name:
+            module.__version__ = "0.1.0a1"
+            return
+        _probe_record("namespace-import-wrong-name-after-positives")
+        error = ModuleNotFoundError("ambient dependency is absent")
+        error.name = "ambient_dependency"
+        raise error
+
+
+class _TopLevelProbeFinder:
+    def __init__(self):
+        self._calls = 0
+
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname != "_eqiora":
+            return None
+        complete = _probe_positives_complete()
+        mutation = _probe_os.environ["P_MUTANT"]
+        if mutation == "top-level-closure-before-positives":
+            _probe_record(
+                "namespace-order-after-positives"
+                if complete
+                else "namespace-order-before-positives"
+            )
+            if complete:
+                return _probe_importlib_machinery.ModuleSpec(
+                    fullname, _TopLevelLoader()
+                )
+            return None
+
+        self._calls += 1
+        if self._calls == 1:
+            _probe_record(
+                "namespace-spec-absence-after-positives"
+                if complete
+                else "namespace-spec-absence-before-positives"
+            )
+            return None
+        return _probe_importlib_machinery.ModuleSpec(
+            fullname, _TopLevelLoader(wrong_name=True)
+        )
+
+
+_probe_native = _probe_importlib.import_module("eqiora._eqiora")
+_probe_native._probe_role = "native"
+_probe_native.__class__ = _TrackedModule
+_probe_sys.modules[__name__]._probe_role = "public"
+_probe_sys.modules[__name__].__class__ = _TrackedModule
+_probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
+"""
         _write(package / "__init__.py", textwrap.dedent(package_source).lstrip())
 
         if mutation == "non-native-stand-in":
@@ -641,6 +775,67 @@ exit 0
                     self.assertIn(reached, observations, observations)
                 if mutation not in mutations_without_local_import:
                     self.assertIn("native-import", observations, observations)
+
+    def test_p01_exception_name_is_checked_after_absent_spec_and_positives(
+        self,
+    ) -> None:
+        result, observations = self._run(
+            p_mutant="top-level-wrong-exception-name-after-positives"
+        )
+        self.assertNotEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(result.returncode, POST_IDENTITY_SENTINEL)
+        positives = (
+            "positive-public-version",
+            "positive-public-origin",
+            "positive-native-version",
+            "positive-native-origin",
+            "positive-distribution-version",
+            "positive-distribution-origin",
+        )
+        for reached in (
+            "build-ok",
+            "venv",
+            "install",
+            "public-import",
+            "native-import",
+        ):
+            self.assertIn(reached, observations, observations)
+        for reached in positives:
+            self.assertIn(reached, observations, observations)
+        absent_spec = observations.index("namespace-spec-absence-after-positives")
+        wrong_name = observations.index("namespace-import-wrong-name-after-positives")
+        self.assertLess(
+            max(observations.index(value) for value in positives), absent_spec
+        )
+        self.assertLess(absent_spec, wrong_name)
+
+    def test_p01_namespace_closure_follows_version_and_origin_positives(
+        self,
+    ) -> None:
+        result, observations = self._run(p_mutant="top-level-closure-before-positives")
+        self.assertNotEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(result.returncode, POST_IDENTITY_SENTINEL)
+        positives = (
+            "positive-public-version",
+            "positive-public-origin",
+            "positive-native-version",
+            "positive-native-origin",
+            "positive-distribution-version",
+            "positive-distribution-origin",
+        )
+        for reached in (
+            "build-ok",
+            "venv",
+            "install",
+            "public-import",
+            "native-import",
+        ):
+            self.assertIn(reached, observations, observations)
+        for reached in positives:
+            self.assertIn(reached, observations, observations)
+        closure = observations.index("namespace-order-after-positives")
+        self.assertLess(max(observations.index(value) for value in positives), closure)
+        self.assertNotIn("namespace-order-before-positives", observations)
 
 
 if __name__ == "__main__":
