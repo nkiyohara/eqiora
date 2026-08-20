@@ -460,6 +460,10 @@ test('02 causal browser mutants reject after the ordinary fixture', async () => 
   await page.setContent(aggregateFixture('', 'role="group"'));
   expectTailObservation(await observeProjection(page), { summaries: { forbidden: 1 } });
 
+  await page.setContent('<section id="method.error" class="method">Literal fragment</section>');
+  expect(await page.locator('#method.error').count()).toBe(0);
+  expect(await page.locator('[id="method.error"]').count()).toBe(1);
+
   await page.setContent(fixture('', true));
   expect((await seriousViolations(page)).map(({ id }) => id)).toContain('nested-interactive');
 
@@ -615,7 +619,7 @@ test('03 complete real Diagnostic projection, runtime, widths, and accessibility
   expect(await page.locator('details.toggle[open]').count()).toBeGreaterThan(0);
 
   await page.goto(`${ROUTE}#method.error`);
-  await expect(page.locator('#method.error')).toBeAttached();
+  await expect(page.locator('[id="method.error"]')).toBeAttached();
   await expect(page.locator('.eqiora-signature-links a[href="#method.error"]').first()).toBeVisible();
   await expect(page.locator('a.src').first()).toHaveAttribute('href', /^https:\/\/doc\.rust-lang\.org\/1\.97\.1\//);
   expect(attempts).toEqual([]);
