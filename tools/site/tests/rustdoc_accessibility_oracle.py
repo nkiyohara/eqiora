@@ -19,7 +19,15 @@ EXPECTED_AFFECTED_HTML = 1_080
 EXPECTED_TOGGLE_SUMMARIES = 93_115
 EXPECTED_DIRECT_SECTIONS = 91_698
 EXPECTED_SIGNATURE_LINKS = 268_082
-EXPECTED_DESCRIPTION_LABELS = 1_417
+EXPECTED_HIDEME_LABELS = 1_417
+EXPECTED_GENERIC_DESCRIPTION_LABELS = 1_360
+EXPECTED_SPECIAL_HIDEME_LABELS = 57
+EXPECTED_DIRECT_SECTION_MANIFEST = (
+    "46d84b09bb0ef4ef157041805726214b88213cc9c5b855f53f272e4385396cf0"
+)
+EXPECTED_SPECIAL_HIDEME_MANIFEST = (
+    "a49c507f54ac184b3fc3da4f255d2d5d777f0ac7d419429a54aa87a4f8ae27dc"
+)
 EXPECTED_DIAGNOSTIC_STATIC_LINKS = 470
 EXPECTED_DIAGNOSTIC_DETAILS = 107
 EXPECTED_DIAGNOSTIC_DIRECT_SECTIONS = 106
@@ -62,6 +70,22 @@ FORBIDDEN_SEMANTIC_ATTRIBUTES = frozenset(
 RAW_LINK_ATTRIBUTES = frozenset({"class", "data-notable-ty", "href", "title"})
 PROJECTED_SPAN_ATTRIBUTES = frozenset(
     {"class", "data-eqiora-href", "data-notable-ty", "title"}
+)
+UPSTREAM_SPECIAL_HIDEME_LABELS = frozenset(
+    {
+        "Show 13 fields",
+        "Show 13 variants",
+        "Show 14 fields",
+        "Show 15 fields",
+        "Show 16 variants",
+        "Show 17 variants",
+        "Show 20 variants",
+        "Show 23 variants",
+        "Show 26 variants",
+        "Show 28 variants",
+        "This enum is marked as non-exhaustive",
+        "This struct is marked as non-exhaustive",
+    }
 )
 
 
@@ -255,6 +279,8 @@ class PageStats:
     hideme_labels: int = 0
     description_labels: int = 0
     raw_description_labels: int = 0
+    direct_section_ids: list[str] = field(default_factory=list)
+    special_hideme_labels: list[str] = field(default_factory=list)
     active_hrefs: list[str] = field(default_factory=list)
     script_nodes: list[str] = field(default_factory=list)
 
@@ -351,6 +377,10 @@ def inspect_page(root: Node, context: str) -> PageStats:
                 raise OracleError(f"{context}: nested anchor shape")
         if sections:
             stats.direct_sections += 1
+            section_id = sections[0].attr("id")
+            if not section_id:
+                raise OracleError(f"{context}: direct summary section lacks its id")
+            stats.direct_section_ids.append(section_id)
             if bool(raw_links) == bool(projected):
                 raise OracleError(
                     f"{context}: summary is neither wholly raw nor wholly projected"
@@ -383,8 +413,10 @@ def inspect_page(root: Node, context: str) -> PageStats:
                 stats.description_labels += 1
             elif label == "Expand description":
                 stats.raw_description_labels += 1
-            elif not label:
-                raise OracleError(f"{context}: hideme summary has an empty label")
+            elif label in UPSTREAM_SPECIAL_HIDEME_LABELS:
+                stats.special_hideme_labels.append(label)
+            else:
+                raise OracleError(f"{context}: unexpected hideme label {label!r}")
             stats.hideme_labels += 1
             forbid_semantic_shortcuts(labels[0], context)
         else:
@@ -458,6 +490,8 @@ def inspect_tree(root: Path) -> tuple[PageStats, int, int, int, str, str]:
     total = PageStats()
     affected = 0
     script_entries: list[tuple[str, str]] = []
+    direct_section_entries: list[str] = []
+    special_hideme_entries: list[str] = []
     diagnostic: PageStats | None = None
     for path in html:
         relative = path.relative_to(root).as_posix()
@@ -470,6 +504,12 @@ def inspect_tree(root: Path) -> tuple[PageStats, int, int, int, str, str]:
         total.hideme_labels += page.hideme_labels
         total.description_labels += page.description_labels
         total.raw_description_labels += page.raw_description_labels
+        total.direct_section_ids.extend(page.direct_section_ids)
+        total.special_hideme_labels.extend(page.special_hideme_labels)
+        for section_id in page.direct_section_ids:
+            direct_section_entries.extend((relative, section_id))
+        for label in page.special_hideme_labels:
+            special_hideme_entries.extend((relative, label))
         if page.raw_links or page.projected_links:
             affected += 1
         script_entries.extend((relative, script) for script in page.script_nodes)
@@ -485,7 +525,13 @@ def inspect_tree(root: Path) -> tuple[PageStats, int, int, int, str, str]:
         raise OracleError("HTML script-node inventory or bytes drift")
     if diagnostic is None:
         raise OracleError(f"missing representative item {DIAGNOSTIC.as_posix()}")
-    validate_exact_counts(total, affected, diagnostic)
+    validate_exact_counts(
+        total,
+        affected,
+        diagnostic,
+        sha256(encode_parts(direct_section_entries)),
+        sha256(encode_parts(special_hideme_entries)),
+    )
     return (
         total,
         affected,
@@ -501,7 +547,11 @@ def href_digest(hrefs: list[str]) -> str:
 
 
 def validate_exact_counts(
-    total: PageStats, affected: int, diagnostic: PageStats
+    total: PageStats,
+    affected: int,
+    diagnostic: PageStats,
+    direct_section_manifest: str,
+    special_hideme_manifest: str,
 ) -> None:
     actual = (
         affected,
@@ -515,7 +565,7 @@ def validate_exact_counts(
         EXPECTED_TOGGLE_SUMMARIES,
         EXPECTED_DIRECT_SECTIONS,
         EXPECTED_SIGNATURE_LINKS,
-        EXPECTED_DESCRIPTION_LABELS,
+        EXPECTED_HIDEME_LABELS,
     )
     if actual != expected:
         raise OracleError(f"whole-tree shape drift: {actual!r} != {expected!r}")
@@ -537,6 +587,24 @@ def validate_exact_counts(
         )
     if href_digest(diagnostic.active_hrefs) != EXPECTED_DIAGNOSTIC_HREF_ORDER:
         raise OracleError("Diagnostic active href order drift")
+    if (
+        len(total.direct_section_ids) != EXPECTED_DIRECT_SECTIONS
+        or direct_section_manifest != EXPECTED_DIRECT_SECTION_MANIFEST
+    ):
+        raise OracleError("whole-tree direct-section id/order drift")
+    if (
+        len(total.special_hideme_labels) != EXPECTED_SPECIAL_HIDEME_LABELS
+        or special_hideme_manifest != EXPECTED_SPECIAL_HIDEME_MANIFEST
+    ):
+        raise OracleError("whole-tree special hideme-label inventory drift")
+    generic_labels = (total.description_labels, total.raw_description_labels)
+    if generic_labels not in {
+        (EXPECTED_GENERIC_DESCRIPTION_LABELS, 0),
+        (0, EXPECTED_GENERIC_DESCRIPTION_LABELS),
+    }:
+        raise OracleError(
+            f"whole-tree generic description-label drift: {generic_labels!r}"
+        )
     if total.raw_links and total.projected_links:
         raise OracleError("partial whole-tree projection")
     if total.description_labels and total.raw_description_labels:
@@ -562,6 +630,7 @@ ACCESSIBLE_FIXTURE = """<!doctype html><html lang="en"><body><main><h1>Fixture</
 def expect_rejected(name: str, source: str) -> None:
     try:
         stats = inspect_page(parse_html(source), f"self-test {name}")
+        validate_fixture_shape(stats)
     except OracleError:
         return
     if stats.raw_links or stats.raw_description_labels:
@@ -569,17 +638,27 @@ def expect_rejected(name: str, source: str) -> None:
     raise OracleError(f"ordinary self-test mutant survived: {name}")
 
 
+def validate_fixture_shape(stats: PageStats) -> None:
+    if stats.direct_section_ids != ["method.fixture"]:
+        raise OracleError("ordinary fixture direct-section id drift")
+    if stats.description_labels != 1 or stats.raw_description_labels:
+        raise OracleError("ordinary fixture description-label drift")
+
+
 def run_ordinary_self_test() -> None:
     fixture = inspect_page(
         parse_html(ACCESSIBLE_FIXTURE), "ordinary accessible fixture"
     )
+    validate_fixture_shape(fixture)
     if (
         fixture.toggle_summaries,
         fixture.direct_sections,
         fixture.projected_links,
         fixture.projection_groups,
         fixture.hideme_labels,
-    ) != (2, 1, 2, 1, 1):
+        fixture.description_labels,
+        fixture.direct_section_ids,
+    ) != (2, 1, 2, 1, 1, 1, ["method.fixture"]):
         raise OracleError(
             "ordinary accessible fixture did not reach its complete positive path"
         )
@@ -622,8 +701,17 @@ def run_ordinary_self_test() -> None:
         "section-move": ACCESSIBLE_FIXTURE.replace(
             "<summary><section", "<section"
         ).replace("</section></summary>", "</section><summary></summary>"),
+        "section-id-remove": ACCESSIBLE_FIXTURE.replace(
+            '<section id="method.fixture"', "<section"
+        ),
+        "section-id-drift": ACCESSIBLE_FIXTURE.replace(
+            'section id="method.fixture"', 'section id="method.other"'
+        ),
         "description": ACCESSIBLE_FIXTURE.replace(
             ">Description</span>", ">Expand description</span>"
+        ),
+        "description-rename": ACCESSIBLE_FIXTURE.replace(
+            ">Description</span>", ">Details</span>"
         ),
         "label-loss": ACCESSIBLE_FIXTURE.replace("Signature links:", "Links:"),
         "id-duplication": ACCESSIBLE_FIXTURE.replace(

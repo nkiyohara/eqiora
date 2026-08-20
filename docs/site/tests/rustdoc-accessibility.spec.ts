@@ -70,6 +70,8 @@ async function blockExternal(context: BrowserContext): Promise<string[]> {
 }
 
 async function assertNoOverflow(page: Page): Promise<void> {
+  const viewport = page.viewportSize();
+  expect(viewport).not.toBeNull();
   const widths = await page.evaluate(() => ({
     inner: innerWidth,
     documentClient: document.documentElement.clientWidth,
@@ -77,13 +79,23 @@ async function assertNoOverflow(page: Page): Promise<void> {
     bodyScroll: document.body.scrollWidth,
     declarationClient: document.querySelector('pre.rust.item-decl')?.clientWidth ?? 0,
     declarationScroll: document.querySelector('pre.rust.item-decl')?.scrollWidth ?? 0,
+    roots: ['html', 'body', 'main'].map((selector) => {
+      const style = getComputedStyle(document.querySelector(selector)!);
+      return { selector, transform: style.transform, zoom: style.zoom };
+    }),
   }));
+  expect(widths.inner).toBe(viewport!.width);
+  expect(widths.documentClient).toBe(viewport!.width);
   expect(widths.documentScroll, JSON.stringify(widths)).toBeLessThanOrEqual(widths.documentClient + 1);
   expect(widths.bodyScroll, JSON.stringify(widths)).toBeLessThanOrEqual(widths.documentClient + 1);
   expect(widths.declarationClient).toBeGreaterThan(0);
   expect(widths.declarationScroll, JSON.stringify(widths)).toBeLessThanOrEqual(
     widths.declarationClient + 1,
   );
+  for (const root of widths.roots) {
+    expect(root.zoom, `${root.selector} scales the requested CSS viewport`).toBe('1');
+    expect(root.transform, `${root.selector} transforms the requested CSS viewport`).toBe('none');
+  }
 }
 
 async function assertSyntaxCategoriesDistinct(page: Page): Promise<void> {
@@ -136,6 +148,87 @@ async function assertNativeSummaryInventory(page: Page, expected: number): Promi
   }
 }
 
+async function assertProjectionPresentation(page: Page): Promise<void> {
+  const presentation = await page.evaluate(() => {
+    const toggles = Array.from(document.querySelectorAll<HTMLDetailsElement>('details.toggle'));
+    const open = toggles.map((details) => details.open);
+    for (const details of toggles) details.open = true;
+    const inspect = (node: Element) => {
+      const style = getComputedStyle(node);
+      const box = node.getBoundingClientRect();
+      return {
+        text: node.textContent?.trim() ?? '',
+        left: box.left,
+        right: box.right,
+        width: box.width,
+        height: box.height,
+        display: style.display,
+        visibility: style.visibility,
+        opacity: style.opacity,
+        clip: style.clip,
+        clipPath: style.clipPath,
+        filter: style.filter,
+        transform: style.transform,
+        overflowX: style.overflowX,
+        userSelect: style.userSelect,
+        pointerEvents: style.pointerEvents,
+        underline: style.textDecorationLine.split(' ').includes('underline'),
+        borderAffordance:
+          !['none', 'hidden'].includes(style.borderBottomStyle) &&
+          Number.parseFloat(style.borderBottomWidth) > 0,
+      };
+    };
+    const result = {
+      width: document.documentElement.clientWidth,
+      sources: Array.from(
+        document.querySelectorAll('details.toggle > summary span[data-eqiora-href]'),
+        inspect,
+      ),
+      groups: Array.from(
+        document.querySelectorAll('details.toggle > summary + .eqiora-signature-links'),
+        inspect,
+      ),
+      links: Array.from(document.querySelectorAll('.eqiora-signature-links a[href]'), inspect),
+    };
+    toggles.forEach((details, offset) => {
+      details.open = open[offset];
+    });
+    return result;
+  });
+  for (const [kind, nodes] of [
+    ['projected source', presentation.sources],
+    ['projected group', presentation.groups],
+    ['projected active link', presentation.links],
+  ] as const) {
+    for (const [offset, node] of nodes.entries()) {
+      const context = `${kind} ${offset}: ${JSON.stringify(node)}`;
+      expect(node.text, `${context} lost text`).not.toBe('');
+      expect(node.width, `${context} has no width`).toBeGreaterThan(0);
+      expect(node.height, `${context} has no height`).toBeGreaterThan(0);
+      expect(node.left, `${context} is offscreen`).toBeGreaterThanOrEqual(-1);
+      expect(node.right, `${context} overflows`).toBeLessThanOrEqual(presentation.width + 1);
+      expect(node.display, `${context} is hidden`).not.toBe('none');
+      expect(node.visibility, `${context} is hidden`).not.toBe('hidden');
+      expect(node.opacity, `${context} is opacity-hidden`).toBe('1');
+      expect(node.clip, `${context} is clipped`).toBe('auto');
+      expect(node.clipPath, `${context} is clipped`).toBe('none');
+      expect(node.filter, `${context} is filtered`).toBe('none');
+      expect(node.transform, `${context} is transformed`).toBe('none');
+      expect(node.overflowX, `${context} clips horizontal content`).not.toMatch(/hidden|clip/);
+      expect(node.userSelect, `${context} prevents text selection`).not.toBe('none');
+    }
+  }
+  for (const [offset, link] of presentation.links.entries()) {
+    expect(
+      link.underline || link.borderAffordance,
+      `projected active link ${offset} has only a color affordance`,
+    ).toBe(true);
+    expect(link.pointerEvents, `projected active link ${offset} cannot be activated`).not.toBe(
+      'none',
+    );
+  }
+}
+
 async function assertProjectedStructure(page: Page): Promise<void> {
   expect(await page.locator('details.toggle').count()).toBe(107);
   expect(await page.locator('details.toggle[open]').count()).toBe(82);
@@ -167,6 +260,7 @@ async function assertProjectedStructure(page: Page): Promise<void> {
       }),
     ),
   ).toBe(true);
+  await assertProjectionPresentation(page);
   await assertNativeSummaryInventory(page, 107);
 }
 
@@ -203,6 +297,7 @@ async function assertProjectedStructureFixture(page: Page): Promise<void> {
   await expect(page.locator('.eqiora-signature-links a')).toHaveCSS('text-decoration-line', /underline/);
   await expect(page.locator('summary span[data-eqiora-href]')).toBeVisible();
   await expect(page.locator('.eqiora-signature-links')).toBeVisible();
+  await assertProjectionPresentation(page);
   await assertNativeSummaryInventory(page, 2);
 }
 
@@ -310,6 +405,16 @@ test('02 causal browser mutants reject after the ordinary fixture', async () => 
     fixture('.code-attribute,.comment,.fn,.since{color:#222!important}'),
   );
   await expect(assertSyntaxCategoriesDistinct(page)).rejects.toThrow();
+  for (const theme of ['dark', 'ayu']) {
+    await page.setContent(
+      fixture(`html[data-theme="${theme}"] .code-attribute,html[data-theme="${theme}"] .comment,html[data-theme="${theme}"] .fn,html[data-theme="${theme}"] .since{color:#222!important}`),
+    );
+    await page.locator('html').evaluate((node, name) => {
+      (node as HTMLElement).dataset.theme = name;
+    }, theme);
+    expect(await seriousViolations(page)).toEqual([]);
+    await expect(assertSyntaxCategoriesDistinct(page)).rejects.toThrow();
+  }
 
   await page.setContent(fixture().replace('<summary><section', '<summary role="group" aria-label="Collapse"><section'));
   await expect(assertProjectedStructureFixture(page)).rejects.toThrow();
@@ -342,6 +447,20 @@ test('02 causal browser mutants reject after the ordinary fixture', async () => 
 
   await page.setContent(fixture('.eqiora-signature-links a{text-decoration:none}'));
   await expect(page.locator('.eqiora-signature-links a')).toHaveCSS('text-decoration-line', 'none');
+  expect(await seriousViolations(page)).toEqual([]);
+  await expect(assertProjectionPresentation(page)).rejects.toThrow();
+
+  for (const selector of ['summary span[data-eqiora-href]', '.eqiora-signature-links']) {
+    await page.setContent(fixture(`${selector}{opacity:0}`));
+    await expect(page.locator(selector).first()).toHaveCSS('opacity', '0');
+    expect(await seriousViolations(page)).toEqual([]);
+    await expect(assertProjectionPresentation(page)).rejects.toThrow();
+  }
+
+  await page.setContent(fixture('html{zoom:.5}'));
+  await expect(page.locator('html')).toHaveCSS('zoom', '0.5');
+  expect(await seriousViolations(page)).toEqual([]);
+  await expect(assertNoOverflow(page)).rejects.toThrow();
 
   await page.setContent(fixture().replace('</main>', '<img src="https://example.invalid/mutant.png" alt="mutant"></main>'));
   await expect.poll(() => attempts.length).toBeGreaterThan(0);
@@ -390,6 +509,7 @@ test('03 complete real Diagnostic projection, runtime, widths, and accessibility
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await assertProjectedStructure(page);
+    await assertSyntaxCategoriesDistinct(page);
     expect(await seriousViolations(page)).toEqual([]);
   }
 
