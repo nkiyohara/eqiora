@@ -155,9 +155,9 @@ class BrowserSupplyTests(unittest.TestCase):
         expected_sha256: str,
         expected_bytes: int,
         environment: dict[str, str],
-    ) -> tuple[list[str], list[tuple[str, str, int]]]:
+    ) -> tuple[list[str], list[tuple[str, str, int, tuple[str, ...]]]]:
         real_run = subprocess.run
-        attempted: list[tuple[str, str, int]] = []
+        attempted: list[tuple[str, str, int, tuple[str, ...]]] = []
 
         def observe(command, *args, **kwargs):
             argv = tuple(os.fspath(item) for item in command)
@@ -166,7 +166,12 @@ class BrowserSupplyTests(unittest.TestCase):
             if argv and not resolver:
                 program = Path(argv[0]).resolve()
                 attempted.append(
-                    (str(program), checker.sha256(program), program.stat().st_size)
+                    (
+                        str(program),
+                        checker.sha256(program),
+                        program.stat().st_size,
+                        argv,
+                    )
                 )
             return real_run(command, *args, **kwargs)
 
@@ -218,6 +223,7 @@ class BrowserSupplyTests(unittest.TestCase):
                         str(executable.resolve()),
                         checker.sha256(executable),
                         executable.stat().st_size,
+                        (str(executable.resolve()), "--version"),
                     )
                 ],
             )
