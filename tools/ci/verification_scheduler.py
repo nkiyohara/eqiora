@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import threading
 from collections.abc import Callable, Iterator
-from contextlib import AbstractContextManager, ExitStack, contextmanager
+from contextlib import AbstractContextManager, ExitStack, contextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -179,20 +179,26 @@ def _claim_run(base: Path) -> tuple[Path, Path, bool]:
             slot.mkdir(mode=0o700)
         except FileExistsError:
             continue
-        slot.chmod(0o700)
-        run = Path(tempfile.mkdtemp(prefix="run-", dir=slot)).resolve(strict=True)
-        run.chmod(0o700)
-        if run.parent != slot or run.parent.parent != runs:
-            raise ValueError("verification run escaped its exact slot")
-        return slot, run, created_runs
+        owned_run = None
+        try:
+            slot.chmod(0o700)
+            owned_run = Path(tempfile.mkdtemp(prefix="run-", dir=slot))
+            run = owned_run.resolve(strict=True)
+            if run.parent != slot or run.parent.parent != runs:
+                raise ValueError("verification run escaped its exact slot")
+            run.chmod(0o700)
+            return slot, run, created_runs
+        except BaseException:
+            _abandon_empty_run(slot, owned_run, created_runs)
+            raise
     raise ValueError("no verification log slot is safely available")
 
 
-def _abandon_empty_run(slot: Path, run: Path, created_runs: bool) -> None:
-    run.rmdir()
-    slot.rmdir()
-    if created_runs:
-        slot.parent.rmdir()
+def _abandon_empty_run(slot: Path, run: Path | None, created_runs: bool) -> None:
+    for owned in (run, slot, slot.parent if created_runs else None):
+        if owned is not None:
+            with suppress(OSError):
+                owned.rmdir()
 
 
 class _RawLog:
@@ -250,10 +256,7 @@ def _lane_directory(base: Path, lane: VerificationLane) -> Path:
     return base / "lanes" / f"{slug}-{suffix}"
 
 
-def _lane_tmp_scope(
-    authority: Path,
-    admit: Callable[[Path], None],
-) -> AbstractContextManager[Path]:
+def _lane_tmp_scope(authority: Path, admit: Callable[[Path], None]) -> AbstractContextManager[Path]:  # fmt: skip
     @contextmanager
     def allocated_scope() -> Iterator[Path]:
         authority.mkdir(parents=True, exist_ok=True)
@@ -265,9 +268,7 @@ def _lane_tmp_scope(
     return allocated_scope()
 
 
-def _validate_lanes(
-    plan: VerificationPlan, budget: ResourceBudget
-) -> tuple[tuple[VerificationLane, tuple[tuple[int, PlannedCommand], ...]], ...]:
+def _validate_lanes(plan: VerificationPlan, budget: ResourceBudget) -> tuple[tuple[VerificationLane, tuple[tuple[int, PlannedCommand], ...]], ...]:  # fmt: skip
     grouped: dict[str, tuple[VerificationLane, list[tuple[int, PlannedCommand]]]] = {}
     for index, item in enumerate(plan.commands):
         existing = grouped.get(item.lane.name)
@@ -297,9 +298,7 @@ def _validate_lanes(
     return lanes
 
 
-def cpu_allocations(
-    lanes: Sequence[VerificationLane], budget: ResourceBudget
-) -> dict[str, int]:
+def cpu_allocations(lanes: Sequence[VerificationLane], budget: ResourceBudget) -> dict[str, int]:  # fmt: skip
     total_request = sum(lane.resources.cpu_slots for lane in lanes)
     if total_request >= budget.cpu_slots:
         return {lane.name: lane.resources.cpu_slots for lane in lanes}
