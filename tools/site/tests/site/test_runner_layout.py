@@ -9,17 +9,97 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fixture import REPOSITORY, SOURCE_SHA, checker, pinned_node_path
+from fixture import REPOSITORY, SOURCE_SHA, checker
 
 SCRATCH_ROOT = Path.home() / ".cache/eqiora/site-oracle-tests"
 BASIS_SHA = "19968da984c16e718baeb9faa5aae04260896c29"
 BASIS_TREE = "1d19473c487b8035608cc88cbd99757f2b95865a"
+AGENTS_SHA256 = "ffc9b0381a01c16b3d72389ef777842215c48b65d6eda6881f5e75bfa5d531c0"
+BROWSER_SHA256 = "0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"
+BROWSER_BYTES = 290_614_600
+SOURCE_SUCCESS = "site source: exact optional CLAUDE.md topology admitted"
+BROWSER_SUCCESS = "site browser: exact locked full Chromium supply admitted"
+POST_SB_SENTINEL = 85
 
 
 class OfflineRunnerLayoutTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         SCRATCH_ROOT.mkdir(parents=True, exist_ok=True)
+
+        browser_root_value = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+        browser_sha256 = os.environ.get("EQIORA_SITE_BROWSER_SHA256")
+        browser_bytes = os.environ.get("EQIORA_SITE_BROWSER_BYTES")
+        if not browser_root_value or not browser_sha256 or not browser_bytes:
+            raise AssertionError("the official browser identity inputs are required")
+        cls.browser_root = Path(browser_root_value)
+        cls.browser = cls.browser_root / "chromium-1234/chrome-linux64/chrome"
+        if (
+            not cls.browser_root.is_absolute()
+            or cls.browser_root.resolve() != cls.browser_root
+            or cls.browser_root.name != "eqiora-pw-1.62.1-r1234"
+            or cls.browser.is_symlink()
+            or not cls.browser.is_file()
+            or not os.access(cls.browser, os.X_OK)
+            or cls.browser.stat().st_size != BROWSER_BYTES
+            or hashlib.sha256(cls.browser.read_bytes()).hexdigest() != BROWSER_SHA256
+            or browser_sha256 != BROWSER_SHA256
+            or browser_bytes != str(BROWSER_BYTES)
+        ):
+            raise AssertionError("the official full Chromium supply changed")
+        version = subprocess.run(
+            [str(cls.browser), "--version"],
+            check=False,
+            env={**os.environ, "LC_ALL": "C", "TZ": "UTC"},
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+        )
+        if (
+            version.returncode != 0
+            or version.stderr
+            or version.stdout != checker.FULL_CHROMIUM_VERSION_STDOUT
+        ):
+            raise AssertionError("the official full Chromium version bytes changed")
+
+        site = REPOSITORY / "docs/site"
+        for relative in (
+            "node_modules/@playwright/test/package.json",
+            "node_modules/playwright/package.json",
+            "node_modules/playwright-core/package.json",
+            "node_modules/playwright-core/browsers.json",
+        ):
+            if not (site / relative).is_file():
+                raise AssertionError(
+                    "the exact locked Playwright packages must be installed first"
+                )
+
+    @staticmethod
+    def _copy_locked_browser_supply(source: Path) -> None:
+        site = source / "docs/site"
+        site.mkdir(parents=True)
+        shutil.copy2(REPOSITORY / "docs/site/package.json", site / "package.json")
+        shutil.copy2(
+            REPOSITORY / "docs/site/package-lock.json", site / "package-lock.json"
+        )
+        modules = site / "node_modules"
+        modules.mkdir()
+
+        def link_or_copy(origin: str, destination: str) -> str:
+            try:
+                os.link(origin, destination)
+            except OSError:
+                shutil.copy2(origin, destination)
+            return destination
+
+        for package in ("@playwright/test", "playwright", "playwright-core"):
+            destination = modules / package
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(
+                REPOSITORY / "docs/site/node_modules" / package,
+                destination,
+                copy_function=link_or_copy,
+            )
 
     def _environment(self, root: Path, scratch: Path) -> dict[str, str]:
         scratch = scratch.resolve()
@@ -31,7 +111,7 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
                 "npm_config_offline": "true",
                 "CARGO_NET_OFFLINE": "true",
                 "UV_OFFLINE": "1",
-                "PATH": pinned_node_path(root),
+                "PATH": f"{root / 'fixture-bin'}{os.pathsep}{os.environ['PATH']}",
                 "EQIORA_API_SCRATCH": str(scratch),
                 "EQIORA_SITE_SOURCE_ROOT": str(scratch / "source"),
                 "EQIORA_SITE_ASTRO_OUT_DIR": str(scratch / "astro"),
@@ -39,9 +119,10 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
                 "EQIORA_SITE_RUSTDOC_STAGE": str(scratch / "rustdoc-stage"),
                 "EQIORA_SITE_ARTIFACT": str(scratch / "build/site"),
                 "EQIORA_SITE_SOURCE_SHA": SOURCE_SHA,
-                "PLAYWRIGHT_BROWSERS_PATH": str(
-                    root / "browser-supply/eqiora-pw-1.62.1-r1234"
-                ),
+                "PLAYWRIGHT_BROWSERS_PATH": str(self.browser_root),
+                "EQIORA_SITE_BROWSER_SHA256": BROWSER_SHA256,
+                "EQIORA_SITE_BROWSER_BYTES": str(BROWSER_BYTES),
+                "TRACE_FILE": str(root / "trace.log"),
             }
         )
         return environment
@@ -53,16 +134,30 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         source = scratch / "source"
         (scratch / "build").mkdir(parents=True)
         (scratch / "uv-cache").mkdir()
-        (source / "docs/site/node_modules").mkdir(parents=True)
+        self._copy_locked_browser_supply(source)
         (source / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
-        (source / "docs/site/package.json").write_text("{}\n", encoding="utf-8")
-        (source / "AGENTS.md").write_bytes(b"fixture governance\n")
+        shutil.copy2(REPOSITORY / "AGENTS.md", source / "AGENTS.md")
         if admitted_link:
             (source / "CLAUDE.md").symlink_to("AGENTS.md")
         runner = source / "tools/site/run_offline_site_checks.sh"
         runner.parent.mkdir(parents=True)
+        shutil.copy2(
+            REPOSITORY / "tools/site/check_site.py", source / "tools/site/check_site.py"
+        )
+        shutil.copy2(
+            REPOSITORY / "tools/site/check_site_html.py",
+            source / "tools/site/check_site_html.py",
+        )
         shutil.copy2(REPOSITORY / "tools/site/run_offline_site_checks.sh", runner)
         runner.chmod(0o755)
+        fixture_bin = root / "fixture-bin"
+        fixture_bin.mkdir()
+        sentinel = fixture_bin / "dpkg-query"
+        sentinel.write_text(
+            "#!/bin/sh\nprintf 'post-sb-preflight\\n' >> \"$TRACE_FILE\"\nexit 85\n",
+            encoding="utf-8",
+        )
+        sentinel.chmod(0o755)
         return runner, self._environment(root, scratch)
 
     def _archive_layout(self, root: Path) -> tuple[Path, dict[str, str]]:
@@ -103,14 +198,38 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         )
 
     @staticmethod
-    def _run(runner: Path, environment: dict[str, str]) -> subprocess.CompletedProcess:
+    def _run(
+        runner: Path, environment: dict[str, str], *arguments: str
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [str(runner), "--preflight-only"],
+            [str(runner), *arguments],
             check=False,
+            cwd=environment["EQIORA_SITE_SOURCE_ROOT"],
             env=environment,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            timeout=15,
+        )
+
+    def _assert_sb_positive(
+        self,
+        result: subprocess.CompletedProcess[str],
+        environment: dict[str, str],
+    ) -> None:
+        trace = Path(environment["TRACE_FILE"])
+        self.assertEqual(
+            result.returncode,
+            POST_SB_SENTINEL,
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+        )
+        self.assertEqual(
+            trace.read_text(encoding="utf-8").splitlines(), ["post-sb-preflight"]
+        )
+        self.assertEqual(result.stdout.count(SOURCE_SUCCESS), 1)
+        self.assertEqual(result.stdout.count(BROWSER_SUCCESS), 1)
+        self.assertLess(
+            result.stdout.index(SOURCE_SUCCESS), result.stdout.index(BROWSER_SUCCESS)
         )
 
     def test_00_s01_exact_archive_and_optional_link_pass_before_mutants(self) -> None:
@@ -271,7 +390,12 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         errors = checker.check_runner_source_topology_text(runner_text)
         self.assertEqual(errors, [], "\n".join(errors))
 
-    def test_existing_layout_mutants_fail_closed(self) -> None:
+    def test_01_normal_runner_reaches_post_sb_boundary_before_mutants(self) -> None:
+        with tempfile.TemporaryDirectory(dir=SCRATCH_ROOT) as temporary:
+            runner, environment = self._layout(Path(temporary))
+            self._assert_sb_positive(self._run(runner, environment), environment)
+
+    def test_02_existing_layout_mutants_fail_closed(self) -> None:
         def extra_entry(runner: Path, environment: dict[str, str]) -> None:
             Path(environment["EQIORA_API_SCRATCH"], "unexpected").touch()
 
@@ -293,9 +417,25 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
                 self.subTest(label=label),
                 tempfile.TemporaryDirectory(dir=SCRATCH_ROOT) as temporary,
             ):
-                runner, environment = self._layout(Path(temporary), admitted_link=False)
+                runner, environment = self._layout(Path(temporary))
                 mutate(runner, environment)
-                self.assertNotEqual(self._run(runner, environment).returncode, 0)
+                result = self._run(runner, environment)
+                self.assertNotIn(result.returncode, (0, POST_SB_SENTINEL))
+                trace = Path(environment["TRACE_FILE"])
+                self.assertFalse(trace.exists())
+                self.assertNotIn(SOURCE_SUCCESS, result.stdout)
+                self.assertNotIn(BROWSER_SUCCESS, result.stdout)
+
+    def test_03_historical_preflight_option_is_rejected_before_observation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(dir=SCRATCH_ROOT) as temporary:
+            runner, environment = self._layout(Path(temporary))
+            result = self._run(runner, environment, "--preflight-only")
+            self.assertEqual(result.returncode, 2)
+            self.assertFalse(Path(environment["TRACE_FILE"]).exists())
+            self.assertNotIn(SOURCE_SUCCESS, result.stdout)
+            self.assertNotIn(BROWSER_SUCCESS, result.stdout)
 
 
 if __name__ == "__main__":

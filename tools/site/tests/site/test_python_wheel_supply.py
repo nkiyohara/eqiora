@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
 import subprocess
@@ -15,6 +16,11 @@ REPOSITORY = Path(__file__).resolve().parents[4]
 RUNNER = REPOSITORY / "tools/site/run_offline_site_checks.sh"
 SOURCE_SHA = "a" * 40
 POST_IDENTITY_SENTINEL = 86
+BROWSER_SHA256 = "0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"
+BROWSER_BYTES = 290_614_600
+FULL_BROWSER_STDOUT = b"Google Chrome for Testing 151.0.7922.34 \n"
+SOURCE_SUCCESS = "site source: exact optional CLAUDE.md topology admitted"
+BROWSER_SUCCESS = "site browser: exact locked full Chromium supply admitted"
 
 
 def _write(path: Path, value: str | bytes) -> None:
@@ -84,6 +90,52 @@ def _compile_native(output: Path, version: str) -> None:
 class PythonWheelSupplyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
+        browser_root_value = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+        browser_sha256 = os.environ.get("EQIORA_SITE_BROWSER_SHA256")
+        browser_bytes = os.environ.get("EQIORA_SITE_BROWSER_BYTES")
+        if not browser_root_value or not browser_sha256 or not browser_bytes:
+            raise AssertionError("the official browser identity inputs are required")
+        cls._browser_root = Path(browser_root_value)
+        cls._browser = cls._browser_root / "chromium-1234/chrome-linux64/chrome"
+        if (
+            not cls._browser_root.is_absolute()
+            or cls._browser_root.resolve() != cls._browser_root
+            or cls._browser_root.name != "eqiora-pw-1.62.1-r1234"
+            or cls._browser.is_symlink()
+            or not cls._browser.is_file()
+            or not os.access(cls._browser, os.X_OK)
+            or cls._browser.stat().st_size != BROWSER_BYTES
+            or hashlib.sha256(cls._browser.read_bytes()).hexdigest() != BROWSER_SHA256
+            or browser_sha256 != BROWSER_SHA256
+            or browser_bytes != str(BROWSER_BYTES)
+        ):
+            raise AssertionError("the official full Chromium supply changed")
+        version = subprocess.run(
+            [str(cls._browser), "--version"],
+            check=False,
+            env={**os.environ, "LC_ALL": "C", "TZ": "UTC"},
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+        )
+        if (
+            version.returncode != 0
+            or version.stderr
+            or version.stdout != FULL_BROWSER_STDOUT
+        ):
+            raise AssertionError("the official full Chromium version bytes changed")
+
+        for relative in (
+            "node_modules/@playwright/test/package.json",
+            "node_modules/playwright/package.json",
+            "node_modules/playwright-core/package.json",
+            "node_modules/playwright-core/browsers.json",
+        ):
+            if not (REPOSITORY / "docs/site" / relative).is_file():
+                raise AssertionError(
+                    "the exact locked Playwright packages must be installed first"
+                )
+
         cls._native_root = tempfile.TemporaryDirectory()
         root = Path(cls._native_root.name)
         suffix = sysconfig.get_config_var("EXT_SUFFIX")
@@ -95,6 +147,33 @@ class PythonWheelSupplyTests(unittest.TestCase):
         cls._wrong_native.parent.mkdir()
         _compile_native(cls._native, "0.1.0a1")
         _compile_native(cls._wrong_native, "0.1.0a2")
+
+    @staticmethod
+    def _copy_locked_browser_supply(source: Path) -> None:
+        site = source / "docs/site"
+        site.mkdir(parents=True)
+        shutil.copy2(REPOSITORY / "docs/site/package.json", site / "package.json")
+        shutil.copy2(
+            REPOSITORY / "docs/site/package-lock.json", site / "package-lock.json"
+        )
+        modules = site / "node_modules"
+        modules.mkdir()
+
+        def link_or_copy(origin: str, destination: str) -> str:
+            try:
+                os.link(origin, destination)
+            except OSError:
+                shutil.copy2(origin, destination)
+            return destination
+
+        for package in ("@playwright/test", "playwright", "playwright-core"):
+            destination = modules / package
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(
+                REPOSITORY / "docs/site/node_modules" / package,
+                destination,
+                copy_function=link_or_copy,
+            )
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -430,24 +509,23 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
         )
 
     def _layout(
-        self, root: Path, w_mutant: str, p_mutant: str
+        self, root: Path, w_mutant: str, p_mutant: str, upstream_mutant: str
     ) -> tuple[Path, dict[str, str], Path]:
         scratch = root / "scratch"
         source = scratch / "source"
         mocks = root / "mocks"
-        browser_root = root / "browser-supply/eqiora-pw-1.62.1-r1234"
-        browser = browser_root / "chromium-1234/chrome-linux64/chrome"
         trace = root / "trace.log"
         fixture = self._fixture_site(root, p_mutant)
 
         (scratch / "build").mkdir(parents=True)
         (scratch / "uv-cache").mkdir()
-        (source / "docs/site/node_modules").mkdir(parents=True)
+        self._copy_locked_browser_supply(source)
         _write(
             source / "Cargo.toml",
             '[workspace]\nmembers = []\n[workspace.package]\nversion = "0.1.0-alpha.1"\n',
         )
-        _write(source / "docs/site/package.json", "{}\n")
+        shutil.copy2(REPOSITORY / "AGENTS.md", source / "AGENTS.md")
+        (source / "CLAUDE.md").symlink_to("AGENTS.md")
         _write(
             source / "tools/release/python_candidate_common.py",
             "def python_distribution_version(version):\n"
@@ -455,42 +533,17 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
         )
         runner = source / "tools/site/run_offline_site_checks.sh"
         runner.parent.mkdir(parents=True)
+        shutil.copy2(
+            REPOSITORY / "tools/site/check_site.py", source / "tools/site/check_site.py"
+        )
+        shutil.copy2(
+            REPOSITORY / "tools/site/check_site_html.py",
+            source / "tools/site/check_site_html.py",
+        )
         shutil.copy2(RUNNER, runner)
         runner.chmod(0o755)
 
-        runner_text = RUNNER.read_text(encoding="utf-8")
-        browser_version = (
-            "Google Chrome for Testing 151.0.7922.34 "
-            if "Google Chrome for Testing 151.0.7922.34 " in runner_text
-            else "HeadlessChrome 151.0.7922.34"
-        )
-        _executable(browser, f"#!/bin/sh\nprintf '%s\\n' '{browser_version}'\n")
-
         mocks.mkdir()
-        _executable(
-            mocks / "node",
-            f"""#!/bin/sh
-if test "${{1:-}}" = --version; then
-  echo v24.18.1
-  exit 0
-fi
-for argument in "$@"; do
-  if test "$argument" = -e; then
-    printf '%s\\n' '{browser}'
-    exit 0
-  fi
-done
-exit 0
-""",
-        )
-        _executable(
-            mocks / "npm",
-            '#!/bin/sh\nif test "${1:-}" = --version; then echo 11.16.0; fi\nexit 0\n',
-        )
-        _executable(
-            mocks / "rustc",
-            "#!/bin/sh\necho 'rustc 1.97.1 (fixture 2026-08-01)'\n",
-        )
         _executable(mocks / "dpkg-query", "#!/bin/sh\nexit 0\n")
         _executable(
             mocks / "python3",
@@ -565,6 +618,28 @@ exit 0
         )
         self._mock_uv(mocks / "uv")
 
+        browser_root = self._browser_root
+        browser_sha256 = BROWSER_SHA256
+        browser_bytes = str(BROWSER_BYTES)
+        if upstream_mutant == "missing-checker":
+            (source / "tools/site/check_site.py").unlink()
+        elif upstream_mutant == "additional-source-link":
+            (source / "extra-link").symlink_to("AGENTS.md")
+        elif upstream_mutant == "shell-browser":
+            browser_root = root / "wrong-browser/eqiora-pw-1.62.1-r1234"
+            browser = browser_root / "chromium-1234/chrome-linux64/chrome"
+            _executable(
+                browser,
+                "#!/bin/sh\nprintf 'Google Chrome for Testing 151.0.7922.34 \\n'\n",
+            )
+            payload = browser.read_bytes()
+            browser_sha256 = hashlib.sha256(payload).hexdigest()
+            browser_bytes = str(len(payload))
+        elif upstream_mutant == "wrong-browser-digest":
+            browser_sha256 = "0" * 64
+        elif upstream_mutant == "wrong-browser-bytes":
+            browser_bytes = str(BROWSER_BYTES - 1)
+
         environment = os.environ.copy()
         environment.update(
             {
@@ -584,6 +659,8 @@ exit 0
                 "EQIORA_SITE_ARTIFACT": str((scratch / "build/site").resolve()),
                 "EQIORA_SITE_SOURCE_SHA": SOURCE_SHA,
                 "PLAYWRIGHT_BROWSERS_PATH": str(browser_root.resolve()),
+                "EQIORA_SITE_BROWSER_SHA256": browser_sha256,
+                "EQIORA_SITE_BROWSER_BYTES": browser_bytes,
                 "TRACE_FILE": str(trace),
                 "W_MUTANT": w_mutant,
                 "P_MUTANT": p_mutant,
@@ -592,14 +669,21 @@ exit 0
                 "FIXTURE_EXTERNAL": str((root / f"external-{p_mutant}").resolve()),
             }
         )
+        if upstream_mutant == "missing-browser-sha256":
+            environment.pop("EQIORA_SITE_BROWSER_SHA256")
+        elif upstream_mutant == "missing-browser-bytes":
+            environment.pop("EQIORA_SITE_BROWSER_BYTES")
         return runner, environment, trace
 
     def _run(
-        self, w_mutant: str = "", p_mutant: str = ""
+        self,
+        w_mutant: str = "",
+        p_mutant: str = "",
+        upstream_mutant: str = "",
     ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
         with tempfile.TemporaryDirectory() as temporary:
             runner, environment, trace = self._layout(
-                Path(temporary), w_mutant, p_mutant
+                Path(temporary), w_mutant, p_mutant, upstream_mutant
             )
             result = subprocess.run(
                 [str(runner)],
@@ -616,6 +700,13 @@ exit 0
             )
             return result, observations
 
+    def _assert_sb_positive(self, result: subprocess.CompletedProcess[str]) -> None:
+        self.assertEqual(result.stdout.count(SOURCE_SUCCESS), 1, result.stdout)
+        self.assertEqual(result.stdout.count(BROWSER_SUCCESS), 1, result.stdout)
+        self.assertLess(
+            result.stdout.index(SOURCE_SUCCESS), result.stdout.index(BROWSER_SUCCESS)
+        )
+
     def test_00_ordinary_supply_reaches_post_identity_boundary_before_mutants(
         self,
     ) -> None:
@@ -625,6 +716,7 @@ exit 0
             POST_IDENTITY_SENTINEL,
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}\ntrace:{observations}",
         )
+        self._assert_sb_positive(result)
         expected = [
             "cargo-build",
             "build-ok",
@@ -635,6 +727,22 @@ exit 0
             "post-python-identity",
         ]
         self.assertEqual(observations, expected)
+
+    def test_01_upstream_supply_mutants_fail_before_python_wheel_work(self) -> None:
+        for mutation in (
+            "missing-checker",
+            "additional-source-link",
+            "missing-browser-sha256",
+            "missing-browser-bytes",
+            "wrong-browser-digest",
+            "wrong-browser-bytes",
+            "shell-browser",
+        ):
+            with self.subTest(mutation=mutation):
+                result, observations = self._run(upstream_mutant=mutation)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotEqual(result.returncode, POST_IDENTITY_SENTINEL)
+                self.assertEqual(observations, [])
 
     def test_w01_output_admission_mutants_fail_after_build_before_venv(self) -> None:
         mutations = (
@@ -659,6 +767,7 @@ exit 0
         for mutation in mutations:
             with self.subTest(mutation=mutation):
                 result, observations = self._run(w_mutant=mutation)
+                self._assert_sb_positive(result)
                 self.assertNotEqual(result.returncode, 0, result.stderr)
                 self.assertNotEqual(result.returncode, POST_IDENTITY_SENTINEL)
                 self.assertIn("build-ok", observations)
@@ -673,6 +782,7 @@ exit 0
         ):
             with self.subTest(mutation=mutation):
                 result, observations = self._run(w_mutant=mutation)
+                self._assert_sb_positive(result)
                 self.assertNotEqual(result.returncode, 0, result.stderr)
                 self.assertNotEqual(result.returncode, POST_IDENTITY_SENTINEL)
                 self.assertIn("build-ok", observations)
@@ -703,6 +813,7 @@ exit 0
         for mutation in mutations:
             with self.subTest(mutation=mutation):
                 result, observations = self._run(p_mutant=mutation)
+                self._assert_sb_positive(result)
                 self.assertNotEqual(result.returncode, 0, result.stderr)
                 self.assertNotEqual(result.returncode, POST_IDENTITY_SENTINEL)
                 for reached in ("build-ok", "venv", "install", "public-import"):
@@ -716,6 +827,7 @@ exit 0
         result, observations = self._run(
             p_mutant="top-level-wrong-exception-name-after-positives"
         )
+        self._assert_sb_positive(result)
         self.assertNotEqual(result.returncode, 0, result.stderr)
         self.assertNotEqual(result.returncode, POST_IDENTITY_SENTINEL)
         for reached in (
@@ -749,6 +861,7 @@ exit 0
         ):
             with self.subTest(mutation=mutation):
                 result, observations = self._run(p_mutant=mutation)
+                self._assert_sb_positive(result)
                 self.assertNotEqual(result.returncode, 0, result.stderr)
                 self.assertNotEqual(result.returncode, POST_IDENTITY_SENTINEL)
                 for reached in (
