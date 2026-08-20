@@ -18,7 +18,7 @@ import verification_scheduler as scheduler  # noqa: E402
 
 LANE, Budget, Command, Failure = scheduler.VerificationLane("admission", resources.ResourceRequest(1, 1)), resources.ResourceBudget, scheduler.PlannedCommand, scheduler.VerificationFailure  # fmt: skip
 MARKER = "import signal,sys;signal.alarm(10);open(sys.argv[1],'x').write(sys.argv[2]+'\\n'+sys.argv[3])"
-GUARD = "import os,sys;from pathlib import Path;lines=Path(sys.argv[1]).read_text().splitlines();assert len(lines)==1;run=Path(lines[0]);authority=Path(sys.argv[4]);assert run.is_absolute() and run==run.resolve() and run.parent.parent==authority;os.spawnv(os.P_WAIT,sys.executable,(sys.executable,'-c',sys.argv[5],sys.argv[2],sys.argv[3],str(run)));"
+GUARD = "import os,sys;from pathlib import Path;lines=Path(sys.argv[1]).read_text().splitlines();assert len(lines)==1;run=Path(lines[0]);authority=Path(sys.argv[4]);assert run.is_absolute() and run==run.resolve() and run.parent.parent==authority;os.spawnv(os.P_WAIT,sys.executable,(sys.executable,'-c',sys.argv[5],sys.argv[2],sys.argv[3],str(run)))"
 NESTED = "import sys;sys.path.insert(0,sys.argv[6]);from tests.test_verification_log_admission import _command,_invoke,_plan;inner=Path(sys.argv[8]);events,marker,receipt=map(Path,sys.argv[9:12]);output,error=_invoke(_plan(_command('inner',0,inner,events,marker,status=31)),inner,events);receipt.write_text(type(error).__name__+'\\n'+str(error)+'\\0'+output);receipt.chmod(0o444)"
 
 
@@ -39,7 +39,7 @@ class _Capture(io.TextIOBase):
                     stream.write((word + "\n").encode())
         return len(value)
 def _command(label, index, scratch, events, marker, action="", *args, status=0):
-    argv = (sys.executable, "-c", GUARD + action + f";sys.exit({status})", str(events), str(marker), str(index), str(scratch / "runs"), MARKER, *map(str, args))
+    argv = (sys.executable, "-c", ";".join(filter(None, (GUARD, action, f"sys.exit({status})"))), str(events), str(marker), str(index), str(scratch / "runs"), MARKER, *map(str, args))
     return Command(label, argv, lane=LANE)
 def _plan(*commands):
     return scheduler.VerificationPlan("affected", (), (), (), commands, ())

@@ -20,7 +20,7 @@ MAX_BYTES = 16 * 1024 * 1024
 LANE = scheduler.VerificationLane("retention", resources.ResourceRequest(1, 1))
 Budget, Command, Failure = resources.ResourceBudget, scheduler.PlannedCommand, scheduler.VerificationFailure  # fmt: skip
 MARKER = "import signal,sys;signal.alarm(10);open(sys.argv[1],'x').write(sys.argv[2]+'\\n'+sys.argv[3])"
-GUARD = "import os,sys;from pathlib import Path;lines=Path(sys.argv[1]).read_text().splitlines();assert len(lines)==1;run=Path(lines[0]);authority=Path(sys.argv[4]);assert run.is_absolute() and run==run.resolve() and run.parent.parent==authority;os.spawnv(os.P_WAIT,sys.executable,(sys.executable,'-c',sys.argv[5],sys.argv[2],sys.argv[3],str(run)));"
+GUARD = "import os,sys;from pathlib import Path;lines=Path(sys.argv[1]).read_text().splitlines();assert len(lines)==1;run=Path(lines[0]);authority=Path(sys.argv[4]);assert run.is_absolute() and run==run.resolve() and run.parent.parent==authority;os.spawnv(os.P_WAIT,sys.executable,(sys.executable,'-c',sys.argv[5],sys.argv[2],sys.argv[3],str(run)))"
 EXPECTED = "1 verification command(s) failed: frozen failure (exit 23)"
 
 
@@ -47,7 +47,7 @@ class _Capture(io.TextIOBase):
 
 
 def _command(label, index, scratch, events, marker, action="", *args, status=0, env=()):
-    source = GUARD + action + f";sys.exit({status})"
+    source = ";".join(filter(None, (GUARD, action, f"sys.exit({status})")))
     argv = (sys.executable, "-c", source, str(events), str(marker), str(index), str(scratch / "runs"), MARKER, *map(str, args))  # fmt: skip
     return Command(label, argv, env=env, lane=LANE)
 
