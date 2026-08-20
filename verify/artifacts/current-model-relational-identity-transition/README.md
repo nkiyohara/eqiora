@@ -48,8 +48,9 @@ by hand.
 | `required_post_reset` | 13 | the complete set of paths the reset may add: 11 byte-frozen promotions — 10 staged control-v2 targets plus the historical cylinder — and 2 existence-only unversioned Rust owners |
 | `preserved_evidence` | 40 | invariant evidence — the same path in both states — whose deletion the reset must never reach |
 | `promoted_evidence` | 1 | evidence whose bytes survive at a different path, so it is invariant at neither |
-| `post_reset_admitted` | 17 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
-| `post_reset_fixture_admitted` | 26 | later exact evidence representations admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
+| `post_reset_admitted` | 29 | later identity-free classified paths the post-reset state may contain and never has to; a member of none of the historical sets above, and of no count in them |
+| `post_reset_fixture_admitted` | 27 | later exact evidence representations admitted through a separate exact-path permission; a member of no historical, identity-free, or later-classified set |
+| accepted-byte-bound optional rows | 13 | exact alpha.2 site/source rows guarded by accepted raw SHA-256; permission remains optional and owns no input semantics |
 
 **44, 304 and 13 are not one partition of 338.** What partitions the inventory
 is 34 + 304: the retired paths that are inventory members, plus the preserved
@@ -145,207 +146,52 @@ implementation choice is not an available move.
 
 ## Later signal-bearing paths are admitted by exact path, never required
 
-The transition is history: it says what the repository was before the reset and
-what the reset itself did. Work that comes afterwards is neither. When the
-general trajectory owner of the Python surface was split out of its
-FSI-specific host, the hosted whole-tree gate found two signal-bearing paths the
-frozen record predates: `crates/eqiora-python/src/trajectory.rs` and
-`bindings/python/python/eqiora/trajectory.pyi`. The later common Result owner
-`crates/eqiora-python/src/result.rs` joined them. All three are ordinary
-current-owner consumers of `model_digest`.
+The transition is history; later work is admitted only as optional permission.
+The original seventeen identity-free rows cover the Python trajectory and
+Result surfaces, Cartesian Q1 snapshot and oracle, RFC 0085 standalone-solid
+surfaces, subprocess-provider surfaces, non-box transient oracle, and private
+MCP adapter. Twelve accepted alpha.2 site rows append in exact order:
 
-The generated Cartesian spatial-output slice later added
-`crates/eqiora-artifact/src/cartesian_q1_field_snapshot.rs` and its independent
-oracle `crates/eqiora/tests/generated_cartesian_q1_spatial_output.rs`. Both name
-only `model_sha256`: the artifact owns a relational edge to its caller's exact
-Model, while the oracle checks and mutates that key without pinning its value.
-None of the five paths freezes a Model identity literal.
+- Cylinder gallery, control-v2 reference, MCP reference, and five generated
+  Python reference pages, all `current-owner-assertion`;
+- Gallery publication checker and pressure producer, plus the publication
+  fixture helper and predicate test, all `non-fixture-search-hit`.
 
-RFC 0085 then pre-admitted four more identity-free classified hits: the RFC
-itself, the standalone prescribed-dynamic-solid Realization source owner, the
-independent Rust exact-artifact oracle, and its independent standard-library
-derivation route. The RFC and derivation name both the current Model schema and
-`model_sha256`; the two Rust files name only `model_sha256`. All four freeze zero
-Model-derived identity literals. They are ordinary classified search hits even
-though the RFC and derivation are not product source, so this permission is now
-described as identity-free classified-path admission rather than product-path
-admission.
+Every one carries its recorded ordered search signals and zero same-line
+Model-derived identity occurrences. `post_reset_admitted` therefore contains
+exactly 29 rows. A row is absent before the reset, optional after it, belongs to
+no historical, required, promotion, classified, fixture, or oracle-exclusion
+set, and grants no sibling, stem, suffix, directory, generated-page, or tool
+family permission.
 
-The registered `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`
-evidence pre-admits six more exact identity-free hits before their production
-files appear: the provider-occurrence artifact owner, the protocol-control
-owner, the independent Rust oracle, its independent derivation, the positive
-Python provider, and the current-owner external-boundary-provider
-documentation. Each carries only `model_sha256`, freezes zero Model-derived
-identity literals, and grants no sibling, path-family, or documentation
-proximity admission.
-
-The private non-box transient Navier--Stokes oracle adds one exact later test
-path carrying `model_digest`. It derives that digest from the accepted source
-bytes and pins no Model-derived identity. Its permission covers only that test
-file, not its module, directory, or a future cylinder-flow sibling.
-
-The private `eqiora-mcp` tool adapter adds one exact production hit at
-`crates/eqiora/src/bin/eqiora-mcp/tool.rs`. It carries, in sweep order,
-`eqiora.model-envelope/v` and `eqiora.model-transaction-envelope/v`, and freezes
-zero Model-derived identity literals. This permission owns only that exact
-path, ordered signal list, and zero count; it owns none of the adapter's wire
-meaning or content.
-
-Neither of the two sets that could have absorbed them is true. Adding them to
-the 338-path inventory would claim they existed before the reset. Adding them to
-`required_post_reset` would claim the reset created them, and would make a later
-capability a condition of accepting a transition that completed without it. So
-`search.transition.post_reset_admitted` names all seventeen, and names them alone:
-
-- **containment only.** Admission widens what the post-reset discovered set may
-  contain; it never asks a path to exist. Every subset of the seventeen, including
-  none and all, is accepted independently of this permission. The original
-  five paths, the RFC 0085 path, and the non-box transient oracle happen to
-  exist in the observed checkout; the other three RFC 0085 paths and all six
-  paths pre-admitted for
-  `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`, plus the MCP
-  tool path, are optional successors at this precommit revision.
-- **exactly the recorded signal.** An admitted path that does exist must spell
-  exactly the search tokens recorded for it, in the sweep's own order. A file
-  that spells none is not the surface that was admitted, and one that spells
-  more has grown a claim nobody classified.
-- **no frozen identity.** `identity_literals` is 0 for all seventeen. A path that
-  pins a Model-derived lower-hex-64 identity is a fixture, and a fixture is
-  classified here rather than admitted.
-- **absent before the reset.** An admitted path present in the pre-reset state
-  is a mid-flight tree, refused by existence alone.
-- **exact, and nothing near it.** There is no glob, no directory rule and no
-  suffix rule. An eighteenth identity-free signal-bearing path is not admitted by
-  sitting in the same directory, by sharing a trajectory, Result, Cartesian
-  snapshot, prescribed-solid, provider, protocol, MCP, RFC, documentation,
-  non-box transient, test, or derivation name, or by being the other extension
-  of the same module; it returns here for classification
-  exactly as an unlisted path did before.
-
-Every historical set and count above is unchanged by this: 338 inventory paths,
-44 retired, 304 preserved, 13 required, 40 invariant and 1 promoted, with the
-same bytes and the same digests. Admission adds a permission and removes
-nothing.
-
-The seventeen paths are what this case bounds, not what it owns. Their content
-belongs to their Python, Cartesian artifact, RFC, prescribed-solid artifact,
-provider/protocol, MCP adapter, documentation, numerics, and independent-oracle owners,
-which must not tune this record; a path that cannot meet the four conditions
-above returns here rather than being made to fit.
+The twelve new rows additionally bind the raw SHA-256 of their already accepted
+complete bytes. The same one-time read derives signal order, occurrence count,
+and digest. Absence remains accepted; changed bytes with the same signal and
+count fail the digest gate and return to an independent oracle successor. The
+digest is a composition guard, not semantic ownership of the site prose, API,
+science, producer, publication predicate, or test.
 
 ## Exact later fixture bytes use a separate permission
 
-The ten expected files frozen by RFC 0085 are not identity-free consumer
-surfaces. The Model fixture carries `eqiora.model-envelope/v` and zero
-same-line Model-derived lower-hex-64 literals. The exact Geometry identity,
-Realization, four FieldSnapshot, two State, and Run fixtures each carry
-`model_sha256` and exactly one such literal. Calling those files identity-free
-would weaken the predicate above; adding them to a historical set would claim
-they existed before the reset or were created by it. Both claims are false.
+The first 26 fixture rows retain their exact RFC 0085, subprocess-provider,
+Python-package, MCP, Stokes, collocated, and semantic-impact shapes and their
+aggregate 120 occurrences. The accepted minified Cylinder publication JSON is
+the twenty-seventh and final row: `delegated-current-owner-evidence`, one
+`model_digest` signal, 76 textual lower-hex-64 occurrences on its qualifying
+line, and accepted raw SHA-256
+`db88a9a60926f52fc34b4106a29137b2fd8afbd5cc83b4eb797619432a744d33`.
+The aggregate is therefore 196.
 
-The registered `interfaces.prescribed-dynamic-solid-subprocess-provider-3d`
-evidence adds exactly two more delegated fixtures under its interface case.
-The provider-occurrence JSON carries `model_sha256` and 13 same-line
-Model-derived lower-hex-64 literal occurrences; the two-output Run JSON carries
-the same signal and 4 occurrences. Together with RFC 0085's 9 occurrences, the
-first twelve exact fixture rows carry an aggregate 26. The binary transcript and
-candidate fixtures are non-UTF-8 and carry no discovered text signal, and no
-other `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` path is
-admitted by this fixture permission.
-
-The independent `interfaces.python-package-conformance` oracle adds one exact
-source-or-package-identity release path. Its minified bytes contain no recorded
-search token and exactly two same-line lower-hex-64 occurrences on a
-Model-bearing line, so discovery is the positive occurrence count rather than
-a nonempty signal list. Admission owns only that path, empty search shape, and
-count. The oracle retains ownership of the release bytes and source/package
-identities; this transition record creates no raw release-wire predicate. The
-first thirteen rows therefore carry 28 occurrences in aggregate.
-
-The independent `interfaces.mcp-stdio-compile-check` oracle adds the exact
-`verify/interfaces/mcp-stdio-compile-check/expected/tool-definition.json`
-snapshot. Like the production row, it carries the current Model and Transaction
-schema signals in that order and freezes zero Model-derived identity literals.
-Its bytes and wire meaning remain owned by that independent oracle; this
-transition permission owns only the exact fixture path, ordered signal list,
-and zero count. The fourteen rows still carry 28 occurrences in aggregate.
-
-The `geometry.stokes-dissipation-profile-2d` independent evidence authority
-adds the exact minified
-`crates/eqiora-numerics/src/canonical_stokes/dissipation_profile/e1-sealed-inputs-v1.json`
-path. It contains no recorded search token and carries five source, contract,
-and review SHA-256 identities on its single `scientific_model`-bearing line.
-Those are source identities, not Model artifact identities; this permission
-owns only the exact path, empty search shape, and count. The fifteenth row
-raises the aggregate to 33 without creating a Model artifact identity claim.
-
-The `fluid.cartesian-periodic-collocated-view-3d` structural oracle and its
-registered case manifest add two exact empty-signal paths. Each carries one
-same-line occurrence of the already accepted current Model artifact identity,
-raising the first seventeen rows' aggregate to 35. Their evidence owner, not
-this transition record, owns the value and its assertions.
-
-The `quality.semantic-impact-cargo-authority` independent exact-record oracle
-then moved its serialized runtime payload out of
-`tools/xtask/tests/semantic_impact_cargo_authority.rs` and into nine JSONL files.
-In deterministic filename order their empty-signal occurrence counts are:
-
-| Exact JSONL path below `verify/quality/semantic-impact-cargo-authority/fixtures/` | Count |
-| --- | ---: |
-| `p-bin-head-test.jsonl` | 17 |
-| `p-head-nontest.jsonl` | 17 |
-| `p-head-test.jsonl` | 17 |
-| `r-base-nontest.jsonl` | 0 |
-| `r-base-test.jsonl` | 0 |
-| `r-head-nontest.jsonl` | 0 |
-| `r-head-test.jsonl` | 0 |
-| `t-all-head-test.jsonl` | 17 |
-| `t-auto-head-test.jsonl` | 17 |
-
-Those 85 qualifying occurrences are Cargo, source, package, and revision
-records on Model/Transaction-bearing serialized authority lines, not current
-Model artifact identities. The four zero-count files are exact members of the
-same externally owned nine-file runtime representation; they receive no
-general empty-file or directory admission. The old Rust host now observes no
-search signal and no qualifying occurrence, so it retains no fixture-admission
-permission. Externalization changed text placement, not the JSONL bytes
-consumed at runtime or any scientific meaning. The complete twenty-six-row
-aggregate is 120.
-
-`search.transition.post_reset_fixture_admitted` therefore records a second
-containment-only permission:
-
-- each of the twenty-six exact paths is optional after the reset and absent before it;
-- a present path must carry its exact ordered search-signal list and exact
-  same-line lower-hex-64 literal occurrence count. The four exact zero-count
-  semantic-impact rows are the only empty-signal exception to the normally
-  positive-count shape, and every non-overlapping identity on one qualifying
-  line is counted;
-- every row has the exact delegated fixture class, owner, and note frozen by
-  the independent transition oracle;
-- no row joins the inventory, retired, required, preserved-evidence, promoted,
-  promotion, identity-free admitted, or later-classified set; and
-- no glob, directory, suffix, expected-file naming convention, or sibling
-  proximity admits a twenty-seventh fixture.
-
-Every subset of the seventeen identity-free paths and every subset of the twenty-six
-fixture paths is accepted independently, including neither set being present.
-Synthetic mutants remove, add, substitute, or reorder a search signal; change
-the #116 two-occurrence row, the Stokes E1 five-occurrence row, or either an
-external semantic-impact zero- or 17-occurrence row; change the other zero,
-one, four, or thirteen counts; omit, add, duplicate, reorder, or substitute a
-path; alter every metadata field; swap the MCP
-production and fixture classes; and attempt overlap with both historical and
-later-classified paths. Another digest in the same store, a backup or alternate
-suffix, a nested or sibling store, another package-conformance fixture, a
-copied or nearby MCP tool or tool-definition path, and a signal-bearing
-`expected/contract.json` remain unclassified alongside the existing nearby
-RFC, Rust, protocol, provider, documentation, derivation, and expected-file
-paths. The old semantic-impact Rust host and JSONL backups, copies, nested
-paths, siblings, and alternate extensions receive no permission. This keeps
-both permissions optional and fail-closed without making one a relaxation of
-the other.
+This permission is also containment-only and exact-path-only. Empty,
+singleton, all, and all-but-one subsets of both admission vectors remain valid.
+Deletion and wrong-path mutants cover every new row; representative Gallery,
+Python, interface, publication, tool, and test neighbors remain unclassified;
+category drift fails the ordered-row oracle; and inert byte drift reaches the
+digest gate for all thirteen accepted-byte rows. Omitting, substituting,
+uppercasing, malforming, or shortening one accepted digest, or adding a digest
+to an older admission, fails without changing product bytes. None of these
+checks transfers ownership of publication identities or makes a later site path
+part of reset history.
 
 ## Later mixed identity evidence uses exact classification
 
@@ -617,19 +463,11 @@ place may stop matching, which is admissible and which the predicate allows by
 containment rather than equality.
 
 Admission claims less again. It does not require any admitted path to exist and
-it owns none of their content: what a present identity-free path may spell and
-what it may not freeze, or what a present fixture path may spell and exactly
-how many same-line identity occurrences it carries, is the whole of it. The first five
-identity-free paths and the RFC exist in this checkout, so the live tree
-exercises their exact observed signals and zero-literal counts; the other three
-RFC 0085 identity-free paths, all six
-`interfaces.prescribed-dynamic-solid-subprocess-provider-3d` identity-free
-paths and the MCP production path remain optional successors. All twenty-six
-fixture rows remain optional; the observed tree now exercises the exact Stokes,
-collocated, and nine-file semantic-impact shapes, including both zero- and
-17-count external JSONLs.
-Synthetic post-reset states additionally exercise every optional subset and the
-mutants through the same byte reader.
+owns none of their content: only exact path, category, signal order, occurrence
+count, and—on the thirteen new rows—accepted bytes are bounded. The exact-B
+tree exercises all thirteen byte-bound rows through the live sweep. Synthetic
+post-reset states exercise empty, singleton, all, and all-but-one optional
+boundaries and every causal mutant through the same byte reader.
 
 The sweep reads checked-in content. Building the Python extension copies example
 resources into maturin's staging directory

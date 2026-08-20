@@ -80,16 +80,16 @@ fn carries_model_search_signal(bytes: &[u8]) -> bool {
 /// in `SEARCH_TOKENS` order, and how many non-overlapping Model-derived
 /// lower-hex-64 occurrences appear on qualifying lines. The live tree and every
 /// synthetic state read it here.
-fn observe_admitted(bytes: &[u8]) -> (Vec<String>, usize) {
+fn observe_admitted(bytes: &[u8]) -> (Vec<String>, usize, String) {
     let Ok(text) = std::str::from_utf8(bytes) else {
-        return (Vec::new(), 0);
+        return (Vec::new(), 0, raw_sha256(bytes));
     };
     let signals = (SEARCH_TOKENS.iter())
         .filter(|token| text.contains(**token))
         .map(|token| (*token).to_owned())
         .collect();
     let literals = text.lines().map(lower_hex_identity_occurrences).sum();
-    (signals, literals)
+    (signals, literals, raw_sha256(bytes))
 }
 
 /// Trees the sweep does not enter, by exact relative path.
@@ -212,6 +212,7 @@ struct PostResetAdmitted {
     class: String,
     signals: Vec<String>,
     identity_literals: usize,
+    accepted_sha256: Option<String>,
     owner: String,
     note: String,
 }
@@ -370,7 +371,7 @@ struct Observed {
     content: BTreeMap<String, String>,
     /// What `observe_admitted` read from each admitted later path that exists.
     /// Absent is how "not there" is spelled, and that is an accepted state.
-    admitted: BTreeMap<String, (Vec<String>, usize)>,
+    admitted: BTreeMap<String, (Vec<String>, usize, String)>,
     classified: BTreeMap<String, post_reset_classification::ClassifiedObservation>,
 }
 
@@ -406,6 +407,7 @@ fn frozen_admitted(transition: &Value, key: &str) -> Vec<PostResetAdmitted> {
             class: entry["class"].as_str().unwrap().to_owned(),
             signals: frozen_list(entry, "signals"),
             identity_literals: entry["identity_literals"].as_u64().unwrap() as usize,
+            accepted_sha256: entry["accepted_sha256"].as_str().map(str::to_owned),
             owner: entry["owner"].as_str().unwrap().to_owned(),
             note: entry["note"].as_str().unwrap().to_owned(),
         })
@@ -693,12 +695,13 @@ fn check_admitted(
         if !observed.exists.contains(&admitted.path) {
             continue;
         }
-        let (signals, literals) = observed.admitted.get(&admitted.path).ok_or_else(|| {
-            format!(
-                "post-reset: {kind} path `{}` exists but no content was observed for it",
-                admitted.path
-            )
-        })?;
+        let (signals, literals, sha256) =
+            observed.admitted.get(&admitted.path).ok_or_else(|| {
+                format!(
+                    "post-reset: {kind} path `{}` exists but no content was observed for it",
+                    admitted.path
+                )
+            })?;
         if signals != &admitted.signals {
             return Err(format!(
                 "post-reset: {kind} path `{}` must carry exactly its recorded search signal \
@@ -712,6 +715,15 @@ fn check_admitted(
                  literal occurrences against the recorded {}; exact literal occurrence counts \
                  never relax",
                 admitted.path, admitted.identity_literals
+            ));
+        }
+        if let Some(expected) = &admitted.accepted_sha256
+            && sha256 != expected
+        {
+            return Err(format!(
+                "post-reset: {kind} path `{}` must carry accepted SHA-256 {expected}, observed \
+                 {sha256}; accepted-byte admission never follows unreviewed drift",
+                admitted.path
             ));
         }
     }

@@ -245,7 +245,7 @@
       "post_reset_admitted_is_not_membership": "no admitted path joins `inventory`, `retired`, `retired_outside_inventory`, `required_post_reset`, `required_post_reset_without_frozen_bytes`, `preserved_evidence`, `promoted_evidence`, or any `promotion` row, and no count above moves. Listing one in the inventory would claim it existed before the reset; listing one in `required_post_reset` would claim the reset created it and would make a later capability mandatory for acceptance. Both are false.",
       "post_reset_admitted_exactness": "these seventeen paths and no others. An eighteenth identity-free signal-bearing path is not admitted by proximity, by sharing their directory, by sharing a `trajectory`, `result`, Cartesian snapshot, prescribed-solid, provider, protocol, MCP, RFC, documentation, non-box transient, test, or derivation name, or by any suffix rule — it is refused as an unclassified candidate and returned to this oracle, exactly as an unlisted path was before this amendment. There is no glob here either.",
       "post_reset_admitted_note": "hosted whole-tree transition gates found the first five after the reset. The first two arrived when the general trajectory owner of the Python surface was split out of its FSI-specific host; the third is the common installed-Python static Result owner exercised by the registered `interfaces.python-exact-cylinder-stokes-result` evidence. Those three are ordinary current-owner consumers of `model_digest`. The fourth is the low-level Cartesian Q1 Field snapshot artifact owner, whose `model_sha256` is a relational artifact edge; the fifth is its independent generated-Cartesian spatial-output oracle, which checks and mutates that key without pinning a value. RFC 0085 pre-admits four more identity-free classified search hits: the accepted RFC, the standalone-solid Realization source owner, the independent Rust exact-artifact oracle, and its independent derivation route. The registered `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` evidence pre-admits exactly six further current-Model hits: the provider-occurrence artifact owner, protocol-control owner, independent Rust oracle, independent derivation, positive Python provider, and current-owner documentation. The registered `fluid.non-box-transient-navier-stokes-2d-private` oracle adds one exact `model_digest` assertion that derives the digest from accepted source bytes rather than pinning it. The private `eqiora-mcp` tool adapter adds one exact production path carrying the current Model and Transaction schema signals in order with zero Model-derived identity literals. Every path freezes zero Model identity literals. This case bounds the exact signal each may carry and owns none of the files' content.",
-      "post_reset_admitted_path_count": 17,
+      "post_reset_admitted_path_count": 29,
       "post_reset_admitted": [
         {
           "path": "crates/eqiora-python/src/trajectory.rs",
@@ -405,13 +405,121 @@
           "identity_literals": 0,
           "owner": "eqiora-mcp private tool adapter",
           "note": "the private MCP tool names the current Model and Transaction schemas without freezing a Model-derived identity; admission owns only this exact production path, ordered signal list, and zero-literal count."
+        },
+        {
+          "path": "docs/site/src/content/docs/gallery/exact-cylinder-steady-stokes.mdx",
+          "class": "current-owner-assertion",
+          "signals": ["model_digest"],
+          "identity_literals": 0,
+          "accepted_sha256": "8a6a5322209a2084e4a1e54e4abd993a696bc981ddcdf56ce526328f976ebb3d",
+          "owner": "gallery.exact-cylinder-steady-stokes current-owner documentation",
+          "note": "the accepted Cylinder gallery projection names `model_digest` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; gallery science and prose remain owned by their accepted authorities."
+        },
+        {
+          "path": "docs/site/src/content/docs/reference/control-v2/index.mdx",
+          "class": "current-owner-assertion",
+          "signals": ["eqiora.model-envelope/v", "eqiora.model-transaction-envelope/v"],
+          "identity_literals": 0,
+          "accepted_sha256": "71265ea8c47bcbf73c5d3d606311bec905b3c4da3b39948eb744d3e3fa57e0f9",
+          "owner": "interfaces.control-plane-compile-check current-owner reference projection",
+          "note": "the accepted control-v2 reference projection names the current Model and Transaction schema families without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes."
+        },
+        {
+          "path": "docs/site/src/content/docs/reference/mcp/index.mdx",
+          "class": "current-owner-assertion",
+          "signals": ["eqiora.model-envelope/v", "eqiora.model-transaction-envelope/v"],
+          "identity_literals": 0,
+          "accepted_sha256": "9591b7e7c49232043f502c0137b8fd4852519137cb936cd61eae9f6ef2b42df5",
+          "owner": "interfaces.mcp-stdio-compile-check current-owner reference projection",
+          "note": "the accepted MCP reference projection names the current Model and Transaction schema families without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes."
+        },
+        {
+          "path": "docs/site/src/content/docs/reference/python/eqiora.mdx",
+          "class": "current-owner-assertion",
+          "signals": ["model_digest"],
+          "identity_literals": 0,
+          "accepted_sha256": "962e184c67359ff1e3753cff704ae3a4b8093829ceb1ee446c93f12b4632e499",
+          "owner": "the accepted Python API reference projection",
+          "note": "the generated top-level Python reference names `model_digest` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."
+        },
+        {
+          "path": "docs/site/src/content/docs/reference/python/fluid.mdx",
+          "class": "current-owner-assertion",
+          "signals": ["model_digest"],
+          "identity_literals": 0,
+          "accepted_sha256": "97874be5371df59158beec442545e29b02ef3956b028b7f515fe8354796ce2e6",
+          "owner": "the accepted Python API reference projection",
+          "note": "the generated fluid Python reference names `model_digest` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."
+        },
+        {
+          "path": "docs/site/src/content/docs/reference/python/fsi.mdx",
+          "class": "current-owner-assertion",
+          "signals": ["model_digest"],
+          "identity_literals": 0,
+          "accepted_sha256": "cc3cb3f8119883005f3dcbe63e5b9ccf01d2c2c1ab120669ad8c07f92b16e3e5",
+          "owner": "the accepted Python API reference projection",
+          "note": "the generated FSI Python reference names `model_digest` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."
+        },
+        {
+          "path": "docs/site/src/content/docs/reference/python/solid.mdx",
+          "class": "current-owner-assertion",
+          "signals": ["model_digest"],
+          "identity_literals": 0,
+          "accepted_sha256": "8ada7c9fe856095da5334bdcde07a01748aee2d82dc201098695f03fd2c1a841",
+          "owner": "the accepted Python API reference projection",
+          "note": "the generated solid Python reference names `model_digest` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."
+        },
+        {
+          "path": "docs/site/src/content/docs/reference/python/trajectory.mdx",
+          "class": "current-owner-assertion",
+          "signals": ["model_digest"],
+          "identity_literals": 0,
+          "accepted_sha256": "faabff5c1b7c1b58d9a6da1f71ce4ce725c362c37bbcc351b3f44201bf13cddf",
+          "owner": "the accepted Python API reference projection",
+          "note": "the generated trajectory Python reference names `model_digest` without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; API meaning remains owned by the accepted projection."
+        },
+        {
+          "path": "tools/site/check_gallery_publication.py",
+          "class": "non-fixture-search-hit",
+          "signals": ["model_digest"],
+          "identity_literals": 0,
+          "accepted_sha256": "f6a736cbbe364d8acba59212888297ffc483a052b9ad76b5ac28b410a11b71e4",
+          "owner": "the accepted Gallery publication checker",
+          "note": "the accepted checker names `model_digest` as a publication predicate field without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; predicate semantics remain owned by its accepted evidence."
+        },
+        {
+          "path": "tools/site/produce_exact_cylinder_pressure.py",
+          "class": "non-fixture-search-hit",
+          "signals": ["model_digest"],
+          "identity_literals": 0,
+          "accepted_sha256": "e569129c5e0f1508cdaba79c7bdd9ed5d877e1aaae64e2315d776851bbdd92cc",
+          "owner": "the accepted exact-cylinder pressure producer",
+          "note": "the accepted producer names `model_digest` as an input lineage field without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; scientific and publication semantics remain with their accepted authorities."
+        },
+        {
+          "path": "tools/site/tests/gallery_publication/fixtures.py",
+          "class": "non-fixture-search-hit",
+          "signals": ["model_digest"],
+          "identity_literals": 0,
+          "accepted_sha256": "749099735ad08b3eb7362de46290f25d3f5d041b746b96c6b4e01e7904f91b6d",
+          "owner": "the accepted Gallery publication fixture helper",
+          "note": "the accepted fixture helper names `model_digest` while constructing causal publication mutants and freezes no Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes."
+        },
+        {
+          "path": "tools/site/tests/gallery_publication/test_predicate.py",
+          "class": "non-fixture-search-hit",
+          "signals": ["model_digest"],
+          "identity_literals": 0,
+          "accepted_sha256": "dd44507123d370e7110a21ee2f25e6d675026081ff6df557598ec902c9cc8c7b",
+          "owner": "the accepted Gallery publication predicate oracle",
+          "note": "the accepted predicate test names `model_digest` as an asserted and mutated publication field without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes; expected publication semantics remain owned by that independent oracle."
         }
       ],
       "post_reset_fixture_admitted_contract": "a later exact evidence representation is admitted through a second containment-only permission, by exact path and by nothing else. Each path is optional after the reset, absent before it, and if present must carry exactly its recorded ordered search-signal list and exact same-line Model/Transaction-bearing lower-hex-64 occurrence count together with its declared fixture class, owner, and note. An empty signal list normally requires a positive count; the four filename-ordered zero-count semantic-impact JSONL rows are admitted only as exact members of the same externally owned nine-file runtime representation as its five 17-count rows. Every non-overlapping matching occurrence is counted, including multiple identities on one qualifying line. This permission joins no historical frozen, promotion, identity-free, classified, or required set and does not weaken `post_reset_admitted`'s zero-identity predicate.",
       "post_reset_fixture_admitted_is_not_membership": "no fixture-admitted path joins `inventory`, `retired`, `retired_outside_inventory`, `required_post_reset`, `required_post_reset_without_frozen_bytes`, `preserved_evidence`, `promoted_evidence`, any `promotion` row, `post_reset_admitted`, or `post_reset_classified`, and no historical or later-classified count moves. A fixture path belongs only to this exact optional permission.",
       "post_reset_fixture_admitted_exactness": "these twenty-six files and no others. Another digest filename in the same store, the admitted path with a backup or alternate suffix, a nested or sibling store, another package-conformance fixture, a copied or sibling MCP tool-definition file, another Stokes sealed-input version or location, a sibling or nested collocated test, a copied or sibling case manifest, an old, sibling, copied, nested, backup, or alternate-extension semantic-impact source or fixture path, or a path merely below any named evidence directory is unclassified unless another exact row is precommitted. There is no glob, directory, suffix, stem, or proximity rule.",
       "post_reset_fixture_admitted_note": "RFC 0085 delegates ten exact canonical expected bytes to `artifacts.prescribed-dynamic-solid-state-run-3d`: the Model fixture carries the current Model schema search signal and no same-line Model-derived identity literal, while Geometry, Realization, four FieldSnapshot, two State, and Run fixtures each carry exactly one same-line `model_sha256` lower-hex-64 literal. The registered `interfaces.prescribed-dynamic-solid-subprocess-provider-3d` evidence delegates provider-occurrence with thirteen and Run with four same-line `model_sha256` identity-literal occurrences. The independent `interfaces.python-package-conformance` oracle adds exactly one source-or-package-identity release path with an empty search-signal list and two same-line identity occurrences; release bytes and identities remain owned there, and this admission creates no raw release-wire predicate. The independent `interfaces.mcp-stdio-compile-check` oracle adds its exact tool-definition snapshot with the current Model and Transaction schema signals in order and zero Model-derived identity literals. The `geometry.stokes-dissipation-profile-2d` independent evidence authority adds one exact minified sealed-input path with no recorded search token and five source, contract, and review SHA-256 identities on its single `scientific_model`-bearing line; those are source identities rather than Model artifact identities. The `fluid.cartesian-periodic-collocated-view-3d` independent structural oracle and its registered case manifest each add one exact path with no recorded search token and one same-line occurrence of the same accepted current Model artifact identity. The `quality.semantic-impact-cargo-authority` independent exact-record oracle externalizes its runtime payload into nine filename-ordered JSONL fixtures, each with no recorded search token and observed same-line lower-hex-64 occurrence counts 17, 17, 17, 0, 0, 0, 0, 17, and 17. The 85 occurrences are Cargo, source, package, and revision records on Model/Transaction-bearing serialized authority lines, not current Model artifact identities; the old Rust host now has no signal or occurrence and receives no permission. Externalization moved text placement without changing the JSONL bytes consumed at runtime or any scientific meaning. The aggregate is 120. This transition case owns only the twenty-six exact optional admission shapes, not their bytes or identities.",
-      "post_reset_fixture_admitted_path_count": 26,
+      "post_reset_fixture_admitted_path_count": 27,
       "post_reset_fixture_admitted": [
         {
           "path": "verify/artifacts/prescribed-dynamic-solid-state-run-3d/expected/model.json",
@@ -623,6 +731,15 @@
           "identity_literals": 17,
           "owner": "quality.semantic-impact-cargo-authority independent exact-record oracle",
           "note": "the exact external `t-auto-head-test.jsonl` fixture records Cargo manifest, source, package, dependency, target, commit, tree, overlay, blob, and content identities; its 17 same-line lower-hex-64 occurrences are Cargo, source, package, and revision records on Model/Transaction-bearing serialized authority lines, not current Model artifact identities. Admission owns only this exact path, empty search shape, and occurrence count; the Cargo authority oracle retains ownership of its bytes and values. Externalization moved the serialized authority text without changing the JSONL bytes consumed at runtime or any scientific meaning."
+        },
+        {
+          "path": "docs/site/src/data/gallery/exact-cylinder-steady-stokes.publication.json",
+          "class": "delegated-current-owner-evidence",
+          "signals": ["model_digest"],
+          "identity_literals": 76,
+          "accepted_sha256": "db88a9a60926f52fc34b4106a29137b2fd8afbd5cc83b4eb797619432a744d33",
+          "owner": "gallery.exact-cylinder-steady-stokes accepted publication evidence",
+          "note": "the accepted minified publication projection names `model_digest` and contains 76 same-line lower-hex-64 occurrences. Admission owns only this exact path, observed shape, category, and accepted bytes; scientific, source, package, renderer, receipt, and publication identities remain owned by the accepted Gallery authorities."
         }
       ],
       "post_reset_classified_contract": "identity-bearing evidence created after the reset is classified by exact path and by nothing else. Classification is containment-only and never makes a later capability a condition of accepting the reset. A present path must reproduce its complete recorded search-token inventory, same-line lower-hex search-signal count, and lower-hex-64 literal multiset; a missing signal, extra signal, substituted identity, or additional identity returns the path to this oracle.",
