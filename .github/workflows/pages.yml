@@ -192,9 +192,12 @@ jobs:
           if test -n "$source_links"; then
             test -L "$scratch/source/CLAUDE.md"
             if test -L "$scratch/source/CLAUDE.md"; then
-              test "$(readlink -n "$scratch/source/CLAUDE.md" | sha256sum | cut -d ' ' -f 1)" = "a54ff182c7e8acf56acfd6e4b9c3ff41e2c41a31c9b211b2deb9df75d9a478f9"
-              cmp "$scratch/source/AGENTS.md" "$scratch/expected-AGENTS.md"
+              :
+            else
+              exit 1
             fi
+            test "$(readlink -n "$scratch/source/CLAUDE.md" | sha256sum | cut -d ' ' -f 1)" = "a54ff182c7e8acf56acfd6e4b9c3ff41e2c41a31c9b211b2deb9df75d9a478f9"
+            cmp "$scratch/source/AGENTS.md" "$scratch/expected-AGENTS.md"
           elif test -e "$scratch/source/CLAUDE.md" || test -L "$scratch/source/CLAUDE.md"; then
             exit 1
           fi
