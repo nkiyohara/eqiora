@@ -123,8 +123,6 @@ jobs:
       ASTRO_TELEMETRY_DISABLED: "1"
       LC_ALL: C
       TZ: UTC
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/eqiora-pw-1.62.1-r1234
-      UV_CACHE_DIR: ${{ runner.temp }}/eqiora-site-uv-cache
     steps:
       - name: Check out exact source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -133,6 +131,17 @@ jobs:
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Bind exact temporary supply roots
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "$RUNNER_TEMP"
+          test ! -L "$RUNNER_TEMP"
+          {
+            echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/eqiora-pw-1.62.1-r1234"
+            echo "UV_CACHE_DIR=$RUNNER_TEMP/eqiora-site-uv-cache"
+          } >> "$GITHUB_ENV"
 
       - name: Restore the exact Playwright browser cache
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
@@ -145,6 +154,61 @@ jobs:
         with:
           version: 2026.5.10
           cache: true
+
+      - name: Prepare the exact clean source and unique home-backed scratch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -d "$RUNNER_TEMP"
+          test ! -L "$RUNNER_TEMP"
+          scratch="$(mktemp -d "$RUNNER_TEMP/eqiora-site.XXXXXXXX")"
+          test ! -L "$scratch"
+          test "$(stat -c %a -- "$scratch")" = "700"
+          scratch_device="$(stat -c %d -- "$scratch")"
+          scratch_inode="$(stat -c %i -- "$scratch")"
+          scratch="$(realpath "$scratch")"
+          case "$scratch" in
+            "$RUNNER_TEMP"/eqiora-site.*) ;;
+            *) echo "site scratch escaped RUNNER_TEMP" >&2; exit 1 ;;
+          esac
+          mkdir "$scratch/source" "$scratch/build" "$scratch/uv-cache"
+
+          git ls-tree -r "$GITHUB_SHA" > "$scratch/source-tree"
+          source_links="$(awk '$1 == "120000" { print $4 }' "$scratch/source-tree")"
+          case "$source_links" in
+            ''|'CLAUDE.md') ;;
+            *) echo "source tree has unadmitted links: $source_links" >&2; exit 1 ;;
+          esac
+          if test -n "$source_links"; then
+            test "$(git cat-file blob "$GITHUB_SHA:CLAUDE.md" | sha256sum | cut -d ' ' -f 1)" = "a54ff182c7e8acf56acfd6e4b9c3ff41e2c41a31c9b211b2deb9df75d9a478f9"
+            git ls-tree "$GITHUB_SHA" -- AGENTS.md | grep -F '100644 blob'
+            git cat-file blob "$GITHUB_SHA:AGENTS.md" > "$scratch/expected-AGENTS.md"
+          fi
+          git archive --format=tar "$GITHUB_SHA" | tar -xf - -C "$scratch/source"
+          if test -L "$scratch/source/CLAUDE.md"; then
+            test "$(readlink -n "$scratch/source/CLAUDE.md" | sha256sum | cut -d ' ' -f 1)" = "a54ff182c7e8acf56acfd6e4b9c3ff41e2c41a31c9b211b2deb9df75d9a478f9"
+            cmp "$scratch/source/AGENTS.md" "$scratch/expected-AGENTS.md"
+          fi
+          rm -f "$scratch/source-tree" "$scratch/expected-AGENTS.md"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse "$GITHUB_SHA^{tree}")"
+
+          {
+            echo "EQIORA_API_SCRATCH=$scratch"
+            echo "EQIORA_SITE_SOURCE_ROOT=$scratch/source"
+            echo "EQIORA_SITE_ASTRO_OUT_DIR=$scratch/astro"
+            echo "EQIORA_SITE_RUSTDOC_TARGET=$scratch/rustdoc-target"
+            echo "EQIORA_SITE_RUSTDOC_STAGE=$scratch/rustdoc-stage"
+            echo "EQIORA_SITE_ARTIFACT=$scratch/build/site"
+            echo "EQIORA_SITE_SOURCE_SHA=$GITHUB_SHA"
+            echo "EQIORA_RUNNER_UID=$(id -u)"
+            echo "EQIORA_RUNNER_GID=$(id -g)"
+            echo "EQIORA_RUNNER_HOME=$HOME"
+            echo "EQIORA_RUNNER_PATH=$PATH"
+            echo "EQIORA_SITE_SCRATCH_DEVICE=$scratch_device"
+            echo "EQIORA_SITE_SCRATCH_INODE=$scratch_inode"
+          } >> "$GITHUB_ENV"
 
       - name: Supply locked native, Rust, Python, Node, and browser inputs
         shell: bash
@@ -178,21 +242,35 @@ jobs:
             }
           }
           NODE
-          npx --prefix docs/site playwright install --with-deps --only-shell chromium
+          npx --prefix docs/site playwright install --with-deps chromium
 
           cargo +stable fetch --locked
           uv pip install --target "$RUNNER_TEMP/eqiora-site-build-supply" \
             --python 3.13 --no-python-downloads "maturin==1.14.1"
 
-          browser_executable="$({ cd docs/site; node --input-type=module -e \
+          browser_path="$({ cd docs/site; node --input-type=module -e \
             "import { chromium } from '@playwright/test'; console.log(chromium.executablePath())"; })"
-          case "$browser_executable" in
+          case "$browser_path" in
             "$PLAYWRIGHT_BROWSERS_PATH"/*) ;;
             *) echo "Playwright executable escaped the named cache" >&2; exit 1 ;;
           esac
-          test -x "$browser_executable"
-          "$browser_executable" --version | tee "$RUNNER_TEMP/eqiora-site-browser-version.txt"
-          test "$(cat "$RUNNER_TEMP/eqiora-site-browser-version.txt")" = "HeadlessChrome 151.0.7922.34"
+          test "$browser_path" = "$PLAYWRIGHT_BROWSERS_PATH/chromium-1234/chrome-linux64/chrome"
+          test -x "$browser_path"
+          "$browser_path" --version | tee "$RUNNER_TEMP/eqiora-site-browser-version.txt"
+          browser_version_hex="$(od -An -v -tx1 "$RUNNER_TEMP/eqiora-site-browser-version.txt" | tr -d ' \n')"
+          test "$browser_version_hex" = "476f6f676c65204368726f6d6520666f722054657374696e67203135312e302e373932322e3334200a"
+          browser_sha256="$(sha256sum "$browser_path" | cut -d ' ' -f 1)"
+          browser_bytes="$(stat -c %s "$browser_path")"
+          test "$browser_sha256" = "0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"
+          test "$browser_bytes" = "290614600"
+          EQIORA_SITE_BROWSER_SHA256="$browser_sha256"
+          EQIORA_SITE_BROWSER_BYTES="$browser_bytes"
+          export EQIORA_SITE_BROWSER_SHA256 EQIORA_SITE_BROWSER_BYTES
+          python3 tools/site/check_site.py browser-supply \
+            --site-root docs/site \
+            --browser-cache "$PLAYWRIGHT_BROWSERS_PATH" \
+            --expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256" \
+            --expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"
           find "$PLAYWRIGHT_BROWSERS_PATH" -type f -print0 | sort -z | xargs -0 sha256sum \
             > "$RUNNER_TEMP/eqiora-site-browser-sha256.txt"
           find "$PLAYWRIGHT_BROWSERS_PATH" -type f -print0 | sort -z \
@@ -210,47 +288,13 @@ jobs:
           printf 'ImageOS=%s\nImageVersion=%s\n' "${ImageOS:-unset}" "${ImageVersion:-unset}"
           uname -a
           rustc -Vv
-
-      - name: Prepare the exact clean source and unique home-backed scratch
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test -z "$(git status --porcelain=v1 --untracked-files=all -- ':!docs/site/node_modules')"
-          test -d "$RUNNER_TEMP"
-          test ! -L "$RUNNER_TEMP"
-          scratch="$(mktemp -d "$RUNNER_TEMP/eqiora-site.XXXXXXXX")"
-          test ! -L "$scratch"
-          test "$(stat -c %a -- "$scratch")" = "700"
-          scratch_device="$(stat -c %d -- "$scratch")"
-          scratch_inode="$(stat -c %i -- "$scratch")"
-          scratch="$(realpath "$scratch")"
-          case "$scratch" in
-            "$RUNNER_TEMP"/eqiora-site.*) ;;
-            *) echo "site scratch escaped RUNNER_TEMP" >&2; exit 1 ;;
-          esac
-          mkdir "$scratch/source" "$scratch/build" "$scratch/uv-cache"
           test -d "$UV_CACHE_DIR"
-          cp -a "$UV_CACHE_DIR/." "$scratch/uv-cache/"
-          git archive --format=tar "$GITHUB_SHA" | tar -xf - -C "$scratch/source"
-          mv docs/site/node_modules "$scratch/source/docs/site/node_modules"
+          cp -a "$UV_CACHE_DIR/." "$EQIORA_API_SCRATCH/uv-cache/"
+          mv docs/site/node_modules "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
-          test "$(git rev-parse HEAD^{tree})" = "$(git rev-parse "$GITHUB_SHA^{tree}")"
-
           {
-            echo "EQIORA_API_SCRATCH=$scratch"
-            echo "EQIORA_SITE_SOURCE_ROOT=$scratch/source"
-            echo "EQIORA_SITE_ASTRO_OUT_DIR=$scratch/astro"
-            echo "EQIORA_SITE_RUSTDOC_TARGET=$scratch/rustdoc-target"
-            echo "EQIORA_SITE_RUSTDOC_STAGE=$scratch/rustdoc-stage"
-            echo "EQIORA_SITE_ARTIFACT=$scratch/build/site"
-            echo "EQIORA_SITE_SOURCE_SHA=$GITHUB_SHA"
-            echo "EQIORA_RUNNER_UID=$(id -u)"
-            echo "EQIORA_RUNNER_GID=$(id -g)"
-            echo "EQIORA_RUNNER_HOME=$HOME"
-            echo "EQIORA_RUNNER_PATH=$PATH"
-            echo "EQIORA_SITE_SCRATCH_DEVICE=$scratch_device"
-            echo "EQIORA_SITE_SCRATCH_INODE=$scratch_inode"
+            echo "EQIORA_SITE_BROWSER_SHA256=$EQIORA_SITE_BROWSER_SHA256"
+            echo "EQIORA_SITE_BROWSER_BYTES=$EQIORA_SITE_BROWSER_BYTES"
           } >> "$GITHUB_ENV"
 
       - name: Build and verify with only loopback networking
@@ -258,7 +302,7 @@ jobs:
         run: |
           set -euo pipefail
           test -x "$EQIORA_SITE_SOURCE_ROOT/tools/site/run_offline_site_checks.sh"
-          sudo --preserve-env=ASTRO_TELEMETRY_DISABLED,EQIORA_API_SCRATCH,EQIORA_SITE_SOURCE_ROOT,EQIORA_SITE_ASTRO_OUT_DIR,EQIORA_SITE_RUSTDOC_TARGET,EQIORA_SITE_RUSTDOC_STAGE,EQIORA_SITE_ARTIFACT,EQIORA_SITE_SOURCE_SHA,EQIORA_RUNNER_UID,EQIORA_RUNNER_GID,EQIORA_RUNNER_HOME,EQIORA_RUNNER_PATH,PLAYWRIGHT_BROWSERS_PATH,UV_CACHE_DIR,LC_ALL,TZ \
+          sudo --preserve-env=ASTRO_TELEMETRY_DISABLED,EQIORA_API_SCRATCH,EQIORA_SITE_SOURCE_ROOT,EQIORA_SITE_ASTRO_OUT_DIR,EQIORA_SITE_RUSTDOC_TARGET,EQIORA_SITE_RUSTDOC_STAGE,EQIORA_SITE_ARTIFACT,EQIORA_SITE_SOURCE_SHA,EQIORA_SITE_BROWSER_SHA256,EQIORA_SITE_BROWSER_BYTES,EQIORA_RUNNER_UID,EQIORA_RUNNER_GID,EQIORA_RUNNER_HOME,EQIORA_RUNNER_PATH,PLAYWRIGHT_BROWSERS_PATH,UV_CACHE_DIR,LC_ALL,TZ \
             unshare --net -- bash -ceu '
               ip link set lo up
               exec setpriv \
@@ -283,6 +327,8 @@ jobs:
                   EQIORA_SITE_RUSTDOC_STAGE="$EQIORA_SITE_RUSTDOC_STAGE" \
                   EQIORA_SITE_ARTIFACT="$EQIORA_SITE_ARTIFACT" \
                   EQIORA_SITE_SOURCE_SHA="$EQIORA_SITE_SOURCE_SHA" \
+                  EQIORA_SITE_BROWSER_SHA256="$EQIORA_SITE_BROWSER_SHA256" \
+                  EQIORA_SITE_BROWSER_BYTES="$EQIORA_SITE_BROWSER_BYTES" \
                   "$EQIORA_SITE_SOURCE_ROOT/tools/site/run_offline_site_checks.sh"
             '
 
