@@ -15,6 +15,9 @@ capabilities = [
   "byte-frozen-historical-cylinder-promotion",
   "post-reset-forbidden-product-token-contract",
   "precommitted-deterministic-current-model-bytes",
+  "exact-historical-model-epoch-release-split",
+  "raw-live-non-release-projection",
+  "delegated-release-version-bearing-current-identities",
   "independent-rfc-0008-domain-digest-derivation",
   "downstream-artifact-reference-edge-derivation",
   "identity-only-delta-containment",
@@ -37,6 +40,10 @@ dispositions = "delete, rename-source, delegate, migrate, preserve-bytes, decomp
 [inventory]
 deterministic_fixtures_owned_here = 5
 deterministic_identity_literals_owned_here = 27
+historical_model_epoch_projection_artifacts = 5
+live_release_projection_paths_delegated = 5
+live_release_identity_pointers_delegated = 11
+live_model_epoch_identity_pointers_owned_here = 16
 deterministic_fixtures_delegated = 1
 historical_bridges = 2
 historical_bundle_downstream_members_unchanged = 6
@@ -135,6 +142,13 @@ retained_golden_accepted_without_a_model_decoder = true
 spatial_or_realization_wire_schema_change = false
 consumer_test_content_owned_here = false
 moving_spatial_producer_fixture_reconstructed_here = false
+historical_model_epoch_projection_exact = true
+live_raw_non_release_projection_exact = true
+alpha1_stale_live_release_projection_rejected = true
+live_release_projection_pointer_order_owned_here = true
+release_version_bearing_current_identity_owned_here = false
+exact_current_release_identity_value_owned_here = false
+foreign_well_formed_release_digest_rejected_here = false
 
 [falsifiers]
 mutated_model_byte = "changing one byte of any precommitted current Model must break its raw hash, its re-derived RFC 0008 domain digest, and current-decoder round-trip"
@@ -193,6 +207,10 @@ moving_spatial_widened_consumer_delta = "a replacement whose byte length, leaf s
 retained_golden_decoded_through_the_current_model_owner = "an implementation that hands the opaque historical Model bytes to the current Model owner must fail; those bytes are rejected by schema, and a reset that needs them admitted has relabelled the golden rather than retained it"
 retained_golden_reconstructed_from_a_current_model = "re-encoding the Realization v4 golden over any current Model must be refused; the reconstruction embeds a different model_sha256 and cannot reproduce the frozen 8,333 bytes"
 retained_golden_relabelled = "swapping the golden's opaque Model reference for the current bridge digest must be refused by bytes alone; the relabelled artifact still decodes and still validates against the current Model, so no in-family identity check can see it"
+stale_alpha1_live_release_pointer = "each of the eleven exact release pointers must differ from its historical alpha.1 value; all stale pointers are reported together only after the complete historical Model-epoch positive passes"
+release_projection_shape_drift = "a missing or additional delegated pointer, wrong path order, non-string, non-lowercase-hex-64, equal old/new value, or a selected token with zero or multiple raw occurrences must be refused"
+release_projection_raw_drift = "after only the eleven exact scalar spans are masked, any changed Model, semantic/source/resolution, Realization, trajectory, geometry, correspondence, scientific coordinate or field value, member order, whitespace, numeric spelling, or terminal LF must be refused at the raw historical-projection boundary"
+release_projection_pointer_widening = "classifying any non-release value as release-owned must be refused; the independently induced false-claim compilation digest is rejected if inserted at a Model-epoch-owned pointer and does not give this case ownership of a delegated current value"
 
 [evidence]
 package = "eqiora-artifact"

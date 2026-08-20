@@ -2,9 +2,10 @@
 
 RFC 0083 resets the Model artifact epoch. Changing the Model digest changes a
 downstream artifact **only** when that exact artifact embeds the Model
-reference. This case is the independent oracle that says, for every checked-in
-Model reference in the repository, which of those it is — and, where an identity
-may legitimately change, exactly what it changes to.
+reference. This case is the independent oracle that classifies every checked-in
+Model reference and preserves the exact alpha.1 Model-epoch observation. For
+five later live artifacts it separates that history from eleven release-owned
+identities whose exact current values belong to their registered producer cases.
 
 The classification is by producer semantics, not by a closed fixture list.
 [`expected/classification.json`](expected/classification.json) records the
@@ -20,8 +21,11 @@ identities.
 
 - the complete classification of every Model-bearing fixture, and exactly one
   fate for each of the 338 candidate paths;
-- complete precommitted current Model canonical bytes for the five
-  deterministic fixtures, plus every permitted downstream identity they imply;
+- complete precommitted Model-epoch canonical bytes for the five deterministic
+  fixtures, plus every historical downstream identity they imply;
+- five live expected-artifact projections in which exactly eleven compilation,
+  Run, and binding identity pointers are release-owned and every other raw byte
+  remains equal to the sealed alpha.1 history;
 - the canonical bytes of each downstream artifact whose identity changes, so
   every artifact-reference edge is re-derivable from bytes alone;
 - the complete ALE segment-to-root identity chain, the opaque exact
@@ -529,24 +533,23 @@ values; it may not regenerate or select them.
 
 ## Identity-only containment
 
-Each of the five deterministic fixtures is installed as **exactly its
-precommitted replacement**. The registered test compares the installed raw bytes
-against the frozen replacement byte for byte, so JSON key order, whitespace,
-number spelling, and every non-identity byte are immutable. What the installed
-bytes still show is then checked against the independently recorded identities:
-the identity pointers are exactly the pointers a superseded identity is recorded
-for, each one carries the identity re-derived from the bytes of the artifact it
-names, and every superseded identity is the same length as the identity that
-replaced it, is gone from its own pointer, and appears at no leaf of the
-installed document.
+The sealed deterministic tree is the byte-exact alpha.1 history. Its five Model
+artifacts and every downstream artifact still re-derive all 27 recorded
+identities, and every superseded Model-epoch identity remains excluded there.
+That historical positive runs before the live projection in one invocation.
 
-The **leaf-level** delta is not claimed for those five. Before the reset the
-superseded fixture was the file in the tree; the reset overwrote it and this case
-commits no copy, so the two documents can no longer be compared. Rebuilding the
-superseded bytes out of the replacement and the frozen identity map would only
-prove the inverse of a substitution performed one line earlier. Byte-exact
-installation of an independently precommitted replacement stands in its place,
-and it is a claim about the installed bytes rather than about the delta.
+The five registered live expected artifacts may differ from history only at
+this fixed ordered interface: composed compilation (one pointer); offline
+compilation, Run, and binding (three); typed compilation, Run, and binding
+(three); packaged DC-motor compilation, Run, and binding (three); and ALE Run
+provenance (one). Each live value must be a distinct lowercase-hex-64 scalar
+with one exact raw occurrence. Replacing those eleven scalar spans with the
+same position-specific holes must make the complete historical and live bytes
+equal, including key order, whitespace, number spelling, terminal LF, every
+Model/package/source/resolution/Realization/trajectory/geometry identity, and
+all scientific values. All eleven alpha.1 values being retained is the
+intentional exact-parent RED. The transition case does not know or select the
+eleven current values; the owning producer cases and release assertions do.
 
 The moving-spatial consumer commits **both** states, so there the identity-only
 delta stays observable and is proved as one: the replacement is byte-length
@@ -555,8 +558,8 @@ pointer set, moves each changed leaf only to the value the frozen identity table
 gives it, leaves every other leaf byte-identical, and is reconstructed from the
 pre-reset bytes by applying that table alone.
 
-Those two claims — byte-exact installation retaining no superseded identity, and
-the observed leaf-level substitution — not the digests themselves, are what this
+Those two claims — exact historical/non-release projection and the observed
+moving-spatial leaf substitution — not release digest selection, are what this
 case asserts here.
 
 ## The historical bridge is exact evidence, not prose
