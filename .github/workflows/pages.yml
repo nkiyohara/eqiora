@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/pages.yml"
       - ".cargo/config.toml"
+      - ".gitattributes"
       - "CHANGELOG.md"
       - "Cargo.lock"
       - "Cargo.toml"
@@ -58,6 +59,7 @@ on:
     paths:
       - ".github/workflows/pages.yml"
       - ".cargo/config.toml"
+      - ".gitattributes"
       - "CHANGELOG.md"
       - "Cargo.lock"
       - "Cargo.toml"
@@ -187,9 +189,14 @@ jobs:
             git cat-file blob "$GITHUB_SHA:AGENTS.md" > "$scratch/expected-AGENTS.md"
           fi
           git archive --format=tar "$GITHUB_SHA" | tar -xf - -C "$scratch/source"
-          if test -L "$scratch/source/CLAUDE.md"; then
-            test "$(readlink -n "$scratch/source/CLAUDE.md" | sha256sum | cut -d ' ' -f 1)" = "a54ff182c7e8acf56acfd6e4b9c3ff41e2c41a31c9b211b2deb9df75d9a478f9"
-            cmp "$scratch/source/AGENTS.md" "$scratch/expected-AGENTS.md"
+          if test -n "$source_links"; then
+            test -L "$scratch/source/CLAUDE.md"
+            if test -L "$scratch/source/CLAUDE.md"; then
+              test "$(readlink -n "$scratch/source/CLAUDE.md" | sha256sum | cut -d ' ' -f 1)" = "a54ff182c7e8acf56acfd6e4b9c3ff41e2c41a31c9b211b2deb9df75d9a478f9"
+              cmp "$scratch/source/AGENTS.md" "$scratch/expected-AGENTS.md"
+            fi
+          elif test -e "$scratch/source/CLAUDE.md" || test -L "$scratch/source/CLAUDE.md"; then
+            exit 1
           fi
           rm -f "$scratch/source-tree" "$scratch/expected-AGENTS.md"
           test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse "$GITHUB_SHA^{tree}")"
@@ -256,21 +263,23 @@ jobs:
           esac
           test "$browser_path" = "$PLAYWRIGHT_BROWSERS_PATH/chromium-1234/chrome-linux64/chrome"
           test -x "$browser_path"
-          "$browser_path" --version | tee "$RUNNER_TEMP/eqiora-site-browser-version.txt"
-          browser_version_hex="$(od -An -v -tx1 "$RUNNER_TEMP/eqiora-site-browser-version.txt" | tr -d ' \n')"
-          test "$browser_version_hex" = "476f6f676c65204368726f6d6520666f722054657374696e67203135312e302e373932322e3334200a"
+          expected_browser_sha256="0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"
+          expected_browser_bytes="290614600"
+          expected_browser_version_hex="476f6f676c65204368726f6d6520666f722054657374696e67203135312e302e373932322e3334200a"
           browser_sha256="$(sha256sum "$browser_path" | cut -d ' ' -f 1)"
           browser_bytes="$(stat -c %s "$browser_path")"
-          test "$browser_sha256" = "0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"
-          test "$browser_bytes" = "290614600"
-          EQIORA_SITE_BROWSER_SHA256="$browser_sha256"
-          EQIORA_SITE_BROWSER_BYTES="$browser_bytes"
+          test "$browser_sha256" = "$expected_browser_sha256"
+          test "$browser_bytes" = "$expected_browser_bytes"
+          EQIORA_SITE_BROWSER_SHA256="$expected_browser_sha256"
+          EQIORA_SITE_BROWSER_BYTES="$expected_browser_bytes"
           export EQIORA_SITE_BROWSER_SHA256 EQIORA_SITE_BROWSER_BYTES
           python3 tools/site/check_site.py browser-supply \
             --site-root docs/site \
             --browser-cache "$PLAYWRIGHT_BROWSERS_PATH" \
             --expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256" \
             --expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"
+          version_hex="$("$browser_path" --version | od -An -tx1 | tr -d '[:space:]')"
+          test "$version_hex" = "$expected_browser_version_hex"
           find "$PLAYWRIGHT_BROWSERS_PATH" -type f -print0 | sort -z | xargs -0 sha256sum \
             > "$RUNNER_TEMP/eqiora-site-browser-sha256.txt"
           find "$PLAYWRIGHT_BROWSERS_PATH" -type f -print0 | sort -z \
