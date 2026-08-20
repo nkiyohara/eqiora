@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use eqiora::api::ModelDocument;
 
 use super::ACCEPTED_BYTES;
+use super::cli_compile_check_home_path::require_canonical_home_backed_tmpdir;
 
 const INVALID_COMMAND: &[u8] = b"eqiora: invalid command line\nusage: eqiora check <MODEL_PATH>\n";
 static SCRATCH_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -31,10 +32,8 @@ impl Scratch {
                 .expect("TMPDIR must name an absolute home-backed scratch root"),
         );
         let home = PathBuf::from(std::env::var_os("HOME").expect("HOME is required"));
-        assert!(tmpdir.is_absolute());
-        assert!(tmpdir.starts_with(&home));
-        assert!(!tmpdir.starts_with("/tmp"));
-        fs::create_dir_all(&tmpdir).unwrap();
+        require_canonical_home_backed_tmpdir(&tmpdir, &home)
+            .expect("TMPDIR must be canonical and home-backed");
         let path = tmpdir.join(format!(
             "eqiora-cli-trailing-bare-delimiter-{}-{}",
             std::process::id(),
