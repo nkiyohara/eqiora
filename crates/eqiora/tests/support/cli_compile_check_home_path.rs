@@ -46,7 +46,7 @@ pub(crate) fn resolve_home_backed_tmpdir(tmpdir: &Path, home: &Path) -> Result<P
 
 pub(crate) fn require_canonical_home_backed_tmpdir(tmpdir: &Path, home: &Path) -> Result<()> {
     let canonical_tmpdir = resolve_home_backed_tmpdir(tmpdir, home)?;
-    if canonical_tmpdir != tmpdir {
+    if canonical_tmpdir.as_os_str() != tmpdir.as_os_str() {
         return Err(Error::new(
             ErrorKind::InvalidInput,
             "TMPDIR must use its canonical spelling",
