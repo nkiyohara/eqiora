@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -22,6 +24,28 @@ def _load_checker():
 checker = _load_checker()
 
 
+def pinned_node_path(root: Path) -> str:
+    directory = root / "pinned-node"
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, version in (
+        ("node", "v24.18.1"),
+        ("npm", "11.16.0"),
+        ("uv", "uv 0.12.1 (x86_64-unknown-linux-musl)"),
+    ):
+        executable = shutil.which(name)
+        if executable is None:
+            raise AssertionError(f"{name} is required by the site oracle")
+        wrapper = directory / name
+        wrapper.write_text(
+            "#!/bin/sh\n"
+            f"if [ \"${{1:-}}\" = --version ]; then printf '%s\\n' '{version}'; exit 0; fi\n"
+            f'exec "{executable}" "$@"\n',
+            encoding="utf-8",
+        )
+        wrapper.chmod(0o755)
+    return f"{directory}{os.pathsep}{os.environ.get('PATH', '')}"
+
+
 def _write(path: Path, value: str | bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(value, bytes):
@@ -32,7 +56,8 @@ def _write(path: Path, value: str | bytes) -> None:
 
 def _workflow() -> str:
     paths = "\n".join(
-        f'      - "{path}"' for path in sorted(checker.REQUIRED_TRIGGER_PATTERNS)
+        f'      - "{path}"'
+        for path in sorted({*checker.REQUIRED_TRIGGER_PATTERNS, ".gitattributes"})
     )
     return f"""name: fixture
 on:
@@ -53,11 +78,42 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           scratch="$RUNNER_TEMP/eqiora-site.fixture"
           mkdir -p "$scratch/source"
+          git ls-tree -r "$GITHUB_SHA" > "$scratch/source-tree"
+          source_links="$(awk '$1 == "120000" {{ print $4 }}' "$scratch/source-tree")"
+          case "$source_links" in ''|'CLAUDE.md') ;; *) exit 1 ;; esac
+          if test -n "$source_links"; then
+            test "$({checker.EXACT_TREE_LINK_COMMAND})" = {checker.EXACT_LINK_PAYLOAD_SHA256}
+            git ls-tree "$GITHUB_SHA" -- AGENTS.md | grep -F '100644 blob'
+            git cat-file blob "$GITHUB_SHA:AGENTS.md" > "$scratch/expected-AGENTS.md"
+          fi
           git archive --format=tar "$GITHUB_SHA" | tar -xf - -C "$scratch/source"
+          if test -n "$source_links"; then
+            test -L "$scratch/source/CLAUDE.md"
+            if test -L "$scratch/source/CLAUDE.md"; then
+              test "$({checker.EXACT_EXTRACTED_LINK_COMMAND})" = {checker.EXACT_LINK_PAYLOAD_SHA256}
+              cmp "$scratch/source/AGENTS.md" "$scratch/expected-AGENTS.md"
+            fi
+          elif test -e "$scratch/source/CLAUDE.md" || test -L "$scratch/source/CLAUDE.md"; then
+            exit 1
+          fi
           echo "EQIORA_SITE_SOURCE_ROOT=$scratch/source"
           echo eqiora-pw-1.62.1-r1234
-          npx playwright install --with-deps --only-shell chromium
-          echo 'HeadlessChrome 151.0.7922.34'
+          npx playwright install --with-deps chromium
+          browser_path="$(node -e 'require("playwright").chromium.executablePath()')"
+          echo chromium-1234/chrome-linux64/chrome
+          expected_browser_sha256="0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"
+          expected_browser_bytes="290614600"
+          expected_browser_version_hex="{checker.FULL_CHROMIUM_VERSION_STDOUT_HEX}"
+          browser_sha256="$(sha256sum "$browser_path" | cut -d ' ' -f 1)"
+          browser_bytes="$(stat -c %s "$browser_path")"
+          test "$browser_sha256" = "$expected_browser_sha256"
+          test "$browser_bytes" = "$expected_browser_bytes"
+          EQIORA_SITE_BROWSER_SHA256="$expected_browser_sha256"
+          EQIORA_SITE_BROWSER_BYTES="$expected_browser_bytes"
+          export EQIORA_SITE_BROWSER_SHA256 EQIORA_SITE_BROWSER_BYTES
+          python3 tools/site/check_site.py browser-supply --site-root docs/site --browser-cache "$PLAYWRIGHT_BROWSERS_PATH" --expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256" --expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"
+          version_hex="$("$browser_path" --version | od -An -tx1 | tr -d '[:space:]')"
+          test "$version_hex" = "$expected_browser_version_hex"
           unshare --net bash -c 'ip link set lo up; setpriv true'
           export npm_config_offline=true
           export CARGO_NET_OFFLINE=true
@@ -69,12 +125,15 @@ def _runner() -> str:
     return """#!/usr/bin/env bash
 export npm_config_offline=true CARGO_NET_OFFLINE=true UV_OFFLINE=1
 export EQIORA_SITE_CARGO_VERSION=0.1.0-alpha.1 EQIORA_SITE_PYTHON_VERSION=0.1.0a1
+python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROOT"
+python3 tools/site/check_site.py browser-supply --site-root docs/site --browser-cache "$PLAYWRIGHT_BROWSERS_PATH" --expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256" --expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"
 python3 -m unittest tools.site.tests.test_site_tools -v
 python3 tools/docs/generate_interface_reference.py --repository . --eqiora-binary bin/eqiora --mcp-binary bin/eqiora-mcp --check
 python3 tools/site/build_rust_reference.py --rustdoc-root rustdoc/doc --output rustdoc-stage
 python3 tools/site/generate_evidence_catalog.py
 python3 tools/site/check_site.py check
 python3 tools/site/check_site.py serve
+python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROOT"
 """
 
 

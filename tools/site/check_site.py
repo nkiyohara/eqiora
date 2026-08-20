@@ -11,6 +11,7 @@ import mimetypes
 import os
 import re
 import stat
+import subprocess
 import sys
 import tomllib
 from dataclasses import dataclass
@@ -211,6 +212,7 @@ EXECUTION_CONTROL_LABEL = re.compile(
     re.IGNORECASE,
 )
 REQUIRED_TRIGGER_PATTERNS = {
+    ".gitattributes",
     ".github/workflows/pages.yml",
     ".cargo/config.toml",
     "CHANGELOG.md",
@@ -262,6 +264,7 @@ REQUIRED_TRIGGER_PATTERNS = {
     "verify/**",
 }
 TRIGGER_REPRESENTATIVES = {
+    "archive attributes": ".gitattributes",
     "workflow": ".github/workflows/pages.yml",
     "site config": "docs/site/astro.config.mjs",
     "old social deletion": "docs/site/assets/social-card.svg",
@@ -297,20 +300,69 @@ TRIGGER_REPRESENTATIVES = {
     "evidence": "verify/interfaces/python-exact-cylinder-stokes-result/case.toml",
     "changelog": "CHANGELOG.md",
 }
+FULL_CHROMIUM_VERSION_STDOUT_HEX = (
+    "476f6f676c65204368726f6d6520666f722054657374696e67203135312e302e373932322e3334200a"
+)
+FULL_CHROMIUM_VERSION_STDOUT = bytes.fromhex(FULL_CHROMIUM_VERSION_STDOUT_HEX)
+DIRECT_SOURCE_ARCHIVE_COMMAND = (
+    'git archive --format=tar "$GITHUB_SHA" | tar -xf - -C "$scratch/source"'
+)
+EXACT_LINK_PAYLOAD_SHA256 = (
+    "a54ff182c7e8acf56acfd6e4b9c3ff41e2c41a31c9b211b2deb9df75d9a478f9"
+)
+EXACT_TREE_LINK_COMMAND = (
+    "git cat-file blob \"$GITHUB_SHA:CLAUDE.md\" | sha256sum | cut -d ' ' -f 1"
+)
+EXACT_EXTRACTED_LINK_COMMAND = (
+    "readlink -n \"$scratch/source/CLAUDE.md\" | sha256sum | cut -d ' ' -f 1"
+)
 OFFLINE_WORKFLOW_TOKENS = (
     "ubuntu-24.04",
     "eqiora-pw-1.62.1-r1234",
-    "playwright install --with-deps --only-shell chromium",
-    "HeadlessChrome 151.0.7922.34",
+    "playwright install --with-deps chromium",
+    "chromium.executablePath()",
+    "chromium-1234/chrome-linux64/chrome",
+    'sha256sum "$browser_path"',
+    'stat -c %s "$browser_path"',
+    "EQIORA_SITE_BROWSER_SHA256=",
+    "EQIORA_SITE_BROWSER_BYTES=",
+    '--expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256"',
+    '--expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"',
+    FULL_CHROMIUM_VERSION_STDOUT_HEX,
+    "check_site.py browser-supply",
     "unshare --net",
     "ip link set lo up",
     "setpriv",
     "npm_config_offline=true",
     "CARGO_NET_OFFLINE=true",
     "UV_OFFLINE=1",
-    'git archive --format=tar "$GITHUB_SHA"',
+    DIRECT_SOURCE_ARCHIVE_COMMAND,
     "EQIORA_SITE_SOURCE_ROOT=$scratch/source",
     'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"',
+    'git ls-tree -r "$GITHUB_SHA"',
+    'git ls-tree "$GITHUB_SHA" -- AGENTS.md',
+    EXACT_TREE_LINK_COMMAND,
+    'git cat-file blob "$GITHUB_SHA:AGENTS.md"',
+    EXACT_EXTRACTED_LINK_COMMAND,
+    EXACT_LINK_PAYLOAD_SHA256,
+    'cmp "$scratch/source/AGENTS.md" "$scratch/expected-AGENTS.md"',
+    "120000",
+    "100644",
+    "AGENTS.md",
+    "source_links=",
+    'case "$source_links" in',
+    'if test -n "$source_links"; then',
+    'if test -L "$scratch/source/CLAUDE.md"; then',
+)
+FORBIDDEN_WORKFLOW_TOKENS = (
+    "playwright install --with-deps --only-shell chromium",
+    "HeadlessChrome 151.0.7922.34",
+    "tar --exclude",
+    "--dereference",
+    "cp -L",
+    "rsync -L",
+    "tar -h",
+    'rm "$scratch/source/CLAUDE.md"',
 )
 
 
@@ -320,6 +372,232 @@ def sha256(path: Path) -> str:
         for block in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def check_source_topology(
+    root: Path, expected_agents_sha256: str | None = None
+) -> list[str]:
+    errors: list[str] = []
+    if not root.is_dir() or root.is_symlink():
+        return ["site source root must be a real directory"]
+    resolved_root = root.resolve()
+    pruned = root / "docs/site/node_modules"
+    links: list[Path] = []
+    for current, directories, filenames in os.walk(root, topdown=True):
+        current_path = Path(current)
+        kept_directories: list[str] = []
+        for name in directories:
+            candidate = current_path / name
+            if candidate == pruned:
+                continue
+            if candidate.is_symlink():
+                links.append(candidate)
+            else:
+                kept_directories.append(name)
+        directories[:] = kept_directories
+        links.extend(
+            candidate
+            for name in filenames
+            if (candidate := current_path / name).is_symlink()
+        )
+
+    claude = root / "CLAUDE.md"
+    if not links:
+        return errors
+    if links != [claude]:
+        observed = sorted(str(path.relative_to(root)) for path in links)
+        return [f"site source has unadmitted symlinks: {observed}"]
+    try:
+        payload = os.readlink(claude)
+    except OSError as error:
+        return [f"site source CLAUDE.md link is unreadable: {error}"]
+    if payload != "AGENTS.md":
+        errors.append("site source CLAUDE.md must contain exact link payload AGENTS.md")
+
+    agents = root / "AGENTS.md"
+    try:
+        agents_mode = agents.lstat().st_mode
+    except OSError as error:
+        errors.append(f"site source AGENTS.md target is unavailable: {error}")
+        return errors
+    if agents.is_symlink() or not stat.S_ISREG(agents_mode):
+        errors.append("site source AGENTS.md target must be a regular non-symlink file")
+        return errors
+    try:
+        if agents.resolve(strict=True) != resolved_root / "AGENTS.md":
+            errors.append("site source AGENTS.md target escapes the authenticated root")
+    except OSError as error:
+        errors.append(f"site source AGENTS.md target cannot be resolved: {error}")
+    if expected_agents_sha256 is not None:
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_agents_sha256):
+            errors.append("expected AGENTS.md SHA-256 is malformed")
+        elif sha256(agents) != expected_agents_sha256:
+            errors.append("site source AGENTS.md differs from the same-commit Git blob")
+    return errors
+
+
+def check_runner_source_topology_text(text: str) -> list[str]:
+    errors: list[str] = []
+    invocation = "check_site.py source-topology"
+    if text.count(invocation) != 2:
+        errors.append(
+            "offline runner must check source topology exactly before and after"
+        )
+    if re.search(
+        r'find\s+"\$EQIORA_SITE_SOURCE_ROOT"[\s\S]{0,256}-type l -print -quit',
+        text,
+    ):
+        errors.append("offline runner retains blanket source-symlink rejection")
+    return errors
+
+
+def check_browser_supply(
+    site_root: Path,
+    browser_cache: Path,
+    expected_executable_sha256: str,
+    expected_executable_bytes: int,
+    environment: dict[str, str] | None = None,
+) -> list[str]:
+    errors: list[str] = []
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_executable_sha256):
+        errors.append("online full Chromium SHA-256 identity is malformed")
+    if expected_executable_bytes <= 0:
+        errors.append("online full Chromium byte identity is malformed")
+    if not site_root.is_dir() or site_root.is_symlink():
+        return ["Playwright site root must be a real directory"]
+    if browser_cache.name != "eqiora-pw-1.62.1-r1234":
+        errors.append("browser cache must use exact Playwright/revision identity")
+    if not browser_cache.is_dir() or browser_cache.is_symlink():
+        errors.append("browser cache must be a real directory")
+    elif not browser_cache.is_absolute() or browser_cache.resolve() != browser_cache:
+        errors.append("browser cache must be an absolute canonical path")
+
+    try:
+        lock = json.loads((site_root / "package-lock.json").read_text(encoding="utf-8"))
+        packages = lock["packages"]
+        browsers = json.loads(
+            (site_root / "node_modules/playwright-core/browsers.json").read_text(
+                encoding="utf-8"
+            )
+        )["browsers"]
+    except (OSError, KeyError, TypeError, json.JSONDecodeError) as error:
+        return [*errors, f"locked Playwright metadata is unavailable: {error}"]
+    if not isinstance(packages, dict) or not isinstance(browsers, list):
+        return [*errors, "locked Playwright metadata has the wrong shape"]
+    for package in ("@playwright/test", "playwright", "playwright-core"):
+        entry = packages.get(f"node_modules/{package}")
+        if not isinstance(entry, dict) or entry.get("version") != "1.62.1":
+            errors.append(f"browser supply must retain locked {package} 1.62.1")
+        try:
+            installed = json.loads(
+                (site_root / "node_modules" / package / "package.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+        except (OSError, json.JSONDecodeError) as error:
+            errors.append(f"installed {package} metadata is unavailable: {error}")
+        else:
+            if not isinstance(installed, dict) or installed.get("version") != "1.62.1":
+                errors.append(f"browser supply must retain installed {package} 1.62.1")
+    chromium = [
+        entry
+        for entry in browsers
+        if isinstance(entry, dict) and entry.get("name") == "chromium"
+    ]
+    if len(chromium) != 1 or (
+        chromium[0].get("revision"),
+        chromium[0].get("browserVersion"),
+    ) != ("1234", "151.0.7922.34"):
+        errors.append("browser supply metadata must select Chromium 1234/151.0.7922.34")
+
+    supplied_environment = dict(os.environ if environment is None else environment)
+    supplied_environment["PLAYWRIGHT_BROWSERS_PATH"] = str(browser_cache)
+    try:
+        resolved = subprocess.run(
+            [
+                "node",
+                "-e",
+                "const {chromium}=require('playwright');"
+                "process.stdout.write(chromium.executablePath())",
+            ],
+            cwd=site_root,
+            check=False,
+            env=supplied_environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return [*errors, f"locked Playwright executable resolution failed: {error}"]
+    expected = browser_cache / "chromium-1234/chrome-linux64/chrome"
+    if (
+        resolved.returncode != 0
+        or resolved.stderr
+        or resolved.stdout != os.fsencode(expected)
+    ):
+        errors.append("locked Playwright did not resolve the exact full Chromium path")
+
+    executable = Path(os.fsdecode(resolved.stdout)) if resolved.stdout else expected
+    try:
+        mode = executable.lstat().st_mode
+    except OSError as error:
+        return [*errors, f"full Chromium executable is unavailable: {error}"]
+    if executable.is_symlink() or not stat.S_ISREG(mode):
+        errors.append("full Chromium executable must be a regular non-symlink file")
+        return errors
+    if not os.access(executable, os.X_OK):
+        errors.append("full Chromium executable is not executable")
+    if executable.stat().st_size != expected_executable_bytes:
+        errors.append("full Chromium byte length changed after online verification")
+    if sha256(executable) != expected_executable_sha256:
+        errors.append("full Chromium SHA-256 changed after online verification")
+    try:
+        with executable.open("rb") as browser:
+            magic = browser.read(4)
+        if magic != b"\x7fELF":
+            errors.append(
+                "full Chromium executable must be the acquired binary, not a shim"
+            )
+    except OSError as error:
+        errors.append(f"full Chromium executable cannot be read: {error}")
+        return errors
+    if errors:
+        return errors
+    version_environment = {**supplied_environment, "LC_ALL": "C", "TZ": "UTC"}
+    try:
+        version = subprocess.run(
+            [str(executable), "--version"],
+            check=False,
+            env=version_environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        errors.append(f"full Chromium version observation failed: {error}")
+        return errors
+    if (
+        version.returncode != 0
+        or version.stderr
+        or version.stdout != FULL_CHROMIUM_VERSION_STDOUT
+    ):
+        errors.append("full Chromium must emit the exact 41-byte locked version stdout")
+    return errors
+
+
+def check_runner_browser_supply_text(text: str) -> list[str]:
+    errors: list[str] = []
+    if text.count("check_site.py browser-supply") != 1:
+        errors.append("offline runner must verify the locked full browser exactly once")
+    for token in (
+        '--expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256"',
+        '--expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"',
+    ):
+        if token not in text:
+            errors.append(f"offline runner omits online browser identity {token!r}")
+    if "HeadlessChrome 151.0.7922.34" in text:
+        errors.append("offline runner retains obsolete headless-shell identity")
+    return errors
 
 
 def _destination(raw: str) -> str:
@@ -620,6 +898,8 @@ def check_workflow_text(text: str) -> list[str]:
     if missing:
         errors.append(f"Pages path filters omit exact authorities: {missing}")
     for label, changed in TRIGGER_REPRESENTATIVES.items():
+        if changed == ".gitattributes" and changed in missing:
+            continue
         if not selected_by_paths(pull, changed):
             errors.append(f"Pages does not select representative {label}: {changed}")
     if selected_by_paths(pull, "notes/unrelated.txt"):
@@ -630,6 +910,76 @@ def check_workflow_text(text: str) -> list[str]:
     for token in OFFLINE_WORKFLOW_TOKENS:
         if token not in text:
             errors.append(f"Pages workflow omits offline/supply boundary {token!r}")
+    for token in FORBIDDEN_WORKFLOW_TOKENS:
+        if token in text:
+            errors.append(
+                f"Pages workflow uses forbidden supply substitution {token!r}"
+            )
+    archive = text.find(DIRECT_SOURCE_ARCHIVE_COMMAND)
+    source_export = text.find('echo "EQIORA_SITE_SOURCE_ROOT=', archive + 1)
+    before_archive = (
+        'git ls-tree -r "$GITHUB_SHA"',
+        "source_links=",
+        'case "$source_links" in',
+        'if test -n "$source_links"; then',
+        EXACT_TREE_LINK_COMMAND,
+        'git ls-tree "$GITHUB_SHA" -- AGENTS.md',
+        'git cat-file blob "$GITHUB_SHA:AGENTS.md"',
+    )
+    after_archive = (
+        'if test -n "$source_links"; then',
+        '\n            test -L "$scratch/source/CLAUDE.md"\n',
+        EXACT_EXTRACTED_LINK_COMMAND,
+        'cmp "$scratch/source/AGENTS.md" "$scratch/expected-AGENTS.md"',
+        'elif test -e "$scratch/source/CLAUDE.md" || test -L "$scratch/source/CLAUDE.md"; then',
+    )
+    before_positions = [text.find(token) for token in before_archive]
+    after_positions = [text.find(token, archive + 1) for token in after_archive]
+    archive_window = text[archive:source_export] if 0 <= archive < source_export else ""
+    archive_bound = (
+        archive >= 0
+        and source_export > archive
+        and all(0 <= position < archive for position in before_positions)
+        and before_positions == sorted(before_positions)
+        and all(archive < position < source_export for position in after_positions)
+        and after_positions == sorted(after_positions)
+        and 'unlink "$scratch/source/CLAUDE.md"' not in archive_window
+        and 'rm -f "$scratch/source/CLAUDE.md"' not in archive_window
+    )
+    if not archive_bound:
+        errors.append("Pages archive must bind the tracked link after extraction")
+    browser_admission = (
+        'expected_browser_sha256="0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"',
+        'expected_browser_bytes="290614600"',
+        'browser_sha256="$(sha256sum "$browser_path" | cut -d \' \' -f 1)"',
+        'browser_bytes="$(stat -c %s "$browser_path")"',
+        'test "$browser_sha256" = "$expected_browser_sha256"',
+        'test "$browser_bytes" = "$expected_browser_bytes"',
+        'EQIORA_SITE_BROWSER_SHA256="$expected_browser_sha256"',
+        'EQIORA_SITE_BROWSER_BYTES="$expected_browser_bytes"',
+        "export EQIORA_SITE_BROWSER_SHA256 EQIORA_SITE_BROWSER_BYTES",
+        "check_site.py browser-supply",
+        'version_hex="$("$browser_path" --version | od -An -tx1 | tr -d \'[:space:]\')"',
+        'test "$version_hex" = "$expected_browser_version_hex"',
+    )
+    browser_positions = [text.find(token) for token in browser_admission]
+    if any(
+        position < 0 for position in browser_positions
+    ) or browser_positions != sorted(browser_positions):
+        errors.append("Pages browser identity must precede execution and propagation")
+    ordered = (
+        'git ls-tree -r "$GITHUB_SHA"',
+        DIRECT_SOURCE_ARCHIVE_COMMAND,
+        EXACT_EXTRACTED_LINK_COMMAND,
+        "playwright install --with-deps chromium",
+        "chromium.executablePath()",
+        FULL_CHROMIUM_VERSION_STDOUT_HEX,
+        "check_site.py browser-supply",
+        "unshare --net",
+    )
+    positions = [text.find(token) for token in ordered]
+    if all(position >= 0 for position in positions) and positions != sorted(positions):
+        errors.append("Pages archive/browser supply checks are out of causal order")
     return errors
 
 
@@ -800,6 +1150,8 @@ def check_source(
     except OSError as error:
         errors.append(f"missing offline site runner: {error}")
     else:
+        errors.extend(check_runner_source_topology_text(runner_text))
+        errors.extend(check_runner_browser_supply_text(runner_text))
         runner_tokens = (
             "generate_interface_reference.py",
             "--repository",
@@ -1380,6 +1732,14 @@ def _parser() -> argparse.ArgumentParser:
     server.add_argument("--artifact", type=Path, required=True)
     server.add_argument("--host", default="127.0.0.1")
     server.add_argument("--port", type=int, default=4173)
+    topology = subparsers.add_parser("source-topology")
+    topology.add_argument("--root", type=Path, required=True)
+    topology.add_argument("--expected-agents-sha256")
+    browser = subparsers.add_parser("browser-supply")
+    browser.add_argument("--site-root", type=Path, required=True)
+    browser.add_argument("--browser-cache", type=Path, required=True)
+    browser.add_argument("--expected-executable-sha256", required=True)
+    browser.add_argument("--expected-executable-bytes", type=int, required=True)
     return parser
 
 
@@ -1391,6 +1751,29 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, ValueError) as error:
             print(f"site server: {error}", file=sys.stderr)
             return 1
+    if args.command == "source-topology":
+        errors = check_source_topology(args.root, args.expected_agents_sha256)
+        if errors:
+            print(
+                "\n".join(f"site source: {error}" for error in errors), file=sys.stderr
+            )
+            return 1
+        print("site source: exact optional CLAUDE.md topology admitted")
+        return 0
+    if args.command == "browser-supply":
+        errors = check_browser_supply(
+            args.site_root,
+            args.browser_cache,
+            args.expected_executable_sha256,
+            args.expected_executable_bytes,
+        )
+        if errors:
+            print(
+                "\n".join(f"site browser: {error}" for error in errors), file=sys.stderr
+            )
+            return 1
+        print("site browser: exact locked full Chromium supply admitted")
+        return 0
     errors = check_site(args.root.resolve(), args.artifact.resolve(), args.source_sha)
     if errors:
         print("\n".join(f"site check: {error}" for error in errors), file=sys.stderr)
