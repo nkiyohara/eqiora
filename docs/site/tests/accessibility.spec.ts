@@ -1,50 +1,124 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 
 import {
   assertCoreVisible,
+  assertExactTableSelectorScope,
+  assertHonest320Reflow,
   assertKeyboardFocusVisible,
   assertMinimumTargetSizes,
   assertNoFakeExecutionControls,
   assertNoPageOverflow,
   assertNoSeriousAxeViolations,
+  assertParentCylinderRed,
+  assertProductTableRouteGreen,
   assertReducedMotion,
   assertSemanticStages,
+  assertSupportedStatement,
+  assertTableInventory,
   assertVisibleSourceFallback,
   attachGrossScreenshot,
+  BASE_URL,
+  DIAGNOSTIC_ROUTE,
+  launchOfficialBrowser,
+  layoutCssState,
+  PARENT_LAYOUT_SHA256,
   rejectExternalRequests,
   ROUTES,
+  SITE_ROUTES,
+  TABLE_ROUTES,
 } from './support';
 
 async function assertCylinderContent(page: Page): Promise<void> {
+  const sourceSha = process.env.EQIORA_SITE_SOURCE_SHA;
+  expect(sourceSha).toMatch(/^[0-9a-f]{40}$/u);
   await assertSemanticStages(page);
+  await assertSupportedStatement(page);
   await assertVisibleSourceFallback(page);
-  await expect(page.getByRole('figure').getByRole('img')).toBeVisible();
+  const figures = page.getByRole('figure').getByRole('img');
+  await expect(figures).toHaveCount(2);
+  for (let offset = 0; offset < 2; offset += 1) await expect(figures.nth(offset)).toBeVisible();
   expect(await page.locator('math').count()).toBeGreaterThanOrEqual(2);
   expect(await page.locator('math[display="block"]').count()).toBeGreaterThan(0);
   expect(await page.locator('math:not([display="block"])').count()).toBeGreaterThan(0);
   expect(await page.locator('.katex-html').count()).toBeGreaterThanOrEqual(2);
   await expect(
-    page.getByText(
-      'one frozen 2D steady incompressible Stokes exact-cylinder demonstration, rendered from its accepted public Result path and linked evidence.',
-      { exact: true },
-    ),
-  ).toBeVisible();
+    page.getByRole('link', { name: 'Stage 4 Submit and result', exact: true }),
+  ).toHaveAttribute('href', '#submit-and-result');
+  await expect(
+    page.getByRole('link', {
+      name: 'Eqiora source form: canonical intent/submit/result cells',
+      exact: true,
+    }),
+  ).toHaveAttribute(
+    'href',
+    `https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/exact_cylinder_stokes_marimo.py#L77-L95`,
+  );
   await assertNoFakeExecutionControls(page);
 }
 
-test('representative routes have no serious or critical automated accessibility violations', async ({ page }) => {
-  const external = await rejectExternalRequests(page);
-  for (const route of ROUTES) {
-    await page.goto(route);
-    await assertNoSeriousAxeViolations(page);
-  }
-  expect(external).toEqual([]);
+async function assertDiagnosticIdentity(page: Page): Promise<void> {
+  await page.goto(DIAGNOSTIC_ROUTE);
+  await expect(page).toHaveTitle('Diagnostic in eqiora - Rust');
+  await expect(page.locator('body')).toHaveClass(/\brustdoc\b.*\bstruct\b/);
+  await expect(page.locator('main')).toHaveCount(1);
+  await expect(page.locator('main h1')).toContainText('Struct Diagnostic');
+  await expect(page.locator('main h1')).toContainText('Copy item path');
+  await assertNoPageOverflow(page);
+  await assertNoSeriousAxeViolations(page);
+}
+
+test.describe.configure({ mode: 'serial' });
+
+let browser: Browser;
+
+test.beforeAll(async () => {
+  browser = await launchOfficialBrowser(true);
 });
 
-test('320px, 400% zoom, target size, focus, forced colours, and reduced motion remain usable', async ({ page }) => {
+test.afterAll(async () => {
+  await browser?.close();
+});
+
+test('00 exact 34-page supply and unfiltered real Rustdoc route pass before the table boundary', async () => {
+  test.setTimeout(300_000);
+  expect(SITE_ROUTES).toHaveLength(34);
+  expect(new Set(SITE_ROUTES).size).toBe(34);
+  expect(ROUTES).toHaveLength(35);
+  const context = await browser.newContext({
+    baseURL: BASE_URL,
+    locale: 'en-GB',
+    serviceWorkers: 'block',
+  });
+  const external = await rejectExternalRequests(await context.newPage());
+  const page = context.pages()[0];
+  await page.setViewportSize({ width: 1280, height: 900 });
+  for (const route of SITE_ROUTES) {
+    const response = await page.goto(route);
+    expect(response?.ok(), route).toBe(true);
+    expect(new URL(page.url()).pathname).toBe(route);
+    await assertCoreVisible(page);
+    await assertNoPageOverflow(page);
+    if (route !== '/gallery/exact-cylinder-steady-stokes/') {
+      await assertNoSeriousAxeViolations(page);
+    }
+  }
+  await assertDiagnosticIdentity(page);
+  expect(external).toEqual([]);
+  await context.close();
+});
+
+test('01 honest 320px O-1 through O-4 composition and retained interaction controls pass', async ({}, testInfo) => {
+  test.setTimeout(180_000);
+  const context = await browser.newContext({
+    baseURL: BASE_URL,
+    locale: 'en-GB',
+    serviceWorkers: 'block',
+  });
+  const page = await context.newPage();
   const external = await rejectExternalRequests(page);
   await page.setViewportSize({ width: 320, height: 844 });
   await page.goto('/');
+  await assertHonest320Reflow(page);
   await assertNoPageOverflow(page);
   await assertMinimumTargetSizes(page.getByRole('banner').getByRole('link'));
   await assertMinimumTargetSizes(page.getByRole('banner').getByRole('button'));
@@ -52,39 +126,14 @@ test('320px, 400% zoom, target size, focus, forced colours, and reduced motion r
   await assertMinimumTargetSizes(page.getByRole('link', { name: 'Explore gallery', exact: true }));
   await assertKeyboardFocusVisible(page, page.getByRole('link', { name: 'Get started', exact: true }));
 
-  await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/gallery/exact-cylinder-steady-stokes/');
-  await page.evaluate(() => {
-    document.documentElement.style.zoom = '4';
-  });
+  await assertHonest320Reflow(page);
   await assertCoreVisible(page);
   await assertNoPageOverflow(page);
   await assertCylinderContent(page);
 
-  await page.emulateMedia({ forcedColors: 'active' });
-  await page.setViewportSize({ width: 320, height: 844 });
-  for (const route of ROUTES) {
-    await page.goto(route);
-    await assertCoreVisible(page);
-    await assertNoPageOverflow(page);
-    await assertNoSeriousAxeViolations(page);
-    if (route === '/gallery/exact-cylinder-steady-stokes/') {
-      await assertCylinderContent(page);
-    }
-  }
-  await page.goto('/');
-  await assertKeyboardFocusVisible(page, page.getByRole('link', { name: 'Get started', exact: true }));
-
-  await page.emulateMedia({ forcedColors: 'none', reducedMotion: 'reduce' });
-  await page.goto('/gallery/exact-cylinder-steady-stokes/');
-  await assertReducedMotion(page);
-  expect(external).toEqual([]);
-});
-
-for (const colorScheme of ['light', 'dark'] as const) {
-  test(`gross desktop and mobile layout capture in ${colorScheme}`, async ({ page }, testInfo) => {
-    const external = await rejectExternalRequests(page);
-    await page.emulateMedia({ colorScheme });
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme, forcedColors: 'none' });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
     await attachGrossScreenshot(page, testInfo, `home-desktop-${colorScheme}`);
@@ -97,6 +146,94 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await page.goto('/gallery/exact-cylinder-steady-stokes/');
     await assertNoPageOverflow(page);
     await attachGrossScreenshot(page, testInfo, `cylinder-mobile-${colorScheme}`);
-    expect(external).toEqual([]);
+  }
+
+  await page.emulateMedia({ colorScheme: 'light', forcedColors: 'none', reducedMotion: 'reduce' });
+  await page.goto('/gallery/exact-cylinder-steady-stokes/');
+  await assertReducedMotion(page);
+  expect(external).toEqual([]);
+  await context.close();
+});
+
+test('02 exact table inventory reaches the truthful parent RED or complete product GREEN', async () => {
+  test.setTimeout(600_000);
+  const state = await layoutCssState();
+  const context = await browser.newContext({
+    baseURL: BASE_URL,
+    locale: 'en-GB',
+    serviceWorkers: 'block',
   });
-}
+  const page = await context.newPage();
+  const external = await rejectExternalRequests(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  let tableTotal = 0;
+  let directTotal = 0;
+  let componentTotal = 0;
+  for (const expected of TABLE_ROUTES) {
+    await page.goto(expected.route);
+    await assertTableInventory(page, expected);
+    tableTotal += expected.tables;
+    directTotal += expected.direct;
+    componentTotal += expected.component;
+  }
+  expect({ tableTotal, directTotal, componentTotal }).toEqual({
+    tableTotal: 1129,
+    directTotal: 1128,
+    componentTotal: 1,
+  });
+  await page.goto('/reference/python/eqiora/');
+  await expect(page.locator('main table')).toHaveCount(0);
+
+  if (state.parent) {
+    expect(state.sha256).toBe(PARENT_LAYOUT_SHA256);
+    for (const forcedColors of ['none', 'active'] as const) {
+      await page.emulateMedia({ forcedColors });
+      for (const width of [1280, 390, 320]) {
+        await page.setViewportSize({ width, height: 900 });
+        await assertParentCylinderRed(page);
+      }
+    }
+  } else {
+    assertExactTableSelectorScope(state.css);
+    for (const forcedColors of ['none', 'active'] as const) {
+      await page.emulateMedia({ forcedColors });
+      for (const width of [1280, 390, 320]) {
+        await page.setViewportSize({ width, height: 900 });
+        for (const expected of TABLE_ROUTES) {
+          await assertProductTableRouteGreen(page, expected);
+        }
+      }
+    }
+  }
+  expect(external).toEqual([]);
+  await context.close();
+});
+
+test('03 forced colours retain core content and exact non-table accessibility boundaries', async () => {
+  test.setTimeout(300_000);
+  const context = await browser.newContext({
+    baseURL: BASE_URL,
+    locale: 'en-GB',
+    serviceWorkers: 'block',
+  });
+  const page = await context.newPage();
+  const external = await rejectExternalRequests(page);
+  await page.emulateMedia({ forcedColors: 'active' });
+  await page.setViewportSize({ width: 320, height: 844 });
+  for (const route of ROUTES) {
+    await page.goto(route);
+    await assertCoreVisible(page);
+    await assertNoPageOverflow(page);
+    if (route === '/gallery/exact-cylinder-steady-stokes/') {
+      await assertCylinderContent(page);
+    }
+    if (!TABLE_ROUTES.some((expected) => expected.route === route)) {
+      await assertNoSeriousAxeViolations(page);
+    }
+  }
+  await page.goto('/');
+  await assertKeyboardFocusVisible(page, page.getByRole('link', { name: 'Get started', exact: true }));
+  expect(external).toEqual([]);
+  await context.close();
+});
