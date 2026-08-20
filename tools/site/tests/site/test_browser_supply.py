@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from fixture import REPOSITORY, SOURCE_SHA, checker, pinned_node_path
 
@@ -142,6 +143,33 @@ class BrowserSupplyTests(unittest.TestCase):
         )
         return runner, environment, executable
 
+    @staticmethod
+    def _check_with_execution_spy(
+        site_root: Path,
+        browser_cache: Path,
+        executable: Path,
+        expected_sha256: str,
+        expected_bytes: int,
+        environment: dict[str, str],
+    ) -> tuple[list[str], list[tuple[str, ...]]]:
+        real_run = subprocess.run
+        attempted: list[tuple[str, ...]] = []
+
+        def observe(command, *args, **kwargs):
+            if command and os.fspath(command[0]) == str(executable.resolve()):
+                attempted.append(tuple(os.fspath(item) for item in command))
+            return real_run(command, *args, **kwargs)
+
+        with mock.patch.object(checker.subprocess, "run", side_effect=observe):
+            errors = checker.check_browser_supply(
+                site_root,
+                browser_cache,
+                expected_sha256,
+                expected_bytes,
+                environment,
+            )
+        return errors, attempted
+
     def test_00_b01_full_browser_positive_precedes_identity_mutants(self) -> None:
         lock_bytes = subprocess.run(
             ["git", "show", f"{BASIS_SHA}:docs/site/package-lock.json"],
@@ -160,26 +188,18 @@ class BrowserSupplyTests(unittest.TestCase):
             self.assertFalse(executable.is_symlink())
             self.assertTrue(os.access(executable, os.X_OK))
             self.assertEqual(executable.read_bytes()[:4], b"\x7fELF")
-            observed = subprocess.run(
-                [str(executable), "--version"],
-                check=True,
-                env={**environment, "LC_ALL": "C", "TZ": "UTC"},
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            ).stdout
-            self.assertEqual(len(observed), 41)
-            self.assertEqual(observed, FULL_VERSION_STDOUT)
-            self.assertEqual(observed.hex(), checker.FULL_CHROMIUM_VERSION_STDOUT_HEX)
             site_root = Path(environment["EQIORA_SITE_SOURCE_ROOT"]) / "docs/site"
             browser_cache = Path(environment["PLAYWRIGHT_BROWSERS_PATH"])
-            errors = checker.check_browser_supply(
+            errors, attempted = self._check_with_execution_spy(
                 site_root,
                 browser_cache,
+                executable,
                 checker.sha256(executable),
                 executable.stat().st_size,
                 environment,
             )
             self.assertEqual(errors, [], "\n".join(errors))
+            self.assertEqual(attempted, [(str(executable.resolve()), "--version")])
 
         def missing(path: Path, environment: dict[str, str]) -> None:
             path.unlink()
@@ -243,6 +263,9 @@ class BrowserSupplyTests(unittest.TestCase):
         def identity_disagreement(path: Path, environment: dict[str, str]) -> None:
             pass
 
+        def wrong_byte_count(path: Path, environment: dict[str, str]) -> None:
+            pass
+
         def wrong_label(path: Path, environment: dict[str, str]) -> None:
             self._compile_version_executable(path, b"Chromium 151.0.7922.34\n")
 
@@ -251,7 +274,8 @@ class BrowserSupplyTests(unittest.TestCase):
 
         def shell_shim(path: Path, environment: dict[str, str]) -> None:
             path.write_bytes(
-                b"#!/bin/sh\nprintf 'Google Chrome for Testing 151.0.7922.34 \\n'\n"
+                b'#!/bin/sh\n: > "$EQIORA_TEST_BROWSER_MARKER"\n'
+                b"printf 'Google Chrome for Testing 151.0.7922.34 \\n'\n"
             )
             path.chmod(0o755)
 
@@ -288,6 +312,11 @@ class BrowserSupplyTests(unittest.TestCase):
                 identity_disagreement,
                 "SHA-256 changed after online verification",
             ),
+            (
+                "wrong expected byte count",
+                wrong_byte_count,
+                "byte length changed after online verification",
+            ),
             ("wrong exact version", wrong_label, "exact 41-byte locked version"),
             (
                 "headless-shell substitution",
@@ -296,13 +325,20 @@ class BrowserSupplyTests(unittest.TestCase):
             ),
             ("shell shim", shell_shim, "acquired binary, not a shim"),
         ):
-            with tempfile.TemporaryDirectory(dir=SCRATCH_ROOT) as temporary:
+            with (
+                self.subTest(label=label),
+                tempfile.TemporaryDirectory(dir=SCRATCH_ROOT) as temporary,
+            ):
                 _, environment, executable = self._layout(Path(temporary))
                 expected_sha256 = checker.sha256(executable)
                 expected_bytes = executable.stat().st_size
+                marker = Path(temporary) / "browser-executed"
+                environment["EQIORA_TEST_BROWSER_MARKER"] = str(marker)
                 mutate(executable, environment)
                 if label == "online/offline identity disagreement":
                     expected_sha256 = "1" * 64
+                elif label == "wrong expected byte count":
+                    expected_bytes += 1
                 elif label in {
                     "wrong exact version",
                     "headless-shell substitution",
@@ -312,9 +348,10 @@ class BrowserSupplyTests(unittest.TestCase):
                     expected_bytes = executable.stat().st_size
                 site_root = Path(environment["EQIORA_SITE_SOURCE_ROOT"]) / "docs/site"
                 browser_cache = Path(environment["PLAYWRIGHT_BROWSERS_PATH"])
-                errors = checker.check_browser_supply(
+                errors, attempted = self._check_with_execution_spy(
                     site_root,
                     browser_cache,
+                    executable,
                     expected_sha256,
                     expected_bytes,
                     environment,
@@ -323,6 +360,13 @@ class BrowserSupplyTests(unittest.TestCase):
                     any(expected_error in error for error in errors),
                     f"B-01 mutant missed its causal gate: {label}: {errors}",
                 )
+                if label in {
+                    "online/offline identity disagreement",
+                    "wrong expected byte count",
+                    "non-executable file",
+                    "shell shim",
+                }:
+                    self.assertEqual((attempted, marker.exists()), ([], False), label)
 
         runner_text = (REPOSITORY / "tools/site/run_offline_site_checks.sh").read_text(
             encoding="utf-8"
