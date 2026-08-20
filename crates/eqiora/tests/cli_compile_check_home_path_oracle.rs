@@ -5,7 +5,7 @@ mod cli_compile_check_home_path;
 
 use std::fs;
 use std::io::ErrorKind;
-use std::os::unix::ffi::OsStrExt;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 
@@ -79,11 +79,47 @@ fn canonical_home_backed_tmpdir_admission_is_causal() {
     assert_eq!(fs::canonicalize(&alias_home).unwrap(), real_home);
     assert_eq!(fs::canonicalize(&candidate).unwrap(), candidate);
     assert!(!candidate.starts_with(&alias_home));
+    let canonical_candidate =
+        resolve_home_backed_tmpdir(&candidate, &alias_home).expect("O0 stage 1");
+    assert_eq!(canonical_candidate, candidate);
+
+    // S0: exact canonical raw spelling is the usable stage-2 positive.
+    assert_eq!(canonical_candidate.as_os_str(), candidate.as_os_str());
+    require_canonical_home_backed_tmpdir(&candidate, &alias_home).expect("O0 stage 2");
+
+    // S1: a repeated interior separator passes stage 1 but not raw spelling.
+    let candidate_bytes = candidate.as_os_str().as_bytes();
+    let final_component = candidate.file_name().unwrap().as_bytes();
+    let separator = candidate_bytes.len() - final_component.len() - 1;
+    assert!(separator > 0);
+    assert_eq!(candidate_bytes[separator], b'/');
+    let mut repeated_separator_bytes = candidate_bytes.to_vec();
+    repeated_separator_bytes.insert(separator, b'/');
+    let repeated_separator = PathBuf::from(std::ffi::OsString::from_vec(repeated_separator_bytes));
+    assert!(repeated_separator.is_absolute() && repeated_separator.is_dir());
+    assert_eq!(fs::canonicalize(&repeated_separator).unwrap(), candidate);
+    assert_eq!(repeated_separator, candidate);
+    assert_ne!(repeated_separator.as_os_str(), candidate.as_os_str());
     assert_eq!(
-        resolve_home_backed_tmpdir(&candidate, &alias_home).expect("O0 stage 1"),
+        resolve_home_backed_tmpdir(&repeated_separator, &alias_home).expect("S1 stage 1"),
         candidate
     );
-    require_canonical_home_backed_tmpdir(&candidate, &alias_home).expect("O0 stage 2");
+    assert!(require_canonical_home_backed_tmpdir(&repeated_separator, &alias_home).is_err());
+
+    // S2: a terminal `/.` passes stage 1 but not raw spelling.
+    let mut terminal_dot_bytes = candidate_bytes.to_vec();
+    terminal_dot_bytes.extend_from_slice(b"/.");
+    assert!(!terminal_dot_bytes.windows(2).any(|bytes| bytes == b"//"));
+    let terminal_dot = PathBuf::from(std::ffi::OsString::from_vec(terminal_dot_bytes));
+    assert!(terminal_dot.is_absolute() && terminal_dot.is_dir());
+    assert_eq!(fs::canonicalize(&terminal_dot).unwrap(), candidate);
+    assert_eq!(terminal_dot, candidate);
+    assert_ne!(terminal_dot.as_os_str(), candidate.as_os_str());
+    assert_eq!(
+        resolve_home_backed_tmpdir(&terminal_dot, &alias_home).expect("S2 stage 1"),
+        candidate
+    );
+    assert!(require_canonical_home_backed_tmpdir(&terminal_dot, &alias_home).is_err());
 
     // N1: all backing predicates pass, but a canonical sibling is outside home.
     let n1_home = fixture.directory("n1-home");
