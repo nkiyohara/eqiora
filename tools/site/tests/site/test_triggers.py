@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import subprocess
 import tempfile
@@ -15,10 +16,30 @@ BROWSER_ERROR = "Pages browser identity must precede execution and propagation"
 C03_ERROR = "Pages path filters omit exact authorities: ['.gitattributes']"
 ORDER_ERROR = "Pages archive/browser supply checks are out of causal order"
 DEREFERENCE_ERROR = "Pages workflow uses forbidden supply substitution '--dereference'"
+HISTORY_TREE = "20701fe8909295b980c1da7cf3eab366f8d5f27c"
+HISTORY_BLOB = "6e685495bf6989e1ad902a7e88c199557285cbee"
+HISTORY_DIGEST = "fc55c24da8b9b58a7e997a22d5ebc26a87cdb52b73b2513a2cc91b8347432f16"
+HISTORY_ERRORS = [C03_ERROR, ARCHIVE_ERROR, BROWSER_ERROR]
+UNRELATED_ERROR = "UNRELATED: retained deployment syntax rejected"
+observe = checker.check_workflow_text
 
 
 def omitted(token: str) -> str:
     return f"Pages workflow omits offline/supply boundary {token!r}"
+
+
+def historical_workflow() -> str:
+    def git(*arguments: str) -> bytes:
+        return subprocess.check_output(["git", *arguments], cwd=REPOSITORY)
+
+    tree = git("rev-parse", f"{BASIS_SHA}^{{tree}}").decode().strip()
+    blob = git("rev-parse", f"{BASIS_SHA}:.github/workflows/pages.yml").decode().strip()
+    data = git("cat-file", "blob", HISTORY_BLOB)
+    digest = hashlib.sha256(data).hexdigest()
+    actual = (tree, blob, len(data), data.count(b"\n"), digest)
+    if actual != (HISTORY_TREE, HISTORY_BLOB, 30_202, 642, HISTORY_DIGEST):
+        raise AssertionError(f"historical workflow identity changed: {actual!r}")
+    return data.decode("utf-8")
 
 
 def workflow(pull: list[str], push: list[str]) -> str:
@@ -30,9 +51,7 @@ def workflow(pull: list[str], push: list[str]) -> str:
     return before + block(pull) + between + block(push) + after
 
 
-def archive_case(
-    root: Path, repository: Path, revision: str, mutation: str = ":"
-) -> tuple[subprocess.CompletedProcess[str], Path, Path]:
+def archive_case(root: Path, repo: Path, revision: str, mutation: str = ":") -> Path:
     source, sentinel = root / "source", root / "source-used"
     script = r"""set -euo pipefail
 source_links="$(git ls-tree -r "$REVISION" | awk '$1 == "120000" { print $4 }')"
@@ -62,60 +81,73 @@ printf source-used > "$SENTINEL"
         "SENTINEL": str(sentinel),
         "MUTATION": mutation,
     }
-    result = subprocess.run(
-        ["bash", "-c", script],
-        cwd=repository,
-        env=environment,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    return result, source, sentinel
+    command = ["bash", "-c", script]
+    subprocess.run(command, cwd=repo, env=environment, capture_output=True)
+    return sentinel
 
 
 class TriggerContractTests(unittest.TestCase):
+    def assert_transition(self, *actual: list[str]) -> None:
+        self.assertEqual(list(actual), [HISTORY_ERRORS, [], []])
+
     def assert_diagnostics(self, text: str, expected: list[str]) -> None:
-        self.assertCountEqual(checker.check_workflow_text(text), expected)
+        self.assertCountEqual(observe(text), expected)
 
     def test_00_real_linked_and_genuine_no_link_archives_reach_source_use(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.home() / ".cache/eqiora") as value:
-            _, _, sentinel = archive_case(Path(value), REPOSITORY, BASIS_SHA)
-            self.assertEqual(sentinel.read_bytes(), b"source-used")
-        with tempfile.TemporaryDirectory(dir=Path.home() / ".cache/eqiora") as value:
             root = Path(value)
+            sentinel = archive_case(root, REPOSITORY, BASIS_SHA)
+            self.assertEqual(sentinel.read_bytes(), b"source-used")
             repository = root / "no-link"
             subprocess.run(["git", "init", "-q", str(repository)], check=True)
             git = ["git", "-C", str(repository)]
             (repository / "AGENTS.md").write_text("no link\n", encoding="utf-8")
             subprocess.run([*git, "add", "AGENTS.md"], check=True)
-            identity = {
-                **os.environ,
-                "GIT_AUTHOR_NAME": "oracle",
-                "GIT_AUTHOR_EMAIL": "oracle@example.invalid",
-                "GIT_COMMITTER_NAME": "oracle",
-                "GIT_COMMITTER_EMAIL": "oracle@example.invalid",
-            }
-            subprocess.run([*git, "commit", "-qm", "no link"], check=True, env=identity)
-            revision = subprocess.check_output(
-                [*git, "rev-parse", "HEAD"], text=True
-            ).strip()
-            _, _, sentinel = archive_case(root / "case", repository, revision)
+            git += ["-c", "user.name=oracle"]
+            git += ["-c", "user.email=oracle@example.invalid"]
+            subprocess.run([*git, "commit", "-qm", "no link"], check=True)
+            revision = subprocess.check_output([*git, "rev-parse", "HEAD"])
+            revision = revision.decode().strip()
+            sentinel = archive_case(root / "case", repository, revision)
             self.assertEqual(sentinel.read_bytes(), b"source-used")
 
-    def test_01_corrected_workflow_and_exact_trigger_selection_pass_first(self) -> None:
+    def test_01_historical_and_corrected_workflow_pass_first(self) -> None:
         patterns = sorted({*checker.REQUIRED_TRIGGER_PATTERNS, ".gitattributes"})
-        self.assertEqual(checker.check_workflow_text(workflow(patterns, patterns)), [])
+        corrected = workflow(patterns, patterns)
+        self.assert_transition(observe(historical_workflow()), observe(corrected), [])
         for changed in checker.TRIGGER_REPRESENTATIVES.values():
             self.assertTrue(checker.selected_by_paths(patterns, changed))
         self.assertTrue(checker.selected_by_paths(patterns, ".gitattributes"))
         self.assertFalse(checker.selected_by_paths(patterns, "notes/unrelated.txt"))
 
-    def test_02_repository_workflow_is_red_at_all_three_owned_boundaries(self) -> None:
+    def test_02_current_workflow_is_exactly_green(self) -> None:
         text = (REPOSITORY / ".github/workflows/pages.yml").read_text(encoding="utf-8")
-        errors = checker.check_workflow_text(text)
-        self.assertCountEqual(errors, [ARCHIVE_ERROR, BROWSER_ERROR, C03_ERROR])
+        self.assert_transition(
+            observe(historical_workflow()), observe(_workflow()), observe(text)
+        )
 
-    def test_c01_archive_mutants_stop_before_source_use(self) -> None:
+    def test_03_transition_diagnostic_mutants_fail_exactly(self) -> None:
+        historical = HISTORY_ERRORS
+
+        def reject(*mutant: list[str]) -> None:
+            with self.assertRaises(AssertionError):
+                self.assert_transition(*mutant)
+
+        for index, error in enumerate(historical):
+            missing = historical.copy()
+            missing.pop(index)
+            renamed = historical.copy()
+            renamed[index] = f"{error} (legacy alias)"
+            reject(missing, [], [])
+            reject(renamed, [], [])
+            reject(historical, [], [error])
+        reject([*historical, UNRELATED_ERROR], [], [])
+        reject([historical[1], historical[0], historical[2]], [], [])
+        reject(historical, [], historical)
+        reject(historical, [UNRELATED_ERROR], [])
+        reject(historical, [], [UNRELATED_ERROR])
+
+    def test_c01_archive_and_workflow_mutants_fail(self) -> None:
         mutations = (
             'unlink "$SOURCE/CLAUDE.md"',
             'rm -f "$SOURCE/CLAUDE.md"',
@@ -126,134 +158,100 @@ class TriggerContractTests(unittest.TestCase):
                 self.subTest(mutation=mutation),
                 tempfile.TemporaryDirectory(dir=Path.home() / ".cache/eqiora") as value,
             ):
-                _, _, sentinel = archive_case(
-                    Path(value), REPOSITORY, BASIS_SHA, mutation
-                )
+                sentinel = archive_case(Path(value), REPOSITORY, BASIS_SHA, mutation)
                 self.assertFalse(sentinel.exists())
-
-    def test_c01_workflow_mutants_fail_at_archive_binding(self) -> None:
         ordinary = _workflow()
+        swap = ordinary.replace
+        assert_errors = self.assert_diagnostics
         archive = checker.DIRECT_SOURCE_ARCHIVE_COMMAND
         mandatory = '            test -L "$scratch/source/CLAUDE.md"\n'
         payload = f'              test "$({checker.EXACT_EXTRACTED_LINK_COMMAND})" = {checker.EXACT_LINK_PAYLOAD_SHA256}\n'
         target = '              cmp "$scratch/source/AGENTS.md" "$scratch/expected-AGENTS.md"\n'
-        post_start = ordinary.index(
-            '          if test -n "$source_links"; then', ordinary.index(archive)
-        )
-        post_end = ordinary.index(
-            '          echo "EQIORA_SITE_SOURCE_ROOT=', post_start
-        )
+        post_marker = '          if test -n "$source_links"; then'
+        export_marker = '          echo "EQIORA_SITE_SOURCE_ROOT='
+        post_start = ordinary.index(post_marker, ordinary.index(archive))
+        post_end = ordinary.index(export_marker, post_start)
         post = ordinary[post_start:post_end]
         moved_post = ordinary[:post_start] + ordinary[post_end:]
         moved_post = moved_post.replace(archive, post + archive, 1)
-        mutants = [
-            ordinary.replace(mandatory, "", 1),
-            ordinary.replace(
-                archive, f'{archive}\n          unlink "$scratch/source/CLAUDE.md"', 1
-            ),
-            ordinary.replace(
-                archive, f'{archive}\n          rm -f "$scratch/source/CLAUDE.md"', 1
-            ),
-            ordinary.replace(
-                archive,
-                f'{archive}\n          rm -f "$scratch/source/CLAUDE.md"; printf AGENTS.md > "$scratch/source/CLAUDE.md"',
-                1,
-            ),
-            moved_post,
-            ordinary.replace(
-                archive, archive.replace("tar -xf", "tar --dereference -xf"), 1
-            ),
-            ordinary.replace(
-                archive,
-                'git archive --format=tar "$GITHUB_SHA" -- . \':(exclude)CLAUDE.md\' | tar -xf - -C "$scratch/source"',
-                1,
-            ),
-            ordinary.replace(archive, "ARCHIVE-MOVED", 1).replace(
-                "unshare --net", f"{archive}\nunshare --net", 1
-            ),
-            ordinary.replace(payload, "", 1),
-            ordinary.replace(target, "", 1),
-        ]
-        link_read = checker.EXACT_EXTRACTED_LINK_COMMAND
-        # fmt: off
-        inherited = (
-            (), (), (), (), (ORDER_ERROR,),
-            (omitted(archive), DEREFERENCE_ERROR), (omitted(archive),), (ORDER_ERROR,),
-            (omitted(link_read),), (omitted(target.strip()),),
+        assert_errors(swap(mandatory, "", 1), [ARCHIVE_ERROR])
+        for command in mutations:
+            command = command.replace("$SOURCE", "$scratch/source")
+            mutant = swap(archive, f"{archive}\n          {command}", 1)
+            assert_errors(mutant, [ARCHIVE_ERROR])
+        assert_errors(moved_post, [ORDER_ERROR, ARCHIVE_ERROR])
+        dereference = swap(
+            archive, archive.replace("tar -xf", "tar --dereference -xf"), 1
         )
-        # fmt: on
-        for mutant, prior in zip(mutants, inherited, strict=True):
-            self.assert_diagnostics(mutant, [*prior, ARCHIVE_ERROR])
+        assert_errors(dereference, [omitted(archive), DEREFERENCE_ERROR, ARCHIVE_ERROR])
+        exclusion = 'git archive --format=tar "$GITHUB_SHA" -- . \':(exclude)CLAUDE.md\' | tar -xf - -C "$scratch/source"'
+        assert_errors(swap(archive, exclusion, 1), [omitted(archive), ARCHIVE_ERROR])
+        moved_archive = swap(archive, "ARCHIVE-MOVED", 1).replace(
+            "unshare --net", f"{archive}\nunshare --net", 1
+        )
+        assert_errors(moved_archive, [ORDER_ERROR, ARCHIVE_ERROR])
+        comparisons = (
+            (payload, checker.EXACT_EXTRACTED_LINK_COMMAND),
+            (target, target.strip()),
+        )
+        for statement, token in comparisons:
+            assert_errors(swap(statement, "", 1), [omitted(token), ARCHIVE_ERROR])
 
-    def test_c02_workflow_mutants_fail_at_browser_admission(self) -> None:
+    def test_c02_and_c03_workflow_mutants_fail(self) -> None:
         ordinary = _workflow()
+        swap = ordinary.replace
+        assert_errors = self.assert_diagnostics
+        c02 = [BROWSER_ERROR]
         checker_call = "          python3 tools/site/check_site.py browser-supply"
         version = '          version_hex="$("$browser_path" --version | od -An -tx1 | tr -d \'[:space:]\')"\n'
-        sha_equal = '          test "$browser_sha256" = "$expected_browser_sha256"\n'
-        bytes_equal = '          test "$browser_bytes" = "$expected_browser_bytes"\n'
-        sha_constant = (
-            "0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"
-        )
+        digest = "0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"
         bytes_constant = 'expected_browser_bytes="290614600"'
-        sha_export = 'EQIORA_SITE_BROWSER_SHA256="$expected_browser_sha256"'
-        bytes_export = 'EQIORA_SITE_BROWSER_BYTES="$expected_browser_bytes"'
         propagation = '          EQIORA_SITE_BROWSER_SHA256="$expected_browser_sha256"\n          EQIORA_SITE_BROWSER_BYTES="$expected_browser_bytes"\n          export EQIORA_SITE_BROWSER_SHA256 EQIORA_SITE_BROWSER_BYTES\n'
-        mutants = [
-            ordinary.replace(version, "", 1).replace(
-                checker_call, version + checker_call, 1
-            ),
-            ordinary.replace(sha_equal, "", 1),
-            ordinary.replace(bytes_equal, "", 1),
-            ordinary.replace(sha_constant, "1" * 64, 1),
-            ordinary.replace(bytes_constant, 'expected_browser_bytes="290614601"', 1),
-            ordinary.replace(
-                sha_export, 'EQIORA_SITE_BROWSER_SHA256="$browser_sha256"', 1
-            ),
-            ordinary.replace(
-                bytes_export, 'EQIORA_SITE_BROWSER_BYTES="$browser_bytes"', 1
-            ),
-            ordinary.replace(propagation, "", 1).replace(
-                '          test "$browser_sha256"',
-                propagation + '          test "$browser_sha256"',
-                1,
-            ),
-        ]
-        for mutant in mutants:
-            self.assert_diagnostics(mutant, [BROWSER_ERROR])
-        for token in checker.OFFLINE_WORKFLOW_TOKENS:
-            self.assertTrue(
-                checker.check_workflow_text(ordinary.replace(token, "removed"))
+        replacements = (
+            (digest, "1" * 64),
+            (bytes_constant, 'expected_browser_bytes="290614601"'),
+        )
+        for old, new in replacements:
+            assert_errors(swap(old, new, 1), c02)
+        for name in ("sha256", "bytes"):
+            equality = (
+                f'          test "$browser_{name}" = "$expected_browser_{name}"\n'
             )
+            export = f'EQIORA_SITE_BROWSER_{name.upper()}="$expected_browser_{name}"'
+            assert_errors(swap(equality, "", 1), c02)
+            assert_errors(swap(export, export.replace("expected_", ""), 1), c02)
+        early_version = swap(version, "", 1).replace(
+            checker_call, version + checker_call, 1
+        )
+        assert_errors(early_version, c02)
+        early_identity = swap(propagation, "", 1).replace(
+            '          test "$browser_sha256"',
+            propagation + '          test "$browser_sha256"',
+            1,
+        )
+        assert_errors(early_identity, c02)
+        for token in checker.OFFLINE_WORKFLOW_TOKENS:
+            self.assertTrue(observe(ordinary.replace(token, "removed")))
         for token in checker.FORBIDDEN_WORKFLOW_TOKENS:
-            self.assertTrue(checker.check_workflow_text(f"{ordinary}\n# {token}\n"))
+            self.assertTrue(observe(f"{ordinary}\n# {token}\n"))
 
-    def test_c03_exact_attribute_trigger_mutants_fail(self) -> None:
         patterns = sorted({*checker.REQUIRED_TRIGGER_PATTERNS, ".gitattributes"})
         without = [item for item in patterns if item != ".gitattributes"]
-        broad_git = [*without, ".git*"]
-        broad_dot = [*without, ".*"]
-        duplicate = [*patterns, ".gitattributes"]
-        # fmt: off
-        cases = (
-            (without, without, ""), (patterns, without, ""),
-            (without, patterns, ""), (without, without, "\n# .gitattributes\n"),
-            (broad_git, broad_git, ""), (broad_dot, broad_dot, ""),
-            (patterns, list(reversed(patterns)), ""), (duplicate, duplicate, ""),
-        )
-        # fmt: on
         for removed in checker.REQUIRED_TRIGGER_PATTERNS:
             reduced = [item for item in patterns if item != removed]
-            errors = checker.check_workflow_text(workflow(reduced, reduced))
-            self.assertTrue(errors)
-        for pull, push, suffix in cases:
-            expected = []
-            if pull != push:
-                expected.append("Pages PR and push path filters differ")
-            if len(pull) != len(set(pull)):
-                expected.append("Pages path filters contain duplicates")
-            if ".gitattributes" not in pull:
-                expected.append(C03_ERROR)
-            self.assert_diagnostics(workflow(pull, push) + suffix, expected)
+            self.assertTrue(observe(workflow(reduced, reduced)))
+        unequal = "Pages PR and push path filters differ"
+        assert_errors(workflow(without, without), [C03_ERROR])
+        assert_errors(workflow(patterns, without), [unequal])
+        assert_errors(workflow(without, patterns), [unequal, C03_ERROR])
+        assert_errors(workflow(without, without) + "\n# .gitattributes\n", [C03_ERROR])
+        for broad in (".git*", ".*"):
+            replacement = [*without, broad]
+            assert_errors(workflow(replacement, replacement), [C03_ERROR])
+        assert_errors(workflow(patterns, list(reversed(patterns))), [unequal])
+        duplicate = [*patterns, ".gitattributes"]
+        duplicate_error = "Pages path filters contain duplicates"
+        assert_errors(workflow(duplicate, duplicate), [duplicate_error])
 
 
 if __name__ == "__main__":
