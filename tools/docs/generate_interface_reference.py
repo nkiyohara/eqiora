@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -15,6 +16,17 @@ from typing import Any
 
 
 MCP_PROTOCOL = "2026-07-28"
+SOURCE_SHA_PATTERN = re.compile(r"[0-9a-f]{40}", flags=re.ASCII)
+GIT_IDENTITY_ENVIRONMENT = {
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_NAMESPACE",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+}
 OUTPUTS = {
     "cli": Path("docs/site/src/content/docs/reference/cli/index.mdx"),
     "control": Path("docs/site/src/content/docs/reference/control-v2/index.mdx"),
@@ -63,6 +75,80 @@ def _command_environment() -> dict[str, str]:
         }
     )
     return environment
+
+
+def _git_identity_observation(
+    repository: Path, arguments: list[str], label: str
+) -> str:
+    environment = os.environ.copy()
+    for name in GIT_IDENTITY_ENVIRONMENT:
+        environment.pop(name, None)
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(repository), *arguments],
+            cwd=repository,
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ProjectionError(f"could not observe {label}: {error}") from error
+    if completed.returncode != 0:
+        raise ProjectionError(f"could not observe {label}")
+    if completed.stderr:
+        raise ProjectionError(f"Git wrote to stderr while observing {label}")
+    try:
+        output = completed.stdout.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ProjectionError(f"Git emitted non-UTF-8 {label}") from error
+    if (
+        b"\r" in completed.stdout
+        or not output.endswith("\n")
+        or output.count("\n") != 1
+    ):
+        raise ProjectionError(f"Git emitted malformed {label}")
+    return output.removesuffix("\n")
+
+
+def _admit_source_identity(repository: Path, source_sha: str) -> None:
+    if SOURCE_SHA_PATTERN.fullmatch(source_sha) is None:
+        raise ProjectionError(
+            "source SHA must be exactly 40 lowercase hexadecimal characters"
+        )
+    environment_sha = os.environ.get("EQIORA_SITE_SOURCE_SHA")
+    if environment_sha is not None and environment_sha != source_sha:
+        raise ProjectionError("source SHA disagrees with EQIORA_SITE_SOURCE_SHA")
+
+    if not os.path.lexists(repository / ".git"):
+        return
+
+    top_level_text = _git_identity_observation(
+        repository, ["rev-parse", "--show-toplevel"], "canonical Git top level"
+    )
+    top_level_path = Path(top_level_text)
+    try:
+        top_level = top_level_path.resolve(strict=True)
+    except OSError as error:
+        raise ProjectionError(
+            "Git top level is not a canonical existing path"
+        ) from error
+    if (
+        not top_level_path.is_absolute()
+        or top_level_text != str(top_level)
+        or top_level != repository
+    ):
+        raise ProjectionError("Git top level disagrees with the repository root")
+
+    head = _git_identity_observation(
+        repository, ["rev-parse", "--verify", "HEAD"], "Git HEAD"
+    )
+    if SOURCE_SHA_PATTERN.fullmatch(head) is None:
+        raise ProjectionError("Git HEAD is not a canonical 40-character commit")
+    if head != source_sha:
+        raise ProjectionError("Git HEAD disagrees with the source SHA")
 
 
 def _run(
@@ -496,6 +582,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--eqiora-binary", type=Path, required=True)
     parser.add_argument("--mcp-binary", type=Path, required=True)
+    parser.add_argument("--source-sha", required=True)
     parser.add_argument(
         "--check",
         action="store_true",
@@ -507,8 +594,7 @@ def _parser() -> argparse.ArgumentParser:
 def main() -> int:
     arguments = _parser().parse_args()
     repository = arguments.repository.resolve(strict=True)
-    if not (repository / ".git").exists():
-        raise ProjectionError(f"not an Eqiora worktree: {repository}")
+    _admit_source_identity(repository, arguments.source_sha)
     eqiora_binary = _regular_file(
         arguments.eqiora_binary, "eqiora binary", executable=True
     )
