@@ -27,11 +27,8 @@ MARKERS = ('class="katex-display"', 'class="katex-mathml"', 'class="katex-html"'
 
 class Build(NamedTuple):
     status: int; log: bytes; source: Path; output: Path; publication: Path; pristine: dict[str, tuple[object, ...]]
-
 def _sha256(value: bytes) -> str: return hashlib.sha256(value).hexdigest()
-
 def _metadata_matches(size: int, digest: str, benign: bool) -> bool: return (size, digest) == ((56, BENIGN_SHA256) if benign else (51, INVALID_SHA256))
-
 def _formula_delta(benign: bytes, invalid: bytes) -> bool: return benign.count(b"1}{2}") == 1 and benign.replace(b"1}{2}", b"", 1) == invalid
 
 def _sentinel_line_counts(benign: bytes, invalid: bytes) -> bool: return benign.splitlines().count(b"\\frac{") == 0 and invalid.splitlines().count(b"\\frac{") == 1
@@ -152,9 +149,12 @@ class InvalidMathOracleTests(unittest.TestCase):
             self._assert_sole_sentinel(benign, BENIGN)
             html = (benign.output / ROUTE).read_text(encoding="utf-8")
             self.assertTrue(_benign_route(html))
+            self.assertFalse(_sentinel_line_counts(BENIGN + b"\\frac{\n", INVALID))
+            self.assertFalse(_sentinel_line_counts(BENIGN, INVALID + b"\\frac{\n"))
             self.assertFalse(_benign_route(None))
             for marker in MARKERS:
                 self.assertFalse(_benign_route(html.replace(marker, "", 1)), marker)
+                self.assertFalse(_benign_route(html.replace(marker, marker * 2, 1)), marker)
             invalid = self._build(root / "02-invalid", ACCEPTED, INVALID)
             self._assert_sole_sentinel(invalid, INVALID)
             self.assertTrue(_targeted_log(invalid.status, invalid.log, invalid.publication))
