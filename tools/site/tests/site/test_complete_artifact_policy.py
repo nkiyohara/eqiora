@@ -771,6 +771,15 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             ),
             "unterminated CSS url()",
         )
+        reject(
+            "escaped closing quote rejects an escape-blind CSS URL scanner",
+            lambda artifact: _replace(
+                artifact / stylesheet,
+                f'url("{SAFE_SVG_DATA}")',
+                f'url("{SAFE_SVG_DATA}\\")',
+            ),
+            "unterminated CSS url()",
+        )
 
         def css_url_cap(artifact: Path) -> None:
             value = "".join(
