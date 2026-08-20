@@ -43,8 +43,12 @@ class BrowserSupplyTests(unittest.TestCase):
         payload = "".join(f"\\x{byte:02x}" for byte in stdout)
         _write(
             source,
+            "#include <fcntl.h>\n"
+            "#include <stdlib.h>\n"
             "#include <unistd.h>\n"
             "int main(void) {\n"
+            '  const char *marker = getenv("EQIORA_TEST_BROWSER_MARKER");\n'
+            '  if (marker) { int fd = open(marker, O_WRONLY | O_CREAT | O_APPEND, 0600); if (fd >= 0) { write(fd, "x", 1); close(fd); } }\n'
             f'  static const char output[] = "{payload}";\n'
             "  return write(1, output, sizeof(output) - 1) < 0;\n"
             "}\n",
@@ -151,13 +155,19 @@ class BrowserSupplyTests(unittest.TestCase):
         expected_sha256: str,
         expected_bytes: int,
         environment: dict[str, str],
-    ) -> tuple[list[str], list[tuple[str, ...]]]:
+    ) -> tuple[list[str], list[tuple[str, str, int]]]:
         real_run = subprocess.run
-        attempted: list[tuple[str, ...]] = []
+        attempted: list[tuple[str, str, int]] = []
 
         def observe(command, *args, **kwargs):
-            if command and os.fspath(command[0]) == str(executable.resolve()):
-                attempted.append(tuple(os.fspath(item) for item in command))
+            argv = tuple(os.fspath(item) for item in command)
+            resolver = len(argv) == 3 and argv[:2] == ("node", "-e")
+            resolver = resolver and "chromium.executablePath()" in argv[2]
+            if argv and not resolver:
+                program = Path(argv[0]).resolve()
+                attempted.append(
+                    (str(program), checker.sha256(program), program.stat().st_size)
+                )
             return real_run(command, *args, **kwargs)
 
         with mock.patch.object(checker.subprocess, "run", side_effect=observe):
@@ -184,6 +194,8 @@ class BrowserSupplyTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory(dir=SCRATCH_ROOT) as temporary:
             _, environment, executable = self._layout(Path(temporary))
+            marker = Path(temporary) / "browser-executed"
+            environment["EQIORA_TEST_BROWSER_MARKER"] = str(marker)
             self.assertTrue(executable.is_file())
             self.assertFalse(executable.is_symlink())
             self.assertTrue(os.access(executable, os.X_OK))
@@ -199,15 +211,24 @@ class BrowserSupplyTests(unittest.TestCase):
                 environment,
             )
             self.assertEqual(errors, [], "\n".join(errors))
-            self.assertEqual(attempted, [(str(executable.resolve()), "--version")])
+            self.assertEqual(
+                attempted,
+                [
+                    (
+                        str(executable.resolve()),
+                        checker.sha256(executable),
+                        executable.stat().st_size,
+                    )
+                ],
+            )
+            self.assertEqual(marker.read_bytes(), b"x")
 
         def missing(path: Path, environment: dict[str, str]) -> None:
             path.unlink()
 
         def wrong_revision(path: Path, environment: dict[str, str]) -> None:
-            replacement = path.parents[2] / "chromium-9999/chrome-linux64/chrome"
-            replacement.parent.mkdir(parents=True)
-            path.rename(replacement)
+            replacement = path.with_name("chrome-version-probe")
+            shutil.copy2(path, replacement)
             environment["EQIORA_TEST_BROWSER_PATH"] = str(replacement)
 
         def wrong_browser_version(path: Path, environment: dict[str, str]) -> None:
@@ -361,6 +382,7 @@ class BrowserSupplyTests(unittest.TestCase):
                     f"B-01 mutant missed its causal gate: {label}: {errors}",
                 )
                 if label in {
+                    "wrong revision",
                     "online/offline identity disagreement",
                     "wrong expected byte count",
                     "non-executable file",
