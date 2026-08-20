@@ -212,6 +212,7 @@ EXECUTION_CONTROL_LABEL = re.compile(
     re.IGNORECASE,
 )
 REQUIRED_TRIGGER_PATTERNS = {
+    ".gitattributes",
     ".github/workflows/pages.yml",
     ".cargo/config.toml",
     "CHANGELOG.md",
@@ -263,6 +264,7 @@ REQUIRED_TRIGGER_PATTERNS = {
     "verify/**",
 }
 TRIGGER_REPRESENTATIVES = {
+    "archive attributes": ".gitattributes",
     "workflow": ".github/workflows/pages.yml",
     "site config": "docs/site/astro.config.mjs",
     "old social deletion": "docs/site/assets/social-card.svg",
@@ -558,6 +560,8 @@ def check_browser_supply(
             )
     except OSError as error:
         errors.append(f"full Chromium executable cannot be read: {error}")
+        return errors
+    if errors:
         return errors
     version_environment = {**supplied_environment, "LC_ALL": "C", "TZ": "UTC"}
     try:
@@ -894,6 +898,8 @@ def check_workflow_text(text: str) -> list[str]:
     if missing:
         errors.append(f"Pages path filters omit exact authorities: {missing}")
     for label, changed in TRIGGER_REPRESENTATIVES.items():
+        if changed == ".gitattributes" and changed in missing:
+            continue
         if not selected_by_paths(pull, changed):
             errors.append(f"Pages does not select representative {label}: {changed}")
     if selected_by_paths(pull, "notes/unrelated.txt"):
@@ -909,6 +915,58 @@ def check_workflow_text(text: str) -> list[str]:
             errors.append(
                 f"Pages workflow uses forbidden supply substitution {token!r}"
             )
+    archive = text.find(DIRECT_SOURCE_ARCHIVE_COMMAND)
+    source_export = text.find('echo "EQIORA_SITE_SOURCE_ROOT=', archive + 1)
+    before_archive = (
+        'git ls-tree -r "$GITHUB_SHA"',
+        "source_links=",
+        'case "$source_links" in',
+        'if test -n "$source_links"; then',
+        EXACT_TREE_LINK_COMMAND,
+        'git ls-tree "$GITHUB_SHA" -- AGENTS.md',
+        'git cat-file blob "$GITHUB_SHA:AGENTS.md"',
+    )
+    after_archive = (
+        'if test -n "$source_links"; then',
+        '\n            test -L "$scratch/source/CLAUDE.md"\n',
+        EXACT_EXTRACTED_LINK_COMMAND,
+        'cmp "$scratch/source/AGENTS.md" "$scratch/expected-AGENTS.md"',
+        'elif test -e "$scratch/source/CLAUDE.md" || test -L "$scratch/source/CLAUDE.md"; then',
+    )
+    before_positions = [text.find(token) for token in before_archive]
+    after_positions = [text.find(token, archive + 1) for token in after_archive]
+    archive_window = text[archive:source_export] if 0 <= archive < source_export else ""
+    archive_bound = (
+        archive >= 0
+        and source_export > archive
+        and all(0 <= position < archive for position in before_positions)
+        and before_positions == sorted(before_positions)
+        and all(archive < position < source_export for position in after_positions)
+        and after_positions == sorted(after_positions)
+        and 'unlink "$scratch/source/CLAUDE.md"' not in archive_window
+        and 'rm -f "$scratch/source/CLAUDE.md"' not in archive_window
+    )
+    if not archive_bound:
+        errors.append("Pages archive must bind the tracked link after extraction")
+    browser_admission = (
+        'expected_browser_sha256="0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"',
+        'expected_browser_bytes="290614600"',
+        'browser_sha256="$(sha256sum "$browser_path" | cut -d \' \' -f 1)"',
+        'browser_bytes="$(stat -c %s "$browser_path")"',
+        'test "$browser_sha256" = "$expected_browser_sha256"',
+        'test "$browser_bytes" = "$expected_browser_bytes"',
+        'EQIORA_SITE_BROWSER_SHA256="$expected_browser_sha256"',
+        'EQIORA_SITE_BROWSER_BYTES="$expected_browser_bytes"',
+        "export EQIORA_SITE_BROWSER_SHA256 EQIORA_SITE_BROWSER_BYTES",
+        "check_site.py browser-supply",
+        'version_hex="$("$browser_path" --version | od -An -tx1 | tr -d \'[:space:]\')"',
+        'test "$version_hex" = "$expected_browser_version_hex"',
+    )
+    browser_positions = [text.find(token) for token in browser_admission]
+    if any(
+        position < 0 for position in browser_positions
+    ) or browser_positions != sorted(browser_positions):
+        errors.append("Pages browser identity must precede execution and propagation")
     ordered = (
         'git ls-tree -r "$GITHUB_SHA"',
         DIRECT_SOURCE_ARCHIVE_COMMAND,
