@@ -70,6 +70,17 @@ captured logs and failures are reported in deterministic plan order. An absent
 tool, unsupported environment, failed child process, malformed manifest, or
 unknown path never becomes a silent pass.
 
+Each nonempty plan of at most 32 commands atomically owns one of exactly two
+home-backed log slots and announces its unique final run path before any child.
+Every planned command takes a 16 MiB raw-log charge, bounding one run at 512
+MiB and the two-slot authority at 64 files and 1 GiB. A started command keeps
+its exact combined stdout/stderr order; output beyond 16 MiB is drained but is
+an explicit incomplete failure rather than a complete truncated log. Complete
+success deletes only its own slot. Child, launch, overflow, aggregate, or
+reporting failure retains that exact slot. A separate forensic role must copy
+and seal the announced exact-path bytes before separately authorized cleanup;
+the scheduler never rotates, evicts, ages, or reuses a retained failure.
+
 The default budget uses the current host's detected CPUs and available memory,
 with no GPU admission unless `EQIORA_LOCAL_VERIFY_GPU_SLOTS` declares it. A
 constrained or shared machine can set `--cpu-slots`, `--memory-mib`, and

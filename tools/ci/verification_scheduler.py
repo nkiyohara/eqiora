@@ -5,37 +5,30 @@ from __future__ import annotations
 import hashlib
 import os
 import shlex
+import shutil
+import stat
 import subprocess
 import tempfile
+import threading
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from resource_scheduler import (
-    ResourceBudget,
-    ResourceRequest,
-    ScheduledTask,
-    run_tasks,
-)
+from resource_scheduler import ResourceBudget, ResourceRequest, ScheduledTask, run_tasks  # fmt: skip
 
 
 ROOT = Path(__file__).resolve().parents[2]
 _CLI_FILESYSTEM_SOCKET_SUFFIX = Path("eqiora-cli-filesystem-4294967295-8") / "socket"
 _UNIX_PATHNAME_MAX = 107
+_MAX_COMMANDS = 32
+_MAX_LOG_BYTES = 16 * 1024 * 1024
+_RUN_SLOT_NAMES = ("slot-0", "slot-1")
 
 
-# The Cargo test profile the hosted workflow runs under. A local gate that does
-# not reproduce it is not measuring the thing CI will measure: the registered
-# preconditioner-scaling case takes 1150.8 s at the default `opt-level = 0` and
-# 64.5 s at `opt-level = 1`, so a local run can be eighteen times slower than
-# the hosted one and still be reported as the same evidence.
-#
-# Apply this to every planned command. The variables are test-profile scoped,
-# so other commands ignore them, while Clippy and tests can share artifacts.
-# `tools/ci/tests/test_ci_contracts.py` fails if this single value stops matching
-# `.github/workflows/ci.yml`.
+# Keep the local test profile identical to the hosted workflow. The CI contract
+# test owns this mapping, and all planned commands receive it.
 HOSTED_TEST_PROFILE = {
     "CARGO_PROFILE_TEST_DEBUG": "0",
     "CARGO_PROFILE_TEST_DEBUG_ASSERTIONS": "true",
@@ -79,26 +72,11 @@ def _cpu_request(maximum: int) -> int:
 
 
 REPOSITORY_LANE = VerificationLane("repository", ResourceRequest(1, 512))
-ROOT_CARGO_LANE = VerificationLane(
-    "root-cargo",
-    ResourceRequest(_cpu_request(4), 8 * 1024, locks=("root-cargo",)),
-)
-PYTHON_LANE = VerificationLane(
-    "python-candidate",
-    ResourceRequest(_cpu_request(2), 4 * 1024, locks=("python-candidate",)),
-)
-STUDIO_LANE = VerificationLane(
-    "studio",
-    ResourceRequest(_cpu_request(2), 4 * 1024, locks=("studio",)),
-)
-CUBECL_LANE = VerificationLane(
-    "cubecl",
-    ResourceRequest(_cpu_request(2), 4 * 1024, locks=("cubecl",)),
-)
-DEPENDENCY_POLICY_LANE = VerificationLane(
-    "dependency-policy",
-    ResourceRequest(1, 512, locks=("cargo-deny",)),
-)
+ROOT_CARGO_LANE = VerificationLane("root-cargo", ResourceRequest(_cpu_request(4), 8 * 1024, locks=("root-cargo",)))  # fmt: skip
+PYTHON_LANE = VerificationLane("python-candidate", ResourceRequest(_cpu_request(2), 4 * 1024, locks=("python-candidate",)))  # fmt: skip
+STUDIO_LANE = VerificationLane("studio", ResourceRequest(_cpu_request(2), 4 * 1024, locks=("studio",)))  # fmt: skip
+CUBECL_LANE = VerificationLane("cubecl", ResourceRequest(_cpu_request(2), 4 * 1024, locks=("cubecl",)))  # fmt: skip
+DEPENDENCY_POLICY_LANE = VerificationLane("dependency-policy", ResourceRequest(1, 512, locks=("cargo-deny",)))  # fmt: skip
 
 
 @dataclass(frozen=True)
@@ -113,11 +91,7 @@ class PlannedCommand:
         prefix = " ".join(f"{key}={shlex.quote(value)}" for key, value in self.env)
         command = shlex.join(self.argv)
         invocation = f"{prefix} {command}" if prefix else command
-        return (
-            invocation
-            if self.cwd == "."
-            else f"(cd {shlex.quote(self.cwd)} && {invocation})"
-        )
+        return invocation if self.cwd == "." else f"(cd {shlex.quote(self.cwd)} && {invocation})"  # fmt: skip
 
 
 @dataclass(frozen=True)
@@ -141,9 +115,7 @@ class VerificationFailure(RuntimeError):
     def __init__(self, failures: Sequence[CommandFailure]) -> None:
         self.failures = tuple(failures)
         summary = ", ".join(self._render_failure(failure) for failure in self.failures)
-        super().__init__(
-            f"{len(self.failures)} verification command(s) failed: {summary}"
-        )
+        super().__init__(f"{len(self.failures)} verification command(s) failed: {summary}")  # fmt: skip
 
     @staticmethod
     def _render_failure(failure: CommandFailure) -> str:
@@ -164,13 +136,112 @@ def default_budget() -> ResourceBudget:
 
 
 def _scratch_base(root: Path, configured: Path | None) -> Path:
+    lexical_home = Path.home().absolute()
+    home = Path.home().resolve(strict=True)
     if configured is not None:
         candidate = configured.expanduser().absolute()
-        if not candidate.resolve().is_relative_to(Path.home().resolve()):
+        resolved = candidate.resolve()
+        if not resolved.is_relative_to(home):
             raise ValueError("scratch root must remain below the home directory")
+        if candidate != resolved:
+            if not candidate.is_relative_to(lexical_home) or home / candidate.relative_to(lexical_home) != resolved:  # fmt: skip
+                raise ValueError("scratch root must use its canonical path")
         return candidate
     fingerprint = hashlib.sha256(str(root.resolve()).encode()).hexdigest()[:16]
-    return Path.home() / ".cache" / "eqiora" / "local-verify" / fingerprint
+    return home / ".cache" / "eqiora" / "local-verify" / fingerprint
+
+
+def _ordinary_directory(path: Path) -> bool:
+    try:
+        return stat.S_ISDIR(path.lstat().st_mode) and path.resolve() == path
+    except (OSError, RuntimeError):
+        return False
+
+
+def _claim_run(base: Path) -> tuple[Path, Path, bool]:
+    if base.resolve() != base:
+        raise ValueError("verification scratch authority must be canonical")
+    base.mkdir(parents=True, exist_ok=True)
+    runs = base / "runs"
+    created_runs = False
+    try:
+        runs.mkdir(mode=0o700)
+        created_runs = True
+    except FileExistsError:
+        pass
+    if not _ordinary_directory(base) or not _ordinary_directory(runs):
+        raise ValueError("verification run authority must be an ordinary directory")
+    slots = tuple(runs / name for name in _RUN_SLOT_NAMES)
+    if any(os.path.lexists(path) and not _ordinary_directory(path) for path in slots):  # fmt: skip
+        raise ValueError("verification run slot has a structural substitution")
+    for slot in slots:
+        try:
+            slot.mkdir(mode=0o700)
+        except FileExistsError:
+            continue
+        slot.chmod(0o700)
+        run = Path(tempfile.mkdtemp(prefix="run-", dir=slot)).resolve(strict=True)
+        run.chmod(0o700)
+        if run.parent != slot or run.parent.parent != runs:
+            raise ValueError("verification run escaped its exact slot")
+        return slot, run, created_runs
+    raise ValueError("no verification log slot is safely available")
+
+
+def _abandon_empty_run(slot: Path, run: Path, created_runs: bool) -> None:
+    run.rmdir()
+    slot.rmdir()
+    if created_runs:
+        slot.parent.rmdir()
+
+
+class _RawLog:
+    def __init__(self, path: Path) -> None:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)  # fmt: skip
+        os.fchmod(descriptor, 0o600)
+        self._output = os.fdopen(descriptor, "wb")
+        self._read, self._write = os.pipe()
+        self._lock = threading.Lock()
+        self.count, self._error = 0, None
+        self._reader = threading.Thread(target=self._drain, daemon=True)
+        self._reader.start()
+
+    def fileno(self) -> int:
+        return self._write
+
+    def write(self, value: bytes) -> int:
+        self._store(value)
+        return len(value)
+
+    def flush(self) -> None:
+        with self._lock:
+            self._output.flush()
+
+    def _store(self, value: bytes) -> None:
+        with self._lock:
+            before = self.count
+            self.count += len(value)
+            if self._error is None and before < _MAX_LOG_BYTES:
+                try:
+                    self._output.write(value[: _MAX_LOG_BYTES - before])
+                except OSError as error:
+                    self._error = error
+
+    def _drain(self) -> None:
+        try:
+            while value := os.read(self._read, 64 * 1024):
+                self._store(value)
+        except OSError as error:
+            self._error = self._error or error
+        finally:
+            os.close(self._read)
+
+    def finish(self) -> None:
+        os.close(self._write)
+        self._reader.join()
+        self._output.close()
+        if self._error is not None:
+            raise self._error
 
 
 def _lane_directory(base: Path, lane: VerificationLane) -> Path:
@@ -271,7 +342,9 @@ def _run_lane(
                 "CARGO_BUILD_JOBS": str(cargo_jobs),
             }
         )
-        with log_paths[index].open("wb") as output:
+        output = _RawLog(log_paths[index])
+        failure: CommandFailure | None = None
+        try:
             try:
                 subprocess.run(
                     item.argv,
@@ -282,19 +355,16 @@ def _run_lane(
                     stderr=subprocess.STDOUT,
                 )
             except subprocess.CalledProcessError as error:
-                return _LaneResult(
-                    ((index, CommandFailure(item, error.returncode)),),
-                    tuple(
-                        skipped_index for skipped_index, _ in commands[position + 1 :]
-                    ),
-                )
+                failure = CommandFailure(item, error.returncode)
             except OSError as error:
-                return _LaneResult(
-                    ((index, CommandFailure(item, None, str(error))),),
-                    tuple(
-                        skipped_index for skipped_index, _ in commands[position + 1 :]
-                    ),
-                )
+                failure = CommandFailure(item, None, str(error))
+        finally:
+            output.finish()
+        if output.count > _MAX_LOG_BYTES:
+            failure = CommandFailure(item, None, f"raw log incomplete: {output.count} bytes exceeds {_MAX_LOG_BYTES}-byte maximum")  # fmt: skip
+        if failure is not None:
+            skipped = tuple(index for index, _ in commands[position + 1 :])
+            return _LaneResult(((index, failure),), skipped)
     return _LaneResult((), ())
 
 
@@ -318,24 +388,16 @@ def _emit_reports(
             print("skipped: an earlier command in this lane failed", flush=True)
 
 
-def run_plan(
-    plan: VerificationPlan,
-    root: Path = ROOT,
-    *,
-    budget: ResourceBudget | None = None,
-    scratch_root: Path | None = None,
-) -> None:
+def run_plan(plan: VerificationPlan, root: Path = ROOT, *, budget: ResourceBudget | None = None, scratch_root: Path | None = None) -> None:  # fmt: skip
     admitted_budget = budget or default_budget()
+    if not plan.commands or len(plan.commands) > _MAX_COMMANDS:
+        raise ValueError(
+            f"verification plan must contain 1 through {_MAX_COMMANDS} commands"
+        )
     lanes = _validate_lanes(plan, admitted_budget)
-    if not lanes:
-        return
 
     base = _scratch_base(root, scratch_root)
-    tmp_authority = (
-        base
-        if scratch_root is not None
-        else Path.home() / ".cache" / "eqiora" / "local-verify-tmp"
-    )
+    tmp_authority = base if scratch_root is not None else Path.home().resolve() / ".cache" / "eqiora" / "local-verify-tmp"  # fmt: skip
 
     def admit_lane_tmp(candidate: Path) -> None:
         if not candidate.is_absolute() or not candidate.is_relative_to(tmp_authority):
@@ -348,41 +410,27 @@ def run_plan(
                 f"maximum is {_UNIX_PATHNAME_MAX} bytes"
             )
 
-    cargo_jobs = cpu_allocations(
-        tuple(lane for lane, _commands in lanes), admitted_budget
-    )
+    cargo_jobs = cpu_allocations(tuple(lane for lane, _commands in lanes), admitted_budget)  # fmt: skip
 
-    with ExitStack() as lane_scopes:
-        lane_tmp_directories = {
-            lane.name: lane_scopes.enter_context(
-                _lane_tmp_scope(tmp_authority, admit_lane_tmp)
-            )
-            for lane, _commands in lanes
-        }
+    slot, run_path, created_runs = _claim_run(base.resolve())
+    print(f"==> verification log run: {run_path}", flush=True)
+    reserved = False
+    try:
+        with ExitStack() as lane_scopes:
+            lane_tmp_directories = {lane.name: lane_scopes.enter_context(_lane_tmp_scope(tmp_authority, admit_lane_tmp)) for lane, _commands in lanes}  # fmt: skip
 
-        run_parent = base / "runs"
-        run_parent.mkdir(parents=True, exist_ok=True)
-        lane_directories: dict[str, Path] = {}
-        for lane, _commands in lanes:
-            lane_root = _lane_directory(base, lane)
-            (lane_root / "cargo-target").mkdir(parents=True, exist_ok=True)
-            lane_directories[lane.name] = lane_root
+            lane_directories: dict[str, Path] = {}
+            for lane, _commands in lanes:
+                lane_root = _lane_directory(base, lane)
+                (lane_root / "cargo-target").mkdir(parents=True, exist_ok=True)
+                lane_directories[lane.name] = lane_root
+            reserved = True
 
-        with tempfile.TemporaryDirectory(
-            prefix="run-", dir=run_parent
-        ) as run_directory:
-            run_path = Path(run_directory)
-            log_paths = {
-                index: run_path / f"{index:04d}.log"
-                for index, _item in enumerate(plan.commands)
-            }
+            log_paths = {index: run_path / f"{index:04d}.log" for index, _item in enumerate(plan.commands)}  # fmt: skip
             results: list[tuple[int, _LaneResult]] = []
             unexpected: list[tuple[int, Exception]] = []
 
-            print(
-                "==> starting lanes: " + ", ".join(lane.name for lane, _ in lanes),
-                flush=True,
-            )
+            print("==> starting lanes: " + ", ".join(lane.name for lane, _ in lanes), flush=True)  # fmt: skip
             tasks = tuple(
                 ScheduledTask(
                     lane.name,
@@ -406,9 +454,7 @@ def run_plan(
                     assert outcome.value is not None
                     results.append((order, outcome.value))
 
-            skipped = frozenset(
-                index for _order, result in results for index in result.skipped
-            )
+            skipped = frozenset(index for _order, result in results for index in result.skipped)  # fmt: skip
             _emit_reports(plan, log_paths, skipped)
             if unexpected:
                 raise min(unexpected, key=lambda item: item[0])[1]
@@ -419,9 +465,15 @@ def run_plan(
                         indexed_failure
                         for _order, result in results
                         for indexed_failure in result.failures
-                    ),
+                    ),  # fmt: skip
                     key=lambda item: item[0],
                 )
             )
             if failures:
                 raise VerificationFailure(failures)
+    except BaseException:
+        if not reserved:
+            _abandon_empty_run(slot, run_path, created_runs)
+        raise
+    shutil.rmtree(run_path)
+    slot.rmdir()
