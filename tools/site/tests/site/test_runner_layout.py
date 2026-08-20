@@ -9,7 +9,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fixture import REPOSITORY, SOURCE_SHA, checker
+from fixture import (
+    REPOSITORY,
+    checker,
+    git_object_authority,
+    historical_git,
+    pinned_node_path,
+)
 
 SCRATCH_ROOT = Path.home() / ".cache/eqiora/site-oracle-tests"
 BASIS_SHA = "19968da984c16e718baeb9faa5aae04260896c29"
@@ -103,6 +109,7 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
 
     def _environment(self, root: Path, scratch: Path) -> dict[str, str]:
         scratch = scratch.resolve()
+        authority = git_object_authority()
         environment = os.environ.copy()
         environment.update(
             {
@@ -111,14 +118,15 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
                 "npm_config_offline": "true",
                 "CARGO_NET_OFFLINE": "true",
                 "UV_OFFLINE": "1",
-                "PATH": f"{root / 'fixture-bin'}{os.pathsep}{os.environ['PATH']}",
+                "PATH": f"{root / 'fixture-bin'}{os.pathsep}{pinned_node_path(root)}",
                 "EQIORA_API_SCRATCH": str(scratch),
                 "EQIORA_SITE_SOURCE_ROOT": str(scratch / "source"),
                 "EQIORA_SITE_ASTRO_OUT_DIR": str(scratch / "astro"),
                 "EQIORA_SITE_RUSTDOC_TARGET": str(scratch / "rustdoc-target"),
                 "EQIORA_SITE_RUSTDOC_STAGE": str(scratch / "rustdoc-stage"),
                 "EQIORA_SITE_ARTIFACT": str(scratch / "build/site"),
-                "EQIORA_SITE_SOURCE_SHA": SOURCE_SHA,
+                "EQIORA_SITE_SOURCE_SHA": authority.head,
+                "EQIORA_SITE_GIT_OBJECT_REPOSITORY": str(authority.root),
                 "PLAYWRIGHT_BROWSERS_PATH": str(self.browser_root),
                 "EQIORA_SITE_BROWSER_SHA256": BROWSER_SHA256,
                 "EQIORA_SITE_BROWSER_BYTES": str(BROWSER_BYTES),
@@ -168,12 +176,7 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         source.mkdir()
         archive = root / "source.tar"
         with archive.open("wb") as target:
-            subprocess.run(
-                ["git", "archive", "--format=tar", BASIS_SHA],
-                cwd=REPOSITORY,
-                check=True,
-                stdout=target,
-            )
+            target.write(historical_git("archive", "--format=tar", BASIS_SHA))
         subprocess.run(["tar", "-xf", str(archive), "-C", str(source)], check=True)
         self.assertTrue(stat.S_ISLNK((source / "CLAUDE.md").lstat().st_mode))
         self.assertFalse((source / "AGENTS.md").is_symlink())
@@ -185,12 +188,7 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
     def _assert_frozen_basis_archive(self, root: Path) -> None:
         archive = root / "basis.tar"
         with archive.open("wb") as target:
-            subprocess.run(
-                ["git", "archive", "--format=tar", BASIS_SHA],
-                cwd=REPOSITORY,
-                check=True,
-                stdout=target,
-            )
+            target.write(historical_git("archive", "--format=tar", BASIS_SHA))
         self.assertEqual(archive.stat().st_size, 34_088_960)
         self.assertEqual(
             hashlib.sha256(archive.read_bytes()).hexdigest(),
@@ -233,20 +231,11 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         )
 
     def test_00_s01_exact_archive_and_optional_link_pass_before_mutants(self) -> None:
-        tree_identity = subprocess.run(
-            ["git", "rev-parse", f"{BASIS_SHA}^{{tree}}"],
-            cwd=REPOSITORY,
-            check=True,
-            stdout=subprocess.PIPE,
-            text=True,
-        ).stdout.strip()
+        tree_identity = (
+            historical_git("rev-parse", f"{BASIS_SHA}^{{tree}}").decode().strip()
+        )
         self.assertEqual(tree_identity, BASIS_TREE)
-        tree = subprocess.run(
-            ["git", "ls-tree", "-r", "-z", BASIS_SHA],
-            cwd=REPOSITORY,
-            check=True,
-            stdout=subprocess.PIPE,
-        ).stdout.split(b"\0")
+        tree = historical_git("ls-tree", "-r", "-z", BASIS_SHA).split(b"\0")
         links = [entry for entry in tree if entry.startswith(b"120000 ")]
         self.assertEqual(
             links,
@@ -256,18 +245,8 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
             b"100644 blob 61c1bbede492aef4a9c85fa364d031e012621809\tAGENTS.md",
             tree,
         )
-        payload = subprocess.run(
-            ["git", "show", f"{BASIS_SHA}:CLAUDE.md"],
-            cwd=REPOSITORY,
-            check=True,
-            stdout=subprocess.PIPE,
-        ).stdout
-        target = subprocess.run(
-            ["git", "show", f"{BASIS_SHA}:AGENTS.md"],
-            cwd=REPOSITORY,
-            check=True,
-            stdout=subprocess.PIPE,
-        ).stdout
+        payload = historical_git("show", f"{BASIS_SHA}:CLAUDE.md")
+        target = historical_git("show", f"{BASIS_SHA}:AGENTS.md")
         self.assertEqual(payload, b"AGENTS.md")
         self.assertEqual(
             hashlib.sha256(payload).hexdigest(),

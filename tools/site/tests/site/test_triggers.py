@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-from fixture import REPOSITORY, _workflow, checker
+from fixture import (
+    REPOSITORY,
+    _workflow,
+    checker,
+    git_object_authority,
+    git_read_environment,
+    historical_git,
+)
 
 
 BASIS_SHA = "68c9c2fe245ac52cc20dcf5a65a2455de507f0dc"
@@ -29,12 +35,13 @@ def omitted(token: str) -> str:
 
 
 def historical_workflow() -> str:
-    def git(*arguments: str) -> bytes:
-        return subprocess.check_output(["git", *arguments], cwd=REPOSITORY)
-
-    tree = git("rev-parse", f"{BASIS_SHA}^{{tree}}").decode().strip()
-    blob = git("rev-parse", f"{BASIS_SHA}:.github/workflows/pages.yml").decode().strip()
-    data = git("cat-file", "blob", HISTORY_BLOB)
+    tree = historical_git("rev-parse", f"{BASIS_SHA}^{{tree}}").decode().strip()
+    blob = (
+        historical_git("rev-parse", f"{BASIS_SHA}:.github/workflows/pages.yml")
+        .decode()
+        .strip()
+    )
+    data = historical_git("cat-file", "blob", HISTORY_BLOB)
     digest = hashlib.sha256(data).hexdigest()
     actual = (tree, blob, len(data), data.count(b"\n"), digest)
     if actual != (HISTORY_TREE, HISTORY_BLOB, 30_202, 642, HISTORY_DIGEST):
@@ -52,17 +59,18 @@ def workflow(pull: list[str], push: list[str]) -> str:
 
 
 def archive_case(root: Path, repo: Path, revision: str, mutation: str = ":") -> Path:
+    root.mkdir(parents=True, exist_ok=True)
     source, sentinel = root / "source", root / "source-used"
     script = r"""set -euo pipefail
-source_links="$(git ls-tree -r "$REVISION" | awk '$1 == "120000" { print $4 }')"
+source_links="$(git -C "$GIT_REPOSITORY" ls-tree -r "$REVISION" | awk '$1 == "120000" { print $4 }')"
 case "$source_links" in ''|'CLAUDE.md') ;; *) exit 1 ;; esac
 if test -n "$source_links"; then
-  test "$(git cat-file blob "$REVISION:CLAUDE.md" | sha256sum | cut -d ' ' -f 1)" = "a54ff182c7e8acf56acfd6e4b9c3ff41e2c41a31c9b211b2deb9df75d9a478f9"
-  git ls-tree "$REVISION" -- AGENTS.md | grep -F '100644 blob'
-  git cat-file blob "$REVISION:AGENTS.md" > "$EXPECTED"
+  test "$(git -C "$GIT_REPOSITORY" cat-file blob "$REVISION:CLAUDE.md" | sha256sum | cut -d ' ' -f 1)" = "a54ff182c7e8acf56acfd6e4b9c3ff41e2c41a31c9b211b2deb9df75d9a478f9"
+  git -C "$GIT_REPOSITORY" ls-tree "$REVISION" -- AGENTS.md | grep -F '100644 blob'
+  git -C "$GIT_REPOSITORY" cat-file blob "$REVISION:AGENTS.md" > "$EXPECTED"
 fi
 mkdir -p "$SOURCE"
-git archive --format=tar "$REVISION" | tar -xf - -C "$SOURCE"
+git -C "$GIT_REPOSITORY" archive --format=tar "$REVISION" | tar -xf - -C "$SOURCE"
 eval "$MUTATION"
 if test -n "$source_links"; then
   test -L "$SOURCE/CLAUDE.md"
@@ -74,7 +82,8 @@ fi
 printf source-used > "$SENTINEL"
 """
     environment = {
-        **os.environ,
+        **git_read_environment(),
+        "GIT_REPOSITORY": str(repo),
         "REVISION": revision,
         "SOURCE": str(source),
         "EXPECTED": str(root / "expected-AGENTS.md"),
@@ -82,7 +91,7 @@ printf source-used > "$SENTINEL"
         "MUTATION": mutation,
     }
     command = ["bash", "-c", script]
-    subprocess.run(command, cwd=repo, env=environment, capture_output=True)
+    subprocess.run(command, cwd=root, env=environment, capture_output=True)
     return sentinel
 
 
@@ -96,7 +105,7 @@ class TriggerContractTests(unittest.TestCase):
     def test_00_real_linked_and_genuine_no_link_archives_reach_source_use(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.home() / ".cache/eqiora") as value:
             root = Path(value)
-            sentinel = archive_case(root, REPOSITORY, BASIS_SHA)
+            sentinel = archive_case(root, git_object_authority().root, BASIS_SHA)
             self.assertEqual(sentinel.read_bytes(), b"source-used")
             repository = root / "no-link"
             subprocess.run(["git", "init", "-q", str(repository)], check=True)

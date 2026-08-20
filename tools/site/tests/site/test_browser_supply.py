@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from fixture import REPOSITORY, SOURCE_SHA, checker, pinned_node_path
+from fixture import REPOSITORY, SOURCE_SHA, checker, historical_git, pinned_node_path
 
 
 PLAYWRIGHT_VERSION = "1.62.1"
@@ -186,12 +186,7 @@ class BrowserSupplyTests(unittest.TestCase):
         return errors, attempted
 
     def test_00_b01_full_browser_positive_precedes_identity_mutants(self) -> None:
-        lock_bytes = subprocess.run(
-            ["git", "show", f"{BASIS_SHA}:docs/site/package-lock.json"],
-            cwd=REPOSITORY,
-            check=True,
-            stdout=subprocess.PIPE,
-        ).stdout
+        lock_bytes = historical_git("show", f"{BASIS_SHA}:docs/site/package-lock.json")
         self.assertEqual(len(lock_bytes), 254_297)
         self.assertEqual(
             hashlib.sha256(lock_bytes).hexdigest(),

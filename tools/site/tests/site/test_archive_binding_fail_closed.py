@@ -9,7 +9,13 @@ import unittest
 from functools import cache
 from pathlib import Path
 
-from fixture import REPOSITORY, checker
+from fixture import (
+    REPOSITORY,
+    checker,
+    git_object_authority,
+    git_read_environment,
+    historical_git,
+)
 
 
 BASIS = "5d2a9bef58c2df32cd6b14c5b6dd876beac7144f"
@@ -46,10 +52,6 @@ SAFE_SEQUENCE = f"""            {GUARD}
 """
 
 
-def git(*arguments: str, repository: Path = REPOSITORY) -> bytes:
-    return subprocess.check_output(["git", *arguments], cwd=repository)
-
-
 @cache
 def workflows() -> tuple[str, str, bytes]:
     def require(actual, expected) -> None:
@@ -60,18 +62,21 @@ def workflows() -> tuple[str, str, bytes]:
         return len(data), data.count(b"\n"), hashlib.sha256(data).hexdigest()
 
     def resolve(path: str) -> bytes:
-        return git("rev-parse", f"{BASIS}:{path}").strip()
+        return historical_git("rev-parse", f"{BASIS}:{path}").strip()
 
-    workflow = git("cat-file", "blob", WORKFLOW_BLOB)
-    target = git("cat-file", "blob", TARGET_BLOB)
-    require(git("rev-parse", f"{BASIS}^{{tree}}").strip(), BASIS_TREE.encode())
+    workflow = historical_git("cat-file", "blob", WORKFLOW_BLOB)
+    target = historical_git("cat-file", "blob", TARGET_BLOB)
+    require(
+        historical_git("rev-parse", f"{BASIS}^{{tree}}").strip(),
+        BASIS_TREE.encode(),
+    )
     require(resolve(".github/workflows/pages.yml"), WORKFLOW_BLOB.encode())
     require(identity(workflow), (30_567, 651, WORKFLOW_SHA))
     require(resolve("CLAUDE.md"), LINK_BLOB.encode())
     require(resolve("AGENTS.md"), TARGET_BLOB.encode())
-    entries = git("ls-tree", BASIS, "--", "AGENTS.md", "CLAUDE.md").split()
+    entries = historical_git("ls-tree", BASIS, "--", "AGENTS.md", "CLAUDE.md").split()
     require((entries[0], entries[4]), (b"100644", b"120000"))
-    require(git("cat-file", "blob", LINK_BLOB), b"AGENTS.md")
+    require(historical_git("cat-file", "blob", LINK_BLOB), b"AGENTS.md")
     require(identity(target), (12_408, 200, TARGET_SHA))
     text = workflow.decode("utf-8")
     return text, replace(text, OLD_OPTIONAL, SAFE_SEQUENCE), target
@@ -97,16 +102,26 @@ def run_case(text: str, linked: bool = True, enforce: bool = True):
         run(["git", "init", "-q", str(repo)], check=True)
         command = ["git", "-C", str(repo)]
         if linked:
-            fetch = [*command, "fetch", "-q", "--no-tags", str(REPOSITORY), BASIS]
-            run(fetch, check=True)
-            run([*command, "checkout", "-q", "--detach", "FETCH_HEAD"], check=True)
+            authority = git_object_authority()
+            fetch = [*command, "fetch", "-q", "--no-tags", str(authority.root), BASIS]
+            git_environment = git_read_environment()
+            run(fetch, check=True, env=git_environment)
+            run(
+                [*command, "checkout", "-q", "--detach", "FETCH_HEAD"],
+                check=True,
+                env=git_environment,
+            )
         else:
             (repo / "AGENTS.md").write_text("genuine no-link tree\n", encoding="utf-8")
             run([*command, "add", "AGENTS.md"], check=True)
             command += ["-c", "user.name=oracle"]
             command += ["-c", "user.email=oracle@example.invalid"]
             run([*command, "commit", "-qm", "no link"], check=True)
-        revision = git("rev-parse", "HEAD", repository=repo).decode().strip()
+        revision = (
+            subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"])
+            .decode()
+            .strip()
+        )
         lines = text.splitlines(keepends=True)
         values = [" ".join(line.split()) for line in lines]
         start = values.index(START)
