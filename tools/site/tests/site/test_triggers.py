@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from fixture import checker
+from fixture import REPOSITORY, checker
 
 
 def workflow(pull: list[str], push: list[str]) -> str:
@@ -22,16 +22,34 @@ jobs:
     steps:
       - uses: actions/checkout@{"1" * 40}
       - run: |
-          echo ubuntu-24.04 eqiora-pw-1.62.1-r1234
-          npx playwright install --with-deps --only-shell chromium
-          echo 'HeadlessChrome 151.0.7922.34'
-          unshare --net sh -c 'ip link set lo up; setpriv true'
-          export npm_config_offline=true CARGO_NET_OFFLINE=true UV_OFFLINE=1
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           scratch="$RUNNER_TEMP/eqiora-site.fixture"
           mkdir -p "$scratch/source"
+          git ls-tree -r "$GITHUB_SHA" > "$scratch/source-tree"
+          source_links="$(awk '$1 == "120000" {{ print $4 }}' "$scratch/source-tree")"
+          case "$source_links" in ''|'CLAUDE.md') ;; *) exit 1 ;; esac
+          if test -n "$source_links"; then
+            test "$({checker.EXACT_TREE_LINK_COMMAND})" = {checker.EXACT_LINK_PAYLOAD_SHA256}
+            git ls-tree "$GITHUB_SHA" -- AGENTS.md | grep -F '100644 blob'
+            git cat-file blob "$GITHUB_SHA:AGENTS.md" > "$scratch/expected-AGENTS.md"
+          fi
           git archive --format=tar "$GITHUB_SHA" | tar -xf - -C "$scratch/source"
+          if test -L "$scratch/source/CLAUDE.md"; then
+            test "$({checker.EXACT_EXTRACTED_LINK_COMMAND})" = {checker.EXACT_LINK_PAYLOAD_SHA256}
+            cmp "$scratch/source/AGENTS.md" "$scratch/expected-AGENTS.md"
+          fi
           echo "EQIORA_SITE_SOURCE_ROOT=$scratch/source"
+          echo ubuntu-24.04 eqiora-pw-1.62.1-r1234
+          npx playwright install --with-deps chromium
+          browser_path="$(node -e 'require("playwright").chromium.executablePath()')"
+          echo chromium-1234/chrome-linux64/chrome
+          EQIORA_SITE_BROWSER_SHA256="$(sha256sum "$browser_path" | cut -d ' ' -f 1)"
+          EQIORA_SITE_BROWSER_BYTES="$(stat -c %s "$browser_path")"
+          export EQIORA_SITE_BROWSER_SHA256 EQIORA_SITE_BROWSER_BYTES
+          echo {checker.FULL_CHROMIUM_VERSION_STDOUT_HEX}
+          python3 tools/site/check_site.py browser-supply --site-root docs/site --browser-cache "$PLAYWRIGHT_BROWSERS_PATH" --expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256" --expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"
+          unshare --net sh -c 'ip link set lo up; setpriv true'
+          export npm_config_offline=true CARGO_NET_OFFLINE=true UV_OFFLINE=1
 """
 
 
@@ -42,6 +60,11 @@ class TriggerContractTests(unittest.TestCase):
         for changed in checker.TRIGGER_REPRESENTATIVES.values():
             self.assertTrue(checker.selected_by_paths(patterns, changed))
         self.assertFalse(checker.selected_by_paths(patterns, "notes/unrelated.txt"))
+
+    def test_01_repository_workflow_has_exact_archive_and_browser_supply(self) -> None:
+        text = (REPOSITORY / ".github/workflows/pages.yml").read_text(encoding="utf-8")
+        errors = checker.check_workflow_text(text)
+        self.assertEqual(errors, [], "\n".join(errors))
 
     def test_each_removed_authority_and_unequal_event_filter_fails(self) -> None:
         patterns = sorted(checker.REQUIRED_TRIGGER_PATTERNS)
@@ -58,6 +81,7 @@ class TriggerContractTests(unittest.TestCase):
     def test_toolchain_supply_and_namespace_mutants_fail(self) -> None:
         patterns = sorted(checker.REQUIRED_TRIGGER_PATTERNS)
         ordinary = workflow(patterns, patterns)
+        self.assertEqual(checker.check_workflow_text(ordinary), [])
         for token in checker.OFFLINE_WORKFLOW_TOKENS:
             with self.subTest(token=token):
                 errors = checker.check_workflow_text(
@@ -66,6 +90,20 @@ class TriggerContractTests(unittest.TestCase):
                 self.assertTrue(
                     any("offline/supply boundary" in error for error in errors)
                 )
+        for token in checker.FORBIDDEN_WORKFLOW_TOKENS:
+            with self.subTest(forbidden=token):
+                errors = checker.check_workflow_text(f"{ordinary}\n# {token}\n")
+                self.assertTrue(
+                    any("forbidden supply substitution" in error for error in errors)
+                )
+
+        archive = checker.DIRECT_SOURCE_ARCHIVE_COMMAND
+        moved = ordinary.replace(archive, "ARCHIVE-CHECK-PLACEHOLDER", 1)
+        moved = moved.replace("unshare --net", f"{archive}\nunshare --net", 1)
+        errors = checker.check_workflow_text(moved)
+        self.assertIn(
+            "Pages archive/browser supply checks are out of causal order", errors
+        )
 
 
 if __name__ == "__main__":
