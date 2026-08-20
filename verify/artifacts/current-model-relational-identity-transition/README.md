@@ -199,23 +199,36 @@ part of reset history.
 
 ## Later mixed identity evidence uses exact classification
 
-The #114 installed-Python package oracle adds three paths that fit neither
-admission permission. Its Python and Rust test surfaces each contain four
-already-frozen current Model/package-artifact identities together with
-immutable source, release, and resolution identities. The stored package
-release contains only source/package identities. Treating all three as
+The #114 installed-Python package oracle adds three exact paths that fit neither
+admission permission. The sealed alpha.1 classification owns exact aggregate
+`3/2/1/8`: three paths, two mixed assertion surfaces, one source-or-package
+identity path, and eight identity occurrences. Each historical mixed row
+contains the exact four recorded offline Model, offline compilation, typed
+Model, and typed compilation
+identities once, together with its immutable source, release, and resolution
+identities. The stored package release remains a historical exact observation
+containing only source/package identities. Treating all three paths as
 identity-free would be false, while treating the stored release as a current
 Model fixture would also be false.
 
-`search.transition.post_reset_classified` therefore freezes exactly three
-paths, two mixed assertion surfaces, one source-or-package identity path, and
-eight current identity occurrences. A present path must reproduce its complete
-ordered search-signal inventory, same-line lower-hex signal count, and exact
-lower-hex-64 literal multiset. The two mixed surfaces must decompose migrating
-current-owner assertions from immutable inputs; the stored release must carry
-zero current Model identities. These values are reused from the independent
-#114 package oracle and the already-frozen transition identities, not derived
-or tuned by this executor.
+The present live classification keeps the same exact paths, Model identities,
+immutable identities, ordered search signals, and same-line lower-hex signal
+counts, but gives the mixed rows live relational maps. The Python surface has
+exactly nine lower-hex-64 occurrences, signals `[model_sha256, model_digest]`,
+and same-line count zero. The Rust surface has exactly ten occurrences, no
+search signal, and same-line count four; it alone retains the alpha.1 offline
+compilation identity once as a historical positive. Both surfaces contain each
+of the two delegated current compilation values once, and neither retains the
+historical typed compilation identity; Python also does not retain the
+historical offline compilation identity.
+
+Those current values come from the exact release-owned slots
+`offline-model-package.live` at `/compilation_digest` and
+`typed-execution-lineage.live` at `/package_compilation_sha256`. This case owns
+their exact mapping, counts, immutability, and causal stale, substitution,
+omission, addition, duplication/collapse, signal, and same-line mutants. It does
+not own either exact current value: semantic correctness remains with Role C and
+the ordinary producer evidence.
 
 Like both admissions, classification is containment-only: none of the three
 paths is required for reset acceptance or joins a historical, required,
