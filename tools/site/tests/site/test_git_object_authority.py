@@ -55,6 +55,28 @@ FORBIDDEN_AFTER_DESIGNATION = (
 )
 
 
+def _fixed_identities() -> str:
+    return " ".join(
+        item for commit, objects in FIXED_OBJECTS.items() for item in (commit, *objects)
+    )
+
+
+def _identity_boundary() -> str:
+    return (
+        "\n".join(
+            f"          {command}"
+            for command in (
+                'test "$(git rev-parse --show-toplevel)" = "$GITHUB_WORKSPACE"',
+                'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"',
+                'test "$(git rev-parse \'HEAD^{tree}\')" = "$(git rev-parse "$GITHUB_SHA^{tree}")"',
+                'test -z "$(git status --porcelain=v1 --untracked-files=all)"',
+                f'for object in {_fixed_identities()}; do git cat-file -e "$object"; done',
+            )
+        )
+        + "\n"
+    )
+
+
 def _run_git(repository: Path, *arguments: str) -> bytes:
     return subprocess.check_output(
         ["git", "-c", "commit.gpgsign=false", "-C", str(repository), *arguments],
@@ -163,11 +185,7 @@ def _workflow_errors(workflow: str, runner: str) -> list[str]:
             errors.append(
                 f"Git object authority Phase B contains a forbidden operation: {forbidden}"
             )
-        identities = " ".join(
-            item
-            for commit, objects in FIXED_OBJECTS.items()
-            for item in (commit, *objects)
-        )
+        identities = _fixed_identities()
         admitted_git_lines = {
             'test "$(git rev-parse --show-toplevel)" = "$GITHUB_WORKSPACE"',
             'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"',
@@ -185,6 +203,19 @@ def _workflow_errors(workflow: str, runner: str) -> list[str]:
             errors.append(
                 "Git object authority Phase B contains a forbidden operation: "
                 f"{unowned_git}"
+            )
+        boundary = _identity_boundary()
+        first_boundary = workflow.find(boundary)
+        second_boundary = workflow.find(boundary, first_boundary + len(boundary))
+        if (
+            workflow.count(boundary) != 2
+            or first_boundary < 0
+            or second_boundary < 0
+            or not first_boundary < designation < second_boundary
+        ):
+            errors.append(
+                "Git object authority pre/designation/post boundaries are duplicated "
+                "or out of order"
             )
 
     fixed = [
@@ -219,29 +250,27 @@ def _workflow_errors(workflow: str, runner: str) -> list[str]:
     return errors
 
 
-def _admitted_text() -> tuple[str, str]:
-    workflow = (REPOSITORY / ".github/workflows/pages.yml").read_text(encoding="utf-8")
-    workflow = workflow.replace(
-        "          persist-credentials: false\n",
-        "          persist-credentials: false\n          fetch-depth: 0\n",
-        1,
-    )
-    identities = " ".join(
-        item for commit, objects in FIXED_OBJECTS.items() for item in (commit, *objects)
-    )
-    boundary = (
-        "\n".join(
-            f"          {command}"
-            for command in (
-                'test "$(git rev-parse --show-toplevel)" = "$GITHUB_WORKSPACE"',
-                'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"',
-                'test "$(git rev-parse \'HEAD^{tree}\')" = "$(git rev-parse "$GITHUB_SHA^{tree}")"',
-                'test -z "$(git status --porcelain=v1 --untracked-files=all)"',
-                f'for object in {identities}; do git cat-file -e "$object"; done',
-            )
+def _admitted_text(
+    workflow: str | None = None, runner: str | None = None
+) -> tuple[str, str]:
+    if workflow is None:
+        workflow = (REPOSITORY / ".github/workflows/pages.yml").read_text(
+            encoding="utf-8"
         )
-        + "\n"
-    )
+    if runner is None:
+        runner = (REPOSITORY / "tools/site/run_offline_site_checks.sh").read_text(
+            encoding="utf-8"
+        )
+    if DESIGNATION in workflow:
+        return workflow, runner
+
+    if "          fetch-depth:" not in workflow:
+        workflow = workflow.replace(
+            "          persist-credentials: false\n",
+            "          persist-credentials: false\n          fetch-depth: 0\n",
+            1,
+        )
+    boundary = _identity_boundary()
     supply_status = (
         '          test -z "$(git status --porcelain=v1 --untracked-files=all)"\n'
     )
@@ -255,25 +284,25 @@ def _admitted_text() -> tuple[str, str]:
         + f'          {{ {DESIGNATION}; }} >> "$GITHUB_ENV"\n'
         + workflow[supply_end:]
     )
-    workflow = workflow.replace(
-        "EQIORA_SITE_SOURCE_ROOT,EQIORA_SITE_ASTRO_OUT_DIR",
-        "EQIORA_SITE_SOURCE_ROOT,EQIORA_SITE_GIT_OBJECT_REPOSITORY,EQIORA_SITE_ASTRO_OUT_DIR",
-        1,
-    )
-    workflow = workflow.replace(
-        '                  EQIORA_SITE_SOURCE_ROOT="$EQIORA_SITE_SOURCE_ROOT" \\\n',
-        '                  EQIORA_SITE_SOURCE_ROOT="$EQIORA_SITE_SOURCE_ROOT" \\\n'
-        '                  EQIORA_SITE_GIT_OBJECT_REPOSITORY="$EQIORA_SITE_GIT_OBJECT_REPOSITORY" \\\n',
-        1,
-    )
     post_status = (
         '          test -z "$(git status --porcelain=v1 --untracked-files=all)"\n'
     )
     post_position = workflow.index(post_status, workflow.index("Recheck exact inputs"))
     workflow = workflow[:post_position] + boundary + workflow[post_position:]
-
-    runner = (REPOSITORY / "tools/site/run_offline_site_checks.sh").read_text(
-        encoding="utf-8"
+    workflow = workflow.replace(
+        "EQIORA_SITE_SOURCE_ROOT,EQIORA_SITE_ASTRO_OUT_DIR",
+        "EQIORA_SITE_SOURCE_ROOT,EQIORA_SITE_GIT_OBJECT_REPOSITORY,EQIORA_SITE_ASTRO_OUT_DIR",
+        1,
+    )
+    authority_environment = (
+        "                  EQIORA_SITE_GIT_OBJECT_REPOSITORY="
+        '"$EQIORA_SITE_GIT_OBJECT_REPOSITORY" \\\n'
+    )
+    workflow = workflow.replace(
+        '                  EQIORA_SITE_SOURCE_ROOT="$EQIORA_SITE_SOURCE_ROOT" \\\n',
+        '                  EQIORA_SITE_SOURCE_ROOT="$EQIORA_SITE_SOURCE_ROOT" \\\n'
+        + authority_environment,
+        1,
     )
     runner = runner.replace(
         "  EQIORA_SITE_SOURCE_ROOT \\\n",
@@ -288,6 +317,35 @@ def _admitted_text() -> tuple[str, str]:
         + 'test "$authority_real" = "$EQIORA_SITE_GIT_OBJECT_REPOSITORY"\n'
         + 'test ! -L "$EQIORA_SITE_GIT_OBJECT_REPOSITORY"\n'
         + 'test "$authority_real" != "$source_real"\n',
+        1,
+    )
+    return workflow, runner
+
+
+def _red_reference(workflow: str, runner: str) -> tuple[str, str]:
+    boundary = _identity_boundary()
+    designation_line = f'          {{ {DESIGNATION}; }} >> "$GITHUB_ENV"\n'
+    workflow = workflow.replace(boundary + designation_line, "", 1)
+    workflow = workflow.replace(boundary, "", 1)
+    workflow = workflow.replace("          fetch-depth: 0\n", "", 1)
+    workflow = workflow.replace(
+        "EQIORA_SITE_SOURCE_ROOT,EQIORA_SITE_GIT_OBJECT_REPOSITORY,EQIORA_SITE_ASTRO_OUT_DIR",
+        "EQIORA_SITE_SOURCE_ROOT,EQIORA_SITE_ASTRO_OUT_DIR",
+        1,
+    )
+    workflow = workflow.replace(
+        "                  EQIORA_SITE_GIT_OBJECT_REPOSITORY="
+        '"$EQIORA_SITE_GIT_OBJECT_REPOSITORY" \\\n',
+        "",
+        1,
+    )
+    runner = runner.replace("  EQIORA_SITE_GIT_OBJECT_REPOSITORY \\\n", "", 1)
+    runner = runner.replace(
+        'authority_real="$(realpath "$EQIORA_SITE_GIT_OBJECT_REPOSITORY")"\n'
+        'test "$authority_real" = "$EQIORA_SITE_GIT_OBJECT_REPOSITORY"\n'
+        'test ! -L "$EQIORA_SITE_GIT_OBJECT_REPOSITORY"\n'
+        'test "$authority_real" != "$source_real"\n',
+        "",
         1,
     )
     return workflow, runner
@@ -364,7 +422,23 @@ class GitObjectAuthorityTests(unittest.TestCase):
             )
 
     def test_03_admitted_workflow_and_runner_lifecycle_is_positive(self) -> None:
-        workflow, runner = _admitted_text()
+        current = (
+            (REPOSITORY / ".github/workflows/pages.yml").read_text(encoding="utf-8"),
+            (REPOSITORY / "tools/site/run_offline_site_checks.sh").read_text(
+                encoding="utf-8"
+            ),
+        )
+        admitted = _admitted_text(*current)
+        red = _red_reference(*admitted)
+        self.assertIn(current, (red, admitted))
+        self.assertEqual(
+            _workflow_errors(*red)[0],
+            "Git object authority checkout is not exact full history",
+        )
+        from_red = _admitted_text(*red)
+        readmitted = _admitted_text(*admitted)
+        self.assertEqual(from_red, admitted)
+        self.assertEqual(readmitted, admitted)
         actionlint = shutil.which("actionlint")
         self.assertIsNotNone(actionlint)
         actionlint_path = Path(actionlint)
@@ -394,18 +468,23 @@ class GitObjectAuthorityTests(unittest.TestCase):
         )
         if installed_shellcheck.is_file():
             shellcheck_path = installed_shellcheck
-        lint = subprocess.run(
-            [actionlint_path, f"-shellcheck={shellcheck_path}", "-"],
-            cwd=SCRATCH_ROOT,
-            input=workflow,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=30,
-            check=False,
-        )
-        self.assertEqual(lint.returncode, 0, lint.stdout)
-        self.assertEqual(_workflow_errors(workflow, runner), [])
+        for label, candidate in (
+            ("red-to-admitted", from_red),
+            ("idempotent", readmitted),
+        ):
+            with self.subTest(label=label):
+                lint = subprocess.run(
+                    [actionlint_path, f"-shellcheck={shellcheck_path}", "-"],
+                    cwd=SCRATCH_ROOT,
+                    input=candidate[0],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+                self.assertEqual(lint.returncode, 0, lint.stdout)
+                self.assertEqual(_workflow_errors(*candidate), [])
 
     def test_10_missing_and_ambiguous_authority_paths_fail_closed(self) -> None:
         authority = git_object_authority()
@@ -723,12 +802,28 @@ class GitObjectAuthorityTests(unittest.TestCase):
         workflow, runner = _admitted_text()
         self.assertEqual(_workflow_errors(workflow, runner), [])
 
+        boundary = _identity_boundary()
+        designation_line = f'          {{ {DESIGNATION}; }} >> "$GITHUB_ENV"\n'
         mutants = {
             "default shallow checkout": workflow.replace(
                 "          fetch-depth: 0\n", "", 1
             ),
             "changed fetch depth": workflow.replace(
                 "fetch-depth: 0", "fetch-depth: 1", 1
+            ),
+            "duplicate fetch-depth insertion": workflow.replace(
+                "          fetch-depth: 0\n",
+                "          fetch-depth: 0\n          fetch-depth: 0\n",
+                1,
+            ),
+            "duplicate designation insertion": workflow.replace(
+                designation_line, designation_line + designation_line, 1
+            ),
+            "duplicate identity-boundary insertion": workflow.replace(
+                boundary, boundary + boundary, 1
+            ),
+            "designation before pre-boundary": workflow.replace(
+                boundary + designation_line, designation_line + boundary, 1
             ),
             "missing object": workflow.replace(next(iter(FIXED_OBJECTS)), "0" * 40, 1),
             "post-designation npm": workflow.replace(
@@ -778,9 +873,9 @@ class GitObjectAuthorityTests(unittest.TestCase):
         }
         for label, mutant in mutants.items():
             with self.subTest(label=label):
+                self.assertEqual(_admitted_text(mutant, runner), (mutant, runner))
                 self.assertTrue(_workflow_errors(mutant, runner), label)
 
-        designation_line = f'          {{ {DESIGNATION}; }} >> "$GITHUB_ENV"\n'
         without_designation = workflow.replace(designation_line, "", 1)
         early = without_designation.replace(
             "          npm ci --engine-strict --prefix docs/site\n",
