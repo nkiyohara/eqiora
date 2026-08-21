@@ -995,7 +995,23 @@ def _node_and_npm_identity(workspace: H2Workspace) -> tuple[Path, Path, Path]:
     if node_raw is None:
         raise CandidateError("H2 requires the exact Node executable")
     node = Path(node_raw).resolve()
-    if checked_run([str(node), "--version"], capture=True) != NODE_VERSION:
+    environment = os.environ.copy()
+    environment.pop("FORCE_COLOR", None)
+    try:
+        completed = subprocess.run(
+            [str(node), "--version"],
+            check=False,
+            capture_output=True,
+            env=environment,
+        )
+    except OSError as error:
+        raise CandidateError("H2 Node invocation failed") from error
+    expected_version = f"{NODE_VERSION}\n".encode("ascii")
+    if (
+        completed.returncode != 0
+        or completed.stdout != expected_version
+        or completed.stderr
+    ):
         raise CandidateError(f"H2 requires Node {NODE_VERSION}")
     if file_sha256(node) != NODE_SHA256:
         raise CandidateError("H2 Node executable identity differs")

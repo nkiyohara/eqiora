@@ -4,6 +4,8 @@ const MESH_DIGEST = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952
 const VIEW_SELECTOR = `[data-eqiora-mesh-digest="${MESH_DIGEST}"]`;
 const BARE_MESH_TEST_TITLE =
   "bare Mesh owns exact interaction, lifecycle, identity, and loopback-only observations";
+const WEBGL_FAILURE_TEST_TITLE =
+  "WebGL construction failure is an accessible failure rather than a blank pass";
 const COLLECTOR_MARKER = "EQIORA_TEMPORARY_MESH_COLLECTED";
 const IDENTITY_MARKER = "EQIORA_MESH_UNCHANGED";
 const COLLECTOR_ASSERTION = "assert temporary_mesh_reference() is None";
@@ -197,11 +199,16 @@ function classifyJupyterSnapshot(
   return "contradiction";
 }
 
+function isJupyterClassificationTarget(projectName: string, title: string): boolean {
+  return (
+    projectName === "jupyterlab-4.6.2" &&
+    (title === BARE_MESH_TEST_TITLE || title === WEBGL_FAILURE_TEST_TITLE)
+  );
+}
+
 function isInlineJupyterClassificationTarget(): boolean {
   const info = test.info();
-  return (
-    info.project.name === "jupyterlab-4.6.2" && info.title === BARE_MESH_TEST_TITLE
-  );
+  return isJupyterClassificationTarget(info.project.name, info.title);
 }
 
 async function collectJupyterDomSnapshot(page: Page): Promise<JupyterDomSnapshot> {
@@ -941,6 +948,22 @@ test("Jupyter collector marker failure classification is complete and fail-close
     ),
   ).toBe("ordinary-success");
 
+  expect(isJupyterClassificationTarget("jupyterlab-4.6.2", BARE_MESH_TEST_TITLE)).toBe(
+    true,
+  );
+  expect(
+    isJupyterClassificationTarget("jupyterlab-4.6.2", WEBGL_FAILURE_TEST_TITLE),
+  ).toBe(true);
+  expect(
+    isJupyterClassificationTarget("marimo-0.23.16", WEBGL_FAILURE_TEST_TITLE),
+  ).toBe(false);
+  expect(
+    isJupyterClassificationTarget(
+      "jupyterlab-4.6.2",
+      "shipped view oracle is snapshot-only",
+    ),
+  ).toBe(false);
+
   expect(
     classify(
       dom({
@@ -1104,9 +1127,7 @@ test("shipped view oracle is snapshot-only", async ({ page }) => {
   expect(memberNames).not.toContain("closeComm");
 });
 
-test("WebGL construction failure is an accessible failure rather than a blank pass", async ({
-  page,
-}) => {
+test(WEBGL_FAILURE_TEST_TITLE, async ({ page }) => {
   const traffic = new RuntimeTraffic(page);
   await page.addInitScript(() => {
     const original = HTMLCanvasElement.prototype.getContext;

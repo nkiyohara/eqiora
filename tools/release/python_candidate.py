@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import tomllib
 import zipfile
 from collections.abc import Callable
@@ -814,6 +815,635 @@ def _reserve_loopback_port() -> int:
         return int(probe.getsockname()[1])
 
 
+_NOTEBOOK_CLEANUP_GRACE_SECONDS = 30.0
+_NOTEBOOK_CLEANUP_DECISION_SECONDS = 35.0
+_NOTEBOOK_CLEANUP_IDENTITY_LIMIT = 256
+_NOTEBOOK_CLEANUP_DIAGNOSTIC_BYTES = 65_536
+
+
+def _notebook_identity_key(identity: dict[str, object]) -> tuple[str, str, int, int]:
+    """Return the deterministic stable-identity ordering used in diagnostics."""
+
+    def integer(field: str) -> int:
+        try:
+            return int(identity.get(field, -1))
+        except (TypeError, ValueError):
+            return -1
+
+    return (
+        str(identity.get("scenario", "unknown")),
+        str(identity.get("role", "unknown")),
+        integer("pid"),
+        integer("start_time"),
+    )
+
+
+def _notebook_owned_identity_matches(
+    *,
+    expected: dict[str, object],
+    observed: dict[str, object] | None,
+) -> bool:
+    """Match the causal role and Linux process identity, never a PID alone."""
+
+    if not isinstance(observed, dict):
+        return False
+    return all(
+        observed.get(field) == expected.get(field)
+        for field in ("scenario", "role", "pid", "start_time")
+    )
+
+
+def _notebook_bounded_text(text: str, limit: int) -> str:
+    """Return a valid UTF-8 prefix whose encoded representation fits ``limit``."""
+
+    encoded = text.encode("utf-8", errors="replace")
+    if len(encoded) <= limit:
+        return text
+    return encoded[:limit].decode("utf-8", errors="ignore")
+
+
+def _notebook_diagnostic_field(value: object) -> str:
+    """Keep one diagnostic field canonical and independently bounded."""
+
+    return _notebook_bounded_text(str(value).replace("\n", "\\n"), 8_192)
+
+
+def _notebook_cleanup_diagnostic(
+    *,
+    scenario: str,
+    primary_error: BaseException | None,
+    forced_escalation: bool,
+    observation: str,
+    survivors: tuple[dict[str, object], ...],
+    deadline_expired: bool,
+    secondary: str | None = None,
+) -> str:
+    """Render one canonical, deterministically ordered cleanup diagnostic."""
+
+    lines: list[str] = []
+    if primary_error is not None:
+        lines.append(
+            f"primary={type(primary_error).__name__}: "
+            f"{_notebook_diagnostic_field(primary_error)}"
+        )
+    lines.append(f"cleanup={observation}")
+    if forced_escalation:
+        lines.append("cleanup-result=forced-escalation")
+    if deadline_expired:
+        lines.append("cleanup-result=cleanup-deadline")
+    if secondary is not None:
+        lines.append(
+            f"cleanup-secondary={_notebook_diagnostic_field(secondary)}"
+        )
+    if not survivors:
+        lines.append(f"scenario={scenario}")
+    for survivor in sorted(survivors, key=_notebook_identity_key):
+        requested = survivor.get("requested_stages", ())
+        results = survivor.get("stage_results", ())
+        if not isinstance(requested, (tuple, list)):
+            requested = (requested,)
+        if not isinstance(results, (tuple, list)):
+            results = (results,)
+        lines.extend(
+            (
+                "scenario="
+                + _notebook_diagnostic_field(
+                    survivor.get("scenario", scenario)
+                ),
+                " ".join(
+                    (
+                        "role="
+                        + _notebook_diagnostic_field(
+                            survivor.get("role", "unknown")
+                        ),
+                        "pid="
+                        + _notebook_diagnostic_field(
+                            survivor.get("pid", "unknown")
+                        ),
+                        "start="
+                        + _notebook_diagnostic_field(
+                            survivor.get("start_time", "unknown")
+                        ),
+                        "state="
+                        + _notebook_diagnostic_field(
+                            survivor.get("state", "unknown")
+                        ),
+                    )
+                ),
+                "requested_stages="
+                + ",".join(_notebook_diagnostic_field(item) for item in requested),
+                "stage_results="
+                + ",".join(_notebook_diagnostic_field(item) for item in results),
+                "authority_denied="
+                + ("true" if survivor.get("authority_denied") else "false"),
+            )
+        )
+    return "\n".join(lines)
+
+
+def _notebook_cleanup_decision(
+    *,
+    scenario: str,
+    primary_error: BaseException | None,
+    forced_escalation: bool,
+    observation: str,
+    survivors: tuple[dict[str, object], ...],
+    diagnostic: str | None,
+    cleanup_started: float,
+    observed_at: float,
+) -> None:
+    """Accept only a timely, non-escalated, authoritative empty owned set."""
+
+    stable_survivors = tuple(survivors)
+    overflow = len(stable_survivors) > _NOTEBOOK_CLEANUP_IDENTITY_LIMIT
+    if overflow:
+        observation = "incomplete(observation-overflow)"
+        stable_survivors = ()
+        diagnostic = None
+
+    deadline_expired = (
+        observed_at >= cleanup_started + _NOTEBOOK_CLEANUP_DECISION_SECONDS
+    )
+    successful = (
+        primary_error is None
+        and not forced_escalation
+        and not deadline_expired
+        and observation == "complete-empty"
+        and not stable_survivors
+    )
+    if successful:
+        return
+
+    if diagnostic is None:
+        rendered = _notebook_cleanup_diagnostic(
+            scenario=scenario,
+            primary_error=primary_error,
+            forced_escalation=forced_escalation,
+            observation=observation,
+            survivors=stable_survivors,
+            deadline_expired=deadline_expired,
+        )
+    else:
+        rendered = diagnostic
+
+    if len(rendered.encode("utf-8", errors="replace")) > _NOTEBOOK_CLEANUP_DIAGNOSTIC_BYTES:
+        overflow_observation = "incomplete(observation-overflow)"
+        rendered = _notebook_cleanup_diagnostic(
+            scenario=scenario,
+            primary_error=primary_error,
+            forced_escalation=forced_escalation,
+            observation=overflow_observation,
+            survivors=(),
+            deadline_expired=deadline_expired,
+        )
+    rendered = _notebook_bounded_text(
+        rendered,
+        _NOTEBOOK_CLEANUP_DIAGNOSTIC_BYTES,
+    )
+    error = CandidateError(rendered)
+    if primary_error is not None:
+        raise error from primary_error
+    raise error
+
+
+def _notebook_cleanup_lifecycle(
+    *,
+    scenario: str,
+    primary_error: BaseException | None,
+    observe: Callable[
+        ...,
+        tuple[str, tuple[dict[str, object], ...]],
+    ],
+    observe_identity: Callable[..., dict[str, object] | None],
+    request_stage: Callable[..., str],
+    wait: Callable[..., str],
+    monotonic: Callable[[], float],
+) -> None:
+    """Drive all owned-process actions through one bounded callback seam."""
+
+    cleanup_started = monotonic()
+    grace_deadline = cleanup_started + _NOTEBOOK_CLEANUP_GRACE_SECONDS
+    decision_deadline = cleanup_started + _NOTEBOOK_CLEANUP_DECISION_SECONDS
+    forced_escalation = False
+    terminal = "incomplete(observer-unavailable)"
+    sticky_terminal: str | None = None
+    survivors: tuple[dict[str, object], ...] = ()
+    cleanup_error: BaseException | None = None
+    action_history: dict[
+        tuple[str, str, int, int],
+        tuple[tuple[str, ...], tuple[str, ...], bool],
+    ] = {}
+
+    def ordered_for_action(
+        identities: tuple[dict[str, object], ...],
+    ) -> tuple[dict[str, object], ...]:
+        return tuple(
+            sorted(
+                identities,
+                key=lambda identity: (
+                    identity.get("role") == "host",
+                    _notebook_identity_key(identity),
+                ),
+            )
+        )
+
+    def observe_now(*, stage: str, timeout: float) -> None:
+        nonlocal terminal, survivors
+        terminal, survivors = observe(
+            stage=stage,
+            deadline=decision_deadline,
+            timeout=max(0.0, timeout),
+        )
+        if not isinstance(terminal, str) or not isinstance(survivors, tuple):
+            terminal = "incomplete(malformed-observation)"
+            survivors = ()
+            return
+        enriched: list[dict[str, object]] = []
+        for survivor in survivors:
+            current = dict(survivor)
+            history = action_history.get(_notebook_identity_key(current))
+            if history is not None and not current.get("requested_stages"):
+                requested, results, authority_denied = history
+                current["requested_stages"] = requested
+                current["stage_results"] = results
+                current["authority_denied"] = authority_denied
+            enriched.append(current)
+        survivors = tuple(enriched)
+
+    def request_for_all(stage: str) -> bool:
+        nonlocal sticky_terminal, terminal
+        for expected in ordered_for_action(survivors):
+            if monotonic() >= decision_deadline:
+                sticky_terminal = terminal = "incomplete(cleanup-deadline)"
+                return False
+            observed = observe_identity(expected=expected)
+            if observed is None:
+                continue
+            if not _notebook_owned_identity_matches(
+                expected=expected,
+                observed=observed,
+            ):
+                if observed.get("authority_denied"):
+                    sticky_terminal = terminal = "incomplete(authority-denied)"
+                else:
+                    sticky_terminal = terminal = (
+                        "incomplete(stable-identity-mismatch)"
+                    )
+                return False
+            if monotonic() >= decision_deadline:
+                sticky_terminal = terminal = "incomplete(cleanup-deadline)"
+                return False
+            result = request_stage(stage=stage, identity=expected)
+            key = _notebook_identity_key(expected)
+            previous = action_history.get(
+                key,
+                ((), (), bool(expected.get("authority_denied"))),
+            )
+            action_history[key] = (
+                previous[0] + (stage,),
+                previous[1] + (result,),
+                previous[2] or "authority-denied" in result,
+            )
+            if "authority-denied" in result:
+                sticky_terminal = terminal = "incomplete(authority-denied)"
+                return False
+        return True
+
+    try:
+        observe_now(
+            stage="graceful",
+            timeout=max(0.0, grace_deadline - monotonic()),
+        )
+        if terminal == "complete-nonempty" and survivors:
+            if request_for_all("sigterm"):
+                remaining = max(0.0, grace_deadline - monotonic())
+                if remaining > 0.0:
+                    wait_result = wait(
+                        stage="graceful",
+                        deadline=decision_deadline,
+                        timeout=remaining,
+                    )
+                    if "invalid-status" in wait_result:
+                        cleanup_error = CandidateError(wait_result)
+
+                now = monotonic()
+                if now < grace_deadline:
+                    observe_now(
+                        stage="graceful",
+                        timeout=grace_deadline - now,
+                    )
+                elif now < decision_deadline:
+                    observe_now(
+                        stage="forced",
+                        timeout=decision_deadline - now,
+                    )
+
+                if terminal == "complete-nonempty" and survivors:
+                    if request_for_all("sigkill"):
+                        forced_escalation = True
+                        remaining = max(0.0, decision_deadline - monotonic())
+                        if remaining > 0.0:
+                            wait_result = wait(
+                                stage="forced",
+                                deadline=decision_deadline,
+                                timeout=remaining,
+                            )
+                            if "invalid-status" in wait_result:
+                                cleanup_error = CandidateError(wait_result)
+                        observe_now(
+                            stage="final",
+                            timeout=max(0.0, decision_deadline - monotonic()),
+                        )
+                    else:
+                        observe_now(
+                            stage="final",
+                            timeout=max(0.0, decision_deadline - monotonic()),
+                        )
+            else:
+                observe_now(
+                    stage="final",
+                    timeout=max(0.0, decision_deadline - monotonic()),
+                )
+        if monotonic() >= decision_deadline and terminal != "complete-empty":
+            if terminal == "complete-nonempty":
+                terminal = "incomplete(cleanup-deadline)"
+        if sticky_terminal is not None:
+            terminal = sticky_terminal
+        observed_at = monotonic()
+    except BaseException as error:
+        cleanup_error = error
+        terminal = "incomplete(cleanup-callback-error)"
+        observed_at = monotonic()
+
+    effective_primary = primary_error if primary_error is not None else cleanup_error
+    diagnostic = None
+    if cleanup_error is not None:
+        diagnostic = _notebook_cleanup_diagnostic(
+            scenario=scenario,
+            primary_error=effective_primary,
+            forced_escalation=forced_escalation,
+            observation=terminal,
+            survivors=survivors,
+            deadline_expired=observed_at >= decision_deadline,
+            secondary=(
+                None
+                if cleanup_error is effective_primary
+                else f"{type(cleanup_error).__name__}: {cleanup_error}"
+            ),
+        )
+    _notebook_cleanup_decision(
+        scenario=scenario,
+        primary_error=effective_primary,
+        forced_escalation=forced_escalation,
+        observation=terminal,
+        survivors=survivors,
+        diagnostic=diagnostic,
+        cleanup_started=cleanup_started,
+        observed_at=observed_at,
+    )
+
+
+class _NotebookOwnedProcessObserver:
+    """Linux observer for one causally launched, isolated host session."""
+
+    def __init__(self, *, scenario: str, process: subprocess.Popen[str]) -> None:
+        self.scenario = scenario
+        self.process = process
+        self.root_pid = process.pid
+        self.initial_error: str | None = None
+        try:
+            root = self._read_process(self.root_pid)
+        except PermissionError:
+            root = None
+            self.initial_error = "authority-denied"
+        except CandidateError:
+            root = None
+            self.initial_error = "observer-unavailable"
+        if root is None and self.initial_error is None:
+            self.initial_error = "observer-unavailable"
+        self.root_session = None if root is None else int(root["session"])
+        self.isolated_session = (
+            self.initial_error is None and self.root_session == self.root_pid
+        )
+        self.owned_sessions: dict[int, int] = {}
+        if self.isolated_session and root is not None:
+            self.owned_sessions[self.root_pid] = int(root["start_time"])
+        self.known: dict[tuple[int, int], dict[str, object]] = {}
+        self.last_survivors: tuple[dict[str, object], ...] = ()
+        if root is not None:
+            self._admit(root, role="host")
+
+    def add_isolated_session(self, *, pid: int, start_time: int) -> None:
+        """Admit a directly launched helper session by stable leader identity."""
+
+        if pid <= 0 or start_time <= 0:
+            self.initial_error = "observer-unavailable"
+            return
+        self.owned_sessions[pid] = start_time
+
+    def mark_incomplete(self, reason: str) -> None:
+        """Make a malformed direct-launch admission a fail-closed terminal."""
+
+        self.initial_error = reason
+
+    @staticmethod
+    def _read_process(pid: int) -> dict[str, object] | None:
+        try:
+            record = (Path("/proc") / str(pid) / "stat").read_text(
+                encoding="ascii"
+            )
+        except (FileNotFoundError, ProcessLookupError):
+            return None
+        comm_end = record.rfind(")")
+        if comm_end < 0:
+            raise CandidateError(f"malformed Linux process identity for PID {pid}")
+        fields = record[comm_end + 2 :].split()
+        if len(fields) <= 19:
+            raise CandidateError(f"incomplete Linux process identity for PID {pid}")
+        try:
+            return {
+                "pid": pid,
+                "state": fields[0],
+                "ppid": int(fields[1]),
+                "pgrp": int(fields[2]),
+                "session": int(fields[3]),
+                "start_time": int(fields[19]),
+            }
+        except ValueError as error:
+            raise CandidateError(
+                f"malformed Linux process identity for PID {pid}"
+            ) from error
+
+    def _admit(self, process: dict[str, object], *, role: str) -> None:
+        key = (int(process["pid"]), int(process["start_time"]))
+        existing = self.known.get(key)
+        if existing is None:
+            self.known[key] = {
+                "scenario": self.scenario,
+                "role": role,
+                "pid": key[0],
+                "start_time": key[1],
+                "state": process["state"],
+                "requested_stages": (),
+                "stage_results": (),
+                "authority_denied": False,
+            }
+        else:
+            existing["state"] = process["state"]
+
+    def _process_table(self, *, deadline: float | None) -> tuple[dict[str, object], ...]:
+        records: list[dict[str, object]] = []
+        try:
+            members = tuple(Path("/proc").iterdir())
+        except PermissionError as error:
+            raise PermissionError("Linux ownership observer is unavailable") from error
+        for member in members:
+            if deadline is not None and time.monotonic() >= deadline:
+                raise TimeoutError("owned-process observation deadline exhausted")
+            if not member.name.isdigit():
+                continue
+            try:
+                record = self._read_process(int(member.name))
+            except PermissionError as error:
+                raise PermissionError(
+                    f"Linux ownership observer lacks authority for PID {member.name}"
+                ) from error
+            if record is not None:
+                records.append(record)
+        return tuple(records)
+
+    def observe(
+        self,
+        *,
+        deadline: float | None = None,
+    ) -> tuple[str, tuple[dict[str, object], ...]]:
+        if self.initial_error is not None:
+            return f"incomplete({self.initial_error})", self.last_survivors
+        try:
+            table = self._process_table(deadline=deadline)
+        except TimeoutError:
+            return "incomplete(cleanup-deadline)", self.last_survivors
+        except PermissionError:
+            survivors = tuple(self.known.values())
+            self.last_survivors = survivors
+            return "incomplete(authority-denied)", survivors
+        except CandidateError:
+            survivors = tuple(self.known.values())
+            self.last_survivors = survivors
+            return "incomplete(observer-unavailable)", survivors
+
+        if self.isolated_session:
+            by_pid = {int(process["pid"]): process for process in table}
+            active_sessions: set[int] = set()
+            for session, start_time in self.owned_sessions.items():
+                leader = by_pid.get(session)
+                if leader is not None and int(leader["start_time"]) != start_time:
+                    continue
+                active_sessions.add(session)
+            for process in table:
+                process_session = int(process["session"])
+                if process_session in active_sessions:
+                    self._admit(
+                        process,
+                        role=(
+                            "host"
+                            if int(process["pid"]) == self.root_pid
+                            else (
+                                "browser-helper"
+                                if process_session != self.root_session
+                                else "profile-helper"
+                            )
+                        ),
+                    )
+        else:
+            descendants = {self.root_pid}
+            changed = True
+            while changed:
+                changed = False
+                for process in table:
+                    pid = int(process["pid"])
+                    if pid not in descendants and int(process["ppid"]) in descendants:
+                        descendants.add(pid)
+                        changed = True
+            for process in table:
+                if int(process["pid"]) in descendants:
+                    self._admit(
+                        process,
+                        role=(
+                            "host"
+                            if int(process["pid"]) == self.root_pid
+                            else "profile-helper"
+                        ),
+                    )
+
+        live: list[dict[str, object]] = []
+        authority_incomplete = False
+        for key, identity in self.known.items():
+            if deadline is not None and time.monotonic() >= deadline:
+                return "incomplete(cleanup-deadline)", self.last_survivors
+            try:
+                current = self._read_process(key[0])
+            except PermissionError:
+                identity["state"] = "inaccessible"
+                identity["authority_denied"] = True
+                live.append(dict(identity))
+                authority_incomplete = True
+                continue
+            if current is None or int(current["start_time"]) != key[1]:
+                continue
+            identity["state"] = current["state"]
+            if current["state"] == "Z":
+                continue
+            live.append(dict(identity))
+
+        live.sort(key=_notebook_identity_key)
+        self.last_survivors = tuple(live)
+        if len(live) > _NOTEBOOK_CLEANUP_IDENTITY_LIMIT:
+            return "incomplete(observation-overflow)", self.last_survivors
+        if authority_incomplete:
+            return "incomplete(authority-denied)", self.last_survivors
+        if live:
+            return "complete-nonempty", self.last_survivors
+        return "complete-empty", ()
+
+    def observe_identity(
+        self,
+        *,
+        expected: dict[str, object],
+    ) -> dict[str, object] | None:
+        try:
+            current = self._read_process(int(expected["pid"]))
+        except PermissionError:
+            observed = dict(expected)
+            observed["start_time"] = None
+            observed["state"] = "inaccessible"
+            observed["authority_denied"] = True
+            return observed
+        if current is None:
+            return None
+        observed = dict(expected)
+        observed["start_time"] = current["start_time"]
+        observed["state"] = current["state"]
+        return observed
+
+    def record_stage(
+        self,
+        *,
+        identity: dict[str, object],
+        stage: str,
+        result: str,
+        authority_denied: bool = False,
+    ) -> None:
+        key = (int(identity["pid"]), int(identity["start_time"]))
+        record = self.known.get(key)
+        if record is None:
+            return
+        record["requested_stages"] = tuple(record["requested_stages"]) + (stage,)
+        record["stage_results"] = tuple(record["stage_results"]) + (result,)
+        if authority_denied:
+            record["authority_denied"] = True
+
+
 def run_notebook_profile(
     *,
     uv: str,
@@ -946,6 +1576,7 @@ def run_notebook_profile(
             )
             state["host-environment"] = environment
             state["browser-executable"] = acquired.browser_executable
+            state["npm-executable"] = acquired.npm
         environment = dict(state["host-environment"])
         host_environment = os.environ.copy()
         host_environment.update(environment)
@@ -974,18 +1605,114 @@ def run_notebook_profile(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            start_new_session=True,
         )
+        observer = _NotebookOwnedProcessObserver(
+            scenario=project,
+            process=process,
+        )
+        sent_sigterm = False
+        primary_error: BaseException | None = None
+
+        def observe_owned(
+            *,
+            stage: str,
+            deadline: float,
+            timeout: float,
+        ) -> tuple[str, tuple[dict[str, object], ...]]:
+            del stage
+            if timeout <= 0.0 and time.monotonic() >= deadline:
+                return "incomplete(cleanup-deadline)", observer.last_survivors
+            return observer.observe(deadline=deadline)
+
+        def observe_owned_identity(
+            *,
+            expected: dict[str, object],
+        ) -> dict[str, object] | None:
+            return observer.observe_identity(expected=expected)
+
+        def request_owned_stage(
+            *,
+            stage: str,
+            identity: dict[str, object],
+        ) -> str:
+            nonlocal sent_sigterm
+            signum = signal.SIGTERM if stage == "sigterm" else signal.SIGKILL
+            try:
+                if int(identity["pid"]) == process.pid:
+                    process.send_signal(signum)
+                    if stage == "sigterm":
+                        sent_sigterm = True
+                else:
+                    os.kill(int(identity["pid"]), signum)
+            except ProcessLookupError:
+                result = f"{stage}=not-found"
+                observer.record_stage(
+                    identity=identity,
+                    stage=stage,
+                    result=result,
+                )
+                return result
+            except PermissionError:
+                result = f"{stage}=authority-denied"
+                observer.record_stage(
+                    identity=identity,
+                    stage=stage,
+                    result=result,
+                    authority_denied=True,
+                )
+                return result
+            result = f"{stage}=sent"
+            observer.record_stage(
+                identity=identity,
+                stage=stage,
+                result=result,
+            )
+            return result
+
+        def wait_owned(
+            *,
+            stage: str,
+            deadline: float,
+            timeout: float,
+        ) -> str:
+            wait_started = time.monotonic()
+            stop = min(deadline, wait_started + timeout)
+            remaining = max(0.0, stop - wait_started)
+            if remaining <= 0.0:
+                return f"{stage}=deadline-exhausted"
+            try:
+                status = process.wait(timeout=remaining)
+            except subprocess.TimeoutExpired:
+                return f"{stage}=host-still-running"
+            if status != 0 and not (
+                sent_sigterm and status == -signal.SIGTERM
+            ):
+                return f"{stage}=invalid-status:{status}"
+            while time.monotonic() < stop:
+                terminal, survivors = observer.observe(deadline=stop)
+                if terminal == "complete-empty":
+                    return f"{stage}=host-exited:{status}"
+                if terminal.startswith("incomplete("):
+                    return f"{stage}={terminal}"
+                sleep_for = min(0.01, max(0.0, stop - time.monotonic()))
+                if sleep_for <= 0.0:
+                    break
+                time.sleep(sleep_for)
+            return f"{stage}=owned-survivors"
+
         try:
             for _ in range(120):
-                if process.poll() is not None:
-                    output = process.stdout.read() if process.stdout is not None else ""
-                    raise CandidateError(f"Notebook host exited before readiness: {output}")
+                readiness_status = process.poll()
+                if readiness_status is not None:
+                    raise CandidateError(
+                        "Notebook host exited before readiness: "
+                        f"status={readiness_status}"
+                    )
                 try:
                     with socket.create_connection(("127.0.0.1", port), timeout=0.25):
                         break
                 except OSError:
-                    import time
-
                     time.sleep(0.25)
             else:
                 raise CandidateError("Notebook host did not become ready")
@@ -1001,31 +1728,81 @@ def run_notebook_profile(
             ]
             if test_spec is not None:
                 host_command.append(test_spec)
-            checked_run(
-                host_command,
-                cwd=frontend_root,
-                extra_environment=environment,
+            launch_number = int(state.get("host-launch-number", 0)) + 1
+            state["host-launch-number"] = launch_number
+            launcher_root = workspace.root / f"host-launch-{launch_number}"
+            launcher_root.mkdir()
+            launcher = launcher_root / "npm"
+            launcher_identity = launcher_root / "session.identity"
+            npm_executable = Path(state["npm-executable"])
+            launcher.write_text(
+                "#!/usr/bin/env python3\n"
+                "import os\n"
+                "import sys\n"
+                "\n"
+                "os.setsid()\n"
+                "record = open(f'/proc/{os.getpid()}/stat', "
+                "encoding='ascii').read()\n"
+                "fields = record[record.rfind(')') + 2:].split()\n"
+                f"identity = {str(launcher_identity)!r}\n"
+                "with open(identity, 'x', encoding='ascii') as stream:\n"
+                "    stream.write(f'{os.getpid()} {int(fields[19])}\\n')\n"
+                f"os.environ['PATH'] = {environment['PATH']!r}\n"
+                f"executable = {str(npm_executable)!r}\n"
+                "os.execv(executable, [executable, *sys.argv[1:]])\n",
+                encoding="utf-8",
+            )
+            launcher.chmod(0o700)
+            host_test_environment = dict(environment)
+            host_test_environment["PATH"] = os.pathsep.join(
+                (str(launcher_root), environment["PATH"])
+            )
+            try:
+                checked_run(
+                    host_command,
+                    cwd=frontend_root,
+                    extra_environment=host_test_environment,
+                )
+            finally:
+                if launcher_identity.is_file():
+                    try:
+                        values = launcher_identity.read_text(
+                            encoding="ascii"
+                        ).split()
+                        if len(values) != 2:
+                            raise ValueError("expected PID and Linux start time")
+                        observer.add_isolated_session(
+                            pid=int(values[0]),
+                            start_time=int(values[1]),
+                        )
+                    except (OSError, ValueError):
+                        observer.mark_incomplete("observer-unavailable")
+        except BaseException as error:
+            primary_error = error
+
+        status_before_cleanup = process.poll()
+        if (
+            primary_error is None
+            and status_before_cleanup is not None
+            and status_before_cleanup != 0
+        ):
+            primary_error = CandidateError(
+                "Notebook host shutdown was not clean: "
+                f"unsolicited status={status_before_cleanup}"
+            )
+        try:
+            _notebook_cleanup_lifecycle(
+                scenario=project,
+                primary_error=primary_error,
+                observe=observe_owned,
+                observe_identity=observe_owned_identity,
+                request_stage=request_owned_stage,
+                wait=wait_owned,
+                monotonic=time.monotonic,
             )
         finally:
-            sent_sigterm = False
-            try:
-                if process.poll() is None:
-                    process.send_signal(signal.SIGTERM)
-                    sent_sigterm = True
-                try:
-                    status = process.wait(timeout=30)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
-                    raise CandidateError("Notebook host did not shut down")
-                if status != 0 and not (
-                    sent_sigterm and status == -signal.SIGTERM
-                ):
-                    output = process.stdout.read() if process.stdout is not None else ""
-                    raise CandidateError(f"Notebook host shutdown was not clean: {output}")
-            finally:
-                if process.stdout is not None:
-                    process.stdout.close()
+            if process.stdout is not None:
+                process.stdout.close()
         state[project] = True
 
     def run_exact_cylinder_stokes_marimo() -> None:

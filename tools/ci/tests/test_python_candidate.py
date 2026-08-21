@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import base64
 import builtins
 import contextlib
@@ -10,6 +11,7 @@ import io
 import json
 import os
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -6680,6 +6682,1380 @@ write(JSON.stringify({calls,output,failure}));
                     )
                 self.assertEqual(executed, list(check_names[: failure_index + 1]))
                 self.assertEqual(emitted, list(check_names[:failure_index]))
+
+
+class NotebookOwnedProcessDecisionTests(unittest.TestCase):
+    """Independent outcome oracle for the bounded #495 cleanup decision.
+
+    The private decision seam consumes only observations fixed by the accepted
+    Issue contract. Process discovery, stable handles, and signalling remain
+    implementation choices. The registered installed-wheel profile, not these
+    synthetic inputs, owns the real JupyterLab and marimo positive.
+    """
+
+    SCENARIO = "jupyterlab-4.6.2"
+    DECISION_PARAMETERS = (
+        "scenario",
+        "primary_error",
+        "forced_escalation",
+        "observation",
+        "survivors",
+        "diagnostic",
+        "cleanup_started",
+        "observed_at",
+    )
+
+    @staticmethod
+    def survivor(
+        *,
+        role: str = "kernel",
+        pid: int = 4102,
+        start_time: int = 908_172,
+        state: str = "sleeping",
+        authority_denied: bool = False,
+    ) -> dict[str, object]:
+        return {
+            "scenario": NotebookOwnedProcessDecisionTests.SCENARIO,
+            "role": role,
+            "pid": pid,
+            "start_time": start_time,
+            "state": state,
+            "requested_stages": ("shutdown", "sigterm", "sigkill"),
+            "stage_results": (
+                "shutdown=acknowledged",
+                "sigterm=sent",
+                "sigkill=not-required",
+            ),
+            "authority_denied": authority_denied,
+        }
+
+    def decision(self) -> Callable[..., None]:
+        decision = getattr(
+            python_candidate_module,
+            "_notebook_cleanup_decision",
+            None,
+        )
+        if decision is None:
+            self.skipTest("precommitted #495 private decision seam is absent")
+        self.assertTrue(callable(decision))
+        return decision
+
+    def invoke(
+        self,
+        *,
+        primary_error: BaseException | None = None,
+        forced_escalation: bool = False,
+        observation: str = "complete-empty",
+        survivors: tuple[dict[str, object], ...] = (),
+        diagnostic: str | None = None,
+        cleanup_started: float = 100.0,
+        observed_at: float = 134.999,
+    ) -> None:
+        self.decision()(
+            scenario=self.SCENARIO,
+            primary_error=primary_error,
+            forced_escalation=forced_escalation,
+            observation=observation,
+            survivors=survivors,
+            diagnostic=diagnostic,
+            cleanup_started=cleanup_started,
+            observed_at=observed_at,
+        )
+
+    def test_00_ordinary_complete_empty_terminal_is_the_only_success(self) -> None:
+        decision = getattr(
+            python_candidate_module,
+            "_notebook_cleanup_decision",
+            None,
+        )
+        self.assertTrue(
+            callable(decision),
+            "#495 requires the precommitted private cleanup-decision seam",
+        )
+        self.assertEqual(
+            tuple(inspect.signature(decision).parameters),
+            self.DECISION_PARAMETERS,
+        )
+        self.assertEqual(
+            python_candidate_module._NOTEBOOK_CLEANUP_GRACE_SECONDS,
+            30.0,
+        )
+        self.assertEqual(
+            python_candidate_module._NOTEBOOK_CLEANUP_DECISION_SECONDS,
+            35.0,
+        )
+        self.assertEqual(
+            python_candidate_module._NOTEBOOK_CLEANUP_IDENTITY_LIMIT,
+            256,
+        )
+        self.assertEqual(
+            python_candidate_module._NOTEBOOK_CLEANUP_DIAGNOSTIC_BYTES,
+            65_536,
+        )
+
+        self.invoke()
+
+    def test_host_exit_with_owned_child_is_not_empty_success(self) -> None:
+        child = self.survivor(role="browser-helper", pid=5103, start_time=77)
+        with self.assertRaises(CandidateError) as raised:
+            self.invoke(observation="complete-nonempty", survivors=(child,))
+
+        diagnostic = str(raised.exception)
+        self.assertIn("complete-nonempty", diagnostic)
+        self.assertIn("role=browser-helper", diagnostic)
+        self.assertIn("pid=5103", diagnostic)
+        self.assertIn("start=77", diagnostic)
+
+    def test_primary_failure_still_has_a_cleanup_terminal(self) -> None:
+        primary = RuntimeError("host-payload-failed")
+        self.assertRaises(CandidateError, self.invoke, primary_error=primary)
+
+        survivor = self.survivor(pid=6104, start_time=88)
+        with self.assertRaises(CandidateError) as raised:
+            self.invoke(
+                primary_error=primary,
+                observation="complete-nonempty",
+                survivors=(survivor,),
+            )
+
+        diagnostic = str(raised.exception)
+        self.assertIn("primary=RuntimeError: host-payload-failed", diagnostic)
+        self.assertIn("cleanup=complete-nonempty", diagnostic)
+        self.assertIn("pid=6104", diagnostic)
+        self.assertIs(raised.exception.__cause__, primary)
+
+    def test_forced_escalation_rejects_even_after_complete_empty(self) -> None:
+        with self.assertRaisesRegex(CandidateError, "forced-escalation"):
+            self.invoke(forced_escalation=True)
+
+    def test_absolute_decision_deadline_rejects_nonempty_and_incomplete(self) -> None:
+        survivor = self.survivor(pid=7105, start_time=99)
+        for observation, survivors in (
+            ("complete-empty", ()),
+            ("complete-nonempty", (survivor,)),
+            ("incomplete(observer-unavailable)", ()),
+        ):
+            with self.subTest(observation=observation):
+                with self.assertRaises(CandidateError) as raised:
+                    self.invoke(
+                        observation=observation,
+                        survivors=survivors,
+                        observed_at=135.0,
+                    )
+                diagnostic = str(raised.exception)
+                self.assertIn("cleanup-deadline", diagnostic)
+                self.assertIn(observation, diagnostic)
+                self.assertLessEqual(len(diagnostic.encode("utf-8")), 65_536)
+
+    def test_stable_identity_distinguishes_pid_reuse_and_foreign_roles(self) -> None:
+        stale = self.survivor(role="kernel", pid=8106, start_time=100)
+        replacement = self.survivor(
+            role="foreign",
+            pid=8106,
+            start_time=101,
+        )
+        with self.assertRaises(CandidateError) as first:
+            self.invoke(
+                observation="complete-nonempty",
+                survivors=(replacement, stale),
+            )
+        with self.assertRaises(CandidateError) as second:
+            self.invoke(
+                observation="complete-nonempty",
+                survivors=(stale, replacement),
+            )
+
+        first_diagnostic = str(first.exception)
+        self.assertEqual(first_diagnostic, str(second.exception))
+        self.assertIn("role=kernel", first_diagnostic)
+        self.assertIn("role=foreign", first_diagnostic)
+        self.assertIn("pid=8106", first_diagnostic)
+        self.assertIn("start=100", first_diagnostic)
+        self.assertIn("start=101", first_diagnostic)
+
+    def test_cleanup_diagnostic_never_hides_primary_or_stable_identity(self) -> None:
+        primary = subprocess.CalledProcessError(9, ("npm", "run", "test:hosts"))
+        survivor = self.survivor(
+            role="unknown",
+            pid=9107,
+            start_time=111,
+            state="inaccessible",
+            authority_denied=True,
+        )
+        with self.assertRaises(CandidateError) as raised:
+            self.invoke(
+                primary_error=primary,
+                observation="incomplete(authority-denied)",
+                survivors=(survivor,),
+            )
+
+        diagnostic = str(raised.exception)
+        self.assertIn("primary=CalledProcessError", diagnostic)
+        self.assertIn("cleanup=incomplete(authority-denied)", diagnostic)
+        self.assertIn("role=unknown", diagnostic)
+        self.assertIn("pid=9107", diagnostic)
+        self.assertIn("start=111", diagnostic)
+        self.assertIn("state=inaccessible", diagnostic)
+        self.assertIn(f"scenario={self.SCENARIO}", diagnostic)
+        self.assertIn("requested_stages=shutdown,sigterm,sigkill", diagnostic)
+        self.assertIn("shutdown=acknowledged", diagnostic)
+        self.assertIn("sigterm=sent", diagnostic)
+        self.assertIn("sigkill=not-required", diagnostic)
+        self.assertIn("authority_denied=true", diagnostic)
+        self.assertIs(raised.exception.__cause__, primary)
+
+    def test_identity_and_diagnostic_overflow_are_incomplete_rejections(self) -> None:
+        self.decision()
+        admitted = tuple(
+            self.survivor(pid=10_000 + index, start_time=20_000 + index)
+            for index in range(256)
+        )
+        admitted_diagnostics: list[str] = []
+        for ordered in (admitted, tuple(reversed(admitted))):
+            with self.subTest(
+                identity_count=len(ordered), reversed=ordered != admitted
+            ):
+                with self.assertRaises(CandidateError) as within_identity_limit:
+                    self.invoke(
+                        observation="complete-nonempty",
+                        survivors=ordered,
+                    )
+                admitted_diagnostic = str(within_identity_limit.exception)
+                self.assertIn("complete-nonempty", admitted_diagnostic)
+                self.assertNotIn(
+                    "incomplete(observation-overflow)",
+                    admitted_diagnostic,
+                )
+                admitted_diagnostics.append(admitted_diagnostic)
+        self.assertEqual(admitted_diagnostics[0], admitted_diagnostics[1])
+
+        identities = tuple(
+            self.survivor(pid=10_000 + index, start_time=20_000 + index)
+            for index in range(257)
+        )
+        identity_diagnostics: list[str] = []
+        for ordered in (identities, tuple(reversed(identities))):
+            with self.assertRaises(CandidateError) as identity_overflow:
+                self.invoke(
+                    observation="complete-nonempty",
+                    survivors=ordered,
+                    diagnostic="cleanup=complete-nonempty",
+                )
+            identity_diagnostics.append(str(identity_overflow.exception))
+        self.assertEqual(identity_diagnostics[0], identity_diagnostics[1])
+        self.assertIn(
+            "incomplete(observation-overflow)",
+            identity_diagnostics[0],
+        )
+        self.assertLessEqual(
+            len(identity_diagnostics[0].encode("utf-8")),
+            65_536,
+        )
+
+        prefix = (
+            f"cleanup=complete-nonempty\nscenario={self.SCENARIO}\n"
+            "role=kernel pid=4102 start=908172 state=sleeping\n"
+            "requested_stages=shutdown,sigterm,sigkill\n"
+            "stage_results=shutdown=acknowledged,sigterm=sent,"
+            "sigkill=not-required\nauthority_denied=false\npadding="
+        )
+        padding = "x" * (65_536 - len(prefix.encode("utf-8")))
+        exact_limit = prefix + padding
+        self.assertEqual(len(exact_limit.encode("utf-8")), 65_536)
+        with self.assertRaises(CandidateError) as within_output_limit:
+            self.invoke(
+                observation="complete-nonempty",
+                survivors=(self.survivor(),),
+                diagnostic=exact_limit,
+            )
+        self.assertEqual(str(within_output_limit.exception), exact_limit)
+
+        with self.assertRaises(CandidateError) as output_overflow:
+            self.invoke(
+                observation="complete-nonempty",
+                survivors=(self.survivor(),),
+                diagnostic=exact_limit + "x",
+            )
+        output_diagnostic = str(output_overflow.exception)
+        self.assertIn("incomplete(observation-overflow)", output_diagnostic)
+        self.assertLessEqual(len(output_diagnostic.encode("utf-8")), 65_536)
+
+    def test_pid_reuse_and_foreign_identity_never_authorize_an_action(self) -> None:
+        matches = getattr(
+            python_candidate_module,
+            "_notebook_owned_identity_matches",
+            None,
+        )
+        self.assertTrue(callable(matches))
+        self.assertEqual(
+            tuple(inspect.signature(matches).parameters),
+            ("expected", "observed"),
+        )
+        expected = self.survivor(role="browser-helper", pid=11_108, start_time=120)
+        self.assertTrue(matches(expected=expected, observed=dict(expected)))
+
+        reused_pid = dict(expected, start_time=121)
+        foreign_role = dict(expected, role="foreign")
+        foreign_scenario = dict(expected, scenario="marimo-0.23.16")
+        for observed in (reused_pid, foreign_role, foreign_scenario, None):
+            with self.subTest(observed=observed):
+                self.assertFalse(matches(expected=expected, observed=observed))
+
+
+class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
+    """Behavioral oracle for the private mechanism-neutral cleanup runner."""
+
+    LIFECYCLE_PARAMETERS = (
+        "scenario",
+        "primary_error",
+        "observe",
+        "observe_identity",
+        "request_stage",
+        "wait",
+        "monotonic",
+    )
+
+    @staticmethod
+    def survivor(*, start_time: int = 908_172) -> dict[str, object]:
+        return NotebookOwnedProcessDecisionTests.survivor(start_time=start_time)
+
+    def lifecycle(self) -> Callable[..., None]:
+        lifecycle = getattr(
+            python_candidate_module,
+            "_notebook_cleanup_lifecycle",
+            None,
+        )
+        self.assertTrue(
+            callable(lifecycle),
+            "#495 requires the precommitted private cleanup lifecycle seam",
+        )
+        self.assertEqual(
+            tuple(inspect.signature(lifecycle).parameters),
+            self.LIFECYCLE_PARAMETERS,
+        )
+        return lifecycle
+
+    def test_00_exact_grace_and_decision_boundaries_drive_actions(self) -> None:
+        lifecycle = self.lifecycle()
+        survivor = self.survivor()
+        clock = types.SimpleNamespace(now=100.0)
+        observations = iter(
+            (
+                ("complete-nonempty", (survivor,)),
+                ("complete-empty", ()),
+            )
+        )
+        actions: list[tuple[object, ...]] = []
+
+        def observe(
+            *, stage: str, deadline: float, timeout: float
+        ) -> tuple[str, tuple[dict[str, object], ...]]:
+            actions.append(("observe", stage, deadline, timeout, clock.now))
+            return next(observations)
+
+        def observe_identity(*, expected: dict[str, object]) -> dict[str, object]:
+            actions.append(("identity", expected["start_time"]))
+            return dict(expected)
+
+        def request_stage(*, stage: str, identity: dict[str, object]) -> str:
+            actions.append(("request", stage, identity["start_time"]))
+            return f"{stage}=sent"
+
+        def wait(*, stage: str, deadline: float, timeout: float) -> str:
+            actions.append(("wait", stage, deadline, timeout))
+            self.assertEqual(stage, "graceful")
+            self.assertEqual(deadline, 135.0)
+            self.assertEqual(timeout, 30.0)
+            clock.now = 129.999
+            return "host=exited"
+
+        lifecycle(
+            scenario=NotebookOwnedProcessDecisionTests.SCENARIO,
+            primary_error=None,
+            observe=observe,
+            observe_identity=observe_identity,
+            request_stage=request_stage,
+            wait=wait,
+            monotonic=lambda: clock.now,
+        )
+        self.assertEqual(
+            actions[:4],
+            [
+                ("observe", "graceful", 135.0, 30.0, 100.0),
+                ("identity", 908_172),
+                ("request", "sigterm", 908_172),
+                ("wait", "graceful", 135.0, 30.0),
+            ],
+        )
+        self.assertEqual(
+            (actions[4][0], actions[4][1], actions[4][2], actions[4][4]),
+            ("observe", "graceful", 135.0, 129.999),
+        )
+        self.assertAlmostEqual(float(actions[4][3]), 0.001, places=9)
+
+        clock.now = 100.0
+        observations = iter(
+            (
+                ("complete-nonempty", (survivor,)),
+                ("complete-nonempty", (survivor,)),
+                ("complete-empty", ()),
+            )
+        )
+        actions.clear()
+
+        def boundary_wait(*, stage: str, deadline: float, timeout: float) -> str:
+            actions.append(("wait", stage, deadline, timeout))
+            self.assertEqual(deadline, 135.0)
+            if stage == "graceful":
+                self.assertEqual(timeout, 30.0)
+                clock.now = 130.0
+                return "host=still-running"
+            self.assertEqual(stage, "forced")
+            self.assertEqual(timeout, 5.0)
+            clock.now = 135.0
+            return "host=exited"
+
+        with self.assertRaises(CandidateError) as raised:
+            lifecycle(
+                scenario=NotebookOwnedProcessDecisionTests.SCENARIO,
+                primary_error=None,
+                observe=observe,
+                observe_identity=observe_identity,
+                request_stage=request_stage,
+                wait=boundary_wait,
+                monotonic=lambda: clock.now,
+            )
+        diagnostic = str(raised.exception)
+        self.assertIn("forced-escalation", diagnostic)
+        self.assertIn("cleanup-deadline", diagnostic)
+        self.assertIn(("request", "sigkill", 908_172), actions)
+        self.assertIn(("wait", "forced", 135.0, 5.0), actions)
+        self.assertIn(("observe", "forced", 135.0, 5.0, 130.0), actions)
+        self.assertIn(("observe", "final", 135.0, 0.0, 135.0), actions)
+
+    def test_exhausted_budget_starts_no_blocking_forced_action(self) -> None:
+        lifecycle = self.lifecycle()
+        survivor = self.survivor()
+        survivor["requested_stages"] = ()
+        survivor["stage_results"] = ()
+        clock = types.SimpleNamespace(now=100.0)
+        observations = iter(
+            (
+                ("complete-nonempty", (survivor,)),
+                ("complete-nonempty", (survivor,)),
+            )
+        )
+        actions: list[tuple[object, ...]] = []
+        identity_calls: list[tuple[float, object]] = []
+
+        def wait(*, stage: str, deadline: float, timeout: float) -> str:
+            actions.append(("wait", stage, deadline, timeout))
+            self.assertEqual((stage, deadline, timeout), ("graceful", 135.0, 30.0))
+            clock.now = 135.0
+            return "host=still-running"
+
+        def request_stage(*, stage: str, identity: dict[str, object]) -> str:
+            actions.append(("request", stage, identity["start_time"]))
+            return f"{stage}=accepted-unique-41"
+
+        def observe(
+            *, stage: str, deadline: float, timeout: float
+        ) -> tuple[str, tuple[dict[str, object], ...]]:
+            actions.append(("observe", stage, deadline, timeout, clock.now))
+            return next(observations)
+
+        def observe_identity(
+            *, expected: dict[str, object]
+        ) -> dict[str, object]:
+            identity_calls.append((clock.now, expected["start_time"]))
+            self.assertLess(
+                clock.now,
+                135.0,
+                "identity observation may not begin at an exhausted deadline",
+            )
+            return dict(expected)
+
+        with self.assertRaises(CandidateError) as raised:
+            lifecycle(
+                scenario=NotebookOwnedProcessDecisionTests.SCENARIO,
+                primary_error=None,
+                observe=observe,
+                observe_identity=observe_identity,
+                request_stage=request_stage,
+                wait=wait,
+                monotonic=lambda: clock.now,
+            )
+        diagnostic = str(raised.exception)
+        self.assertIn("cleanup-deadline", diagnostic)
+        self.assertIn(
+            f"scenario={NotebookOwnedProcessDecisionTests.SCENARIO}",
+            diagnostic,
+        )
+        self.assertIn("requested_stages=sigterm", diagnostic)
+        self.assertIn("sigterm=accepted-unique-41", diagnostic)
+        self.assertEqual(
+            [action[1] for action in actions if action[0] == "request"],
+            ["sigterm"],
+        )
+        self.assertEqual(
+            [action[1] for action in actions if action[0] == "wait"],
+            ["graceful"],
+        )
+        self.assertEqual(
+            actions,
+            [
+                ("observe", "graceful", 135.0, 30.0, 100.0),
+                ("request", "sigterm", 908_172),
+                ("wait", "graceful", 135.0, 30.0),
+                ("observe", "final", 135.0, 0.0, 135.0),
+            ],
+        )
+        self.assertEqual(identity_calls, [(100.0, 908_172)])
+
+    def test_pid_reuse_is_revalidated_immediately_before_each_action(self) -> None:
+        lifecycle = self.lifecycle()
+        matches = getattr(
+            python_candidate_module,
+            "_notebook_owned_identity_matches",
+            None,
+        )
+        self.assertTrue(callable(matches))
+        expected = self.survivor(start_time=908_172)
+        replacement = dict(expected, start_time=908_173, role="foreign")
+        clock = types.SimpleNamespace(now=100.0)
+        observations = iter(
+            (
+                ("complete-nonempty", (expected,)),
+                ("complete-nonempty", (expected,)),
+                ("incomplete(stable-identity-mismatch)", (expected,)),
+            )
+        )
+        current_identities = iter((dict(expected), replacement))
+        actions: list[tuple[object, ...]] = []
+
+        def observe_identity(*, expected: dict[str, object]) -> dict[str, object]:
+            observed = next(current_identities)
+            actions.append(("identity", observed["start_time"]))
+            return observed
+
+        def request_stage(*, stage: str, identity: dict[str, object]) -> str:
+            actions.append(("request", stage, identity["start_time"]))
+            return f"{stage}=sent"
+
+        def wait(*, stage: str, deadline: float, timeout: float) -> str:
+            actions.append(("wait", stage, deadline, timeout))
+            self.assertEqual(stage, "graceful")
+            clock.now = 130.0
+            return "host=still-running"
+
+        with mock.patch.object(
+            python_candidate_module,
+            "_notebook_owned_identity_matches",
+            wraps=matches,
+        ) as checked_identity:
+            with self.assertRaises(CandidateError) as raised:
+                lifecycle(
+                    scenario=NotebookOwnedProcessDecisionTests.SCENARIO,
+                    primary_error=None,
+                    observe=lambda *, stage, deadline, timeout: next(observations),
+                    observe_identity=observe_identity,
+                    request_stage=request_stage,
+                    wait=wait,
+                    monotonic=lambda: clock.now,
+                )
+
+        self.assertEqual(
+            actions[:4],
+            [
+                ("identity", 908_172),
+                ("request", "sigterm", 908_172),
+                ("wait", "graceful", 135.0, 30.0),
+                ("identity", 908_173),
+            ],
+        )
+        self.assertEqual(
+            [action for action in actions if action[0] == "request"],
+            [("request", "sigterm", 908_172)],
+        )
+        replacement_observation = actions.index(("identity", 908_173))
+        self.assertEqual(
+            [
+                action
+                for action in actions[replacement_observation + 1 :]
+                if action[0] == "request"
+            ],
+            [],
+        )
+        self.assertEqual(
+            checked_identity.call_args_list,
+            [
+                mock.call(expected=expected, observed=dict(expected)),
+                mock.call(expected=expected, observed=replacement),
+            ],
+        )
+        diagnostic = str(raised.exception)
+        self.assertIn("incomplete(stable-identity-mismatch)", diagnostic)
+        self.assertIn("pid=4102", diagnostic)
+        self.assertIn("start=908172", diagnostic)
+
+    def test_cleanup_source_contains_no_unbounded_wait(self) -> None:
+        self.lifecycle()
+        source = inspect.getsource(python_candidate_module)
+        tree = compile(
+            source,
+            str(python_candidate_module.__file__),
+            "exec",
+            ast.PyCF_ONLY_AST,
+        )
+        unbounded_waits = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "wait"
+            and not node.args
+            and not node.keywords
+        ]
+        self.assertEqual(
+            unbounded_waits,
+            [],
+            "cleanup may not contain a final unbounded wait()",
+        )
+
+
+class NotebookOwnedProcessARealPathTests(unittest.TestCase):
+    """Real-process falsifiers routed through the existing Notebook host path."""
+
+    CHILD = """
+import signal
+import time
+
+signal.signal(signal.SIGTERM, lambda _signum, _frame: raise_exit())
+
+def raise_exit():
+    raise SystemExit(0)
+
+while True:
+    time.sleep(0.05)
+"""
+    ROOT = """
+import os
+import signal
+import subprocess
+import sys
+import time
+import warnings
+
+warnings.simplefilter("ignore", ResourceWarning)
+
+child = subprocess.Popen([sys.executable, "-I", "-c", os.environ["EQIORA_CHILD"]])
+with open(os.environ["EQIORA_CHILD_PID"], "w", encoding="ascii") as stream:
+    stream.write(str(child.pid))
+
+def stop(_signum, _frame):
+    if os.environ["EQIORA_CASCADE"] == "1":
+        child.send_signal(signal.SIGTERM)
+        deadline = time.monotonic() + 1.0
+        while child.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+    raise SystemExit(0)
+
+signal.signal(signal.SIGTERM, stop)
+while True:
+    time.sleep(0.05)
+"""
+
+    @staticmethod
+    def process_is_live(pid: int) -> bool:
+        try:
+            state = (
+                (Path("/proc") / str(pid) / "stat")
+                .read_text(encoding="ascii")
+                .split()[2]
+            )
+        except (FileNotFoundError, ProcessLookupError, PermissionError):
+            return False
+        return state != "Z"
+
+    @staticmethod
+    def linux_start_identity(pid: int) -> int:
+        stat_record = (Path("/proc") / str(pid) / "stat").read_text(
+            encoding="ascii"
+        )
+        comm_end = stat_record.rfind(")")
+        if comm_end < 0:
+            raise AssertionError(f"missing comm terminator in /proc/{pid}/stat")
+        fields_from_state = stat_record[comm_end + 2 :].split()
+        return int(fields_from_state[19])
+
+    @classmethod
+    def bounded_test_cleanup(cls, *pids: int) -> None:
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            for pid in pids:
+                try:
+                    os.waitpid(pid, os.WNOHANG)
+                except (ChildProcessError, ProcessLookupError):
+                    pass
+            if not any(cls.process_is_live(pid) for pid in pids):
+                return
+            time.sleep(0.01)
+        survivors = tuple(pid for pid in pids if cls.process_is_live(pid))
+        if survivors:
+            raise AssertionError(f"test harness cleanup retained PIDs: {survivors}")
+
+    def run_one_real_host(
+        self,
+        root: Path,
+        *,
+        cascade: bool = False,
+        operation_error: BaseException | None = None,
+        capture: dict[str, object] | None = None,
+        guard_lifecycle_actions: bool = False,
+    ) -> int:
+        executor = importlib.import_module("python_candidate_h2")
+        profiles = importlib.import_module("python_candidate_profiles")
+        extracted = root / "extracted"
+        fixture = extracted / "bindings/python/tests/fixtures/host.ipynb"
+        fixture.parent.mkdir(parents=True)
+        fixture.write_text("{}", encoding="utf-8")
+        rich_test = extracted / "bindings/python/tests/test_rich_mesh_display.py"
+        rich_test.parent.mkdir(parents=True, exist_ok=True)
+        rich_test.write_text("def test_placeholder():\n    pass\n", encoding="utf-8")
+
+        browser = root / "browser"
+        browser.write_bytes(b"browser")
+        npm = root / "npm"
+        node = root / "node"
+        npm.write_bytes(b"npm")
+        node.write_bytes(b"node")
+        acquired = types.SimpleNamespace(
+            browser_archive_sha256="a" * 64,
+            browser_executable_sha256="b" * 64,
+            browser_platform="linux-x86_64",
+            browser_executable=browser,
+            python_wheels=(),
+            npm=npm,
+            node=node,
+        )
+        receipt = {
+            "browser": {
+                "downloaded_archive_sha256": acquired.browser_archive_sha256,
+                "executable_sha256": acquired.browser_executable_sha256,
+                "platform": acquired.browser_platform,
+            },
+            "python_host": {
+                "resolved_environment_sha256": executor.structured_sha256(())
+            },
+        }
+        frontend = {
+            "h2_receipt_sha256": hashlib.sha256(
+                executor.canonical_json_bytes(receipt)
+            ).hexdigest()
+        }
+        workspace_root = root / "profile"
+        workspace = types.SimpleNamespace(
+            root=workspace_root,
+            environment=workspace_root / "environment",
+            consumer=workspace_root / "consumer",
+        )
+        child_pid_path = root / "owned-child.pid"
+        real_popen = subprocess.Popen
+        real_os_kill = os.kill
+        launched_root: subprocess.Popen[str] | None = None
+        callback_state = {
+            "request_depth": 0,
+            "wait_depth": 0,
+            "harness_cleanup": False,
+        }
+
+        def launch_root(
+            _argv: list[str],
+            **kwargs: object,
+        ) -> subprocess.Popen[str]:
+            nonlocal launched_root
+            environment = dict(kwargs["env"])
+            environment.update(
+                {
+                    "EQIORA_CHILD": self.CHILD,
+                    "EQIORA_CHILD_PID": str(child_pid_path),
+                    "EQIORA_CASCADE": "1" if cascade else "0",
+                }
+            )
+            launched_root = real_popen(
+                [sys.executable, "-I", "-c", self.ROOT],
+                cwd=kwargs["cwd"],
+                env=environment,
+                stdout=kwargs["stdout"],
+                stderr=kwargs["stderr"],
+                text=kwargs["text"],
+            )
+            if capture is not None:
+                capture["root_pid"] = launched_root.pid
+            deadline = time.monotonic() + 2.0
+            child_pid = None
+            while time.monotonic() < deadline:
+                if launched_root.poll() is not None:
+                    break
+                try:
+                    child_pid = int(child_pid_path.read_text(encoding="ascii"))
+                except (FileNotFoundError, ValueError):
+                    pass
+                else:
+                    break
+                time.sleep(0.01)
+            if child_pid is None:
+                raise AssertionError("controlled host did not publish its child PID")
+            if capture is not None:
+                capture["child_pid"] = child_pid
+                capture["owned_identities"] = (
+                    (launched_root.pid, self.linux_start_identity(launched_root.pid)),
+                    (child_pid, self.linux_start_identity(child_pid)),
+                )
+                event_log = capture["events"]
+                event_log.append(
+                    (
+                        "launch",
+                        launched_root.pid,
+                        child_pid,
+                        self.process_is_live(launched_root.pid),
+                        self.process_is_live(child_pid),
+                    )
+                )
+            real_send_signal = launched_root.send_signal
+            real_wait = launched_root.wait
+
+            def guarded_send_signal(signum: int) -> None:
+                if callback_state["harness_cleanup"]:
+                    real_send_signal(signum)
+                    return
+                event_log.append(
+                    (
+                        "host-signal"
+                        if callback_state["request_depth"]
+                        else "bypass-signal",
+                        launched_root.pid,
+                        signum,
+                    )
+                )
+                real_send_signal(signum)
+
+            def guarded_wait(
+                *args: object,
+                **kwargs: object,
+            ) -> int:
+                if callback_state["harness_cleanup"]:
+                    return real_wait(*args, **kwargs)
+                event_log.append(
+                    (
+                        "host-wait"
+                        if callback_state["wait_depth"]
+                        else "bypass-wait",
+                        launched_root.pid,
+                        kwargs.get("timeout"),
+                    )
+                )
+                return real_wait(*args, **kwargs)
+
+            if guard_lifecycle_actions:
+                launched_root.send_signal = guarded_send_signal
+                launched_root.wait = guarded_wait
+            return launched_root
+
+        def guarded_os_kill(pid: int, signum: int) -> None:
+            if callback_state["harness_cleanup"]:
+                real_os_kill(pid, signum)
+                return
+            event_log.append(
+                (
+                    "os-signal"
+                    if callback_state["request_depth"]
+                    else "bypass-os-signal",
+                    pid,
+                    signum,
+                )
+            )
+            real_os_kill(pid, signum)
+
+        def checked_run(argv: list[str], **_kwargs: object) -> str:
+            if tuple(argv[:4]) == ("npm", "run", "test:hosts", "--"):
+                if operation_error is not None:
+                    raise operation_error
+            return ""
+
+        def run_first_host(
+            observations: tuple[tuple[str, Callable[[], None]], ...],
+            *,
+            emit: Callable[[str], None],
+        ) -> tuple[str, ...]:
+            selected = observations[:6]
+            for name, observe in selected:
+                observe()
+                emit(name)
+            return tuple(name for name, _ in selected)
+
+        def stage_frontend(_source: Path, build: object) -> None:
+            Path(build.frontend).mkdir(parents=True)
+
+        decision_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+        lifecycle_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+        event_log: list[tuple[object, ...]] = []
+        if capture is not None:
+            capture["decision_calls"] = decision_calls
+            capture["lifecycle_calls"] = lifecycle_calls
+            capture["events"] = event_log
+
+        try:
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(
+                    mock.patch.object(
+                        profiles,
+                        "run_notebook_profile",
+                        side_effect=run_first_host,
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        profiles,
+                        "install_environment",
+                        return_value=root / "python",
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        python_candidate_module,
+                        "checked_run",
+                        side_effect=checked_run,
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        python_candidate_module.subprocess,
+                        "Popen",
+                        side_effect=launch_root,
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        python_candidate_module.socket,
+                        "create_connection",
+                        return_value=mock.MagicMock(),
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        executor,
+                        "stage_frontend",
+                        side_effect=stage_frontend,
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        executor,
+                        "acquire_inputs",
+                        return_value=acquired,
+                    )
+                )
+                if guard_lifecycle_actions:
+                    stack.enter_context(
+                        mock.patch.object(
+                            python_candidate_module.os,
+                            "kill",
+                            side_effect=guarded_os_kill,
+                        )
+                    )
+
+                decision = getattr(
+                    python_candidate_module,
+                    "_notebook_cleanup_decision",
+                    None,
+                )
+                if callable(decision):
+
+                    def record_decision(
+                        *args: object,
+                        **kwargs: object,
+                    ) -> None:
+                        decision_calls.append((args, dict(kwargs)))
+                        if capture is not None:
+                            root_pid = int(capture["root_pid"])
+                            child_pid = int(capture["child_pid"])
+                            event_log.append(
+                                (
+                                    "decision",
+                                    root_pid,
+                                    child_pid,
+                                    self.process_is_live(root_pid),
+                                    self.process_is_live(child_pid),
+                                    kwargs.get("observation"),
+                                )
+                            )
+                        return decision(*args, **kwargs)
+
+                    stack.enter_context(
+                        mock.patch.object(
+                            python_candidate_module,
+                            "_notebook_cleanup_decision",
+                            side_effect=record_decision,
+                        )
+                    )
+
+                lifecycle = getattr(
+                    python_candidate_module,
+                    "_notebook_cleanup_lifecycle",
+                    None,
+                )
+                if callable(lifecycle):
+
+                    def record_lifecycle(
+                        *args: object,
+                        **kwargs: object,
+                    ) -> None:
+                        lifecycle_calls.append((args, dict(kwargs)))
+                        wrapped = dict(kwargs)
+                        if capture is not None:
+                            root_pid = int(capture["root_pid"])
+                            child_pid = int(capture["child_pid"])
+                            event_log.append(
+                                (
+                                    "lifecycle-enter",
+                                    root_pid,
+                                    child_pid,
+                                    self.process_is_live(root_pid),
+                                    self.process_is_live(child_pid),
+                                )
+                            )
+                            observe = kwargs["observe"]
+                            observe_identity = kwargs["observe_identity"]
+                            request_stage = kwargs["request_stage"]
+                            wait = kwargs["wait"]
+
+                            def record_observe(
+                                *, stage: str, deadline: float, timeout: float
+                            ) -> tuple[str, tuple[dict[str, object], ...]]:
+                                event_log.append(
+                                    (
+                                        "observe-enter",
+                                        stage,
+                                        deadline,
+                                        timeout,
+                                        self.process_is_live(root_pid),
+                                        self.process_is_live(child_pid),
+                                    )
+                                )
+                                terminal, survivors = observe(
+                                    stage=stage,
+                                    deadline=deadline,
+                                    timeout=timeout,
+                                )
+                                membership = tuple(
+                                    sorted(
+                                        (
+                                            int(survivor["pid"]),
+                                            int(survivor["start_time"]),
+                                        )
+                                        for survivor in survivors
+                                    )
+                                )
+                                event_log.append(
+                                    (
+                                        "observe-exit",
+                                        terminal,
+                                        membership,
+                                        self.process_is_live(root_pid),
+                                        self.process_is_live(child_pid),
+                                    )
+                                )
+                                return terminal, survivors
+
+                            def record_identity(
+                                *, expected: dict[str, object]
+                            ) -> dict[str, object] | None:
+                                observed = observe_identity(expected=expected)
+                                event_log.append(
+                                    (
+                                        "identity",
+                                        int(expected["pid"]),
+                                        int(expected["start_time"]),
+                                        None
+                                        if observed is None
+                                        else int(observed["pid"]),
+                                        None
+                                        if observed is None
+                                        else int(observed["start_time"]),
+                                    )
+                                )
+                                return observed
+
+                            def record_request(
+                                *, stage: str, identity: dict[str, object]
+                            ) -> str:
+                                event_log.append(
+                                    (
+                                        "request-enter",
+                                        stage,
+                                        int(identity["pid"]),
+                                        int(identity["start_time"]),
+                                    )
+                                )
+                                callback_state["request_depth"] += 1
+                                try:
+                                    result = request_stage(
+                                        stage=stage,
+                                        identity=identity,
+                                    )
+                                finally:
+                                    callback_state["request_depth"] -= 1
+                                event_log.append(("request-exit", stage, result))
+                                return result
+
+                            def record_wait(
+                                *, stage: str, deadline: float, timeout: float
+                            ) -> str:
+                                event_log.append(
+                                    ("wait-enter", stage, deadline, timeout)
+                                )
+                                callback_state["wait_depth"] += 1
+                                try:
+                                    result = wait(
+                                        stage=stage,
+                                        deadline=deadline,
+                                        timeout=timeout,
+                                    )
+                                finally:
+                                    callback_state["wait_depth"] -= 1
+                                event_log.append(("wait-exit", stage, result))
+                                return result
+
+                            wrapped.update(
+                                {
+                                    "observe": record_observe,
+                                    "observe_identity": record_identity,
+                                    "request_stage": record_request,
+                                    "wait": record_wait,
+                                }
+                            )
+                        try:
+                            return lifecycle(*args, **wrapped)
+                        finally:
+                            event_log.append(("lifecycle-exit",))
+
+                    stack.enter_context(
+                        mock.patch.object(
+                            python_candidate_module,
+                            "_notebook_cleanup_lifecycle",
+                            side_effect=record_lifecycle,
+                        )
+                    )
+
+                python_candidate_module.run_notebook_profile(
+                    uv="/reviewed/uv",
+                    interpreter="/reviewed/python3.13",
+                    wheel=root / "candidate.whl",
+                    extracted=extracted,
+                    workspace=workspace,
+                    config=python_candidate_module.load_config(),
+                    receipt=receipt,
+                    frontend=frontend,
+                )
+        finally:
+            if launched_root is not None and launched_root.poll() is None:
+                callback_state["harness_cleanup"] = True
+                launched_root.kill()
+                launched_root.wait(timeout=1.0)
+
+        return int(child_pid_path.read_text(encoding="ascii"))
+
+    def test_00_ordinary_host_path_reaches_complete_empty(self) -> None:
+        owned_pid = -1
+        root_pid = -1
+        capture: dict[str, object] = {}
+        try:
+            with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+                owned_pid = self.run_one_real_host(
+                    Path(temporary),
+                    cascade=True,
+                    capture=capture,
+                    guard_lifecycle_actions=True,
+                )
+                root_pid = int(capture["root_pid"])
+                owned_identities = set(capture["owned_identities"])
+                self.assertEqual(len(owned_identities), 2)
+                self.assertFalse(self.process_is_live(root_pid))
+                self.assertFalse(self.process_is_live(owned_pid))
+                events = capture["events"]
+                event_names = [event[0] for event in events]
+                self.assertEqual(
+                    event_names[:2],
+                    ["launch", "lifecycle-enter"],
+                )
+                self.assertEqual(event_names[-1], "lifecycle-exit")
+                self.assertNotIn("bypass-signal", event_names)
+                self.assertNotIn("bypass-os-signal", event_names)
+                self.assertNotIn("bypass-wait", event_names)
+                self.assertEqual(
+                    events[0],
+                    ("launch", root_pid, owned_pid, True, True),
+                )
+                self.assertEqual(
+                    events[1],
+                    ("lifecycle-enter", root_pid, owned_pid, True, True),
+                )
+
+                observations = [
+                    event for event in events if event[0] == "observe-exit"
+                ]
+                self.assertEqual(
+                    observations[0],
+                    (
+                        "observe-exit",
+                        "complete-nonempty",
+                        observations[0][2],
+                        True,
+                        True,
+                    ),
+                )
+                self.assertEqual(set(observations[0][2]), owned_identities)
+                self.assertEqual(
+                    observations[-1],
+                    ("observe-exit", "complete-empty", (), False, False),
+                )
+
+                identities = [event for event in events if event[0] == "identity"]
+                self.assertTrue(identities)
+                self.assertTrue(
+                    all(
+                        expected_pid == observed_pid
+                        and expected_start == observed_start
+                        and (expected_pid, expected_start) in owned_identities
+                        and (observed_pid, observed_start) in owned_identities
+                        for (
+                            _event,
+                            expected_pid,
+                            expected_start,
+                            observed_pid,
+                            observed_start,
+                        ) in identities
+                    )
+                )
+                requests = [
+                    event for event in events if event[0] == "request-enter"
+                ]
+                self.assertTrue(requests)
+                self.assertTrue(
+                    all(
+                        (request[2], request[3]) in owned_identities
+                        for request in requests
+                    )
+                )
+                self.assertIn("wait-enter", event_names)
+                self.assertIn("request-exit", event_names)
+                self.assertIn("wait-exit", event_names)
+
+                decision_events = [
+                    (index, event)
+                    for index, event in enumerate(events)
+                    if event[0] == "decision"
+                ]
+                self.assertEqual(len(decision_events), 1)
+                decision_index, decision_event = decision_events[0]
+                self.assertEqual(
+                    decision_event,
+                    (
+                        "decision",
+                        root_pid,
+                        owned_pid,
+                        False,
+                        False,
+                        "complete-empty",
+                    ),
+                )
+                last_observation = max(
+                    index
+                    for index, event in enumerate(events)
+                    if event[0] == "observe-exit"
+                )
+                self.assertLess(last_observation, decision_index)
+                self.assertLess(decision_index, len(events) - 1)
+                lifecycle_calls = capture["lifecycle_calls"]
+                decision_calls = capture["decision_calls"]
+                self.assertEqual(len(lifecycle_calls), 1)
+                self.assertEqual(len(decision_calls), 1)
+                decision_args, decision = decision_calls[0]
+                self.assertEqual(decision_args, ())
+                self.assertEqual(
+                    decision["scenario"],
+                    NotebookOwnedProcessDecisionTests.SCENARIO,
+                )
+                self.assertIsNone(decision["primary_error"])
+                self.assertFalse(decision["forced_escalation"])
+                self.assertEqual(decision["observation"], "complete-empty")
+                self.assertEqual(decision["survivors"], ())
+                self.assertLess(
+                    decision["observed_at"],
+                    decision["cleanup_started"] + 35.0,
+                )
+        finally:
+            self.bounded_test_cleanup(
+                *(pid for pid in (root_pid, owned_pid) if pid > 0)
+            )
+
+    def test_owned_helper_is_cleaned_while_same_argv_foreign_process_survives(
+        self,
+    ) -> None:
+        real_popen = subprocess.Popen
+        foreign = real_popen([sys.executable, "-I", "-c", self.CHILD])
+        owned_pid = -1
+        try:
+            with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+                owned_pid = self.run_one_real_host(Path(temporary))
+                self.assertFalse(self.process_is_live(owned_pid))
+                self.assertIsNone(foreign.poll())
+        finally:
+            self.bounded_test_cleanup(
+                *(pid for pid in (owned_pid, foreign.pid) if pid > 0)
+            )
+            try:
+                foreign.wait(timeout=0.1)
+            except (ChildProcessError, subprocess.TimeoutExpired):
+                pass
+
+    def test_primary_failure_cannot_skip_owned_helper_cleanup(self) -> None:
+        owned_pid = -1
+        capture: dict[str, object] = {}
+        primary = RuntimeError("host-payload-failed")
+        try:
+            with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+                with self.assertRaises((CandidateError, RuntimeError)) as raised:
+                    owned_pid = self.run_one_real_host(
+                        Path(temporary),
+                        operation_error=primary,
+                        capture=capture,
+                    )
+                if owned_pid < 0:
+                    owned_pid = int(capture.get("child_pid", -1))
+                self.assertGreater(owned_pid, 0)
+                self.assertFalse(self.process_is_live(owned_pid))
+                self.assertIsInstance(raised.exception, CandidateError)
+                self.assertIs(raised.exception.__cause__, primary)
+                diagnostic = str(raised.exception)
+                self.assertIn("primary=RuntimeError: host-payload-failed", diagnostic)
+                self.assertIn("cleanup=complete-empty", diagnostic)
+                decision_calls = capture["decision_calls"]
+                self.assertEqual(len(decision_calls), 1)
+                decision_args, decision = decision_calls[0]
+                self.assertEqual(decision_args, ())
+                self.assertIs(decision["primary_error"], primary)
+                self.assertEqual(decision["observation"], "complete-empty")
+                self.assertEqual(decision["survivors"], ())
+        finally:
+            if owned_pid > 0:
+                self.bounded_test_cleanup(owned_pid)
 
 
 if __name__ == "__main__":
