@@ -1,0 +1,150 @@
+"""Private bounded sitemap-graph policy for the static-site checker."""
+
+from __future__ import annotations
+
+from pathlib import Path, PurePosixPath
+from urllib.parse import urlsplit
+from xml.etree import ElementTree
+
+__all__ = ("SITEMAP_ROUTES", "check_sitemap")
+
+SITE_ORIGIN = "https://eqiora.org"
+MAX_CHILDREN = 16
+SITEMAP_ROUTES = (
+    "/",
+    "/get-started/",
+    "/gallery/",
+    "/gallery/exact-cylinder-steady-stokes/",
+    "/reference/",
+    "/reference/python/eqiora/",
+    "/reference/rust/",
+    "/reference/cli/",
+    "/reference/control-v2/",
+    "/reference/mcp/",
+    "/examples/",
+    "/evidence/",
+    "/capabilities/",
+)
+
+
+def _local_name(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def _parse(path: Path) -> tuple[ElementTree.Element | None, list[str]]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        return None, [f"sitemap XML is missing or invalid: {error}"]
+    if "<!DOCTYPE" in text.upper() or "<!ENTITY" in text.upper():
+        return None, ["sitemap XML forbids DOCTYPE and entities"]
+    try:
+        return ElementTree.fromstring(text), []
+    except ElementTree.ParseError as error:
+        return None, [f"sitemap XML is missing or invalid: {error}"]
+
+
+def _locations(root: ElementTree.Element) -> list[str]:
+    return [
+        (node.text or "").strip()
+        for node in root.iter()
+        if _local_name(node.tag) == "loc"
+    ]
+
+
+def _admit_url(value: str, *, child: bool) -> tuple[str | None, str | None]:
+    parsed = urlsplit(value)
+    if parsed.query or parsed.fragment or parsed.username or parsed.password:
+        label = "sitemap child" if child else "sitemap URL"
+        return None, f"{label} must not contain query, fragment, or userinfo"
+    if f"{parsed.scheme}://{parsed.netloc}" != SITE_ORIGIN:
+        label = "sitemap child" if child else "sitemap URL"
+        return None, f"{label} must be exact same-origin"
+    path = parsed.path
+    if not path.startswith("/") or ".." in PurePosixPath(path).parts:
+        label = "sitemap child path" if child else "sitemap URL path"
+        return None, f"{label} escapes the artifact"
+    return path, None
+
+
+def _url_set(
+    root: ElementTree.Element,
+    *,
+    maximum_urls: int,
+) -> tuple[list[str], list[str]]:
+    if _local_name(root.tag) != "urlset":
+        return [], ["sitemap child must be a URL set"]
+    urls: list[str] = []
+    errors: list[str] = []
+    for value in _locations(root):
+        path, error = _admit_url(value, child=False)
+        if error:
+            errors.append(error)
+        elif path is not None:
+            urls.append(path)
+        if len(urls) > maximum_urls:
+            errors.append(f"sitemap exceeds {maximum_urls} URLs")
+            break
+    if len(urls) != len(set(urls)):
+        errors.append("sitemap contains duplicate URLs")
+    return urls, errors
+
+
+def check_sitemap(artifact: Path, maximum_urls: int) -> list[str]:
+    index = artifact / "sitemap-index.xml"
+    if index.is_symlink() or not index.is_file():
+        return ["sitemap-index.xml is missing or invalid"]
+    root, errors = _parse(index)
+    if root is None:
+        return errors
+    if _local_name(root.tag) == "urlset":
+        urls, child_errors = _url_set(root, maximum_urls=maximum_urls)
+        errors.extend(child_errors)
+    elif _local_name(root.tag) == "sitemapindex":
+        children = _locations(root)
+        if len(children) > MAX_CHILDREN:
+            errors.append(f"sitemap exceeds {MAX_CHILDREN} children")
+        if len(children) != len(set(children)):
+            errors.append("duplicate sitemap child")
+        urls = []
+        seen_children: set[Path] = set()
+        for value in children[: MAX_CHILDREN + 1]:
+            path_text, error = _admit_url(value, child=True)
+            if error:
+                errors.append(error)
+                continue
+            assert path_text is not None
+            child = (artifact / path_text.lstrip("/")).resolve()
+            try:
+                child.relative_to(artifact)
+            except ValueError:
+                errors.append("sitemap child path escapes the artifact")
+                continue
+            if child in seen_children:
+                continue
+            seen_children.add(child)
+            if child.is_symlink() or not child.is_file():
+                errors.append(f"sitemap child is missing: {path_text}")
+                continue
+            child_root, child_errors = _parse(child)
+            errors.extend(child_errors)
+            if child_root is None:
+                continue
+            child_urls, child_errors = _url_set(
+                child_root,
+                maximum_urls=maximum_urls,
+            )
+            errors.extend(child_errors)
+            urls.extend(child_urls)
+            if len(urls) > maximum_urls:
+                errors.append(f"sitemap exceeds {maximum_urls} URLs")
+                break
+        if len(urls) != len(set(urls)):
+            errors.append("sitemap contains duplicate URLs")
+    else:
+        return [*errors, "sitemap-index.xml must be a sitemap index or URL set"]
+    admitted = set(urls)
+    for route in SITEMAP_ROUTES:
+        if route not in admitted:
+            errors.append(f"sitemap omits required route {route}")
+    return errors
