@@ -387,6 +387,40 @@ test('04 exact two-shape table scope and concealment/focus/vacuity mutants are c
     );
   }
 
+  const unrelatedFunctionalCss = `${exactTableCss}\n.other:lang(table),
+.other :is([data-kind="table"]){overflow-x:auto}`;
+  await resetPositive();
+  assertExactTableSelectorScope(unrelatedFunctionalCss);
+  await page.setContent(tableFixture(unrelatedFunctionalCss));
+  await assertTableFixtureGreen(page);
+
+  for (const [ordinaryBranch, mutantBranch, rejection] of [
+    ['.other :is(.ordinary)', '.other :is(table)', 'unowned table selector branch'],
+    [
+      '@media (width > 0px){.safe, .other :is(:where(.ordinary)){overflow-x:auto}}',
+      '@media (width > 0px){.safe, .other :is(:where(\\74 able)){overflow-x:auto}}',
+      'unsupported escaped table-target selector authority',
+    ],
+  ]) {
+    await resetPositive();
+    const ordinaryCss = ordinaryBranch.startsWith('@media')
+      ? `${exactTableCss}\n${ordinaryBranch}`
+      : `${exactTableCss}\n${ordinaryBranch}{overflow-x:auto}`;
+    assertExactTableSelectorScope(ordinaryCss);
+    await page.setContent(tableFixture(ordinaryCss));
+    await assertTableFixtureGreen(page);
+
+    const mutantCss = mutantBranch.startsWith('@media')
+      ? `${exactTableCss}\n${mutantBranch}`
+      : `${exactTableCss}\n${mutantBranch}{overflow-x:auto}`;
+    await page.setContent(tableFixture(mutantCss));
+    await assertTableFixtureGreen(page);
+    await expect(
+      async () => assertExactTableSelectorScope(mutantCss),
+      mutantBranch,
+    ).rejects.toThrow(rejection);
+  }
+
   const authenticatedParent = await layoutCssState();
   expect(authenticatedParent.parent).toBe(true);
   const focusParentCss = `${authenticatedParent.css}\nhtml,body{margin:0;max-width:100%}.sl-markdown-content{width:300px}.wide{display:block;width:556px;white-space:nowrap}`;
@@ -493,7 +527,6 @@ test('04 exact two-shape table scope and concealment/focus/vacuity mutants are c
   for (const [property, value, failure] of [
     ['opacity', '0', 'concealment'],
     ['user-select', 'none', 'selection'],
-    ['clip-path', 'inset(100%)', 'concealment'],
   ] as const) {
     await resetPositive();
     await page.locator('.nested-text').first().evaluate(
@@ -503,6 +536,23 @@ test('04 exact two-shape table scope and concealment/focus/vacuity mutants are c
       { property, value },
     );
     await assertTableFixtureOnlyFailure(page, failure);
+  }
+
+  for (const [ordinaryClip, fullClip] of [
+    ['inset(0)', 'inset(100%)'],
+    ['circle(100%)', 'circle(0)'],
+    ['ellipse(100% 100%)', 'ellipse(0 50%)'],
+    ['polygon(0 0, 100% 0, 100% 100%, 0 100%)', 'polygon(0 0, 0 0, 0 0)'],
+  ]) {
+    await resetPositive();
+    await page.locator('.nested-text').first().evaluate((descendant, value) => {
+      (descendant as HTMLElement).style.clipPath = value;
+    }, ordinaryClip);
+    await assertTableFixtureGreen(page);
+    await page.locator('.nested-text').first().evaluate((descendant, value) => {
+      (descendant as HTMLElement).style.clipPath = value;
+    }, fullClip);
+    await assertTableFixtureOnlyFailure(page, 'concealment');
   }
 
   await resetPositive();

@@ -542,11 +542,122 @@ async function observeTables(page: Page): Promise<TableObservation> {
   const observation = await page.evaluate((selectors) => {
     const normalize = (value: string) => value.trim().split(/\s+/u).filter(Boolean).join(' ');
     const tables = Array.from(document.querySelectorAll<HTMLTableElement>('main table'));
-    const fullyClipped = (style: CSSStyleDeclaration) =>
-      /^rect\(0(?:px)?, 0(?:px)?, 0(?:px)?, 0(?:px)?\)$/u.test(style.clip) ||
-      /^inset\((?:100|[5-9]\d)(?:%|px)(?:\s+(?:100|[5-9]\d)(?:%|px)){0,3}\)$/u.test(
-        style.clipPath,
+    const cssLength = (value: string, extent: number): number | null => {
+      const match = value.trim().match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+))(px|%)?$/iu);
+      if (!match) return null;
+      const magnitude = Number.parseFloat(match[1]);
+      return match[2]?.toLowerCase() === '%' ? (magnitude * extent) / 100 : magnitude;
+    };
+    const zeroLength = (value: string) => {
+      const parsed = cssLength(value, 1);
+      return parsed !== null && Math.abs(parsed) < Number.EPSILON;
+    };
+    const splitTopLevelComma = (value: string) => {
+      const parts: string[] = [];
+      let start = 0;
+      let depth = 0;
+      let quote = '';
+      for (let offset = 0; offset < value.length; offset += 1) {
+        const character = value[offset];
+        if (quote) {
+          if (character === '\\') offset += 1;
+          else if (character === quote) quote = '';
+        } else if (character === '"' || character === "'") quote = character;
+        else if (character === '\\') offset += 1;
+        else if (character === '(') depth += 1;
+        else if (character === ')') depth -= 1;
+        else if (character === ',' && depth === 0) {
+          parts.push(value.slice(start, offset).trim());
+          start = offset + 1;
+        }
+      }
+      parts.push(value.slice(start).trim());
+      return parts;
+    };
+    const fullyClipped = (element: Element, style: CSSStyleDeclaration) => {
+      const legacy = style.clip.trim().match(/^rect\((.*)\)$/iu);
+      if (legacy) {
+        const coordinates = splitTopLevelComma(legacy[1]);
+        if (coordinates.length === 4) {
+          const [top, right, bottom, left] = coordinates.map((value) => cssLength(value, 1));
+          if (
+            top !== null &&
+            right !== null &&
+            bottom !== null &&
+            left !== null &&
+            (bottom <= top || right <= left)
+          ) return true;
+        }
+      }
+
+      const clipPath = style.clipPath.trim();
+      if (!clipPath || clipPath === 'none') return false;
+      const basicShape = clipPath.match(
+        /^([a-z-]+)\(([\s\S]*)\)(?:\s+(?:margin-box|border-box|padding-box|content-box|fill-box|stroke-box|view-box))?$/iu,
       );
+      if (!basicShape) return false;
+      const name = basicShape[1].toLowerCase();
+      const body = basicShape[2].trim();
+      if (name === 'circle') {
+        const radius = body.split(/\s+at\s+/iu, 1)[0].trim();
+        return zeroLength(radius);
+      }
+      if (name === 'ellipse') {
+        const radii = body.split(/\s+at\s+/iu, 1)[0].trim().split(/\s+/u);
+        return radii.length === 2 && radii.some(zeroLength);
+      }
+      if (name === 'inset') {
+        const offsets = body.split(/\s+round\s+/iu, 1)[0].trim().split(/\s+/u);
+        if (offsets.length < 1 || offsets.length > 4) return false;
+        const expanded =
+          offsets.length === 1
+            ? [offsets[0], offsets[0], offsets[0], offsets[0]]
+            : offsets.length === 2
+              ? [offsets[0], offsets[1], offsets[0], offsets[1]]
+              : offsets.length === 3
+                ? [offsets[0], offsets[1], offsets[2], offsets[1]]
+                : offsets;
+        const box = element.getBoundingClientRect();
+        const top = cssLength(expanded[0], box.height);
+        const right = cssLength(expanded[1], box.width);
+        const bottom = cssLength(expanded[2], box.height);
+        const left = cssLength(expanded[3], box.width);
+        return (
+          top !== null &&
+          right !== null &&
+          bottom !== null &&
+          left !== null &&
+          (top + bottom >= box.height || left + right >= box.width)
+        );
+      }
+      if (name === 'polygon') {
+        const points = splitTopLevelComma(body);
+        if (/^(evenodd|nonzero)$/iu.test(points[0] ?? '')) points.shift();
+        if (points.length < 3) return false;
+        const box = element.getBoundingClientRect();
+        const coordinates = points.map((point) => {
+          const pair = point.trim().split(/\s+/u);
+          if (pair.length !== 2) return null;
+          const x = cssLength(pair[0], box.width);
+          const y = cssLength(pair[1], box.height);
+          return x === null || y === null ? null : { x, y };
+        });
+        if (coordinates.some((point) => point === null)) return false;
+        const concrete = coordinates as Array<{ x: number; y: number }>;
+        const origin = concrete[0];
+        const direction = concrete.find(
+          (point) => Math.abs(point.x - origin.x) >= 0.01 || Math.abs(point.y - origin.y) >= 0.01,
+        );
+        if (!direction) return true;
+        const vector = { x: direction.x - origin.x, y: direction.y - origin.y };
+        return concrete.every((point) =>
+          Math.abs(
+            (point.x - origin.x) * vector.y - (point.y - origin.y) * vector.x,
+          ) < 0.01,
+        );
+      }
+      return false;
+    };
     const relevantChain = (table: HTMLTableElement) => {
       const chain: Element[] = [table];
       let ancestor = table.parentElement;
@@ -669,7 +780,7 @@ async function observeTables(page: Page): Promise<TableObservation> {
               textStyle.display !== 'none' &&
               !/hidden|collapse/u.test(textStyle.visibility) &&
               Number.parseFloat(textStyle.opacity) > 0 &&
-              !fullyClipped(textStyle) &&
+              !fullyClipped(element, textStyle) &&
               !horizontalTruncation &&
               !verticalTruncation &&
               !(textStyle.textOverflow === 'ellipsis' && horizontalTruncation)
@@ -711,14 +822,14 @@ async function observeTables(page: Page): Promise<TableObservation> {
       failures.concealment +=
         style.visibility === 'visible' &&
         Number.parseFloat(style.opacity) > 0 &&
-        !fullyClipped(style) &&
+        !fullyClipped(table, style) &&
         !/hidden|clip/.test(style.overflowX) &&
         cells.every((cell) => {
           const cellStyle = getComputedStyle(cell);
           return (
             cellStyle.visibility === 'visible' &&
             Number.parseFloat(cellStyle.opacity) > 0 &&
-            !fullyClipped(cellStyle) &&
+            !fullyClipped(cell, cellStyle) &&
             !/hidden|clip/.test(cellStyle.overflowX) &&
             cellStyle.textOverflow !== 'ellipsis'
           );
@@ -1103,27 +1214,141 @@ function decodeCssEscapes(selector: string): string {
 }
 
 function selectorTargetsTable(selector: string): boolean {
-  let parentheses = 0;
-  let brackets = 0;
-  let quote = '';
+  const selectorFunctions = new Set([
+    'is',
+    'where',
+    'not',
+    'has',
+    'matches',
+    '-webkit-any',
+    '-moz-any',
+    'host',
+    'host-context',
+  ]);
+  const matchingParenthesis = (opening: number) => {
+    let depth = 1;
+    let quote = '';
+    for (let offset = opening + 1; offset < selector.length; offset += 1) {
+      const character = selector[offset];
+      if (quote) {
+        if (character === '\\') offset += 1;
+        else if (character === quote) quote = '';
+      } else if (character === '"' || character === "'") quote = character;
+      else if (character === '\\') offset += 1;
+      else if (character === '(') depth += 1;
+      else if (character === ')' && --depth === 0) return offset;
+    }
+    throw new Error('unsupported unbalanced functional selector');
+  };
+  const matchingBracket = (opening: number) => {
+    let quote = '';
+    for (let offset = opening + 1; offset < selector.length; offset += 1) {
+      const character = selector[offset];
+      if (quote) {
+        if (character === '\\') offset += 1;
+        else if (character === quote) quote = '';
+      } else if (character === '"' || character === "'") quote = character;
+      else if (character === '\\') offset += 1;
+      else if (character === ']') return offset;
+    }
+    throw new Error('unsupported unbalanced attribute selector');
+  };
+  const nthSelectorList = (body: string): string | null => {
+    let parentheses = 0;
+    let brackets = 0;
+    let quote = '';
+    for (let offset = 0; offset < body.length; offset += 1) {
+      const character = body[offset];
+      if (quote) {
+        if (character === '\\') offset += 1;
+        else if (character === quote) quote = '';
+      } else if (character === '"' || character === "'") quote = character;
+      else if (character === '\\') offset += 1;
+      else if (character === '(') parentheses += 1;
+      else if (character === ')') parentheses -= 1;
+      else if (character === '[') brackets += 1;
+      else if (character === ']') brackets -= 1;
+      else if (
+        parentheses === 0 &&
+        brackets === 0 &&
+        body.slice(offset, offset + 2).toLowerCase() === 'of' &&
+        /\s/u.test(body[offset - 1] ?? '') &&
+        /\s/u.test(body[offset + 2] ?? '')
+      ) return body.slice(offset + 2).trim();
+    }
+    return null;
+  };
+  let typePosition = true;
   for (let offset = 0; offset < selector.length; offset += 1) {
     const character = selector[offset];
-    if (quote) {
-      if (character === '\\') offset += 1;
-      else if (character === quote) quote = '';
+    if (/\s/u.test(character)) {
+      while (/\s/u.test(selector[offset + 1] ?? '')) offset += 1;
+      typePosition = true;
       continue;
     }
-    if (character === '"' || character === "'") quote = character;
-    else if (character === '\\') offset += 1;
-    else if (character === '(') parentheses += 1;
-    else if (character === ')') parentheses -= 1;
-    else if (character === '[') brackets += 1;
-    else if (character === ']') brackets -= 1;
-    else if (parentheses === 0 && brackets === 0 && /[a-z*]/iu.test(character)) {
-      const token = selector.slice(offset).match(/^(?:\*\|)?[a-z][\w-]*/iu)?.[0];
-      if (token && token.replace(/^\*\|/u, '').toLowerCase() === 'table') return true;
-      if (token) offset += token.length - 1;
+    if (character === ',' || character === '>' || character === '+' || character === '~') {
+      typePosition = true;
+      continue;
     }
+    if (character === '|' && selector[offset + 1] === '|') {
+      offset += 1;
+      typePosition = true;
+      continue;
+    }
+    if (character === '[') {
+      offset = matchingBracket(offset);
+      typePosition = false;
+      continue;
+    }
+    if (character === ':' && selector[offset + 1] !== ':') {
+      const name = selector.slice(offset + 1).match(/^[a-z_][\w-]*/iu)?.[0];
+      if (!name) throw new Error(`unsupported pseudo-class selector: ${selector}`);
+      const opening = offset + 1 + name.length;
+      if (selector[opening] === '(') {
+        const closing = matchingParenthesis(opening);
+        const body = selector.slice(opening + 1, closing);
+        if (
+          selectorFunctions.has(name.toLowerCase()) &&
+          splitCssTopLevel(body, ',').some(selectorTargetsTable)
+        ) return true;
+        if (/^nth-(?:last-)?child$/iu.test(name)) {
+          const selectorList = nthSelectorList(body);
+          if (selectorList && splitCssTopLevel(selectorList, ',').some(selectorTargetsTable)) {
+            return true;
+          }
+        }
+        offset = closing;
+      } else offset = opening - 1;
+      typePosition = false;
+      continue;
+    }
+    if (character === ':' && selector[offset + 1] === ':') {
+      const name = selector.slice(offset + 2).match(/^[a-z_][\w-]*/iu)?.[0];
+      if (!name) throw new Error(`unsupported pseudo-element selector: ${selector}`);
+      const opening = offset + 2 + name.length;
+      if (selector[opening] === '(') offset = matchingParenthesis(opening);
+      else offset = opening - 1;
+      typePosition = false;
+      continue;
+    }
+    if (character === '.' || character === '#') {
+      const name = selector.slice(offset + 1).match(/^[\w-]+/u)?.[0];
+      if (!name) throw new Error(`unsupported class or ID selector: ${selector}`);
+      offset += name.length;
+      typePosition = false;
+      continue;
+    }
+    const token = selector
+      .slice(offset)
+      .match(/^(?:(?:[a-z_][\w-]*|\*)\|)?(?:[a-z_][\w-]*|\*)/iu)?.[0];
+    if (token) {
+      const localName = token.slice(token.lastIndexOf('|') + 1).toLowerCase();
+      if (typePosition && localName === 'table') return true;
+      offset += token.length - 1;
+      typePosition = false;
+      continue;
+    }
+    typePosition = false;
   }
   return false;
 }
