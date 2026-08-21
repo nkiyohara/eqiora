@@ -971,6 +971,9 @@ class NotebookPidfdActionEvidence(unittest.TestCase):
 
     def test_08_nested_direct_host_send_fact_is_not_inferred_from_result(self) -> None:
         helper = existing_evidence.NotebookOwnedProcessARealPathTests("runTest")
+        handler_install = "signal.signal(signal.SIGTERM, stop)\n"
+        self.assertEqual(helper.ROOT.count(handler_install), 1)
+        helper.ROOT = helper.ROOT.replace(handler_install, "")
         observer_type = candidate._NotebookOwnedProcessObserver
         real_observe = observer_type.observe
         real_kill = os.kill
