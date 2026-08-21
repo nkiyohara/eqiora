@@ -23,6 +23,13 @@ RUSTDOC_LINK = re.compile(
     r"\[`eqiora(?:::[^`]+)?`\]"
     r"\(/reference/rust/api/eqiora/(?P<target>[^)]+)\)"
 )
+SYNTHETIC_HTML_FILES = 1_377
+SYNTHETIC_PROJECTED_PAGES = 1_080
+SYNTHETIC_DIRECT_SECTIONS = 91_698
+SYNTHETIC_SIGNATURE_LINKS = 268_082
+SYNTHETIC_DESCRIPTION_LABELS = 1_360
+SYNTHETIC_SPECIAL_HIDEME_LABELS = 57
+SYNTHETIC_NON_HTML_FILES = 837
 
 
 def _write(path: Path, content: str) -> None:
@@ -30,8 +37,41 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8", newline="\n")
 
 
+def _projection_page(
+    *,
+    first_section: int,
+    section_count: int,
+    three_link_sections: int,
+    description_labels: int,
+    special_labels: int,
+) -> str:
+    markup = ["<!doctype html><title>Synthetic Rustdoc projection</title>"]
+    for section in range(first_section, first_section + section_count):
+        link_count = 3 if section < three_link_sections else 2
+        links = "".join(
+            f'<a href="#s{section}">signature {link}</a>'
+            for link in range(link_count)
+        )
+        markup.append(
+            '<details class="toggle"><summary>'
+            f'<section id="s{section}">{links}</section>'
+            "</summary></details>"
+        )
+    markup.extend(
+        '<details class="toggle"><summary class="hideme">'
+        "<span>Expand description</span></summary></details>"
+        for _ in range(description_labels)
+    )
+    markup.extend(
+        '<details class="toggle"><summary class="hideme">'
+        "<span>Show 13 fields</span></summary></details>"
+        for _ in range(special_labels)
+    )
+    return "".join(markup) + "\n"
+
+
 def _make_compiler_projection(root: Path) -> None:
-    """Create the accepted facade targets consumed by the real builder CLI."""
+    """Create the finite production-shape facade consumed by the real builder CLI."""
     crate = root / "eqiora"
     _write(crate / "index.html", "<!doctype html><title>Crate eqiora</title>\n")
     landing = LANDING.read_text(encoding="utf-8")
@@ -40,6 +80,63 @@ def _make_compiler_projection(root: Path) -> None:
         raise AssertionError("accepted Rust landing no longer names exactly 206 targets")
     for target in targets:
         _write(crate / target, "<!doctype html><title>Eqiora facade target</title>\n")
+
+    html_files = sorted(path for path in root.rglob("*.html"))
+    for offset in range(SYNTHETIC_HTML_FILES - len(html_files)):
+        path = crate / "__synthetic_projection" / f"page-{offset:04d}.html"
+        _write(path, "<!doctype html><title>Synthetic Rustdoc page</title>\n")
+        html_files.append(path)
+    html_files.sort()
+    if len(html_files) != SYNTHETIC_HTML_FILES:
+        raise AssertionError("synthetic Rustdoc HTML count is not production-shaped")
+
+    first_section = 0
+    descriptions_written = 0
+    special_written = 0
+    three_link_sections = (
+        SYNTHETIC_SIGNATURE_LINKS - 2 * SYNTHETIC_DIRECT_SECTIONS
+    )
+    for page, path in enumerate(html_files[:SYNTHETIC_PROJECTED_PAGES]):
+        section_count = SYNTHETIC_DIRECT_SECTIONS // SYNTHETIC_PROJECTED_PAGES
+        if page < SYNTHETIC_DIRECT_SECTIONS % SYNTHETIC_PROJECTED_PAGES:
+            section_count += 1
+
+        hideme_count = (
+            SYNTHETIC_DESCRIPTION_LABELS + SYNTHETIC_SPECIAL_HIDEME_LABELS
+        ) // SYNTHETIC_PROJECTED_PAGES
+        if page < (
+            SYNTHETIC_DESCRIPTION_LABELS + SYNTHETIC_SPECIAL_HIDEME_LABELS
+        ) % SYNTHETIC_PROJECTED_PAGES:
+            hideme_count += 1
+        description_count = min(
+            hideme_count, SYNTHETIC_DESCRIPTION_LABELS - descriptions_written
+        )
+        special_count = hideme_count - description_count
+        _write(
+            path,
+            _projection_page(
+                first_section=first_section,
+                section_count=section_count,
+                three_link_sections=three_link_sections,
+                description_labels=description_count,
+                special_labels=special_count,
+            ),
+        )
+        first_section += section_count
+        descriptions_written += description_count
+        special_written += special_count
+
+    if (
+        first_section != SYNTHETIC_DIRECT_SECTIONS
+        or descriptions_written != SYNTHETIC_DESCRIPTION_LABELS
+        or special_written != SYNTHETIC_SPECIAL_HIDEME_LABELS
+    ):
+        raise AssertionError("synthetic Rustdoc projection totals drifted")
+    for offset in range(SYNTHETIC_NON_HTML_FILES):
+        _write(
+            crate / "__synthetic_projection" / f"asset-{offset:04d}.bin",
+            f"bounded synthetic Rustdoc asset {offset}\n",
+        )
 
 
 def _make_astro(root: Path) -> None:
