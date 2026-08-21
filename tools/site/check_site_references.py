@@ -194,29 +194,27 @@ def _check_data_url(value: str) -> list[str]:
 def _check_html(
     artifact: Path,
     inspections: dict[Path, tuple[str, object]],
-    references: list[tuple[Path, str, str, str]],
+    references: list[tuple[Path, str, str, str, bool]],
     source_sha: str,
 ) -> list[str]:
     errors: list[str] = []
     report = errors.append
     parsed = {path: value[1] for path, value in inspections.items()}
-    for page_path, tag, attribute, value in references:
-        if page_path not in parsed:
-            continue
+    for page_path, tag, attribute, value, resolve_local in references:
+        relative = page_path.relative_to(artifact)
         if not value:
-            report(f"{page_path.relative_to(artifact)}: empty {attribute} reference")
+            report(f"{relative}: empty {attribute} reference")
             continue
         if value.startswith(("mailto:", "tel:")):
             continue
         if value.startswith("data:"):
             if value != LEGACY_OBSERVER_PIXEL:
-                report(
-                    f"{page_path.relative_to(artifact)}: data URL is forbidden in HTML"
-                )
+                report(f"{relative}: data URL is forbidden in HTML")
             continue
         target_url = urlsplit(value)
         if target_url.scheme not in {"", "http", "https"} or value.startswith("//"):
-            report(f"{page_path.relative_to(artifact)}: unsafe reference {value!r}")
+            if resolve_local or _runtime_reference(tag, attribute):
+                report(f"{relative}: unsafe reference {value!r}")
             continue
         if (
             target_url.scheme
@@ -229,27 +227,23 @@ def _check_html(
                 value,
             ):
                 report(
-                    f"{page_path.relative_to(artifact)}: repository source link does not use the exact asserted SHA: {value!r}"
+                    f"{relative}: repository source link does not use the exact asserted SHA: {value!r}"
                 )
             if _runtime_reference(tag, attribute):
-                report(
-                    f"{page_path.relative_to(artifact)}: external runtime request {value!r}"
-                )
+                report(f"{relative}: external runtime request {value!r}")
+            continue
+        if not resolve_local:
             continue
         target, fragment = _local_reference(artifact, page_path, value)
         if target is None:
             continue
         if target == Path("/__escape__") or target.is_symlink() or not target.is_file():
-            report(
-                f"{page_path.relative_to(artifact)}: broken or escaping link {value!r}"
-            )
+            report(f"{relative}: broken or escaping link {value!r}")
             continue
         if fragment and target.suffix == ".html":
             target_parser = parsed.get(target)
             if target_parser is None or unquote(fragment) not in target_parser.id_text:
-                report(
-                    f"{page_path.relative_to(artifact)}: missing fragment target {value!r}"
-                )
+                report(f"{relative}: missing fragment target {value!r}")
     return errors
 
 
@@ -293,25 +287,28 @@ def check_references(
     starlight_inspections: dict[Path, tuple[str, object]],
     source_sha: str,
 ) -> list[str]:
-    references: list[tuple[Path, str, str, str]] = []
+    references: list[tuple[Path, str, str, str, bool]] = []
     style_errors: list[str] = []
     for page_path, (_, parser) in all_inspections.items():
+        resolve_local = page_path in starlight_inspections
         for tag, attribute, value in parser.references:
             if attribute == "style":
                 values, errors = _css_urls(value)
-                references.extend((page_path, tag, attribute, item) for item in values)
+                references.extend(
+                    (page_path, tag, attribute, item, resolve_local) for item in values
+                )
                 style_errors += [
                     f"{page_path.relative_to(artifact)}: inline CSS: {error}"
                     for error in errors
                 ]
             else:
-                references.append((page_path, tag, attribute, value))
+                references.append((page_path, tag, attribute, value, resolve_local))
             if len(references) > MAX_HTML_REFERENCES:
                 return [
                     f"artifact exceeds {MAX_HTML_REFERENCES} aggregate HTML references"
                 ]
     return [
         *style_errors,
-        *_check_html(artifact, starlight_inspections, references, source_sha),
+        *_check_html(artifact, all_inspections, references, source_sha),
         *_check_css(artifact, files),
     ]

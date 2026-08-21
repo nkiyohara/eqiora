@@ -114,8 +114,13 @@ def check_sitemap(artifact: Path, maximum_urls: int) -> list[str]:
                 errors.append(error)
                 continue
             assert path_text is not None
-            child = artifact / path_text.lstrip("/")
-            if child.is_symlink() or not child.is_file():
+            relative = PurePosixPath(path_text.lstrip("/"))
+            child = artifact.joinpath(*relative.parts)
+            linked = any(
+                artifact.joinpath(*relative.parts[:index]).is_symlink()
+                for index in range(1, len(relative.parts) + 1)
+            )
+            if linked or not child.is_file():
                 errors.append(f"sitemap child is missing: {path_text}")
                 continue
             child = child.resolve()
