@@ -1225,6 +1225,9 @@ def _notebook_cleanup_lifecycle(
                 previous[1] + (result,),
                 previous[2] or result.endswith("=authority-denied"),
             )
+            expected["requested_stages"] = action_history[key][0]
+            expected["stage_results"] = action_history[key][1]
+            expected["authority_denied"] = action_history[key][2]
             suffix = result.removeprefix(f"{stage}=")
             if stage == "sigterm" and expected.get("role") == "host":
                 if suffix in ("pending-reap", "not-found"):
@@ -1279,7 +1282,7 @@ def _notebook_cleanup_lifecycle(
                 wait_acknowledged = True
                 terminal = "incomplete(post-reap-observation-missing)"
                 observe_now(
-                    stage="final",
+                    stage=stage,
                     timeout=max(0.0, decision_deadline - monotonic()),
                     post_ack=True,
                 )
