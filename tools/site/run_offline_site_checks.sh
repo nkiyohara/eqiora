@@ -99,6 +99,9 @@ PYTHONPATH=tools/site/tests/site \
 python3 -m unittest \
   test_contract.CompleteContractTests.test_00_synthetic_ordinary_site_passes_before_mutants \
   -v
+unittest_home="$HOME/../$(basename "$HOME")"
+test "$(realpath "$unittest_home")" = "$(realpath "$HOME")"
+HOME="$unittest_home" \
 python3 -m unittest discover -s tools/site/tests/site -p 'test_*.py' -v
 python3 -m unittest tools.site.tests.test_site_tools -v
 # Real-source provider, identity, supply, and trigger gates precede every consumer build.
