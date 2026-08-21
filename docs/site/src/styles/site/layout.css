@@ -370,6 +370,23 @@ h1[data-page-title] {
   color: var(--eq-color-text);
 }
 
+/* Tables reflow inside the page instead of scrolling locally, so no
+   keyboard-inaccessible scroll region exists. Reflow ownership binds exactly
+   the two structural table shapes; the generic rule above remains the
+   authenticated parent presentation base and must stay byte-identical. */
+.sl-markdown-content > table,
+.sl-markdown-content .eq-stage__body > table {
+  display: table;
+  overflow-x: visible;
+}
+
+/* `anywhere` participates in intrinsic sizing, so long hashes, identifiers,
+   and URLs wrap within their column rather than widening the table. */
+.sl-markdown-content > table :is(th, td, code),
+.sl-markdown-content .eq-stage__body > table :is(th, td, code) {
+  overflow-wrap: anywhere;
+}
+
 /* Page title and lead paragraph */
 h1[data-page-title] {
   margin-top: var(--eq-space-2);
