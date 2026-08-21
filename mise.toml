@@ -9,6 +9,8 @@ python = "3.13.14"
 node = "24.18.1"
 npm = "11.16.0"
 uv = "0.12.1"
+actionlint = "1.7.12"
+shellcheck = "0.11.0"
 
 [tasks.setup]
 description = "Install locked Studio dependencies before executable gates and Studio tasks"
