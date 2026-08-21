@@ -678,7 +678,7 @@ mod tests {
             .iter()
             .zip(&values[VALUES_PER_CHUNK..])
         {
-            assert_eq!(f64::from_le_bytes(encoded.try_into().unwrap()), *expected);
+            assert_eq!(f64::from_le_bytes(*encoded), *expected);
         }
         assert!(encode_chunk(&values, 2).is_err());
         assert!(encode_chunk(&values, u32::MAX).is_err());
