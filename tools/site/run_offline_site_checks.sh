@@ -7,6 +7,7 @@ fi
 for variable in \
   EQIORA_API_SCRATCH \
   EQIORA_SITE_SOURCE_ROOT \
+  EQIORA_SITE_GIT_OBJECT_REPOSITORY \
   EQIORA_SITE_ASTRO_OUT_DIR \
   EQIORA_SITE_RUSTDOC_TARGET \
   EQIORA_SITE_RUSTDOC_STAGE \
@@ -26,6 +27,10 @@ test -d "$EQIORA_API_SCRATCH"
 test ! -L "$EQIORA_API_SCRATCH"
 scratch_real="$(realpath "$EQIORA_API_SCRATCH")"
 source_real="$(realpath "$EQIORA_SITE_SOURCE_ROOT")"
+authority_real="$(realpath "$EQIORA_SITE_GIT_OBJECT_REPOSITORY")"
+test "$authority_real" = "$EQIORA_SITE_GIT_OBJECT_REPOSITORY"
+test ! -L "$EQIORA_SITE_GIT_OBJECT_REPOSITORY"
+test "$authority_real" != "$source_real"
 test "$scratch_real" = "$EQIORA_API_SCRATCH"
 test "$source_real" = "$EQIORA_SITE_SOURCE_ROOT"
 [[ "$EQIORA_SITE_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
@@ -35,7 +40,6 @@ test "$EQIORA_SITE_RUSTDOC_TARGET" = "$EQIORA_API_SCRATCH/rustdoc-target"
 test "$EQIORA_SITE_RUSTDOC_STAGE" = "$EQIORA_API_SCRATCH/rustdoc-stage"
 test "$EQIORA_SITE_ARTIFACT" = "$EQIORA_API_SCRATCH/build/site"
 case "$PLAYWRIGHT_BROWSERS_PATH" in */eqiora-pw-1.62.1-r1234) ;; *) exit 1 ;; esac
-
 test -d "$EQIORA_API_SCRATCH/build"
 test ! -L "$EQIORA_API_SCRATCH/build"
 test -d "$EQIORA_API_SCRATCH/uv-cache"
@@ -246,14 +250,12 @@ done
 test "$(realpath "$rustdoc_handoff")" = "$rustdoc_handoff"
 test -f "$rustdoc_handoff/eqiora/index.html"; test ! -L "$rustdoc_handoff/eqiora/index.html"
 test ! -e "$rustdoc_handoff/eqiora_mcp"; test ! -L "$rustdoc_handoff/eqiora_mcp"
-
 EQIORA_SITE_BUILD_PROFILE=complete \
 EQIORA_SITE_SOURCE_SHA="$EQIORA_SITE_SOURCE_SHA" \
 EQIORA_SITE_CARGO_VERSION="$cargo_version" \
 EQIORA_SITE_PYTHON_VERSION="$python_version" \
 EQIORA_SITE_ASTRO_OUT_DIR="$EQIORA_SITE_ASTRO_OUT_DIR" \
 npm --prefix docs/site run build
-
 assembly_scratch="$EQIORA_API_SCRATCH/assembly"
 mkdir "$assembly_scratch"
 python3 tools/site/assemble_site.py \
@@ -262,12 +264,10 @@ python3 tools/site/assemble_site.py \
   --control-schema schemas/control/compile-v2.schema.json \
   --output "$EQIORA_SITE_ARTIFACT" \
   --scratch-root "$assembly_scratch"
-
 python3 tools/site/check_site.py check \
   --root "$EQIORA_SITE_SOURCE_ROOT" \
   --artifact "$EQIORA_SITE_ARTIFACT" \
   --source-sha "$EQIORA_SITE_SOURCE_SHA"
-
 # The admitted complete site precedes fresh benign and invalid math probes.
 benign_repository="$EQIORA_API_SCRATCH/benign-math-repository"
 benign_site="$benign_repository/docs/site"

@@ -1,5 +1,4 @@
 name: Documentation site
-
 on:
   pull_request:
     paths:
@@ -108,14 +107,11 @@ on:
       - "verify/interfaces/studio-exact-cylinder-stokes-demo/**"
       - "verify/**"
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
   group: pages-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   build:
     name: Build and verify static documentation
@@ -130,10 +126,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
+          fetch-depth: 0
       - name: Configure GitHub Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-
       - name: Bind exact temporary supply roots
         shell: bash
         run: |
@@ -144,19 +139,16 @@ jobs:
             echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/eqiora-pw-1.62.1-r1234"
             echo "UV_CACHE_DIR=$RUNNER_TEMP/eqiora-site-uv-cache"
           } >> "$GITHUB_ENV"
-
       - name: Restore the exact Playwright browser cache
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
           key: eqiora-site-${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-r1234-${{ hashFiles('docs/site/package-lock.json') }}
-
       - name: Install the locked mise toolchain
         uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
           version: 2026.5.10
           cache: true
-
       - name: Prepare the exact clean source and unique home-backed scratch
         shell: bash
         run: |
@@ -176,7 +168,6 @@ jobs:
             *) echo "site scratch escaped RUNNER_TEMP" >&2; exit 1 ;;
           esac
           mkdir "$scratch/source" "$scratch/build" "$scratch/uv-cache"
-
           git ls-tree -r "$GITHUB_SHA" > "$scratch/source-tree"
           source_links="$(awk '$1 == "120000" { print $4 }' "$scratch/source-tree")"
           case "$source_links" in
@@ -219,7 +210,6 @@ jobs:
             echo "EQIORA_SITE_SCRATCH_DEVICE=$scratch_device"
             echo "EQIORA_SITE_SCRATCH_INODE=$scratch_inode"
           } >> "$GITHUB_ENV"
-
       - name: Supply locked native, Rust, Python, Node, and browser inputs
         shell: bash
         run: |
@@ -304,17 +294,22 @@ jobs:
           cp -a "$UV_CACHE_DIR/." "$EQIORA_API_SCRATCH/uv-cache/"
           mv docs/site/node_modules "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$(git rev-parse --show-toplevel)" = "$GITHUB_WORKSPACE"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse "$GITHUB_SHA^{tree}")"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          for object in 5d2a9bef58c2df32cd6b14c5b6dd876beac7144f 3237f739098498ac46bfdd6a993c00b0575900f3 57f8b9b476c04b8103b5a43c8a30504c0e2fa1fb 47dc3e3d863cfb5727b87d785d09abf9743c0a72 61c1bbede492aef4a9c85fa364d031e012621809 68c9c2fe245ac52cc20dcf5a65a2455de507f0dc 20701fe8909295b980c1da7cf3eab366f8d5f27c 6e685495bf6989e1ad902a7e88c199557285cbee 19968da984c16e718baeb9faa5aae04260896c29 1d19473c487b8035608cc88cbd99757f2b95865a 21d5f0bc5213bca02336040f1085c7d52c63588f 47dc3e3d863cfb5727b87d785d09abf9743c0a72 61c1bbede492aef4a9c85fa364d031e012621809; do git cat-file -e "$object"; done
+          { echo "EQIORA_SITE_GIT_OBJECT_REPOSITORY=$GITHUB_WORKSPACE"; } >> "$GITHUB_ENV"
           {
             echo "EQIORA_SITE_BROWSER_SHA256=$EQIORA_SITE_BROWSER_SHA256"
             echo "EQIORA_SITE_BROWSER_BYTES=$EQIORA_SITE_BROWSER_BYTES"
           } >> "$GITHUB_ENV"
-
       - name: Build and verify with only loopback networking
         shell: bash
         run: |
           set -euo pipefail
           test -x "$EQIORA_SITE_SOURCE_ROOT/tools/site/run_offline_site_checks.sh"
-          sudo --preserve-env=ASTRO_TELEMETRY_DISABLED,EQIORA_API_SCRATCH,EQIORA_SITE_SOURCE_ROOT,EQIORA_SITE_ASTRO_OUT_DIR,EQIORA_SITE_RUSTDOC_TARGET,EQIORA_SITE_RUSTDOC_STAGE,EQIORA_SITE_ARTIFACT,EQIORA_SITE_SOURCE_SHA,EQIORA_SITE_BROWSER_SHA256,EQIORA_SITE_BROWSER_BYTES,EQIORA_RUNNER_UID,EQIORA_RUNNER_GID,EQIORA_RUNNER_HOME,EQIORA_RUNNER_PATH,PLAYWRIGHT_BROWSERS_PATH,UV_CACHE_DIR,LC_ALL,TZ \
+          sudo --preserve-env=ASTRO_TELEMETRY_DISABLED,EQIORA_API_SCRATCH,EQIORA_SITE_SOURCE_ROOT,EQIORA_SITE_GIT_OBJECT_REPOSITORY,EQIORA_SITE_ASTRO_OUT_DIR,EQIORA_SITE_RUSTDOC_TARGET,EQIORA_SITE_RUSTDOC_STAGE,EQIORA_SITE_ARTIFACT,EQIORA_SITE_SOURCE_SHA,EQIORA_SITE_BROWSER_SHA256,EQIORA_SITE_BROWSER_BYTES,EQIORA_RUNNER_UID,EQIORA_RUNNER_GID,EQIORA_RUNNER_HOME,EQIORA_RUNNER_PATH,PLAYWRIGHT_BROWSERS_PATH,UV_CACHE_DIR,LC_ALL,TZ \
             unshare --net -- bash -ceu '
               ip link set lo up
               exec setpriv \
@@ -334,6 +329,7 @@ jobs:
                   UV_CACHE_DIR="$UV_CACHE_DIR" \
                   EQIORA_API_SCRATCH="$EQIORA_API_SCRATCH" \
                   EQIORA_SITE_SOURCE_ROOT="$EQIORA_SITE_SOURCE_ROOT" \
+                  EQIORA_SITE_GIT_OBJECT_REPOSITORY="$EQIORA_SITE_GIT_OBJECT_REPOSITORY" \
                   EQIORA_SITE_ASTRO_OUT_DIR="$EQIORA_SITE_ASTRO_OUT_DIR" \
                   EQIORA_SITE_RUSTDOC_TARGET="$EQIORA_SITE_RUSTDOC_TARGET" \
                   EQIORA_SITE_RUSTDOC_STAGE="$EQIORA_SITE_RUSTDOC_STAGE" \
@@ -343,12 +339,16 @@ jobs:
                   EQIORA_SITE_BROWSER_BYTES="$EQIORA_SITE_BROWSER_BYTES" \
                   "$EQIORA_SITE_SOURCE_ROOT/tools/site/run_offline_site_checks.sh"
             '
-
       - name: Recheck exact inputs and checked artifact
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse --show-toplevel)" = "$GITHUB_WORKSPACE"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse "$GITHUB_SHA^{tree}")"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          for object in 5d2a9bef58c2df32cd6b14c5b6dd876beac7144f 3237f739098498ac46bfdd6a993c00b0575900f3 57f8b9b476c04b8103b5a43c8a30504c0e2fa1fb 47dc3e3d863cfb5727b87d785d09abf9743c0a72 61c1bbede492aef4a9c85fa364d031e012621809 68c9c2fe245ac52cc20dcf5a65a2455de507f0dc 20701fe8909295b980c1da7cf3eab366f8d5f27c 6e685495bf6989e1ad902a7e88c199557285cbee 19968da984c16e718baeb9faa5aae04260896c29 1d19473c487b8035608cc88cbd99757f2b95865a 21d5f0bc5213bca02336040f1085c7d52c63588f 47dc3e3d863cfb5727b87d785d09abf9743c0a72 61c1bbede492aef4a9c85fa364d031e012621809; do git cat-file -e "$object"; done
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
           test -f "$EQIORA_SITE_ARTIFACT/index.html"
           test -f "$EQIORA_SITE_ARTIFACT/pagefind/pagefind.js"
