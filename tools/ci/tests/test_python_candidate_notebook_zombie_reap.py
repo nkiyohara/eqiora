@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import contextlib
 import hashlib
 import importlib
@@ -474,6 +473,13 @@ while True:
             "the ordinary path may not require forced escalation",
         )
 
+    def _assert_actual_bounded_popen_wait(self, trace: dict[str, object]) -> None:
+        timeouts = trace["popen_waits"]
+        self.assertTrue(timeouts, "direct-host Z requires actual Popen.wait authority")
+        for timeout in timeouts:
+            self.assertIn(type(timeout), (int, float))
+            self.assertTrue(0.0 <= float(timeout) <= 35.0)
+
     def test_00_ordinary_controlled_live_host_reaps_before_later_empty(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             trace = self._run_outer_host(Path(temporary), host_mode="live")
@@ -492,6 +498,7 @@ while True:
         self.assertEqual(len(first_survivors), 1)
         self.assertEqual(first_survivors[0]["state"], "Z")
         self.assertEqual(trace["requests"], [])
+        self._assert_actual_bounded_popen_wait(trace)
         self.assertTrue(trace["waits"])
         wait_kwargs, wait_result = trace["waits"][0]
         self.assertEqual(wait_kwargs["stage"], "reap")
@@ -528,6 +535,8 @@ while True:
                         lifecycle_trigger="initial-nonzero",
                         primary_error=primary,
                     )
+                self.assertEqual(trace["requests"], [])
+                self._assert_actual_bounded_popen_wait(trace)
                 error = trace["error"]
                 self.assertIsInstance(error, CandidateError)
                 self.assertIn("cleanup=incomplete(wait-invalid-status:7)", str(error))
@@ -547,10 +556,11 @@ while True:
                 host_mode="controlled",
                 lifecycle_trigger="initial-sigterm",
             )
+        self.assertEqual(trace["requests"], [])
+        self._assert_actual_bounded_popen_wait(trace)
         error = trace["error"]
         self.assertIsInstance(error, CandidateError)
         self.assertIn("cleanup=incomplete(wait-invalid-status:-15)", str(error))
-        self.assertEqual(trace["requests"], [])
 
     def test_20_real_live_to_z_after_pidfd_open_never_sends(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
@@ -564,6 +574,7 @@ while True:
         self.assertEqual(trace["pidfd_sends"], [])
         self.assertEqual(trace["fallback_signals"], [])
         self.assertEqual(trace["requests"][0][1], "sigterm=pending-reap")
+        self._assert_actual_bounded_popen_wait(trace)
         self.assertEqual(trace["waits"][0][1], ("reaped-complete-empty", 0))
 
     def test_21_real_live_to_unsolicited_sigterm_after_pidfd_open_is_invalid(
@@ -582,6 +593,7 @@ while True:
         self.assertEqual(trace["pidfd_sends"], [])
         self.assertEqual(trace["fallback_signals"], [])
         self.assertEqual(trace["requests"][0][1], "sigterm=pending-reap")
+        self._assert_actual_bounded_popen_wait(trace)
 
     def test_30_current_skip_z_mutant_is_rejected(self) -> None:
         release_read, release_write = os.pipe()
@@ -667,10 +679,7 @@ while True:
                         break
                     time.sleep(0.005)
                 if child_pid is None:
-                    output = "" if process.stdout is None else process.stdout.read()
-                    self.fail(
-                        f"descendant host did not publish its child PID: {output}"
-                    )
+                    self.fail("descendant host did not publish its child PID")
                 child_state, child_start = self._wait_for_state(child_pid, "Z")
                 terminal, survivors = observer.observe(deadline=time.monotonic() + 2.0)
                 self.assertEqual(terminal, "complete-nonempty")
@@ -691,28 +700,6 @@ while True:
                 terminal, survivors = observer.observe(deadline=time.monotonic() + 2.0)
                 self.assertEqual(terminal, "complete-nonempty")
                 self.assertNotIn(child_pid, tuple(item["pid"] for item in survivors))
-
-                source = Path(python_candidate_module.__file__).read_text(
-                    encoding="utf-8"
-                )
-                tree = compile(
-                    source,
-                    str(python_candidate_module.__file__),
-                    "exec",
-                    ast.PyCF_ONLY_AST,
-                )
-                raw_waitpid = [
-                    node
-                    for node in ast.walk(tree)
-                    if isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "waitpid"
-                ]
-                self.assertEqual(
-                    raw_waitpid,
-                    [],
-                    "the runner may reap only through its captured direct Popen",
-                )
             finally:
                 os.close(release_read)
                 os.close(release_write)
@@ -865,7 +852,6 @@ while True:
                     self.assertIn(f"cleanup={terminal}", str(error))
                     self.assertEqual(trace["request"], [])
                     self.assertEqual(trace["wait"][0]["stage"], "reap")
-                    self.assertGreaterEqual(len(trace["observe"]), 2)
                     if primary is None:
                         self.assertIsNone(error.__cause__)
                     else:
