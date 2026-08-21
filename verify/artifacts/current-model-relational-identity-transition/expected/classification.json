@@ -429,7 +429,7 @@
           "class": "current-owner-assertion",
           "signals": ["eqiora.model-envelope/v", "eqiora.model-transaction-envelope/v"],
           "identity_literals": 0,
-          "accepted_sha256": "9591b7e7c49232043f502c0137b8fd4852519137cb936cd61eae9f6ef2b42df5",
+          "accepted_sha256": "fc284ef3ee15d4f1a4c563765a67111f3283a3156a1025971e9b46897bf77f1e",
           "owner": "interfaces.mcp-stdio-compile-check current-owner reference projection",
           "note": "the accepted MCP reference projection names the current Model and Transaction schema families without freezing a Model-derived identity literal. Admission owns only this exact path, observed shape, category, and accepted bytes."
         },
