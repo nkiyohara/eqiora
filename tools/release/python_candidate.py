@@ -1285,7 +1285,7 @@ def _notebook_cleanup_lifecycle(
                 )
                 return True
         elif not malformed and tag == "invalid-status":
-            if type(payload) is int and payload not in (0, -15):
+            if type(payload) is int and payload != 0:
                 make_sticky(f"incomplete(wait-invalid-status:{payload})")
                 return False
             malformed = True
@@ -1675,7 +1675,7 @@ class _NotebookOwnedProcessObserver:
                 result = f"{stage}=cleanup-deadline"
             else:
                 try:
-                    observed = self.observe_identity(expected=record)
+                    observed = self.observe_identity(expected=dict(record))
                 except PermissionError:
                     result = f"{stage}=authority-denied"
                 except (OSError, CandidateError):
