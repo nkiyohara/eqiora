@@ -760,7 +760,7 @@ fn sha1_hex(bytes: &[u8]) -> String {
         0x1032_5476,
         0xc3d2_e1f0,
     ];
-    for block in padded.chunks_exact(64) {
+    for block in padded.as_chunks::<64>().0 {
         sha1_block(&mut state, block);
     }
     state.iter().map(|word| format!("{word:08x}")).collect()
@@ -768,8 +768,8 @@ fn sha1_hex(bytes: &[u8]) -> String {
 
 fn sha1_block(state: &mut [u32; 5], block: &[u8]) {
     let mut words = [0_u32; 80];
-    for (index, bytes) in block.chunks_exact(4).enumerate() {
-        words[index] = u32::from_be_bytes(bytes.try_into().expect("four bytes"));
+    for (index, bytes) in block.as_chunks::<4>().0.iter().enumerate() {
+        words[index] = u32::from_be_bytes(bytes.as_slice().try_into().expect("four bytes"));
     }
     for index in 16..80 {
         words[index] =

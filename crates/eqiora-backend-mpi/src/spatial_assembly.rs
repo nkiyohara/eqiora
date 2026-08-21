@@ -345,7 +345,9 @@ fn decode_local_route_admissions(
         "decoded local route admissions",
     )?;
     for (source, record) in bytes
-        .chunks_exact(LocalRouteAdmissionV1::ENCODED_LEN)
+        .as_chunks::<{ LocalRouteAdmissionV1::ENCODED_LEN }>()
+        .0
+        .iter()
         .enumerate()
     {
         let admission = LocalRouteAdmissionV1::from_bytes(route_plan, ownership, record)?;
@@ -385,8 +387,9 @@ fn decode_descriptors(
     let count = gathered.bytes.len() / AssemblyRowRouteDescriptorV1::ENCODED_LEN;
     let mut descriptors = reserved(count, "decoded route descriptors")?;
     for (source, range) in gathered.ranges.iter().enumerate() {
-        for bytes in
-            gathered.bytes[range.clone()].chunks_exact(AssemblyRowRouteDescriptorV1::ENCODED_LEN)
+        for bytes in gathered.bytes[range.clone()]
+            .as_chunks::<{ AssemblyRowRouteDescriptorV1::ENCODED_LEN }>()
+            .0
         {
             let descriptor = AssemblyRowRouteDescriptorV1::from_bytes(plan, bytes)?;
             if descriptor.producer() != PartitionId::new(source) {

@@ -244,7 +244,7 @@ fn decode_hex(text: &str) -> Option<[u8; 32]> {
         return None;
     }
     let mut digest = [0_u8; 32];
-    for (target, pair) in digest.iter_mut().zip(bytes.chunks_exact(2)) {
+    for (target, pair) in digest.iter_mut().zip(bytes.as_chunks::<2>().0.iter()) {
         *target = (decode_hex_digit(pair[0])? << 4) | decode_hex_digit(pair[1])?;
     }
     Some(digest)

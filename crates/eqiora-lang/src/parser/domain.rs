@@ -22,7 +22,9 @@ impl Parser<'_> {
             }
             DomainSyntax::CartesianBox(
                 coordinates
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .map(|pair| (pair[0].clone(), pair[1].clone()))
                     .collect(),
             )
