@@ -56,7 +56,7 @@ class MutableClock:
 
 
 class NotebookPidfdActionEvidence(unittest.TestCase):
-    """Independent stable-action evidence for the private Issue #495 seam."""
+    """Independent stable-action evidence for the private notebook seam."""
 
     @staticmethod
     def identity(

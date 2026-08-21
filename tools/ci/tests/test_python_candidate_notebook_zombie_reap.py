@@ -26,7 +26,7 @@ CandidateError = python_candidate_module.CandidateError
 
 
 class NotebookZombieReapEvidence(unittest.TestCase):
-    """Independent Issue #495 evidence for zombie membership and reaping."""
+    """Independent evidence for notebook zombie membership and reaping."""
 
     HOST = """
 import os
