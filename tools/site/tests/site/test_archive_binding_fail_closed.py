@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import stat
 import subprocess
 import tempfile
 import textwrap
@@ -52,6 +53,27 @@ SAFE_SEQUENCE = f"""            {GUARD}
 """
 
 
+def _fixture_scratch_parent() -> Path:
+    home = Path.home()
+    root = home / ".cache/eqiora"
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if root.is_symlink() or not root.is_dir():
+        raise AssertionError("archive fixture scratch root is not a real directory")
+    try:
+        resolved_home = home.resolve(strict=True)
+        resolved_root = root.resolve(strict=True)
+    except OSError as error:
+        raise AssertionError("archive fixture scratch root is unavailable") from error
+    if resolved_root != resolved_home / ".cache/eqiora":
+        raise AssertionError("archive fixture scratch root is not home-backed")
+    details = root.stat()
+    if details.st_uid != os.geteuid() or details.st_mode & (
+        stat.S_IWGRP | stat.S_IWOTH
+    ):
+        raise AssertionError("archive fixture scratch root is unsafe")
+    return root
+
+
 @cache
 def workflows() -> tuple[str, str, bytes]:
     def require(actual, expected) -> None:
@@ -96,7 +118,7 @@ def run_case(text: str, linked: bool = True, enforce: bool = True):
         admitted = False
     if enforce and not admitted:
         return [FAIL_CLOSED], None, (False, False, False, "", b"", b"")
-    with tempfile.TemporaryDirectory(dir=Path.home() / ".cache/eqiora") as value:
+    with tempfile.TemporaryDirectory(dir=_fixture_scratch_parent()) as value:
         root, run = Path(value), subprocess.run
         repo = root / "repository"
         run(["git", "init", "-q", str(repo)], check=True)
