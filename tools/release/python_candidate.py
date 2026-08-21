@@ -1251,11 +1251,13 @@ def _notebook_cleanup_lifecycle(
         if now >= decision_deadline:
             make_sticky("incomplete(cleanup-deadline)")
             return False
+        bounded_timeout = min(max(0.0, timeout), decision_deadline - now)
+        stage_stop = min(decision_deadline, now + bounded_timeout)
         try:
             result = wait(
                 stage=stage,
                 deadline=decision_deadline,
-                timeout=min(max(0.0, timeout), decision_deadline - now),
+                timeout=bounded_timeout,
             )
         except BaseException as error:
             callback_failed(error)
@@ -1283,7 +1285,7 @@ def _notebook_cleanup_lifecycle(
                 terminal = "incomplete(post-reap-observation-missing)"
                 observe_now(
                     stage=stage,
-                    timeout=max(0.0, decision_deadline - monotonic()),
+                    timeout=max(0.0, stage_stop - monotonic()),
                     post_ack=True,
                 )
                 return True
