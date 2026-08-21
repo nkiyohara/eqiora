@@ -9,7 +9,6 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-import time
 import types
 import unittest
 from collections.abc import Callable
@@ -200,36 +199,49 @@ class NotebookPidfdActionEvidence(unittest.TestCase):
             expected,
         )
 
-    def test_00_ordinary_real_child_uses_one_pidfd_and_is_reaped(self) -> None:
+    def test_00_ordinary_real_host_reaches_reap_and_post_ack_empty(self) -> None:
+        action = self.action()
         self.assertTrue(callable(getattr(os, "pidfd_open", None)))
         self.assertTrue(callable(getattr(signal, "pidfd_send_signal", None)))
-        child = subprocess.Popen(
-            [sys.executable, "-I", "-c", "import time; time.sleep(30)"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        events: list[tuple[object, ...]] = []
-        try:
-            action = self.action()
-            observer = candidate._NotebookOwnedProcessObserver(
-                scenario=SCENARIO,
-                process=child,
-            )
-            expected = dict(next(iter(observer.known.values())))
-            real_open = os.pidfd_open
+        helper = existing_evidence.NotebookOwnedProcessARealPathTests("runTest")
+        observer_type = candidate._NotebookOwnedProcessObserver
+        real_open = os.pidfd_open
+        real_send = signal.pidfd_send_signal
+        real_close = os.close
+        capture: dict[str, object] = {}
+        action_traces: list[list[tuple[object, ...]]] = []
+        root_pid = -1
+        child_pid = -1
+
+        def traced_request(
+            observer: object,
+            *,
+            stage: str,
+            identity: dict[str, object],
+            deadline: float,
+            monotonic: Callable[[], float],
+        ) -> tuple[str, bool]:
+            trace: list[tuple[object, ...]] = []
             real_read = observer.observe_identity
-            real_send = signal.pidfd_send_signal
-            real_close = os.close
 
             def open_pidfd(pid: int, flags: int) -> int:
-                events.append(("open", pid, flags))
-                return real_open(pid, flags)
+                fd = real_open(pid, flags)
+                trace.append(("open", pid, flags, fd))
+                return fd
 
             def observe_identity(
                 *, expected: dict[str, object]
             ) -> dict[str, object] | None:
-                events.append(("read", expected["pid"], expected["start_time"]))
-                return real_read(expected=expected)
+                observed = real_read(expected=expected)
+                trace.append(
+                    (
+                        "read",
+                        expected["pid"],
+                        expected["start_time"],
+                        None if observed is None else observed.get("state"),
+                    )
+                )
+                return observed
 
             def send_pidfd(
                 fd: int,
@@ -237,18 +249,19 @@ class NotebookPidfdActionEvidence(unittest.TestCase):
                 siginfo: object,
                 flags: int,
             ) -> None:
-                events.append(("send", fd, signum, siginfo, flags))
+                trace.append(("send", fd, signum, siginfo, flags))
                 real_send(fd, signum, siginfo, flags)
 
             def close_pidfd(fd: int) -> None:
-                events.append(("close", fd))
+                trace.append(("close", fd))
                 real_close(fd)
 
-            deadline = time.monotonic() + 2.0
             with (
                 mock.patch.object(candidate.os, "pidfd_open", side_effect=open_pidfd),
                 mock.patch.object(
-                    observer, "observe_identity", side_effect=observe_identity
+                    observer,
+                    "observe_identity",
+                    side_effect=observe_identity,
                 ),
                 mock.patch.object(
                     candidate.signal,
@@ -259,44 +272,119 @@ class NotebookPidfdActionEvidence(unittest.TestCase):
             ):
                 result = action(
                     observer,
-                    stage="sigterm",
-                    identity=expected,
+                    stage=stage,
+                    identity=identity,
                     deadline=deadline,
-                    monotonic=time.monotonic,
+                    monotonic=monotonic,
                 )
+            trace.append(("return", *result))
+            action_traces.append(trace)
+            return result
 
-            self.assertEqual(result, ("sigterm=sent", True))
-            self.assertEqual(
-                [event[0] for event in events], ["open", "read", "send", "close"]
+        try:
+            with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+                with mock.patch.object(
+                    observer_type,
+                    "request_stage",
+                    autospec=True,
+                    side_effect=traced_request,
+                ):
+                    child_pid = helper.run_one_real_host(
+                        Path(temporary),
+                        cascade=True,
+                        capture=capture,
+                        guard_lifecycle_actions=True,
+                    )
+            root_pid = int(capture["root_pid"])
+            self.assertFalse(helper.process_is_live(root_pid))
+            self.assertFalse(helper.process_is_live(child_pid))
+            self.assertTrue(action_traces)
+            for trace in action_traces:
+                self.assertEqual(
+                    [event[0] for event in trace],
+                    ["open", "read", "send", "close", "return"],
+                )
+                opened, _read, sent, closed, returned = trace
+                self.assertEqual(opened[2], 0)
+                self.assertEqual(sent[1], opened[3])
+                self.assertEqual(closed[1], opened[3])
+                self.assertEqual(sent[2:], (signal.SIGTERM, None, 0))
+                self.assertEqual(returned, ("return", "sigterm=sent", True))
+
+            events = capture["events"]
+            event_names = [event[0] for event in events]
+            self.assertNotIn("bypass-signal", event_names)
+            self.assertNotIn("bypass-os-signal", event_names)
+            self.assertNotIn("bypass-wait", event_names)
+            self.assertIn("host-wait", event_names)
+            acknowledgement = next(
+                index
+                for index, event in enumerate(events)
+                if event[0] == "wait-exit" and event[2][0] == "reaped-complete-empty"
             )
-            self.assertEqual(events[0], ("open", child.pid, 0))
-            self.assertEqual(events[2][1], events[3][1])
-            self.assertEqual(events[2][2:], (signal.SIGTERM, None, 0))
-            self.assertEqual(child.wait(timeout=2.0), -signal.SIGTERM)
+            last_request = max(
+                index
+                for index, event in enumerate(events)
+                if event[0] == "request-exit"
+            )
+            post_ack_empty = next(
+                index
+                for index, event in enumerate(
+                    events[acknowledgement + 1 :], start=acknowledgement + 1
+                )
+                if event[:3] == ("observe-exit", "complete-empty", ())
+            )
+            self.assertLess(last_request, acknowledgement)
+            self.assertLess(acknowledgement, post_ack_empty)
+            decision = next(event for event in events if event[0] == "decision")
+            self.assertEqual(decision[-1], "complete-empty")
         finally:
-            self.bounded_reap(child)
+            root_pid = int(capture.get("root_pid", root_pid))
+            child_pid = int(capture.get("child_pid", child_pid))
+            helper.bounded_test_cleanup(
+                *(pid for pid in (root_pid, child_pid) if pid > 0)
+            )
 
-    def test_01_different_tick_replacement_is_rejected_after_open(self) -> None:
-        observer, expected = self.synthetic_observer()
-        replacement = dict(expected, start_time=int(expected["start_time"]) + 1)
-        (
-            result,
-            open_pidfd,
-            observation,
-            send_pidfd,
-            close_pidfd,
-            _,
-            _,
-        ) = self.invoke_synthetic(
-            observer=observer,
-            identity=expected,
-            observe=replacement,
+    def test_01_post_open_identity_and_state_mismatches_fail_closed(self) -> None:
+        expected = self.identity()
+        without_state = dict(expected)
+        del without_state["state"]
+        variants = (
+            (
+                "start-time",
+                dict(expected, start_time=908_173),
+                "sigterm=stable-identity-mismatch",
+            ),
+            (
+                "scenario",
+                dict(expected, scenario="marimo-0.23.16"),
+                "sigterm=stable-identity-mismatch",
+            ),
+            (
+                "role",
+                dict(expected, role="foreign"),
+                "sigterm=stable-identity-mismatch",
+            ),
+            (
+                "pid",
+                dict(expected, pid=int(expected["pid"]) + 1),
+                "sigterm=stable-identity-mismatch",
+            ),
+            ("missing-state", without_state, "sigterm=observer-unavailable"),
         )
-        self.assertEqual(result, ("sigterm=stable-identity-mismatch", False))
-        open_pidfd.assert_called_once_with(int(expected["pid"]), 0)
-        observation.assert_called_once_with(expected=expected)
-        send_pidfd.assert_not_called()
-        close_pidfd.assert_called_once_with(701)
+        for label, observed, expected_result in variants:
+            with self.subTest(label=label):
+                observer, requested = self.synthetic_observer(identity=expected)
+                result, opened, read, sent, closed, _, _ = self.invoke_synthetic(
+                    observer=observer,
+                    identity=requested,
+                    observe=observed,
+                )
+                self.assertEqual(result, (expected_result, False))
+                opened.assert_called_once_with(int(expected["pid"]), 0)
+                read.assert_called_once_with(expected=requested)
+                sent.assert_not_called()
+                closed.assert_called_once_with(701)
 
     def test_02_post_match_numeric_replacement_cannot_retarget_send(self) -> None:
         observer, expected = self.synthetic_observer()
@@ -749,8 +837,8 @@ class NotebookPidfdActionEvidence(unittest.TestCase):
         closed.assert_not_called()
 
         lifecycle = candidate._notebook_cleanup_lifecycle
-        for malformed in ("sigterm=accepted-unique-41", object()):
-            with self.subTest(malformed=type(malformed).__name__):
+        for malformed in ("sigterm=accepted-unique-41", "sigkill=sent", object()):
+            with self.subTest(malformed=repr(malformed)):
                 survivor = self.identity()
                 observations = iter(
                     (("complete-nonempty", (survivor,)), ("complete-empty", ()))
