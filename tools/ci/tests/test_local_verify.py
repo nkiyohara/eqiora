@@ -396,6 +396,9 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
     SOCKET_SUFFIX_SHA256 = (
         "bcf9ca8b033c44156fde8731b73e13f2c50ac9dbfa55e1167e8b49898d6cab8e"
     )
+    NO_CHILD_DIAGNOSTIC = (
+        "scheduler dispatched a child before Unix-socket scratch admission completed"
+    )
     UNIX_PATHNAME_MAX = 107
     TMPDIR_ADMITTED_MAX = UNIX_PATHNAME_MAX - len(os.fsencode(SOCKET_SUFFIX))
 
@@ -432,6 +435,9 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
             )
             entries.append((path.relative_to(root).as_posix(), kind))
         return tuple(sorted(entries))
+
+    def assert_no_child(self, child: mock.Mock) -> None:
+        self.assertEqual(child.call_count, 0, self.NO_CHILD_DIAGNOSTIC)
 
     @classmethod
     def real_boundary_tmpdirs(cls, authority: Path) -> tuple[Path, Path]:
@@ -698,6 +704,31 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
         self.assertEqual(len(os.fsencode(candidate)), 141)
         self.assertGreater(len(os.fsencode(candidate)), self.UNIX_PATHNAME_MAX)
 
+        sentinel_key = "EQIORA_ISSUE496_DIAGNOSTIC_SENTINEL"
+        sentinel_value = "scrubbed-environment-value"
+        sentinel_environment = {sentinel_key: sentinel_value, "SAFE": "ordinary"}
+        diagnostic_probe = mock.Mock()
+        diagnostic_probe(("sentinel-child",), env=sentinel_environment)
+        rendered = io.StringIO()
+        outer = self
+
+        class SafeNoChildDiagnosticProbe(unittest.TestCase):
+            def runTest(probe_self) -> None:
+                outer.assert_no_child(diagnostic_probe)
+
+        probe_result = unittest.TextTestRunner(stream=rendered).run(
+            SafeNoChildDiagnosticProbe()
+        )
+        self.assertEqual(probe_result.testsRun, 1)
+        self.assertEqual(len(probe_result.failures), 1)
+        self.assertEqual(len(probe_result.errors), 0)
+        rendered_failure = rendered.getvalue()
+        self.assertIn(self.NO_CHILD_DIAGNOSTIC, rendered_failure)
+        self.assertNotIn(sentinel_key, rendered_failure)
+        self.assertNotIn(sentinel_value, rendered_failure)
+        self.assertNotIn(repr(sentinel_environment), rendered_failure)
+        self.assertNotIn("env=", rendered_failure)
+
     def test_05_controlled_real_64_byte_tmpdir_is_admitted_and_cleaned(self) -> None:
         configured_root, tmpdir_107, tmpdir_108 = self.utf8_boundary_paths()
         self.assertEqual(len(str(self.SYNTHETIC_HOME)), 11)
@@ -829,7 +860,7 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
                 "run_plan did not consume the frozen lane TMP scope",
             )
             self.assertEqual(submitted, [controlled_108])
-            child.assert_not_called()
+            self.assert_no_child(child)
             self.assertFalse(controlled_108.exists())
             self.assertIsNotNone(rejection)
             assert rejection is not None
@@ -882,11 +913,7 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
                     len(os.fsencode(self.socket_candidate(started[0]))),
                     self.UNIX_PATHNAME_MAX,
                 )
-            self.assertEqual(
-                child.call_count,
-                0,
-                "the production provider ignored the strict-descendant budget",
-            )
+            self.assert_no_child(child)
             self.assertEqual(after_rejection, before_rejection)
             self.assertIsNotNone(rejection)
             assert rejection is not None
@@ -979,7 +1006,7 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
             self.assertCountEqual(allocated, boundaries)
             self.assertCountEqual(admission_attempts, boundaries)
             self.assertEqual(entered, [controlled_107])
-            child.assert_not_called()
+            self.assert_no_child(child)
             self.assertCountEqual(released, [controlled_107, controlled_108])
             self.assertTrue(all(not path.exists() for path in allocated))
             self.assertIsNotNone(rejection)
@@ -1042,7 +1069,7 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
                 )
             except Exception as caught:  # rejection type is not contractual
                 rejection = caught
-        child.assert_not_called()
+        self.assert_no_child(child)
         self.assertIsNotNone(rejection)
         assert rejection is not None
         self.assertRegex(str(rejection), "below the home directory")
