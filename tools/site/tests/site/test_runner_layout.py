@@ -26,6 +26,10 @@ BROWSER_BYTES = 290_614_600
 SOURCE_SUCCESS = "site source: exact optional CLAUDE.md topology admitted"
 BROWSER_SUCCESS = "site browser: exact locked full Chromium supply admitted"
 POST_SB_SENTINEL = 85
+TOOLCHAIN_BYTES = 66
+TOOLCHAIN_BLOB = "73cb934de4706a914c15e8db2a3c037ce75699d9"
+TOOLCHAIN_SHA256 = "a6a0bbd29ffaa8182dc22d1d9149709f1091e47df40ed96eb8a78a711c66a4ce"
+MISMATCH_TOOLCHAIN = b'[toolchain]\nchannel = "1.85.0"\n'
 
 
 class OfflineRunnerLayoutTests(unittest.TestCase):
@@ -111,6 +115,7 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         scratch = scratch.resolve()
         authority = git_object_authority()
         environment = os.environ.copy()
+        environment.pop("RUSTUP_TOOLCHAIN", None)
         environment.update(
             {
                 "LC_ALL": "C",
@@ -135,6 +140,23 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         )
         return environment
 
+    def _copy_exact_toolchain(self, source: Path) -> None:
+        origin = REPOSITORY / "rust-toolchain.toml"
+        self.assertTrue(origin.is_file())
+        self.assertFalse(origin.is_symlink())
+        payload = origin.read_bytes()
+        self.assertEqual(len(payload), TOOLCHAIN_BYTES)
+        self.assertEqual(hashlib.sha256(payload).hexdigest(), TOOLCHAIN_SHA256)
+        self.assertEqual(
+            hashlib.sha1(b"blob 66\0" + payload, usedforsecurity=False).hexdigest(),
+            TOOLCHAIN_BLOB,
+        )
+        destination = source / "rust-toolchain.toml"
+        shutil.copyfile(origin, destination)
+        destination.chmod(0o644)
+        self.assertEqual(destination.read_bytes(), payload)
+        self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o644)
+
     def _layout(
         self, root: Path, *, admitted_link: bool = True
     ) -> tuple[Path, dict[str, str]]:
@@ -144,6 +166,7 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         (scratch / "uv-cache").mkdir()
         self._copy_locked_browser_supply(source)
         (source / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
+        self._copy_exact_toolchain(source)
         shutil.copy2(REPOSITORY / "AGENTS.md", source / "AGENTS.md")
         if admitted_link:
             (source / "CLAUDE.md").symlink_to("AGENTS.md")
@@ -229,6 +252,38 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         self.assertLess(
             result.stdout.index(SOURCE_SUCCESS), result.stdout.index(BROWSER_SUCCESS)
         )
+
+    def _assert_toolchain_rejection(
+        self,
+        result: subprocess.CompletedProcess[str],
+        environment: dict[str, str],
+    ) -> None:
+        self.assertNotIn(result.returncode, (0, POST_SB_SENTINEL))
+        self.assertFalse(Path(environment["TRACE_FILE"]).exists())
+        self.assertNotIn(SOURCE_SUCCESS, result.stdout)
+        self.assertNotIn(BROWSER_SUCCESS, result.stdout)
+        source = Path(environment["EQIORA_SITE_SOURCE_ROOT"])
+        selected = subprocess.run(
+            ["rustc", "-Vv"],
+            check=False,
+            cwd=source,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=15,
+        )
+        stable = subprocess.run(
+            ["rustc", "+stable", "-Vv"],
+            check=False,
+            cwd=source,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=15,
+        )
+        self.assertEqual((selected.returncode, stable.returncode), (0, 0))
+        self.assertEqual((selected.stderr, stable.stderr), (b"", b""))
+        self.assertNotEqual(selected.stdout, stable.stdout)
 
     def test_00_s01_exact_archive_and_optional_link_pass_before_mutants(self) -> None:
         tree_identity = (
@@ -373,6 +428,27 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=SCRATCH_ROOT) as temporary:
             runner, environment = self._layout(Path(temporary))
             self._assert_sb_positive(self._run(runner, environment), environment)
+
+        with tempfile.TemporaryDirectory(dir=SCRATCH_ROOT) as temporary:
+            runner, environment = self._layout(Path(temporary))
+            toolchain = Path(
+                environment["EQIORA_SITE_SOURCE_ROOT"], "rust-toolchain.toml"
+            )
+            toolchain.unlink()
+            self._assert_toolchain_rejection(
+                self._run(runner, environment), environment
+            )
+
+        with tempfile.TemporaryDirectory(dir=SCRATCH_ROOT) as temporary:
+            runner, environment = self._layout(Path(temporary))
+            toolchain = Path(
+                environment["EQIORA_SITE_SOURCE_ROOT"], "rust-toolchain.toml"
+            )
+            toolchain.write_bytes(MISMATCH_TOOLCHAIN)
+            toolchain.chmod(0o644)
+            self._assert_toolchain_rejection(
+                self._run(runner, environment), environment
+            )
 
     def test_02_existing_layout_mutants_fail_closed(self) -> None:
         def extra_entry(runner: Path, environment: dict[str, str]) -> None:
