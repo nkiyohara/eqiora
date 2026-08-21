@@ -12,6 +12,8 @@ import textwrap
 import unittest
 from pathlib import Path
 
+from fixture import _write_rustc_preflight_double
+
 
 REPOSITORY = Path(__file__).resolve().parents[4]
 RUNNER = REPOSITORY / "tools/site/run_offline_site_checks.sh"
@@ -576,6 +578,7 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
         runner.chmod(0o755)
 
         mocks.mkdir()
+        _write_rustc_preflight_double(mocks)
         _executable(mocks / "dpkg-query", "#!/bin/sh\nexit 0\n")
         _executable(
             mocks / "python3",
@@ -673,6 +676,7 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
             browser_bytes = str(BROWSER_BYTES - 1)
 
         environment = os.environ.copy()
+        environment.pop("MISE_TRUSTED_CONFIG_PATHS", None)
         environment.pop("RUSTUP_TOOLCHAIN", None)
         environment.update(
             {

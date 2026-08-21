@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fixture import (
     REPOSITORY,
+    _write_rustc_preflight_double,
     checker,
     git_object_authority,
     historical_git,
@@ -126,6 +127,7 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         scratch = scratch.resolve()
         authority = git_object_authority()
         environment = os.environ.copy()
+        environment.pop("MISE_TRUSTED_CONFIG_PATHS", None)
         environment.pop("RUSTUP_TOOLCHAIN", None)
         environment.update(
             {
@@ -192,6 +194,7 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
         runner.chmod(0o755)
         fixture_bin = root / "fixture-bin"
         fixture_bin.mkdir()
+        _write_rustc_preflight_double(fixture_bin)
         sentinel = fixture_bin / "dpkg-query"
         sentinel.write_text(
             "#!/bin/sh\nprintf 'post-sb-preflight\\n' >> \"$TRACE_FILE\"\nexit 85\n",

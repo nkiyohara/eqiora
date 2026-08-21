@@ -391,6 +391,36 @@ def pinned_node_path(root: Path) -> str:
     return f"{directory}{os.pathsep}{os.environ.get('PATH', '')}"
 
 
+def _write_rustc_preflight_double(directory: Path) -> None:
+    rustc = directory / "rustc"
+    rustc.write_text(
+        f"""#!{sys.executable}
+from pathlib import Path
+import sys
+
+args = sys.argv[1:]
+if args == ["+stable", "-Vv"]:
+    sys.stdout.buffer.write(b"fixture stable rustc\\n")
+    raise SystemExit(0)
+if args == ["-Vv"]:
+    try:
+        toolchain = (Path.cwd() / "rust-toolchain.toml").read_bytes()
+    except OSError:
+        toolchain = None
+    output = (
+        b"fixture stable rustc\\n"
+        if toolchain == {b'[toolchain]\nchannel = "stable"\ncomponents = ["rustfmt", "clippy"]\n'!r}
+        else b"fixture selected rustc\\n"
+    )
+    sys.stdout.buffer.write(output)
+    raise SystemExit(0)
+raise SystemExit(64)
+""",
+        encoding="utf-8",
+    )
+    rustc.chmod(0o755)
+
+
 def _write(path: Path, value: str | bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(value, bytes):
