@@ -612,6 +612,67 @@ class HostedTriggerTests(unittest.TestCase):
             self.assertRegex(publish, r"(?m)^    needs: verify$")
             self.assertIn(f"packages-dir: {publish_family_path}", publish)
 
+    def test_role_d_production_workflow_binds_its_dispatch_revision(self) -> None:
+        equality = 'test "$GITHUB_SHA" = "$RELEASE_COMMIT"'
+        acquisition = "uses: actions/download-artifact@"
+
+        def job(workflow: str, name: str) -> str:
+            match = re.search(
+                rf"(?ms)^  {re.escape(name)}:\n(.*?)(?=^  [a-z][a-z0-9_-]*:\n|\Z)",
+                workflow.split("jobs:\n", maxsplit=1)[1],
+            )
+            self.assertIsNotNone(match, f"missing production job {name}")
+            assert match is not None
+            return match.group(1)
+
+        def require_definition_binding(workflow: str) -> None:
+            verify = job(workflow, "verify")
+            publish = job(workflow, "publish")
+            self.assertEqual(
+                verify.count(equality),
+                1,
+                "production workflow definition is not bound to RELEASE_COMMIT",
+            )
+            self.assertIn(acquisition, verify)
+            self.assertLess(verify.index(equality), verify.index(acquisition))
+            self.assertRegex(publish, r"(?m)^    needs: verify$")
+
+        reference = f"""\
+jobs:
+  verify:
+    steps:
+      - name: Bind workflow definition
+        env:
+          RELEASE_COMMIT: ${{{{ inputs.commit }}}}
+        run: {equality}
+      - name: Acquire candidate
+        {acquisition}pinned
+  publish:
+    needs: verify
+    steps:
+      - run: publish
+"""
+        require_definition_binding(reference)
+        mutants = (
+            reference.replace("$GITHUB_SHA", "$(git rev-parse HEAD)"),
+            reference.replace(f"        run: {equality}\n", ""),
+            reference.replace(
+                f"        run: {equality}\n      - name: Acquire candidate\n"
+                f"        {acquisition}pinned\n",
+                f"      - name: Acquire candidate\n        {acquisition}pinned\n"
+                f"      - name: Late binding\n        run: {equality}\n",
+            ),
+            reference.replace("    needs: verify\n", ""),
+        )
+        for mutant in mutants:
+            with self.assertRaises(AssertionError):
+                require_definition_binding(mutant)
+
+        current = (
+            REPOSITORY_ROOT / ".github/workflows/python-production-publish.yml"
+        ).read_text(encoding="utf-8")
+        require_definition_binding(current)
+
     def test_rich_display_claim_names_candidate_level_bounded_host_teardown(
         self,
     ) -> None:

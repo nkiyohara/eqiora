@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -27,7 +28,12 @@ from email.parser import BytesParser
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from python_candidate_common import CandidateError, checked_run, home_scratch_parent
+from python_candidate_common import (
+    CandidateError,
+    checked_run,
+    home_scratch_parent,
+    python_distribution_version,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -498,6 +504,64 @@ def safe_extract_sdist(archive: Path, destination: Path) -> Path:
     return extracted
 
 
+def _retained_distribution_version(extracted: Path) -> str:
+    """Derive the Python version from retained Cargo and raw frontend mirrors."""
+
+    try:
+        cargo = tomllib.loads((extracted / "Cargo.toml").read_text(encoding="utf-8"))
+        pyproject = tomllib.loads(
+            (extracted / "pyproject.toml").read_text(encoding="utf-8")
+        )
+        package = json.loads(
+            (extracted / FRONTEND / "package.json").read_text(encoding="utf-8")
+        )
+        lock = json.loads(
+            (extracted / FRONTEND / "package-lock.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, tomllib.TOMLDecodeError) as error:
+        raise CandidateError(f"retained release identity cannot be parsed: {error}") from error
+
+    workspace = cargo.get("workspace")
+    workspace_package = workspace.get("package") if isinstance(workspace, dict) else None
+    raw_version = (
+        workspace_package.get("version")
+        if isinstance(workspace_package, dict)
+        else None
+    )
+    if not isinstance(raw_version, str) or not raw_version:
+        raise CandidateError("retained Cargo version is not one nonempty string")
+
+    project = pyproject.get("project")
+    if not isinstance(project, dict):
+        raise CandidateError("retained Python project table is unavailable")
+    if "version" in project or project.get("dynamic") != ["version"]:
+        raise CandidateError("retained Python version must be exactly dynamic")
+
+    mirrors: tuple[tuple[str, object], ...] = (
+        ("package.json.version", package.get("version") if isinstance(package, dict) else None),
+        (
+            "package-lock.json.version",
+            lock.get("version") if isinstance(lock, dict) else None,
+        ),
+        (
+            'package-lock.json.packages[""].version',
+            (
+                lock.get("packages", {}).get("", {}).get("version")
+                if isinstance(lock, dict)
+                and isinstance(lock.get("packages"), dict)
+                and isinstance(lock["packages"].get(""), dict)
+                else None
+            ),
+        ),
+    )
+    for location, value in mirrors:
+        if not isinstance(value, str) or not value:
+            raise CandidateError(f"retained frontend {location} is not one nonempty string")
+        if value != raw_version:
+            raise CandidateError(f"retained frontend {location} differs from raw Cargo")
+    return python_distribution_version(raw_version)
+
+
 def _sdist_resource_usage(archive: Path) -> tuple[int, int, int]:
     with tarfile.open(archive, mode="r:gz") as source:
         members = source.getmembers()
@@ -655,9 +719,18 @@ def _require_exact_maturin_wheel(
                 for member in archive.infolist()
                 if member.filename.endswith(".dist-info/WHEEL")
             )
+            metadata_members = tuple(
+                member
+                for member in archive.infolist()
+                if member.filename.endswith(".dist-info/METADATA")
+            )
             if len(wheel_members) != 1:
                 raise CandidateError(
                     f"H2 wheel has ambiguous WHEEL metadata: {path.name}"
+                )
+            if len(metadata_members) != 1:
+                raise CandidateError(
+                    f"H2 wheel has ambiguous distribution metadata: {path.name}"
                 )
             member = wheel_members[0]
             member_mode = member.external_attr >> 16
@@ -666,10 +739,23 @@ def _require_exact_maturin_wheel(
                     f"H2 wheel has invalid WHEEL ownership or mode: {path.name}"
                 )
             payload = archive.read(member)
+            metadata_member = metadata_members[0]
+            metadata_mode = metadata_member.external_attr >> 16
+            expected_metadata_member = f"eqiora-{version}.dist-info/METADATA"
+            if (
+                metadata_member.filename != expected_metadata_member
+                or not stat.S_ISREG(metadata_mode)
+            ):
+                raise CandidateError(
+                    f"H2 wheel has invalid distribution metadata ownership: {path.name}"
+                )
+            metadata = BytesParser().parsebytes(archive.read(metadata_member))
     except (OSError, NotImplementedError, zipfile.BadZipFile) as error:
         raise CandidateError(f"H2 wheel archive is invalid: {path.name}") from error
     if payload != expected_payload:
         raise CandidateError(f"H2 wheel metadata drifted: {path.name}")
+    if metadata.get("Name") != "eqiora" or metadata.get("Version") != version:
+        raise CandidateError(f"H2 wheel distribution version drifted: {path.name}")
 
 
 def admit_candidate_family(directory: Path) -> CandidateFamily:
@@ -684,8 +770,8 @@ def admit_candidate_family(directory: Path) -> CandidateFamily:
     if match is None:
         raise CandidateError("H2 source distribution has the wrong identity")
     version = match.group(1)
-    if version != "0.1.0a1":
-        raise CandidateError("H2 requires the exact first-candidate version")
+    if re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:(?:a|b|rc)(?:0|[1-9][0-9]*))?", version) is None:
+        raise CandidateError("H2 source distribution version is not normalized")
     wheels = [path for path in paths.values() if path.name.endswith(".whl")]
     if len(wheels) != 4 or len(wheels) + 1 != len(paths):
         raise CandidateError("H2 family contains a non-distribution file")
@@ -2773,6 +2859,10 @@ def execute_h2(*, expected_commit: str, artifacts: Path, out: Path) -> Path:
     ) as temporary:
         scratch = Path(temporary)
         extracted = safe_extract_sdist(family.sdist, scratch / "source")
+        if _retained_distribution_version(extracted) != family.version:
+            raise CandidateError(
+                "H2 artifact family version differs from retained Cargo authority"
+            )
         workspaces = create_isolated_build_workspaces(scratch / "builds")
         for workspace in workspaces:
             stage_frontend(extracted, workspace)

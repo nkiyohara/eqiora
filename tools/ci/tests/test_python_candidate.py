@@ -10,6 +10,7 @@ import inspect
 import io
 import json
 import os
+import re
 import shutil
 import signal
 import stat
@@ -267,9 +268,28 @@ def write_maturin_wheel(
     tags: tuple[str, ...] | None = None,
     members: tuple[tuple[str, bytes], ...] | None = None,
 ) -> None:
+    match = re.fullmatch(r"eqiora-(.+)-cp[0-9]+-cp[0-9]+-.+\.whl", path.name)
+    if match is None:
+        raise AssertionError(f"synthetic wheel has an invalid filename: {path.name}")
+    version = match.group(1)
     entries = members or (
-        (EXACT_WHEEL_MEMBER, maturin_wheel_payload(compact_python, tags=tags)),
+        (
+            f"eqiora-{version}.dist-info/WHEEL",
+            maturin_wheel_payload(compact_python, tags=tags),
+        ),
     )
+    if not any(name.endswith(".dist-info/METADATA") for name, _payload in entries):
+        entries = (
+            *entries,
+            (
+                f"eqiora-{version}.dist-info/METADATA",
+                (
+                    "Metadata-Version: 2.4\n"
+                    "Name: eqiora\n"
+                    f"Version: {version}\n\n"
+                ).encode("utf-8"),
+            ),
+        )
     if not any(name.endswith(".dist-info/RECORD") for name, _payload in entries):
         wheels = tuple(
             (name, payload)
@@ -457,6 +477,19 @@ class PythonCandidateTests(unittest.TestCase):
         ):
             with self.assertRaises(CandidateError, msg=rejected):
                 python_distribution_version(rejected)
+
+    def test_role_d_producer_removes_the_operative_alpha1_singleton(self) -> None:
+        self.assertEqual(
+            python_distribution_version("0.1.0-alpha.2"),
+            "0.1.0a2",
+        )
+        source = (
+            REPOSITORY_ROOT / "tools/release/python_candidate.py"
+        ).read_text(encoding="utf-8")
+        if 'config.python_version != "0.1.0a1"' in source:
+            self.fail("Role D producer still pins the operative alpha.1 singleton")
+        if '"0.1.0a2"' in source or '"v0.1.0a2"' in source:
+            self.fail("Role D producer added a handwritten alpha.2 singleton")
 
     def test_standard_release_tools_group_is_the_only_uv_version_source(self) -> None:
         document = tomllib.loads(
@@ -4796,6 +4829,11 @@ write(JSON.stringify({calls,output,failure}));
                     return_value=admitted,
                 ),
                 mock.patch.object(executor, "safe_extract_sdist", side_effect=extract),
+                mock.patch.object(
+                    executor,
+                    "_retained_distribution_version",
+                    return_value="0.1.0a1",
+                ),
                 mock.patch.object(executor, "stage_frontend"),
                 mock.patch.object(
                     executor,
@@ -5320,6 +5358,166 @@ write(JSON.stringify({calls,output,failure}));
                     with self.assertRaises(RuntimeError):
                         executor.admit_candidate_family(mutant)
 
+    def test_alpha2_retained_source_and_raw_frontend_mirrors_precede_node(
+        self,
+    ) -> None:
+        executor = importlib.import_module("python_candidate_h2")
+
+        class SourceBoundaryReached(RuntimeError):
+            pass
+
+        def cross_boundary(family: Path, output: Path) -> None:
+            with (
+                mock.patch.object(
+                    executor,
+                    "source_identity",
+                    return_value=SourceIdentity(self.REVISION, ()),
+                ),
+                mock.patch.object(
+                    executor,
+                    "_current_revision",
+                    return_value=self.REVISION,
+                ),
+                mock.patch.object(executor, "checked_run", return_value="123456789"),
+                mock.patch.object(
+                    executor,
+                    "create_isolated_build_workspaces",
+                    side_effect=SourceBoundaryReached("source boundary reached"),
+                ),
+                mock.patch.object(
+                    executor,
+                    "_node_and_npm_identity",
+                    side_effect=AssertionError("Node boundary ran too early"),
+                ),
+            ):
+                with self.assertRaisesRegex(
+                    SourceBoundaryReached, "source boundary reached"
+                ):
+                    executor.execute_h2(
+                        expected_commit=self.REVISION,
+                        artifacts=family,
+                        out=output,
+                    )
+            self.assertEqual(tuple(output.iterdir()), ())
+
+        with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
+            root = Path(temporary)
+            family = root / "positive-family"
+            output = root / "positive-output"
+            self.write_source_derived_family(family)
+            cross_boundary(family, output)
+
+            metadata_family = root / "stale-wheel-metadata"
+            metadata_output = root / "stale-wheel-metadata-output"
+            self.write_source_derived_family(metadata_family)
+            wheel = metadata_family / exact_wheel_name("311", version="0.1.0a2")
+            with zipfile.ZipFile(wheel) as archive:
+                members = tuple(
+                    (
+                        name,
+                        (
+                            archive.read(name).replace(
+                                b"Version: 0.1.0a2", b"Version: 0.1.0a1"
+                            )
+                            if name.endswith(".dist-info/METADATA")
+                            else archive.read(name)
+                        ),
+                    )
+                    for name in archive.namelist()
+                )
+            write_maturin_wheel(wheel, "311", members=members)
+            with (
+                mock.patch.object(
+                    executor,
+                    "source_identity",
+                    return_value=SourceIdentity(self.REVISION, ()),
+                ),
+                mock.patch.object(
+                    executor,
+                    "_current_revision",
+                    return_value=self.REVISION,
+                ),
+                mock.patch.object(executor, "safe_extract_sdist") as extract,
+                mock.patch.object(executor, "_node_and_npm_identity") as node,
+                mock.patch.object(executor, "write_canonical_receipt") as publish,
+            ):
+                with self.assertRaisesRegex(CandidateError, "distribution version"):
+                    executor.execute_h2(
+                        expected_commit=self.REVISION,
+                        artifacts=metadata_family,
+                        out=metadata_output,
+                    )
+            extract.assert_not_called()
+            node.assert_not_called()
+            publish.assert_not_called()
+            self.assertFalse(metadata_output.exists())
+
+            mutations: dict[str, dict[str, object]] = {
+                "stale-cargo-family": {
+                    "cargo_version": "0.1.0-alpha.1",
+                    "package_version": "0.1.0-alpha.1",
+                    "lock_version": "0.1.0-alpha.1",
+                    "lock_root_version": "0.1.0-alpha.1",
+                },
+                "package-version": {"package_version": "0.1.0-alpha.1"},
+                "lock-version": {"lock_version": "0.1.0-alpha.1"},
+                "lock-root-version": {"lock_root_version": "0.1.0-alpha.1"},
+                "missing-package-version": {"package_version": None},
+                "non-string-package-version": {"package_version": 2},
+                "missing-lock-version": {"lock_version": None},
+                "non-string-lock-version": {"lock_version": 2},
+                "missing-lock-root-version": {"lock_root_version": None},
+                "non-string-lock-root-version": {"lock_root_version": False},
+                "malformed-package": {"malformed_package": True},
+                "malformed-lock": {"malformed_lock": True},
+                "authored-python-version": {"authored_python_version": True},
+                "unsupported-cargo-version": {
+                    "cargo_version": "0.1.0-preview.2",
+                    "package_version": "0.1.0-preview.2",
+                    "lock_version": "0.1.0-preview.2",
+                    "lock_root_version": "0.1.0-preview.2",
+                },
+            }
+            for name, options in mutations.items():
+                with self.subTest(name=name):
+                    mutant = root / name
+                    output = root / f"{name}-output"
+                    self.write_source_derived_family(mutant, **options)
+                    with (
+                        mock.patch.object(
+                            executor,
+                            "source_identity",
+                            return_value=SourceIdentity(self.REVISION, ()),
+                        ),
+                        mock.patch.object(
+                            executor,
+                            "_current_revision",
+                            return_value=self.REVISION,
+                        ),
+                        mock.patch.object(
+                            executor, "checked_run", return_value="123456789"
+                        ),
+                        mock.patch.object(
+                            executor, "create_isolated_build_workspaces"
+                        ) as later_work,
+                        mock.patch.object(
+                            executor, "_node_and_npm_identity"
+                        ) as node,
+                        mock.patch.object(
+                            executor, "write_canonical_receipt"
+                        ) as publish,
+                    ):
+                        with self.assertRaises(RuntimeError):
+                            executor.execute_h2(
+                                expected_commit=self.REVISION,
+                                artifacts=mutant,
+                                out=output,
+                            )
+                    later_work.assert_not_called()
+                    node.assert_not_called()
+                    publish.assert_not_called()
+                    self.assertEqual(tuple(output.iterdir()), ())
+
     def test_h2_rejects_every_filename_and_internal_tag_widening_before_work(
         self,
     ) -> None:
@@ -5617,6 +5815,70 @@ write(JSON.stringify({calls,output,failure}));
             write_maturin_wheel(directory / exact_wheel_name(python), python)
 
     @staticmethod
+    def write_source_derived_family(
+        directory: Path,
+        *,
+        cargo_version: str = "0.1.0-alpha.2",
+        package_version: object = "0.1.0-alpha.2",
+        lock_version: object = "0.1.0-alpha.2",
+        lock_root_version: object = "0.1.0-alpha.2",
+        malformed_package: bool = False,
+        malformed_lock: bool = False,
+        authored_python_version: bool = False,
+    ) -> None:
+        directory.mkdir(parents=True)
+        normalized = "0.1.0a2"
+        sdist = directory / f"eqiora-{normalized}.tar.gz"
+        package: dict[str, object] = {"name": "frontend"}
+        if package_version is not None:
+            package["version"] = package_version
+        package_bytes = (
+            b"{"
+            if malformed_package
+            else json.dumps(package, sort_keys=True).encode("utf-8")
+        )
+        lock: dict[str, object] = {
+            "lockfileVersion": 3,
+            "packages": {"": {}},
+        }
+        if lock_version is not None:
+            lock["version"] = lock_version
+        if lock_root_version is not None:
+            lock["packages"][""]["version"] = lock_root_version  # type: ignore[index]
+        lock_bytes = (
+            b"{"
+            if malformed_lock
+            else json.dumps(lock, sort_keys=True).encode("utf-8")
+        )
+        pyproject = (
+            b'[project]\nname = "eqiora"\nversion = "0.1.0a2"\n'
+            if authored_python_version
+            else b'[project]\nname = "eqiora"\ndynamic = ["version"]\n'
+        )
+        members = {
+            "eqiora-0.1.0a2/Cargo.toml": (
+                f'[workspace.package]\nversion = "{cargo_version}"\n'.encode()
+            ),
+            "eqiora-0.1.0a2/Cargo.lock": b"# synthetic\n",
+            "eqiora-0.1.0a2/pyproject.toml": pyproject,
+            "eqiora-0.1.0a2/crates/eqiora-python/Cargo.toml": b"[package]\nname='eqiora-python'\n",
+            "eqiora-0.1.0a2/bindings/python/frontend/package.json": package_bytes,
+            "eqiora-0.1.0a2/bindings/python/frontend/package-lock.json": lock_bytes,
+        }
+        with tarfile.open(sdist, mode="w:gz") as archive:
+            for name, payload in sorted(members.items()):
+                member = tarfile.TarInfo(name)
+                member.mode = 0o644
+                member.mtime = 0
+                member.size = len(payload)
+                archive.addfile(member, io.BytesIO(payload))
+        for python in EXACT_WHEEL_INTERPRETERS:
+            write_maturin_wheel(
+                directory / exact_wheel_name(python, version=normalized),
+                python,
+            )
+
+    @staticmethod
     def expected_family_inventory(directory: Path) -> tuple[dict[str, object], ...]:
         return tuple(
             {
@@ -5769,6 +6031,11 @@ write(JSON.stringify({calls,output,failure}));
                 ) as safe_extract,
                 mock.patch.object(
                     executor,
+                    "_retained_distribution_version",
+                    return_value="0.1.0a1",
+                ) as retained_version,
+                mock.patch.object(
+                    executor,
                     "stage_frontend",
                     create=True,
                 ) as stage_frontend,
@@ -5805,6 +6072,7 @@ write(JSON.stringify({calls,output,failure}));
                 all(observed == expected_inventory for observed in observed_inventories)
             )
             self.assertEqual(safe_extract.call_count, 1)
+            retained_version.assert_called_once()
             self.assertEqual(stage_frontend.call_count, 2)
             self.assertEqual(run_frontend_commands.call_count, 2)
             observe_h2.assert_called_once()

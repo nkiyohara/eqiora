@@ -164,14 +164,16 @@ def structured_sha256(value: object) -> str:
 def _write_wheel(
     path: Path,
     *,
-    metadata: bytes = BASE_METADATA,
+    version: str = "0.1.0a1",
+    metadata: bytes | None = None,
     extra_members: dict[str, bytes] | None = None,
 ) -> None:
+    metadata = BASE_METADATA if metadata is None else metadata
     members = {
-        "eqiora/__init__.py": b"__version__ = '0.1.0a1'\n",
-        "eqiora-0.1.0a1.dist-info/METADATA": metadata,
-        "eqiora-0.1.0a1.dist-info/WHEEL": b"Wheel-Version: 1.0\n",
-        "eqiora-0.1.0a1.dist-info/RECORD": b"",
+        "eqiora/__init__.py": f"__version__ = '{version}'\n".encode(),
+        f"eqiora-{version}.dist-info/METADATA": metadata,
+        f"eqiora-{version}.dist-info/WHEEL": b"Wheel-Version: 1.0\n",
+        f"eqiora-{version}.dist-info/RECORD": b"",
     }
     members.update(extra_members or {})
     with zipfile.ZipFile(path, mode="w") as archive:
@@ -182,16 +184,19 @@ def _write_wheel(
 def _write_sdist(
     path: Path,
     *,
-    pyproject: bytes = BASE_PYPROJECT,
-    pkg_info: bytes = BASE_METADATA,
+    version: str = "0.1.0a1",
+    pyproject: bytes | None = None,
+    pkg_info: bytes | None = None,
     extra_members: dict[str, bytes] | None = None,
 ) -> None:
-    prefix = "eqiora-0.1.0a1/"
+    pyproject = BASE_PYPROJECT if pyproject is None else pyproject
+    pkg_info = BASE_METADATA if pkg_info is None else pkg_info
+    prefix = f"eqiora-{version}/"
     members = {
         f"{prefix}PKG-INFO": pkg_info,
         f"{prefix}pyproject.toml": pyproject,
         f"{prefix}bindings/python/python/eqiora/__init__.py": (
-            b"__version__ = '0.1.0a1'\n"
+            f"__version__ = '{version}'\n".encode()
         ),
     }
     members.update(
@@ -215,7 +220,12 @@ def _rewrite_wheel(
     with zipfile.ZipFile(path) as archive:
         members = {name: archive.read(name) for name in archive.namelist()}
     if metadata is not None:
-        members["eqiora-0.1.0a1.dist-info/METADATA"] = metadata
+        metadata_members = [
+            name for name in members if name.endswith(".dist-info/METADATA")
+        ]
+        if len(metadata_members) != 1:
+            raise AssertionError("synthetic wheel has ambiguous METADATA")
+        members[metadata_members[0]] = metadata
     members.update(extra_members or {})
     with zipfile.ZipFile(path, mode="w") as archive:
         for name, payload in sorted(members.items()):
@@ -256,38 +266,40 @@ def _refresh_artifact_records(artifacts: Path, document: dict) -> None:
         by_name[path.name]["sha256"] = hashlib.sha256(payload).hexdigest()
 
 
-def candidate_document(root: Path) -> tuple[Path, Path, dict]:
+def candidate_document(
+    root: Path, *, version: str = "0.1.0a1"
+) -> tuple[Path, Path, dict]:
     artifacts = root / "artifacts"
     artifacts.mkdir()
     records = []
     for filename, kind, python in (
-        ("eqiora-0.1.0a1.tar.gz", "sdist", None),
+        (f"eqiora-{version}.tar.gz", "sdist", None),
         (
-            "eqiora-0.1.0a1-cp311-cp311-manylinux_2_17_x86_64.whl",
+            f"eqiora-{version}-cp311-cp311-manylinux_2_17_x86_64.whl",
             "wheel",
             "3.11",
         ),
         (
-            "eqiora-0.1.0a1-cp312-cp312-manylinux_2_17_x86_64.whl",
+            f"eqiora-{version}-cp312-cp312-manylinux_2_17_x86_64.whl",
             "wheel",
             "3.12",
         ),
         (
-            "eqiora-0.1.0a1-cp313-cp313-manylinux_2_17_x86_64.whl",
+            f"eqiora-{version}-cp313-cp313-manylinux_2_17_x86_64.whl",
             "wheel",
             "3.13",
         ),
         (
-            "eqiora-0.1.0a1-cp314-cp314-manylinux_2_17_x86_64.whl",
+            f"eqiora-{version}-cp314-cp314-manylinux_2_17_x86_64.whl",
             "wheel",
             "3.14",
         ),
     ):
         artifact = artifacts / filename
         if kind == "sdist":
-            _write_sdist(artifact)
+            _write_sdist(artifact, version=version)
         else:
-            _write_wheel(artifact)
+            _write_wheel(artifact, version=version)
         data = artifact.read_bytes()
         record = {
             "filename": filename,
@@ -307,11 +319,11 @@ def candidate_document(root: Path) -> tuple[Path, Path, dict]:
     document = {
         "format": "eqiora.python-distribution-candidate/v2",
         "project": "eqiora",
-        "version": "0.1.0a1",
+        "version": version,
         "acceptance": "complete",
         "source": {
             "commit": "1" * 40,
-            "expected_tag": "v0.1.0a1",
+            "expected_tag": f"v{version}",
             "tags": [],
             "tree": "clean",
         },
@@ -390,8 +402,11 @@ def candidate_document(root: Path) -> tuple[Path, Path, dict]:
 def notebook_metadata(
     *requirements: str,
     provides: tuple[str, ...] = ("notebook",),
+    version: str = "0.1.0a1",
 ) -> bytes:
-    lines = BASE_METADATA.decode("utf-8").splitlines()
+    lines = BASE_METADATA.decode("utf-8").replace(
+        "Version: 0.1.0a1", f"Version: {version}"
+    ).splitlines()
     body = lines.index("")
     additions = [*(f"Provides-Extra: {name}" for name in provides)]
     additions.extend(f"Requires-Dist: {requirement}" for requirement in requirements)
@@ -441,9 +456,12 @@ def _bind_receipt(
 
 def complete_v3_candidate_document(
     root: Path,
+    *,
+    version: str = "0.1.0a1",
+    cargo_version: str = "0.1.0-alpha.1",
 ) -> tuple[Path, Path, dict, Path, dict]:
     """Create synthetic schema bytes, never an Eqiora product build or H2 result."""
-    manifest, artifacts, document = candidate_document(root)
+    manifest, artifacts, document = candidate_document(root, version=version)
     writer_revision = subprocess.check_output(
         ["git", "rev-parse", "HEAD"],
         cwd=REPOSITORY_ROOT,
@@ -458,36 +476,57 @@ def complete_v3_candidate_document(
     )
     document["source"]["commit"] = writer_revision
     exact_requirement = 'anywidget == 0.11.0 ; extra == "notebook"'
-    wheel_metadata = notebook_metadata(exact_requirement)
+    wheel_metadata = notebook_metadata(exact_requirement, version=version)
     for record in document["artifacts"]:
         artifact = artifacts / record["filename"]
         if record["kind"] == "wheel":
+            dual_alias = artifact.with_name(
+                artifact.name.replace(
+                    "-manylinux_2_17_x86_64.whl",
+                    "-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+                )
+            )
+            artifact.rename(dual_alias)
+            record["filename"] = dual_alias.name
+            artifact = dual_alias
             _rewrite_wheel(
                 artifact,
                 metadata=wheel_metadata,
                 extra_members=ASSET_BYTES,
             )
 
-    package_json = (
-        REPOSITORY_ROOT / "bindings/python/frontend/package.json"
-    ).read_bytes()
-    package_lock = (
-        REPOSITORY_ROOT / "bindings/python/frontend/package-lock.json"
-    ).read_bytes()
-    assert hashlib.sha256(package_lock).hexdigest() == FRONTEND_PACKAGE_LOCK_SHA256
+    package_document = json.loads(
+        (REPOSITORY_ROOT / "bindings/python/frontend/package.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    lock_document = json.loads(
+        (REPOSITORY_ROOT / "bindings/python/frontend/package-lock.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    package_document["version"] = cargo_version
+    lock_document["version"] = cargo_version
+    lock_document["packages"][""]["version"] = cargo_version
+    package_json = (json.dumps(package_document, indent=2) + "\n").encode("utf-8")
+    package_lock = (json.dumps(lock_document, indent=2) + "\n").encode("utf-8")
+    if cargo_version == "0.1.0-alpha.1":
+        assert hashlib.sha256(package_lock).hexdigest() == FRONTEND_PACKAGE_LOCK_SHA256
     source = b"export const renderer = 'synthetic-oracle-only';\n"
     config = b"export default {build: {sourcemap: false}};\n"
-    pyproject = (
-        BASE_PYPROJECT
-        + b"""\
+    pyproject = b"""\
+[project]
+name = "eqiora"
+dynamic = ["version"]
+dependencies = ["numpy>=2.1,<3"]
 
 [project.optional-dependencies]
 notebook = ["anywidget==0.11.0"]
 """
-    )
     sdist_members = {
         "bindings/python/frontend/package.json": package_json,
         "bindings/python/frontend/package-lock.json": package_lock,
+        "Cargo.toml": f'[workspace.package]\nversion = "{cargo_version}"\n'.encode(),
         "bindings/python/frontend/src/mesh-view.ts": source,
         "bindings/python/frontend/vite.config.ts": config,
         "bindings/python/src/notebook_hook.rs": b"fn _repr_mimebundle_() {}\n",
@@ -497,7 +536,8 @@ notebook = ["anywidget==0.11.0"]
         },
     }
     _write_sdist(
-        artifacts / "eqiora-0.1.0a1.tar.gz",
+        artifacts / f"eqiora-{version}.tar.gz",
+        version=version,
         pyproject=pyproject,
         pkg_info=wheel_metadata,
         extra_members=sdist_members,
@@ -518,7 +558,6 @@ notebook = ["anywidget==0.11.0"]
             "sha256": hashlib.sha256(config).hexdigest(),
         }
     ]
-    package_document = json.loads(package_json)
     direct_pins = sorted(
         (
             {"name": name, "version": version}
@@ -544,7 +583,6 @@ notebook = ["anywidget==0.11.0"]
         script_inventory.setdefault(lock_path, []).append(
             {"name": hook, "command": command, "sources": list(sources)}
         )
-    lock_document = json.loads(package_lock)
     playwright_test_integrity = lock_document["packages"][
         "node_modules/@playwright/test"
     ]["integrity"]
@@ -583,7 +621,7 @@ notebook = ["anywidget==0.11.0"]
             "output": "mesh-view.mjs",
             "input": "src/mesh-view.ts",
             "package": "eqiora",
-            "version": "0.1.0a1",
+            "version": version,
         },
     ]
     output_inventory = [
@@ -764,7 +802,7 @@ notebook = ["anywidget==0.11.0"]
             "wheels": python_wheels,
         },
     }
-    receipt_path = root / "eqiora-0.1.0a1-python-candidate-h2.json"
+    receipt_path = root / f"eqiora-{version}-python-candidate-h2.json"
     _bind_receipt(manifest, artifacts, document, receipt_path, receipt)
     return manifest, artifacts, document, receipt_path, receipt
 
@@ -1198,6 +1236,296 @@ class CandidateManifestTests(unittest.TestCase):
             verify_artifacts(candidate, artifacts)
 
         self.assertEqual(candidate.version, "0.1.0a1")
+
+    def test_alpha2_v3_identity_is_derived_from_retained_cargo(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest, artifacts, _, receipt, _ = complete_v3_candidate_document(
+                root,
+                version="0.1.0a2",
+                cargo_version="0.1.0-alpha.2",
+            )
+            candidate = load_candidate_family(
+                manifest,
+                artifacts,
+                requested_profiles=("notebook",),
+                h2_receipt=receipt,
+            )
+            verify_artifacts(candidate, artifacts)
+
+        self.assertEqual(candidate.version, "0.1.0a2")
+        self.assertEqual(candidate.expected_tag, "v0.1.0a2")
+        self.assertEqual(len(candidate.artifacts), 5)
+
+        mutations: dict[str, tuple[str, bytes]] = {
+            "stale-cargo": (
+                "Cargo.toml",
+                b'[workspace.package]\nversion = "0.1.0-alpha.1"\n',
+            ),
+            "authored-python-version": (
+                "pyproject.toml",
+                b'[project]\nname="eqiora"\nversion="0.1.0a2"\n',
+            ),
+            "stale-package-version": (
+                "bindings/python/frontend/package.json",
+                b'{"name":"frontend","version":"0.1.0-alpha.1"}',
+            ),
+            "missing-package-version": (
+                "bindings/python/frontend/package.json",
+                b'{"name":"frontend"}',
+            ),
+            "non-string-package-version": (
+                "bindings/python/frontend/package.json",
+                b'{"name":"frontend","version":2}',
+            ),
+            "malformed-package": (
+                "bindings/python/frontend/package.json",
+                b"{",
+            ),
+        }
+        for name, (relative, payload) in mutations.items():
+            with (
+                self.subTest(name=name),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                root = Path(temporary)
+                manifest, artifacts, document, receipt, receipt_document = (
+                    complete_v3_candidate_document(
+                        root,
+                        version="0.1.0a2",
+                        cargo_version="0.1.0-alpha.2",
+                    )
+                )
+                _rewrite_sdist(
+                    artifacts / "eqiora-0.1.0a2.tar.gz",
+                    replace_members={f"eqiora-0.1.0a2/{relative}": payload},
+                )
+                _bind_receipt(
+                    manifest,
+                    artifacts,
+                    document,
+                    receipt,
+                    receipt_document,
+                )
+                with self.assertRaises(ManifestError):
+                    load_candidate_family(
+                        manifest,
+                        artifacts,
+                        requested_profiles=("notebook",),
+                        h2_receipt=receipt,
+                    )
+
+        for location in ("version", "root-version"):
+            with (
+                self.subTest(location=location),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                root = Path(temporary)
+                manifest, artifacts, document, receipt, receipt_document = (
+                    complete_v3_candidate_document(
+                        root,
+                        version="0.1.0a2",
+                        cargo_version="0.1.0-alpha.2",
+                    )
+                )
+                lock_name = "eqiora-0.1.0a2/bindings/python/frontend/package-lock.json"
+                with tarfile.open(artifacts / "eqiora-0.1.0a2.tar.gz") as archive:
+                    lock = json.loads(archive.extractfile(lock_name).read())
+                if location == "version":
+                    lock["version"] = "0.1.0-alpha.1"
+                else:
+                    lock["packages"][""]["version"] = "0.1.0-alpha.1"
+                _rewrite_sdist(
+                    artifacts / "eqiora-0.1.0a2.tar.gz",
+                    replace_members={
+                        lock_name: json.dumps(lock, sort_keys=True).encode("utf-8")
+                    },
+                )
+                _bind_receipt(
+                    manifest,
+                    artifacts,
+                    document,
+                    receipt,
+                    receipt_document,
+                )
+                with self.assertRaisesRegex(ManifestError, "frontend|Cargo"):
+                    load_candidate_family(
+                        manifest,
+                        artifacts,
+                        requested_profiles=("notebook",),
+                        h2_receipt=receipt,
+                    )
+
+    def test_alpha2_exact_family_and_detached_receipt_reject_mixed_identity(
+        self,
+    ) -> None:
+        def fixture(root: Path) -> tuple[Path, Path, dict, Path, dict]:
+            return complete_v3_candidate_document(
+                root,
+                version="0.1.0a2",
+                cargo_version="0.1.0-alpha.2",
+            )
+
+        def rebind_receipt(
+            manifest: Path,
+            document: dict,
+            receipt_path: Path,
+            receipt: dict,
+        ) -> None:
+            payload = canonical_json_bytes(receipt)
+            receipt_path.write_bytes(payload)
+            document["build"]["frontend"]["h2_receipt_sha256"] = hashlib.sha256(
+                payload
+            ).hexdigest()
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+
+        family_mutations = (
+            "stale-manifest-version",
+            "stale-tag",
+            "stale-sdist-filename",
+            "stale-wheel-filename",
+            "stale-wheel-metadata",
+            "duplicate-interpreter",
+            "wrong-abi",
+            "wrong-platform",
+            "incomplete-family",
+            "extra-family-member",
+            "changed-family-byte",
+            "stale-manifest-family-record",
+        )
+        for mutation in family_mutations:
+            with (
+                self.subTest(mutation=mutation),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                root = Path(temporary)
+                manifest, artifacts, document, receipt, receipt_document = fixture(root)
+                record = next(
+                    item for item in document["artifacts"] if item["kind"] == "wheel"
+                )
+                wheel = artifacts / record["filename"]
+                if mutation == "stale-manifest-version":
+                    document["version"] = "0.1.0a1"
+                    manifest.write_text(json.dumps(document), encoding="utf-8")
+                elif mutation == "stale-tag":
+                    document["source"]["expected_tag"] = "v0.1.0a1"
+                    manifest.write_text(json.dumps(document), encoding="utf-8")
+                elif mutation == "stale-sdist-filename":
+                    sdist_record = next(
+                        item
+                        for item in document["artifacts"]
+                        if item["kind"] == "sdist"
+                    )
+                    old = artifacts / sdist_record["filename"]
+                    new = artifacts / "eqiora-0.1.0a1.tar.gz"
+                    old.rename(new)
+                    sdist_record["filename"] = new.name
+                    _bind_receipt(
+                        manifest, artifacts, document, receipt, receipt_document
+                    )
+                elif mutation in {
+                    "stale-wheel-filename",
+                    "wrong-abi",
+                    "wrong-platform",
+                }:
+                    if mutation == "stale-wheel-filename":
+                        replacement = wheel.name.replace("0.1.0a2", "0.1.0a1")
+                    elif mutation == "wrong-abi":
+                        replacement = wheel.name.replace("-cp311-", "-abi3-")
+                    else:
+                        replacement = wheel.name.replace("x86_64", "aarch64")
+                    renamed = artifacts / replacement
+                    wheel.rename(renamed)
+                    record["filename"] = renamed.name
+                    _bind_receipt(
+                        manifest, artifacts, document, receipt, receipt_document
+                    )
+                elif mutation == "stale-wheel-metadata":
+                    _rewrite_wheel(
+                        wheel,
+                        metadata=notebook_metadata(
+                            'anywidget == 0.11.0 ; extra == "notebook"',
+                            version="0.1.0a1",
+                        ),
+                    )
+                    _bind_receipt(
+                        manifest, artifacts, document, receipt, receipt_document
+                    )
+                elif mutation == "duplicate-interpreter":
+                    document["artifacts"][-1]["python"] = "3.13"
+                    manifest.write_text(json.dumps(document), encoding="utf-8")
+                elif mutation == "incomplete-family":
+                    wheel.unlink()
+                elif mutation == "extra-family-member":
+                    (artifacts / "unreviewed.whl").write_bytes(b"extra")
+                elif mutation == "changed-family-byte":
+                    wheel.write_bytes(wheel.read_bytes() + b"changed")
+                else:
+                    assert mutation == "stale-manifest-family-record"
+                    record["sha256"] = "0" * 64
+                    manifest.write_text(json.dumps(document), encoding="utf-8")
+
+                with self.assertRaises(ManifestError):
+                    load_candidate_family(
+                        manifest,
+                        artifacts,
+                        requested_profiles=("notebook",),
+                        h2_receipt=receipt,
+                    )
+
+        receipt_mutations = (
+            "filename",
+            "version",
+            "source",
+            "family-record",
+            "sha-binding",
+        )
+        for mutation in receipt_mutations:
+            with (
+                self.subTest(receipt_mutation=mutation),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                root = Path(temporary)
+                manifest, artifacts, document, receipt, receipt_document = fixture(root)
+                if mutation == "filename":
+                    renamed = receipt.with_name(
+                        "eqiora-0.1.0a1-python-candidate-h2.json"
+                    )
+                    receipt.rename(renamed)
+                    receipt = renamed
+                elif mutation == "version":
+                    receipt_document["candidate"]["version"] = "0.1.0a1"
+                    rebind_receipt(manifest, document, receipt, receipt_document)
+                elif mutation == "source":
+                    receipt_document["candidate"]["source_commit"] = "2" * 40
+                    rebind_receipt(manifest, document, receipt, receipt_document)
+                elif mutation == "family-record":
+                    receipt_document["candidate"]["artifacts"][0]["sha256"] = (
+                        "0" * 64
+                    )
+                    rebind_receipt(manifest, document, receipt, receipt_document)
+                else:
+                    document["build"]["frontend"]["h2_receipt_sha256"] = "0" * 64
+                    manifest.write_text(json.dumps(document), encoding="utf-8")
+
+                with self.assertRaises(ManifestError):
+                    load_candidate_family(
+                        manifest,
+                        artifacts,
+                        requested_profiles=("notebook",),
+                        h2_receipt=receipt,
+                    )
+
+    def test_historical_v2_alpha1_positive_precedes_exact_version_mutant(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest, artifacts, document = candidate_document(Path(temporary))
+            candidate = load_candidate_family(manifest, artifacts)
+            self.assertEqual(candidate.version, "0.1.0a1")
+            document["version"] = "0.1.0a2"
+            document["source"]["expected_tag"] = "v0.1.0a2"
+            manifest.write_text(json.dumps(document), encoding="utf-8")
+            with self.assertRaisesRegex(ManifestError, "first public candidate"):
+                load_candidate_family(manifest, artifacts)
 
     def test_every_wheel_requires_one_exact_notebook_requirement(self) -> None:
         metadata_mutants = {
