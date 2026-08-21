@@ -237,7 +237,10 @@ fn run_with_outputs(
 
 fn coefficients(values: &[f64]) -> Vec<(VertexId, [f64; 3])> {
     values
-        .chunks_exact(3)
+        .as_chunks::<3>()
+        .0
+        .iter()
+        .map(|value| value.as_slice())
         .enumerate()
         .map(|(vertex, value)| {
             (

@@ -119,7 +119,9 @@ mod tests {
             .unwrap();
         let assembled = local
             .matrix()
-            .chunks_exact(CONSTRAINT_LOCAL_DOF_COUNT)
+            .as_chunks::<CONSTRAINT_LOCAL_DOF_COUNT>()
+            .0
+            .iter()
             .map(|row| {
                 row.iter()
                     .zip(point)

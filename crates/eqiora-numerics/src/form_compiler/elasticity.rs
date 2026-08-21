@@ -483,7 +483,9 @@ fn cumulative_local_form(
         geometry.map_point(&point.coordinates, &mut physical)?;
         let gradients = basis
             .reference_gradients()
-            .chunks_exact(DIMENSION)
+            .as_chunks::<DIMENSION>()
+            .0
+            .iter()
             .map(|gradient| physical_gradient(gradient, &inverse, DIMENSION))
             .collect::<Vec<_>>();
         let body_force = match &request {

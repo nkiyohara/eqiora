@@ -353,7 +353,12 @@ pub(super) fn decode_candidate(bytes: &[u8]) -> Result<Vec<(VertexId, [f64; 3])>
         ));
     }
     let mut values = Vec::with_capacity(12);
-    for chunk in bytes.chunks_exact(8) {
+    for chunk in bytes
+        .as_chunks::<8>()
+        .0
+        .iter()
+        .map(|chunk| chunk.as_slice())
+    {
         let value = f64::from_le_bytes(chunk.try_into().expect("f64 chunk has eight bytes"));
         if !value.is_finite() || is_negative_zero(value) {
             return Err(invalid(

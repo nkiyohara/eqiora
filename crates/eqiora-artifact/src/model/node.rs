@@ -455,7 +455,10 @@ fn encode_geometry_digest(digest: GeometryDigest) -> String {
 fn decode_geometry_digest(value: &str) -> Result<GeometryDigest, Diagnostic> {
     let canonical = ArtifactDigest::from_hex(value.to_owned())?.to_string();
     let mut bytes = [0_u8; 32];
-    for (slot, pair) in bytes.iter_mut().zip(canonical.as_bytes().chunks_exact(2)) {
+    for (slot, pair) in bytes
+        .iter_mut()
+        .zip(canonical.as_bytes().as_chunks::<2>().0.iter())
+    {
         let text = std::str::from_utf8(pair)
             .map_err(|_| invalid_artifact("geometry digest is not hexadecimal"))?;
         *slot = u8::from_str_radix(text, 16)

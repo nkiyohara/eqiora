@@ -138,7 +138,10 @@ fn mpi_child_executes_admitted_run() {
     world.all_gather_into(&topology.fingerprint(), &mut topology_fingerprints[..]);
     assert!(
         topology_fingerprints
-            .chunks_exact(32)
+            .as_chunks::<32>()
+            .0
+            .iter()
+            .map(|candidate| candidate.as_slice())
             .all(|candidate| candidate == topology.fingerprint())
     );
 
@@ -662,7 +665,10 @@ fn assert_common_diagnostic(world: &impl CommunicatorCollectives, error: &eqiora
     world.all_gather_into(&local[..], &mut diagnostics[..]);
     assert!(
         diagnostics
-            .chunks_exact(DIAGNOSTIC_BYTES)
+            .as_chunks::<DIAGNOSTIC_BYTES>()
+            .0
+            .iter()
+            .map(|diagnostic| diagnostic.as_slice())
             .all(|diagnostic| diagnostic == local)
     );
 }
@@ -718,7 +724,9 @@ fn assert_minimum_physical_nodes(world: &impl CommunicatorCollectives) {
     let mut gathered = vec![0_u8; PROCESSOR_NAME_BYTES * ranks];
     world.all_gather_into(&local[..], &mut gathered[..]);
     let processors = gathered
-        .chunks_exact(PROCESSOR_NAME_BYTES)
+        .as_chunks::<PROCESSOR_NAME_BYTES>()
+        .0
+        .iter()
         .map(|name| {
             let length = name
                 .iter()

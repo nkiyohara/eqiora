@@ -582,7 +582,9 @@ fn validate_coordinate_derivation<
     }
     let solid_values = vertex_block
         .values()
-        .chunks_exact(SPATIAL_DIMENSION)
+        .as_chunks::<SPATIAL_DIMENSION>()
+        .0
+        .iter()
         .map(|values| [values[0], values[1], values[2]])
         .collect::<Vec<_>>();
 

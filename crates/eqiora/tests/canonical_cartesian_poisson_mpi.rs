@@ -329,7 +329,12 @@ fn assert_artifact_agreement<const N: usize>(
     let block_bytes = DIGEST_BYTES * N;
 
     let mut local = vec![0_u8; block_bytes];
-    for (slot, digest) in local.chunks_exact_mut(DIGEST_BYTES).zip(digests) {
+    for (slot, digest) in local
+        .as_chunks_mut::<DIGEST_BYTES>()
+        .0
+        .iter_mut()
+        .zip(digests)
+    {
         slot.copy_from_slice(digest.as_str().as_bytes());
     }
     let ranks = usize::try_from(world.size()).expect("MPI size is a nonnegative usize");

@@ -651,7 +651,7 @@ pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
     debug_assert!(systems.next().is_none());
 
     let mut integrated_body_force = [0.0; COMPONENTS];
-    for values in full_system.rhs().chunks_exact(COMPONENTS) {
+    for values in full_system.rhs().as_chunks::<COMPONENTS>().0 {
         for component in 0..COMPONENTS {
             integrated_body_force[component] += values[component];
         }
@@ -676,7 +676,9 @@ fn physical_gradients(
 ) -> Vec<Vec<f64>> {
     basis
         .reference_gradients()
-        .chunks_exact(DIMENSION)
+        .as_chunks::<DIMENSION>()
+        .0
+        .iter()
         .map(|gradient| physical_gradient(gradient, inverse_jacobian, DIMENSION))
         .collect()
 }
