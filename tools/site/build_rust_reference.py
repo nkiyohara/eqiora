@@ -32,6 +32,50 @@ EXPECTED_COUNTS = {
 }
 PUBLIC_RUSTDOC_PREFIX = "/reference/rust/api/eqiora/"
 ALLOWED_SITE_LINKS = {"/favicon.svg", "/reference/rust/"}
+EXPECTED_RUSTDOC_FILES = 2_214
+EXPECTED_RUSTDOC_HTML = 1_377
+EXPECTED_PROJECTED_PAGES = 1_080
+EXPECTED_TOGGLE_SUMMARIES = 93_115
+EXPECTED_DIRECT_SECTIONS = 91_698
+EXPECTED_SIGNATURE_LINKS = 268_082
+EXPECTED_HIDEME_LABELS = 1_417
+EXPECTED_DESCRIPTION_LABELS = 1_360
+EXPECTED_SPECIAL_HIDEME_LABELS = 57
+VOID_TAGS = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+)
+RAW_LINK_ATTRIBUTES = frozenset({"class", "data-notable-ty", "href", "title"})
+SPECIAL_HIDEME_LABELS = frozenset(
+    {
+        "Show 13 fields",
+        "Show 13 variants",
+        "Show 14 fields",
+        "Show 15 fields",
+        "Show 16 variants",
+        "Show 17 variants",
+        "Show 20 variants",
+        "Show 23 variants",
+        "Show 26 variants",
+        "Show 28 variants",
+        "This enum is marked as non-exhaustive",
+        "This struct is marked as non-exhaustive",
+    }
+)
 
 
 class RustReferenceError(ValueError):
@@ -50,13 +94,332 @@ class _References(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.urls: list[str] = []
 
-    def handle_starttag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         del tag
         for name, value in attrs:
             if name in {"href", "src"} and value is not None:
                 self.urls.append(value)
+
+
+@dataclass
+class _Element:
+    tag: str
+    attrs: list[tuple[str, str | None]]
+    opening: str
+    closing: str = ""
+    children: list[_Element | str] | None = None
+
+    def __post_init__(self) -> None:
+        if self.children is None:
+            self.children = []
+
+    def attr(self, name: str) -> str | None:
+        matches = [value for key, value in self.attrs if key == name]
+        if len(matches) > 1:
+            raise RustReferenceError(f"duplicate {name!r} attribute on <{self.tag}>")
+        return matches[0] if matches else None
+
+    def classes(self) -> set[str]:
+        return set((self.attr("class") or "").split())
+
+    def elements(self) -> list[_Element]:
+        assert self.children is not None
+        return [child for child in self.children if isinstance(child, _Element)]
+
+    def descendants(self) -> list[_Element]:
+        result: list[_Element] = []
+        for child in self.elements():
+            result.append(child)
+            result.extend(child.descendants())
+        return result
+
+
+class _DocumentParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.root = _Element("#document", [], "")
+        self.stack = [self.root]
+
+    def _append(self, item: _Element | str) -> None:
+        assert self.stack[-1].children is not None
+        self.stack[-1].children.append(item)
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        element = _Element(tag, attrs, self.get_starttag_text())
+        self._append(element)
+        if tag not in VOID_TAGS:
+            self.stack.append(element)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._append(_Element(tag, attrs, self.get_starttag_text()))
+
+    def handle_endtag(self, tag: str) -> None:
+        if len(self.stack) == 1 or self.stack[-1].tag != tag:
+            current = self.stack[-1].tag
+            raise RustReferenceError(
+                f"malformed HTML: closing </{tag}> while <{current}> is open"
+            )
+        self.stack[-1].closing = f"</{tag}>"
+        self.stack.pop()
+
+    def handle_data(self, data: str) -> None:
+        self._append(data)
+
+    def handle_entityref(self, name: str) -> None:
+        self._append(f"&{name};")
+
+    def handle_charref(self, name: str) -> None:
+        self._append(f"&#{name};")
+
+    def handle_comment(self, data: str) -> None:
+        self._append(f"<!--{data}-->")
+
+    def handle_decl(self, decl: str) -> None:
+        self._append(f"<!{decl}>")
+
+    def unknown_decl(self, data: str) -> None:
+        self._append(f"<![{data}]>")
+
+    def handle_pi(self, data: str) -> None:
+        self._append(f"<?{data}>")
+
+    def close(self) -> None:
+        super().close()
+        if len(self.stack) != 1:
+            raise RustReferenceError(f"malformed HTML: unclosed <{self.stack[-1].tag}>")
+
+
+@dataclass
+class _ProjectionStats:
+    files: int = 0
+    html_files: int = 0
+    projected_pages: int = 0
+    toggle_summaries: int = 0
+    direct_sections: int = 0
+    signature_links: int = 0
+    hideme_labels: int = 0
+    description_labels: int = 0
+    special_hideme_labels: int = 0
+
+    def add(self, other: _ProjectionStats) -> None:
+        for field in self.__dataclass_fields__:
+            setattr(self, field, getattr(self, field) + getattr(other, field))
+
+
+def _parse_document(source: str, context: str) -> _Element:
+    parser = _DocumentParser()
+    try:
+        parser.feed(source)
+        parser.close()
+    except (RustReferenceError, ValueError) as error:
+        raise RustReferenceError(f"cannot parse {context}: {error}") from error
+    return parser.root
+
+
+def _render(item: _Element | str) -> str:
+    if isinstance(item, str):
+        return item
+    assert item.children is not None
+    return (
+        item.opening + "".join(_render(child) for child in item.children) + item.closing
+    )
+
+
+def _direct(node: _Element, tag: str) -> list[_Element]:
+    return [child for child in node.elements() if child.tag == tag]
+
+
+def _node_text(node: _Element) -> str:
+    assert node.children is not None
+    return "".join(
+        child if isinstance(child, str) else _node_text(child)
+        for child in node.children
+    )
+
+
+def _active_hrefs(root: _Element) -> list[str]:
+    return [
+        node.attr("href") or ""
+        for node in root.descendants()
+        if node.tag == "a" and node.attr("href") is not None
+    ]
+
+
+def _script_markup(root: _Element) -> list[str]:
+    return [_render(node) for node in root.descendants() if node.tag == "script"]
+
+
+def _canonical_start(tag: str, attrs: list[tuple[str, str | None]]) -> str:
+    rendered = [f"<{tag}"]
+    for name, value in attrs:
+        if value is None:
+            rendered.append(f" {name}")
+        else:
+            rendered.append(f' {name}="{html.escape(value, quote=True)}"')
+    rendered.append(">")
+    return "".join(rendered)
+
+
+def _project_anchor(anchor: _Element, context: str) -> str:
+    names = [name for name, _ in anchor.attrs]
+    if len(names) != len(set(names)) or set(names) - RAW_LINK_ATTRIBUTES:
+        raise RustReferenceError(f"{context}: unexpected nested anchor attributes")
+    href = anchor.attr("href")
+    if href is None or anchor.attr("id") is not None:
+        raise RustReferenceError(f"{context}: invalid nested active anchor")
+    if any(node.tag == "a" for node in anchor.descendants()):
+        raise RustReferenceError(f"{context}: nested anchor shape")
+    clone = _render(anchor)
+    anchor.tag = "span"
+    anchor.attrs = [
+        ("data-eqiora-href" if name == "href" else name, value)
+        for name, value in anchor.attrs
+    ]
+    anchor.opening = _canonical_start("span", anchor.attrs)
+    anchor.closing = "</span>"
+    return clone
+
+
+def _project_document(source: str, context: str) -> tuple[str, _ProjectionStats]:
+    root = _parse_document(source, context)
+    original_hrefs = _active_hrefs(root)
+    original_scripts = _script_markup(root)
+    nodes = root.descendants()
+    if any(any(name == "data-eqiora-href" for name, _ in node.attrs) for node in nodes):
+        raise RustReferenceError(f"{context}: existing projected-link marker")
+    if any(
+        {"eqiora-signature-links", "eqiora-signature-links__label"} & node.classes()
+        for node in nodes
+    ):
+        raise RustReferenceError(f"{context}: existing projection group marker")
+
+    stats = _ProjectionStats()
+    for details in [
+        node for node in nodes if node.tag == "details" and "toggle" in node.classes()
+    ]:
+        summaries = _direct(details, "summary")
+        if len(summaries) != 1:
+            raise RustReferenceError(
+                f"{context}: toggle details must have exactly one direct summary"
+            )
+        summary = summaries[0]
+        stats.toggle_summaries += 1
+        sections = _direct(summary, "section")
+        if len(sections) > 1:
+            raise RustReferenceError(f"{context}: multiple direct summary sections")
+        raw_links = [
+            node
+            for node in summary.descendants()
+            if node.tag == "a" and node.attr("href") is not None
+        ]
+        if sections:
+            if not sections[0].attr("id") or not raw_links:
+                raise RustReferenceError(
+                    f"{context}: link-bearing direct section shape changed"
+                )
+            stats.direct_sections += 1
+            clones = [_project_anchor(link, context) for link in raw_links]
+            stats.signature_links += len(clones)
+            group = (
+                '<div class="eqiora-signature-links">'
+                '<span class="eqiora-signature-links__label">Signature links:</span>'
+                + "".join(clones)
+                + "</div>"
+            )
+            assert details.children is not None
+            details.children.insert(details.children.index(summary) + 1, group)
+        elif "hideme" in summary.classes():
+            if raw_links:
+                raise RustReferenceError(
+                    f"{context}: hideme summary has an active link"
+                )
+            labels = _direct(summary, "span")
+            if len(labels) != 1:
+                raise RustReferenceError(
+                    f"{context}: hideme summary must have exactly one direct label"
+                )
+            label = _node_text(labels[0]).strip()
+            stats.hideme_labels += 1
+            if label == "Expand description":
+                if labels[0].children != ["Expand description"]:
+                    raise RustReferenceError(
+                        f"{context}: generic description label shape changed"
+                    )
+                labels[0].children = ["Description"]
+                stats.description_labels += 1
+            elif label in SPECIAL_HIDEME_LABELS:
+                stats.special_hideme_labels += 1
+            else:
+                raise RustReferenceError(
+                    f"{context}: unexpected hideme label {label!r}"
+                )
+        else:
+            raise RustReferenceError(f"{context}: unexpected toggle-summary shape")
+
+    projected = _render(root)
+    output = _parse_document(projected, f"projected {context}")
+    if _active_hrefs(output) != original_hrefs:
+        raise RustReferenceError(f"{context}: active href order changed")
+    if _script_markup(output) != original_scripts:
+        raise RustReferenceError(f"{context}: upstream script markup changed")
+    if any(
+        node.tag == "a" and node.attr("href") is not None
+        for summary in [node for node in output.descendants() if node.tag == "summary"]
+        for node in summary.descendants()
+    ):
+        raise RustReferenceError(f"{context}: nested active link survived projection")
+    projected_sources = [
+        node
+        for node in output.descendants()
+        if node.tag == "span" and node.attr("data-eqiora-href") is not None
+    ]
+    groups = [
+        node
+        for node in output.descendants()
+        if "eqiora-signature-links" in node.classes()
+    ]
+    if (
+        len(projected_sources) != stats.signature_links
+        or len(groups) != stats.direct_sections
+    ):
+        raise RustReferenceError(f"{context}: projected marker count drift")
+    return projected, stats
+
+
+def _validate_projection_stats(stats: _ProjectionStats) -> None:
+    expected = _ProjectionStats(
+        files=EXPECTED_RUSTDOC_FILES,
+        html_files=EXPECTED_RUSTDOC_HTML,
+        projected_pages=EXPECTED_PROJECTED_PAGES,
+        toggle_summaries=EXPECTED_TOGGLE_SUMMARIES,
+        direct_sections=EXPECTED_DIRECT_SECTIONS,
+        signature_links=EXPECTED_SIGNATURE_LINKS,
+        hideme_labels=EXPECTED_HIDEME_LABELS,
+        description_labels=EXPECTED_DESCRIPTION_LABELS,
+        special_hideme_labels=EXPECTED_SPECIAL_HIDEME_LABELS,
+    )
+    if stats != expected:
+        raise RustReferenceError(
+            f"Rustdoc accessibility projection shape changed: {stats!r} != {expected!r}"
+        )
+
+
+def _project_tree(root: Path, *, write: bool) -> _ProjectionStats:
+    regular = sorted(path for path in root.rglob("*") if path.is_file())
+    documents = [path for path in regular if path.suffix == ".html"]
+    stats = _ProjectionStats(files=len(regular), html_files=len(documents))
+    for document in documents:
+        relative = document.relative_to(root).as_posix()
+        projected, page = _project_document(
+            document.read_text(encoding="utf-8"), relative
+        )
+        if page.signature_links:
+            page.projected_pages = 1
+        stats.add(page)
+        if write:
+            document.write_text(projected, encoding="utf-8", newline="")
+    _validate_projection_stats(stats)
+    return stats
 
 
 def _object(value: Any, context: str, keys: set[str]) -> dict[str, Any]:
@@ -203,7 +566,9 @@ def _validate_rustdoc_root(root: Path) -> Path:
         if child.is_dir() and (child / "index.html").is_file()
     )
     if crate_roots != ["eqiora"]:
-        raise RustReferenceError(f"rustdoc contains non-facade crate roots: {crate_roots}")
+        raise RustReferenceError(
+            f"rustdoc contains non-facade crate roots: {crate_roots}"
+        )
     _validate_html_references(rustdoc)
     return rustdoc
 
@@ -330,8 +695,8 @@ def _render_landing(
         "Classifications come from the checked facade inventory. Rustdoc remains compiler",
         "output; the inventory is the classification authority.",
         "",
-        "- <ExactSourceLink kind=\"blob\" path=\"api/eqiora-facade-v1.json\">Facade inventory</ExactSourceLink>",
-        "- <ExactSourceLink kind=\"blob\" path=\"crates/eqiora/src/lib.rs\">Facade source</ExactSourceLink>",
+        '- <ExactSourceLink kind="blob" path="api/eqiora-facade-v1.json">Facade inventory</ExactSourceLink>',
+        '- <ExactSourceLink kind="blob" path="crates/eqiora/src/lib.rs">Facade source</ExactSourceLink>',
         "",
         "## Public modules (24)",
         "",
@@ -403,9 +768,13 @@ def _empty_output(path: Path) -> Path:
 
 
 def _stage(rustdoc: Path, output: Path) -> Path:
+    expected_projection = _project_tree(rustdoc, write=False)
     destination = output / "reference" / "rust" / "api"
     destination.parent.mkdir(parents=True, exist_ok=False)
     shutil.copytree(rustdoc, destination, symlinks=False)
+    _validate_rustdoc_root(destination)
+    if _project_tree(destination, write=True) != expected_projection:
+        raise RustReferenceError("staged Rustdoc accessibility projection changed")
     _validate_rustdoc_root(destination)
     return destination
 
