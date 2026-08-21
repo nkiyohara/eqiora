@@ -15,6 +15,7 @@ SITE_ORIGIN = "https://eqiora.org"
 MAX_DATA_URL_BYTES = 1_048_576
 MAX_HTML_REFERENCES = 1_000_000
 MAX_CSS_URLS = 4_096
+CSS_URL_TOKEN = re.compile("url", re.IGNORECASE | re.ASCII)
 LEGACY_OBSERVER_PIXEL = "data:image/gif;base64,R0lGODlhAQABAAAAACw="
 RUNTIME_TAGS = {
     "script",
@@ -34,6 +35,7 @@ def _runtime_reference(tag: str, attribute: str) -> bool:
         (tag in RUNTIME_TAGS and attribute in {"src", "srcset", "poster", "data"})
         or (tag == "link" and attribute == "href")
         or (tag == "form" and attribute == "action")
+        or attribute == "style"
     )
 
 
@@ -73,12 +75,12 @@ def _local_reference(
 def _css_urls(text: str) -> tuple[list[str], list[str]]:
     values: list[str] = []
     errors: list[str] = []
-    folded = text.casefold()
     offset = 0
     while offset < len(text):
-        start = folded.find("url", offset)
-        if start < 0:
+        match = CSS_URL_TOKEN.search(text, offset)
+        if match is None:
             break
+        start = match.start()
         cursor = start + 3
         while cursor < len(text) and text[cursor].isspace():
             cursor += 1
@@ -192,65 +194,62 @@ def _check_data_url(value: str) -> list[str]:
 def _check_html(
     artifact: Path,
     inspections: dict[Path, tuple[str, object]],
+    references: list[tuple[Path, str, str, str]],
     source_sha: str,
 ) -> list[str]:
     errors: list[str] = []
+    report = errors.append
     parsed = {path: value[1] for path, value in inspections.items()}
-    for page_path, parser in sorted(parsed.items()):
-        for tag, attribute, value in parser.references:
-            if not value or value.startswith(("mailto:", "tel:")):
-                continue
-            if value.startswith("data:"):
-                if value != LEGACY_OBSERVER_PIXEL:
-                    errors.append(
-                        f"{page_path.relative_to(artifact)}: data URL is forbidden in HTML"
-                    )
-                continue
-            target_url = urlsplit(value)
-            if target_url.scheme not in {"", "http", "https"} or value.startswith("//"):
-                errors.append(
-                    f"{page_path.relative_to(artifact)}: unsafe reference {value!r}"
+    for page_path, tag, attribute, value in references:
+        if page_path not in parsed:
+            continue
+        if not value:
+            report(f"{page_path.relative_to(artifact)}: empty {attribute} reference")
+            continue
+        if value.startswith(("mailto:", "tel:")):
+            continue
+        if value.startswith("data:"):
+            if value != LEGACY_OBSERVER_PIXEL:
+                report(
+                    f"{page_path.relative_to(artifact)}: data URL is forbidden in HTML"
                 )
-                continue
-            if (
-                target_url.scheme
-                and f"{target_url.scheme}://{target_url.netloc}" != SITE_ORIGIN
+            continue
+        target_url = urlsplit(value)
+        if target_url.scheme not in {"", "http", "https"} or value.startswith("//"):
+            report(f"{page_path.relative_to(artifact)}: unsafe reference {value!r}")
+            continue
+        if (
+            target_url.scheme
+            and f"{target_url.scheme}://{target_url.netloc}" != SITE_ORIGIN
+        ):
+            if re.match(
+                r"^/nkiyohara/eqiora/(?:blob|tree)/", target_url.path
+            ) and not re.match(
+                rf"^https://github\.com/nkiyohara/eqiora/(?:blob|tree)/{source_sha}/",
+                value,
             ):
-                if re.match(
-                    r"^/nkiyohara/eqiora/(?:blob|tree)/", target_url.path
-                ) and not re.match(
-                    rf"^https://github\.com/nkiyohara/eqiora/(?:blob|tree)/{source_sha}/",
-                    value,
-                ):
-                    errors.append(
-                        f"{page_path.relative_to(artifact)}: repository source link does not use the exact asserted SHA: {value!r}"
-                    )
-                if _runtime_reference(tag, attribute):
-                    errors.append(
-                        f"{page_path.relative_to(artifact)}: external runtime request {value!r}"
-                    )
-                continue
-            target, fragment = _local_reference(artifact, page_path, value)
-            if target is None:
-                continue
-            if (
-                target == Path("/__escape__")
-                or target.is_symlink()
-                or not target.is_file()
-            ):
-                errors.append(
-                    f"{page_path.relative_to(artifact)}: broken or escaping link {value!r}"
+                report(
+                    f"{page_path.relative_to(artifact)}: repository source link does not use the exact asserted SHA: {value!r}"
                 )
-                continue
-            if fragment and target.suffix == ".html":
-                target_parser = parsed.get(target)
-                if (
-                    target_parser is None
-                    or unquote(fragment) not in target_parser.id_text
-                ):
-                    errors.append(
-                        f"{page_path.relative_to(artifact)}: missing fragment target {value!r}"
-                    )
+            if _runtime_reference(tag, attribute):
+                report(
+                    f"{page_path.relative_to(artifact)}: external runtime request {value!r}"
+                )
+            continue
+        target, fragment = _local_reference(artifact, page_path, value)
+        if target is None:
+            continue
+        if target == Path("/__escape__") or target.is_symlink() or not target.is_file():
+            report(
+                f"{page_path.relative_to(artifact)}: broken or escaping link {value!r}"
+            )
+            continue
+        if fragment and target.suffix == ".html":
+            target_parser = parsed.get(target)
+            if target_parser is None or unquote(fragment) not in target_parser.id_text:
+                report(
+                    f"{page_path.relative_to(artifact)}: missing fragment target {value!r}"
+                )
     return errors
 
 
@@ -294,10 +293,25 @@ def check_references(
     starlight_inspections: dict[Path, tuple[str, object]],
     source_sha: str,
 ) -> list[str]:
-    raw_count = sum(len(value[1].references) for value in all_inspections.values())
-    if raw_count > MAX_HTML_REFERENCES:
-        return [f"artifact exceeds {MAX_HTML_REFERENCES} aggregate HTML references"]
+    references: list[tuple[Path, str, str, str]] = []
+    style_errors: list[str] = []
+    for page_path, (_, parser) in all_inspections.items():
+        for tag, attribute, value in parser.references:
+            if attribute == "style":
+                values, errors = _css_urls(value)
+                references.extend((page_path, tag, attribute, item) for item in values)
+                style_errors += [
+                    f"{page_path.relative_to(artifact)}: inline CSS: {error}"
+                    for error in errors
+                ]
+            else:
+                references.append((page_path, tag, attribute, value))
+            if len(references) > MAX_HTML_REFERENCES:
+                return [
+                    f"artifact exceeds {MAX_HTML_REFERENCES} aggregate HTML references"
+                ]
     return [
-        *_check_html(artifact, starlight_inspections, source_sha),
+        *style_errors,
+        *_check_html(artifact, starlight_inspections, references, source_sha),
         *_check_css(artifact, files),
     ]

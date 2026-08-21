@@ -114,7 +114,11 @@ def check_sitemap(artifact: Path, maximum_urls: int) -> list[str]:
                 errors.append(error)
                 continue
             assert path_text is not None
-            child = (artifact / path_text.lstrip("/")).resolve()
+            child = artifact / path_text.lstrip("/")
+            if child.is_symlink() or not child.is_file():
+                errors.append(f"sitemap child is missing: {path_text}")
+                continue
+            child = child.resolve()
             try:
                 child.relative_to(artifact)
             except ValueError:
@@ -123,9 +127,6 @@ def check_sitemap(artifact: Path, maximum_urls: int) -> list[str]:
             if child in seen_children:
                 continue
             seen_children.add(child)
-            if child.is_symlink() or not child.is_file():
-                errors.append(f"sitemap child is missing: {path_text}")
-                continue
             child_root, child_errors = _parse(child)
             errors.extend(child_errors)
             if child_root is None:

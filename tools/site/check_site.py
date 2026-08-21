@@ -180,10 +180,6 @@ CURRENT_VERSION_SOURCE_EXCEPTIONS = {
     "docs/site/src/content/docs/reference/cli/index.mdx",
     "docs/site/src/content/docs/reference/mcp/index.mdx",
 }
-EXECUTION_CONTROL_LABEL = re.compile(
-    r"\b(?:run|submit|reset|start|begin|try|solv\w*|execut\w*|simulat\w*|comput\w*|calculat\w*|launch\w*|evaluat\w*|process\w*|generat\w*|analy[sz]\w*|predict\w*)\b",
-    re.IGNORECASE,
-)
 REQUIRED_TRIGGER_PATTERNS = {
     ".gitattributes",
     ".github/workflows/pages.yml",

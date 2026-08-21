@@ -77,7 +77,7 @@ class HtmlInspection(HTMLParser):
                 for item in self.stack[:-1]
             )
             self.math.append((values.get("display", "inline"), in_display))
-        for attribute in ("href", "src", "poster", "action"):
+        for attribute in ("href", "src", "poster", "action", "data", "style"):
             if attribute in values:
                 self.references.append((tag, attribute, values[attribute]))
         if "srcset" in values:
