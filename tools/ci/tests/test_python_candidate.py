@@ -7541,6 +7541,26 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
         )
         current_identities = iter((dict(expected), replacement))
         actions: list[tuple[object, ...]] = []
+        identity_checks: list[
+            tuple[tuple[object, ...], tuple[object, ...]]
+        ] = []
+
+        def snapshot_match(
+            *, expected: dict[str, object], observed: dict[str, object] | None
+        ) -> bool:
+            identity_checks.append(
+                (
+                    tuple(
+                        expected.get(field)
+                        for field in ("scenario", "role", "pid", "start_time")
+                    ),
+                    tuple(
+                        observed.get(field) if observed is not None else None
+                        for field in ("scenario", "role", "pid", "start_time")
+                    ),
+                )
+            )
+            return matches(expected=expected, observed=observed)
 
         def observe_identity(*, expected: dict[str, object]) -> dict[str, object]:
             observed = next(current_identities)
@@ -7576,7 +7596,7 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
         with mock.patch.object(
             python_candidate_module,
             "_notebook_owned_identity_matches",
-            wraps=matches,
+            side_effect=snapshot_match,
         ) as checked_identity:
             with self.assertRaises(CandidateError) as raised:
                 lifecycle(
@@ -7612,10 +7632,20 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
             [],
         )
         self.assertEqual(
-            checked_identity.call_args_list,
+            checked_identity.call_count,
+            2,
+        )
+        self.assertEqual(
+            identity_checks,
             [
-                mock.call(expected=expected, observed=dict(expected)),
-                mock.call(expected=expected, observed=replacement),
+                (
+                    ("jupyterlab-4.6.2", "kernel", 4102, 908_172),
+                    ("jupyterlab-4.6.2", "kernel", 4102, 908_172),
+                ),
+                (
+                    ("jupyterlab-4.6.2", "kernel", 4102, 908_172),
+                    ("jupyterlab-4.6.2", "foreign", 4102, 908_173),
+                ),
             ],
         )
         diagnostic = str(raised.exception)
