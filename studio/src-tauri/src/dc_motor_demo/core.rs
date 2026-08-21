@@ -469,7 +469,7 @@ mod tests {
     use super::*;
 
     const EXPECTED_IDENTITIES: &str = include_str!(
-        "../../../../verify/hybrid/packaged-dc-motor-controller/expected/identities.json"
+        "../../../../verify/artifacts/current-model-relational-identity-transition/expected/deterministic/packaged-dc-motor-controller/identities.json"
     );
 
     #[test]
