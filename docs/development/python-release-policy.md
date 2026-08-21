@@ -10,10 +10,12 @@ The Cargo workspace package version is the sole authored Eqiora version. The
 public Rust `eqiora::VERSION`, private native-module version, public Python
 `eqiora.__version__`, sdist, wheel metadata, and installed distribution all
 derive from it. The first alpha maps Cargo `0.1.0-alpha.1` to normalized Python
-`0.1.0a1`; Python metadata must not repeat an authored version. Publication
-requires the exact derived tag, `v0.1.0a1`. A candidate records that expected
-tag, the full source commit, and every source and wheel artifact by filename
-and SHA-256, and rejects identity drift before publication.
+`0.1.0a1` and therefore to exact annotated tag `v0.1.0a1`; Python metadata must
+not repeat an authored version. Publication requires the exact annotated tag
+derived by prefixing `v` to the normalized Python version obtained from the sole
+Cargo workspace version. A candidate records that expected tag, the full source
+commit, and every source and wheel artifact by filename and SHA-256, and rejects
+identity drift before publication.
 
 The first wheel family is deliberately narrow:
 
