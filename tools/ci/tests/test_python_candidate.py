@@ -69,7 +69,7 @@ EXACT_WHEEL_PAYLOAD_SHA256 = {
 EXACT_WHEEL_MEMBER = "eqiora-0.1.0a1.dist-info/WHEEL"
 EXACT_RECORD_MEMBER = "eqiora-0.1.0a1.dist-info/RECORD"
 PLAYWRIGHT_CORE_LOCK_SHA256 = (
-    "3f3dbc5711a4feb4499bee358f042a3a10b194824dcd9b9350212d75ec363416"
+    "8ca9ceead35d1346739868105f61f6948df3a9fa0a7640f335233678e11551d6"
 )
 PLAYWRIGHT_CORE_PACKAGE_SHA256 = (
     "07c47543631fef9508760365dee9fbe958c562093ec8d122543949ed231f233f"
@@ -321,11 +321,15 @@ def write_maturin_wheel(
                 archive.writestr(member, payload)
 
 
-def wheel_byte_identity(path: Path) -> tuple[bytes, bytes, bytes]:
+def wheel_byte_identity(
+    path: Path,
+    *,
+    version: str = "0.1.0a1",
+) -> tuple[bytes, bytes, bytes]:
     archive_bytes = path.read_bytes()
     with zipfile.ZipFile(path, mode="r") as archive:
-        wheel_bytes = archive.read(EXACT_WHEEL_MEMBER)
-        record_bytes = archive.read(EXACT_RECORD_MEMBER)
+        wheel_bytes = archive.read(f"eqiora-{version}.dist-info/WHEEL")
+        record_bytes = archive.read(f"eqiora-{version}.dist-info/RECORD")
     return archive_bytes, wheel_bytes, record_bytes
 
 
@@ -2933,9 +2937,13 @@ write(JSON.stringify({calls,output,failure}));
                 )
 
             family = executor.admit_candidate_family(prepared)
+            candidate_version = python_candidate_module.load_config().python_version
             expected_names = (
-                "eqiora-0.1.0a1.tar.gz",
-                *(exact_wheel_name(version) for version in EXACT_WHEEL_INTERPRETERS),
+                f"eqiora-{candidate_version}.tar.gz",
+                *(
+                    exact_wheel_name(compact, version=candidate_version)
+                    for compact in EXACT_WHEEL_INTERPRETERS
+                ),
             )
             self.assertEqual(len(family.inventory), 5)
             self.assertEqual(
@@ -5808,11 +5816,18 @@ write(JSON.stringify({calls,output,failure}));
                 executor.admit_candidate_family(family)
 
     @staticmethod
-    def write_exact_family(directory: Path) -> None:
+    def write_exact_family(
+        directory: Path,
+        *,
+        version: str = "0.1.0a1",
+    ) -> None:
         directory.mkdir(parents=True)
-        (directory / "eqiora-0.1.0a1.tar.gz").write_bytes(b"sdist")
+        (directory / f"eqiora-{version}.tar.gz").write_bytes(b"sdist")
         for python in EXACT_WHEEL_INTERPRETERS:
-            write_maturin_wheel(directory / exact_wheel_name(python), python)
+            write_maturin_wheel(
+                directory / exact_wheel_name(python, version=version),
+                python,
+            )
 
     @staticmethod
     def write_source_derived_family(
@@ -6368,16 +6383,21 @@ write(JSON.stringify({calls,output,failure}));
     ) -> None:
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             root = Path(temporary)
+            candidate_version = python_candidate_module.load_config().python_version
             family_path = root / "family"
-            receipt_path = root / "eqiora-0.1.0a1-python-candidate-h2.json"
-            self.write_exact_family(family_path)
-            receipt_bytes = b'{"candidate":{"version":"0.1.0a1"}}'
+            receipt_path = root / f"eqiora-{candidate_version}-python-candidate-h2.json"
+            self.write_exact_family(family_path, version=candidate_version)
+            receipt_bytes = json.dumps(
+                {"candidate": {"version": candidate_version}},
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
             receipt_path.write_bytes(receipt_bytes)
             executor = importlib.import_module("python_candidate_h2")
             family = executor.admit_candidate_family(family_path)
             entry_inventory = executor.family_inventory(family_path)
             complete = self.complete_candidate_profile_summary(family)
-            expected_manifest_name = "eqiora-0.1.0a1-python-candidate.json"
+            expected_manifest_name = f"eqiora-{candidate_version}-python-candidate.json"
 
             positive_metadata = root / "positive-metadata"
             positive_manifest = positive_metadata / expected_manifest_name
@@ -6567,20 +6587,30 @@ write(JSON.stringify({calls,output,failure}));
     ) -> None:
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             root = Path(temporary)
+            candidate_version = python_candidate_module.load_config().python_version
             family = root / "family"
             metadata = root / "metadata"
-            receipt = root / "eqiora-0.1.0a1-python-candidate-h2.json"
-            self.write_exact_family(family)
-            receipt_bytes = b'{"candidate":{"version":"0.1.0a1"}}'
+            receipt = root / f"eqiora-{candidate_version}-python-candidate-h2.json"
+            self.write_exact_family(family, version=candidate_version)
+            receipt_bytes = json.dumps(
+                {"candidate": {"version": candidate_version}},
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
             receipt.write_bytes(receipt_bytes)
-            manifest = metadata / "eqiora-0.1.0a1-python-candidate.json"
+            manifest = metadata / f"eqiora-{candidate_version}-python-candidate.json"
             candidate = mock.sentinel.candidate
             finalizer_entry_identities = {
-                compact: wheel_byte_identity(family / exact_wheel_name(compact))
+                compact: wheel_byte_identity(
+                    family / exact_wheel_name(compact, version=candidate_version),
+                    version=candidate_version,
+                )
                 for compact in EXACT_WHEEL_INTERPRETERS
             }
             sealed_wheel_paths = {
-                (family / exact_wheel_name(compact)).resolve()
+                (
+                    family / exact_wheel_name(compact, version=candidate_version)
+                ).resolve()
                 for compact in EXACT_WHEEL_INTERPRETERS
             }
             executor = importlib.import_module("python_candidate_h2")
@@ -6681,7 +6711,14 @@ write(JSON.stringify({calls,output,failure}));
                     manifest_out=metadata,
                 )
                 finalizer_exit_identities = {
-                    compact: wheel_byte_identity(family / exact_wheel_name(compact))
+                    compact: wheel_byte_identity(
+                        family
+                        / exact_wheel_name(
+                            compact,
+                            version=candidate_version,
+                        ),
+                        version=candidate_version,
+                    )
                     for compact in EXACT_WHEEL_INTERPRETERS
                 }
 
@@ -6722,7 +6759,10 @@ write(JSON.stringify({calls,output,failure}));
                         key=lambda item: item.name.encode(),
                     )
                 ),
-                tuple(exact_wheel_name(python) for python in EXACT_WHEEL_INTERPRETERS),
+                tuple(
+                    exact_wheel_name(python, version=candidate_version)
+                    for python in EXACT_WHEEL_INTERPRETERS
+                ),
             )
 
     def test_finalizer_hash_drift_leaves_no_manifest_or_retained_receipt(
