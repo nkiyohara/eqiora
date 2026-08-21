@@ -632,7 +632,8 @@ async function observeTables(page: Page): Promise<TableObservation> {
       }
       if (name === 'polygon') {
         const points = splitTopLevelComma(body);
-        if (/^(evenodd|nonzero)$/iu.test(points[0] ?? '')) points.shift();
+        const fillRule = /^(evenodd|nonzero)$/iu.exec(points[0] ?? '')?.[1]?.toLowerCase();
+        if (fillRule) points.shift();
         if (points.length < 3) return false;
         const box = element.getBoundingClientRect();
         const coordinates = points.map((point) => {
@@ -644,17 +645,76 @@ async function observeTables(page: Page): Promise<TableObservation> {
         });
         if (coordinates.some((point) => point === null)) return false;
         const concrete = coordinates as Array<{ x: number; y: number }>;
-        const origin = concrete[0];
-        const direction = concrete.find(
-          (point) => Math.abs(point.x - origin.x) >= 0.01 || Math.abs(point.y - origin.y) >= 0.01,
-        );
-        if (!direction) return true;
-        const vector = { x: direction.x - origin.x, y: direction.y - origin.y };
-        return concrete.every((point) =>
-          Math.abs(
-            (point.x - origin.x) * vector.y - (point.y - origin.y) * vector.x,
-          ) < 0.01,
-        );
+        const segments = concrete.map((start, index) => ({
+          start,
+          end: concrete[(index + 1) % concrete.length],
+        }));
+        const epsilon = 1e-7;
+        const cross = (left: { x: number; y: number }, right: { x: number; y: number }) =>
+          left.x * right.y - left.y * right.x;
+        const yEvents = concrete.map(({ y }) => y);
+        for (let left = 0; left < segments.length; left += 1) {
+          const first = segments[left];
+          const firstVector = {
+            x: first.end.x - first.start.x,
+            y: first.end.y - first.start.y,
+          };
+          for (let right = left + 1; right < segments.length; right += 1) {
+            const second = segments[right];
+            const secondVector = {
+              x: second.end.x - second.start.x,
+              y: second.end.y - second.start.y,
+            };
+            const denominator = cross(firstVector, secondVector);
+            if (Math.abs(denominator) <= epsilon) continue;
+            const displacement = {
+              x: second.start.x - first.start.x,
+              y: second.start.y - first.start.y,
+            };
+            const firstDistance = cross(displacement, secondVector) / denominator;
+            const secondDistance = cross(displacement, firstVector) / denominator;
+            if (
+              firstDistance > epsilon &&
+              firstDistance < 1 - epsilon &&
+              secondDistance > epsilon &&
+              secondDistance < 1 - epsilon
+            ) {
+              yEvents.push(first.start.y + firstDistance * firstVector.y);
+            }
+          }
+        }
+        const levels = yEvents
+          .sort((left, right) => left - right)
+          .filter((value, index, all) => index === 0 || Math.abs(value - all[index - 1]) > epsilon);
+        for (let level = 0; level + 1 < levels.length; level += 1) {
+          if (levels[level + 1] - levels[level] <= epsilon) continue;
+          const y = (levels[level] + levels[level + 1]) / 2;
+          const crossings = segments
+            .filter(({ start, end }) => (start.y <= y && end.y > y) || (end.y <= y && start.y > y))
+            .map(({ start, end }) => ({
+              x: start.x + ((y - start.y) * (end.x - start.x)) / (end.y - start.y),
+              winding: end.y > start.y ? 1 : -1,
+            }))
+            .sort((left, right) => left.x - right.x);
+          let winding = 0;
+          for (let crossing = 0; crossing < crossings.length; ) {
+            const x = crossings[crossing].x;
+            let delta = 0;
+            let next = crossing;
+            while (next < crossings.length && Math.abs(crossings[next].x - x) <= epsilon) {
+              delta += crossings[next].winding;
+              next += 1;
+            }
+            winding += delta;
+            if (
+              next < crossings.length &&
+              crossings[next].x - x > epsilon &&
+              (fillRule === 'evenodd' ? Math.abs(winding) % 2 === 1 : winding !== 0)
+            ) return false;
+            crossing = next;
+          }
+        }
+        return true;
       }
       return false;
     };
@@ -1224,6 +1284,7 @@ function selectorTargetsTable(selector: string): boolean {
     '-moz-any',
     'host',
     'host-context',
+    'current',
   ]);
   const matchingParenthesis = (opening: number) => {
     let depth = 1;
@@ -1253,7 +1314,7 @@ function selectorTargetsTable(selector: string): boolean {
     }
     throw new Error('unsupported unbalanced attribute selector');
   };
-  const nthSelectorList = (body: string): string | null => {
+  const nthParts = (body: string): { formula: string; selectorList: string | null } => {
     let parentheses = 0;
     let brackets = 0;
     let quote = '';
@@ -1274,9 +1335,14 @@ function selectorTargetsTable(selector: string): boolean {
         body.slice(offset, offset + 2).toLowerCase() === 'of' &&
         /\s/u.test(body[offset - 1] ?? '') &&
         /\s/u.test(body[offset + 2] ?? '')
-      ) return body.slice(offset + 2).trim();
+      ) {
+        return {
+          formula: body.slice(0, offset).trim(),
+          selectorList: body.slice(offset + 2).trim(),
+        };
+      }
     }
-    return null;
+    return { formula: body.trim(), selectorList: null };
   };
   let typePosition = true;
   for (let offset = 0; offset < selector.length; offset += 1) {
@@ -1307,15 +1373,27 @@ function selectorTargetsTable(selector: string): boolean {
       if (selector[opening] === '(') {
         const closing = matchingParenthesis(opening);
         const body = selector.slice(opening + 1, closing);
-        if (
-          selectorFunctions.has(name.toLowerCase()) &&
-          splitCssTopLevel(body, ',').some(selectorTargetsTable)
-        ) return true;
-        if (/^nth-(?:last-)?child$/iu.test(name)) {
-          const selectorList = nthSelectorList(body);
-          if (selectorList && splitCssTopLevel(selectorList, ',').some(selectorTargetsTable)) {
-            return true;
+        const lowerName = name.toLowerCase();
+        if (selectorFunctions.has(lowerName)) {
+          if (splitCssTopLevel(body, ',').some(selectorTargetsTable)) return true;
+        } else if (/^nth-(?:last-)?child$/u.test(lowerName)) {
+          const { formula, selectorList } = nthParts(body);
+          const compactFormula = formula.replace(/\s+/gu, '');
+          if (!/^(?:odd|even|[+-]?\d+|[+-]?(?:\d*)n(?:[+-]\d+)?)$/iu.test(compactFormula)) {
+            throw new Error(`unsupported functional selector: ${selector}`);
           }
+          if (selectorList !== null) {
+            if (!selectorList) throw new Error(`unsupported functional selector: ${selector}`);
+            if (splitCssTopLevel(selectorList, ',').some(selectorTargetsTable)) return true;
+          }
+        } else if (lowerName === 'lang') {
+          if (
+            !splitCssTopLevel(body, ',').every((range) =>
+              /^(?:[a-z_][\w-]*|\*)$/iu.test(range),
+            )
+          ) throw new Error(`unsupported functional selector: ${selector}`);
+        } else {
+          throw new Error(`unsupported functional pseudo-class selector: ${selector}`);
         }
         offset = closing;
       } else offset = opening - 1;
@@ -1409,10 +1487,10 @@ export function assertExactTableSelectorScope(css: string): void {
   let exactPair = 0;
   for (const rule of parseCssRules(css)) {
     const relevant = [...rule.declarations].some(([property]) => relevantProperties.has(property));
-    if (
-      !relevant ||
-      !rule.selectors.some((selector) => selectorTargetsTable(decodeCssEscapes(selector)))
-    ) continue;
+    const tableSelectors = rule.selectors.map((selector) =>
+      selectorTargetsTable(decodeCssEscapes(selector)),
+    );
+    if (!relevant || !tableSelectors.some(Boolean)) continue;
     const signature = cssRuleSignature(rule);
     const parentRemaining = parentSignatures.get(signature) ?? 0;
     if (parentRemaining > 0) {
