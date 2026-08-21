@@ -30,6 +30,17 @@ TOOLCHAIN_BYTES = 66
 TOOLCHAIN_BLOB = "73cb934de4706a914c15e8db2a3c037ce75699d9"
 TOOLCHAIN_SHA256 = "a6a0bbd29ffaa8182dc22d1d9149709f1091e47df40ed96eb8a78a711c66a4ce"
 MISMATCH_TOOLCHAIN = b'[toolchain]\nchannel = "1.85.0"\n'
+CHECKER_MODULES = (
+    "check_site.py",
+    "check_site_artifact.py",
+    "check_site_html.py",
+    "check_site_references.py",
+    "check_site_rustdoc.py",
+    "check_site_sitemap.py",
+    "check_site_starlight.py",
+    "check_site_starlight_content.py",
+    "check_site_supply.py",
+)
 
 
 class OfflineRunnerLayoutTests(unittest.TestCase):
@@ -172,13 +183,11 @@ class OfflineRunnerLayoutTests(unittest.TestCase):
             (source / "CLAUDE.md").symlink_to("AGENTS.md")
         runner = source / "tools/site/run_offline_site_checks.sh"
         runner.parent.mkdir(parents=True)
-        shutil.copy2(
-            REPOSITORY / "tools/site/check_site.py", source / "tools/site/check_site.py"
-        )
-        shutil.copy2(
-            REPOSITORY / "tools/site/check_site_html.py",
-            source / "tools/site/check_site_html.py",
-        )
+        for module in CHECKER_MODULES:
+            shutil.copy2(
+                REPOSITORY / "tools/site" / module,
+                source / "tools/site" / module,
+            )
         shutil.copy2(REPOSITORY / "tools/site/run_offline_site_checks.sh", runner)
         runner.chmod(0o755)
         fixture_bin = root / "fixture-bin"
