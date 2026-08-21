@@ -595,7 +595,7 @@ while True:
         self.assertEqual(trace["requests"][0][1], "sigterm=pending-reap")
         self._assert_actual_bounded_popen_wait(trace)
 
-    def test_30_current_skip_z_mutant_is_rejected(self) -> None:
+    def test_31_current_skip_z_mutant_is_rejected(self) -> None:
         release_read, release_write = os.pipe()
         os.set_inheritable(release_read, True)
         environment = os.environ.copy()
@@ -639,7 +639,7 @@ while True:
             if process.stdout is not None:
                 process.stdout.close()
 
-    def test_31_real_descendant_zombie_remains_until_its_parent_reaps(self) -> None:
+    def test_30_real_descendant_zombie_remains_until_its_parent_reaps(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.home()) as temporary:
             root = Path(temporary)
             child_pid_path = root / "child.pid"
