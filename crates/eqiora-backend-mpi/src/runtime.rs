@@ -332,12 +332,9 @@ impl MpiExecutionGroup {
             &local.encode(),
             &mut self.rank_device_bytes,
         );
+        let rank_device_bytes = self.rank_device_bytes.as_slice();
         let gathered = (|| {
-            for bytes in self
-                .rank_device_bytes
-                .as_chunks::<RANK_DEVICE_RECORD_BYTES>()
-                .0
-            {
+            for bytes in rank_device_bytes.as_chunks::<RANK_DEVICE_RECORD_BYTES>().0 {
                 let encoded = <[u8; RANK_DEVICE_RECORD_BYTES]>::try_from(bytes.as_slice())
                     .map_err(|_| {
                         invalid_realization("MPI rank-device record extent is inconsistent")
@@ -424,13 +421,9 @@ impl MpiExecutionGroup {
         hash.update(local_summary);
         let agreed: [u8; 32] = hash.finalize().into();
         fixed_all_gather(&self.communicator, &agreed, &mut self.receipt_summary_bytes);
-        if self
-            .receipt_summary_bytes
-            .as_chunks::<EXECUTION_RECEIPT_SUMMARY_BYTES>()
-            .0
-            .iter()
-            .all(|candidate| candidate == &agreed[..])
-        {
+        let bytes = self.receipt_summary_bytes.as_slice();
+        let summaries = bytes.as_chunks::<EXECUTION_RECEIPT_SUMMARY_BYTES>().0;
+        if summaries.iter().all(|candidate| candidate == &agreed[..]) {
             Ok(())
         } else {
             Err(solve_failed(
@@ -757,13 +750,9 @@ impl MpiExecutionGroup {
             &summary,
             &mut self.receipt_summary_bytes,
         );
-        if self
-            .receipt_summary_bytes
-            .as_chunks::<EXECUTION_RECEIPT_SUMMARY_BYTES>()
-            .0
-            .iter()
-            .all(|candidate| candidate == &summary[..])
-        {
+        let bytes = self.receipt_summary_bytes.as_slice();
+        let summaries = bytes.as_chunks::<EXECUTION_RECEIPT_SUMMARY_BYTES>().0;
+        if summaries.iter().all(|candidate| candidate == &summary[..]) {
             Ok(())
         } else {
             Err(solve_failed(
