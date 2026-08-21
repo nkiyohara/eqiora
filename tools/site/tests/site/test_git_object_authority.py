@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
+import re
+import shutil
 import subprocess
 import tempfile
-import textwrap
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -47,15 +48,6 @@ FIXED_OBJECTS = {
     ),
 }
 FORBIDDEN_AFTER_DESIGNATION = (
-    "git fetch",
-    "git checkout",
-    "git reset",
-    "git clean",
-    "git gc",
-    "git maintenance",
-    "git commit-graph",
-    "git update-ref",
-    "git hash-object -w",
     "npm ci",
     "mv docs/site/node_modules",
     'printf mutation > "$GITHUB_WORKSPACE/',
@@ -171,6 +163,29 @@ def _workflow_errors(workflow: str, runner: str) -> list[str]:
             errors.append(
                 f"Git object authority Phase B contains a forbidden operation: {forbidden}"
             )
+        identities = " ".join(
+            item
+            for commit, objects in FIXED_OBJECTS.items()
+            for item in (commit, *objects)
+        )
+        admitted_git_lines = {
+            'test "$(git rev-parse --show-toplevel)" = "$GITHUB_WORKSPACE"',
+            'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"',
+            'test "$(git rev-parse \'HEAD^{tree}\')" = "$(git rev-parse "$GITHUB_SHA^{tree}")"',
+            'test -z "$(git status --porcelain=v1 --untracked-files=all)"',
+            f'for object in {identities}; do git cat-file -e "$object"; done',
+        }
+        git_lines = {
+            line.strip()
+            for line in later.splitlines()
+            if re.search(r"(?:^|[\s;(])git(?:\s|$)", line)
+        }
+        unowned_git = sorted(git_lines - admitted_git_lines)
+        if unowned_git:
+            errors.append(
+                "Git object authority Phase B contains a forbidden operation: "
+                f"{unowned_git}"
+            )
 
     fixed = [
         item for commit, objects in FIXED_OBJECTS.items() for item in (commit, *objects)
@@ -214,14 +229,18 @@ def _admitted_text() -> tuple[str, str]:
     identities = " ".join(
         item for commit, objects in FIXED_OBJECTS.items() for item in (commit, *objects)
     )
-    boundary = textwrap.dedent(
-        f"""\
-          test "$(git rev-parse --show-toplevel)" = "$GITHUB_WORKSPACE"
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse 'HEAD^{{tree}}')" = "$(git rev-parse "$GITHUB_SHA^{{tree}}")"
-          test -z "$(git status --porcelain=v1 --untracked-files=all)"
-          for object in {identities}; do git cat-file -e "$object"; done
-"""
+    boundary = (
+        "\n".join(
+            f"          {command}"
+            for command in (
+                'test "$(git rev-parse --show-toplevel)" = "$GITHUB_WORKSPACE"',
+                'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"',
+                'test "$(git rev-parse \'HEAD^{tree}\')" = "$(git rev-parse "$GITHUB_SHA^{tree}")"',
+                'test -z "$(git status --porcelain=v1 --untracked-files=all)"',
+                f'for object in {identities}; do git cat-file -e "$object"; done',
+            )
+        )
+        + "\n"
     )
     supply_status = (
         '          test -z "$(git status --porcelain=v1 --untracked-files=all)"\n'
@@ -346,6 +365,46 @@ class GitObjectAuthorityTests(unittest.TestCase):
 
     def test_03_admitted_workflow_and_runner_lifecycle_is_positive(self) -> None:
         workflow, runner = _admitted_text()
+        actionlint = shutil.which("actionlint")
+        self.assertIsNotNone(actionlint)
+        actionlint_path = Path(actionlint)
+        installed = (
+            actionlint_path.parent.parent / "installs/actionlint/1.7.12/actionlint"
+        )
+        if installed.is_file():
+            actionlint_path = installed
+        version = subprocess.run(
+            [actionlint_path, "--version"],
+            cwd=SCRATCH_ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(
+            (version.returncode, version.stdout.splitlines()[0]), (0, "1.7.12")
+        )
+        shellcheck = shutil.which("shellcheck")
+        self.assertIsNotNone(shellcheck)
+        shellcheck_path = Path(shellcheck)
+        installed_shellcheck = (
+            shellcheck_path.parent.parent
+            / "installs/shellcheck/0.11.0/shellcheck-v0.11.0/shellcheck"
+        )
+        if installed_shellcheck.is_file():
+            shellcheck_path = installed_shellcheck
+        lint = subprocess.run(
+            [actionlint_path, f"-shellcheck={shellcheck_path}", "-"],
+            cwd=SCRATCH_ROOT,
+            input=workflow,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(lint.returncode, 0, lint.stdout)
         self.assertEqual(_workflow_errors(workflow, runner), [])
 
     def test_10_missing_and_ambiguous_authority_paths_fail_closed(self) -> None:
@@ -614,6 +673,12 @@ class GitObjectAuthorityTests(unittest.TestCase):
         before = _authority_manifest(REPOSITORY, dict(os.environ))
         forbidden = (
             ("show", "HEAD:Cargo.toml"),
+            (
+                "ls-tree",
+                "-r",
+                "-z",
+                "68c9c2fe245ac52cc20dcf5a65a2455de507f0dc",
+            ),
             ("fetch", "origin"),
             ("checkout", "HEAD"),
             ("reset", "--hard", "HEAD"),
@@ -623,6 +688,7 @@ class GitObjectAuthorityTests(unittest.TestCase):
             ("commit-graph", "write"),
             ("update-ref", "refs/heads/mutant", "HEAD"),
             ("hash-object", "-w", "Cargo.toml"),
+            ("branch", "forbidden-mutant"),
         )
         for command in forbidden:
             with (
@@ -632,6 +698,23 @@ class GitObjectAuthorityTests(unittest.TestCase):
                 ),
             ):
                 historical_git(*command)
+        with mock.patch.object(
+            fixture, "_git_read", wraps=fixture._git_read
+        ) as git_read:
+            historical_git(
+                "rev-parse",
+                "68c9c2fe245ac52cc20dcf5a65a2455de507f0dc^{tree}",
+            )
+        self.assertEqual(
+            git_read.call_args.kwargs["output_limit"],
+            fixture.GIT_IDENTITY_OUTPUT_LIMIT,
+        )
+        with self.assertRaises(TypeError):
+            historical_git(
+                "rev-parse",
+                "68c9c2fe245ac52cc20dcf5a65a2455de507f0dc^{tree}",
+                output_limit=fixture.GIT_OBJECT_OUTPUT_LIMIT,
+            )
         self.assertEqual(git_object_authority_status(), b"")
         self.assertEqual(_authority_manifest(REPOSITORY, dict(os.environ)), before)
         self.assertEqual(git_object_authority(), authority)
@@ -663,6 +746,22 @@ class GitObjectAuthorityTests(unittest.TestCase):
             "post-designation ref mutation": workflow.replace(
                 DESIGNATION,
                 DESIGNATION + "\n          git update-ref refs/heads/mutant HEAD",
+                1,
+            ),
+            "post-designation branch ref mutation": workflow.replace(
+                DESIGNATION,
+                DESIGNATION + "\n          git branch forbidden-mutant",
+                1,
+            ),
+            "post-designation tag ref mutation": workflow.replace(
+                DESIGNATION,
+                DESIGNATION + "\n          git tag forbidden-mutant",
+                1,
+            ),
+            "post-designation symbolic ref mutation": workflow.replace(
+                DESIGNATION,
+                DESIGNATION
+                + "\n          git symbolic-ref refs/heads/alias refs/heads/main",
                 1,
             ),
             "post-designation current mutation": workflow.replace(

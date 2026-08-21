@@ -167,7 +167,9 @@ class TriggerContractTests(unittest.TestCase):
                 self.subTest(mutation=mutation),
                 tempfile.TemporaryDirectory(dir=Path.home() / ".cache/eqiora") as value,
             ):
-                sentinel = archive_case(Path(value), REPOSITORY, BASIS_SHA, mutation)
+                sentinel = archive_case(
+                    Path(value), git_object_authority().root, BASIS_SHA, mutation
+                )
                 self.assertFalse(sentinel.exists())
         ordinary = _workflow()
         swap = ordinary.replace

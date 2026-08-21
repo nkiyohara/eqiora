@@ -49,21 +49,91 @@ _HISTORICAL_OBJECTS = {
     "1d19473c487b8035608cc88cbd99757f2b95865a",
     "21d5f0bc5213bca02336040f1085c7d52c63588f",
 }
-_HISTORICAL_PATHS = {
-    "5d2a9bef58c2df32cd6b14c5b6dd876beac7144f": {
-        ".github/workflows/pages.yml",
-        "CLAUDE.md",
+_HISTORICAL_QUERIES = {
+    ("rev-parse", "--verify", "HEAD^{commit}"): GIT_IDENTITY_OUTPUT_LIMIT,
+    ("rev-parse", "--verify", "HEAD^{tree}"): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "rev-parse",
+        "5d2a9bef58c2df32cd6b14c5b6dd876beac7144f^{tree}",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "rev-parse",
+        "5d2a9bef58c2df32cd6b14c5b6dd876beac7144f:.github/workflows/pages.yml",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "rev-parse",
+        "5d2a9bef58c2df32cd6b14c5b6dd876beac7144f:CLAUDE.md",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "rev-parse",
+        "5d2a9bef58c2df32cd6b14c5b6dd876beac7144f:AGENTS.md",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "ls-tree",
+        "5d2a9bef58c2df32cd6b14c5b6dd876beac7144f",
+        "--",
         "AGENTS.md",
-    },
-    "68c9c2fe245ac52cc20dcf5a65a2455de507f0dc": {
-        ".github/workflows/pages.yml",
-    },
-    "19968da984c16e718baeb9faa5aae04260896c29": {
-        "docs/site/package-lock.json",
         "CLAUDE.md",
-        "AGENTS.md",
-    },
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "rev-parse",
+        "68c9c2fe245ac52cc20dcf5a65a2455de507f0dc^{tree}",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "rev-parse",
+        "68c9c2fe245ac52cc20dcf5a65a2455de507f0dc:.github/workflows/pages.yml",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "rev-parse",
+        "19968da984c16e718baeb9faa5aae04260896c29^{tree}",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "archive",
+        "--format=tar",
+        "19968da984c16e718baeb9faa5aae04260896c29",
+    ): GIT_OBJECT_OUTPUT_LIMIT,
+    (
+        "ls-tree",
+        "-r",
+        "-z",
+        "19968da984c16e718baeb9faa5aae04260896c29",
+    ): GIT_OBJECT_OUTPUT_LIMIT,
+    (
+        "show",
+        "19968da984c16e718baeb9faa5aae04260896c29:docs/site/package-lock.json",
+    ): GIT_OBJECT_OUTPUT_LIMIT,
+    (
+        "show",
+        "19968da984c16e718baeb9faa5aae04260896c29:CLAUDE.md",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "show",
+        "19968da984c16e718baeb9faa5aae04260896c29:AGENTS.md",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
 }
+_HISTORICAL_QUERIES.update(
+    {
+        ("cat-file", "-e", f"{commit}^{{commit}}"): GIT_IDENTITY_OUTPUT_LIMIT
+        for commit in _HISTORICAL_COMMITS
+    }
+)
+_HISTORICAL_QUERIES.update(
+    {
+        ("cat-file", "-e", object_id): GIT_IDENTITY_OUTPUT_LIMIT
+        for object_id in _HISTORICAL_OBJECTS
+    }
+)
+_HISTORICAL_QUERIES.update(
+    {
+        ("cat-file", "blob", object_id): GIT_IDENTITY_OUTPUT_LIMIT
+        for object_id in {
+            "57f8b9b476c04b8103b5a43c8a30504c0e2fa1fb",
+            "47dc3e3d863cfb5727b87d785d09abf9743c0a72",
+            "61c1bbede492aef4a9c85fa364d031e012621809",
+            "6e685495bf6989e1ad902a7e88c199557285cbee",
+        }
+    }
+)
 
 
 class GitObjectAuthorityError(AssertionError):
@@ -263,42 +333,10 @@ def historical_git(
     *arguments: str,
     repository: Path = REPOSITORY,
     environment: Mapping[str, str] | None = None,
-    output_limit: int = GIT_OBJECT_OUTPUT_LIMIT,
 ) -> bytes:
     command = tuple(arguments)
-    permitted = command in {
-        ("rev-parse", "--verify", "HEAD^{commit}"),
-        ("rev-parse", "--verify", "HEAD^{tree}"),
-    }
-    permitted = permitted or any(
-        command
-        in {
-            ("rev-parse", f"{commit}^{{tree}}"),
-            ("ls-tree", commit, "--", "AGENTS.md", "CLAUDE.md"),
-            ("ls-tree", "-r", "-z", commit),
-            ("archive", "--format=tar", commit),
-        }
-        for commit in _HISTORICAL_COMMITS
-    )
-    permitted = permitted or any(
-        command in {("rev-parse", f"{commit}:{path}"), ("show", f"{commit}:{path}")}
-        for commit, paths in _HISTORICAL_PATHS.items()
-        for path in paths
-    )
-    permitted = permitted or (
-        len(command) == 3
-        and command[:2] == ("cat-file", "blob")
-        and command[2] in _HISTORICAL_OBJECTS
-    )
-    permitted = permitted or (
-        len(command) == 3
-        and command[:2] == ("cat-file", "-e")
-        and (
-            command[2] in _HISTORICAL_OBJECTS
-            or command[2] in {f"{commit}^{{commit}}" for commit in _HISTORICAL_COMMITS}
-        )
-    )
-    if not permitted:
+    output_limit = _HISTORICAL_QUERIES.get(command)
+    if output_limit is None:
         raise GitObjectAuthorityError(
             "Git object authority command is not a frozen read-only object query"
         )
