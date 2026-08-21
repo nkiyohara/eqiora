@@ -1,3 +1,8 @@
+"""Matplotlib presentation adapters for accepted Eqiora results.
+
+Authority: ``bindings/python/python/eqiora/matplotlib.py``.
+"""
+
 from typing import overload
 
 from matplotlib.figure import Figure
@@ -13,7 +18,14 @@ def plot_deformed_field(
     step: int,
     field: FieldRef,
     scale: float = 1.0,
-) -> Figure: ...
+) -> Figure:
+    """Compare exact reference and scaled-deformed support geometry.
+
+    Authority: ``bindings/python/python/eqiora/matplotlib.py::plot_deformed_field``.
+    """
+
+    ...
+
 @overload
 def plot_deformed_field(
     result: Result,
@@ -21,13 +33,27 @@ def plot_deformed_field(
     *,
     field: FieldRef,
     scale: float = 1.0,
-) -> Figure: ...
+) -> Figure:
+    """Compare exact reference and scaled-deformed support geometry.
+
+    Authority: ``bindings/python/python/eqiora/matplotlib.py::plot_deformed_field``.
+    """
+
+    ...
+
 def plot_displacement(
     result: Result,
     /,
     *,
     scale: float = 1.0,
-) -> Figure: ...
+) -> Figure:
+    """Deprecated delegation to :func:`plot_deformed_field`.
+
+    Authority: ``bindings/python/python/eqiora/matplotlib.py::plot_displacement``.
+    """
+
+    ...
+
 @overload
 def plot_scalar_field(
     trajectory: Trajectory,
@@ -35,14 +61,27 @@ def plot_scalar_field(
     *,
     step: int,
     field: FieldRef,
-) -> Figure: ...
+) -> Figure:
+    """Plot one invariant vertex scalar from a result or trajectory.
+
+    Authority: ``bindings/python/python/eqiora/matplotlib.py::plot_scalar_field``.
+    """
+
+    ...
+
 @overload
 def plot_scalar_field(
     result: Result,
     /,
     *,
     field: FieldRef,
-) -> Figure: ...
+) -> Figure:
+    """Plot one invariant vertex scalar from a result or trajectory.
+
+    Authority: ``bindings/python/python/eqiora/matplotlib.py::plot_scalar_field``.
+    """
+
+    ...
 
 __all__ = [
     "plot_deformed_field",

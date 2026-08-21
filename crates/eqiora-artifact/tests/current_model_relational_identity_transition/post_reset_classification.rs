@@ -6,6 +6,8 @@ use std::sync::OnceLock;
 const OWNER: &str = "interfaces.python-offline-model-package";
 const CURRENT_ROLE: &str = "current-model-or-package-artifact";
 const IMMUTABLE_ROLE: &str = "source-or-resolution-identity";
+const PYTHON_MIXED_PATH: &str = "bindings/python/tests/test_offline_model_package.py";
+const RUST_MIXED_PATH: &str = "crates/eqiora-python/tests/python_offline_model_package.rs";
 
 struct AcceptedClassificationState {
     identities: Vec<PostResetClassified>,
@@ -47,6 +49,7 @@ pub(super) struct ClassifiedObservation {
     signals: Vec<String>,
     same_line_lower_hex_identity_signal_lines: usize,
     identity_literals: BTreeMap<String, usize>,
+    current_compilation_slots: Option<[(String, String); 2]>,
 }
 
 fn string_field(value: &Value, key: &str, context: &str) -> Result<String, String> {
@@ -239,6 +242,101 @@ fn exact_literal_map(entry: &PostResetClassified) -> BTreeMap<String, usize> {
         .iter()
         .map(|literal| (literal.value.clone(), literal.occurrences))
         .collect()
+}
+
+#[rustfmt::skip]
+fn historical_compilation_slots() -> Result<(String, String), String> {
+    let transition = crate::transition();
+    let extract = |name: &str, pointer: &str| {
+        crate::entry(&transition, "deterministic", name)["edges"]
+            .as_array()
+            .and_then(|edges| edges.iter().find(|edge| edge["pointer"] == pointer))
+            .and_then(|edge| edge["digest"].as_str())
+            .map(str::to_owned)
+            .ok_or_else(|| format!("current slots: `{name}` must freeze predecessor `{pointer}`"))
+    };
+    Ok((
+        extract("offline-model-package", "/compilation_digest")?,
+        extract("typed-execution-lineage", "/package_compilation_sha256")?,
+    ))
+}
+
+#[rustfmt::skip]
+fn validate_current_compilation_slots(
+    entries: &[PostResetClassified],
+    slots: &[(String, String); 2],
+) -> Result<(), String> {
+    let historical = historical_compilation_slots()?;
+    if (slots[0].0.as_str(), slots[1].0.as_str()) != (historical.0.as_str(), historical.1.as_str()) {
+        return Err("current slots: historical predecessors changed".to_owned());
+    }
+    for (name, pointer, value) in [
+        ("offline-model-package.live", "/compilation_digest", &slots[0].1),
+        ("typed-execution-lineage.live", "/package_compilation_sha256", &slots[1].1),
+    ] {
+        if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
+            return Err(format!("current slots: `{name}` `{pointer}` must be lowercase-hex-64"));
+        }
+    }
+    let stale = [
+        ("offline-model-package.live /compilation_digest", &slots[0]),
+        ("typed-execution-lineage.live /package_compilation_sha256", &slots[1]),
+    ]
+        .into_iter().filter_map(|(slot, (old, current))| (old == current).then_some(slot)).collect::<Vec<_>>();
+    if !stale.is_empty() {
+        return Err(format!("current slots: stale-alpha.1 {stale:?}"));
+    }
+    if slots[0].1 == slots[1].1 {
+        return Err("current slots: delegated compilation values collapsed".to_owned());
+    }
+    let protected = entries.iter().filter(|entry| entry.class == "mixed-claim-surface")
+        .flat_map(|entry| entry.identity_literals.iter().map(|literal| &literal.value)).collect::<BTreeSet<_>>();
+    if protected.contains(&slots[0].1) || protected.contains(&slots[1].1) {
+        return Err("current slots: delegated compilation value collides with alpha.1 history".to_owned());
+    }
+    Ok(())
+}
+
+#[rustfmt::skip]
+fn compilation_slots_from_authorities(
+    entries: &[PostResetClassified],
+    offline: &Value,
+    typed: &Value,
+) -> Result<[(String, String); 2], String> {
+    let read = |document: &Value, pointer: &str, name: &str| {
+        crate::resolve(document, pointer)
+            .as_str()
+            .map(str::to_owned)
+            .ok_or_else(|| format!("current slots: `{name}` must expose string `{pointer}`"))
+    };
+    let historical = historical_compilation_slots()?;
+    let slots = [
+        (historical.0, read(offline, "/compilation_digest", "offline-model-package.live")?),
+        (historical.1, read(typed, "/package_compilation_sha256", "typed-execution-lineage.live")?),
+    ];
+    validate_current_compilation_slots(entries, &slots)?;
+    Ok(slots)
+}
+
+#[rustfmt::skip]
+fn current_compilation_slots(
+    entries: &[PostResetClassified],
+) -> Result<[(String, String); 2], String> {
+    let fixture = |name| {
+        crate::DETERMINISTIC.iter()
+            .find(|fixture| fixture.name == name)
+            .ok_or_else(|| format!("current slots: missing `{name}` deterministic authority"))
+            .and_then(|fixture| serde_json::from_slice(fixture.live)
+                .map_err(|error| format!("current slots: invalid `{name}.live`: {error}")))
+    };
+    compilation_slots_from_authorities(entries, &fixture("offline-model-package")?,
+        &fixture("typed-execution-lineage")?)
+}
+
+#[rustfmt::skip]
+fn synthetic_compilation_slots() -> [(String, String); 2] {
+    let historical = historical_compilation_slots().unwrap();
+    [(historical.0, "0".repeat(64)), (historical.1, "1".repeat(64))]
 }
 
 fn declared_count(transition: &Value, key: &str) -> Result<usize, String> {
@@ -489,7 +587,7 @@ fn lower_hex_identity_inventory(bytes: &[u8]) -> BTreeMap<String, usize> {
     identities
 }
 
-pub(super) fn observe(bytes: &[u8]) -> Result<ClassifiedObservation, String> {
+fn observe_historical(bytes: &[u8]) -> Result<ClassifiedObservation, String> {
     let text = std::str::from_utf8(bytes)
         .map_err(|_| "later classification: classified evidence must be UTF-8".to_owned())?;
     Ok(ClassifiedObservation {
@@ -503,22 +601,24 @@ pub(super) fn observe(bytes: &[u8]) -> Result<ClassifiedObservation, String> {
             .filter(|line| has_lower_hex_identity(line))
             .count(),
         identity_literals: lower_hex_identity_inventory(bytes),
+        current_compilation_slots: None,
     })
 }
 
-pub(super) fn expected_observation(entry: &PostResetClassified) -> ClassifiedObservation {
+fn historical_expected_observation(entry: &PostResetClassified) -> ClassifiedObservation {
     ClassifiedObservation {
         signals: entry.signals.clone(),
         same_line_lower_hex_identity_signal_lines: entry.same_line_lower_hex_identity_signal_lines,
         identity_literals: exact_literal_map(entry),
+        current_compilation_slots: None,
     }
 }
 
-pub(super) fn validate_observation(
+fn validate_historical_observation(
     entry: &PostResetClassified,
     observed: &ClassifiedObservation,
 ) -> Result<(), String> {
-    let expected = expected_observation(entry);
+    let expected = historical_expected_observation(entry);
     if observed.signals != expected.signals
         || observed.same_line_lower_hex_identity_signal_lines
             != expected.same_line_lower_hex_identity_signal_lines
@@ -528,11 +628,75 @@ pub(super) fn validate_observation(
             entry.path
         ));
     }
-    if observed.identity_literals != expected.identity_literals {
+    if observed.identity_literals != expected.identity_literals
+        || observed.current_compilation_slots.is_some()
+    {
         return Err(format!(
-            "later classification: `{}` must carry exactly its recorded identity literal inventory",
+            "historical classification: `{}` must carry exactly its sealed identity inventory",
             entry.path
         ));
+    }
+    Ok(())
+}
+
+fn remove_historical_once(
+    identities: &mut BTreeMap<String, usize>,
+    value: &str,
+    path: &str,
+) -> Result<(), String> {
+    if identities.remove(value) != Some(1) {
+        return Err(format!(
+            "live classification: `{path}` must delegate one recorded compilation occurrence"
+        ));
+    }
+    Ok(())
+}
+
+#[rustfmt::skip]
+fn live_expected_observation(
+    entry: &PostResetClassified,
+    slots: &[(String, String); 2],
+) -> Result<ClassifiedObservation, String> {
+    let mut expected = historical_expected_observation(entry);
+    match entry.path.as_str() {
+        PYTHON_MIXED_PATH => {
+            remove_historical_once(&mut expected.identity_literals, &slots[0].0, &entry.path)?;
+            remove_historical_once(&mut expected.identity_literals, &slots[1].0, &entry.path)?;
+        }
+        RUST_MIXED_PATH => {
+            remove_historical_once(&mut expected.identity_literals, &slots[1].0, &entry.path)?;
+        }
+        _ => {
+            return Err(format!(
+                "live classification: `{}` has no current compilation projection",
+                entry.path
+            ));
+        }
+    }
+    if expected.identity_literals.insert(slots[0].1.clone(), 1).is_some()
+        || expected.identity_literals.insert(slots[1].1.clone(), 1).is_some() {
+        return Err("live classification: delegated compilation identity collision".to_owned());
+    }
+    let total = expected.identity_literals.values().sum::<usize>();
+    let required = if entry.path == PYTHON_MIXED_PATH { 9 } else { 10 };
+    if total != required {
+        return Err(format!("live classification: `{}` must contain exactly {required} occurrences", entry.path));
+    }
+    expected.current_compilation_slots = Some(slots.clone());
+    Ok(expected)
+}
+
+#[rustfmt::skip]
+fn validate_live_observation(
+    entries: &[PostResetClassified],
+    entry: &PostResetClassified,
+    observed: &ClassifiedObservation,
+) -> Result<(), String> {
+    let slots = observed.current_compilation_slots.as_ref().ok_or_else(||
+        format!("live classification: `{}` lacks current compilation authority", entry.path))?;
+    validate_current_compilation_slots(entries, slots)?;
+    if observed != &live_expected_observation(entry, slots)? {
+        return Err(format!("live classification: `{}` differs from its exact delegated identity map", entry.path));
     }
     Ok(())
 }
@@ -541,13 +705,22 @@ pub(super) fn observe_repository(
     entries: &[PostResetClassified],
     root: &Path,
 ) -> BTreeMap<String, ClassifiedObservation> {
+    let slots = current_compilation_slots(entries).unwrap_or_else(|error| panic!("{error}"));
     entries
         .iter()
         .filter_map(|entry| {
             fs::read(root.join(&entry.path)).ok().map(|bytes| {
-                let observed = observe(&bytes).unwrap_or_else(|error| {
+                let mut observed = observe_historical(&bytes).unwrap_or_else(|error| {
                     panic!("cannot observe later-classified `{}`: {error}", entry.path)
                 });
+                if [PYTHON_MIXED_PATH, RUST_MIXED_PATH].contains(&entry.path.as_str()) {
+                    observed.current_compilation_slots = Some(slots.clone());
+                    validate_live_observation(entries, entry, &observed)
+                        .unwrap_or_else(|error| panic!("{error}"));
+                } else {
+                    validate_historical_observation(entry, &observed)
+                        .unwrap_or_else(|error| panic!("{error}"));
+                }
                 (entry.path.clone(), observed)
             })
         })
@@ -574,6 +747,7 @@ pub(super) fn validate_post_reset(
     discovered: &BTreeSet<String>,
     observed: &BTreeMap<String, ClassifiedObservation>,
 ) -> Result<(), String> {
+    let mut live_slots = None;
     for entry in entries.iter().filter(|entry| exists.contains(&entry.path)) {
         if !discovered.contains(&entry.path) {
             return Err(format!(
@@ -589,7 +763,19 @@ pub(super) fn validate_post_reset(
                 entry.path
             )
         })?;
-        validate_observation(entry, content)?;
+        if [PYTHON_MIXED_PATH, RUST_MIXED_PATH].contains(&entry.path.as_str()) {
+            validate_live_observation(entries, entry, content)?;
+            if let Some(previous) = &live_slots
+                && content.current_compilation_slots.as_ref() != Some(previous)
+            {
+                return Err(
+                    "live classification: mixed surfaces disagree on current slots".to_owned(),
+                );
+            }
+            live_slots = content.current_compilation_slots.clone();
+        } else {
+            validate_historical_observation(entry, content)?;
+        }
     }
     Ok(())
 }
@@ -598,20 +784,35 @@ impl Observed {
     pub(super) fn classifying(mut self, entry: &PostResetClassified) -> Self {
         self.exists.insert(entry.path.clone());
         self.discovered.insert(entry.path.clone());
-        self.classified
-            .insert(entry.path.clone(), expected_observation(entry));
+        let observation = if [PYTHON_MIXED_PATH, RUST_MIXED_PATH].contains(&entry.path.as_str()) {
+            live_expected_observation(entry, &synthetic_compilation_slots()).unwrap()
+        } else {
+            historical_expected_observation(entry)
+        };
+        self.classified.insert(entry.path.clone(), observation);
         self
     }
 }
 
-fn assert_live_entry(entry: &PostResetClassified, root: &Path) {
+fn assert_live_entry(
+    entries: &[PostResetClassified],
+    entry: &PostResetClassified,
+    slots: &[(String, String); 2],
+    root: &Path,
+) {
     let bytes = fs::read(root.join(&entry.path)).unwrap_or_else(|error| {
         panic!(
             "classified evidence `{}` must be readable: {error}",
             entry.path
         )
     });
-    validate_observation(entry, &observe(&bytes).unwrap()).unwrap();
+    let mut observed = observe_historical(&bytes).unwrap();
+    if [PYTHON_MIXED_PATH, RUST_MIXED_PATH].contains(&entry.path.as_str()) {
+        observed.current_compilation_slots = Some(slots.clone());
+        validate_live_observation(entries, entry, &observed).unwrap();
+    } else {
+        validate_historical_observation(entry, &observed).unwrap();
+    }
 }
 
 #[test]
@@ -621,7 +822,6 @@ fn identity_bearing_tests_and_the_source_release_have_truthful_exact_classes() {
     validate(&entries, &classification).unwrap();
     let contract = TransitionContract::from_classification();
     assert_eq!(contract.post_reset_classified, entries);
-    let root = repository_root();
 
     for entry in &entries {
         assert!(
@@ -645,7 +845,13 @@ fn identity_bearing_tests_and_the_source_release_have_truthful_exact_classes() {
             "later classification of `{}` changes no historical or admission set",
             entry.path
         );
-        assert_live_entry(entry, &root);
+        validate_historical_observation(entry, &historical_expected_observation(entry)).unwrap();
+    }
+
+    let slots = current_compilation_slots(&entries).unwrap();
+    let root = repository_root();
+    for entry in &entries {
+        assert_live_entry(&entries, entry, &slots, &root);
     }
 
     let release_entry = entries
@@ -820,54 +1026,67 @@ fn omission_misclassification_and_path_proximity_are_refused() {
 }
 
 #[test]
-fn extra_signals_and_fifth_or_different_current_identities_are_refused() {
-    let classification = classification();
-    let entries = from_classification(&classification).unwrap();
-    let root = repository_root();
-    let current = transition_current_identities();
-    let foreign = all_transition_current_artifact_identities()
-        .into_iter()
-        .find(|identity| !current.contains(identity))
-        .unwrap()
-        .to_owned();
-
+#[rustfmt::skip]
+fn historical_and_live_classification_causal_mutants_are_refused() {
+    let classification = classification(); let entries = from_classification(&classification).unwrap(); validate(&entries, &classification).unwrap();
+    let substitute = |observed: &mut ClassifiedObservation, from: &str, to: String| { let count = observed.identity_literals.remove(from).unwrap(); *observed.identity_literals.entry(to).or_insert(0) += count; };
     for entry in &entries {
-        let bytes = fs::read(root.join(&entry.path)).unwrap();
-        let extra_signal = SEARCH_TOKENS
-            .iter()
-            .find(|signal| !entry.signals.iter().any(|expected| expected == **signal))
-            .unwrap();
-        let mut grown = bytes.clone();
-        grown.extend_from_slice(format!("\n{extra_signal}\n").as_bytes());
-        assert!(validate_observation(entry, &observe(&grown).unwrap()).is_err());
-
-        if entry.class == "mixed-claim-surface" {
-            let mut fifth = bytes.clone();
-            fifth.extend_from_slice(format!("\n{}\n", "e".repeat(64)).as_bytes());
-            assert!(validate_observation(entry, &observe(&fifth).unwrap()).is_err());
-
-            let old = entry
-                .identity_literals
-                .iter()
-                .find(|literal| literal.role == CURRENT_ROLE)
-                .unwrap();
-            let source = std::str::from_utf8(&bytes).unwrap();
-            let changed = source.replacen(&old.value, &foreign, 1);
-            assert_ne!(changed, source);
-            assert!(validate_observation(entry, &observe(changed.as_bytes()).unwrap()).is_err());
-        }
+        let positive = historical_expected_observation(entry); validate_historical_observation(entry, &positive).unwrap(); let mut mutants = Vec::new();
+        let extra = SEARCH_TOKENS.iter().find(|signal| !entry.signals.iter().any(|expected| expected == **signal)).unwrap();
+        let mut changed = positive.clone(); changed.signals.push((*extra).to_owned()); mutants.push(changed);
+        let mut changed = positive.clone(); changed.same_line_lower_hex_identity_signal_lines += 1; mutants.push(changed);
+        let mut changed = positive.clone(); changed.identity_literals.insert("e".repeat(64), 1); mutants.push(changed);
+        let mut changed = positive.clone(); let old = entry.identity_literals.first().unwrap().value.clone(); substitute(&mut changed, &old, "f".repeat(64)); mutants.push(changed);
+        for mutant in mutants { assert!(validate_historical_observation(entry, &mutant).is_err()); }
     }
-
-    let release = entries
-        .iter()
-        .find(|entry| entry.class == "source-or-package-identity")
-        .unwrap();
-    let mut release_value: Value =
-        serde_json::from_slice(&fs::read(root.join(&release.path)).unwrap()).unwrap();
-    release_value.as_object_mut().unwrap().insert(
-        concat!("model_", "sha256").to_owned(),
-        Value::String(current.iter().next().unwrap().clone()),
-    );
-    let mutant = serde_json::to_vec(&release_value).unwrap();
-    assert!(validate_observation(release, &observe(&mutant).unwrap()).is_err());
+    let live_document = |name| serde_json::from_slice::<Value>(crate::DETERMINISTIC.iter().find(|fixture| fixture.name == name).unwrap().live).unwrap();
+    let (mut offline, mut typed) = (live_document("offline-model-package"), live_document("typed-execution-lineage"));
+    offline["compilation_digest"] = Value::String("0".repeat(64));
+    typed["package_compilation_sha256"] = Value::String("1".repeat(64));
+    let slots = compilation_slots_from_authorities(&entries, &offline, &typed).unwrap();
+    let refuses = |offline: &Value, typed: &Value| assert!(compilation_slots_from_authorities(&entries, offline, typed).is_err());
+    let mut missing = offline.clone(); missing.as_object_mut().unwrap().remove("compilation_digest"); refuses(&missing, &typed);
+    let mut wrong = offline.clone(); let value = wrong.as_object_mut().unwrap().remove("compilation_digest").unwrap();
+    wrong.as_object_mut().unwrap().insert("compilation_sha256".to_owned(), value); refuses(&wrong, &typed);
+    for value in [Value::Null, Value::String("A".repeat(64)), Value::String("g".repeat(64)), Value::String("0".repeat(63)),
+        Value::String(slots[0].0.clone()), Value::String(entries[0].identity_literals[0].value.clone())] {
+        let mut mutant = offline.clone(); mutant["compilation_digest"] = value; refuses(&mutant, &typed);
+    }
+    let mut collapsed = typed.clone(); collapsed["package_compilation_sha256"] = Value::String(slots[0].1.clone()); refuses(&offline, &collapsed);
+    for entry in entries.iter().filter(|entry| entry.class == "mixed-claim-surface") {
+        let positive = live_expected_observation(entry, &slots).unwrap(); validate_live_observation(&entries, entry, &positive).unwrap(); let mut mutants = Vec::new();
+        for (old, current, foreign) in [(&slots[0].0, &slots[0].1, "2".repeat(64)), (&slots[1].0, &slots[1].1, "3".repeat(64))] {
+            let mut stale = positive.clone(); substitute(&mut stale, current, old.clone()); mutants.push(stale);
+            let mut assertion_only = positive.clone(); substitute(&mut assertion_only, current, foreign); mutants.push(assertion_only);
+            let mut omitted = positive.clone(); omitted.identity_literals.remove(current); mutants.push(omitted);
+        }
+        let mut added = positive.clone(); added.identity_literals.insert("4".repeat(64), 1); mutants.push(added);
+        let mut duplicate = positive.clone(); *duplicate.identity_literals.get_mut(&slots[0].1).unwrap() += 1; mutants.push(duplicate);
+        let mut collapsed = positive.clone(); substitute(&mut collapsed, &slots[1].1, slots[0].1.clone()); mutants.push(collapsed);
+        for (role, foreign) in [(CURRENT_ROLE, "5".repeat(64)), (IMMUTABLE_ROLE, "6".repeat(64))] {
+            let protected = entry.identity_literals.iter().find(|literal| literal.role == role && ![&slots[0].0, &slots[1].0].contains(&&literal.value)).unwrap();
+            let mut drift = positive.clone(); substitute(&mut drift, &protected.value, foreign); mutants.push(drift);
+        }
+        let mut added_signal = positive.clone(); added_signal.signals.push("unrecorded-signal".to_owned()); mutants.push(added_signal);
+        if !positive.signals.is_empty() {
+            let mut removed = positive.clone(); removed.signals.pop(); mutants.push(removed);
+            let mut reordered = positive.clone(); reordered.signals.reverse(); mutants.push(reordered);
+        }
+        let mut line_drift = positive.clone(); line_drift.same_line_lower_hex_identity_signal_lines += 1; mutants.push(line_drift);
+        if entry.path == RUST_MIXED_PATH {
+            for count in [0, 2, 3] {
+                let mut retention = positive.clone(); if count == 0 { retention.identity_literals.remove(&slots[0].0); }
+                else { retention.identity_literals.insert(slots[0].0.clone(), count); } mutants.push(retention);
+            }
+            let mut substituted = positive.clone(); substitute(&mut substituted, &slots[0].0, "7".repeat(64)); mutants.push(substituted);
+        }
+        for mutant in mutants { assert!(validate_live_observation(&entries, entry, &mutant).is_err()); }
+    }
+    let mixed = entries.iter().filter(|entry| entry.class == "mixed-claim-surface").collect::<Vec<_>>();
+    let other = [(slots[0].0.clone(), "8".repeat(64)), (slots[1].0.clone(), "9".repeat(64))];
+    validate_current_compilation_slots(&entries, &other).unwrap();
+    let observed = BTreeMap::from([(mixed[0].path.clone(), live_expected_observation(mixed[0], &slots).unwrap()),
+        (mixed[1].path.clone(), live_expected_observation(mixed[1], &other).unwrap())]);
+    let present = observed.keys().cloned().collect::<BTreeSet<_>>();
+    assert!(validate_post_reset(&entries, &present, &present, &observed).is_err());
 }

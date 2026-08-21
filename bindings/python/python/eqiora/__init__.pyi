@@ -1,3 +1,8 @@
+"""Python ergonomics over Eqiora's canonical Rust implementation.
+
+Authority: ``bindings/python/python/eqiora/__init__.py``.
+"""
+
 from collections.abc import Generator, Iterator, Sequence
 import os
 from os import PathLike
@@ -41,6 +46,11 @@ class _DLPackProducer(Protocol):
 
 @final
 class Diagnostic:
+    """Immutable lossless projection of a current Rust diagnostic.
+
+    Authority: ``crates/eqiora-python/src/error.rs::PyDiagnostic``.
+    """
+
     @property
     def source(self) -> str: ...
     @property
@@ -57,23 +67,79 @@ class Diagnostic:
     def suggestion(self) -> str | None: ...
 
 class EqioraError(Exception):
+    """Base failure for an Eqiora operation rejected with diagnostics.
+
+    Authority: ``crates/eqiora-python/src/error.rs::EqioraError``.
+    """
+
     category: str
     diagnostics: tuple[Diagnostic, ...]
 
-class ValidationError(EqioraError): ...
-class CompatibilityError(EqioraError): ...
-class CapabilityError(EqioraError): ...
-class ExecutionError(EqioraError): ...
-class CancellationError(EqioraError): ...
-class InternalError(EqioraError): ...
+class ValidationError(EqioraError):
+    """Failure caused by a model or request violating a typed contract.
+
+    Authority: ``crates/eqiora-python/src/error.rs::ValidationError``.
+    """
+
+    ...
+
+class CompatibilityError(EqioraError):
+    """Failure caused by an incompatible versioned or persisted value.
+
+    Authority: ``crates/eqiora-python/src/error.rs::CompatibilityError``.
+    """
+
+    ...
+
+class CapabilityError(EqioraError):
+    """Failure caused by an adapter lacking a required capability.
+
+    Authority: ``crates/eqiora-python/src/error.rs::CapabilityError``.
+    """
+
+    ...
+
+class ExecutionError(EqioraError):
+    """Failure of an admitted execution.
+
+    Authority: ``crates/eqiora-python/src/error.rs::ExecutionError``.
+    """
+
+    ...
+
+class CancellationError(EqioraError):
+    """Failure reporting cancellation of an Eqiora operation.
+
+    Authority: ``crates/eqiora-python/src/error.rs::CancellationError``.
+    """
+
+    ...
+
+class InternalError(EqioraError):
+    """Internal failure that does not expose implementation details.
+
+    Authority: ``crates/eqiora-python/src/error.rs::InternalError``.
+    """
+
+    ...
 
 class PackageConformancePackage(NamedTuple):
+    """Identity fields for one package in a conformance report.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::check_package_conformance``.
+    """
+
     name: str
     version: str
     semantic_digest: str
     source_digest: str
 
 class PackageConformanceReport(NamedTuple):
+    """Structural-conformance report for one locked package closure.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::check_package_conformance``.
+    """
+
     profile: str
     eqiora_version: str
     compiler: str
@@ -93,6 +159,11 @@ class PackageConformanceReport(NamedTuple):
 
 @final
 class Dimension:
+    """SI base-dimension exponents in M, L, T, I, Θ, N, J order.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::PyDimension``.
+    """
+
     def __new__(
         cls,
         *,
@@ -111,6 +182,11 @@ class Dimension:
 
 @final
 class BoundarySide:
+    """Closed orientation of one Cartesian boundary domain.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::PyBoundarySide``.
+    """
+
     Lower: ClassVar[BoundarySide]
     Upper: ClassVar[BoundarySide]
     def __eq__(self, other: object, /) -> bool: ...
@@ -118,6 +194,11 @@ class BoundarySide:
 
 @final
 class Domain:
+    """Immutable draft-local Cartesian volume or oriented boundary.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::PyDomain``.
+    """
+
     @staticmethod
     def box(name: str, *bounds: tuple[float, float]) -> Domain: ...
     def boundary(
@@ -142,6 +223,11 @@ class Domain:
 
 @final
 class Representation:
+    """Immutable continuum representation declaration.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::PyRepresentation``.
+    """
+
     @staticmethod
     def continuum(name: str) -> Representation: ...
     @property
@@ -151,6 +237,11 @@ class Representation:
 
 @final
 class Expression:
+    """Immutable symbolic expression whose shape and support Rust infers.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::PyExpression``.
+    """
+
     def __neg__(self) -> Expression: ...
     def __add__(self, right: _ExpressionLike, /) -> Expression: ...
     def __radd__(self, left: _ExpressionLike, /) -> Expression: ...
@@ -164,6 +255,11 @@ class Expression:
 
 @final
 class Field:
+    """Immutable scalar field declaration.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::PyField``.
+    """
+
     def __new__(
         cls,
         name: str,
@@ -196,6 +292,11 @@ class Field:
 
 @final
 class Parameter:
+    """Immutable scalar parameter declaration.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::PyParameter``.
+    """
+
     def __new__(
         cls,
         name: str,
@@ -222,6 +323,11 @@ class Parameter:
 
 @final
 class PhysicalDomain:
+    """Immutable nominal scalar physical-domain declaration.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::PyPhysicalDomain``.
+    """
+
     def __new__(
         cls,
         name: str,
@@ -238,6 +344,11 @@ class PhysicalDomain:
 
 @final
 class ConservingPort:
+    """Immutable scalar conserving-port declaration.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::PyConservingPort``.
+    """
+
     def __new__(cls, name: str, *, domain: PhysicalDomain) -> Self: ...
     @property
     def name(self) -> str: ...
@@ -245,12 +356,23 @@ class ConservingPort:
     def domain(self) -> PhysicalDomain: ...
 
 @final
-class Connection: ...
+class Connection:
+    """Immutable anonymous conserving connection declaration.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::PyConnection``.
+    """
+
+    ...
 
 _ExpressionLike = Expression | Field | Parameter | float
 
 @final
 class Relation:
+    """Immutable continuous implicit relation declaration.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::PyRelation``.
+    """
+
     @overload
     def __new__(
         cls,
@@ -280,6 +402,11 @@ class Relation:
 
 @final
 class Array:
+    """Immutable dense one-dimensional CPU ``float64`` result buffer.
+
+    Authority: ``crates/eqiora-python/src/array.rs::PyArrayBuffer``.
+    """
+
     def __getitem__(self, index: int, /) -> float: ...
     def numpy(self, *, copy: bool | None = None) -> _Float64Array: ...
     def __array__(
@@ -320,6 +447,11 @@ class Array:
 
 @final
 class Revision:
+    """Exact identity of one immutable canonical model artifact.
+
+    Authority: ``crates/eqiora-python/src/model.rs::PyRevision``.
+    """
+
     @property
     def model_id(self) -> str: ...
     @property
@@ -331,6 +463,11 @@ class Revision:
 
 @final
 class StructuralSemanticFingerprint:
+    """Alpha-normalized comparison evidence, not exact model identity.
+
+    Authority: ``crates/eqiora-python/src/model.rs::PyStructuralSemanticFingerprint``.
+    """
+
     @property
     def generation(self) -> str: ...
     @property
@@ -340,6 +477,11 @@ class StructuralSemanticFingerprint:
 
 @final
 class ValueEdit:
+    """Immutable exact-base value edit prepared by the Rust facade.
+
+    Authority: ``crates/eqiora-python/src/model.rs::PyValueEdit``.
+    """
+
     @property
     def key(self) -> str: ...
     @property
@@ -353,6 +495,11 @@ class ValueEdit:
 
 @final
 class ParameterRef:
+    """Exact canonical parameter selected from one immutable model.
+
+    Authority: ``crates/eqiora-python/src/model.rs::PyModelParameterRef``.
+    """
+
     @property
     def model_digest(self) -> str: ...
     @property
@@ -362,6 +509,11 @@ class ParameterRef:
 
 @final
 class FieldRef:
+    """Exact canonical field selected from one immutable model.
+
+    Authority: ``crates/eqiora-python/src/model.rs::PyModelFieldRef``.
+    """
+
     @property
     def model_digest(self) -> str: ...
     @property
@@ -371,6 +523,11 @@ class FieldRef:
 
 @final
 class Model:
+    """Immutable canonical model artifact, admitted when semantically closed.
+
+    Authority: ``crates/eqiora-python/src/model.rs::PyModel``.
+    """
+
     @staticmethod
     def define(
         name: str,
@@ -401,6 +558,11 @@ class Model:
 
 @final
 class ScalarEllipticMethod:
+    """Numerical family for one bounded scalar-elliptic request.
+
+    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarEllipticMethod``.
+    """
+
     FiniteElement: ClassVar[ScalarEllipticMethod]
     FiniteVolume: ClassVar[ScalarEllipticMethod]
     def __eq__(self, other: object, /) -> bool: ...
@@ -408,6 +570,11 @@ class ScalarEllipticMethod:
 
 @final
 class ScalarElliptic:
+    """Unbound typed scalar-elliptic request, not realization identity.
+
+    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarElliptic``.
+    """
+
     def __new__(
         cls,
         *,
@@ -426,6 +593,11 @@ class ScalarElliptic:
 
 @final
 class Realization:
+    """Exact model-bound capability-admitted portable realization.
+
+    Authority: ``crates/eqiora-python/src/realization.rs::PyRealization``.
+    """
+
     @property
     def digest(self) -> str: ...
     @property
@@ -454,6 +626,11 @@ class Realization:
 
 @final
 class ScalarFieldLocation:
+    """Vertex or cell-centre meaning of a scalar field summary.
+
+    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarFieldLocation``.
+    """
+
     Vertex: ClassVar[ScalarFieldLocation]
     CellCenter: ClassVar[ScalarFieldLocation]
     def __eq__(self, other: object, /) -> bool: ...
@@ -461,6 +638,11 @@ class ScalarFieldLocation:
 
 @final
 class ScalarFieldSummary:
+    """Bounded accepted field summary; arrays remain on the data plane.
+
+    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarFieldSummary``.
+    """
+
     @property
     def location(self) -> ScalarFieldLocation: ...
     @property
@@ -476,6 +658,11 @@ class ScalarFieldSummary:
 
 @final
 class ScalarEllipticBalance:
+    """Accepted continuous scalar-elliptic balance evidence.
+
+    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarEllipticBalance``.
+    """
+
     @property
     def boundary_total(self) -> float: ...
     @property
@@ -485,6 +672,11 @@ class ScalarEllipticBalance:
 
 @final
 class ConvergenceReason:
+    """Accepted reason for linear-solve convergence.
+
+    Authority: ``crates/eqiora-python/src/realization.rs::PyConvergenceReason``.
+    """
+
     InitialResidualSatisfied: ClassVar[ConvergenceReason]
     ResidualToleranceSatisfied: ClassVar[ConvergenceReason]
     def __eq__(self, other: object, /) -> bool: ...
@@ -492,6 +684,11 @@ class ConvergenceReason:
 
 @final
 class LinearSolveSummary:
+    """Bounded projection of an independently accepted linear-solve report.
+
+    Authority: ``crates/eqiora-python/src/realization.rs::PyLinearSolveSummary``.
+    """
+
     @property
     def backend(self) -> str: ...
     @property
@@ -527,6 +724,11 @@ class LinearSolveSummary:
 
 @final
 class DifferentiationMode:
+    """Primal, JVP, or VJP occurrence kind.
+
+    Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiationMode``.
+    """
+
     Primal: ClassVar[DifferentiationMode]
     Jvp: ClassVar[DifferentiationMode]
     Vjp: ClassVar[DifferentiationMode]
@@ -535,12 +737,22 @@ class DifferentiationMode:
 
 @final
 class DerivativeImplementation:
+    """Source of the derivative action used by an occurrence.
+
+    Authority: ``crates/eqiora-python/src/differentiation.rs::PyDerivativeImplementation``.
+    """
+
     AnalyticAssembled: ClassVar[DerivativeImplementation]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 
 @final
 class LinearizationState:
+    """Whether an accepted linearization was established or reused.
+
+    Authority: ``crates/eqiora-python/src/differentiation.rs::PyLinearizationState``.
+    """
+
     Established: ClassVar[LinearizationState]
     Reused: ClassVar[LinearizationState]
     def __eq__(self, other: object, /) -> bool: ...
@@ -548,6 +760,11 @@ class LinearizationState:
 
 @final
 class DifferentiationEvidence:
+    """Typed in-memory provenance for one differentiation occurrence.
+
+    Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiationEvidence``.
+    """
+
     @property
     def model_digest(self) -> str: ...
     @property
@@ -575,6 +792,11 @@ class DifferentiationEvidence:
 
 @final
 class DifferentiablePrimal:
+    """Accepted complete primary field from a primal evaluation.
+
+    Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiablePrimal``.
+    """
+
     @property
     def output(self) -> Array: ...
     @property
@@ -582,6 +804,11 @@ class DifferentiablePrimal:
 
 @final
 class DifferentiableJvp:
+    """Accepted primary field and its forward tangent.
+
+    Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiableJvp``.
+    """
+
     @property
     def output(self) -> Array: ...
     @property
@@ -591,6 +818,11 @@ class DifferentiableJvp:
 
 @final
 class DifferentiableVjp:
+    """Accepted primary field and its reverse input cotangent.
+
+    Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiableVjp``.
+    """
+
     @property
     def output(self) -> Array: ...
     @property
@@ -600,6 +832,11 @@ class DifferentiableVjp:
 
 @final
 class DifferentiableEvaluation:
+    """Immutable accepted evaluation at one numerical parameter point.
+
+    Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiableEvaluation``.
+    """
+
     @property
     def point(self) -> Array: ...
     def primal(self) -> DifferentiablePrimal: ...
@@ -612,6 +849,11 @@ class DifferentiableEvaluation:
 
 @final
 class DifferentiableProgram:
+    """Immutable program over one fixed input-coordinate set.
+
+    Authority: ``crates/eqiora-python/src/differentiation.rs::PyDifferentiableProgram``.
+    """
+
     @property
     def model_digest(self) -> str: ...
     @property
@@ -643,6 +885,11 @@ class DifferentiableProgram:
 
 @final
 class RunManifest:
+    """Persisted exact run-v2 manifest linked to an accepted realization.
+
+    Authority: ``crates/eqiora-python/src/realization.rs::PyRunManifest``.
+    """
+
     @staticmethod
     def from_json(data: bytes, *, realization: Realization) -> RunManifest: ...
     @property
@@ -673,6 +920,11 @@ class RunManifest:
 
 @final
 class ScalarEllipticResult:
+    """Accepted scalar-elliptic result with producer/verifier evidence.
+
+    Authority: ``crates/eqiora-python/src/realization.rs::PyScalarEllipticResult``.
+    """
+
     @property
     def realization(self) -> Realization: ...
     @property
@@ -692,6 +944,11 @@ class ScalarEllipticResult:
 
 @final
 class Series:
+    """Read-only field-local sampled series in SI units.
+
+    Authority: ``crates/eqiora-python/src/result.rs::PySeries``.
+    """
+
     @property
     def id(self) -> str: ...
     @property
@@ -707,6 +964,11 @@ class Series:
 
 @final
 class Result:
+    """Accepted execution occurrence with typed output relationships.
+
+    Authority: ``crates/eqiora-python/src/result.rs::PyRunResult``.
+    """
+
     @property
     def model_id(self) -> str: ...
     @property
@@ -735,6 +997,11 @@ class Result:
 
 @final
 class RunStatus:
+    """Monotone public state of one native execution occurrence.
+
+    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyRunStatus``.
+    """
+
     Created: ClassVar[RunStatus]
     Validating: ClassVar[RunStatus]
     Queued: ClassVar[RunStatus]
@@ -748,6 +1015,11 @@ class RunStatus:
 
 @final
 class RunProgress:
+    """Last coalesced fully accepted semantic-execution boundary.
+
+    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyRunProgress``.
+    """
+
     @property
     def model_time(self) -> float: ...
     @property
@@ -759,6 +1031,11 @@ class RunProgress:
 
 @final
 class RunCancellation:
+    """Exact accepted boundary where cooperative cancellation terminated.
+
+    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyRunCancellation``.
+    """
+
     @property
     def progress(self) -> RunProgress: ...
     @property
@@ -768,6 +1045,11 @@ class RunCancellation:
 
 @final
 class ScalarEllipticRunProgress:
+    """Last fully accepted scalar-elliptic application phase.
+
+    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyScalarEllipticRunProgress``.
+    """
+
     PlanReplayed: ClassVar[ScalarEllipticRunProgress]
     SystemFinalized: ClassVar[ScalarEllipticRunProgress]
     SolutionAccepted: ClassVar[ScalarEllipticRunProgress]
@@ -776,6 +1058,11 @@ class ScalarEllipticRunProgress:
 
 @final
 class ScalarEllipticRunCancellation:
+    """Exact scalar-elliptic phase where cancellation terminated.
+
+    Authority: ``crates/eqiora-python/src/execution/evidence.rs::PyScalarEllipticRunCancellation``.
+    """
+
     @property
     def progress(self) -> ScalarEllipticRunProgress: ...
     @property
@@ -790,6 +1077,11 @@ _RunResultT = TypeVar(
 )
 
 class Run(Generic[_RunResultT]):
+    """Awaitable owner of one native execution occurrence.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::Run``.
+    """
+
     def __init__(self, native: Never) -> None: ...
     @property
     def status(self) -> RunStatus: ...
@@ -828,31 +1120,101 @@ _ModelDeclaration = (
     | Connection
 )
 
-def across(port: ConservingPort) -> Expression: ...
+def across(port: ConservingPort) -> Expression:
+    """Return the across variable of a scalar conserving port.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::across``.
+    """
+
+    ...
+
 def compile(
     source: str,
     *,
     filename: str = "<memory>",
-) -> Model: ...
+) -> Model:
+    """Compile one model through the canonical Rust pipeline.
+
+    Authority: ``crates/eqiora-python/src/lib.rs::compile``.
+    """
+
+    ...
+
 def compile_package(
     store_root: str | PathLike[str],
     resolution: bytes,
     *,
     entry_model: str,
-) -> Model: ...
+) -> Model:
+    """Compile one root-local model from a selected locked package store.
+
+    Authority: ``crates/eqiora-python/src/package.rs::compile_package``.
+    """
+
+    ...
+
 def check_package_conformance(
     store_root: str | os.PathLike[str],
     resolution_bytes: bytes,
     *,
     entry_model: str,
     profile: str,
-) -> PackageConformanceReport: ...
-def connect(*ports: ConservingPort) -> Connection: ...
-def derivative(field: Field) -> Expression: ...
-def div(value: _ExpressionLike) -> Expression: ...
-def grad(value: _ExpressionLike) -> Expression: ...
-def preview_realization(model: Model, request: ScalarElliptic) -> Realization: ...
-def replay(data: bytes) -> Model: ...
+) -> PackageConformanceReport:
+    """Check one exact locked package closure by deterministic replay.
+
+    Authority: ``crates/eqiora-python/src/package.rs::_check_package_conformance``.
+    """
+
+    ...
+
+def connect(*ports: ConservingPort) -> Connection:
+    """Build an anonymous conserving connection declaration.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::connect``.
+    """
+
+    ...
+
+def derivative(field: Field) -> Expression:
+    """Return the time derivative of a field.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::derivative``.
+    """
+
+    ...
+
+def div(value: _ExpressionLike) -> Expression:
+    """Return the spatial divergence of a symbolic expression.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::div``.
+    """
+
+    ...
+
+def grad(value: _ExpressionLike) -> Expression:
+    """Return the spatial gradient of a symbolic expression.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::grad``.
+    """
+
+    ...
+
+def preview_realization(model: Model, request: ScalarElliptic) -> Realization:
+    """Resolve a request before numerical allocation.
+
+    Authority: ``crates/eqiora-python/src/realization.rs::preview_realization``.
+    """
+
+    ...
+
+def replay(data: bytes) -> Model:
+    """Replay one canonical artifact through the current model contract.
+
+    Authority: ``crates/eqiora-python/src/lib.rs::replay``.
+    """
+
+    ...
+
 @overload
 def run(
     model: Model,
@@ -860,27 +1222,62 @@ def run(
     end_time: float,
     max_step: float,
     realization: None = None,
-) -> Result: ...
+) -> Result:
+    """Execute through the lifecycle returned by :func:`submit`.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
+    """
+
+    ...
+
 @overload
-def run(model: Model, *, realization: Realization) -> ScalarEllipticResult: ...
+def run(model: Model, *, realization: Realization) -> ScalarEllipticResult:
+    """Execute through the lifecycle returned by :func:`submit`.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
+    """
+
+    ...
+
 @overload
 def run(
     model: Model,
     *,
     plan: fluid.SteadyStokesPlan,
-) -> Result: ...
+) -> Result:
+    """Execute through the lifecycle returned by :func:`submit`.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
+    """
+
+    ...
+
 @overload
 def run(
     model: Model,
     *,
     plan: solid.LinearElasticityPlan,
-) -> Result: ...
+) -> Result:
+    """Execute through the lifecycle returned by :func:`submit`.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
+    """
+
+    ...
+
 @overload
 def run(
     model: Model,
     *,
     plan: fsi.FixedMeshMonolithicPlan,
-) -> Result: ...
+) -> Result:
+    """Execute through the lifecycle returned by :func:`submit`.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::run``.
+    """
+
+    ...
+
 @overload
 def submit(
     model: Model,
@@ -888,29 +1285,77 @@ def submit(
     end_time: float,
     max_step: float,
     realization: None = None,
-) -> Run[Result]: ...
+) -> Run[Result]:
+    """Submit one accepted temporal, spatial, or plan request shape.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
+    """
+
+    ...
+
 @overload
-def submit(model: Model, *, realization: Realization) -> Run[ScalarEllipticResult]: ...
+def submit(model: Model, *, realization: Realization) -> Run[ScalarEllipticResult]:
+    """Submit one accepted temporal, spatial, or plan request shape.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
+    """
+
+    ...
+
 @overload
 def submit(
     model: Model,
     *,
     plan: fluid.SteadyStokesPlan,
-) -> Run[Result]: ...
+) -> Run[Result]:
+    """Submit one accepted temporal, spatial, or plan request shape.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
+    """
+
+    ...
+
 @overload
 def submit(
     model: Model,
     *,
     plan: solid.LinearElasticityPlan,
-) -> Run[Result]: ...
+) -> Run[Result]:
+    """Submit one accepted temporal, spatial, or plan request shape.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
+    """
+
+    ...
+
 @overload
 def submit(
     model: Model,
     *,
     plan: fsi.FixedMeshMonolithicPlan,
-) -> Run[Result]: ...
-def through(port: ConservingPort) -> Expression: ...
-def trace(value: _ExpressionLike) -> Expression: ...
+) -> Run[Result]:
+    """Submit one accepted temporal, spatial, or plan request shape.
+
+    Authority: ``bindings/python/python/eqiora/__init__.py::submit``.
+    """
+
+    ...
+
+def through(port: ConservingPort) -> Expression:
+    """Return the through variable of a scalar conserving port.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::through``.
+    """
+
+    ...
+
+def trace(value: _ExpressionLike) -> Expression:
+    """Return the boundary trace of a symbolic expression.
+
+    Authority: ``crates/eqiora-python/src/modeling.rs::trace``.
+    """
+
+    ...
 
 from . import diff as diff
 

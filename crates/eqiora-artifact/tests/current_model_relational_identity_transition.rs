@@ -1,31 +1,13 @@
-//! Independent oracle for the relational identity transition of RFC 0083.
+//! Independent oracle for RFC 0083's relational identity transition.
 //!
-//! Changing the Model digest changes a downstream artifact only when that exact
-//! artifact embeds the Model reference. This test owns the classification's
-//! executable half: it proves that every precommitted current Model reproduces
-//! its frozen identity through the current owner, that every downstream
-//! identity is re-derivable from committed bytes alone, that each deterministic
-//! consumer installs its precommitted replacement byte for byte and retains no
-//! superseded identity, that the moving-spatial consumer's delta is identity
-//! only, that the recorded accelerator bundles are bridged rather than
-//! relabelled, and that every classified path carries exactly one fate.
-//!
-//! Every literal lives under the registered case, never inside this crate. The
-//! values were observed by replaying the accepted deterministic producers
-//! through their already-live current encoder and then re-derived from bytes;
-//! see `verify/artifacts/current-model-relational-identity-transition/
-//! references/` for the exact route. Production encoding is compared *to* those
-//! literals; it never defines them.
-//!
-//! No historical decoder appears below. The historical side of each bridge is
-//! hashed straight from its untouched bytes, exactly as RFC 0083 requires once
-//! the historical decoders are gone.
-//!
-//! The case's second responsibility — the frozen two-state transition contract
-//! and the repository sweep that feeds it — lives in the private support module
-//! below, included with `#[path]` so this stays one Cargo integration-test
-//! target. Both files are excluded from that sweep by exact path, because both
-//! spell the tokens it searches for; see `ORACLE_FILES` there.
+//! The sealed transition tree remains the byte-exact alpha.1 Model-epoch
+//! observation. Five live expected artifacts may later differ from that history
+//! only at eleven fixed release-owned compilation, Run, and binding pointers;
+//! this case owns every other raw byte but not those pointers' current values.
+//! Historical identities remain derived from committed canonical artifacts.
+//! Bridges, retained goldens, moving-spatial lineage, and the complete path
+//! classification remain checked below. The repository sweep stays in the
+//! exact-path private support module included at the end of this test target.
 
 use eqiora_artifact::{
     CanonicalModelArtifact, ModelDecoderLimits, ModelEnvelope, RealizationEnvelopeV4,
@@ -61,13 +43,11 @@ const CANONICAL_ENCODING: &str = "eqiora.canonical-json/v1";
 const BRIDGE_GENERATION: SemanticFingerprintGeneration = SemanticFingerprintGeneration::V2;
 const REVISION_KEY: &[u8] = b"\"source_revision\":";
 
-/// One deterministic fixture: its current Model plus every downstream artifact
-/// whose identity it moves, and the complete replacement for its consumer.
 struct Deterministic {
     name: &'static str,
     model: &'static [u8],
-    replacement: &'static [u8],
-    committed: &'static [u8],
+    historical: &'static [u8],
+    live: &'static [u8],
     artifacts: &'static [(&'static str, &'static [u8])],
 }
 
@@ -75,8 +55,8 @@ const DETERMINISTIC: [Deterministic; 5] = [
     Deterministic {
         name: "packaged-dc-motor-controller",
         model: oracle!("expected/deterministic/packaged-dc-motor-controller/model.json"),
-        replacement: oracle!("expected/deterministic/packaged-dc-motor-controller/identities.json"),
-        committed: include_bytes!(
+        historical: oracle!("expected/deterministic/packaged-dc-motor-controller/identities.json"),
+        live: include_bytes!(
             "../../../verify/hybrid/packaged-dc-motor-controller/expected/identities.json"
         ),
         artifacts: &[
@@ -97,8 +77,8 @@ const DETERMINISTIC: [Deterministic; 5] = [
     Deterministic {
         name: "composed-model-package",
         model: oracle!("expected/deterministic/composed-model-package/model.json"),
-        replacement: oracle!("expected/deterministic/composed-model-package/identities.json"),
-        committed: include_bytes!(
+        historical: oracle!("expected/deterministic/composed-model-package/identities.json"),
+        live: include_bytes!(
             "../../../verify/packages/composed-model-package/expected/identities.json"
         ),
         artifacts: &[(
@@ -109,8 +89,8 @@ const DETERMINISTIC: [Deterministic; 5] = [
     Deterministic {
         name: "offline-model-package",
         model: oracle!("expected/deterministic/offline-model-package/model.json"),
-        replacement: oracle!("expected/deterministic/offline-model-package/identities.json"),
-        committed: include_bytes!(
+        historical: oracle!("expected/deterministic/offline-model-package/identities.json"),
+        live: include_bytes!(
             "../../../verify/packages/offline-model-package/expected/identities.json"
         ),
         artifacts: &[
@@ -131,8 +111,8 @@ const DETERMINISTIC: [Deterministic; 5] = [
     Deterministic {
         name: "typed-execution-lineage",
         model: oracle!("expected/deterministic/typed-execution-lineage/model.json"),
-        replacement: oracle!("expected/deterministic/typed-execution-lineage/identities.json"),
-        committed: include_bytes!(
+        historical: oracle!("expected/deterministic/typed-execution-lineage/identities.json"),
+        live: include_bytes!(
             "../../../verify/packages/typed-execution-lineage/expected/identities.json"
         ),
         artifacts: &[
@@ -157,10 +137,10 @@ const DETERMINISTIC: [Deterministic; 5] = [
     Deterministic {
         name: "fixed-topology-ale-monolithic-3d",
         model: oracle!("expected/deterministic/fixed-topology-ale-monolithic-3d/model.json"),
-        replacement: oracle!(
+        historical: oracle!(
             "expected/deterministic/fixed-topology-ale-monolithic-3d/accepted-trajectory.json"
         ),
-        committed: include_bytes!(
+        live: include_bytes!(
             "../../../verify/fsi/fixed-topology-ale-monolithic-3d/expected/accepted-trajectory.json"
         ),
         artifacts: &[
@@ -246,8 +226,51 @@ const DETERMINISTIC: [Deterministic; 5] = [
     },
 ];
 
-/// One recorded accelerator bundle: its untouched historical Model and the
-/// current Model built from the same decoded semantic program.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct ReleaseProjection {
+    fixture: &'static str,
+    path: &'static str,
+    bytes: usize,
+    pointers: &'static [&'static str],
+}
+
+const RELEASE_PROJECTION: [ReleaseProjection; 5] = [
+    ReleaseProjection {
+        fixture: "composed-model-package",
+        path: "verify/packages/composed-model-package/expected/identities.json",
+        bytes: 1016,
+        pointers: &["/compilation_digest"],
+    },
+    ReleaseProjection {
+        fixture: "offline-model-package",
+        path: "verify/packages/offline-model-package/expected/identities.json",
+        bytes: 944,
+        pointers: &["/compilation_digest", "/run_digest", "/run_binding_digest"],
+    },
+    ReleaseProjection {
+        fixture: "typed-execution-lineage",
+        path: "verify/packages/typed-execution-lineage/expected/identities.json",
+        bytes: 791,
+        pointers: &[
+            "/package_compilation_sha256",
+            "/run_sha256",
+            "/package_execution_binding_sha256",
+        ],
+    },
+    ReleaseProjection {
+        fixture: "packaged-dc-motor-controller",
+        path: "verify/hybrid/packaged-dc-motor-controller/expected/identities.json",
+        bytes: 1200,
+        pointers: &["/compilation_digest", "/run_digest", "/run_binding_digest"],
+    },
+    ReleaseProjection {
+        fixture: "fixed-topology-ale-monolithic-3d",
+        path: "verify/fsi/fixed-topology-ale-monolithic-3d/expected/accepted-trajectory.json",
+        bytes: 5131,
+        pointers: &["/provenance/run_sha256"],
+    },
+];
+
 struct Bridge {
     name: &'static str,
     historical: &'static [u8],
@@ -294,18 +317,8 @@ const BRIDGES: [Bridge; 2] = [
     },
 ];
 
-/// One consumer whose Model *input* the reset moves, rather than a checked-in
-/// fixture whose target file the reset rewrites.
-///
-/// `moving_spatial_v2_wire.rs` builds its SpatialState, segment, and prefix root
-/// at run time from a Model it reads out of the historical fixed-reference CUDA
-/// bundle, and freezes three digests of what it built. The reset rejects those
-/// Model bytes, so the input moves to the current owner and the three digests
-/// move with it. Both states of each artifact are committed here so the
-/// substitution is checkable rather than asserted.
 struct ModelInputConsumer {
     name: &'static str,
-    /// `(artifact name, pre-reset canonical bytes, replacement canonical bytes)`.
     artifacts: &'static [(&'static str, &'static [u8], &'static [u8])],
 }
 
@@ -371,11 +384,6 @@ fn replace_exact_once(bytes: &mut [u8], old: &str, new: &str) {
     bytes[start..start + old.len()].copy_from_slice(new.as_bytes());
 }
 
-/// Read the frozen `old -> new` identity table of one consumer, checking that it
-/// is a substitution and not a rewrite: every side is a distinct 64-character
-/// lowercase hex identity, and no replacement is itself superseded. Sequential
-/// application would otherwise be able to substitute a value it had just
-/// written.
 fn identity_substitutions(expected: &Value) -> BTreeMap<String, String> {
     let table = expected["identity_substitutions"].as_object().unwrap();
     let map = table
@@ -405,8 +413,6 @@ fn identity_substitutions(expected: &Value) -> BTreeMap<String, String> {
     map
 }
 
-/// Apply an identity table to canonical bytes. Every substitution is
-/// length-preserving, so no offset moves and no non-identity byte can shift.
 fn substitute_identities(source: &[u8], table: &BTreeMap<String, String>) -> Vec<u8> {
     let mut out = source.to_vec();
     for (old, new) in table {
@@ -423,7 +429,6 @@ fn substitute_identities(source: &[u8], table: &BTreeMap<String, String>) -> Vec
     out
 }
 
-/// RFC 0008 content identity: schema-domain bytes, one NUL, canonical content.
 fn domain_digest(domain: &str, content: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(domain.as_bytes());
@@ -436,13 +441,6 @@ fn domain_digest(domain: &str, content: &[u8]) -> String {
         .collect()
 }
 
-/// The Model content projection omits `source_revision`: a graph revision is
-/// provenance, not meaning.
-///
-/// The projection is cut out of the canonical bytes rather than rebuilt from a
-/// parsed value, so no re-serializer can reorder a key or respell a float on
-/// the way. That keeps this a second, independent derivation of the digest
-/// rather than a second call into the producer.
 fn model_content(bytes: &[u8]) -> Vec<u8> {
     let start = bytes
         .windows(REVISION_KEY.len())
@@ -503,7 +501,6 @@ fn identity_artifacts(expected: &Value) -> Vec<&Value> {
     artifacts
 }
 
-/// Walk one `/key[index]...` path, matching the paths the route record emits.
 fn resolve<'a>(document: &'a Value, path: &str) -> &'a Value {
     let mut node = document;
     for token in path.trim_start_matches('/').split('/') {
@@ -542,6 +539,108 @@ fn flatten(document: &Value) -> Vec<(String, Value)> {
     out
 }
 
+fn release_fixture(projection: &ReleaseProjection) -> &'static Deterministic {
+    DETERMINISTIC
+        .iter()
+        .find(|fixture| fixture.name == projection.fixture)
+        .unwrap()
+}
+
+fn mask_release_scalar(
+    bytes: &mut [u8],
+    document: &Value,
+    pointer: &str,
+    position: usize,
+) -> String {
+    let value = resolve(document, pointer)
+        .as_str()
+        .unwrap_or_else(|| panic!("{pointer} must be a JSON string"));
+    assert!(
+        value.len() == 64
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)),
+        "{pointer} must be 64-character lowercase hex"
+    );
+    let quoted = format!("\"{value}\"");
+    let matches = bytes
+        .windows(quoted.len())
+        .enumerate()
+        .filter_map(|(index, window)| (window == quoted.as_bytes()).then_some(index + 1))
+        .collect::<Vec<_>>();
+    assert_eq!(matches.len(), 1, "{pointer} token must occur exactly once");
+    bytes[matches[0]..matches[0] + 64].fill(b'G' + position as u8);
+    value.to_owned()
+}
+
+fn assert_release_projection(
+    classification: &[ReleaseProjection],
+    overrides: &BTreeMap<&str, Vec<u8>>,
+) {
+    assert_eq!(
+        classification, RELEASE_PROJECTION,
+        "release projection is exact"
+    );
+    let mut stale = Vec::new();
+    for projection in classification {
+        let fixture = release_fixture(projection);
+        let historical = fixture.historical;
+        let live = overrides
+            .get(projection.path)
+            .map(Vec::as_slice)
+            .unwrap_or(fixture.live);
+        for (state, bytes) in [("historical", historical), ("live", live)] {
+            assert_eq!(
+                bytes.len(),
+                projection.bytes,
+                "{} {state} length",
+                projection.path
+            );
+            assert!(
+                bytes.ends_with(b"\n") && !bytes.ends_with(b"\n\n"),
+                "{} {state} terminal LF",
+                projection.path
+            );
+            assert!(
+                serde_json::from_slice::<Value>(bytes).unwrap().is_object(),
+                "{} {state} must be one JSON object",
+                projection.path
+            );
+        }
+        let historical_document: Value = serde_json::from_slice(historical).unwrap();
+        let live_document: Value = serde_json::from_slice(live).unwrap();
+        let (mut historical_masked, mut live_masked) = (historical.to_vec(), live.to_vec());
+        for (position, pointer) in projection.pointers.iter().enumerate() {
+            let old = mask_release_scalar(
+                &mut historical_masked,
+                &historical_document,
+                pointer,
+                position,
+            );
+            let new = mask_release_scalar(&mut live_masked, &live_document, pointer, position);
+            if old == new {
+                stale.push(format!("{} {pointer}: stale-alpha.1", projection.path));
+            }
+        }
+        assert_eq!(
+            historical_masked, live_masked,
+            "{} may differ only at its exact release pointers",
+            projection.path
+        );
+    }
+    let paths = stale
+        .iter()
+        .filter_map(|entry| entry.split_once(' ').map(|(path, _)| path))
+        .collect::<BTreeSet<_>>();
+    assert!(
+        stale.is_empty(),
+        "current release projection has stale-alpha.1 at exactly {} paths and {} pointers:\n{}",
+        paths.len(),
+        stale.len(),
+        stale.join("\n")
+    );
+}
+
 #[test]
 fn every_precommitted_current_model_reproduces_its_frozen_identity() {
     let transition = transition();
@@ -559,12 +658,9 @@ fn every_precommitted_current_model_reproduces_its_frozen_identity() {
         );
         assert_eq!(raw_sha256(bytes), expected["model_raw_sha256"]);
 
-        // Derivation one: the bytes themselves, through the RFC 0008 domain.
         let digest = expected["model_digest"].as_str().unwrap();
         assert_eq!(model_digest_from_bytes(bytes), digest);
 
-        // Derivation two: the current owner, which must agree and must also
-        // round-trip these exact bytes and replay the same program.
         let decoded = ModelEnvelope::from_json(bytes, ModelDecoderLimits::default())
             .unwrap_or_else(|error| panic!("{} must decode: {}", fixture.name, error.message()));
         assert_eq!(decoded.canonical_json().unwrap(), bytes);
@@ -642,49 +738,20 @@ fn every_downstream_identity_and_reference_edge_derives_from_bytes() {
         }
     }
 
-    // A silently emptied edge set would make the claim above vacuous.
     assert!(
         checked_edges >= 47,
         "the classified reference DAG has at least 47 edges, found {checked_edges}"
     );
 }
 
-/// Each deterministic consumer holds exactly the precommitted replacement, and
-/// every identity in it is one derived from bytes above.
-///
-/// Before the reset the superseded fixture was the file in the tree, and this
-/// test compared the two documents leaf by leaf. The reset overwrote it and this
-/// case commits no copy of it, so that comparison is no longer available:
-/// rebuilding the superseded bytes out of the replacement and substituting back
-/// would only prove the inverse of a substitution performed one line earlier.
-/// The leaf-level delta is therefore not claimed here — the moving-spatial
-/// consumer, which commits both states, is where it stays observable. What the
-/// installed bytes still show is checked instead.
-#[test]
-fn every_installed_consumer_carries_its_precommitted_replacement_identities() {
+fn assert_historical_consumers_carry_the_precommitted_model_epoch() {
     let transition = transition();
 
     for fixture in &DETERMINISTIC {
         let expected = entry(&transition, "deterministic", fixture.name);
-        // The included slices themselves, not their newline-normalized forms:
-        // stripping a trailing newline off both sides before comparing would let
-        // exactly that byte drift under a claim that no byte may.
-        assert_eq!(
-            fixture.committed, fixture.replacement,
-            "{} must install the precommitted replacement byte for byte: key order, \
-             whitespace, number spelling, trailing newline, and every non-identity \
-             byte included",
-            fixture.name
-        );
+        let historical = frozen(fixture.historical);
+        let document: Value = serde_json::from_slice(historical).unwrap();
 
-        // Normalized only for JSON parsing and the semantic checks below.
-        let installed = frozen(fixture.committed);
-        let document: Value = serde_json::from_slice(installed).unwrap();
-
-        // Each identity pointer against the identity re-derived from the bytes
-        // of the artifact it names — the Model through the RFC 0008 domain, each
-        // edge through its own canonical bytes, both derived by the two tests
-        // above and only consumed here.
         let mut identities = vec![(
             expected["model_pointer"].as_str().unwrap().to_owned(),
             expected["model_digest"].as_str().unwrap().to_owned(),
@@ -719,9 +786,6 @@ fn every_installed_consumer_carries_its_precommitted_replacement_identities() {
                 fixture.name
             );
 
-            // And the superseded identity is retired: gone from its pointer,
-            // gone from every other leaf, and the same 64 bytes wide, which is
-            // what makes the recorded move a substitution rather than a rewrite.
             let superseded = expected["superseded"][pointer].as_str().unwrap();
             assert_eq!(
                 superseded.len(),
@@ -744,6 +808,176 @@ fn every_installed_consumer_carries_its_precommitted_replacement_identities() {
     }
 }
 
+fn assert_historical_then_live_projection(
+    classification: &[ReleaseProjection],
+    overrides: &BTreeMap<&str, Vec<u8>>,
+) {
+    every_precommitted_current_model_reproduces_its_frozen_identity();
+    every_downstream_identity_and_reference_edge_derives_from_bytes();
+    assert_historical_consumers_carry_the_precommitted_model_epoch();
+    assert_release_projection(classification, overrides);
+}
+
+#[test]
+fn alpha1_history_precedes_the_exact_live_release_projection() {
+    assert_historical_then_live_projection(&RELEASE_PROJECTION, &BTreeMap::new());
+}
+
+fn scalar_mutant(source: &[u8], pointer: &str, replacement: &str) -> Vec<u8> {
+    let document: Value = serde_json::from_slice(source).unwrap();
+    let original = resolve(&document, pointer).as_str().unwrap();
+    let mut bytes = source.to_vec();
+    replace_exact_once(
+        &mut bytes,
+        &format!("\"{original}\""),
+        &format!("\"{replacement}\""),
+    );
+    bytes
+}
+
+fn must_refuse(classification: &[ReleaseProjection], changed: Option<(&str, Vec<u8>)>) {
+    let mut overrides = BTreeMap::new();
+    if let Some((path, bytes)) = changed {
+        overrides.insert(path, bytes);
+    }
+    assert!(
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            assert_release_projection(classification, &overrides);
+        }))
+        .is_err()
+    );
+}
+
+#[test]
+fn live_release_projection_refuses_the_complete_mutant_matrix() {
+    assert_historical_then_live_projection(&RELEASE_PROJECTION, &BTreeMap::new());
+
+    for projection in &RELEASE_PROJECTION {
+        let fixture = release_fixture(projection);
+        let historical: Value = serde_json::from_slice(fixture.historical).unwrap();
+        for pointer in projection.pointers {
+            let stale = resolve(&historical, pointer).as_str().unwrap();
+            must_refuse(
+                &RELEASE_PROJECTION,
+                Some((projection.path, scalar_mutant(fixture.live, pointer, stale))),
+            );
+        }
+    }
+
+    let mut missing = RELEASE_PROJECTION;
+    missing[0].pointers = &[];
+    must_refuse(&missing, None);
+    let mut widened = RELEASE_PROJECTION;
+    widened[0].pointers = &["/compilation_digest", "/model_digest"];
+    must_refuse(&widened, None);
+    let mut reordered = RELEASE_PROJECTION;
+    reordered.swap(0, 1);
+    must_refuse(&reordered, None);
+
+    let projection = &RELEASE_PROJECTION[0];
+    let fixture = release_fixture(projection);
+    let document: Value = serde_json::from_slice(fixture.live).unwrap();
+    let current = resolve(&document, projection.pointers[0]).as_str().unwrap();
+    let quoted = format!("\"{current}\"");
+    let mut non_string = fixture.live.to_vec();
+    replace_exact_once(&mut non_string, &quoted, &format!("null{}", " ".repeat(62)));
+    must_refuse(&RELEASE_PROJECTION, Some((projection.path, non_string)));
+    for replacement in [format!("g{}", &current[1..]), format!("A{}", &current[1..])] {
+        must_refuse(
+            &RELEASE_PROJECTION,
+            Some((
+                projection.path,
+                scalar_mutant(fixture.live, projection.pointers[0], &replacement),
+            )),
+        );
+    }
+    let mut wrong_length = fixture.live.to_vec();
+    replace_exact_once(
+        &mut wrong_length,
+        &quoted,
+        &format!("\"{}\" ", &current[..63]),
+    );
+    must_refuse(&RELEASE_PROJECTION, Some((projection.path, wrong_length)));
+    let escaped = format!("\"\\u00{:02x}{}\"", current.as_bytes()[0], &current[1..]);
+    let zero_occurrence = std::str::from_utf8(fixture.live)
+        .unwrap()
+        .replacen(&quoted, &escaped, 1)
+        .replacen("Eqiora.Electrical.Basic", "Eqiora.Electrical.", 1)
+        .into_bytes();
+    must_refuse(
+        &RELEASE_PROJECTION,
+        Some((projection.path, zero_occurrence)),
+    );
+    let duplicate = scalar_mutant(fixture.live, "/basic/semantic_digest", current);
+    must_refuse(&RELEASE_PROJECTION, Some((projection.path, duplicate)));
+
+    for (index, pointer, exact) in [
+        (
+            0,
+            "/model_digest",
+            Some("b7de1eb8e21f9989cb1da97b41c59c6f3e0084d36ae44a3f29337c221338d91b"),
+        ),
+        (2, "/package_semantic_sha256", None),
+        (2, "/source_bundle_sha256", None),
+        (2, "/resolution_sha256", None),
+        (2, "/realization_sha256", None),
+        (4, "/provenance/trajectory_sha256", None),
+        (4, "/provenance/geometry_identity_sha256", None),
+        (4, "/provenance/correspondence_sha256", None),
+    ] {
+        let projection = &RELEASE_PROJECTION[index];
+        let fixture = release_fixture(projection);
+        let document: Value = serde_json::from_slice(fixture.live).unwrap();
+        let value = resolve(&document, pointer).as_str().unwrap();
+        let changed = exact.map(str::to_owned).unwrap_or_else(|| {
+            format!(
+                "{}{}",
+                if &value[..1] == "0" { "1" } else { "0" },
+                &value[1..]
+            )
+        });
+        must_refuse(
+            &RELEASE_PROJECTION,
+            Some((
+                projection.path,
+                scalar_mutant(fixture.live, pointer, &changed),
+            )),
+        );
+    }
+
+    let ale = release_fixture(&RELEASE_PROJECTION[4]);
+    for (old, new) in [
+        ("0.5002500000003046", "0.5002500000003047"),
+        ("0.02126735054320236", "0.02126735054320237"),
+        ("\"time_s\":0.01", "\"time_s\":1e-2"),
+    ] {
+        let mut bytes = ale.live.to_vec();
+        replace_exact_once(&mut bytes, old, new);
+        must_refuse(
+            &RELEASE_PROJECTION,
+            Some((RELEASE_PROJECTION[4].path, bytes)),
+        );
+    }
+    let order_old = "\"name\":\"Eqiora.Electrical.Basic\",\"version\":\"0.1.0\"";
+    let order_new = "\"version\":\"0.1.0\",\"name\":\"Eqiora.Electrical.Basic\"";
+    let mut order = fixture.live.to_vec();
+    replace_exact_once(&mut order, order_old, order_new);
+    must_refuse(
+        &RELEASE_PROJECTION,
+        Some((RELEASE_PROJECTION[0].path, order)),
+    );
+    for bytes in [
+        fixture.live[..fixture.live.len() - 1].to_vec(),
+        [fixture.live, b"\n"].concat(),
+        [fixture.live, b" "].concat(),
+    ] {
+        must_refuse(
+            &RELEASE_PROJECTION,
+            Some((RELEASE_PROJECTION[0].path, bytes)),
+        );
+    }
+}
+
 #[test]
 fn recorded_accelerator_bundles_are_bridged_and_never_relabelled() {
     let transition = transition();
@@ -757,8 +991,6 @@ fn recorded_accelerator_bundles_are_bridged_and_never_relabelled() {
         );
         assert_eq!(raw_sha256(historical), expected["historical_raw_sha256"]);
 
-        // Hashed from the untouched bytes. No product decoder admits them, so
-        // this survives the removal of the historical decoders unchanged.
         let historical_wire: Value = serde_json::from_slice(historical).unwrap();
         assert_eq!(historical_wire["schema"], expected["historical_schema"]);
         assert_ne!(
@@ -769,7 +1001,6 @@ fn recorded_accelerator_bundles_are_bridged_and_never_relabelled() {
         let historical_digest = expected["historical_artifact_digest"].as_str().unwrap();
         assert_eq!(model_digest_from_bytes(historical), historical_digest);
 
-        // The current side goes through the current owner and nothing else.
         let current = frozen(bridge.current);
         assert_eq!(raw_sha256(current), expected["current_raw_sha256"]);
         let current_digest = expected["current_artifact_digest"].as_str().unwrap();
@@ -783,8 +1014,6 @@ fn recorded_accelerator_bundles_are_bridged_and_never_relabelled() {
             bridge.name
         );
 
-        // Semantic identity survives the epoch change; the artifact identity
-        // does not. Model ULID and revision are read from the historical bytes.
         assert_eq!(
             decoded.model().unwrap().ulid().to_string(),
             historical_wire["model_ulid"]
@@ -794,9 +1023,6 @@ fn recorded_accelerator_bundles_are_bridged_and_never_relabelled() {
             historical_wire["source_revision"]
         );
 
-        // The bridge relation itself. The historical value was observed once,
-        // while its decoder still existed, and is frozen in the case; the
-        // current value is recomputed here by the RFC 0073 owner.
         let fingerprint =
             StructuralSemanticFingerprint::from_program(&decoded.to_program().unwrap()).unwrap();
         assert_eq!(fingerprint.generation(), BRIDGE_GENERATION);
@@ -810,8 +1036,6 @@ fn recorded_accelerator_bundles_are_bridged_and_never_relabelled() {
             bridge.name
         );
 
-        // The recorded Run observed the historical artifact. Relabelling it as
-        // a current Run would break exactly here.
         let members = expected["historical_bundle"].as_array().unwrap();
         assert_eq!(members.len(), bridge.bundle.len());
         for (member, bytes) in members.iter().zip(bridge.bundle) {
@@ -857,16 +1081,6 @@ fn retained_realization_v4_is_an_opaque_exact_golden() {
     );
 }
 
-/// The retained v4 golden is accepted from its committed bytes alone.
-///
-/// `realization_v4_wire.rs` currently reconstructs the golden: it decodes the
-/// historical fixed-reference CUDA Model with `ModelEnvelopeV4` and re-encodes a
-/// Realization over it. That route disappears with the historical decoders, and
-/// the two ways of restoring it are both wrong — admitting those bytes through
-/// the current Model owner, or rebuilding the golden over a current Model. This
-/// freezes the third route, which is the one RFC 0083 requires: the Realization
-/// family is retained, so its own decoder verifies its own bytes and the Model
-/// reference inside them stays an opaque 64-character string.
 #[test]
 fn the_retained_realization_v4_golden_is_accepted_without_any_model_decoder() {
     let transition = transition();
@@ -879,7 +1093,6 @@ fn the_retained_realization_v4_golden_is_accepted_without_any_model_decoder() {
     assert_eq!(raw_sha256(bytes), expected["raw_sha256"]);
     assert_eq!(expected["post_reset_acceptance"]["model_decoder_calls"], 0);
 
-    // The retained family decoder, and nothing else, admits the golden.
     let golden = RealizationEnvelopeV4::from_json(bytes, Default::default())
         .expect("the retained Realization family still decodes its own golden");
     assert_eq!(golden.canonical_json().unwrap(), bytes);
@@ -892,8 +1105,6 @@ fn the_retained_realization_v4_golden_is_accepted_without_any_model_decoder() {
         expected["artifact_digest"].as_str().unwrap()
     );
 
-    // Opaque means read, never resolved: the reference is compared as a string
-    // and its bytes are never handed to a decoder.
     let opaque = &expected["opaque_model_reference"];
     assert_eq!(golden.model_artifact().as_str(), opaque["value"]);
     assert_eq!(
@@ -905,8 +1116,6 @@ fn the_retained_realization_v4_golden_is_accepted_without_any_model_decoder() {
         expected["semantic_revision"].as_u64().unwrap()
     );
 
-    // An implementation that keeps the current include target and merely swaps
-    // the decoder fails here rather than quietly admitting a historical schema.
     let historical = frozen(BRIDGES[1].historical);
     assert_eq!(raw_sha256(historical), opaque["raw_sha256"]);
     assert_eq!(
@@ -919,8 +1128,6 @@ fn the_retained_realization_v4_golden_is_accepted_without_any_model_decoder() {
         expected["forbidden"]["current_model_decoder_on_opaque_bytes"]
     );
 
-    // And the current Model of the same semantic program is not this golden's
-    // Model, however equivalent the program is.
     let current =
         ModelEnvelope::from_json(frozen(BRIDGES[1].current), ModelDecoderLimits::default())
             .unwrap();
@@ -930,14 +1137,6 @@ fn the_retained_realization_v4_golden_is_accepted_without_any_model_decoder() {
     );
 }
 
-/// Relabelling the golden's Model reference is refused, and only the bytes can
-/// refuse it.
-///
-/// This is the failure the frozen bytes exist for. A golden whose `model_sha256`
-/// is swapped for the current bridge digest is *internally consistent*: its
-/// Model ULID and semantic revision are unchanged, so `validate_model_artifact`
-/// accepts it against the current Model. Nothing inside the artifact objects.
-/// The exact 8,333 committed bytes are the only thing that does.
 #[test]
 fn relabelling_the_retained_realization_v4_golden_to_a_current_model_is_refused() {
     let transition = transition();
@@ -966,8 +1165,6 @@ fn relabelling_the_retained_realization_v4_golden_to_a_current_model_is_refused(
         expected["artifact_digest"].as_str().unwrap()
     );
 
-    // The relabelled golden decodes and validates. That is the point: identity
-    // checks inside the family cannot see this, so the freeze must be on bytes.
     let current =
         ModelEnvelope::from_json(frozen(BRIDGES[1].current), ModelDecoderLimits::default())
             .unwrap();
@@ -982,14 +1179,6 @@ fn relabelling_the_retained_realization_v4_golden_to_a_current_model_is_refused(
     );
 }
 
-/// The moving-spatial consumer's replacement changes exactly its identities.
-///
-/// Both states of all three artifacts are committed, so this is a comparison
-/// rather than a claim: the replacement must be the pre-reset bytes with the
-/// frozen identity table applied and nothing else. Byte lengths are equal, every
-/// changed leaf is a 64-character identity in the table, and every other leaf —
-/// coordinates, steps, times, Field inventory, physical dimensions, ULIDs — is
-/// byte-identical.
 #[test]
 fn the_moving_spatial_consumer_replacement_is_an_identity_only_substitution() {
     let transition = transition();
@@ -1086,8 +1275,6 @@ fn the_moving_spatial_consumer_replacement_is_an_identity_only_substitution() {
     }
 }
 
-/// The replacement is re-derivable through the retained spatial wires, and it
-/// carries no superseded identity anywhere.
 #[test]
 fn the_moving_spatial_replacement_replays_through_the_retained_spatial_wires() {
     let transition = transition();
@@ -1187,12 +1374,6 @@ fn the_moving_spatial_replacement_replays_through_the_retained_spatial_wires() {
     }
 }
 
-/// An omitted, partial, or regenerated moving-spatial substitution is refused.
-///
-/// The three digests are consumed by one file, so a reset that moves some of
-/// them and not others, or that points the consumer at a Model it produced
-/// itself, would otherwise be caught only by whichever assertion happened to run
-/// first. Each of those is a separate failure here.
 #[test]
 fn an_omitted_partial_or_regenerated_moving_spatial_substitution_is_refused() {
     let transition = transition();
@@ -1282,11 +1463,6 @@ fn a_mutated_oracle_byte_or_severed_edge_is_refused() {
     let fixture = &DETERMINISTIC[0];
     let bytes = frozen(fixture.model);
 
-    // Mutate one valid Crockford Base32 character in the Model ULID while
-    // preserving canonical JSON and the envelope's admissibility. This makes
-    // parse failure unavailable as an escape hatch: both independent identity
-    // derivations and the exact current-owner round-trip must observe the
-    // changed meaning-bearing bytes.
     let mut mutated = bytes.to_vec();
     let marker = b"\"model_ulid\":\"";
     let position = mutated
@@ -1309,8 +1485,6 @@ fn a_mutated_oracle_byte_or_severed_edge_is_refused() {
     assert_eq!(decoded.digest().unwrap().as_str(), mutated_digest);
     assert_ne!(decoded.digest().unwrap().as_str(), original_digest);
 
-    // A downstream artifact re-pointed at the superseded Model must not keep
-    // its identity, so a half-applied migration cannot pass.
     let transition = transition();
     let expected = entry(&transition, "deterministic", fixture.name);
     let compilation = artifact(fixture, "compilation.json");
@@ -1358,8 +1532,6 @@ fn the_classification_is_complete_and_labelled() {
         assert!(classes.contains_key(required), "missing class {required}");
     }
 
-    // Every entry belongs to exactly one declared class, and each required
-    // target of RFC 0083 is present with a class.
     let entries = classification["entries"].as_array().unwrap();
     for entry in entries {
         let class = entry["class"].as_str().expect("every entry is classified");
@@ -1483,7 +1655,6 @@ fn the_classification_is_complete_and_labelled() {
         );
     }
 
-    // The deterministic class this test executes must match the classification.
     let owned = entries
         .iter()
         .filter(|entry| {
@@ -1512,15 +1683,6 @@ fn the_classification_is_complete_and_labelled() {
     assert_eq!(literals as usize, frozen_literals);
 }
 
-/// Every classified path has exactly one fate, and a path the reset removes
-/// never inherits the remainder's in-place migration.
-///
-/// The remainder entry is what makes the classification complete without
-/// listing 338 paths twice, and it is also the entry that can quietly say the
-/// wrong thing: "everything else migrates in place" is false the moment a
-/// retired path is left unnamed. So the remainder is defined to exclude retired
-/// paths, every retired inventory path is named by an entry that says what
-/// actually happens to it, and both halves are counted here.
 #[test]
 fn every_inventory_path_carries_exactly_one_disposition() {
     let classification: Value = serde_json::from_slice(frozen(CLASSIFICATION)).unwrap();
@@ -1551,7 +1713,6 @@ fn every_inventory_path_carries_exactly_one_disposition() {
         .map(|path| path.as_str().unwrap().to_owned())
         .collect::<BTreeSet<_>>();
 
-    // One disposition per entry, one entry per path.
     let mut fate: BTreeMap<String, String> = BTreeMap::new();
     for entry in entries {
         let paths = entry["paths"]
@@ -1590,8 +1751,6 @@ fn every_inventory_path_carries_exactly_one_disposition() {
         }
     }
 
-    // The remainder is an exclusion rule, not a list, and it excludes retired
-    // paths explicitly rather than by hoping none is left over.
     let remainder_entry = entries
         .iter()
         .find(|entry| entry["inventory_remainder"] == true)
@@ -1624,7 +1783,6 @@ fn every_inventory_path_carries_exactly_one_disposition() {
         "named paths and the remainder partition the inventory exactly"
     );
 
-    // No retired path inherits `migrate-in-place`.
     let retired_in_remainder = remainder.intersection(&retired).collect::<Vec<_>>();
     assert!(
         retired_in_remainder.is_empty(),
@@ -1641,10 +1799,6 @@ fn every_inventory_path_carries_exactly_one_disposition() {
         );
     }
 
-    // The nineteen retired inventory paths that no fixture entry names divide
-    // three ways: fifteen whose sole claim is a removed generation, two whose
-    // historical branch goes but whose current v8 implementation moves, and two
-    // version-named current owners the reset renames rather than deletes.
     for path in [
         "bindings/python/python/eqiora/compatibility.py",
         "bindings/python/python/eqiora/compatibility.pyi",
@@ -1665,11 +1819,6 @@ fn every_inventory_path_carries_exactly_one_disposition() {
         assert_eq!(fate[path], "delete", "`{path}` is deleted by the reset");
     }
 
-    // The two v2-named modules are retired paths whose fate is not a single
-    // verb: RFC 0083 puts the current v8 encoding inside them, so the historical
-    // admission is deleted while the current implementation migrates to the
-    // matching unversioned owner. Each must carry both claims, and the migrating
-    // one must name that owner rather than a general direction.
     for (path, owner) in [
         (
             "crates/eqiora-artifact/src/model_v2.rs",
@@ -1733,10 +1882,6 @@ fn every_inventory_path_carries_exactly_one_disposition() {
         );
     }
 
-    // A renamed source names where it goes, and it names it per file. Two sets
-    // that happen to have the same members would let Model and Transaction swap
-    // targets silently, so the pairing is frozen as ordered `from`/`to` pairs and
-    // the parallel arrays are checked against them as a declared positional zip.
     let rename_entry = entries
         .iter()
         .find(|entry| entry["disposition"] == "rename-source")

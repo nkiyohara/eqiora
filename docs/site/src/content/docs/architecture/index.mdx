@@ -1,0 +1,38 @@
+---
+title: Architecture
+description: Eqiora's directional path from semantic meaning to evidence.
+---
+
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+
+Eqiora is organized around one directional path:
+
+```text
+semantic meaning
+      ↓
+lowered contract
+      ↓
+realization
+      ↓
+adapter / execution provider
+      ↓
+artifact and evidence
+```
+
+This direction prevents authoring clients, numerical methods, storage formats, or hardware adapters from becoming alternate sources of model meaning.
+
+## Two layers, several projections
+
+The semantic model owns canonical relations, activation, typed ports, connections, and identity. The realization owns discretization and execution choices. Block diagrams, state charts, physical networks, field views, Python, and Studio are projections or clients of those shared contracts.
+
+Artifacts bind exact model, realization, execution, and result lineage without turning provenance into model semantics. Verification manifests separately bind bounded claims to reproducible evidence.
+
+## Authoritative design material
+
+- <ExactSourceLink path="docs/architecture.md" kind="blob">Architecture summary</ExactSourceLink>
+- <ExactSourceLink path="docs/glossary.md" kind="blob">Glossary</ExactSourceLink>
+- <ExactSourceLink path="rfcs" kind="tree">RFC process and records</ExactSourceLink>
+- <ExactSourceLink path="docs/development/library-and-accelerator-strategy.md" kind="blob">Library and accelerator strategy</ExactSourceLink>
+- <ExactSourceLink path="docs/development/language-baselines.md" kind="blob">Language baselines</ExactSourceLink>
+
+These repository documents, not this overview, define the detailed contracts.

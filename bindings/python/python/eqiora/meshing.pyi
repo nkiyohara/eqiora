@@ -1,3 +1,8 @@
+"""Immutable geometry-to-mesh planning owned by the native implementation.
+
+Authority: ``bindings/python/python/eqiora/meshing.py``.
+"""
+
 from collections.abc import Collection
 from typing import Self, final
 
@@ -8,6 +13,11 @@ from .geometry import Geometry
 
 @final
 class MeshRequest:
+    """Immutable caller intent for the admitted planar mesh provider.
+
+    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyMeshRequest``.
+    """
+
     def __new__(
         cls,
         *,
@@ -26,6 +36,11 @@ class MeshRequest:
 
 @final
 class MeshPlan:
+    """Complete provider choice bound to one exact geometry.
+
+    Authority: ``crates/eqiora-python/src/meshing/plan.rs::PyMeshPlan``.
+    """
+
     @property
     def source_digest(self) -> str: ...
     @property
@@ -46,6 +61,11 @@ class MeshPlan:
 
 @final
 class Mesh:
+    """Immutable source-bound accepted mesh.
+
+    Authority: ``crates/eqiora-python/src/meshing/mesh.rs::PyMesh``.
+    """
+
     @property
     def source_digest(self) -> str: ...
     @property
@@ -80,7 +100,20 @@ class Mesh:
     ) -> dict[str, object]: ...
     def __repr__(self) -> str: ...
 
-def resolve(geometry: Geometry, request: MeshRequest, /) -> MeshPlan: ...
-def generate(geometry: Geometry, /, *, plan: MeshPlan) -> Mesh: ...
+def resolve(geometry: Geometry, request: MeshRequest, /) -> MeshPlan:
+    """Resolve a provider plan for the exact supplied geometry.
+
+    Authority: ``crates/eqiora-python/src/meshing/plan.rs::resolve``.
+    """
+
+    ...
+
+def generate(geometry: Geometry, /, *, plan: MeshPlan) -> Mesh:
+    """Publish the accepted mesh owned by a resolved plan.
+
+    Authority: ``crates/eqiora-python/src/meshing/mesh.rs::generate``.
+    """
+
+    ...
 
 __all__ = ["Mesh", "MeshPlan", "MeshRequest", "generate", "resolve"]

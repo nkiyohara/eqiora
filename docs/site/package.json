@@ -1,0 +1,28 @@
+{
+  "name": "@eqiora/documentation-site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.18.1",
+    "npm": "11.16.0"
+  },
+  "scripts": {
+    "build": "ASTRO_TELEMETRY_DISABLED=1 EQIORA_SITE_BUILD_PROFILE=complete astro build",
+    "dev": "astro dev",
+    "preview": "astro preview",
+    "sync": "ASTRO_TELEMETRY_DISABLED=1 astro sync"
+  },
+  "dependencies": {
+    "@astrojs/markdown-satteri": "0.3.6",
+    "@astrojs/mdx": "7.0.6",
+    "@astrojs/starlight": "0.41.7",
+    "astro": "7.2.3",
+    "katex": "0.18.4",
+    "satteri": "0.9.5"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.62.1"
+  }
+}

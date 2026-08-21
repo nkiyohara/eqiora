@@ -1,9 +1,9 @@
 {
   "schema": "eqiora.verify.package-conformance-identities.v1",
   "profile": "eqiora.package.structural-conformance-v1",
-  "distribution_version": "0.1.0a1",
+  "distribution_version": "0.1.0a2",
   "compiler": "Eqiora.Compiler",
-  "compiler_version": "0.1.0-alpha.1",
+  "compiler_version": "0.1.0-alpha.2",
   "semantic_canonicalization_version": 1,
   "source_bundle_version": 1,
   "resolution_version": 1,
@@ -13,7 +13,7 @@
     "semantic_identity": "501f3e520c0ec8079897d2005cd9da594918bb109d60f1f0440a3a4d98db28dd",
     "source_identity": "d1e08b039c49c53cb963f314d424277a49e959b7d14a64208a86be972d06caf7",
     "resolution_identity": "fa647436084eb83d9145a8c96501a5f3938dc7d263a6807ea0be672220008f29",
-    "compilation_identity": "d846930c8567d6a4568dcc2c2c7f5b74d38ffa79d52902df88b370252c1a8e43",
+    "compilation_identity": "b7de1eb8e21f9989cb1da97b41c59c6f3e0084d36ae44a3f29337c221338d91b",
     "object_id": "05QEAENSNHPXKKY6A34KJVSVWJ",
     "revision": 1,
     "canonical_identity": "9f913f16c21930a60b27a0532bf99104fa28867e3de3c0efdd81b41384cfc7f1"
@@ -24,7 +24,7 @@
     "semantic_identity": "87332fcbb93ed232747faeec616c2f8c07d43e4bb99895bbd3e30d4ea98888cb",
     "source_identity": "4f3aa811b814ac7fb959f777ff5d758804e2e68593a568ee8935b122c9565462",
     "resolution_identity": "38b5bb0c7e1f8aa7baa5e690157014a974c446f8f38fcd19d6b73b981e9ca810",
-    "compilation_identity": "6e72043a1d0569d7488717cd7ffdf54a01c7e5e65262cecc3a49fcdce645dec0",
+    "compilation_identity": "9bb80485bd79132220e7ea865a69d656fd177f72ad9f852319e726086f38ff2e",
     "object_id": "7Q7ZYW89BV0RH2HSB3S5ZMTY0K",
     "revision": 1,
     "canonical_identity": "c2c35e6b58f6ee0d40b8aa2bd0c252e519eec6f6779e39366ae2e28cdbd5300a"
