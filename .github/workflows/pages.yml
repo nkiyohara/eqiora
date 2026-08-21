@@ -317,6 +317,8 @@ jobs:
                 --regid "$EQIORA_RUNNER_GID" \
                 --clear-groups \
                 -- env \
+                  --chdir="$EQIORA_SITE_SOURCE_ROOT" \
+                  MISE_TRUSTED_CONFIG_PATHS="$EQIORA_SITE_SOURCE_ROOT/mise.toml" \
                   HOME="$EQIORA_RUNNER_HOME" \
                   PATH="$EQIORA_RUNNER_PATH" \
                   LC_ALL="$LC_ALL" \
