@@ -9,13 +9,19 @@ import {
   assertNoFakeExecutionControls,
   assertNoPageOverflow,
   assertNoSeriousAxeViolations,
+  assertOrdinaryRoutePlan,
   assertSemanticStages,
   assertSupportedStatement,
   assertTableFixtureGreen,
+  assertTableFixtureOnlyFailure,
   assertTextContrast,
+  createOrdinaryRoutePlan,
+  installTableObserver,
   launchOfficialBrowser,
+  layoutCssState,
   rejectExternalRequests,
   seriousAxeViolations,
+  SITE_ROUTES,
   STAGES,
   SUPPORTED_STATEMENT,
 } from './support';
@@ -24,23 +30,29 @@ const positive = `<!doctype html><html lang="en"><head><title>Fixture</title><st
 html,body{margin:0;max-width:100%;overflow-wrap:anywhere}main{padding:16px}.target{display:inline-flex;min-width:44px;min-height:44px;align-items:center;justify-content:center}.target:focus{outline:3px solid CanvasText;outline-offset:2px}
 </style></head><body><main><h1>Ordinary semantic fixture</h1><h2>Submit and result</h2><p>This positive path is usable without client JavaScript. Prose may discuss Start computation, Evaluate model, and Begin processing.</p><a class="target" href="/">Home</a></main></body></html>`;
 
-const exactTableCss = `
-html,body{margin:0;max-width:100%}.sl-markdown-content{width:300px}
-.sl-markdown-content table:not(:where(.not-content *)){display:block;width:120px;overflow-x:auto;border-collapse:collapse}
-.sl-markdown-content table:not(:where(.not-content *)) .wide{display:block;width:556px;white-space:nowrap}
+const productTableCss = `
 .sl-markdown-content > table,
 .sl-markdown-content .eq-stage__body > table{display:table;width:100%;table-layout:fixed;overflow:visible}
 .sl-markdown-content > table :is(th,td,code),
-.sl-markdown-content .eq-stage__body > table :is(th,td,code){white-space:normal;overflow-wrap:anywhere;word-break:break-word}
-.sl-markdown-content > table .wide,
-.sl-markdown-content .eq-stage__body > table .wide{width:auto;white-space:normal}
+.sl-markdown-content .eq-stage__body > table :is(th,td,code){width:auto;white-space:normal;overflow-wrap:anywhere;word-break:break-word}`;
+
+const exactTableCss = `
+html,body{margin:0;max-width:100%}.sl-markdown-content{width:300px}.wide{display:block;width:556px;white-space:nowrap}
+.sl-markdown-content table:not(:where(.not-content *)){display:block;overflow-x:auto;border-collapse:collapse}
+${productTableCss}
+.ordinary:is(.comma-one,.comma-two){color:CanvasText}.escaped\\,comma{color:CanvasText}
 th,td{border:1px solid;padding:4px;font-size:16px}`;
 
 const tableCellText = 'one_unbreakable_table_value_that_must_reflow_without_concealment';
 
-function tableFixture(css = exactTableCss, direct = '', component = ''): string {
-  const cell = `<code class="wide">${tableCellText}</code>`;
-  return `<!doctype html><html lang="en"><head><title>Table fixture</title><style>${css}</style></head><body><main><h1>Table fixture</h1><div class="sl-markdown-content"><table ${direct}><thead><tr><th>Direct heading</th></tr></thead><tbody><tr><td>${cell}</td></tr></tbody></table><section class="eq-stage"><div class="eq-stage__body"><table ${component}><thead><tr><th>Component heading</th></tr></thead><tbody><tr><td>${cell}</td></tr></tbody></table></div></section></div></main></body></html>`;
+function tableFixture(
+  css = exactTableCss,
+  direct = '',
+  component = '',
+  componentParent = '',
+): string {
+  const cell = `<code class="wide"><span class="nested-text">${tableCellText}</span></code> <a href="/documentation/">Documentation</a>`;
+  return `<!doctype html><html lang="en"><head><title>Table fixture</title><style>${css}</style></head><body><main><h1>Table fixture</h1><div class="sl-markdown-content"><table ${direct}><thead><tr><th>Direct heading</th></tr></thead><tbody><tr><td>${cell}</td></tr></tbody></table><section class="eq-stage"><div class="eq-stage__body" ${componentParent}><table ${component}><thead><tr><th>Component heading</th></tr></thead><tbody><tr><td>${cell}</td></tr></tbody></table></div></section></div></main></body></html>`;
 }
 
 function stageFixture(order = STAGES, statement = SUPPORTED_STATEMENT): string {
@@ -67,6 +79,7 @@ test.afterAll(async () => {
 test('00 official browser and every synthetic ordinary control pass first', async () => {
   const context = await browser.newContext({ locale: 'en-GB', serviceWorkers: 'block' });
   const page = await context.newPage();
+  await installTableObserver(page);
   await page.setContent(positive);
   await assertCoreVisible(page);
   await assertNoSeriousAxeViolations(page);
@@ -114,6 +127,9 @@ test('00 official browser and every synthetic ordinary control pass first', asyn
 
   await page.setContent(tableFixture());
   assertExactTableSelectorScope(exactTableCss);
+  const parent = await layoutCssState();
+  expect(parent.parent).toBe(true);
+  assertExactTableSelectorScope(`${parent.css}\n${productTableCss}`);
   await assertTableFixtureGreen(page);
   await context.close();
 });
@@ -303,6 +319,7 @@ test('04 exact two-shape table scope and concealment/focus/vacuity mutants are c
   test.setTimeout(120_000);
   const context = await browser.newContext({ locale: 'en-GB', serviceWorkers: 'block' });
   const page = await context.newPage();
+  await installTableObserver(page);
   await page.setViewportSize({ width: 320, height: 844 });
 
   const resetPositive = async () => {
@@ -348,19 +365,145 @@ test('04 exact two-shape table scope and concealment/focus/vacuity mutants are c
   await expect(assertTableFixtureGreen(page)).rejects.toThrow();
 
   await resetPositive();
-  await expect(async () =>
-    assertExactTableSelectorScope('.sl-markdown-content table{display:table;width:100%}'),
-  ).rejects.toThrow();
+  const broad = `${exactTableCss}\n.sl-markdown-content table{display:table;width:100%}`;
+  await page.setContent(tableFixture(broad));
+  await assertTableFixtureGreen(page);
+  await expect(async () => assertExactTableSelectorScope(broad)).rejects.toThrow(
+    'unowned table selector branch',
+  );
 
-  await resetPositive();
-  await page.setContent(tableFixture(directOnly, '', 'tabindex="0"'));
+  const addTableBranch = (branch: string) =>
+    exactTableCss.replace(
+      '.sl-markdown-content > table,\n.sl-markdown-content .eq-stage__body > table{',
+      `.sl-markdown-content > table,\n.sl-markdown-content .eq-stage__body > table,\n${branch}{`,
+    );
+  for (const branch of ['.other table', '.sl-markdown-content .arbitrary table']) {
+    await resetPositive();
+    const mutantCss = addTableBranch(branch);
+    await page.setContent(tableFixture(mutantCss));
+    await assertTableFixtureGreen(page);
+    await expect(async () => assertExactTableSelectorScope(mutantCss), branch).rejects.toThrow(
+      'unowned table selector branch',
+    );
+  }
+
+  const authenticatedParent = await layoutCssState();
+  expect(authenticatedParent.parent).toBe(true);
+  const focusParentCss = `${authenticatedParent.css}\nhtml,body{margin:0;max-width:100%}.sl-markdown-content{width:300px}.wide{display:block;width:556px;white-space:nowrap}`;
+  const focusParentFixture = tableFixture(focusParentCss).replaceAll(
+    ' <a href="/documentation/">Documentation</a>',
+    '',
+  );
+  await page.setContent(focusParentFixture);
+  expect(await page.locator('a').count()).toBe(0);
+  for (const selector of ['.sl-markdown-content > table', '.eq-stage__body > table']) {
+    expect(
+      await page.locator(selector).evaluate((table) => table.scrollWidth > table.clientWidth + 1),
+    ).toBe(true);
+  }
+  const parentViolations = await seriousAxeViolations(page);
+  expect(parentViolations).toHaveLength(1);
+  expect(parentViolations[0].id).toBe('scrollable-region-focusable');
+  expect(parentViolations[0].nodes).toHaveLength(2);
+  await page.setContent(
+    focusParentFixture.replace('<table ><thead><tr><th>Component heading</th>', '<table tabindex="0"><thead><tr><th>Component heading</th>'),
+  );
   expect(
     await page
       .locator('.eq-stage__body > table')
       .evaluate((table) => table.scrollWidth > table.clientWidth + 1),
   ).toBe(true);
-  expect(await seriousAxeViolations(page)).toEqual([]);
+  const silencedViolations = await seriousAxeViolations(page);
+  expect(silencedViolations).toHaveLength(1);
+  expect(silencedViolations[0].id).toBe('scrollable-region-focusable');
+  expect(silencedViolations[0].nodes).toHaveLength(1);
   await expect(assertTableFixtureGreen(page)).rejects.toThrow();
+
+  await resetPositive();
+  await page.locator('.eq-stage__body').evaluate((parent) => parent.setAttribute('tabindex', '0'));
+  await assertTableFixtureOnlyFailure(page, 'focus');
+
+  await resetPositive();
+  await page.locator('.eq-stage__body').evaluate((parent) => parent.setAttribute('role', 'group'));
+  await assertTableFixtureOnlyFailure(page, 'role');
+
+  await resetPositive();
+  await page.locator('.eq-stage__body').evaluate((parent) => {
+    parent.addEventListener('keydown', () => undefined);
+  });
+  await assertTableFixtureOnlyFailure(page, 'handler');
+
+  const d4Css = `${exactTableCss}\n.eq-stage{width:300px;max-width:100%;overflow:visible}`;
+  await page.setContent(
+    tableFixture(
+      d4Css,
+      '',
+      'style="width:300px"',
+      'style="width:120px;overflow-x:visible"',
+    ),
+  );
+  assertExactTableSelectorScope(d4Css);
+  await assertTableFixtureGreen(page);
+  const d4Before = await page.locator('.eq-stage__body').evaluate((parent) => {
+    const table = parent.querySelector('table');
+    if (!(table instanceof HTMLTableElement)) throw new Error('missing D-4 table');
+    return {
+      parentClient: parent.clientWidth,
+      parentScroll: parent.scrollWidth,
+      overflowX: getComputedStyle(parent).overflowX,
+      tableClient: table.clientWidth,
+      tableScroll: table.scrollWidth,
+      documentClient: document.documentElement.clientWidth,
+      documentScroll: document.documentElement.scrollWidth,
+      bodyScroll: document.body.scrollWidth,
+    };
+  });
+  expect(d4Before).toMatchObject({
+    parentClient: 120,
+    parentScroll: 300,
+    overflowX: 'visible',
+    tableClient: 300,
+    tableScroll: 300,
+  });
+  expect(d4Before.documentScroll).toBeLessThanOrEqual(d4Before.documentClient + 1);
+  expect(d4Before.bodyScroll).toBeLessThanOrEqual(d4Before.documentClient + 1);
+  await page.locator('.eq-stage__body').evaluate((parent) => {
+    (parent as HTMLElement).style.overflowX = 'auto';
+  });
+  const d4After = await page.locator('.eq-stage__body').evaluate((parent) => {
+    const table = parent.querySelector('table');
+    if (!(table instanceof HTMLTableElement)) throw new Error('missing D-4 table');
+    return {
+      parentClient: parent.clientWidth,
+      parentScroll: parent.scrollWidth,
+      overflowX: getComputedStyle(parent).overflowX,
+      tableClient: table.clientWidth,
+      tableScroll: table.scrollWidth,
+    };
+  });
+  expect(d4After).toEqual({
+    parentClient: d4Before.parentClient,
+    parentScroll: d4Before.parentScroll,
+    overflowX: 'auto',
+    tableClient: d4Before.tableClient,
+    tableScroll: d4Before.tableScroll,
+  });
+  await assertTableFixtureOnlyFailure(page, 'parentLocalOverflow');
+
+  for (const [property, value, failure] of [
+    ['opacity', '0', 'concealment'],
+    ['user-select', 'none', 'selection'],
+    ['clip-path', 'inset(100%)', 'concealment'],
+  ] as const) {
+    await resetPositive();
+    await page.locator('.nested-text').first().evaluate(
+      (descendant, mutation) => {
+        (descendant as HTMLElement).style.setProperty(mutation.property, mutation.value);
+      },
+      { property, value },
+    );
+    await assertTableFixtureOnlyFailure(page, failure);
+  }
 
   await resetPositive();
   await page.setContent(
@@ -387,8 +530,8 @@ test('04 exact two-shape table scope and concealment/focus/vacuity mutants are c
   await resetPositive();
   await page.setContent(
     tableFixture().replace(
-      `<code class="wide">${tableCellText}</code>`,
-      `<code class="wide"><span hidden>concealed</span>${tableCellText}</code>`,
+      `<span class="nested-text">${tableCellText}</span>`,
+      `<span hidden>concealed</span><span class="nested-text">${tableCellText}</span>`,
     ),
   );
   await expect(assertTableFixtureGreen(page)).rejects.toThrow();
@@ -435,4 +578,36 @@ test('04 exact two-shape table scope and concealment/focus/vacuity mutants are c
   );
   await expect(assertTableFixtureGreen(page)).rejects.toThrow();
   await context.close();
+});
+
+test('05 stable route-partition order, duplicate, and missing mutants are causal', () => {
+  {
+    const ordinary = createOrdinaryRoutePlan();
+    expect(assertOrdinaryRoutePlan(ordinary)).toEqual([...SITE_ROUTES]);
+    const reorderedB = [...ordinary.B];
+    const root = reorderedB.indexOf('/');
+    const api = reorderedB.indexOf('/api/');
+    expect({ root, api }).toEqual({ root: 0, api: 1 });
+    [reorderedB[root], reorderedB[api]] = [reorderedB[api], reorderedB[root]];
+    const mutant = { A: [...ordinary.A], B: reorderedB, C: [...ordinary.C] };
+    expect(() => assertOrdinaryRoutePlan(mutant)).toThrow('ORDER-REORDER B');
+  }
+
+  {
+    const ordinary = createOrdinaryRoutePlan();
+    expect(assertOrdinaryRoutePlan(ordinary)).toHaveLength(34);
+    const mutant = {
+      A: [...ordinary.A, '/evidence/'],
+      B: [...ordinary.B],
+      C: [...ordinary.C],
+    };
+    expect(() => assertOrdinaryRoutePlan(mutant)).toThrow('ORDER-DUPLICATE: /evidence/');
+  }
+
+  {
+    const ordinary = createOrdinaryRoutePlan();
+    expect(assertOrdinaryRoutePlan(ordinary)).toHaveLength(34);
+    const mutant = { A: ordinary.A.slice(1), B: [...ordinary.B], C: [...ordinary.C] };
+    expect(() => assertOrdinaryRoutePlan(mutant)).toThrow('ORDER-MISSING: /evidence/');
+  }
 });

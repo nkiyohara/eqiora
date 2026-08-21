@@ -9,7 +9,10 @@ import {
   assertNoFakeExecutionControls,
   assertNoPageOverflow,
   assertNoSeriousAxeViolations,
+  assertOrdinaryRoutePage,
+  assertOrdinaryRoutePlan,
   assertParentCylinderRed,
+  assertParentForcedTableBoundary,
   assertProductTableRouteGreen,
   assertReducedMotion,
   assertSemanticStages,
@@ -18,7 +21,9 @@ import {
   assertVisibleSourceFallback,
   attachGrossScreenshot,
   BASE_URL,
+  createOrdinaryRoutePlan,
   DIAGNOSTIC_ROUTE,
+  installTableObserver,
   launchOfficialBrowser,
   layoutCssState,
   PARENT_LAYOUT_SHA256,
@@ -57,14 +62,37 @@ async function assertCylinderContent(page: Page): Promise<void> {
 }
 
 async function assertDiagnosticIdentity(page: Page): Promise<void> {
-  await page.goto(DIAGNOSTIC_ROUTE);
   await expect(page).toHaveTitle('Diagnostic in eqiora - Rust');
   await expect(page.locator('body')).toHaveClass(/\brustdoc\b.*\bstruct\b/);
   await expect(page.locator('main')).toHaveCount(1);
   await expect(page.locator('main h1')).toContainText('Struct Diagnostic');
   await expect(page.locator('main h1')).toContainText('Copy item path');
-  await assertNoPageOverflow(page);
   await assertNoSeriousAxeViolations(page);
+}
+
+async function runOrdinaryChunk(id: 'A' | 'B' | 'C'): Promise<void> {
+  const plan = createOrdinaryRoutePlan();
+  expect(assertOrdinaryRoutePlan(plan)).toEqual([...SITE_ROUTES]);
+  expect(ROUTES).toHaveLength(35);
+  const context = await browser.newContext({
+    baseURL: BASE_URL,
+    locale: 'en-GB',
+    serviceWorkers: 'block',
+  });
+  const page = await context.newPage();
+  const external = await rejectExternalRequests(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  for (const route of plan[id]) {
+    const response = await page.goto(route);
+    expect(response?.ok(), route).toBe(true);
+    await assertOrdinaryRoutePage(page, route);
+    if (route !== '/gallery/exact-cylinder-steady-stokes/') {
+      await assertNoSeriousAxeViolations(page);
+    }
+  }
+  expect(external).toEqual([]);
+  await context.close();
+  expect(context.pages()).toEqual([]);
 }
 
 test.describe.configure({ mode: 'serial' });
@@ -79,32 +107,33 @@ test.afterAll(async () => {
   await browser?.close();
 });
 
-test('00 exact 34-page supply and unfiltered real Rustdoc route pass before the table boundary', async () => {
+for (const id of ['A', 'B', 'C'] as const) {
+  test(`00${id} exact deterministic ordinary site chunk is complete and green`, async () => {
+    test.setTimeout(300_000);
+    await runOrdinaryChunk(id);
+  });
+}
+
+test('00D exact real Rustdoc Diagnostic ordinary chunk is complete and green', async () => {
   test.setTimeout(300_000);
-  expect(SITE_ROUTES).toHaveLength(34);
-  expect(new Set(SITE_ROUTES).size).toBe(34);
+  const plan = createOrdinaryRoutePlan();
+  expect(assertOrdinaryRoutePlan(plan)).toEqual([...SITE_ROUTES]);
   expect(ROUTES).toHaveLength(35);
   const context = await browser.newContext({
     baseURL: BASE_URL,
     locale: 'en-GB',
     serviceWorkers: 'block',
   });
-  const external = await rejectExternalRequests(await context.newPage());
-  const page = context.pages()[0];
+  const page = await context.newPage();
+  const external = await rejectExternalRequests(page);
   await page.setViewportSize({ width: 1280, height: 900 });
-  for (const route of SITE_ROUTES) {
-    const response = await page.goto(route);
-    expect(response?.ok(), route).toBe(true);
-    expect(new URL(page.url()).pathname).toBe(route);
-    await assertCoreVisible(page);
-    await assertNoPageOverflow(page);
-    if (route !== '/gallery/exact-cylinder-steady-stokes/') {
-      await assertNoSeriousAxeViolations(page);
-    }
-  }
+  const response = await page.goto(DIAGNOSTIC_ROUTE);
+  expect(response?.ok()).toBe(true);
+  await assertOrdinaryRoutePage(page, DIAGNOSTIC_ROUTE);
   await assertDiagnosticIdentity(page);
   expect(external).toEqual([]);
   await context.close();
+  expect(context.pages()).toEqual([]);
 });
 
 test('01 honest 320px O-1 through O-4 composition and retained interaction controls pass', async ({}, testInfo) => {
@@ -164,6 +193,7 @@ test('02 exact table inventory reaches the truthful parent RED or complete produ
     serviceWorkers: 'block',
   });
   const page = await context.newPage();
+  await installTableObserver(page);
   const external = await rejectExternalRequests(page);
   await page.setViewportSize({ width: 1280, height: 900 });
 
@@ -193,6 +223,11 @@ test('02 exact table inventory reaches the truthful parent RED or complete produ
         await page.setViewportSize({ width, height: 900 });
         await assertParentCylinderRed(page);
       }
+    }
+    await page.emulateMedia({ forcedColors: 'active' });
+    await page.setViewportSize({ width: 320, height: 900 });
+    for (const expected of TABLE_ROUTES) {
+      await assertParentForcedTableBoundary(page, expected);
     }
   } else {
     assertExactTableSelectorScope(state.css);

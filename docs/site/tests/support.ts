@@ -3,11 +3,13 @@ import {
   chromium,
   expect,
   type Browser,
+  type CDPSession,
   type Locator,
   type Page,
   type TestInfo,
 } from '@playwright/test';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { lstat, readFile, realpath } from 'node:fs/promises';
@@ -81,7 +83,86 @@ export const TABLE_ROUTES = [
   { route: '/reference/rust/', tables: 3, direct: 3, component: 0 },
 ] as const;
 
+export const PARENT_FORCED_TABLE_RESULTS = {
+  '/capabilities/': null,
+  '/evidence/': null,
+  '/gallery/exact-cylinder-steady-stokes/': 'table',
+  '/reference/control-v2/': 'table',
+  '/reference/python/': 'table:nth-child(4)',
+  '/reference/rust/': 'table:nth-child(5)',
+} as const;
+
 export type TableRoute = (typeof TABLE_ROUTES)[number];
+export type OrdinaryRoutePlan = Readonly<{
+  A: readonly string[];
+  B: readonly string[];
+  C: readonly string[];
+}>;
+
+const REFERENCE_START = SITE_ROUTES.indexOf('/reference/');
+
+export function createOrdinaryRoutePlan(): OrdinaryRoutePlan {
+  const plan = {
+    A: SITE_ROUTES.filter((route) => route === '/evidence/'),
+    B: SITE_ROUTES.slice(0, REFERENCE_START).filter((route) => route !== '/evidence/'),
+    C: SITE_ROUTES.slice(REFERENCE_START),
+  };
+  return Object.freeze({
+    A: Object.freeze(plan.A),
+    B: Object.freeze(plan.B),
+    C: Object.freeze(plan.C),
+  });
+}
+
+export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly string[] {
+  if (REFERENCE_START < 1) throw new Error('route authority missing /reference/');
+  if (SITE_ROUTES.length !== 34 || new Set(SITE_ROUTES).size !== 34) {
+    throw new Error('route authority is not 34 unique entries');
+  }
+  const entries = (['A', 'B', 'C'] as const).flatMap((chunk) =>
+    plan[chunk].map((route) => ({ chunk, route })),
+  );
+  const authority = new Set<string>(SITE_ROUTES);
+  const unknown = entries.find(({ route }) => !authority.has(route));
+  if (unknown) throw new Error(`ORDER-UNKNOWN ${unknown.chunk}: ${unknown.route}`);
+
+  const seen = new Set<string>();
+  for (const { route } of entries) {
+    if (seen.has(route)) throw new Error(`ORDER-DUPLICATE: ${route}`);
+    seen.add(route);
+  }
+  const missing = SITE_ROUTES.find((route) => !seen.has(route));
+  if (missing) throw new Error(`ORDER-MISSING: ${missing}`);
+
+  const expected = createOrdinaryRoutePlan();
+  const cardinalities = { A: 1, B: 14, C: 19 } as const;
+  for (const chunk of ['A', 'B', 'C'] as const) {
+    if (plan[chunk].length !== cardinalities[chunk]) {
+      throw new Error(`ORDER-CARDINALITY ${chunk}: ${plan[chunk].length}`);
+    }
+    const expectedMembers = new Set(expected[chunk]);
+    const wrongMember = plan[chunk].find((route) => !expectedMembers.has(route));
+    if (wrongMember) throw new Error(`ORDER-MEMBERSHIP ${chunk}: ${wrongMember}`);
+    if (plan[chunk].some((route, index) => route !== expected[chunk][index])) {
+      throw new Error(`ORDER-REORDER ${chunk}`);
+    }
+  }
+  if (entries.length !== 34 || seen.size !== 34) {
+    throw new Error('ORDER-UNION is not exactly 34 entries');
+  }
+
+  const byRoute = new Map(entries.map((entry) => [entry.route, entry]));
+  if (byRoute.size !== 34) throw new Error('ORDER-CANONICAL duplicate identity');
+  const canonical = SITE_ROUTES.map((route) => {
+    const entry = byRoute.get(route);
+    if (!entry) throw new Error(`ORDER-CANONICAL missing: ${route}`);
+    return entry.route;
+  });
+  if (canonical.some((route, index) => route !== SITE_ROUTES[index])) {
+    throw new Error('ORDER-CANONICAL authority mismatch');
+  }
+  return Object.freeze(canonical);
+}
 
 const CHROME_VERSION = '151.0.7922.34';
 const CHROME_BYTES = 290_614_600;
@@ -89,6 +170,7 @@ const CHROME_SHA256 = '0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cf
 const BROWSERS_JSON_SHA256 = 'f306eed529599b1eaf2f8a85db9de2b23e1a3fe36c2b66434b7c9434fb627a99';
 export const PARENT_LAYOUT_SHA256 =
   '9a6aa92fe82bdc7ed7d70a3891c369d10bd73ae0cf2f11d087dd721d02befe0a';
+const PARENT_LAYOUT_COMMIT = '4fc67a9fc94aeedd44a4ace31d406ac949c81f12';
 
 export async function launchOfficialBrowser(headless = true): Promise<Browser> {
   const browserRoot = process.env.PLAYWRIGHT_BROWSERS_PATH;
@@ -142,6 +224,57 @@ export async function rejectExternalRequests(page: Page): Promise<string[]> {
     await route.abort('blockedbyclient');
   });
   return attempts;
+}
+
+export async function assertOrdinaryRoutePage(page: Page, route: string): Promise<void> {
+  const observation = await page.evaluate((expectedRoute) => {
+    const main = document.querySelector('main');
+    const heading = main?.querySelector('h1');
+    if (!(main instanceof HTMLElement) || !(heading instanceof HTMLElement)) {
+      throw new Error(`missing ordinary core at ${expectedRoute}`);
+    }
+    const mainStyle = getComputedStyle(main);
+    const headingStyle = getComputedStyle(heading);
+    const mainBox = main.getBoundingClientRect();
+    const headingBox = heading.getBoundingClientRect();
+    return {
+      pathname: location.pathname,
+      mainTextLength: main.innerText.trim().length,
+      mainVisible:
+        mainStyle.display !== 'none' &&
+        mainStyle.visibility === 'visible' &&
+        Number.parseFloat(mainStyle.opacity) > 0 &&
+        mainBox.width > 0 &&
+        mainBox.height > 0,
+      headingVisible:
+        headingStyle.display !== 'none' &&
+        headingStyle.visibility === 'visible' &&
+        Number.parseFloat(headingStyle.opacity) > 0 &&
+        headingBox.width > 0 &&
+        headingBox.height > 0,
+      documentClient: document.documentElement.clientWidth,
+      documentScroll: document.documentElement.scrollWidth,
+      bodyScroll: document.body.scrollWidth,
+    };
+  }, route);
+  expect(observation.pathname).toBe(route);
+  expect(observation.mainTextLength).toBeGreaterThan(20);
+  expect(observation.mainVisible).toBe(true);
+  expect(observation.headingVisible).toBe(true);
+  expect(observation.documentClient).toBeGreaterThan(0);
+  expect(observation.documentScroll).toBeLessThanOrEqual(observation.documentClient + 1);
+  expect(observation.bodyScroll).toBeLessThanOrEqual(observation.documentClient + 1);
+}
+
+const tableObserverSessions = new WeakMap<Page, CDPSession>();
+
+export async function installTableObserver(page: Page): Promise<void> {
+  expect(page.url()).toBe('about:blank');
+  await expect(page.locator('main, table')).toHaveCount(0);
+  expect(tableObserverSessions.has(page)).toBe(false);
+  const session = await page.context().newCDPSession(page);
+  await session.send('Runtime.enable');
+  tableObserverSessions.set(page, session);
 }
 
 export async function assertCoreVisible(page: Page): Promise<void> {
@@ -380,6 +513,7 @@ type TableObservation = {
     rows: number;
     headers: number;
     cells: number;
+    links: number;
     text: number;
     selection: number;
     size: number;
@@ -387,6 +521,7 @@ type TableObservation = {
     overlap: number;
     concealment: number;
     localOverflow: number;
+    parentLocalOverflow: number;
   };
   tables: Array<{
     client: number;
@@ -402,9 +537,26 @@ type TableObservation = {
 };
 
 async function observeTables(page: Page): Promise<TableObservation> {
-  return page.evaluate((selectors) => {
+  const session = tableObserverSessions.get(page);
+  if (!session) throw new Error('table observer was not installed before fixture or navigation');
+  const observation = await page.evaluate((selectors) => {
     const normalize = (value: string) => value.trim().split(/\s+/u).filter(Boolean).join(' ');
     const tables = Array.from(document.querySelectorAll<HTMLTableElement>('main table'));
+    const fullyClipped = (style: CSSStyleDeclaration) =>
+      /^rect\(0(?:px)?, 0(?:px)?, 0(?:px)?, 0(?:px)?\)$/u.test(style.clip) ||
+      /^inset\((?:100|[5-9]\d)(?:%|px)(?:\s+(?:100|[5-9]\d)(?:%|px)){0,3}\)$/u.test(
+        style.clipPath,
+      );
+    const relevantChain = (table: HTMLTableElement) => {
+      const chain: Element[] = [table];
+      let ancestor = table.parentElement;
+      while (ancestor) {
+        chain.push(ancestor);
+        if (ancestor.matches('.sl-markdown-content')) break;
+        ancestor = ancestor.parentElement;
+      }
+      return chain;
+    };
     const failures = {
       tag: 0,
       relation: 0,
@@ -415,6 +567,7 @@ async function observeTables(page: Page): Promise<TableObservation> {
       rows: 0,
       headers: 0,
       cells: 0,
+      links: 0,
       text: 0,
       selection: 0,
       size: 0,
@@ -422,6 +575,7 @@ async function observeTables(page: Page): Promise<TableObservation> {
       overlap: 0,
       concealment: 0,
       localOverflow: 0,
+      parentLocalOverflow: 0,
     };
     const observations = tables.map((table) => {
       const style = getComputedStyle(table);
@@ -429,44 +583,119 @@ async function observeTables(page: Page): Promise<TableObservation> {
       const direct = table.matches(selectors.direct);
       const component = table.matches(selectors.component);
       const generic = table.matches(selectors.generic);
+      const chain = relevantChain(table);
+      const parents = chain.slice(1);
       const structural = [
         table,
         ...table.querySelectorAll('table, thead, tbody, tfoot, tr, th, td'),
       ];
       const cells = Array.from(table.querySelectorAll<HTMLTableCellElement>('th, td'));
+      const guarded = [...new Set([...structural, ...parents])];
       failures.tag += table.tagName === 'TABLE' ? 0 : 1;
       failures.relation += generic && direct !== component ? 0 : 1;
       failures.wrapper +=
         table.parentElement?.matches('.sl-markdown-content, .eq-stage__body') === true ? 0 : 1;
-      failures.role += structural.some((node) => node.hasAttribute('role')) ? 1 : 0;
-      failures.focus += table.hasAttribute('tabindex') || table.querySelector('[tabindex]') ? 1 : 0;
-      failures.handler += structural.some((node) =>
-        ['onkeydown', 'onkeypress', 'onkeyup'].some((name) => node.hasAttribute(name)),
-      )
-        ? 1
-        : 0;
+      failures.role += guarded.some((node) => node.hasAttribute('role')) ? 1 : 0;
+      failures.focus +=
+        chain.some(
+          (node) =>
+            node.hasAttribute('tabindex') ||
+            (node instanceof HTMLElement && node.tabIndex >= 0) ||
+            (node.getAttribute('contenteditable') ?? '').toLowerCase() === 'true',
+        ) || table.querySelector('[tabindex], [contenteditable="true" i]')
+          ? 1
+          : 0;
+      failures.handler += guarded.some((node) =>
+        ['keydown', 'keypress', 'keyup'].some(
+          (event) =>
+            node.hasAttribute(`on${event}`) ||
+            typeof (node as unknown as Record<string, unknown>)[`on${event}`] === 'function',
+        ),
+      ) ? 1 : 0;
       failures.rows += table.rows.length > 0 && Array.from(table.rows).every((row) => row.cells.length > 0)
         ? 0
         : 1;
       failures.headers += table.querySelectorAll('th').length > 0 ? 0 : 1;
       failures.cells += cells.length > 0 ? 0 : 1;
-      failures.text += cells.every((cell) => {
-        const visible = normalize(cell.innerText);
-        return visible.length > 0 && visible === normalize(cell.textContent ?? '');
-      })
+      const links = Array.from(table.querySelectorAll<HTMLAnchorElement>('a'));
+      failures.links += links.every(
+        (link) =>
+          normalize(link.innerText).length > 0 &&
+          Boolean(link.getAttribute('href')?.trim()) &&
+          !['#', 'javascript:void(0)'].includes(link.getAttribute('href')!.trim().toLowerCase()),
+      ) ? 0 : 1;
+      const textNodes = cells.flatMap((cell) => {
+        const nodes: Text[] = [];
+        const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+        while (walker.nextNode()) {
+          const node = walker.currentNode as Text;
+          if (normalize(node.data).length > 0) nodes.push(node);
+        }
+        return nodes;
+      });
+      const textFacts = textNodes.map((node) => {
+        const owner = node.parentElement;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const boxes = Array.from(range.getClientRects());
+        const ancestors: Element[] = [];
+        let current: Element | null = owner;
+        while (current) {
+          ancestors.push(current);
+          if (current === table) break;
+          current = current.parentElement;
+        }
+        const styles = ancestors.map((element) => ({
+          element,
+          style: getComputedStyle(element),
+        }));
+        return {
+          bounded:
+            owner !== null &&
+            boxes.length > 0 &&
+            boxes.every((textBox) => textBox.width > 0 && textBox.height > 0) &&
+            Number.parseFloat(getComputedStyle(owner).fontSize) >= 12,
+          selectable: styles.every(({ style: textStyle }) => textStyle.userSelect !== 'none'),
+          visible: styles.every(({ element, style: textStyle }) => {
+            const horizontalTruncation =
+              element instanceof HTMLElement &&
+              /hidden|clip/u.test(textStyle.overflowX) &&
+              element.scrollWidth > element.clientWidth + 1;
+            const verticalTruncation =
+              element instanceof HTMLElement &&
+              /hidden|clip/u.test(textStyle.overflowY) &&
+              element.scrollHeight > element.clientHeight + 1;
+            return (
+              textStyle.display !== 'none' &&
+              !/hidden|collapse/u.test(textStyle.visibility) &&
+              Number.parseFloat(textStyle.opacity) > 0 &&
+              !fullyClipped(textStyle) &&
+              !horizontalTruncation &&
+              !verticalTruncation &&
+              !(textStyle.textOverflow === 'ellipsis' && horizontalTruncation)
+            );
+          }),
+        };
+      });
+      failures.text +=
+        textNodes.length > 0 &&
+        cells.every(
+          (cell) =>
+            normalize(cell.innerText).length > 0 &&
+            normalize(cell.textContent ?? '').length > 0,
+        )
         ? 0
         : 1;
       failures.selection +=
-        style.userSelect !== 'none' && cells.every((cell) => getComputedStyle(cell).userSelect !== 'none')
-          ? 0
-          : 1;
+        textFacts.length > 0 && textFacts.every(({ selectable }) => selectable) ? 0 : 1;
       failures.size +=
         box.width > 0 &&
         box.height > 0 &&
         cells.every((cell) => {
           const cellBox = cell.getBoundingClientRect();
           return cellBox.width > 0 && cellBox.height > 0 && Number.parseFloat(getComputedStyle(cell).fontSize) >= 12;
-        })
+        }) &&
+        textFacts.every(({ bounded }) => bounded)
           ? 0
           : 1;
       failures.bounds += box.left >= -1 && box.right <= document.documentElement.clientWidth + 1 ? 0 : 1;
@@ -481,24 +710,31 @@ async function observeTables(page: Page): Promise<TableObservation> {
         : 0;
       failures.concealment +=
         style.visibility === 'visible' &&
-        style.opacity === '1' &&
-        style.clip === 'auto' &&
-        style.clipPath === 'none' &&
+        Number.parseFloat(style.opacity) > 0 &&
+        !fullyClipped(style) &&
         !/hidden|clip/.test(style.overflowX) &&
         cells.every((cell) => {
           const cellStyle = getComputedStyle(cell);
           return (
             cellStyle.visibility === 'visible' &&
-            cellStyle.opacity === '1' &&
-            cellStyle.clip === 'auto' &&
-            cellStyle.clipPath === 'none' &&
+            Number.parseFloat(cellStyle.opacity) > 0 &&
+            !fullyClipped(cellStyle) &&
             !/hidden|clip/.test(cellStyle.overflowX) &&
             cellStyle.textOverflow !== 'ellipsis'
           );
-        })
+        }) &&
+        textFacts.every(({ visible }) => visible)
           ? 0
           : 1;
       failures.localOverflow += table.scrollWidth > table.clientWidth + 1 ? 1 : 0;
+      failures.parentLocalOverflow += parents.some((parent) => {
+        const parentStyle = getComputedStyle(parent);
+        return (
+          /auto|scroll/u.test(parentStyle.overflowX) &&
+          parent instanceof HTMLElement &&
+          parent.scrollWidth > parent.clientWidth + 1
+        );
+      }) ? 1 : 0;
       return {
         client: table.clientWidth,
         scroll: table.scrollWidth,
@@ -529,6 +765,33 @@ async function observeTables(page: Page): Promise<TableObservation> {
       tables: observations,
     };
   }, TABLE_SELECTORS);
+  const registered = await session.send('Runtime.evaluate', {
+    expression: `(() => {
+      const unique = new Set();
+      for (const table of document.querySelectorAll('main table')) {
+        unique.add(table);
+        let ancestor = table.parentElement;
+        while (ancestor) {
+          unique.add(ancestor);
+          if (ancestor.matches('.sl-markdown-content')) break;
+          ancestor = ancestor.parentElement;
+        }
+      }
+      let count = 0;
+      for (const node of unique) {
+        const listeners = getEventListeners(node);
+        for (const type of ['keydown', 'keyup', 'keypress']) count += (listeners[type] || []).length;
+      }
+      return count;
+    })()`,
+    includeCommandLineAPI: true,
+    returnByValue: true,
+  });
+  if (registered.exceptionDetails || typeof registered.result.value !== 'number') {
+    throw new Error('registered keyboard-handler observation failed closed');
+  }
+  observation.failures.handler += registered.result.value > 0 ? 1 : 0;
+  return observation;
 }
 
 export async function assertTableInventory(page: Page, expected: TableRoute): Promise<TableObservation> {
@@ -562,12 +825,14 @@ function assertTableContentAndSemantics(observation: TableObservation): void {
     rows: 0,
     headers: 0,
     cells: 0,
+    links: 0,
     text: 0,
     selection: 0,
     size: 0,
     bounds: 0,
     overlap: 0,
     concealment: 0,
+    parentLocalOverflow: 0,
   });
 }
 
@@ -606,6 +871,26 @@ export async function assertProductTableRouteGreen(page: Page, expected: TableRo
   expect(await seriousAxeViolations(page)).toEqual([]);
 }
 
+export async function assertParentForcedTableBoundary(
+  page: Page,
+  expected: TableRoute,
+): Promise<void> {
+  await page.goto(expected.route);
+  await assertOrdinaryRoutePage(page, expected.route);
+  await expect(page.locator('main table')).toHaveCount(expected.tables);
+  const target = PARENT_FORCED_TABLE_RESULTS[expected.route];
+  const violations = await seriousAxeViolations(page);
+  if (target === null) {
+    expect(violations).toEqual([]);
+    return;
+  }
+  expect(violations).toHaveLength(1);
+  expect(violations[0].id).toBe('scrollable-region-focusable');
+  expect(violations[0].impact).toBe('serious');
+  expect(violations[0].nodes).toHaveLength(1);
+  expect(violations[0].nodes[0].target).toEqual([target]);
+}
+
 export async function assertTableFixtureGreen(page: Page): Promise<void> {
   const observation = await observeTables(page);
   expect(observation.counts).toEqual({ main: 2, all: 2, generic: 2, direct: 1, component: 1 });
@@ -614,12 +899,326 @@ export async function assertTableFixtureGreen(page: Page): Promise<void> {
   expect(await seriousAxeViolations(page)).toEqual([]);
 }
 
-export function assertExactTableSelectorScope(css: string): void {
-  const normalized = css.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/\s+/gu, ' ').trim();
-  expect(normalized).toMatch(
-    /\.sl-markdown-content\s*>\s*table\s*,\s*\.sl-markdown-content\s+\.eq-stage__body\s*>\s*table\s*\{/u,
+const ZERO_TABLE_FAILURES: TableObservation['failures'] = {
+  tag: 0,
+  relation: 0,
+  wrapper: 0,
+  role: 0,
+  focus: 0,
+  handler: 0,
+  rows: 0,
+  headers: 0,
+  cells: 0,
+  links: 0,
+  text: 0,
+  selection: 0,
+  size: 0,
+  bounds: 0,
+  overlap: 0,
+  concealment: 0,
+  localOverflow: 0,
+  parentLocalOverflow: 0,
+};
+
+export async function assertTableFixtureOnlyFailure(
+  page: Page,
+  failure: keyof TableObservation['failures'],
+): Promise<void> {
+  const observation = await observeTables(page);
+  expect(observation.counts).toEqual({ main: 2, all: 2, generic: 2, direct: 1, component: 1 });
+  expect(observation.failures).toEqual({ ...ZERO_TABLE_FAILURES, [failure]: 1 });
+  expect(await seriousAxeViolations(page)).toEqual([]);
+}
+
+type CssRule = { selectors: string[]; declarations: ReadonlyMap<string, string> };
+
+function stripCssComments(css: string): string {
+  let result = '';
+  let quote = '';
+  for (let offset = 0; offset < css.length; offset += 1) {
+    const character = css[offset];
+    if (quote) {
+      result += character;
+      if (character === '\\') {
+        offset += 1;
+        result += css[offset] ?? '';
+      } else if (character === quote) quote = '';
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      result += character;
+      continue;
+    }
+    if (character === '/' && css[offset + 1] === '*') {
+      const end = css.indexOf('*/', offset + 2);
+      if (end < 0) throw new Error('unsupported unterminated CSS comment');
+      result += ' ';
+      offset = end + 1;
+      continue;
+    }
+    result += character;
+  }
+  if (quote) throw new Error('unsupported unterminated CSS string');
+  return result;
+}
+
+function splitCssTopLevel(value: string, delimiter: string): string[] {
+  const parts: string[] = [];
+  let start = 0;
+  let parentheses = 0;
+  let brackets = 0;
+  let quote = '';
+  for (let offset = 0; offset < value.length; offset += 1) {
+    const character = value[offset];
+    if (quote) {
+      if (character === '\\') offset += 1;
+      else if (character === quote) quote = '';
+      continue;
+    }
+    if (character === '"' || character === "'") quote = character;
+    else if (character === '\\') offset += 1;
+    else if (character === '(') parentheses += 1;
+    else if (character === ')') parentheses -= 1;
+    else if (character === '[') brackets += 1;
+    else if (character === ']') brackets -= 1;
+    else if (character === delimiter && parentheses === 0 && brackets === 0) {
+      parts.push(value.slice(start, offset).trim());
+      start = offset + 1;
+    }
+    if (parentheses < 0 || brackets < 0) throw new Error('unsupported unbalanced CSS grammar');
+  }
+  if (quote || parentheses !== 0 || brackets !== 0) {
+    throw new Error('unsupported unbalanced CSS grammar');
+  }
+  parts.push(value.slice(start).trim());
+  if (parts.some((part) => part.length === 0)) throw new Error('empty CSS list branch');
+  return parts;
+}
+
+function matchingCssBrace(css: string, opening: number): number {
+  let depth = 1;
+  let quote = '';
+  for (let offset = opening + 1; offset < css.length; offset += 1) {
+    const character = css[offset];
+    if (quote) {
+      if (character === '\\') offset += 1;
+      else if (character === quote) quote = '';
+      continue;
+    }
+    if (character === '"' || character === "'") quote = character;
+    else if (character === '\\') offset += 1;
+    else if (character === '{') depth += 1;
+    else if (character === '}' && --depth === 0) return offset;
+  }
+  throw new Error('unsupported unbalanced CSS block');
+}
+
+function parseCssDeclarations(block: string): ReadonlyMap<string, string> {
+  if (block.includes('{') || block.includes('}')) throw new Error('unsupported nested qualified rule');
+  const declarations = new Map<string, string>();
+  const source = block.trim().replace(/;\s*$/u, '');
+  for (const declaration of splitCssTopLevel(source, ';')) {
+    const colon = declaration.indexOf(':');
+    if (colon < 1) throw new Error(`unsupported CSS declaration: ${declaration}`);
+    const property = declaration.slice(0, colon).trim().toLowerCase();
+    const value = declaration.slice(colon + 1).trim().replace(/\s+/gu, ' ');
+    if (!/^-{0,2}[a-z][\w-]*$/u.test(property) || !value || declarations.has(property)) {
+      throw new Error(`unsupported CSS declaration: ${declaration}`);
+    }
+    declarations.set(property, value);
+  }
+  if (declarations.size === 0) throw new Error('empty CSS declaration block');
+  return declarations;
+}
+
+function parseCssRules(input: string): CssRule[] {
+  const css = stripCssComments(input);
+  const rules: CssRule[] = [];
+  const parseList = (source: string) => {
+    let offset = 0;
+    while (offset < source.length) {
+      while (/\s/u.test(source[offset] ?? '')) offset += 1;
+      if (offset >= source.length) break;
+      let opening = -1;
+      let parentheses = 0;
+      let brackets = 0;
+      let quote = '';
+      for (let cursor = offset; cursor < source.length; cursor += 1) {
+        const character = source[cursor];
+        if (quote) {
+          if (character === '\\') cursor += 1;
+          else if (character === quote) quote = '';
+          continue;
+        }
+        if (character === '"' || character === "'") quote = character;
+        else if (character === '\\') cursor += 1;
+        else if (character === '(') parentheses += 1;
+        else if (character === ')') parentheses -= 1;
+        else if (character === '[') brackets += 1;
+        else if (character === ']') brackets -= 1;
+        else if (character === ';' && parentheses === 0 && brackets === 0) {
+          throw new Error('unsupported statement at-rule or stray declaration');
+        } else if (character === '{' && parentheses === 0 && brackets === 0) {
+          opening = cursor;
+          break;
+        }
+      }
+      if (opening < 0) throw new Error('unsupported trailing CSS syntax');
+      const prelude = source.slice(offset, opening).trim();
+      const closing = matchingCssBrace(source, opening);
+      const block = source.slice(opening + 1, closing);
+      if (!prelude) throw new Error('empty CSS rule prelude');
+      if (prelude.startsWith('@')) {
+        if (!/^@(media|supports|layer|container)\b/iu.test(prelude)) {
+          throw new Error(`unsupported CSS rule-list authority: ${prelude}`);
+        }
+        parseList(block);
+      } else {
+        rules.push({
+          selectors: splitCssTopLevel(prelude, ',').map((selector) =>
+            selector.replace(/\s+/gu, ' ').replace(/\s*([>+~])\s*/gu, ' $1 ').trim(),
+          ),
+          declarations: parseCssDeclarations(block),
+        });
+      }
+      offset = closing + 1;
+    }
+  };
+  parseList(css);
+  if (rules.length === 0) throw new Error('empty CSS rule authority');
+  return rules;
+}
+
+function cssRuleSignature(rule: CssRule): string {
+  return `${rule.selectors.join(',')}|${[...rule.declarations].map(([key, value]) => `${key}:${value}`).join(';')}`;
+}
+
+function decodeCssEscapes(selector: string): string {
+  return selector.replace(
+    /\\(?:([0-9a-f]{1,6})\s?|([\s\S]))/giu,
+    (_escape, hexadecimal: string | undefined, escaped: string | undefined) =>
+      hexadecimal ? String.fromCodePoint(Number.parseInt(hexadecimal, 16)) : (escaped ?? ''),
   );
-  expect(normalized).not.toMatch(/\.sl-markdown-content\s+table\s*\{/u);
+}
+
+function selectorTargetsTable(selector: string): boolean {
+  let parentheses = 0;
+  let brackets = 0;
+  let quote = '';
+  for (let offset = 0; offset < selector.length; offset += 1) {
+    const character = selector[offset];
+    if (quote) {
+      if (character === '\\') offset += 1;
+      else if (character === quote) quote = '';
+      continue;
+    }
+    if (character === '"' || character === "'") quote = character;
+    else if (character === '\\') offset += 1;
+    else if (character === '(') parentheses += 1;
+    else if (character === ')') parentheses -= 1;
+    else if (character === '[') brackets += 1;
+    else if (character === ']') brackets -= 1;
+    else if (parentheses === 0 && brackets === 0 && /[a-z*]/iu.test(character)) {
+      const token = selector.slice(offset).match(/^(?:\*\|)?[a-z][\w-]*/iu)?.[0];
+      if (token && token.replace(/^\*\|/u, '').toLowerCase() === 'table') return true;
+      if (token) offset += token.length - 1;
+    }
+  }
+  return false;
+}
+
+function isCellDescendantSelector(selector: string, root: string): boolean {
+  if (!selector.startsWith(`${root} `)) return false;
+  const descendant = selector.slice(root.length + 1).trim();
+  if (/^(th|td|code)$/u.test(descendant)) return true;
+  const functional = descendant.match(/^:is\((.*)\)$/u);
+  if (!functional) return false;
+  const cells = splitCssTopLevel(functional[1], ',');
+  return cells.length > 0 && cells.every((cell) => /^(th|td|code)$/u.test(cell));
+}
+
+export function assertExactTableSelectorScope(css: string): void {
+  const relevantProperties = new Set([
+    'display',
+    'width',
+    'min-width',
+    'max-width',
+    'table-layout',
+    'overflow',
+    'overflow-x',
+    'overflow-y',
+    'white-space',
+    'overflow-wrap',
+    'word-break',
+    'text-overflow',
+    'clip',
+    'clip-path',
+    'opacity',
+    'user-select',
+  ]);
+  const direct = '.sl-markdown-content > table';
+  const component = '.sl-markdown-content .eq-stage__body > table';
+  const generic = '.sl-markdown-content table:not(:where(.not-content *))';
+  const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+  const parentCss = execFileSync(
+    'git',
+    ['show', `${PARENT_LAYOUT_COMMIT}:docs/site/src/styles/site/layout.css`],
+    { cwd: repository, encoding: 'utf8', maxBuffer: 128 * 1024 },
+  );
+  if (createHash('sha256').update(parentCss).digest('hex') !== PARENT_LAYOUT_SHA256) {
+    throw new Error('authenticated parent layout Git blob changed');
+  }
+  const parentRules = parseCssRules(parentCss);
+  const parentSignatures = new Map<string, number>();
+  for (const rule of parentRules) {
+    const signature = cssRuleSignature(rule);
+    parentSignatures.set(signature, (parentSignatures.get(signature) ?? 0) + 1);
+  }
+  const parentGeneric = parentRules.find(
+    (rule) => rule.selectors.length === 1 && rule.selectors[0] === generic,
+  );
+  if (!parentGeneric) throw new Error('authenticated parent generic table rule is absent');
+
+  let exactGeneric = 0;
+  let exactPair = 0;
+  for (const rule of parseCssRules(css)) {
+    const relevant = [...rule.declarations].some(([property]) => relevantProperties.has(property));
+    if (
+      !relevant ||
+      !rule.selectors.some((selector) => selectorTargetsTable(decodeCssEscapes(selector)))
+    ) continue;
+    const signature = cssRuleSignature(rule);
+    const parentRemaining = parentSignatures.get(signature) ?? 0;
+    if (parentRemaining > 0) {
+      parentSignatures.set(signature, parentRemaining - 1);
+      if (signature === cssRuleSignature(parentGeneric)) exactGeneric += 1;
+      continue;
+    }
+    if (rule.selectors.some((selector) => selector.includes('\\'))) {
+      throw new Error('unsupported escaped table-target selector authority');
+    }
+    if (
+      rule.selectors.length === 2 &&
+      rule.selectors[0] === direct &&
+      rule.selectors[1] === component
+    ) {
+      exactPair += 1;
+      continue;
+    }
+    if (
+      rule.selectors.every(
+        (selector) =>
+          isCellDescendantSelector(selector, direct) ||
+          isCellDescendantSelector(selector, component),
+      )
+    ) continue;
+    throw new Error(`unowned table selector branch: ${rule.selectors.join(', ')}`);
+  }
+  if (exactGeneric !== 1) {
+    throw new Error(`authenticated parent generic table rule count: ${exactGeneric}`);
+  }
+  if (exactPair !== 1) throw new Error(`exact product table selector pair count: ${exactPair}`);
 }
 
 export async function layoutCssState(): Promise<{ css: string; sha256: string; parent: boolean }> {
