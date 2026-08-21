@@ -20,7 +20,7 @@ from resource_scheduler import ResourceBudget, ResourceRequest, ScheduledTask, r
 
 
 ROOT = Path(__file__).resolve().parents[2]
-_CLI_FILESYSTEM_SOCKET_SUFFIX = Path("eqiora-cli-filesystem-4294967295-8") / "socket"
+_CLI_FILESYSTEM_SOCKET_SUFFIX = Path("eqiora-cli-filesystem-4294967295-29") / "socket"
 _UNIX_PATHNAME_MAX = 107
 _MAX_COMMANDS = 32
 _MAX_LOG_BYTES = 16 * 1024 * 1024
