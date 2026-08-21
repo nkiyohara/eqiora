@@ -7,6 +7,8 @@ const ROOT_HELP: &[u8] =
 const CHECK_HELP: &[u8] =
     include_bytes!("../../../verify/interfaces/cli-compile-check/expected/check-help.txt");
 
+#[path = "support/cli_compile_check_home_path.rs"]
+mod cli_compile_check_home_path;
 mod cli_compile_check_trailing_bare_delimiter;
 #[path = "../src/bin/eqiora/main.rs"]
 mod cli_main;
@@ -66,10 +68,8 @@ mod full {
                     .expect("TMPDIR must name an absolute home-backed scratch root"),
             );
             let home = PathBuf::from(std::env::var_os("HOME").expect("HOME is required"));
-            assert!(tmpdir.is_absolute());
-            assert!(tmpdir.starts_with(&home));
-            assert!(!tmpdir.starts_with("/tmp"));
-            fs::create_dir_all(&tmpdir).unwrap();
+            cli_compile_check_home_path::require_canonical_home_backed_tmpdir(&tmpdir, &home)
+                .expect("TMPDIR must be canonical and home-backed");
             let unique = format!(
                 "eqiora-cli-{label}-{}-{}",
                 std::process::id(),

@@ -8,9 +8,8 @@ import hashlib
 import importlib.util
 import json
 import mimetypes
-import os
 import re
-import stat
+import subprocess
 import sys
 import tomllib
 from dataclasses import dataclass
@@ -18,65 +17,125 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
 from typing import Iterable
 from urllib.parse import unquote, urlsplit
-from xml.etree import ElementTree
 
 try:
+    import tools.site.check_site_artifact as _site_artifact
     import tools.site.check_site_html as _site_html
+    import tools.site.check_site_supply as _site_supply
 except ModuleNotFoundError as error:
-    if error.name not in {"tools", "tools.site", "tools.site.check_site_html"}:
+    if error.name not in {
+        "tools",
+        "tools.site",
+        "tools.site.check_site_artifact",
+        "tools.site.check_site_html",
+        "tools.site.check_site_supply",
+    }:
         raise
+    import check_site_artifact as _site_artifact
     import check_site_html as _site_html
+    import check_site_supply as _site_supply
 
-_EXPECTED_HTML_HELPER = Path(__file__).with_name("check_site_html.py").resolve()
-if Path(_site_html.__file__ or "").resolve() != _EXPECTED_HTML_HELPER:
-    raise ImportError("site checker HTML observer did not resolve to its exact sibling")
-if _site_html.__all__ != ("HtmlInspection", "normalize", "read_html"):
-    raise ImportError("site checker HTML observer exposes an unexpected interface")
+_ARTIFACT_EXPORTS = (
+    "MAX_FILES",
+    "MAX_FILE_BYTES",
+    "MAX_TOTAL_BYTES",
+    "MAX_HTML_BYTES",
+    "PRESSURE_SHA256",
+    "PUBLICATION_SHA256",
+    "SOCIAL_SHA256",
+    "FAVICON_SHA256",
+    "APPLE_TOUCH_SHA256",
+    "OLD_SOCIAL_SHA256",
+    "OLD_SOCIAL_LINE",
+    "SiteIdentities",
+    "PRODUCTION_IDENTITIES",
+    "ROUTES",
+    "SITEMAP_ROUTES",
+    "PRESSURE_ALT",
+    "PRESSURE_CAPTION",
+    "CASE_SOURCE_PATHS",
+    "CASE_EVIDENCE_PATHS",
+    "sha256",
+    "check_exact_source",
+    "check_artifact",
+)
+_SUPPLY_EXPORTS = (
+    "FULL_CHROMIUM_VERSION_STDOUT_HEX",
+    "FULL_CHROMIUM_VERSION_STDOUT",
+    "DIRECT_SOURCE_ARCHIVE_COMMAND",
+    "EXACT_LINK_PAYLOAD_SHA256",
+    "EXACT_TREE_LINK_COMMAND",
+    "EXACT_EXTRACTED_LINK_COMMAND",
+    "OFFLINE_WORKFLOW_TOKENS",
+    "FORBIDDEN_WORKFLOW_TOKENS",
+    "check_source_topology",
+    "check_runner_source_topology_text",
+    "check_browser_supply",
+    "check_runner_browser_supply_text",
+)
+for module, filename, exports in (
+    (_site_artifact, "check_site_artifact.py", _ARTIFACT_EXPORTS),
+    (_site_html, "check_site_html.py", ("HtmlInspection", "normalize", "read_html")),
+    (_site_supply, "check_site_supply.py", _SUPPLY_EXPORTS),
+):
+    registered = sys.modules.get(f"tools.site.{filename.removesuffix('.py')}")
+    if registered is not None and registered is not module:
+        raise ImportError(
+            f"site checker {filename} did not resolve to its exact sibling"
+        )
+    if (
+        Path(module.__file__ or "").resolve()
+        != Path(__file__).with_name(filename).resolve()
+    ):
+        raise ImportError(
+            f"site checker {filename} did not resolve to its exact sibling"
+        )
+    if module.__all__ != exports:
+        raise ImportError(f"site checker {filename} exposes an unexpected interface")
+if _site_supply.subprocess is not subprocess:
+    raise ImportError(
+        "site checker subprocess facade does not share its supply binding"
+    )
+
 HtmlInspection = _site_html.HtmlInspection
 normalize = _site_html.normalize
 read_html = _site_html.read_html
+MAX_FILES = _site_artifact.MAX_FILES
+MAX_FILE_BYTES = _site_artifact.MAX_FILE_BYTES
+MAX_TOTAL_BYTES = _site_artifact.MAX_TOTAL_BYTES
+MAX_HTML_BYTES = _site_artifact.MAX_HTML_BYTES
+PRESSURE_SHA256 = _site_artifact.PRESSURE_SHA256
+PUBLICATION_SHA256 = _site_artifact.PUBLICATION_SHA256
+SOCIAL_SHA256 = _site_artifact.SOCIAL_SHA256
+FAVICON_SHA256 = _site_artifact.FAVICON_SHA256
+APPLE_TOUCH_SHA256 = _site_artifact.APPLE_TOUCH_SHA256
+OLD_SOCIAL_SHA256 = _site_artifact.OLD_SOCIAL_SHA256
+OLD_SOCIAL_LINE = _site_artifact.OLD_SOCIAL_LINE
+PRESSURE_ALT = _site_artifact.PRESSURE_ALT
+PRESSURE_CAPTION = _site_artifact.PRESSURE_CAPTION
+SiteIdentities = _site_artifact.SiteIdentities
+PRODUCTION_IDENTITIES = _site_artifact.PRODUCTION_IDENTITIES
+ROUTES = _site_artifact.ROUTES
+SITEMAP_ROUTES = _site_artifact.SITEMAP_ROUTES
+CASE_SOURCE_PATHS = _site_artifact.CASE_SOURCE_PATHS
+CASE_EVIDENCE_PATHS = _site_artifact.CASE_EVIDENCE_PATHS
+sha256 = _site_artifact.sha256
+FULL_CHROMIUM_VERSION_STDOUT_HEX = _site_supply.FULL_CHROMIUM_VERSION_STDOUT_HEX
+FULL_CHROMIUM_VERSION_STDOUT = _site_supply.FULL_CHROMIUM_VERSION_STDOUT
+DIRECT_SOURCE_ARCHIVE_COMMAND = _site_supply.DIRECT_SOURCE_ARCHIVE_COMMAND
+EXACT_LINK_PAYLOAD_SHA256 = _site_supply.EXACT_LINK_PAYLOAD_SHA256
+EXACT_TREE_LINK_COMMAND = _site_supply.EXACT_TREE_LINK_COMMAND
+EXACT_EXTRACTED_LINK_COMMAND = _site_supply.EXACT_EXTRACTED_LINK_COMMAND
+OFFLINE_WORKFLOW_TOKENS = _site_supply.OFFLINE_WORKFLOW_TOKENS
+FORBIDDEN_WORKFLOW_TOKENS = _site_supply.FORBIDDEN_WORKFLOW_TOKENS
+check_source_topology = _site_supply.check_source_topology
+check_runner_source_topology_text = _site_supply.check_runner_source_topology_text
+check_browser_supply = _site_supply.check_browser_supply
+check_runner_browser_supply_text = _site_supply.check_runner_browser_supply_text
 
-SITE_ORIGIN = "https://eqiora.org"
-SOURCE_SHA = re.compile(r"^[0-9a-f]{40}$")
 ACTION_USE = re.compile(r"^\s*uses:\s*([^@\s]+)@([^\s#]+)", re.MULTILINE)
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*]\(([^)\n]+)\)")
 HTML_REFERENCE = re.compile(r"""(?:href|src)=["']([^"']+)["']""", re.IGNORECASE)
-CSS_URL = re.compile(r"url\(\s*([\"']?)([^\"')]+)\1\s*\)", re.IGNORECASE)
-
-# These are verifier read bounds, not product-performance claims.
-MAX_FILES = 20_000
-MAX_FILE_BYTES = 32 * 1024 * 1024
-MAX_TOTAL_BYTES = 512 * 1024 * 1024
-MAX_HTML_BYTES = 4 * 1024 * 1024
-PRESSURE_SHA256 = "5e9a694b4a6620d5548f259875b1a9dea1637c37798aa1c1b8b2ab53cb314376"
-PUBLICATION_SHA256 = "db88a9a60926f52fc34b4106a29137b2fd8afbd5cc83b4eb797619432a744d33"
-SOCIAL_SHA256 = "26c3987ad5e0e7b094100ce670d42062c51329a71f2859ddc0ccdfb8a21a0329"
-FAVICON_SHA256 = "6c7ae182102b29ed48281c56434f4d57fe37117dc7df3fa0de18fd79215c9598"
-APPLE_TOUCH_SHA256 = "3f7349745502fc3b6f09b79dc989ef6d5d2c820b7300e61819aeb3da44803169"
-OLD_SOCIAL_SHA256 = "3b9be694357a6db29674e82eabfdb63738d0e40bf70b3f00163737b490b9128b"
-OLD_SOCIAL_LINE = "Open-source computational engineering · Alpha 0.1.0a1"
-PRESSURE_ALT = (
-    "Pressure in pascals for the frozen 2D steady-Stokes exact-cylinder "
-    "demonstration, shown with a viridis color scale and the 104-triangle "
-    "affine mesh overlaid. Presentation image only; linked Result evidence "
-    "carries the numerical claim."
-)
-PRESSURE_REVISION = "c6b7a21f52ae1acf941d26319d2499ed89152c15"
-PRESSURE_CAPTION = (
-    "Pressure (Pa), frozen exact-cylinder steady-Stokes demonstration at "
-    f"{PRESSURE_REVISION}; presentation only, not validation."
-)
-
-
-@dataclass(frozen=True)
-class SiteIdentities:
-    """Exact admitted input identities. CLI callers cannot replace these."""
-
-    pressure: str = PRESSURE_SHA256
-    publication: str = PUBLICATION_SHA256
-    social: str = SOCIAL_SHA256
-    favicon: str = FAVICON_SHA256
-    apple_touch: str = APPLE_TOUCH_SHA256
 
 
 @dataclass(frozen=True)
@@ -85,91 +144,6 @@ class ReleaseIdentity:
     python: str
 
 
-PRODUCTION_IDENTITIES = SiteIdentities()
-ROUTES = {
-    "/": "index.html",
-    "/gallery/": "gallery/index.html",
-    "/gallery/exact-cylinder-steady-stokes/": (
-        "gallery/exact-cylinder-steady-stokes/index.html"
-    ),
-    "/reference/": "reference/index.html",
-    "/reference/python/eqiora/": "reference/python/eqiora/index.html",
-    "/reference/rust/": "reference/rust/index.html",
-    "/reference/rust/api/eqiora/struct.Diagnostic.html": (
-        "reference/rust/api/eqiora/struct.Diagnostic.html"
-    ),
-    "/reference/cli/": "reference/cli/index.html",
-    "/reference/control-v2/": "reference/control-v2/index.html",
-    "/reference/mcp/": "reference/mcp/index.html",
-    "/examples/": "examples/index.html",
-    "/404.html": "404.html",
-}
-SITEMAP_ROUTES = tuple(
-    route for route in ROUTES if "rust/api" not in route and route != "/404.html"
-)
-TOP_NAV = (
-    ("Docs", "/get-started/"),
-    ("Gallery", "/gallery/"),
-    ("Reference", "/reference/"),
-    ("Evidence", "/evidence/"),
-    ("GitHub", "https://github.com/nkiyohara/eqiora"),
-)
-STAGES = (
-    "Problem setup",
-    "Eqiora model definition",
-    "Mesh and boundaries",
-    "Submit and result",
-    "Pressure visualization",
-    "Verified and not claimed",
-)
-HOME_COPY = (
-    "Model meaning once. Realize it many ways.",
-    "Eqiora is an open-source, meaning-first foundation for scientific modeling, simulation, differentiation, and execution.",
-    "Its central boundary is simple:",
-    "A model states typed mathematical relations. A realization chooses how those relations are discretized, solved, and executed.",
-    "That separation lets block diagrams, acausal physical networks, PDE fields, hybrid dynamics, and reusable components share one canonical meaning without making a numerical method or hardware backend part of the model.",
-    "Get started",
-    "Explore gallery",
-    "Featured walkthrough",
-    "Exact-cylinder steady Stokes",
-    "Follow one frozen 2D steady-Stokes problem from model definition and named boundaries through one submit/Result path to an independently admitted static pressure image.",
-    "Python",
-    "2D",
-    "steady Stokes",
-    "View the static walkthrough",
-    "Docs",
-    "Learn the Model–Realization boundary and start from bounded examples.",
-    "Reference",
-    "Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces. API presence is not verification or maturity.",
-    "Evidence",
-    "Inspect the generated capability-to-case index and the manifests that own each bounded claim.",
-    "{release_identity}",
-    "Eqiora is alpha research software under active development. The capability matrix and generated evidence catalog bound what is currently supported; this site does not widen those claims.",
-    "One source of truth",
-    "This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository's architecture, RFCs, capability matrix, and validated verify manifests.",
-)
-CASE_SOURCE_PATHS = (
-    "examples/python/exact_cylinder_stokes_marimo.py",
-    "examples/python/exact_cylinder_stokes.py",
-    "examples/python/exact_cylinder_geometry.py",
-    "examples/python/exact_cylinder_mesh.py",
-    "verify/fluid/packaged-steady-stokes-2d/models/direct.eqi",
-    "verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi",
-    "packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
-)
-CASE_EVIDENCE_PATHS = (
-    "verify/artifacts/current-model-canonical-identity/README.md",
-    "verify/fluid/packaged-steady-stokes-2d/README.md",
-    "verify/fluid/exact-circular-hole-stokes-2d/README.md",
-    "verify/geometry/exact-circular-hole-geometry/README.md",
-    "verify/geometry/circular-hole-chordal-realization-binding/README.md",
-    "verify/geometry/circular-hole-chordal-reference-mesh/README.md",
-    "verify/interfaces/python-exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-circular-hole-chordal-mesh/README.md",
-    "verify/interfaces/python-exact-cylinder-stokes-result/README.md",
-    "verify/interfaces/python-exact-cylinder-pressure-still/README.md",
-    "verify/interfaces/python-exact-cylinder-stokes-marimo/README.md",
-)
 DIRECT_PINS = {
     "astro": "7.2.3",
     "@astrojs/starlight": "0.41.7",
@@ -206,11 +180,8 @@ CURRENT_VERSION_SOURCE_EXCEPTIONS = {
     "docs/site/src/content/docs/reference/cli/index.mdx",
     "docs/site/src/content/docs/reference/mcp/index.mdx",
 }
-EXECUTION_CONTROL_LABEL = re.compile(
-    r"\b(?:run|submit|reset|start|begin|try|solv\w*|execut\w*|simulat\w*|comput\w*|calculat\w*|launch\w*|evaluat\w*|process\w*|generat\w*|analy[sz]\w*|predict\w*)\b",
-    re.IGNORECASE,
-)
 REQUIRED_TRIGGER_PATTERNS = {
+    ".gitattributes",
     ".github/workflows/pages.yml",
     ".cargo/config.toml",
     "CHANGELOG.md",
@@ -262,6 +233,7 @@ REQUIRED_TRIGGER_PATTERNS = {
     "verify/**",
 }
 TRIGGER_REPRESENTATIVES = {
+    "archive attributes": ".gitattributes",
     "workflow": ".github/workflows/pages.yml",
     "site config": "docs/site/astro.config.mjs",
     "old social deletion": "docs/site/assets/social-card.svg",
@@ -297,29 +269,6 @@ TRIGGER_REPRESENTATIVES = {
     "evidence": "verify/interfaces/python-exact-cylinder-stokes-result/case.toml",
     "changelog": "CHANGELOG.md",
 }
-OFFLINE_WORKFLOW_TOKENS = (
-    "ubuntu-24.04",
-    "eqiora-pw-1.62.1-r1234",
-    "playwright install --with-deps --only-shell chromium",
-    "HeadlessChrome 151.0.7922.34",
-    "unshare --net",
-    "ip link set lo up",
-    "setpriv",
-    "npm_config_offline=true",
-    "CARGO_NET_OFFLINE=true",
-    "UV_OFFLINE=1",
-    'git archive --format=tar "$GITHUB_SHA"',
-    "EQIORA_SITE_SOURCE_ROOT=$scratch/source",
-    'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"',
-)
-
-
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as source:
-        for block in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def _destination(raw: str) -> str:
@@ -376,131 +325,6 @@ def check_markdown_links(site_root: Path) -> list[str]:
             if not candidate.exists():
                 errors.append(f"{document}: missing local link target: {destination}")
     return errors
-
-
-def _ordered(text: str, fragments: Iterable[str], label: str) -> list[str]:
-    errors: list[str] = []
-    position = 0
-    for fragment in fragments:
-        found = text.find(normalize(fragment), position)
-        if found < 0:
-            errors.append(f"{label}: missing or out-of-order visible text {fragment!r}")
-        else:
-            position = found + len(normalize(fragment))
-    return errors
-
-
-def _route_file(artifact: Path, route: str) -> Path | None:
-    relative = route.lstrip("/")
-    if not relative:
-        relative = "index.html"
-    elif route.endswith("/"):
-        relative += "index.html"
-    candidate = artifact / relative
-    return candidate if candidate.is_file() else None
-
-
-def _local_reference(
-    artifact: Path, page: Path, reference: str
-) -> tuple[Path | None, str]:
-    parsed = urlsplit(reference)
-    if parsed.scheme or reference.startswith("//"):
-        if (
-            parsed.scheme in {"http", "https"}
-            and f"{parsed.scheme}://{parsed.netloc}" == SITE_ORIGIN
-        ):
-            raw_path = unquote(parsed.path)
-        else:
-            return None, parsed.fragment
-    else:
-        raw_path = unquote(parsed.path)
-    if not raw_path:
-        return page, parsed.fragment
-    target = (
-        artifact / raw_path.lstrip("/")
-        if raw_path.startswith("/")
-        else page.parent / raw_path
-    )
-    target = target.resolve()
-    try:
-        target.relative_to(artifact.resolve())
-    except ValueError:
-        return Path("/__escape__"), parsed.fragment
-    if target.is_dir():
-        target /= "index.html"
-    elif target.suffix == "" and not target.exists():
-        target /= "index.html"
-    return target, parsed.fragment
-
-
-def _runtime_reference(tag: str, attribute: str, value: str) -> bool:
-    if tag in {
-        "script",
-        "img",
-        "source",
-        "iframe",
-        "video",
-        "audio",
-        "track",
-        "embed",
-        "object",
-    }:
-        return attribute in {"src", "srcset", "poster", "data"}
-    if tag == "link" and attribute == "href":
-        return True
-    if tag == "form" and attribute == "action":
-        return True
-    return False
-
-
-def _artifact_inventory(artifact: Path) -> tuple[list[Path], list[str]]:
-    files: list[Path] = []
-    errors: list[str] = []
-    total = 0
-    if not artifact.is_dir() or artifact.is_symlink():
-        return [], [f"artifact must be a real directory: {artifact}"]
-    for current, directories, names in os.walk(artifact, followlinks=False):
-        directories.sort()
-        names.sort()
-        for name in [*directories, *names]:
-            path = Path(current) / name
-            details = path.lstat()
-            if stat.S_ISLNK(details.st_mode):
-                errors.append(
-                    f"artifact contains symlink: {path.relative_to(artifact)}"
-                )
-        for name in names:
-            path = Path(current) / name
-            details = path.lstat()
-            if not stat.S_ISREG(details.st_mode):
-                errors.append(
-                    f"artifact contains non-regular file: {path.relative_to(artifact)}"
-                )
-                continue
-            if details.st_size > MAX_FILE_BYTES:
-                errors.append(
-                    f"artifact file exceeds read cap: {path.relative_to(artifact)}"
-                )
-            total += details.st_size
-            files.append(path)
-            if len(files) > MAX_FILES:
-                errors.append(f"artifact exceeds {MAX_FILES} files")
-                return files, errors
-            if total > MAX_TOTAL_BYTES:
-                errors.append(f"artifact exceeds {MAX_TOTAL_BYTES} bytes")
-                return files, errors
-    return files, errors
-
-
-def _exact_source(path: Path, expected: str, label: str) -> list[str]:
-    if not path.is_file() or path.is_symlink():
-        return [f"missing exact {label}: {path}"]
-    observed = sha256(path)
-    return (
-        []
-        if observed == expected
-        else [f"{label} digest mismatch: expected {expected}, got {observed}"]
-    )
 
 
 def derive_release_identity(
@@ -620,6 +444,8 @@ def check_workflow_text(text: str) -> list[str]:
     if missing:
         errors.append(f"Pages path filters omit exact authorities: {missing}")
     for label, changed in TRIGGER_REPRESENTATIVES.items():
+        if changed == ".gitattributes" and changed in missing:
+            continue
         if not selected_by_paths(pull, changed):
             errors.append(f"Pages does not select representative {label}: {changed}")
     if selected_by_paths(pull, "notes/unrelated.txt"):
@@ -630,6 +456,76 @@ def check_workflow_text(text: str) -> list[str]:
     for token in OFFLINE_WORKFLOW_TOKENS:
         if token not in text:
             errors.append(f"Pages workflow omits offline/supply boundary {token!r}")
+    for token in FORBIDDEN_WORKFLOW_TOKENS:
+        if token in text:
+            errors.append(
+                f"Pages workflow uses forbidden supply substitution {token!r}"
+            )
+    archive = text.find(DIRECT_SOURCE_ARCHIVE_COMMAND)
+    source_export = text.find('echo "EQIORA_SITE_SOURCE_ROOT=', archive + 1)
+    before_archive = (
+        'git ls-tree -r "$GITHUB_SHA"',
+        "source_links=",
+        'case "$source_links" in',
+        'if test -n "$source_links"; then',
+        EXACT_TREE_LINK_COMMAND,
+        'git ls-tree "$GITHUB_SHA" -- AGENTS.md',
+        'git cat-file blob "$GITHUB_SHA:AGENTS.md"',
+    )
+    after_archive = (
+        'if test -n "$source_links"; then',
+        '\n            test -L "$scratch/source/CLAUDE.md"\n',
+        EXACT_EXTRACTED_LINK_COMMAND,
+        'cmp "$scratch/source/AGENTS.md" "$scratch/expected-AGENTS.md"',
+        'elif test -e "$scratch/source/CLAUDE.md" || test -L "$scratch/source/CLAUDE.md"; then',
+    )
+    before_positions = [text.find(token) for token in before_archive]
+    after_positions = [text.find(token, archive + 1) for token in after_archive]
+    archive_window = text[archive:source_export] if 0 <= archive < source_export else ""
+    archive_bound = (
+        archive >= 0
+        and source_export > archive
+        and all(0 <= position < archive for position in before_positions)
+        and before_positions == sorted(before_positions)
+        and all(archive < position < source_export for position in after_positions)
+        and after_positions == sorted(after_positions)
+        and 'unlink "$scratch/source/CLAUDE.md"' not in archive_window
+        and 'rm -f "$scratch/source/CLAUDE.md"' not in archive_window
+    )
+    if not archive_bound:
+        errors.append("Pages archive must bind the tracked link after extraction")
+    browser_admission = (
+        'expected_browser_sha256="0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"',
+        'expected_browser_bytes="290614600"',
+        'browser_sha256="$(sha256sum "$browser_path" | cut -d \' \' -f 1)"',
+        'browser_bytes="$(stat -c %s "$browser_path")"',
+        'test "$browser_sha256" = "$expected_browser_sha256"',
+        'test "$browser_bytes" = "$expected_browser_bytes"',
+        'EQIORA_SITE_BROWSER_SHA256="$expected_browser_sha256"',
+        'EQIORA_SITE_BROWSER_BYTES="$expected_browser_bytes"',
+        "export EQIORA_SITE_BROWSER_SHA256 EQIORA_SITE_BROWSER_BYTES",
+        "check_site.py browser-supply",
+        'version_hex="$("$browser_path" --version | od -An -tx1 | tr -d \'[:space:]\')"',
+        'test "$version_hex" = "$expected_browser_version_hex"',
+    )
+    browser_positions = [text.find(token) for token in browser_admission]
+    if any(
+        position < 0 for position in browser_positions
+    ) or browser_positions != sorted(browser_positions):
+        errors.append("Pages browser identity must precede execution and propagation")
+    ordered = (
+        'git ls-tree -r "$GITHUB_SHA"',
+        DIRECT_SOURCE_ARCHIVE_COMMAND,
+        EXACT_EXTRACTED_LINK_COMMAND,
+        "playwright install --with-deps chromium",
+        "chromium.executablePath()",
+        FULL_CHROMIUM_VERSION_STDOUT_HEX,
+        "check_site.py browser-supply",
+        "unshare --net",
+    )
+    positions = [text.find(token) for token in ordered]
+    if all(position >= 0 for position in positions) and positions != sorted(positions):
+        errors.append("Pages archive/browser supply checks are out of causal order")
     return errors
 
 
@@ -649,7 +545,7 @@ def check_source(
                 f"obsolete successor source remains: {obsolete.relative_to(root)}"
             )
     errors.extend(
-        _exact_source(
+        _site_artifact.check_exact_source(
             site / "src/assets/gallery/exact-cylinder-pressure.png",
             identities.pressure,
             "admitted pressure media",
@@ -657,19 +553,23 @@ def check_source(
     )
     record = site / "src/data/gallery" / "exact-cylinder-steady-stokes.publication.json"
     publication_label = "admitted publication record"
-    record_errors = _exact_source(record, identities.publication, publication_label)
+    record_errors = _site_artifact.check_exact_source(
+        record, identities.publication, publication_label
+    )
     errors.extend(record_errors)
     fixed = identities.publication == PUBLICATION_SHA256 and not record_errors
     errors.extend(
-        _exact_source(
+        _site_artifact.check_exact_source(
             site / "public/social-card.svg", identities.social, "timeless social card"
         )
     )
     errors.extend(
-        _exact_source(site / "public/favicon.svg", identities.favicon, "favicon")
+        _site_artifact.check_exact_source(
+            site / "public/favicon.svg", identities.favicon, "favicon"
+        )
     )
     errors.extend(
-        _exact_source(
+        _site_artifact.check_exact_source(
             site / "public/apple-touch-icon.png",
             identities.apple_touch,
             "apple touch icon",
@@ -800,6 +700,8 @@ def check_source(
     except OSError as error:
         errors.append(f"missing offline site runner: {error}")
     else:
+        errors.extend(check_runner_source_topology_text(runner_text))
+        errors.extend(check_runner_browser_supply_text(runner_text))
         runner_tokens = (
             "generate_interface_reference.py",
             "--repository",
@@ -873,413 +775,16 @@ def check_artifact(
     expected_python_version: str,
     identities: SiteIdentities = PRODUCTION_IDENTITIES,
 ) -> list[str]:
-    errors: list[str] = []
-    artifact = artifact.resolve()
-    if not SOURCE_SHA.fullmatch(source_sha):
-        return ["source SHA must be exactly 40 lowercase hexadecimal characters"]
-    files, inventory_errors = _artifact_inventory(artifact)
-    errors.extend(inventory_errors)
-    if inventory_errors:
-        return errors
-    file_digests = {path: sha256(path) for path in files}
-    digest_paths: dict[str, list[Path]] = {}
-    for path, digest in file_digests.items():
-        digest_paths.setdefault(digest, []).append(path)
+    """Retain the checker-level call shape while delegating sole artifact policy."""
 
-    exact_public = {
-        "social-card.svg": identities.social,
-        "favicon.svg": identities.favicon,
-        "apple-touch-icon.png": identities.apple_touch,
-    }
-    for relative, expected in exact_public.items():
-        path = artifact / relative
-        if not path.is_file() or file_digests.get(path) != expected:
-            errors.append(
-                f"public asset {relative} does not have admitted digest {expected}"
-            )
-    if len(digest_paths.get(identities.social, [])) != 1:
-        errors.append(
-            "assembled site must expose exactly one timeless social-card byte identity"
-        )
-    if digest_paths.get(OLD_SOCIAL_SHA256):
-        errors.append("assembled site exposes the deprecated social-card bytes")
-    if len(digest_paths.get(identities.pressure, [])) != 1:
-        errors.append("assembled site must expose exactly one admitted pressure image")
-    for path in files:
-        if path.stat().st_size <= MAX_HTML_BYTES and path.suffix.lower() in {
-            ".html",
-            ".svg",
-            ".xml",
-            ".json",
-            ".txt",
-            ".css",
-            ".js",
-        }:
-            try:
-                text = path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                continue
-            if OLD_SOCIAL_LINE in text:
-                errors.append(
-                    f"assembled site exposes deprecated social-card copy: {path.relative_to(artifact)}"
-                )
-            if "assets/social-card.svg" in text:
-                errors.append(
-                    f"assembled site references the legacy social-card route: {path.relative_to(artifact)}"
-                )
-
-    inspections: dict[Path, tuple[str, HtmlInspection]] = {}
-    for path in files:
-        if path.suffix.lower() != ".html":
-            continue
-        try:
-            inspections[path] = read_html(path, MAX_HTML_BYTES)
-        except (OSError, UnicodeDecodeError, ValueError) as error:
-            errors.append(f"invalid HTML {path.relative_to(artifact)}: {error}")
-
-    for route, relative in ROUTES.items():
-        path = artifact / relative
-        if not path.is_file():
-            errors.append(f"missing required route {route}: {relative}")
-
-    for route, relative in ROUTES.items():
-        path = artifact / relative
-        if path not in inspections or "rust/api" in route:
-            continue
-        _, page = inspections[path]
-        canonicals = [
-            link.get("href", "")
-            for link in page.links
-            if "canonical" in link.get("rel", "").split()
-        ]
-        expected = f"{SITE_ORIGIN}{route}"
-        if canonicals != [expected]:
-            errors.append(
-                f"{route}: canonical must be exactly {expected!r}, got {canonicals!r}"
-            )
-        properties = {
-            (meta.get("property") or meta.get("name"), meta.get("content"))
-            for meta in page.metas
-        }
-        if ("og:image", f"{SITE_ORIGIN}/social-card.svg") not in properties:
-            errors.append(f"{route}: missing exact same-origin Open Graph image")
-        rels = {(link.get("rel", ""), link.get("href", "")) for link in page.links}
-        if not any(
-            "icon" in rel.split() and href == "/favicon.svg" for rel, href in rels
-        ):
-            errors.append(f"{route}: missing exact favicon link")
-        if not any(
-            "apple-touch-icon" in rel.split() and href == "/apple-touch-icon.png"
-            for rel, href in rels
-        ):
-            errors.append(f"{route}: missing exact apple-touch-icon link")
-        labels_and_hrefs = [(label, href) for href, label in page.anchors]
-        cursor = 0
-        for expected_link in TOP_NAV:
-            try:
-                cursor = labels_and_hrefs.index(expected_link, cursor) + 1
-            except ValueError:
-                errors.append(
-                    f"{route}: top navigation omits or reorders {expected_link!r}"
-                )
-                break
-
-    home_path = artifact / ROUTES["/"]
-    if home_path in inspections:
-        home = inspections[home_path][1]
-        home_copy = tuple(
-            fragment.format(release_identity=f"Alpha {expected_python_version}")
-            for fragment in HOME_COPY
-        )
-        errors.extend(_ordered(home.visible_text, home_copy, "/"))
-        featured_start = home.visible_text.find("Featured walkthrough")
-        featured_end = home.visible_text.find("Docs", featured_start + 1)
-        featured_text = home.visible_text[featured_start:featured_end].casefold()
-        for widening in (
-            "flagship",
-            "validated flow",
-            "production ready",
-            "general solver",
-            "all backends",
-            "benchmark",
-            "interactive",
-            "run now",
-        ):
-            if widening in featured_text:
-                errors.append(
-                    f"/: featured walkthrough widens its claim with {widening!r}"
-                )
-        brand_marks = []
-        featured_pressure = []
-        for image in home.images:
-            target, _ = _local_reference(artifact, home_path, image.get("src", ""))
-            if (
-                target is not None
-                and file_digests.get(target) == identities.favicon
-                and image.get("_ancestor_href") == "/"
-            ):
-                brand_marks.append(image)
-            if (
-                target is not None
-                and file_digests.get(target) == identities.pressure
-                and image.get("alt") == PRESSURE_ALT
-            ):
-                featured_pressure.append(image)
-        if not brand_marks:
-            errors.append("/: header does not link the exact Eqiora mark home")
-        if ("/", "Eqiora") not in home.anchors:
-            errors.append("/: header does not expose the visible Eqiora home link")
-        if len(featured_pressure) != 1:
-            errors.append(
-                "/: featured walkthrough must expose the admitted pressure image with exact alt text"
-            )
-
-    case_path = artifact / ROUTES["/gallery/exact-cylinder-steady-stokes/"]
-    if case_path in inspections:
-        raw_case, case = inspections[case_path]
-        stage_headings = [heading for _, heading in case.headings if heading in STAGES]
-        if stage_headings != list(STAGES):
-            errors.append(
-                f"Cylinder route must expose six ordered semantic stages, got {stage_headings!r}"
-            )
-        math_block = any(
-            display == "block" and wrapper for display, wrapper in case.math
-        )
-        math_inline = any(
-            display != "block" and not wrapper for display, wrapper in case.math
-        )
-        if not math_block or not math_inline:
-            errors.append(
-                "Cylinder route must contain distinct block and inline MathML/KaTeX output"
-            )
-        if "katex-mathml" not in raw_case or "katex-html" not in raw_case:
-            errors.append(
-                "Cylinder route must retain both KaTeX MathML and HTML output"
-            )
-        if any(
-            delimiter in case.visible_text
-            for delimiter in ("$$", "\\[", "\\]", "\\(", "\\)")
-        ):
-            errors.append("Cylinder route exposes raw target math delimiters")
-        public_claim = (
-            "one frozen 2D steady incompressible Stokes exact-cylinder demonstration, "
-            "rendered from its accepted public Result path and linked evidence."
-        )
-        if public_claim not in case.visible_text:
-            errors.append("Cylinder route omits the exact bounded public claim")
-        for fallback in (
-            "Eqiora source form",
-            "sigma(u,p) = 2 mu sym(grad(u)) - p I",
-            "-div(sigma(u,p)) - grad(phi) = 0",
-            "div(u) = 0",
-        ):
-            if fallback not in case.visible_text:
-                errors.append(
-                    f"Cylinder route omits readable math fallback {fallback!r}"
-                )
-        pressure_images = []
-        for image in case.images:
-            target, _ = _local_reference(artifact, case_path, image.get("src", ""))
-            if target is not None and file_digests.get(target) == identities.pressure:
-                pressure_images.append(image)
-        if len(pressure_images) != 1 or pressure_images[0].get("alt") != PRESSURE_ALT:
-            errors.append(
-                "Cylinder route must expose the admitted pressure bytes once with exact alt text"
-            )
-        for href, label in case.anchors:
-            if href.strip().casefold() in {"", "#", "javascript:void(0)"}:
-                errors.append(
-                    f"Cylinder route contains a fake link control labelled {label!r}"
-                )
-        for _, attrs, label in case.interactives:
-            labelled = " ".join(
-                normalize("".join(case.id_text.get(item, [])))
-                for item in attrs.get("aria-labelledby", "").split()
-            )
-            accessible = normalize(
-                labelled or attrs.get("aria-label") or label or attrs.get("title", "")
-            )
-            if any(
-                EXECUTION_CONTROL_LABEL.search(item) for item in (label, accessible)
-            ):
-                errors.append(
-                    f"Cylinder route contains an uncontracted execution control {(label, accessible)!r}"
-                )
-        if (
-            PRESSURE_CAPTION not in case.visible_text
-            or "Result evidence" not in case.visible_text
-            or "Pressure-still presentation case" not in case.visible_text
-        ):
-            errors.append(
-                "Cylinder route omits the exact admitted caption or its two visible evidence links"
-            )
-        required_boundary = (
-            "no curved elements",
-            "no mesh/PDE convergence",
-            "no drag/lift coefficient, scaled or mesh-independent force, or DFG value",
-            "no transient or Navier–Stokes behavior",
-            "no vortex shedding",
-            "no 3D",
-            "no production mesher",
-            "no performance claim",
-            "no cross-platform byte reproducibility",
-            "pixels are not validation",
-            "all 104 vertices are on the boundary",
-            "only the outlet midpoint velocity vertex is free",
-            "API presence is neither verification nor maturity",
-        )
-        folded = case.visible_text.casefold()
-        for phrase in required_boundary:
-            if phrase.casefold() not in folded:
-                errors.append(f"Cylinder claim boundary omits nonclaim {phrase!r}")
-        hrefs = {href for href, _ in case.anchors}
-        for relative in (*CASE_SOURCE_PATHS, *CASE_EVIDENCE_PATHS):
-            expected = (
-                f"https://github.com/nkiyohara/eqiora/blob/{source_sha}/{relative}"
-            )
-            if expected not in hrefs:
-                errors.append(
-                    f"Cylinder route omits exact-head source/evidence link {relative}"
-                )
-
-    reference_path = artifact / "reference/index.html"
-    if reference_path in inspections:
-        reference = inspections[reference_path][1]
-        for phrase in (
-            "Python",
-            "Rust",
-            "CLI",
-            "control-v2",
-            "MCP",
-            "API presence is not verification or maturity.",
-        ):
-            if phrase not in reference.visible_text:
-                errors.append(f"reference landing omits {phrase!r}")
-    else:
-        errors.append("missing required route /reference/")
-
-    pagefind = artifact / "pagefind/pagefind.js"
-    if not pagefind.is_file():
-        errors.append("Pagefind JavaScript entry is missing")
-    robots = artifact / "robots.txt"
-    try:
-        robots_text = robots.read_text(encoding="utf-8")
-    except OSError as error:
-        errors.append(f"robots.txt is missing: {error}")
-    else:
-        if (
-            robots_text
-            != "User-agent: *\nAllow: /\nSitemap: https://eqiora.org/sitemap-index.xml\n"
-        ):
-            errors.append("robots.txt differs from the exact public crawl boundary")
-    sitemap = artifact / "sitemap-index.xml"
-    try:
-        sitemap_text = sitemap.read_text(encoding="utf-8")
-        sitemap_urls = {
-            node.text
-            for node in ElementTree.fromstring(sitemap_text).iter()
-            if node.tag.endswith("loc")
-        }
-    except (OSError, UnicodeDecodeError, ElementTree.ParseError) as error:
-        errors.append(f"sitemap-index.xml is missing or invalid: {error}")
-    else:
-        for route in SITEMAP_ROUTES:
-            if f"{SITE_ORIGIN}{route}" not in sitemap_urls:
-                errors.append(f"sitemap omits required route {route}")
-
-    parsed_html: dict[Path, HtmlInspection] = {
-        path: value[1] for path, value in inspections.items()
-    }
-    for page_path, parser in sorted(parsed_html.items()):
-        if parser.inline_handlers:
-            errors.append(
-                f"{page_path.relative_to(artifact)}: inline event handlers are forbidden"
-            )
-        if page_path == case_path and parser.forms:
-            errors.append(
-                f"{page_path.relative_to(artifact)}: forms imply an uncontracted case interaction"
-            )
-        for tag, _, value in parser.references:
-            if not value or value.startswith(("data:", "mailto:", "tel:")):
-                continue
-            parsed = urlsplit(value)
-            if parsed.scheme not in {"", "http", "https"} or value.startswith("//"):
-                errors.append(
-                    f"{page_path.relative_to(artifact)}: unsafe reference {value!r}"
-                )
-                continue
-            if parsed.scheme and f"{parsed.scheme}://{parsed.netloc}" != SITE_ORIGIN:
-                if re.match(
-                    r"^/nkiyohara/eqiora/(?:blob|tree)/", parsed.path
-                ) and not re.match(
-                    rf"^https://github\.com/nkiyohara/eqiora/(?:blob|tree)/{source_sha}/",
-                    value,
-                ):
-                    errors.append(
-                        f"{page_path.relative_to(artifact)}: repository source link does not use the exact asserted SHA: {value!r}"
-                    )
-                if _runtime_reference(tag, _, value):
-                    errors.append(
-                        f"{page_path.relative_to(artifact)}: external runtime request {value!r}"
-                    )
-                continue
-            target, fragment = _local_reference(artifact, page_path, value)
-            if target is None:
-                continue
-            if target == Path("/__escape__") or not target.is_file():
-                errors.append(
-                    f"{page_path.relative_to(artifact)}: broken or escaping link {value!r}"
-                )
-                continue
-            if fragment and target.suffix == ".html":
-                target_parser = parsed_html.get(target)
-                if target_parser is None:
-                    try:
-                        _, target_parser = read_html(target, MAX_HTML_BYTES)
-                    except (OSError, UnicodeDecodeError, ValueError):
-                        target_parser = None
-                if (
-                    target_parser is None
-                    or unquote(fragment) not in target_parser.id_text
-                ):
-                    errors.append(
-                        f"{page_path.relative_to(artifact)}: missing fragment target {value!r}"
-                    )
-
-    katex_woff2_count = 0
-    for stylesheet in sorted(path for path in files if path.suffix == ".css"):
-        try:
-            css = stylesheet.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            continue
-        for match in CSS_URL.finditer(css):
-            value = match.group(2)
-            target, _ = _local_reference(artifact, stylesheet, value)
-            if target is None or not target.is_file():
-                errors.append(
-                    f"{stylesheet.relative_to(artifact)}: CSS asset is external or missing: {value!r}"
-                )
-            elif target.suffix == ".woff2" and "katex" in css.casefold():
-                katex_woff2_count += 1
-    if katex_woff2_count == 0:
-        errors.append("assembled KaTeX CSS exposes no resolvable local WOFF2 fonts")
-
-    for path in files:
-        if path.suffix.lower() not in {".html", ".css", ".js", ".xml", ".json"}:
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            continue
-        if (
-            "/blob/main/" in text
-            or "/tree/main/" in text
-            or "EQIORA_SITE_SOURCE_SHA" in text
-        ):
-            errors.append(
-                f"{path.relative_to(artifact)}: unresolved or branch-relative source identity"
-            )
-    return errors
+    return _site_artifact.check_artifact(
+        artifact,
+        source_sha,
+        expected_python_version,
+        identities,
+        maximum_files=MAX_FILES,
+        maximum_total_bytes=MAX_TOTAL_BYTES,
+    )
 
 
 def check_site(
@@ -1380,6 +885,14 @@ def _parser() -> argparse.ArgumentParser:
     server.add_argument("--artifact", type=Path, required=True)
     server.add_argument("--host", default="127.0.0.1")
     server.add_argument("--port", type=int, default=4173)
+    topology = subparsers.add_parser("source-topology")
+    topology.add_argument("--root", type=Path, required=True)
+    topology.add_argument("--expected-agents-sha256")
+    browser = subparsers.add_parser("browser-supply")
+    browser.add_argument("--site-root", type=Path, required=True)
+    browser.add_argument("--browser-cache", type=Path, required=True)
+    browser.add_argument("--expected-executable-sha256", required=True)
+    browser.add_argument("--expected-executable-bytes", type=int, required=True)
     return parser
 
 
@@ -1391,6 +904,29 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, ValueError) as error:
             print(f"site server: {error}", file=sys.stderr)
             return 1
+    if args.command == "source-topology":
+        errors = check_source_topology(args.root, args.expected_agents_sha256)
+        if errors:
+            print(
+                "\n".join(f"site source: {error}" for error in errors), file=sys.stderr
+            )
+            return 1
+        print("site source: exact optional CLAUDE.md topology admitted")
+        return 0
+    if args.command == "browser-supply":
+        errors = check_browser_supply(
+            args.site_root,
+            args.browser_cache,
+            args.expected_executable_sha256,
+            args.expected_executable_bytes,
+        )
+        if errors:
+            print(
+                "\n".join(f"site browser: {error}" for error in errors), file=sys.stderr
+            )
+            return 1
+        print("site browser: exact locked full Chromium supply admitted")
+        return 0
     errors = check_site(args.root.resolve(), args.artifact.resolve(), args.source_sha)
     if errors:
         print("\n".join(f"site check: {error}" for error in errors), file=sys.stderr)

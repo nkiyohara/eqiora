@@ -1,7 +1,3 @@
-"""Private semantic HTML observation for the bounded site checker."""
-
-from __future__ import annotations
-
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -13,8 +9,6 @@ def normalize(text: str) -> str:
 
 
 class HtmlInspection(HTMLParser):
-    """Collect semantic HTML observations without assuming component DOM."""
-
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.stack: list[tuple[str, dict[str, str], bool]] = []
@@ -30,11 +24,9 @@ class HtmlInspection(HTMLParser):
         self.id_text: dict[str, list[str]] = {}
         self.math: list[tuple[str, bool]] = []
         self.inline_handlers: list[str] = []
-        self.forms = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = {name.lower(): value or "" for name, value in attrs}
-        classes = set(values.get("class", "").split())
         parent_hidden = self.stack[-1][2] if self.stack else False
         hidden = (
             parent_hidden
@@ -66,8 +58,6 @@ class HtmlInspection(HTMLParser):
             self.metas.append(values)
         if tag == "link":
             self.links.append(values)
-        if tag == "form":
-            self.forms += 1
         if tag == "input" and values.get("type", "text").lower() in {
             "button",
             "submit",
@@ -87,13 +77,16 @@ class HtmlInspection(HTMLParser):
                 for item in self.stack[:-1]
             )
             self.math.append((values.get("display", "inline"), in_display))
-        for attribute in ("href", "src", "poster", "action"):
+        for attribute in ("href", "src", "poster", "action", "data", "style"):
             if attribute in values:
                 self.references.append((tag, attribute, values[attribute]))
         if "srcset" in values:
             for item in values["srcset"].split(","):
                 self.references.append((tag, "srcset", item.strip().split()[0]))
-        if "katex-display" in classes and tag not in {"div", "span"}:
+        if "katex-display" in values.get("class", "").split() and tag not in {
+            "div",
+            "span",
+        }:
             self.references.append((tag, "invalid-katex-display-owner", ""))
 
     def handle_endtag(self, tag: str) -> None:

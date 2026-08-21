@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import importlib
 import inspect
 import io
@@ -382,8 +383,24 @@ class PlanTests(unittest.TestCase):
 
 class Issue496UnixSocketScratchTests(unittest.TestCase):
     SYNTHETIC_HOME = Path("/home/user1")
-    SOCKET_RELATIVE = Path("eqiora-cli-filesystem-4294967295-8") / "socket"
+    PRIMARY_SCRATCH_ALLOCATIONS = 9
+    RECEIPT_ALLOCATIONS = 21
+    TOTAL_SHARED_INCREMENTS = PRIMARY_SCRATCH_ALLOCATIONS + RECEIPT_ALLOCATIONS
+    MAX_SHARED_SEQUENCE = TOTAL_SHARED_INCREMENTS - 1
+    MAX_PROCESS_ID = 4294967295
+    SOCKET_RELATIVE = (
+        Path(f"eqiora-cli-filesystem-{MAX_PROCESS_ID}-{MAX_SHARED_SEQUENCE}")
+        / "socket"
+    )
+    SOCKET_SUFFIX = "/" + SOCKET_RELATIVE.as_posix()
+    SOCKET_SUFFIX_SHA256 = (
+        "bcf9ca8b033c44156fde8731b73e13f2c50ac9dbfa55e1167e8b49898d6cab8e"
+    )
+    NO_CHILD_DIAGNOSTIC = (
+        "scheduler dispatched a child before Unix-socket scratch admission completed"
+    )
     UNIX_PATHNAME_MAX = 107
+    TMPDIR_ADMITTED_MAX = UNIX_PATHNAME_MAX - len(os.fsencode(SOCKET_SUFFIX))
 
     @staticmethod
     def plan(*commands: PlannedCommand) -> VerificationPlan:
@@ -400,8 +417,13 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
     @classmethod
     def utf8_boundary_paths(cls) -> tuple[Path, Path, Path]:
         configured_root = cls.SYNTHETIC_HOME / "é"
-        tmpdir_107 = configured_root / ("a" * 50)
-        tmpdir_108 = configured_root / ("a" * 51)
+        padding = (
+            cls.TMPDIR_ADMITTED_MAX
+            - len(os.fsencode(configured_root))
+            - len(os.fsencode("/"))
+        )
+        tmpdir_107 = configured_root / ("a" * padding)
+        tmpdir_108 = configured_root / ("a" * (padding + 1))
         return configured_root, tmpdir_107, tmpdir_108
 
     @staticmethod
@@ -414,13 +436,16 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
             entries.append((path.relative_to(root).as_posix(), kind))
         return tuple(sorted(entries))
 
+    def assert_no_child(self, child: mock.Mock) -> None:
+        self.assertEqual(child.call_count, 0, self.NO_CHILD_DIAGNOSTIC)
+
     @classmethod
     def real_boundary_tmpdirs(cls, authority: Path) -> tuple[Path, Path]:
         authority_characters = len(str(authority))
         authority_bytes = len(os.fsencode(authority))
         if authority_characters != authority_bytes:
             raise AssertionError("boundary authority must have an ASCII spelling")
-        padding = 65 - authority_bytes - len(os.fsencode("/é"))
+        padding = cls.TMPDIR_ADMITTED_MAX - authority_bytes - len(os.fsencode("/é"))
         if padding < 0:
             raise AssertionError("home-backed authority is too long for C107")
         tmpdir_107 = authority / ("é" + "a" * padding)
@@ -643,28 +668,79 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
                 second_future.result(timeout=2.0)
                 self.assertFalse(second_tmpdir.exists())
 
-    def test_04_old_default_shape_exceeds_the_frozen_socket_budget(self) -> None:
+    def test_04_shared_sequence_domain_and_old_default_shape_exceed_the_frozen_socket_budget(
+        self,
+    ) -> None:
+        self.assertEqual(self.PRIMARY_SCRATCH_ALLOCATIONS, 9)
+        self.assertEqual(self.RECEIPT_ALLOCATIONS, 21)
+        self.assertEqual(
+            self.TOTAL_SHARED_INCREMENTS,
+            self.PRIMARY_SCRATCH_ALLOCATIONS + self.RECEIPT_ALLOCATIONS,
+        )
+        self.assertEqual(self.TOTAL_SHARED_INCREMENTS, 30)
+        self.assertEqual(
+            self.MAX_SHARED_SEQUENCE, self.TOTAL_SHARED_INCREMENTS - 1
+        )
+        self.assertEqual(self.MAX_SHARED_SEQUENCE, 29)
+        self.assertEqual(self.MAX_PROCESS_ID, 4294967295)
+        self.assertEqual(
+            self.SOCKET_RELATIVE.as_posix(),
+            "eqiora-cli-filesystem-4294967295-29/socket",
+        )
+        socket_suffix = os.fsencode(self.SOCKET_SUFFIX)
+        self.assertEqual(len(socket_suffix), 43)
+        self.assertEqual(
+            hashlib.sha256(socket_suffix).hexdigest(), self.SOCKET_SUFFIX_SHA256
+        )
+        self.assertEqual(
+            self.TMPDIR_ADMITTED_MAX + len(socket_suffix), self.UNIX_PATHNAME_MAX
+        )
+
         home = self.SYNTHETIC_HOME
         base = home / ".cache" / "eqiora" / "local-verify" / ("0" * 16)
         old_tmpdir = base / "lanes" / f"root-cargo-{'0' * 8}" / "tmp" / f"run-{'0' * 8}"
         candidate = self.socket_candidate(old_tmpdir)
         self.assertEqual(len(os.fsencode(old_tmpdir)), 98)
-        self.assertEqual(len(os.fsencode(candidate)), 140)
+        self.assertEqual(len(os.fsencode(candidate)), 141)
         self.assertGreater(len(os.fsencode(candidate)), self.UNIX_PATHNAME_MAX)
-        self.assertEqual(len(os.fsencode("/" + self.SOCKET_RELATIVE.as_posix())), 42)
 
-    def test_05_controlled_real_65_byte_tmpdir_is_admitted_and_cleaned(self) -> None:
+        sentinel_key = "EQIORA_ISSUE496_DIAGNOSTIC_SENTINEL"
+        sentinel_value = "scrubbed-environment-value"
+        sentinel_environment = {sentinel_key: sentinel_value, "SAFE": "ordinary"}
+        diagnostic_probe = mock.Mock()
+        diagnostic_probe(("sentinel-child",), env=sentinel_environment)
+        rendered = io.StringIO()
+        outer = self
+
+        class SafeNoChildDiagnosticProbe(unittest.TestCase):
+            def runTest(probe_self) -> None:
+                outer.assert_no_child(diagnostic_probe)
+
+        probe_result = unittest.TextTestRunner(stream=rendered).run(
+            SafeNoChildDiagnosticProbe()
+        )
+        self.assertEqual(probe_result.testsRun, 1)
+        self.assertEqual(len(probe_result.failures), 1)
+        self.assertEqual(len(probe_result.errors), 0)
+        rendered_failure = rendered.getvalue()
+        self.assertIn(self.NO_CHILD_DIAGNOSTIC, rendered_failure)
+        self.assertNotIn(sentinel_key, rendered_failure)
+        self.assertNotIn(sentinel_value, rendered_failure)
+        self.assertNotIn(repr(sentinel_environment), rendered_failure)
+        self.assertNotIn("env=", rendered_failure)
+
+    def test_05_controlled_real_64_byte_tmpdir_is_admitted_and_cleaned(self) -> None:
         configured_root, tmpdir_107, tmpdir_108 = self.utf8_boundary_paths()
         self.assertEqual(len(str(self.SYNTHETIC_HOME)), 11)
         self.assertEqual(len(os.fsencode(self.SYNTHETIC_HOME)), 11)
         self.assertEqual(len(str(configured_root)), 13)
         self.assertEqual(len(os.fsencode(configured_root)), 14)
-        self.assertEqual(len(str(tmpdir_107)), 64)
-        self.assertEqual(len(os.fsencode(tmpdir_107)), 65)
+        self.assertEqual(len(str(tmpdir_107)), 63)
+        self.assertEqual(len(os.fsencode(tmpdir_107)), 64)
         self.assertEqual(len(str(self.socket_candidate(tmpdir_107))), 106)
         self.assertEqual(len(os.fsencode(self.socket_candidate(tmpdir_107))), 107)
-        self.assertEqual(len(str(tmpdir_108)), 65)
-        self.assertEqual(len(os.fsencode(tmpdir_108)), 66)
+        self.assertEqual(len(str(tmpdir_108)), 64)
+        self.assertEqual(len(os.fsencode(tmpdir_108)), 65)
         self.assertEqual(len(str(self.socket_candidate(tmpdir_108))), 107)
         self.assertEqual(len(os.fsencode(self.socket_candidate(tmpdir_108))), 108)
 
@@ -676,8 +752,8 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
             authority = Path(directory)
             controlled_107, _controlled_108 = self.real_boundary_tmpdirs(authority)
             candidate = self.socket_candidate(controlled_107)
-            self.assertEqual(len(str(controlled_107)), 64)
-            self.assertEqual(len(os.fsencode(controlled_107)), 65)
+            self.assertEqual(len(str(controlled_107)), 63)
+            self.assertEqual(len(os.fsencode(controlled_107)), 64)
             self.assertEqual(len(str(candidate)), 106)
             self.assertEqual(len(os.fsencode(candidate)), 107)
             submitted: list[Path] = []
@@ -730,7 +806,7 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
             self.assertEqual(observed, [(controlled_107, True)])
             self.assertFalse(controlled_107.exists())
 
-    def test_06_controlled_real_66_byte_tmpdir_rejects_and_cleans(self) -> None:
+    def test_06_controlled_real_65_byte_tmpdir_rejects_and_cleans(self) -> None:
         plan = self.plan(
             PlannedCommand("C108 boundary", ("c108",), lane=self.lane("utf8"))
         )
@@ -739,8 +815,8 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
             authority = Path(directory)
             _controlled_107, controlled_108 = self.real_boundary_tmpdirs(authority)
             candidate = self.socket_candidate(controlled_108)
-            self.assertEqual(len(str(controlled_108)), 65)
-            self.assertEqual(len(os.fsencode(controlled_108)), 66)
+            self.assertEqual(len(str(controlled_108)), 64)
+            self.assertEqual(len(os.fsencode(controlled_108)), 65)
             self.assertEqual(len(str(candidate)), 107)
             self.assertEqual(len(os.fsencode(candidate)), 108)
             submitted: list[Path] = []
@@ -784,14 +860,14 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
                 "run_plan did not consume the frozen lane TMP scope",
             )
             self.assertEqual(submitted, [controlled_108])
-            child.assert_not_called()
+            self.assert_no_child(child)
             self.assertFalse(controlled_108.exists())
             self.assertIsNotNone(rejection)
             assert rejection is not None
             self.assertRegex(str(rejection), r"108")
             self.assertRegex(str(rejection), r"107")
 
-    def test_07_unpatched_65_byte_root_rejects_every_strict_descendant(self) -> None:
+    def test_07_unpatched_64_byte_root_rejects_every_strict_descendant(self) -> None:
         plan = self.plan(
             PlannedCommand(
                 "overlong provider falsifier", ("forbidden",), lane=self.lane("utf8")
@@ -800,11 +876,11 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
         home = Path.home().resolve()
         with tempfile.TemporaryDirectory(prefix="x", dir=home) as directory:
             container = Path(directory)
-            padding = 65 - len(os.fsencode(container)) - 1
+            padding = self.TMPDIR_ADMITTED_MAX - len(os.fsencode(container)) - 1
             self.assertGreaterEqual(padding, 1)
             scratch_root = container / ("a" * padding)
             scratch_root.mkdir()
-            self.assertEqual(len(os.fsencode(scratch_root)), 65)
+            self.assertEqual(len(os.fsencode(scratch_root)), 64)
             before_rejection = self.filesystem_snapshot(scratch_root)
             started: list[Path] = []
 
@@ -837,11 +913,7 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
                     len(os.fsencode(self.socket_candidate(started[0]))),
                     self.UNIX_PATHNAME_MAX,
                 )
-            self.assertEqual(
-                child.call_count,
-                0,
-                "the production provider ignored the strict-descendant budget",
-            )
+            self.assert_no_child(child)
             self.assertEqual(after_rejection, before_rejection)
             self.assertIsNotNone(rejection)
             assert rejection is not None
@@ -934,7 +1006,7 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
             self.assertCountEqual(allocated, boundaries)
             self.assertCountEqual(admission_attempts, boundaries)
             self.assertEqual(entered, [controlled_107])
-            child.assert_not_called()
+            self.assert_no_child(child)
             self.assertCountEqual(released, [controlled_107, controlled_108])
             self.assertTrue(all(not path.exists() for path in allocated))
             self.assertIsNotNone(rejection)
@@ -997,7 +1069,7 @@ class Issue496UnixSocketScratchTests(unittest.TestCase):
                 )
             except Exception as caught:  # rejection type is not contractual
                 rejection = caught
-        child.assert_not_called()
+        self.assert_no_child(child)
         self.assertIsNotNone(rejection)
         assert rejection is not None
         self.assertRegex(str(rejection), "below the home directory")

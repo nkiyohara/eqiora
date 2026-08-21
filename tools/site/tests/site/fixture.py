@@ -2,11 +2,358 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import re
+import selectors
+import signal
+import shutil
+import subprocess
 import sys
+import time
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping, Sequence
 
 SOURCE_SHA = "a" * 40
 REPOSITORY = Path(__file__).resolve().parents[4]
+GIT_OBJECT_REPOSITORY_VARIABLE = "EQIORA_SITE_GIT_OBJECT_REPOSITORY"
+SOURCE_SHA_VARIABLE = "EQIORA_SITE_SOURCE_SHA"
+GIT_TIMEOUT_SECONDS = 30
+GIT_IDENTITY_OUTPUT_LIMIT = 65_536
+GIT_OBJECT_OUTPUT_LIMIT = 34_088_961
+GIT_STDERR_LIMIT = 65_536
+_LOWER_OBJECT_ID = re.compile(rb"[0-9a-f]{40}\n")
+_GIT_EXECUTABLE = Path(shutil.which("git", path=os.defpath) or "/usr/bin/git").resolve()
+_GIT_ENVIRONMENT = {
+    "LC_ALL": "C",
+    "LANG": "C",
+    "TZ": "UTC",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": os.devnull,
+    "GIT_OPTIONAL_LOCKS": "0",
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_NO_REPLACE_OBJECTS": "1",
+}
+_HISTORICAL_COMMITS = {
+    "5d2a9bef58c2df32cd6b14c5b6dd876beac7144f",
+    "68c9c2fe245ac52cc20dcf5a65a2455de507f0dc",
+    "19968da984c16e718baeb9faa5aae04260896c29",
+}
+_HISTORICAL_OBJECTS = {
+    "3237f739098498ac46bfdd6a993c00b0575900f3",
+    "57f8b9b476c04b8103b5a43c8a30504c0e2fa1fb",
+    "47dc3e3d863cfb5727b87d785d09abf9743c0a72",
+    "61c1bbede492aef4a9c85fa364d031e012621809",
+    "20701fe8909295b980c1da7cf3eab366f8d5f27c",
+    "6e685495bf6989e1ad902a7e88c199557285cbee",
+    "1d19473c487b8035608cc88cbd99757f2b95865a",
+    "21d5f0bc5213bca02336040f1085c7d52c63588f",
+}
+_HISTORICAL_QUERIES = {
+    ("rev-parse", "--verify", "HEAD^{commit}"): GIT_IDENTITY_OUTPUT_LIMIT,
+    ("rev-parse", "--verify", "HEAD^{tree}"): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "rev-parse",
+        "5d2a9bef58c2df32cd6b14c5b6dd876beac7144f^{tree}",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "rev-parse",
+        "5d2a9bef58c2df32cd6b14c5b6dd876beac7144f:.github/workflows/pages.yml",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "rev-parse",
+        "5d2a9bef58c2df32cd6b14c5b6dd876beac7144f:CLAUDE.md",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "rev-parse",
+        "5d2a9bef58c2df32cd6b14c5b6dd876beac7144f:AGENTS.md",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "ls-tree",
+        "5d2a9bef58c2df32cd6b14c5b6dd876beac7144f",
+        "--",
+        "AGENTS.md",
+        "CLAUDE.md",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "rev-parse",
+        "68c9c2fe245ac52cc20dcf5a65a2455de507f0dc^{tree}",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "rev-parse",
+        "68c9c2fe245ac52cc20dcf5a65a2455de507f0dc:.github/workflows/pages.yml",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "rev-parse",
+        "19968da984c16e718baeb9faa5aae04260896c29^{tree}",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "archive",
+        "--format=tar",
+        "19968da984c16e718baeb9faa5aae04260896c29",
+    ): GIT_OBJECT_OUTPUT_LIMIT,
+    (
+        "ls-tree",
+        "-r",
+        "-z",
+        "19968da984c16e718baeb9faa5aae04260896c29",
+    ): GIT_OBJECT_OUTPUT_LIMIT,
+    (
+        "show",
+        "19968da984c16e718baeb9faa5aae04260896c29:docs/site/package-lock.json",
+    ): GIT_OBJECT_OUTPUT_LIMIT,
+    (
+        "show",
+        "19968da984c16e718baeb9faa5aae04260896c29:CLAUDE.md",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+    (
+        "show",
+        "19968da984c16e718baeb9faa5aae04260896c29:AGENTS.md",
+    ): GIT_IDENTITY_OUTPUT_LIMIT,
+}
+_HISTORICAL_QUERIES.update(
+    {
+        ("cat-file", "-e", f"{commit}^{{commit}}"): GIT_IDENTITY_OUTPUT_LIMIT
+        for commit in _HISTORICAL_COMMITS
+    }
+)
+_HISTORICAL_QUERIES.update(
+    {
+        ("cat-file", "-e", object_id): GIT_IDENTITY_OUTPUT_LIMIT
+        for object_id in _HISTORICAL_OBJECTS
+    }
+)
+_HISTORICAL_QUERIES.update(
+    {
+        ("cat-file", "blob", object_id): GIT_IDENTITY_OUTPUT_LIMIT
+        for object_id in {
+            "57f8b9b476c04b8103b5a43c8a30504c0e2fa1fb",
+            "47dc3e3d863cfb5727b87d785d09abf9743c0a72",
+            "61c1bbede492aef4a9c85fa364d031e012621809",
+            "6e685495bf6989e1ad902a7e88c199557285cbee",
+        }
+    }
+)
+
+
+class GitObjectAuthorityError(AssertionError):
+    pass
+
+
+@dataclass(frozen=True)
+class GitObjectAuthority:
+    root: Path
+    head: str
+    tree: str
+
+
+def git_read_environment() -> dict[str, str]:
+    return {**_GIT_ENVIRONMENT, "PATH": os.defpath}
+
+
+def _bounded_command(
+    command: Sequence[str],
+    *,
+    output_limit: int,
+    executable: Path = _GIT_EXECUTABLE,
+) -> bytes:
+    process = subprocess.Popen(
+        [str(executable), *command],
+        env=_GIT_ENVIRONMENT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+    assert process.stdout is not None and process.stderr is not None
+    streams = selectors.DefaultSelector()
+    streams.register(process.stdout, selectors.EVENT_READ, ("stdout", output_limit))
+    streams.register(process.stderr, selectors.EVENT_READ, ("stderr", GIT_STDERR_LIMIT))
+    captured = {"stdout": bytearray(), "stderr": bytearray()}
+    deadline = time.monotonic() + GIT_TIMEOUT_SECONDS
+    try:
+        while streams.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise GitObjectAuthorityError("Git object authority command timed out")
+            ready = streams.select(remaining)
+            if not ready:
+                raise GitObjectAuthorityError("Git object authority command timed out")
+            for key, _ in ready:
+                label, limit = key.data
+                chunk = os.read(key.fd, min(65_536, limit + 1 - len(captured[label])))
+                if not chunk:
+                    streams.unregister(key.fileobj)
+                    continue
+                captured[label].extend(chunk)
+                if len(captured[label]) > limit:
+                    raise GitObjectAuthorityError(
+                        f"Git object authority {label} exceeded its bound"
+                    )
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise GitObjectAuthorityError("Git object authority command timed out")
+        returncode = process.wait(timeout=remaining)
+    except (GitObjectAuthorityError, subprocess.TimeoutExpired):
+        if process.poll() is None:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        process.wait()
+        raise GitObjectAuthorityError(
+            "Git object authority command failed or timed out"
+        )
+    finally:
+        streams.close()
+        process.stdout.close()
+        process.stderr.close()
+    stdout, stderr = bytes(captured["stdout"]), bytes(captured["stderr"])
+    if returncode != 0 or stderr:
+        raise GitObjectAuthorityError(
+            "Git object authority command failed or emitted stderr"
+        )
+    return stdout
+
+
+def _git_read(
+    root: Path,
+    arguments: Sequence[str],
+    *,
+    output_limit: int = GIT_IDENTITY_OUTPUT_LIMIT,
+    executable: Path = _GIT_EXECUTABLE,
+) -> bytes:
+    return _bounded_command(
+        [
+            "--no-replace-objects",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "gc.auto=0",
+            "-c",
+            "maintenance.auto=false",
+            "-C",
+            str(root),
+            *arguments,
+        ],
+        output_limit=output_limit,
+        executable=executable,
+    )
+
+
+def _canonical_object_id(output: bytes, label: str) -> str:
+    if _LOWER_OBJECT_ID.fullmatch(output) is None:
+        raise GitObjectAuthorityError(
+            f"Git object authority returned malformed {label} identity"
+        )
+    return output[:-1].decode("ascii")
+
+
+def git_object_authority(
+    *,
+    repository: Path = REPOSITORY,
+    environment: Mapping[str, str] | None = None,
+    executable: Path = _GIT_EXECUTABLE,
+) -> GitObjectAuthority:
+    values = os.environ if environment is None else environment
+    supplied = GIT_OBJECT_REPOSITORY_VARIABLE in values
+    raw = values.get(GIT_OBJECT_REPOSITORY_VARIABLE, "")
+    repository = repository.resolve(strict=True)
+    if supplied:
+        if not raw:
+            raise GitObjectAuthorityError("Git object authority is empty")
+        candidate = Path(raw)
+        if not candidate.is_absolute():
+            raise GitObjectAuthorityError("Git object authority is not absolute")
+        try:
+            root = candidate.resolve(strict=True)
+        except OSError as error:
+            raise GitObjectAuthorityError(
+                "Git object authority is unavailable"
+            ) from error
+        if str(candidate) != str(root):
+            raise GitObjectAuthorityError("Git object authority is not canonical")
+        if not root.is_dir() or root.is_symlink():
+            raise GitObjectAuthorityError(
+                "Git object authority is not a real non-symlink directory"
+            )
+        if os.path.lexists(repository / ".git"):
+            raise GitObjectAuthorityError("direct archive unexpectedly contains .git")
+        if root == repository or root.is_relative_to(repository):
+            raise GitObjectAuthorityError("Git object authority overlaps the archive")
+    else:
+        if not os.path.lexists(repository / ".git"):
+            raise GitObjectAuthorityError(
+                "a .git-absent archive requires EQIORA_SITE_GIT_OBJECT_REPOSITORY"
+            )
+        root = repository
+
+    try:
+        path_limit = os.pathconf(root, "PC_PATH_MAX")
+    except (OSError, ValueError):
+        path_limit = 4096
+    if len(os.fsencode(root)) >= path_limit:
+        raise GitObjectAuthorityError("Git object authority exceeds the path bound")
+
+    top_level_output = _git_read(
+        root, ["rev-parse", "--show-toplevel"], executable=executable
+    )
+    try:
+        top_level_text = top_level_output.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise GitObjectAuthorityError(
+            "Git object authority top level is malformed"
+        ) from error
+    if top_level_text != f"{root}\n":
+        raise GitObjectAuthorityError("Git object authority top level differs")
+
+    head = _canonical_object_id(
+        _git_read(
+            root, ["rev-parse", "--verify", "HEAD^{commit}"], executable=executable
+        ),
+        "HEAD",
+    )
+    expected_head = values.get(SOURCE_SHA_VARIABLE, head)
+    if re.fullmatch(r"[0-9a-f]{40}", expected_head) is None:
+        raise GitObjectAuthorityError("source SHA is missing or malformed")
+    if head != expected_head:
+        raise GitObjectAuthorityError(
+            "Git object authority HEAD differs from source SHA"
+        )
+    tree = _canonical_object_id(
+        _git_read(
+            root, ["rev-parse", "--verify", "HEAD^{tree}"], executable=executable
+        ),
+        "HEAD tree",
+    )
+    return GitObjectAuthority(root=root, head=head, tree=tree)
+
+
+def historical_git(
+    *arguments: str,
+    repository: Path = REPOSITORY,
+    environment: Mapping[str, str] | None = None,
+) -> bytes:
+    command = tuple(arguments)
+    output_limit = _HISTORICAL_QUERIES.get(command)
+    if output_limit is None:
+        raise GitObjectAuthorityError(
+            "Git object authority command is not a frozen read-only object query"
+        )
+    authority = git_object_authority(repository=repository, environment=environment)
+    return _git_read(authority.root, arguments, output_limit=output_limit)
+
+
+def git_object_authority_status(
+    *,
+    repository: Path = REPOSITORY,
+    environment: Mapping[str, str] | None = None,
+) -> bytes:
+    authority = git_object_authority(repository=repository, environment=environment)
+    return _git_read(
+        authority.root,
+        ["status", "--porcelain=v1", "--untracked-files=all"],
+    )
 
 
 def _load_checker():
@@ -22,6 +369,28 @@ def _load_checker():
 checker = _load_checker()
 
 
+def pinned_node_path(root: Path) -> str:
+    directory = root / "pinned-node"
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, version in (
+        ("node", "v24.18.1"),
+        ("npm", "11.16.0"),
+        ("uv", "uv 0.12.1 (x86_64-unknown-linux-musl)"),
+    ):
+        executable = shutil.which(name)
+        if executable is None:
+            raise AssertionError(f"{name} is required by the site oracle")
+        wrapper = directory / name
+        wrapper.write_text(
+            "#!/bin/sh\n"
+            f"if [ \"${{1:-}}\" = --version ]; then printf '%s\\n' '{version}'; exit 0; fi\n"
+            f'exec "{executable}" "$@"\n',
+            encoding="utf-8",
+        )
+        wrapper.chmod(0o755)
+    return f"{directory}{os.pathsep}{os.environ.get('PATH', '')}"
+
+
 def _write(path: Path, value: str | bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(value, bytes):
@@ -32,7 +401,8 @@ def _write(path: Path, value: str | bytes) -> None:
 
 def _workflow() -> str:
     paths = "\n".join(
-        f'      - "{path}"' for path in sorted(checker.REQUIRED_TRIGGER_PATTERNS)
+        f'      - "{path}"'
+        for path in sorted({*checker.REQUIRED_TRIGGER_PATTERNS, ".gitattributes"})
     )
     return f"""name: fixture
 on:
@@ -53,11 +423,42 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           scratch="$RUNNER_TEMP/eqiora-site.fixture"
           mkdir -p "$scratch/source"
+          git ls-tree -r "$GITHUB_SHA" > "$scratch/source-tree"
+          source_links="$(awk '$1 == "120000" {{ print $4 }}' "$scratch/source-tree")"
+          case "$source_links" in ''|'CLAUDE.md') ;; *) exit 1 ;; esac
+          if test -n "$source_links"; then
+            test "$({checker.EXACT_TREE_LINK_COMMAND})" = {checker.EXACT_LINK_PAYLOAD_SHA256}
+            git ls-tree "$GITHUB_SHA" -- AGENTS.md | grep -F '100644 blob'
+            git cat-file blob "$GITHUB_SHA:AGENTS.md" > "$scratch/expected-AGENTS.md"
+          fi
           git archive --format=tar "$GITHUB_SHA" | tar -xf - -C "$scratch/source"
+          if test -n "$source_links"; then
+            test -L "$scratch/source/CLAUDE.md"
+            if test -L "$scratch/source/CLAUDE.md"; then
+              test "$({checker.EXACT_EXTRACTED_LINK_COMMAND})" = {checker.EXACT_LINK_PAYLOAD_SHA256}
+              cmp "$scratch/source/AGENTS.md" "$scratch/expected-AGENTS.md"
+            fi
+          elif test -e "$scratch/source/CLAUDE.md" || test -L "$scratch/source/CLAUDE.md"; then
+            exit 1
+          fi
           echo "EQIORA_SITE_SOURCE_ROOT=$scratch/source"
           echo eqiora-pw-1.62.1-r1234
-          npx playwright install --with-deps --only-shell chromium
-          echo 'HeadlessChrome 151.0.7922.34'
+          npx playwright install --with-deps chromium
+          browser_path="$(node -e 'require("playwright").chromium.executablePath()')"
+          echo chromium-1234/chrome-linux64/chrome
+          expected_browser_sha256="0b20b130e7edd9dd51873be867761295fe0cfad490c2b9a64f95bd3cfc08fa71"
+          expected_browser_bytes="290614600"
+          expected_browser_version_hex="{checker.FULL_CHROMIUM_VERSION_STDOUT_HEX}"
+          browser_sha256="$(sha256sum "$browser_path" | cut -d ' ' -f 1)"
+          browser_bytes="$(stat -c %s "$browser_path")"
+          test "$browser_sha256" = "$expected_browser_sha256"
+          test "$browser_bytes" = "$expected_browser_bytes"
+          EQIORA_SITE_BROWSER_SHA256="$expected_browser_sha256"
+          EQIORA_SITE_BROWSER_BYTES="$expected_browser_bytes"
+          export EQIORA_SITE_BROWSER_SHA256 EQIORA_SITE_BROWSER_BYTES
+          python3 tools/site/check_site.py browser-supply --site-root docs/site --browser-cache "$PLAYWRIGHT_BROWSERS_PATH" --expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256" --expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"
+          version_hex="$("$browser_path" --version | od -An -tx1 | tr -d '[:space:]')"
+          test "$version_hex" = "$expected_browser_version_hex"
           unshare --net bash -c 'ip link set lo up; setpriv true'
           export npm_config_offline=true
           export CARGO_NET_OFFLINE=true
@@ -69,12 +470,15 @@ def _runner() -> str:
     return """#!/usr/bin/env bash
 export npm_config_offline=true CARGO_NET_OFFLINE=true UV_OFFLINE=1
 export EQIORA_SITE_CARGO_VERSION=0.1.0-alpha.1 EQIORA_SITE_PYTHON_VERSION=0.1.0a1
+python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROOT"
+python3 tools/site/check_site.py browser-supply --site-root docs/site --browser-cache "$PLAYWRIGHT_BROWSERS_PATH" --expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256" --expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"
 python3 -m unittest tools.site.tests.test_site_tools -v
 python3 tools/docs/generate_interface_reference.py --repository . --eqiora-binary bin/eqiora --mcp-binary bin/eqiora-mcp --check
 python3 tools/site/build_rust_reference.py --rustdoc-root rustdoc/doc --output rustdoc-stage
 python3 tools/site/generate_evidence_catalog.py
 python3 tools/site/check_site.py check
 python3 tools/site/check_site.py serve
+python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROOT"
 """
 
 
