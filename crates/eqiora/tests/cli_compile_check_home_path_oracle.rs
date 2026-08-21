@@ -177,5 +177,5 @@ fn canonical_home_backed_tmpdir_admission_is_causal() {
     assert!(resolve_home_backed_tmpdir(os_tmp, os_root).is_err());
 
     // Long/no-override pressure and the 107/108-byte socket boundary remain
-    // owned by the byte-identical Issue #496 scheduler oracle.
+    // owned by tools/ci/tests/test_local_verify.py.
 }
