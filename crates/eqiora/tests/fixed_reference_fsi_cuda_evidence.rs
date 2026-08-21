@@ -8,11 +8,12 @@ use std::num::{NonZeroU64, NonZeroUsize};
 use std::path::{Path, PathBuf};
 
 use eqiora::artifact::{
-    ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope, RealizationEnvelopeV3, RunManifestV2,
+    ExecutionProvenanceV1, ExecutionTopologyV1, LayoutArtifacts, ModelEnvelope,
+    RealizationEnvelopeV3, RunManifestV2,
 };
 use eqiora::backends::cuda::{
-    CUDA_LINEAR_EXECUTION, CUDA_LINEAR_EXECUTION_PROVIDER, CUDA_LINEAR_SOLVER_PROVIDER,
-    CUDA_RUNTIME_ID, CudaLinearSolver,
+    CUDA_LINEAR_EXECUTION, CUDA_LINEAR_EXECUTION_PROVIDER, CUDA_LINEAR_SOLVER_BACKEND,
+    CUDA_LINEAR_SOLVER_PROVIDER, CUDA_RUNTIME_ID, CudaLinearSolver,
 };
 use eqiora::device::{DeviceDescriptor, DeviceId, QueueSlot};
 use eqiora::realization::{
@@ -145,6 +146,7 @@ fn replay_committed_observation() -> Result<(), String> {
     let run_bytes = read_bounded(&root.join("artifacts/cuda-run.json"), MAX_ARTIFACT_BYTES)?;
     let recorded_run = RunManifestV2::from_json(&run_bytes, Default::default())
         .map_err(|diagnostic| diagnostic.to_string())?;
+    validate_recorded_provider_environment(&observed.environment, &recorded_run.execution())?;
     recorded_run
         .validate_against(&recorded_realization)
         .map_err(|diagnostic| diagnostic.to_string())?;
@@ -358,7 +360,6 @@ fn run_from_observation(
     observed: &Observation,
 ) -> Result<RunManifestV2, String> {
     let environment = &observed.environment;
-    validate_recorded_provider_environment(environment)?;
     let native_libraries = [
         ("cusparse", environment.cusparse.to_string()),
         ("cublas", environment.cublas.to_string()),
@@ -382,27 +383,27 @@ fn run_from_observation(
 
 fn validate_recorded_provider_environment(
     environment: &observation::Environment,
+    recorded: &ExecutionProvenanceV1,
 ) -> Result<(), String> {
     if environment.runtime != CUDA_RUNTIME_ID.as_str()
-        || environment.adapter_version != CUDA_LINEAR_SOLVER_PROVIDER.implementation_version()
-        || environment.adapter_version != CUDA_LINEAR_EXECUTION_PROVIDER.implementation_version()
+        || recorded.adapter() != CUDA_LINEAR_EXECUTION.as_str()
+        || recorded.solver_backend() != CUDA_LINEAR_SOLVER_BACKEND.as_str()
     {
-        return Err(
-            "recorded CUDA provider identity differs from the declared provider release".to_owned(),
-        );
+        return Err("recorded CUDA provider identity is incompatible with CUDA".to_owned());
     }
-    for (name, recorded) in [
+    if environment.adapter_version != recorded.adapter_version()
+        || environment.adapter_version != recorded.solver_backend_version()
+    {
+        return Err("recorded CUDA provider version differs from the recorded Run".to_owned());
+    }
+    for (name, observed_version) in [
         ("cudarc", environment.cudarc.as_str()),
         ("cuda-binding-toolkit", environment.binding_toolkit.as_str()),
     ] {
-        let expected = CUDA_LINEAR_EXECUTION_PROVIDER
-            .libraries()
-            .iter()
-            .find(|library| library.name() == name)
-            .map(|library| library.version());
-        if expected != Some(recorded) {
+        let expected = recorded.libraries().get(name).map(String::as_str);
+        if expected != Some(observed_version) {
             return Err(format!(
-                "recorded CUDA provider library `{name}` differs from the declared provider release"
+                "recorded CUDA provider library `{name}` differs from the recorded Run"
             ));
         }
     }
