@@ -173,10 +173,6 @@ def load_config() -> DistributionConfig:
         raise CandidateError(
             "the first candidate must retain the manylinux_2_17_x86_64 floor"
         )
-    if config.python_version != "0.1.0a1":
-        raise CandidateError(
-            "the first public alpha candidate must have Python version 0.1.0a1"
-        )
     exact_uv_version(config.uv)
     return config
 

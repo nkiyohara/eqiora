@@ -49,8 +49,10 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
           RELEASE_COMMIT: ${{ inputs.commit }}
         run: |
-          test "$RELEASE_TAG" = "v0.1.0a1"
+          CANDIDATE_VERSION="$(PYTHONPATH=tools/release python3 -c 'from python_candidate import load_config; print(load_config().python_version)')"
+          test "$RELEASE_TAG" = "v$CANDIDATE_VERSION"
           [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$GITHUB_SHA" = "$RELEASE_COMMIT"
           test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
           tag_object="$(git rev-parse "refs/tags/$RELEASE_TAG")"
           test "$(git cat-file -t "$tag_object")" = "tag"
@@ -108,7 +110,7 @@ jobs:
     timeout-minutes: 15
     environment:
       name: pypi
-      url: https://pypi.org/project/eqiora/0.1.0a1/
+      url: https://pypi.org/project/eqiora/
     permissions:
       actions: read
       contents: read

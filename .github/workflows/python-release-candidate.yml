@@ -148,11 +148,20 @@ jobs:
       - name: Finalize exact profiles and candidate metadata
         env:
           CANDIDATE_COMMIT: ${{ inputs.commit }}
-        run: python3 tools/release/python_candidate.py finalize --expected-commit "$CANDIDATE_COMMIT" --artifacts "$RUNNER_TEMP/candidate-family" --h2-receipt "$RUNNER_TEMP/candidate-h2/eqiora-0.1.0a1-python-candidate-h2.json" --manifest-out "$RUNNER_TEMP/candidate-metadata"
+        run: |
+          mapfile -t receipts < <(find "$RUNNER_TEMP/candidate-h2" -maxdepth 1 -type f -name '*-python-candidate-h2.json')
+          test "${#receipts[@]}" -eq 1
+          python3 tools/release/python_candidate.py finalize \
+            --expected-commit "$CANDIDATE_COMMIT" \
+            --artifacts "$RUNNER_TEMP/candidate-family" \
+            --h2-receipt "${receipts[0]}" \
+            --manifest-out "$RUNNER_TEMP/candidate-metadata"
       - name: Record accepted manifest identity
         id: identity
         run: |
-          manifest="$RUNNER_TEMP/candidate-metadata/eqiora-0.1.0a1-python-candidate.json"
+          mapfile -t manifests < <(find "$RUNNER_TEMP/candidate-metadata" -maxdepth 1 -type f -name '*-python-candidate.json')
+          test "${#manifests[@]}" -eq 1
+          manifest="${manifests[0]}"
           manifest_sha256="$(sha256sum "$manifest" | cut -d ' ' -f 1)"
           echo "manifest_sha256=$manifest_sha256" >> "$GITHUB_OUTPUT"
       - name: Retain finalized distribution family
@@ -178,7 +187,7 @@ jobs:
     timeout-minutes: 15
     environment:
       name: testpypi
-      url: https://test.pypi.org/project/eqiora/0.1.0a1/
+      url: https://test.pypi.org/project/eqiora/
     permissions:
       contents: read
       id-token: write
@@ -278,11 +287,15 @@ jobs:
             --index-url https://pypi.org/simple \
             --only-binary=:all: \
             "${wheels[0]}"
+      - name: Resolve the admitted candidate version
+        run: |
+          CANDIDATE_VERSION="$(PYTHONPATH=tools/release python3 -c 'from python_candidate import load_config; print(load_config().python_version)')"
+          echo "CANDIDATE_VERSION=$CANDIDATE_VERSION" >> "$GITHUB_ENV"
       - name: Run installed public quick start outside the checkout
         working-directory: ${{ runner.temp }}
         run: >-
           python -I "$GITHUB_WORKSPACE/tools/release/python_public_smoke.py"
-          --expected-version 0.1.0a1
+          --expected-version "$CANDIDATE_VERSION"
           --profile base
 
   replay_frameworks:
@@ -320,11 +333,15 @@ jobs:
             --index-url https://pypi.org/simple \
             --only-binary=:all: \
             "${wheels[0]}[$PROFILE]"
+      - name: Resolve the admitted candidate version
+        run: |
+          CANDIDATE_VERSION="$(PYTHONPATH=tools/release python3 -c 'from python_candidate import load_config; print(load_config().python_version)')"
+          echo "CANDIDATE_VERSION=$CANDIDATE_VERSION" >> "$GITHUB_ENV"
       - name: Run installed framework quick start outside the checkout
         working-directory: ${{ runner.temp }}
         env:
           PROFILE: ${{ matrix.profile }}
         run: >-
           python -I "$GITHUB_WORKSPACE/tools/release/python_public_smoke.py"
-          --expected-version 0.1.0a1
+          --expected-version "$CANDIDATE_VERSION"
           --profile "$PROFILE"
