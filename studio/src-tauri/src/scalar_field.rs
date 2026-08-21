@@ -672,7 +672,12 @@ mod tests {
 
         let last = encode_chunk(&values, 1).unwrap();
         assert_eq!(last.len(), 3 * size_of::<f64>());
-        for (encoded, expected) in last.chunks_exact(8).zip(&values[VALUES_PER_CHUNK..]) {
+        for (encoded, expected) in last
+            .as_chunks::<8>()
+            .0
+            .iter()
+            .zip(&values[VALUES_PER_CHUNK..])
+        {
             assert_eq!(f64::from_le_bytes(encoded.try_into().unwrap()), *expected);
         }
         assert!(encode_chunk(&values, 2).is_err());
