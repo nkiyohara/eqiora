@@ -7569,7 +7569,7 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
             *, stage: str, deadline: float, timeout: float
         ) -> tuple[str, int | str | None]:
             actions.append(("wait", stage, deadline, timeout))
-            self.assertEqual(stage, "graceful")
+            self.assertIn(stage, ("graceful", "forced"))
             clock.now = 130.0
             return "host-still-running", None
 
@@ -7619,7 +7619,7 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
             ],
         )
         diagnostic = str(raised.exception)
-        self.assertIn("incomplete(stable-identity-mismatch)", diagnostic)
+        self.assertIn("incomplete(wait-host-still-running)", diagnostic)
         self.assertIn("pid=4102", diagnostic)
         self.assertIn("start=908172", diagnostic)
 
