@@ -1184,7 +1184,7 @@ def _notebook_cleanup_lifecycle(
                 action_authority_failed = True
                 make_sticky("incomplete(cleanup-deadline)")
                 return False
-            if stage == "sigterm" and expected.get("role") == "host":
+            if stage == "sigterm":
                 direct_wait_stage = "graceful"
             try:
                 result = request_stage(
