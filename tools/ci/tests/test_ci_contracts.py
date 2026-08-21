@@ -333,13 +333,17 @@ class HostedTriggerTests(unittest.TestCase):
             relative = shell_path.removeprefix("$RUNNER_TEMP/")
             return "${{ runner.temp }}/" + relative
 
+        def compact_shell(section: str) -> str:
+            without_continuations = re.sub(r"\\\n[ \t]*", "", section)
+            return " ".join(without_continuations.split())
+
         prepare = job("prepare-family")
         h2 = job("h2")
         finalize = job("finalize-candidate")
         publish = job("publish_testpypi")
-        compact_prepare = " ".join(prepare.split())
-        compact_h2 = " ".join(h2.split())
-        compact_finalize = " ".join(finalize.split())
+        compact_prepare = compact_shell(prepare)
+        compact_h2 = compact_shell(h2)
+        compact_finalize = compact_shell(finalize)
 
         self.assertRegex(h2, r"(?m)^    needs: prepare-family$")
         self.assertRegex(
@@ -373,18 +377,32 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertEqual(h2_command.group("family"), family)
         h2_out = h2_command.group("h2_out")
 
+        receipt_discovery = re.search(
+            r"(?m)^          mapfile -t receipts < <\(find "
+            r'"(?P<root>\$RUNNER_TEMP/candidate-h2)" '
+            r"-maxdepth 1 -type f -name '\*-python-candidate-h2\.json'\)$",
+            finalize,
+        )
+        self.assertIsNotNone(receipt_discovery)
+        assert receipt_discovery is not None
+        self.assertEqual(receipt_discovery.group("root"), h2_out)
+        self.assertRegex(
+            finalize,
+            r'(?m)^          test "\$\{#receipts\[@\]\}" -eq 1$',
+        )
+
         finalize_command = re.search(
             r"python3 tools/release/python_candidate\.py finalize "
             r"--expected-commit \"\$CANDIDATE_COMMIT\" "
             r"--artifacts \"(?P<family>[^\"]+)\" "
-            r"--h2-receipt \"(?P<receipt>[^\"]+)\" "
+            r"--h2-receipt \"(?P<receipt>\$\{receipts\[0\]\})\" "
             r"--manifest-out \"(?P<metadata>[^\"]+)\"",
             compact_finalize,
         )
         self.assertIsNotNone(finalize_command)
         assert finalize_command is not None
         self.assertEqual(finalize_command.group("family"), family)
-        self.assertTrue(finalize_command.group("receipt").startswith(h2_out + "/"))
+        self.assertEqual(finalize_command.group("receipt"), "${receipts[0]}")
         metadata = finalize_command.group("metadata")
         self.assertEqual(len({family, h2_out, metadata}), 3)
 
