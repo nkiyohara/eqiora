@@ -1341,6 +1341,7 @@ def _notebook_cleanup_lifecycle(
             terminal == "complete-nonempty"
             and live_survivors
             and not action_authority_failed
+            and not wait_acknowledged
             and monotonic() < decision_deadline
         ):
             forced_escalation = True
