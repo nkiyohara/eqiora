@@ -7307,6 +7307,9 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
         lifecycle = self.lifecycle()
         survivor = self.survivor()
         clock = types.SimpleNamespace(now=100.0)
+
+        def clock_read() -> float:
+            return clock.now
         observations = iter(
             (
                 ("complete-nonempty", (survivor,)),
@@ -7325,17 +7328,33 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
             actions.append(("identity", expected["start_time"]))
             return dict(expected)
 
-        def request_stage(*, stage: str, identity: dict[str, object]) -> str:
-            actions.append(("request", stage, identity["start_time"]))
+        def request_stage(
+            *,
+            stage: str,
+            identity: dict[str, object],
+            deadline: float,
+            monotonic: Callable[[], float],
+        ) -> str:
+            actions.append(
+                (
+                    "request",
+                    stage,
+                    identity["start_time"],
+                    deadline,
+                    monotonic is clock_read,
+                )
+            )
             return f"{stage}=sent"
 
-        def wait(*, stage: str, deadline: float, timeout: float) -> str:
+        def wait(
+            *, stage: str, deadline: float, timeout: float
+        ) -> tuple[str, int | str | None]:
             actions.append(("wait", stage, deadline, timeout))
             self.assertEqual(stage, "graceful")
             self.assertEqual(deadline, 135.0)
             self.assertEqual(timeout, 30.0)
             clock.now = 129.999
-            return "host=exited"
+            return "reaped-complete-empty", 0
 
         lifecycle(
             scenario=NotebookOwnedProcessDecisionTests.SCENARIO,
@@ -7344,14 +7363,14 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
             observe_identity=observe_identity,
             request_stage=request_stage,
             wait=wait,
-            monotonic=lambda: clock.now,
+            monotonic=clock_read,
         )
         self.assertEqual(
             actions[:4],
             [
                 ("observe", "graceful", 135.0, 30.0, 100.0),
                 ("identity", 908_172),
-                ("request", "sigterm", 908_172),
+                ("request", "sigterm", 908_172, 135.0, True),
                 ("wait", "graceful", 135.0, 30.0),
             ],
         )
@@ -7366,22 +7385,23 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
             (
                 ("complete-nonempty", (survivor,)),
                 ("complete-nonempty", (survivor,)),
-                ("complete-empty", ()),
             )
         )
         actions.clear()
 
-        def boundary_wait(*, stage: str, deadline: float, timeout: float) -> str:
+        def boundary_wait(
+            *, stage: str, deadline: float, timeout: float
+        ) -> tuple[str, int | str | None]:
             actions.append(("wait", stage, deadline, timeout))
             self.assertEqual(deadline, 135.0)
             if stage == "graceful":
                 self.assertEqual(timeout, 30.0)
                 clock.now = 130.0
-                return "host=still-running"
+                return "host-still-running", None
             self.assertEqual(stage, "forced")
             self.assertEqual(timeout, 5.0)
             clock.now = 135.0
-            return "host=exited"
+            return "reaped-complete-empty", 0
 
         with self.assertRaises(CandidateError) as raised:
             lifecycle(
@@ -7391,15 +7411,15 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
                 observe_identity=observe_identity,
                 request_stage=request_stage,
                 wait=boundary_wait,
-                monotonic=lambda: clock.now,
+                monotonic=clock_read,
             )
         diagnostic = str(raised.exception)
         self.assertIn("forced-escalation", diagnostic)
         self.assertIn("cleanup-deadline", diagnostic)
-        self.assertIn(("request", "sigkill", 908_172), actions)
+        self.assertIn(("request", "sigkill", 908_172, 135.0, True), actions)
         self.assertIn(("wait", "forced", 135.0, 5.0), actions)
         self.assertIn(("observe", "forced", 135.0, 5.0, 130.0), actions)
-        self.assertIn(("observe", "final", 135.0, 0.0, 135.0), actions)
+        self.assertNotIn(("observe", "final", 135.0, 0.0, 135.0), actions)
 
     def test_exhausted_budget_starts_no_blocking_forced_action(self) -> None:
         lifecycle = self.lifecycle()
@@ -7407,6 +7427,9 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
         survivor["requested_stages"] = ()
         survivor["stage_results"] = ()
         clock = types.SimpleNamespace(now=100.0)
+
+        def clock_read() -> float:
+            return clock.now
         observations = iter(
             (
                 ("complete-nonempty", (survivor,)),
@@ -7416,15 +7439,31 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
         actions: list[tuple[object, ...]] = []
         identity_calls: list[tuple[float, object]] = []
 
-        def wait(*, stage: str, deadline: float, timeout: float) -> str:
+        def wait(
+            *, stage: str, deadline: float, timeout: float
+        ) -> tuple[str, int | str | None]:
             actions.append(("wait", stage, deadline, timeout))
             self.assertEqual((stage, deadline, timeout), ("graceful", 135.0, 30.0))
             clock.now = 135.0
-            return "host=still-running"
+            return "host-still-running", None
 
-        def request_stage(*, stage: str, identity: dict[str, object]) -> str:
-            actions.append(("request", stage, identity["start_time"]))
-            return f"{stage}=accepted-unique-41"
+        def request_stage(
+            *,
+            stage: str,
+            identity: dict[str, object],
+            deadline: float,
+            monotonic: Callable[[], float],
+        ) -> str:
+            actions.append(
+                (
+                    "request",
+                    stage,
+                    identity["start_time"],
+                    deadline,
+                    monotonic is clock_read,
+                )
+            )
+            return f"{stage}=sent"
 
         def observe(
             *, stage: str, deadline: float, timeout: float
@@ -7451,7 +7490,7 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
                 observe_identity=observe_identity,
                 request_stage=request_stage,
                 wait=wait,
-                monotonic=lambda: clock.now,
+                monotonic=clock_read,
             )
         diagnostic = str(raised.exception)
         self.assertIn("cleanup-deadline", diagnostic)
@@ -7460,7 +7499,7 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
             diagnostic,
         )
         self.assertIn("requested_stages=sigterm", diagnostic)
-        self.assertIn("sigterm=accepted-unique-41", diagnostic)
+        self.assertIn("sigterm=sent", diagnostic)
         self.assertEqual(
             [action[1] for action in actions if action[0] == "request"],
             ["sigterm"],
@@ -7473,9 +7512,8 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
             actions,
             [
                 ("observe", "graceful", 135.0, 30.0, 100.0),
-                ("request", "sigterm", 908_172),
+                ("request", "sigterm", 908_172, 135.0, True),
                 ("wait", "graceful", 135.0, 30.0),
-                ("observe", "final", 135.0, 0.0, 135.0),
             ],
         )
         self.assertEqual(identity_calls, [(100.0, 908_172)])
@@ -7491,6 +7529,9 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
         expected = self.survivor(start_time=908_172)
         replacement = dict(expected, start_time=908_173, role="foreign")
         clock = types.SimpleNamespace(now=100.0)
+
+        def clock_read() -> float:
+            return clock.now
         observations = iter(
             (
                 ("complete-nonempty", (expected,)),
@@ -7506,15 +7547,31 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
             actions.append(("identity", observed["start_time"]))
             return observed
 
-        def request_stage(*, stage: str, identity: dict[str, object]) -> str:
-            actions.append(("request", stage, identity["start_time"]))
+        def request_stage(
+            *,
+            stage: str,
+            identity: dict[str, object],
+            deadline: float,
+            monotonic: Callable[[], float],
+        ) -> str:
+            actions.append(
+                (
+                    "request",
+                    stage,
+                    identity["start_time"],
+                    deadline,
+                    monotonic is clock_read,
+                )
+            )
             return f"{stage}=sent"
 
-        def wait(*, stage: str, deadline: float, timeout: float) -> str:
+        def wait(
+            *, stage: str, deadline: float, timeout: float
+        ) -> tuple[str, int | str | None]:
             actions.append(("wait", stage, deadline, timeout))
             self.assertEqual(stage, "graceful")
             clock.now = 130.0
-            return "host=still-running"
+            return "host-still-running", None
 
         with mock.patch.object(
             python_candidate_module,
@@ -7529,21 +7586,21 @@ class NotebookOwnedProcessBActionBoundaryTests(unittest.TestCase):
                     observe_identity=observe_identity,
                     request_stage=request_stage,
                     wait=wait,
-                    monotonic=lambda: clock.now,
+                    monotonic=clock_read,
                 )
 
         self.assertEqual(
             actions[:4],
             [
                 ("identity", 908_172),
-                ("request", "sigterm", 908_172),
+                ("request", "sigterm", 908_172, 135.0, True),
                 ("wait", "graceful", 135.0, 30.0),
                 ("identity", 908_173),
             ],
         )
         self.assertEqual(
             [action for action in actions if action[0] == "request"],
-            [("request", "sigterm", 908_172)],
+            [("request", "sigterm", 908_172, 135.0, True)],
         )
         replacement_observation = actions.index(("identity", 908_173))
         self.assertEqual(
@@ -8061,7 +8118,11 @@ while True:
                                 return observed
 
                             def record_request(
-                                *, stage: str, identity: dict[str, object]
+                                *,
+                                stage: str,
+                                identity: dict[str, object],
+                                deadline: float,
+                                monotonic: Callable[[], float],
                             ) -> str:
                                 event_log.append(
                                     (
@@ -8069,6 +8130,8 @@ while True:
                                         stage,
                                         int(identity["pid"]),
                                         int(identity["start_time"]),
+                                        deadline,
+                                        monotonic is kwargs["monotonic"],
                                     )
                                 )
                                 callback_state["request_depth"] += 1
@@ -8076,6 +8139,8 @@ while True:
                                     result = request_stage(
                                         stage=stage,
                                         identity=identity,
+                                        deadline=deadline,
+                                        monotonic=monotonic,
                                     )
                                 finally:
                                     callback_state["request_depth"] -= 1
@@ -8084,7 +8149,7 @@ while True:
 
                             def record_wait(
                                 *, stage: str, deadline: float, timeout: float
-                            ) -> str:
+                            ) -> tuple[str, int | str | None]:
                                 event_log.append(
                                     ("wait-enter", stage, deadline, timeout)
                                 )
