@@ -1016,7 +1016,7 @@ def _notebook_cleanup_lifecycle(
     ],
     observe_identity: Callable[..., dict[str, object] | None],
     request_stage: Callable[..., str],
-    wait: Callable[..., str],
+    wait: Callable[..., tuple[str, int | str | None]],
     monotonic: Callable[[], float],
 ) -> None:
     """Drive all owned-process actions through one bounded callback seam."""
@@ -1028,7 +1028,10 @@ def _notebook_cleanup_lifecycle(
     terminal = "incomplete(observer-unavailable)"
     sticky_terminal: str | None = None
     survivors: tuple[dict[str, object], ...] = ()
-    cleanup_error: BaseException | None = None
+    cleanup_secondary: str | None = None
+    action_authority_failed = False
+    wait_acknowledged = False
+    direct_wait_stage = "reap"
     action_history: dict[
         tuple[str, str, int, int],
         tuple[tuple[str, ...], tuple[str, ...], bool],
@@ -1047,17 +1050,51 @@ def _notebook_cleanup_lifecycle(
             )
         )
 
-    def observe_now(*, stage: str, timeout: float) -> None:
+    def make_sticky(value: str) -> None:
+        nonlocal sticky_terminal, terminal
+        terminal = value
+        if sticky_terminal is None:
+            sticky_terminal = value
+
+    def callback_failed(error: BaseException) -> None:
+        nonlocal cleanup_secondary
+        if cleanup_secondary is None:
+            cleanup_secondary = f"{type(error).__name__}: {error}"
+        make_sticky("incomplete(cleanup-callback-error)")
+
+    def observe_now(*, stage: str, timeout: float, post_ack: bool = False) -> bool:
         nonlocal terminal, survivors
-        terminal, survivors = observe(
-            stage=stage,
-            deadline=decision_deadline,
-            timeout=max(0.0, timeout),
-        )
-        if not isinstance(terminal, str) or not isinstance(survivors, tuple):
-            terminal = "incomplete(malformed-observation)"
+        now = monotonic()
+        if now >= decision_deadline:
+            make_sticky(
+                "incomplete(post-reap-observation-missing)"
+                if post_ack
+                else "incomplete(cleanup-deadline)"
+            )
+            return False
+        try:
+            result = observe(
+                stage=stage,
+                deadline=decision_deadline,
+                timeout=min(max(0.0, timeout), decision_deadline - now),
+            )
+        except BaseException as error:
+            callback_failed(error)
+            return False
+        if (
+            not isinstance(result, tuple)
+            or len(result) != 2
+            or not isinstance(result[0], str)
+            or not isinstance(result[1], tuple)
+        ):
+            make_sticky("incomplete(malformed-observation)")
             survivors = ()
-            return
+            return True
+        terminal, survivors = result
+        if any(not isinstance(survivor, dict) for survivor in survivors):
+            make_sticky("incomplete(malformed-observation)")
+            survivors = ()
+            return True
         enriched: list[dict[str, object]] = []
         for survivor in survivors:
             current = dict(survivor)
@@ -1070,130 +1107,280 @@ def _notebook_cleanup_lifecycle(
             enriched.append(current)
         survivors = tuple(enriched)
 
+        if len(survivors) > _NOTEBOOK_CLEANUP_IDENTITY_LIMIT:
+            terminal = "incomplete(observation-overflow)"
+            survivors = ()
+
+        valid_observations = {
+            "complete-empty",
+            "complete-nonempty",
+            "incomplete(authority-denied)",
+            "incomplete(observer-unavailable)",
+            "incomplete(observation-overflow)",
+            "incomplete(malformed-observation)",
+            "incomplete(stable-identity-mismatch)",
+            "incomplete(cleanup-deadline)",
+        }
+        if (
+            terminal not in valid_observations
+            or (terminal == "complete-empty" and survivors)
+            or (terminal == "complete-nonempty" and not survivors)
+        ):
+            terminal = "incomplete(malformed-observation)"
+            survivors = ()
+        if terminal.startswith("incomplete("):
+            make_sticky(terminal)
+        elif post_ack and terminal != "complete-empty":
+            make_sticky(terminal)
+        return True
+
     def request_for_all(stage: str) -> bool:
-        nonlocal sticky_terminal, terminal
+        nonlocal action_authority_failed, direct_wait_stage, survivors
         for expected in ordered_for_action(survivors):
             if monotonic() >= decision_deadline:
-                sticky_terminal = terminal = "incomplete(cleanup-deadline)"
+                action_authority_failed = True
+                make_sticky("incomplete(cleanup-deadline)")
                 return False
-            observed = observe_identity(expected=expected)
+            try:
+                observed = observe_identity(expected=expected)
+            except PermissionError:
+                action_authority_failed = True
+                make_sticky("incomplete(authority-denied)")
+                return False
+            except (OSError, CandidateError):
+                action_authority_failed = True
+                make_sticky("incomplete(observer-unavailable)")
+                return False
+            except BaseException as error:
+                action_authority_failed = True
+                callback_failed(error)
+                return False
             if observed is None:
                 continue
+            if not isinstance(observed, dict):
+                action_authority_failed = True
+                make_sticky("incomplete(observer-unavailable)")
+                return False
+            if observed.get("authority_denied") is True:
+                action_authority_failed = True
+                make_sticky("incomplete(authority-denied)")
+                return False
             if not _notebook_owned_identity_matches(
                 expected=expected,
                 observed=observed,
             ):
-                if observed.get("authority_denied"):
-                    sticky_terminal = terminal = "incomplete(authority-denied)"
-                else:
-                    sticky_terminal = terminal = (
-                        "incomplete(stable-identity-mismatch)"
-                    )
+                action_authority_failed = True
+                make_sticky("incomplete(stable-identity-mismatch)")
                 return False
+            if not isinstance(observed.get("state"), str):
+                action_authority_failed = True
+                make_sticky("incomplete(observer-unavailable)")
+                return False
+            if observed["state"] == "Z":
+                if expected.get("role") == "host":
+                    direct_wait_stage = "reap"
+                continue
             if monotonic() >= decision_deadline:
-                sticky_terminal = terminal = "incomplete(cleanup-deadline)"
+                action_authority_failed = True
+                make_sticky("incomplete(cleanup-deadline)")
                 return False
-            result = request_stage(stage=stage, identity=expected)
+            if stage == "sigterm" and expected.get("role") == "host":
+                direct_wait_stage = "graceful"
+            try:
+                result = request_stage(
+                    stage=stage,
+                    identity=expected,
+                    deadline=decision_deadline,
+                    monotonic=monotonic,
+                )
+            except BaseException as error:
+                action_authority_failed = True
+                callback_failed(error)
+                return False
+            suffixes = {
+                "sent",
+                "pending-reap",
+                "not-found",
+                "stable-identity-mismatch",
+                "authority-denied",
+                "observer-unavailable",
+                "action-handle-unavailable",
+                "cleanup-deadline",
+            }
+            valid_results = {f"{stage}={suffix}" for suffix in suffixes}
+            if not isinstance(result, str) or result not in valid_results:
+                action_authority_failed = True
+                make_sticky("incomplete(malformed-action-result)")
+                return False
             key = _notebook_identity_key(expected)
             previous = action_history.get(
                 key,
                 ((), (), bool(expected.get("authority_denied"))),
             )
+            requested = previous[0]
+            if not result.endswith("=pending-reap"):
+                requested += (stage,)
             action_history[key] = (
-                previous[0] + (stage,),
+                requested,
                 previous[1] + (result,),
-                previous[2] or "authority-denied" in result,
+                previous[2] or result.endswith("=authority-denied"),
             )
-            if "authority-denied" in result:
-                sticky_terminal = terminal = "incomplete(authority-denied)"
+            suffix = result.removeprefix(f"{stage}=")
+            if stage == "sigterm" and expected.get("role") == "host":
+                if suffix in ("pending-reap", "not-found"):
+                    direct_wait_stage = "reap"
+            sticky_action_results = {
+                "stable-identity-mismatch": "incomplete(stable-identity-mismatch)",
+                "authority-denied": "incomplete(authority-denied)",
+                "observer-unavailable": "incomplete(observer-unavailable)",
+                "action-handle-unavailable": "incomplete(action-handle-unavailable)",
+                "cleanup-deadline": "incomplete(cleanup-deadline)",
+            }
+            if suffix in sticky_action_results:
+                action_authority_failed = True
+                make_sticky(sticky_action_results[suffix])
                 return False
         return True
+
+    def wait_once(*, stage: str, timeout: float) -> bool:
+        nonlocal terminal, wait_acknowledged
+        now = monotonic()
+        if now >= decision_deadline:
+            make_sticky("incomplete(cleanup-deadline)")
+            return False
+        try:
+            result = wait(
+                stage=stage,
+                deadline=decision_deadline,
+                timeout=min(max(0.0, timeout), decision_deadline - now),
+            )
+        except BaseException as error:
+            callback_failed(error)
+            return False
+
+        malformed = False
+        if not isinstance(result, tuple) or len(result) != 2:
+            malformed = True
+            tag: object = None
+            payload: object = None
+        else:
+            tag, payload = result
+        allowed_incomplete = {
+            "incomplete(authority-denied)",
+            "incomplete(observer-unavailable)",
+            "incomplete(observation-overflow)",
+            "incomplete(malformed-observation)",
+            "incomplete(stable-identity-mismatch)",
+            "incomplete(cleanup-deadline)",
+        }
+        if not malformed and tag == "reaped-complete-empty":
+            malformed = type(payload) is not int or payload not in (0, -15)
+            if not malformed:
+                wait_acknowledged = True
+                terminal = "incomplete(post-reap-observation-missing)"
+                observe_now(
+                    stage="final",
+                    timeout=max(0.0, decision_deadline - monotonic()),
+                    post_ack=True,
+                )
+                return True
+        elif not malformed and tag == "invalid-status":
+            if type(payload) is int and payload not in (0, -15):
+                make_sticky(f"incomplete(wait-invalid-status:{payload})")
+                return False
+            malformed = True
+        elif not malformed and tag == "status-unavailable" and payload is None:
+            make_sticky("incomplete(wait-status-unavailable)")
+            return False
+        elif not malformed and tag == "deadline-exhausted" and payload is None:
+            make_sticky("incomplete(cleanup-deadline)")
+            return False
+        elif not malformed and tag == "host-still-running" and payload is None:
+            make_sticky("incomplete(wait-host-still-running)")
+            return False
+        elif not malformed and tag == "owned-survivors" and payload is None:
+            make_sticky("incomplete(wait-owned-survivors)")
+            return False
+        elif (
+            not malformed
+            and tag == "incomplete"
+            and isinstance(payload, str)
+            and payload in allowed_incomplete
+        ):
+            make_sticky(payload)
+            return False
+        else:
+            malformed = True
+
+        if malformed:
+            make_sticky("incomplete(malformed-wait-result)")
+        return False
 
     try:
         observe_now(
             stage="graceful",
             timeout=max(0.0, grace_deadline - monotonic()),
         )
-        if terminal == "complete-nonempty" and survivors:
-            if request_for_all("sigterm"):
-                remaining = max(0.0, grace_deadline - monotonic())
-                if remaining > 0.0:
-                    wait_result = wait(
-                        stage="graceful",
-                        deadline=decision_deadline,
-                        timeout=remaining,
-                    )
-                    if "invalid-status" in wait_result:
-                        cleanup_error = CandidateError(wait_result)
+        if terminal == "complete-nonempty" and survivors and sticky_terminal is None:
+            request_for_all("sigterm")
 
-                now = monotonic()
-                if now < grace_deadline:
-                    observe_now(
-                        stage="graceful",
-                        timeout=grace_deadline - now,
-                    )
-                elif now < decision_deadline:
-                    observe_now(
-                        stage="forced",
-                        timeout=decision_deadline - now,
-                    )
+        first_ack = wait_once(
+            stage=direct_wait_stage,
+            timeout=max(0.0, grace_deadline - monotonic()),
+        )
+        if not first_ack and monotonic() < decision_deadline:
+            observe_now(
+                stage="forced",
+                timeout=max(0.0, decision_deadline - monotonic()),
+            )
 
-                if terminal == "complete-nonempty" and survivors:
-                    if request_for_all("sigkill"):
-                        forced_escalation = True
-                        remaining = max(0.0, decision_deadline - monotonic())
-                        if remaining > 0.0:
-                            wait_result = wait(
-                                stage="forced",
-                                deadline=decision_deadline,
-                                timeout=remaining,
-                            )
-                            if "invalid-status" in wait_result:
-                                cleanup_error = CandidateError(wait_result)
-                        observe_now(
-                            stage="final",
-                            timeout=max(0.0, decision_deadline - monotonic()),
-                        )
-                    else:
-                        observe_now(
-                            stage="final",
-                            timeout=max(0.0, decision_deadline - monotonic()),
-                        )
-            else:
-                observe_now(
-                    stage="final",
-                    timeout=max(0.0, decision_deadline - monotonic()),
-                )
-        if monotonic() >= decision_deadline and terminal != "complete-empty":
-            if terminal == "complete-nonempty":
-                terminal = "incomplete(cleanup-deadline)"
+        live_survivors = tuple(
+            survivor for survivor in survivors if survivor.get("state") != "Z"
+        )
+        if (
+            terminal == "complete-nonempty"
+            and live_survivors
+            and not action_authority_failed
+            and monotonic() < decision_deadline
+        ):
+            forced_escalation = True
+            request_for_all("sigkill")
+            wait_once(
+                stage="forced",
+                timeout=max(0.0, decision_deadline - monotonic()),
+            )
+        elif not wait_acknowledged and monotonic() < decision_deadline:
+            observe_now(
+                stage="final",
+                timeout=max(0.0, decision_deadline - monotonic()),
+            )
+
+        if monotonic() >= decision_deadline and sticky_terminal is None:
+            make_sticky("incomplete(cleanup-deadline)")
         if sticky_terminal is not None:
             terminal = sticky_terminal
         observed_at = monotonic()
     except BaseException as error:
-        cleanup_error = error
-        terminal = "incomplete(cleanup-callback-error)"
-        observed_at = monotonic()
+        callback_failed(error)
+        try:
+            observed_at = monotonic()
+        except BaseException:
+            observed_at = decision_deadline
 
-    effective_primary = primary_error if primary_error is not None else cleanup_error
     diagnostic = None
-    if cleanup_error is not None:
+    if cleanup_secondary is not None:
         diagnostic = _notebook_cleanup_diagnostic(
             scenario=scenario,
-            primary_error=effective_primary,
+            primary_error=primary_error,
             forced_escalation=forced_escalation,
             observation=terminal,
             survivors=survivors,
             deadline_expired=observed_at >= decision_deadline,
-            secondary=(
-                None
-                if cleanup_error is effective_primary
-                else f"{type(cleanup_error).__name__}: {cleanup_error}"
-            ),
+            secondary=cleanup_secondary,
         )
     _notebook_cleanup_decision(
         scenario=scenario,
-        primary_error=effective_primary,
+        primary_error=primary_error,
         forced_escalation=forced_escalation,
         observation=terminal,
         survivors=survivors,
@@ -1249,9 +1436,7 @@ class _NotebookOwnedProcessObserver:
     @staticmethod
     def _read_process(pid: int) -> dict[str, object] | None:
         try:
-            record = (Path("/proc") / str(pid) / "stat").read_text(
-                encoding="ascii"
-            )
+            record = (Path("/proc") / str(pid) / "stat").read_text(encoding="ascii")
         except (FileNotFoundError, ProcessLookupError):
             return None
         comm_end = record.rfind(")")
@@ -1291,7 +1476,9 @@ class _NotebookOwnedProcessObserver:
         else:
             existing["state"] = process["state"]
 
-    def _process_table(self, *, deadline: float | None) -> tuple[dict[str, object], ...]:
+    def _process_table(
+        self, *, deadline: float | None
+    ) -> tuple[dict[str, object], ...]:
         records: list[dict[str, object]] = []
         try:
             members = tuple(Path("/proc").iterdir())
@@ -1392,8 +1579,6 @@ class _NotebookOwnedProcessObserver:
             if current is None or int(current["start_time"]) != key[1]:
                 continue
             identity["state"] = current["state"]
-            if current["state"] == "Z":
-                continue
             live.append(dict(identity))
 
         live.sort(key=_notebook_identity_key)
@@ -1426,6 +1611,125 @@ class _NotebookOwnedProcessObserver:
         observed["state"] = current["state"]
         return observed
 
+    def request_stage(
+        self,
+        *,
+        stage: str,
+        identity: dict[str, object],
+        deadline: float,
+        monotonic: Callable[[], float],
+    ) -> tuple[str, bool]:
+        """Signal one exact known process through one action-local pidfd."""
+
+        if stage not in ("sigterm", "sigkill"):
+            raise CandidateError(f"unknown Notebook cleanup stage: {stage}")
+
+        pid = identity.get("pid")
+        start_time = identity.get("start_time")
+        record = (
+            self.known.get((pid, start_time))
+            if type(pid) is int and type(start_time) is int
+            else None
+        )
+
+        def finish(result: str, signal_accepted: bool) -> tuple[str, bool]:
+            if record is not None:
+                self.record_stage(
+                    identity=record,
+                    stage=stage,
+                    result=result,
+                    authority_denied=result.endswith("=authority-denied"),
+                )
+            return result, signal_accepted
+
+        if record is None or any(
+            type(identity.get(field)) is not expected_type
+            or identity.get(field) != record.get(field)
+            for field, expected_type in (
+                ("scenario", str),
+                ("role", str),
+                ("pid", int),
+                ("start_time", int),
+            )
+        ):
+            return finish(f"{stage}=stable-identity-mismatch", False)
+        if monotonic() >= deadline:
+            return finish(f"{stage}=cleanup-deadline", False)
+
+        pidfd_open = getattr(os, "pidfd_open", None)
+        pidfd_send_signal = getattr(signal, "pidfd_send_signal", None)
+        if not callable(pidfd_open) or not callable(pidfd_send_signal):
+            return finish(f"{stage}=action-handle-unavailable", False)
+
+        try:
+            pidfd = pidfd_open(pid, 0)
+        except ProcessLookupError:
+            return finish(f"{stage}=not-found", False)
+        except OSError:
+            return finish(f"{stage}=action-handle-unavailable", False)
+
+        result = f"{stage}=action-handle-unavailable"
+        signal_accepted = False
+        try:
+            if monotonic() >= deadline:
+                result = f"{stage}=cleanup-deadline"
+            else:
+                try:
+                    observed = self.observe_identity(expected=record)
+                except PermissionError:
+                    result = f"{stage}=authority-denied"
+                except (OSError, CandidateError):
+                    result = f"{stage}=observer-unavailable"
+                else:
+                    if observed is None:
+                        result = f"{stage}=not-found"
+                    elif not isinstance(observed, dict) or not isinstance(
+                        observed.get("state"), str
+                    ):
+                        result = f"{stage}=observer-unavailable"
+                    elif observed.get("authority_denied") is True:
+                        result = f"{stage}=authority-denied"
+                    elif any(
+                        type(observed.get(field)) is not expected_type
+                        for field, expected_type in (
+                            ("scenario", str),
+                            ("role", str),
+                            ("pid", int),
+                            ("start_time", int),
+                        )
+                    ):
+                        result = f"{stage}=observer-unavailable"
+                    elif not _notebook_owned_identity_matches(
+                        expected=record,
+                        observed=observed,
+                    ):
+                        result = f"{stage}=stable-identity-mismatch"
+                    elif observed["state"] == "Z":
+                        result = f"{stage}=pending-reap"
+                    elif monotonic() >= deadline:
+                        result = f"{stage}=cleanup-deadline"
+                    else:
+                        signum = (
+                            signal.SIGTERM if stage == "sigterm" else signal.SIGKILL
+                        )
+                        try:
+                            pidfd_send_signal(pidfd, signum, None, 0)
+                        except ProcessLookupError:
+                            result = f"{stage}=not-found"
+                        except PermissionError:
+                            result = f"{stage}=authority-denied"
+                        except OSError:
+                            result = f"{stage}=action-handle-unavailable"
+                        else:
+                            signal_accepted = True
+                            result = f"{stage}=sent"
+        finally:
+            try:
+                os.close(pidfd)
+            except BaseException:
+                result = f"{stage}=action-handle-unavailable"
+        return finish(result, signal_accepted)
+
     def record_stage(
         self,
         *,
@@ -1438,7 +1742,8 @@ class _NotebookOwnedProcessObserver:
         record = self.known.get(key)
         if record is None:
             return
-        record["requested_stages"] = tuple(record["requested_stages"]) + (stage,)
+        if not result.endswith("=pending-reap"):
+            record["requested_stages"] = tuple(record["requested_stages"]) + (stage,)
         record["stage_results"] = tuple(record["stage_results"]) + (result,)
         if authority_denied:
             record["authority_denied"] = True
@@ -1635,39 +1940,43 @@ def run_notebook_profile(
             *,
             stage: str,
             identity: dict[str, object],
+            deadline: float,
+            monotonic: Callable[[], float],
         ) -> str:
             nonlocal sent_sigterm
-            signum = signal.SIGTERM if stage == "sigterm" else signal.SIGKILL
-            try:
-                if int(identity["pid"]) == process.pid:
-                    process.send_signal(signum)
-                    if stage == "sigterm":
-                        sent_sigterm = True
-                else:
-                    os.kill(int(identity["pid"]), signum)
-            except ProcessLookupError:
-                result = f"{stage}=not-found"
-                observer.record_stage(
-                    identity=identity,
-                    stage=stage,
-                    result=result,
-                )
-                return result
-            except PermissionError:
-                result = f"{stage}=authority-denied"
-                observer.record_stage(
-                    identity=identity,
-                    stage=stage,
-                    result=result,
-                    authority_denied=True,
-                )
-                return result
-            result = f"{stage}=sent"
-            observer.record_stage(
-                identity=identity,
+            action = observer.request_stage(
                 stage=stage,
-                result=result,
+                identity=identity,
+                deadline=deadline,
+                monotonic=monotonic,
             )
+            if (
+                not isinstance(action, tuple)
+                or len(action) != 2
+                or not isinstance(action[0], str)
+                or type(action[1]) is not bool
+            ):
+                return "malformed-action-result"
+            result, signal_accepted = action
+            pid = identity.get("pid")
+            start_time = identity.get("start_time")
+            direct_record = (
+                observer.known.get((pid, start_time))
+                if type(pid) is int and type(start_time) is int
+                else None
+            )
+            if (
+                stage == "sigterm"
+                and signal_accepted is True
+                and pid == process.pid
+                and direct_record is not None
+                and direct_record.get("role") == "host"
+                and _notebook_owned_identity_matches(
+                    expected=direct_record,
+                    observed=identity,
+                )
+            ):
+                sent_sigterm = True
             return result
 
         def wait_owned(
@@ -1675,31 +1984,50 @@ def run_notebook_profile(
             stage: str,
             deadline: float,
             timeout: float,
-        ) -> str:
+        ) -> tuple[str, int | str | None]:
+            if stage not in ("reap", "graceful", "forced"):
+                raise CandidateError(f"unknown Notebook wait stage: {stage}")
             wait_started = time.monotonic()
-            stop = min(deadline, wait_started + timeout)
+            if wait_started >= deadline:
+                return "deadline-exhausted", None
+            stop = min(deadline, wait_started + max(0.0, timeout))
             remaining = max(0.0, stop - wait_started)
-            if remaining <= 0.0:
-                return f"{stage}=deadline-exhausted"
             try:
                 status = process.wait(timeout=remaining)
             except subprocess.TimeoutExpired:
-                return f"{stage}=host-still-running"
-            if status != 0 and not (
-                sent_sigterm and status == -signal.SIGTERM
-            ):
-                return f"{stage}=invalid-status:{status}"
-            while time.monotonic() < stop:
-                terminal, survivors = observer.observe(deadline=stop)
-                if terminal == "complete-empty":
-                    return f"{stage}=host-exited:{status}"
+                if time.monotonic() >= deadline:
+                    return "deadline-exhausted", None
+                return "host-still-running", None
+            except OSError:
+                return "status-unavailable", None
+            if type(status) is not int:
+                return "status-unavailable", None
+            if status != 0 and not (sent_sigterm and status == -signal.SIGTERM):
+                return "invalid-status", status
+            while True:
+                now = time.monotonic()
+                if now >= deadline:
+                    return "deadline-exhausted", None
+                if now >= stop:
+                    return "owned-survivors", None
+                terminal, survivors = observer.observe(deadline=deadline)
+                if time.monotonic() >= deadline:
+                    return "deadline-exhausted", None
+                if not isinstance(terminal, str) or not isinstance(survivors, tuple):
+                    return "incomplete", "incomplete(malformed-observation)"
+                if terminal == "complete-empty" and not survivors:
+                    return "reaped-complete-empty", status
                 if terminal.startswith("incomplete("):
-                    return f"{stage}={terminal}"
-                sleep_for = min(0.01, max(0.0, stop - time.monotonic()))
+                    return "incomplete", terminal
+                if terminal != "complete-nonempty" or not survivors:
+                    return "incomplete", "incomplete(malformed-observation)"
+                now = time.monotonic()
+                if now >= deadline:
+                    return "deadline-exhausted", None
+                sleep_for = min(0.01, max(0.0, stop - now))
                 if sleep_for <= 0.0:
-                    break
+                    return "owned-survivors", None
                 time.sleep(sleep_for)
-            return f"{stage}=owned-survivors"
 
         try:
             for _ in range(120):
