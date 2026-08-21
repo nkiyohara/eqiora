@@ -95,6 +95,77 @@ async function runOrdinaryChunk(id: 'A' | 'B' | 'C'): Promise<void> {
   expect(context.pages()).toEqual([]);
 }
 
+type ProductTableMatrixCell = Readonly<{
+  forcedColors: 'none' | 'active';
+  width: 1280 | 390 | 320;
+}>;
+
+const PRODUCT_TABLE_MATRIX = [
+  { forcedColors: 'none', width: 1280 },
+  { forcedColors: 'none', width: 390 },
+  { forcedColors: 'none', width: 320 },
+  { forcedColors: 'active', width: 1280 },
+  { forcedColors: 'active', width: 390 },
+  { forcedColors: 'active', width: 320 },
+] as const satisfies readonly ProductTableMatrixCell[];
+
+const EXPECTED_PRODUCT_TABLE_MATRIX_KEYS = [
+  'none/1280',
+  'none/390',
+  'none/320',
+  'active/1280',
+  'active/390',
+  'active/320',
+] as const;
+
+function tableMatrixKey(cell: ProductTableMatrixCell): string {
+  return `${cell.forcedColors}/${cell.width}`;
+}
+
+function validateProductTableMatrix(plan: readonly ProductTableMatrixCell[]): void {
+  const expectedKeys: readonly string[] = EXPECTED_PRODUCT_TABLE_MATRIX_KEYS;
+  const expected = new Set(expectedKeys);
+  const actualKeys = plan.map(tableMatrixKey);
+  const unknown = actualKeys.find((key) => !expected.has(key));
+  if (unknown) throw new Error(`TABLE-MATRIX-UNKNOWN: ${unknown}`);
+  const seen = new Set<string>();
+  for (const key of actualKeys) {
+    if (seen.has(key)) throw new Error(`TABLE-MATRIX-DUPLICATE: ${key}`);
+    seen.add(key);
+  }
+  const missing = expectedKeys.find((key) => !seen.has(key));
+  if (missing) throw new Error(`TABLE-MATRIX-MISSING: ${missing}`);
+  if (actualKeys.length !== expectedKeys.length) {
+    throw new Error(`TABLE-MATRIX-CARDINALITY: ${actualKeys.length}`);
+  }
+  const outOfOrder = actualKeys.findIndex((key, index) => key !== expectedKeys[index]);
+  if (outOfOrder !== -1) {
+    throw new Error(
+      `TABLE-MATRIX-ORDER: ${actualKeys[outOfOrder]} at ${outOfOrder}, expected ${expectedKeys[outOfOrder]}`,
+    );
+  }
+}
+
+function assertProductTableMatrixPlan(): void {
+  const positive = PRODUCT_TABLE_MATRIX.map((cell) => ({ ...cell }));
+  expect(() => validateProductTableMatrix(positive)).not.toThrow();
+
+  const missing = positive.slice(0, -1);
+  expect(() => validateProductTableMatrix(missing)).toThrow(
+    'TABLE-MATRIX-MISSING: active/320',
+  );
+
+  const duplicated = [...positive.slice(0, -1), { ...positive[0] }];
+  expect(() => validateProductTableMatrix(duplicated)).toThrow(
+    'TABLE-MATRIX-DUPLICATE: none/1280',
+  );
+
+  const forcedBeforeOrdinary = [...positive.slice(3), ...positive.slice(0, 3)];
+  expect(() => validateProductTableMatrix(forcedBeforeOrdinary)).toThrow(
+    'TABLE-MATRIX-ORDER: active/1280 at 0, expected none/1280',
+  );
+}
+
 test.describe.configure({ mode: 'serial' });
 
 let browser: Browser;
@@ -184,9 +255,9 @@ test('01 honest 320px O-1 through O-4 composition and retained interaction contr
   await context.close();
 });
 
-test('02 exact table inventory reaches the truthful parent RED or complete product GREEN', async () => {
+test('02 exact table inventory is complete before parent or product matrix results', async () => {
   test.setTimeout(600_000);
-  const state = await layoutCssState();
+  assertProductTableMatrixPlan();
   const context = await browser.newContext({
     baseURL: BASE_URL,
     locale: 'en-GB',
@@ -215,8 +286,31 @@ test('02 exact table inventory reaches the truthful parent RED or complete produ
   await page.goto('/reference/python/eqiora/');
   await expect(page.locator('main table')).toHaveCount(0);
 
-  if (state.parent) {
-    expect(state.sha256).toBe(PARENT_LAYOUT_SHA256);
+  expect(external).toEqual([]);
+  await context.close();
+  expect(context.pages()).toEqual([]);
+});
+
+test('02A authenticated parent table boundary is complete or product sentinel is exact', async () => {
+  test.setTimeout(600_000);
+  const state = await layoutCssState();
+  if (!state.parent) {
+    expect(state.sha256).not.toBe(PARENT_LAYOUT_SHA256);
+    assertExactTableSelectorScope(state.css);
+    return;
+  }
+
+  expect(state.sha256).toBe(PARENT_LAYOUT_SHA256);
+  const context = await browser.newContext({
+    baseURL: BASE_URL,
+    locale: 'en-GB',
+    serviceWorkers: 'block',
+  });
+  const page = await context.newPage();
+  await installTableObserver(page);
+  const external = await rejectExternalRequests(page);
+
+  try {
     for (const forcedColors of ['none', 'active'] as const) {
       await page.emulateMedia({ forcedColors });
       for (const width of [1280, 390, 320]) {
@@ -229,21 +323,46 @@ test('02 exact table inventory reaches the truthful parent RED or complete produ
     for (const expected of TABLE_ROUTES) {
       await assertParentForcedTableBoundary(page, expected);
     }
-  } else {
-    assertExactTableSelectorScope(state.css);
-    for (const forcedColors of ['none', 'active'] as const) {
-      await page.emulateMedia({ forcedColors });
-      for (const width of [1280, 390, 320]) {
-        await page.setViewportSize({ width, height: 900 });
-        for (const expected of TABLE_ROUTES) {
-          await assertProductTableRouteGreen(page, expected);
-        }
-      }
-    }
+    expect(external).toEqual([]);
+  } finally {
+    await context.close();
   }
-  expect(external).toEqual([]);
-  await context.close();
+  expect(context.pages()).toEqual([]);
 });
+
+for (const { forcedColors, width } of PRODUCT_TABLE_MATRIX) {
+  test(`02B product table matrix forcedColors=${forcedColors} width=${width} is complete or parent sentinel is exact`, async () => {
+    test.setTimeout(600_000);
+    const state = await layoutCssState();
+    if (state.parent) {
+      expect(state.sha256).toBe(PARENT_LAYOUT_SHA256);
+      return;
+    }
+
+    expect(state.sha256).not.toBe(PARENT_LAYOUT_SHA256);
+    assertExactTableSelectorScope(state.css);
+    const context = await browser.newContext({
+      baseURL: BASE_URL,
+      locale: 'en-GB',
+      serviceWorkers: 'block',
+    });
+    const page = await context.newPage();
+    await installTableObserver(page);
+    const external = await rejectExternalRequests(page);
+    await page.emulateMedia({ forcedColors });
+    await page.setViewportSize({ width, height: 900 });
+
+    try {
+      for (const expected of TABLE_ROUTES) {
+        await assertProductTableRouteGreen(page, expected);
+      }
+      expect(external).toEqual([]);
+    } finally {
+      await context.close();
+    }
+    expect(context.pages()).toEqual([]);
+  });
+}
 
 test('03 forced colours retain core content and exact non-table accessibility boundaries', async () => {
   test.setTimeout(300_000);
