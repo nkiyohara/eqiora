@@ -92,7 +92,7 @@ export default defineConfig({
       description: 'Meaning-first scientific modeling and execution.',
       logo: {
         src: './src/assets/brand/eqiora-mark.svg',
-        alt: 'Eqiora',
+        alt: '',
         replacesTitle: false,
       },
       favicon: '/favicon.svg',
