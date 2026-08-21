@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import sysconfig
@@ -21,6 +22,10 @@ BROWSER_BYTES = 290_614_600
 FULL_BROWSER_STDOUT = b"Google Chrome for Testing 151.0.7922.34 \n"
 SOURCE_SUCCESS = "site source: exact optional CLAUDE.md topology admitted"
 BROWSER_SUCCESS = "site browser: exact locked full Chromium supply admitted"
+TOOLCHAIN_BYTES = 66
+TOOLCHAIN_BLOB = "73cb934de4706a914c15e8db2a3c037ce75699d9"
+TOOLCHAIN_SHA256 = "a6a0bbd29ffaa8182dc22d1d9149709f1091e47df40ed96eb8a78a711c66a4ce"
+MISMATCH_TOOLCHAIN = b'[toolchain]\nchannel = "1.85.0"\n'
 
 
 def _write(path: Path, value: str | bytes) -> None:
@@ -178,6 +183,23 @@ class PythonWheelSupplyTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls) -> None:
         cls._native_root.cleanup()
+
+    def _copy_exact_toolchain(self, source: Path) -> None:
+        origin = REPOSITORY / "rust-toolchain.toml"
+        self.assertTrue(origin.is_file())
+        self.assertFalse(origin.is_symlink())
+        payload = origin.read_bytes()
+        self.assertEqual(len(payload), TOOLCHAIN_BYTES)
+        self.assertEqual(hashlib.sha256(payload).hexdigest(), TOOLCHAIN_SHA256)
+        self.assertEqual(
+            hashlib.sha1(b"blob 66\0" + payload, usedforsecurity=False).hexdigest(),
+            TOOLCHAIN_BLOB,
+        )
+        destination = source / "rust-toolchain.toml"
+        shutil.copyfile(origin, destination)
+        destination.chmod(0o644)
+        self.assertEqual(destination.read_bytes(), payload)
+        self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o644)
 
     def _fixture_site(self, root: Path, mutation: str) -> Path:
         site = root / f"fixture-{mutation or 'ordinary'}"
@@ -524,6 +546,7 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
             source / "Cargo.toml",
             '[workspace]\nmembers = []\n[workspace.package]\nversion = "0.1.0-alpha.1"\n',
         )
+        self._copy_exact_toolchain(source)
         shutil.copy2(REPOSITORY / "AGENTS.md", source / "AGENTS.md")
         (source / "CLAUDE.md").symlink_to("AGENTS.md")
         _write(
@@ -641,6 +664,7 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
             browser_bytes = str(BROWSER_BYTES - 1)
 
         environment = os.environ.copy()
+        environment.pop("RUSTUP_TOOLCHAIN", None)
         environment.update(
             {
                 "PATH": f"{mocks}{os.pathsep}{environment['PATH']}",
@@ -707,6 +731,39 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
             result.stdout.index(SOURCE_SUCCESS), result.stdout.index(BROWSER_SUCCESS)
         )
 
+    def _assert_toolchain_rejection(
+        self,
+        result: subprocess.CompletedProcess[str],
+        observations: list[str],
+        environment: dict[str, str],
+    ) -> None:
+        self.assertNotIn(result.returncode, (0, POST_IDENTITY_SENTINEL))
+        self.assertEqual(observations, [])
+        self.assertNotIn(SOURCE_SUCCESS, result.stdout)
+        self.assertNotIn(BROWSER_SUCCESS, result.stdout)
+        source = Path(environment["EQIORA_SITE_SOURCE_ROOT"])
+        selected = subprocess.run(
+            ["rustc", "-Vv"],
+            check=False,
+            cwd=source,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=15,
+        )
+        stable = subprocess.run(
+            ["rustc", "+stable", "-Vv"],
+            check=False,
+            cwd=source,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=15,
+        )
+        self.assertEqual((selected.returncode, stable.returncode), (0, 0))
+        self.assertEqual((selected.stderr, stable.stderr), (b"", b""))
+        self.assertNotEqual(selected.stdout, stable.stdout)
+
     def test_00_ordinary_supply_reaches_post_identity_boundary_before_mutants(
         self,
     ) -> None:
@@ -727,6 +784,37 @@ _probe_sys.meta_path.insert(0, _TopLevelProbeFinder())
             "post-python-identity",
         ]
         self.assertEqual(observations, expected)
+
+        for mutation in ("missing", "mismatch"):
+            with (
+                self.subTest(toolchain=mutation),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                runner, environment, trace = self._layout(Path(temporary), "", "", "")
+                toolchain = Path(
+                    environment["EQIORA_SITE_SOURCE_ROOT"], "rust-toolchain.toml"
+                )
+                if mutation == "missing":
+                    toolchain.unlink()
+                else:
+                    toolchain.write_bytes(MISMATCH_TOOLCHAIN)
+                    toolchain.chmod(0o644)
+                result = subprocess.run(
+                    [str(runner)],
+                    check=False,
+                    cwd=environment["EQIORA_SITE_SOURCE_ROOT"],
+                    env=environment,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=15,
+                )
+                observations = (
+                    trace.read_text(encoding="utf-8").splitlines()
+                    if trace.exists()
+                    else []
+                )
+                self._assert_toolchain_rejection(result, observations, environment)
 
     def test_01_upstream_supply_mutants_fail_before_python_wheel_work(self) -> None:
         for mutation in (
