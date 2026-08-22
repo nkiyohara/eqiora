@@ -343,6 +343,8 @@ def _ordinary(root: Path):
     pressure = artifact / "assets/pressure.png"
     _write(artifact / BRAND_PATH.removeprefix("/"), brand.read_bytes())
     _write(artifact / PRESSURE_PATH.removeprefix("/"), pressure.read_bytes())
+    brand.unlink()
+    pressure.unlink()
 
     for page in sorted(artifact.rglob("*.html")):
         relative = page.relative_to(artifact)
