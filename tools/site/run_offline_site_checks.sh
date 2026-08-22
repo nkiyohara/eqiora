@@ -218,7 +218,7 @@ else:
 PY
 )
 # The committed evidence projection is checked before API projection or Astro.
-cargo +stable run --locked --quiet -p eqiora-verify -- \
+cargo +stable run --locked --quiet --target-dir "$cargo_target" -p eqiora-verify -- \
   index --format json > "$EQIORA_API_SCRATCH/evidence-index.json"
 python3 tools/site/generate_evidence_catalog.py \
   --input "$EQIORA_API_SCRATCH/evidence-index.json" \
@@ -237,7 +237,7 @@ python3 tools/docs/generate_interface_reference.py \
   --mcp-binary "$mcp_binary" \
   --source-sha "$EQIORA_SITE_SOURCE_SHA" \
   --check
-cargo +stable xtask check-facade
+CARGO_TARGET_DIR="$cargo_target" cargo +stable xtask check-facade
 RUSTDOCFLAGS="-D warnings --html-in-header docs/site/src/reference/rustdoc-head.html --extend-css docs/site/src/styles/rustdoc.css" \
 cargo +stable doc --locked -p eqiora --lib --no-deps --all-features \
   --target-dir "$EQIORA_SITE_RUSTDOC_TARGET"
