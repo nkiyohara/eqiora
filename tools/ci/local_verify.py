@@ -406,7 +406,21 @@ def build_plan(
         surfaces = classify([], full=True)
         selected_packages = set(packages)
         cases = all_case_ids(root)
+        ci_contract_lane = (
+            ROOT_CARGO_LANE
+            if "interfaces.python-distribution-candidate" in cases
+            else REPOSITORY_LANE
+        )
         commands = [
+            command(
+                "Documentation contract", sys.executable, "tools/ci/check_docs.py", "."
+            ),
+            command(
+                "Public release tree",
+                sys.executable,
+                "tools/ci/check_public_release_tree.py",
+                ".",
+            ),
             command(
                 "CI contract tests",
                 sys.executable,
@@ -416,15 +430,7 @@ def build_plan(
                 "-s",
                 "tools/ci/tests",
                 "-v",
-            ),
-            command(
-                "Documentation contract", sys.executable, "tools/ci/check_docs.py", "."
-            ),
-            command(
-                "Public release tree",
-                sys.executable,
-                "tools/ci/check_public_release_tree.py",
-                ".",
+                lane=ci_contract_lane,
             ),
             command(
                 "Formatting",
@@ -522,6 +528,11 @@ def build_plan(
         if tier == "affected" and surfaces["rust"] and not direct:
             selected_packages = set(packages)
         cases = changed_case_ids(paths).union(explicit_cases)
+        ci_contract_lane = (
+            ROOT_CARGO_LANE
+            if "interfaces.python-distribution-candidate" in cases
+            else REPOSITORY_LANE
+        )
         commands = []
         if surfaces["rust"] or selected_packages:
             commands.append(
@@ -627,6 +638,7 @@ def build_plan(
                     "-s",
                     "tools/ci/tests",
                     "-v",
+                    lane=ci_contract_lane,
                 )
             )
         if tier == "affected":
