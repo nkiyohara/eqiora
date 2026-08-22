@@ -1463,7 +1463,9 @@ export function assertExactTableSelectorScope(css: string): void {
   const direct = '.sl-markdown-content > table';
   const component = '.sl-markdown-content .eq-stage__body > table';
   const generic = '.sl-markdown-content table:not(:where(.not-content *))';
-  const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+  const repository =
+    process.env.EQIORA_SITE_GIT_OBJECT_REPOSITORY ??
+    resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
   const parentCss = execFileSync(
     'git',
     ['show', `${PARENT_LAYOUT_COMMIT}:docs/site/src/styles/site/layout.css`],
