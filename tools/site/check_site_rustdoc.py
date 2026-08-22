@@ -160,8 +160,28 @@ def check_rustdoc(
                 elif target.is_symlink() or not target.is_file():
                     report(f"{source_name}: Rustdoc target has wrong type {value!r}")
                 elif parsed.fragment:
-                    count = raw_ids.get(target, Counter())[parsed.fragment]
+                    target_ids = raw_ids.get(target, Counter())
+                    count = target_ids[parsed.fragment]
                     if count == 0:
+                        line_range = re.fullmatch(
+                            r"([1-9][0-9]*)-([1-9][0-9]*)", parsed.fragment
+                        )
+                        if line_range and (len(line_range[1]), line_range[1]) < (
+                            len(line_range[2]),
+                            line_range[2],
+                        ):
+                            endpoints = (line_range[1], line_range[2])
+                            counts = tuple(
+                                target_ids[endpoint] for endpoint in endpoints
+                            )
+                            if counts == (1, 1):
+                                continue
+                            if 0 not in counts:
+                                duplicate = endpoints[counts.index(max(counts))]
+                                report(
+                                    f"{source_name}: duplicate Rustdoc target ID {duplicate!r}"
+                                )
+                                continue
                         report(
                             f"{source_name}: missing raw Rustdoc fragment target {value!r}"
                         )
