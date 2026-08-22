@@ -70,6 +70,17 @@ captured logs and failures are reported in deterministic plan order. An absent
 tool, unsupported environment, failed child process, malformed manifest, or
 unknown path never becomes a silent pass.
 
+Each nonempty plan of at most 32 commands atomically owns one of exactly two
+home-backed log slots and announces its unique final run path before any child.
+Every planned command takes a 16 MiB raw-log charge, bounding one run at 512
+MiB and the two-slot authority at 64 files and 1 GiB. A started command keeps
+its exact combined stdout/stderr order; output beyond 16 MiB is drained but is
+an explicit incomplete failure rather than a complete truncated log. Complete
+success deletes only its own slot. Child, launch, overflow, aggregate, or
+reporting failure retains that exact slot. A separate forensic role must copy
+and seal the announced exact-path bytes before separately authorized cleanup;
+the scheduler never rotates, evicts, ages, or reuses a retained failure.
+
 The default budget uses the current host's detected CPUs and available memory,
 with no GPU admission unless `EQIORA_LOCAL_VERIFY_GPU_SLOTS` declares it. A
 constrained or shared machine can set `--cpu-slots`, `--memory-mib`, and
@@ -151,13 +162,14 @@ only work selected by one local-verification plan; it does not reuse a result
 from another invocation or source revision.
 
 Root Cargo, installed-Python, Studio, CubeCL, dependency policy, and lightweight
-repository checks are separate local lanes. Every lane receives an explicit
-build root and per-invocation temporary directory below
-`~/.cache/eqiora/local-verify/<checkout>/`; the temporary directory is removed
-after reporting. Build roots remain as recomputable Cargo products so a later
-invocation does not pay for a clean rebuild. Set `--scratch-root` only to an
-equivalent home-backed location. The runner never uses OS `/tmp` for these
-artifacts.
+repository checks are separate local lanes. Persistent checkout-fingerprinted
+lane/build roots and reusable `CARGO_TARGET_DIR` products remain below
+`~/.cache/eqiora/local-verify/<checkout>/` by default. Per-invocation temporary
+directories instead use the compact home-backed authority
+`~/.cache/eqiora/local-verify-tmp` and are removed after reporting. With
+`--scratch-root`, persistent roots and per-invocation temporary directories
+remain below the selected equivalent home-backed location. The runner never
+uses OS `/tmp` for these artifacts.
 
 Fast and affected Clippy use default features. Optional MPI, CUDA, Diffsol, or
 other backend features run through their explicitly selected evidence command

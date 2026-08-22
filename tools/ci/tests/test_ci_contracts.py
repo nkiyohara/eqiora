@@ -333,13 +333,17 @@ class HostedTriggerTests(unittest.TestCase):
             relative = shell_path.removeprefix("$RUNNER_TEMP/")
             return "${{ runner.temp }}/" + relative
 
+        def compact_shell(section: str) -> str:
+            without_continuations = re.sub(r"\\\n[ \t]*", "", section)
+            return " ".join(without_continuations.split())
+
         prepare = job("prepare-family")
         h2 = job("h2")
         finalize = job("finalize-candidate")
         publish = job("publish_testpypi")
-        compact_prepare = " ".join(prepare.split())
-        compact_h2 = " ".join(h2.split())
-        compact_finalize = " ".join(finalize.split())
+        compact_prepare = compact_shell(prepare)
+        compact_h2 = compact_shell(h2)
+        compact_finalize = compact_shell(finalize)
 
         self.assertRegex(h2, r"(?m)^    needs: prepare-family$")
         self.assertRegex(
@@ -373,18 +377,32 @@ class HostedTriggerTests(unittest.TestCase):
         self.assertEqual(h2_command.group("family"), family)
         h2_out = h2_command.group("h2_out")
 
+        receipt_discovery = re.search(
+            r"(?m)^          mapfile -t receipts < <\(find "
+            r'"(?P<root>\$RUNNER_TEMP/candidate-h2)" '
+            r"-maxdepth 1 -type f -name '\*-python-candidate-h2\.json'\)$",
+            finalize,
+        )
+        self.assertIsNotNone(receipt_discovery)
+        assert receipt_discovery is not None
+        self.assertEqual(receipt_discovery.group("root"), h2_out)
+        self.assertRegex(
+            finalize,
+            r'(?m)^          test "\$\{#receipts\[@\]\}" -eq 1$',
+        )
+
         finalize_command = re.search(
             r"python3 tools/release/python_candidate\.py finalize "
             r"--expected-commit \"\$CANDIDATE_COMMIT\" "
             r"--artifacts \"(?P<family>[^\"]+)\" "
-            r"--h2-receipt \"(?P<receipt>[^\"]+)\" "
+            r"--h2-receipt \"(?P<receipt>\$\{receipts\[0\]\})\" "
             r"--manifest-out \"(?P<metadata>[^\"]+)\"",
             compact_finalize,
         )
         self.assertIsNotNone(finalize_command)
         assert finalize_command is not None
         self.assertEqual(finalize_command.group("family"), family)
-        self.assertTrue(finalize_command.group("receipt").startswith(h2_out + "/"))
+        self.assertEqual(finalize_command.group("receipt"), "${receipts[0]}")
         metadata = finalize_command.group("metadata")
         self.assertEqual(len({family, h2_out, metadata}), 3)
 
@@ -612,24 +630,119 @@ class HostedTriggerTests(unittest.TestCase):
             self.assertRegex(publish, r"(?m)^    needs: verify$")
             self.assertIn(f"packages-dir: {publish_family_path}", publish)
 
+    def test_role_d_production_workflow_binds_its_dispatch_revision(self) -> None:
+        equality = 'test "$GITHUB_SHA" = "$RELEASE_COMMIT"'
+        acquisition = "uses: actions/download-artifact@"
+
+        def job(workflow: str, name: str) -> str:
+            match = re.search(
+                rf"(?ms)^  {re.escape(name)}:\n(.*?)(?=^  [a-z][a-z0-9_-]*:\n|\Z)",
+                workflow.split("jobs:\n", maxsplit=1)[1],
+            )
+            self.assertIsNotNone(match, f"missing production job {name}")
+            assert match is not None
+            return match.group(1)
+
+        def require_definition_binding(workflow: str) -> None:
+            verify = job(workflow, "verify")
+            publish = job(workflow, "publish")
+            self.assertEqual(
+                verify.count(equality),
+                1,
+                "production workflow definition is not bound to RELEASE_COMMIT",
+            )
+            self.assertIn(acquisition, verify)
+            self.assertLess(verify.index(equality), verify.index(acquisition))
+            self.assertRegex(publish, r"(?m)^    needs: verify$")
+
+        reference = f"""\
+jobs:
+  verify:
+    steps:
+      - name: Bind workflow definition
+        env:
+          RELEASE_COMMIT: ${{{{ inputs.commit }}}}
+        run: {equality}
+      - name: Acquire candidate
+        {acquisition}pinned
+  publish:
+    needs: verify
+    steps:
+      - run: publish
+"""
+        require_definition_binding(reference)
+        mutants = (
+            reference.replace("$GITHUB_SHA", "$(git rev-parse HEAD)"),
+            reference.replace(f"        run: {equality}\n", ""),
+            reference.replace(
+                f"        run: {equality}\n      - name: Acquire candidate\n"
+                f"        {acquisition}pinned\n",
+                f"      - name: Acquire candidate\n        {acquisition}pinned\n"
+                f"      - name: Late binding\n        run: {equality}\n",
+            ),
+            reference.replace("    needs: verify\n", ""),
+        )
+        for mutant in mutants:
+            with self.assertRaises(AssertionError):
+                require_definition_binding(mutant)
+
+        current = (
+            REPOSITORY_ROOT / ".github/workflows/python-production-publish.yml"
+        ).read_text(encoding="utf-8")
+        require_definition_binding(current)
+
     def test_rich_display_claim_names_candidate_level_bounded_host_teardown(
         self,
     ) -> None:
-        case = tomllib.loads(
+        rich_case = tomllib.loads(
             (
                 REPOSITORY_ROOT / "verify/interfaces/python-rich-mesh-display/case.toml"
             ).read_text(encoding="utf-8")
         )
-        claim = case["acceptance"]
+        distribution_case = tomllib.loads(
+            (
+                REPOSITORY_ROOT
+                / "verify/interfaces/python-distribution-candidate/case.toml"
+            ).read_text(encoding="utf-8")
+        )
+        claim = rich_case["acceptance"]
         self.assertNotIn(
             "host_shutdown_and_kernel_or_wrapper_finalization_exit_zero",
             claim,
         )
-        self.assertEqual(
-            claim.get("candidate_host_teardown"),
+        host_status = (
             "within timeout; accepts status 0 or exactly -SIGTERM only when the "
             "candidate runner sent SIGTERM; unsolicited signals, other nonzero "
-            "statuses, timeout, and forced kill reject",
+            "statuses, timeout, and forced kill reject"
+        )
+        teardown = (
+            f"{host_status}; success additionally requires bounded cleanup "
+            "without forced escalation and a "
+            "complete-empty owned notebook, kernel, browser, and profile-helper "
+            "observation before the absolute 35.0-second decision deadline; "
+            "failure still performs bounded cleanup and rejects with stable "
+            "survivor or incomplete-observation diagnostics; no fixed-time "
+            "survivor-disappearance claim"
+        )
+        self.assertEqual(
+            claim.get("candidate_host_teardown"),
+            teardown,
+        )
+        self.assertTrue(teardown.startswith(f"{host_status}; "))
+        distribution = distribution_case["claim_boundary"]
+        self.assertEqual(distribution.get("notebook_host_teardown"), teardown)
+        self.assertEqual(
+            distribution.get("notebook_cleanup_graceful_seconds"),
+            30.0,
+        )
+        self.assertEqual(
+            distribution.get("notebook_cleanup_decision_seconds"),
+            35.0,
+        )
+        self.assertEqual(distribution.get("notebook_cleanup_identity_limit"), 256)
+        self.assertEqual(
+            distribution.get("notebook_cleanup_diagnostic_bytes"),
+            65_536,
         )
 
     def test_hosted_test_profile_is_compact_and_test_scoped(self) -> None:

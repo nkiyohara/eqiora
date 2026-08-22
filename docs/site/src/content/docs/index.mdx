@@ -1,0 +1,52 @@
+---
+title: Model meaning once. Realize it many ways.
+description: Meaning-first scientific modeling and execution, with claims bounded by repository evidence.
+template: splash
+---
+
+import { Aside, Card, CardGrid, LinkButton, LinkCard } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import ReleaseIdentity from '@components/site/ReleaseIdentity.astro';
+import pressureImage from '../../assets/gallery/exact-cylinder-pressure.png';
+import publication from '../../data/gallery/exact-cylinder-steady-stokes.publication.json';
+
+Eqiora is an open-source, meaning-first foundation for scientific modeling, simulation, differentiation, and execution.
+
+Its central boundary is simple:
+
+> A model states typed mathematical relations. A realization chooses how those relations are discretized, solved, and executed.
+
+That separation lets block diagrams, acausal physical networks, PDE fields, hybrid dynamics, and reusable components share one canonical meaning without making a numerical method or hardware backend part of the model.
+
+<div class="sl-flex">
+  <LinkButton href="/get-started/" variant="primary">Get started</LinkButton>
+  <LinkButton href="/gallery/" variant="secondary">Explore gallery</LinkButton>
+</div>
+
+## Featured walkthrough
+
+<Card title="Exact-cylinder steady Stokes">
+  Follow one frozen 2D steady-Stokes problem from model definition and named boundaries through one submit/Result path to an independently admitted static pressure image.
+
+  <img src={pressureImage.src} alt={publication.publication_payload.text.alt} />
+
+  **Python** · **2D** · **steady Stokes**
+
+  [View the static walkthrough](/gallery/exact-cylinder-steady-stokes/)
+</Card>
+
+<CardGrid>
+  <LinkCard title="Docs" description="Learn the Model–Realization boundary and start from bounded examples." href="/get-started/" />
+  <LinkCard title="Reference" description="Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces. API presence is not verification or maturity." href="/reference/" />
+  <LinkCard title="Evidence" description="Inspect the generated capability-to-case index and the manifests that own each bounded claim." href="/evidence/" />
+</CardGrid>
+
+## Alpha <ReleaseIdentity />
+
+<Aside type="note">
+  Eqiora is alpha research software under active development. The [capability matrix](/capabilities/) and generated [evidence catalog](/evidence/) bound what is currently supported; this site does not widen those claims.
+</Aside>
+
+## One source of truth
+
+This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository's <ExactSourceLink path="docs/architecture.md" kind="blob">architecture</ExactSourceLink>, <ExactSourceLink path="rfcs" kind="tree">RFCs</ExactSourceLink>, <ExactSourceLink path="docs/capability-matrix.md" kind="blob">capability matrix</ExactSourceLink>, and validated <ExactSourceLink path="verify" kind="tree">verify manifests</ExactSourceLink>.

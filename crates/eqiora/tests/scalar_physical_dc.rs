@@ -336,7 +336,9 @@ fn assert_canonical_order(problem: &ScalarPhysicalAffineProblem) {
     let mut ports = problem
         .composed_system()
         .unknowns()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| match pair {
             [
                 PhysicalUnknown::Across(port),

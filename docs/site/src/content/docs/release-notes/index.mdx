@@ -1,0 +1,27 @@
+---
+title: Release notes
+description: Curated public release history and links to the authoritative changelog and release policy.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+
+Eqiora's public alphas establish a coherent public identity and a bounded compatibility policy; they are not a stable-1.0 promise.
+
+## 0.1.0a2 — release candidate
+
+This source prepares the second alpha candidate with the current Python, CLI,
+MCP, Gallery, and evidence surfaces. Production publication remains a separate,
+exact-artifact promotion after the candidate passes TestPyPI replay.
+
+## 0.1.0a1 — first public alpha
+
+The <ExactSourceLink path="CHANGELOG.md" kind="blob">repository changelog</ExactSourceLink> is the single maintained record of notable changes. It distinguishes additions, changes, and compatibility-relevant removals.
+
+Python packaging and candidate validation follow the <ExactSourceLink path="docs/development/python-release-policy.md" kind="blob">Python release policy</ExactSourceLink>. The [published release notes](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a1) bind the exact source, artifact manifest, support matrix, and limitations.
+
+<Aside type="note" title="Historical release text">
+  Version strings on this page describe released history. The current source identity is derived during the site build; this page does not author a release or a version bump.
+</Aside>
+
+For exact support at any revision, use the [capability matrix](/capabilities/) and case-level [evidence catalog](/evidence/).

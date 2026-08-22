@@ -2,7 +2,7 @@
   "schema": "eqiora.verify.cli-compile-check/v1",
   "protectedBase": "280ccfe3046d7b7279f821d68f19f38b7b5a9fcd",
   "command": "eqiora check <MODEL_PATH>",
-  "packageVersion": "0.1.0-alpha.1",
+  "packageVersion": "0.1.0-alpha.2",
   "acceptedFixtureBytes": 169,
   "rejectedFixtureBytes": 39,
   "acceptedFingerprintGeneration": "eqiora.structural-semantic-fingerprint/v2",

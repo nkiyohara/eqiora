@@ -1,0 +1,50 @@
+---
+title: Reference
+description: Exact-commit projections of Eqiora's public library and interface surfaces.
+---
+
+import { Aside, CardGrid } from '@astrojs/starlight/components';
+import ReferenceCard from '@components/site/ReferenceCard.astro';
+
+Browse five separately labelled public surfaces projected from one exact source
+commit. Python and Rust are library references; CLI, control-v2, and MCP are
+separate user-visible protocols, not Python or Rust SDK surfaces.
+
+<Aside type="caution" title="Claim boundary">
+  API presence is neither capability evidence nor maturity. Use the [capability
+  matrix](/capabilities/) and [evidence catalog](/evidence/) to find the bounded
+  claims and registered cases supported by repository evidence.
+</Aside>
+
+<CardGrid>
+  <ReferenceCard
+    href="/reference/python/"
+    title="Python API"
+    description="Complete public Python surface and signature reference for one exact source commit."
+    badge="Python"
+  />
+  <ReferenceCard
+    href="/reference/rust/"
+    title="Rust API"
+    description="All-features library-only rustdoc and classified Eqiora facade index."
+    badge="Rust"
+  />
+  <ReferenceCard
+    href="/reference/cli/"
+    title="Command-line interface"
+    description="Exact-head help and version for the bounded local Eqiora compile/check command."
+    badge="CLI"
+  />
+  <ReferenceCard
+    href="/reference/control-v2/"
+    title="Control protocol v2"
+    description="Exact JSON Schema for the bounded compile/check control request and response."
+    badge="JSON Schema"
+  />
+  <ReferenceCard
+    href="/reference/mcp/"
+    title="MCP stdio interface"
+    description="Live discovery and tool-list projection for Eqiora's bounded local MCP adapter."
+    badge="MCP"
+  />
+</CardGrid>

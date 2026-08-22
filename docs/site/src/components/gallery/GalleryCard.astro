@@ -1,0 +1,97 @@
+---
+/**
+ * GalleryCard — one media-led gallery entry. The entire card is a single
+ * ordinary anchor with no nested interactive control; it is not a run button.
+ *
+ * Props (private site-component binding v1):
+ *   href: string; title: string; description: string;
+ *   imageSrc: string; imageAlt: string; tags: readonly string[];
+ *   featured?: boolean (default false)
+ *
+ * No slots. Unknown props, wrong types, or any slot content fail the build.
+ * The media region is a stable 16:9 area; the image is shown whole (contain),
+ * never cropped, filtered, or redrawn.
+ */
+interface Props {
+  href: string;
+  title: string;
+  description: string;
+  imageSrc: string;
+  imageAlt: string;
+  tags: readonly string[];
+  featured?: boolean;
+}
+
+const COMPONENT = 'GalleryCard';
+const ALLOWED_PROPS: ReadonlySet<string> = new Set([
+  'href',
+  'title',
+  'description',
+  'imageSrc',
+  'imageAlt',
+  'tags',
+  'featured',
+]);
+const rawProps = Astro.props as unknown as Record<string, unknown>;
+
+for (const key of Object.keys(rawProps)) {
+  if (!ALLOWED_PROPS.has(key)) {
+    throw new Error(`${COMPONENT}: unknown prop "${key}"`);
+  }
+}
+
+function requiredText(name: 'href' | 'title' | 'description' | 'imageSrc' | 'imageAlt'): string {
+  const value = rawProps[name];
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${COMPONENT}: prop "${name}" must be a non-empty string`);
+  }
+  return value;
+}
+
+const href = requiredText('href');
+const title = requiredText('title');
+const description = requiredText('description');
+const imageSrc = requiredText('imageSrc');
+const imageAlt = requiredText('imageAlt');
+
+const tagsValue = rawProps.tags;
+if (!Array.isArray(tagsValue) || tagsValue.some((tag) => typeof tag !== 'string' || tag.trim().length === 0)) {
+  throw new Error(`${COMPONENT}: prop "tags" must be an array of non-empty strings`);
+}
+const tags = tagsValue as readonly string[];
+
+const featuredValue = rawProps.featured;
+if (featuredValue !== undefined && typeof featuredValue !== 'boolean') {
+  throw new Error(`${COMPONENT}: prop "featured" must be a boolean when supplied`);
+}
+const featured = featuredValue === true;
+
+const slotNames = Object.keys(Astro.slots);
+if (slotNames.length > 0) {
+  const rendered = await Promise.all(slotNames.map((name) => Astro.slots.render(name)));
+  if (slotNames.some((name) => name !== 'default') || rendered.some((html) => html.trim().length > 0)) {
+    throw new Error(`${COMPONENT}: accepts no slot content`);
+  }
+}
+---
+
+<li class="eq-gallery-card" data-featured={featured ? '' : undefined}>
+  <a class="eq-gallery-card__link" href={href}>
+    <span class="eq-gallery-card__media">
+      <img src={imageSrc} alt={imageAlt} loading={featured ? 'eager' : 'lazy'} decoding="async" />
+    </span>
+    <span class="eq-gallery-card__body">
+      <span class="eq-gallery-card__title">{title}</span>
+      <span class="eq-gallery-card__description">{description}</span>
+      {
+        tags.length > 0 && (
+          <span class="eq-gallery-card__tags">
+            {tags.map((tag) => (
+              <span class="eq-chip">{tag}</span>
+            ))}
+          </span>
+        )
+      }
+    </span>
+  </a>
+</li>

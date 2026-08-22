@@ -6,6 +6,8 @@ are recorded here.
 
 ## [Unreleased]
 
+## [0.1.0a2] - 2026-08-21
+
 ### Added
 
 - Added `eqiora.compile_package(...)` for one exact installed-Python locked
@@ -134,5 +136,6 @@ Detailed claims and nonclaims are the responsibility of the
 [capability matrix](docs/capability-matrix.md) and registered
 [`verify/`](verify/) cases rather than this summary.
 
-[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0a1...HEAD
+[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0a2...HEAD
+[0.1.0a2]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a2
 [0.1.0a1]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a1

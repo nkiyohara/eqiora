@@ -1,0 +1,12 @@
+---
+import StarlightSearch from '@astrojs/starlight/components/Search.astro';
+---
+
+<StarlightSearch {...Astro.props} />
+
+<script is:inline>
+  for (const control of document.querySelectorAll('site-search button[data-open-modal]')) {
+    const label = control.getAttribute('aria-label')?.trim();
+    if (label) control.setAttribute('title', label);
+  }
+</script>

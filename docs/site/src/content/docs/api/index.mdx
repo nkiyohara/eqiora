@@ -1,0 +1,32 @@
+---
+title: API index
+description: Compatibility entry point for Eqiora's same-origin public reference surfaces.
+---
+
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+Eqiora keeps its public surfaces deliberately smaller than its internal crate and adapter graph.
+
+<Aside type="note" title="Compatibility route">
+  The complete same-origin indexes now live under [Reference](/reference/). This page remains a useful static route for existing links.
+</Aside>
+
+<CardGrid>
+  <Card title="Python">
+    Browse the exact-commit projection generated from the public type stubs shipped in the distribution.
+
+    [Open Python reference](/reference/python/)
+  </Card>
+  <Card title="Rust">
+    Browse the curated facade landing and all-features, library-only rustdoc produced for this exact source commit.
+
+    [Open Rust reference](/reference/rust/)
+  </Card>
+  <Card title="Interfaces">
+    Browse separately labelled CLI, control-v2, and MCP projections within their accepted boundaries.
+
+    [Open the reference index](/reference/)
+  </Card>
+</CardGrid>
+
+API presence alone is not a capability claim. Consult [Capabilities](/capabilities/) and the [evidence catalog](/evidence/) before relying on a numerical or execution path.

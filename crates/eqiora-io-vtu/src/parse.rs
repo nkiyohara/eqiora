@@ -362,7 +362,7 @@ pub(crate) fn parse_document(
         .ok_or_else(|| invalid_import("VTU normalized geometry size overflows usize"))?;
     resolved.charge::<f64>(normalized_geometry_values, "VTU normalized geometry")?;
     let mut geometry = allocate_vec(normalized_geometry_values, "VTU normalized geometry")?;
-    for point in geometry_array.values.chunks_exact(3) {
+    for point in geometry_array.values.as_chunks::<3>().0 {
         if cell_kind == VtuCellKind::Triangle && point[2] != 0.0 {
             return Err(invalid_import(
                 "VTU Tri3 Points require exactly zero z coordinates",

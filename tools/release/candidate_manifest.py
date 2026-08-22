@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from packaging.requirements import InvalidRequirement, Requirement
+from python_candidate_common import CandidateError, python_distribution_version
 
 
 MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v2"
@@ -88,6 +89,8 @@ NOTEBOOK_CHECKS = frozenset(
         "cp313:notebook-cleanup-and-mutation",
     }
 )
+FAMILY_MEMBER_BYTES_LIMIT = 16_777_216
+FAMILY_TOTAL_BYTES_LIMIT = 67_108_864
 
 
 def _base_checks() -> frozenset[str]:
@@ -485,10 +488,22 @@ def _scan_family(document: dict[str, Any], artifacts: Path) -> _FamilyScan:
     wheel_members: list[dict[str, bytes]] = []
     wheel_metadata: list[bytes] = []
     activated = False
+    total_bytes = 0
     for index, raw in enumerate(records):
         record = _object(raw, f"artifacts[{index}]")
         filename = _basename(record.get("filename"), f"artifacts[{index}].filename")
         path = artifacts / filename
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or path.stat().st_nlink != 1
+            or path.stat().st_size <= 0
+            or path.stat().st_size > FAMILY_MEMBER_BYTES_LIMIT
+        ):
+            raise ManifestError(f"candidate family member is not one bounded regular file: {filename}")
+        total_bytes += path.stat().st_size
+        if total_bytes > FAMILY_TOTAL_BYTES_LIMIT:
+            raise ManifestError("candidate family exceeds the raw byte ceiling")
         kind = record.get("kind")
         if kind == "sdist":
             try:
@@ -553,12 +568,81 @@ def _scan_family(document: dict[str, Any], artifacts: Path) -> _FamilyScan:
     return _FamilyScan(sdist_members, tuple(wheel_members), tuple(wheel_metadata), activated)
 
 
-def _candidate_v3(document: dict[str, Any]) -> Candidate:
+def _retained_distribution_identity(scan: _FamilyScan) -> tuple[str, str]:
+    roots = {name.split("/", maxsplit=1)[0] for name in scan.sdist_members}
+    if len(roots) != 1:
+        raise ManifestError("sdist has an ambiguous source root")
+    root = roots.pop()
+
+    def member(relative: str) -> bytes:
+        try:
+            return scan.sdist_members[f"{root}/{relative}"]
+        except KeyError as error:
+            raise ManifestError(
+                f"v3 sdist omits retained identity member {relative}"
+            ) from error
+
+    try:
+        cargo = tomllib.loads(member("Cargo.toml").decode("utf-8"))
+        pyproject = tomllib.loads(member("pyproject.toml").decode("utf-8"))
+        package = json.loads(member("bindings/python/frontend/package.json"))
+        lock = json.loads(member("bindings/python/frontend/package-lock.json"))
+    except (UnicodeDecodeError, json.JSONDecodeError, tomllib.TOMLDecodeError) as error:
+        raise ManifestError(
+            f"retained source package/lock identity cannot be parsed: {error}"
+        ) from error
+
+    workspace = cargo.get("workspace")
+    workspace_package = workspace.get("package") if isinstance(workspace, dict) else None
+    raw_version = (
+        workspace_package.get("version")
+        if isinstance(workspace_package, dict)
+        else None
+    )
+    if not isinstance(raw_version, str) or not raw_version:
+        raise ManifestError("retained Cargo version is not one nonempty string")
+
+    project = pyproject.get("project")
+    if not isinstance(project, dict):
+        raise ManifestError("retained Python project table is unavailable")
+    if "version" in project or project.get("dynamic") != ["version"]:
+        raise ManifestError("retained Python version must be exactly dynamic")
+
+    mirrors: tuple[tuple[str, object], ...] = (
+        ("package.json.version", package.get("version") if isinstance(package, dict) else None),
+        (
+            "package-lock.json.version",
+            lock.get("version") if isinstance(lock, dict) else None,
+        ),
+        (
+            'package-lock.json.packages[""].version',
+            (
+                lock.get("packages", {}).get("", {}).get("version")
+                if isinstance(lock, dict)
+                and isinstance(lock.get("packages"), dict)
+                and isinstance(lock["packages"].get(""), dict)
+                else None
+            ),
+        ),
+    )
+    for location, value in mirrors:
+        if not isinstance(value, str) or not value:
+            raise ManifestError(f"retained frontend {location} is not one nonempty string")
+        if value != raw_version:
+            raise ManifestError(f"retained frontend {location} differs from raw Cargo")
+    try:
+        return raw_version, python_distribution_version(raw_version)
+    except CandidateError as error:
+        raise ManifestError(str(error)) from error
+
+
+def _candidate_v3(document: dict[str, Any], scan: _FamilyScan) -> Candidate:
     if document.get("project") != "eqiora" or document.get("acceptance") != "complete":
         raise ManifestError("only a complete eqiora v3 candidate is supported")
+    _raw_version, retained_version = _retained_distribution_identity(scan)
     version = _text(document.get("version"), "version")
-    if version != "0.1.0a1":
-        raise ManifestError("first public candidate version must be 0.1.0a1")
+    if version != retained_version:
+        raise ManifestError("candidate version differs from retained Cargo authority")
     source = _object(document.get("source"), "source")
     commit = _git_sha(source.get("commit"), "source.commit")
     if source.get("tree") != "clean" or source.get("expected_tag") != f"v{version}":
@@ -593,15 +677,46 @@ def _candidate_v3(document: dict[str, Any]) -> Candidate:
         python = entry.get("python")
         if kind == "wheel":
             python = _text(python, f"artifacts[{index}].python")
+            compact = python.replace(".", "")
+            if (
+                entry.get("abi") != f"cp{compact}"
+                or entry.get("platform") != "manylinux_2_17_x86_64"
+            ):
+                raise ManifestError("candidate wheel ABI/platform record drifted")
         elif kind == "sdist" and python is not None:
             raise ManifestError("sdist must not declare a Python interpreter")
         elif kind != "sdist":
             raise ManifestError("candidate has an unsupported artifact kind")
         artifacts.append(Artifact(filename, kind, size, digest, python))
-    if len(artifacts) != 5 or sorted(a.python for a in artifacts if a.kind == "wheel") != [
-        "3.11", "3.12", "3.13", "3.14"
-    ]:
+    sdists = [artifact for artifact in artifacts if artifact.kind == "sdist"]
+    wheels = [artifact for artifact in artifacts if artifact.kind == "wheel"]
+    if (
+        len(artifacts) != 5
+        or len(sdists) != 1
+        or sdists[0].filename != f"eqiora-{version}.tar.gz"
+        or sorted(artifact.python for artifact in wheels)
+        != ["3.11", "3.12", "3.13", "3.14"]
+    ):
         raise ManifestError("candidate artifact family drifted")
+    by_python = {artifact.python: artifact for artifact in wheels}
+    for python in ("3.11", "3.12", "3.13", "3.14"):
+        compact = python.replace(".", "")
+        artifact = by_python[python]
+        expected_name = (
+            f"eqiora-{version}-cp{compact}-cp{compact}-"
+            "manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+        )
+        if artifact.filename != expected_name:
+            raise ManifestError("candidate wheel filename/family drifted")
+
+    expected_metadata_member = f"eqiora-{version}.dist-info/METADATA"
+    for members, payload in zip(scan.wheel_members, scan.wheel_metadata, strict=True):
+        metadata_members = [name for name in members if name.endswith(".dist-info/METADATA")]
+        if metadata_members != [expected_metadata_member]:
+            raise ManifestError("wheel METADATA ownership differs from candidate version")
+        metadata = email.parser.BytesParser().parsebytes(payload)
+        if metadata.get("Name") != "eqiora" or metadata.get("Version") != version:
+            raise ManifestError("wheel metadata version differs from retained Cargo authority")
     checks_raw = _array(document.get("checks"), "checks")
     if any(not isinstance(value, str) or not value for value in checks_raw) or len(checks_raw) != len(set(checks_raw)):
         raise ManifestError("checks must be unique nonempty strings")
@@ -1120,7 +1235,12 @@ def load_candidate_family(
         return candidate
     if document.get("format") != V3_MANIFEST_FORMAT:
         raise ManifestError("an N1 signal requires the fail-closed v3 candidate schema")
-    candidate = _candidate_v3(document)
+    candidate = _candidate_v3(document, scan)
+    expected_family = {artifact.filename for artifact in candidate.artifacts}
+    actual_family = {path.name for path in artifacts.iterdir()}
+    if actual_family != expected_family:
+        raise ManifestError("v3 candidate artifact directory is not the exact family")
+    verify_artifacts(candidate, artifacts)
     raw_frontend = _object(document.get("build"), "build").get("frontend")
     if raw_frontend is None:
         raise ManifestError("v3 candidate requires build.frontend")
@@ -1143,7 +1263,6 @@ def load_candidate_family(
     if h2_receipt is None:
         raise ManifestError("v3 candidate requires its detached H2 receipt")
     _validate_receipt(h2_receipt, document, candidate, frontend, scan)
-    verify_artifacts(candidate, artifacts)
     for profile in requested_profiles:
         require_candidate_profile(candidate, profile)
     return candidate

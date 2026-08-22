@@ -860,10 +860,10 @@ fn sha256(input: &[u8]) -> [u8; 32] {
         0x1f83d9ab,
         0x5be0cd19,
     ];
-    for chunk in data.chunks_exact(64) {
+    for chunk in data.as_chunks::<64>().0 {
         let mut w = [0u32; 64];
-        for (index, bytes) in chunk.chunks_exact(4).enumerate() {
-            w[index] = u32::from_be_bytes(bytes.try_into().expect("word"));
+        for (index, bytes) in chunk.as_chunks::<4>().0.iter().enumerate() {
+            w[index] = u32::from_be_bytes(bytes.as_slice().try_into().expect("word"));
         }
         for index in 16..64 {
             let s0 = w[index - 15].rotate_right(7)
@@ -903,7 +903,7 @@ fn sha256(input: &[u8]) -> [u8; 32] {
         }
     }
     let mut output = [0u8; 32];
-    for (slot, value) in output.chunks_exact_mut(4).zip(h) {
+    for (slot, value) in output.as_chunks_mut::<4>().0.iter_mut().zip(h) {
         slot.copy_from_slice(&value.to_be_bytes());
     }
     output

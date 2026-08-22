@@ -1,0 +1,140 @@
+:root {
+  --eqiora-brand: #28684f;
+  --eqiora-brand-hover: #1e513d;
+  --eqiora-focus: #b94e38;
+  --eqiora-return-bg: #edf5f1;
+  --eqiora-return-text: #14221c;
+}
+
+body {
+  border-top: 0.25rem solid var(--eqiora-brand);
+}
+
+.eqiora-return {
+  display: block;
+  padding: 0.625rem 1rem;
+  color: var(--eqiora-return-text);
+  background: var(--eqiora-return-bg);
+  font-weight: 600;
+  text-decoration-thickness: 0.1em;
+  text-underline-offset: 0.18em;
+}
+
+.eqiora-return:hover {
+  color: var(--eqiora-brand-hover);
+}
+
+.eqiora-return:focus-visible,
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 0.1875rem solid var(--eqiora-focus);
+  outline-offset: 0.1875rem;
+}
+
+/* The open top-doc toggle must keep its visible "Description" label as the
+   summary's accessible name. Upstream hides the span, floats the summary out
+   of flow, and swaps in stale generated "Collapse" text; restore the real
+   label and clear only that stale generated content. */
+details.toggle[open] > summary.hideme {
+  position: static;
+}
+
+details.toggle[open] > summary.hideme > span {
+  display: inline;
+}
+
+details.toggle[open] > summary.hideme::after {
+  content: "";
+}
+
+details.toggle > summary.hideme > span {
+  color: var(--main-color);
+}
+
+/* Reflow the item declaration at narrow widths instead of scrolling it. */
+pre.rust.item-decl {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Signature links must be discernible without relying on colour alone. */
+.eqiora-signature-links a {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+/* Section anchors are content, not hover-only decoration; the important flag
+   out-reveals the upstream narrow-width important hide. */
+.anchor {
+  display: inline !important;
+}
+
+/* Links inside prose, heading, and where-clause blocks are distinguishable
+   without colour. */
+.docblock a,
+.where a,
+.code-header a,
+a.anchor {
+  text-decoration: underline;
+}
+
+/* Syntax and annotation colours that meet 4.5:1 on both the page and code
+   backgrounds of their theme; ayu already passes and stays untouched. */
+:root[data-theme="light"],
+:root:not([data-theme]) {
+  --function-link-color: #7d4a00;
+  --code-highlight-comment-color: #67695f;
+  --code-attribute-color: #616161;
+  --right-side-color: #595959;
+}
+
+:root[data-theme="dark"] {
+  --function-link-color: #44c780;
+  --code-highlight-comment-color: #a2a29f;
+}
+
+/* The topbar carries the only slotted Settings and Help links; keep it
+   present at desktop widths and keep the link labels readable at narrow
+   widths instead of icon-only controls. */
+@media (min-width: 701px) {
+  rustdoc-topbar {
+    display: flex;
+    align-items: center;
+  }
+}
+
+rustdoc-topbar span.label {
+  display: inline;
+}
+
+rustdoc-topbar .settings-menu > a,
+rustdoc-topbar .help-menu > a {
+  width: auto;
+  line-height: 1.25;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --eqiora-brand: #9ed2b7;
+    --eqiora-brand-hover: #c1ead3;
+    --eqiora-focus: #ef866f;
+    --eqiora-return-bg: #19251f;
+    --eqiora-return-text: #f2f8f5;
+  }
+}
+
+@media (forced-colors: active) {
+  body {
+    border-top-color: CanvasText;
+  }
+
+  .eqiora-return:focus-visible,
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible {
+    outline-color: Highlight;
+  }
+}

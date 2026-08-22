@@ -1,0 +1,361 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if test "$#" -ne 0; then
+  echo "usage: $0" >&2
+  exit 2
+fi
+for variable in \
+  EQIORA_API_SCRATCH \
+  EQIORA_SITE_SOURCE_ROOT \
+  EQIORA_SITE_GIT_OBJECT_REPOSITORY \
+  EQIORA_SITE_ASTRO_OUT_DIR \
+  EQIORA_SITE_RUSTDOC_TARGET \
+  EQIORA_SITE_RUSTDOC_STAGE \
+  EQIORA_SITE_ARTIFACT \
+  EQIORA_SITE_SOURCE_SHA \
+  EQIORA_SITE_BROWSER_SHA256 \
+  EQIORA_SITE_BROWSER_BYTES \
+  PLAYWRIGHT_BROWSERS_PATH
+do
+  test -n "${!variable:-}"
+done
+test "$LC_ALL" = C
+test "$TZ" = UTC
+test -d "$EQIORA_SITE_SOURCE_ROOT"
+test ! -L "$EQIORA_SITE_SOURCE_ROOT"
+test -d "$EQIORA_API_SCRATCH"
+test ! -L "$EQIORA_API_SCRATCH"
+scratch_real="$(realpath "$EQIORA_API_SCRATCH")"
+source_real="$(realpath "$EQIORA_SITE_SOURCE_ROOT")"
+authority_real="$(realpath "$EQIORA_SITE_GIT_OBJECT_REPOSITORY")"
+test "$authority_real" = "$EQIORA_SITE_GIT_OBJECT_REPOSITORY"
+test ! -L "$EQIORA_SITE_GIT_OBJECT_REPOSITORY"
+test "$authority_real" != "$source_real"
+test "$scratch_real" = "$EQIORA_API_SCRATCH"
+test "$source_real" = "$EQIORA_SITE_SOURCE_ROOT"
+[[ "$EQIORA_SITE_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+test "$EQIORA_SITE_SOURCE_ROOT" = "$EQIORA_API_SCRATCH/source"
+test "$EQIORA_SITE_ASTRO_OUT_DIR" = "$EQIORA_API_SCRATCH/astro"
+test "$EQIORA_SITE_RUSTDOC_TARGET" = "$EQIORA_API_SCRATCH/rustdoc-target"
+test "$EQIORA_SITE_RUSTDOC_STAGE" = "$EQIORA_API_SCRATCH/rustdoc-stage"
+test "$EQIORA_SITE_ARTIFACT" = "$EQIORA_API_SCRATCH/build/site"
+case "$PLAYWRIGHT_BROWSERS_PATH" in */eqiora-pw-1.62.1-r1234) ;; *) exit 1 ;; esac
+test -d "$EQIORA_API_SCRATCH/build"
+test ! -L "$EQIORA_API_SCRATCH/build"
+test -d "$EQIORA_API_SCRATCH/uv-cache"
+test ! -L "$EQIORA_API_SCRATCH/uv-cache"
+test -z "$(find "$EQIORA_API_SCRATCH/build" -mindepth 1 -print -quit)"
+test "$(find "$EQIORA_API_SCRATCH" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort)" = $'build\nsource\nuv-cache'
+test ! -e "$EQIORA_SITE_SOURCE_ROOT/.git"
+test -f "$EQIORA_SITE_SOURCE_ROOT/Cargo.toml"
+test -f "$EQIORA_SITE_SOURCE_ROOT/docs/site/package.json"
+test -d "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules"
+test ! -L "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules"
+test -x "$EQIORA_SITE_SOURCE_ROOT/tools/site/run_offline_site_checks.sh"
+for output in \
+  "$EQIORA_SITE_ASTRO_OUT_DIR" \
+  "$EQIORA_SITE_RUSTDOC_TARGET" \
+  "$EQIORA_SITE_RUSTDOC_STAGE" \
+  "$EQIORA_SITE_ARTIFACT"
+do
+  test ! -e "$output"
+  test ! -L "$output"
+done
+test "$npm_config_offline" = true
+test "$CARGO_NET_OFFLINE" = true
+test "$UV_OFFLINE" = 1
+test "$(uname -m)" = x86_64
+test "$(node --version)" = v24.18.1
+test "$(npm --version)" = 11.16.0
+test "$(python3 --version)" = "Python 3.13.14"
+test "$(uv --version)" = "uv 0.12.1 (x86_64-unknown-linux-musl)"
+test "$(rustc -Vv)" = "$(rustc +stable -Vv)"
+export PYTHONDONTWRITEBYTECODE=1
+source_manifest_before="$EQIORA_API_SCRATCH/source-sha256.before"
+source_manifest_after="$EQIORA_API_SCRATCH/source-sha256.after"
+cd "$EQIORA_SITE_SOURCE_ROOT"
+python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROOT"
+find "$EQIORA_SITE_SOURCE_ROOT" \
+  -path "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules" -prune -o \
+  -path "$EQIORA_SITE_SOURCE_ROOT/docs/site/.astro" -prune -o \
+  -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > "$source_manifest_before"
+python3 - <<'PY'
+import socket, urllib.request
+for action, label in (
+    (lambda: socket.getaddrinfo("example.com", 443), "external DNS sentinel"),
+    (lambda: socket.create_connection(("1.1.1.1", 443), 2), "external TCP sentinel"),
+    (lambda: urllib.request.urlopen("https://example.com/", timeout=2), "external fetch sentinel"),
+):
+    try: action()
+    except OSError: pass
+    else: raise SystemExit(f"{label} unexpectedly succeeded")
+PY
+python3 tools/site/check_site.py browser-supply \
+  --site-root docs/site --browser-cache "$PLAYWRIGHT_BROWSERS_PATH" \
+  --expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256" \
+  --expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"
+dpkg-query -W libclang-dev libffi-dev libopenmpi-dev openmpi-bin >/dev/null
+# The oracle package proves its ordinary synthetic path before any mutant or product check.
+PYTHONPATH=tools/site/tests/site \
+python3 -m unittest \
+  test_contract.CompleteContractTests.test_00_synthetic_ordinary_site_passes_before_mutants \
+  -v
+unittest_home="$HOME/../$(basename "$HOME")"
+test "$(realpath "$unittest_home")" = "$(realpath "$HOME")"
+HOME="$unittest_home" \
+python3 -m unittest discover -s tools/site/tests/site -p 'test_*.py' -v
+python3 -m unittest tools.site.tests.test_site_tools -v
+# Real-source provider, identity, supply, and trigger gates precede every consumer build.
+python3 - <<'PY'
+from pathlib import Path
+
+from tools.site.check_site import check_source
+
+errors = check_source(Path.cwd())
+if errors:
+    for error in errors:
+        print(f"site source: {error}")
+    raise SystemExit(1)
+PY
+read -r cargo_version python_version < <(
+  python3 - <<'PY'
+import importlib.util
+import sys
+import tomllib
+from pathlib import Path
+
+root = Path.cwd()
+cargo = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
+path = root / "tools/release/python_candidate_common.py"
+spec = importlib.util.spec_from_file_location("eqiora_release_version", path)
+assert spec is not None and spec.loader is not None
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+print(cargo, module.python_distribution_version(cargo))
+PY
+)
+cargo_target="$EQIORA_API_SCRATCH/cargo-target"
+python_target="$EQIORA_API_SCRATCH/python-target"
+wheels="$EQIORA_API_SCRATCH/wheels"
+venv="$EQIORA_API_SCRATCH/venv"
+identity_cwd="$EQIORA_API_SCRATCH/identity-cwd"
+for path in "$cargo_target" "$python_target" "$wheels" "$venv" "$identity_cwd" \
+  "$EQIORA_SITE_ASTRO_OUT_DIR" "$EQIORA_SITE_RUSTDOC_TARGET" \
+  "$EQIORA_SITE_RUSTDOC_STAGE" "$EQIORA_SITE_ARTIFACT"
+do
+  test ! -e "$path"
+  test ! -L "$path"
+done
+mkdir "$wheels" "$identity_cwd"
+cargo +stable build --locked --release -p eqiora \
+  --bin eqiora --bin eqiora-mcp \
+  --target-dir "$cargo_target"
+eqiora_binary="$cargo_target/release/eqiora"
+mcp_binary="$cargo_target/release/eqiora-mcp"
+test -x "$eqiora_binary"
+test -x "$mcp_binary"
+test "$($eqiora_binary --version)" = "eqiora $cargo_version"
+CARGO_TARGET_DIR="$python_target" \
+uv build --wheel --clear --python 3.13 --no-python-downloads \
+  --cache-dir "$EQIORA_API_SCRATCH/uv-cache" \
+  --out-dir "$wheels" .
+test -d "$wheels"; test ! -L "$wheels"
+mapfile -d '' wheel_entries < <(find "$wheels" -mindepth 1 -maxdepth 1 -print0)
+mapfile -d '' wheel_files < <(find "$wheels" -mindepth 1 -maxdepth 1 -name '*.whl' -print0)
+test "${#wheel_entries[@]}" = 2; test "${#wheel_files[@]}" = 1
+wheel="${wheel_files[0]}"; control="$wheels/.gitignore"
+test "$(basename "$wheel")" != .whl
+for output in "$wheel" "$control"; do
+  test -f "$output"; test ! -L "$output"; test "$(stat -c %h "$output")" = 1
+done
+test -s "$wheel"
+test "$(stat -c %s "$control")" = 1
+test "$(sha256sum "$control" | cut -d ' ' -f 1)" = 684888c0ebb17f374298b65ee2807526c066094c701bcc7ebbe1c1095f494fc1
+wheel_identity="$(stat -c %d:%i "$wheel") $(sha256sum "$wheel")"; control_identity="$(stat -c %d:%i "$control") $(sha256sum "$control")"
+uv venv --python 3.13 --no-python-downloads "$venv"
+test "$(find "$wheels" -mindepth 1 -maxdepth 1 -printf '.\n' | wc -l)" = 2
+for output in "$wheel" "$control"; do test -f "$output"; test ! -L "$output"; test "$(stat -c %h "$output")" = 1; done
+test "$(stat -c %d:%i "$wheel") $(sha256sum "$wheel")" = "$wheel_identity"
+test "$(stat -c %d:%i "$control") $(sha256sum "$control")" = "$control_identity"
+uv pip install --python "$venv/bin/python" --no-index --no-deps "$wheel"
+(
+  cd "$identity_cwd"
+  env -u PYTHONPATH PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 LC_ALL=C \
+    "$venv/bin/python" -I - "$python_version" "$venv" <<'PY'
+import importlib.metadata
+import importlib.machinery
+import importlib.util
+import importlib
+import pathlib
+import sys
+
+expected = sys.argv[1]
+venv = pathlib.Path(sys.argv[2]).resolve()
+import eqiora
+import eqiora._eqiora as native
+
+assert eqiora.__version__ == expected
+assert native.__version__ == expected
+assert importlib.metadata.version("eqiora") == expected
+public_file = pathlib.Path(eqiora.__file__)
+native_file = pathlib.Path(native.__file__)
+package = public_file.resolve().parent
+assert not public_file.is_symlink() and public_file.resolve().is_relative_to(venv)
+assert not native_file.is_symlink() and native_file.resolve().is_relative_to(venv)
+assert native.__name__ == "eqiora._eqiora"
+assert native_file.resolve().parent == package
+assert any(native_file.name.endswith(suffix) for suffix in importlib.machinery.EXTENSION_SUFFIXES)
+distribution = importlib.metadata.distribution("eqiora")
+assert pathlib.Path(distribution.locate_file("")).resolve().is_relative_to(venv)
+assert importlib.util.find_spec("_eqiora") is None
+try:
+    importlib.import_module("_eqiora")
+except ModuleNotFoundError as error:
+    assert error.name == "_eqiora"
+else:
+    raise AssertionError("top-level _eqiora unexpectedly exists")
+PY
+)
+# The committed evidence projection is checked before API projection or Astro.
+cargo +stable run --locked --quiet --target-dir "$cargo_target" -p eqiora-verify -- \
+  index --format json > "$EQIORA_API_SCRATCH/evidence-index.json"
+python3 tools/site/generate_evidence_catalog.py \
+  --input "$EQIORA_API_SCRATCH/evidence-index.json" \
+  --output "$EQIORA_API_SCRATCH/evidence-index.mdx"
+cmp --silent \
+  "$EQIORA_API_SCRATCH/evidence-index.mdx" \
+  docs/site/src/content/docs/evidence/index.mdx
+python3 tools/site/generate_evidence_catalog.py \
+  --check \
+  --input "$EQIORA_API_SCRATCH/evidence-index.json" \
+  --output docs/site/src/content/docs/evidence/index.mdx
+python3 tools/docs/generate_python_api.py --check
+python3 tools/docs/generate_interface_reference.py \
+  --repository "$EQIORA_SITE_SOURCE_ROOT" \
+  --eqiora-binary "$eqiora_binary" \
+  --mcp-binary "$mcp_binary" \
+  --source-sha "$EQIORA_SITE_SOURCE_SHA" \
+  --check
+CARGO_TARGET_DIR="$cargo_target" cargo +stable xtask check-facade
+RUSTDOCFLAGS="-D warnings --html-in-header docs/site/src/reference/rustdoc-head.html --extend-css docs/site/src/styles/rustdoc.css" \
+cargo +stable doc --locked -p eqiora --lib --no-deps --all-features \
+  --target-dir "$EQIORA_SITE_RUSTDOC_TARGET"
+mkdir "$EQIORA_SITE_RUSTDOC_STAGE"
+python3 tools/site/build_rust_reference.py \
+  --rustdoc-root "$EQIORA_SITE_RUSTDOC_TARGET/doc" \
+  --output "$EQIORA_SITE_RUSTDOC_STAGE"
+rustdoc_handoff="$EQIORA_SITE_RUSTDOC_STAGE/reference/rust/api"
+for path in "$EQIORA_SITE_RUSTDOC_STAGE" "$EQIORA_SITE_RUSTDOC_STAGE/reference" \
+  "$EQIORA_SITE_RUSTDOC_STAGE/reference/rust" "$rustdoc_handoff" "$rustdoc_handoff/eqiora"
+do
+  test -d "$path"; test ! -L "$path"
+done
+test "$(realpath "$rustdoc_handoff")" = "$rustdoc_handoff"
+test -f "$rustdoc_handoff/eqiora/index.html"; test ! -L "$rustdoc_handoff/eqiora/index.html"
+test ! -e "$rustdoc_handoff/eqiora_mcp"; test ! -L "$rustdoc_handoff/eqiora_mcp"
+EQIORA_SITE_BUILD_PROFILE=complete \
+EQIORA_SITE_SOURCE_SHA="$EQIORA_SITE_SOURCE_SHA" \
+EQIORA_SITE_CARGO_VERSION="$cargo_version" \
+EQIORA_SITE_PYTHON_VERSION="$python_version" \
+EQIORA_SITE_ASTRO_OUT_DIR="$EQIORA_SITE_ASTRO_OUT_DIR" \
+npm --prefix docs/site run build
+assembly_scratch="$EQIORA_API_SCRATCH/assembly"
+mkdir "$assembly_scratch"
+python3 tools/site/assemble_site.py \
+  --astro-root "$EQIORA_SITE_ASTRO_OUT_DIR" \
+  --rustdoc-root "$rustdoc_handoff" \
+  --control-schema schemas/control/compile-v2.schema.json \
+  --output "$EQIORA_SITE_ARTIFACT" \
+  --scratch-root "$assembly_scratch"
+python3 tools/site/check_site.py check \
+  --root "$EQIORA_SITE_SOURCE_ROOT" \
+  --artifact "$EQIORA_SITE_ARTIFACT" \
+  --source-sha "$EQIORA_SITE_SOURCE_SHA"
+# The admitted complete site precedes fresh benign and invalid math probes.
+benign_repository="$EQIORA_API_SCRATCH/benign-math-repository"
+benign_site="$benign_repository/docs/site"
+benign_output="$EQIORA_API_SCRATCH/benign-math-output"
+benign_cache="$EQIORA_API_SCRATCH/benign-math-cache"
+python3 -c 'import hashlib,shutil,stat,sys; from pathlib import Path; source=Path(sys.argv[1]); relative=Path("docs/site/src/content/docs/invalid-math-sentinel.mdx"); forbidden=Path("docs/site/src/content/docs/__invalid_math_sentinel__.mdx"); assert not any((source/path).exists() or (source/path).is_symlink() for path in (relative,forbidden)); destination=Path(sys.argv[2]); shutil.copytree(source,destination,symlinks=True,ignore=lambda directory,names:{".astro"} if Path(directory)==source/"docs/site" and ".astro" in names else set()); payload=b"---\ntitle: Invalid math sentinel\n---\n\n$$\n\\frac{1}{2}\n$$\n"; target=destination/relative; target.write_bytes(payload); target.chmod(0o644); assert (stat.S_IMODE(target.stat().st_mode),len(payload),hashlib.sha256(payload).hexdigest())==(0o644,56,"4372c659870165a44803413edae41758254624a5ad2b9cff8bfc9622c878fc50")' "$EQIORA_SITE_SOURCE_ROOT" "$benign_repository"
+EQIORA_SITE_BUILD_PROFILE=complete EQIORA_SITE_SOURCE_SHA="$EQIORA_SITE_SOURCE_SHA" \
+  EQIORA_SITE_CARGO_VERSION="$cargo_version" EQIORA_SITE_PYTHON_VERSION="$python_version" \
+  EQIORA_SITE_ASTRO_OUT_DIR="$benign_output" npm_config_cache="$benign_cache" \
+  npm --prefix "$benign_site" run build
+python3 - "$benign_output/invalid-math-sentinel/index.html" <<'PY'
+import sys
+from pathlib import Path
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+for marker in ('class="katex-display"', 'class="katex-mathml"', 'class="katex-html"', '<math', 'display="block"'):
+    assert text.count(marker) == 1
+PY
+invalid_repository="$EQIORA_API_SCRATCH/invalid-math-repository"
+invalid_site="$invalid_repository/docs/site"
+invalid_output="$EQIORA_API_SCRATCH/invalid-math-output"
+invalid_cache="$EQIORA_API_SCRATCH/invalid-math-cache"
+invalid_log="$EQIORA_API_SCRATCH/invalid-math.log"
+python3 -c 'import hashlib,shutil,stat,sys; from pathlib import Path; source=Path(sys.argv[1]); relative=Path("docs/site/src/content/docs/invalid-math-sentinel.mdx"); forbidden=Path("docs/site/src/content/docs/__invalid_math_sentinel__.mdx"); assert not any((source/path).exists() or (source/path).is_symlink() for path in (relative,forbidden)); destination=Path(sys.argv[2]); shutil.copytree(source,destination,symlinks=True,ignore=lambda directory,names:{".astro"} if Path(directory)==source/"docs/site" and ".astro" in names else set()); payload=b"---\ntitle: Invalid math sentinel\n---\n\n$$\n\\frac{\n$$\n"; target=destination/relative; target.write_bytes(payload); target.chmod(0o644); assert (stat.S_IMODE(target.stat().st_mode),len(payload),hashlib.sha256(payload).hexdigest())==(0o644,51,"7abc88da255ffa6835ac0bbff900a0865958671862b198fa6f729ffa508a3e8b")' "$EQIORA_SITE_SOURCE_ROOT" "$invalid_repository"
+status=0
+if EQIORA_SITE_BUILD_PROFILE=complete \
+  EQIORA_SITE_SOURCE_SHA="$EQIORA_SITE_SOURCE_SHA" \
+  EQIORA_SITE_CARGO_VERSION="$cargo_version" \
+  EQIORA_SITE_PYTHON_VERSION="$python_version" \
+  EQIORA_SITE_ASTRO_OUT_DIR="$invalid_output" \
+  npm_config_cache="$invalid_cache" npm --prefix "$invalid_site" run build >"$invalid_log" 2>&1
+then
+  echo "invalid TeX unexpectedly built successfully" >&2
+  exit 1
+else
+  status=$?
+fi
+test "$status" = 1; test -f "$invalid_log"; test ! -L "$invalid_log"
+python3 - "$invalid_log" <<'PY'
+import sys
+from pathlib import Path
+raw = Path(sys.argv[1]).read_bytes()
+assert 1 <= len(raw) <= 1_048_576 and b"\0" not in raw
+text = raw.decode("utf-8")
+diagnostic = "KaTeX parse error: Unexpected end of input in a macro argument, expected '}' at end of input: \\frac{"
+assert text.split("\n").count(diagnostic) == 1 and diagnostic + "\n" in text
+PY
+
+server_log="$EQIORA_API_SCRATCH/site-server.log"
+python3 tools/site/check_site.py serve \
+  --artifact "$EQIORA_SITE_ARTIFACT" \
+  --host 127.0.0.1 \
+  --port 4173 >"$server_log" 2>&1 &
+server_pid=$!
+cleanup_server() {
+  kill "$server_pid" 2>/dev/null || true
+  wait "$server_pid" 2>/dev/null || true
+}
+trap cleanup_server EXIT
+python3 - <<'PY'
+import time
+import urllib.request
+
+for _ in range(100):
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:4173/", timeout=1) as response:
+            assert response.status == 200
+            assert b"Eqiora" in response.read()
+            break
+    except OSError:
+        time.sleep(0.05)
+else:
+    raise SystemExit("loopback site sentinel did not become ready")
+PY
+
+EQIORA_SITE_BASE_URL=http://127.0.0.1:4173 \
+npx --prefix docs/site playwright test --config docs/site/playwright.config.ts
+cleanup_server
+trap - EXIT
+
+python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROOT"
+find "$EQIORA_SITE_SOURCE_ROOT" \
+  -path "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules" -prune -o \
+  -path "$EQIORA_SITE_SOURCE_ROOT/docs/site/.astro" -prune -o \
+  -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > "$source_manifest_after"
+cmp --silent "$source_manifest_before" "$source_manifest_after"
+
+echo "offline site checks: exact artifact, browser, and accessibility contract passed"

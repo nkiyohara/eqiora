@@ -31,12 +31,12 @@ const EXTRA_FAER_LIBRARIES: &[ProviderLibrary] = &[
 
 const REFERENCE_PROVIDER: SolverProvider = SolverProvider::new(
     BackendId::new("eqiora.reference"),
-    "0.1.0-alpha.1",
+    "0.1.0-alpha.2",
     EMPTY_LIBRARIES,
 );
 const FAER_PROVIDER: SolverProvider = SolverProvider::new(
     BackendId::new("eqiora.faer"),
-    "0.1.0-alpha.1",
+    "0.1.0-alpha.2",
     FAER_LIBRARIES,
 );
 
@@ -996,7 +996,7 @@ fn catalog_validation_precedence_and_exact_plan_tuple_are_frozen() {
     let stale_evidence_and_provider = CountingBackend::new(
         SolverProvider::new(
             BackendId::new("eqiora.faer"),
-            "0.1.0-alpha.2",
+            "0.1.0-alpha.1",
             FAER_LIBRARIES,
         ),
         faer_bicgstab_plan(),
@@ -1037,22 +1037,22 @@ fn catalog_validation_precedence_and_exact_plan_tuple_are_frozen() {
     for bad_provider in [
         SolverProvider::new(
             BackendId::new("eqiora.faer"),
-            "0.1.0-alpha.2",
+            "0.1.0-alpha.1",
             FAER_LIBRARIES,
         ),
         SolverProvider::new(
             BackendId::new("eqiora.faer"),
-            "0.1.0-alpha.1",
+            "0.1.0-alpha.2",
             CHANGED_FAER_LIBRARIES,
         ),
         SolverProvider::new(
             BackendId::new("eqiora.faer"),
-            "0.1.0-alpha.1",
+            "0.1.0-alpha.2",
             EMPTY_LIBRARIES,
         ),
         SolverProvider::new(
             BackendId::new("eqiora.faer"),
-            "0.1.0-alpha.1",
+            "0.1.0-alpha.2",
             EXTRA_FAER_LIBRARIES,
         ),
     ] {

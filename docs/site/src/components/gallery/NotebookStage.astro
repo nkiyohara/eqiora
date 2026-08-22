@@ -1,0 +1,82 @@
+---
+/**
+ * NotebookStage — one ordered stage of the static notebook-like walkthrough:
+ * a labelled semantic section with a linkable `id`, a stage heading carrying
+ * the step number, decorative emoji, and title, and the stage's MDX body.
+ *
+ * Props (private site-component binding v1):
+ *   id: string; step: 1|2|3|4|5|6; title: string; emoji: string
+ *
+ * Default slot (required): the stage MDX (prose, equations, code, figures,
+ * asides, source links). No named slots. Unknown props, wrong types, a
+ * missing/empty default slot, or a named slot fail the build.
+ *
+ * The heading is an <h2> so the six stages read as one ordered sequence under
+ * the page title; at >=1024px the heading becomes a sticky rail beside the
+ * body, otherwise it is simply in flow. The emoji is `aria-hidden`.
+ */
+import StageMarker from './StageMarker.astro';
+
+interface Props {
+  id: string;
+  step: 1 | 2 | 3 | 4 | 5 | 6;
+  title: string;
+  emoji: string;
+}
+
+const COMPONENT = 'NotebookStage';
+const ALLOWED_PROPS: ReadonlySet<string> = new Set(['id', 'step', 'title', 'emoji']);
+const rawProps = Astro.props as unknown as Record<string, unknown>;
+
+for (const key of Object.keys(rawProps)) {
+  if (!ALLOWED_PROPS.has(key)) {
+    throw new Error(`${COMPONENT}: unknown prop "${key}"`);
+  }
+}
+
+function requiredText(name: 'id' | 'title' | 'emoji'): string {
+  const value = rawProps[name];
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${COMPONENT}: prop "${name}" must be a non-empty string`);
+  }
+  return value;
+}
+
+const id = requiredText('id');
+if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(id)) {
+  throw new Error(`${COMPONENT}: prop "id" must be a simple HTML id (letters, digits, "-", "_")`);
+}
+
+const stepValue = rawProps.step;
+if (typeof stepValue !== 'number' || !Number.isInteger(stepValue) || stepValue < 1 || stepValue > 6) {
+  throw new Error(`${COMPONENT}: prop "step" must be an integer from 1 to 6`);
+}
+const step = stepValue as 1 | 2 | 3 | 4 | 5 | 6;
+
+const title = requiredText('title');
+const emoji = requiredText('emoji');
+
+const slotNames = Object.keys(Astro.slots);
+for (const name of slotNames) {
+  if (name !== 'default') {
+    throw new Error(`${COMPONENT}: unknown slot "${name}"`);
+  }
+}
+const body = Astro.slots.has('default') ? await Astro.slots.render('default') : '';
+if (body.trim().length === 0) {
+  throw new Error(`${COMPONENT}: default slot must contain the stage content`);
+}
+
+const headingId = `${id}-title`;
+---
+
+<section class="eq-stage" id={id} aria-labelledby={headingId} data-step={step}>
+  <header class="eq-stage__header">
+    <h2 class="eq-stage__title" id={headingId}>
+      <StageMarker id={id} step={step} title={title} emoji={emoji} />
+    </h2>
+  </header>
+  <div class="eq-stage__body">
+    <Fragment set:html={body} />
+  </div>
+</section>

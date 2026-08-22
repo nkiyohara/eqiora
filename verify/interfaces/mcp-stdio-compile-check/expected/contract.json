@@ -4,7 +4,7 @@
   "toolName": "eqiora.model.compile_check",
   "serverInfo": {
     "name": "eqiora-mcp",
-    "version": "0.1.0-alpha.1"
+    "version": "0.1.0-alpha.2"
   },
   "oracleTimeouts": {
     "ordinaryResponseMs": 10000,
@@ -394,7 +394,7 @@
     "_meta": {
       "io.modelcontextprotocol/serverInfo": {
         "name": "eqiora-mcp",
-        "version": "0.1.0-alpha.1"
+        "version": "0.1.0-alpha.2"
       }
     },
     "instructions": "Compile/check Eqiora source in memory. This server does not read files, edit models, run solvers, or create tasks.",

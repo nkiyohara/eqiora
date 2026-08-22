@@ -287,7 +287,9 @@ where
     }
     let component_values = [0, 1].map(|component| {
         full_values
-            .chunks_exact(COMPONENTS)
+            .as_chunks::<COMPONENTS>()
+            .0
+            .iter()
             .map(|value| value[component])
             .collect::<Vec<_>>()
     });
@@ -313,7 +315,7 @@ where
         })
         .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
     let mut integrated_body_force = [0.0; COMPONENTS];
-    for values in full_system.rhs().chunks_exact(COMPONENTS) {
+    for values in full_system.rhs().as_chunks::<COMPONENTS>().0 {
         for component in 0..COMPONENTS {
             integrated_body_force[component] += values[component];
         }
@@ -481,7 +483,9 @@ fn triangle_gradients(geometry: &AffineGeometryMap) -> Result<Vec<Vec<f64>>, Dia
     let basis = SimplexP1Space::new(DIMENSION)?.tabulate(&[1.0 / 3.0, 1.0 / 3.0])?;
     Ok(basis
         .reference_gradients()
-        .chunks_exact(DIMENSION)
+        .as_chunks::<DIMENSION>()
+        .0
+        .iter()
         .map(|gradient| physical_gradient(gradient, &inverse, DIMENSION))
         .collect())
 }

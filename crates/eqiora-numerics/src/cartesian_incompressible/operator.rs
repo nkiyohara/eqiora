@@ -42,7 +42,9 @@ impl CollocatedPoint2d {
             )));
         }
         let velocity = values[..2 * cell_count]
-            .chunks_exact(DIMENSION)
+            .as_chunks::<DIMENSION>()
+            .0
+            .iter()
             .map(|value| [value[0], value[1]])
             .collect();
         Ok(Self {

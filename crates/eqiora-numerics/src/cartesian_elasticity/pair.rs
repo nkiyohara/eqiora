@@ -540,7 +540,11 @@ pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
     let subdomain_systems = [negative_system, positive_system];
     let integrated_body_force = std::array::from_fn(|subdomain| {
         let mut integrated = [0.0; COMPONENTS];
-        for values in subdomain_systems[subdomain].rhs().chunks_exact(COMPONENTS) {
+        for values in subdomain_systems[subdomain]
+            .rhs()
+            .as_chunks::<COMPONENTS>()
+            .0
+        {
             for component in 0..COMPONENTS {
                 integrated[component] += values[component];
             }

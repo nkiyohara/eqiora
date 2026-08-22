@@ -167,7 +167,9 @@ impl MiniNavierStokesLocalLinearization {
     pub(crate) fn into_linear_contribution(self) -> Result<LocalContribution, Diagnostic> {
         let rhs = self
             .jacobian
-            .chunks_exact(CELL_LOCAL_DOF_COUNT)
+            .as_chunks::<CELL_LOCAL_DOF_COUNT>()
+            .0
+            .iter()
             .zip(&self.residual)
             .map(|(row, residual)| {
                 row.iter()

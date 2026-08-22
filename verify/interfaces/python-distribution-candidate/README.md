@@ -37,6 +37,27 @@ release provenance, not a claim that independent Python distributions are
 byte-identical. This oracle commits no H2 PASS; the real receipt remains a
 post-writer, pre-integration gate.
 
+For each Notebook host scenario, success additionally requires the bounded
+cleanup decision to observe the complete owned notebook, kernel, browser, and
+profile-helper membership as empty. Cleanup begins from one monotonic epoch:
+the existing host-status predicate still accepts status 0, or exactly
+`-SIGTERM` after the candidate runner requested SIGTERM; unsolicited signals,
+every other nonzero status, timeout, and forced kill reject. The cleanup
+predicate is an additional conjunct, not a replacement for that status rule.
+graceful shutdown and observation receive at most 30.0 seconds, and forced
+escalation, reaping, and the final observation share only the remaining time
+through the absolute 35.0-second decision deadline. Forced escalation always
+rejects even if the later observation is empty. A primary host failure is
+retained while cleanup adds its own terminal; cleanup is never skipped.
+
+The focused decision oracle caps one scenario at 256 stable
+`(role, PID, Linux start-time)` identities and 64 KiB of canonical UTF-8
+diagnostics. A nonempty or incomplete observation, identity or output
+overflow, authority denial, or deadline rejects. Same-name processes and a
+reused numeric PID are not ownership authority. This is deliberately not a
+promise that an uninterruptible, inaccessible, or incompletely observed
+survivor disappears within a fixed time.
+
 Execution is a direct three-stage handoff at one exact clean revision. The
 candidate driver first prepares an immutable directory containing only one
 sdist and the four wheels. The sole conventional H2 executor then safe-extracts
@@ -116,6 +137,18 @@ The gate rejects:
   2.1.0 lower-bound profile;
 - a validation profile mutating the shared sdist, wheel family, or extracted
   source, or any admitted profile failing before the joined manifest barrier.
+- direct-host exit reported as success while an owned kernel, browser, or
+  helper remains; skipped cleanup after a primary host-test failure; or forced
+  escalation represented as success after later empty observation;
+- nonempty or incomplete observation at the absolute 35.0-second decision
+  deadline followed by an unbounded wait or success;
+- signalling a same-name foreign process or a reused PID whose Linux start
+  identity does not match the admitted owned identity;
+- cleanup diagnostics that hide the primary failure or omit a stably observed
+  survivor's role, PID, Linux start identity, state, requested stages,
+  per-stage result, or authority-denied state; or
+- a 257th stable identity or canonical diagnostic output beyond 64 KiB
+  represented as a complete observation.
 
 ## Boundary
 

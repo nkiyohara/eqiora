@@ -241,7 +241,7 @@ fn reference_run(packages: &PreparedPackages) -> Result<RunManifestV1, String> {
         ArtifactDigest::from_hex(model_digest).map_err(|error| error.to_string())?,
         packages.document.model().program().revision().0,
         "eqiora-sem-reference",
-        env!("CARGO_PKG_VERSION"),
+        eqiora::VERSION,
     )
     .and_then(|run| run.with_numerical_setting("execution.topology", "one-host-one-worker"))
     .and_then(|run| {

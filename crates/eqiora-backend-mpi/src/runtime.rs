@@ -332,14 +332,13 @@ impl MpiExecutionGroup {
             &local.encode(),
             &mut self.rank_device_bytes,
         );
+        let rank_device_bytes = self.rank_device_bytes.as_slice();
         let gathered = (|| {
-            for bytes in self
-                .rank_device_bytes
-                .chunks_exact(RANK_DEVICE_RECORD_BYTES)
-            {
-                let encoded = <[u8; RANK_DEVICE_RECORD_BYTES]>::try_from(bytes).map_err(|_| {
-                    invalid_realization("MPI rank-device record extent is inconsistent")
-                })?;
+            for bytes in rank_device_bytes.as_chunks::<RANK_DEVICE_RECORD_BYTES>().0 {
+                let encoded = <[u8; RANK_DEVICE_RECORD_BYTES]>::try_from(bytes.as_slice())
+                    .map_err(|_| {
+                        invalid_realization("MPI rank-device record extent is inconsistent")
+                    })?;
                 devices.push(RankLocalDeviceV1::decode(encoded));
             }
             if devices.len() != self.partitions.get()
@@ -422,11 +421,9 @@ impl MpiExecutionGroup {
         hash.update(local_summary);
         let agreed: [u8; 32] = hash.finalize().into();
         fixed_all_gather(&self.communicator, &agreed, &mut self.receipt_summary_bytes);
-        if self
-            .receipt_summary_bytes
-            .chunks_exact(EXECUTION_RECEIPT_SUMMARY_BYTES)
-            .all(|candidate| candidate == &agreed[..])
-        {
+        let bytes = self.receipt_summary_bytes.as_slice();
+        let summaries = bytes.as_chunks::<EXECUTION_RECEIPT_SUMMARY_BYTES>().0;
+        if summaries.iter().all(|candidate| candidate == &agreed[..]) {
             Ok(())
         } else {
             Err(solve_failed(
@@ -482,9 +479,10 @@ impl MpiExecutionGroup {
         for bytes in prepared
             .buffers
             .fixed_bytes
-            .chunks_exact(AdmissionRecordV1::ENCODED_LEN)
+            .as_chunks::<{ AdmissionRecordV1::ENCODED_LEN }>()
+            .0
         {
-            let encoded = <[u8; AdmissionRecordV1::ENCODED_LEN]>::try_from(bytes)
+            let encoded = <[u8; AdmissionRecordV1::ENCODED_LEN]>::try_from(bytes.as_slice())
                 .map_err(|_| invalid_realization("admission record extent is inconsistent"))?;
             prepared
                 .buffers
@@ -752,11 +750,9 @@ impl MpiExecutionGroup {
             &summary,
             &mut self.receipt_summary_bytes,
         );
-        if self
-            .receipt_summary_bytes
-            .chunks_exact(EXECUTION_RECEIPT_SUMMARY_BYTES)
-            .all(|candidate| candidate == &summary[..])
-        {
+        let bytes = self.receipt_summary_bytes.as_slice();
+        let summaries = bytes.as_chunks::<EXECUTION_RECEIPT_SUMMARY_BYTES>().0;
+        if summaries.iter().all(|candidate| candidate == &summary[..]) {
             Ok(())
         } else {
             Err(solve_failed(
@@ -1689,8 +1685,10 @@ impl AdmittedDistributedRun<'_, '_> {
         let agreement = if self
             .buffers
             .summary_bytes
-            .chunks_exact(ProducerReportSummaryV2::ENCODED_LEN)
-            .all(|candidate| candidate == expected)
+            .as_chunks::<{ ProducerReportSummaryV2::ENCODED_LEN }>()
+            .0
+            .iter()
+            .all(|candidate| candidate.as_slice() == expected)
         {
             Ok(())
         } else {
@@ -1774,7 +1772,9 @@ impl AdmittedDistributedRun<'_, '_> {
         let agreement = if self
             .buffers
             .summary_bytes
-            .chunks_exact(summary.len())
+            .as_chunks::<32>()
+            .0
+            .iter()
             .all(|candidate| candidate == reference)
         {
             Ok(())
@@ -2049,8 +2049,8 @@ fn synchronize_status(
 ) -> Result<(), Diagnostic> {
     fixed_all_gather(communicator, &local.encode(), bytes);
     records.clear();
-    for bytes in bytes.chunks_exact(PhaseStatusV1::ENCODED_LEN) {
-        let encoded = <[u8; PhaseStatusV1::ENCODED_LEN]>::try_from(bytes)
+    for bytes in bytes.as_chunks::<{ PhaseStatusV1::ENCODED_LEN }>().0 {
+        let encoded = <[u8; PhaseStatusV1::ENCODED_LEN]>::try_from(bytes.as_slice())
             .map_err(|_| invalid_realization("phase-status extent is inconsistent"))?;
         records.push(PhaseStatusV1::decode(encoded)?);
     }

@@ -333,6 +333,62 @@ class PythonDistributionGateTests(unittest.TestCase):
         for focused in ("tools/ci/python_jax_gate.py", "tools/ci/python_torch_gate.py"):
             self.assertTrue((REPOSITORY_ROOT / focused).is_file())
 
+    def test_role_d_workflow_projection_derives_filenames_smoke_and_urls(self) -> None:
+        def require_derived_projection(workflow: str) -> None:
+            for required in (
+                "*-python-candidate-h2.json",
+                "*-python-candidate.json",
+                '--expected-version "$CANDIDATE_VERSION"',
+                "https://test.pypi.org/project/eqiora/",
+                "https://pypi.org/project/eqiora/",
+            ):
+                if required not in workflow:
+                    self.fail(
+                        f"Role D workflow omits derived projection {required}"
+                    )
+            for singleton in (
+                "0.1.0a1",
+                "v0.1.0a1",
+                "0.1.0-alpha.1",
+                "0.1.0a2",
+                "v0.1.0a2",
+                "0.1.0-alpha.2",
+            ):
+                if singleton in workflow:
+                    self.fail(
+                        f"Role D workflow still contains version singleton {singleton}"
+                    )
+
+        reference = """\
+receipt=*-python-candidate-h2.json
+manifest=*-python-candidate.json
+python_public_smoke.py --expected-version "$CANDIDATE_VERSION"
+https://test.pypi.org/project/eqiora/
+https://pypi.org/project/eqiora/
+"""
+        require_derived_projection(reference)
+        for mutant in (
+            reference.replace("$CANDIDATE_VERSION", "0.1.0a1"),
+            reference.replace("$CANDIDATE_VERSION", "0.1.0a2"),
+            reference.replace("*-python-candidate-h2.json", "receipt.json"),
+        ):
+            with self.assertRaises(AssertionError):
+                require_derived_projection(mutant)
+
+        current = "\n".join(
+            (
+                (
+                    REPOSITORY_ROOT
+                    / ".github/workflows/python-release-candidate.yml"
+                ).read_text(encoding="utf-8"),
+                (
+                    REPOSITORY_ROOT
+                    / ".github/workflows/python-production-publish.yml"
+                ).read_text(encoding="utf-8"),
+            )
+        )
+        require_derived_projection(current)
+
 
 if __name__ == "__main__":
     unittest.main()

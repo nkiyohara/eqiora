@@ -6,10 +6,12 @@ from __future__ import annotations
 import ast
 import hashlib
 import importlib
+import os
 import re
 import subprocess
 import sys
 import tempfile
+import time
 import types
 import unittest
 from pathlib import Path
@@ -184,6 +186,23 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
             )
             acquired.browser_executable.parent.mkdir(parents=True)
             acquired.browser_executable.write_bytes(b"reviewed browser")
+            acquired.npm.parent.mkdir(parents=True)
+            acquired.npm.write_text(
+                "#!/usr/bin/env python3\n"
+                "import os\n"
+                "import time\n"
+                "from pathlib import Path\n"
+                "\n"
+                "release = Path(os.environ['EQIORA_TEST_DIRECT_LAUNCH_RELEASE'])\n"
+                "for _ in range(500):\n"
+                "    if release.is_file():\n"
+                "        break\n"
+                "    time.sleep(0.01)\n"
+                "else:\n"
+                "    raise SystemExit(97)\n",
+                encoding="utf-8",
+            )
+            acquired.npm.chmod(0o700)
             receipt["python_host"] = {
                 "resolved_environment_sha256": executor.structured_sha256(
                     acquired.python_wheels
@@ -194,6 +213,12 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
             ).hexdigest()
 
             original_observer = profiles.run_notebook_profile
+            real_popen = subprocess.Popen
+
+            def linux_identity(pid: int) -> tuple[int, int, int]:
+                record = (Path("/proc") / str(pid) / "stat").read_text(encoding="ascii")
+                fields = record[record.rfind(")") + 2 :].split()
+                return pid, int(fields[19]), int(fields[3])
 
             def execute_profile(
                 workspace_name: str,
@@ -216,6 +241,8 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
                 emitted: list[str] = []
                 causal_events: list[str] = []
                 launch_inventories: dict[str, tuple[str, ...]] = {}
+                host_identities: list[tuple[int, int, int]] = []
+                direct_launch_identities: list[tuple[int, int, int]] = []
 
                 def install_environment(**kwargs: object) -> Path:
                     installs.append(
@@ -235,6 +262,45 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
                         "--project=marimo-0.23.16",
                     ) and "exact-cylinder-stokes-marimo.spec.ts" in "\n".join(command):
                         causal_events.append("positive-browser")
+                    if command[:4] == ("npm", "run", "test:hosts", "--"):
+                        environment = os.environ.copy()
+                        environment.update(kwargs["extra_environment"])
+                        launcher_root = Path(
+                            environment["PATH"].split(os.pathsep, maxsplit=1)[0]
+                        )
+                        identity_path = launcher_root / "session.identity"
+                        release_path = launcher_root / "test-observed"
+                        environment["EQIORA_TEST_DIRECT_LAUNCH_RELEASE"] = str(
+                            release_path
+                        )
+                        helper = real_popen(
+                            command,
+                            cwd=cwd,
+                            env=environment,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            text=True,
+                        )
+                        try:
+                            for _ in range(200):
+                                if identity_path.is_file():
+                                    values = identity_path.read_text(
+                                        encoding="ascii"
+                                    ).split()
+                                    if len(values) == 2:
+                                        break
+                                time.sleep(0.01)
+                            else:
+                                self.fail("direct-launch identity was not recorded")
+                            pid, start_time = (int(value) for value in values)
+                            observed_identity = linux_identity(helper.pid)
+                            self.assertEqual((pid, start_time), observed_identity[:2])
+                            self.assertEqual(observed_identity[2], pid)
+                            direct_launch_identities.append(observed_identity)
+                        finally:
+                            release_path.write_text("observed\n", encoding="ascii")
+                        output, _ = helper.communicate(timeout=5.0)
+                        self.assertEqual(helper.returncode, 0, output)
                     if any(Path(value).name == MUTANT_PATH.name for value in command):
                         causal_events.append("negative-missing-helper")
                         launch_inventories["negative"] = _recursive_regular_inventory(
@@ -261,11 +327,7 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
                         emit=record,
                     )
 
-                process = mock.Mock()
-                process.poll.return_value = None
-                process.wait.return_value = 0
-
-                def popen(argv: list[str], **kwargs: object) -> mock.Mock:
+                def popen(argv: list[str], **kwargs: object) -> subprocess.Popen[str]:
                     command = tuple(str(value) for value in argv)
                     cwd = Path(kwargs["cwd"])
                     launches.append(
@@ -278,6 +340,21 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
                         launch_inventories["positive"] = _recursive_regular_inventory(
                             cwd
                         )
+                    process = real_popen(
+                        [
+                            sys.executable,
+                            "-c",
+                            "import time; time.sleep(60)",
+                        ],
+                        cwd=cwd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        start_new_session=True,
+                    )
+                    identity = linux_identity(process.pid)
+                    self.assertEqual(identity[2], identity[0])
+                    host_identities.append(identity)
                     return process
 
                 def stage_frontend(_source: Path, build: object) -> None:
@@ -332,6 +409,10 @@ class ExactCylinderStokesMarimoEvidence(unittest.TestCase):
                     launch_inventories["negative"],
                     (MUTANT_PATH.name,),
                 )
+                self.assertEqual(len(host_identities), 3)
+                self.assertEqual(len(set(host_identities)), 3)
+                self.assertEqual(len(direct_launch_identities), 3)
+                self.assertEqual(len(set(direct_launch_identities)), 3)
                 return observed, launches, checked_commands, installs
 
             observed, launches, checked_commands, installs = execute_profile(

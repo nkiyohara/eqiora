@@ -587,7 +587,7 @@ def build_documents() -> dict[str, bytes]:
         "provider": PROVIDER,
         "adapter": {
             "id": "eqiora.subprocess.external-boundary-provider",
-            "release": "0.1.0-alpha.1",
+            "release": "0.1.0-alpha.2",
             "protocol": PROTOCOL,
         },
         "projection": {

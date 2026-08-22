@@ -302,7 +302,10 @@ fn assert_common_diagnostic(world: &impl CommunicatorCollectives, error: &Diagno
     world.all_gather_into(&local[..], &mut diagnostics[..]);
     assert!(
         diagnostics
-            .chunks_exact(DIAGNOSTIC_BYTES)
+            .as_chunks::<DIAGNOSTIC_BYTES>()
+            .0
+            .iter()
+            .map(|diagnostic| diagnostic.as_slice())
             .all(|diagnostic| diagnostic == local)
     );
 }

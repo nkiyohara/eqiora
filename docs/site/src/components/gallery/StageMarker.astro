@@ -1,0 +1,81 @@
+---
+/**
+ * StageMarker — internal visual helper for NotebookStage: the numbered stage
+ * badge, decorative emoji, and title, rendered as one ordinary anchor to the
+ * stage. Content does not import it directly.
+ *
+ * Props (private site-component binding v1): the NotebookStage quartet
+ *   id: string; step: 1|2|3|4|5|6; title: string; emoji: string
+ * plus optional `href?: string` (default `#${id}`).
+ *
+ * No slots. The emoji span is `aria-hidden="true"`; "Stage N" and the title
+ * text carry the meaning.
+ */
+interface Props {
+  id: string;
+  step: 1 | 2 | 3 | 4 | 5 | 6;
+  title: string;
+  emoji: string;
+  href?: string;
+}
+
+const COMPONENT = 'StageMarker';
+const ALLOWED_PROPS: ReadonlySet<string> = new Set(['id', 'step', 'title', 'emoji', 'href']);
+const rawProps = Astro.props as unknown as Record<string, unknown>;
+
+for (const key of Object.keys(rawProps)) {
+  if (!ALLOWED_PROPS.has(key)) {
+    throw new Error(`${COMPONENT}: unknown prop "${key}"`);
+  }
+}
+
+function requiredText(name: 'id' | 'title' | 'emoji'): string {
+  const value = rawProps[name];
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${COMPONENT}: prop "${name}" must be a non-empty string`);
+  }
+  return value;
+}
+
+const id = requiredText('id');
+if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(id)) {
+  throw new Error(`${COMPONENT}: prop "id" must be a simple HTML id (letters, digits, "-", "_")`);
+}
+
+const stepValue = rawProps.step;
+if (typeof stepValue !== 'number' || !Number.isInteger(stepValue) || stepValue < 1 || stepValue > 6) {
+  throw new Error(`${COMPONENT}: prop "step" must be an integer from 1 to 6`);
+}
+const step = stepValue as 1 | 2 | 3 | 4 | 5 | 6;
+
+const title = requiredText('title');
+
+const emoji = requiredText('emoji');
+// Decorative stage emoji only: one short pictograph, never words or digits.
+const emojiPoints = Array.from(emoji.replace(/[\uFE0E\uFE0F]/g, ''));
+if (emojiPoints.length === 0 || emojiPoints.length > 3 || /[\p{L}\p{N}\s]/u.test(emoji)) {
+  throw new Error(`${COMPONENT}: prop "emoji" must be one short decorative pictograph`);
+}
+
+const hrefValue = rawProps.href;
+if (hrefValue !== undefined && (typeof hrefValue !== 'string' || hrefValue.trim().length === 0)) {
+  throw new Error(`${COMPONENT}: prop "href" must be a non-empty string when supplied`);
+}
+const href = (hrefValue as string | undefined) ?? `#${id}`;
+
+const slotNames = Object.keys(Astro.slots);
+if (slotNames.length > 0) {
+  const rendered = await Promise.all(slotNames.map((name) => Astro.slots.render(name)));
+  if (slotNames.some((name) => name !== 'default') || rendered.some((html) => html.trim().length > 0)) {
+    throw new Error(`${COMPONENT}: accepts no slot content`);
+  }
+}
+---
+
+<a class="eq-stage-marker" href={href}>
+  <span class="eq-stage-marker__step"><span class="eq-sr-only">Stage </span>{step}</span>{' '}
+  <span class="eq-stage-marker__label">
+    <span class="eq-stage-marker__emoji" aria-hidden="true">{emoji}</span>
+    <span class="eq-stage-marker__title">{title}</span>
+  </span>
+</a>

@@ -9,6 +9,8 @@ python = "3.13.14"
 node = "24.18.1"
 npm = "11.16.0"
 uv = "0.12.1"
+actionlint = "1.7.12"
+shellcheck = "0.11.0"
 
 [tasks.setup]
 description = "Install locked Studio dependencies before executable gates and Studio tasks"
@@ -58,3 +60,27 @@ description = "Install and start the Studio development server"
 depends = ["setup"]
 dir = "{{config_root}}/studio"
 run = "npm run dev"
+
+[tasks."site:setup"]
+description = "Install the locked Astro/Starlight documentation toolchain"
+dir = "{{config_root}}/docs/site"
+sources = [
+  "{{config_root}}/mise.toml",
+  "{{config_root}}/mise.lock",
+  "{{config_root}}/docs/site/package.json",
+  "{{config_root}}/docs/site/package-lock.json",
+]
+outputs = ["{{config_root}}/docs/site/node_modules/.package-lock.json"]
+run = "npm ci --engine-strict"
+
+[tasks."site:sync"]
+description = "Generate Astro content and TypeScript declarations"
+depends = ["site:setup"]
+dir = "{{config_root}}/docs/site"
+run = "npm run sync"
+
+[tasks."site:build"]
+description = "Build the static Astro/Starlight source tree"
+depends = ["site:setup"]
+dir = "{{config_root}}/docs/site"
+run = "npm run build"

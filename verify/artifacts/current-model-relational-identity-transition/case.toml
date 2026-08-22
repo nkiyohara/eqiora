@@ -8,12 +8,16 @@ capabilities = [
   "executable-repository-model-candidate-inventory",
   "exact-two-state-epoch-transition-predicate",
   "disjoint-exact-path-post-reset-admission-of-later-classified-and-fixture-paths",
+  "accepted-byte-bound-optional-post-reset-admission",
   "exact-path-post-reset-classification-of-later-identity-evidence",
   "byte-frozen-control-v2-promotion",
   "unversioned-current-source-ownership-contract",
   "byte-frozen-historical-cylinder-promotion",
   "post-reset-forbidden-product-token-contract",
   "precommitted-deterministic-current-model-bytes",
+  "exact-historical-model-epoch-release-split",
+  "raw-live-non-release-projection",
+  "delegated-release-version-bearing-current-identities",
   "independent-rfc-0008-domain-digest-derivation",
   "downstream-artifact-reference-edge-derivation",
   "identity-only-delta-containment",
@@ -36,6 +40,10 @@ dispositions = "delete, rename-source, delegate, migrate, preserve-bytes, decomp
 [inventory]
 deterministic_fixtures_owned_here = 5
 deterministic_identity_literals_owned_here = 27
+historical_model_epoch_projection_artifacts = 5
+live_release_projection_paths_delegated = 5
+live_release_identity_pointers_delegated = 11
+live_model_epoch_identity_pointers_owned_here = 16
 deterministic_fixtures_delegated = 1
 historical_bridges = 2
 historical_bundle_downstream_members_unchanged = 6
@@ -59,14 +67,20 @@ required_post_reset_paths = 13
 byte_frozen_promotion_pairs = 11
 control_v2_promotion_pairs = 10
 existence_only_post_reset_paths = 2
-post_reset_admitted_paths = 17
+post_reset_admitted_paths = 29
 post_reset_admitted_identity_literals = 0
-post_reset_fixture_admitted_paths = 26
-post_reset_fixture_admitted_identity_literal_occurrences = 120
+post_reset_fixture_admitted_paths = 27
+post_reset_fixture_admitted_identity_literal_occurrences = 196
+accepted_byte_bound_optional_paths = 13
 post_reset_classified_paths = 3
 post_reset_classified_mixed_assertion_surfaces = 2
 post_reset_classified_source_or_package_identity_paths = 1
-post_reset_classified_model_derived_identity_literals = 8
+historical_alpha1_post_reset_classified_model_derived_identity_literals = 8
+live_python_mixed_surface_identity_literal_occurrences = 9
+live_rust_mixed_surface_identity_literal_occurrences = 10
+live_rust_historical_alpha1_offline_compilation_identity_occurrences = 1
+live_delegated_distinct_current_compilation_values = 2
+live_delegated_current_compilation_identity_occurrences = 4
 promotion_digests_also_frozen_by_the_control_v2_contract = 9
 forbidden_product_token_scopes = 3
 forbidden_product_tokens = 102
@@ -117,11 +131,15 @@ post_reset_admitted_path_required_for_acceptance = false
 post_reset_admitted_path_content_owned_here = false
 all_post_reset_admitted_paths_present_in_the_observed_tree = false
 all_post_reset_fixture_admitted_paths_present_in_the_observed_tree = false
+accepted_byte_bound_path_required_for_acceptance = false
+accepted_byte_semantics_owned_here = false
 post_reset_classified_path_required_for_acceptance = false
 post_reset_classified_path_content_owned_here = false
 post_reset_classified_path_present_in_the_observed_tree = true
-post_reset_classified_search_and_identity_inventory_owned_here = true
-post_reset_classification_reuses_existing_identity_values = true
+historical_alpha1_post_reset_classified_exact_maps_owned_here = true
+live_post_reset_classified_relational_inventory_owned_here = true
+live_post_reset_classified_exact_current_compilation_values_owned_here = false
+foreign_well_formed_consistent_current_compilation_value_rejected_here = false
 preserved_path_content_checked = false
 all_102_forbidden_tokens_present_before_the_reset = false
 maximal_synthetic_post_reset_signal_set_is_the_observed_one = false
@@ -131,6 +149,13 @@ retained_golden_accepted_without_a_model_decoder = true
 spatial_or_realization_wire_schema_change = false
 consumer_test_content_owned_here = false
 moving_spatial_producer_fixture_reconstructed_here = false
+historical_model_epoch_projection_exact = true
+live_raw_non_release_projection_exact = true
+alpha1_stale_live_release_projection_rejected = true
+live_release_projection_pointer_order_owned_here = true
+release_version_bearing_current_identity_owned_here = false
+exact_current_release_identity_value_owned_here = false
+foreign_well_formed_release_digest_rejected_here = false
 
 [falsifiers]
 mutated_model_byte = "changing one byte of any precommitted current Model must break its raw hash, its re-derived RFC 0008 domain digest, and current-decoder round-trip"
@@ -152,19 +177,22 @@ missing_unversioned_source_owner = "a reset that retires model_v8.rs and model_t
 admitted_path_without_its_recorded_signal = "a post-reset-admitted path that exists must spell exactly the search tokens recorded for it; one that spells none, and so is never even discovered by the sweep, must be refused as not the surface that was admitted, and one that spells a token beyond its record must be refused as an unclassified growth"
 admitted_path_freezes_a_model_identity = "an identity-free post-reset-admitted path carrying any same-line 64-character lowercase-hex Model-derived identity occurrence must be refused and returned for full classification; identity-free admission covers a classified surface, while a fixture belongs only to the separate exact fixture permission"
 admitted_path_present_before_the_reset = "a post-reset-admitted path present in the exact pre-reset state must be refused as mid-flight by existence alone, signal or no signal; admission describes a path created after the reset, which the pre-reset tree therefore did not have"
-admitted_path_made_required_after_the_reset = "both permissions are containment-only: every subset of the seventeen identity-free paths and every subset of the twenty-six fixture paths, including none and all, must be accepted independently, so making a later capability path a condition of post-reset acceptance must be refused; no admitted path may join the inventory, retired, required_post_reset, preserved_evidence, post_reset_classified, or any promotion row, and no historical or later-classified count may move"
+admitted_path_made_required_after_the_reset = "both permissions are containment-only: empty, singleton, all, and all-but-one subsets of the twenty-nine identity-free paths and twenty-seven fixture paths must be accepted independently, so making a later capability path a condition of post-reset acceptance must be refused; no admitted path may join the inventory, retired, required_post_reset, preserved_evidence, post_reset_classified, or any promotion row, and no historical or later-classified count may move"
 fixture_admitted_path_has_wrong_literal_occurrence_count = "a present fixture-admitted path must carry its exact ordered search-signal list and same-line lower-hex-64 occurrence count; the semantic-impact external representation includes exact empty-signal zero- and seventeen-occurrence JSONLs, and either count must reject drift alongside the existing zero, one, two, four, five, or thirteen shapes without weakening the identity-free permission"
 fixture_admitted_path_overlaps_frozen_or_classified_set = "a fixture-admitted path substituted with an inventory, retired, required, preserved-evidence, promotion, identity-free, or post_reset_classified path must be refused; admission is one disjoint exact-path permission, not another description of an existing member"
-unlisted_signal_bearing_path_admitted_by_proximity = "exactly seventeen identity-free paths and twenty-six fixture paths are admitted, each by exact path and only through its own permission; another digest filename in the same store, the admitted path with a backup or alternate suffix, a nested or sibling store, another package-conformance fixture, a copied or nearby MCP tool path, another Stokes sealed-input version or location, a sibling or nested collocated test, a copied or sibling case manifest, the old semantic-impact Rust host, or a sibling, copy, nested, backup, or alternate-extension semantic-impact fixture path must remain unclassified, and no glob, directory rule, suffix rule, stem, naming convention, or inferred sibling may admit it"
+unlisted_signal_bearing_path_admitted_by_proximity = "exactly twenty-nine identity-free paths and twenty-seven fixture paths are admitted, each by exact path and only through its own permission; gallery, Python reference, interface reference, publication JSON, site-tool, publication-test, package, MCP, Stokes, collocated, and semantic-impact siblings, copies, nested paths, backups, or alternate extensions remain unclassified, and no glob, directory rule, suffix rule, stem, naming convention, or inferred sibling may admit them"
 mcp_transition_row_drift = "the private MCP tool row and independent tool-definition fixture row must each retain their exact path, containment class, owner, note, ordered two-signal list, and zero identity-literal count; omission, substitution, signal removal or addition, class swapping, or metadata drift must be refused"
 mcp_transition_signal_order_drift = "both MCP rows record eqiora.model-envelope/v before eqiora.model-transaction-envelope/v in sweep order; reversing or substituting either signal must be refused even when the same two paths and zero aggregate identity contribution remain"
 mcp_transition_third_path = "no third MCP path inherits either permission: a sibling, copy, backup, nested path, alternate extension, proximate production path, or expected/contract.json carrying either schema signal must remain an unclassified candidate"
-post_reset_admission_row_order_drift = "the post_reset_admitted and post_reset_fixture_admitted arrays are exact ordered artifacts: the 17 identity-free paths and 26 fixture paths must retain their complete frozen order, including non-box immediately before MCP production, package-conformance immediately before the MCP fixture, that fixture immediately before the Stokes E1 sealed input, Stokes E1 immediately before the collocated structural oracle, that oracle immediately before its registered case manifest, and the nine semantic-impact JSONLs immediately afterwards in deterministic filename order; any swap or reorder must be refused even when paths, counts, signals, metadata, literal totals, and optional membership are unchanged"
-post_reset_admission_duplicate_row = "both admission arrays require exact vector length and unique paths: a missing, extra, duplicated, or wrong-path row must be refused in either permission, including duplication of an empty-signal zero-count semantic-impact JSONL that leaves the 120-occurrence aggregate unchanged"
+post_reset_admission_row_order_drift = "the post_reset_admitted and post_reset_fixture_admitted arrays are exact ordered artifacts: all twenty-nine identity-free paths and twenty-seven fixture paths retain their complete frozen order, including the twelve accepted site/source rows and final publication JSON; any swap or reorder is refused even when paths, counts, signals, metadata, literal totals, accepted digests, and optional membership are unchanged"
+post_reset_admission_duplicate_row = "both admission arrays require exact vector length and unique paths: a missing, extra, duplicated, or wrong-path row is refused in either permission, including one that leaves the 196-occurrence aggregate unchanged"
+accepted_admission_byte_drift = "each of the thirteen new optional rows binds the exact accepted raw SHA-256 in addition to path, category, signals, and occurrence count; inert UTF-8 drift that preserves signal and count must reach and fail this digest gate with exact expected and observed values"
+accepted_admission_digest_record_drift = "omitting, substituting, uppercasing, malformed-length or non-hex spelling of a new accepted digest, or adding a digest to any pre-existing admission row must be refused; exactly thirteen rows and no others are byte-bound"
 later_identity_evidence_omitted_from_classification = "each of the two Python API oracle surfaces and the exact stored source release must have one explicit post-reset classification; omitting any one returns the live path to the unclassified-candidate refusal rather than admitting it"
 later_identity_evidence_misclassified = "the two test surfaces must decompose migrating current-artifact assertions from in-place immutable source and resolution inputs, while the stored release is solely source-or-package identity; treating a test as an identity-free remainder, delegating its immutable inputs, or treating the release as a current Model assertion must be refused"
 later_identity_evidence_signal_growth = "each later-classified path must carry exactly its recorded search-token inventory and same-line lower-hex signal count; losing its signal or adding a different searched spelling must be refused"
-later_identity_evidence_fifth_or_different_current_identity = "each API oracle must carry exactly the four already-frozen current Model and package-compilation identities recorded for the offline and typed-lineage fixtures, once each; a fifth identity or a same-count substitution with another current Model identity must be refused"
+historical_later_identity_evidence_fifth_or_same_count_substituted_identity = "each sealed alpha.1 mixed row must retain its exact four recorded Model and compilation identities once each; a fifth identity or a same-count substitution must be refused"
+live_later_identity_evidence_relational_map_drift = "the live Python and Rust surfaces must carry their exact nine- and ten-occurrence relational maps; stale compilation identities, assertion-only substitution, omission, addition, duplicate current identities, current-identity collapse, Model or immutable identity/count drift, signal or same-line drift, and any loss, duplication, substitution, or miscount of Rust's one retained historical alpha.1 offline compilation identity must be refused"
 stored_release_gains_current_model_identity = "the minified stored release must carry exactly its source/package identity inventory and zero current Model identities; adding a current model_sha256 must be refused"
 fourth_later_identity_path_classified_by_proximity = "the three later classifications name exact files and no path rule: a sibling test or release is an unclassified candidate even when it shares a directory, stem, extension, or class with one of them"
 surviving_private_generation_branch = "after the reset, a declared product-source scope that still spells any of the 102 forbidden tokens must be refused; path existence alone cannot see encode_vN or ensure_vN left inside model.rs, model_transaction.rs, model/node.rs, model/expression.rs, or model/vocabulary.rs, every one of which survives"
@@ -187,6 +215,10 @@ moving_spatial_widened_consumer_delta = "a replacement whose byte length, leaf s
 retained_golden_decoded_through_the_current_model_owner = "an implementation that hands the opaque historical Model bytes to the current Model owner must fail; those bytes are rejected by schema, and a reset that needs them admitted has relabelled the golden rather than retained it"
 retained_golden_reconstructed_from_a_current_model = "re-encoding the Realization v4 golden over any current Model must be refused; the reconstruction embeds a different model_sha256 and cannot reproduce the frozen 8,333 bytes"
 retained_golden_relabelled = "swapping the golden's opaque Model reference for the current bridge digest must be refused by bytes alone; the relabelled artifact still decodes and still validates against the current Model, so no in-family identity check can see it"
+stale_alpha1_live_release_pointer = "each of the eleven exact release pointers must differ from its historical alpha.1 value; all stale pointers are reported together only after the complete historical Model-epoch positive passes"
+release_projection_shape_drift = "a missing or additional delegated pointer, wrong path order, non-string, non-lowercase-hex-64, equal old/new value, or a selected token with zero or multiple raw occurrences must be refused"
+release_projection_raw_drift = "after only the eleven exact scalar spans are masked, any changed Model, semantic/source/resolution, Realization, trajectory, geometry, correspondence, scientific coordinate or field value, member order, whitespace, numeric spelling, or terminal LF must be refused at the raw historical-projection boundary"
+release_projection_pointer_widening = "classifying any non-release value as release-owned must be refused; the independently induced false-claim compilation digest is rejected if inserted at a Model-epoch-owned pointer and does not give this case ownership of a delegated current value"
 
 [evidence]
 package = "eqiora-artifact"

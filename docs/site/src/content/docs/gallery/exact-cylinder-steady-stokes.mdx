@@ -1,0 +1,319 @@
+---
+title: Exact-cylinder steady Stokes
+description: A six-stage static walkthrough of one frozen 2D steady incompressible Stokes demonstration.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import NotebookStage from '../../../components/gallery/NotebookStage.astro';
+import ResultFigure from '../../../components/gallery/ResultFigure.astro';
+import ClaimBoundary from '../../../components/gallery/ClaimBoundary.astro';
+import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
+import geometryDiagram from '../../../assets/gallery/exact-cylinder-geometry.svg';
+import pressureImage from '../../../assets/gallery/exact-cylinder-pressure.png';
+import publication from '../../../data/gallery/exact-cylinder-steady-stokes.publication.json';
+
+**Static walkthrough · canonical Marimo source available**
+
+[Gallery](/gallery/)
+
+This page follows one frozen demonstration from exact authored geometry to a
+common `Result`. It does not execute a notebook or solve in the browser. The
+installed publication stays pinned to the exact producer revision. Source links
+and evidence dossiers instead resolve through the exact site build revision;
+none follows a branch.
+
+<NotebookStage id="problem-setup" step={1} title="Problem setup" emoji="🧭">
+
+The fluid region is a $2.2\,\mathrm{m} \times 0.41\,\mathrm{m}$ channel with an
+exact authored circle centred at $[0.2, 0.2]\,\mathrm{m}$ and radius
+$0.05\,\mathrm{m}$. The problem is two-dimensional, steady, incompressible
+Stokes flow.
+
+<figure>
+  <img
+    src={geometryDiagram.src}
+    alt="A 2.2 metre by 0.41 metre channel. The inlet is the left edge, the outlet is the right edge, the top and bottom edges are walls, and an exact circle of radius 0.05 metre centred at 0.2 metre, 0.2 metre is labelled cylinder."
+  />
+  <figcaption>
+    Exact authored geometry and boundary names. The later demonstration mesh
+    approximates the circle with 50 straight chords; this diagram is explanatory,
+    not geometric evidence.
+  </figcaption>
+</figure>
+
+The canonical Python composition authors that geometry explicitly:
+
+```python
+geometry_graph = eqiora.geometry.CadAuthoredGraph.rectangle_extrusion(
+    x_bounds=(0.0, 2.2),
+    y_bounds=(0.0, 0.41),
+    plane_z=0.0,
+    depth=1.0,
+    modeling_tolerance=1e-10,
+).circular_through_cut(
+    center=(0.2, 0.2),
+    radius=0.05,
+    boolean_tolerance=1e-10,
+)
+geometry = geometry_graph.planar_circular_section(
+    classification_tolerance=1e-12,
+    region="fluid",
+    x_lower="inlet",
+    x_upper="outlet",
+    y_lower="walls",
+    y_upper="walls",
+    hole="cylinder",
+)
+```
+
+<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L29-L51">Canonical Marimo geometry cell</ExactSourceLink>
+· <ExactSourceLink path="examples/python/exact_cylinder_geometry.py" kind="blob">exact geometry adapter</ExactSourceLink>
+· <ExactSourceLink path="verify/geometry/exact-circular-hole-geometry/README.md" kind="blob">registered exact-geometry dossier</ExactSourceLink>
+· <ExactSourceLink path="verify/interfaces/python-exact-circular-hole-geometry/README.md" kind="blob">Python exact-geometry composition dossier</ExactSourceLink>
+
+</NotebookStage>
+
+<NotebookStage id="model-definition" step={2} title="Eqiora model definition" emoji="🧩">
+
+The accepted source spelling is easiest to read by first naming the Cauchy
+stress. With velocity $\boldsymbol{u}$, pressure $p$, dynamic viscosity
+$\mu$, identity tensor $\boldsymbol{I}$, and force potential $\phi$:
+
+$$
+\boldsymbol{\sigma}(\boldsymbol{u},p)
+= 2\mu\,\operatorname{sym}(\nabla\boldsymbol{u}) - p\boldsymbol{I}
+$$
+
+$$
+-\nabla\!\cdot\boldsymbol{\sigma}(\boldsymbol{u},p)-\nabla\phi=0,
+\qquad
+\nabla\!\cdot\boldsymbol{u}=0
+$$
+
+Here $\mu=0.001\,\mathrm{kg}/(\mathrm{m}\,\mathrm{s})$,
+$\phi=0\,\mathrm{Pa}$, and pressure has source unit
+`kg/(m*s^2)`, displayed as pascals. This is a notation projection of the
+Eqiora source below, not a new formulation.
+
+**Eqiora source form**
+
+```text
+relation momentum continuous on body {
+  -div(
+    2 * dynamic_viscosity * symmetric_part(grad(velocity))
+    - isotropic_lift(pressure)
+  ) - grad(force_potential) = 0;
+}
+relation incompressibility continuous on body {
+  div(velocity) = 0;
+}
+```
+
+<ExactSourceLink path="packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi" kind="blob">Eqiora source form: packaged incompressible component</ExactSourceLink>
+· <ExactSourceLink path="verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi" kind="blob">registered packaged incompressible source</ExactSourceLink>
+· <ExactSourceLink path="verify/fluid/packaged-steady-stokes-2d/README.md" kind="blob">registered packaged-Stokes dossier</ExactSourceLink>
+· <ExactSourceLink path="verify/fluid/packaged-steady-stokes-2d/models/direct.eqi" kind="blob">registered direct Stokes model source</ExactSourceLink>
+
+The application replays the packaged, byte-exact current Model rather than
+reconstructing scientific meaning in the notebook:
+
+```python
+model_bytes = (
+    files(eqiora)
+    .joinpath("examples", "steady-flow-past-cylinder.model.json")
+    .read_bytes()
+)
+model = eqiora.replay(model_bytes)
+```
+
+<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L66-L74">Eqiora source form: canonical Marimo replay cell</ExactSourceLink>
+· <ExactSourceLink path="verify/artifacts/current-model-canonical-identity/README.md" kind="blob">current Model identity dossier</ExactSourceLink>
+
+</NotebookStage>
+
+<NotebookStage id="mesh-and-boundaries" step={3} title="Mesh and boundaries" emoji="🔷">
+
+The inlet profile uses $U_{\max}=0.3\,\mathrm{m}/\mathrm{s}$ and channel
+height $H=0.41\,\mathrm{m}$:
+
+$$
+g(y)=\frac{4U_{\max}y(H-y)}{H^2},
+\qquad
+\boldsymbol{u}_{\mathrm{in}}=[g(y),0]
+$$
+
+At the outlet, $\operatorname{normal}(\boldsymbol{\sigma})=0$. The walls and
+cylinder use $\boldsymbol{u}=0$.
+
+**Eqiora source form**
+
+```text
+relation inlet_profile_definition continuous on body {
+  inlet_profile
+    - 4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
+      / channel_height ^ 2 = 0;
+}
+relation inlet_velocity continuous on x_lower {
+  trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0;
+}
+relation outlet_traction continuous on x_upper {
+  normal(
+    2 * dynamic_viscosity * symmetric_part(grad(velocity))
+    - isotropic_lift(pressure)
+  ) = 0;
+}
+relation lower_wall continuous on y_lower { trace(velocity) = 0; }
+relation upper_wall continuous on y_upper { trace(velocity) = 0; }
+```
+
+**Accepted registered-case source form for the exact-hole closure**
+
+```text
+walls_and_cylinder: trace(u) = [0, 0] m/s
+```
+
+<ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Eqiora source form: application boundary relations</ExactSourceLink>
+· <ExactSourceLink path="verify/fluid/exact-circular-hole-stokes-2d/routes/python/result.json" kind="blob">accepted walls-and-cylinder trace boundary</ExactSourceLink>
+
+The bounded realization requests at most 50 circular-boundary facets, then
+resolves and generates the source-bound mesh:
+
+```python
+mesh_request = eqiora.meshing.MeshRequest(
+    maximum_boundary_error=1e-4,
+    minimum_mean_ratio=1e-5,
+    maximum_boundary_facets=50,
+)
+mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
+mesh = eqiora.meshing.generate(geometry, plan=mesh_plan)
+```
+
+<Aside type="caution" title="Deliberately coarse demonstration mesh">
+
+The accepted realization has 50 straight chords and 104 affine triangles. All
+104 mesh vertices lie on a boundary; 103 velocity vertices are essential, and
+the only free velocity vertex is the outlet midpoint $[2.2,0.2]\,\mathrm{m}$.
+This walkthrough makes no curved-element, mesh-convergence, or PDE-convergence
+claim.
+
+</Aside>
+
+<ExactSourceLink path="verify/geometry/circular-hole-chordal-reference-mesh/README.md" kind="blob">Chordal reference-mesh dossier</ExactSourceLink>
+· <ExactSourceLink path="verify/geometry/circular-hole-chordal-realization-binding/README.md" kind="blob">chordal realization-binding dossier</ExactSourceLink>
+· <ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L54-L63">canonical Marimo mesh cell</ExactSourceLink>
+· <ExactSourceLink path="examples/python/exact_cylinder_mesh.py" kind="blob">plain Python mesh adapter</ExactSourceLink>
+· <ExactSourceLink path="verify/interfaces/python-circular-hole-chordal-mesh/README.md" kind="blob">Python mesh composition dossier</ExactSourceLink>
+
+</NotebookStage>
+
+<NotebookStage id="submit-and-result" step={4} title="Submit and result" emoji="▶">
+
+The immutable `SteadyStokes` intent makes every scale and solver bound explicit.
+`fluid.resolve` binds the accepted `Model` and `Mesh` into a
+`SteadyStokesPlan`; the application then creates one `Run` with one
+`eqiora.submit` call and obtains one common `Result` with `run.result()`.
+
+```python
+stokes_intent = eqiora.fluid.SteadyStokes(
+    length_scale_m=0.41,
+    velocity_scale_m_per_s=0.3,
+    pressure_scale_pa=0.001 * 0.3 / 0.41,
+    relative_tolerance=1e-6,
+    absolute_tolerance=1e-13,
+    maximum_iterations=10_000,
+)
+stokes_plan = eqiora.fluid.resolve(model, stokes_intent, mesh=mesh)
+
+run = eqiora.submit(model, plan=stokes_plan)
+result = run.result()
+```
+
+<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob" fragment="L77-L95">Eqiora source form: canonical intent/submit/result cells</ExactSourceLink>
+
+The real carriers in that composition are `Geometry`, `MeshPlan`, `Mesh`,
+`Model`, `SteadyStokesPlan`, `Run`, `Result`, and `SteadyStokesEvidence`. The
+admitted Result lineage binds the following public identities:
+
+| Carrier boundary | Public identity |
+| --- | --- |
+| `Model` | `Result.model_digest` |
+| exact `Geometry` | `Result.mesh(FieldRef).source_digest` |
+| authored correspondence | `Result.mesh(FieldRef).correspondence_digest` |
+| `Mesh` | `Result.mesh(FieldRef).digest` |
+| `SteadyStokesPlan` realization | `Result.run_manifest().realization_digest` |
+| `Run` / `Result` | `Result.run_manifest().digest` |
+| pressure `FieldSnapshot` | `Result.field(FieldRef).digest` |
+
+These names expose existing identity links; the page does not invent another
+aggregate digest or pretend that static documentation executed the run.
+
+<ExactSourceLink path="verify/interfaces/python-exact-cylinder-stokes-result/README.md" kind="blob">Registered Plan-and-Run dossier</ExactSourceLink>
+
+</NotebookStage>
+
+<NotebookStage id="pressure-visualization" step={5} title="Pressure visualization" emoji="🌡">
+
+The canonical plotting cell selects the pressure `FieldSnapshot` from the
+common `Result` and passes it to the general scalar-field adapter:
+
+```python
+pressure = result.snapshots[0]
+evidence = eqiora.fluid.steady_stokes_evidence(result)
+pressure_figure = eqplot.plot_scalar_field(result, field=pressure.field)
+```
+
+<ResultFigure
+  src={pressureImage.src}
+  alt={publication.publication_payload.text.alt}
+  caption={publication.publication_payload.text.caption}
+  units="Pa"
+  sourcePath="examples/python/exact_cylinder_stokes_marimo.py"
+  sourceFragment="L98-L103"
+  sourceLabel="Open canonical plotting cell"
+/>
+
+<ExactSourceLink path="verify/interfaces/python-exact-cylinder-stokes-result/README.md" kind="blob">Result evidence</ExactSourceLink>
+· <ExactSourceLink path="verify/interfaces/python-exact-cylinder-pressure-still/README.md" kind="blob">Pressure-still presentation case</ExactSourceLink>
+
+Read the figure only as a pressure field in pascals, with a viridis scale and
+the 104-triangle affine mesh overlaid. The admitted pixels are a static
+presentation of the linked Result; color and pixel values are not validation
+and do not establish flow quality.
+
+</NotebookStage>
+
+<NotebookStage id="verified-boundary" step={6} title="Verified and not claimed" emoji="✅">
+
+<ClaimBoundary
+  title="Verified boundary"
+  supported={[
+    'One frozen 2D steady incompressible Stokes exact-cylinder demonstration, rendered from its accepted public Result path and linked evidence.',
+    'The exact geometry, source-bound chordal realization, packaged model, Plan-to-Run composition, and Marimo application each have a directly linked registered dossier.',
+    'The installed publication record binds the admitted PNG, exact source revision, Result lineage, caption, alternative text, and presentation-only boundary.',
+  ]}
+  notClaimed={[
+    'No curved elements.',
+    'No mesh/PDE convergence.',
+    'No drag/lift coefficient, scaled or mesh-independent force, or DFG value.',
+    'No transient or Navier–Stokes behavior.',
+    'No vortex shedding.',
+    'No 3D.',
+    'No production mesher.',
+    'No performance claim.',
+    'No cross-platform/byte-reproducible result.',
+    'No pixel validation.',
+    'API presence is neither verification nor maturity.',
+  ]}
+/>
+
+[Browse the evidence catalog](/evidence/)
+· <ExactSourceLink path="verify/geometry/exact-circular-hole-geometry/README.md" kind="blob">exact geometry</ExactSourceLink>
+· <ExactSourceLink path="verify/geometry/circular-hole-chordal-reference-mesh/README.md" kind="blob">chordal mesh</ExactSourceLink>
+· <ExactSourceLink path="verify/fluid/exact-circular-hole-stokes-2d/README.md" kind="blob">steady-Stokes science</ExactSourceLink>
+· <ExactSourceLink path="verify/interfaces/python-exact-cylinder-stokes-result/README.md" kind="blob">common Result path</ExactSourceLink>
+· <ExactSourceLink path="verify/interfaces/python-exact-cylinder-stokes-marimo/README.md" kind="blob">Marimo composition</ExactSourceLink>
+
+<ExactSourceLink path="examples/python/exact_cylinder_stokes_marimo.py" kind="blob">Open canonical Marimo source</ExactSourceLink>
+· <ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob">View plain Python example</ExactSourceLink>
+
+</NotebookStage>

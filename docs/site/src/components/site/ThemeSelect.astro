@@ -1,0 +1,12 @@
+---
+import StarlightThemeSelect from '@astrojs/starlight/components/ThemeSelect.astro';
+---
+
+<StarlightThemeSelect />
+
+<script is:inline>
+  for (const control of document.querySelectorAll('starlight-theme-select select')) {
+    const label = control.closest('label')?.querySelector('.sr-only')?.textContent?.trim();
+    if (label) control.setAttribute('title', label);
+  }
+</script>

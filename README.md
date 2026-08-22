@@ -4,7 +4,7 @@ Eqiora is an open-source computational engineering platform that represents
 models as one typed network of mathematical relations, then carries that
 meaning through numerical realization to auditable evidence.
 
-> **Alpha — `0.1.0a1`.** Eqiora currently provides carefully bounded,
+> **Alpha — `0.1.0a2`.** Eqiora currently provides carefully bounded,
 > executable slices of its intended system. It is research software, not a
 > safety control or a complete multiphysics product. Every supported claim and
 > explicit nonclaim is indexed in the
@@ -13,11 +13,11 @@ meaning through numerical realization to auditable evidence.
 
 ## Start with Python
 
-The first public distribution supports ordinary-GIL CPython 3.11–3.14 on
+The alpha distribution supports ordinary-GIL CPython 3.11–3.14 on
 manylinux x86-64:
 
 ```console
-python -m pip install eqiora==0.1.0a1
+python -m pip install eqiora==0.1.0a2
 ```
 
 Build and run an immutable decay model:

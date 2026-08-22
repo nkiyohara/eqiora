@@ -856,8 +856,8 @@ fn blocks_snapshots_and_states_replay_exact_local_grammar_without_owner_role_inf
     }
     assert_eq!(&values[0..3], &before[3..6]);
     assert_eq!(&values[3..6], &before[0..3]);
-    let mut before_sorted = before.chunks_exact(3).collect::<Vec<_>>();
-    let mut after_sorted = values.chunks_exact(3).collect::<Vec<_>>();
+    let mut before_sorted = before.as_chunks::<3>().0.iter().collect::<Vec<_>>();
+    let mut after_sorted = values.as_chunks::<3>().0.iter().collect::<Vec<_>>();
     before_sorted.sort_by_key(|entry| serde_json::to_string(entry).unwrap());
     after_sorted.sort_by_key(|entry| serde_json::to_string(entry).unwrap());
     assert_eq!(

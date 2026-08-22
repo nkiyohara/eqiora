@@ -17,7 +17,7 @@ use crate::{
 
 const SCHEMA: &str = "eqiora.prescribed-dynamic-solid-provider-occurrence-envelope/v1";
 const ADAPTER_ID: &str = "eqiora.subprocess.external-boundary-provider";
-const ADAPTER_RELEASE: &str = "0.1.0-alpha.1";
+const ADAPTER_RELEASE: &str = "0.1.0-alpha.2";
 const PROTOCOL: &str = "eqiora.external-boundary-provider-subprocess/v1";
 const PROVIDER_ID: &str = "eqiora.python.prescribed-dynamic-solid-affine";
 const PROVIDER_RELEASE: &str = "1.0.0";

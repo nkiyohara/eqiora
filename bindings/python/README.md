@@ -6,26 +6,26 @@ declarations, synchronous and awaitable execution, explicit NumPy/DLPack
 ownership, bounded first-order PyTorch and JAX adapters, and an optional
 Matplotlib Result adapter without reimplementing model meaning in Python.
 
-> **Alpha — `0.1.0a1`.** The supported boundary is intentionally narrow.
+> **Alpha — `0.1.0a2`.** The supported boundary is intentionally narrow.
 > Consult the [capability matrix](https://eqiora.org/capabilities/) before
 > relying on a method, backend, or platform.
 
 ## Install
 
-Eqiora `0.1.0a1` supports ordinary-GIL CPython 3.11–3.14 on
+Eqiora `0.1.0a2` supports ordinary-GIL CPython 3.11–3.14 on
 manylinux x86-64:
 
 ```console
-python -m pip install eqiora==0.1.0a1
+python -m pip install eqiora==0.1.0a2
 ```
 
 Optional first-order framework adapters are explicit:
 
 ```console
-python -m pip install "eqiora[torch]==0.1.0a1"
-python -m pip install "eqiora[jax]==0.1.0a1"
-python -m pip install "eqiora[matplotlib]==0.1.0a1"
-python -m pip install "eqiora[notebook]==0.1.0a1"
+python -m pip install "eqiora[torch]==0.1.0a2"
+python -m pip install "eqiora[jax]==0.1.0a2"
+python -m pip install "eqiora[matplotlib]==0.1.0a2"
+python -m pip install "eqiora[notebook]==0.1.0a2"
 ```
 
 The base package imports none of these optional libraries. The PyTorch extra
@@ -358,7 +358,7 @@ not claimed. See
 
 ## Compatibility and limitations
 
-`0.1.0a1` is an alpha prerelease. Public Python names and serialized contracts
+`0.1.0a2` is an alpha prerelease. Public Python names and serialized contracts
 change only deliberately and are documented in release notes, but breaking
 changes may occur before 1.0. Corrections to a published artifact use a new
 version; an existing release is never overwritten.

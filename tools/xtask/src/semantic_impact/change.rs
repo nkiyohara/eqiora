@@ -36,7 +36,7 @@ pub(super) fn sha256(bytes: &[u8]) -> Sha256 {
         0x1f83d9ab,
         0x5be0cd19,
     ];
-    for block in padded.chunks_exact(64) {
+    for block in padded.as_chunks::<64>().0 {
         sha256_block(&mut state, block);
     }
     Sha256(state.iter().map(|word| format!("{word:08x}")).collect())
@@ -44,8 +44,8 @@ pub(super) fn sha256(bytes: &[u8]) -> Sha256 {
 
 fn sha256_block(state: &mut [u32; 8], block: &[u8]) {
     let mut words = [0_u32; 64];
-    for (index, bytes) in block.chunks_exact(4).take(16).enumerate() {
-        words[index] = u32::from_be_bytes(bytes.try_into().expect("four bytes"));
+    for (index, bytes) in block.as_chunks::<4>().0.iter().take(16).enumerate() {
+        words[index] = u32::from_be_bytes(bytes.as_slice().try_into().expect("four bytes"));
     }
     for index in 16..64 {
         let s0 = words[index - 15].rotate_right(7)

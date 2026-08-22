@@ -29,8 +29,9 @@ const FILENAME_MESSAGE: &str = "source filename must contain 1 to 4096 non-contr
 const SOURCE_MESSAGE: &str = "source exceeds the 8388608-byte compile/check v2 limit";
 const PUBLIC_INIT: &[u8] = include_bytes!("../../../bindings/python/python/eqiora/__init__.py");
 const PUBLIC_STUB: &[u8] = include_bytes!("../../../bindings/python/python/eqiora/__init__.pyi");
+const PUBLIC_STUB_PATH: &str = "bindings/python/python/eqiora/__init__.pyi";
 const PUBLIC_INIT_SHA256: &str = "a213c9495c3d5570356e2f78f8ebea45be27d62d43d56801a49db0a3a019973d";
-const PUBLIC_STUB_SHA256: &str = "14594d2bcd804105f1023e523dd938438bbd1f117e3426a31719821c74c68372";
+const PUBLIC_STUB_SHA256: &str = "2a3d005ec9a823859824f1945136f57a4aa912d12d09896a34e7442f8f23e367";
 
 #[derive(Debug, PartialEq, Eq)]
 struct NormalizedDiagnostic {
@@ -51,7 +52,32 @@ fn boundary_panic(py: Python<'_>) -> PyResult<()> {
 #[test]
 fn python_compile_surface_and_source_dependencies_are_frozen() -> PyResult<()> {
     assert_eq!(raw_sha256(PUBLIC_INIT), PUBLIC_INIT_SHA256);
-    assert_eq!(raw_sha256(PUBLIC_STUB), PUBLIC_STUB_SHA256);
+    assert_eq!(
+        admit_stub(PUBLIC_STUB_PATH, PUBLIC_STUB, PUBLIC_STUB_SHA256),
+        Ok(())
+    );
+
+    let wrong_hash = "3a3d005ec9a823859824f1945136f57a4aa912d12d09896a34e7442f8f23e367";
+    assert!(
+        wrong_hash.len() == 64
+            && wrong_hash
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    );
+    assert_eq!(
+        admit_stub(PUBLIC_STUB_PATH, PUBLIC_STUB, wrong_hash),
+        Err("expected SHA-256")
+    );
+
+    let moved = admit_stub("bindings/eqiora.pyi", PUBLIC_STUB, PUBLIC_STUB_SHA256);
+    assert_eq!(moved, Err("repository path"));
+
+    let mut changed_stub = PUBLIC_STUB.to_vec();
+    changed_stub[0] ^= 1;
+    assert_eq!(
+        admit_stub(PUBLIC_STUB_PATH, &changed_stub, PUBLIC_STUB_SHA256),
+        Err("artifact bytes")
+    );
 
     let crate_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut rust_sources = Vec::new();
@@ -249,7 +275,7 @@ fn python_control_plane_preserves_identity_and_fails_closed() -> PyResult<()> {
         let module = native_module.bind(py);
         assert_eq!(
             module.getattr("__version__")?.extract::<String>()?,
-            "0.1.0a1"
+            "0.1.0a2"
         );
         for optional in ["numpy", "torch", "jax"] {
             assert!(
@@ -621,6 +647,22 @@ fn raw_sha256(bytes: &[u8]) -> String {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
+}
+
+fn admit_stub(
+    repository_path: &str,
+    bytes: &[u8],
+    expected_sha256: &str,
+) -> Result<(), &'static str> {
+    (repository_path == PUBLIC_STUB_PATH)
+        .then_some(())
+        .ok_or("repository path")?;
+    (expected_sha256 == PUBLIC_STUB_SHA256)
+        .then_some(())
+        .ok_or("expected SHA-256")?;
+    (raw_sha256(bytes) == expected_sha256)
+        .then_some(())
+        .ok_or("artifact bytes")
 }
 
 fn assert_pairwise_distinct<T: std::fmt::Debug + PartialEq>(values: &[T; 3]) {
