@@ -16,6 +16,42 @@ from typing import Mapping, Sequence
 
 SOURCE_SHA = "a" * 40
 REPOSITORY = Path(__file__).resolve().parents[4]
+SITE_ROUTES = (
+    "/",
+    "/api/",
+    "/architecture/",
+    "/capabilities/",
+    "/concepts/",
+    "/contributing/",
+    "/evidence/",
+    "/examples/",
+    "/gallery/",
+    "/gallery/exact-cylinder-steady-stokes/",
+    "/get-started/",
+    "/python/",
+    "/python/differentiation/",
+    "/python/execution-and-arrays/",
+    "/python/modeling/",
+    "/reference/",
+    "/reference/cli/",
+    "/reference/control-v2/",
+    "/reference/mcp/",
+    "/reference/python/",
+    "/reference/python/diff/",
+    "/reference/python/eqiora/",
+    "/reference/python/fluid/",
+    "/reference/python/fsi/",
+    "/reference/python/geometry/",
+    "/reference/python/jax/",
+    "/reference/python/matplotlib/",
+    "/reference/python/meshing/",
+    "/reference/python/solid/",
+    "/reference/python/torch/",
+    "/reference/python/trajectory/",
+    "/reference/rust/",
+    "/release-notes/",
+    "/404.html",
+)
 GIT_OBJECT_REPOSITORY_VARIABLE = "EQIORA_SITE_GIT_OBJECT_REPOSITORY"
 SOURCE_SHA_VARIABLE = "EQIORA_SITE_SOURCE_SHA"
 GIT_TIMEOUT_SECONDS = 30
@@ -636,20 +672,50 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
 
     pages = {
         "/": _home_body().format(python_version=python_version),
+        "/api/": "<h1>API</h1><p>Eqiora API overview.</p>",
+        "/architecture/": "<h1>Architecture</h1><p>Eqiora architecture.</p>",
+        "/capabilities/": "<h1>Capabilities</h1>",
+        "/concepts/": "<h1>Concepts</h1><p>Eqiora concepts.</p>",
+        "/contributing/": "<h1>Contributing</h1><p>Contribute to Eqiora.</p>",
+        "/evidence/": "<h1>Evidence</h1>",
+        "/examples/": '<h1>Examples</h1><a href="/gallery/">Gallery</a>',
         "/gallery/": '<h1>Gallery</h1><a href="/gallery/exact-cylinder-steady-stokes/">Exact-cylinder steady Stokes</a>',
         "/gallery/exact-cylinder-steady-stokes/": _case_body(),
+        "/get-started/": "<h1>Get started</h1>",
+        "/python/": "<h1>Python</h1><p>Eqiora Python reference.</p>",
+        "/python/differentiation/": "<h1>Differentiation</h1><p>Python differentiation.</p>",
+        "/python/execution-and-arrays/": "<h1>Execution and arrays</h1><p>Python execution and arrays.</p>",
+        "/python/modeling/": "<h1>Modeling</h1><p>Python modeling.</p>",
         "/reference/": '<h1>Reference</h1><p>Python Rust CLI control-v2 MCP</p><p>API presence is not verification or maturity.</p><form action="/reference/"><input aria-label="Search"></form>',
-        "/reference/python/eqiora/": "<h1>eqiora Python module</h1><p>Diagnostic</p>",
-        "/reference/rust/": '<h1>Rust reference</h1><p>eqiora::Diagnostic stable eqiora::api::CadBoxIntentV1 transitional eqiora::api module</p><a href="/reference/rust/api/eqiora/struct.Diagnostic.html">Diagnostic</a>',
         "/reference/cli/": "<h1>CLI</h1><p>eqiora check</p>",
         "/reference/control-v2/": "<h1>control-v2</h1><p>eqiora.control/v2</p>",
         "/reference/mcp/": "<h1>MCP</h1><p>eqiora.model.compile_check</p>",
-        "/examples/": '<h1>Examples</h1><a href="/gallery/">Gallery</a>',
+        "/reference/python/": "<h1>Python reference</h1><p>Python API families.</p>",
+        "/reference/python/diff/": "<h1>Diff reference</h1><p>Differentiation API.</p>",
+        "/reference/python/eqiora/": "<h1>eqiora Python module</h1><p>Diagnostic</p>",
+        "/reference/python/fluid/": "<h1>Fluid reference</h1><p>Fluid API.</p>",
+        "/reference/python/fsi/": "<h1>FSI reference</h1><p>FSI API.</p>",
+        "/reference/python/geometry/": "<h1>Geometry reference</h1><p>Geometry API.</p>",
+        "/reference/python/jax/": "<h1>JAX reference</h1><p>JAX API.</p>",
+        "/reference/python/matplotlib/": "<h1>Matplotlib reference</h1><p>Matplotlib API.</p>",
+        "/reference/python/meshing/": "<h1>Meshing reference</h1><p>Meshing API.</p>",
+        "/reference/python/solid/": "<h1>Solid reference</h1><p>Solid API.</p>",
+        "/reference/python/torch/": "<h1>Torch reference</h1><p>Torch API.</p>",
+        "/reference/python/trajectory/": "<h1>Trajectory reference</h1><p>Trajectory API.</p>",
+        "/reference/rust/": '<h1>Rust reference</h1><p>eqiora::Diagnostic stable eqiora::api::CadBoxIntentV1 transitional eqiora::api module</p><a href="/reference/rust/api/eqiora/struct.Diagnostic.html">Diagnostic</a>',
+        "/release-notes/": "<h1>Release notes</h1><p>Eqiora release notes.</p>",
         "/404.html": "<h1>Page not found</h1>",
     }
+    assert tuple(pages) == SITE_ROUTES
     for route, body in pages.items():
-        relative = checker.ROUTES[route]
-        _write(artifact / relative, _page(route, body))
+        if route == "/":
+            relative = Path("index.html")
+        elif route == "/404.html":
+            relative = Path("404.html")
+        else:
+            relative = Path(route.removeprefix("/")) / "index.html"
+        canonical = "/404/" if route == "/404.html" else route
+        _write(artifact / relative, _page(canonical, body))
     _write(
         artifact / "reference/rust/api/eqiora/struct.Diagnostic.html",
         '<!doctype html><html><body><main><h1>Struct Diagnostic</h1><a href="index.html">eqiora</a></main></body></html>',
@@ -658,18 +724,9 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         artifact / "reference/rust/api/eqiora/index.html",
         '<!doctype html><html><body><main><h1>Crate eqiora</h1><a href="struct.Diagnostic.html">Diagnostic</a></main></body></html>',
     )
-    _write(
-        artifact / "get-started/index.html",
-        _page("/get-started/", "<h1>Get started</h1>"),
-    )
-    _write(artifact / "evidence/index.html", _page("/evidence/", "<h1>Evidence</h1>"))
-    _write(
-        artifact / "capabilities/index.html",
-        _page("/capabilities/", "<h1>Capabilities</h1>"),
-    )
     urls = "".join(
         f"<url><loc>https://eqiora.org{route}</loc></url>"
-        for route in checker.SITEMAP_ROUTES
+        for route in SITE_ROUTES[:-1]
     )
     _write(
         artifact / "sitemap-index.xml", f'<?xml version="1.0"?><urlset>{urls}</urlset>'

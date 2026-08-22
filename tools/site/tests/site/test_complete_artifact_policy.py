@@ -16,7 +16,11 @@ SITE_ORIGIN = "https://eqiora.org"
 MAX_FILES = 20_000
 MAX_DATA_URL_BYTES = 1024 * 1024
 RUSTDOC_ROOT = Path("reference/rust/api")
-FRAGMENT_ID = "impl-ApproxFrom%3CSrc,+Scheme%3E-for-Src"
+FRAGMENT_ID = "impl-LifetimeProbe%3C'a%3E-for-Thing"
+QUOTED_FRAGMENT_ID = 'impl-Quoted%3C"Marker%3E-for-Thing'
+NUMERIC_FRAGMENT_ID = "123"
+BRAND_PATH = "/assets/eqiora-mark.BN8rmEAl.svg"
+PRESSURE_PATH = "/assets/exact-cylinder-pressure.C0ffee42.png"
 PRESSURE_ALT = (
     "Pressure in pascals for the frozen 2D steady-Stokes exact-cylinder "
     "demonstration, shown with a viridis color scale and the 104-triangle "
@@ -86,18 +90,38 @@ NONCLAIMS = (
 )
 ST_STARLIGHT_ROUTES = (
     "/",
-    "/get-started/",
+    "/api/",
+    "/architecture/",
+    "/capabilities/",
+    "/concepts/",
+    "/contributing/",
+    "/evidence/",
+    "/examples/",
     "/gallery/",
     "/gallery/exact-cylinder-steady-stokes/",
+    "/get-started/",
+    "/python/",
+    "/python/differentiation/",
+    "/python/execution-and-arrays/",
+    "/python/modeling/",
     "/reference/",
-    "/reference/python/eqiora/",
-    "/reference/rust/",
     "/reference/cli/",
     "/reference/control-v2/",
     "/reference/mcp/",
-    "/examples/",
-    "/evidence/",
-    "/capabilities/",
+    "/reference/python/",
+    "/reference/python/diff/",
+    "/reference/python/eqiora/",
+    "/reference/python/fluid/",
+    "/reference/python/fsi/",
+    "/reference/python/geometry/",
+    "/reference/python/jax/",
+    "/reference/python/matplotlib/",
+    "/reference/python/meshing/",
+    "/reference/python/solid/",
+    "/reference/python/torch/",
+    "/reference/python/trajectory/",
+    "/reference/rust/",
+    "/release-notes/",
 )
 ABSENT_REFERENCES = (
     (
@@ -134,16 +158,12 @@ OLD_SHELL = """<header><nav aria-label="Primary">
 <a href="/evidence/">Evidence</a>
 <a href="https://github.com/nkiyohara/eqiora">GitHub</a>
 </nav></header>"""
-NAVIGATION = """<nav aria-label="Primary">
-<a href="/get-started/">Docs</a>
-<a href="/gallery/">Gallery</a>
-<a href="/reference/">Reference</a>
-<a href="/evidence/">Evidence</a>
-<a href="https://github.com/nkiyohara/eqiora">GitHub</a>
-</nav>"""
+SITE_TITLE = (
+    f'<a class="site-title" href="/" aria-label="Eqiora"><img src="{BRAND_PATH}" '
+    'alt=""><span>Eqiora</span></a>'
+)
 SHELL = f"""<header>
-<a class="site-title" href="/" aria-label="Eqiora"><img src="/assets/brand.svg" alt=""><span>Eqiora</span></a>
-{NAVIGATION}
+{SITE_TITLE}
 </header>"""
 BACK_CONTROL = (
     '<a id="back" href="javascript:void(0)" onclick="history.back();">Back</a>'
@@ -155,6 +175,9 @@ SAFE_SVG = b'<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>'
 SAFE_SVG_DATA = "data:image/svg+xml;base64," + base64.b64encode(SAFE_SVG).decode(
     "ascii"
 )
+SAFE_SVG_LF = SAFE_SVG_DATA.replace("base64,", "base64,\\\n")
+SAFE_SVG_CRLF = SAFE_SVG_DATA.replace("base64,", "base64,\\\r\n")
+SAFE_SVG_CR = SAFE_SVG_DATA.replace("base64,", "base64,\\\r")
 
 
 def _write(path: Path, value: str | bytes) -> None:
@@ -182,10 +205,10 @@ def _set_main(path: Path, body: str) -> None:
     path.write_text(text[: start + 6] + body + text[end:], encoding="utf-8")
 
 
-def _exact_link(relative: str, label: str) -> str:
+def _exact_link(relative: str, label: str, fragment: str = "") -> str:
     return (
         f'<a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/'
-        f'{relative}">{label}</a>'
+        f'{relative}{fragment}">{label}</a>'
     )
 
 
@@ -205,8 +228,8 @@ def _math(tex: str, display: bool = False) -> str:
 def _stage(identifier: str, step: str, title: str, body: str) -> str:
     heading = f"{identifier}-title"
     return (
-        f'<section class="eq-stage" id="{identifier}" data-step="{step}" '
-        f'aria-labelledby="{heading}"><header><h2 id="{heading}">'
+        f'<section class="eq-stage" aria-labelledby="{heading}" '
+        f'data-step="{step}" id="{identifier}"><header><h2 id="{heading}">'
         f"Stage {step} {title}</h2></header><div>{body}</div></section>"
     )
 
@@ -217,7 +240,9 @@ def _case_body() -> str:
         label = Path(relative).name
         if relative == "examples/python/exact_cylinder_stokes_marimo.py":
             label = "Eqiora source form: canonical intent/submit/result cells"
-        links.append(_exact_link(relative, label))
+            links.append(_exact_link(relative, label, "#L77-L95"))
+        else:
+            links.append(_exact_link(relative, label))
     for relative in EVIDENCE_PATHS:
         label = Path(relative).parent.name + " dossier"
         if (
@@ -245,7 +270,8 @@ relation incompressibility continuous on body {
             display=True,
         )
         + source_form,
-        "<p>50 straight chords and 104 affine triangles bind the named boundaries.</p>",
+        "<p>50 straight chords and 104 affine triangles bind the named boundaries.</p>"
+        + _math(r"\nabla\cdot\boldsymbol{u}=0"),
         "<p>The immutable intent resolves to one Plan, Run, and Result.</p>"
         + links[0]
         + links[
@@ -254,7 +280,7 @@ relation incompressibility continuous on body {
                 "verify/interfaces/python-exact-cylinder-stokes-result/README.md"
             )
         ],
-        f'<figure><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><figcaption>'
+        f'<figure><img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}"><figcaption>'
         f"{PRESSURE_CAPTION} "
         + _exact_link(
             "verify/interfaces/python-exact-cylinder-stokes-result/README.md",
@@ -266,7 +292,8 @@ relation incompressibility continuous on body {
             "Pressure-still presentation case",
         )
         + "</figcaption></figure>",
-        f"<p>{PUBLIC_CLAIM}</p><p>{' '.join(NONCLAIMS)}</p>" + " ".join(links),
+        f"<p>{PUBLIC_CLAIM}</p><p>{' '.join(NONCLAIMS)}</p>"
+        + " ".join(links[1:]),
     )
     sections = "".join(
         _stage(identifier, step, title, body)
@@ -311,6 +338,11 @@ def _url_set(routes: tuple[str, ...] = ST_STARLIGHT_ROUTES) -> str:
 def _ordinary(root: Path):
     artifact, identities = make_fixture(root)
 
+    brand = artifact / "assets/brand.svg"
+    pressure = artifact / "assets/pressure.png"
+    _write(artifact / BRAND_PATH.removeprefix("/"), brand.read_bytes())
+    _write(artifact / PRESSURE_PATH.removeprefix("/"), pressure.read_bytes())
+
     for page in sorted(artifact.rglob("*.html")):
         relative = page.relative_to(artifact)
         if relative.is_relative_to(RUSTDOC_ROOT):
@@ -318,6 +350,7 @@ def _ordinary(root: Path):
         _replace(page, OLD_SHELL, SHELL)
 
     home = artifact / "index.html"
+    _replace(home, 'src="/assets/pressure.png"', f'src="{PRESSURE_PATH}"')
     _replace(
         home,
         "This website is a curated projection, not a parallel specification. "
@@ -339,7 +372,10 @@ def _ordinary(root: Path):
         artifact / "assets/site.css",
         "@font-face{font-family:KaTeX;src:url('./KaTeX_Main-Regular.woff2')}\n"
         f"@font-face{{font-family:Oracle;src:url('{SAFE_FONT_DATA}')}}\n"
-        f'.safe-svg{{background-image:url("{SAFE_SVG_DATA}")}}\n',
+        f'.safe-svg{{background-image:url("{SAFE_SVG_DATA}")}}\n'
+        f'.safe-svg-lf{{background-image:url("{SAFE_SVG_LF}")}}\n'
+        f'.safe-svg-crlf{{background-image:url("{SAFE_SVG_CRLF}")}}\n'
+        f'.safe-svg-cr{{background-image:url("{SAFE_SVG_CR}")}}\n',
     )
 
     _write(artifact / "sitemap-index.xml", _sitemap_index())
@@ -353,12 +389,16 @@ def _ordinary(root: Path):
         _rustdoc_page(
             '<h1>Crate eqiora</h1><a href="module/index.html">Module item</a>'
             f'<a href="struct.Diagnostic.html#{FRAGMENT_ID}">Diagnostic impl</a>'
+            f"<a href='struct.Diagnostic.html#{QUOTED_FRAGMENT_ID}'>Quoted ID</a>"
+            f'<a href="struct.Diagnostic.html#{NUMERIC_FRAGMENT_ID}">Numeric ID</a>'
         ),
     )
     _write(
         rustdoc / "eqiora/struct.Diagnostic.html",
         _rustdoc_page(
             f'<h1>Struct Diagnostic</h1><section id="{FRAGMENT_ID}">Impl</section>'
+            f"<section id='{QUOTED_FRAGMENT_ID}'>Quoted</section>"
+            f"<section id={NUMERIC_FRAGMENT_ID}>Numeric</section>"
             '<a href="index.html">Crate eqiora</a>'
         ),
     )
@@ -398,7 +438,8 @@ def _append_main(path: Path, value: str) -> None:
 class CompleteArtifactPolicyTests(unittest.TestCase):
     def test_00_mixed_starlight_rustdoc_positive_then_mutants(self) -> None:
         # This complete positive is deliberately first. Against accepted
-        # predecessor 04ed4649 it is the sole causal RED and stops the method
+        # predecessor 7555fcbdeb676b24781bffe5a5cd2f52e70011e5 it is the
+        # causal RED and stops the method
         # before any mutant can execute or receive credit.
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -421,22 +462,24 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
         reference = Path("reference/index.html")
 
         reject(
-            "sidebar occurrence cannot substitute for banner navigation",
-            lambda artifact: _replace(
-                artifact / home,
-                NAVIGATION,
-                f"</header><aside>{NAVIGATION}</aside><header>",
-            ),
-            "primary navigation must be in the page banner",
+            "required artifact route missing",
+            lambda artifact: (artifact / "api/index.html").unlink(),
+            "missing required Starlight route /api/",
         )
         reject(
-            "header order",
-            lambda artifact: _replace(
-                artifact / home,
-                '<a href="/get-started/">Docs</a>\n<a href="/gallery/">Gallery</a>',
-                '<a href="/gallery/">Gallery</a>\n<a href="/get-started/">Docs</a>',
+            "unadmitted artifact route",
+            lambda artifact: _write(
+                artifact / "unadmitted/index.html",
+                '<!doctype html><html><body><main><h1>Extra</h1></main></body></html>',
             ),
-            "primary navigation has the wrong link order",
+            "unexpected Starlight route /unadmitted/",
+        )
+        reject(
+            "site title outside banner",
+            lambda artifact: _replace(
+                artifact / home, SHELL, f"<header></header>\n{SITE_TITLE}"
+            ),
+            "site-title home link must appear exactly once in the page banner",
         )
         reject(
             "duplicated brand accessible name",
@@ -446,20 +489,86 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             "header home link accessible name must be exactly 'Eqiora'",
         )
         reject(
-            "missing featured pressure",
+            "site title wrong destination",
+            lambda artifact: _replace(
+                artifact / home, 'class="site-title" href="/"',
+                'class="site-title" href="/get-started/"'
+            ),
+            "header home link href must be exactly '/'",
+        )
+        reject(
+            "brand asset is not same-origin",
+            lambda artifact: _replace(
+                artifact / home,
+                f'src="{BRAND_PATH}"',
+                'src="https://example.com/brand.svg"',
+            ),
+            "header brand asset must be same-origin",
+        )
+        reject(
+            "wrong brand bytes",
+            lambda artifact: _write(
+                artifact / BRAND_PATH.removeprefix("/"), b"not the Eqiora mark"
+            ),
+            "header brand asset has the wrong digest",
+        )
+        reject(
+            "home pressure alt changed",
             lambda artifact: _replace(
                 artifact / home, PRESSURE_ALT, "Decorative pressure image"
             ),
             "featured walkthrough must expose the admitted pressure image",
         )
         reject(
-            "404 canonical maps to the actual file route",
+            "gallery pressure alt changed",
+            lambda artifact: _replace(
+                artifact / case, PRESSURE_ALT, "Decorative pressure image"
+            ),
+            "gallery walkthrough must expose the admitted pressure image",
+        )
+        reject(
+            "pressure bytes changed",
+            lambda artifact: _write(
+                artifact / PRESSURE_PATH.removeprefix("/"), b"wrong pressure bytes"
+            ),
+            "admitted pressure image has the wrong digest",
+        )
+        reject(
+            "home pressure duplicated",
+            lambda artifact: _replace(
+                artifact / home,
+                f'<img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}">',
+                f'<img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}">'
+                f'<img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}">',
+            ),
+            "featured walkthrough must expose exactly one admitted pressure image",
+        )
+        reject(
+            "gallery pressure duplicated",
+            lambda artifact: _replace(
+                artifact / case,
+                f'<img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}">',
+                f'<img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}">'
+                f'<img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}">',
+            ),
+            "gallery walkthrough must expose exactly one admitted pressure image",
+        )
+        reject(
+            "404 canonical uses the Starlight route",
             lambda artifact: _replace(
                 artifact / "404.html",
-                'href="https://eqiora.org/404.html"',
                 'href="https://eqiora.org/404/"',
+                'href="https://eqiora.org/404.html"',
             ),
-            "canonical must be exactly 'https://eqiora.org/404.html'",
+            "canonical must be exactly 'https://eqiora.org/404/'",
+        )
+        reject(
+            "404 exception does not admit unrelated missing links",
+            lambda artifact: _append_main(
+                artifact / home,
+                '<a href="/unrelated-missing/">Unrelated missing page</a>',
+            ),
+            "broken or escaping link",
         )
         reject(
             "rendered apostrophe",
@@ -490,6 +599,31 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             ),
             "six ordered semantic stages",
         )
+        reject(
+            "stage ID changed",
+            lambda artifact: _replace(
+                artifact / case, 'id="mesh-and-boundaries"', 'id="mesh-stage"'
+            ),
+            "six ordered semantic stages",
+        )
+        reject(
+            "stage labelled by the wrong heading",
+            lambda artifact: _replace(
+                artifact / case,
+                'aria-labelledby="submit-and-result-title"',
+                'aria-labelledby="model-definition-title"',
+            ),
+            "six ordered semantic stages",
+        )
+        reject(
+            "stage heading loses separator space",
+            lambda artifact: _replace(
+                artifact / case,
+                "Stage 5 Pressure visualization",
+                "Stage 5Pressure visualization",
+            ),
+            "Stage 5 Pressure visualization",
+        )
 
         def reorder_stages(artifact: Path) -> None:
             page = artifact / case
@@ -514,7 +648,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
         reject(
             "missing KaTeX HTML half",
             lambda artifact: _replace(
-                artifact / case, 'class="katex-html"', 'class="rendered-html"', 2
+                artifact / case, 'class="katex-html"', 'class="rendered-html"'
             ),
             "KaTeX HTML and MathML",
         )
@@ -524,9 +658,26 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 artifact / case,
                 ' encoding="application/x-tex"',
                 ' encoding="text/plain"',
-                2,
             ),
             "nonempty TeX annotation",
+        )
+        reject(
+            "empty TeX annotation",
+            lambda artifact: _replace(
+                artifact / case,
+                ">H</annotation>",
+                "></annotation>",
+            ),
+            "nonempty TeX annotation",
+        )
+        reject(
+            "duplicate TeX annotation",
+            lambda artifact: _replace(
+                artifact / case,
+                "</annotation>",
+                '</annotation><annotation encoding="application/x-tex">duplicate</annotation>',
+            ),
+            "exactly one TeX annotation",
         )
         reject(
             "raw math delimiter",
@@ -544,6 +695,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
         accepted_link = _exact_link(
             "examples/python/exact_cylinder_stokes_marimo.py",
             "Eqiora source form: canonical intent/submit/result cells",
+            "#L77-L95",
         )
         accepted_href = accepted_link.split('href="', 1)[1].split('"', 1)[0]
         accepted_label = "Eqiora source form: canonical intent/submit/result cells"
@@ -568,9 +720,24 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             reject(
                 f"accepted navigation changed to {label} control",
                 lambda artifact, replacement=replacement: _replace(
-                    artifact / case, accepted_link, replacement, 2
+                    artifact / case, accepted_link, replacement
                 ),
                 "navigation link became an action control",
+            )
+        for label, replacement in (
+            ("missing lines", accepted_href.removesuffix("#L77-L95")),
+            ("wrong lines", accepted_href.replace("#L77-L95", "#L76-L95")),
+            (
+                "wrong exact head",
+                accepted_href.replace(SOURCE_SHA, "b" * 40),
+            ),
+        ):
+            reject(
+                f"accepted sentinel {label}",
+                lambda artifact, replacement=replacement: _replace(
+                    artifact / case, accepted_href, replacement
+                ),
+                "accepted source-form sentinel must be the exact-head L77-L95 anchor",
             )
 
         for phrase in NONCLAIMS:
@@ -655,6 +822,44 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 ),
             ),
             "sitemap omits required route /reference/",
+        )
+        reject(
+            "duplicate route in child URL set",
+            lambda artifact: _write(
+                artifact / child,
+                _url_set(ST_STARLIGHT_ROUTES + ("/reference/",)),
+            ),
+            "duplicate sitemap route /reference/",
+        )
+        reject(
+            "extra route in child URL set",
+            lambda artifact: _write(
+                artifact / child,
+                _url_set(ST_STARLIGHT_ROUTES + ("/unadmitted/",)),
+            ),
+            "sitemap contains unexpected route /unadmitted/",
+        )
+        reject(
+            "required sitemap order changed",
+            lambda artifact: _write(
+                artifact / child,
+                _url_set(
+                    (
+                        ST_STARLIGHT_ROUTES[1],
+                        ST_STARLIGHT_ROUTES[0],
+                        *ST_STARLIGHT_ROUTES[2:],
+                    )
+                ),
+            ),
+            "sitemap routes are not in the required order",
+        )
+        reject(
+            "404 artifact route added to sitemap",
+            lambda artifact: _write(
+                artifact / child,
+                _url_set(ST_STARLIGHT_ROUTES + ("/404.html",)),
+            ),
+            "sitemap contains unexpected route /404.html",
         )
         reject(
             "sitemap child query",
@@ -807,7 +1012,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             lambda artifact: _replace(
                 artifact / rust_index,
                 f"#{FRAGMENT_ID}",
-                "#impl-ApproxFrom<Src,+Scheme>-for-Src",
+                "#impl-LifetimeProbe<'a>-for-Thing",
             ),
             "missing raw Rustdoc fragment target",
         )
@@ -826,9 +1031,34 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             "missing raw Rustdoc fragment target",
         )
         reject(
+            "missing single-quoted Rustdoc fragment ID containing a double quote",
+            lambda artifact: _replace(
+                artifact / diagnostic,
+                f"id='{QUOTED_FRAGMENT_ID}'",
+                "id='different-quoted'",
+            ),
+            "missing raw Rustdoc fragment target",
+        )
+        reject(
+            "missing unquoted numeric Rustdoc fragment ID",
+            lambda artifact: _replace(
+                artifact / diagnostic,
+                f"id={NUMERIC_FRAGMENT_ID}",
+                "id=124",
+            ),
+            "missing raw Rustdoc fragment target",
+        )
+        reject(
             "duplicate Rustdoc fragment ID",
             lambda artifact: _append_main(
                 artifact / diagnostic, f'<span id="{FRAGMENT_ID}">duplicate</span>'
+            ),
+            "duplicate Rustdoc target ID",
+        )
+        reject(
+            "duplicate unquoted numeric Rustdoc fragment ID",
+            lambda artifact: _append_main(
+                artifact / diagnostic, f"<span id={NUMERIC_FRAGMENT_ID}>duplicate</span>"
             ),
             "duplicate Rustdoc target ID",
         )
