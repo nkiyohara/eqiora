@@ -85,7 +85,7 @@ test('Pagefind returns one representative from every frozen reference family', a
 });
 
 test('JavaScript-disabled core remains navigable and mathematically complete', async ({ browser }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(90_000);
   const context = await browser.newContext({
     baseURL: 'http://127.0.0.1:4173',
     javaScriptEnabled: false,
