@@ -223,7 +223,8 @@ def _stage(identifier: str, step: str, title: str, body: str) -> str:
     return (
         f'<section class="eq-stage" aria-labelledby="{heading}" '
         f'data-step="{step}" id="{identifier}"><header><h2 id="{heading}">'
-        f"Stage {step} {title}</h2></header><div>{body}</div></section>"
+        f'<a class="eq-stage-marker" href="#{identifier}">Stage {step} {title}</a>'
+        f"</h2></header><div>{body}</div></section>"
     )
 
 
