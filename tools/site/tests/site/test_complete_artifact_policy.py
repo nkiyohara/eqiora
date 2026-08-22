@@ -394,9 +394,7 @@ def _ordinary(root: Path):
     )
     _write(
         rustdoc / "src/eqiora/lib.rs.html",
-        _rustdoc_page(
-            '<h1>Source</h1><span id=1>1</span><span id=325>325</span>'
-        ),
+        _rustdoc_page("<h1>Source</h1><span id=1>1</span><span id=325>325</span>"),
     )
     _write(
         rustdoc / "eqiora/struct.Diagnostic.html",
