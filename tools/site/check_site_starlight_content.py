@@ -409,6 +409,12 @@ def _check_case(
             ).split()
         )
         handlers = any(name.startswith("on") for name in attrs)
+        stage_navigation = tag == "a" and any(
+            "eq-stage-marker" in attrs.get("class", "").split()
+            and attrs.get("href") == f"#{identifier}"
+            and accessible == f"Stage {step} {title}"
+            for identifier, step, title in STAGES
+        )
         if label == admitted_label or accessible == admitted_label:
             sentinels.append((tag, attrs, label, accessible))
             href = attrs.get("href", "")
@@ -426,7 +432,9 @@ def _check_case(
                     "Cylinder route accepted source-form sentinel must be the exact-head L77-L95 anchor"
                 )
             continue
-        navigation = tag == "a" and attrs.get("href", "").startswith(source_base)
+        navigation = stage_navigation or (
+            tag == "a" and attrs.get("href", "").startswith(source_base)
+        )
         action = not navigation or attrs.get("role") == "button" or handlers
         if action and EXECUTION_CONTROL.search(f"{label} {accessible}"):
             report(
