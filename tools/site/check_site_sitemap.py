@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
@@ -12,18 +13,38 @@ SITE_ORIGIN = "https://eqiora.org"
 MAX_CHILDREN = 16
 SITEMAP_ROUTES = (
     "/",
-    "/get-started/",
+    "/api/",
+    "/architecture/",
+    "/capabilities/",
+    "/concepts/",
+    "/contributing/",
+    "/evidence/",
+    "/examples/",
     "/gallery/",
     "/gallery/exact-cylinder-steady-stokes/",
+    "/get-started/",
+    "/python/",
+    "/python/differentiation/",
+    "/python/execution-and-arrays/",
+    "/python/modeling/",
     "/reference/",
-    "/reference/python/eqiora/",
-    "/reference/rust/",
     "/reference/cli/",
     "/reference/control-v2/",
     "/reference/mcp/",
-    "/examples/",
-    "/evidence/",
-    "/capabilities/",
+    "/reference/python/",
+    "/reference/python/diff/",
+    "/reference/python/eqiora/",
+    "/reference/python/fluid/",
+    "/reference/python/fsi/",
+    "/reference/python/geometry/",
+    "/reference/python/jax/",
+    "/reference/python/matplotlib/",
+    "/reference/python/meshing/",
+    "/reference/python/solid/",
+    "/reference/python/torch/",
+    "/reference/python/trajectory/",
+    "/reference/rust/",
+    "/release-notes/",
 )
 
 
@@ -149,8 +170,16 @@ def check_sitemap(artifact: Path, maximum_urls: int) -> list[str]:
             errors.append("sitemap contains duplicate URLs")
     else:
         return [*errors, "sitemap-index.xml must be a sitemap index or URL set"]
-    admitted = set(urls)
+    counts = Counter(urls)
+    expected = set(SITEMAP_ROUTES)
+    for route, count in counts.items():
+        if count > 1:
+            errors.append(f"duplicate sitemap route {route}")
     for route in SITEMAP_ROUTES:
-        if route not in admitted:
+        if counts[route] == 0:
             errors.append(f"sitemap omits required route {route}")
+    for route in counts.keys() - expected:
+        errors.append(f"sitemap contains unexpected route {route}")
+    if counts == Counter(SITEMAP_ROUTES) and urls != list(SITEMAP_ROUTES):
+        errors.append("sitemap routes are not in the required order")
     return errors

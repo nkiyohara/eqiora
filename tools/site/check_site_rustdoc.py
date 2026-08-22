@@ -37,6 +37,18 @@ ABSENT_REFERENCES = (
         "../../trait.impl/eqiora_device/queue/trait.Fence.js",
     ),
 )
+RAW_ID = re.compile(
+    r'''(?<![\w:-])id\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))''',
+    re.IGNORECASE,
+)
+
+
+def _raw_ids(raw: str) -> Counter[str]:
+    values = (
+        next(value for value in match.groups() if value is not None)
+        for match in RAW_ID.finditer(raw)
+    )
+    return Counter(values)
 
 
 def check_rustdoc(
@@ -105,7 +117,7 @@ def check_rustdoc(
     observed: Counter[tuple[str, str]] = Counter()
     expected_values = {value for _, value in expected}
     raw_ids = {
-        path: Counter(re.findall(r'\bid=["\']([^"\']+)["\']', raw))
+        path: _raw_ids(raw)
         for path, (raw, _) in inspections.items()
     }
     for source, (_, parser) in sorted(inspections.items()):

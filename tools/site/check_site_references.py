@@ -16,6 +16,7 @@ MAX_DATA_URL_BYTES = 1_048_576
 MAX_HTML_REFERENCES = 1_000_000
 MAX_CSS_URLS = 4_096
 CSS_URL_TOKEN = re.compile("url", re.IGNORECASE | re.ASCII)
+CSS_ESCAPED_NEWLINE = re.compile(r"\\(?:\r\n|\r|\n)")
 LEGACY_OBSERVER_PIXEL = "data:image/gif;base64,R0lGODlhAQABAAAAACw="
 RUNTIME_TAGS = {
     "script",
@@ -115,7 +116,10 @@ def _css_urls(text: str) -> tuple[list[str], list[str]]:
         if not closed:
             errors.append("unterminated CSS url()")
             break
-        values.append(text[value_start:value_end].strip())
+        value = text[value_start:value_end]
+        if quote:
+            value = CSS_ESCAPED_NEWLINE.sub("", value)
+        values.append(value.strip())
         if len(values) > MAX_CSS_URLS:
             errors.append(f"CSS file exceeds {MAX_CSS_URLS} URL references")
             break
@@ -200,6 +204,7 @@ def _check_html(
     errors: list[str] = []
     report = errors.append
     parsed = {path: value[1] for path, value in inspections.items()}
+    exempted_404_canonical = False
     for page_path, tag, attribute, value, resolve_local in references:
         relative = page_path.relative_to(artifact)
         if not value:
@@ -233,6 +238,22 @@ def _check_html(
                 report(f"{relative}: external runtime request {value!r}")
             continue
         if not resolve_local:
+            continue
+        if (
+            not exempted_404_canonical
+            and page_path == artifact / "404.html"
+            and tag == "link"
+            and attribute == "href"
+            and value == f"{SITE_ORIGIN}/404/"
+            and sum(
+                1
+                for link in parsed[page_path].links
+                if "canonical" in link.get("rel", "").split()
+                and link.get("href") == value
+            )
+            == 1
+        ):
+            exempted_404_canonical = True
             continue
         target, fragment = _local_reference(artifact, page_path, value)
         if target is None:

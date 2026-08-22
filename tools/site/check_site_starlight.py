@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import re
 import sys
+from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 try:
     import tools.site.check_site_html as _html
@@ -72,54 +73,159 @@ CASE_EVIDENCE_PATHS = _content.CASE_EVIDENCE_PATHS
 SITE_ORIGIN = "https://eqiora.org"
 STARLIGHT_ROUTES = {
     "/": "index.html",
-    "/get-started/": "get-started/index.html",
+    "/api/": "api/index.html",
+    "/architecture/": "architecture/index.html",
+    "/capabilities/": "capabilities/index.html",
+    "/concepts/": "concepts/index.html",
+    "/contributing/": "contributing/index.html",
+    "/evidence/": "evidence/index.html",
+    "/examples/": "examples/index.html",
     "/gallery/": "gallery/index.html",
     "/gallery/exact-cylinder-steady-stokes/": "gallery/exact-cylinder-steady-stokes/index.html",
+    "/get-started/": "get-started/index.html",
+    "/python/": "python/index.html",
+    "/python/differentiation/": "python/differentiation/index.html",
+    "/python/execution-and-arrays/": "python/execution-and-arrays/index.html",
+    "/python/modeling/": "python/modeling/index.html",
     "/reference/": "reference/index.html",
-    "/reference/python/eqiora/": "reference/python/eqiora/index.html",
-    "/reference/rust/": "reference/rust/index.html",
     "/reference/cli/": "reference/cli/index.html",
     "/reference/control-v2/": "reference/control-v2/index.html",
     "/reference/mcp/": "reference/mcp/index.html",
-    "/examples/": "examples/index.html",
-    "/evidence/": "evidence/index.html",
-    "/capabilities/": "capabilities/index.html",
+    "/reference/python/": "reference/python/index.html",
+    "/reference/python/diff/": "reference/python/diff/index.html",
+    "/reference/python/eqiora/": "reference/python/eqiora/index.html",
+    "/reference/python/fluid/": "reference/python/fluid/index.html",
+    "/reference/python/fsi/": "reference/python/fsi/index.html",
+    "/reference/python/geometry/": "reference/python/geometry/index.html",
+    "/reference/python/jax/": "reference/python/jax/index.html",
+    "/reference/python/matplotlib/": "reference/python/matplotlib/index.html",
+    "/reference/python/meshing/": "reference/python/meshing/index.html",
+    "/reference/python/solid/": "reference/python/solid/index.html",
+    "/reference/python/torch/": "reference/python/torch/index.html",
+    "/reference/python/trajectory/": "reference/python/trajectory/index.html",
+    "/reference/rust/": "reference/rust/index.html",
+    "/release-notes/": "release-notes/index.html",
     "/404.html": "404.html",
 }
-TOP_NAV = (
-    ("Docs", "/get-started/"),
-    ("Gallery", "/gallery/"),
-    ("Reference", "/reference/"),
-    ("Evidence", "/evidence/"),
-    ("GitHub", "https://github.com/nkiyohara/eqiora"),
-)
 
 
-def _check_shell(route: str, raw: str) -> list[str]:
-    errors: list[str] = []
-    match = re.search(r"<header\b[^>]*>(.*?)</header>", raw, re.DOTALL | re.IGNORECASE)
-    header = match.group(1) if match else ""
-    match = re.search(
-        r'<nav\b[^>]*aria-label=["\']Primary["\'][^>]*>(.*?)</nav>',
-        header,
-        re.DOTALL | re.IGNORECASE,
-    )
-    if not match:
-        errors.append(f"{route}: primary navigation must be in the page banner")
-    navigation = match.group(1) if match else ""
-    positions = [navigation.find(f'href="{href}"') for _, href in TOP_NAV]
-    if any(position < 0 for position in positions) or positions != sorted(positions):
-        errors.append(f"{route}: primary navigation has the wrong link order")
-    title = re.findall(r'<a\b[^>]*class="site-title"[^>]*>', header, re.IGNORECASE)
-    if title:
+class _ShellInspection(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.header_depth = 0
+        self.hidden_depth = 0
+        self.active: list[dict[str, object]] = []
+        self.titles: list[dict[str, object]] = []
+
+    def handle_starttag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        values = {name.casefold(): value or "" for name, value in attrs}
+        if tag == "header":
+            self.header_depth += 1
         if (
-            len(title) != 1
-            or 'href="/"' not in title[0]
-            or 'aria-label="Eqiora"' not in title[0]
+            tag in {"script", "style", "template", "svg"}
+            or "hidden" in values
+            or values.get("aria-hidden") == "true"
         ):
-            errors.append(
-                f"{route}: header home link accessible name must be exactly 'Eqiora'"
-            )
+            self.hidden_depth += 1
+        if tag == "a" and "site-title" in values.get("class", "").split():
+            record: dict[str, object] = {
+                "attrs": values,
+                "header": self.header_depth > 0,
+                "images": [],
+                "text": [],
+            }
+            self.active.append(record)
+            self.titles.append(record)
+        elif tag == "img" and self.active:
+            images = self.active[-1]["images"]
+            assert isinstance(images, list)
+            images.append(values)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "a" and self.active:
+            self.active.pop()
+        if tag in {"script", "style", "template", "svg"} and self.hidden_depth:
+            self.hidden_depth -= 1
+        if tag == "header" and self.header_depth:
+            self.header_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self.active and not self.hidden_depth:
+            text = self.active[-1]["text"]
+            assert isinstance(text, list)
+            text.append(data)
+
+
+def _same_origin_file(artifact: Path, page: Path, value: str) -> Path | None:
+    parsed = urlsplit(value)
+    if parsed.query or parsed.fragment or parsed.username or parsed.password:
+        return None
+    if parsed.scheme or value.startswith("//"):
+        if (
+            parsed.scheme not in {"http", "https"}
+            or f"{parsed.scheme}://{parsed.netloc}" != SITE_ORIGIN
+        ):
+            return None
+    raw_path = unquote(parsed.path)
+    target = (
+        artifact / raw_path.lstrip("/")
+        if raw_path.startswith("/")
+        else page.parent / raw_path
+    )
+    if target.is_symlink():
+        return None
+    target = target.resolve()
+    try:
+        target.relative_to(artifact)
+    except ValueError:
+        return None
+    return target if target.is_file() else None
+
+
+def _check_shell(
+    artifact: Path,
+    route: str,
+    page: Path,
+    raw: str,
+    file_digests: dict[Path, str],
+    favicon_digest: str,
+) -> list[str]:
+    errors: list[str] = []
+    inspection = _ShellInspection()
+    inspection.feed(raw)
+    inspection.close()
+    if len(inspection.titles) != 1 or not inspection.titles[0]["header"]:
+        errors.append(
+            f"{route}: site-title home link must appear exactly once in the page banner"
+        )
+        return errors
+    title = inspection.titles[0]
+    attrs = title["attrs"]
+    text = title["text"]
+    images = title["images"]
+    assert isinstance(attrs, dict) and isinstance(text, list) and isinstance(images, list)
+    if attrs.get("href") != "/":
+        errors.append(f"{route}: header home link href must be exactly '/'")
+    forbidden_names = {"aria-label", "aria-labelledby", "title"}
+    visible_name = " ".join("".join(text).split())
+    image_names = any(
+        image.get("alt") != "" or forbidden_names.intersection(image)
+        for image in images
+    )
+    if visible_name != "Eqiora" or forbidden_names.intersection(attrs) or image_names:
+        errors.append(
+            f"{route}: header home link must derive its name only from visible 'Eqiora'"
+        )
+    if len(images) != 1:
+        errors.append(f"{route}: header brand asset must appear exactly once")
+        return errors
+    target = _same_origin_file(artifact, page, images[0].get("src", ""))
+    if target is None:
+        errors.append(f"{route}: header brand asset must be same-origin")
+    elif file_digests.get(target) != favicon_digest:
+        errors.append(f"{route}: header brand asset has the wrong digest")
     return errors
 
 
@@ -130,7 +236,8 @@ def _check_head(route: str, parser: object) -> list[str]:
         for link in parser.links
         if "canonical" in link.get("rel", "").split()
     ]
-    expected = f"{SITE_ORIGIN}{route}"
+    canonical_route = "/404/" if route == "/404.html" else route
+    expected = f"{SITE_ORIGIN}{canonical_route}"
     if canonicals != [expected]:
         errors.append(
             f"{route}: canonical must be exactly {expected!r}, got {canonicals!r}"
@@ -165,17 +272,32 @@ def check_starlight(
     errors: list[str] = []
     expected_paths = {artifact / relative for relative in STARLIGHT_ROUTES.values()}
     for path in sorted(set(inspections) - expected_paths):
-        errors.append(
-            f"{path.relative_to(artifact)}: Starlight page outside exact Rustdoc root"
+        relative = path.relative_to(artifact)
+        route = (
+            "/"
+            if relative == Path("index.html")
+            else f"/{relative.parent.as_posix()}/"
+            if relative.name == "index.html"
+            else f"/{relative.as_posix()}"
         )
+        errors.append(f"unexpected Starlight route {route}")
     for route, relative in STARLIGHT_ROUTES.items():
         path = artifact / relative
         if path not in inspections:
-            errors.append(f"missing required route {route}: {relative}")
+            errors.append(f"missing required Starlight route {route}: {relative}")
             continue
         raw, parser = inspections[path]
         errors.extend(_check_head(route, parser))
-        errors.extend(_check_shell(route, raw))
+        errors.extend(
+            _check_shell(
+                artifact,
+                route,
+                path,
+                raw,
+                file_digests,
+                favicon_digest,
+            )
+        )
         if parser.inline_handlers:
             errors.append(f"{relative}: inline event handlers are forbidden")
     case = inspections.get(artifact / "gallery/exact-cylinder-steady-stokes/index.html")
