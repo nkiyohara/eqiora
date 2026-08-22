@@ -280,6 +280,9 @@ def _rustdoc_page(body: str) -> str:
         "<!doctype html><html><head>"
         '<link rel="stylesheet" href="/reference/rust/api/static.files/rustdoc.css">'
         '<script src="/reference/rust/api/static.files/main.js"></script>'
+        '<link rel="icon" href="/favicon.svg" type="image/svg+xml">'
+        '<a class="eqiora-return" href="/reference/rust/" '
+        'aria-label="Back to the Eqiora Rust reference">Back to Eqiora docs</a>'
         f"</head><body><main>{body}</main></body></html>"
     )
 
@@ -395,7 +398,7 @@ def _append_main(path: Path, value: str) -> None:
 class CompleteArtifactPolicyTests(unittest.TestCase):
     def test_00_mixed_starlight_rustdoc_positive_then_mutants(self) -> None:
         # This complete positive is deliberately first. Against accepted
-        # predecessor 408ba866 it is the sole causal RED and stops the method
+        # predecessor 04ed4649 it is the sole causal RED and stops the method
         # before any mutant can execute or receive credit.
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -791,6 +794,14 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
 
         diagnostic = RUSTDOC_ROOT / "eqiora/struct.Diagnostic.html"
         rust_index = RUSTDOC_ROOT / "eqiora/index.html"
+        reject(
+            "unadmitted site-absolute Rustdoc link adjacent to owned landing",
+            lambda artifact: _append_main(
+                artifact / rust_index,
+                '<a href="/reference/rust/extra/">Unowned Rust reference</a>',
+            ),
+            "Rustdoc reference escapes exact root '/reference/rust/extra/'",
+        )
         reject(
             "percent-decoded fragment",
             lambda artifact: _replace(
