@@ -19,6 +19,7 @@ RUSTDOC_ROOT = Path("reference/rust/api")
 FRAGMENT_ID = "impl-LifetimeProbe%3C'a%3E-for-Thing"
 QUOTED_FRAGMENT_ID = 'impl-Quoted%3C"Marker%3E-for-Thing'
 NUMERIC_FRAGMENT_ID = "123"
+LINE_RANGE_FRAGMENT = "1-325"
 BRAND_PATH = "/assets/eqiora-mark.BN8rmEAl.svg"
 PRESSURE_PATH = "/assets/exact-cylinder-pressure.C0ffee42.png"
 PRESSURE_ALT = (
@@ -388,6 +389,13 @@ def _ordinary(root: Path):
             f'<a href="struct.Diagnostic.html#{FRAGMENT_ID}">Diagnostic impl</a>'
             f"<a href='struct.Diagnostic.html#{QUOTED_FRAGMENT_ID}'>Quoted ID</a>"
             f'<a href="struct.Diagnostic.html#{NUMERIC_FRAGMENT_ID}">Numeric ID</a>'
+            f'<a href="../src/eqiora/lib.rs.html#{LINE_RANGE_FRAGMENT}">Source</a>'
+        ),
+    )
+    _write(
+        rustdoc / "src/eqiora/lib.rs.html",
+        _rustdoc_page(
+            '<h1>Source</h1><span id=1>1</span><span id=325>325</span>'
         ),
     )
     _write(
@@ -1008,6 +1016,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
 
         diagnostic = RUSTDOC_ROOT / "eqiora/struct.Diagnostic.html"
         rust_index = RUSTDOC_ROOT / "eqiora/index.html"
+        rust_source = RUSTDOC_ROOT / "src/eqiora/lib.rs.html"
         reject(
             "unadmitted site-absolute Rustdoc link adjacent to owned landing",
             lambda artifact: _append_main(
@@ -1079,6 +1088,46 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 f"struct.Diagnostic.html#{FRAGMENT_ID}",
                 f"module/index.html#{FRAGMENT_ID}",
             ),
+            "missing raw Rustdoc fragment target",
+        )
+        reject(
+            "missing Rustdoc line-range start endpoint",
+            lambda artifact: _replace(
+                artifact / rust_source, "<span id=1>1</span>", ""
+            ),
+            "missing raw Rustdoc fragment target",
+        )
+        reject(
+            "duplicate Rustdoc line-range end endpoint",
+            lambda artifact: _append_main(
+                artifact / rust_source, "<span id=325>duplicate</span>"
+            ),
+            "duplicate Rustdoc target ID",
+        )
+        reject(
+            "reversed Rustdoc line range",
+            lambda artifact: _replace(
+                artifact / rust_index,
+                f"#{LINE_RANGE_FRAGMENT}",
+                "#325-1",
+            ),
+            "missing raw Rustdoc fragment target",
+        )
+
+        def textual_line_range(artifact: Path) -> None:
+            _replace(
+                artifact / rust_index,
+                f"#{LINE_RANGE_FRAGMENT}",
+                "#begin-end",
+            )
+            _append_main(
+                artifact / rust_source,
+                "<span id=begin>begin</span><span id=end>end</span>",
+            )
+
+        reject(
+            "arbitrary textual Rustdoc range",
+            textual_line_range,
             "missing raw Rustdoc fragment target",
         )
 
