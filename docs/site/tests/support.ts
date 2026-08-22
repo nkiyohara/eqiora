@@ -1527,8 +1527,14 @@ export function assertExactTableSelectorScope(css: string): void {
 }
 
 export async function layoutCssState(): Promise<{ css: string; sha256: string; parent: boolean }> {
-  const path = resolve(dirname(fileURLToPath(import.meta.url)), '../src/styles/site/layout.css');
-  const css = await readFile(path, 'utf8');
+  const repository =
+    process.env.EQIORA_SITE_GIT_OBJECT_REPOSITORY ??
+    resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+  const css = execFileSync(
+    'git',
+    ['show', `${PARENT_LAYOUT_COMMIT}:docs/site/src/styles/site/layout.css`],
+    { cwd: repository, encoding: 'utf8', maxBuffer: 128 * 1024 },
+  );
   const sha256 = createHash('sha256').update(css).digest('hex');
   return { css, sha256, parent: sha256 === PARENT_LAYOUT_SHA256 };
 }

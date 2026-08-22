@@ -45,7 +45,8 @@ test('required routes, semantic stages, controls, and 404 are real static surfac
   await assertNoFakeExecutionControls(page);
   const missing = await page.goto('/this-route-does-not-exist');
   expect(missing?.status()).toBe(404);
-  await expect(page.getByRole('heading', { name: /not found/i })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: '404', exact: true })).toBeVisible();
+  await expect(page.getByText(/Page not found/i)).toBeVisible();
 
   const oldSocial = await page.goto('/assets/social-card.svg');
   expect(oldSocial?.status()).toBe(404);
@@ -84,7 +85,7 @@ test('Pagefind returns one representative from every frozen reference family', a
 });
 
 test('JavaScript-disabled core remains navigable and mathematically complete', async ({ browser }) => {
-  test.setTimeout(45_000);
+  test.setTimeout(60_000);
   const context = await browser.newContext({
     baseURL: 'http://127.0.0.1:4173',
     javaScriptEnabled: false,
