@@ -203,6 +203,35 @@ class PlanTests(unittest.TestCase):
         )
         self.assertEqual(first, second)
 
+    def test_candidate_case_serializes_only_its_ci_contracts(self) -> None:
+        candidate_plan = build_plan(
+            "affected",
+            ["tools/ci/local_verify.py"],
+            ["interfaces.python-distribution-candidate"],
+            workspace(),
+        )
+        candidate_evidence = evidence_runs(candidate_plan)[0]
+        candidate_ci = next(
+            item
+            for item in candidate_plan.commands
+            if item.label == "CI contract tests"
+        )
+        self.assertEqual(candidate_evidence.lane.name, "root-cargo")
+        self.assertIs(candidate_ci.lane, candidate_evidence.lane)
+
+        other_plan = build_plan(
+            "affected",
+            ["tools/ci/local_verify.py"],
+            ["language.explicit"],
+            workspace(),
+        )
+        other_evidence = evidence_runs(other_plan)[0]
+        other_ci = next(
+            item for item in other_plan.commands if item.label == "CI contract tests"
+        )
+        self.assertEqual(other_ci.lane.name, "repository")
+        self.assertNotEqual(other_ci.lane, other_evidence.lane)
+
     def test_no_selected_case_schedules_no_runner_invocation(self) -> None:
         plan = build_plan("fast", [], [], workspace())
         self.assertEqual(evidence_runs(plan), [])
