@@ -650,10 +650,15 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             ),
             "exact bounded public claim",
         )
+        inline_math = _math("H")
         reject(
             "missing KaTeX HTML half",
             lambda artifact: _replace(
-                artifact / case, 'class="katex-html"', 'class="rendered-html"'
+                artifact / case,
+                inline_math,
+                inline_math.replace(
+                    'class="katex-html"', 'class="rendered-html"', 1
+                ),
             ),
             "KaTeX HTML and MathML",
         )
@@ -661,8 +666,10 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             "missing TeX annotation",
             lambda artifact: _replace(
                 artifact / case,
-                ' encoding="application/x-tex"',
-                ' encoding="text/plain"',
+                inline_math,
+                inline_math.replace(
+                    ' encoding="application/x-tex"', ' encoding="text/plain"', 1
+                ),
             ),
             "nonempty TeX annotation",
         )
@@ -679,8 +686,12 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             "duplicate TeX annotation",
             lambda artifact: _replace(
                 artifact / case,
-                "</annotation>",
-                '</annotation><annotation encoding="application/x-tex">duplicate</annotation>',
+                inline_math,
+                inline_math.replace(
+                    "</annotation>",
+                    '</annotation><annotation encoding="application/x-tex">duplicate</annotation>',
+                    1,
+                ),
             ),
             "exactly one TeX annotation",
         )
@@ -1227,7 +1238,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 artifact / "eqiora/index.html",
                 _rustdoc_page("<h1>Crate eqiora</h1>"),
             ),
-            "Starlight page outside exact Rustdoc root",
+            "unexpected Starlight route /eqiora/",
         )
         reject(
             "Rustdoc-like owner collision outside exact root",
@@ -1235,7 +1246,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 artifact / "reference/rust/api-copy/eqiora/index.html",
                 _rustdoc_page("<h1>Crate eqiora</h1>"),
             ),
-            "Starlight page outside exact Rustdoc root",
+            "unexpected Starlight route /reference/rust/api-copy/eqiora/",
         )
 
         def add_symlink(artifact: Path) -> None:
