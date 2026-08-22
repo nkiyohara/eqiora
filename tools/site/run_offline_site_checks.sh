@@ -77,6 +77,7 @@ cd "$EQIORA_SITE_SOURCE_ROOT"
 python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROOT"
 find "$EQIORA_SITE_SOURCE_ROOT" \
   -path "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules" -prune -o \
+  -path "$EQIORA_SITE_SOURCE_ROOT/docs/site/.astro" -prune -o \
   -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > "$source_manifest_before"
 python3 - <<'PY'
 import socket, urllib.request
@@ -353,6 +354,7 @@ trap - EXIT
 python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROOT"
 find "$EQIORA_SITE_SOURCE_ROOT" \
   -path "$EQIORA_SITE_SOURCE_ROOT/docs/site/node_modules" -prune -o \
+  -path "$EQIORA_SITE_SOURCE_ROOT/docs/site/.astro" -prune -o \
   -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > "$source_manifest_after"
 cmp --silent "$source_manifest_before" "$source_manifest_after"
 
