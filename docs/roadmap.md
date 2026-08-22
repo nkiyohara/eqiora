@@ -429,5 +429,5 @@ maintained in the
 a support claim; its status records the evidence actually available.
 
 See [GOVERNANCE.md](../GOVERNANCE.md), the [RFC index](../rfcs/README.md), and
-the [contract-wave capability guide](development/vertical-slice-development.md) for how
+the [high-risk and parallel development guide](development/vertical-slice-development.md) for how
 this roadmap changes.

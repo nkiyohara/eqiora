@@ -115,3 +115,4 @@ implementation or capability claim.
 - [RFC 0084: Contract-wave capability development](0084-contract-wave-capability-development.md)
 - [RFC 0085: Standalone prescribed dynamic-solid artifacts](0085-standalone-prescribed-dynamic-solid-artifacts.md)
 - [RFC 0086: Private numerics--differentiation composition](0086-private-numerics-differentiation-composition.md)
+- [RFC 0087: One-pass development by default](0087-one-pass-development-default.md)
