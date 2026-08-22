@@ -15,10 +15,10 @@ import {
   assertTableFixtureGreen,
   assertTableFixtureOnlyFailure,
   assertTextContrast,
+  authenticatedParentLayoutCss,
   createOrdinaryRoutePlan,
   installTableObserver,
   launchOfficialBrowser,
-  layoutCssState,
   rejectExternalRequests,
   seriousAxeViolations,
   SITE_ROUTES,
@@ -127,9 +127,8 @@ test('00 official browser and every synthetic ordinary control pass first', asyn
 
   await page.setContent(tableFixture());
   assertExactTableSelectorScope(exactTableCss);
-  const parent = await layoutCssState();
-  expect(parent.parent).toBe(true);
-  assertExactTableSelectorScope(`${parent.css}\n${productTableCss}`);
+  const parentCss = authenticatedParentLayoutCss();
+  assertExactTableSelectorScope(`${parentCss}\n${productTableCss}`);
   await assertTableFixtureGreen(page);
   await context.close();
 });
@@ -444,9 +443,8 @@ test('04 exact two-shape table scope and concealment/focus/vacuity mutants are c
     assertExactTableSelectorScope(`${exactTableCss}\n.other :unknown(.ordinary){overflow-x:auto}`),
   ).toThrow('unsupported functional pseudo-class selector');
 
-  const authenticatedParent = await layoutCssState();
-  expect(authenticatedParent.parent).toBe(true);
-  const focusParentCss = `${authenticatedParent.css}\nhtml,body{margin:0;max-width:100%}.sl-markdown-content{width:300px}.wide{display:block;width:556px;white-space:nowrap}`;
+  const authenticatedParentCss = authenticatedParentLayoutCss();
+  const focusParentCss = `${authenticatedParentCss}\nhtml,body{margin:0;max-width:100%}.sl-markdown-content{width:300px}.wide{display:block;width:556px;white-space:nowrap}`;
   const focusParentFixture = tableFixture(focusParentCss).replaceAll(
     ' <a href="/documentation/">Documentation</a>',
     '',

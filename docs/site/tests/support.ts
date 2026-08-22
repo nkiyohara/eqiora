@@ -1441,6 +1441,21 @@ function isCellDescendantSelector(selector: string, root: string): boolean {
   return cells.length > 0 && cells.every((cell) => /^(th|td|code)$/u.test(cell));
 }
 
+export function authenticatedParentLayoutCss(): string {
+  const repository =
+    process.env.EQIORA_SITE_GIT_OBJECT_REPOSITORY ??
+    resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+  const css = execFileSync(
+    'git',
+    ['show', `${PARENT_LAYOUT_COMMIT}:docs/site/src/styles/site/layout.css`],
+    { cwd: repository, encoding: 'utf8', maxBuffer: 128 * 1024 },
+  );
+  if (createHash('sha256').update(css).digest('hex') !== PARENT_LAYOUT_SHA256) {
+    throw new Error('authenticated parent layout Git blob changed');
+  }
+  return css;
+}
+
 export function assertExactTableSelectorScope(css: string): void {
   const relevantProperties = new Set([
     'display',
@@ -1463,17 +1478,7 @@ export function assertExactTableSelectorScope(css: string): void {
   const direct = '.sl-markdown-content > table';
   const component = '.sl-markdown-content .eq-stage__body > table';
   const generic = '.sl-markdown-content table:not(:where(.not-content *))';
-  const repository =
-    process.env.EQIORA_SITE_GIT_OBJECT_REPOSITORY ??
-    resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-  const parentCss = execFileSync(
-    'git',
-    ['show', `${PARENT_LAYOUT_COMMIT}:docs/site/src/styles/site/layout.css`],
-    { cwd: repository, encoding: 'utf8', maxBuffer: 128 * 1024 },
-  );
-  if (createHash('sha256').update(parentCss).digest('hex') !== PARENT_LAYOUT_SHA256) {
-    throw new Error('authenticated parent layout Git blob changed');
-  }
+  const parentCss = authenticatedParentLayoutCss();
   const parentRules = parseCssRules(parentCss);
   const parentSignatures = new Map<string, number>();
   for (const rule of parentRules) {
@@ -1527,14 +1532,8 @@ export function assertExactTableSelectorScope(css: string): void {
 }
 
 export async function layoutCssState(): Promise<{ css: string; sha256: string; parent: boolean }> {
-  const repository =
-    process.env.EQIORA_SITE_GIT_OBJECT_REPOSITORY ??
-    resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-  const css = execFileSync(
-    'git',
-    ['show', `${PARENT_LAYOUT_COMMIT}:docs/site/src/styles/site/layout.css`],
-    { cwd: repository, encoding: 'utf8', maxBuffer: 128 * 1024 },
-  );
+  const path = resolve(dirname(fileURLToPath(import.meta.url)), '../src/styles/site/layout.css');
+  const css = await readFile(path, 'utf8');
   const sha256 = createHash('sha256').update(css).digest('hex');
   return { css, sha256, parent: sha256 === PARENT_LAYOUT_SHA256 };
 }
