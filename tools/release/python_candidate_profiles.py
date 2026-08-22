@@ -165,7 +165,7 @@ def _request(name: str) -> ResourceRequest:
     if name == "matplotlib-3.13":
         return _MATPLOTLIB
     if name == "notebook-3.13":
-        return ResourceRequest(1, 2 * 1024, locks=("python-notebook-profile",))
+        return ResourceRequest(2, 4 * 1024, locks=("python-notebook-profile",))
     if name == "generated-public-api":
         return _DOCS
     return _BASE
