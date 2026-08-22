@@ -134,6 +134,10 @@ export default defineConfig({
         '/src/styles/site/layout.css',
         '/src/styles/site/components.css',
       ],
+      components: {
+        Search: './src/components/site/Search.astro',
+        ThemeSelect: './src/components/site/ThemeSelect.astro',
+      },
       pagefind: true,
       lastUpdated: false,
     }),
