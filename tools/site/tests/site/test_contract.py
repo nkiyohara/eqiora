@@ -307,8 +307,8 @@ class CompleteContractTests(unittest.TestCase):
             ),
             "unlinked brand": lambda root, artifact: self._replace(
                 artifact / "index.html",
-                '<a href="/"><img src="/assets/brand.svg" alt="">Eqiora</a>',
-                '<img src="/assets/brand.svg" alt="">Eqiora',
+                '<a class="site-title" href="/"><img src="/assets/brand.svg" alt=""><span>Eqiora</span></a>',
+                '<img src="/assets/brand.svg" alt=""><span>Eqiora</span>',
             ),
             "widened featured claim": lambda root, artifact: self._replace(
                 artifact / "index.html",

@@ -589,14 +589,7 @@ def _head(route: str) -> str:
 
 
 def _nav() -> str:
-    return """<nav aria-label="Primary">
-<a href="/"><img src="/assets/brand.svg" alt="">Eqiora</a>
-<a href="/get-started/">Docs</a>
-<a href="/gallery/">Gallery</a>
-<a href="/reference/">Reference</a>
-<a href="/evidence/">Evidence</a>
-<a href="https://github.com/nkiyohara/eqiora">GitHub</a>
-</nav>"""
+    return '<a class="site-title" href="/"><img src="/assets/brand.svg" alt=""><span>Eqiora</span></a>'
 
 
 def _page(route: str, body: str) -> str:
@@ -633,7 +626,7 @@ def _case_body() -> str:
 -div(sigma(u,p)) - grad(phi) = 0
 div(u) = 0</pre></section>
 <section><h2>Mesh and boundaries</h2><p>50-chord and 104-triangle affine demonstration mesh; coarse-mesh warning.</p></section>
-<section><h2>Submit and result</h2><p>One immutable SteadyStokes intent, resolve, submit, and Result carrier.</p></section>
+<section><h2>Submit and result</h2><p>One immutable SteadyStokes intent, resolve, submit, and Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes_marimo.py#L77-L95">Eqiora source form: canonical intent/submit/result cells</a></section>
 <section><h2>Pressure visualization</h2><figure><img src="/assets/pressure.png" alt="{checker.PRESSURE_ALT}"><figcaption>{checker.PRESSURE_CAPTION} <a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/verify/interfaces/python-exact-cylinder-stokes-result/README.md">Result evidence</a> <a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/verify/interfaces/python-exact-cylinder-pressure-still/README.md">Pressure-still presentation case</a></figcaption></figure><p>Presentation, not evidence.</p></section>
 <section><h2>Verified and not claimed</h2><p>{nonclaims}</p>{_exact_links()}</section>"""
 

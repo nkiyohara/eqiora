@@ -150,14 +150,7 @@ ABSENT_REFERENCES = (
     ),
 )
 
-OLD_SHELL = """<header><nav aria-label="Primary">
-<a href="/"><img src="/assets/brand.svg" alt="">Eqiora</a>
-<a href="/get-started/">Docs</a>
-<a href="/gallery/">Gallery</a>
-<a href="/reference/">Reference</a>
-<a href="/evidence/">Evidence</a>
-<a href="https://github.com/nkiyohara/eqiora">GitHub</a>
-</nav></header>"""
+OLD_SHELL = '<header><a class="site-title" href="/"><img src="/assets/brand.svg" alt=""><span>Eqiora</span></a></header>'
 SITE_TITLE = (
     f'<a class="site-title" href="/"><img src="{BRAND_PATH}" '
     'alt=""><span>Eqiora</span></a>'
