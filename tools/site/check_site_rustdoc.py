@@ -7,6 +7,10 @@ __all__ = ("RUSTDOC_ROOT", "check_rustdoc")
 
 RUSTDOC_ROOT = Path("reference/rust/api")
 BACK_FILES = {"help.html", "settings.html"}
+_SITE_ABSOLUTE_TARGETS = {
+    "/favicon.svg": Path("favicon.svg"),
+    "/reference/rust/": Path("reference/rust/index.html"),
+}
 ABSENT_REFERENCES = (
     (
         "eqiora/api/trait.ReferenceRunObserver.html",
@@ -122,6 +126,12 @@ def check_rustdoc(
                 )
                 continue
             if parsed.path.startswith("/"):
+                relative_target = _SITE_ABSOLUTE_TARGETS.get(value)
+                if relative_target is not None:
+                    target = artifact / relative_target
+                    if target.is_symlink() or not target.is_file():
+                        report(f"{source_name}: Rustdoc target has wrong type {value!r}")
+                    continue
                 target = artifact / parsed.path.lstrip("/")
             else:
                 target = source.parent / parsed.path if parsed.path else source
