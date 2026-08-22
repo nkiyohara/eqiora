@@ -104,7 +104,7 @@ test('JavaScript-disabled core remains navigable and mathematically complete', a
   expect(await page.locator('math').count()).toBeGreaterThanOrEqual(2);
   expect(await page.locator('.katex-html').count()).toBeGreaterThanOrEqual(2);
   await assertVisibleSourceFallback(page);
-  await page.getByRole('link', { name: 'Gallery', exact: true }).first().click();
+  await page.getByRole('link', { name: 'Gallery', exact: true }).filter({ visible: true }).first().click();
   await expect(page).toHaveURL(/\/gallery\/$/);
   expect(external).toEqual([]);
   await context.close();
