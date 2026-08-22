@@ -159,7 +159,7 @@ OLD_SHELL = """<header><nav aria-label="Primary">
 <a href="https://github.com/nkiyohara/eqiora">GitHub</a>
 </nav></header>"""
 SITE_TITLE = (
-    f'<a class="site-title" href="/" aria-label="Eqiora"><img src="{BRAND_PATH}" '
+    f'<a class="site-title" href="/"><img src="{BRAND_PATH}" '
     'alt=""><span>Eqiora</span></a>'
 )
 SHELL = f"""<header>
@@ -238,11 +238,7 @@ def _case_body() -> str:
     links: list[str] = []
     for relative in SOURCE_PATHS:
         label = Path(relative).name
-        if relative == "examples/python/exact_cylinder_stokes_marimo.py":
-            label = "Eqiora source form: canonical intent/submit/result cells"
-            links.append(_exact_link(relative, label, "#L77-L95"))
-        else:
-            links.append(_exact_link(relative, label))
+        links.append(_exact_link(relative, label))
     for relative in EVIDENCE_PATHS:
         label = Path(relative).parent.name + " dossier"
         if (
@@ -251,6 +247,12 @@ def _case_body() -> str:
         ):
             label = "Registered Plan-and-Run dossier"
         links.append(_exact_link(relative, label))
+
+    sentinel = _exact_link(
+        "examples/python/exact_cylinder_stokes_marimo.py",
+        "Eqiora source form: canonical intent/submit/result cells",
+        "#L77-L95",
+    )
 
     source_form = """<p><strong>Eqiora source form</strong></p><pre>relation momentum continuous on body {
   -div(
@@ -273,7 +275,7 @@ relation incompressibility continuous on body {
         "<p>50 straight chords and 104 affine triangles bind the named boundaries.</p>"
         + _math(r"\nabla\cdot\boldsymbol{u}=0"),
         "<p>The immutable intent resolves to one Plan, Run, and Result.</p>"
-        + links[0]
+        + sentinel
         + links[
             len(SOURCE_PATHS)
             + EVIDENCE_PATHS.index(
@@ -292,8 +294,7 @@ relation incompressibility continuous on body {
             "Pressure-still presentation case",
         )
         + "</figcaption></figure>",
-        f"<p>{PUBLIC_CLAIM}</p><p>{' '.join(NONCLAIMS)}</p>"
-        + " ".join(links[1:]),
+        f"<p>{PUBLIC_CLAIM}</p><p>{' '.join(NONCLAIMS)}</p>" + " ".join(links),
     )
     sections = "".join(
         _stage(identifier, step, title, body)
@@ -482,11 +483,13 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             "site-title home link must appear exactly once in the page banner",
         )
         reject(
-            "duplicated brand accessible name",
+            "anchor aria-label substitutes the visible brand name",
             lambda artifact: _replace(
-                artifact / home, 'aria-label="Eqiora"', 'aria-label="Eqiora Eqiora"'
+                artifact / home,
+                'class="site-title" href="/"',
+                'class="site-title" href="/" aria-label="Eqiora"',
             ),
-            "header home link accessible name must be exactly 'Eqiora'",
+            "header home link must derive its name only from visible 'Eqiora'",
         )
         reject(
             "site title wrong destination",
