@@ -34,7 +34,7 @@ depends = ["setup"]
 run = "python3 tools/ci/local_verify.py fast --base origin/main"
 
 [tasks.affected]
-description = "Run the pre-integration affected gate; trailing arguments are forwarded"
+description = "Run the conservative affected gate for high-risk or uncertain integration closure"
 depends = ["setup"]
 run = "python3 tools/ci/local_verify.py affected --base origin/main"
 

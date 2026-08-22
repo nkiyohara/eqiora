@@ -1,102 +1,141 @@
 # Local verification
 
-Repository-owned local verification is Eqiora's technical acceptance
-authority: a hosted service does not replace or broaden the evidence of a
-locally closed slice. High-risk public deltas additionally wait for their
-relevant provider-bound identity, trust, and execution contexts from
-[the public verification topology](ci-topology.md) before merge. Hosted
-contexts protect the submitted or integrated commit and gate definitions; they
-do not become a second scientific acceptance authority.
+Repository-owned checks establish local technical evidence. Hosted checks protect the submitted
+commit, provider identity, and CI/release trust; they do not replace scientific evidence.
 
-The only ordinary executable gate entry points are `mise run fast` while
-iterating and `mise run affected` before integration. Both depend on
-`mise run setup`; in each new worktree its first gate installs the locked
-Studio tree with `npm ci` before verification begins. `mise install` provisions
-the declared developer tools. `mise.toml` owns this setup and invocation
-ordering, but remains neither a dependency lock nor a second acceptance
-implementation.
+## Choose the smallest check
 
-The repository-owned planner reuses the same path classification as CI and
-includes committed merge-base changes, staged changes, unstaged changes, and
-untracked files:
+Run the cheapest repository-owned check that can expose a plausible defect in the actual delta.
+Use the focused command named beside the changed surface when one exists.
 
 ```bash
-# Inner loop. Name semantic evidence explicitly.
+# Fallback for a localized change with no narrower repository-owned task.
+mise run fast
+
+# Add every semantically affected registered case explicitly.
 mise run fast -- --case packages.hierarchical-physical-boundary
 
-# Before integration: reverse-dependent Cargo closure plus affected clients.
+# High-risk integration or genuinely uncertain reverse-dependency closure.
 mise run affected -- --case packages.hierarchical-physical-boundary
 
-# Inspect the exact deterministic command plan without running it.
+# Inspect the deterministic plan without executing it.
 mise run plan
 
-# Full local compatibility gate when the affected closure is unknown or a
-# release/integration boundary requires it. This is not a calendar ceremony.
+# Full current-machine compatibility surface for release or unknown closure.
 mise run periodic
 ```
 
-Direct `python3 tools/ci/local_verify.py` execution is limited to an explicitly
-setup-free `--plan` inspection or diagnostic and infrastructure debugging. It
-is not an ordinary executable gate entry point; use the mise tasks for an
-acceptance run so locked Studio setup cannot be skipped accidentally.
+`mise install` provisions declared tools. `mise run setup` owns locked setup and is a
+dependency of executable mise gates. Use mise rather than a hand-assembled equivalent; packaging,
+toolchain, interpreter, and CI-contract behavior are part of the repository check.
 
-## Minimum sufficient verification
+A focused failure permits a focused correction and rerun. Escalate to `fast`, `affected`,
+`periodic`, another semantic case, or hosted waiting only when a named anomaly or risk could
+make the wider result change the decision. Do not run a broad gate, clean build, or repeated
+matrix for reassurance alone.
 
-Run the cheapest repository-owned check that can falsify the affected claim.
-`affected` remains the ordinary pre-integration gate for a complete patch, but
-it is not a reason to repeat an equivalent or broader run after that patch has
-already passed. For a low-risk delta only, reuse an earlier result after proving
-the complete candidate delta byte-identical, including paths, modes, and binary
-bytes, and proving the intervening base change disjoint from the gate definition,
-selected dependency closure, toolchain, authority, inputs, and claimed behavior.
-A stable patch ID and conflict-free rebase alone are insufficient. Otherwise
-rerun the affected surface. High-risk envelopes execute the exact-head mise gate
-and wait for relevant hosted checks. A permitted low-risk live bypass executes
-the exact-head mise gate and may track running hosted checks post-merge under
-the public verification topology.
+Do not reuse an old result merely because a patch ID or rebase is unchanged. Reuse is safe only
+when the complete candidate bytes and modes are identical and intervening changes cannot affect
+the gate, toolchain, inputs, authority, environment, dependency closure, or claim. Running the
+focused check is usually cheaper than proving all of that.
 
-A localized correction reruns the check that exposed the defect plus its
-semantic case and directly affected contract checks. Escalate to another lane,
-the whole affected tier, `periodic`, or a hosted wait only when an anomaly or
-named durable risk can make that wider result change the integration decision.
-Do not use a full gate, clean rebuild, or repeated matrix as reassurance alone.
+## Planner behavior
 
-Every plan prints its selected paths, Cargo packages, registered cases, exact
-commands, execution lanes, resource requests, and limitations. Execution is
-shell-free. Commands remain ordered and fail-fast inside one lane; independent
-lanes admitted by the CPU, memory, GPU, and named-lock budget overlap. A lane
-failure does not cancel useful work already running elsewhere, and the final
-captured logs and failures are reported in deterministic plan order. An absent
-tool, unsupported environment, failed child process, malformed manifest, or
-unknown path never becomes a silent pass.
+The planner includes committed changes since merge base, staged and unstaged changes, and
+untracked paths. Unknown paths and malformed manifests fail closed. `mise run plan` prints
+selected paths, packages, cases, commands, resources, and limitations without running them.
 
-Each nonempty plan of at most 32 commands atomically owns one of exactly two
-home-backed log slots and announces its unique final run path before any child.
-Every planned command takes a 16 MiB raw-log charge, bounding one run at 512
-MiB and the two-slot authority at 64 files and 1 GiB. A started command keeps
-its exact combined stdout/stderr order; output beyond 16 MiB is drained but is
-an explicit incomplete failure rather than a complete truncated log. Complete
-success deletes only its own slot. Child, launch, overflow, aggregate, or
-reporting failure retains that exact slot. A separate forensic role must copy
-and seal the announced exact-path bytes before separately authorized cleanup;
-the scheduler never rotates, evicts, ages, or reuses a retained failure.
+The planner may overlap independent commands within declared CPU, memory, GPU, and named-lock
+budgets. This scheduling is an implementation detail, not evidence. A missing tool, unsupported
+environment, failed command, or unavailable resource remains an explicit failure or limitation.
 
-The default budget uses the current host's detected CPUs and available memory,
-with no GPU admission unless `EQIORA_LOCAL_VERIFY_GPU_SLOTS` declares it. A
-constrained or shared machine can set `--cpu-slots`, `--memory-mib`, and
-`--gpu-slots` explicitly. A lane whose own request exceeds the budget is
-rejected before any child process starts. When the detected CPU budget exceeds
-the sum of lane minima, the scheduler apportions the remaining Cargo build jobs
-by those declared weights rather than throttling the longest lane to its
-minimum.
+Each nonempty plan of at most 32 commands owns one of two home-backed log slots. Raw logs are
+limited to 16 MiB per command, 512 MiB per run, and 1 GiB across both slots. Overflow is an
+explicit incomplete failure. Success removes its slot; failure retains the announced path for
+separately authorized forensic copying and cleanup.
 
-A newly added directory under `verify/` is path-selected before manifest
-discovery can name its case. Land its valid `case.toml` in the same change as
-the first evidence files so `fast` and `affected` never plan an unknown case.
+Persistent build roots live under `~/.cache/eqiora/local-verify/<checkout>/`; per-invocation
+temporary directories use `~/.cache/eqiora/local-verify-tmp` and are removed after reporting.
+`--scratch-root` relocates both to an equivalent home-backed location. Do not use OS `/tmp`
+for large verification artifacts.
 
-The verification planner establishes patch correctness evidence; an optional
-implementation-agent identifier is separate provenance. When the final
-pull-request body supplies one, run the protected-base check:
+A new directory under `verify/` must add its valid `case.toml` with its first evidence files.
+Every semantically affected case must be passed with `--case`; a shared executor package does
+not imply semantic ownership of all its cases.
+
+## Gate tiers
+
+`fast` selects formatting, direct changed-package tests and Clippy, explicitly named or directly
+changed cases, and relevant lightweight documentation, dependency, or CI-contract checks. It is
+the broad fallback for an ordinary localized edit, not a mandatory first step when a narrower
+owned command exists.
+
+`affected` adds conservative Cargo reverse dependencies, Rustdoc, affected clients, registered
+case inventory, and selected Python, Studio, dependency-policy, or isolated-experiment checks.
+Use it for a high-risk integration boundary, an anomaly, or uncertainty that focused checks
+cannot resolve.
+
+`periodic` runs the full current-machine workspace, registered cases, MSRV, dependency policy,
+Python, Studio, and isolated experiments. Use it for a release, an unknown affected closure, or
+a concrete process investigation. It is not a calendar task.
+
+Default tiers do not prove optional MPI, CUDA, Diffsol, browser, or other environment-specific
+claims. Run the matching case or documented environment command when the delta changes one of
+those claims.
+
+The planner applies the hosted Cargo test profile to its commands. A manual `cargo test` or
+`eqiora-verify` invocation outside the planner may measure a different optimization profile.
+State the exact environment for any timing; an aborted run is not a sample.
+
+## Evidence-package behavior
+
+An oracle or falsifier package first proves one ordinary positive end-to-end path. Negative
+probes then reach and name the intended gate. If an earlier unrelated denial makes the
+capability unusable, the rejection is vacuous and the case fails.
+
+Resource evidence uses raw input limits and deterministic implementation-independent work
+bounds. Live allocation, queue depth, worklist lifetime, or scheduler behavior is not an oracle
+unless residency or scheduling is the public claim.
+
+When an oracle becomes more complex than the product seam or needs unrelated OS trust, simplify
+the claim or separate authority. Never convert a mismatch or unavailable environment into a
+pass.
+
+## Heavy scientific candidates
+
+Production gallery solves, refinement campaigns, and complete media encodes are outside
+ordinary pull-request gates:
+
+1. Pull-request conformance uses bounded data to exercise the ordinary path.
+2. An exact-head scientific candidate runs the frozen campaign in its declared trusted
+   environment with the claim, oracle, tolerances, stop conditions, and affected cases fixed.
+3. Publication consumes digest-verified accepted results; it does not rerun the solve.
+
+A candidate binds the exact Model, Geometry, mesh family, correspondence, Realization, Run,
+fields/results, source revision, producer/runtime environment, solver/library identities,
+oracle/evidence IDs, output inventory, and content digests. Scientific or solver changes need a
+new affected candidate. Renderer or site-shell changes may reuse an unchanged accepted result.
+
+`not-selected`, a cache hit, a stale bundle, or successful bounded conformance is not full
+scientific acceptance. If the required environment is unavailable, record the limitation and
+narrow the claim or stop.
+
+## Known local limitations
+
+- One Python interpreter is not the supported-version matrix.
+- One-host MPI is not physical multi-node evidence.
+- A build without a matching GPU and driver is not physical CUDA evidence.
+- Studio browser checks require documented browser and native system dependencies. A missing
+  Chrome executable is a limitation, not a passing gate.
+- Run `tools/ci/python_package_gate.py` for installed Python evidence. A hand-written
+  `uv run --with .` may reuse a stale cached wheel.
+- Do not verify `icon.icns` regeneration with a whole-file hash; the pinned Tauri tool may
+  reorder equivalent chunks. Compare chunk type, length, payload hash, or decoded pixels.
+
+## Optional implementation-agent provenance
+
+An implementation-agent identifier is optional provenance, not correctness evidence. Only when
+a final pull-request body supplies one, run:
 
 ```bash
 python3 tools/ci/check_implementation_agent.py \
@@ -104,209 +143,21 @@ python3 tools/ci/check_implementation_agent.py \
   --pr-body-file /path/to/pr-body.md
 ```
 
-The checker accepts an omitted, empty, or exact `not-supplied` field. Otherwise
-it resolves the content-derived identifier only against the registry in the
-merge base, verifies score and expiry, and rejects malformed, unknown, stale,
-or candidate-added entries. See [RFC
-0068](../../rfcs/0068-optional-implementation-agent-attestations.md).
+The checker accepts omission, empty input, or `not-supplied`. Otherwise it resolves the
+identifier only against the protected-base registry and verifies score and expiry. See
+[RFC 0068](../../rfcs/0068-optional-implementation-agent-attestations.md).
 
-## Positive path and non-vacuity
+## Hosted integration
 
-An oracle or falsifier package counts as evidence only when its execution order
-first proves at least one ordinary positive end-to-end path. Negative probes
-then name the specific gate they target and demonstrate non-vacuity: the same
-package must fail if an earlier unrelated denial makes the capability unusable.
-A sandbox, parser, identity, or admission failure before the targeted boundary
-cannot be reported as successful rejection of the intended mutant. If the
-positive probe fails, the case fails; later negative outcomes do not rescue it.
+Changes to scientific meaning or an oracle, public/versioned compatibility, persisted schemas
+or exact artifacts, security/data integrity, release/CI trust, governance, or architecture
+ceilings wait for every relevant hosted check before merge.
 
-Local verification executes the case manifest and reports its technical result;
-a zero exit status cannot broaden a claim whose evidence package is vacuous.
-Case review therefore checks the positive-path ordering and targeted denial as
-part of the registered claim. The contract may require fail-closed behavior,
-authority separation, or a resource envelope without requiring one OS or
-allocator mechanism unless that mechanism is itself the claim.
+The exact localized low-risk classes and auditable owner/admin bypass are defined by
+[the public verification topology](ci-topology.md). Before such a bypass, the exact head still
+runs its focused mise gate, scope/DCO audit, and required review. Record the actor, reason, head,
+commands, results, and post-merge signal. Ambiguous or high-risk work is ineligible.
 
-Resource probes use raw input caps plus a deterministic,
-implementation-independent abstract cost or step function. They do not sample
-live allocation, queue depth, or worklist lifetime unless resource residency is
-the declared public claim. When an oracle would become more complex than the
-product seam or require a new OS trust mechanism, stop and simplify the outcome
-contract or separate authority; never turn the mismatch into a passing gate.
-
-## Tiers
-
-`fast` runs formatting, direct changed-package tests and Clippy, explicitly
-named or directly changed verification cases, and only the relevant
-documentation, CI-contract, or dependency-layer checks. It is the ordinary
-edit loop.
-
-`affected` expands direct Cargo packages through the complete workspace
-reverse-dependency closure, adds Rustdoc, and conservatively selects registered
-cases changed under `verify/` plus cases named explicitly with `--case`. It
-checks the complete registered manifest inventory once, but never treats an
-evidence executor crate as semantic ownership: a facade test package may serve
-many unrelated cases. It also uses the existing change-surface classifier to
-add Python, Studio, dependency-policy, or isolated-experiment checks. A
-fail-closed infrastructure or unknown-path classification selects the complete
-Rust workspace.
-
-An evidence package is an executor, not semantic ownership. Therefore callers
-must pass every semantically affected case with `--case`; only direct changes
-inside that case's `verify/` directory select it automatically.
-
-Fast and affected collect those exact case IDs into one canonical, sorted
-`eqiora-verify run` invocation. The runner still reports every semantic case
-separately while executing each shared private execution key once. This batches
-only work selected by one local-verification plan; it does not reuse a result
-from another invocation or source revision.
-
-Root Cargo, installed-Python, Studio, CubeCL, dependency policy, and lightweight
-repository checks are separate local lanes. Persistent checkout-fingerprinted
-lane/build roots and reusable `CARGO_TARGET_DIR` products remain below
-`~/.cache/eqiora/local-verify/<checkout>/` by default. Per-invocation temporary
-directories instead use the compact home-backed authority
-`~/.cache/eqiora/local-verify-tmp` and are removed after reporting. With
-`--scratch-root`, persistent roots and per-invocation temporary directories
-remain below the selected equivalent home-backed location. The runner never
-uses OS `/tmp` for these artifacts.
-
-Fast and affected Clippy use default features. Optional MPI, CUDA, Diffsol, or
-other backend features run through their explicitly selected evidence command
-or a matching environment-specific check. Only the manual `periodic` gate asks
-the current machine to compile the complete all-feature workspace.
-
-`periodic` runs the full current-machine workspace, all registered cases, MSRV,
-dependency policy, Python, Studio, and isolated-experiment commands. Use it for
-an unknown affected closure, a broad integration/release boundary, or an
-exception-triggered process investigation—not on a standing calendar.
-
-The public-facade check compares `crates/eqiora/src/lib.rs` with the exact
-stable and transitional inventory in `api/eqiora-facade-v1.json`. Fast and
-affected plans select it whenever the facade, inventory, or checker changes;
-the periodic plan always runs it. A stable glob or unregistered public export
-is a gate failure, not an implicit API expansion.
-
-When Python is selected, the planner creates one ephemeral virtual environment,
-installs the declared build requirements and pinned test tool, builds and
-installs the project non-editably, and runs pytest through that same
-interpreter. It prefers `uv run --isolated --no-editable` and falls back to a
-standard-library virtual environment. The environment is removed when the gate
-ends. It never mutates an externally managed system interpreter or mixes a
-project-discovered development environment with a different pytest
-interpreter.
-
-## Heavy scientific candidates
-
-Production-resolution gallery solves, refinement campaigns, and complete media
-encodes are not ordinary pull-request or periodic verification. They use the
-same three-authority boundary as the
-[gallery contract](../verification/gallery/README.md#heavy-result-production):
-
-1. **PR conformance** exercises the ordinary implementation path with bounded
-   meshes, trajectories, witnesses, mutants, and renderer fixtures. Its narrow
-   evidence does not accept or claim the production result.
-2. **Exact-head scientific candidates** execute the full frozen campaign
-   explicitly against one final source revision in the declared trusted
-   environment. The claim, independent oracle, tolerances, stop conditions,
-   affected registered cases, and invalidation inputs are fixed before the
-   candidate runs.
-3. **Immutable publication projections** consume the accepted Result or
-   trajectory and reuse digest-verified admitted bytes. Publication never
-   invokes the scientific solve.
-
-The candidate records the exact Model, Geometry, mesh family, correspondence,
-Realization, Run, fields and results, source revision, producer and runtime
-environment, solver and library identities, oracle and evidence IDs, output
-inventory, and content digests. It is eligible only for the affected claim at
-that exact head. Equation, lowering, assembly, boundary-law, mesh-family,
-time-integrator, solver-acceptance, scientific-observable, benchmark, or oracle
-changes require a new full candidate on the final affected head. Renderer,
-scene-profile, encoder, or accessibility changes may rerender the unchanged
-accepted trajectory. Documentation, site-shell, and unrelated product changes
-reuse the accepted result and admitted media.
-
-Selection and failure are visible and fail closed. When the required heavy
-environment cannot run, record the limitation and narrow the claim or stop its
-promotion. `not-selected`, a stale bundle, a cache hit, or successful PR
-conformance is never full scientific acceptance. Each scientific slice names
-the exact affected registered cases; these rules do not infer semantic
-invalidation from a broad path glob.
-
-Actions, compiler, workstation, Vault, and site caches may accelerate or mirror
-bytes but have no scientific or publication authority. The accepted receipt
-and digests identify bytes retrieved from the first consumer's durable delivery
-location. The current verification planner does not discover, schedule, cache,
-publish, or transfer heavy candidates automatically, and this policy does not
-define a provider, scheduler, archive, wire format, signing scheme, retention
-policy, remote-execution API, or calendar cadence.
-Nothing in this boundary weakens independent-oracle ownership, convergence or
-refinement obligations, registered evidence, or the gallery's publication
-predicate.
-
-## Environment boundary
-
-The planner states evidence that the current machine cannot generalize:
-
-- one local Python interpreter is not the complete supported-version matrix;
-- one-host MPI is not physical multi-node evidence;
-- a build without a matching GPU and driver is not physical CUDA evidence; and
-- Studio native/browser checks require the documented system dependencies.
-
-Run and record a matching environment-specific command when a slice changes
-one of those claims. Do not remove the limitation merely because a conditional
-test returned successfully.
-
-## Local environment gaps and misleading substitutes
-
-The gate reports missing local prerequisites directly. Record the exact failed
-stage instead of treating an incomplete run as a clean gate, and do not replace
-the gate with a hand-assembled command that measures a different artifact.
-
-**Studio's end-to-end suite needs a browser the runner does not have.**
-Playwright expects Google Chrome at `/opt/google/chrome/chrome`, and
-`npx playwright install chrome` needs root. The gate reaches this stage after
-every other Studio browser stage has passed. Say which stage failed in the
-change rather than reporting a clean gate, and rely on CI for that stage.
-
-**Studio's locked npm dependencies are installed automatically; browser and
-system dependencies are not.** Ordinary mise gates run their `setup`
-dependency first and execute locked `npm ci` when the worktree needs it. A
-missing Chrome executable or native system package remains an external
-prerequisite and is reported as a limitation. `biome: not found` after an
-ordinary gate therefore indicates skipped or invalid setup, not a lint result.
-
-**A whole-file hash cannot verify `icon.icns` regeneration.** The pinned
-Tauri CLI 2.11.4 may reorder the type-keyed ICNS chunks across identical
-runs, so compare chunk type, declared length, and payload hash or decoded
-pixels instead. Every other generated icon output remains byte-comparable.
-
-**Run `tools/ci/python_package_gate.py`, not a hand-assembled `uv run`.** A
-hand-written `uv run --with .` can answer from a cached wheel, so tests may miss
-a Rust change that must be visible to Python. The repository gate does not have
-this problem: it passes `--reinstall-package eqiora`, which rebuilds the source
-tree even when its package version is unchanged.
-
-## Hosted integration timing
-
-Hosted waiting is proportional to durable risk. Scientific meaning or an
-oracle, public or versioned API and compatibility, persisted schema or exact
-artifact, security or data integrity, release or CI trust, governance, and
-architecture changes wait for every relevant hosted check before merge.
-
-A localized low-risk delta in the exact class defined by
-[the public verification topology](ci-topology.md) may use the live auditable
-owner/admin bypass after its exact-head mise gate, scope and DCO audit, and any
-required review pass. Prefer completion of the base-owned `CI definition trust`
-context. Record the bypass actor, reason, head, commands, and results; continue
-already-running checks as post-merge signals and immediately assess repair or
-rollback on failure. Normal and high-risk deltas wait for relevant required
-contexts. This changes neither the required contexts nor the ruleset.
-
-## Integration loop
-
-After the affected gate and any applicable optional-provenance check pass,
-record the exact commands and limitations in the pull request or issue, merge
-the short-lived integration branch, push the accepted main commit, and delete
-the merged branch. If a command fails, fix the same slice and rerun it; do not
-create a standing status report.
+Record exact commands and limitations in the pull request or Issue. If a check fails, correct
+the same slice and rerun the exposing check. Do not create a standing report or another
+acceptance implementation.
