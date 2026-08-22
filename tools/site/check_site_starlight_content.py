@@ -109,9 +109,7 @@ class _ContentInspection(HTMLParser):
         self.id_accessible_text: dict[str, list[str]] = {}
         self.id_attrs: dict[str, dict[str, str]] = {}
 
-    def handle_starttag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = {name.casefold(): value or "" for name, value in attrs}
         classes = values.get("class", "").split()
         parent_hidden = self.elements[-1][1] if self.elements else False
@@ -147,10 +145,7 @@ class _ContentInspection(HTMLParser):
             self.math.append(record)
             self.math_stack.append(record)
         elif tag == "annotation":
-            if (
-                self.math_stack
-                and values.get("encoding") == "application/x-tex"
-            ):
+            if self.math_stack and values.get("encoding") == "application/x-tex":
                 self.annotations.append((self.math_stack[-1], []))
             else:
                 self.annotations.append(None)
@@ -252,9 +247,7 @@ def _check_pressure_image(
         ]
     image, target = candidates[0]
     if image.get("alt") != PRESSURE_ALT or target is None:
-        return [
-            f"{label} must expose the admitted pressure image with exact alt text"
-        ]
+        return [f"{label} must expose the admitted pressure image with exact alt text"]
     if file_digests.get(target) != pressure_digest:
         return [f"{label}: admitted pressure image has the wrong digest"]
     return []
@@ -338,13 +331,9 @@ def _check_case(
             (identifier, step, f"{identifier}-title") for identifier, step, _ in STAGES
         ]
         accessible = [
-            markup.accessible_name(label)
-            for _, _, label in expected_sections
+            markup.accessible_name(label) for _, _, label in expected_sections
         ]
-        if (
-            markup.stages != expected_sections
-            or accessible != expected_headings
-        ):
+        if markup.stages != expected_sections or accessible != expected_headings:
             report(
                 f"Cylinder route must expose six ordered semantic stages: {expected_headings!r}"
             )

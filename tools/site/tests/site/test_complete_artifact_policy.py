@@ -466,7 +466,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             "unadmitted artifact route",
             lambda artifact: _write(
                 artifact / "unadmitted/index.html",
-                '<!doctype html><html><body><main><h1>Extra</h1></main></body></html>',
+                "<!doctype html><html><body><main><h1>Extra</h1></main></body></html>",
             ),
             "unexpected Starlight route /unadmitted/",
         )
@@ -489,8 +489,9 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
         reject(
             "site title wrong destination",
             lambda artifact: _replace(
-                artifact / home, 'class="site-title" href="/"',
-                'class="site-title" href="/get-started/"'
+                artifact / home,
+                'class="site-title" href="/"',
+                'class="site-title" href="/get-started/"',
             ),
             "header home link href must be exactly '/'",
         )
@@ -649,9 +650,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             lambda artifact: _replace(
                 artifact / case,
                 inline_math,
-                inline_math.replace(
-                    'class="katex-html"', 'class="rendered-html"', 1
-                ),
+                inline_math.replace('class="katex-html"', 'class="rendered-html"', 1),
             ),
             "KaTeX HTML and MathML",
         )
@@ -1067,7 +1066,8 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
         reject(
             "duplicate unquoted numeric Rustdoc fragment ID",
             lambda artifact: _append_main(
-                artifact / diagnostic, f"<span id={NUMERIC_FRAGMENT_ID}>duplicate</span>"
+                artifact / diagnostic,
+                f"<span id={NUMERIC_FRAGMENT_ID}>duplicate</span>",
             ),
             "duplicate Rustdoc target ID",
         )

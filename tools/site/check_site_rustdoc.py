@@ -38,7 +38,7 @@ ABSENT_REFERENCES = (
     ),
 )
 RAW_ID = re.compile(
-    r'''(?<![\w:-])id\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))''',
+    r"""(?<![\w:-])id\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))""",
     re.IGNORECASE,
 )
 
@@ -116,10 +116,7 @@ def check_rustdoc(
         )
     observed: Counter[tuple[str, str]] = Counter()
     expected_values = {value for _, value in expected}
-    raw_ids = {
-        path: _raw_ids(raw)
-        for path, (raw, _) in inspections.items()
-    }
+    raw_ids = {path: _raw_ids(raw) for path, (raw, _) in inspections.items()}
     for source, (_, parser) in sorted(inspections.items()):
         source_name = source.relative_to(root).as_posix()
         for tag, attribute, value in parser.references:
@@ -142,7 +139,9 @@ def check_rustdoc(
                 if relative_target is not None:
                     target = artifact / relative_target
                     if target.is_symlink() or not target.is_file():
-                        report(f"{source_name}: Rustdoc target has wrong type {value!r}")
+                        report(
+                            f"{source_name}: Rustdoc target has wrong type {value!r}"
+                        )
                     continue
                 target = artifact / parsed.path.lstrip("/")
             else:

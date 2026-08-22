@@ -718,8 +718,7 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         '<!doctype html><html><body><main><h1>Crate eqiora</h1><a href="struct.Diagnostic.html">Diagnostic</a></main></body></html>',
     )
     urls = "".join(
-        f"<url><loc>https://eqiora.org{route}</loc></url>"
-        for route in SITE_ROUTES[:-1]
+        f"<url><loc>https://eqiora.org{route}</loc></url>" for route in SITE_ROUTES[:-1]
     )
     _write(
         artifact / "sitemap-index.xml", f'<?xml version="1.0"?><urlset>{urls}</urlset>'

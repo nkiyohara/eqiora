@@ -117,9 +117,7 @@ class _ShellInspection(HTMLParser):
         self.active: list[dict[str, object]] = []
         self.titles: list[dict[str, object]] = []
 
-    def handle_starttag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = {name.casefold(): value or "" for name, value in attrs}
         if tag == "header":
             self.header_depth += 1
@@ -205,7 +203,9 @@ def _check_shell(
     attrs = title["attrs"]
     text = title["text"]
     images = title["images"]
-    assert isinstance(attrs, dict) and isinstance(text, list) and isinstance(images, list)
+    assert (
+        isinstance(attrs, dict) and isinstance(text, list) and isinstance(images, list)
+    )
     if attrs.get("href") != "/":
         errors.append(f"{route}: header home link href must be exactly '/'")
     forbidden_names = {"aria-label", "aria-labelledby", "title"}
