@@ -623,11 +623,11 @@ def run_optional_profile(
     workspace.consumer.mkdir(parents=True)
     test_path = workspace.consumer / test
     shutil.copy2(extracted / f"bindings/python/tests/{test}", test_path)
-    run(
-        [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
-        cwd=workspace.consumer,
-    )
     if name != "matplotlib":
+        run(
+            [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
+            cwd=workspace.consumer,
+        )
         run_public_smoke(
             python=python,
             extracted=extracted,
@@ -639,6 +639,18 @@ def run_optional_profile(
         compact = config.extras_interpreter.replace(".", "")
         return [f"cp{compact}:{name}", f"cp{compact}:public-smoke-{name}"]
 
+    gmsh_path = str(python.parent)
+    if inherited_path := os.environ.get("PATH"):
+        gmsh_path = os.pathsep.join((gmsh_path, inherited_path))
+    gmsh_environment = {
+        "EQIORA_GMSH": str(python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")),
+        "PATH": gmsh_path,
+    }
+    run(
+        [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
+        cwd=workspace.consumer,
+        extra_environment=gmsh_environment,
+    )
     destinations = (
         (
             prepare_exact_cylinder_demo_consumer(extracted, workspace.consumer),
@@ -676,7 +688,11 @@ def run_optional_profile(
         ]
         if rendered == ["--pressure-png"]:
             rendered.append(str(destination))
-        run([str(python), "-I", str(demo), *rendered], cwd=workspace.consumer)
+        run(
+            [str(python), "-I", str(demo), *rendered],
+            cwd=workspace.consumer,
+            extra_environment=gmsh_environment,
+        )
         if not destination.is_file() or not destination.read_bytes().startswith(
             b"\x89PNG\r\n\x1a\n"
         ):

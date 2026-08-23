@@ -1797,9 +1797,18 @@ def run_notebook_profile(
         workspace.consumer.mkdir(parents=True)
         test_path = workspace.consumer / "test_rich_mesh_display.py"
         shutil.copy2(extracted / "bindings/python/tests/test_rich_mesh_display.py", test_path)
+        gmsh_path = str(python.parent)
+        if inherited_path := os.environ.get("PATH"):
+            gmsh_path = os.pathsep.join((gmsh_path, inherited_path))
         checked_run(
             [str(python), "-I", "-m", "pytest", "-q", str(test_path)],
             cwd=workspace.consumer,
+            extra_environment={
+                "EQIORA_GMSH": str(
+                    python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")
+                ),
+                "PATH": gmsh_path,
+            },
         )
         state["python"] = python
 
@@ -1893,6 +1902,12 @@ def run_notebook_profile(
         environment = dict(state["host-environment"])
         host_environment = os.environ.copy()
         host_environment.update(environment)
+        host_environment["EQIORA_GMSH"] = str(
+            python.parent / ("gmsh.exe" if os.name == "nt" else "gmsh")
+        )
+        host_environment["PATH"] = os.pathsep.join(
+            (str(python.parent), environment["PATH"])
+        )
         served = served_source_tree() if source_root is None else source_root
         port = _reserve_loopback_port()
         if project == "jupyterlab-4.6.2":
