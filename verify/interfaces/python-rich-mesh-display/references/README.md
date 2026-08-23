@@ -1,21 +1,23 @@
 # Reference ownership
 
 The exact values below are reused verbatim from the accepted
-`interfaces.python-circular-hole-chordal-mesh` owner:
+`interfaces.python-circular-hole-chordal-mesh` owner at commit
+`05254257d98caee8cac924759d01d92c25801169`:
 
 - source digest
   `b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9`;
-- 4,835 canonical Mesh bytes with raw SHA-256
-  `d977d9125488fffee72deaf9a0f146bc42dc05a135692919a374d746da0f1079`;
+- 42,388 canonical Mesh bytes with raw SHA-256
+  `9d3c6211e6832aa5a5f7e99fa210058ff1b76eab7f1e99aaa7033c282d6e2dd2`;
 - domain-separated Mesh digest
-  `148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a`;
-- 104 vertices and 104 affine triangles.
+  `5962836788fa785fd0761813c542e9078523796409787d86ad8a006dfef5b62b`;
+- 662 vertices and 1,210 affine triangles.
 
-The frontend fixture mechanically projects those accepted arrays into C-order
-`f64-le` and `u32-le` bytes. Their transport-only SHA-256 values are
-`2aaf87276bf352faddfadc76e63c1f44340a362047b1399a2e081c798c5921aa`
+The frontend fixture mechanically projects those accepted arrays into 10,592
+C-order `f64-le` bytes and 14,520 C-order `u32-le` bytes. Their transport-only
+SHA-256 values are
+`42ea585f3facdc21fadf66435f37f1127bf926e6159c5ff1e4a345ba7268db3d`
 and
-`229392dc7faca769c88348cf41a810f29df3a22ad1276cb866783e5e04078a9f`.
+`05a68c5630e68ed091e7da3bff07516a9ddf9345bc8319db108ac4004a7c6642`.
 These hashes detect transport drift; they are not new scientific identities or
 an alternative Mesh digest.
 

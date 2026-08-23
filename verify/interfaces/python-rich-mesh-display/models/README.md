@@ -1,7 +1,7 @@
 # Model inputs
 
 This case owns no Model, equation, solver, or new Mesh fixture. Its sole data
-input is the installed native reference Mesh produced through the exact public
+input is the installed native Gmsh 4.15.2 Mesh produced through the exact public
 path already verified by
 `interfaces.python-circular-hole-chordal-mesh`.
 

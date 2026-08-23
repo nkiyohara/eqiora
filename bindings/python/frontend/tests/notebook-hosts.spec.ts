@@ -1,6 +1,6 @@
 import { expect, type JSHandle, type Locator, type Page, test } from "@playwright/test";
 
-const MESH_DIGEST = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a";
+const MESH_DIGEST = "5962836788fa785fd0761813c542e9078523796409787d86ad8a006dfef5b62b";
 const VIEW_SELECTOR = `[data-eqiora-mesh-digest="${MESH_DIGEST}"]`;
 const BARE_MESH_TEST_TITLE =
   "bare Mesh owns exact interaction, lifecycle, identity, and loopback-only observations";
