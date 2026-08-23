@@ -3,8 +3,9 @@
 use std::ffi::{OsStr, OsString};
 use std::fmt::Write as _;
 use std::fs;
+use std::io::Read as _;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -21,6 +22,7 @@ use eqiora::meshing::MeshQualityGate;
 
 const GMSH_VERSION: &str = "4.15.2";
 const GMSH_ENV: &str = "EQIORA_GMSH";
+const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 const PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
 
 static SCRATCH_NONCE: AtomicU64 = AtomicU64::new(0);
@@ -49,7 +51,7 @@ pub(super) fn generate(
         .args(["-format", "msh41", "-v", "2"])
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    let status = run_with_timeout(command, PROCESS_TIMEOUT)?;
+    let (_, status) = run_with_timeout(command, PROCESS_TIMEOUT)?;
     if !status.success() {
         return Err(invalid_import(format!(
             "Gmsh {GMSH_VERSION} failed with status {status}"
@@ -75,17 +77,30 @@ fn gmsh_executable() -> Result<OsString, Diagnostic> {
 }
 
 fn require_version(executable: &OsStr) -> Result<(), Diagnostic> {
-    let output = Command::new(executable)
+    let mut command = Command::new(executable);
+    command
         .arg("--version")
-        .output()
-        .map_err(|error| invalid_import(format!("cannot launch Gmsh: {error}")))?;
-    if !output.status.success() {
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    let (mut child, status) = run_with_timeout(command, VERSION_TIMEOUT)?;
+    if !status.success() {
         return Err(invalid_import(format!(
             "Gmsh version check failed with status {}",
-            output.status
+            status
         )));
     }
-    let version = std::str::from_utf8(&output.stdout)
+    let mut stdout = Vec::new();
+    child
+        .stdout
+        .take()
+        .ok_or_else(|| invalid_import("Gmsh version output is unavailable"))?
+        .take(65)
+        .read_to_end(&mut stdout)
+        .map_err(|error| invalid_import(format!("cannot read Gmsh version output: {error}")))?;
+    if stdout.len() > 64 {
+        return Err(invalid_import("Gmsh version output exceeds 64 bytes"));
+    }
+    let version = std::str::from_utf8(&stdout)
         .map_err(|_| invalid_import("Gmsh version output must be UTF-8"))?
         .trim();
     if version != GMSH_VERSION {
@@ -196,7 +211,10 @@ fn comma_separated(values: &[usize]) -> String {
         .join(", ")
 }
 
-fn run_with_timeout(mut command: Command, timeout: Duration) -> Result<ExitStatus, Diagnostic> {
+fn run_with_timeout(
+    mut command: Command,
+    timeout: Duration,
+) -> Result<(Child, ExitStatus), Diagnostic> {
     let mut child = command
         .spawn()
         .map_err(|error| invalid_import(format!("cannot launch Gmsh: {error}")))?;
@@ -206,7 +224,7 @@ fn run_with_timeout(mut command: Command, timeout: Duration) -> Result<ExitStatu
             .try_wait()
             .map_err(|error| invalid_import(format!("cannot wait for Gmsh: {error}")))?
         {
-            return Ok(status);
+            return Ok((child, status));
         }
         if Instant::now() >= deadline {
             let _ = child.kill();
