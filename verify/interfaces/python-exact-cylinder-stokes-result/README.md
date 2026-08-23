@@ -94,15 +94,15 @@ example. It is not a general model catalogue or loader API.
 
 The evidence owner did not inspect or edit the Python implementation. Numeric
 observations come from the dual-independent
-[`fluid.exact-circular-hole-stokes-2d`](../../fluid/exact-circular-hole-stokes-2d/README.md)
+[`fluid.exact-circular-hole-stokes-2d-gmsh`](../../fluid/exact-circular-hole-stokes-2d-gmsh/README.md)
 case and its independently agreed Python and Julia routes. This case imports
 its six pressure probes, signed fluxes, cylinder constraint force, global
 balance, solver tuple, and true-residual acceptance without retuning them.
-Moving the caller from the withdrawn single-call function to the typed
-intent → Plan → Run path changed no scientific expected value or tolerance in
-this case: every probe, flux, reaction, balance, residual, digest, and
-tolerance literal is byte-unchanged, and the Plan is required to reproduce
-them through the common Run.
+The Gmsh mesh changes the mesh-dependent probes, force, residual target, and
+lineage identities. The accepted floor-plus-scale production tolerances,
+flux-closure bound, and momentum-closure bound remain unchanged. The Plan is
+required to reproduce the new independently agreed observations through the
+common Run.
 
 The source and mesh identities come from the accepted exact-geometry and
 source-bound-mesh cases. The model identity is owned independently by
@@ -163,7 +163,7 @@ the public digests. This catches fabricated or stale lineage while avoiding an
 oracle copied from the implementation under test.
 
 The common Result owns a complete pressure P1 `FieldSnapshot` co-indexed with
-the 104 vertices of its paired common `Mesh`. Its support arrays must equal the
+the 662 vertices of its paired common `Mesh`. Its support arrays must equal the
 accepted inner mesh artifact. The six coordinate-selected pressure probes
 avoid assuming a local vertex order beyond that public co-indexing.
 
@@ -171,7 +171,7 @@ avoid assuming a local vertex order beyond that public co-indexing.
 
 `FieldSnapshot.values("vertex")` and `support_indices("vertex")` are memoized
 read-only NumPy views. The paired Mesh coordinates and cells have `float64
-(104, 2)` and `uint32 (104, 3)` layouts. The views remain valid after the
+(662, 2)` and `uint32 (1210, 3)` layouts. The views remain valid after the
 Result and its other owners are deleted. None can be made writeable.
 
 NumPy remains absent while constructing the exact geometry, source-bound mesh,
@@ -215,7 +215,9 @@ rendering itself stays owned by
 and this case only checks that the common Result remains an accepted input when
 Matplotlib is installed.
 
-This case claims no general Model or fluid authoring, velocity or MINI bubble
+This case is limited to the exact Linux x86-64 Gmsh 4.15.2 witness. It claims
+no cross-platform mesh-byte identity, general Model or fluid authoring,
+velocity or MINI bubble
 projection, drag/lift coefficient, generic meshing or solver selection,
 alternate backend or topology selection, general Plan/Realization unification,
 durable Plan wire or provider registry, mid-solve cancellation boundary,

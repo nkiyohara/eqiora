@@ -14,7 +14,7 @@ capabilities = [
 result_case = "interfaces.python-exact-cylinder-stokes-result"
 result_type = "common eqiora.Result with one accepted pressure FieldSnapshot"
 field = "complete accepted vertex-associated P1 pressure selected by its exact Model-bound FieldRef"
-support = "the Result-paired common Mesh with 104 vertices and 104 affine triangles"
+support = "the Result-paired common Mesh with 662 vertices and 1210 affine triangles"
 adapter = "eqiora.matplotlib.plot_scalar_field(result, /, *, field)"
 renderer = "Matplotlib Agg in the registered evidence environment"
 

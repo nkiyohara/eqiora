@@ -27,7 +27,7 @@ import sys
 
 MODEL_DIGEST = "8bc5155bc1b64ed37f7a2ac010a966e1619091a118e6cf7806dbdf9621977146"
 SOURCE_DIGEST = "b00123472a596e8289820cabaee20d52cdf81b5572fa9ce58ff17cdaa00046d9"
-MESH_DIGEST = "148e2fb4f3d5c801eaa4e3a376f0b8ec547abdcfebc1108cf0577e5c952a946a"
+MESH_DIGEST = "5962836788fa785fd0761813c542e9078523796409787d86ad8a006dfef5b62b"
 
 def geometry(**overrides):
     arguments = {
@@ -177,9 +177,40 @@ assert hashlib.sha256(
 coordinates = realized.coordinates
 triangles = realized.cells
 assert "numpy" in sys.modules
-assert coordinates.shape == (104, 2)
-assert triangles.shape == (104, 3)
-assert snapshot.values("vertex").shape == (104,)
+assert coordinates.shape == (662, 2)
+assert triangles.shape == (1210, 3)
+pressure = snapshot.values("vertex")
+assert pressure.shape == (662,)
+
+PRESSURE_TOLERANCE = 3.6587365853658537e-10
+PRESSURE_PROBES = (
+    ((0.15, 0.2), 0.06959832738138942),
+    ((0.25, 0.2), 0.019333181397105),
+    ((0.1968604740235343, 0.1500986635785864), 0.04389626088659296),
+    ((0.1968604740235343, 0.2499013364214136), 0.045165230577321865),
+    ((0.0, 0.2), 0.062148654204247),
+    ((2.2, 0.2), 0.0004742049675737538),
+)
+for position, expected in PRESSURE_PROBES:
+    index = min(
+        range(len(coordinates)),
+        key=lambda candidate: sum(
+            (coordinates[candidate, axis] - position[axis]) ** 2 for axis in range(2)
+        ),
+    )
+    assert abs(pressure[index] - expected) <= PRESSURE_TOLERANCE
+
+assert abs(evidence.inlet_flux - (-0.08149573099927537)) <= 6.15002e-8
+assert abs(evidence.outlet_flux - 0.08149573099927537) <= 6.15002e-8
+assert abs(evidence.net_flux) <= 1e-8
+for actual, expected in zip(
+    evidence.cylinder_force_on_fluid,
+    (-0.006384200476069211, -0.00006344553664047762),
+):
+    assert abs(actual - expected) <= 1.5002e-10
+assert all(abs(component) <= 1e-10 for component in evidence.momentum_closure)
+assert evidence.solve.residual_target == 6.138485578780151e-6
+assert evidence.solve.true_residual_norm <= evidence.solve.residual_target
 
 try:
     eqiora.replay(b'{"schema":')
